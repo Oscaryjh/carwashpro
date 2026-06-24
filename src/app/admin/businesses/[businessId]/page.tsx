@@ -1,0 +1,99 @@
+import Link from "next/link";
+import { AppShell } from "@/components/app-shell";
+import { BusinessForm } from "@/components/business-form";
+import { assertCanAccessBusiness, assertRole } from "@/lib/auth/permissions";
+import { requireUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
+import { updateBusinessAction } from "../actions";
+
+type BusinessDetailsPageProps = {
+  params: Promise<{
+    businessId: string;
+  }>;
+};
+
+export default async function BusinessDetailsPage({
+  params,
+}: BusinessDetailsPageProps) {
+  const { businessId } = await params;
+  const user = await requireUser();
+  assertRole(user, ["PLATFORM_ADMIN"]);
+  assertCanAccessBusiness(user, businessId);
+
+  const business = await prisma.business.findUniqueOrThrow({
+    where: { id: businessId },
+    include: {
+      users: {
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  });
+
+  return (
+    <AppShell user={user}>
+      <section className="content">
+        <div className="page-header">
+          <div>
+            <h1>{business.name}</h1>
+            <p>View and edit tenant setup details.</p>
+          </div>
+          <Link href="/admin/businesses">Back to businesses</Link>
+        </div>
+
+        <div className="grid">
+          <Info label="Business ID" value={business.id} />
+          <Info label="Slug" value={business.slug} />
+          <Info label="Status" value={business.status} />
+          <Info label="Users" value={business.users.length.toString()} />
+        </div>
+
+        <div className="panel">
+          <h2>Business profile</h2>
+          <BusinessForm
+            action={updateBusinessAction}
+            mode="edit"
+            business={business}
+            canEditStatus
+          />
+        </div>
+
+        <div className="panel">
+          <h2>Users</h2>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {business.users.map((businessUser) => (
+                <tr key={businessUser.id}>
+                  <td>{businessUser.name}</td>
+                  <td>{businessUser.email}</td>
+                  <td>{businessUser.role.toLowerCase().replace("_", " ")}</td>
+                  <td>
+                    <span className={`status ${businessUser.status}`}>
+                      {businessUser.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </AppShell>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="panel metric">
+      <span>{label}</span>
+      <strong style={{ fontSize: 15, overflowWrap: "anywhere" }}>{value}</strong>
+    </div>
+  );
+}

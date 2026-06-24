@@ -1,0 +1,47 @@
+import { redirect } from "next/navigation";
+import { requireUser } from "@/lib/auth/session";
+
+export async function getBusinessContext() {
+  const user = await requireUser();
+
+  if (user.role === "PLATFORM_ADMIN") {
+    return {
+      user,
+      isPlatformAdmin: true,
+      businessId: user.businessId,
+    };
+  }
+
+  if (!user.businessId) {
+    redirect("/login");
+  }
+
+  return {
+    user,
+    isPlatformAdmin: false,
+    businessId: user.businessId,
+  };
+}
+
+export async function requireBusinessContext() {
+  const context = await getBusinessContext();
+
+  if (!context.businessId) {
+    redirect("/admin/businesses");
+  }
+
+  return {
+    user: context.user,
+    businessId: context.businessId,
+  };
+}
+
+export function withBusinessScope<TWhere extends Record<string, unknown>>(
+  businessId: string,
+  where?: TWhere,
+) {
+  return {
+    ...where,
+    businessId,
+  };
+}

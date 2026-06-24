@@ -1,0 +1,11 @@
+.next
+node_modules
+.env
+.env*.local
+dist
+coverage
+*.log
+.local-postgres
+.local-postgres.pid
+.local-postgres-*.log
+.next-dev-*.log

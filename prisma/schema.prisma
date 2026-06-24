@@ -1,0 +1,308 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BusinessStatus {
+  active
+  inactive
+}
+
+enum UserRole {
+  PLATFORM_ADMIN
+  BUSINESS_OWNER
+  STAFF
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum ServiceStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum WorkOrderStatus {
+  WAITING
+  IN_PROGRESS
+  READY_FOR_PICKUP
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  DUITNOW
+  EWALLET
+  BANK_TRANSFER
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  VOID
+}
+
+enum WhatsAppMessageType {
+  NEW_CUSTOMER_WELCOME
+  SERVICE_CONFIRMATION
+  READY_FOR_PICKUP
+  INVOICE_SENT
+}
+
+enum WhatsAppMessageStatus {
+  DRAFT
+  READY
+  SENT
+  FAILED
+}
+
+model Business {
+  id        String         @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String         @unique
+  phone     String?
+  email     String?
+  address   String?
+  status    BusinessStatus @default(active)
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  users     User[]
+  customers Customer[]
+  vehicles  Vehicle[]
+  services  Service[]
+  workOrders WorkOrder[]
+  workOrderItems WorkOrderItem[]
+  payments Payment[]
+  invoices Invoice[]
+  whatsappMessages WhatsAppMessage[]
+
+  @@index([slug])
+  @@map("businesses")
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  businessId   String?    @map("business_id") @db.Uuid
+  name         String
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  role         UserRole
+  status       UserStatus @default(active)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  business Business? @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@index([businessId])
+  @@index([role])
+  @@map("users")
+}
+
+model Customer {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  name       String
+  phone      String
+  email      String?
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  vehicles Vehicle[]
+  workOrders WorkOrder[]
+  whatsappMessages WhatsAppMessage[]
+
+  @@unique([businessId, phone])
+  @@index([businessId])
+  @@map("customers")
+}
+
+model Vehicle {
+  id          String   @id @default(uuid()) @db.Uuid
+  businessId  String   @map("business_id") @db.Uuid
+  customerId  String   @map("customer_id") @db.Uuid
+  plateNumber String   @map("plate_number")
+  brand       String?
+  model       String?
+  color       String?
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  workOrders WorkOrder[]
+  whatsappMessages WhatsAppMessage[]
+
+  @@unique([businessId, plateNumber])
+  @@index([businessId])
+  @@index([customerId])
+  @@map("vehicles")
+}
+
+model Service {
+  id          String        @id @default(uuid()) @db.Uuid
+  businessId  String        @map("business_id") @db.Uuid
+  name        String
+  description String?
+  price       Decimal       @db.Decimal(10, 2)
+  status      ServiceStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  items    WorkOrderItem[]
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@map("services")
+}
+
+model WorkOrder {
+  id          String          @id @default(uuid()) @db.Uuid
+  businessId  String          @map("business_id") @db.Uuid
+  customerId  String          @map("customer_id") @db.Uuid
+  vehicleId   String          @map("vehicle_id") @db.Uuid
+  orderNumber String          @map("order_number")
+  status      WorkOrderStatus @default(WAITING)
+  subtotal    Decimal         @db.Decimal(10, 2)
+  total       Decimal         @db.Decimal(10, 2)
+  paidAmount  Decimal         @default(0) @map("paid_amount") @db.Decimal(10, 2)
+  balance     Decimal         @default(0) @db.Decimal(10, 2)
+  paymentStatus PaymentStatus @default(UNPAID) @map("payment_status")
+  notes       String?
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  business Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customer Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicle  Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  items    WorkOrderItem[]
+  payments Payment[]
+  invoice  Invoice?
+  whatsappMessages WhatsAppMessage[]
+
+  @@unique([businessId, orderNumber])
+  @@index([businessId])
+  @@index([customerId])
+  @@index([vehicleId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@map("work_orders")
+}
+
+model WorkOrderItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  businessId  String   @map("business_id") @db.Uuid
+  workOrderId String   @map("work_order_id") @db.Uuid
+  serviceId   String?  @map("service_id") @db.Uuid
+  name        String
+  quantity    Int
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(10, 2)
+  lineTotal   Decimal  @map("line_total") @db.Decimal(10, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  business  Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  service   Service?  @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([workOrderId])
+  @@index([serviceId])
+  @@map("work_order_items")
+}
+
+model Payment {
+  id          String        @id @default(uuid()) @db.Uuid
+  businessId  String        @map("business_id") @db.Uuid
+  workOrderId String        @map("work_order_id") @db.Uuid
+  amount      Decimal       @db.Decimal(10, 2)
+  method      PaymentMethod
+  reference   String?
+  paidAt      DateTime      @default(now()) @map("paid_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  business  Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+
+  @@index([businessId])
+  @@index([workOrderId])
+  @@index([paidAt])
+  @@map("payments")
+}
+
+model Invoice {
+  id            String        @id @default(uuid()) @db.Uuid
+  businessId    String        @map("business_id") @db.Uuid
+  workOrderId   String        @unique @map("work_order_id") @db.Uuid
+  invoiceNumber String        @map("invoice_number")
+  subtotal      Decimal       @db.Decimal(10, 2)
+  total         Decimal       @db.Decimal(10, 2)
+  paidAmount    Decimal       @map("paid_amount") @db.Decimal(10, 2)
+  balance       Decimal       @db.Decimal(10, 2)
+  status        InvoiceStatus @default(UNPAID)
+  issuedAt      DateTime      @default(now()) @map("issued_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  business  Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  whatsappMessages WhatsAppMessage[]
+
+  @@unique([businessId, invoiceNumber])
+  @@index([businessId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model WhatsAppMessage {
+  id                String                @id @default(uuid()) @db.Uuid
+  businessId        String                @map("business_id") @db.Uuid
+  customerId        String?               @map("customer_id") @db.Uuid
+  vehicleId         String?               @map("vehicle_id") @db.Uuid
+  workOrderId       String?               @map("work_order_id") @db.Uuid
+  invoiceId         String?               @map("invoice_id") @db.Uuid
+  phone             String
+  messageType       WhatsAppMessageType   @map("message_type")
+  messageBody       String                @map("message_body")
+  status            WhatsAppMessageStatus @default(READY)
+  provider          String?
+  providerMessageId String?               @map("provider_message_id")
+  sentAt            DateTime?             @map("sent_at")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  business  Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customer  Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  vehicle   Vehicle?   @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  invoice   Invoice?   @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([vehicleId])
+  @@index([workOrderId])
+  @@index([invoiceId])
+  @@index([status])
+  @@index([messageType])
+  @@map("whatsapp_messages")
+}
