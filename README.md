@@ -14,6 +14,10 @@
   - 车牌搜索
 - Services：
   - 服务项目创建、编辑、停用
+- Packages：
+  - RM180 / 10 次洗车等预付套餐
+  - 客户购买套餐后记录剩余次数
+  - POS 可使用套餐扣 1 次完成付款
 - Work Orders：
   - 根据车牌创建洗车工单
   - 状态流转：`WAITING` → `IN_PROGRESS` → `READY_FOR_PICKUP` → `COMPLETED`
@@ -29,7 +33,7 @@
   - 使用 `wa.me` deep link 手动打开 WhatsApp
   - 手动 `Mark as Sent`
 
-暂未包含：Membership、Package、Twilio / WhatsApp Business API、报表、Subscription Billing。
+暂未包含：Membership、Twilio / WhatsApp Business API、报表、Subscription Billing。
 
 ## 技术栈
 
@@ -84,6 +88,8 @@ SEED_ADMIN_PASSWORD="ChangeMe123!"
   - `customers`
   - `vehicles`
   - `services`
+  - `packages`
+  - `customer_packages`
   - `work_orders`
   - `work_order_items`
   - `payments`
@@ -97,6 +103,7 @@ SEED_ADMIN_PASSWORD="ChangeMe123!"
 - `/admin/businesses`
 - `/crm`
 - `/services`
+- `/packages`
 - `/work-orders`
 - `/pos`
 - `/invoices`
@@ -113,8 +120,10 @@ SEED_ADMIN_PASSWORD="ChangeMe123!"
 3. 用 Owner 登录。
 4. 在 CRM 新增 customer 和 vehicle。
 5. 在 Services 新增服务项目。
-6. 在 Work Orders 输入车牌创建工单。
-7. 推进到 `READY_FOR_PICKUP`。
-8. 在 POS 做部分付款和付清。
-9. 查看 invoice。
-10. 查看 WhatsApp logs，打开 deep link，手动 Mark as Sent。
+6. 在 Packages 新增 RM180 / 10 次洗车套餐。
+7. 在客户详情页购买套餐，确认剩余次数。
+8. 在 Work Orders 输入车牌创建工单。
+9. 推进到 `READY_FOR_PICKUP`。
+10. 在 POS 使用套餐扣 1 次，或做现金/卡付款。
+11. 查看 invoice。
+12. 查看 WhatsApp logs，打开 deep link，手动 Mark as Sent。

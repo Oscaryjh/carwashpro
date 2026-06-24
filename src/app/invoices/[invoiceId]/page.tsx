@@ -31,6 +31,13 @@ export default async function InvoiceDetailsPage({
           },
           payments: {
             orderBy: { paidAt: "desc" },
+            include: {
+              customerPackage: {
+                include: {
+                  package: true,
+                },
+              },
+            },
           },
         },
       },
@@ -101,6 +108,7 @@ export default async function InvoiceDetailsPage({
                   <th>Paid at</th>
                   <th>Amount</th>
                   <th>Method</th>
+                  <th>Package uses</th>
                   <th>Reference</th>
                 </tr>
               </thead>
@@ -110,6 +118,13 @@ export default async function InvoiceDetailsPage({
                     <td>{payment.paidAt.toLocaleString()}</td>
                     <td>{Number(payment.amount).toFixed(2)}</td>
                     <td>{formatStatus(payment.method)}</td>
+                    <td>
+                      {payment.packageUses
+                        ? `${payment.packageUses} wash from ${
+                            payment.customerPackage?.package.name ?? "package"
+                          }`
+                        : "-"}
+                    </td>
                     <td>{payment.reference || "No reference"}</td>
                   </tr>
                 ))}

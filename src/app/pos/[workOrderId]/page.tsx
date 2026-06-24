@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { PackagePaymentForm } from "@/components/package-payment-form";
 import { PaymentForm } from "@/components/payment-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
-import { recordPaymentAction } from "../actions";
+import { recordPaymentAction, usePackagePaymentAction } from "../actions";
 
 type PosCheckoutPageProps = {
   params: Promise<{
@@ -39,6 +40,27 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
 
   const balance = Number(workOrder.balance);
   const canPay = workOrder.status !== "CANCELLED" && workOrder.paymentStatus !== "PAID";
+  const customerPackages = await prisma.customerPackage.findMany({
+    where: {
+      businessId,
+      customerId: workOrder.customerId,
+      status: "ACTIVE",
+      remainingUses: {
+        gt: 0,
+      },
+    },
+    include: {
+      package: true,
+    },
+    orderBy: { purchasedAt: "asc" },
+  });
+  const usableCustomerPackages = customerPackages.filter(
+    (customerPackage) =>
+      !customerPackage.package.serviceId ||
+      workOrder.items.some(
+        (item) => item.serviceId === customerPackage.package.serviceId,
+      ),
+  );
 
   return (
     <AppShell user={user}>
@@ -96,6 +118,17 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
             <p className="empty-state">This work order cannot accept more payments.</p>
           )}
         </div>
+
+        {canPay ? (
+          <div className="panel">
+            <h2>Package payment</h2>
+            <PackagePaymentForm
+              action={usePackagePaymentAction}
+              workOrderId={workOrder.id}
+              customerPackages={usableCustomerPackages}
+            />
+          </div>
+        ) : null}
 
         {workOrder.invoice ? (
           <div className="panel">

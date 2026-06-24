@@ -48,6 +48,7 @@ enum PaymentMethod {
   DUITNOW
   EWALLET
   BANK_TRANSFER
+  PACKAGE
 }
 
 enum InvoiceStatus {
@@ -71,6 +72,17 @@ enum WhatsAppMessageStatus {
   FAILED
 }
 
+enum PackageStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CustomerPackageStatus {
+  ACTIVE
+  USED_UP
+  CANCELLED
+}
+
 model Business {
   id        String         @id @default(uuid()) @db.Uuid
   name      String
@@ -82,15 +94,17 @@ model Business {
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
 
-  users     User[]
-  customers Customer[]
-  vehicles  Vehicle[]
-  services  Service[]
-  workOrders WorkOrder[]
-  workOrderItems WorkOrderItem[]
-  payments Payment[]
-  invoices Invoice[]
+  users            User[]
+  customers        Customer[]
+  vehicles         Vehicle[]
+  services         Service[]
+  workOrders       WorkOrder[]
+  workOrderItems   WorkOrderItem[]
+  payments         Payment[]
+  invoices         Invoice[]
   whatsappMessages WhatsAppMessage[]
+  packages         Package[]
+  customerPackages CustomerPackage[]
 
   @@index([slug])
   @@map("businesses")
@@ -124,10 +138,11 @@ model Customer {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  business Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  vehicles Vehicle[]
-  workOrders WorkOrder[]
+  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  vehicles         Vehicle[]
+  workOrders       WorkOrder[]
   whatsappMessages WhatsAppMessage[]
+  customerPackages CustomerPackage[]
 
   @@unique([businessId, phone])
   @@index([businessId])
@@ -146,9 +161,9 @@ model Vehicle {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  workOrders WorkOrder[]
+  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  workOrders       WorkOrder[]
   whatsappMessages WhatsAppMessage[]
 
   @@unique([businessId, plateNumber])
@@ -167,36 +182,85 @@ model Service {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  business Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
   items    WorkOrderItem[]
+  packages Package[]
 
   @@unique([businessId, name])
   @@index([businessId])
   @@map("services")
 }
 
-model WorkOrder {
-  id          String          @id @default(uuid()) @db.Uuid
-  businessId  String          @map("business_id") @db.Uuid
-  customerId  String          @map("customer_id") @db.Uuid
-  vehicleId   String          @map("vehicle_id") @db.Uuid
-  orderNumber String          @map("order_number")
-  status      WorkOrderStatus @default(WAITING)
-  subtotal    Decimal         @db.Decimal(10, 2)
-  total       Decimal         @db.Decimal(10, 2)
-  paidAmount  Decimal         @default(0) @map("paid_amount") @db.Decimal(10, 2)
-  balance     Decimal         @default(0) @db.Decimal(10, 2)
-  paymentStatus PaymentStatus @default(UNPAID) @map("payment_status")
-  notes       String?
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
+model Package {
+  id          String        @id @default(uuid()) @db.Uuid
+  businessId  String        @map("business_id") @db.Uuid
+  serviceId   String?       @map("service_id") @db.Uuid
+  name        String
+  description String?
+  price       Decimal       @db.Decimal(10, 2)
+  totalUses   Int           @default(10) @map("total_uses")
+  status      PackageStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  business Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  customer Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  vehicle  Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  items    WorkOrderItem[]
+  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  service          Service?          @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  customerPackages CustomerPackage[]
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@index([serviceId])
+  @@index([status])
+  @@map("packages")
+}
+
+model CustomerPackage {
+  id            String                @id @default(uuid()) @db.Uuid
+  businessId    String                @map("business_id") @db.Uuid
+  customerId    String                @map("customer_id") @db.Uuid
+  packageId     String                @map("package_id") @db.Uuid
+  purchasePrice Decimal               @map("purchase_price") @db.Decimal(10, 2)
+  totalUses     Int                   @map("total_uses")
+  remainingUses Int                   @map("remaining_uses")
+  status        CustomerPackageStatus @default(ACTIVE)
+  purchasedAt   DateTime              @default(now()) @map("purchased_at")
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customer Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  package  Package   @relation(fields: [packageId], references: [id], onDelete: Restrict)
   payments Payment[]
-  invoice  Invoice?
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([packageId])
+  @@index([status])
+  @@map("customer_packages")
+}
+
+model WorkOrder {
+  id            String          @id @default(uuid()) @db.Uuid
+  businessId    String          @map("business_id") @db.Uuid
+  customerId    String          @map("customer_id") @db.Uuid
+  vehicleId     String          @map("vehicle_id") @db.Uuid
+  orderNumber   String          @map("order_number")
+  status        WorkOrderStatus @default(WAITING)
+  subtotal      Decimal         @db.Decimal(10, 2)
+  total         Decimal         @db.Decimal(10, 2)
+  paidAmount    Decimal         @default(0) @map("paid_amount") @db.Decimal(10, 2)
+  balance       Decimal         @default(0) @db.Decimal(10, 2)
+  paymentStatus PaymentStatus   @default(UNPAID) @map("payment_status")
+  notes         String?
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicle          Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  items            WorkOrderItem[]
+  payments         Payment[]
+  invoice          Invoice?
   whatsappMessages WhatsAppMessage[]
 
   @@unique([businessId, orderNumber])
@@ -231,21 +295,25 @@ model WorkOrderItem {
 }
 
 model Payment {
-  id          String        @id @default(uuid()) @db.Uuid
-  businessId  String        @map("business_id") @db.Uuid
-  workOrderId String        @map("work_order_id") @db.Uuid
-  amount      Decimal       @db.Decimal(10, 2)
-  method      PaymentMethod
-  reference   String?
-  paidAt      DateTime      @default(now()) @map("paid_at")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  id                String        @id @default(uuid()) @db.Uuid
+  businessId        String        @map("business_id") @db.Uuid
+  workOrderId       String        @map("work_order_id") @db.Uuid
+  customerPackageId String?       @map("customer_package_id") @db.Uuid
+  amount            Decimal       @db.Decimal(10, 2)
+  method            PaymentMethod
+  packageUses       Int           @default(0) @map("package_uses")
+  reference         String?
+  paidAt            DateTime      @default(now()) @map("paid_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
-  business  Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  business        Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  workOrder       WorkOrder        @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  customerPackage CustomerPackage? @relation(fields: [customerPackageId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
   @@index([workOrderId])
+  @@index([customerPackageId])
   @@index([paidAt])
   @@map("payments")
 }
@@ -264,8 +332,8 @@ model Invoice {
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  business  Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  workOrder        WorkOrder         @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
   whatsappMessages WhatsAppMessage[]
 
   @@unique([businessId, invoiceNumber])

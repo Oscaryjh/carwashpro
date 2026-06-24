@@ -7,33 +7,9 @@ ALTER TABLE "customers" ALTER COLUMN "id" DROP DEFAULT,
 ALTER COLUMN "updated_at" DROP DEFAULT;
 
 -- AlterTable
-ALTER TABLE "invoices" ALTER COLUMN "id" DROP DEFAULT,
-ALTER COLUMN "updated_at" DROP DEFAULT;
-
--- AlterTable
-ALTER TABLE "payments" ALTER COLUMN "id" DROP DEFAULT,
-ALTER COLUMN "updated_at" DROP DEFAULT;
-
--- AlterTable
-ALTER TABLE "services" ALTER COLUMN "id" DROP DEFAULT,
-ALTER COLUMN "updated_at" DROP DEFAULT;
-
--- AlterTable
 ALTER TABLE "users" ALTER COLUMN "id" DROP DEFAULT,
 ALTER COLUMN "updated_at" DROP DEFAULT;
 
 -- AlterTable
 ALTER TABLE "vehicles" ALTER COLUMN "id" DROP DEFAULT,
-ALTER COLUMN "updated_at" DROP DEFAULT;
-
--- AlterTable
-ALTER TABLE "whatsapp_messages" ALTER COLUMN "id" DROP DEFAULT,
-ALTER COLUMN "updated_at" DROP DEFAULT;
-
--- AlterTable
-ALTER TABLE "work_order_items" ALTER COLUMN "id" DROP DEFAULT,
-ALTER COLUMN "updated_at" DROP DEFAULT;
-
--- AlterTable
-ALTER TABLE "work_orders" ALTER COLUMN "id" DROP DEFAULT,
 ALTER COLUMN "updated_at" DROP DEFAULT;
