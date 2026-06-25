@@ -30,10 +30,11 @@
   - 显示服务项目、付款记录、余额
 - WhatsApp logs：
   - 关键节点生成 WhatsApp message log
-  - 使用 `wa.me` deep link 手动打开 WhatsApp
-  - 手动 `Mark as Sent`
+  - Pipeline：`Log → Queue → Sending → Sent → Delivered → Read / Failed`
+  - 第一版仍可使用 `wa.me` deep link 手动打开 WhatsApp
+  - 预留 `POST /api/whatsapp/status` 给 Twilio / Meta webhook 更新 delivery / read status
 
-暂未包含：Membership、Twilio / WhatsApp Business API、报表、Subscription Billing。
+暂未包含：Membership、Twilio / WhatsApp Business API 自动发送、报表、Subscription Billing。
 
 ## 技术栈
 
@@ -73,6 +74,7 @@ npm.cmd install
 ```env
 SEED_ADMIN_EMAIL="admin@example.com"
 SEED_ADMIN_PASSWORD="ChangeMe123!"
+WHATSAPP_WEBHOOK_SECRET="replace-with-provider-webhook-secret"
 ```
 
 登录后进入 `/admin/businesses`，可以创建洗车店和第一位 Business Owner。
@@ -126,4 +128,4 @@ SEED_ADMIN_PASSWORD="ChangeMe123!"
 9. 推进到 `READY_FOR_PICKUP`。
 10. 在 POS 使用套餐扣 1 次，或做现金/卡付款。
 11. 查看 invoice。
-12. 查看 WhatsApp logs，打开 deep link，手动 Mark as Sent。
+12. 查看 WhatsApp logs，依序演示 Queue、Mark Sent、Delivered、Read 或 Failed。

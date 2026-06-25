@@ -68,7 +68,11 @@ enum WhatsAppMessageType {
 enum WhatsAppMessageStatus {
   DRAFT
   READY
+  QUEUED
+  SENDING
   SENT
+  DELIVERED
+  READ
   FAILED
 }
 
@@ -355,7 +359,12 @@ model WhatsAppMessage {
   status            WhatsAppMessageStatus @default(READY)
   provider          String?
   providerMessageId String?               @map("provider_message_id")
+  errorMessage      String?               @map("error_message")
+  queuedAt          DateTime?             @map("queued_at")
   sentAt            DateTime?             @map("sent_at")
+  deliveredAt       DateTime?             @map("delivered_at")
+  readAt            DateTime?             @map("read_at")
+  failedAt          DateTime?             @map("failed_at")
   createdAt         DateTime              @default(now()) @map("created_at")
   updatedAt         DateTime              @updatedAt @map("updated_at")
 

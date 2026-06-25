@@ -3,7 +3,13 @@ import { AppShell } from "@/components/app-shell";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
 import { createWhatsAppDeepLink } from "@/lib/whatsapp/deep-link";
-import { markWhatsAppMessageSentAction } from "./actions";
+import {
+  markWhatsAppMessageDeliveredAction,
+  markWhatsAppMessageFailedAction,
+  markWhatsAppMessageReadAction,
+  markWhatsAppMessageSentAction,
+  queueWhatsAppMessageAction,
+} from "./actions";
 
 export default async function WhatsAppPage() {
   const { user, businessId } = await requireBusinessUser();
@@ -23,7 +29,7 @@ export default async function WhatsAppPage() {
         <div className="page-header">
           <div>
             <h1>WhatsApp</h1>
-            <p>Message logs ready for manual WhatsApp sending.</p>
+            <p>Log, queue, provider handoff, delivery status, and read status.</p>
           </div>
         </div>
 
@@ -37,6 +43,7 @@ export default async function WhatsAppPage() {
                   <th>Phone</th>
                   <th>Related</th>
                   <th>Status</th>
+                  <th>Provider</th>
                   <th>Created</th>
                   <th />
                 </tr>
@@ -53,6 +60,7 @@ export default async function WhatsAppPage() {
                         {formatStatus(message.status)}
                       </span>
                     </td>
+                    <td>{message.provider ?? "Not sent"}</td>
                     <td>{message.createdAt.toLocaleString()}</td>
                     <td>
                       <div className="inline-actions">
@@ -67,12 +75,7 @@ export default async function WhatsAppPage() {
                           Open WhatsApp
                         </a>
                         <Link href={`/whatsapp/${message.id}`}>View</Link>
-                        {message.status !== "SENT" ? (
-                          <form action={markWhatsAppMessageSentAction}>
-                            <input type="hidden" name="messageId" value={message.id} />
-                            <button type="submit">Mark as Sent</button>
-                          </form>
-                        ) : null}
+                        <MessageActions message={message} />
                       </div>
                     </td>
                   </tr>
@@ -90,6 +93,74 @@ export default async function WhatsAppPage() {
 
 function formatStatus(status: string) {
   return status.toLowerCase().replaceAll("_", " ");
+}
+
+function MessageActions({
+  message,
+}: {
+  message: {
+    id: string;
+    status: string;
+  };
+}) {
+  return (
+    <>
+      {["DRAFT", "READY", "FAILED"].includes(message.status) ? (
+        <MessageAction
+          action={queueWhatsAppMessageAction}
+          messageId={message.id}
+          label="Queue"
+        />
+      ) : null}
+      {!["READ", "FAILED"].includes(message.status) ? (
+        <MessageAction
+          action={markWhatsAppMessageSentAction}
+          messageId={message.id}
+          label="Mark Sent"
+        />
+      ) : null}
+      {["SENT", "DELIVERED"].includes(message.status) ? (
+        <MessageAction
+          action={markWhatsAppMessageDeliveredAction}
+          messageId={message.id}
+          label="Delivered"
+        />
+      ) : null}
+      {["SENT", "DELIVERED"].includes(message.status) ? (
+        <MessageAction
+          action={markWhatsAppMessageReadAction}
+          messageId={message.id}
+          label="Read"
+        />
+      ) : null}
+      {message.status !== "READ" && message.status !== "FAILED" ? (
+        <form action={markWhatsAppMessageFailedAction}>
+          <input type="hidden" name="messageId" value={message.id} />
+          <input type="hidden" name="errorMessage" value="Manual failure mark." />
+          <button className="secondary-light-button" type="submit">
+            Failed
+          </button>
+        </form>
+      ) : null}
+    </>
+  );
+}
+
+function MessageAction({
+  action,
+  messageId,
+  label,
+}: {
+  action: (formData: FormData) => Promise<void>;
+  messageId: string;
+  label: string;
+}) {
+  return (
+    <form action={action}>
+      <input type="hidden" name="messageId" value={messageId} />
+      <button type="submit">{label}</button>
+    </form>
+  );
 }
 
 function relatedLabel(message: {
