@@ -8,6 +8,7 @@ export default async function CustomersPage() {
   const customers = await prisma.customer.findMany({
     where: { businessId },
     include: {
+      branch: true,
       _count: {
         select: { vehicles: true },
       },
@@ -36,6 +37,7 @@ export default async function CustomersPage() {
                   <th>Name</th>
                   <th>Phone</th>
                   <th>Email</th>
+                  <th>Branch</th>
                   <th>Vehicles</th>
                   <th />
                 </tr>
@@ -46,6 +48,7 @@ export default async function CustomersPage() {
                     <td>{customer.name}</td>
                     <td>{customer.phone}</td>
                     <td>{customer.email || "No email"}</td>
+                    <td>{customer.branch?.name ?? "All branches"}</td>
                     <td>{customer._count.vehicles}</td>
                     <td>
                       <Link href={`/crm/customers/${customer.id}`}>View</Link>

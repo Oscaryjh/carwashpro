@@ -22,6 +22,9 @@ export function AppShell({ user, children }: AppShellProps) {
           {["BUSINESS_OWNER", "STAFF"].includes(user.role) ? (
             <Link href="/crm">CRM</Link>
           ) : null}
+          {user.role === "BUSINESS_OWNER" ? (
+            <Link href="/branches">Branches</Link>
+          ) : null}
           {["BUSINESS_OWNER", "STAFF"].includes(user.role) ? (
             <Link href="/services">Services</Link>
           ) : null}

@@ -87,6 +87,11 @@ enum CustomerPackageStatus {
   CANCELLED
 }
 
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+}
+
 model Business {
   id        String         @id @default(uuid()) @db.Uuid
   name      String
@@ -109,9 +114,37 @@ model Business {
   whatsappMessages WhatsAppMessage[]
   packages         Package[]
   customerPackages CustomerPackage[]
+  branches         Branch[]
 
   @@index([slug])
   @@map("businesses")
+}
+
+model Branch {
+  id         String       @id @default(uuid()) @db.Uuid
+  businessId String       @map("business_id") @db.Uuid
+  name       String
+  phone      String?
+  address    String?
+  status     BranchStatus @default(ACTIVE)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customers        Customer[]
+  vehicles         Vehicle[]
+  services         Service[]
+  packages         Package[]
+  customerPackages CustomerPackage[]
+  workOrders       WorkOrder[]
+  payments         Payment[]
+  invoices         Invoice[]
+  whatsappMessages WhatsAppMessage[]
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@index([status])
+  @@map("branches")
 }
 
 model User {
@@ -135,6 +168,7 @@ model User {
 model Customer {
   id         String   @id @default(uuid()) @db.Uuid
   businessId String   @map("business_id") @db.Uuid
+  branchId   String?  @map("branch_id") @db.Uuid
   name       String
   phone      String
   email      String?
@@ -143,6 +177,7 @@ model Customer {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
   vehicles         Vehicle[]
   workOrders       WorkOrder[]
   whatsappMessages WhatsAppMessage[]
@@ -150,12 +185,14 @@ model Customer {
 
   @@unique([businessId, phone])
   @@index([businessId])
+  @@index([branchId])
   @@map("customers")
 }
 
 model Vehicle {
   id          String   @id @default(uuid()) @db.Uuid
   businessId  String   @map("business_id") @db.Uuid
+  branchId    String?  @map("branch_id") @db.Uuid
   customerId  String   @map("customer_id") @db.Uuid
   plateNumber String   @map("plate_number")
   brand       String?
@@ -166,12 +203,14 @@ model Vehicle {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
   customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
   workOrders       WorkOrder[]
   whatsappMessages WhatsAppMessage[]
 
   @@unique([businessId, plateNumber])
   @@index([businessId])
+  @@index([branchId])
   @@index([customerId])
   @@map("vehicles")
 }
@@ -179,6 +218,7 @@ model Vehicle {
 model Service {
   id          String        @id @default(uuid()) @db.Uuid
   businessId  String        @map("business_id") @db.Uuid
+  branchId    String?       @map("branch_id") @db.Uuid
   name        String
   description String?
   price       Decimal       @db.Decimal(10, 2)
@@ -187,17 +227,20 @@ model Service {
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
   business Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch   Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
   items    WorkOrderItem[]
   packages Package[]
 
   @@unique([businessId, name])
   @@index([businessId])
+  @@index([branchId])
   @@map("services")
 }
 
 model Package {
   id          String        @id @default(uuid()) @db.Uuid
   businessId  String        @map("business_id") @db.Uuid
+  branchId    String?       @map("branch_id") @db.Uuid
   serviceId   String?       @map("service_id") @db.Uuid
   name        String
   description String?
@@ -208,11 +251,13 @@ model Package {
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
   business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
   service          Service?          @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   customerPackages CustomerPackage[]
 
   @@unique([businessId, name])
   @@index([businessId])
+  @@index([branchId])
   @@index([serviceId])
   @@index([status])
   @@map("packages")
@@ -221,6 +266,7 @@ model Package {
 model CustomerPackage {
   id            String                @id @default(uuid()) @db.Uuid
   businessId    String                @map("business_id") @db.Uuid
+  branchId      String?               @map("branch_id") @db.Uuid
   customerId    String                @map("customer_id") @db.Uuid
   packageId     String                @map("package_id") @db.Uuid
   purchasePrice Decimal               @map("purchase_price") @db.Decimal(10, 2)
@@ -232,11 +278,13 @@ model CustomerPackage {
   updatedAt     DateTime              @updatedAt @map("updated_at")
 
   business Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch   Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
   customer Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
   package  Package   @relation(fields: [packageId], references: [id], onDelete: Restrict)
   payments Payment[]
 
   @@index([businessId])
+  @@index([branchId])
   @@index([customerId])
   @@index([packageId])
   @@index([status])
@@ -246,6 +294,7 @@ model CustomerPackage {
 model WorkOrder {
   id            String          @id @default(uuid()) @db.Uuid
   businessId    String          @map("business_id") @db.Uuid
+  branchId      String?         @map("branch_id") @db.Uuid
   customerId    String          @map("customer_id") @db.Uuid
   vehicleId     String          @map("vehicle_id") @db.Uuid
   orderNumber   String          @map("order_number")
@@ -260,6 +309,7 @@ model WorkOrder {
   updatedAt     DateTime        @updatedAt @map("updated_at")
 
   business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
   customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
   vehicle          Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   items            WorkOrderItem[]
@@ -269,6 +319,7 @@ model WorkOrder {
 
   @@unique([businessId, orderNumber])
   @@index([businessId])
+  @@index([branchId])
   @@index([customerId])
   @@index([vehicleId])
   @@index([status])
@@ -301,6 +352,7 @@ model WorkOrderItem {
 model Payment {
   id                String        @id @default(uuid()) @db.Uuid
   businessId        String        @map("business_id") @db.Uuid
+  branchId          String?       @map("branch_id") @db.Uuid
   workOrderId       String        @map("work_order_id") @db.Uuid
   customerPackageId String?       @map("customer_package_id") @db.Uuid
   amount            Decimal       @db.Decimal(10, 2)
@@ -312,10 +364,12 @@ model Payment {
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
   business        Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch          Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
   workOrder       WorkOrder        @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
   customerPackage CustomerPackage? @relation(fields: [customerPackageId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
+  @@index([branchId])
   @@index([workOrderId])
   @@index([customerPackageId])
   @@index([paidAt])
@@ -325,6 +379,7 @@ model Payment {
 model Invoice {
   id            String        @id @default(uuid()) @db.Uuid
   businessId    String        @map("business_id") @db.Uuid
+  branchId      String?       @map("branch_id") @db.Uuid
   workOrderId   String        @unique @map("work_order_id") @db.Uuid
   invoiceNumber String        @map("invoice_number")
   subtotal      Decimal       @db.Decimal(10, 2)
@@ -337,11 +392,13 @@ model Invoice {
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
   business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
   workOrder        WorkOrder         @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
   whatsappMessages WhatsAppMessage[]
 
   @@unique([businessId, invoiceNumber])
   @@index([businessId])
+  @@index([branchId])
   @@index([status])
   @@map("invoices")
 }
@@ -349,6 +406,7 @@ model Invoice {
 model WhatsAppMessage {
   id                String                @id @default(uuid()) @db.Uuid
   businessId        String                @map("business_id") @db.Uuid
+  branchId          String?               @map("branch_id") @db.Uuid
   customerId        String?               @map("customer_id") @db.Uuid
   vehicleId         String?               @map("vehicle_id") @db.Uuid
   workOrderId       String?               @map("work_order_id") @db.Uuid
@@ -369,12 +427,14 @@ model WhatsAppMessage {
   updatedAt         DateTime              @updatedAt @map("updated_at")
 
   business  Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch    Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
   customer  Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
   vehicle   Vehicle?   @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   workOrder WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
   invoice   Invoice?   @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
+  @@index([branchId])
   @@index([customerId])
   @@index([vehicleId])
   @@index([workOrderId])

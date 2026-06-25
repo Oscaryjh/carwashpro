@@ -1,18 +1,26 @@
 import type { Customer } from "@prisma/client";
+import { BranchSelect } from "@/components/branch-select";
+import type { BranchOption } from "@/lib/branches";
 
 type VehicleFormProps = {
   action: (formData: FormData) => Promise<void>;
   customers: Pick<Customer, "id" | "name" | "phone">[];
+  branches?: BranchOption[];
   selectedCustomerId?: string;
+  selectedBranchId?: string | null;
 };
 
 export function VehicleForm({
   action,
   customers,
+  branches = [],
   selectedCustomerId,
+  selectedBranchId,
 }: VehicleFormProps) {
   return (
     <form action={action} className="form">
+      <BranchSelect branches={branches} selectedBranchId={selectedBranchId} />
+
       <label>
         <span>Customer</span>
         <select name="customerId" defaultValue={selectedCustomerId ?? ""} required>

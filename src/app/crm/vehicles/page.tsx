@@ -28,6 +28,7 @@ export default async function VehiclesPage({ searchParams }: VehiclesPageProps) 
         : {}),
     },
     include: {
+      branch: true,
       customer: true,
     },
     orderBy: { createdAt: "desc" },
@@ -65,6 +66,7 @@ export default async function VehiclesPage({ searchParams }: VehiclesPageProps) 
                   <th>Plate</th>
                   <th>Vehicle</th>
                   <th>Customer</th>
+                  <th>Branch</th>
                   <th>Color</th>
                   <th />
                 </tr>
@@ -78,6 +80,7 @@ export default async function VehiclesPage({ searchParams }: VehiclesPageProps) 
                         "No details"}
                     </td>
                     <td>{vehicle.customer.name}</td>
+                    <td>{vehicle.branch?.name ?? "All branches"}</td>
                     <td>{vehicle.color || "No color"}</td>
                     <td>
                       <Link href={`/crm/customers/${vehicle.customer.id}`}>

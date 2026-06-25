@@ -1,9 +1,18 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { branchWhere, getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { getBusinessContext } from "@/lib/tenant";
 
-export default async function DashboardPage() {
+type DashboardPageProps = {
+  searchParams: Promise<{
+    branchId?: string;
+  }>;
+};
+
+export default async function DashboardPage({
+  searchParams,
+}: DashboardPageProps) {
   const context = await getBusinessContext();
 
   if (context.isPlatformAdmin) {
@@ -43,6 +52,13 @@ export default async function DashboardPage() {
   const tomorrowStart = addDays(todayStart, 1);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const { branchId: requestedBranchId } = await searchParams;
+  const branches = await getActiveBranches(businessId);
+  const selectedBranch = branches.find(
+    (branch) => branch.id === requestedBranchId,
+  );
+  const selectedBranchId = selectedBranch?.id ?? null;
+  const selectedBranchWhere = branchWhere(selectedBranchId);
 
   const [
     business,
@@ -65,6 +81,7 @@ export default async function DashboardPage() {
     prisma.payment.aggregate({
       where: {
         businessId,
+        ...selectedBranchWhere,
         paidAt: {
           gte: todayStart,
           lt: tomorrowStart,
@@ -75,6 +92,7 @@ export default async function DashboardPage() {
     prisma.workOrder.count({
       where: {
         businessId,
+        ...selectedBranchWhere,
         status: "COMPLETED",
         updatedAt: {
           gte: todayStart,
@@ -85,6 +103,7 @@ export default async function DashboardPage() {
     prisma.workOrder.count({
       where: {
         businessId,
+        ...selectedBranchWhere,
         createdAt: {
           gte: todayStart,
           lt: tomorrowStart,
@@ -94,12 +113,14 @@ export default async function DashboardPage() {
     prisma.workOrder.count({
       where: {
         businessId,
+        ...selectedBranchWhere,
         status: "READY_FOR_PICKUP",
       },
     }),
     prisma.invoice.aggregate({
       where: {
         businessId,
+        ...selectedBranchWhere,
         status: {
           in: ["UNPAID", "PARTIAL"],
         },
@@ -110,6 +131,7 @@ export default async function DashboardPage() {
     prisma.payment.aggregate({
       where: {
         businessId,
+        ...selectedBranchWhere,
         method: "PACKAGE",
         paidAt: {
           gte: todayStart,
@@ -122,6 +144,7 @@ export default async function DashboardPage() {
     prisma.whatsAppMessage.count({
       where: {
         businessId,
+        ...selectedBranchWhere,
         sentAt: {
           gte: todayStart,
           lt: tomorrowStart,
@@ -131,6 +154,7 @@ export default async function DashboardPage() {
     prisma.customer.count({
       where: {
         businessId,
+        ...selectedBranchWhere,
         createdAt: {
           gte: monthStart,
           lt: nextMonthStart,
@@ -141,6 +165,13 @@ export default async function DashboardPage() {
       by: ["name"],
       where: {
         businessId,
+        ...(selectedBranchId
+          ? {
+              workOrder: {
+                branchId: selectedBranchId,
+              },
+            }
+          : {}),
         createdAt: {
           gte: monthStart,
           lt: nextMonthStart,
@@ -158,8 +189,9 @@ export default async function DashboardPage() {
       take: 5,
     }),
     prisma.workOrder.findMany({
-      where: { businessId },
+      where: { businessId, ...selectedBranchWhere },
       include: {
+        branch: true,
         customer: true,
         vehicle: true,
       },
@@ -167,7 +199,7 @@ export default async function DashboardPage() {
       take: 8,
     }),
     prisma.payment.findMany({
-      where: { businessId },
+      where: { businessId, ...selectedBranchWhere },
       include: {
         workOrder: {
           include: {
@@ -183,6 +215,7 @@ export default async function DashboardPage() {
     prisma.customerPackage.findMany({
       where: {
         businessId,
+        ...selectedBranchWhere,
         status: "ACTIVE",
         remainingUses: {
           lte: 2,
@@ -203,8 +236,25 @@ export default async function DashboardPage() {
         <div className="page-header">
           <div>
             <h1>{business.name}</h1>
-            <p>Today and month-to-date store analytics.</p>
+            <p>
+              Today and month-to-date store analytics
+              {selectedBranch ? ` for ${selectedBranch.name}` : " across all branches"}.
+            </p>
           </div>
+        </div>
+
+        <div className="panel">
+          <form className="search-form" action="/dashboard">
+            <select name="branchId" defaultValue={selectedBranchId ?? ""}>
+              <option value="">All branches</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+            <button type="submit">Filter</button>
+          </form>
         </div>
 
         <div className="grid">
@@ -267,6 +317,7 @@ export default async function DashboardPage() {
                     <th>Order</th>
                     <th>Customer</th>
                     <th>Vehicle</th>
+                    <th>Branch</th>
                     <th>Status</th>
                     <th>Total</th>
                   </tr>
@@ -281,6 +332,7 @@ export default async function DashboardPage() {
                       </td>
                       <td>{workOrder.customer.name}</td>
                       <td>{workOrder.vehicle.plateNumber}</td>
+                      <td>{workOrder.branch?.name ?? "All branches"}</td>
                       <td>{formatStatus(workOrder.status)}</td>
                       <td>{money(workOrder.total)}</td>
                     </tr>

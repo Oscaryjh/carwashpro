@@ -2,10 +2,12 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { ServiceForm } from "@/components/service-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { getActiveBranches } from "@/lib/branches";
 import { createServiceAction } from "../actions";
 
 export default async function NewServicePage() {
-  const { user } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUser();
+  const branches = await getActiveBranches(businessId);
 
   return (
     <AppShell user={user}>
@@ -19,7 +21,11 @@ export default async function NewServicePage() {
         </div>
 
         <div className="panel">
-          <ServiceForm action={createServiceAction} submitLabel="Create service" />
+          <ServiceForm
+            action={createServiceAction}
+            branches={branches}
+            submitLabel="Create service"
+          />
         </div>
       </section>
     </AppShell>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireCrmUser } from "@/lib/auth/crm";
+import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import {
   customerSchema,
@@ -13,6 +14,7 @@ import { newCustomerWelcomeTemplate } from "@/lib/whatsapp/templates";
 
 export async function createCustomerAction(formData: FormData) {
   const { businessId } = await requireCrmUser();
+  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const input = customerSchema.parse({
     name: formData.get("name"),
     phone: formData.get("phone"),
@@ -28,6 +30,7 @@ export async function createCustomerAction(formData: FormData) {
     const created = await tx.customer.create({
       data: {
         businessId,
+        branchId,
         name: input.name,
         phone: input.phone,
         email: input.email || null,
@@ -38,6 +41,7 @@ export async function createCustomerAction(formData: FormData) {
     await tx.whatsAppMessage.create({
       data: {
         businessId,
+        branchId,
         customerId: created.id,
         phone: created.phone,
         messageType: "NEW_CUSTOMER_WELCOME",
@@ -59,6 +63,7 @@ export async function createCustomerAction(formData: FormData) {
 
 export async function createVehicleAction(formData: FormData) {
   const { businessId } = await requireCrmUser();
+  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const input = vehicleSchema.parse({
     customerId: formData.get("customerId"),
     plateNumber: formData.get("plateNumber"),
@@ -78,6 +83,7 @@ export async function createVehicleAction(formData: FormData) {
   await prisma.vehicle.create({
     data: {
       businessId,
+      branchId,
       customerId: customer.id,
       plateNumber: normalizePlateNumber(input.plateNumber),
       brand: input.brand || null,

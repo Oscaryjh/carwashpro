@@ -1,11 +1,16 @@
+import { BranchSelect } from "@/components/branch-select";
+import type { BranchOption } from "@/lib/branches";
+
 type CustomerFormProps = {
   action: (formData: FormData) => Promise<void>;
+  branches?: BranchOption[];
 };
 
-export function CustomerForm({ action }: CustomerFormProps) {
+export function CustomerForm({ action, branches = [] }: CustomerFormProps) {
   return (
     <form action={action} className="form">
       <div className="field-grid">
+        <BranchSelect branches={branches} />
         <label>
           <span>Name</span>
           <input name="name" required />

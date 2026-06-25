@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { CustomerPackagePurchaseForm } from "@/components/customer-package-purchase-form";
 import { requireCrmUser } from "@/lib/auth/crm";
+import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { purchasePackageAction } from "@/app/packages/actions";
 
@@ -25,6 +26,9 @@ export default async function CustomerDetailsPage({
     },
     include: {
       vehicles: {
+        include: {
+          branch: true,
+        },
         orderBy: { createdAt: "desc" },
       },
       customerPackages: {
@@ -40,13 +44,16 @@ export default async function CustomerDetailsPage({
     notFound();
   }
 
-  const packages = await prisma.package.findMany({
-    where: {
-      businessId,
-      status: "ACTIVE",
-    },
-    orderBy: { name: "asc" },
-  });
+  const [packages, branches] = await Promise.all([
+    prisma.package.findMany({
+      where: {
+        businessId,
+        status: "ACTIVE",
+      },
+      orderBy: { name: "asc" },
+    }),
+    getActiveBranches(businessId),
+  ]);
 
   return (
     <AppShell user={user}>
@@ -90,6 +97,7 @@ export default async function CustomerDetailsPage({
                 <tr>
                   <th>Plate</th>
                   <th>Vehicle</th>
+                  <th>Branch</th>
                   <th>Color</th>
                   <th>Notes</th>
                 </tr>
@@ -102,6 +110,7 @@ export default async function CustomerDetailsPage({
                       {[vehicle.brand, vehicle.model].filter(Boolean).join(" ") ||
                         "No details"}
                     </td>
+                    <td>{vehicle.branch?.name ?? "All branches"}</td>
                     <td>{vehicle.color || "No color"}</td>
                     <td>{vehicle.notes || "No notes"}</td>
                   </tr>
@@ -155,6 +164,8 @@ export default async function CustomerDetailsPage({
             action={purchasePackageAction}
             customerId={customer.id}
             packages={packages}
+            branches={branches}
+            selectedBranchId={customer.branchId}
           />
         </div>
       </section>

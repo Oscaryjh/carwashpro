@@ -2,15 +2,20 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { ServiceForm } from "@/components/service-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { deactivateServiceAction, updateServiceAction } from "./actions";
 
 export default async function ServicesPage() {
   const { user, businessId } = await requireBusinessUser();
-  const services = await prisma.service.findMany({
-    where: { businessId },
-    orderBy: [{ status: "asc" }, { name: "asc" }],
-  });
+  const [services, branches] = await Promise.all([
+    prisma.service.findMany({
+      where: { businessId },
+      include: { branch: true },
+      orderBy: [{ status: "asc" }, { name: "asc" }],
+    }),
+    getActiveBranches(businessId),
+  ]);
 
   return (
     <AppShell user={user}>
@@ -36,12 +41,16 @@ export default async function ServicesPage() {
                       <span className={`status ${service.status.toLowerCase()}`}>
                         {service.status}
                       </span>
+                      <div className="muted">
+                        {service.branch?.name ?? "All branches"}
+                      </div>
                     </div>
                     <strong>{Number(service.price).toFixed(2)}</strong>
                   </div>
                   <ServiceForm
                     action={updateServiceAction}
                     service={service}
+                    branches={branches}
                     submitLabel="Save service"
                   />
                   {service.status === "ACTIVE" ? (

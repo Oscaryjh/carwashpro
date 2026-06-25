@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { money, serviceSchema } from "@/lib/validation/services";
 
 export async function createServiceAction(formData: FormData) {
   const { businessId } = await requireBusinessUser();
+  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const input = serviceSchema.parse({
     name: formData.get("name"),
     description: formData.get("description"),
@@ -18,6 +20,7 @@ export async function createServiceAction(formData: FormData) {
   const existing = await prisma.service.findFirst({
     where: {
       businessId,
+      branchId,
       name: input.name,
     },
   });
@@ -42,6 +45,7 @@ export async function createServiceAction(formData: FormData) {
 
 export async function updateServiceAction(formData: FormData) {
   const { businessId } = await requireBusinessUser();
+  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const serviceId = formData.get("serviceId")?.toString();
 
   if (!serviceId) {
@@ -80,6 +84,7 @@ export async function updateServiceAction(formData: FormData) {
     where: { id: service.id },
     data: {
       name: input.name,
+      branchId,
       description: input.description || null,
       price: money(input.price),
       status: input.status,

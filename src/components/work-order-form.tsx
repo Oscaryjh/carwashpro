@@ -1,4 +1,6 @@
 import type { Service, Vehicle, Customer } from "@prisma/client";
+import { BranchSelect } from "@/components/branch-select";
+import type { BranchOption } from "@/lib/branches";
 
 type VehicleWithCustomer = Vehicle & {
   customer: Customer;
@@ -8,16 +10,19 @@ type WorkOrderFormProps = {
   action: (formData: FormData) => Promise<void>;
   vehicle: VehicleWithCustomer;
   services: Service[];
+  branches?: BranchOption[];
 };
 
 export function WorkOrderForm({
   action,
   vehicle,
   services,
+  branches = [],
 }: WorkOrderFormProps) {
   return (
     <form action={action} className="form">
       <input type="hidden" name="vehicleId" value={vehicle.id} />
+      <BranchSelect branches={branches} selectedBranchId={vehicle.branchId} />
 
       <div className="grid">
         <div className="panel metric">

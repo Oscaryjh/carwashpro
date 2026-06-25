@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { WorkOrderForm } from "@/components/work-order-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { normalizePlateNumber } from "@/lib/validation/crm";
 import { createWorkOrderAction } from "../actions";
@@ -31,13 +32,16 @@ export default async function NewWorkOrderPage({
       })
     : null;
 
-  const services = await prisma.service.findMany({
-    where: {
-      businessId,
-      status: "ACTIVE",
-    },
-    orderBy: { name: "asc" },
-  });
+  const [services, branches] = await Promise.all([
+    prisma.service.findMany({
+      where: {
+        businessId,
+        status: "ACTIVE",
+      },
+      orderBy: { name: "asc" },
+    }),
+    getActiveBranches(businessId),
+  ]);
 
   return (
     <AppShell user={user}>
@@ -69,6 +73,7 @@ export default async function NewWorkOrderPage({
                 action={createWorkOrderAction}
                 vehicle={vehicle}
                 services={services}
+                branches={branches}
               />
             ) : (
               <div className="panel">

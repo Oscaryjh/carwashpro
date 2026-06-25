@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { VehicleForm } from "@/components/vehicle-form";
 import { requireCrmUser } from "@/lib/auth/crm";
+import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { createVehicleAction } from "../../actions";
 
@@ -17,19 +18,22 @@ export default async function NewVehiclePage({
   const { user, businessId } = await requireCrmUser();
   const { customerId } = await searchParams;
 
-  const customers = await prisma.customer.findMany({
-    where: { businessId },
-    select: {
-      id: true,
-      name: true,
-      phone: true,
-    },
-    orderBy: { name: "asc" },
-  });
+  const [customers, branches] = await Promise.all([
+    prisma.customer.findMany({
+      where: { businessId },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        branchId: true,
+      },
+      orderBy: { name: "asc" },
+    }),
+    getActiveBranches(businessId),
+  ]);
 
-  const selectedCustomerId = customers.some((customer) => customer.id === customerId)
-    ? customerId
-    : undefined;
+  const selectedCustomer = customers.find((customer) => customer.id === customerId);
+  const selectedCustomerId = selectedCustomer?.id;
 
   return (
     <AppShell user={user}>
@@ -47,7 +51,9 @@ export default async function NewVehiclePage({
             <VehicleForm
               action={createVehicleAction}
               customers={customers}
+              branches={branches}
               selectedCustomerId={selectedCustomerId}
+              selectedBranchId={selectedCustomer?.branchId}
             />
           ) : (
             <div className="empty-state">

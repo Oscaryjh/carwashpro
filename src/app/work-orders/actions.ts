@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { money } from "@/lib/validation/services";
 import {
@@ -22,6 +23,7 @@ function toCents(value: unknown) {
 
 export async function createWorkOrderAction(formData: FormData) {
   const { businessId } = await requireBusinessUser();
+  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const input = createWorkOrderSchema.parse({
     vehicleId: formData.get("vehicleId"),
     notes: formData.get("notes"),
@@ -85,17 +87,18 @@ export async function createWorkOrderAction(formData: FormData) {
     const created = await tx.workOrder.create({
       data: {
         businessId,
+        branchId,
         customerId: vehicle.customer.id,
         vehicleId: vehicle.id,
         orderNumber: makeOrderNumber(),
         status: "WAITING",
         subtotal: money(subtotalCents / 100),
         total: money(subtotalCents / 100),
-      paidAmount: money(0),
-      balance: money(subtotalCents / 100),
-      paymentStatus: "UNPAID",
-      notes: input.notes || null,
-      items: {
+        paidAmount: money(0),
+        balance: money(subtotalCents / 100),
+        paymentStatus: "UNPAID",
+        notes: input.notes || null,
+        items: {
           create: items.map((item) => ({
             businessId: item.businessId,
             serviceId: item.serviceId,
@@ -111,6 +114,7 @@ export async function createWorkOrderAction(formData: FormData) {
     await tx.whatsAppMessage.create({
       data: {
         businessId,
+        branchId,
         customerId: vehicle.customer.id,
         vehicleId: vehicle.id,
         workOrderId: created.id,
@@ -169,6 +173,7 @@ export async function updateWorkOrderStatusAction(formData: FormData) {
       await tx.whatsAppMessage.create({
         data: {
           businessId,
+          branchId: workOrder.branchId,
           customerId: workOrder.customer.id,
           vehicleId: workOrder.vehicle.id,
           workOrderId: workOrder.id,

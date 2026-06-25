@@ -8,6 +8,7 @@ export default async function WorkOrdersPage() {
   const workOrders = await prisma.workOrder.findMany({
     where: { businessId },
     include: {
+      branch: true,
       customer: true,
       vehicle: true,
       _count: {
@@ -38,6 +39,7 @@ export default async function WorkOrdersPage() {
                   <th>Order</th>
                   <th>Customer</th>
                   <th>Vehicle</th>
+                  <th>Branch</th>
                   <th>Status</th>
                   <th>Total</th>
                   <th />
@@ -52,6 +54,7 @@ export default async function WorkOrdersPage() {
                     </td>
                     <td>{workOrder.customer.name}</td>
                     <td>{workOrder.vehicle.plateNumber}</td>
+                    <td>{workOrder.branch?.name ?? "All branches"}</td>
                     <td>
                       <span className="status">{formatStatus(workOrder.status)}</span>
                     </td>

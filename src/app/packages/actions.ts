@@ -3,12 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { packageSchema, purchasePackageSchema } from "@/lib/validation/packages";
 import { money } from "@/lib/validation/services";
 
 export async function createPackageAction(formData: FormData) {
   const { businessId } = await requireBusinessUser();
+  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const input = packageSchema.parse({
     name: formData.get("name"),
     description: formData.get("description"),
@@ -43,6 +45,7 @@ export async function createPackageAction(formData: FormData) {
   await prisma.package.create({
     data: {
       businessId,
+      branchId,
       serviceId,
       name: input.name,
       description: input.description || null,
@@ -58,6 +61,7 @@ export async function createPackageAction(formData: FormData) {
 
 export async function updatePackageAction(formData: FormData) {
   const { businessId } = await requireBusinessUser();
+  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const packageId = formData.get("packageId")?.toString();
 
   if (!packageId) {
@@ -109,6 +113,7 @@ export async function updatePackageAction(formData: FormData) {
     where: { id: packagePlan.id },
     data: {
       serviceId,
+      branchId,
       name: input.name,
       description: input.description || null,
       price: money(input.price),
@@ -145,6 +150,7 @@ export async function deactivatePackageAction(formData: FormData) {
 
 export async function purchasePackageAction(formData: FormData) {
   const { businessId } = await requireBusinessUser();
+  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const input = purchasePackageSchema.parse({
     customerId: formData.get("customerId"),
     packageId: formData.get("packageId"),
@@ -169,6 +175,7 @@ export async function purchasePackageAction(formData: FormData) {
   await prisma.customerPackage.create({
     data: {
       businessId,
+      branchId,
       customerId: customer.id,
       packageId: packagePlan.id,
       purchasePrice: packagePlan.price,

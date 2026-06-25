@@ -1,9 +1,12 @@
 import type { Package, Service } from "@prisma/client";
+import { BranchSelect } from "@/components/branch-select";
+import type { BranchOption } from "@/lib/branches";
 
 type PackageFormProps = {
   action: (formData: FormData) => Promise<void>;
   packagePlan?: Package;
   services: Pick<Service, "id" | "name">[];
+  branches?: BranchOption[];
   submitLabel: string;
 };
 
@@ -11,6 +14,7 @@ export function PackageForm({
   action,
   packagePlan,
   services,
+  branches = [],
   submitLabel,
 }: PackageFormProps) {
   return (
@@ -19,6 +23,7 @@ export function PackageForm({
         <input type="hidden" name="packageId" value={packagePlan.id} />
       ) : null}
       <div className="field-grid">
+        <BranchSelect branches={branches} selectedBranchId={packagePlan?.branchId} />
         <label>
           <span>Name</span>
           <input

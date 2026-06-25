@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { PackageForm } from "@/components/package-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import {
   deactivatePackageAction,
@@ -10,10 +11,11 @@ import {
 
 export default async function PackagesPage() {
   const { user, businessId } = await requireBusinessUser();
-  const [packages, services] = await Promise.all([
+  const [packages, services, branches] = await Promise.all([
     prisma.package.findMany({
       where: { businessId },
       include: {
+        branch: true,
         service: true,
         _count: {
           select: { customerPackages: true },
@@ -25,6 +27,7 @@ export default async function PackagesPage() {
       where: { businessId, status: "ACTIVE" },
       orderBy: { name: "asc" },
     }),
+    getActiveBranches(businessId),
   ]);
 
   return (
@@ -59,6 +62,9 @@ export default async function PackagesPage() {
                         {packagePlan.service ? ` - ${packagePlan.service.name}` : ""}
                       </div>
                       <div className="muted">
+                        {packagePlan.branch?.name ?? "All branches"}
+                      </div>
+                      <div className="muted">
                         Sold {packagePlan._count.customerPackages} time
                         {packagePlan._count.customerPackages === 1 ? "" : "s"}
                       </div>
@@ -68,6 +74,7 @@ export default async function PackagesPage() {
                     action={updatePackageAction}
                     packagePlan={packagePlan}
                     services={services}
+                    branches={branches}
                     submitLabel="Save package"
                   />
                   {packagePlan.status === "ACTIVE" ? (

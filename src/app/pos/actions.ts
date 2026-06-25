@@ -64,6 +64,7 @@ export async function recordPaymentAction(formData: FormData) {
       (await tx.invoice.create({
         data: {
           businessId,
+          branchId: workOrder.branchId,
           workOrderId: workOrder.id,
           invoiceNumber: makeInvoiceNumber(),
           subtotal: workOrder.subtotal,
@@ -77,6 +78,7 @@ export async function recordPaymentAction(formData: FormData) {
     await tx.payment.create({
       data: {
         businessId,
+        branchId: workOrder.branchId,
         workOrderId: workOrder.id,
         amount: fromCents(amountCents),
         method: input.method,
@@ -107,6 +109,7 @@ export async function recordPaymentAction(formData: FormData) {
       await tx.whatsAppMessage.create({
         data: {
           businessId,
+          branchId: workOrder.branchId,
           customerId: workOrder.customer.id,
           vehicleId: workOrder.vehicle.id,
           workOrderId: workOrder.id,
@@ -209,6 +212,7 @@ export async function usePackagePaymentAction(formData: FormData) {
       (await tx.invoice.create({
         data: {
           businessId,
+          branchId: workOrder.branchId,
           workOrderId: workOrder.id,
           invoiceNumber: makeInvoiceNumber(),
           subtotal: workOrder.subtotal,
@@ -230,6 +234,7 @@ export async function usePackagePaymentAction(formData: FormData) {
     await tx.payment.create({
       data: {
         businessId,
+        branchId: workOrder.branchId,
         workOrderId: workOrder.id,
         customerPackageId: customerPackage.id,
         amount: fromCents(balanceCents),
@@ -261,6 +266,7 @@ export async function usePackagePaymentAction(formData: FormData) {
     await tx.whatsAppMessage.create({
       data: {
         businessId,
+        branchId: workOrder.branchId,
         customerId: workOrder.customer.id,
         vehicleId: workOrder.vehicle.id,
         workOrderId: workOrder.id,

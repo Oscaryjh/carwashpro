@@ -1,0 +1,96 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { AppShell } from "@/components/app-shell";
+import { BranchForm } from "@/components/branch-form";
+import { requireBusinessUser } from "@/lib/auth/business-user";
+import { prisma } from "@/lib/prisma";
+import {
+  deactivateBranchAction,
+  updateBranchAction,
+} from "../actions";
+
+type BranchDetailsPageProps = {
+  params: Promise<{
+    branchId: string;
+  }>;
+};
+
+export default async function BranchDetailsPage({
+  params,
+}: BranchDetailsPageProps) {
+  const { user, businessId } = await requireBusinessUser();
+  const { branchId } = await params;
+  const branch = await prisma.branch.findFirst({
+    where: {
+      id: branchId,
+      businessId,
+    },
+    include: {
+      _count: {
+        select: {
+          customers: true,
+          workOrders: true,
+          invoices: true,
+        },
+      },
+    },
+  });
+
+  if (!branch) {
+    notFound();
+  }
+
+  return (
+    <AppShell user={user}>
+      <section className="content">
+        <div className="page-header">
+          <div>
+            <h1>{branch.name}</h1>
+            <p>{formatStatus(branch.status)}</p>
+          </div>
+          <Link href="/branches">Back to branches</Link>
+        </div>
+
+        <div className="grid">
+          <Info label="Phone" value={branch.phone || "No phone"} />
+          <Info label="Address" value={branch.address || "No address"} />
+          <Info label="Customers" value={branch._count.customers} />
+          <Info label="Work Orders" value={branch._count.workOrders} />
+          <Info label="Invoices" value={branch._count.invoices} />
+        </div>
+
+        {user.role === "BUSINESS_OWNER" ? (
+          <div className="panel">
+            <h2>Edit branch</h2>
+            <BranchForm
+              action={updateBranchAction}
+              branch={branch}
+              submitLabel="Save branch"
+            />
+            {branch.status === "ACTIVE" ? (
+              <form action={deactivateBranchAction} className="form-actions">
+                <input type="hidden" name="branchId" value={branch.id} />
+                <button className="secondary-light-button" type="submit">
+                  Deactivate branch
+                </button>
+              </form>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+    </AppShell>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="panel metric">
+      <span>{label}</span>
+      <strong style={{ fontSize: 15, overflowWrap: "anywhere" }}>{value}</strong>
+    </div>
+  );
+}
+
+function formatStatus(status: string) {
+  return status.toLowerCase().replaceAll("_", " ");
+}

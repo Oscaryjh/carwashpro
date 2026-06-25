@@ -2,18 +2,22 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { PackageForm } from "@/components/package-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { createPackageAction } from "../actions";
 
 export default async function NewPackagePage() {
   const { user, businessId } = await requireBusinessUser();
-  const services = await prisma.service.findMany({
-    where: {
-      businessId,
-      status: "ACTIVE",
-    },
-    orderBy: { name: "asc" },
-  });
+  const [services, branches] = await Promise.all([
+    prisma.service.findMany({
+      where: {
+        businessId,
+        status: "ACTIVE",
+      },
+      orderBy: { name: "asc" },
+    }),
+    getActiveBranches(businessId),
+  ]);
 
   return (
     <AppShell user={user}>
@@ -30,6 +34,7 @@ export default async function NewPackagePage() {
           <PackageForm
             action={createPackageAction}
             services={services}
+            branches={branches}
             submitLabel="Create package"
           />
         </div>

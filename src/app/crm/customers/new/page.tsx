@@ -2,10 +2,12 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { CustomerForm } from "@/components/customer-form";
 import { requireCrmUser } from "@/lib/auth/crm";
+import { getActiveBranches } from "@/lib/branches";
 import { createCustomerAction } from "../../actions";
 
 export default async function NewCustomerPage() {
-  const { user } = await requireCrmUser();
+  const { user, businessId } = await requireCrmUser();
+  const branches = await getActiveBranches(businessId);
 
   return (
     <AppShell user={user}>
@@ -19,7 +21,7 @@ export default async function NewCustomerPage() {
         </div>
 
         <div className="panel">
-          <CustomerForm action={createCustomerAction} />
+          <CustomerForm action={createCustomerAction} branches={branches} />
         </div>
       </section>
     </AppShell>
