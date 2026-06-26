@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminResetPasswordForm } from "@/components/admin-reset-password-form";
 import { AppShell } from "@/components/app-shell";
 import { BusinessForm } from "@/components/business-form";
 import { assertCanAccessBusiness, assertRole } from "@/lib/auth/permissions";
@@ -66,6 +67,7 @@ export default async function BusinessDetailsPage({
                 <th>Email</th>
                 <th>Role</th>
                 <th>Status</th>
+                <th>Reset password</th>
               </tr>
             </thead>
             <tbody>
@@ -78,6 +80,13 @@ export default async function BusinessDetailsPage({
                     <span className={`status ${businessUser.status}`}>
                       {businessUser.status}
                     </span>
+                  </td>
+                  <td>
+                    <AdminResetPasswordForm
+                      businessId={business.id}
+                      userId={businessUser.id}
+                      userEmail={businessUser.email}
+                    />
                   </td>
                 </tr>
               ))}

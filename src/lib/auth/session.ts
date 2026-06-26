@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 const SESSION_COOKIE = "car_wash_session";
+const DEFAULT_SESSION_SECONDS = 60 * 60 * 8;
+const REMEMBERED_SESSION_SECONDS = 60 * 60 * 24 * 30;
 
 export type AppSession = {
   userId: string;
@@ -24,11 +26,18 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSession(session: AppSession) {
+export async function createSession(
+  session: AppSession,
+  options?: { rememberMe?: boolean },
+) {
+  const maxAge = options?.rememberMe
+    ? REMEMBERED_SESSION_SECONDS
+    : DEFAULT_SESSION_SECONDS;
+
   const token = await new SignJWT(session)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("8h")
+    .setExpirationTime(`${maxAge}s`)
     .sign(getSecret());
 
   const cookieStore = await cookies();
@@ -37,7 +46,7 @@ export async function createSession(session: AppSession) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 8,
+    maxAge,
   });
 }
 

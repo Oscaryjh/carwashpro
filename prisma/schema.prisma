@@ -36,6 +36,12 @@ enum WorkOrderStatus {
   CANCELLED
 }
 
+enum WorkOrderContactType {
+  REGISTERED_OWNER
+  OTHER_PERSON
+  NEW_OWNER
+}
+
 enum PaymentStatus {
   UNPAID
   PARTIAL
@@ -103,18 +109,19 @@ model Business {
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
 
-  users            User[]
-  customers        Customer[]
-  vehicles         Vehicle[]
-  services         Service[]
-  workOrders       WorkOrder[]
-  workOrderItems   WorkOrderItem[]
-  payments         Payment[]
-  invoices         Invoice[]
-  whatsappMessages WhatsAppMessage[]
-  packages         Package[]
-  customerPackages CustomerPackage[]
-  branches         Branch[]
+  users                     User[]
+  customers                 Customer[]
+  vehicles                  Vehicle[]
+  services                  Service[]
+  workOrders                WorkOrder[]
+  workOrderItems            WorkOrderItem[]
+  payments                  Payment[]
+  invoices                  Invoice[]
+  whatsappMessages          WhatsAppMessage[]
+  packages                  Package[]
+  customerPackages          CustomerPackage[]
+  branches                  Branch[]
+  vehicleOwnershipHistories VehicleOwnershipHistory[]
 
   @@index([slug])
   @@map("businesses")
@@ -130,16 +137,17 @@ model Branch {
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")
 
-  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  customers        Customer[]
-  vehicles         Vehicle[]
-  services         Service[]
-  packages         Package[]
-  customerPackages CustomerPackage[]
-  workOrders       WorkOrder[]
-  payments         Payment[]
-  invoices         Invoice[]
-  whatsappMessages WhatsAppMessage[]
+  business                  Business                  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customers                 Customer[]
+  vehicles                  Vehicle[]
+  services                  Service[]
+  packages                  Package[]
+  customerPackages          CustomerPackage[]
+  workOrders                WorkOrder[]
+  payments                  Payment[]
+  invoices                  Invoice[]
+  whatsappMessages          WhatsAppMessage[]
+  vehicleOwnershipHistories VehicleOwnershipHistory[]
 
   @@unique([businessId, name])
   @@index([businessId])
@@ -176,12 +184,14 @@ model Customer {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  vehicles         Vehicle[]
-  workOrders       WorkOrder[]
-  whatsappMessages WhatsAppMessage[]
-  customerPackages CustomerPackage[]
+  business                  Business                  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch                    Branch?                   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  vehicles                  Vehicle[]
+  workOrders                WorkOrder[]
+  whatsappMessages          WhatsAppMessage[]
+  customerPackages          CustomerPackage[]
+  previousVehicleOwnerships VehicleOwnershipHistory[] @relation("PreviousVehicleOwner")
+  newVehicleOwnerships      VehicleOwnershipHistory[] @relation("NewVehicleOwner")
 
   @@unique([businessId, phone])
   @@index([businessId])
@@ -202,11 +212,12 @@ model Vehicle {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  workOrders       WorkOrder[]
-  whatsappMessages WhatsAppMessage[]
+  business           Business                  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch             Branch?                   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customer           Customer                  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  workOrders         WorkOrder[]
+  whatsappMessages   WhatsAppMessage[]
+  ownershipHistories VehicleOwnershipHistory[]
 
   @@unique([businessId, plateNumber])
   @@index([businessId])
@@ -292,21 +303,24 @@ model CustomerPackage {
 }
 
 model WorkOrder {
-  id            String          @id @default(uuid()) @db.Uuid
-  businessId    String          @map("business_id") @db.Uuid
-  branchId      String?         @map("branch_id") @db.Uuid
-  customerId    String          @map("customer_id") @db.Uuid
-  vehicleId     String          @map("vehicle_id") @db.Uuid
-  orderNumber   String          @map("order_number")
-  status        WorkOrderStatus @default(WAITING)
-  subtotal      Decimal         @db.Decimal(10, 2)
-  total         Decimal         @db.Decimal(10, 2)
-  paidAmount    Decimal         @default(0) @map("paid_amount") @db.Decimal(10, 2)
-  balance       Decimal         @default(0) @db.Decimal(10, 2)
-  paymentStatus PaymentStatus   @default(UNPAID) @map("payment_status")
+  id            String               @id @default(uuid()) @db.Uuid
+  businessId    String               @map("business_id") @db.Uuid
+  branchId      String?              @map("branch_id") @db.Uuid
+  customerId    String               @map("customer_id") @db.Uuid
+  vehicleId     String               @map("vehicle_id") @db.Uuid
+  orderNumber   String               @map("order_number")
+  status        WorkOrderStatus      @default(WAITING)
+  contactName   String?              @map("contact_name")
+  contactPhone  String?              @map("contact_phone")
+  contactType   WorkOrderContactType @default(REGISTERED_OWNER) @map("contact_type")
+  subtotal      Decimal              @db.Decimal(10, 2)
+  total         Decimal              @db.Decimal(10, 2)
+  paidAmount    Decimal              @default(0) @map("paid_amount") @db.Decimal(10, 2)
+  balance       Decimal              @default(0) @db.Decimal(10, 2)
+  paymentStatus PaymentStatus        @default(UNPAID) @map("payment_status")
   notes         String?
-  createdAt     DateTime        @default(now()) @map("created_at")
-  updatedAt     DateTime        @updatedAt @map("updated_at")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
 
   business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
   branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
@@ -325,6 +339,32 @@ model WorkOrder {
   @@index([status])
   @@index([paymentStatus])
   @@map("work_orders")
+}
+
+model VehicleOwnershipHistory {
+  id                 String   @id @default(uuid()) @db.Uuid
+  businessId         String   @map("business_id") @db.Uuid
+  branchId           String?  @map("branch_id") @db.Uuid
+  vehicleId          String   @map("vehicle_id") @db.Uuid
+  previousCustomerId String?  @map("previous_customer_id") @db.Uuid
+  newCustomerId      String   @map("new_customer_id") @db.Uuid
+  transferredAt      DateTime @default(now()) @map("transferred_at")
+  notes              String?
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  business         Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch           Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  vehicle          Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  previousCustomer Customer? @relation("PreviousVehicleOwner", fields: [previousCustomerId], references: [id], onDelete: SetNull)
+  newCustomer      Customer  @relation("NewVehicleOwner", fields: [newCustomerId], references: [id], onDelete: Restrict)
+
+  @@index([businessId])
+  @@index([branchId])
+  @@index([vehicleId])
+  @@index([previousCustomerId])
+  @@index([newCustomerId])
+  @@index([transferredAt])
+  @@map("vehicle_ownership_histories")
 }
 
 model WorkOrderItem {

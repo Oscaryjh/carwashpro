@@ -26,7 +26,7 @@ export function WorkOrderForm({
 
       <div className="grid">
         <div className="panel metric">
-          <span>Customer</span>
+          <span>Registered owner</span>
           <strong style={{ fontSize: 16 }}>{vehicle.customer.name}</strong>
           <span>{vehicle.customer.phone}</span>
         </div>
@@ -39,6 +39,62 @@ export function WorkOrderForm({
           </span>
         </div>
       </div>
+
+      <section className="subsection">
+        <h3>Today contact / ownership</h3>
+        <div className="option-card-list">
+          <label className="option-card">
+            <input
+              type="radio"
+              name="contactType"
+              value="REGISTERED_OWNER"
+              defaultChecked
+            />
+            <span>
+              <strong>Registered owner</strong>
+              <small>{vehicle.customer.name} is sending or picking up the vehicle.</small>
+            </span>
+          </label>
+          <label className="option-card">
+            <input type="radio" name="contactType" value="OTHER_PERSON" />
+            <span>
+              <strong>Other person / representative</strong>
+              <small>Keep current owner, but send this job WhatsApp to another person.</small>
+            </span>
+          </label>
+          <label className="option-card">
+            <input type="radio" name="contactType" value="NEW_OWNER" />
+            <span>
+              <strong>New owner / vehicle transferred</strong>
+              <small>Transfer the vehicle to a new owner for this and future jobs.</small>
+            </span>
+          </label>
+        </div>
+
+        <div className="field-grid">
+          <label>
+            <span>Other person name</span>
+            <input name="contactName" />
+          </label>
+          <label>
+            <span>Other person phone</span>
+            <input name="contactPhone" />
+          </label>
+          <label>
+            <span>New owner name</span>
+            <input name="newOwnerName" />
+          </label>
+          <label>
+            <span>New owner phone</span>
+            <input name="newOwnerPhone" />
+          </label>
+        </div>
+
+        <label>
+          <span>Ownership transfer notes optional</span>
+          <textarea name="ownershipNotes" rows={2} />
+        </label>
+      </section>
 
       <section className="subsection">
         <h3>Services</h3>

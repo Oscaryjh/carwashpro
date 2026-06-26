@@ -24,9 +24,14 @@ export default async function CustomersPage() {
             <h1>Customers</h1>
             <p>Customer records for this business only.</p>
           </div>
-          <Link className="button-link" href="/crm/customers/new">
-            New Customer
-          </Link>
+          <div className="inline-actions">
+            <Link className="secondary-link-button" href="/crm">
+              Back to CRM
+            </Link>
+            <Link className="button-link" href="/crm/customers/new">
+              New Customer
+            </Link>
+          </div>
         </div>
 
         <div className="panel">
@@ -51,7 +56,10 @@ export default async function CustomersPage() {
                     <td>{customer.branch?.name ?? "All branches"}</td>
                     <td>{customer._count.vehicles}</td>
                     <td>
-                      <Link href={`/crm/customers/${customer.id}`}>View</Link>
+                      <div className="inline-actions">
+                        <Link href={`/crm/customers/${customer.id}`}>View</Link>
+                        <Link href={`/crm/customers/${customer.id}/edit`}>Edit</Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

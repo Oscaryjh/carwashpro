@@ -30,6 +30,14 @@ export default async function VehiclesPage({ searchParams }: VehiclesPageProps) 
     include: {
       branch: true,
       customer: true,
+      ownershipHistories: {
+        include: {
+          previousCustomer: true,
+          newCustomer: true,
+        },
+        orderBy: { transferredAt: "desc" },
+        take: 3,
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -42,9 +50,14 @@ export default async function VehiclesPage({ searchParams }: VehiclesPageProps) 
             <h1>Vehicles</h1>
             <p>Search and view vehicles for this business.</p>
           </div>
-          <Link className="button-link" href="/crm/vehicles/new">
-            New Vehicle
-          </Link>
+          <div className="inline-actions">
+            <Link className="secondary-link-button" href="/crm">
+              Back to CRM
+            </Link>
+            <Link className="button-link" href="/crm/vehicles/new">
+              New Vehicle
+            </Link>
+          </div>
         </div>
 
         <div className="panel">
@@ -65,9 +78,10 @@ export default async function VehiclesPage({ searchParams }: VehiclesPageProps) 
                 <tr>
                   <th>Plate</th>
                   <th>Vehicle</th>
-                  <th>Customer</th>
+                  <th>Current owner</th>
                   <th>Branch</th>
                   <th>Color</th>
+                  <th>Ownership history</th>
                   <th />
                 </tr>
               </thead>
@@ -79,12 +93,29 @@ export default async function VehiclesPage({ searchParams }: VehiclesPageProps) 
                       {[vehicle.brand, vehicle.model].filter(Boolean).join(" ") ||
                         "No details"}
                     </td>
-                    <td>{vehicle.customer.name}</td>
+                    <td>
+                      {vehicle.customer.name}
+                      <div className="muted">{vehicle.customer.phone}</div>
+                    </td>
                     <td>{vehicle.branch?.name ?? "All branches"}</td>
                     <td>{vehicle.color || "No color"}</td>
                     <td>
+                      {vehicle.ownershipHistories.length ? (
+                        <div className="stacked-list">
+                          {vehicle.ownershipHistories.map((history) => (
+                            <span key={history.id}>
+                              {history.previousCustomer?.name ?? "Unknown"} to{" "}
+                              {history.newCustomer.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        "No transfers"
+                      )}
+                    </td>
+                    <td>
                       <Link href={`/crm/customers/${vehicle.customer.id}`}>
-                        View customer
+                        View owner
                       </Link>
                     </td>
                   </tr>

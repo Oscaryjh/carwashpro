@@ -3,10 +3,21 @@ import { AppShell } from "@/components/app-shell";
 import { CustomerForm } from "@/components/customer-form";
 import { requireCrmUser } from "@/lib/auth/crm";
 import { getActiveBranches } from "@/lib/branches";
+import { normalizePlateNumber } from "@/lib/validation/crm";
 import { createCustomerAction } from "../../actions";
 
-export default async function NewCustomerPage() {
+type NewCustomerPageProps = {
+  searchParams: Promise<{
+    plate?: string;
+  }>;
+};
+
+export default async function NewCustomerPage({
+  searchParams,
+}: NewCustomerPageProps) {
   const { user, businessId } = await requireCrmUser();
+  const { plate } = await searchParams;
+  const initialVehiclePlate = plate ? normalizePlateNumber(plate) : "";
   const branches = await getActiveBranches(businessId);
 
   return (
@@ -15,13 +26,19 @@ export default async function NewCustomerPage() {
         <div className="page-header">
           <div>
             <h1>New Customer</h1>
-            <p>Add a customer under this business.</p>
+            <p>Add the customer and vehicle under this business.</p>
           </div>
-          <Link href="/crm/customers">Back to customers</Link>
+          <Link className="secondary-link-button" href="/crm">
+            Back to CRM
+          </Link>
         </div>
 
         <div className="panel">
-          <CustomerForm action={createCustomerAction} branches={branches} />
+          <CustomerForm
+            action={createCustomerAction}
+            branches={branches}
+            initialVehiclePlate={initialVehiclePlate}
+          />
         </div>
       </section>
     </AppShell>

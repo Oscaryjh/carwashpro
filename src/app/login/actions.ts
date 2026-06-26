@@ -17,6 +17,7 @@ export async function loginAction(
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
+    rememberMe: formData.get("rememberMe"),
   });
 
   if (!parsed.success) {
@@ -52,6 +53,8 @@ export async function loginAction(
     email: user.email,
     role: user.role,
     status: user.status,
+  }, {
+    rememberMe: parsed.data.rememberMe,
   });
 
   if (user.role === "PLATFORM_ADMIN") {

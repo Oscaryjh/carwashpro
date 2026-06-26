@@ -1,8 +1,14 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { createConnection } from "node:net";
 import { delimiter } from "node:path";
-import EmbeddedPostgres from "embedded-postgres";
+import {
+  DATABASE_NAME,
+  DATABASE_URL,
+  createEmbeddedPostgres,
+  ensureDatabaseExists,
+  ensurePostgresReady,
+  stopOwnedPostgres,
+  waitForPostgres,
+} from "./embedded-postgres-utils.mjs";
 
 const command = process.argv[2];
 const args = process.argv.slice(3);
@@ -12,52 +18,15 @@ if (!command) {
   process.exit(1);
 }
 
-const pg = new EmbeddedPostgres({
-  databaseDir: ".local-postgres/data",
-  user: "postgres",
-  password: "postgres",
-  port: 5432,
-  persistent: true,
-});
+const pg = createEmbeddedPostgres();
 
 let child;
 let ownsPostgres = false;
 
-function canConnectToPostgres() {
-  return new Promise((resolve) => {
-    const socket = createConnection({ host: "127.0.0.1", port: 5432 });
-    socket.setTimeout(1000);
-    socket.once("connect", () => {
-      socket.destroy();
-      resolve(true);
-    });
-    socket.once("timeout", () => {
-      socket.destroy();
-      resolve(false);
-    });
-    socket.once("error", () => resolve(false));
-  });
-}
-
 async function main() {
-  if (!(await canConnectToPostgres())) {
-    if (!existsSync(".local-postgres/data/PG_VERSION")) {
-      await pg.initialise();
-    }
-    await pg.start();
-    ownsPostgres = true;
-  }
-
-  if (ownsPostgres) {
-    try {
-      await pg.createDatabase("car_wash_crm_pos");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!message.toLowerCase().includes("already exists")) {
-        throw error;
-      }
-    }
-  }
+  ownsPostgres = await ensurePostgresReady(pg);
+  await ensureDatabaseExists(pg, DATABASE_NAME);
+  await waitForPostgres(pg, DATABASE_NAME);
 
   const binPath = `${process.cwd()}\\node_modules\\.bin`;
   child = spawn(command, args, {
@@ -66,9 +35,7 @@ async function main() {
     env: {
       ...process.env,
       PATH: `${binPath}${delimiter}${process.env.PATH ?? ""}`,
-      DATABASE_URL:
-        process.env.DATABASE_URL ??
-        "postgresql://postgres:postgres@localhost:5432/car_wash_crm_pos?schema=public",
+      DATABASE_URL: process.env.DATABASE_URL ?? DATABASE_URL,
     },
   });
 
@@ -82,18 +49,7 @@ async function main() {
 }
 
 async function shutdown() {
-  if (!ownsPostgres) {
-    return;
-  }
-
-  try {
-    await Promise.race([
-      pg.stop(),
-      new Promise((resolve) => setTimeout(resolve, 5000)),
-    ]);
-  } catch {
-    // Postgres may already be stopped when the child exits.
-  }
+  await stopOwnedPostgres(pg, ownsPostgres);
 }
 
 process.on("SIGINT", () => {

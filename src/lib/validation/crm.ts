@@ -16,6 +16,8 @@ export const vehicleSchema = z.object({
   notes: z.string().trim().optional(),
 });
 
+export const customerVehicleSchema = vehicleSchema.omit({ customerId: true });
+
 export function normalizePlateNumber(value: string) {
   return value.trim().replace(/\s+/g, " ").toUpperCase();
 }

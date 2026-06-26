@@ -49,6 +49,12 @@ export default async function WorkOrderDetailsPage({
 
         <div className="grid">
           <Info label="Customer" value={`${workOrder.customer.name} - ${workOrder.customer.phone}`} />
+          <Info
+            label="Today contact"
+            value={`${formatStatus(workOrder.contactType)} - ${
+              workOrder.contactName || workOrder.customer.name
+            } - ${workOrder.contactPhone || workOrder.customer.phone}`}
+          />
           <Info label="Vehicle" value={vehicleLabel(workOrder.vehicle)} />
           <Info label="Subtotal" value={Number(workOrder.subtotal).toFixed(2)} />
           <Info label="Total" value={Number(workOrder.total).toFixed(2)} />

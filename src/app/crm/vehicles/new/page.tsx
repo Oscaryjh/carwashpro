@@ -43,7 +43,9 @@ export default async function NewVehiclePage({
             <h1>New Vehicle</h1>
             <p>Add a vehicle and link it to an existing customer.</p>
           </div>
-          <Link href="/crm/vehicles">Back to vehicles</Link>
+          <Link className="secondary-link-button" href="/crm/vehicles">
+            Back to vehicles
+          </Link>
         </div>
 
         <div className="panel">

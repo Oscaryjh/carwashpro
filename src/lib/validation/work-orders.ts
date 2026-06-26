@@ -2,6 +2,16 @@ import { z } from "zod";
 
 export const createWorkOrderSchema = z.object({
   vehicleId: z.string().uuid("Vehicle is required."),
+  contactType: z.enum([
+    "REGISTERED_OWNER",
+    "OTHER_PERSON",
+    "NEW_OWNER",
+  ]),
+  contactName: z.string().trim().optional(),
+  contactPhone: z.string().trim().optional(),
+  newOwnerName: z.string().trim().optional(),
+  newOwnerPhone: z.string().trim().optional(),
+  ownershipNotes: z.string().trim().optional(),
   notes: z.string().trim().optional(),
 });
 

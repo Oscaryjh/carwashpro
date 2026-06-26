@@ -1,28 +1,19 @@
-import EmbeddedPostgres from "embedded-postgres";
-import { existsSync } from "node:fs";
+import {
+  DATABASE_NAME,
+  createEmbeddedPostgres,
+  ensureDatabaseExists,
+  ensurePostgresReady,
+  stopOwnedPostgres,
+  waitForPostgres,
+} from "./embedded-postgres-utils.mjs";
 
-const pg = new EmbeddedPostgres({
-  databaseDir: ".local-postgres/data",
-  user: "postgres",
-  password: "postgres",
-  port: 5432,
-  persistent: true,
-});
+const pg = createEmbeddedPostgres();
+let ownsPostgres = false;
 
 async function main() {
-  if (!existsSync(".local-postgres/data/PG_VERSION")) {
-    await pg.initialise();
-  }
-  await pg.start();
-
-  try {
-    await pg.createDatabase("car_wash_crm_pos");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!message.toLowerCase().includes("already exists")) {
-      throw error;
-    }
-  }
+  ownsPostgres = await ensurePostgresReady(pg);
+  await ensureDatabaseExists(pg, DATABASE_NAME);
+  await waitForPostgres(pg, DATABASE_NAME);
 
   console.log("Embedded Postgres is running on localhost:5432");
 
@@ -31,16 +22,12 @@ async function main() {
 }
 
 async function shutdown() {
-  await pg.stop();
+  await stopOwnedPostgres(pg, ownsPostgres);
   process.exit(0);
 }
 
 main().catch(async (error) => {
   console.error(error);
-  try {
-    await pg.stop();
-  } catch {
-    // Ignore shutdown errors after startup failure.
-  }
+  await stopOwnedPostgres(pg, ownsPostgres);
   process.exit(1);
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useActionState } from "react";
 import { loginAction, type LoginState } from "./actions";
 
@@ -7,6 +8,7 @@ const initialState: LoginState = {};
 
 export function LoginForm() {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <form action={formAction} className="form">
@@ -17,12 +19,26 @@ export function LoginForm() {
       </label>
       <label>
         <span>Password</span>
-        <input
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-        />
+        <div className="password-field">
+          <input
+            name="password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            required
+          />
+          <button
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            className="secondary-light-button"
+            type="button"
+            onClick={() => setShowPassword((current) => !current)}
+          >
+            {showPassword ? "Hide" : "Show"}
+          </button>
+        </div>
+      </label>
+      <label className="checkbox-control">
+        <input name="rememberMe" type="checkbox" value="true" />
+        <span>Remember me</span>
       </label>
       <button type="submit" disabled={pending}>
         {pending ? "Signing in..." : "Sign in"}

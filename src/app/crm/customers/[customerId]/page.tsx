@@ -28,8 +28,22 @@ export default async function CustomerDetailsPage({
       vehicles: {
         include: {
           branch: true,
+          ownershipHistories: {
+            include: {
+              previousCustomer: true,
+              newCustomer: true,
+            },
+            orderBy: { transferredAt: "desc" },
+          },
         },
         orderBy: { createdAt: "desc" },
+      },
+      previousVehicleOwnerships: {
+        include: {
+          vehicle: true,
+          newCustomer: true,
+        },
+        orderBy: { transferredAt: "desc" },
       },
       customerPackages: {
         include: {
@@ -63,7 +77,17 @@ export default async function CustomerDetailsPage({
             <h1>{customer.name}</h1>
             <p>{customer.phone}</p>
           </div>
-          <Link href="/crm/customers">Back to customers</Link>
+          <div className="inline-actions">
+            <Link className="button-link" href={`/crm/customers/${customer.id}/edit`}>
+              Edit Customer
+            </Link>
+            <Link className="secondary-link-button" href="/crm">
+              Back to CRM
+            </Link>
+            <Link className="secondary-link-button" href="/crm/customers">
+              Back to customers
+            </Link>
+          </div>
         </div>
 
         <div className="grid">
@@ -99,6 +123,7 @@ export default async function CustomerDetailsPage({
                   <th>Vehicle</th>
                   <th>Branch</th>
                   <th>Color</th>
+                  <th>Ownership</th>
                   <th>Notes</th>
                 </tr>
               </thead>
@@ -112,6 +137,11 @@ export default async function CustomerDetailsPage({
                     </td>
                     <td>{vehicle.branch?.name ?? "All branches"}</td>
                     <td>{vehicle.color || "No color"}</td>
+                    <td>
+                      {vehicle.ownershipHistories.length
+                        ? `${vehicle.ownershipHistories.length} transfer(s)`
+                        : "Current owner"}
+                    </td>
                     <td>{vehicle.notes || "No notes"}</td>
                   </tr>
                 ))}
@@ -119,6 +149,39 @@ export default async function CustomerDetailsPage({
             </table>
           ) : (
             <p className="empty-state">No vehicles yet.</p>
+          )}
+        </div>
+
+        <div className="panel">
+          <div className="section-header">
+            <h2>Previous ownership</h2>
+          </div>
+
+          {customer.previousVehicleOwnerships.length ? (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Transferred to</th>
+                  <th>Date</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {customer.previousVehicleOwnerships.map((history) => (
+                  <tr key={history.id}>
+                    <td>{history.vehicle.plateNumber}</td>
+                    <td>
+                      {history.newCustomer.name} - {history.newCustomer.phone}
+                    </td>
+                    <td>{history.transferredAt.toLocaleString()}</td>
+                    <td>{history.notes || "No notes"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="empty-state">No previous vehicle ownership records.</p>
           )}
         </div>
 

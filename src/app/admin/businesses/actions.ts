@@ -6,7 +6,11 @@ import { redirect } from "next/navigation";
 import { assertCanManageBusiness, assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import { businessSchema, createBusinessSchema } from "@/lib/validation/business";
+import {
+  adminResetUserPasswordSchema,
+  businessSchema,
+  createBusinessSchema,
+} from "@/lib/validation/business";
 
 export async function createBusinessAction(formData: FormData) {
   const user = await requireUser();
@@ -108,4 +112,60 @@ export async function updateBusinessAction(formData: FormData) {
   }
 
   redirect("/business/settings");
+}
+
+export type AdminResetUserPasswordState = {
+  status: "idle" | "success" | "error";
+  message: string;
+};
+
+export async function adminResetUserPasswordAction(
+  _previousState: AdminResetUserPasswordState,
+  formData: FormData,
+): Promise<AdminResetUserPasswordState> {
+  const user = await requireUser();
+  assertRole(user, ["PLATFORM_ADMIN"]);
+
+  try {
+    const input = adminResetUserPasswordSchema.parse({
+      businessId: formData.get("businessId"),
+      userId: formData.get("userId"),
+      newPassword: formData.get("newPassword"),
+    });
+
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        id: input.userId,
+        businessId: input.businessId,
+        role: { in: ["BUSINESS_OWNER", "STAFF"] },
+      },
+      select: { id: true },
+    });
+
+    if (!targetUser) {
+      return {
+        status: "error",
+        message: "User not found for this business.",
+      };
+    }
+
+    const passwordHash = await bcrypt.hash(input.newPassword, 12);
+
+    await prisma.user.update({
+      where: { id: targetUser.id },
+      data: { passwordHash },
+    });
+
+    revalidatePath(`/admin/businesses/${input.businessId}`);
+
+    return {
+      status: "success",
+      message: "Password updated successfully.",
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Unable to update password.",
+    };
+  }
 }
