@@ -88,13 +88,19 @@ export default async function VehiclesPage({ searchParams }: VehiclesPageProps) 
               <tbody>
                 {vehicles.map((vehicle) => (
                   <tr key={vehicle.id}>
-                    <td>{vehicle.plateNumber}</td>
+                    <td>
+                      <Link href={`/crm/vehicles/${vehicle.id}`}>
+                        {vehicle.plateNumber}
+                      </Link>
+                    </td>
                     <td>
                       {[vehicle.brand, vehicle.model].filter(Boolean).join(" ") ||
                         "No details"}
                     </td>
                     <td>
-                      {vehicle.customer.name}
+                      <Link href={`/crm/customers/${vehicle.customer.id}`}>
+                        {vehicle.customer.name}
+                      </Link>
                       <div className="muted">{vehicle.customer.phone}</div>
                     </td>
                     <td>{vehicle.branch?.name ?? "All branches"}</td>
@@ -114,8 +120,8 @@ export default async function VehiclesPage({ searchParams }: VehiclesPageProps) 
                       )}
                     </td>
                     <td>
-                      <Link href={`/crm/customers/${vehicle.customer.id}`}>
-                        View owner
+                      <Link href={`/crm/vehicles/${vehicle.id}`}>
+                        View vehicle
                       </Link>
                     </td>
                   </tr>

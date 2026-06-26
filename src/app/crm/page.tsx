@@ -162,11 +162,11 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
                   <Link
                     className="vehicle-chip"
                     key={vehicle.id}
-                    href={`/crm/customers/${vehicle.customerId}`}
+                    href={`/crm/vehicles/${vehicle.id}`}
                   >
                     <strong>{vehicle.plateNumber}</strong>
                     <span>
-                      {vehicle.customer.name} ·{" "}
+                      {vehicle.customer.name} -{" "}
                       {[vehicle.brand, vehicle.model].filter(Boolean).join(" ") ||
                         "No vehicle details"}
                     </span>
@@ -227,7 +227,7 @@ function CustomerRecord({ customer }: CustomerRecordProps) {
           <h3>{customer.name}</h3>
           <p>
             {customer.phone}
-            {customer.email ? ` · ${customer.email}` : ""}
+            {customer.email ? ` - ${customer.email}` : ""}
           </p>
           <small>{customer.branch?.name ?? "All branches"}</small>
         </div>
@@ -250,13 +250,13 @@ function CustomerRecord({ customer }: CustomerRecordProps) {
             <Link
               className="vehicle-chip"
               key={vehicle.id}
-              href={`/crm/customers/${customer.id}`}
+              href={`/crm/vehicles/${vehicle.id}`}
             >
               <strong>{vehicle.plateNumber}</strong>
               <span>
                 {[vehicle.brand, vehicle.model].filter(Boolean).join(" ") ||
                   "No vehicle details"}
-                {vehicle.color ? ` · ${vehicle.color}` : ""}
+                {vehicle.color ? ` - ${vehicle.color}` : ""}
               </span>
             </Link>
           ))}
