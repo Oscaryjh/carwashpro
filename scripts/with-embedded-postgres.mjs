@@ -23,6 +23,8 @@ const pg = createEmbeddedPostgres();
 let child;
 let ownsPostgres = false;
 
+const NODE_USE_SYSTEM_CA_OPTION = "--use-system-ca";
+
 async function main() {
   ownsPostgres = await ensurePostgresReady(pg);
   await ensureDatabaseExists(pg, DATABASE_NAME);
@@ -36,6 +38,12 @@ async function main() {
       ...process.env,
       PATH: `${binPath}${delimiter}${process.env.PATH ?? ""}`,
       DATABASE_URL: process.env.DATABASE_URL ?? DATABASE_URL,
+      NODE_OPTIONS: withNodeOption(
+        process.env.NODE_OPTIONS,
+        NODE_USE_SYSTEM_CA_OPTION,
+      ),
+      WS_NO_BUFFER_UTIL: process.env.WS_NO_BUFFER_UTIL ?? "1",
+      WS_NO_UTF_8_VALIDATE: process.env.WS_NO_UTF_8_VALIDATE ?? "1",
     },
   });
 
@@ -65,3 +73,17 @@ main().catch(async (error) => {
   await shutdown();
   process.exit(1);
 });
+
+function withNodeOption(existingOptions, option) {
+  const options = existingOptions?.trim();
+
+  if (!options) {
+    return option;
+  }
+
+  if (options.split(/\s+/).includes(option)) {
+    return options;
+  }
+
+  return `${options} ${option}`;
+}

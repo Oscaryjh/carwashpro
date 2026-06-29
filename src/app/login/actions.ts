@@ -52,6 +52,7 @@ export async function loginAction(
     name: user.name,
     email: user.email,
     role: user.role,
+    permissions: user.permissions,
     status: user.status,
   }, {
     rememberMe: parsed.data.rememberMe,

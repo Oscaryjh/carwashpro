@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const packageSchema = z.object({
   name: z.string().trim().min(2, "Package name is required."),
+  categoryId: z.string().uuid("Package category is invalid.").optional().or(z.literal("")),
   description: z.string().trim().optional(),
   serviceId: z.string().uuid("Linked service is invalid.").optional().or(z.literal("")),
   price: z.coerce.number().positive("Package price must be more than 0."),

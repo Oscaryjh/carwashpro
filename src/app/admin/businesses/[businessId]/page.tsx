@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { AdminResetPasswordForm } from "@/components/admin-reset-password-form";
 import { AppShell } from "@/components/app-shell";
+import { BackButton } from "@/components/back-button";
 import { BusinessForm } from "@/components/business-form";
 import { assertCanAccessBusiness, assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
@@ -36,20 +36,21 @@ export default async function BusinessDetailsPage({
         <div className="page-header">
           <div>
             <h1>{business.name}</h1>
-            <p>View and edit tenant setup details.</p>
+            <p>View and edit company setup details.</p>
           </div>
-          <Link href="/admin/businesses">Back to businesses</Link>
+          <BackButton fallbackHref="/admin/businesses" />
         </div>
 
         <div className="grid">
-          <Info label="Business ID" value={business.id} />
+          <Info label="Company ID" value={business.id} />
+          <Info label="Company No." value={business.companyNo ?? "Not set"} />
           <Info label="Slug" value={business.slug} />
           <Info label="Status" value={business.status} />
           <Info label="Users" value={business.users.length.toString()} />
         </div>
 
         <div className="panel">
-          <h2>Business profile</h2>
+          <h2>Company profile</h2>
           <BusinessForm
             action={updateBusinessAction}
             mode="edit"

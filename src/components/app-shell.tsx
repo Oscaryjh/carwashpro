@@ -1,71 +1,152 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
+import { AppShellFrame } from "@/components/app-shell-frame";
+import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import type { AppSession } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
 
 type AppShellProps = {
   user: AppSession;
   children: ReactNode;
 };
 
-export function AppShell({ user, children }: AppShellProps) {
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <Link href="/dashboard" className="brand">
-          WashFlow
-        </Link>
-        <nav>
-          <Link href="/dashboard">Dashboard</Link>
-          {user.role === "PLATFORM_ADMIN" ? (
-            <Link href="/admin/businesses">Businesses</Link>
-          ) : null}
-          {["BUSINESS_OWNER", "STAFF"].includes(user.role) ? (
-            <Link href="/crm">CRM</Link>
-          ) : null}
-          {user.role === "BUSINESS_OWNER" ? (
-            <Link href="/branches">Branches</Link>
-          ) : null}
-          {["BUSINESS_OWNER", "STAFF"].includes(user.role) ? (
-            <Link href="/services">Services</Link>
-          ) : null}
-          {["BUSINESS_OWNER", "STAFF"].includes(user.role) ? (
-            <Link href="/packages">Packages</Link>
-          ) : null}
-          {["BUSINESS_OWNER", "STAFF"].includes(user.role) ? (
-            <Link href="/work-orders">Work Orders</Link>
-          ) : null}
-          {["BUSINESS_OWNER", "STAFF"].includes(user.role) ? (
-            <Link href="/pos">POS</Link>
-          ) : null}
-          {["BUSINESS_OWNER", "STAFF"].includes(user.role) ? (
-            <Link href="/invoices">Invoices</Link>
-          ) : null}
-          {["BUSINESS_OWNER", "STAFF"].includes(user.role) ? (
-            <Link href="/whatsapp">WhatsApp</Link>
-          ) : null}
-          {user.role === "BUSINESS_OWNER" ? (
-            <Link href="/business/settings">Business settings</Link>
-          ) : null}
-        </nav>
-        <form action="/logout" method="post">
-          <button className="secondary-button" type="submit">
-            Sign out
-          </button>
-        </form>
-      </aside>
-      <main className="main">
-        <header className="topbar">
-          <div>
-            <strong>{user.name}</strong>
-            <span>{formatRole(user.role)}</span>
-          </div>
-        </header>
-        {children}
-      </main>
-    </div>
-  );
-}
+export async function AppShell({ user, children }: AppShellProps) {
+  const isPlatformAdmin = user.role === "PLATFORM_ADMIN";
+  const isBusinessOwner = user.role === "BUSINESS_OWNER";
+  const isStaff = user.role === "STAFF";
+  const isStoreUser = isBusinessOwner || isStaff;
+  const canSee = (permission: Parameters<typeof hasStaffPermission>[1]) =>
+    isBusinessOwner || hasStaffPermission(user, permission);
+  const homeHref = isPlatformAdmin ? "/admin/businesses" : "/dashboard";
+  const business = user.businessId
+    ? await prisma.business.findUnique({
+        where: { id: user.businessId },
+        select: { name: true, logoUrl: true },
+      })
+    : null;
+  const whatsAppUnreadCount =
+    user.businessId && isStoreUser && canSee("WHATSAPP")
+      ? (
+          await prisma.whatsAppConversation.aggregate({
+            where: {
+              businessId: user.businessId,
+              unreadCount: { gt: 0 },
+            },
+            _sum: { unreadCount: true },
+          })
+        )._sum.unreadCount ?? 0
+      : 0;
+  const brandName = business?.name ?? "WashFlow";
+  const navItems = [
+    ...(isPlatformAdmin
+      ? [
+          {
+            href: "/admin/businesses",
+            label: "Businesses",
+            shortLabel: "Biz",
+            icon: "businesses" as const,
+          },
+          {
+            href: "/admin/whatsapp-templates",
+            label: "WhatsApp Templates",
+            shortLabel: "WA",
+            icon: "whatsapp" as const,
+          },
+        ]
+      : []),
+    ...(isStoreUser && canSee("DASHBOARD")
+      ? [
+          {
+            href: "/dashboard",
+            label: "Dashboard",
+            shortLabel: "Dash",
+            icon: "dashboard" as const,
+          },
+        ]
+      : []),
+    ...(isStoreUser && canSee("JOBS")
+      ? [
+          {
+            href: "/work-orders",
+            label: "POS",
+            shortLabel: "POS",
+            icon: "jobs" as const,
+          },
+        ]
+      : []),
+    ...(isStoreUser && canSee("CRM")
+      ? [{ href: "/crm", label: "CRM", shortLabel: "CRM", icon: "crm" as const }]
+      : []),
+    ...(isStoreUser && canSee("INVOICES")
+      ? [
+          {
+            href: "/invoices",
+            label: "Invoices",
+            shortLabel: "Inv",
+            icon: "invoices" as const,
+          },
+        ]
+      : []),
+    ...(isStoreUser && canSee("WHATSAPP")
+      ? [
+          {
+            href: "/whatsapp/inbox",
+            label: "WhatsApp",
+            shortLabel: "WA",
+            icon: "whatsapp" as const,
+            badgeCount: whatsAppUnreadCount,
+          },
+        ]
+      : []),
+    ...(isBusinessOwner
+      ? [
+          {
+            href: "/team",
+            label: "Team",
+            shortLabel: "Team",
+            icon: "team" as const,
+          },
+          {
+            href: "/reports",
+            label: "Reports",
+            shortLabel: "Rpt",
+            icon: "reports" as const,
+          },
+          {
+            href: "/services",
+            label: "Services",
+            shortLabel: "Svc",
+            icon: "services" as const,
+          },
+          {
+            href: "/packages",
+            label: "Packages",
+            shortLabel: "Pkg",
+            icon: "packages" as const,
+          },
+          {
+            href: "/branches",
+            label: "Branches",
+            shortLabel: "Br",
+            icon: "branches" as const,
+          },
+          {
+            href: "/business/settings",
+            label: "Company settings",
+            shortLabel: "Set",
+            icon: "settings" as const,
+          },
+        ]
+      : []),
+  ];
 
-function formatRole(role: AppSession["role"]) {
-  return role.toLowerCase().replace("_", " ");
+  return (
+    <AppShellFrame
+      brandName={brandName}
+      logoUrl={business?.logoUrl}
+      homeHref={homeHref}
+      navItems={navItems}
+    >
+      {children}
+    </AppShellFrame>
+  );
 }

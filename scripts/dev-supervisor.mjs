@@ -1,0 +1,138 @@
+import { spawn } from "node:child_process";
+import { existsSync, rmSync } from "node:fs";
+import { delimiter, join } from "node:path";
+import {
+  DATABASE_NAME,
+  DATABASE_URL,
+  createEmbeddedPostgres,
+  ensureDatabaseExists,
+  ensurePostgresReady,
+  stopOwnedPostgres,
+  waitForPostgres,
+} from "./embedded-postgres-utils.mjs";
+
+const pg = createEmbeddedPostgres();
+const nextBin = join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
+const binPath = join(process.cwd(), "node_modules", ".bin");
+const restartDelayMs = 1500;
+
+let child;
+let ownsPostgres = false;
+let shuttingDown = false;
+let cacheResetRequested = false;
+
+async function main() {
+  ownsPostgres = await ensurePostgresReady(pg);
+  await ensureDatabaseExists(pg, DATABASE_NAME);
+  await waitForPostgres(pg, DATABASE_NAME);
+
+  console.log("WashFlow dev supervisor started.");
+  console.log("Local URL: http://localhost:3000");
+  console.log("Press Ctrl+C to stop.");
+
+  startNext();
+}
+
+function startNext() {
+  cacheResetRequested = false;
+  child = spawn(process.execPath, [nextBin, "dev"], {
+    stdio: ["inherit", "pipe", "pipe"],
+    shell: false,
+    env: {
+      ...process.env,
+      PATH: `${binPath}${delimiter}${process.env.PATH ?? ""}`,
+      DATABASE_URL: process.env.DATABASE_URL ?? DATABASE_URL,
+      NODE_OPTIONS: withNodeOption(process.env.NODE_OPTIONS, "--use-system-ca"),
+      WS_NO_BUFFER_UTIL: process.env.WS_NO_BUFFER_UTIL ?? "1",
+      WS_NO_UTF_8_VALIDATE: process.env.WS_NO_UTF_8_VALIDATE ?? "1",
+    },
+  });
+
+  child.stdout?.on("data", (chunk) => {
+    process.stdout.write(chunk);
+    inspectNextOutput(chunk);
+  });
+
+  child.stderr?.on("data", (chunk) => {
+    process.stderr.write(chunk);
+    inspectNextOutput(chunk);
+  });
+
+  child.on("close", (code, signal) => {
+    if (shuttingDown) {
+      return;
+    }
+
+    if (cacheResetRequested) {
+      cleanNextCache();
+    }
+
+    console.warn(
+      `Next dev server stopped (code: ${code ?? "none"}, signal: ${signal ?? "none"}). Restarting...`,
+    );
+    setTimeout(startNext, restartDelayMs);
+  });
+}
+
+async function shutdown() {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
+  child?.kill("SIGTERM");
+  await stopOwnedPostgres(pg, ownsPostgres);
+  process.exit(0);
+}
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
+main().catch(async (error) => {
+  console.error(error);
+  await stopOwnedPostgres(pg, ownsPostgres);
+  process.exit(1);
+});
+
+function withNodeOption(existingOptions, option) {
+  const options = existingOptions?.trim();
+
+  if (!options) {
+    return option;
+  }
+
+  if (options.split(/\s+/).includes(option)) {
+    return options;
+  }
+
+  return `${options} ${option}`;
+}
+
+function inspectNextOutput(chunk) {
+  const output = chunk.toString();
+
+  const looksLikeBrokenNextCache =
+    /Cannot find module ['"]\.\/\d+\.js['"]/.test(output) ||
+    /prerender-manifest\.json/.test(output) ||
+    /__webpack_modules__\[.*\] is not a function/.test(output) ||
+    (/\.next[\\/]/.test(output) && /ENOENT|Cannot find module/.test(output));
+
+  if (!looksLikeBrokenNextCache || cacheResetRequested || shuttingDown) {
+    return;
+  }
+
+  cacheResetRequested = true;
+  console.warn("Detected a broken Next.js dev cache. Cleaning .next and restarting...");
+  child?.kill("SIGTERM");
+}
+
+function cleanNextCache() {
+  const nextDir = join(process.cwd(), ".next");
+
+  if (!existsSync(nextDir)) {
+    return;
+  }
+
+  rmSync(nextDir, { recursive: true, force: true });
+  console.log("Cleaned .next cache.");
+}

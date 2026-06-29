@@ -1,4 +1,8 @@
 import type { Business, BusinessStatus } from "@prisma/client";
+import {
+  BusinessLogoUpload,
+  BusinessSubmitButton,
+} from "@/components/business-logo-upload";
 
 type BusinessFormProps = {
   action: (formData: FormData) => Promise<void>;
@@ -23,11 +27,11 @@ export function BusinessForm({
 
       <div className="field-grid">
         <label>
-          <span>Business name</span>
+          <span>Company name</span>
           <input name="name" defaultValue={business?.name} required />
         </label>
         <label>
-          <span>Business slug</span>
+          <span>Company slug</span>
           <input
             name="slug"
             defaultValue={business?.slug ?? ""}
@@ -38,6 +42,14 @@ export function BusinessForm({
           {mode === "edit" ? (
             <input type="hidden" name="slug" value={business?.slug ?? ""} />
           ) : null}
+        </label>
+        <label>
+          <span>Company No. optional</span>
+          <input
+            name="companyNo"
+            defaultValue={business?.companyNo ?? ""}
+            placeholder="Company registration no."
+          />
         </label>
         <label>
           <span>Phone optional</span>
@@ -68,17 +80,29 @@ export function BusinessForm({
       </div>
 
       {mode === "edit" ? (
-        <label>
-          <span>Address</span>
-          <textarea name="address" defaultValue={business?.address ?? ""} rows={3} />
-        </label>
+        <>
+          <section className="subsection">
+            <div>
+              <h3>Company logo</h3>
+              <p>This logo appears in the sidebar and can be reused for invoices later.</p>
+            </div>
+            <BusinessLogoUpload
+              businessName={business?.name ?? "Company"}
+              currentLogoUrl={business?.logoUrl}
+            />
+          </section>
+          <label>
+            <span>Address</span>
+            <textarea name="address" defaultValue={business?.address ?? ""} rows={3} />
+          </label>
+        </>
       ) : null}
 
       {showOwnerFields ? (
         <section className="subsection">
           <div>
             <h3>Owner account</h3>
-            <p>Create the first business owner login for this tenant.</p>
+            <p>Create the first owner login for this company.</p>
           </div>
           <div className="field-grid">
             <label>
@@ -98,7 +122,9 @@ export function BusinessForm({
       ) : null}
 
       <div className="form-actions">
-        <button type="submit">{mode === "create" ? "Create business" : "Save changes"}</button>
+        <BusinessSubmitButton
+          idleLabel={mode === "create" ? "Create company" : "Save changes"}
+        />
       </div>
     </form>
   );

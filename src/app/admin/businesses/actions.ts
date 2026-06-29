@@ -1,8 +1,11 @@
 "use server";
 
 import bcrypt from "bcryptjs";
+import { randomUUID } from "crypto";
+import { mkdir, writeFile } from "fs/promises";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import path from "path";
 import { assertCanManageBusiness, assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +15,19 @@ import {
   createBusinessSchema,
 } from "@/lib/validation/business";
 
+const LOGO_UPLOAD_DIR = path.join(
+  process.cwd(),
+  "public",
+  "uploads",
+  "business-logos",
+);
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+const LOGO_EXTENSIONS = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpg"],
+  ["image/webp", "webp"],
+]);
+
 export async function createBusinessAction(formData: FormData) {
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
@@ -19,6 +35,7 @@ export async function createBusinessAction(formData: FormData) {
   const input = createBusinessSchema.parse({
     name: formData.get("name"),
     slug: formData.get("slug"),
+    companyNo: formData.get("companyNo"),
     phone: formData.get("phone"),
     ownerName: formData.get("ownerName"),
     ownerEmail: formData.get("ownerEmail"),
@@ -44,6 +61,7 @@ export async function createBusinessAction(formData: FormData) {
       data: {
         name: input.name,
         slug: input.slug,
+        companyNo: input.companyNo || null,
         phone: input.phone || null,
         status: "active",
       },
@@ -86,20 +104,24 @@ export async function updateBusinessAction(formData: FormData) {
   const parsed = businessSchema.parse({
     name: formData.get("name"),
     slug: formData.get("slug") ?? current.slug,
+    companyNo: formData.get("companyNo"),
     phone: formData.get("phone"),
     email: formData.get("email"),
     address: formData.get("address"),
     status: user.role === "PLATFORM_ADMIN" ? formData.get("status") : current.status,
   });
+  const logoUrl = await saveBusinessLogo(formData.get("logo"), businessId);
 
   await prisma.business.update({
     where: { id: businessId },
     data: {
       name: parsed.name,
+      companyNo: parsed.companyNo || null,
       phone: parsed.phone || null,
       email: parsed.email || null,
       address: parsed.address || null,
       status: parsed.status,
+      ...(logoUrl ? { logoUrl } : {}),
     },
   });
 
@@ -112,6 +134,30 @@ export async function updateBusinessAction(formData: FormData) {
   }
 
   redirect("/business/settings");
+}
+
+async function saveBusinessLogo(fileEntry: FormDataEntryValue | null, businessId: string) {
+  if (!fileEntry || typeof fileEntry === "string" || fileEntry.size === 0) {
+    return null;
+  }
+
+  if (fileEntry.size > LOGO_MAX_BYTES) {
+    throw new Error("Logo file must be smaller than 2MB.");
+  }
+
+  const extension = LOGO_EXTENSIONS.get(fileEntry.type);
+
+  if (!extension) {
+    throw new Error("Logo must be a PNG, JPG, or WebP image.");
+  }
+
+  await mkdir(LOGO_UPLOAD_DIR, { recursive: true });
+
+  const filename = `${businessId}-${randomUUID()}.${extension}`;
+  const filePath = path.join(LOGO_UPLOAD_DIR, filename);
+  await writeFile(filePath, Buffer.from(await fileEntry.arrayBuffer()));
+
+  return `/uploads/business-logos/${filename}`;
 }
 
 export type AdminResetUserPasswordState = {

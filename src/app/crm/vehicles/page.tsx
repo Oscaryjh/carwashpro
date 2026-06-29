@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { BackButton } from "@/components/back-button";
 import { requireCrmUser } from "@/lib/auth/crm";
 import { prisma } from "@/lib/prisma";
 import { normalizePlateNumber } from "@/lib/validation/crm";
@@ -51,9 +52,7 @@ export default async function VehiclesPage({ searchParams }: VehiclesPageProps) 
             <p>Search and view vehicles for this business.</p>
           </div>
           <div className="inline-actions">
-            <Link className="secondary-link-button" href="/crm">
-              Back to CRM
-            </Link>
+            <BackButton fallbackHref="/crm" />
             <Link className="button-link" href="/crm/vehicles/new">
               New Vehicle
             </Link>

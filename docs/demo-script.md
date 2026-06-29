@@ -101,7 +101,7 @@
 1. 在工单详情页点击 `in progress`。
 2. 再点击 `ready for pickup`。
 3. 工单状态应显示 `ready for pickup`。
-4. 系统会生成 WhatsApp message log：`READY_FOR_PICKUP`。
+4. 点击 `Send Pickup WhatsApp` 后，系统会打开 `wa.me` deep link，并建立 `READY_FOR_PICKUP` log。
 
 ## 8. POS 付款 / 套餐扣次
 
@@ -144,27 +144,14 @@
    - Payment history
 4. 如果使用套餐付款，payment history 应显示 method 为 `package`，并显示扣除 1 次套餐。
 
-## 10. WhatsApp Pipeline
+## 10. WhatsApp Deep Link
 
-1. 打开 `/whatsapp`。
-2. 应看到以下 message logs：
-   - `NEW_CUSTOMER_WELCOME`
-   - `SERVICE_CONFIRMATION`
-   - `READY_FOR_PICKUP`
-   - `INVOICE_SENT`
-3. 点击 `Queue`，状态应从 `READY` 变成 `QUEUED`，并记录 `queuedAt`。
-4. 点击 `Open WhatsApp`，系统会打开 `https://wa.me/{phone}?text={encodedMessage}`。
-5. 回到系统后点击 `Mark Sent`，状态应变成 `SENT`，并记录 `sentAt`。
-6. 点击 `Delivered`，状态应变成 `DELIVERED`，并记录 `deliveredAt`。
-7. 点击 `Read`，状态应变成 `READ`，并记录 `readAt`。
-8. 打开 `/whatsapp/[messageId]`，确认 Pipeline 显示：
-   - Log
-   - Queue
-   - Twilio / Meta API
-   - Delivery Status
-   - Read Status
-9. 如需演示失败路径，可在未读状态点击 `Failed`，状态会变成 `FAILED`。
-10. 未来 Twilio / Meta webhook 可用 `POST /api/whatsapp/status` 更新 `sent / delivered / read / failed`，请求必须包含 `businessId`，并用 `messageId` 或 `providerMessageId` 定位 message。
+1. 在 `/business/settings` 或 `/team` 确认 Owner / Staff 已填写 WhatsApp Number，例如 `60123456789`。
+2. 在 Work Order detail 点击 `Send WhatsApp` / `Send Pickup WhatsApp`，或在 Invoice detail 点击 `Send Invoice WhatsApp`。
+3. 系统会打开 `https://wa.me/{phone}?text={encodedMessage}`，用户用自己手机的 WhatsApp 手动发送。
+4. 系统应建立 WhatsApp log，状态为 `OPENED`，并记录 `openedAt`、`senderPhone`、`recipientPhone`、`sentByUserId`。
+5. 回到 `/whatsapp` 或 `/whatsapp/[messageId]` 点击 `Mark Sent`，状态应变成 `SENT_MANUALLY`，并记录 `sentAt`。
+6. Dashboard 的 WhatsApp 指标只统计 Opened / Manual Sent，不显示 delivered / read。
 
 ## 11. 多租户隔离检查
 

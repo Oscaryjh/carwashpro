@@ -7,16 +7,18 @@ import EmbeddedPostgres from "embedded-postgres";
 
 export const DATABASE_DIR = ".local-postgres/data";
 export const DATABASE_NAME = "car_wash_crm_pos";
+export const DATABASE_PORT = Number(process.env.LOCAL_POSTGRES_PORT ?? "5432");
 export const DATABASE_URL =
-  "postgresql://postgres:postgres@localhost:5432/car_wash_crm_pos?schema=public";
+  `postgresql://postgres:postgres@localhost:${DATABASE_PORT}/car_wash_crm_pos?schema=public`;
 
 export function createEmbeddedPostgres() {
   return new EmbeddedPostgres({
     databaseDir: DATABASE_DIR,
     user: "postgres",
     password: "postgres",
-    port: 5432,
+    port: DATABASE_PORT,
     persistent: true,
+    initdbFlags: ["--encoding=UTF8", "--locale=C"],
   });
 }
 
@@ -27,7 +29,7 @@ export async function ensurePostgresReady(pg) {
 
   if (await canOpenTcpPort()) {
     console.warn(
-      "Postgres port 5432 is open but health check failed. Attempting to recover local embedded Postgres.",
+      `Postgres port ${DATABASE_PORT} is open but health check failed. Attempting to recover local embedded Postgres.`,
     );
     await stopProjectPostgresFromPidFile();
     await waitForTcpPortToClose();
@@ -35,7 +37,7 @@ export async function ensurePostgresReady(pg) {
 
   if (await canOpenTcpPort()) {
     throw new Error(
-      "Port 5432 is occupied, but the database is not healthy. Stop the process using port 5432 and try again.",
+      `Port ${DATABASE_PORT} is occupied, but the database is not healthy. Stop the process using port ${DATABASE_PORT} and try again.`,
     );
   }
 
@@ -59,7 +61,9 @@ export async function ensureDatabaseExists(pg, databaseName = DATABASE_NAME) {
     );
 
     if (!existing.rowCount) {
-      await client.query(`CREATE DATABASE ${client.escapeIdentifier(databaseName)}`);
+      await client.query(
+        `CREATE DATABASE ${client.escapeIdentifier(databaseName)} WITH TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C'`,
+      );
     }
   } finally {
     await closeClient(client);
@@ -107,7 +111,7 @@ async function canQueryPostgres(pg, databaseName) {
 
 function canOpenTcpPort() {
   return new Promise((resolve) => {
-    const socket = createConnection({ host: "127.0.0.1", port: 5432 });
+    const socket = createConnection({ host: "127.0.0.1", port: DATABASE_PORT });
     socket.setTimeout(1000);
     socket.once("connect", () => {
       socket.destroy();

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { BackButton } from "@/components/back-button";
 import { BusinessForm } from "@/components/business-form";
 import { assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
@@ -14,10 +14,10 @@ export default async function NewBusinessPage() {
       <section className="content">
         <div className="page-header">
           <div>
-            <h1>Create Business</h1>
-            <p>Add a car wash tenant and its first business owner.</p>
+            <h1>Create Company</h1>
+            <p>Add a car wash company and its first owner account.</p>
           </div>
-          <Link href="/admin/businesses">Back to businesses</Link>
+          <BackButton fallbackHref="/admin/businesses" />
         </div>
 
         <div className="panel">

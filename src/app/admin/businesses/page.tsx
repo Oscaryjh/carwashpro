@@ -23,20 +23,21 @@ export default async function BusinessesPage() {
         <div className="page-header">
           <div>
             <h1>Businesses</h1>
-            <p>Create and manage car wash tenants.</p>
+            <p>Create and manage car wash companies.</p>
           </div>
           <Link className="button-link" href="/admin/businesses/new">
-            Create Business
+            Create Company
           </Link>
         </div>
 
         <div className="panel">
-          <h2>All businesses</h2>
+          <h2>All companies</h2>
           {businesses.length ? (
             <table className="table">
               <thead>
                 <tr>
-                  <th>Name</th>
+                  <th>Company</th>
+                  <th>Company No.</th>
                   <th>Contact</th>
                   <th>Status</th>
                   <th>Users</th>
@@ -51,6 +52,7 @@ export default async function BusinessesPage() {
                       <strong>{business.name}</strong>
                       <div className="muted">{business.slug}</div>
                     </td>
+                    <td>{business.companyNo || "No company no."}</td>
                     <td>
                       <div>{business.phone || "No phone"}</div>
                       <div className="muted">{business.email || "No email"}</div>
@@ -70,7 +72,7 @@ export default async function BusinessesPage() {
               </tbody>
             </table>
           ) : (
-            <p className="empty-state">No businesses yet.</p>
+            <p className="empty-state">No companies yet.</p>
           )}
         </div>
       </section>

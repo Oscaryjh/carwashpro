@@ -1,5 +1,6 @@
 import type { Package } from "@prisma/client";
 import { BranchSelect } from "@/components/branch-select";
+import { CustomerPackageSelector } from "@/components/customer-package-selector";
 import type { BranchOption } from "@/lib/branches";
 
 type CustomerPackagePurchaseFormProps = {
@@ -25,26 +26,20 @@ export function CustomerPackagePurchaseForm({
     );
   }
 
+  const packageOptions = packages.map((packagePlan) => ({
+    id: packagePlan.id,
+    name: packagePlan.name,
+    price: Number(packagePlan.price),
+    totalUses: packagePlan.totalUses,
+  }));
+
   return (
-    <form action={action} className="form">
+    <form action={action} className="form customer-package-purchase-form">
       <input type="hidden" name="customerId" value={customerId} />
-      <div className="field-grid">
+      <div className="customer-package-purchase-top">
         <BranchSelect branches={branches} selectedBranchId={selectedBranchId} />
-        <label>
-          <span>Package</span>
-          <select name="packageId" required>
-            {packages.map((packagePlan) => (
-              <option key={packagePlan.id} value={packagePlan.id}>
-                {packagePlan.name} - {packagePlan.totalUses} washes - RM
-                {Number(packagePlan.price).toFixed(2)}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
-      <div className="form-actions">
-        <button type="submit">Sell package</button>
-      </div>
+      <CustomerPackageSelector packages={packageOptions} />
     </form>
   );
 }

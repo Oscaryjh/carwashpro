@@ -5,26 +5,217 @@ import { redirect } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
+import { customerSchema, normalizePlateNumber, vehicleSchema } from "@/lib/validation/crm";
 import { money } from "@/lib/validation/services";
 import {
   canMoveWorkOrderStatus,
   createWorkOrderSchema,
   makeOrderNumber,
+  updateWorkOrderContactSchema,
   updateWorkOrderStatusSchema,
 } from "@/lib/validation/work-orders";
-import {
-  readyForPickupTemplate,
-  serviceConfirmationTemplate,
-} from "@/lib/whatsapp/templates";
+import { sendNewCustomerWelcomeIfConnected } from "@/lib/whatsapp/customer-welcome";
+import { sendReadyForPickupIfConnected } from "@/lib/whatsapp/work-order-notifications";
 
 function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
 }
 
-export async function createWorkOrderAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+function redirectToNewWorkOrderError(
+  plateNumber: string,
+  message: string,
+  customerPhone?: string,
+): never {
+  const params = new URLSearchParams();
+
+  if (plateNumber) {
+    params.set("plate", plateNumber);
+  }
+
+  if (customerPhone) {
+    params.set("customer", customerPhone);
+  }
+
+  params.set("error", message);
+  redirect(`/work-orders/new?${params.toString()}`);
+}
+
+async function redirectToWorkOrderFormError(
+  businessId: string,
+  formData: FormData,
+  message: string,
+): Promise<never> {
+  const vehicleId = formData.get("vehicleId")?.toString();
+  let plateNumber = "";
+
+  if (vehicleId) {
+    const vehicle = await prisma.vehicle.findFirst({
+      where: {
+        id: vehicleId,
+        businessId,
+      },
+      select: {
+        plateNumber: true,
+      },
+    });
+
+    plateNumber = vehicle?.plateNumber ?? "";
+  }
+
+  const params = new URLSearchParams();
+
+  if (plateNumber) {
+    params.set("plate", plateNumber);
+  }
+
+  params.set("error", message);
+  redirect(`/work-orders/new?${params.toString()}`);
+}
+
+export async function createVehicleForWorkOrderAction(formData: FormData) {
+  const { businessId, user } = await requireBusinessUser();
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
-  const input = createWorkOrderSchema.parse({
+  const mode = formData.get("mode")?.toString();
+  const plateNumber = normalizePlateNumber(
+    formData.get("plateNumber")?.toString() ?? "",
+  );
+
+  if (!plateNumber) {
+    throw new Error("Plate number is required.");
+  }
+
+  const existingVehicle = await prisma.vehicle.findFirst({
+    where: {
+      businessId,
+      plateNumber,
+    },
+    select: { id: true },
+  });
+
+  if (existingVehicle) {
+    redirect(`/work-orders/new?plate=${encodeURIComponent(plateNumber)}`);
+  }
+
+  const vehicleInput = vehicleSchema
+    .omit({ customerId: true, plateNumber: true })
+    .parse({
+      brand: formData.get("brand") ?? "",
+      model: formData.get("model") ?? "",
+      color: formData.get("color") ?? "",
+      notes: formData.get("vehicleNotes") ?? "",
+    });
+
+  const createdCustomerForWelcome = await prisma.$transaction(async (tx) => {
+    let customerId = "";
+    let customerForWelcome: { id: string; name: string; phone: string } | null =
+      null;
+
+    if (mode === "existing") {
+      const existingCustomerId = formData.get("customerId")?.toString();
+
+      if (!existingCustomerId) {
+        throw new Error("Select an existing customer.");
+      }
+
+      const customer = await tx.customer.findFirst({
+        where: {
+          id: existingCustomerId,
+          businessId,
+        },
+        select: { id: true },
+      });
+
+      if (!customer) {
+        throw new Error("Customer not found.");
+      }
+
+      customerId = customer.id;
+    } else if (mode === "new") {
+      const parsedCustomer = customerSchema.safeParse({
+        name: formData.get("customerName"),
+        phone: formData.get("customerPhone"),
+        email: formData.get("customerEmail"),
+        notes: formData.get("customerNotes"),
+      });
+      const customerPhone = formData.get("customerPhone")?.toString() ?? "";
+
+      if (!parsedCustomer.success) {
+        redirectToNewWorkOrderError(
+          plateNumber,
+          parsedCustomer.error.issues[0]?.message ?? "Check customer details.",
+          customerPhone,
+        );
+      }
+
+      const customerInput = parsedCustomer.data;
+
+      let customer = await tx.customer.findFirst({
+        where: {
+          businessId,
+          phone: customerInput.phone,
+        },
+      });
+
+      if (!customer) {
+        customer = await tx.customer.create({
+          data: {
+            businessId,
+            branchId,
+            name: customerInput.name,
+            phone: customerInput.phone,
+            email: customerInput.email || null,
+            notes: customerInput.notes || null,
+          },
+        });
+        customerForWelcome = {
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+        };
+      }
+
+      customerId = customer.id;
+    } else {
+      throw new Error("Choose customer type.");
+    }
+
+    await tx.vehicle.create({
+      data: {
+        businessId,
+        branchId,
+        customerId,
+        plateNumber,
+        brand: vehicleInput.brand || null,
+        model: vehicleInput.model || null,
+        color: vehicleInput.color || null,
+        notes: vehicleInput.notes || null,
+      },
+    });
+
+    return customerForWelcome;
+  });
+
+  revalidatePath("/crm");
+  revalidatePath("/crm/customers");
+  revalidatePath("/crm/vehicles");
+  revalidatePath("/work-orders/new");
+  if (createdCustomerForWelcome) {
+    await sendNewCustomerWelcomeIfConnected({
+      businessId,
+      branchId,
+      customerId: createdCustomerForWelcome.id,
+      customerName: createdCustomerForWelcome.name,
+      customerPhone: createdCustomerForWelcome.phone,
+      sentByUserId: user.userId,
+    });
+  }
+  redirect(`/work-orders/new?plate=${encodeURIComponent(plateNumber)}`);
+}
+
+export async function createWorkOrderAction(formData: FormData) {
+  const { businessId, user } = await requireBusinessUser();
+  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
+  const parsedInput = createWorkOrderSchema.safeParse({
     vehicleId: formData.get("vehicleId"),
     contactType: formData.get("contactType"),
     contactName: formData.get("contactName"),
@@ -34,13 +225,26 @@ export async function createWorkOrderAction(formData: FormData) {
     ownershipNotes: formData.get("ownershipNotes"),
     notes: formData.get("notes"),
   });
+
+  if (!parsedInput.success) {
+    const message =
+      parsedInput.error.issues[0]?.message ?? "Check the work order details.";
+
+    return redirectToWorkOrderFormError(businessId, formData, message);
+  }
+
+  const input = parsedInput.data;
   const serviceIds = formData
     .getAll("serviceIds")
     .map((value) => value.toString())
     .filter(Boolean);
 
   if (!serviceIds.length) {
-    throw new Error("Select at least one service.");
+    await redirectToWorkOrderFormError(
+      businessId,
+      formData,
+      "Select at least one service.",
+    );
   }
 
   const vehicle = await prisma.vehicle.findFirstOrThrow({
@@ -55,13 +259,21 @@ export async function createWorkOrderAction(formData: FormData) {
 
   if (input.contactType === "OTHER_PERSON") {
     if (!input.contactName || !input.contactPhone) {
-      throw new Error("Other person name and phone are required.");
+      await redirectToWorkOrderFormError(
+        businessId,
+        formData,
+        "Other person name and phone are required.",
+      );
     }
   }
 
   if (input.contactType === "NEW_OWNER") {
     if (!input.newOwnerName || !input.newOwnerPhone) {
-      throw new Error("New owner name and phone are required.");
+      await redirectToWorkOrderFormError(
+        businessId,
+        formData,
+        "New owner name and phone are required.",
+      );
     }
   }
 
@@ -97,11 +309,7 @@ export async function createWorkOrderAction(formData: FormData) {
   });
   const subtotalCents = items.reduce((sum, item) => sum + item.lineTotalCents, 0);
 
-  const workOrder = await prisma.$transaction(async (tx) => {
-    const business = await tx.business.findUniqueOrThrow({
-      where: { id: businessId },
-    });
-
+  const result = await prisma.$transaction(async (tx) => {
     const currentVehicle = await tx.vehicle.findFirstOrThrow({
       where: {
         id: vehicle.id,
@@ -115,6 +323,8 @@ export async function createWorkOrderAction(formData: FormData) {
     let workOrderCustomer = currentVehicle.customer;
     let contactName = currentVehicle.customer.name;
     let contactPhone = currentVehicle.customer.phone;
+    let newOwnerForWelcome: { id: string; name: string; phone: string } | null =
+      null;
 
     if (input.contactType === "OTHER_PERSON") {
       contactName = input.contactName!;
@@ -138,6 +348,11 @@ export async function createWorkOrderAction(formData: FormData) {
             phone: input.newOwnerPhone!,
           },
         });
+        newOwnerForWelcome = {
+          id: newOwner.id,
+          name: newOwner.name,
+          phone: newOwner.phone,
+        };
       }
 
       if (newOwner.id === currentVehicle.customerId) {
@@ -176,7 +391,7 @@ export async function createWorkOrderAction(formData: FormData) {
         customerId: workOrderCustomer.id,
         vehicleId: currentVehicle.id,
         orderNumber: makeOrderNumber(),
-        status: "WAITING",
+        status: "IN_PROGRESS",
         contactType: input.contactType,
         contactName,
         contactPhone,
@@ -199,39 +414,27 @@ export async function createWorkOrderAction(formData: FormData) {
       },
     });
 
-    await tx.whatsAppMessage.create({
-      data: {
-        businessId,
-        branchId,
-        customerId: workOrderCustomer.id,
-        vehicleId: currentVehicle.id,
-        workOrderId: created.id,
-        phone: contactPhone,
-        messageType: "SERVICE_CONFIRMATION",
-        messageBody: serviceConfirmationTemplate({
-          businessName: business.name,
-          customerName: contactName,
-          plateNumber: currentVehicle.plateNumber,
-          orderNumber: created.orderNumber,
-          services: services.map((service) => service.name),
-          total: money(subtotalCents / 100),
-        }),
-        status: "READY",
-      },
-    });
-
-    return created;
+    return { created, newOwnerForWelcome };
   });
 
   revalidatePath("/work-orders");
   revalidatePath("/crm");
   revalidatePath(`/crm/customers/${vehicle.customer.id}`);
-  revalidatePath("/whatsapp");
-  redirect(`/work-orders/${workOrder.id}`);
+  if (result.newOwnerForWelcome) {
+    await sendNewCustomerWelcomeIfConnected({
+      businessId,
+      branchId,
+      customerId: result.newOwnerForWelcome.id,
+      customerName: result.newOwnerForWelcome.name,
+      customerPhone: result.newOwnerForWelcome.phone,
+      sentByUserId: user.userId,
+    });
+  }
+  redirect("/work-orders");
 }
 
 export async function updateWorkOrderStatusAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser();
   const input = updateWorkOrderStatusSchema.parse({
     workOrderId: formData.get("workOrderId"),
     status: formData.get("status"),
@@ -258,31 +461,81 @@ export async function updateWorkOrderStatusAction(formData: FormData) {
       where: { id: workOrder.id },
       data: { status: input.status },
     });
+  });
 
-    if (input.status === "READY_FOR_PICKUP") {
-      await tx.whatsAppMessage.create({
-        data: {
-          businessId,
-          branchId: workOrder.branchId,
-          customerId: workOrder.customer.id,
-          vehicleId: workOrder.vehicle.id,
-          workOrderId: workOrder.id,
-          phone: workOrder.contactPhone || workOrder.customer.phone,
-          messageType: "READY_FOR_PICKUP",
-          messageBody: readyForPickupTemplate({
-            businessName: workOrder.business.name,
-            customerName: workOrder.contactName || workOrder.customer.name,
-            plateNumber: workOrder.vehicle.plateNumber,
-            orderNumber: workOrder.orderNumber,
-            balance: Number(workOrder.balance).toFixed(2),
-          }),
-          status: "READY",
-        },
-      });
-    }
+  if (input.status === "READY_FOR_PICKUP") {
+    await sendReadyForPickupIfConnected({
+      businessId,
+      workOrderId: workOrder.id,
+      sentByUserId: user.userId,
+    });
+  }
+
+  revalidatePath("/work-orders");
+  revalidatePath(`/work-orders/${workOrder.id}`);
+}
+
+export async function updateWorkOrderContactAction(formData: FormData) {
+  const { businessId } = await requireBusinessUser();
+  const workOrderId = formData.get("workOrderId")?.toString() ?? "";
+  const parsedInput = updateWorkOrderContactSchema.safeParse({
+    workOrderId: formData.get("workOrderId"),
+    contactType: formData.get("contactType"),
+    contactName: formData.get("contactName"),
+    contactPhone: formData.get("contactPhone"),
+  });
+
+  if (!parsedInput.success) {
+    const message =
+      parsedInput.error.issues[0]?.message ?? "Check the contact details.";
+    const params = new URLSearchParams({ error: message });
+
+    redirect(`/work-orders/${workOrderId}?${params.toString()}`);
+  }
+
+  const input = parsedInput.data;
+  const workOrder = await prisma.workOrder.findFirstOrThrow({
+    where: {
+      id: input.workOrderId,
+      businessId,
+    },
+    include: {
+      customer: true,
+    },
+  });
+
+  if (workOrder.contactType === "NEW_OWNER") {
+    const params = new URLSearchParams({
+      error:
+        "This work order includes an ownership transfer. Edit ownership from the vehicle/customer flow.",
+    });
+
+    redirect(`/work-orders/${workOrder.id}?${params.toString()}`);
+  }
+
+  const contactName =
+    input.contactType === "REGISTERED_OWNER"
+      ? workOrder.customer.name
+      : input.contactName;
+  const contactPhone =
+    input.contactType === "REGISTERED_OWNER"
+      ? workOrder.customer.phone
+      : input.contactPhone;
+
+  await prisma.workOrder.update({
+    where: {
+      id: workOrder.id,
+    },
+    data: {
+      contactType: input.contactType,
+      contactName,
+      contactPhone,
+    },
   });
 
   revalidatePath("/work-orders");
   revalidatePath(`/work-orders/${workOrder.id}`);
-  revalidatePath("/whatsapp");
+
+  const params = new URLSearchParams({ saved: "Contact updated." });
+  redirect(`/work-orders/${workOrder.id}?${params.toString()}`);
 }

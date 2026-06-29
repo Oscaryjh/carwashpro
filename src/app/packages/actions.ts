@@ -3,16 +3,25 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertRole } from "@/lib/auth/permissions";
 import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { packageSchema, purchasePackageSchema } from "@/lib/validation/packages";
 import { money } from "@/lib/validation/services";
 
+export type DeletePackageState = {
+  status: "idle" | "success" | "error";
+  message: string;
+};
+
 export async function createPackageAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUser();
+  assertRole(user, ["BUSINESS_OWNER"]);
+
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const input = packageSchema.parse({
     name: formData.get("name"),
+    categoryId: formData.get("categoryId") ?? "",
     description: formData.get("description"),
     serviceId: formData.get("serviceId"),
     price: formData.get("price"),
@@ -32,6 +41,7 @@ export async function createPackageAction(formData: FormData) {
   }
 
   const serviceId = input.serviceId || null;
+  const category = await resolvePackageCategory(businessId, input.categoryId);
 
   if (serviceId) {
     await prisma.service.findFirstOrThrow({
@@ -42,10 +52,11 @@ export async function createPackageAction(formData: FormData) {
     });
   }
 
-  await prisma.package.create({
+  const packagePlan = await prisma.package.create({
     data: {
       businessId,
       branchId,
+      categoryId: category?.id ?? null,
       serviceId,
       name: input.name,
       description: input.description || null,
@@ -56,11 +67,13 @@ export async function createPackageAction(formData: FormData) {
   });
 
   revalidatePath("/packages");
-  redirect("/packages");
+  redirect(`/packages/${packagePlan.id}`);
 }
 
 export async function updatePackageAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUser();
+  assertRole(user, ["BUSINESS_OWNER"]);
+
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const packageId = formData.get("packageId")?.toString();
 
@@ -70,6 +83,7 @@ export async function updatePackageAction(formData: FormData) {
 
   const input = packageSchema.parse({
     name: formData.get("name"),
+    categoryId: formData.get("categoryId") ?? "",
     description: formData.get("description"),
     serviceId: formData.get("serviceId"),
     price: formData.get("price"),
@@ -99,6 +113,7 @@ export async function updatePackageAction(formData: FormData) {
   }
 
   const serviceId = input.serviceId || null;
+  const category = await resolvePackageCategory(businessId, input.categoryId);
 
   if (serviceId) {
     await prisma.service.findFirstOrThrow({
@@ -112,6 +127,7 @@ export async function updatePackageAction(formData: FormData) {
   await prisma.package.update({
     where: { id: packagePlan.id },
     data: {
+      categoryId: category?.id ?? null,
       serviceId,
       branchId,
       name: input.name,
@@ -123,10 +139,33 @@ export async function updatePackageAction(formData: FormData) {
   });
 
   revalidatePath("/packages");
+  revalidatePath(`/packages/${packagePlan.id}`);
+  redirect("/packages");
+}
+
+async function resolvePackageCategory(
+  businessId: string,
+  categoryId: string | undefined,
+) {
+  if (!categoryId) {
+    return null;
+  }
+
+  return prisma.packageCategory.findFirstOrThrow({
+    where: {
+      id: categoryId,
+      businessId,
+    },
+    select: {
+      id: true,
+    },
+  });
 }
 
 export async function deactivatePackageAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUser();
+  assertRole(user, ["BUSINESS_OWNER"]);
+
   const packageId = formData.get("packageId")?.toString();
 
   if (!packageId) {
@@ -146,6 +185,59 @@ export async function deactivatePackageAction(formData: FormData) {
   });
 
   revalidatePath("/packages");
+}
+
+export async function deletePackageAction(
+  _previousState: DeletePackageState,
+  formData: FormData,
+): Promise<DeletePackageState> {
+  const { user, businessId } = await requireBusinessUser();
+  assertRole(user, ["BUSINESS_OWNER"]);
+
+  const packageId = formData.get("packageId")?.toString();
+
+  if (!packageId) {
+    return {
+      status: "error",
+      message: "Package id is required.",
+    };
+  }
+
+  const packagePlan = await prisma.package.findFirst({
+    where: {
+      id: packageId,
+      businessId,
+    },
+    include: {
+      _count: {
+        select: {
+          customerPackages: true,
+        },
+      },
+    },
+  });
+
+  if (!packagePlan) {
+    return {
+      status: "error",
+      message: "Package not found.",
+    };
+  }
+
+  if (packagePlan._count.customerPackages > 0) {
+    return {
+      status: "error",
+      message:
+        "Cannot delete this package because customers have already purchased it. Set status to Inactive instead.",
+    };
+  }
+
+  await prisma.package.delete({
+    where: { id: packagePlan.id },
+  });
+
+  revalidatePath("/packages");
+  redirect("/packages");
 }
 
 export async function purchasePackageAction(formData: FormData) {
@@ -172,7 +264,7 @@ export async function purchasePackageAction(formData: FormData) {
     }),
   ]);
 
-  await prisma.customerPackage.create({
+  const customerPackage = await prisma.customerPackage.create({
     data: {
       businessId,
       branchId,
@@ -180,10 +272,12 @@ export async function purchasePackageAction(formData: FormData) {
       packageId: packagePlan.id,
       purchasePrice: packagePlan.price,
       totalUses: packagePlan.totalUses,
-      remainingUses: packagePlan.totalUses,
-      status: "ACTIVE",
+      remainingUses: 0,
+      status: "PENDING_PAYMENT",
     },
   });
 
   revalidatePath(`/crm/customers/${customer.id}`);
+  revalidatePath("/pos");
+  redirect(`/pos/packages/${customerPackage.id}`);
 }

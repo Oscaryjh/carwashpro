@@ -1,5 +1,6 @@
 import type { Customer } from "@prisma/client";
 import { BranchSelect } from "@/components/branch-select";
+import { UppercaseInput } from "@/components/uppercase-input";
 import type { BranchOption } from "@/lib/branches";
 
 type CustomerFormProps = {
@@ -49,7 +50,12 @@ export function CustomerForm({
           <div className="field-grid">
             <label>
               <span>Plate number optional</span>
-              <input name="plateNumber" defaultValue={initialVehiclePlate} />
+              <UppercaseInput
+                name="plateNumber"
+                defaultValue={initialVehiclePlate}
+                autoCapitalize="characters"
+                autoComplete="off"
+              />
             </label>
             <label>
               <span>Brand optional</span>

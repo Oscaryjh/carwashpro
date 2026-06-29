@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { branchWhere, getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
@@ -7,8 +8,11 @@ import { getBusinessContext } from "@/lib/tenant";
 type DashboardPageProps = {
   searchParams: Promise<{
     branchId?: string;
+    range?: string;
   }>;
 };
+
+type DashboardRange = "today" | "7days" | "month";
 
 export default async function DashboardPage({
   searchParams,
@@ -28,12 +32,11 @@ export default async function DashboardPage({
           <div className="page-header">
             <div>
               <h1>Platform dashboard</h1>
-              <p>System-wide SaaS setup status.</p>
             </div>
           </div>
-          <div className="grid">
-            <Metric label="Businesses" value={businessCount} />
-            <Metric label="Active businesses" value={activeBusinessCount} />
+          <div className="dashboard-kpis">
+            <Metric label="Companies" value={businessCount} />
+            <Metric label="Active Companies" value={activeBusinessCount} />
             <Metric label="Users" value={userCount} />
           </div>
         </section>
@@ -47,67 +50,75 @@ export default async function DashboardPage({
     throw new Error("Business context is required.");
   }
 
+  const params = await searchParams;
+  const activeRange = getActiveRange(params.range);
   const now = new Date();
-  const todayStart = startOfDay(now);
-  const tomorrowStart = addDays(todayStart, 1);
+  const { fromDate, toDateExclusive, label: rangeLabel } = getRangeDates(activeRange, now);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const { branchId: requestedBranchId } = await searchParams;
+
   const branches = await getActiveBranches(businessId);
-  const selectedBranch = branches.find(
-    (branch) => branch.id === requestedBranchId,
-  );
+  const selectedBranch = branches.find((branch) => branch.id === params.branchId);
   const selectedBranchId = selectedBranch?.id ?? null;
   const selectedBranchWhere = branchWhere(selectedBranchId);
 
   const [
     business,
-    todayPayments,
-    carsWashedToday,
-    workOrdersToday,
+    serviceSales,
+    packageSales,
+    jobsInRange,
+    carsCompletedInRange,
     readyForPickup,
     unpaidPartialInvoices,
-    packageUsesToday,
-    whatsAppSentToday,
+    packageUsesInRange,
+    whatsAppOpenedInRange,
+    whatsAppManualSentInRange,
     newCustomersThisMonth,
-    topServicesThisMonth,
-    recentWorkOrders,
+    inProgressJobs,
+    topServices,
+    recentJobs,
     recentPayments,
     lowPackageBalanceCustomers,
   ] = await Promise.all([
-    prisma.business.findUniqueOrThrow({
-      where: { id: businessId },
+    prisma.business.findUniqueOrThrow({ where: { id: businessId } }),
+    prisma.payment.aggregate({
+      where: {
+        businessId,
+        ...selectedBranchWhere,
+        status: "ACTIVE",
+        method: { not: "PACKAGE" },
+        workOrderId: { not: null },
+        paidAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      _count: true,
+      _sum: { amount: true },
     }),
     prisma.payment.aggregate({
       where: {
         businessId,
         ...selectedBranchWhere,
-        paidAt: {
-          gte: todayStart,
-          lt: tomorrowStart,
-        },
+        status: "ACTIVE",
+        method: { not: "PACKAGE" },
+        customerPackageId: { not: null },
+        workOrderId: null,
+        paidAt: { gte: fromDate, lt: toDateExclusive },
       },
+      _count: true,
       _sum: { amount: true },
     }),
     prisma.workOrder.count({
       where: {
         businessId,
         ...selectedBranchWhere,
-        status: "COMPLETED",
-        updatedAt: {
-          gte: todayStart,
-          lt: tomorrowStart,
-        },
+        createdAt: { gte: fromDate, lt: toDateExclusive },
       },
     }),
     prisma.workOrder.count({
       where: {
         businessId,
         ...selectedBranchWhere,
-        createdAt: {
-          gte: todayStart,
-          lt: tomorrowStart,
-        },
+        status: "COMPLETED",
+        updatedAt: { gte: fromDate, lt: toDateExclusive },
       },
     }),
     prisma.workOrder.count({
@@ -121,9 +132,7 @@ export default async function DashboardPage({
       where: {
         businessId,
         ...selectedBranchWhere,
-        status: {
-          in: ["UNPAID", "PARTIAL"],
-        },
+        status: { in: ["UNPAID", "PARTIAL"] },
       },
       _count: true,
       _sum: { balance: true },
@@ -132,11 +141,9 @@ export default async function DashboardPage({
       where: {
         businessId,
         ...selectedBranchWhere,
+        status: "ACTIVE",
         method: "PACKAGE",
-        paidAt: {
-          gte: todayStart,
-          lt: tomorrowStart,
-        },
+        paidAt: { gte: fromDate, lt: toDateExclusive },
       },
       _sum: { packageUses: true },
       _count: true,
@@ -145,62 +152,66 @@ export default async function DashboardPage({
       where: {
         businessId,
         ...selectedBranchWhere,
-        sentAt: {
-          gte: todayStart,
-          lt: tomorrowStart,
-        },
+        status: "OPENED",
+        openedAt: { gte: fromDate, lt: toDateExclusive },
+      },
+    }),
+    prisma.whatsAppMessage.count({
+      where: {
+        businessId,
+        ...selectedBranchWhere,
+        status: "SENT_MANUALLY",
+        sentAt: { gte: fromDate, lt: toDateExclusive },
       },
     }),
     prisma.customer.count({
       where: {
         businessId,
         ...selectedBranchWhere,
-        createdAt: {
-          gte: monthStart,
-          lt: nextMonthStart,
-        },
+        createdAt: { gte: monthStart, lt: nextMonthStart },
+      },
+    }),
+    prisma.workOrder.count({
+      where: {
+        businessId,
+        ...selectedBranchWhere,
+        status: "IN_PROGRESS",
       },
     }),
     prisma.workOrderItem.groupBy({
       by: ["name"],
       where: {
         businessId,
-        ...(selectedBranchId
-          ? {
-              workOrder: {
-                branchId: selectedBranchId,
-              },
-            }
-          : {}),
-        createdAt: {
-          gte: monthStart,
-          lt: nextMonthStart,
-        },
+        ...(selectedBranchId ? { workOrder: { branchId: selectedBranchId } } : {}),
+        createdAt: { gte: fromDate, lt: toDateExclusive },
       },
-      _sum: {
-        quantity: true,
-        lineTotal: true,
-      },
-      orderBy: {
-        _sum: {
-          lineTotal: "desc",
-        },
-      },
+      _sum: { quantity: true, lineTotal: true },
+      orderBy: { _sum: { lineTotal: "desc" } },
       take: 5,
     }),
     prisma.workOrder.findMany({
       where: { businessId, ...selectedBranchWhere },
       include: {
-        branch: true,
         customer: true,
         vehicle: true,
       },
       orderBy: { createdAt: "desc" },
-      take: 8,
+      take: 6,
     }),
     prisma.payment.findMany({
-      where: { businessId, ...selectedBranchWhere },
+      where: {
+        businessId,
+        ...selectedBranchWhere,
+        status: "ACTIVE",
+        method: { not: "PACKAGE" },
+      },
       include: {
+        customerPackage: {
+          include: {
+            customer: true,
+            package: true,
+          },
+        },
         workOrder: {
           include: {
             customer: true,
@@ -210,41 +221,36 @@ export default async function DashboardPage({
         },
       },
       orderBy: { paidAt: "desc" },
-      take: 8,
+      take: 6,
     }),
     prisma.customerPackage.findMany({
       where: {
         businessId,
         ...selectedBranchWhere,
         status: "ACTIVE",
-        remainingUses: {
-          lte: 2,
-        },
+        remainingUses: { lte: 2 },
       },
       include: {
         customer: true,
         package: true,
       },
       orderBy: [{ remainingUses: "asc" }, { purchasedAt: "asc" }],
-      take: 8,
+      take: 6,
     }),
   ]);
 
+  const totalSales =
+    Number(serviceSales._sum.amount ?? 0) + Number(packageSales._sum.amount ?? 0);
+
   return (
     <AppShell user={context.user}>
-      <section className="content">
-        <div className="page-header">
+      <section className="content dashboard-content">
+        <div className="page-header dashboard-header">
           <div>
             <h1>{business.name}</h1>
-            <p>
-              Today and month-to-date store analytics
-              {selectedBranch ? ` for ${selectedBranch.name}` : " across all branches"}.
-            </p>
           </div>
-        </div>
-
-        <div className="panel">
-          <form className="search-form" action="/dashboard">
+          <form className="dashboard-branch-filter" action="/dashboard">
+            <input type="hidden" name="range" value={activeRange} />
             <select name="branchId" defaultValue={selectedBranchId ?? ""}>
               <option value="">All branches</option>
               {branches.map((branch) => (
@@ -257,186 +263,266 @@ export default async function DashboardPage({
           </form>
         </div>
 
-        <div className="grid">
-          <Metric label="Today Sales" value={money(todayPayments._sum.amount)} />
-          <Metric label="Cars Washed Today" value={carsWashedToday} />
-          <Metric label="Work Orders Today" value={workOrdersToday} />
-          <Metric label="Ready for Pickup" value={readyForPickup} />
+        <div className="dashboard-range-tabs">
+          {(["today", "7days", "month"] as DashboardRange[]).map((range) => (
+            <Link
+              className={activeRange === range ? "active" : ""}
+              href={makeDashboardHref(range, selectedBranchId)}
+              key={range}
+            >
+              {rangeLabelText(range)}
+            </Link>
+          ))}
+        </div>
+
+        <div className="dashboard-kpis">
           <Metric
-            label="Unpaid / Partial Invoices"
-            value={`${unpaidPartialInvoices._count} / ${money(
-              unpaidPartialInvoices._sum.balance,
-            )}`}
+            label={`${rangeLabel} Sales`}
+            value={money(totalSales)}
+            href="/reports"
+            tone="sales"
           />
+          <Metric label="Service Sales" value={money(serviceSales._sum.amount)} />
+          <Metric label="Package Sales" value={money(packageSales._sum.amount)} />
           <Metric
-            label="Package Uses Today"
-            value={`${packageUsesToday._sum.packageUses ?? 0} uses / ${
-              packageUsesToday._count
-            } orders`}
+            label="Outstanding"
+            value={money(unpaidPartialInvoices._sum.balance)}
+            subValue={`${unpaidPartialInvoices._count} invoices`}
+            href="/invoices"
+            tone="warning"
           />
-          <Metric label="WhatsApp Sent Today" value={whatsAppSentToday} />
+          <Metric label={`${rangeLabel} Jobs`} value={jobsInRange} href="/work-orders" />
+          <Metric label="Completed Cars" value={carsCompletedInRange} />
           <Metric
-            label="New Customers This Month"
-            value={newCustomersThisMonth}
+            label="Ready Pickup"
+            value={readyForPickup}
+            href="/work-orders?filter=ready"
+            tone="ready"
           />
+          <Metric label="In Progress" value={inProgressJobs} href="/work-orders?filter=active" />
+          <Metric
+            label="Package Uses"
+            value={packageUsesInRange._sum.packageUses ?? 0}
+            subValue={`${packageUsesInRange._count} jobs`}
+          />
+          <Metric label="WhatsApp Opened" value={whatsAppOpenedInRange} href="/whatsapp" />
+          <Metric
+            label="Manual WhatsApp Sent"
+            value={whatsAppManualSentInRange}
+            href="/whatsapp"
+          />
+          <Metric label="New Customers" value={newCustomersThisMonth} subValue="This month" href="/crm" />
         </div>
 
         <section className="dashboard-panels">
-          <div className="panel">
-            <h2>Top Services This Month</h2>
-            {topServicesThisMonth.length ? (
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Service</th>
-                    <th>Qty</th>
-                    <th>Sales</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topServicesThisMonth.map((service) => (
-                    <tr key={service.name}>
-                      <td>{service.name}</td>
-                      <td>{service._sum.quantity ?? 0}</td>
-                      <td>{money(service._sum.lineTotal)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <DashboardPanel title="Top Services" href="/services">
+            {topServices.length ? (
+              <div className="dashboard-list">
+                {topServices.map((service, index) => (
+                  <div className="dashboard-list-row" key={service.name}>
+                    <div className="dashboard-rank">{index + 1}</div>
+                    <div className="dashboard-list-main">
+                      <strong>{service.name}</strong>
+                      <span>{service._sum.quantity ?? 0} sold</span>
+                    </div>
+                    <strong>{money(service._sum.lineTotal)}</strong>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <p className="empty-state">No services sold this month.</p>
+              <p className="empty-state">No service sales yet.</p>
             )}
-          </div>
+          </DashboardPanel>
 
-          <div className="panel">
-            <h2>Recent Work Orders</h2>
-            {recentWorkOrders.length ? (
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Order</th>
-                    <th>Customer</th>
-                    <th>Vehicle</th>
-                    <th>Branch</th>
-                    <th>Status</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentWorkOrders.map((workOrder) => (
-                    <tr key={workOrder.id}>
-                      <td>
-                        <Link href={`/work-orders/${workOrder.id}`}>
-                          {workOrder.orderNumber}
-                        </Link>
-                      </td>
-                      <td>{workOrder.customer.name}</td>
-                      <td>{workOrder.vehicle.plateNumber}</td>
-                      <td>{workOrder.branch?.name ?? "All branches"}</td>
-                      <td>{formatStatus(workOrder.status)}</td>
-                      <td>{money(workOrder.total)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <DashboardPanel title="Recent Jobs" href="/work-orders">
+            {recentJobs.length ? (
+              <div className="dashboard-list">
+                {recentJobs.map((job) => (
+                  <div className="dashboard-list-row" key={job.id}>
+                    <div className="dashboard-list-main">
+                      <div className="dashboard-row-title">
+                        <Link href={`/work-orders/${job.id}`}>{job.vehicle.plateNumber}</Link>
+                        <span className="status">{formatStatus(job.status)}</span>
+                      </div>
+                      <span>{job.customer.name} / {vehicleLabel(job.vehicle)}</span>
+                    </div>
+                    <strong>{money(job.total)}</strong>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <p className="empty-state">No work orders yet.</p>
+              <p className="empty-state">No jobs yet.</p>
             )}
-          </div>
+          </DashboardPanel>
 
-          <div className="panel">
-            <h2>Recent Payments</h2>
+          <DashboardPanel title="Recent Payments" href="/invoices">
             {recentPayments.length ? (
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Paid At</th>
-                    <th>Customer</th>
-                    <th>Method</th>
-                    <th>Amount</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentPayments.map((payment) => (
-                    <tr key={payment.id}>
-                      <td>{payment.paidAt.toLocaleString()}</td>
-                      <td>{payment.workOrder.customer.name}</td>
-                      <td>{formatStatus(payment.method)}</td>
-                      <td>{money(payment.amount)}</td>
-                      <td>
-                        {payment.workOrder.invoice ? (
-                          <Link href={`/invoices/${payment.workOrder.invoice.id}`}>
-                            Invoice
-                          </Link>
-                        ) : (
-                          <Link href={`/work-orders/${payment.workOrder.id}`}>
-                            Work order
-                          </Link>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="dashboard-list">
+                {recentPayments.map((payment) => (
+                  <div className="dashboard-list-row" key={payment.id}>
+                    <div className="dashboard-list-main">
+                      <div className="dashboard-row-title">
+                        <strong>
+                          {payment.workOrder?.vehicle.plateNumber ??
+                            payment.customerPackage?.package.name ??
+                            "Payment"}
+                        </strong>
+                        <span>{formatStatus(payment.method)}</span>
+                      </div>
+                      <span>
+                        {payment.workOrder?.customer.name ??
+                          payment.customerPackage?.customer.name ??
+                          "No customer"}
+                      </span>
+                    </div>
+                    <div className="dashboard-row-side">
+                      <strong>{money(payment.amount)}</strong>
+                      {payment.workOrder?.invoice ? (
+                        <Link href={`/invoices/${payment.workOrder.invoice.id}`}>
+                          Invoice
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <p className="empty-state">No payments yet.</p>
             )}
-          </div>
+          </DashboardPanel>
 
-          <div className="panel">
-            <h2>Low Package Balance Customers</h2>
+          <DashboardPanel title="Low Package Balance" href="/crm">
             {lowPackageBalanceCustomers.length ? (
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Customer</th>
-                    <th>Package</th>
-                    <th>Balance</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lowPackageBalanceCustomers.map((customerPackage) => (
-                    <tr key={customerPackage.id}>
-                      <td>
+              <div className="dashboard-list">
+                {lowPackageBalanceCustomers.map((customerPackage) => (
+                  <div className="dashboard-list-row" key={customerPackage.id}>
+                    <div className="dashboard-list-main">
+                      <div className="dashboard-row-title">
                         <Link href={`/crm/customers/${customerPackage.customer.id}`}>
                           {customerPackage.customer.name}
                         </Link>
-                      </td>
-                      <td>{customerPackage.package.name}</td>
-                      <td>
-                        {customerPackage.remainingUses}/
-                        {customerPackage.totalUses} washes
-                      </td>
-                      <td>{formatStatus(customerPackage.status)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <span className="status">
+                          {customerPackage.remainingUses}/{customerPackage.totalUses}
+                        </span>
+                      </div>
+                      <span>{customerPackage.package.name}</span>
+                    </div>
+                    <strong>{customerPackage.customer.phone}</strong>
+                  </div>
+                ))}
+              </div>
             ) : (
               <p className="empty-state">No low package balances.</p>
             )}
-          </div>
+          </DashboardPanel>
         </section>
       </section>
     </AppShell>
   );
 }
 
+function DashboardPanel({
+  title,
+  href,
+  children,
+}: {
+  title: string;
+  href: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="panel dashboard-card">
+      <div className="section-header">
+        <h2>{title}</h2>
+        <Link href={href}>View</Link>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function Metric({
   label,
   value,
+  subValue,
+  href,
+  tone = "default",
 }: {
   label: string;
   value: string | number;
+  subValue?: string;
+  href?: string;
+  tone?: "default" | "sales" | "warning" | "ready" | "danger";
 }) {
-  return (
-    <div className="panel metric">
+  const content = (
+    <>
       <span>{label}</span>
       <strong>{value}</strong>
-    </div>
+      {subValue ? <small>{subValue}</small> : null}
+    </>
   );
+
+  if (href) {
+    return (
+      <Link className={`dashboard-kpi-card ${tone}`} href={href}>
+        {content}
+      </Link>
+    );
+  }
+
+  return <div className={`dashboard-kpi-card ${tone}`}>{content}</div>;
+}
+
+function getActiveRange(value?: string): DashboardRange {
+  return value === "7days" || value === "month" ? value : "today";
+}
+
+function getRangeDates(range: DashboardRange, now: Date) {
+  const todayStart = startOfDay(now);
+
+  if (range === "7days") {
+    return {
+      fromDate: addDays(todayStart, -6),
+      toDateExclusive: addDays(todayStart, 1),
+      label: "7 Days",
+    };
+  }
+
+  if (range === "month") {
+    return {
+      fromDate: new Date(now.getFullYear(), now.getMonth(), 1),
+      toDateExclusive: new Date(now.getFullYear(), now.getMonth() + 1, 1),
+      label: "Month",
+    };
+  }
+
+  return {
+    fromDate: todayStart,
+    toDateExclusive: addDays(todayStart, 1),
+    label: "Today",
+  };
+}
+
+function rangeLabelText(range: DashboardRange) {
+  if (range === "7days") {
+    return "7 Days";
+  }
+
+  if (range === "month") {
+    return "Month";
+  }
+
+  return "Today";
+}
+
+function makeDashboardHref(range: DashboardRange, branchId: string | null) {
+  const params = new URLSearchParams({ range });
+
+  if (branchId) {
+    params.set("branchId", branchId);
+  }
+
+  return `/dashboard?${params.toString()}`;
 }
 
 function startOfDay(date: Date) {
@@ -457,4 +543,13 @@ function money(value: unknown) {
 
 function formatStatus(status: string) {
   return status.toLowerCase().replaceAll("_", " ");
+}
+
+function vehicleLabel(vehicle: {
+  brand: string | null;
+  model: string | null;
+  color: string | null;
+}) {
+  return [vehicle.brand, vehicle.model, vehicle.color].filter(Boolean).join(" ") ||
+    "No vehicle details";
 }

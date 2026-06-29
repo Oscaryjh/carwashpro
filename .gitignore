@@ -9,3 +9,5 @@ coverage
 .local-postgres.pid
 .local-postgres-*.log
 .next-dev-*.log
+public/uploads/
+.whatsapp-sessions/

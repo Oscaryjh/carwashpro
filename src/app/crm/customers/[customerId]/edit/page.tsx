@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { CustomerForm } from "@/components/customer-form";
-import { VehicleForm } from "@/components/vehicle-form";
+import { BackButton } from "@/components/back-button";
 import { requireCrmUser } from "@/lib/auth/crm";
-import { getActiveBranches } from "@/lib/branches";
+import { getActiveBranches, type BranchOption } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
-import { updateCustomerAction, updateVehicleAction } from "../../../actions";
+import { updateCustomerProfileAction } from "../../../actions";
 
 type EditCustomerPageProps = {
   params: Promise<{
@@ -51,61 +50,143 @@ export default async function EditCustomerPage({
             <p>Update customer contact details and linked vehicles in one place.</p>
           </div>
           <div className="inline-actions">
-            <Link className="secondary-link-button" href={`/crm/customers/${customer.id}`}>
-              Back to customer
-            </Link>
-            <Link className="secondary-link-button" href="/crm">
-              Back to CRM
-            </Link>
+            <BackButton fallbackHref={`/crm/customers/${customer.id}`} />
           </div>
         </div>
 
-        <div className="panel">
-          <div className="section-header">
-            <h2>Customer details</h2>
-          </div>
-          <CustomerForm
-            action={updateCustomerAction}
-            branches={branches}
-            customer={customer}
-            mode="edit"
-          />
-        </div>
+        <form action={updateCustomerProfileAction} className="form">
+          <input type="hidden" name="customerId" value={customer.id} />
 
-        <div className="panel">
-          <div className="section-header">
-            <h2>Vehicles</h2>
-            <Link
-              className="button-link"
-              href={`/crm/vehicles/new?customerId=${customer.id}`}
-            >
-              Add Vehicle
-            </Link>
-          </div>
-
-          {customer.vehicles.length ? (
-            <div className="service-list">
-              {customer.vehicles.map((vehicle) => (
-                <div className="inline-editor" key={vehicle.id}>
-                  <h3>{vehicle.plateNumber}</h3>
-                  <VehicleForm
-                    action={updateVehicleAction}
-                    branches={branches}
-                    customers={[customer]}
-                    vehicle={vehicle}
-                    mode="edit"
-                    lockCustomer
-                  />
-                </div>
-              ))}
+          <div className="panel">
+            <div className="section-header">
+              <h2>Customer details</h2>
             </div>
-          ) : (
-            <p className="empty-state">
-              No vehicles yet. Add the first vehicle for this customer.
-            </p>
-          )}
-        </div>
+            <div className="field-grid">
+              <BranchField
+                branches={branches}
+                name="customerBranchId"
+                selectedBranchId={customer.branchId}
+              />
+              <label>
+                <span>Name</span>
+                <input name="name" defaultValue={customer.name} required />
+              </label>
+              <label>
+                <span>Phone</span>
+                <input name="phone" defaultValue={customer.phone} required />
+              </label>
+              <label>
+                <span>Email optional</span>
+                <input name="email" type="email" defaultValue={customer.email ?? ""} />
+              </label>
+            </div>
+            <label>
+              <span>Notes optional</span>
+              <textarea name="notes" rows={3} defaultValue={customer.notes ?? ""} />
+            </label>
+          </div>
+
+          <div className="panel">
+            <div className="section-header">
+              <h2>Vehicles</h2>
+              <Link
+                className="button-link"
+                href={`/crm/vehicles/new?customerId=${customer.id}`}
+              >
+                Add Vehicle
+              </Link>
+            </div>
+
+            {customer.vehicles.length ? (
+              <div className="service-list">
+                {customer.vehicles.map((vehicle) => (
+                  <div className="inline-editor" key={vehicle.id}>
+                    <h3>{vehicle.plateNumber}</h3>
+                    <input type="hidden" name="vehicleId" value={vehicle.id} />
+                    <div className="field-grid">
+                      <BranchField
+                        branches={branches}
+                        name="vehicleBranchId"
+                        selectedBranchId={vehicle.branchId}
+                      />
+                      <label>
+                        <span>Plate number</span>
+                        <input
+                          name="vehiclePlateNumber"
+                          defaultValue={vehicle.plateNumber}
+                          required
+                        />
+                      </label>
+                      <label>
+                        <span>Brand optional</span>
+                        <input name="vehicleBrand" defaultValue={vehicle.brand ?? ""} />
+                      </label>
+                      <label>
+                        <span>Model optional</span>
+                        <input name="vehicleModel" defaultValue={vehicle.model ?? ""} />
+                      </label>
+                      <label>
+                        <span>Color optional</span>
+                        <input name="vehicleColor" defaultValue={vehicle.color ?? ""} />
+                      </label>
+                    </div>
+                    <label>
+                      <span>Notes optional</span>
+                      <textarea
+                        name="vehicleNotes"
+                        rows={3}
+                        defaultValue={vehicle.notes ?? ""}
+                      />
+                    </label>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">
+                No vehicles yet. Add the first vehicle for this customer.
+              </p>
+            )}
+          </div>
+
+          <div className="form-actions">
+            <button type="submit">Save</button>
+          </div>
+        </form>
       </section>
     </AppShell>
+  );
+}
+
+function BranchField({
+  branches,
+  name,
+  selectedBranchId,
+}: {
+  branches: BranchOption[];
+  name: string;
+  selectedBranchId?: string | null;
+}) {
+  if (!branches.length) {
+    return null;
+  }
+
+  if (branches.length === 1) {
+    return <input type="hidden" name={name} value={branches[0].id} />;
+  }
+
+  return (
+    <label>
+      <span>Branch</span>
+      <select name={name} defaultValue={selectedBranchId ?? ""} required>
+        <option value="" disabled>
+          Select branch
+        </option>
+        {branches.map((branch) => (
+          <option key={branch.id} value={branch.id}>
+            {branch.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

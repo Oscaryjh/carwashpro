@@ -1,5 +1,6 @@
 import {
   DATABASE_NAME,
+  DATABASE_PORT,
   createEmbeddedPostgres,
   ensureDatabaseExists,
   ensurePostgresReady,
@@ -15,7 +16,7 @@ async function main() {
   await ensureDatabaseExists(pg, DATABASE_NAME);
   await waitForPostgres(pg, DATABASE_NAME);
 
-  console.log("Embedded Postgres is running on localhost:5432");
+  console.log(`Embedded Postgres is running on localhost:${DATABASE_PORT}`);
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);

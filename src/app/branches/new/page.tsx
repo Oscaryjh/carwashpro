@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { BackButton } from "@/components/back-button";
 import { BranchForm } from "@/components/branch-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { createBranchAction } from "../actions";
@@ -19,7 +19,7 @@ export default async function NewBranchPage() {
             <h1>New Branch</h1>
             <p>Create a location for this business.</p>
           </div>
-          <Link href="/branches">Back to branches</Link>
+          <BackButton fallbackHref="/branches" />
         </div>
 
         <div className="panel">

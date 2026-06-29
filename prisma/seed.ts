@@ -1,5 +1,6 @@
 import { PrismaClient, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { DEFAULT_WHATSAPP_TEMPLATES } from "../src/lib/whatsapp/template-defaults";
 
 const prisma = new PrismaClient();
 
@@ -29,6 +30,23 @@ async function main() {
   });
 
   console.log(`Seeded platform admin: ${email}`);
+
+  await Promise.all(
+    DEFAULT_WHATSAPP_TEMPLATES.map((template) =>
+      prisma.whatsAppTemplate.upsert({
+        where: { messageType: template.messageType },
+        update: {},
+        create: {
+          body: template.body,
+          messageType: template.messageType,
+          status: "ACTIVE",
+          title: template.title,
+        },
+      }),
+    ),
+  );
+
+  console.log(`Seeded WhatsApp templates: ${DEFAULT_WHATSAPP_TEMPLATES.length}`);
 }
 
 main()

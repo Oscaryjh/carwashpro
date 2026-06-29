@@ -1,8 +1,9 @@
-import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { PackagePaymentForm } from "@/components/package-payment-form";
-import { PaymentForm } from "@/components/payment-form";
+import { BackButton } from "@/components/back-button";
+import { PosPaymentPanel } from "@/components/pos-payment-panel";
+import { PosReceiptTotalsPreview } from "@/components/pos-payment-preview";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
 import { recordPaymentAction, usePackagePaymentAction } from "../actions";
@@ -22,6 +23,7 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
       businessId,
     },
     include: {
+      business: true,
       customer: true,
       vehicle: true,
       items: {
@@ -61,106 +63,154 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
         (item) => item.serviceId === customerPackage.package.serviceId,
       ),
   );
+  const packagePaymentOptions = usableCustomerPackages.map((customerPackage) => ({
+    id: customerPackage.id,
+    packageName: customerPackage.package.name,
+    remainingUses: customerPackage.remainingUses,
+    totalUses: customerPackage.totalUses,
+  }));
 
   return (
     <AppShell user={user}>
       <section className="content">
         <div className="page-header">
           <div>
-            <h1>Checkout {workOrder.orderNumber}</h1>
+            <h1>Checkout</h1>
             <p>{workOrder.vehicle.plateNumber}</p>
           </div>
-          <Link href="/pos">Back to POS</Link>
+          <BackButton fallbackHref="/pos" />
         </div>
 
-        <div className="grid">
-          <Info label="Customer" value={`${workOrder.customer.name} - ${workOrder.customer.phone}`} />
-          <Info label="Vehicle" value={vehicleLabel(workOrder.vehicle)} />
-          <Info label="Total" value={Number(workOrder.total).toFixed(2)} />
-          <Info label="Paid" value={Number(workOrder.paidAmount).toFixed(2)} />
-          <Info label="Balance" value={balance.toFixed(2)} />
-          <Info label="Payment" value={formatStatus(workOrder.paymentStatus)} />
-        </div>
+        <div className="pos-checkout-layout">
+          <div className="pos-receipt-panel panel">
+            <div className="pos-receipt-company">
+              {workOrder.business.logoUrl ? (
+                <Image
+                  src={workOrder.business.logoUrl}
+                  alt=""
+                  width={58}
+                  height={58}
+                />
+              ) : (
+                <div className="pos-receipt-logo-placeholder">
+                  {workOrder.business.name.slice(0, 1)}
+                </div>
+              )}
+              <div>
+                <strong>{workOrder.business.name}</strong>
+                {workOrder.business.companyNo ? (
+                  <span>Company No. {workOrder.business.companyNo}</span>
+                ) : null}
+                {workOrder.business.phone ? (
+                  <span>WhatsApp No. {workOrder.business.phone}</span>
+                ) : null}
+                {workOrder.business.address ? (
+                  <span>{workOrder.business.address}</span>
+                ) : null}
+              </div>
+            </div>
 
-        <div className="panel">
-          <h2>Service items</h2>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Qty</th>
-                <th>Unit price</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
+            <div className="pos-receipt-header">
+              <div>
+                <span>Invoice No.</span>
+                <strong className="pos-receipt-number">
+                  {workOrder.invoice?.invoiceNumber ?? "Pending invoice"}
+                </strong>
+                <small>{new Date().toLocaleDateString("en-MY")}</small>
+              </div>
+              <div>
+                <span>Vehicle</span>
+                <strong>{workOrder.vehicle.plateNumber}</strong>
+                <small>{vehicleDetails(workOrder.vehicle)}</small>
+              </div>
+              <span className={`payment-state ${workOrder.paymentStatus.toLowerCase()}`}>
+                {formatStatus(workOrder.paymentStatus)}
+              </span>
+            </div>
+
+            <div className="pos-customer-strip">
+              <div>
+                <span>Customer</span>
+                <strong>{workOrder.customer.name}</strong>
+              </div>
+              <div>
+                <span>Phone</span>
+                <strong>{workOrder.customer.phone}</strong>
+              </div>
+            </div>
+
+            <div className="pos-receipt-items">
+              <div className="pos-receipt-row pos-receipt-head">
+                <span>Item</span>
+                <span>Qty</span>
+                <span>Total</span>
+              </div>
               {workOrder.items.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.name}</td>
-                  <td>{item.quantity}</td>
-                  <td>{Number(item.unitPrice).toFixed(2)}</td>
-                  <td>{Number(item.lineTotal).toFixed(2)}</td>
-                </tr>
+                <div className="pos-receipt-row" key={item.id}>
+                  <div>
+                    <strong>{item.name}</strong>
+                    <small>RM{Number(item.unitPrice).toFixed(2)}</small>
+                  </div>
+                  <span>{item.quantity}</span>
+                  <strong>RM{Number(item.lineTotal).toFixed(2)}</strong>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
 
-        <div className="panel">
-          <h2>Payment</h2>
-          {canPay ? (
-            <PaymentForm
-              action={recordPaymentAction}
-              workOrderId={workOrder.id}
+            <PosReceiptTotalsPreview
+              total={Number(workOrder.total)}
+              paidAmount={Number(workOrder.paidAmount)}
               balance={balance}
             />
-          ) : (
-            <p className="empty-state">This work order cannot accept more payments.</p>
-          )}
+
+            {workOrder.payments.length ? (
+              <div className="pos-payment-history">
+                <h3>Payment history</h3>
+                {workOrder.payments.map((payment) => (
+                  <div className="pos-history-row" key={payment.id}>
+                    <span>{payment.paidAt.toLocaleString()}</span>
+                    <strong>RM{Number(payment.amount).toFixed(2)}</strong>
+                    <small>{formatStatus(payment.method)}</small>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <PosPaymentPanel
+            recordPaymentAction={recordPaymentAction}
+            usePackagePaymentAction={usePackagePaymentAction}
+            workOrderId={workOrder.id}
+            balance={balance}
+            canPay={canPay}
+            customerPackages={packagePaymentOptions}
+            invoice={
+              workOrder.invoice
+                ? {
+                    id: workOrder.invoice.id,
+                    invoiceNumber: workOrder.invoice.invoiceNumber,
+                  }
+                : null
+            }
+          />
         </div>
-
-        {canPay ? (
-          <div className="panel">
-            <h2>Package payment</h2>
-            <PackagePaymentForm
-              action={usePackagePaymentAction}
-              workOrderId={workOrder.id}
-              customerPackages={usableCustomerPackages}
-            />
-          </div>
-        ) : null}
-
-        {workOrder.invoice ? (
-          <div className="panel">
-            <Link href={`/invoices/${workOrder.invoice.id}`}>
-              View invoice {workOrder.invoice.invoiceNumber}
-            </Link>
-          </div>
-        ) : null}
       </section>
     </AppShell>
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="panel metric">
-      <span>{label}</span>
-      <strong style={{ fontSize: 15, overflowWrap: "anywhere" }}>{value}</strong>
-    </div>
-  );
-}
-
 function formatStatus(status: string) {
-  return status.toLowerCase().replaceAll("_", " ");
+  return status
+    .toLowerCase()
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function vehicleLabel(vehicle: {
-  plateNumber: string;
+function vehicleDetails(vehicle: {
   brand: string | null;
   model: string | null;
   color: string | null;
 }) {
-  const details = [vehicle.brand, vehicle.model, vehicle.color].filter(Boolean).join(" ");
-  return details ? `${vehicle.plateNumber} - ${details}` : vehicle.plateNumber;
+  return [vehicle.brand, vehicle.model, vehicle.color].filter(Boolean).join(" ") ||
+    "No vehicle details";
 }

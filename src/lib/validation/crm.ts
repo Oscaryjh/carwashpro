@@ -2,7 +2,12 @@ import { z } from "zod";
 
 export const customerSchema = z.object({
   name: z.string().trim().min(2, "Customer name is required."),
-  phone: z.string().trim().min(5, "Phone is required."),
+  phone: z
+    .string()
+    .trim()
+    .min(7, "Phone is required.")
+    .max(20, "Phone is too long.")
+    .regex(/^[0-9]+$/, "Phone can only contain numbers."),
   email: z.string().trim().email("Enter a valid email.").optional().or(z.literal("")),
   notes: z.string().trim().optional(),
 });

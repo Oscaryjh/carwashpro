@@ -1,19 +1,71 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { BackButton } from "@/components/back-button";
+import { DeleteCustomerForm } from "@/components/delete-customer-form";
 import { requireCrmUser } from "@/lib/auth/crm";
 import { prisma } from "@/lib/prisma";
+import { normalizePlateNumber } from "@/lib/validation/crm";
 
-export default async function CustomersPage() {
+type CustomersPageProps = {
+  searchParams: Promise<{
+    q?: string;
+  }>;
+};
+
+export default async function CustomersPage({ searchParams }: CustomersPageProps) {
   const { user, businessId } = await requireCrmUser();
+  const { q } = await searchParams;
+  const rawSearch = (q ?? "").trim();
+  const normalizedPlate = rawSearch ? normalizePlateNumber(rawSearch) : "";
+
   const customers = await prisma.customer.findMany({
-    where: { businessId },
+    where: {
+      businessId,
+      ...(rawSearch
+        ? {
+            OR: [
+              {
+                name: {
+                  contains: rawSearch,
+                  mode: "insensitive",
+                },
+              },
+              {
+                phone: {
+                  contains: rawSearch,
+                  mode: "insensitive",
+                },
+              },
+              {
+                email: {
+                  contains: rawSearch,
+                  mode: "insensitive",
+                },
+              },
+              {
+                vehicles: {
+                  some: {
+                    plateNumber: {
+                      contains: normalizedPlate,
+                      mode: "insensitive",
+                    },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+    },
     include: {
-      branch: true,
-      _count: {
-        select: { vehicles: true },
+      vehicles: {
+        orderBy: { createdAt: "desc" },
+        take: 4,
       },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { updatedAt: "desc" },
+      { createdAt: "desc" },
+    ],
   });
 
   return (
@@ -22,43 +74,65 @@ export default async function CustomersPage() {
         <div className="page-header">
           <div>
             <h1>Customers</h1>
-            <p>Customer records for this business only.</p>
+            <p>{customers.length} customer record{customers.length === 1 ? "" : "s"}</p>
           </div>
           <div className="inline-actions">
-            <Link className="secondary-link-button" href="/crm">
-              Back to CRM
-            </Link>
-            <Link className="button-link" href="/crm/customers/new">
-              New Customer
-            </Link>
+            <BackButton fallbackHref="/crm" />
           </div>
         </div>
 
         <div className="panel">
+          <form className="search-form" action="/crm/customers">
+            <input
+              name="q"
+              placeholder="Search name, phone, email, or plate"
+              defaultValue={rawSearch}
+            />
+            <button type="submit">Search</button>
+          </form>
+          {rawSearch ? (
+            <div className="list-toolbar">
+              <span>
+                Showing {customers.length} result{customers.length === 1 ? "" : "s"} for{" "}
+                <strong>{rawSearch}</strong>
+              </span>
+              <Link href="/crm/customers">Clear</Link>
+            </div>
+          ) : null}
+
           {customers.length ? (
-            <table className="table">
+            <table className="table customer-directory-table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Phone</th>
+                  <th>No.</th>
+                  <th>Customer</th>
+                  <th>Contact</th>
                   <th>Email</th>
-                  <th>Branch</th>
-                  <th>Vehicles</th>
-                  <th />
+                  <th>Joined</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {customers.map((customer) => (
+                {customers.map((customer, index) => (
                   <tr key={customer.id}>
-                    <td>{customer.name}</td>
+                    <td className="table-number">{index + 1}</td>
+                    <td>
+                      <Link href={`/crm/customers/${customer.id}`}>
+                        <strong>{customer.name}</strong>
+                      </Link>
+                    </td>
                     <td>{customer.phone}</td>
-                    <td>{customer.email || "No email"}</td>
-                    <td>{customer.branch?.name ?? "All branches"}</td>
-                    <td>{customer._count.vehicles}</td>
+                    <td className="muted">{customer.email || "No email"}</td>
+                    <td>{formatDate(customer.createdAt)}</td>
                     <td>
                       <div className="inline-actions">
                         <Link href={`/crm/customers/${customer.id}`}>View</Link>
                         <Link href={`/crm/customers/${customer.id}/edit`}>Edit</Link>
+                        <DeleteCustomerForm
+                          customerId={customer.id}
+                          customerName={customer.name}
+                          label="Delete"
+                        />
                       </div>
                     </td>
                   </tr>
@@ -66,10 +140,20 @@ export default async function CustomersPage() {
               </tbody>
             </table>
           ) : (
-            <p className="empty-state">No customers yet.</p>
+            <p className="empty-state">
+              {rawSearch ? "No matching customers found." : "No customers yet."}
+            </p>
           )}
         </div>
       </section>
     </AppShell>
   );
+}
+
+function formatDate(value: Date) {
+  return value.toLocaleDateString("en-MY", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }

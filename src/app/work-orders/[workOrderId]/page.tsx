@@ -1,22 +1,34 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { BackButton } from "@/components/back-button";
+import { SendWhatsAppButton } from "@/components/send-whatsapp-button";
+import { WorkOrderContactForm } from "@/components/work-order-contact-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
 import { canMoveWorkOrderStatus } from "@/lib/validation/work-orders";
-import { updateWorkOrderStatusAction } from "../actions";
+import {
+  updateWorkOrderContactAction,
+  updateWorkOrderStatusAction,
+} from "../actions";
 
 type WorkOrderDetailsPageProps = {
   params: Promise<{
     workOrderId: string;
   }>;
+  searchParams: Promise<{
+    error?: string;
+    saved?: string;
+  }>;
 };
 
 export default async function WorkOrderDetailsPage({
   params,
+  searchParams,
 }: WorkOrderDetailsPageProps) {
   const { user, businessId } = await requireBusinessUser();
   const { workOrderId } = await params;
+  const { error, saved } = await searchParams;
   const workOrder = await prisma.workOrder.findFirst({
     where: {
       id: workOrderId,
@@ -36,6 +48,17 @@ export default async function WorkOrderDetailsPage({
     notFound();
   }
 
+  const contactFormWorkOrder = {
+    id: workOrder.id,
+    contactType: workOrder.contactType,
+    contactName: workOrder.contactName,
+    contactPhone: workOrder.contactPhone,
+    customer: {
+      name: workOrder.customer.name,
+      phone: workOrder.customer.phone,
+    },
+  };
+
   return (
     <AppShell user={user}>
       <section className="content">
@@ -44,13 +67,16 @@ export default async function WorkOrderDetailsPage({
             <h1>{workOrder.orderNumber}</h1>
             <p>{formatStatus(workOrder.status)}</p>
           </div>
-          <Link href="/work-orders">Back to work orders</Link>
+          <BackButton fallbackHref="/work-orders" />
         </div>
+
+        {error ? <p className="error">{error}</p> : null}
+        {saved ? <p className="success">{saved}</p> : null}
 
         <div className="grid">
           <Info label="Customer" value={`${workOrder.customer.name} - ${workOrder.customer.phone}`} />
           <Info
-            label="Today contact"
+            label="Pick up contact"
             value={`${formatStatus(workOrder.contactType)} - ${
               workOrder.contactName || workOrder.customer.name
             } - ${workOrder.contactPhone || workOrder.customer.phone}`}
@@ -63,7 +89,12 @@ export default async function WorkOrderDetailsPage({
           <Info label="Payment" value={formatStatus(workOrder.paymentStatus)} />
         </div>
 
-        <div className="panel">
+        <WorkOrderContactForm
+          action={updateWorkOrderContactAction}
+          workOrder={contactFormWorkOrder}
+        />
+
+        <div className="panel work-order-compact-panel work-order-action-panel">
           <div className="section-header">
             <h2>Status</h2>
             <span className="status">{formatStatus(workOrder.status)}</span>
@@ -82,7 +113,7 @@ export default async function WorkOrderDetailsPage({
           </div>
         </div>
 
-        <div className="panel">
+        <div className="panel work-order-compact-panel work-order-action-panel">
           <div className="section-header">
             <h2>Payment</h2>
             <span className="status">{formatStatus(workOrder.paymentStatus)}</span>
@@ -97,6 +128,40 @@ export default async function WorkOrderDetailsPage({
               <Link href={`/invoices/${workOrder.invoice.id}`}>
                 View invoice {workOrder.invoice.invoiceNumber}
               </Link>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="panel work-order-compact-panel work-order-action-panel">
+          <div className="section-header">
+            <h2>WhatsApp</h2>
+            <span className="status">manual</span>
+          </div>
+          <div className="inline-actions">
+            <SendWhatsAppButton
+              customerId={workOrder.customer.id}
+              label="Send WhatsApp"
+              messageType="NEW_CUSTOMER_WELCOME"
+            />
+            <SendWhatsAppButton
+              label="Send WhatsApp"
+              messageType="SERVICE_CONFIRMATION"
+              workOrderId={workOrder.id}
+            />
+            {workOrder.status === "READY_FOR_PICKUP" ||
+            workOrder.status === "COMPLETED" ? (
+              <SendWhatsAppButton
+                label="Send Pickup WhatsApp"
+                messageType="READY_FOR_PICKUP"
+                workOrderId={workOrder.id}
+              />
+            ) : null}
+            {workOrder.invoice ? (
+              <SendWhatsAppButton
+                invoiceId={workOrder.invoice.id}
+                label="Send Invoice WhatsApp"
+                messageType="INVOICE_SENT"
+              />
             ) : null}
           </div>
         </div>

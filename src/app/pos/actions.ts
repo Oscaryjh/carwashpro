@@ -4,17 +4,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
+import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import {
   fromCents,
   makeInvoiceNumber,
+  packagePurchasePaymentSchema,
   paymentSchema,
   toCents,
 } from "@/lib/validation/pos";
 import { usePackagePaymentSchema } from "@/lib/validation/packages";
-import { invoiceSentTemplate } from "@/lib/whatsapp/templates";
 
 export async function recordPaymentAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser();
   const input = paymentSchema.parse({
     workOrderId: formData.get("workOrderId"),
     amount: formData.get("amount"),
@@ -22,7 +23,7 @@ export async function recordPaymentAction(formData: FormData) {
     reference: formData.get("reference"),
   });
 
-  const invoiceId = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const workOrder = await tx.workOrder.findFirstOrThrow({
       where: {
         id: input.workOrderId,
@@ -30,9 +31,6 @@ export async function recordPaymentAction(formData: FormData) {
       },
       include: {
         invoice: true,
-        business: true,
-        customer: true,
-        vehicle: true,
       },
     });
 
@@ -102,34 +100,15 @@ export async function recordPaymentAction(formData: FormData) {
         paidAmount: fromCents(nextPaidCents),
         balance: fromCents(nextBalanceCents),
         status: invoiceStatus,
+        voidedAt: null,
+        voidReason: null,
       },
     });
 
-    if (isPaid) {
-      await tx.whatsAppMessage.create({
-        data: {
-          businessId,
-          branchId: workOrder.branchId,
-          customerId: workOrder.customer.id,
-          vehicleId: workOrder.vehicle.id,
-          workOrderId: workOrder.id,
-          invoiceId: invoice.id,
-          phone: workOrder.customer.phone,
-          messageType: "INVOICE_SENT",
-          messageBody: invoiceSentTemplate({
-            businessName: workOrder.business.name,
-            customerName: workOrder.customer.name,
-            plateNumber: workOrder.vehicle.plateNumber,
-            invoiceNumber: invoice.invoiceNumber,
-            total: fromCents(totalCents),
-            paidAmount: fromCents(nextPaidCents),
-          }),
-          status: "READY",
-        },
-      });
-    }
-
-    return invoice.id;
+    return {
+      invoiceId: invoice.id,
+      shouldSendInvoice: isPaid,
+    };
   });
 
   revalidatePath("/pos");
@@ -137,13 +116,21 @@ export async function recordPaymentAction(formData: FormData) {
   revalidatePath("/work-orders");
   revalidatePath(`/work-orders/${input.workOrderId}`);
   revalidatePath("/invoices");
-  revalidatePath(`/invoices/${invoiceId}`);
-  revalidatePath("/whatsapp");
-  redirect(`/invoices/${invoiceId}`);
+  revalidatePath(`/invoices/${result.invoiceId}`);
+
+  if (result.shouldSendInvoice) {
+    await sendInvoiceIfConnected({
+      businessId,
+      invoiceId: result.invoiceId,
+      sentByUserId: user.userId,
+    });
+  }
+
+  redirect(`/invoices/${result.invoiceId}`);
 }
 
 export async function usePackagePaymentAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser();
   const input = usePackagePaymentSchema.parse({
     workOrderId: formData.get("workOrderId"),
     customerPackageId: formData.get("customerPackageId"),
@@ -157,9 +144,6 @@ export async function usePackagePaymentAction(formData: FormData) {
       },
       include: {
         invoice: true,
-        business: true,
-        customer: true,
-        vehicle: true,
         items: true,
       },
     });
@@ -260,28 +244,8 @@ export async function usePackagePaymentAction(formData: FormData) {
         paidAmount: fromCents(nextPaidCents),
         balance: fromCents(0),
         status: "PAID",
-      },
-    });
-
-    await tx.whatsAppMessage.create({
-      data: {
-        businessId,
-        branchId: workOrder.branchId,
-        customerId: workOrder.customer.id,
-        vehicleId: workOrder.vehicle.id,
-        workOrderId: workOrder.id,
-        invoiceId: invoice.id,
-        phone: workOrder.customer.phone,
-        messageType: "INVOICE_SENT",
-        messageBody: invoiceSentTemplate({
-          businessName: workOrder.business.name,
-          customerName: workOrder.customer.name,
-          plateNumber: workOrder.vehicle.plateNumber,
-          invoiceNumber: invoice.invoiceNumber,
-          total: fromCents(totalCents),
-          paidAmount: fromCents(nextPaidCents),
-        }),
-        status: "READY",
+        voidedAt: null,
+        voidReason: null,
       },
     });
 
@@ -295,6 +259,68 @@ export async function usePackagePaymentAction(formData: FormData) {
   revalidatePath("/invoices");
   revalidatePath(`/invoices/${invoiceId}`);
   revalidatePath("/crm/customers");
-  revalidatePath("/whatsapp");
+  await sendInvoiceIfConnected({
+    businessId,
+    invoiceId,
+    sentByUserId: user.userId,
+  });
   redirect(`/invoices/${invoiceId}`);
+}
+
+export async function recordPackagePurchasePaymentAction(formData: FormData) {
+  const { businessId } = await requireBusinessUser();
+  const input = packagePurchasePaymentSchema.parse({
+    customerPackageId: formData.get("customerPackageId"),
+    amount: formData.get("amount"),
+    method: formData.get("method"),
+    reference: formData.get("reference"),
+  });
+
+  const customerId = await prisma.$transaction(async (tx) => {
+    const customerPackage = await tx.customerPackage.findFirstOrThrow({
+      where: {
+        id: input.customerPackageId,
+        businessId,
+        status: "PENDING_PAYMENT",
+      },
+      include: {
+        customer: true,
+        package: true,
+      },
+    });
+
+    const priceCents = toCents(customerPackage.purchasePrice);
+    const amountCents = toCents(input.amount);
+
+    if (amountCents !== priceCents) {
+      throw new Error("Package purchase must be paid in full before activation.");
+    }
+
+    await tx.payment.create({
+      data: {
+        businessId,
+        branchId: customerPackage.branchId,
+        workOrderId: null,
+        customerPackageId: customerPackage.id,
+        amount: fromCents(amountCents),
+        method: input.method,
+        reference: input.reference || `${customerPackage.package.name} package purchase`,
+      },
+    });
+
+    await tx.customerPackage.update({
+      where: { id: customerPackage.id },
+      data: {
+        remainingUses: customerPackage.totalUses,
+        status: "ACTIVE",
+      },
+    });
+
+    return customerPackage.customer.id;
+  });
+
+  revalidatePath("/pos");
+  revalidatePath(`/pos/packages/${input.customerPackageId}`);
+  revalidatePath(`/crm/customers/${customerId}`);
+  redirect(`/crm/customers/${customerId}`);
 }

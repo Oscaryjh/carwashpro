@@ -1,29 +1,45 @@
-import type { Package, Service } from "@prisma/client";
+import type { Package, PackageCategory, Service } from "@prisma/client";
 import { BranchSelect } from "@/components/branch-select";
 import type { BranchOption } from "@/lib/branches";
 
 type PackageFormProps = {
   action: (formData: FormData) => Promise<void>;
   packagePlan?: Package;
+  categories?: Pick<PackageCategory, "id" | "name" | "status">[];
   services: Pick<Service, "id" | "name">[];
   branches?: BranchOption[];
-  submitLabel: string;
+  submitLabel?: string;
+  formId?: string;
 };
 
 export function PackageForm({
   action,
   packagePlan,
+  categories = [],
   services,
   branches = [],
   submitLabel,
+  formId,
 }: PackageFormProps) {
   return (
-    <form action={action} className="form">
+    <form action={action} className="form" id={formId}>
       {packagePlan ? (
         <input type="hidden" name="packageId" value={packagePlan.id} />
       ) : null}
       <div className="field-grid">
         <BranchSelect branches={branches} selectedBranchId={packagePlan?.branchId} />
+        <label>
+          <span>Category</span>
+          <select name="categoryId" defaultValue={packagePlan?.categoryId ?? ""}>
+            <option value="">Uncategorized</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+                {category.status === "INACTIVE" ? " (inactive)" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           <span>Name</span>
           <input
@@ -83,9 +99,11 @@ export function PackageForm({
           defaultValue={packagePlan?.description ?? "Prepaid 10-wash package."}
         />
       </label>
-      <div className="form-actions">
-        <button type="submit">{submitLabel}</button>
-      </div>
+      {submitLabel ? (
+        <div className="form-actions">
+          <button type="submit">{submitLabel}</button>
+        </div>
+      ) : null}
     </form>
   );
 }

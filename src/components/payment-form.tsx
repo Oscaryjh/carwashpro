@@ -1,14 +1,53 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { PACKAGE_PAYMENT_PREVIEW_EVENT } from "@/components/pos-payment-preview";
+
 type PaymentFormProps = {
   action: (formData: FormData) => Promise<void>;
   workOrderId: string;
   balance: number;
+  variant?: "default" | "pos";
+  defaultPackageSelected?: boolean;
 };
 
-export function PaymentForm({ action, workOrderId, balance }: PaymentFormProps) {
+export function PaymentForm({
+  action,
+  workOrderId,
+  balance,
+  variant = "default",
+  defaultPackageSelected = false,
+}: PaymentFormProps) {
+  const isPos = variant === "pos";
+  const [method, setMethod] = useState("CASH");
+  const [isPackageSelected, setIsPackageSelected] = useState(defaultPackageSelected);
+  const isReferenceRequired = method !== "CASH";
+
+  useEffect(() => {
+    function handlePackagePreview(event: Event) {
+      const detail = (event as CustomEvent<{ selected: boolean }>).detail;
+      setIsPackageSelected(Boolean(detail?.selected));
+    }
+
+    window.addEventListener(PACKAGE_PAYMENT_PREVIEW_EVENT, handlePackagePreview);
+    return () => {
+      window.removeEventListener(PACKAGE_PAYMENT_PREVIEW_EVENT, handlePackagePreview);
+    };
+  }, []);
+
   return (
-    <form action={action} className="form">
+    <form
+      action={action}
+      className={[
+        "form",
+        isPos ? "pos-payment-form" : "",
+        isPackageSelected ? "is-muted" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <input type="hidden" name="workOrderId" value={workOrderId} />
-      <div className="field-grid">
+      <div className={isPos ? "pos-payment-fields" : "field-grid"}>
         <label>
           <span>Payment amount</span>
           <input
@@ -18,26 +57,68 @@ export function PaymentForm({ action, workOrderId, balance }: PaymentFormProps) 
             min="0.01"
             max={balance.toFixed(2)}
             defaultValue={balance.toFixed(2)}
+            disabled={isPackageSelected}
             required
           />
         </label>
         <label>
           <span>Payment method</span>
-          <select name="method" defaultValue="CASH" required>
-            <option value="CASH">Cash</option>
-            <option value="CARD">Card</option>
-            <option value="DUITNOW">DuitNow</option>
-            <option value="EWALLET">E-wallet</option>
-            <option value="BANK_TRANSFER">Bank transfer</option>
-          </select>
+          {isPos ? (
+            <div className="pos-method-grid">
+              {[
+                ["CASH", "Cash"],
+                ["CARD", "Card"],
+                ["DUITNOW", "DuitNow"],
+                ["EWALLET", "E-wallet"],
+                ["BANK_TRANSFER", "Bank"],
+              ].map(([value, label]) => (
+                <label className="pos-method-option" key={value}>
+                  <input
+                    name="method"
+                    type="radio"
+                    value={value}
+                    defaultChecked={value === "CASH"}
+                    onChange={() => setMethod(value)}
+                    disabled={isPackageSelected}
+                    required
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <select
+              name="method"
+              defaultValue="CASH"
+              onChange={(event) => setMethod(event.target.value)}
+              disabled={isPackageSelected}
+              required
+            >
+              <option value="CASH">Cash</option>
+              <option value="CARD">Card</option>
+              <option value="DUITNOW">DuitNow</option>
+              <option value="EWALLET">E-wallet</option>
+              <option value="BANK_TRANSFER">Bank transfer</option>
+            </select>
+          )}
         </label>
         <label>
-          <span>Reference optional</span>
-          <input name="reference" />
+          <span>{isReferenceRequired ? "Reference required" : "Reference optional"}</span>
+          <input
+            name="reference"
+            disabled={isPackageSelected}
+            required={!isPackageSelected && isReferenceRequired}
+          />
         </label>
       </div>
       <div className="form-actions">
-        <button type="submit">Record payment</button>
+        <button type="submit" disabled={isPackageSelected}>
+          {isPackageSelected
+            ? "Use Pay with package below"
+            : isPos
+              ? "Check out"
+              : "Record payment"}
+        </button>
       </div>
     </form>
   );

@@ -1,8 +1,10 @@
-export function normalizeWhatsAppPhone(phone: string) {
-  return phone.replace(/[^\d]/g, "");
-}
+import {
+  generateWhatsAppLink,
+  normalizeMalaysiaWhatsAppPhone,
+} from "@/lib/whatsappDeepLink";
 
 export function createWhatsAppDeepLink(phone: string, message: string) {
-  const normalizedPhone = normalizeWhatsAppPhone(phone);
-  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+  return generateWhatsAppLink(phone, message);
 }
+
+export const normalizeWhatsAppPhone = normalizeMalaysiaWhatsAppPhone;

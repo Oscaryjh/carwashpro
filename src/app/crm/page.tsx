@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { DeleteCustomerForm } from "@/components/delete-customer-form";
 import { requireCrmUser } from "@/lib/auth/crm";
 import { prisma } from "@/lib/prisma";
 import { normalizePlateNumber } from "@/lib/validation/crm";
@@ -8,92 +9,94 @@ type CrmPageProps = {
   searchParams: Promise<{
     q?: string;
     plate?: string;
+    page?: string;
   }>;
 };
 
+const CUSTOMERS_PER_PAGE = 30;
+
 export default async function CrmPage({ searchParams }: CrmPageProps) {
   const { user, businessId } = await requireCrmUser();
-  const { q, plate } = await searchParams;
+  const { q, plate, page } = await searchParams;
   const rawSearch = (q ?? plate ?? "").trim();
   const normalizedPlate = rawSearch ? normalizePlateNumber(rawSearch) : "";
   const isLikelyPlateSearch = /[A-Z]/i.test(rawSearch) && /\d/.test(rawSearch);
+  const currentPage = Math.max(1, Number(page) || 1);
+  const customerSkip = (currentPage - 1) * CUSTOMERS_PER_PAGE;
   const newCustomerHref = isLikelyPlateSearch
     ? `/crm/customers/new?plate=${encodeURIComponent(normalizedPlate)}`
     : "/crm/customers/new";
 
-  const customerProfiles = await prisma.customer.findMany({
-    where: {
-      businessId,
-      ...(rawSearch
-        ? {
-            OR: [
-              {
-                name: {
-                  contains: rawSearch,
-                  mode: "insensitive",
-                },
+  const customerProfiles = rawSearch
+    ? await prisma.customer.findMany({
+        where: {
+          businessId,
+          OR: [
+            {
+              name: {
+                contains: rawSearch,
+                mode: "insensitive",
               },
-              {
-                phone: {
-                  contains: rawSearch,
-                  mode: "insensitive",
-                },
+            },
+            {
+              phone: {
+                contains: rawSearch,
+                mode: "insensitive",
               },
-              {
-                email: {
-                  contains: rawSearch,
-                  mode: "insensitive",
-                },
+            },
+            {
+              email: {
+                contains: rawSearch,
+                mode: "insensitive",
               },
-              {
-                vehicles: {
-                  some: {
-                    plateNumber: {
-                      contains: normalizedPlate,
-                      mode: "insensitive",
-                    },
+            },
+            {
+              vehicles: {
+                some: {
+                  plateNumber: {
+                    contains: normalizedPlate,
+                    mode: "insensitive",
                   },
                 },
               },
-            ],
-          }
-        : {}),
-    },
-    include: {
-      branch: true,
-      vehicles: {
+            },
+          ],
+        },
         include: {
           branch: true,
-        },
-        orderBy: { createdAt: "desc" },
-      },
-    },
-    orderBy: { updatedAt: "desc" },
-    take: rawSearch ? 20 : 8,
-  });
-
-  const matchingVehicles = rawSearch
-    ? await prisma.vehicle.findMany({
-        where: {
-          businessId,
-          plateNumber: {
-            contains: normalizedPlate,
-            mode: "insensitive",
+          vehicles: {
+            include: {
+              branch: true,
+            },
+            orderBy: { createdAt: "desc" },
           },
-        },
-        include: {
-          customer: true,
-          branch: true,
         },
         orderBy: { updatedAt: "desc" },
         take: 20,
       })
-    : null;
+    : [];
 
-  const [customerCount, vehicleCount] = await Promise.all([
+  const [customerCount, vehicleCount, customers] = await Promise.all([
     prisma.customer.count({ where: { businessId } }),
     prisma.vehicle.count({ where: { businessId } }),
+    prisma.customer.findMany({
+      where: { businessId },
+      include: {
+        _count: {
+          select: {
+            vehicles: true,
+          },
+        },
+      },
+      orderBy: [
+        { updatedAt: "desc" },
+        { createdAt: "desc" },
+      ],
+      skip: customerSkip,
+      take: CUSTOMERS_PER_PAGE,
+    }),
   ]);
+  const totalPages = Math.max(1, Math.ceil(customerCount / CUSTOMERS_PER_PAGE));
 
   return (
     <AppShell user={user}>
@@ -101,16 +104,10 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
         <div className="page-header">
           <div>
             <h1>CRM</h1>
-            <p>Search by plate, phone, or customer name from one place.</p>
-          </div>
-          <div className="inline-actions">
-            <Link className="button-link" href="/crm/customers/new">
-              New Customer
-            </Link>
           </div>
         </div>
 
-        <div className="grid">
+        <div className="grid crm-metrics">
           <Metric label="Customers" value={customerCount} />
           <Metric label="Vehicles" value={vehicleCount} />
         </div>
@@ -146,46 +143,85 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
                 </div>
               </div>
             )
-          ) : (
-            <div className="customer-record-list">
-              {customerProfiles.map((customer) => (
-                <CustomerRecord key={customer.id} customer={customer} />
-              ))}
-            </div>
-          )}
-
-          {matchingVehicles?.length ? (
-            <div className="subsection">
-              <h3>Plate matches</h3>
-              <div className="vehicle-chip-list">
-                {matchingVehicles.map((vehicle) => (
-                  <Link
-                    className="vehicle-chip"
-                    key={vehicle.id}
-                    href={`/crm/vehicles/${vehicle.id}`}
-                  >
-                    <strong>{vehicle.plateNumber}</strong>
-                    <span>
-                      {vehicle.customer.name} -{" "}
-                      {[vehicle.brand, vehicle.model].filter(Boolean).join(" ") ||
-                        "No vehicle details"}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </div>
           ) : null}
+
         </div>
 
-        <div className="panel">
+        <div className="panel crm-customer-list-panel">
           <div className="section-header">
-            <h2>Management lists</h2>
+            <div>
+              <h2>Customer list</h2>
+              <p>
+                Showing {customers.length ? customerSkip + 1 : 0}-
+                {customerSkip + customers.length} of {customerCount}
+              </p>
+            </div>
           </div>
-          <div className="inline-actions">
-            <Link className="secondary-link-button" href="/crm/customers">
-              Customer records
-            </Link>
-          </div>
+
+          {customers.length ? (
+            <>
+              <table className="table customer-directory-table crm-home-customer-table">
+                <thead>
+                  <tr>
+                    <th>No.</th>
+                    <th>Customer</th>
+                    <th>Contact</th>
+                    <th>Email</th>
+                    <th>Vehicles</th>
+                    <th>Joined</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customers.map((customer, index) => (
+                    <tr key={customer.id}>
+                      <td className="table-number">{customerSkip + index + 1}</td>
+                      <td>
+                        <Link href={`/crm/customers/${customer.id}`}>
+                          <strong>{customer.name}</strong>
+                        </Link>
+                      </td>
+                      <td>{customer.phone}</td>
+                      <td className="muted">{customer.email || "No email"}</td>
+                      <td>{customer._count.vehicles}</td>
+                      <td>{formatDate(customer.createdAt)}</td>
+                      <td>
+                        <div className="inline-actions">
+                          <Link href={`/crm/customers/${customer.id}`}>View</Link>
+                          <Link href={`/crm/customers/${customer.id}/edit`}>Edit</Link>
+                          <DeleteCustomerForm
+                            customerId={customer.id}
+                            customerName={customer.name}
+                            label="Delete"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="pagination">
+                <span>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Link
+                  className={currentPage <= 1 ? "disabled" : ""}
+                  href={makeCrmPageHref(rawSearch, currentPage - 1)}
+                >
+                  Previous
+                </Link>
+                <Link
+                  className={currentPage >= totalPages ? "disabled" : ""}
+                  href={makeCrmPageHref(rawSearch, currentPage + 1)}
+                >
+                  Next
+                </Link>
+              </div>
+            </>
+          ) : (
+            <p className="empty-state">No customers yet.</p>
+          )}
         </div>
       </section>
     </AppShell>
@@ -199,6 +235,29 @@ function Metric({ label, value }: { label: string; value: number }) {
       <strong>{value}</strong>
     </div>
   );
+}
+
+function makeCrmPageHref(rawSearch: string, page: number) {
+  const params = new URLSearchParams();
+
+  if (rawSearch) {
+    params.set("q", rawSearch);
+  }
+
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+
+  const query = params.toString();
+  return query ? `/crm?${query}` : "/crm";
+}
+
+function formatDate(value: Date) {
+  return value.toLocaleDateString("en-MY", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 type CustomerRecordProps = {
@@ -234,12 +293,6 @@ function CustomerRecord({ customer }: CustomerRecordProps) {
         <div className="inline-actions">
           <Link className="button-link" href={`/crm/customers/${customer.id}`}>
             Open Profile
-          </Link>
-          <Link
-            className="secondary-link-button"
-            href={`/crm/customers/${customer.id}/edit`}
-          >
-            Edit
           </Link>
         </div>
       </div>

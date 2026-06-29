@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { BackButton } from "@/components/back-button";
 import { BranchForm } from "@/components/branch-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
@@ -48,14 +48,14 @@ export default async function BranchDetailsPage({
             <h1>{branch.name}</h1>
             <p>{formatStatus(branch.status)}</p>
           </div>
-          <Link href="/branches">Back to branches</Link>
+          <BackButton fallbackHref="/branches" />
         </div>
 
         <div className="grid">
           <Info label="Phone" value={branch.phone || "No phone"} />
           <Info label="Address" value={branch.address || "No address"} />
           <Info label="Customers" value={branch._count.customers} />
-          <Info label="Work Orders" value={branch._count.workOrders} />
+          <Info label="Jobs" value={branch._count.workOrders} />
           <Info label="Invoices" value={branch._count.invoices} />
         </div>
 

@@ -1,3 +1,7 @@
+import type { WhatsAppMessageType } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { getDefaultWhatsAppTemplate } from "@/lib/whatsapp/template-defaults";
+
 type WelcomeTemplateInput = {
   businessName: string;
   customerName: string;
@@ -29,15 +33,53 @@ type InvoiceSentInput = {
   paidAmount: string;
 };
 
+export type WhatsAppTemplateVariables = Record<
+  string,
+  number | string | null | undefined
+>;
+
+export function renderWhatsAppTemplate(
+  body: string,
+  variables: WhatsAppTemplateVariables,
+) {
+  return body.replaceAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key: string) =>
+    variables[key] == null ? "" : String(variables[key]),
+  );
+}
+
+export async function renderManagedWhatsAppTemplate(
+  messageType: WhatsAppMessageType,
+  variables: WhatsAppTemplateVariables,
+) {
+  const savedTemplate = await prisma.whatsAppTemplate.findUnique({
+    where: { messageType },
+    select: { body: true, status: true },
+  });
+  const defaultTemplate = getDefaultWhatsAppTemplate(messageType);
+  const body =
+    savedTemplate?.status === "ACTIVE"
+      ? savedTemplate.body
+      : defaultTemplate?.body ?? "";
+
+  return renderWhatsAppTemplate(body, variables);
+}
+
+function renderDefaultTemplate(
+  messageType: WhatsAppMessageType,
+  variables: WhatsAppTemplateVariables,
+) {
+  const template = getDefaultWhatsAppTemplate(messageType);
+  return renderWhatsAppTemplate(template?.body ?? "", variables);
+}
+
 export function newCustomerWelcomeTemplate({
   businessName,
   customerName,
 }: WelcomeTemplateInput) {
-  return [
-    `Hi ${customerName}, welcome to ${businessName}.`,
-    "We have created your customer profile and will keep your car wash updates here.",
-    "Thank you.",
-  ].join("\n");
+  return renderDefaultTemplate("NEW_CUSTOMER_WELCOME", {
+    companyName: businessName,
+    customerName,
+  });
 }
 
 export function serviceConfirmationTemplate({
@@ -48,12 +90,14 @@ export function serviceConfirmationTemplate({
   services,
   total,
 }: ServiceConfirmationInput) {
-  return [
-    `Hi ${customerName}, ${businessName} has created work order ${orderNumber} for vehicle ${plateNumber}.`,
-    `Services: ${services.join(", ")}`,
-    `Total: ${total}`,
-    "We will notify you when your vehicle is ready for pickup.",
-  ].join("\n");
+  return renderDefaultTemplate("SERVICE_CONFIRMATION", {
+    companyName: businessName,
+    customerName,
+    plateNumber,
+    orderNumber,
+    services: services.join(", "),
+    total,
+  });
 }
 
 export function readyForPickupTemplate({
@@ -63,12 +107,13 @@ export function readyForPickupTemplate({
   orderNumber,
   balance,
 }: ReadyForPickupInput) {
-  return [
-    `Hi ${customerName}, your vehicle ${plateNumber} is ready for pickup at ${businessName}.`,
-    `Work order: ${orderNumber}`,
-    `Balance: ${balance}`,
-    "Please proceed to the counter when you arrive. Thank you.",
-  ].join("\n");
+  return renderDefaultTemplate("READY_FOR_PICKUP", {
+    companyName: businessName,
+    customerName,
+    plateNumber,
+    orderNumber,
+    balance,
+  });
 }
 
 export function invoiceSentTemplate({
@@ -79,11 +124,12 @@ export function invoiceSentTemplate({
   total,
   paidAmount,
 }: InvoiceSentInput) {
-  return [
-    `Hi ${customerName}, thank you for visiting ${businessName}.`,
-    `Invoice ${invoiceNumber} for vehicle ${plateNumber} has been paid.`,
-    `Total: ${total}`,
-    `Paid: ${paidAmount}`,
-    "We appreciate your business.",
-  ].join("\n");
+  return renderDefaultTemplate("INVOICE_SENT", {
+    companyName: businessName,
+    customerName,
+    plateNumber,
+    invoiceNumber,
+    total,
+    paidAmount,
+  });
 }

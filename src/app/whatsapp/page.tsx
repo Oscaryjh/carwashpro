@@ -2,13 +2,10 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
-import { createWhatsAppDeepLink } from "@/lib/whatsapp/deep-link";
+import { createWhatsAppDeepLink, normalizeWhatsAppPhone } from "@/lib/whatsapp/deep-link";
 import {
-  markWhatsAppMessageDeliveredAction,
-  markWhatsAppMessageFailedAction,
-  markWhatsAppMessageReadAction,
+  cancelWhatsAppMessageAction,
   markWhatsAppMessageSentAction,
-  queueWhatsAppMessageAction,
 } from "./actions";
 
 export default async function WhatsAppPage() {
@@ -19,6 +16,7 @@ export default async function WhatsAppPage() {
       customer: true,
       workOrder: true,
       invoice: true,
+      sentByUser: true,
     },
     orderBy: { createdAt: "desc" },
   });
@@ -29,55 +27,102 @@ export default async function WhatsAppPage() {
         <div className="page-header">
           <div>
             <h1>WhatsApp</h1>
-            <p>Log, queue, provider handoff, delivery status, and read status.</p>
+          </div>
+          <div className="inline-actions">
+            <Link className="secondary-link-button" href="/whatsapp/inbox">
+              Inbox
+            </Link>
+            <Link className="secondary-link-button" href="/whatsapp/settings">
+              Settings
+            </Link>
           </div>
         </div>
 
         <div className="panel">
           {messages.length ? (
-            <table className="table">
+            <table className="table whatsapp-table">
               <thead>
                 <tr>
-                  <th>Type</th>
-                  <th>Customer</th>
-                  <th>Phone</th>
+                  <th>No.</th>
+                  <th>Message</th>
+                  <th>Contact</th>
                   <th>Related</th>
                   <th>Status</th>
-                  <th>Provider</th>
-                  <th>Created</th>
-                  <th />
+                  <th>Timeline</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {messages.map((message) => (
+                {messages.map((message, index) => (
                   <tr key={message.id}>
-                    <td>{formatStatus(message.messageType)}</td>
-                    <td>{message.customer?.name ?? "No customer"}</td>
-                    <td>{message.phone}</td>
-                    <td>{relatedLabel(message)}</td>
+                    {(() => {
+                      const recipientPhone = message.recipientPhone ?? message.phone;
+                      const normalizedRecipientPhone = normalizeWhatsAppPhone(recipientPhone ?? "");
+                      const deepLink = normalizedRecipientPhone
+                        ? createWhatsAppDeepLink(normalizedRecipientPhone, message.messageBody)
+                        : null;
+
+                      return (
+                        <>
+                    <td>
+                      <span className="table-number">{index + 1}</span>
+                    </td>
+                    <td>
+                      <strong>{formatStatus(message.messageType)}</strong>
+                      <div className="muted message-line">
+                        {message.messageBody.slice(0, 86)}
+                        {message.messageBody.length > 86 ? "..." : ""}
+                      </div>
+                    </td>
+                    <td>
+                      <strong>{message.customer?.name ?? "No customer"}</strong>
+                      <div className="muted">
+                        {recipientPhone || "No phone"}
+                      </div>
+                    </td>
+                    <td>
+                      <RelatedLink message={message} />
+                    </td>
                     <td>
                       <span className={`status ${message.status.toLowerCase()}`}>
                         {formatStatus(message.status)}
                       </span>
+                      <div className="muted">
+                        {message.sentByUser?.name ?? "Manual user"}
+                      </div>
                     </td>
-                    <td>{message.provider ?? "Not sent"}</td>
-                    <td>{message.createdAt.toLocaleString()}</td>
                     <td>
-                      <div className="inline-actions">
-                        <a
-                          href={createWhatsAppDeepLink(
-                            message.phone,
-                            message.messageBody,
-                          )}
-                          target="_blank"
-                          rel="noreferrer"
+                      <div>{message.createdAt.toLocaleString()}</div>
+                      <div className="muted">{latestEventLabel(message)}</div>
+                    </td>
+                    <td>
+                      <div className="whatsapp-actions">
+                        {deepLink ? (
+                          <a
+                            className="button-link compact-action"
+                            href={deepLink}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Open WA
+                          </a>
+                        ) : (
+                          <span className="secondary-light-button compact-action disabled-link">
+                            No phone
+                          </span>
+                        )}
+                        <Link
+                          className="secondary-link-button compact-action"
+                          href={`/whatsapp/${message.id}`}
                         >
-                          Open WhatsApp
-                        </a>
-                        <Link href={`/whatsapp/${message.id}`}>View</Link>
+                          View
+                        </Link>
                         <MessageActions message={message} />
                       </div>
                     </td>
+                        </>
+                      );
+                    })()}
                   </tr>
                 ))}
               </tbody>
@@ -105,42 +150,20 @@ function MessageActions({
 }) {
   return (
     <>
-      {["DRAFT", "READY", "FAILED"].includes(message.status) ? (
-        <MessageAction
-          action={queueWhatsAppMessageAction}
-          messageId={message.id}
-          label="Queue"
-        />
-      ) : null}
-      {!["READ", "FAILED"].includes(message.status) ? (
+      {["OPENED", "DRAFT"].includes(message.status) ? (
         <MessageAction
           action={markWhatsAppMessageSentAction}
           messageId={message.id}
           label="Mark Sent"
         />
       ) : null}
-      {["SENT", "DELIVERED"].includes(message.status) ? (
+      {["OPENED", "DRAFT"].includes(message.status) ? (
         <MessageAction
-          action={markWhatsAppMessageDeliveredAction}
+          action={cancelWhatsAppMessageAction}
           messageId={message.id}
-          label="Delivered"
+          label="Cancel"
+          secondary
         />
-      ) : null}
-      {["SENT", "DELIVERED"].includes(message.status) ? (
-        <MessageAction
-          action={markWhatsAppMessageReadAction}
-          messageId={message.id}
-          label="Read"
-        />
-      ) : null}
-      {message.status !== "READ" && message.status !== "FAILED" ? (
-        <form action={markWhatsAppMessageFailedAction}>
-          <input type="hidden" name="messageId" value={message.id} />
-          <input type="hidden" name="errorMessage" value="Manual failure mark." />
-          <button className="secondary-light-button" type="submit">
-            Failed
-          </button>
-        </form>
       ) : null}
     </>
   );
@@ -150,30 +173,64 @@ function MessageAction({
   action,
   messageId,
   label,
+  secondary = false,
 }: {
   action: (formData: FormData) => Promise<void>;
   messageId: string;
   label: string;
+  secondary?: boolean;
 }) {
   return (
     <form action={action}>
       <input type="hidden" name="messageId" value={messageId} />
-      <button type="submit">{label}</button>
+      <button
+        className={secondary ? "secondary-light-button compact-action" : "compact-action"}
+        type="submit"
+      >
+        {label}
+      </button>
     </form>
   );
 }
 
-function relatedLabel(message: {
-  workOrder: { orderNumber: string } | null;
-  invoice: { invoiceNumber: string } | null;
+function RelatedLink({
+  message,
+}: {
+  message: {
+    workOrder: { id: string; orderNumber: string } | null;
+    invoice: { id: string; invoiceNumber: string } | null;
+  };
 }) {
   if (message.invoice) {
-    return message.invoice.invoiceNumber;
+    return (
+      <Link href={`/invoices/${message.invoice.id}`}>
+        {message.invoice.invoiceNumber}
+      </Link>
+    );
   }
 
   if (message.workOrder) {
-    return message.workOrder.orderNumber;
+    return (
+      <Link href={`/work-orders/${message.workOrder.id}`}>
+        {message.workOrder.orderNumber}
+      </Link>
+    );
   }
 
-  return "Customer";
+  return <span className="muted">Customer</span>;
+}
+
+function latestEventLabel(message: {
+  openedAt: Date | null;
+  sentAt: Date | null;
+}) {
+  if (message.sentAt) {
+    return `Sent manually ${message.sentAt.toLocaleString()}`;
+  }
+
+  if (message.openedAt) {
+    return `Opened ${message.openedAt.toLocaleString()}`;
+  }
+
+  return "Manual deep link";
 }

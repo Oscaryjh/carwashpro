@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { BackButton } from "@/components/back-button";
 import { requireCrmUser } from "@/lib/auth/crm";
 import { prisma } from "@/lib/prisma";
 
@@ -68,12 +69,7 @@ export default async function VehicleDetailsPage({
             <p>{vehicleLabel(vehicle)}</p>
           </div>
           <div className="inline-actions">
-            <Link className="secondary-link-button" href="/crm">
-              Back to CRM
-            </Link>
-            <Link className="secondary-link-button" href="/crm/vehicles">
-              Back to vehicles
-            </Link>
+            <BackButton fallbackHref="/crm" />
           </div>
         </div>
 
@@ -150,7 +146,7 @@ export default async function VehicleDetailsPage({
 
         <div className="panel">
           <div className="section-header">
-            <h2>Work Orders</h2>
+            <h2>Jobs</h2>
           </div>
 
           {vehicle.workOrders.length ? (
@@ -189,7 +185,7 @@ export default async function VehicleDetailsPage({
               </tbody>
             </table>
           ) : (
-            <p className="empty-state">No work orders for this vehicle yet.</p>
+            <p className="empty-state">No jobs for this vehicle yet.</p>
           )}
         </div>
 

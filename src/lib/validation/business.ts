@@ -1,15 +1,16 @@
 import { z } from "zod";
 
 export const businessSchema = z.object({
-  name: z.string().trim().min(2, "Business name is required."),
+  name: z.string().trim().min(2, "Company name is required."),
   slug: z
     .string()
     .trim()
-    .min(2, "Business slug is required.")
+    .min(2, "Company slug is required.")
     .regex(
       /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
       "Use lowercase letters, numbers, and single hyphens.",
     ),
+  companyNo: z.string().trim().optional(),
   phone: z.string().trim().optional(),
   email: z.string().trim().email("Enter a valid email.").optional().or(z.literal("")),
   address: z.string().trim().optional(),
@@ -21,6 +22,7 @@ export type BusinessFormValues = z.infer<typeof businessSchema>;
 export const createBusinessSchema = z.object({
   name: businessSchema.shape.name,
   slug: businessSchema.shape.slug,
+  companyNo: businessSchema.shape.companyNo,
   phone: businessSchema.shape.phone,
   ownerName: z.string().trim().min(2, "Owner name is required."),
   ownerEmail: z.string().trim().email("Enter a valid owner email."),

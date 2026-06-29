@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { BackButton } from "@/components/back-button";
 import { CustomerForm } from "@/components/customer-form";
 import { requireCrmUser } from "@/lib/auth/crm";
 import { getActiveBranches } from "@/lib/branches";
@@ -28,9 +28,7 @@ export default async function NewCustomerPage({
             <h1>New Customer</h1>
             <p>Add the customer and vehicle under this business.</p>
           </div>
-          <Link className="secondary-link-button" href="/crm">
-            Back to CRM
-          </Link>
+          <BackButton fallbackHref="/crm" />
         </div>
 
         <div className="panel">
