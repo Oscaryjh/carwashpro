@@ -139,6 +139,8 @@ Manual resend/delete is not included in V3.
 
 ✓ Status filter works
 
+✓ Settings V2 verified
+
 ✓ Build passed
 
 ## Manual Test
