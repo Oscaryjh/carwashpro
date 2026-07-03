@@ -3,6 +3,7 @@
 import type { WhatsAppMessageType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import {
@@ -166,7 +167,7 @@ async function buildMessageDraft(input: OpenWhatsAppInput, businessId: string) {
       companyPhone: invoice.business.phone,
       customerName: invoice.workOrder.contactName || invoice.workOrder.customer.name,
       customerPhone: invoice.workOrder.contactPhone || invoice.workOrder.customer.phone,
-      invoiceNumber: invoice.invoiceNumber,
+      invoiceNumber: formatInvoiceNumber(invoice.invoiceNumber),
       invoiceUrl: "",
       paidAmount: money(invoice.paidAmount),
       paymentStatus: formatStatus(invoice.status),

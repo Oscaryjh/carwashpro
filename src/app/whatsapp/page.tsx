@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 import { createWhatsAppDeepLink, normalizeWhatsAppPhone } from "@/lib/whatsapp/deep-link";
 import {
@@ -204,7 +205,7 @@ function RelatedLink({
   if (message.invoice) {
     return (
       <Link href={`/invoices/${message.invoice.id}`}>
-        {message.invoice.invoiceNumber}
+        {formatInvoiceNumber(message.invoice.invoiceNumber)}
       </Link>
     );
   }

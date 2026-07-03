@@ -1,8 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { sendWhatsAppTextMessage } from "@/lib/whatsapp/connector";
 import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
+import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
 
@@ -59,7 +59,7 @@ export async function sendNewCustomerWelcomeIfConnected(
     },
   });
 
-  const conversation = await prisma.whatsAppConversation.upsert({
+  await prisma.whatsAppConversation.upsert({
     where: {
       businessId_phone: {
         businessId: input.businessId,
@@ -83,37 +83,14 @@ export async function sendNewCustomerWelcomeIfConnected(
     },
   });
 
-  const connection = await prisma.whatsAppConnection.findUnique({
-    where: { businessId: input.businessId },
-    select: { status: true },
-  });
-
-  if (connection?.status !== "CONNECTED") {
-    await prisma.whatsAppMessage.update({
-      where: { id: log.id },
-      data: {
-        errorMessage: "WhatsApp is not connected.",
-      },
-    });
-    return;
-  }
-
   try {
-    const result = await sendWhatsAppTextMessage({
+    await enqueueWhatsAppLogMessage({
       businessId: input.businessId,
-      conversationId: conversation.id,
-      body: messageBody,
-      sentByUserId: input.sentByUserId,
-    });
-
-    await prisma.whatsAppMessage.update({
-      where: { id: log.id },
-      data: {
-        status: "SENT_MANUALLY",
-        providerMessageId: result.externalMessageId ?? null,
-        sentAt: new Date(),
-        errorMessage: null,
-      },
+      branchId: input.branchId ?? null,
+      message: messageBody,
+      messageLogId: log.id,
+      messageType: "NEW_CUSTOMER_WELCOME",
+      phone: recipientPhone,
     });
   } catch (error) {
     await prisma.whatsAppMessage.update({

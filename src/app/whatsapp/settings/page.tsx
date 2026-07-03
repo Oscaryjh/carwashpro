@@ -1,13 +1,15 @@
 import Link from "next/link";
-import Image from "next/image";
 import QRCode from "qrcode";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
+import { WhatsAppSendTestForm } from "@/components/whatsapp-send-test-form";
+import { WhatsAppSettingsAutoRefresh } from "@/components/whatsapp-settings-auto-refresh";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
 import {
   disconnectWhatsAppAction,
   refreshWhatsAppConnectionAction,
+  requestWhatsAppPairingCodeAction,
   requestWhatsAppQrAction,
 } from "./actions";
 
@@ -33,7 +35,13 @@ export default async function WhatsAppSettingsPage({
   const displayPhoneNumber = isConnected ? connection?.phoneNumber : null;
   const displayLastSeenAt = isConnected ? connection?.lastSeenAt : null;
   const activeQrCodeText =
-    status === "QR_REQUIRED" ? connection?.qrCodeText : null;
+    !isConnected && connection?.qrCodeText ? connection.qrCodeText : null;
+  const activePairingPhone =
+    !isConnected && connection?.pairingPhone ? connection.pairingPhone : null;
+  const activePairingCodeText =
+    !isConnected && connection?.pairingCodeText
+      ? connection.pairingCodeText
+      : null;
   const qrCodeDataUrl = activeQrCodeText
     ? await QRCode.toDataURL(activeQrCodeText, {
         color: {
@@ -45,9 +53,52 @@ export default async function WhatsAppSettingsPage({
         width: 360,
       })
     : null;
+  const isWaitingForQr =
+    !isConnected &&
+    status === "QR_REQUIRED" &&
+    !activePairingPhone &&
+    !qrCodeDataUrl;
+  const isWaitingForPairing =
+    !isConnected &&
+    status === "QR_REQUIRED" &&
+    Boolean(activePairingPhone) &&
+    !activePairingCodeText &&
+    !qrCodeDataUrl;
+  const shouldAutoRefresh = isWaitingForQr || isWaitingForPairing;
+  const messageSaysQrReady =
+    message?.toLowerCase().includes("qr") &&
+    message.toLowerCase().includes("ready");
+  const messageSaysPairingReady =
+    message?.toLowerCase().includes("pairing") &&
+    message.toLowerCase().includes("ready");
+  const staleQrReadyMessage =
+    Boolean(messageSaysQrReady) &&
+    !qrCodeDataUrl &&
+    !isConnected &&
+    status !== "QR_REQUIRED";
+  const stalePairingReadyMessage =
+    Boolean(messageSaysPairingReady) &&
+    !activePairingCodeText &&
+    !isConnected &&
+    status !== "QR_REQUIRED";
+  let displayMessage = message;
+  if (messageSaysPairingReady && !activePairingCodeText && !isConnected) {
+    displayMessage =
+      status === "QR_REQUIRED"
+        ? "WhatsApp pairing code is being prepared. This page will refresh automatically."
+        : "WhatsApp pairing code is no longer available. Request a fresh code.";
+  } else if (messageSaysQrReady && !qrCodeDataUrl && !isConnected) {
+    displayMessage =
+      status === "QR_REQUIRED"
+        ? "WhatsApp QR is being prepared. This page will refresh automatically."
+        : "WhatsApp QR is no longer available. Click Generate QR to create a fresh code.";
+  }
+  const displayMessageType =
+    staleQrReadyMessage || stalePairingReadyMessage ? "error" : messageType;
 
   return (
     <AppShell user={user}>
+      <WhatsAppSettingsAutoRefresh enabled={shouldAutoRefresh} />
       <section className="content">
         <div className="page-header">
           <div>
@@ -64,7 +115,9 @@ export default async function WhatsAppSettingsPage({
           </div>
         </div>
 
-        {message ? <div className={messageType}>{message}</div> : null}
+        {displayMessage ? (
+          <div className={displayMessageType}>{displayMessage}</div>
+        ) : null}
 
         <div className="whatsapp-settings-grid">
           <div className="panel whatsapp-connection-card">
@@ -97,14 +150,25 @@ export default async function WhatsAppSettingsPage({
                     Open Inbox
                   </Link>
                 </div>
+              ) : activePairingCodeText ? (
+                <div className="whatsapp-pairing-code-card">
+                  <span>Phone pairing code</span>
+                  <strong>{formatPairingCode(activePairingCodeText)}</strong>
+                  <p>
+                    This code only works for {activePairingPhone}. On that exact
+                    shop phone, open WhatsApp Linked devices, choose Link with
+                    phone number instead, then enter this code within 60 seconds.
+                  </p>
+                </div>
               ) : qrCodeDataUrl ? (
                 <>
-                  <Image
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
                     src={qrCodeDataUrl}
                     alt="WhatsApp login QR code"
                     width={360}
                     height={360}
-                    unoptimized
+                    className="whatsapp-qr-image"
                   />
                   <p>
                     Use WhatsApp Linked devices scanner, not the normal camera.
@@ -112,10 +176,53 @@ export default async function WhatsAppSettingsPage({
                     fresh code within one minute.
                   </p>
                 </>
+              ) : isWaitingForPairing ? (
+                <div className="empty-state">
+                  <h3>Preparing phone pairing code</h3>
+                  <p>
+                    Keep this page open. The code will appear here automatically
+                    when WhatsApp returns it.
+                  </p>
+                </div>
+              ) : isWaitingForQr ? (
+                <div className="empty-state">
+                  <h3>Preparing WhatsApp QR</h3>
+                  <p>
+                    Keep this page open. A fresh QR code will appear here
+                    automatically when the worker receives it.
+                  </p>
+                </div>
               ) : (
                 <p>Generate a QR code to connect this company WhatsApp number.</p>
               )}
             </div>
+
+            {!isConnected ? (
+              <form
+                action={requestWhatsAppPairingCodeAction}
+                className="whatsapp-pairing-form"
+              >
+                <label htmlFor="pairingPhone">Use phone pairing code</label>
+                <div className="whatsapp-pairing-row">
+                  <input
+                    id="pairingPhone"
+                    name="pairingPhone"
+                    defaultValue={activePairingPhone ?? ""}
+                    inputMode="numeric"
+                    pattern="[0-9+ ]*"
+                    placeholder="601112212259"
+                  />
+                  <button className="secondary-light-button" type="submit">
+                    Get pairing code
+                  </button>
+                </div>
+                <p>
+                  Enter the shop WhatsApp number currently logged in on the phone,
+                  not a customer number. Then open WhatsApp Linked devices and
+                  choose Link with phone number instead.
+                </p>
+              </form>
+            ) : null}
 
             <div className="inline-actions">
               <form action={requestWhatsAppQrAction}>
@@ -150,6 +257,8 @@ export default async function WhatsAppSettingsPage({
             </p>
           </div>
         </div>
+
+        <WhatsAppSendTestForm />
       </section>
     </AppShell>
   );
@@ -157,4 +266,8 @@ export default async function WhatsAppSettingsPage({
 
 function formatStatus(status: string) {
   return status.toLowerCase().replaceAll("_", " ");
+}
+
+function formatPairingCode(code: string) {
+  return code.replace(/\s+/g, "").replace(/(.{4})/g, "$1 ").trim();
 }

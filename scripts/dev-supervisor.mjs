@@ -13,10 +13,12 @@ import {
 
 const pg = createEmbeddedPostgres();
 const nextBin = join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
+const whatsappWorkerRunner = join(process.cwd(), "scripts", "run-whatsapp-worker.mjs");
 const binPath = join(process.cwd(), "node_modules", ".bin");
 const restartDelayMs = 1500;
 
-let child;
+let nextChild;
+let whatsappWorkerChild;
 let ownsPostgres = false;
 let shuttingDown = false;
 let cacheResetRequested = false;
@@ -30,35 +32,29 @@ async function main() {
   console.log("Local URL: http://localhost:3000");
   console.log("Press Ctrl+C to stop.");
 
+  startWhatsAppWorker();
   startNext();
 }
 
 function startNext() {
   cacheResetRequested = false;
-  child = spawn(process.execPath, [nextBin, "dev"], {
+  nextChild = spawn(process.execPath, [nextBin, "dev"], {
     stdio: ["inherit", "pipe", "pipe"],
     shell: false,
-    env: {
-      ...process.env,
-      PATH: `${binPath}${delimiter}${process.env.PATH ?? ""}`,
-      DATABASE_URL: process.env.DATABASE_URL ?? DATABASE_URL,
-      NODE_OPTIONS: withNodeOption(process.env.NODE_OPTIONS, "--use-system-ca"),
-      WS_NO_BUFFER_UTIL: process.env.WS_NO_BUFFER_UTIL ?? "1",
-      WS_NO_UTF_8_VALIDATE: process.env.WS_NO_UTF_8_VALIDATE ?? "1",
-    },
+    env: getChildEnv(),
   });
 
-  child.stdout?.on("data", (chunk) => {
+  nextChild.stdout?.on("data", (chunk) => {
     process.stdout.write(chunk);
     inspectNextOutput(chunk);
   });
 
-  child.stderr?.on("data", (chunk) => {
+  nextChild.stderr?.on("data", (chunk) => {
     process.stderr.write(chunk);
     inspectNextOutput(chunk);
   });
 
-  child.on("close", (code, signal) => {
+  nextChild.on("close", (code, signal) => {
     if (shuttingDown) {
       return;
     }
@@ -74,13 +70,46 @@ function startNext() {
   });
 }
 
+function startWhatsAppWorker() {
+  if (!existsSync(whatsappWorkerRunner)) {
+    console.warn("WhatsApp worker not started because the runner script is missing.");
+    return;
+  }
+
+  whatsappWorkerChild = spawn(process.execPath, [whatsappWorkerRunner], {
+    stdio: ["ignore", "pipe", "pipe"],
+    shell: false,
+    env: getChildEnv(),
+  });
+
+  whatsappWorkerChild.stdout?.on("data", (chunk) => {
+    writePrefixed("[whatsapp] ", chunk, process.stdout);
+  });
+
+  whatsappWorkerChild.stderr?.on("data", (chunk) => {
+    writePrefixed("[whatsapp] ", chunk, process.stderr);
+  });
+
+  whatsappWorkerChild.on("close", (code, signal) => {
+    if (shuttingDown) {
+      return;
+    }
+
+    console.warn(
+      `WhatsApp worker stopped (code: ${code ?? "none"}, signal: ${signal ?? "none"}). Restarting...`,
+    );
+    setTimeout(startWhatsAppWorker, restartDelayMs);
+  });
+}
+
 async function shutdown() {
   if (shuttingDown) {
     return;
   }
 
   shuttingDown = true;
-  child?.kill("SIGTERM");
+  nextChild?.kill("SIGTERM");
+  whatsappWorkerChild?.kill("SIGTERM");
   await stopOwnedPostgres(pg, ownsPostgres);
   process.exit(0);
 }
@@ -108,6 +137,29 @@ function withNodeOption(existingOptions, option) {
   return `${options} ${option}`;
 }
 
+function getChildEnv() {
+  return {
+    ...process.env,
+    PATH: `${binPath}${delimiter}${process.env.PATH ?? ""}`,
+    DATABASE_URL: process.env.DATABASE_URL ?? DATABASE_URL,
+    NODE_OPTIONS: withNodeOption(process.env.NODE_OPTIONS, "--use-system-ca"),
+    WS_NO_BUFFER_UTIL: process.env.WS_NO_BUFFER_UTIL ?? "1",
+    WS_NO_UTF_8_VALIDATE: process.env.WS_NO_UTF_8_VALIDATE ?? "1",
+  };
+}
+
+function writePrefixed(prefix, chunk, stream) {
+  const text = chunk.toString();
+  const lines = text.split(/\r?\n/);
+
+  lines.forEach((line, index) => {
+    if (!line && index === lines.length - 1) {
+      return;
+    }
+    stream.write(`${prefix}${line}\n`);
+  });
+}
+
 function inspectNextOutput(chunk) {
   const output = chunk.toString();
 
@@ -123,7 +175,7 @@ function inspectNextOutput(chunk) {
 
   cacheResetRequested = true;
   console.warn("Detected a broken Next.js dev cache. Cleaning .next and restarting...");
-  child?.kill("SIGTERM");
+  nextChild?.kill("SIGTERM");
 }
 
 function cleanNextCache() {

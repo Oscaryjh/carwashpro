@@ -5,6 +5,7 @@ import { WhatsAppMessageAutoScroll } from "@/components/whatsapp-message-auto-sc
 import { WhatsAppReplyForm } from "@/components/whatsapp-reply-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
+import { mergeDuplicateWhatsAppConversations } from "@/lib/whatsapp/conversation-merge";
 import { decodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import {
   refreshWhatsAppInboxConnectionAction,
@@ -32,6 +33,8 @@ export default async function WhatsAppInboxPage({
     where: { businessId },
   });
 
+  await mergeDuplicateWhatsAppConversations(businessId);
+
   const rawConversations = await prisma.whatsAppConversation.findMany({
     where: { businessId },
     include: {
@@ -54,7 +57,12 @@ export default async function WhatsAppInboxPage({
     matchesConversationSearch(conversation, query),
   );
 
-  const selectedConversationId = params.conversation ?? conversations[0]?.id;
+  const requestedConversationId = params.conversation;
+  const selectedConversationId = conversations.some(
+    (conversation) => conversation.id === requestedConversationId,
+  )
+    ? requestedConversationId
+    : conversations[0]?.id;
   if (selectedConversationId) {
     await prisma.whatsAppConversation.updateMany({
       where: {
@@ -185,7 +193,7 @@ export default async function WhatsAppInboxPage({
                     key={conversation.id}
                   >
                     <span className="whatsapp-avatar" aria-hidden="true">
-                      {getAvatarText(formatConversationName(conversation))}
+                      {getConversationAvatarText(conversation)}
                     </span>
                     <span className="whatsapp-conversation-main">
                       <span className="whatsapp-conversation-top">
@@ -199,7 +207,9 @@ export default async function WhatsAppInboxPage({
                       <span className="whatsapp-conversation-bottom">
                         <span className="muted">
                           {decodeWhatsAppStoredText(conversation.lastMessageBody) ||
-                            "No messages yet"}
+                            (conversation.lastMessageAt
+                              ? "Message content not synced yet"
+                              : "No messages yet")}
                         </span>
                         {conversation.unreadCount ? (
                           <em>{conversation.unreadCount}</em>
@@ -224,7 +234,7 @@ export default async function WhatsAppInboxPage({
                 <div className="whatsapp-chat-header">
                   <div className="whatsapp-chat-title">
                     <span className="whatsapp-avatar whatsapp-avatar-large" aria-hidden="true">
-                      {getAvatarText(formatConversationName(selectedConversation))}
+                      {getConversationAvatarText(selectedConversation)}
                     </span>
                     <div>
                       <h2>{formatConversationName(selectedConversation)}</h2>
@@ -262,6 +272,19 @@ export default async function WhatsAppInboxPage({
                               <p>{decodeWhatsAppStoredText(chatMessage.body)}</p>
                             )}
                           </div>
+                        ) : chatMessage.messageType === "DOCUMENT" ? (
+                          <div className="whatsapp-document-message">
+                            <p>{decodeWhatsAppStoredText(chatMessage.body)}</p>
+                            {chatMessage.mediaUrl ? (
+                              <a
+                                href={chatMessage.mediaUrl}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                {chatMessage.mediaFileName ?? "Open document"}
+                              </a>
+                            ) : null}
+                          </div>
                         ) : (
                           <p>{decodeWhatsAppStoredText(chatMessage.body)}</p>
                         )}
@@ -271,7 +294,11 @@ export default async function WhatsAppInboxPage({
                       </div>
                     ))
                   ) : (
-                    <p className="empty-state">No messages in this chat yet.</p>
+                    <p className="empty-state">
+                      {selectedConversation.lastMessageAt
+                        ? "This WhatsApp chat is available, but older message content has not synced yet. New messages will appear here automatically."
+                        : "No messages in this chat yet."}
+                    </p>
                   )}
                 </div>
                 <WhatsAppMessageAutoScroll
@@ -352,12 +379,102 @@ function formatConversationName(conversation: {
   displayName: string;
   phone: string;
   remoteJid: string | null;
+  customer?: { name: string; phone?: string | null } | null;
 }) {
-  if (conversation.displayName === conversation.phone) {
-    return conversation.phone;
+  const customerName = conversation.customer?.name?.trim();
+
+  if (customerName) {
+    return customerName;
   }
 
-  return conversation.displayName;
+  const displayName = conversation.displayName.trim();
+  const visiblePhone = getVisibleConversationPhone(conversation);
+
+  if (isInternalWhatsAppIdentifier(displayName, conversation.remoteJid)) {
+    return visiblePhone || "Phone not synced";
+  }
+
+  if (displayName && displayName !== visiblePhone) {
+    return displayName;
+  }
+
+  if (visiblePhone) {
+    return visiblePhone;
+  }
+
+  return "Phone not synced";
+}
+
+function getVisibleConversationPhone(conversation: {
+  phone: string;
+  remoteJid: string | null;
+  customer?: { phone?: string | null } | null;
+}) {
+  const customerPhone = normalizeDisplayPhone(conversation.customer?.phone);
+
+  if (customerPhone) {
+    return customerPhone;
+  }
+
+  const remoteJidPhone = getPhoneFromRemoteJid(conversation.remoteJid);
+
+  if (remoteJidPhone) {
+    return remoteJidPhone;
+  }
+
+  const storedPhone = normalizeDisplayPhone(conversation.phone);
+
+  if (storedPhone && !isLikelyWhatsAppInternalId(conversation.phone, conversation.remoteJid)) {
+    return storedPhone;
+  }
+
+  return "";
+}
+
+function getPhoneFromRemoteJid(remoteJid: string | null) {
+  if (!remoteJid?.endsWith("@s.whatsapp.net")) {
+    return "";
+  }
+
+  const digits = remoteJid.split("@")[0]?.split(":")[0]?.replace(/\D/g, "") ?? "";
+
+  return digits.length >= 8 && digits.length <= 15 ? digits : "";
+}
+
+function normalizeDisplayPhone(value: string | null | undefined) {
+  const digits = value?.replace(/\D/g, "") ?? "";
+
+  if (!digits) {
+    return "";
+  }
+
+  if (/^60\d{8,11}$/.test(digits) || /^01\d{8,9}$/.test(digits)) {
+    return digits;
+  }
+
+  return "";
+}
+
+function isInternalWhatsAppIdentifier(value: string, remoteJid: string | null) {
+  return isLikelyWhatsAppInternalId(value, remoteJid);
+}
+
+function isLikelyWhatsAppInternalId(value: string | null | undefined, remoteJid: string | null) {
+  const trimmedValue = value?.trim() ?? "";
+  const normalizedValue = trimmedValue.replace(/\D/g, "");
+
+  if (!trimmedValue) {
+    return false;
+  }
+
+  return Boolean(
+    remoteJid?.includes("@lid") ||
+      trimmedValue.includes("@lid") ||
+      trimmedValue.includes("@s.whatsapp.net") ||
+      (/^\d+$/.test(normalizedValue) &&
+        normalizedValue.length > 12 &&
+        !/^60\d{8,11}$/.test(normalizedValue)),
+  );
 }
 
 function matchesConversationSearch(
@@ -377,9 +494,7 @@ function matchesConversationSearch(
   const normalizedQuery = normalizeSearchText(query);
   const searchTarget = [
     formatConversationName(conversation),
-    conversation.displayName,
-    conversation.phone,
-    conversation.remoteJid,
+    getVisibleConversationPhone(conversation),
     conversation.customer?.name,
     conversation.customer?.phone,
     conversation.customer?.email,
@@ -430,7 +545,11 @@ function compareConversationsByLatestActivity(
 function getAvatarText(name: string) {
   const trimmedName = name.trim();
 
-  if (!trimmedName) {
+  if (
+    !trimmedName ||
+    trimmedName.toLowerCase() === "unknown contact" ||
+    trimmedName.toLowerCase() === "phone not synced"
+  ) {
     return "?";
   }
 
@@ -448,6 +567,21 @@ function getAvatarText(name: string) {
   }
 
   return trimmedName.slice(0, 2).toUpperCase();
+}
+
+function getConversationAvatarText(conversation: {
+  displayName: string;
+  phone: string;
+  remoteJid: string | null;
+  customer?: { name: string; phone?: string | null } | null;
+}) {
+  const name = formatConversationName(conversation);
+
+  if (name === "Phone not synced") {
+    return "WA";
+  }
+
+  return getAvatarText(name);
 }
 
 function formatConversationTime(date: Date) {

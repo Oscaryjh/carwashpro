@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
+import { mergeDuplicateWhatsAppConversations } from "@/lib/whatsapp/conversation-merge";
+import {
+  enqueueWhatsAppStartSession,
+  enqueueWhatsAppTextMessage,
+} from "@/lib/whatsapp/worker-commands";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
 
 const sendMessageSchema = z.object({
@@ -44,10 +49,8 @@ export async function recordWhatsAppReplyAction(formData: FormData) {
     redirect("/whatsapp/inbox?type=error&message=Conversation%20not%20found");
   }
 
-  const { sendWhatsAppTextMessage } = await import("@/lib/whatsapp/connector");
-
   try {
-    await sendWhatsAppTextMessage({
+    await enqueueWhatsAppTextMessage({
       businessId,
       conversationId: conversation.id,
       body: parsed.data.body,
@@ -112,6 +115,8 @@ export async function syncCrmCustomersToWhatsAppAction() {
     syncedCount += 1;
   }
 
+  await mergeDuplicateWhatsAppConversations(businessId);
+
   revalidatePath("/whatsapp/inbox");
   redirect(
     `/whatsapp/inbox?type=success&message=${encodeURIComponent(
@@ -122,26 +127,17 @@ export async function syncCrmCustomersToWhatsAppAction() {
 
 export async function refreshWhatsAppInboxConnectionAction(formData?: FormData) {
   const { businessId } = await requireBusinessUser();
-  const { startWhatsAppSession } = await import("@/lib/whatsapp/connector");
   const conversationId = formData?.get("conversationId")?.toString();
   const basePath = conversationId
     ? `/whatsapp/inbox?conversation=${conversationId}`
     : "/whatsapp/inbox";
 
-  const result = await startWhatsAppSession(businessId);
+  await enqueueWhatsAppStartSession(businessId);
 
   revalidatePath("/whatsapp/inbox");
 
-  if (result.status === "ERROR") {
-    redirect(
-      `${basePath}${basePath.includes("?") ? "&" : "?"}type=error&message=${encodeURIComponent(
-        result.errorMessage ?? "Unable to refresh WhatsApp connection",
-      )}`,
-    );
-  }
-
   redirect(
-    `${basePath}${basePath.includes("?") ? "&" : "?"}type=success&message=WhatsApp%20status%20refreshed`,
+    `${basePath}${basePath.includes("?") ? "&" : "?"}type=success&message=WhatsApp%20refresh%20queued`,
   );
 }
 

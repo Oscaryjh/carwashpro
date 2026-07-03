@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 import { createWhatsAppDeepLink, normalizeWhatsAppPhone } from "@/lib/whatsapp/deep-link";
 import {
@@ -64,7 +65,11 @@ export default async function WhatsAppDetailsPage({
           <Info label="Vehicle" value={message.vehicle?.plateNumber ?? "No vehicle"} />
           <Info
             label="Related"
-            value={message.invoice?.invoiceNumber ?? message.workOrder?.orderNumber ?? "Customer"}
+            value={
+              message.invoice
+                ? formatInvoiceNumber(message.invoice.invoiceNumber)
+                : message.workOrder?.orderNumber ?? "Customer"
+            }
           />
         </div>
 

@@ -1,8 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { sendWhatsAppTextMessage } from "@/lib/whatsapp/connector";
+import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
+import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
 
@@ -87,6 +88,7 @@ export async function sendInvoiceIfConnected({
   ]
     .filter(Boolean)
     .join(" ");
+  const displayInvoiceNumber = formatInvoiceNumber(invoice.invoiceNumber);
 
   const messageBody = await renderManagedWhatsAppTemplate("INVOICE_SENT", {
     balance: formatMoney(invoice.balance),
@@ -96,7 +98,7 @@ export async function sendInvoiceIfConnected({
     companyPhone: invoice.business.phone,
     customerName: recipientName,
     customerPhone: invoice.workOrder.contactPhone || invoice.workOrder.customer.phone,
-    invoiceNumber: invoice.invoiceNumber,
+    invoiceNumber: displayInvoiceNumber,
     invoiceUrl: "",
     paidAmount: formatMoney(invoice.paidAmount),
     paymentStatus: formatStatus(invoice.status),
@@ -127,7 +129,7 @@ export async function sendInvoiceIfConnected({
     },
   });
 
-  const conversation = await prisma.whatsAppConversation.upsert({
+  await prisma.whatsAppConversation.upsert({
     where: {
       businessId_phone: {
         businessId,
@@ -151,37 +153,14 @@ export async function sendInvoiceIfConnected({
     },
   });
 
-  const connection = await prisma.whatsAppConnection.findUnique({
-    where: { businessId },
-    select: { status: true },
-  });
-
-  if (connection?.status !== "CONNECTED") {
-    await prisma.whatsAppMessage.update({
-      where: { id: log.id },
-      data: {
-        errorMessage: "WhatsApp is not connected.",
-      },
-    });
-    return;
-  }
-
   try {
-    const result = await sendWhatsAppTextMessage({
-      body: messageBody,
+    await enqueueWhatsAppLogMessage({
       businessId,
-      conversationId: conversation.id,
-      sentByUserId,
-    });
-
-    await prisma.whatsAppMessage.update({
-      where: { id: log.id },
-      data: {
-        errorMessage: null,
-        providerMessageId: result.externalMessageId ?? null,
-        sentAt: new Date(),
-        status: "SENT_MANUALLY",
-      },
+      branchId: invoice.branchId,
+      message: messageBody,
+      messageLogId: log.id,
+      messageType: "INVOICE_SENT",
+      phone: recipientPhone,
     });
   } catch (error) {
     await prisma.whatsAppMessage.update({
@@ -190,7 +169,7 @@ export async function sendInvoiceIfConnected({
         errorMessage:
           error instanceof Error
             ? error.message
-            : "Unable to send WhatsApp invoice message.",
+            : "Unable to send WhatsApp invoice PDF.",
       },
     });
   }

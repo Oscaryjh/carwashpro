@@ -15,7 +15,10 @@ import {
   updateWorkOrderStatusSchema,
 } from "@/lib/validation/work-orders";
 import { sendNewCustomerWelcomeIfConnected } from "@/lib/whatsapp/customer-welcome";
-import { sendReadyForPickupIfConnected } from "@/lib/whatsapp/work-order-notifications";
+import {
+  sendReadyForPickupIfConnected,
+  sendServiceConfirmationQueued,
+} from "@/lib/whatsapp/work-order-notifications";
 
 function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
@@ -420,6 +423,11 @@ export async function createWorkOrderAction(formData: FormData) {
   revalidatePath("/work-orders");
   revalidatePath("/crm");
   revalidatePath(`/crm/customers/${vehicle.customer.id}`);
+  await sendServiceConfirmationQueued({
+    businessId,
+    workOrderId: result.created.id,
+    sentByUserId: user.userId,
+  });
   if (result.newOwnerForWelcome) {
     await sendNewCustomerWelcomeIfConnected({
       businessId,

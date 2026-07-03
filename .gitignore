@@ -11,3 +11,5 @@ coverage
 .next-dev-*.log
 public/uploads/
 .whatsapp-sessions/
+auth_info/
+logs/

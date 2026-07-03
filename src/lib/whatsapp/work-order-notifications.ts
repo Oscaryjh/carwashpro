@@ -1,10 +1,16 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { sendWhatsAppTextMessage } from "@/lib/whatsapp/connector";
 import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
+import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
+
+type SendServiceConfirmationInput = {
+  businessId: string;
+  workOrderId: string;
+  sentByUserId: string;
+};
 
 type SendReadyForPickupInput = {
   businessId: string;
@@ -16,44 +22,12 @@ function formatMoney(value: unknown) {
   return `RM${Number(value ?? 0).toFixed(2)}`;
 }
 
-export async function sendReadyForPickupIfConnected({
+export async function sendServiceConfirmationQueued({
   businessId,
   workOrderId,
   sentByUserId,
-}: SendReadyForPickupInput) {
-  const workOrder = await prisma.workOrder.findFirst({
-    where: {
-      id: workOrderId,
-      businessId,
-    },
-    include: {
-      business: {
-        select: {
-          address: true,
-          companyNo: true,
-          name: true,
-          phone: true,
-        },
-      },
-      customer: {
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-        },
-      },
-      vehicle: {
-        select: {
-          brand: true,
-          color: true,
-          id: true,
-          model: true,
-          plateNumber: true,
-        },
-      },
-      items: { orderBy: { createdAt: "asc" } },
-    },
-  });
+}: SendServiceConfirmationInput) {
+  const workOrder = await getWorkOrderForNotification(businessId, workOrderId);
 
   if (!workOrder) {
     return;
@@ -68,13 +42,91 @@ export async function sendReadyForPickupIfConnected({
   }
 
   const recipientName = workOrder.contactName || workOrder.customer.name;
-  const vehicleName = [
-    workOrder.vehicle.brand,
-    workOrder.vehicle.model,
-    workOrder.vehicle.color,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const vehicleName = getVehicleName(workOrder.vehicle);
+  const messageBody = await renderManagedWhatsAppTemplate("SERVICE_CONFIRMATION", {
+    balance: formatMoney(workOrder.balance),
+    companyAddress: workOrder.business.address,
+    companyName: workOrder.business.name,
+    companyNo: workOrder.business.companyNo,
+    companyPhone: workOrder.business.phone,
+    customerName: recipientName,
+    customerPhone: workOrder.contactPhone || workOrder.customer.phone,
+    orderNumber: workOrder.orderNumber,
+    plateNumber: workOrder.vehicle.plateNumber,
+    services: workOrder.items.map((item) => item.name).join(", "),
+    subtotal: formatMoney(workOrder.subtotal),
+    total: formatMoney(workOrder.total),
+    vehicleName,
+  });
+  const storedMessageBody =
+    encodeWhatsAppStoredText(messageBody) ?? "Your car wash job has been checked in.";
+
+  const log = await prisma.whatsAppMessage.create({
+    data: {
+      businessId,
+      branchId: workOrder.branchId,
+      customerId: workOrder.customerId,
+      vehicleId: workOrder.vehicleId,
+      workOrderId: workOrder.id,
+      sentByUserId,
+      phone: recipientPhone,
+      recipientPhone,
+      messageType: "SERVICE_CONFIRMATION",
+      messageBody: storedMessageBody,
+      status: "DRAFT",
+      provider: "WHATSAPP_WEB_AUTO",
+    },
+  });
+
+  await upsertConversation({
+    businessId,
+    customerId: workOrder.customerId,
+    displayName: recipientName,
+    phone: recipientPhone,
+    storedMessageBody,
+  });
+
+  try {
+    await enqueueWhatsAppLogMessage({
+      businessId,
+      branchId: workOrder.branchId,
+      message: messageBody,
+      messageLogId: log.id,
+      messageType: "SERVICE_CONFIRMATION",
+      phone: recipientPhone,
+    });
+  } catch (error) {
+    await prisma.whatsAppMessage.update({
+      where: { id: log.id },
+      data: {
+        errorMessage:
+          error instanceof Error ? error.message : "WhatsApp queue failed.",
+      },
+    });
+  }
+}
+
+export async function sendReadyForPickupIfConnected({
+  businessId,
+  workOrderId,
+  sentByUserId,
+}: SendReadyForPickupInput) {
+  const workOrder = await getWorkOrderForNotification(businessId, workOrderId);
+
+  if (!workOrder) {
+    return;
+  }
+
+  const recipientPhone = normalizeMalaysiaWhatsAppPhone(
+    workOrder.contactPhone || workOrder.customer.phone,
+  );
+
+  if (!recipientPhone) {
+    return;
+  }
+
+  const recipientName = workOrder.contactName || workOrder.customer.name;
+  const vehicleName = getVehicleName(workOrder.vehicle);
   const messageBody = await renderManagedWhatsAppTemplate("READY_FOR_PICKUP", {
     balance: formatMoney(workOrder.balance),
     companyAddress: workOrder.business.address,
@@ -110,61 +162,22 @@ export async function sendReadyForPickupIfConnected({
     },
   });
 
-  const conversation = await prisma.whatsAppConversation.upsert({
-    where: {
-      businessId_phone: {
-        businessId,
-        phone: recipientPhone,
-      },
-    },
-    create: {
-      businessId,
-      customerId: workOrder.customerId,
-      phone: recipientPhone,
-      remoteJid: `${recipientPhone}@s.whatsapp.net`,
-      displayName: recipientName,
-      lastMessageBody: storedMessageBody,
-      lastMessageAt: new Date(),
-      unreadCount: 0,
-    },
-    update: {
-      customerId: workOrder.customerId,
-      remoteJid: `${recipientPhone}@s.whatsapp.net`,
-      displayName: recipientName,
-    },
+  await upsertConversation({
+    businessId,
+    customerId: workOrder.customerId,
+    displayName: recipientName,
+    phone: recipientPhone,
+    storedMessageBody,
   });
-
-  const connection = await prisma.whatsAppConnection.findUnique({
-    where: { businessId },
-    select: { status: true },
-  });
-
-  if (connection?.status !== "CONNECTED") {
-    await prisma.whatsAppMessage.update({
-      where: { id: log.id },
-      data: {
-        errorMessage: "WhatsApp is not connected.",
-      },
-    });
-    return;
-  }
 
   try {
-    const result = await sendWhatsAppTextMessage({
+    await enqueueWhatsAppLogMessage({
       businessId,
-      conversationId: conversation.id,
-      body: messageBody,
-      sentByUserId,
-    });
-
-    await prisma.whatsAppMessage.update({
-      where: { id: log.id },
-      data: {
-        status: "SENT_MANUALLY",
-        providerMessageId: result.externalMessageId ?? null,
-        sentAt: new Date(),
-        errorMessage: null,
-      },
+      branchId: workOrder.branchId,
+      message: messageBody,
+      messageLogId: log.id,
+      messageType: "READY_FOR_PICKUP",
+      phone: recipientPhone,
     });
   } catch (error) {
     await prisma.whatsAppMessage.update({
@@ -175,4 +188,80 @@ export async function sendReadyForPickupIfConnected({
       },
     });
   }
+}
+
+function getWorkOrderForNotification(businessId: string, workOrderId: string) {
+  return prisma.workOrder.findFirst({
+    where: {
+      id: workOrderId,
+      businessId,
+    },
+    include: {
+      business: {
+        select: {
+          address: true,
+          companyNo: true,
+          name: true,
+          phone: true,
+        },
+      },
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+        },
+      },
+      vehicle: {
+        select: {
+          brand: true,
+          color: true,
+          id: true,
+          model: true,
+          plateNumber: true,
+        },
+      },
+      items: { orderBy: { createdAt: "asc" } },
+    },
+  });
+}
+
+function getVehicleName(vehicle: {
+  brand: string | null;
+  color: string | null;
+  model: string | null;
+}) {
+  return [vehicle.brand, vehicle.model, vehicle.color].filter(Boolean).join(" ");
+}
+
+function upsertConversation(input: {
+  businessId: string;
+  customerId: string;
+  displayName: string;
+  phone: string;
+  storedMessageBody: string;
+}) {
+  return prisma.whatsAppConversation.upsert({
+    where: {
+      businessId_phone: {
+        businessId: input.businessId,
+        phone: input.phone,
+      },
+    },
+    create: {
+      businessId: input.businessId,
+      customerId: input.customerId,
+      phone: input.phone,
+      remoteJid: `${input.phone}@s.whatsapp.net`,
+      displayName: input.displayName,
+      lastMessageBody: input.storedMessageBody,
+      lastMessageAt: new Date(),
+      unreadCount: 0,
+    },
+    update: {
+      customerId: input.customerId,
+      remoteJid: `${input.phone}@s.whatsapp.net`,
+      displayName: input.displayName,
+    },
+  });
 }

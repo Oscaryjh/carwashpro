@@ -1,0 +1,1 @@
+ALTER TYPE "WhatsAppChatMessageType" ADD VALUE IF NOT EXISTS 'DOCUMENT';
