@@ -8,7 +8,11 @@ import { createCustomerAction } from "../../actions";
 
 type NewCustomerPageProps = {
   searchParams: Promise<{
+    name?: string;
+    notes?: string;
     plate?: string;
+    phone?: string;
+    whatsappConversationId?: string;
   }>;
 };
 
@@ -16,7 +20,7 @@ export default async function NewCustomerPage({
   searchParams,
 }: NewCustomerPageProps) {
   const { user, businessId } = await requireCrmUser();
-  const { plate } = await searchParams;
+  const { name, notes, phone, plate, whatsappConversationId } = await searchParams;
   const initialVehiclePlate = plate ? normalizePlateNumber(plate) : "";
   const branches = await getActiveBranches(businessId);
 
@@ -35,7 +39,11 @@ export default async function NewCustomerPage({
           <CustomerForm
             action={createCustomerAction}
             branches={branches}
+            initialName={name ?? ""}
+            initialNotes={notes ?? ""}
+            initialPhone={phone ?? ""}
             initialVehiclePlate={initialVehiclePlate}
+            whatsappConversationId={whatsappConversationId}
           />
         </div>
       </section>

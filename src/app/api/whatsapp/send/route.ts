@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { prisma } from "@/lib/prisma";
-import { sendConnectorTextMessage } from "@/lib/whatsapp/connector-client";
-import { enqueueWhatsAppTextMessage } from "@/lib/whatsapp/worker-commands";
+import {
+  getConnectorStatus,
+  sendConnectorTextMessage,
+} from "@/lib/whatsapp/connector-client";
+import { enqueueInboxReply } from "@/lib/whatsapp/inbox-reply";
 
 export const runtime = "nodejs";
 
@@ -13,8 +15,16 @@ const directSendSchema = z.object({
 });
 
 const queuedSendSchema = z.object({
+  audioBase64: z.string().trim().min(1).nullable().optional(),
+  audioFileName: z.string().trim().min(1).nullable().optional(),
+  audioMimeType: z.string().trim().min(1).nullable().optional(),
+  documentBase64: z.string().trim().min(1).nullable().optional(),
+  documentFileName: z.string().trim().min(1).nullable().optional(),
+  documentMimeType: z.string().trim().nullable().optional(),
   conversationId: z.string().uuid(),
-  body: z.string().trim().min(1, "Message is required."),
+  body: z.string().trim().optional(),
+}).refine((input) => Boolean(input.body || input.audioBase64 || input.documentBase64), {
+  message: "Message, voice recording, or file is required.",
 });
 
 export async function POST(request: Request) {
@@ -54,48 +64,59 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Phone and message are required." }, { status: 400 });
   }
 
-  const connection = await prisma.whatsAppConnection.findUnique({
-    where: { businessId },
-    select: { status: true },
-  });
+  const connectorStatus = await readConnectorStatus();
 
-  if (connection?.status !== "CONNECTED") {
+  if (connectorStatus !== "connected") {
     return NextResponse.json(
-      { message: "Connect WhatsApp before sending." },
+      { message: getConnectionRequiredMessage(connectorStatus) },
       { status: 409 },
     );
   }
 
-  const conversation = await prisma.whatsAppConversation.findFirst({
-    where: {
-      id: parsed.data.conversationId,
-      businessId,
-    },
-    select: { id: true },
-  });
-
-  if (!conversation) {
-    return NextResponse.json(
-      { message: "Conversation not found." },
-      { status: 404 },
-    );
-  }
-
   try {
-    await enqueueWhatsAppTextMessage({
+    const result = await enqueueInboxReply({
       businessId,
-      conversationId: conversation.id,
-      body: parsed.data.body,
+      conversationId: parsed.data.conversationId,
+      body: parsed.data.body || "Voice message",
+      audioBase64: parsed.data.audioBase64 ?? null,
+      audioFileName: parsed.data.audioFileName ?? null,
+      audioMimeType: parsed.data.audioMimeType ?? null,
+      documentBase64: parsed.data.documentBase64 ?? null,
+      documentFileName: parsed.data.documentFileName ?? null,
+      documentMimeType: parsed.data.documentMimeType ?? null,
       sentByUserId: user.userId,
     });
 
-    return NextResponse.json({ ok: true, queued: true });
+    return NextResponse.json({
+      ok: true,
+      messageLogId: result.log.id,
+      queueId: result.queueItem.id,
+      queued: true,
+    });
   } catch (error) {
     return NextResponse.json(
       { message: getErrorMessage(error) || "Unable to send WhatsApp message." },
       { status: 502 },
     );
   }
+}
+
+async function readConnectorStatus() {
+  try {
+    return (await getConnectorStatus()).status;
+  } catch {
+    return "disconnected";
+  }
+}
+
+function getConnectionRequiredMessage(
+  status: Awaited<ReturnType<typeof readConnectorStatus>>,
+) {
+  if (status === "qr") {
+    return "Scan QR before sending WhatsApp messages.";
+  }
+
+  return "WhatsApp is disconnected.";
 }
 
 function getErrorMessage(error: unknown) {

@@ -15,7 +15,7 @@
     "notification:worker": "node --use-system-ca --import tsx scripts/notification-queue-worker.ts",
     "whatsapp:worker": "node --use-system-ca scripts/run-whatsapp-worker.mjs",
     "next:clean": "node scripts/clean-next-cache.mjs",
-    "build": "next build",
+    "build": "node scripts/guard-next-build.mjs && next build",
     "start": "next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",

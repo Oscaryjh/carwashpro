@@ -222,11 +222,21 @@ function RelatedLink({
 }
 
 function latestEventLabel(message: {
+  deliveredAt: Date | null;
+  readAt: Date | null;
   openedAt: Date | null;
   sentAt: Date | null;
 }) {
+  if (message.readAt) {
+    return `Read ${message.readAt.toLocaleString()}`;
+  }
+
+  if (message.deliveredAt) {
+    return `Delivered ${message.deliveredAt.toLocaleString()}`;
+  }
+
   if (message.sentAt) {
-    return `Sent manually ${message.sentAt.toLocaleString()}`;
+    return `Sent to WhatsApp ${message.sentAt.toLocaleString()}`;
   }
 
   if (message.openedAt) {

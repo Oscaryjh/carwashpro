@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { assertRole } from "@/lib/auth/permissions";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { packageSchema, purchasePackageSchema } from "@/lib/validation/packages";
@@ -16,7 +16,7 @@ export type DeletePackageState = {
 
 export async function createPackageAction(formData: FormData) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "PACKAGES");
 
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const input = packageSchema.parse({
@@ -72,7 +72,7 @@ export async function createPackageAction(formData: FormData) {
 
 export async function updatePackageAction(formData: FormData) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "PACKAGES");
 
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const packageId = formData.get("packageId")?.toString();
@@ -164,7 +164,7 @@ async function resolvePackageCategory(
 
 export async function deactivatePackageAction(formData: FormData) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "PACKAGES");
 
   const packageId = formData.get("packageId")?.toString();
 
@@ -192,7 +192,7 @@ export async function deletePackageAction(
   formData: FormData,
 ): Promise<DeletePackageState> {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "PACKAGES");
 
   const packageId = formData.get("packageId")?.toString();
 

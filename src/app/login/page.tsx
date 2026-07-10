@@ -1,11 +1,24 @@
 import { LoginForm } from "./login-form";
 
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams: Promise<{
+    error?: string;
+  }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams;
+  const message =
+    params.error === "business-not-found"
+      ? "Business not found, please login again"
+      : null;
+
   return (
     <main className="auth-page">
       <section className="auth-panel">
         <h1>WashFlow</h1>
         <p>Sign in to manage your car wash business workspace.</p>
+        {message ? <p className="status failed">{message}</p> : null}
         <LoginForm />
       </section>
     </main>

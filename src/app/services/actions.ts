@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { assertRole } from "@/lib/auth/permissions";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { money, serviceSchema } from "@/lib/validation/services";
@@ -15,7 +15,7 @@ export type DeleteServiceState = {
 
 export async function createServiceAction(formData: FormData) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "SERVICES");
 
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const input = serviceSchema.parse({
@@ -59,7 +59,7 @@ export async function createServiceAction(formData: FormData) {
 
 export async function updateServiceAction(formData: FormData) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "SERVICES");
 
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const serviceId = formData.get("serviceId")?.toString();
@@ -139,7 +139,7 @@ async function resolveServiceCategory(
 
 export async function deactivateServiceAction(formData: FormData) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "SERVICES");
 
   const serviceId = formData.get("serviceId")?.toString();
 
@@ -169,7 +169,7 @@ export async function deleteServiceAction(
   formData: FormData,
 ): Promise<DeleteServiceState> {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "SERVICES");
 
   const serviceId = formData.get("serviceId")?.toString();
 

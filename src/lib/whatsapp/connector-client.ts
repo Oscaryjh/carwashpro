@@ -20,13 +20,72 @@ type ConnectorSendResponse = ConnectorSendSuccess | ConnectorSendFailure;
 
 type ConnectorSessionResponse = {
   ok: true;
-  status: "connected" | "qr" | "disconnected";
+  status: ConnectorStatusValue;
   hasSession: boolean;
   hasSocket: boolean;
   phone: string | null;
   clientName: string;
   startedAt: string;
   reconnectAttempts: number;
+};
+
+export type ConnectorStatusValue =
+  | "starting"
+  | "connecting"
+  | "qr"
+  | "connected"
+  | "session_expired"
+  | "disconnected"
+  | "reconnecting"
+  | "error";
+
+export type ConnectorStatus = {
+  status: ConnectorStatusValue;
+  phoneNumber: string | null;
+  lastSeen: string | null;
+  hasSocket: boolean;
+  reconnectAttempts: number;
+  lastConnectedAt: string | null;
+  lastDisconnectedAt: string | null;
+  lastError: string | null;
+  lastAckError: {
+    code: string;
+    messageId?: string;
+    remoteJid?: string;
+    at: string;
+  } | null;
+  sessionHealth: {
+    ok: boolean;
+    issue?: string;
+    message?: string;
+    detectedAt?: string;
+  };
+};
+
+export type ConnectorDiagnostics = {
+  whatsappNumber: string | null;
+  connectionState: ConnectorStatusValue;
+  linkedDeviceStatus: string;
+  hasSocket: boolean;
+  hasSession: boolean;
+  lastSuccessfulSend: string | null;
+  lastSuccessfulReceive: string | null;
+  lastAckError: ConnectorStatus["lastAckError"];
+  sessionHealth: ConnectorStatus["sessionHealth"];
+  connectorVersion: string;
+  baileysVersion: string;
+  nodeVersion: string;
+  startedAt: string;
+  lastConnectedAt: string | null;
+  lastDisconnectedAt: string | null;
+  reconnectAttempts: number;
+};
+
+export type ConnectorJidLookup = {
+  phone: string;
+  fallbackJid: string;
+  exists: boolean;
+  jid: string | null;
 };
 
 export class WhatsAppConnectorError extends Error {
@@ -54,6 +113,110 @@ export function getWhatsAppConnectorUrl() {
   return connectorUrl.replace(/\/+$/, "");
 }
 
+export async function getConnectorStatus(): Promise<ConnectorStatus> {
+  const response = await fetch(`${getWhatsAppConnectorUrl()}/status`, {
+    method: "GET",
+    cache: "no-store",
+  });
+  const body = await readJson(response);
+
+  if (!response.ok) {
+    throw new WhatsAppConnectorError(
+      "WHATSAPP_CONNECTOR_STATUS_FAILED",
+      getConnectorErrorMessage(body) || "Unable to read WhatsApp connector status.",
+      response.status,
+    );
+  }
+
+  const data =
+    body && typeof body === "object" && "data" in body ? body.data : body;
+
+  if (!data || typeof data !== "object" || !("status" in data)) {
+    throw new WhatsAppConnectorError(
+      "WHATSAPP_CONNECTOR_STATUS_INVALID",
+      "WhatsApp connector returned an invalid status response.",
+      response.status,
+    );
+  }
+
+  const statusData = data as Record<string, unknown>;
+
+  return {
+    status: readConnectorStatusValue(statusData),
+    phoneNumber:
+      readNullableString(statusData, "phoneNumber") ??
+      readNullableString(statusData, "phone"),
+    lastSeen:
+      readNullableString(statusData, "lastSeen") ??
+      readNullableString(statusData, "lastSeenAt") ??
+      readNullableString(statusData, "startedAt") ??
+      readNullableString(statusData, "lastDisconnectedAt"),
+    hasSocket: readBoolean(statusData, "hasSocket"),
+    reconnectAttempts: readNumber(statusData, "reconnectAttempts"),
+    lastConnectedAt: readNullableString(statusData, "lastConnectedAt"),
+    lastDisconnectedAt: readNullableString(statusData, "lastDisconnectedAt"),
+    lastError: readNullableString(statusData, "lastError"),
+    lastAckError: readLastAckError(statusData.lastAckError),
+    sessionHealth: readSessionHealth(statusData.sessionHealth),
+  };
+}
+
+export async function getConnectorDiagnostics(): Promise<ConnectorDiagnostics> {
+  const response = await fetch(`${getWhatsAppConnectorUrl()}/diagnostics`, {
+    method: "GET",
+    cache: "no-store",
+  });
+  const body = await readJson(response);
+
+  if (!response.ok) {
+    throw new WhatsAppConnectorError(
+      "WHATSAPP_CONNECTOR_DIAGNOSTICS_FAILED",
+      getConnectorErrorMessage(body) || "Unable to read WhatsApp diagnostics.",
+      response.status,
+    );
+  }
+
+  const data =
+    body && typeof body === "object" && "data" in body ? body.data : body;
+
+  if (!data || typeof data !== "object") {
+    throw new WhatsAppConnectorError(
+      "WHATSAPP_CONNECTOR_DIAGNOSTICS_INVALID",
+      "WhatsApp connector returned an invalid diagnostics response.",
+      response.status,
+    );
+  }
+
+  const diagnostics = data as Record<string, unknown>;
+
+  return {
+    whatsappNumber: readNullableString(diagnostics, "whatsappNumber"),
+    connectionState: readConnectorStatusValue({
+      status: diagnostics.connectionState,
+    }),
+    linkedDeviceStatus:
+      readNullableString(diagnostics, "linkedDeviceStatus") ?? "unknown",
+    hasSocket: readBoolean(diagnostics, "hasSocket"),
+    hasSession: readBoolean(diagnostics, "hasSession"),
+    lastSuccessfulSend: readNullableString(diagnostics, "lastSuccessfulSend"),
+    lastSuccessfulReceive: readNullableString(
+      diagnostics,
+      "lastSuccessfulReceive",
+    ),
+    lastAckError: readLastAckError(diagnostics.lastAckError),
+    sessionHealth: readSessionHealth(diagnostics.sessionHealth),
+    connectorVersion:
+      readNullableString(diagnostics, "connectorVersion") ?? "unknown",
+    baileysVersion:
+      readNullableString(diagnostics, "baileysVersion") ?? "unknown",
+    nodeVersion: readNullableString(diagnostics, "nodeVersion") ?? "unknown",
+    startedAt: readNullableString(diagnostics, "startedAt") ?? "",
+    lastConnectedAt: readNullableString(diagnostics, "lastConnectedAt"),
+    lastDisconnectedAt: readNullableString(diagnostics, "lastDisconnectedAt"),
+    reconnectAttempts: readNumber(diagnostics, "reconnectAttempts"),
+  };
+}
+
 export async function getConnectorSession() {
   const response = await fetch(`${getWhatsAppConnectorUrl()}/session`, {
     method: "GET",
@@ -70,6 +233,45 @@ export async function getConnectorSession() {
   }
 
   return body;
+}
+
+export async function getConnectorJidLookup(
+  phone: string,
+): Promise<ConnectorJidLookup> {
+  const params = new URLSearchParams({ phone });
+  const response = await fetch(`${getWhatsAppConnectorUrl()}/jid?${params}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+  const body = await readJson(response);
+
+  if (!response.ok) {
+    throw new WhatsAppConnectorError(
+      "WHATSAPP_CONNECTOR_JID_LOOKUP_FAILED",
+      getConnectorErrorMessage(body) || "Unable to verify WhatsApp JID.",
+      response.status,
+    );
+  }
+
+  const data =
+    body && typeof body === "object" && "data" in body ? body.data : body;
+
+  if (!data || typeof data !== "object") {
+    throw new WhatsAppConnectorError(
+      "WHATSAPP_CONNECTOR_JID_LOOKUP_INVALID",
+      "WhatsApp connector returned an invalid JID lookup response.",
+      response.status,
+    );
+  }
+
+  const lookup = data as Record<string, unknown>;
+
+  return {
+    phone: readNullableString(lookup, "phone") ?? phone,
+    fallbackJid: readNullableString(lookup, "fallbackJid") ?? "",
+    exists: readBoolean(lookup, "exists"),
+    jid: readNullableString(lookup, "jid"),
+  };
 }
 
 export async function reconnectConnectorSession() {
@@ -127,6 +329,92 @@ export async function sendConnectorTextMessage(input: {
   }
 
   return body.data;
+}
+
+function readConnectorStatusValue(
+  data: Record<string, unknown>,
+): ConnectorStatus["status"] {
+  const value = readNullableString(data, "status");
+
+  if (
+    value === "starting" ||
+    value === "connecting" ||
+    value === "qr" ||
+    value === "connected" ||
+    value === "session_expired" ||
+    value === "disconnected" ||
+    value === "reconnecting" ||
+    value === "error"
+  ) {
+    return value;
+  }
+
+  return "disconnected";
+}
+
+function readSessionHealth(value: unknown): ConnectorStatus["sessionHealth"] {
+  if (!value || typeof value !== "object") {
+    return { ok: true };
+  }
+
+  const health = value as Record<string, unknown>;
+
+  return {
+    ok: health.ok !== false,
+    issue: typeof health.issue === "string" ? health.issue : undefined,
+    message: typeof health.message === "string" ? health.message : undefined,
+    detectedAt:
+      typeof health.detectedAt === "string" ? health.detectedAt : undefined,
+  };
+}
+
+function readLastAckError(value: unknown): ConnectorStatus["lastAckError"] {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const ackError = value as Record<string, unknown>;
+  const code = typeof ackError.code === "string" ? ackError.code : null;
+  const at = typeof ackError.at === "string" ? ackError.at : null;
+
+  if (!code || !at) {
+    return null;
+  }
+
+  return {
+    code,
+    at,
+    messageId:
+      typeof ackError.messageId === "string" ? ackError.messageId : undefined,
+    remoteJid:
+      typeof ackError.remoteJid === "string" ? ackError.remoteJid : undefined,
+  };
+}
+
+function readNullableString(data: Record<string, unknown>, key: string) {
+  if (!(key in data)) {
+    return null;
+  }
+
+  const value = data[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function readBoolean(data: Record<string, unknown>, key: string) {
+  if (!(key in data)) {
+    return false;
+  }
+
+  return data[key] === true;
+}
+
+function readNumber(data: Record<string, unknown>, key: string) {
+  if (!(key in data)) {
+    return 0;
+  }
+
+  const value = data[key];
+  return typeof value === "number" ? value : 0;
 }
 
 async function readJson(response: Response) {

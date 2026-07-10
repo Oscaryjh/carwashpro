@@ -1,7 +1,15 @@
 "use server";
 
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { prisma } from "@/lib/prisma";
+import { getDefaultWhatsAppInstanceId } from "@/lib/whatsapp/instance";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
+import {
+  formatInvoicePaymentStatus,
+  getInvoicePaymentSummary,
+} from "@/lib/invoices/payment-summary";
+import { buildInvoicePdf, invoicePdfFileName } from "@/lib/invoices/invoice-pdf";
 import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
@@ -15,10 +23,6 @@ type SendInvoiceInput = {
 
 function formatMoney(value: unknown) {
   return `RM${Number(value ?? 0).toFixed(2)}`;
-}
-
-function formatStatus(status: string) {
-  return status.toLowerCase().replaceAll("_", " ");
 }
 
 export async function sendInvoiceIfConnected({
@@ -36,6 +40,7 @@ export async function sendInvoiceIfConnected({
         select: {
           address: true,
           companyNo: true,
+          logoUrl: true,
           name: true,
           phone: true,
         },
@@ -50,6 +55,16 @@ export async function sendInvoiceIfConnected({
             },
           },
           items: { orderBy: { createdAt: "asc" } },
+          payments: {
+            include: {
+              customerPackage: {
+                include: {
+                  package: true,
+                },
+              },
+            },
+            orderBy: { paidAt: "desc" },
+          },
           vehicle: {
             select: {
               brand: true,
@@ -89,6 +104,13 @@ export async function sendInvoiceIfConnected({
     .filter(Boolean)
     .join(" ");
   const displayInvoiceNumber = formatInvoiceNumber(invoice.invoiceNumber);
+  const invoiceLogo = await loadInvoiceLogo(invoice.business.logoUrl);
+  const paymentSummary = getInvoicePaymentSummary(invoice.workOrder.payments);
+  const paidAmountText = paymentSummary.hasPackageVoucher
+    ? `${formatMoney(paymentSummary.cashPaidAmount)}\nPackage voucher: ${formatMoney(
+        paymentSummary.packageVoucherAmount,
+      )}`
+    : formatMoney(invoice.paidAmount);
 
   const messageBody = await renderManagedWhatsAppTemplate("INVOICE_SENT", {
     balance: formatMoney(invoice.balance),
@@ -100,8 +122,8 @@ export async function sendInvoiceIfConnected({
     customerPhone: invoice.workOrder.contactPhone || invoice.workOrder.customer.phone,
     invoiceNumber: displayInvoiceNumber,
     invoiceUrl: "",
-    paidAmount: formatMoney(invoice.paidAmount),
-    paymentStatus: formatStatus(invoice.status),
+    paidAmount: paidAmountText,
+    paymentStatus: formatInvoicePaymentStatus(invoice.status, paymentSummary),
     plateNumber: invoice.workOrder.vehicle.plateNumber,
     services,
     subtotal: formatMoney(invoice.subtotal),
@@ -110,6 +132,28 @@ export async function sendInvoiceIfConnected({
   });
   const storedMessageBody =
     encodeWhatsAppStoredText(messageBody) ?? "Invoice has been paid.";
+  const invoicePdf = buildInvoicePdf({
+    company: {
+      ...invoice.business,
+      logo: invoiceLogo,
+    },
+    customer: {
+      name: recipientName,
+      phone: recipientPhone,
+    },
+    invoiceNumber: displayInvoiceNumber,
+    issuedAt: invoice.issuedAt,
+    items: invoice.workOrder.items,
+    paidAmount: invoice.paidAmount,
+    cashPaidAmount: paymentSummary.cashPaidAmount,
+    packageVoucherAmount: paymentSummary.packageVoucherAmount,
+    balance: invoice.balance,
+    status: invoice.status,
+    subtotal: invoice.subtotal,
+    total: invoice.total,
+    vehicle: invoice.workOrder.vehicle,
+  });
+  const invoiceFileName = invoicePdfFileName(displayInvoiceNumber);
 
   const log = await prisma.whatsAppMessage.create({
     data: {
@@ -129,15 +173,19 @@ export async function sendInvoiceIfConnected({
     },
   });
 
+  const instanceId = getDefaultWhatsAppInstanceId();
+
   await prisma.whatsAppConversation.upsert({
     where: {
-      businessId_phone: {
+      businessId_instanceId_phone: {
         businessId,
+        instanceId,
         phone: recipientPhone,
       },
     },
     create: {
       businessId,
+      instanceId,
       customerId: invoice.workOrder.customerId,
       displayName: recipientName,
       lastMessageAt: new Date(),
@@ -161,6 +209,9 @@ export async function sendInvoiceIfConnected({
       messageLogId: log.id,
       messageType: "INVOICE_SENT",
       phone: recipientPhone,
+      documentBase64: invoicePdf.toString("base64"),
+      documentMimeType: "application/pdf",
+      documentFileName: invoiceFileName,
     });
   } catch (error) {
     await prisma.whatsAppMessage.update({
@@ -173,4 +224,40 @@ export async function sendInvoiceIfConnected({
       },
     });
   }
+}
+
+async function loadInvoiceLogo(logoUrl?: string | null) {
+  if (!logoUrl?.startsWith("/uploads/")) {
+    return null;
+  }
+
+  const publicDir = path.join(process.cwd(), "public");
+  const logoPath = path.normalize(path.join(publicDir, logoUrl.replace(/^\/+/, "")));
+
+  if (!logoPath.startsWith(publicDir)) {
+    return null;
+  }
+
+  try {
+    return {
+      data: await readFile(logoPath),
+      mimeType: getLogoMimeType(logoPath),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getLogoMimeType(filePath: string) {
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (extension === ".png") {
+    return "image/png";
+  }
+
+  if (extension === ".jpg" || extension === ".jpeg") {
+    return "image/jpeg";
+  }
+
+  return null;
 }

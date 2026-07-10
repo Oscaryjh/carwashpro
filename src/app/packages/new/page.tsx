@@ -2,14 +2,14 @@ import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { PackageForm } from "@/components/package-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { assertRole } from "@/lib/auth/permissions";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { createPackageAction } from "../actions";
 
 export default async function NewPackagePage() {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "PACKAGES");
 
   const [services, branches, categories] = await Promise.all([
     prisma.service.findMany({

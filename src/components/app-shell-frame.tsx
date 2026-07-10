@@ -156,7 +156,11 @@ export function AppShellFrame({
   );
 }
 
-function isActiveNavItem(pathname: string, href: string) {
+function isActiveNavItem(pathname: string | null, href: string) {
+  if (!pathname) {
+    return false;
+  }
+
   if (href === "/dashboard") {
     return pathname === href;
   }
@@ -169,6 +173,7 @@ function isActiveNavItem(pathname: string, href: string) {
 }
 
 type IconName =
+  | "appointments"
   | "branches"
   | "businesses"
   | "crm"
@@ -185,6 +190,13 @@ type IconName =
 
 function ShellIcon({ name }: { name: IconName }) {
   const paths: Record<IconName, ReactNode> = {
+    appointments: (
+      <>
+        <rect x="5" y="5" width="14" height="15" rx="2" />
+        <path d="M8 3v4M16 3v4M5 10h14" />
+        <path d="M9 14h2M13 14h2M9 17h2" />
+      </>
+    ),
     branches: (
       <>
         <path d="M6 20V8l6-4 6 4v12" />

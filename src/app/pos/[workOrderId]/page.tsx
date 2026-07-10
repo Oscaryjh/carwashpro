@@ -1,10 +1,12 @@
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { PosPaymentPanel } from "@/components/pos-payment-panel";
 import { PosReceiptTotalsPreview } from "@/components/pos-payment-preview";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 import { recordPaymentAction, usePackagePaymentAction } from "../actions";
 
@@ -21,6 +23,9 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
     where: {
       id: workOrderId,
       businessId,
+      ...(user.role === "BUSINESS_OWNER"
+        ? {}
+        : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
     },
     include: {
       business: true,
@@ -41,7 +46,19 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
   }
 
   const balance = Number(workOrder.balance);
-  const canPay = workOrder.status !== "CANCELLED" && workOrder.paymentStatus !== "PAID";
+  const openShift = await prisma.cashierShift.findFirst({
+    where: {
+      businessId,
+      cashierId: user.userId,
+      status: "OPEN",
+    },
+    select: { branchId: true, id: true, startedAt: true },
+  });
+  const shiftMatchesWorkOrder = Boolean(openShift) && openShift?.branchId === workOrder.branchId;
+  const canPay =
+    shiftMatchesWorkOrder &&
+    workOrder.status !== "CANCELLED" &&
+    workOrder.paymentStatus !== "PAID";
   const customerPackages = await prisma.customerPackage.findMany({
     where: {
       businessId,
@@ -52,6 +69,7 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
       },
     },
     include: {
+      branch: true,
       package: true,
     },
     orderBy: { purchasedAt: "asc" },
@@ -66,9 +84,13 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
   const packagePaymentOptions = usableCustomerPackages.map((customerPackage) => ({
     id: customerPackage.id,
     packageName: customerPackage.package.name,
+    purchaseBranchName: customerPackage.branch?.name ?? "All branches",
     remainingUses: customerPackage.remainingUses,
     totalUses: customerPackage.totalUses,
   }));
+  const displayInvoiceNumber = workOrder.invoice
+    ? formatInvoiceNumber(workOrder.invoice.invoiceNumber)
+    : "Pending invoice";
 
   return (
     <AppShell user={user}>
@@ -114,7 +136,7 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
               <div>
                 <span>Invoice No.</span>
                 <strong className="pos-receipt-number">
-                  {workOrder.invoice?.invoiceNumber ?? "Pending invoice"}
+                  {displayInvoiceNumber}
                 </strong>
                 <small>{new Date().toLocaleDateString("en-MY")}</small>
               </div>
@@ -188,12 +210,35 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
               workOrder.invoice
                 ? {
                     id: workOrder.invoice.id,
-                    invoiceNumber: workOrder.invoice.invoiceNumber,
+                    invoiceNumber: displayInvoiceNumber,
                   }
                 : null
             }
           />
         </div>
+        {!openShift ? (
+          <div className="panel warning-panel">
+            <h2>Shift required</h2>
+            <p className="muted">
+              Start a cashier shift before checkout so this payment is included in
+              closing.
+            </p>
+            <Link className="button-link" href="/closing">
+              Start shift
+            </Link>
+          </div>
+        ) : !shiftMatchesWorkOrder ? (
+          <div className="panel warning-panel">
+            <h2>Wrong shift branch</h2>
+            <p className="muted">
+              This job belongs to another branch. End the current shift or start a
+              shift for this job branch before checkout.
+            </p>
+            <Link className="button-link" href="/closing">
+              Go to Shift Closing
+            </Link>
+          </div>
+        ) : null}
       </section>
     </AppShell>
   );

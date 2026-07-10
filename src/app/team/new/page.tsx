@@ -1,0 +1,47 @@
+import { AppShell } from "@/components/app-shell";
+import { BackButton } from "@/components/back-button";
+import { StaffForm } from "@/components/staff-form";
+import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
+import { getActiveBranches } from "@/lib/branches";
+import { createStaffAction } from "../actions";
+
+export default async function NewStaffPage() {
+  const { user, businessId } = await requireBusinessUser();
+  assertStaffPermission(user, "TEAM");
+
+  const branches = await getActiveBranches(businessId);
+
+  return (
+    <AppShell user={user}>
+      <section className="content">
+        <div className="page-header">
+          <div>
+            <h1>Create staff</h1>
+            <p>Create one login and assign it to a branch.</p>
+          </div>
+          <BackButton fallbackHref="/team" />
+        </div>
+
+        {!branches.length ? (
+          <div className="warning">
+            Create an active branch before adding staff. Staff accounts must belong to
+            one branch.
+          </div>
+        ) : null}
+
+        <div className="panel team-create-card">
+          <div className="section-header">
+            <h2>Staff details</h2>
+            <span className="status">branch required</span>
+          </div>
+          <StaffForm
+            action={createStaffAction}
+            branches={branches}
+            submitLabel="Create staff"
+          />
+        </div>
+      </section>
+    </AppShell>
+  );
+}

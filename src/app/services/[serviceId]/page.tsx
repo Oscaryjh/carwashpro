@@ -4,7 +4,7 @@ import { BackButton } from "@/components/back-button";
 import { DeleteServiceForm } from "@/components/delete-service-form";
 import { ServiceForm } from "@/components/service-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { assertRole } from "@/lib/auth/permissions";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { updateServiceAction } from "../actions";
@@ -19,7 +19,7 @@ export default async function ServiceDetailsPage({
   params,
 }: ServiceDetailsPageProps) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "SERVICES");
 
   const { serviceId } = await params;
 

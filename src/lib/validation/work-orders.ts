@@ -107,7 +107,6 @@ export function canMoveWorkOrderStatus(
   }
 
   return (
-    (current === "WAITING" && next === "IN_PROGRESS") ||
     (current === "IN_PROGRESS" && next === "READY_FOR_PICKUP") ||
     (current === "READY_FOR_PICKUP" && next === "COMPLETED")
   );
@@ -115,11 +114,24 @@ export function canMoveWorkOrderStatus(
 
 export function makeOrderNumber() {
   const now = new Date();
-  const date = now.toISOString().slice(0, 10).replaceAll("-", "");
-  const time = `${now.getHours()}${now.getMinutes()}${now.getSeconds()}${now.getMilliseconds()}`
-    .padStart(9, "0")
-    .slice(0, 9);
+  const year = String(now.getFullYear()).slice(-2);
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const date = `${year}${month}${day}`;
   const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
 
-  return `WO-${date}-${time}-${suffix}`;
+  return `WO-${date}-${suffix}`;
+}
+
+export function formatOrderNumber(orderNumber: string) {
+  const legacyMatch = orderNumber.match(
+    /^WO-\d{2}(\d{6})-\d{9}-([A-Z0-9]{4})$/,
+  );
+
+  if (legacyMatch) {
+    const [, date, suffix] = legacyMatch;
+    return `WO-${date}-${suffix}`;
+  }
+
+  return orderNumber;
 }

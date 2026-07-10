@@ -9,6 +9,9 @@ export type EnqueueNotificationInput = {
   phone: string;
   message: string;
   messageType: string;
+  documentBase64?: string | null;
+  documentMimeType?: string | null;
+  documentFileName?: string | null;
   messageLogId?: string | null;
   priority?: NotificationQueuePriority;
   queuedAt?: Date;
@@ -22,6 +25,14 @@ export type FindQueuedNotificationsInput = {
 export type MarkNotificationSentInput = {
   id: string;
   providerMessageId: string;
+};
+
+export type MarkNotificationDeliveryInput = {
+  instanceId?: string | null;
+  providerMessageId: string;
+  status: "DELIVERED" | "READ" | "FAILED";
+  errorMessage?: string | null;
+  timestamp?: Date;
 };
 
 export type MarkNotificationFailedInput = {

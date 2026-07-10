@@ -12,6 +12,9 @@ type EnqueueWhatsAppLogMessageInput = {
   messageType: WhatsAppMessageType;
   phone: string;
   message: string;
+  documentBase64?: string | null;
+  documentMimeType?: string | null;
+  documentFileName?: string | null;
   priority?: NotificationQueuePriority;
 };
 
@@ -26,6 +29,9 @@ export async function enqueueWhatsAppLogMessage(
     message: input.message,
     messageType: input.messageType,
     messageLogId: input.messageLogId,
+    documentBase64: input.documentBase64 ?? null,
+    documentMimeType: input.documentMimeType ?? null,
+    documentFileName: input.documentFileName ?? null,
     priority: input.priority,
     queuedAt,
   });

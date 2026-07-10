@@ -98,7 +98,9 @@ export default async function WhatsAppQueuePage({
         <div className="dashboard-kpis">
           <Metric label="Total queued" value={counts.QUEUED} />
           <Metric label="Sending" value={counts.SENDING} />
-          <Metric label="Sent" value={counts.SENT} tone="sales" />
+          <Metric label="Sent to server" value={counts.SENT_TO_SERVER + counts.SENT} tone="sales" />
+          <Metric label="Delivered" value={counts.DELIVERED} tone="sales" />
+          <Metric label="Read" value={counts.READ} tone="sales" />
           <Metric label="Failed" value={counts.FAILED} tone="danger" />
           <Metric label="Retrying" value={retrying} tone={retrying ? "warning" : "default"} />
           <Metric
@@ -191,6 +193,9 @@ function createStatusCountMap(
       QUEUED: 0,
       SENDING: 0,
       SENT: 0,
+      SENT_TO_SERVER: 0,
+      DELIVERED: 0,
+      READ: 0,
       FAILED: 0,
     } satisfies Record<NotificationQueueStatus, number>,
   );

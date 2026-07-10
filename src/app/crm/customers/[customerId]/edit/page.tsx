@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
+import { VehicleSelectFields } from "@/components/vehicle-select-fields";
 import { requireCrmUser } from "@/lib/auth/crm";
 import { getActiveBranches, type BranchOption } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
@@ -117,18 +118,14 @@ export default async function EditCustomerPage({
                           required
                         />
                       </label>
-                      <label>
-                        <span>Brand optional</span>
-                        <input name="vehicleBrand" defaultValue={vehicle.brand ?? ""} />
-                      </label>
-                      <label>
-                        <span>Model optional</span>
-                        <input name="vehicleModel" defaultValue={vehicle.model ?? ""} />
-                      </label>
-                      <label>
-                        <span>Color optional</span>
-                        <input name="vehicleColor" defaultValue={vehicle.color ?? ""} />
-                      </label>
+                      <VehicleSelectFields
+                        brandName="vehicleBrand"
+                        colorName="vehicleColor"
+                        defaultBrand={vehicle.brand}
+                        defaultColor={vehicle.color}
+                        defaultModel={vehicle.model}
+                        modelName="vehicleModel"
+                      />
                     </div>
                     <label>
                       <span>Notes optional</span>

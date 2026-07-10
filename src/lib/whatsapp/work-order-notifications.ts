@@ -1,6 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { formatOrderNumber } from "@/lib/validation/work-orders";
+import { getDefaultWhatsAppInstanceId } from "@/lib/whatsapp/instance";
 import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
@@ -51,7 +53,7 @@ export async function sendServiceConfirmationQueued({
     companyPhone: workOrder.business.phone,
     customerName: recipientName,
     customerPhone: workOrder.contactPhone || workOrder.customer.phone,
-    orderNumber: workOrder.orderNumber,
+    orderNumber: formatOrderNumber(workOrder.orderNumber),
     plateNumber: workOrder.vehicle.plateNumber,
     services: workOrder.items.map((item) => item.name).join(", "),
     subtotal: formatMoney(workOrder.subtotal),
@@ -135,7 +137,7 @@ export async function sendReadyForPickupIfConnected({
     companyPhone: workOrder.business.phone,
     customerName: recipientName,
     customerPhone: workOrder.contactPhone || workOrder.customer.phone,
-    orderNumber: workOrder.orderNumber,
+    orderNumber: formatOrderNumber(workOrder.orderNumber),
     plateNumber: workOrder.vehicle.plateNumber,
     services: workOrder.items.map((item) => item.name).join(", "),
     subtotal: formatMoney(workOrder.subtotal),
@@ -241,15 +243,19 @@ function upsertConversation(input: {
   phone: string;
   storedMessageBody: string;
 }) {
+  const instanceId = getDefaultWhatsAppInstanceId();
+
   return prisma.whatsAppConversation.upsert({
     where: {
-      businessId_phone: {
+      businessId_instanceId_phone: {
         businessId: input.businessId,
+        instanceId,
         phone: input.phone,
       },
     },
     create: {
       businessId: input.businessId,
+      instanceId,
       customerId: input.customerId,
       phone: input.phone,
       remoteJid: `${input.phone}@s.whatsapp.net`,

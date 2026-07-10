@@ -3,21 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import { branchSchema } from "@/lib/validation/branches";
 
-async function requireBusinessOwner() {
+async function requireBranchManager() {
   const context = await requireBusinessUser();
-
-  if (context.user.role !== "BUSINESS_OWNER") {
-    throw new Error("Only business owners can manage branches.");
-  }
+  assertStaffPermission(context.user, "BRANCHES");
 
   return context;
 }
 
 export async function createBranchAction(formData: FormData) {
-  const { businessId } = await requireBusinessOwner();
+  const { businessId } = await requireBranchManager();
   const input = branchSchema.parse({
     name: formData.get("name"),
     phone: formData.get("phone"),
@@ -51,7 +49,7 @@ export async function createBranchAction(formData: FormData) {
 }
 
 export async function updateBranchAction(formData: FormData) {
-  const { businessId } = await requireBusinessOwner();
+  const { businessId } = await requireBranchManager();
   const branchId = formData.get("branchId")?.toString();
 
   if (!branchId) {
@@ -99,7 +97,7 @@ export async function updateBranchAction(formData: FormData) {
 }
 
 export async function deactivateBranchAction(formData: FormData) {
-  const { businessId } = await requireBusinessOwner();
+  const { businessId } = await requireBranchManager();
   const branchId = formData.get("branchId")?.toString();
 
   if (!branchId) {

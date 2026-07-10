@@ -1,6 +1,7 @@
 import type { Customer, Vehicle } from "@prisma/client";
 import { BranchSelect } from "@/components/branch-select";
 import { UppercaseInput } from "@/components/uppercase-input";
+import { VehicleSelectFields } from "@/components/vehicle-select-fields";
 import type { BranchOption } from "@/lib/branches";
 
 type VehicleFormProps = {
@@ -76,18 +77,11 @@ export function VehicleForm({
             required
           />
         </label>
-        <label>
-          <span>Brand optional</span>
-          <input name="brand" defaultValue={vehicle?.brand ?? ""} />
-        </label>
-        <label>
-          <span>Model optional</span>
-          <input name="model" defaultValue={vehicle?.model ?? ""} />
-        </label>
-        <label>
-          <span>Color optional</span>
-          <input name="color" defaultValue={vehicle?.color ?? ""} />
-        </label>
+        <VehicleSelectFields
+          defaultBrand={vehicle?.brand}
+          defaultColor={vehicle?.color}
+          defaultModel={vehicle?.model}
+        />
       </div>
 
       <label>

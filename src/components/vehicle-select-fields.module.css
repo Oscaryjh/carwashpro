@@ -1,0 +1,226 @@
+.fields {
+  display: contents;
+}
+
+.field {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 6px;
+}
+
+.field > span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.field > span small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.field > button,
+.field > input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #d7e0ea;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  padding: 0 11px;
+  font-size: 13px;
+  outline: none;
+}
+
+.field > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.field > button:hover,
+.field > button:focus-visible,
+.field > input:focus {
+  border-color: #9bd1ce;
+  box-shadow: 0 0 0 3px rgba(17, 132, 119, 0.14);
+}
+
+.field > button:disabled {
+  border-color: #d7e0ea;
+  background: #f0f3f6;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.value,
+.placeholder {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.value { color: #111827; font-weight: 750; }
+.placeholder { color: #7c8798; font-weight: 650; }
+
+.chevron {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-right: 2px solid #64748b;
+  border-bottom: 2px solid #64748b;
+  transform: rotate(45deg) translateY(-2px);
+}
+
+.colorValue {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.colorValue em,
+.options em {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+}
+
+.backdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  place-items: start center;
+  padding: 72px 14px 20px;
+  background: rgba(15, 23, 42, 0.34);
+}
+
+.picker {
+  display: grid;
+  width: min(392px, 100%);
+  max-height: calc(100dvh - 92px);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f4f3f8;
+  padding: 12px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+}
+
+.picker header {
+  display: grid;
+  min-height: 44px;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center;
+}
+
+.picker header h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 16px;
+  text-align: center;
+  text-transform: capitalize;
+}
+
+.picker header button {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #0b72e7;
+  font-size: 18px;
+}
+
+.picker header button:hover { background: #e0f2fe; }
+
+.search {
+  position: relative;
+  margin: 5px 0 10px;
+}
+
+.search span {
+  position: absolute;
+  top: 15px;
+  left: 14px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid #8794a6;
+  border-radius: 50%;
+}
+
+.search span::after {
+  position: absolute;
+  right: -5px;
+  bottom: -3px;
+  width: 6px;
+  height: 2px;
+  background: #8794a6;
+  content: "";
+  transform: rotate(45deg);
+}
+
+.search input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #d7e0ea;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 12px 0 38px;
+  color: #111827;
+  font-size: 13px;
+  outline: none;
+}
+
+.search input:focus {
+  border-color: #9bd1ce;
+  box-shadow: 0 0 0 3px rgba(17, 132, 119, 0.14);
+}
+
+.options {
+  overflow-y: auto;
+  border-radius: 8px;
+  background: #fff;
+  scrollbar-width: thin;
+}
+
+.options button {
+  display: flex;
+  width: 100%;
+  min-height: 45px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-bottom: 1px solid #e4e9ef;
+  background: #fff;
+  padding: 0 13px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.options button:hover,
+.options button:focus-visible {
+  background: #eaf6f4;
+}
+
+.compact .field > span { font-size: 11px; }
+.compact .field > button,
+.compact .field > input { min-height: 40px; font-size: 12px; }
+.compact .value,
+.compact .placeholder { font-size: 12px; }
+
+@media (max-width: 620px) {
+  .backdrop { padding-top: 20px; }
+  .picker { max-height: calc(100dvh - 40px); }
+}

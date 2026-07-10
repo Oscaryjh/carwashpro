@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { BranchForm } from "@/components/branch-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import {
   deactivateBranchAction,
@@ -19,6 +20,7 @@ export default async function BranchDetailsPage({
   params,
 }: BranchDetailsPageProps) {
   const { user, businessId } = await requireBusinessUser();
+  assertStaffPermission(user, "BRANCHES");
   const { branchId } = await params;
   const branch = await prisma.branch.findFirst({
     where: {
@@ -59,24 +61,25 @@ export default async function BranchDetailsPage({
           <Info label="Invoices" value={branch._count.invoices} />
         </div>
 
-        {user.role === "BUSINESS_OWNER" ? (
-          <div className="panel">
-            <h2>Edit branch</h2>
-            <BranchForm
-              action={updateBranchAction}
-              branch={branch}
-              submitLabel="Save branch"
-            />
-            {branch.status === "ACTIVE" ? (
-              <form action={deactivateBranchAction} className="form-actions">
-                <input type="hidden" name="branchId" value={branch.id} />
-                <button className="secondary-light-button" type="submit">
-                  Deactivate branch
-                </button>
-              </form>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="panel branch-edit-panel">
+          <h2>Edit branch</h2>
+          <BranchForm
+            action={updateBranchAction}
+            branch={branch}
+            submitLabel="Save branch"
+          />
+          {branch.status === "ACTIVE" ? (
+            <form
+              action={deactivateBranchAction}
+              className="form-actions branch-deactivate-actions"
+            >
+              <input type="hidden" name="branchId" value={branch.id} />
+              <button className="secondary-light-button" type="submit">
+                Deactivate branch
+              </button>
+            </form>
+          ) : null}
+        </div>
       </section>
     </AppShell>
   );

@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import {
   fromCents,
-  makeInvoiceNumber,
   packagePurchasePaymentSchema,
   paymentSchema,
   toCents,
@@ -24,15 +24,20 @@ export async function recordPaymentAction(formData: FormData) {
   });
 
   const result = await prisma.$transaction(async (tx) => {
+    const shift = await getOpenShift(tx, businessId, user.userId);
     const workOrder = await tx.workOrder.findFirstOrThrow({
       where: {
         id: input.workOrderId,
         businessId,
+        ...(user.role === "BUSINESS_OWNER"
+          ? {}
+          : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
       },
       include: {
         invoice: true,
       },
     });
+    assertShiftBranch(shift.branchId, workOrder.branchId);
 
     if (workOrder.status === "CANCELLED") {
       throw new Error("Cannot take payment for a cancelled work order.");
@@ -77,6 +82,8 @@ export async function recordPaymentAction(formData: FormData) {
       data: {
         businessId,
         branchId: workOrder.branchId,
+        cashierId: user.userId,
+        shiftId: shift.id,
         workOrderId: workOrder.id,
         amount: fromCents(amountCents),
         method: input.method,
@@ -90,7 +97,6 @@ export async function recordPaymentAction(formData: FormData) {
         paidAmount: fromCents(nextPaidCents),
         balance: fromCents(nextBalanceCents),
         paymentStatus,
-        status: isPaid ? "COMPLETED" : workOrder.status,
       },
     });
 
@@ -126,7 +132,11 @@ export async function recordPaymentAction(formData: FormData) {
     });
   }
 
-  redirect(`/invoices/${result.invoiceId}`);
+  redirect(
+    `/work-orders?type=success&message=${encodeURIComponent(
+      "Checkout completed.",
+    )}`,
+  );
 }
 
 export async function usePackagePaymentAction(formData: FormData) {
@@ -137,16 +147,21 @@ export async function usePackagePaymentAction(formData: FormData) {
   });
 
   const invoiceId = await prisma.$transaction(async (tx) => {
+    const shift = await getOpenShift(tx, businessId, user.userId);
     const workOrder = await tx.workOrder.findFirstOrThrow({
       where: {
         id: input.workOrderId,
         businessId,
+        ...(user.role === "BUSINESS_OWNER"
+          ? {}
+          : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
       },
       include: {
         invoice: true,
         items: true,
       },
     });
+    assertShiftBranch(shift.branchId, workOrder.branchId);
 
     if (workOrder.status === "CANCELLED") {
       throw new Error("Cannot use a package for a cancelled work order.");
@@ -219,8 +234,10 @@ export async function usePackagePaymentAction(formData: FormData) {
       data: {
         businessId,
         branchId: workOrder.branchId,
+        cashierId: user.userId,
         workOrderId: workOrder.id,
         customerPackageId: customerPackage.id,
+        shiftId: shift.id,
         amount: fromCents(balanceCents),
         method: "PACKAGE",
         packageUses: 1,
@@ -234,7 +251,6 @@ export async function usePackagePaymentAction(formData: FormData) {
         paidAmount: fromCents(nextPaidCents),
         balance: fromCents(0),
         paymentStatus: "PAID",
-        status: "COMPLETED",
       },
     });
 
@@ -264,11 +280,15 @@ export async function usePackagePaymentAction(formData: FormData) {
     invoiceId,
     sentByUserId: user.userId,
   });
-  redirect(`/invoices/${invoiceId}`);
+  redirect(
+    `/work-orders?type=success&message=${encodeURIComponent(
+      "Checkout completed.",
+    )}`,
+  );
 }
 
 export async function recordPackagePurchasePaymentAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser();
   const input = packagePurchasePaymentSchema.parse({
     customerPackageId: formData.get("customerPackageId"),
     amount: formData.get("amount"),
@@ -277,10 +297,14 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
   });
 
   const customerId = await prisma.$transaction(async (tx) => {
+    const shift = await getOpenShift(tx, businessId, user.userId);
     const customerPackage = await tx.customerPackage.findFirstOrThrow({
       where: {
         id: input.customerPackageId,
         businessId,
+        ...(user.role === "BUSINESS_OWNER"
+          ? {}
+          : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
         status: "PENDING_PAYMENT",
       },
       include: {
@@ -288,6 +312,7 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
         package: true,
       },
     });
+    assertShiftBranch(shift.branchId, customerPackage.branchId);
 
     const priceCents = toCents(customerPackage.purchasePrice);
     const amountCents = toCents(input.amount);
@@ -300,8 +325,10 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
       data: {
         businessId,
         branchId: customerPackage.branchId,
+        cashierId: user.userId,
         workOrderId: null,
         customerPackageId: customerPackage.id,
+        shiftId: shift.id,
         amount: fromCents(amountCents),
         method: input.method,
         reference: input.reference || `${customerPackage.package.name} package purchase`,
@@ -323,4 +350,33 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
   revalidatePath(`/pos/packages/${input.customerPackageId}`);
   revalidatePath(`/crm/customers/${customerId}`);
   redirect(`/crm/customers/${customerId}`);
+}
+
+type PosTransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+async function getOpenShift(
+  tx: PosTransactionClient,
+  businessId: string,
+  cashierId: string,
+) {
+  const shift = await tx.cashierShift.findFirst({
+    where: {
+      businessId,
+      cashierId,
+      status: "OPEN",
+    },
+    select: { id: true, branchId: true },
+  });
+
+  if (!shift) {
+    throw new Error("Start a cashier shift before checkout.");
+  }
+
+  return shift;
+}
+
+function assertShiftBranch(shiftBranchId: string | null, recordBranchId: string | null) {
+  if (shiftBranchId !== recordBranchId) {
+    throw new Error("This payment does not belong to the current shift branch.");
+  }
 }

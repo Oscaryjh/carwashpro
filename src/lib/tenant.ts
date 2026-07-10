@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
 
 export async function getBusinessContext() {
   const user = await requireUser();
@@ -14,6 +15,15 @@ export async function getBusinessContext() {
 
   if (!user.businessId) {
     redirect("/login");
+  }
+
+  const business = await prisma.business.findUnique({
+    where: { id: user.businessId },
+    select: { id: true },
+  });
+
+  if (!business) {
+    redirect("/logout?error=business-not-found");
   }
 
   return {

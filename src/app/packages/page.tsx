@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { AppShell } from "@/components/app-shell";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { assertRole } from "@/lib/auth/permissions";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 
@@ -20,7 +20,7 @@ const ALL_BRANCHES_ONLY = "all-branches-only";
 
 export default async function PackagesPage({ searchParams }: PackagesPageProps) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "PACKAGES");
 
   const params = await searchParams;
   const query = params.q?.trim() ?? "";

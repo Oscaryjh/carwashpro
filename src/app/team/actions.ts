@@ -6,14 +6,17 @@ import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { assertRole } from "@/lib/auth/permissions";
-import { normalizeStaffPermissions } from "@/lib/auth/staff-permissions";
+import {
+  assertStaffPermission,
+  normalizeStaffPermissions,
+} from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
 
 const createStaffSchema = z.object({
   name: z.string().trim().min(1, "Name is required."),
   email: z.string().trim().email("Valid email is required.").toLowerCase(),
+  branchId: z.string().uuid("Branch is required."),
   whatsappPhone: z.string().trim().optional(),
   password: z.string().min(8, "Password must be at least 8 characters."),
 });
@@ -22,19 +25,25 @@ const updateStaffSchema = z.object({
   userId: z.string().uuid(),
   name: z.string().trim().min(1, "Name is required."),
   email: z.string().trim().email("Valid email is required.").toLowerCase(),
+  branchId: z.string().uuid("Branch is required."),
   whatsappPhone: z.string().trim().optional(),
   password: z.string().optional(),
   status: z.enum(["active", "inactive"]),
 });
 
+const deleteStaffSchema = z.object({
+  userId: z.string().uuid(),
+});
+
 export async function createStaffAction(formData: FormData) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "TEAM");
 
   try {
     const input = createStaffSchema.parse({
       name: formData.get("name"),
       email: formData.get("email"),
+      branchId: formData.get("branchId"),
       whatsappPhone: formData.get("whatsappPhone"),
       password: formData.get("password"),
     });
@@ -49,11 +58,14 @@ export async function createStaffAction(formData: FormData) {
       redirectWithTeamMessage("Email is already used by another user.", "error");
     }
 
+    await assertActiveBranch(businessId, input.branchId);
+
     const passwordHash = await bcrypt.hash(input.password, 12);
 
     await prisma.user.create({
       data: {
         businessId,
+        branchId: input.branchId,
         name: input.name,
         email: input.email,
         whatsappPhone: input.whatsappPhone
@@ -79,13 +91,14 @@ export async function createStaffAction(formData: FormData) {
 
 export async function updateStaffAction(formData: FormData) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "TEAM");
 
   try {
     const input = updateStaffSchema.parse({
       userId: formData.get("userId"),
       name: formData.get("name"),
       email: formData.get("email"),
+      branchId: formData.get("branchId"),
       whatsappPhone: formData.get("whatsappPhone"),
       password: String(formData.get("password") ?? ""),
       status: formData.get("status"),
@@ -114,6 +127,8 @@ export async function updateStaffAction(formData: FormData) {
       redirectWithTeamMessage("Email is already used by another user.", "error");
     }
 
+    await assertActiveBranch(businessId, input.branchId);
+
     const password = input.password?.trim();
 
     if (password && password.length < 8) {
@@ -123,6 +138,7 @@ export async function updateStaffAction(formData: FormData) {
     await prisma.user.update({
       where: { id: input.userId },
       data: {
+        branchId: input.branchId,
         name: input.name,
         email: input.email,
         whatsappPhone: input.whatsappPhone
@@ -145,6 +161,70 @@ export async function updateStaffAction(formData: FormData) {
   }
 }
 
+export async function deleteStaffAction(formData: FormData) {
+  const { user, businessId } = await requireBusinessUser();
+  assertStaffPermission(user, "TEAM");
+  assertStaffPermission(user, "DELETE_STAFF");
+
+  try {
+    const input = deleteStaffSchema.parse({
+      userId: formData.get("userId"),
+    });
+
+    if (input.userId === user.userId) {
+      redirectWithTeamMessage("You cannot delete your own account.", "error");
+    }
+
+    const staff = await prisma.user.findFirst({
+      where: {
+        id: input.userId,
+        businessId,
+        role: "STAFF",
+      },
+      include: {
+        _count: {
+          select: {
+            cashierPayments: true,
+            cashierShifts: true,
+            sentWhatsAppChatMessages: true,
+            sentWhatsAppMessages: true,
+          },
+        },
+      },
+    });
+
+    if (!staff) {
+      redirectWithTeamMessage("Staff user not found.", "error");
+    }
+
+    const hasHistory =
+      staff._count.cashierPayments > 0 ||
+      staff._count.cashierShifts > 0 ||
+      staff._count.sentWhatsAppChatMessages > 0 ||
+      staff._count.sentWhatsAppMessages > 0;
+
+    if (hasHistory) {
+      redirectWithTeamMessage(
+        "Cannot delete this staff because it has shift, payment, or message history. Set it to inactive instead.",
+        "error",
+      );
+    }
+
+    await prisma.user.delete({
+      where: { id: staff.id },
+    });
+
+    revalidatePath("/team");
+    redirectWithTeamMessage("Staff deleted successfully.", "success");
+  } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
+    redirectWithTeamMessage(getErrorMessage(error, "Unable to delete staff."), "error");
+  }
+}
+
 function redirectWithTeamMessage(message: string, type: "success" | "error"): never {
   redirect(`/team?type=${type}&message=${encodeURIComponent(message)}`);
 }
@@ -159,4 +239,19 @@ function getErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+async function assertActiveBranch(businessId: string, branchId: string) {
+  const branch = await prisma.branch.findFirst({
+    where: {
+      id: branchId,
+      businessId,
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+
+  if (!branch) {
+    redirectWithTeamMessage("Select an active branch for this staff.", "error");
+  }
 }

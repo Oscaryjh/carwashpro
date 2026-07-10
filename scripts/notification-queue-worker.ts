@@ -1,9 +1,10 @@
 import { prisma } from "../src/lib/prisma";
 import {
   findQueued,
+  getQueueDocumentAttachment,
   markFailed,
   markSending,
-  markSent,
+  markSentToServer,
 } from "../src/lib/notification-queue/repository";
 
 const pollIntervalMs = 1000;
@@ -71,20 +72,24 @@ async function processQueuedBatch() {
     }
 
     try {
+      const attachment = await getQueueDocumentAttachment(sendingItem.id);
       const result = await sendToConnector({
         phone: sendingItem.phone,
         message: sendingItem.message,
+        documentBase64: attachment.documentBase64,
+        documentMimeType: attachment.documentMimeType,
+        documentFileName: attachment.documentFileName,
       });
 
       if (!result.messageId) {
         throw new Error("WhatsApp connector did not return a messageId.");
       }
 
-      await markSent({
+      await markSentToServer({
         id: sendingItem.id,
         providerMessageId: result.messageId,
       });
-      console.log("[notification-queue-worker] Sent", {
+      console.log("[notification-queue-worker] Sent to server", {
         id: sendingItem.id,
         providerMessageId: result.messageId,
       });
@@ -109,13 +114,43 @@ async function processQueuedBatch() {
   return true;
 }
 
-async function sendToConnector(input: { phone: string; message: string }) {
+async function sendToConnector(input: {
+  phone: string;
+  message: string;
+  documentBase64?: string | null;
+  documentMimeType?: string | null;
+  documentFileName?: string | null;
+}) {
+  const isAudio = input.documentMimeType?.startsWith("audio/");
+  const isImage = input.documentMimeType?.startsWith("image/");
   const response = await fetch(`${getConnectorUrl()}/send`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      phone: input.phone,
+      message: input.message,
+      ...(input.documentBase64 && isAudio
+        ? {
+            audioBase64: input.documentBase64,
+            audioMimeType: input.documentMimeType,
+            audioFileName: input.documentFileName,
+          }
+        : input.documentBase64 && isImage
+        ? {
+            imageBase64: input.documentBase64,
+            imageMimeType: input.documentMimeType,
+            imageFileName: input.documentFileName,
+          }
+        : input.documentBase64
+        ? {
+            documentBase64: input.documentBase64,
+            documentMimeType: input.documentMimeType,
+            documentFileName: input.documentFileName,
+          }
+        : {}),
+    }),
   });
   const body = (await readJson(response)) as ConnectorSendResponse;
 

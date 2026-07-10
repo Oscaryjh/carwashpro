@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { requireCrmUser } from "@/lib/auth/crm";
+import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 
 type VehicleDetailsPageProps = {
@@ -209,7 +210,7 @@ export default async function VehicleDetailsPage({
               <tbody>
                 {invoices.map((invoice) => (
                   <tr key={invoice.id}>
-                    <td>{invoice.invoiceNumber}</td>
+                    <td>{formatInvoiceNumber(invoice.invoiceNumber)}</td>
                     <td>{formatStatus(invoice.status)}</td>
                     <td>{Number(invoice.total).toFixed(2)}</td>
                     <td>{Number(invoice.paidAmount).toFixed(2)}</td>
@@ -250,9 +251,9 @@ export default async function VehicleDetailsPage({
                     <td>{message.phone}</td>
                     <td>{formatStatus(message.status)}</td>
                     <td>
-                      {message.invoice?.invoiceNumber ??
-                        message.workOrder?.orderNumber ??
-                        "Vehicle"}
+                      {message.invoice
+                        ? formatInvoiceNumber(message.invoice.invoiceNumber)
+                        : message.workOrder?.orderNumber ?? "Vehicle"}
                     </td>
                     <td>{message.createdAt.toLocaleString()}</td>
                     <td>

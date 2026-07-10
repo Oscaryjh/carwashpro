@@ -105,6 +105,9 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
           <div>
             <h1>CRM</h1>
           </div>
+          <Link className="button-link" href={newCustomerHref}>
+            + Customer
+          </Link>
         </div>
 
         <div className="grid crm-metrics">

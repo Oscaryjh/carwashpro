@@ -1,7 +1,10 @@
 import Link from "next/link";
 import type { PaymentMethod } from "@prisma/client";
 import { AppShell } from "@/components/app-shell";
-import { assertRole } from "@/lib/auth/permissions";
+import {
+  assertStaffPermission,
+  hasStaffPermission,
+} from "@/lib/auth/staff-permissions";
 import { branchWhere, getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { requireBusinessContext } from "@/lib/tenant";
@@ -17,6 +20,8 @@ type ReportsPageProps = {
 
 type ReportRange = "today" | "7days" | "month" | "custom";
 
+const NO_BRANCH_ACCESS_ID = "00000000-0000-0000-0000-000000000000";
+
 const paymentMethodLabels: Record<PaymentMethod, string> = {
   CASH: "Cash",
   CARD: "Card",
@@ -28,7 +33,7 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
 
 export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const context = await requireBusinessContext();
-  assertRole(context.user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(context.user, "REPORTS");
 
   if (!context.businessId) {
     throw new Error("Business context is required.");
@@ -45,8 +50,17 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const { fromDate, toDateExclusive } = getDateRange(fromValue, toValue);
 
   const branches = await getActiveBranches(businessId);
-  const selectedBranch = branches.find((branch) => branch.id === params.branchId);
-  const selectedBranchId = selectedBranch?.id ?? null;
+  const canViewAllBranches = hasStaffPermission(context.user, "ALL_BRANCHES");
+  const staffBranch = context.user.branchId
+    ? branches.find((branch) => branch.id === context.user.branchId)
+    : null;
+  const selectableBranches = canViewAllBranches ? branches : staffBranch ? [staffBranch] : [];
+  const selectedBranch = canViewAllBranches
+    ? branches.find((branch) => branch.id === params.branchId)
+    : staffBranch;
+  const selectedBranchId = canViewAllBranches
+    ? selectedBranch?.id ?? null
+    : staffBranch?.id ?? NO_BRANCH_ACCESS_ID;
   const selectedBranchWhere = branchWhere(selectedBranchId);
 
   const [
@@ -63,7 +77,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
     topCustomerGroups,
     recentPayments,
   ] = await Promise.all([
-    prisma.business.findUniqueOrThrow({ where: { id: businessId } }),
+    prisma.business.findUnique({ where: { id: businessId } }),
     prisma.payment.aggregate({
       where: {
         businessId,
@@ -229,6 +243,19 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
     0,
   );
 
+  if (!business) {
+    return (
+      <AppShell user={context.user}>
+        <section className="content">
+          <div className="panel">
+            <h1>Business not found, please login again</h1>
+            <Link href="/login">Back to login</Link>
+          </div>
+        </section>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell user={context.user}>
       <section className="content report-content">
@@ -274,17 +301,26 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
               <span>To</span>
               <input type="date" name="to" defaultValue={toValue} />
             </label>
-            <label>
-              <span>Branch</span>
-              <select name="branchId" defaultValue={selectedBranchId ?? ""}>
-                <option value="">All branches</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {canViewAllBranches ? (
+              <label>
+                <span>Branch</span>
+                <select name="branchId" defaultValue={selectedBranchId ?? ""}>
+                  <option value="">All branches</option>
+                  {selectableBranches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <label>
+                <span>Branch</span>
+                <div className="report-branch-lock">
+                  {staffBranch?.name ?? "No active branch assigned"}
+                </div>
+              </label>
+            )}
             <button type="submit">Run report</button>
           </form>
         </div>

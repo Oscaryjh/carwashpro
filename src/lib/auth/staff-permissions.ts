@@ -1,35 +1,81 @@
 import type { AppSession } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
 
 export const staffPermissions = [
   {
     key: "DASHBOARD",
     label: "Dashboard",
-    description: "View daily business overview.",
+    description: "View daily overview for assigned access.",
+  },
+  {
+    key: "ALL_BRANCHES",
+    label: "All branch access",
+    description: "View all branches and switch branch filters on Dashboard and Reports.",
   },
   {
     key: "CRM",
     label: "CRM",
-    description: "Search, create, and edit customers and vehicles.",
+    description: "Search, create, and update customers and vehicles.",
   },
   {
     key: "JOBS",
     label: "Jobs",
-    description: "Create jobs and update job status.",
+    description: "Create jobs, update status, and manage pickup flow.",
+  },
+  {
+    key: "APPOINTMENTS",
+    label: "Appointments",
+    description: "Schedule visits, confirm arrivals, and convert appointments to jobs.",
   },
   {
     key: "POS",
     label: "POS",
-    description: "Collect payments and use prepaid packages.",
+    description: "Checkout jobs, collect payments, and use packages.",
   },
   {
     key: "INVOICES",
     label: "Invoices",
-    description: "View invoices and payment records.",
+    description: "View invoices, PDFs, and payment records.",
+  },
+  {
+    key: "CLOSING",
+    label: "Shift Closing",
+    description: "Start/end cashier shifts and view shift totals.",
   },
   {
     key: "WHATSAPP",
     label: "WhatsApp",
-    description: "Use WhatsApp inbox, manual links, and message logs.",
+    description: "Use Inbox, message logs, and customer chats.",
+  },
+  {
+    key: "TEAM",
+    label: "Team",
+    description: "Create staff accounts and manage staff permissions.",
+  },
+  {
+    key: "DELETE_STAFF",
+    label: "Delete staff",
+    description: "Delete staff accounts that do not have cashier or payment history.",
+  },
+  {
+    key: "REPORTS",
+    label: "Reports",
+    description: "View sales, job, invoice, and payment reports.",
+  },
+  {
+    key: "SERVICES",
+    label: "Services",
+    description: "Create and update service items and categories.",
+  },
+  {
+    key: "PACKAGES",
+    label: "Packages",
+    description: "Create and update package plans and categories.",
+  },
+  {
+    key: "BRANCHES",
+    label: "Branches",
+    description: "Create and update branch location records.",
   },
 ] as const;
 
@@ -39,9 +85,16 @@ export const defaultStaffPermissions: StaffPermission[] = [
   "DASHBOARD",
   "CRM",
   "JOBS",
+  "APPOINTMENTS",
   "POS",
   "INVOICES",
+  "CLOSING",
   "WHATSAPP",
+  "TEAM",
+  "REPORTS",
+  "SERVICES",
+  "PACKAGES",
+  "BRANCHES",
 ];
 
 const permissionSet = new Set<string>(
@@ -75,6 +128,15 @@ export function hasStaffPermission(
   return Array.isArray(user.permissions) && user.permissions.includes(permission);
 }
 
+export function assertStaffPermission(
+  user: Pick<AppSession, "role" | "permissions">,
+  permission: StaffPermission,
+) {
+  if (!hasStaffPermission(user, permission)) {
+    redirect("/dashboard");
+  }
+}
+
 export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY" | null {
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
     return "DASHBOARD";
@@ -88,6 +150,10 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
     return "JOBS";
   }
 
+  if (pathname === "/appointments" || pathname.startsWith("/appointments/")) {
+    return "APPOINTMENTS";
+  }
+
   if (pathname === "/pos" || pathname.startsWith("/pos/")) {
     return "POS";
   }
@@ -96,22 +162,35 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
     return "INVOICES";
   }
 
+  if (pathname === "/closing" || pathname.startsWith("/closing/")) {
+    return "CLOSING";
+  }
+
   if (pathname === "/whatsapp" || pathname.startsWith("/whatsapp/")) {
     return "WHATSAPP";
   }
 
-  if (
-    pathname === "/reports" ||
-    pathname.startsWith("/reports/") ||
-    pathname === "/services" ||
-    pathname.startsWith("/services/") ||
-    pathname === "/packages" ||
-    pathname.startsWith("/packages/") ||
-    pathname === "/branches" ||
-    pathname.startsWith("/branches/") ||
-    pathname === "/business/settings" ||
-    pathname.startsWith("/team")
-  ) {
+  if (pathname === "/team" || pathname.startsWith("/team/")) {
+    return "TEAM";
+  }
+
+  if (pathname === "/reports" || pathname.startsWith("/reports/")) {
+    return "REPORTS";
+  }
+
+  if (pathname === "/services" || pathname.startsWith("/services/")) {
+    return "SERVICES";
+  }
+
+  if (pathname === "/packages" || pathname.startsWith("/packages/")) {
+    return "PACKAGES";
+  }
+
+  if (pathname === "/branches" || pathname.startsWith("/branches/")) {
+    return "BRANCHES";
+  }
+
+  if (pathname === "/business/settings") {
     return "OWNER_ONLY";
   }
 

@@ -6,6 +6,7 @@ import { requireCrmUser } from "@/lib/auth/crm";
 import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import {
+  customerPhoneSearchVariants,
   customerVehicleSchema,
   customerSchema,
   normalizePlateNumber,
@@ -21,6 +22,7 @@ export type DeleteCustomerState = {
 export async function createCustomerAction(formData: FormData) {
   const { businessId, user } = await requireCrmUser();
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
+  const whatsappConversationId = formData.get("whatsappConversationId")?.toString().trim();
   const input = customerSchema.parse({
     name: formData.get("name"),
     phone: formData.get("phone"),
@@ -52,24 +54,51 @@ export async function createCustomerAction(formData: FormData) {
     }
   }
 
-  const customer = await prisma.$transaction(async (tx) => {
-    const created = await tx.customer.create({
-      data: {
-        businessId,
-        branchId,
-        name: input.name,
-        phone: input.phone,
-        email: input.email || null,
-        notes: input.notes || null,
+  const existingPhone = await prisma.customer.findFirst({
+    where: {
+      businessId,
+      phone: {
+        in: customerPhoneSearchVariants(input.phone),
       },
-    });
+    },
+    select: { id: true, name: true },
+  });
+
+  if (existingPhone && !whatsappConversationId) {
+    throw new Error("Another customer in this business already uses this phone.");
+  }
+
+  const customer = await prisma.$transaction(async (tx) => {
+    const existingCustomer = whatsappConversationId
+      ? await tx.customer.findFirst({
+          where: {
+            businessId,
+            phone: {
+              in: customerPhoneSearchVariants(input.phone),
+            },
+          },
+        })
+      : null;
+
+    const savedCustomer =
+      existingCustomer ??
+      (await tx.customer.create({
+        data: {
+          businessId,
+          branchId,
+          name: input.name,
+          phone: input.phone,
+          email: input.email || null,
+          notes: input.notes || null,
+        },
+      }));
 
     if (vehicleInput) {
       await tx.vehicle.create({
         data: {
           businessId,
           branchId,
-          customerId: created.id,
+          customerId: savedCustomer.id,
           plateNumber: normalizePlateNumber(vehicleInput.plateNumber),
           brand: vehicleInput.brand || null,
           model: vehicleInput.model || null,
@@ -79,12 +108,61 @@ export async function createCustomerAction(formData: FormData) {
       });
     }
 
-    return created;
+    if (whatsappConversationId) {
+      await tx.whatsAppConversation.updateMany({
+        where: {
+          id: whatsappConversationId,
+          businessId,
+        },
+        data: {
+          customerId: savedCustomer.id,
+          displayName: savedCustomer.name,
+          phone: savedCustomer.phone,
+        },
+      });
+
+      await tx.whatsAppChatMessage.updateMany({
+        where: {
+          businessId,
+          conversationId: whatsappConversationId,
+          customerId: null,
+        },
+        data: {
+          customerId: savedCustomer.id,
+        },
+      });
+
+      await tx.whatsAppMessage.updateMany({
+        where: {
+          businessId,
+          customerId: null,
+          OR: [
+            { phone: savedCustomer.phone },
+            { senderPhone: savedCustomer.phone },
+            { recipientPhone: savedCustomer.phone },
+          ],
+        },
+        data: {
+          customerId: savedCustomer.id,
+        },
+      });
+    }
+
+    return savedCustomer;
   });
 
   revalidatePath("/crm");
   revalidatePath("/crm/customers");
   revalidatePath("/crm/vehicles");
+  if (whatsappConversationId) {
+    revalidatePath("/whatsapp/inbox");
+    redirect(
+      `/whatsapp/inbox?conversation=${whatsappConversationId}&type=success&message=${encodeURIComponent(
+        `${customer.name} saved to CRM.`,
+      )}`,
+    );
+  }
+
   await sendNewCustomerWelcomeIfConnected({
     businessId,
     branchId,
@@ -127,7 +205,9 @@ export async function updateCustomerAction(formData: FormData) {
   const existingPhone = await prisma.customer.findFirst({
     where: {
       businessId,
-      phone: input.phone,
+      phone: {
+        in: customerPhoneSearchVariants(input.phone),
+      },
       id: { not: customer.id },
     },
     select: { id: true },
@@ -192,7 +272,9 @@ export async function updateCustomerProfileAction(formData: FormData) {
   const existingPhone = await prisma.customer.findFirst({
     where: {
       businessId,
-      phone: input.phone,
+      phone: {
+        in: customerPhoneSearchVariants(input.phone),
+      },
       id: { not: customer.id },
     },
     select: { id: true },

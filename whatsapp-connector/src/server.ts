@@ -6,10 +6,12 @@ import { URL } from "node:url";
 import { logger } from "./logger.js";
 import {
   sendTextMessage,
+  validateWhatsAppRecipient,
   WhatsAppNotConnectedError,
   WhatsAppSendFailedError
 } from "./sender.js";
 import {
+  getDiagnostics,
   getQr,
   getSession,
   getStatus,
@@ -18,6 +20,8 @@ import {
   startSocket
 } from "./socket.js";
 import type { ApiResponse, SendRequestBody } from "./types.js";
+
+const MAX_JSON_BODY_BYTES = 10 * 1024 * 1024;
 
 function getPort() {
   const port = Number(process.env.PORT);
@@ -60,11 +64,13 @@ function sendRawJson(
 function readJsonBody(request: http.IncomingMessage) {
   return new Promise<unknown>((resolve, reject) => {
     let rawBody = "";
+    let bodyBytes = 0;
 
     request.on("data", (chunk: Buffer) => {
+      bodyBytes += chunk.length;
       rawBody += chunk.toString("utf8");
 
-      if (rawBody.length > 1024 * 1024) {
+      if (bodyBytes > MAX_JSON_BODY_BYTES) {
         reject(new Error("Request body is too large."));
         request.destroy();
       }
@@ -126,6 +132,69 @@ function validateSendRequestBody(body: SendRequestBody) {
     return "message must not be empty.";
   }
 
+  if (
+    body.documentBase64 !== undefined &&
+    (typeof body.documentBase64 !== "string" || !body.documentBase64.trim())
+  ) {
+    return "documentBase64 must be a non-empty string.";
+  }
+
+  if (
+    body.documentMimeType !== undefined &&
+    typeof body.documentMimeType !== "string"
+  ) {
+    return "documentMimeType must be a string.";
+  }
+
+  if (
+    body.documentFileName !== undefined &&
+    typeof body.documentFileName !== "string"
+  ) {
+    return "documentFileName must be a string.";
+  }
+
+  if (
+    body.audioBase64 !== undefined &&
+    (typeof body.audioBase64 !== "string" || !body.audioBase64.trim())
+  ) {
+    return "audioBase64 must be a non-empty string.";
+  }
+
+  if (
+    body.audioMimeType !== undefined &&
+    typeof body.audioMimeType !== "string"
+  ) {
+    return "audioMimeType must be a string.";
+  }
+
+  if (
+    body.audioFileName !== undefined &&
+    typeof body.audioFileName !== "string"
+  ) {
+    return "audioFileName must be a string.";
+  }
+
+  if (
+    body.imageBase64 !== undefined &&
+    (typeof body.imageBase64 !== "string" || !body.imageBase64.trim())
+  ) {
+    return "imageBase64 must be a non-empty string.";
+  }
+
+  if (
+    body.imageMimeType !== undefined &&
+    typeof body.imageMimeType !== "string"
+  ) {
+    return "imageMimeType must be a string.";
+  }
+
+  if (
+    body.imageFileName !== undefined &&
+    typeof body.imageFileName !== "string"
+  ) {
+    return "imageFileName must be a string.";
+  }
+
   return null;
 }
 
@@ -159,6 +228,8 @@ async function handleRequest(
         return;
       }
 
+    void lazyStartSocket();
+
     sendJson(response, 200, {
       ok: true,
       data: getStatus()
@@ -172,7 +243,21 @@ async function handleRequest(
         return;
       }
 
+      void lazyStartSocket();
+
       sendRawJson(response, 200, await getSession());
+      return;
+    }
+
+    if (url.pathname === "/diagnostics") {
+      if (request.method !== "GET") {
+        methodNotAllowed(response);
+        return;
+      }
+
+      void lazyStartSocket();
+
+      sendRawJson(response, 200, await getDiagnostics());
       return;
     }
 
@@ -243,7 +328,12 @@ async function handleRequest(
     }
 
     try {
-      await reconnectSocket();
+      const status = await reconnectSocket();
+      sendRawJson(response, 200, {
+        ok: true,
+        data: status
+      });
+      return;
     } catch (error: unknown) {
       logger.error({ error }, "Failed to reconnect WhatsApp socket");
       sendJson(response, 503, {
@@ -255,11 +345,9 @@ async function handleRequest(
       });
       return;
     }
-    sendRawJson(response, 200, { ok: true });
-    return;
   }
 
-  if (url.pathname === "/logout") {
+    if (url.pathname === "/logout") {
     if (request.method !== "POST") {
       methodNotAllowed(response);
       return;
@@ -267,6 +355,30 @@ async function handleRequest(
 
     await logoutSession();
     sendRawJson(response, 200, { ok: true });
+    return;
+  }
+
+  if (url.pathname === "/jid") {
+    if (request.method !== "GET") {
+      methodNotAllowed(response);
+      return;
+    }
+
+    const phone = url.searchParams.get("phone");
+
+    if (!phone) {
+      sendJson(response, 400, {
+        ok: false,
+        error: "phone is required."
+      });
+      return;
+    }
+
+    const result = await validateWhatsAppRecipient(phone);
+    sendJson(response, 200, {
+      ok: true,
+      data: result
+    });
     return;
   }
 
@@ -288,7 +400,21 @@ async function handleRequest(
     }
 
     try {
-      const result = await sendTextMessage(body.phone as string, body.message as string);
+      const result = await sendTextMessage(
+        body.phone as string,
+        body.message as string,
+        {
+          audioBase64: body.audioBase64 as string | undefined,
+          audioMimeType: body.audioMimeType as string | undefined,
+          audioFileName: body.audioFileName as string | undefined,
+          imageBase64: body.imageBase64 as string | undefined,
+          imageMimeType: body.imageMimeType as string | undefined,
+          imageFileName: body.imageFileName as string | undefined,
+          documentBase64: body.documentBase64 as string | undefined,
+          documentMimeType: body.documentMimeType as string | undefined,
+          documentFileName: body.documentFileName as string | undefined
+        }
+      );
 
       sendJson(response, 200, {
         ok: true,
@@ -353,6 +479,15 @@ const port = getPort();
 
 let socketStartPromise: Promise<unknown> | null = null;
 
+logger.info(
+  {
+    nodeVersion: process.version,
+    platform: process.platform,
+    arch: process.arch
+  },
+  "Runtime diagnostics enabled"
+);
+
 function lazyStartSocket() {
   if (!socketStartPromise) {
     socketStartPromise = startSocket().catch((error: unknown) => {
@@ -378,17 +513,20 @@ process.on("SIGTERM", () => {
   server.close(() => process.exit(0));
 });
 process.on("uncaughtException", (err) => {
-  console.error("[uncaughtException]", err);
+  console.error("[runtime:uncaughtException]", err);
+  logger.error({ error: err }, "Runtime uncaughtException");
 });
 
 process.on("unhandledRejection", (err) => {
-  console.error("[unhandledRejection]", err);
+  console.error("[runtime:unhandledRejection]", err);
+  logger.error({ error: err }, "Runtime unhandledRejection");
 });
 
 process.on("beforeExit", (code) => {
-  console.log("[beforeExit]", code);
+  console.log("[runtime:beforeExit]", code);
+  logger.warn({ code }, "Runtime beforeExit");
 });
 
 process.on("exit", (code) => {
-  console.log("[exit]", code);
+  console.log("[runtime:exit]", code);
 });

@@ -10,6 +10,9 @@ export const DATABASE_NAME = "car_wash_crm_pos";
 export const DATABASE_PORT = Number(process.env.LOCAL_POSTGRES_PORT ?? "5432");
 export const DATABASE_URL =
   `postgresql://postgres:postgres@localhost:${DATABASE_PORT}/car_wash_crm_pos?schema=public`;
+const REQUIRED_DATABASE_ENCODING = "UTF8";
+const REQUIRED_DATABASE_COLLATE = "C";
+const REQUIRED_DATABASE_CTYPE = "C";
 
 export function createEmbeddedPostgres() {
   return new EmbeddedPostgres({
@@ -18,7 +21,10 @@ export function createEmbeddedPostgres() {
     password: "postgres",
     port: DATABASE_PORT,
     persistent: true,
-    initdbFlags: ["--encoding=UTF8", "--locale=C"],
+    initdbFlags: [
+      `--encoding=${REQUIRED_DATABASE_ENCODING}`,
+      `--locale=${REQUIRED_DATABASE_COLLATE}`,
+    ],
   });
 }
 
@@ -56,18 +62,41 @@ export async function ensureDatabaseExists(pg, databaseName = DATABASE_NAME) {
   try {
     await client.connect();
     const existing = await client.query(
-      "SELECT 1 FROM pg_database WHERE datname = $1",
+      `SELECT
+        datname,
+        pg_encoding_to_char(encoding) AS database_encoding,
+        datcollate,
+        datctype
+      FROM pg_database
+      WHERE datname = $1`,
       [databaseName],
     );
 
-    if (!existing.rowCount) {
-      await client.query(
-        `CREATE DATABASE ${client.escapeIdentifier(databaseName)} WITH TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C'`,
-      );
+    if (existing.rowCount) {
+      assertDatabaseEncoding(existing.rows[0], databaseName);
+      return;
     }
+
+    await client.query(
+      `CREATE DATABASE ${client.escapeIdentifier(databaseName)} WITH TEMPLATE template0 ENCODING '${REQUIRED_DATABASE_ENCODING}' LC_COLLATE '${REQUIRED_DATABASE_COLLATE}' LC_CTYPE '${REQUIRED_DATABASE_CTYPE}'`,
+    );
   } finally {
     await closeClient(client);
   }
+}
+
+function assertDatabaseEncoding(row, databaseName) {
+  if (
+    row.database_encoding === REQUIRED_DATABASE_ENCODING &&
+    row.datcollate === REQUIRED_DATABASE_COLLATE &&
+    row.datctype === REQUIRED_DATABASE_CTYPE
+  ) {
+    return;
+  }
+
+  throw new Error(
+    `Database "${databaseName}" must be ${REQUIRED_DATABASE_ENCODING}/${REQUIRED_DATABASE_COLLATE}/${REQUIRED_DATABASE_CTYPE}, but found ${row.database_encoding}/${row.datcollate}/${row.datctype}. Recreate the local embedded Postgres data directory before starting WashFlow.`,
+  );
 }
 
 export async function waitForPostgres(pg, databaseName = DATABASE_NAME) {

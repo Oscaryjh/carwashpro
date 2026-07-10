@@ -49,6 +49,7 @@ export async function loginAction(
   await createSession({
     userId: user.id,
     businessId: user.businessId,
+    branchId: user.branchId,
     name: user.name,
     email: user.email,
     role: user.role,

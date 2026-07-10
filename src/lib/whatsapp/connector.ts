@@ -5,6 +5,7 @@ import {
   logoutConnectorSession,
   reconnectConnectorSession,
   sendConnectorTextMessage,
+  type ConnectorStatusValue,
 } from "./connector-client";
 import { encodeWhatsAppStoredText } from "./message-codec";
 
@@ -95,6 +96,7 @@ export async function sendWhatsAppTextMessage(input: {
     prisma.whatsAppChatMessage.create({
       data: {
         businessId: input.businessId,
+        instanceId: conversation.instanceId,
         conversationId: conversation.id,
         customerId: conversation.customerId,
         sentByUserId: input.sentByUserId,
@@ -143,6 +145,7 @@ export async function sendWhatsAppDocumentMessage(input: {
     prisma.whatsAppChatMessage.create({
       data: {
         businessId: input.businessId,
+        instanceId: conversation.instanceId,
         conversationId: conversation.id,
         customerId: conversation.customerId,
         sentByUserId: input.sentByUserId,
@@ -168,7 +171,7 @@ export async function sendWhatsAppDocumentMessage(input: {
 }
 
 function toStartResult(
-  status: "connected" | "qr" | "disconnected",
+  status: ConnectorStatusValue,
   input: { phoneNumber?: string; pairingPhone?: string | null },
 ): WhatsAppStartResult {
   if (status === "connected") {
@@ -182,6 +185,14 @@ function toStartResult(
     return {
       status: "QR_REQUIRED",
       pairingPhone: input.pairingPhone ?? null,
+    };
+  }
+
+  if (status === "session_expired" || status === "error") {
+    return {
+      status: "ERROR",
+      pairingPhone: input.pairingPhone ?? null,
+      errorMessage: "WhatsApp session needs to be reconnected.",
     };
   }
 

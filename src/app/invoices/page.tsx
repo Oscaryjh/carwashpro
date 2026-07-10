@@ -1,43 +1,59 @@
 import Link from "next/link";
+import { Prisma } from "@prisma/client";
 import { AppShell } from "@/components/app-shell";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 
 type InvoicesPageProps = {
   searchParams: Promise<{
+    page?: string;
     q?: string;
   }>;
 };
+
+const PAGE_SIZE = 10;
 
 export default async function InvoicesPage({ searchParams }: InvoicesPageProps) {
   const { user, businessId } = await requireBusinessUser();
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
-  const invoices = await prisma.invoice.findMany({
-    where: {
-      businessId,
-      ...(query
-        ? {
-            OR: [
-              { invoiceNumber: { contains: query, mode: "insensitive" } },
-              { workOrder: { orderNumber: { contains: query, mode: "insensitive" } } },
-              { workOrder: { customer: { name: { contains: query, mode: "insensitive" } } } },
-              { workOrder: { customer: { phone: { contains: query } } } },
-              { workOrder: { vehicle: { plateNumber: { contains: query, mode: "insensitive" } } } },
-            ],
-          }
-        : {}),
-    },
-    include: {
-      workOrder: {
-        include: {
-          customer: true,
-          vehicle: true,
+  const currentPage = Math.max(Number(params.page) || 1, 1);
+  const where: Prisma.InvoiceWhereInput = {
+    businessId,
+    ...(query
+      ? {
+          OR: [
+            { invoiceNumber: { contains: query, mode: "insensitive" } },
+            { workOrder: { orderNumber: { contains: query, mode: "insensitive" } } },
+            { workOrder: { customer: { name: { contains: query, mode: "insensitive" } } } },
+            { workOrder: { customer: { phone: { contains: query } } } },
+            { workOrder: { vehicle: { plateNumber: { contains: query, mode: "insensitive" } } } },
+          ],
+        }
+      : {}),
+  } as const;
+
+  const [invoices, totalCount] = await Promise.all([
+    prisma.invoice.findMany({
+      where,
+      include: {
+        workOrder: {
+          include: {
+            customer: true,
+            vehicle: true,
+          },
         },
       },
-    },
-    orderBy: { issuedAt: "desc" },
-  });
+      orderBy: { issuedAt: "desc" },
+      skip: (currentPage - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    }),
+    prisma.invoice.count({ where }),
+  ]);
+  const totalPages = Math.max(Math.ceil(totalCount / PAGE_SIZE), 1);
+  const firstItem = totalCount ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
+  const lastItem = Math.min(currentPage * PAGE_SIZE, totalCount);
 
   return (
     <AppShell user={user}>
@@ -46,10 +62,10 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
           <div>
             <h1>Invoices</h1>
             <p>
-              {query
-                ? `${invoices.length} invoice${invoices.length === 1 ? "" : "s"} found for "${query}".`
-                : invoices.length
-                  ? `${invoices.length} invoices generated from POS payments.`
+              {totalCount
+                ? `Showing ${firstItem}-${lastItem} of ${totalCount} invoice${totalCount === 1 ? "" : "s"}${query ? ` for "${query}"` : ""}.`
+                : query
+                  ? `No invoices found for "${query}".`
                   : "Invoices generated from POS payments."}
             </p>
           </div>
@@ -87,9 +103,11 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
               <tbody>
                 {invoices.map((invoice, index) => (
                   <tr key={invoice.id}>
-                    <td className="table-number">{index + 1}</td>
+                    <td className="table-number">
+                      {(currentPage - 1) * PAGE_SIZE + index + 1}
+                    </td>
                     <td>
-                      <strong>{invoice.invoiceNumber}</strong>
+                      <strong>{formatInvoiceNumber(invoice.invoiceNumber)}</strong>
                       <div className="muted">{invoice.workOrder.orderNumber}</div>
                     </td>
                     <td>
@@ -100,7 +118,9 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                       <strong>{invoice.workOrder.vehicle.plateNumber}</strong>
                     </td>
                     <td>
-                      <span className="status">{formatStatus(invoice.status)}</span>
+                      <span className={`status ${invoice.status.toLowerCase()}`}>
+                        {formatStatus(invoice.status)}
+                      </span>
                     </td>
                     <td>RM{Number(invoice.total).toFixed(2)}</td>
                     <td>RM{Number(invoice.balance).toFixed(2)}</td>
@@ -115,6 +135,32 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
           ) : (
             <p className="empty-state">No invoices yet.</p>
           )}
+
+          {totalPages > 1 ? (
+            <div className="pagination">
+              <Link
+                className={currentPage <= 1 ? "disabled" : ""}
+                href={makeInvoicesHref({
+                  q: query,
+                  page: Math.max(currentPage - 1, 1),
+                })}
+              >
+                Previous
+              </Link>
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
+              <Link
+                className={currentPage >= totalPages ? "disabled" : ""}
+                href={makeInvoicesHref({
+                  q: query,
+                  page: Math.min(currentPage + 1, totalPages),
+                })}
+              >
+                Next
+              </Link>
+            </div>
+          ) : null}
         </div>
       </section>
     </AppShell>
@@ -132,4 +178,19 @@ function formatDateTime(value: Date) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function makeInvoicesHref(input: { page: number; q: string }) {
+  const params = new URLSearchParams();
+
+  if (input.q) {
+    params.set("q", input.q);
+  }
+
+  if (input.page > 1) {
+    params.set("page", String(input.page));
+  }
+
+  const query = params.toString();
+  return query ? `/invoices?${query}` : "/invoices";
 }

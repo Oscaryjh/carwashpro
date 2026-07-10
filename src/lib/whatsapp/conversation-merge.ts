@@ -3,6 +3,7 @@ import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
 
 type MergeCandidate = {
   id: string;
+  instanceId: string;
   customerId: string | null;
   phone: string;
   remoteJid: string | null;
@@ -18,6 +19,7 @@ export async function mergeDuplicateWhatsAppConversations(businessId: string) {
     where: { businessId },
     select: {
       id: true,
+      instanceId: true,
       customerId: true,
       phone: true,
       remoteJid: true,
@@ -55,12 +57,11 @@ function collectMergeGroups(conversations: MergeCandidate[]) {
 
   for (const conversation of conversations) {
     if (conversation.customerId) {
-      addGroup(groups, `customer:${conversation.customerId}`, conversation);
-    }
-
-    const nameKey = normalizeConversationName(conversation.displayName);
-    if (nameKey && nameKey !== normalizeConversationName(conversation.phone)) {
-      addGroup(groups, `name:${nameKey}`, conversation);
+      addGroup(
+        groups,
+        `instance:${conversation.instanceId}:customer:${conversation.customerId}`,
+        conversation,
+      );
     }
   }
 
@@ -121,6 +122,7 @@ async function mergeIntoPrimary(
       await tx.whatsAppChatMessage.updateMany({
         where: {
           businessId,
+          instanceId: primary.instanceId,
           conversationId: duplicate.id,
         },
         data: {
@@ -137,6 +139,7 @@ async function mergeIntoPrimary(
     const latestMessage = await tx.whatsAppChatMessage.findFirst({
       where: {
         businessId,
+        instanceId: primary.instanceId,
         conversationId: primary.id,
       },
       orderBy: { createdAt: "desc" },

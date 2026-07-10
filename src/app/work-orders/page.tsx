@@ -1,22 +1,26 @@
 import Link from "next/link";
 import { Prisma } from "@prisma/client";
 import { AppShell } from "@/components/app-shell";
+import { WorkOrderQuickCreateModal } from "@/components/work-order-quick-create-modal";
+import { WorkOrderFilterForm } from "@/components/work-order-filter-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { getOperationalBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { normalizePlateNumber } from "@/lib/validation/crm";
-import { updateWorkOrderStatusAction } from "./actions";
+import { createWorkOrderAction, updateWorkOrderStatusAction } from "./actions";
 
 type WorkOrdersPageProps = {
   searchParams: Promise<{
+    date?: string;
+    message?: string;
+    page?: string;
     q?: string;
     scope?: string;
-    date?: string;
-    page?: string;
+    type?: string;
   }>;
 };
 
 const PAGE_SIZE = 25;
-const activeStatuses = ["WAITING", "IN_PROGRESS", "READY_FOR_PICKUP"] as const;
 const scopes = [
   { value: "active_today", label: "Active + Today" },
   { value: "active", label: "Active" },
@@ -39,20 +43,27 @@ export default async function WorkOrdersPage({
   const { user, businessId } = await requireBusinessUser();
   const params = await searchParams;
   const rawSearch = (params.q ?? "").trim();
+  const message = params.message?.trim();
+  const messageType = params.type === "error" ? "error" : "success";
   const normalizedPlate = rawSearch ? normalizePlateNumber(rawSearch) : "";
   const scope = getValidValue(params.scope, scopes, "active_today");
   const date = getValidValue(params.date, dateFilters, "all");
   const currentPage = Math.max(Number(params.page) || 1, 1);
+  const staffBranchId =
+    user.role === "BUSINESS_OWNER"
+      ? null
+      : user.branchId ?? "00000000-0000-0000-0000-000000000000";
 
   const where = buildWorkOrderWhere({
     businessId,
+    branchId: staffBranchId,
     rawSearch,
     normalizedPlate,
     scope,
     date,
   });
 
-  const [workOrders, totalCount] = await Promise.all([
+  const [workOrders, totalCount, services, branches] = await Promise.all([
     prisma.workOrder.findMany({
       where,
       include: {
@@ -68,7 +79,24 @@ export default async function WorkOrdersPage({
       take: PAGE_SIZE,
     }),
     prisma.workOrder.count({ where }),
+    prisma.service.findMany({
+      where: {
+        businessId,
+        status: "ACTIVE",
+      },
+      include: {
+        serviceCategory: true,
+      },
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+    }),
+    getOperationalBranches(businessId, user),
   ]);
+  const serviceOptions = services.map((service) => ({
+    id: service.id,
+    category: service.serviceCategory?.name ?? service.category,
+    name: service.name,
+    price: Number(service.price),
+  }));
 
   const totalPages = Math.max(Math.ceil(totalCount / PAGE_SIZE), 1);
   const firstItem = totalCount ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
@@ -79,17 +107,21 @@ export default async function WorkOrdersPage({
       <section className="content">
         <div className="page-header">
           <div>
-            <h1>Jobs</h1>
+            <h1>Cashier</h1>
             <p>
               {totalCount
                 ? `Showing ${firstItem}-${lastItem} of ${totalCount} jobs`
                 : "No jobs match this view"}
             </p>
           </div>
-          <Link className="button-link" href="/work-orders/new">
-            + Job
-          </Link>
+          <WorkOrderQuickCreateModal
+            action={createWorkOrderAction}
+            branches={branches}
+            services={serviceOptions}
+          />
         </div>
+
+        {message ? <div className={messageType}>{message}</div> : null}
 
         <div className="panel">
           <div className="filter-tabs" aria-label="Work order filters">
@@ -109,22 +141,12 @@ export default async function WorkOrdersPage({
             ))}
           </div>
 
-          <form className="search-form work-order-filter-form" action="/work-orders">
-            <input type="hidden" name="scope" value={scope} />
-            <input
-              name="q"
-              placeholder="Search plate, customer, or phone"
-              defaultValue={rawSearch}
-            />
-            <select name="date" defaultValue={date}>
-              {dateFilters.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <button type="submit">Search</button>
-          </form>
+          <WorkOrderFilterForm
+            date={date}
+            dateFilters={dateFilters}
+            rawSearch={rawSearch}
+            scope={scope}
+          />
 
           {rawSearch || date !== "all" || scope !== "active_today" ? (
             <div className="list-toolbar">
@@ -185,10 +207,7 @@ export default async function WorkOrdersPage({
                       </div>
                     </td>
                     <td className="work-order-status-cell">
-                      <StatusStepButton
-                        status={workOrder.status}
-                        workOrderId={workOrder.id}
-                      />
+                      <StatusBadge status={workOrder.status} />
                       <div
                         className={`payment-state ${workOrder.paymentStatus.toLowerCase()}`}
                       >
@@ -206,6 +225,10 @@ export default async function WorkOrdersPage({
                     <td>{formatDateTime(workOrder.createdAt)}</td>
                     <td>
                       <div className="inline-actions">
+                        <StatusActionButton
+                          status={workOrder.status}
+                          workOrderId={workOrder.id}
+                        />
                         <Link href={`/work-orders/${workOrder.id}`}>View</Link>
                         <Link href={`/pos/${workOrder.id}`}>Checkout</Link>
                       </div>
@@ -253,7 +276,11 @@ export default async function WorkOrdersPage({
   );
 }
 
-function StatusStepButton({
+function StatusBadge({ status }: { status: string }) {
+  return <span className="status">{formatStatus(status)}</span>;
+}
+
+function StatusActionButton({
   status,
   workOrderId,
 }: {
@@ -263,7 +290,7 @@ function StatusStepButton({
   const nextStatus = getNextStatus(status);
 
   if (!nextStatus) {
-    return <span className="status">{formatStatus(status)}</span>;
+    return null;
   }
 
   return (
@@ -271,17 +298,25 @@ function StatusStepButton({
       <input type="hidden" name="workOrderId" value={workOrderId} />
       <input type="hidden" name="status" value={nextStatus} />
       <button className="status-step-button" type="submit">
-        {formatStatus(status)}
+        {statusActionLabel(nextStatus)}
       </button>
     </form>
   );
 }
 
-function getNextStatus(status: string) {
-  if (status === "WAITING") {
-    return "IN_PROGRESS";
+function statusActionLabel(nextStatus: string) {
+  if (nextStatus === "READY_FOR_PICKUP") {
+    return "Ready for pickup";
   }
 
+  if (nextStatus === "COMPLETED") {
+    return "Vehicle Collected";
+  }
+
+  return formatStatus(nextStatus);
+}
+
+function getNextStatus(status: string) {
   if (status === "IN_PROGRESS") {
     return "READY_FOR_PICKUP";
   }
@@ -302,12 +337,14 @@ function formatStatus(status: string) {
 
 function buildWorkOrderWhere({
   businessId,
+  branchId,
   rawSearch,
   normalizedPlate,
   scope,
   date,
 }: {
   businessId: string;
+  branchId?: string | null;
   rawSearch: string;
   normalizedPlate: string;
   scope: string;
@@ -319,21 +356,22 @@ function buildWorkOrderWhere({
 
   if (scope === "active_today") {
     filters.push({
-      OR: [
-        { status: { in: [...activeStatuses] } },
-        {
-          status: { in: [...activeStatuses] },
-          createdAt: {
-            gte: todayStart,
-            lt: tomorrowStart,
-          },
-        },
-      ],
+      status: { not: "CANCELLED" },
+      NOT: {
+        status: "COMPLETED",
+        paymentStatus: "PAID",
+      },
     });
   }
 
   if (scope === "active") {
-    filters.push({ status: { in: [...activeStatuses] } });
+    filters.push({
+      status: { not: "CANCELLED" },
+      NOT: {
+        status: "COMPLETED",
+        paymentStatus: "PAID",
+      },
+    });
   }
 
   if (scope === "ready") {
@@ -348,7 +386,10 @@ function buildWorkOrderWhere({
   }
 
   if (scope === "completed") {
-    filters.push({ status: "COMPLETED" });
+    filters.push({
+      status: "COMPLETED",
+      paymentStatus: "PAID",
+    });
   }
 
   if (scope === "cancelled") {
@@ -420,6 +461,7 @@ function buildWorkOrderWhere({
 
   return {
     businessId,
+    ...(branchId ? { branchId } : {}),
     ...(filters.length ? { AND: filters } : {}),
   } satisfies Prisma.WorkOrderWhereInput;
 }

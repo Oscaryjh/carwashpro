@@ -8,7 +8,7 @@ type BranchFormProps = {
 
 export function BranchForm({ action, branch, submitLabel }: BranchFormProps) {
   return (
-    <form action={action} className="form">
+    <form action={action} className="form branch-form">
       {branch ? <input type="hidden" name="branchId" value={branch.id} /> : null}
       <div className="field-grid">
         <label>
@@ -33,7 +33,7 @@ export function BranchForm({ action, branch, submitLabel }: BranchFormProps) {
         <span>Address optional</span>
         <textarea name="address" rows={3} defaultValue={branch?.address ?? ""} />
       </label>
-      <div className="form-actions">
+      <div className="form-actions branch-form-actions">
         <button type="submit">{submitLabel}</button>
       </div>
     </form>

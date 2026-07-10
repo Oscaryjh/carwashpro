@@ -1,17 +1,20 @@
 import Link from "next/link";
-import QRCode from "qrcode";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
-import { WhatsAppSendTestForm } from "@/components/whatsapp-send-test-form";
 import { WhatsAppSettingsAutoRefresh } from "@/components/whatsapp-settings-auto-refresh";
+import { WhatsAppSessionRecovery } from "@/components/whatsapp-settings-session-recovery";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { prisma } from "@/lib/prisma";
 import {
-  disconnectWhatsAppAction,
+  getConnectorStatus,
+  getWhatsAppConnectorUrl,
+  type ConnectorStatus,
+} from "@/lib/whatsapp/connector-client";
+import {
+  logoutWhatsAppAction,
+  reconnectWhatsAppAction,
   refreshWhatsAppConnectionAction,
-  requestWhatsAppPairingCodeAction,
-  requestWhatsAppQrAction,
 } from "./actions";
+import { syncCrmCustomersToWhatsAppAction } from "../inbox/actions";
 
 type WhatsAppSettingsPageProps = {
   searchParams: Promise<{
@@ -23,82 +26,36 @@ type WhatsAppSettingsPageProps = {
 export default async function WhatsAppSettingsPage({
   searchParams,
 }: WhatsAppSettingsPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user } = await requireBusinessUser();
   const params = await searchParams;
   const message = params.message;
   const messageType = params.type === "error" ? "error" : "success";
-  const connection = await prisma.whatsAppConnection.findUnique({
-    where: { businessId },
-  });
-  const status = connection?.status ?? "DISCONNECTED";
-  const isConnected = status === "CONNECTED";
-  const displayPhoneNumber = isConnected ? connection?.phoneNumber : null;
-  const displayLastSeenAt = isConnected ? connection?.lastSeenAt : null;
-  const activeQrCodeText =
-    !isConnected && connection?.qrCodeText ? connection.qrCodeText : null;
-  const activePairingPhone =
-    !isConnected && connection?.pairingPhone ? connection.pairingPhone : null;
-  const activePairingCodeText =
-    !isConnected && connection?.pairingCodeText
-      ? connection.pairingCodeText
-      : null;
-  const qrCodeDataUrl = activeQrCodeText
-    ? await QRCode.toDataURL(activeQrCodeText, {
-        color: {
-          dark: "#000000",
-          light: "#ffffff",
-        },
-        errorCorrectionLevel: "M",
-        margin: 4,
-        width: 360,
-      })
-    : null;
-  const isWaitingForQr =
-    !isConnected &&
-    status === "QR_REQUIRED" &&
-    !activePairingPhone &&
-    !qrCodeDataUrl;
-  const isWaitingForPairing =
-    !isConnected &&
-    status === "QR_REQUIRED" &&
-    Boolean(activePairingPhone) &&
-    !activePairingCodeText &&
-    !qrCodeDataUrl;
-  const shouldAutoRefresh = isWaitingForQr || isWaitingForPairing;
-  const messageSaysQrReady =
-    message?.toLowerCase().includes("qr") &&
-    message.toLowerCase().includes("ready");
-  const messageSaysPairingReady =
-    message?.toLowerCase().includes("pairing") &&
-    message.toLowerCase().includes("ready");
-  const staleQrReadyMessage =
-    Boolean(messageSaysQrReady) &&
-    !qrCodeDataUrl &&
-    !isConnected &&
-    status !== "QR_REQUIRED";
-  const stalePairingReadyMessage =
-    Boolean(messageSaysPairingReady) &&
-    !activePairingCodeText &&
-    !isConnected &&
-    status !== "QR_REQUIRED";
-  let displayMessage = message;
-  if (messageSaysPairingReady && !activePairingCodeText && !isConnected) {
-    displayMessage =
-      status === "QR_REQUIRED"
-        ? "WhatsApp pairing code is being prepared. This page will refresh automatically."
-        : "WhatsApp pairing code is no longer available. Request a fresh code.";
-  } else if (messageSaysQrReady && !qrCodeDataUrl && !isConnected) {
-    displayMessage =
-      status === "QR_REQUIRED"
-        ? "WhatsApp QR is being prepared. This page will refresh automatically."
-        : "WhatsApp QR is no longer available. Click Generate QR to create a fresh code.";
-  }
-  const displayMessageType =
-    staleQrReadyMessage || stalePairingReadyMessage ? "error" : messageType;
+  const connectorUrl = getWhatsAppConnectorUrl();
+  const connectorState = await readConnectorState();
+  const status = connectorState.status.status;
+  const isConnected = status === "connected";
+  const isQr = status === "qr";
+  const shouldAutoRefresh =
+    status === "qr" ||
+    status === "connecting" ||
+    status === "reconnecting" ||
+    status === "starting";
+  const qrImageUrl = `${connectorUrl}/qr/image?refresh=${Date.now()}`;
+  const sessionWarning =
+    connectorState.status.sessionHealth.ok === false
+      ? connectorState.status.sessionHealth.message ??
+        "Your WhatsApp session may have expired. Please reconnect your WhatsApp."
+      : status === "session_expired"
+        ? "Your WhatsApp session may have expired. Please reconnect your WhatsApp."
+        : null;
+  const statusMessage = connectorState.errorMessage
+    ? connectorState.errorMessage
+    : message;
+  const statusMessageType = connectorState.errorMessage ? "error" : messageType;
 
   return (
     <AppShell user={user}>
-      <WhatsAppSettingsAutoRefresh enabled={shouldAutoRefresh} />
+      <WhatsAppSettingsAutoRefresh enabled={shouldAutoRefresh} status={status} />
       <section className="content">
         <div className="page-header">
           <div>
@@ -108,35 +65,33 @@ export default async function WhatsAppSettingsPage({
             <Link className="secondary-link-button" href="/whatsapp/inbox">
               Inbox
             </Link>
-            <Link className="secondary-link-button" href="/whatsapp">
-              Logs
-            </Link>
             <BackButton fallbackHref="/whatsapp" />
           </div>
         </div>
 
-        {displayMessage ? (
-          <div className={displayMessageType}>{displayMessage}</div>
+        {statusMessage ? (
+          <div className={statusMessageType}>{statusMessage}</div>
         ) : null}
+        <WhatsAppSessionRecovery
+          lastAckErrorAt={connectorState.status.lastAckError?.at ?? null}
+          lastDisconnectedAt={connectorState.status.lastDisconnectedAt}
+          reconnectAttempts={connectorState.status.reconnectAttempts}
+          status={status}
+        />
+        {sessionWarning ? <div className="error">{sessionWarning}</div> : null}
 
         <div className="whatsapp-settings-grid">
           <div className="panel whatsapp-connection-card">
             <div className="section-header">
               <h2>Connection</h2>
-              <span className={`status ${status.toLowerCase()}`}>
-                {formatStatus(status)}
-              </span>
+              <span className={`status ${status}`}>{formatStatus(status)}</span>
             </div>
 
             <div className="whatsapp-connection-meta">
               <div>
                 <span>Phone number</span>
-                <strong>{displayPhoneNumber ?? "Not connected"}</strong>
-              </div>
-              <div>
-                <span>Last seen</span>
                 <strong>
-                  {displayLastSeenAt ? displayLastSeenAt.toLocaleString() : "-"}
+                  {connectorState.status.phoneNumber ?? "Not connected"}
                 </strong>
               </div>
             </div>
@@ -144,98 +99,57 @@ export default async function WhatsAppSettingsPage({
             <div className="whatsapp-qr-preview" aria-label="WhatsApp QR code">
               {isConnected ? (
                 <div className="empty-state">
-                  <h3>WhatsApp is connected</h3>
+                  <h3>Connected</h3>
                   <p>You can now open the inbox and chat with customers.</p>
                   <Link className="primary-link-button" href="/whatsapp/inbox">
                     Open Inbox
                   </Link>
                 </div>
-              ) : activePairingCodeText ? (
-                <div className="whatsapp-pairing-code-card">
-                  <span>Phone pairing code</span>
-                  <strong>{formatPairingCode(activePairingCodeText)}</strong>
-                  <p>
-                    This code only works for {activePairingPhone}. On that exact
-                    shop phone, open WhatsApp Linked devices, choose Link with
-                    phone number instead, then enter this code within 60 seconds.
-                  </p>
-                </div>
-              ) : qrCodeDataUrl ? (
+              ) : isQr ? (
                 <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={qrCodeDataUrl}
+                    src={qrImageUrl}
                     alt="WhatsApp login QR code"
                     width={360}
                     height={360}
                     className="whatsapp-qr-image"
                   />
-                  <p>
-                    Use WhatsApp Linked devices scanner, not the normal camera.
-                    If it still cannot scan, click Generate QR again and scan the
-                    fresh code within one minute.
-                  </p>
+                  <p>Use WhatsApp Linked devices to scan this QR code.</p>
                 </>
-              ) : isWaitingForPairing ? (
+              ) : status === "connecting" || status === "reconnecting" ? (
                 <div className="empty-state">
-                  <h3>Preparing phone pairing code</h3>
-                  <p>
-                    Keep this page open. The code will appear here automatically
-                    when WhatsApp returns it.
-                  </p>
+                  <h3>{formatStatus(status)}</h3>
+                  <p>Waiting for WhatsApp to establish the session.</p>
                 </div>
-              ) : isWaitingForQr ? (
+              ) : status === "session_expired" ? (
                 <div className="empty-state">
-                  <h3>Preparing WhatsApp QR</h3>
+                  <h3>Session Expired</h3>
                   <p>
-                    Keep this page open. A fresh QR code will appear here
-                    automatically when the worker receives it.
+                    WashFlow will try to reconnect once. If QR appears, scan it
+                    from WhatsApp Linked devices.
                   </p>
                 </div>
               ) : (
-                <p>Generate a QR code to connect this company WhatsApp number.</p>
+                <div className="empty-state">
+                  <h3>{formatStatus(status)}</h3>
+                  <p>Reconnect WhatsApp to request a fresh QR code.</p>
+                </div>
               )}
             </div>
 
-            {!isConnected ? (
-              <form
-                action={requestWhatsAppPairingCodeAction}
-                className="whatsapp-pairing-form"
-              >
-                <label htmlFor="pairingPhone">Use phone pairing code</label>
-                <div className="whatsapp-pairing-row">
-                  <input
-                    id="pairingPhone"
-                    name="pairingPhone"
-                    defaultValue={activePairingPhone ?? ""}
-                    inputMode="numeric"
-                    pattern="[0-9+ ]*"
-                    placeholder="601112212259"
-                  />
-                  <button className="secondary-light-button" type="submit">
-                    Get pairing code
-                  </button>
-                </div>
-                <p>
-                  Enter the shop WhatsApp number currently logged in on the phone,
-                  not a customer number. Then open WhatsApp Linked devices and
-                  choose Link with phone number instead.
-                </p>
-              </form>
-            ) : null}
-
             <div className="inline-actions">
-              <form action={requestWhatsAppQrAction}>
-                <button type="submit">Generate QR</button>
-              </form>
               <form action={refreshWhatsAppConnectionAction}>
                 <button className="secondary-light-button" type="submit">
-                  Refresh status
+                  Refresh
                 </button>
               </form>
-              <form action={disconnectWhatsAppAction}>
+              <form action={reconnectWhatsAppAction}>
+                <button type="submit">Reconnect by QR</button>
+              </form>
+              <form action={logoutWhatsAppAction}>
                 <button className="secondary-light-button" type="submit">
-                  Disconnect
+                  Disconnect WhatsApp
                 </button>
               </form>
             </div>
@@ -243,31 +157,83 @@ export default async function WhatsAppSettingsPage({
 
           <div className="panel">
             <div className="section-header">
-              <h2>How this works</h2>
+              <h2>Connector</h2>
             </div>
             <ol className="whatsapp-setup-steps">
-              <li>Click Generate QR.</li>
-              <li>Use the shop phone WhatsApp to scan the QR.</li>
-              <li>Keep this local server running while using the inbox.</li>
+              <li>Start the WhatsApp Connector.</li>
+              <li>Scan the QR with WhatsApp Linked devices.</li>
+              <li>Confirm the status changes to Connected.</li>
               <li>Open WhatsApp Inbox to chat with customers from the system.</li>
             </ol>
             <p className="muted">
-              This uses WhatsApp Web login for this local demo. It does not use Meta
-              Cloud API, templates, webhooks, or platform-owned phone numbers.
+              This page reads the independent connector directly through its HTTP API.
             </p>
+            <div className="whatsapp-settings-tools">
+              <Link className="secondary-light-button" href="/whatsapp">
+                Logs
+              </Link>
+              <Link
+                className="secondary-light-button"
+                href="/whatsapp/contact-diagnostics"
+              >
+                Contact diagnostics
+              </Link>
+              <Link className="secondary-light-button" href="/whatsapp/diagnostics">
+                Diagnostics
+              </Link>
+              <form action={syncCrmCustomersToWhatsAppAction}>
+                <input type="hidden" name="returnTo" value="/whatsapp/settings" />
+                <button className="secondary-light-button" type="submit">
+                  Sync customers
+                </button>
+              </form>
+            </div>
           </div>
         </div>
-
-        <WhatsAppSendTestForm />
       </section>
     </AppShell>
   );
 }
 
-function formatStatus(status: string) {
-  return status.toLowerCase().replaceAll("_", " ");
+async function readConnectorState(): Promise<{
+  status: ConnectorStatus;
+  errorMessage: string | null;
+}> {
+  try {
+    return {
+      status: await getConnectorStatus(),
+      errorMessage: null,
+    };
+  } catch (error) {
+    return {
+      status: {
+        status: "disconnected",
+        phoneNumber: null,
+        lastSeen: null,
+        hasSocket: false,
+        reconnectAttempts: 0,
+        lastConnectedAt: null,
+        lastDisconnectedAt: null,
+        lastError: null,
+        lastAckError: null,
+        sessionHealth: { ok: false, message: "Unable to read WhatsApp connector status." },
+      },
+      errorMessage:
+        error instanceof Error
+          ? error.message
+          : "Unable to read WhatsApp connector status.",
+    };
+  }
 }
 
-function formatPairingCode(code: string) {
-  return code.replace(/\s+/g, "").replace(/(.{4})/g, "$1 ").trim();
+function formatStatus(status: ConnectorStatus["status"]) {
+  if (status === "qr") {
+    return "QR Required";
+  }
+
+  if (status === "session_expired") {
+    return "Session Expired";
+  }
+
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }

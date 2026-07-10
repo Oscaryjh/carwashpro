@@ -67,6 +67,11 @@ enum PaymentRecordStatus {
   VOID
 }
 
+enum CashierShiftStatus {
+  OPEN
+  CLOSED
+}
+
 enum InvoiceStatus {
   UNPAID
   PARTIAL
@@ -79,12 +84,16 @@ enum WhatsAppMessageType {
   SERVICE_CONFIRMATION
   READY_FOR_PICKUP
   INVOICE_SENT
+  INBOX_REPLY
 }
 
 enum WhatsAppMessageStatus {
   DRAFT
   OPENED
+  SENT_TO_SERVER
   SENT_MANUALLY
+  DELIVERED
+  READ
   FAILED
   CANCELLED
 }
@@ -122,7 +131,10 @@ enum WhatsAppChatDirection {
 
 enum WhatsAppChatMessageStatus {
   RECEIVED
+  SENT_TO_SERVER
   SENT
+  DELIVERED
+  READ
   FAILED
 }
 
@@ -130,12 +142,16 @@ enum WhatsAppChatMessageType {
   TEXT
   AUDIO
   DOCUMENT
+  IMAGE
 }
 
 enum NotificationQueueStatus {
   QUEUED
   SENDING
   SENT
+  SENT_TO_SERVER
+  DELIVERED
+  READ
   FAILED
 }
 
@@ -167,6 +183,15 @@ enum BranchStatus {
   INACTIVE
 }
 
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  ARRIVED
+  CONVERTED_TO_JOB
+  CANCELLED
+  NO_SHOW
+}
+
 model Business {
   id        String         @id @default(uuid()) @db.Uuid
   name      String
@@ -189,17 +214,20 @@ model Business {
   workOrders                WorkOrder[]
   workOrderItems            WorkOrderItem[]
   payments                  Payment[]
+  cashierShifts             CashierShift[]
   invoices                  Invoice[]
   whatsappMessages          WhatsAppMessage[]
   whatsappConnection        WhatsAppConnection?
   whatsappConversations     WhatsAppConversation[]
   whatsappChatMessages      WhatsAppChatMessage[]
+  whatsappContacts          WhatsAppContact[]
   whatsappWorkerCommands    WhatsAppWorkerCommand[]
   notificationQueues        NotificationQueue[]
   packages                  Package[]
   customerPackages          CustomerPackage[]
   branches                  Branch[]
   vehicleOwnershipHistories VehicleOwnershipHistory[]
+  appointments              Appointment[]
 
   @@index([slug])
   @@map("businesses")
@@ -221,12 +249,15 @@ model Branch {
   services                  Service[]
   packages                  Package[]
   customerPackages          CustomerPackage[]
+  staffUsers                User[]
   workOrders                WorkOrder[]
   payments                  Payment[]
+  cashierShifts             CashierShift[]
   invoices                  Invoice[]
   whatsappMessages          WhatsAppMessage[]
   notificationQueues        NotificationQueue[]
   vehicleOwnershipHistories VehicleOwnershipHistory[]
+  appointments              Appointment[]
 
   @@unique([businessId, name])
   @@index([businessId])
@@ -237,6 +268,7 @@ model Branch {
 model User {
   id            String     @id @default(uuid()) @db.Uuid
   businessId    String?    @map("business_id") @db.Uuid
+  branchId      String?    @map("branch_id") @db.Uuid
   name          String
   email         String     @unique
   whatsappPhone String?    @map("whatsapp_phone")
@@ -248,10 +280,16 @@ model User {
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
   business                 Business?             @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch                   Branch?               @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  cashierShifts            CashierShift[]        @relation("CashierShiftCashier")
+  cashierPayments          Payment[]             @relation("PaymentCashier")
   sentWhatsAppMessages     WhatsAppMessage[]     @relation("WhatsAppMessageSender")
   sentWhatsAppChatMessages WhatsAppChatMessage[] @relation("WhatsAppChatMessageSender")
+  createdAppointments      Appointment[]         @relation("AppointmentCreatedBy")
+  assignedAppointments     Appointment[]         @relation("AppointmentAssignedStaff")
 
   @@index([businessId])
+  @@index([branchId])
   @@index([role])
   @@map("users")
 }
@@ -277,6 +315,7 @@ model Customer {
   customerPackages          CustomerPackage[]
   previousVehicleOwnerships VehicleOwnershipHistory[] @relation("PreviousVehicleOwner")
   newVehicleOwnerships      VehicleOwnershipHistory[] @relation("NewVehicleOwner")
+  appointments              Appointment[]
 
   @@unique([businessId, phone])
   @@index([businessId])
@@ -303,6 +342,7 @@ model Vehicle {
   workOrders         WorkOrder[]
   whatsappMessages   WhatsAppMessage[]
   ownershipHistories VehicleOwnershipHistory[]
+  appointments       Appointment[]
 
   @@unique([businessId, plateNumber])
   @@index([businessId])
@@ -346,6 +386,7 @@ model Service {
   serviceCategory ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   items           WorkOrderItem[]
   packages        Package[]
+  appointments    Appointment[]
 
   @@unique([businessId, name])
   @@index([businessId])
@@ -445,6 +486,7 @@ model WorkOrder {
   paidAmount    Decimal              @default(0) @map("paid_amount") @db.Decimal(10, 2)
   balance       Decimal              @default(0) @db.Decimal(10, 2)
   paymentStatus PaymentStatus        @default(UNPAID) @map("payment_status")
+  pickedUpAt    DateTime?            @map("picked_up_at")
   notes         String?
   createdAt     DateTime             @default(now()) @map("created_at")
   updatedAt     DateTime             @updatedAt @map("updated_at")
@@ -457,6 +499,7 @@ model WorkOrder {
   payments         Payment[]
   invoice          Invoice?
   whatsappMessages WhatsAppMessage[]
+  appointment      Appointment?
 
   @@unique([businessId, orderNumber])
   @@index([businessId])
@@ -466,6 +509,52 @@ model WorkOrder {
   @@index([status])
   @@index([paymentStatus])
   @@map("work_orders")
+}
+
+model Appointment {
+  id          String            @id @default(uuid()) @db.Uuid
+  businessId  String            @map("business_id") @db.Uuid
+  branchId    String?           @map("branch_id") @db.Uuid
+  customerId  String            @map("customer_id") @db.Uuid
+  vehicleId   String            @map("vehicle_id") @db.Uuid
+  serviceId   String?           @map("service_id") @db.Uuid
+  serviceIds  String[]          @default([]) @map("service_ids")
+  workOrderId String?           @unique @map("work_order_id") @db.Uuid
+  createdById String?           @map("created_by_id") @db.Uuid
+  assignedStaffId String?       @map("assigned_staff_id") @db.Uuid
+  contactType WorkOrderContactType @default(REGISTERED_OWNER) @map("contact_type")
+  contactName String?           @map("contact_name")
+  contactPhone String?          @map("contact_phone")
+  scheduledAt DateTime          @map("scheduled_at")
+  status      AppointmentStatus @default(SCHEDULED)
+  notes       String?
+  confirmedAt DateTime?         @map("confirmed_at")
+  arrivedAt   DateTime?         @map("arrived_at")
+  convertedAt DateTime?         @map("converted_at")
+  cancelledAt DateTime?         @map("cancelled_at")
+  noShowAt    DateTime?         @map("no_show_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  business  Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch    Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customer  Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicle   Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  service   Service?   @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  createdBy User?      @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedStaff User?  @relation("AppointmentAssignedStaff", fields: [assignedStaffId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([branchId])
+  @@index([customerId])
+  @@index([vehicleId])
+  @@index([serviceId])
+  @@index([createdById])
+  @@index([assignedStaffId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@map("appointments")
 }
 
 model VehicleOwnershipHistory {
@@ -522,6 +611,8 @@ model Payment {
   branchId          String?             @map("branch_id") @db.Uuid
   workOrderId       String?             @map("work_order_id") @db.Uuid
   customerPackageId String?             @map("customer_package_id") @db.Uuid
+  cashierId         String?             @map("cashier_id") @db.Uuid
+  shiftId           String?             @map("shift_id") @db.Uuid
   amount            Decimal             @db.Decimal(10, 2)
   method            PaymentMethod
   status            PaymentRecordStatus @default(ACTIVE)
@@ -537,14 +628,47 @@ model Payment {
   branch          Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
   workOrder       WorkOrder?       @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
   customerPackage CustomerPackage? @relation(fields: [customerPackageId], references: [id], onDelete: SetNull)
+  cashier         User?            @relation("PaymentCashier", fields: [cashierId], references: [id], onDelete: SetNull)
+  shift           CashierShift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
   @@index([branchId])
   @@index([workOrderId])
   @@index([customerPackageId])
+  @@index([cashierId])
+  @@index([shiftId])
   @@index([status])
   @@index([paidAt])
   @@map("payments")
+}
+
+model CashierShift {
+  id             String             @id @default(uuid()) @db.Uuid
+  businessId     String             @map("business_id") @db.Uuid
+  branchId       String?            @map("branch_id") @db.Uuid
+  cashierId      String             @map("cashier_id") @db.Uuid
+  status         CashierShiftStatus @default(OPEN)
+  openingFloat   Decimal            @default(0) @map("opening_float") @db.Decimal(10, 2)
+  closingCash    Decimal?           @map("closing_cash") @db.Decimal(10, 2)
+  expectedCash   Decimal?           @map("expected_cash") @db.Decimal(10, 2)
+  cashDifference Decimal?           @map("cash_difference") @db.Decimal(10, 2)
+  startedAt      DateTime           @default(now()) @map("started_at")
+  endedAt        DateTime?          @map("ended_at")
+  notes          String?
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch   Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  cashier  User      @relation("CashierShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict)
+  payments Payment[]
+
+  @@index([businessId])
+  @@index([branchId])
+  @@index([cashierId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("cashier_shifts")
 }
 
 model Invoice {
@@ -663,6 +787,7 @@ model WhatsAppConnection {
 model WhatsAppConversation {
   id              String    @id @default(uuid()) @db.Uuid
   businessId      String    @map("business_id") @db.Uuid
+  instanceId      String    @default("default") @map("instance_id")
   customerId      String?   @map("customer_id") @db.Uuid
   phone           String
   remoteJid       String?   @map("remote_jid")
@@ -677,8 +802,9 @@ model WhatsAppConversation {
   customer Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
   messages WhatsAppChatMessage[]
 
-  @@unique([businessId, phone])
+  @@unique([businessId, instanceId, phone])
   @@index([businessId])
+  @@index([businessId, instanceId])
   @@index([customerId])
   @@index([remoteJid])
   @@index([lastMessageAt])
@@ -688,6 +814,7 @@ model WhatsAppConversation {
 model WhatsAppChatMessage {
   id                String                    @id @default(uuid()) @db.Uuid
   businessId        String                    @map("business_id") @db.Uuid
+  instanceId        String                    @default("default") @map("instance_id")
   conversationId    String                    @map("conversation_id") @db.Uuid
   customerId        String?                   @map("customer_id") @db.Uuid
   sentByUserId      String?                   @map("sent_by_user_id") @db.Uuid
@@ -699,6 +826,7 @@ model WhatsAppChatMessage {
   mediaFileName     String?                   @map("media_file_name")
   status            WhatsAppChatMessageStatus @default(SENT)
   externalMessageId String?                   @map("external_message_id")
+  rawMessageJson    Json?                     @map("raw_message_json")
   createdAt         DateTime                  @default(now()) @map("created_at")
   updatedAt         DateTime                  @updatedAt @map("updated_at")
 
@@ -707,13 +835,35 @@ model WhatsAppChatMessage {
   customer     Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
   sentByUser   User?                @relation("WhatsAppChatMessageSender", fields: [sentByUserId], references: [id], onDelete: SetNull)
 
+  @@unique([instanceId, externalMessageId])
   @@index([businessId])
+  @@index([businessId, instanceId])
   @@index([conversationId])
   @@index([customerId])
   @@index([sentByUserId])
   @@index([messageType])
   @@index([createdAt])
   @@map("whatsapp_chat_messages")
+}
+
+model WhatsAppContact {
+  id          String   @id @default(uuid()) @db.Uuid
+  businessId  String   @map("business_id") @db.Uuid
+  instanceId  String   @map("instance_id")
+  phone       String
+  remoteJid   String?  @map("remote_jid")
+  displayName String   @map("display_name")
+  rawJson     Json?    @map("raw_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, instanceId, phone])
+  @@index([businessId])
+  @@index([businessId, instanceId])
+  @@index([remoteJid])
+  @@map("whatsapp_contacts")
 }
 
 model WhatsAppWorkerCommand {
@@ -742,6 +892,9 @@ model NotificationQueue {
   phone             String
   message           String
   messageType       String                    @map("message_type")
+  documentBase64    String?                   @map("document_base64")
+  documentMimeType  String?                   @map("document_mime_type")
+  documentFileName  String?                   @map("document_file_name")
   priority          NotificationQueuePriority @default(NORMAL)
   status            NotificationQueueStatus   @default(QUEUED)
   retryCount        Int                       @default(0) @map("retry_count")
@@ -752,6 +905,8 @@ model NotificationQueue {
   queuedAt          DateTime                  @default(now()) @map("queued_at")
   nextAttemptAt     DateTime?                 @map("next_attempt_at")
   sentAt            DateTime?                 @map("sent_at")
+  deliveredAt       DateTime?                 @map("delivered_at")
+  readAt            DateTime?                 @map("read_at")
   failedAt          DateTime?                 @map("failed_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
@@ -761,6 +916,7 @@ model NotificationQueue {
   @@index([businessId])
   @@index([branchId])
   @@index([messageLogId])
+  @@index([providerMessageId])
   @@index([status])
   @@index([status, priority, queuedAt])
   @@index([status, nextAttemptAt])

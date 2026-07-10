@@ -1,16 +1,24 @@
-import Link from "next/link";
+﻿import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { WhatsAppInboxAutoRefresh } from "@/components/whatsapp-inbox-auto-refresh";
+import { WhatsAppCustomerPicker } from "@/components/whatsapp-customer-picker";
 import { WhatsAppMessageAutoScroll } from "@/components/whatsapp-message-auto-scroll";
 import { WhatsAppReplyForm } from "@/components/whatsapp-reply-form";
+import { WhatsAppSessionRecovery } from "@/components/whatsapp-settings-session-recovery";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
-import { mergeDuplicateWhatsAppConversations } from "@/lib/whatsapp/conversation-merge";
-import { decodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import {
-  refreshWhatsAppInboxConnectionAction,
-  syncCrmCustomersToWhatsAppAction,
-} from "./actions";
+  getConnectorStatus,
+  type ConnectorStatus,
+} from "@/lib/whatsapp/connector-client";
+import { mergeDuplicateWhatsAppConversations } from "@/lib/whatsapp/conversation-merge";
+import {
+  getDefaultWhatsAppInstanceId,
+  normalizeWhatsAppInstanceId,
+} from "@/lib/whatsapp/instance";
+import { decodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
+import { refreshWhatsAppInboxConnectionAction } from "./actions";
 
 type WhatsAppInboxPageProps = {
   searchParams: Promise<{
@@ -29,14 +37,27 @@ export default async function WhatsAppInboxPage({
   const message = params.message;
   const query = params.q?.trim() ?? "";
   const messageType = params.type === "error" ? "error" : "success";
-  const connection = await prisma.whatsAppConnection.findUnique({
-    where: { businessId },
-  });
+  const connection = await readInboxConnectorStatus();
+  const connectionStatus = connection.status;
+  const instanceId = normalizeWhatsAppInstanceId(
+    connection.phoneNumber ?? getDefaultWhatsAppInstanceId(),
+  );
+
+  if (connectionStatus !== "connected") {
+    redirect(
+      `/whatsapp/settings?type=error&message=${encodeURIComponent(
+        "WhatsApp connection required. Please reconnect WhatsApp.",
+      )}`,
+    );
+  }
+
+  const canSend = connectionStatus === "connected";
+  const sendDisabled = !canSend;
 
   await mergeDuplicateWhatsAppConversations(businessId);
 
   const rawConversations = await prisma.whatsAppConversation.findMany({
-    where: { businessId },
+    where: { businessId, instanceId },
     include: {
       customer: {
         include: {
@@ -51,11 +72,36 @@ export default async function WhatsAppInboxPage({
     take: 200,
   });
   const conversations = rawConversations
+    .filter(
+      (conversation) =>
+        !isSelfInternalConversation(conversation, connection.phoneNumber),
+    )
     .sort(compareConversationsByLatestActivity)
     .slice(0, 50);
   const filteredConversations = conversations.filter((conversation) =>
     matchesConversationSearch(conversation, query),
   );
+  const customerPickerCustomers = await prisma.customer.findMany({
+    where: { businessId },
+    orderBy: { updatedAt: "desc" },
+    take: 500,
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      vehicles: {
+        orderBy: { updatedAt: "desc" },
+        take: 3,
+        select: {
+          plateNumber: true,
+          brand: true,
+          model: true,
+          color: true,
+        },
+      },
+    },
+  });
 
   const requestedConversationId = params.conversation;
   const selectedConversationId = conversations.some(
@@ -68,6 +114,7 @@ export default async function WhatsAppInboxPage({
       where: {
         id: selectedConversationId,
         businessId,
+        instanceId,
         unreadCount: { gt: 0 },
       },
       data: { unreadCount: 0 },
@@ -79,6 +126,7 @@ export default async function WhatsAppInboxPage({
         where: {
           id: selectedConversationId,
           businessId,
+          instanceId,
         },
         include: {
           customer: {
@@ -104,30 +152,19 @@ export default async function WhatsAppInboxPage({
 
   return (
     <AppShell user={user}>
-      <WhatsAppInboxAutoRefresh enabled={connection?.status === "CONNECTED"} />
+      <WhatsAppInboxAutoRefresh enabled={canSend} />
       <section className="content whatsapp-inbox-page">
         <div className="page-header">
           <div>
             <h1>WhatsApp Inbox</h1>
           </div>
-          <div className="inline-actions">
-            <Link className="secondary-link-button" href="/whatsapp">
-              Logs
-            </Link>
-            <Link className="secondary-link-button" href="/whatsapp/settings">
-              Settings
-            </Link>
-          </div>
-        </div>
-
-        {message ? <div className={messageType}>{message}</div> : null}
-
-        <div className="whatsapp-connection-strip">
-          <span className={`status ${(connection?.status ?? "DISCONNECTED").toLowerCase()}`}>
-            {formatStatus(connection?.status ?? "DISCONNECTED")}
-          </span>
-          <strong>{connection?.phoneNumber ?? "No shop WhatsApp connected"}</strong>
-          <div className="inline-actions">
+          <div className="whatsapp-inbox-header-status">
+            <span className={`status ${connectionStatus}`}>
+              {formatConnectorStatus(connectionStatus)}
+            </span>
+            <span className="whatsapp-inbox-phone">
+              {getConnectorStatusMessage(connection)}
+            </span>
             <form action={refreshWhatsAppInboxConnectionAction}>
               {selectedConversation ? (
                 <input
@@ -140,24 +177,34 @@ export default async function WhatsAppInboxPage({
                 Refresh
               </button>
             </form>
-            <form action={syncCrmCustomersToWhatsAppAction}>
-              <button className="secondary-light-button compact-link-button" type="submit">
-                Sync customers
+            <form action="/whatsapp/settings" method="get">
+              <button className="secondary-link-button" type="submit">
+                Settings
               </button>
             </form>
-            <Link href="/whatsapp/settings">Connection settings</Link>
           </div>
         </div>
+
+        {message ? <div className={messageType}>{message}</div> : null}
+        <WhatsAppSessionRecovery
+          lastAckErrorAt={connection.lastAckError?.at ?? null}
+          lastDisconnectedAt={connection.lastDisconnectedAt}
+          reconnectAttempts={connection.reconnectAttempts}
+          status={connectionStatus}
+        />
 
         <div className="whatsapp-inbox-layout">
           <aside className="panel whatsapp-chat-list">
             <div className="section-header">
               <h2>Chats</h2>
-              <span className="muted">
-                {query
-                  ? `${filteredConversations.length}/${conversations.length}`
-                  : conversations.length}
-              </span>
+              <div className="whatsapp-chat-list-actions">
+                <WhatsAppCustomerPicker customers={customerPickerCustomers} />
+                <span className="muted">
+                  {query
+                    ? `${filteredConversations.length}/${conversations.length}`
+                    : conversations.length}
+                </span>
+              </div>
             </div>
             <form className="whatsapp-chat-search" action="/whatsapp/inbox">
               {selectedConversation ? (
@@ -238,11 +285,17 @@ export default async function WhatsAppInboxPage({
                     </span>
                     <div>
                       <h2>{formatConversationName(selectedConversation)}</h2>
+                      <div className="whatsapp-chat-contact-row">
+                        <span>{getVisibleConversationPhone(selectedConversation) || "Phone not synced"}</span>
+                      </div>
                     </div>
                   </div>
                   {selectedConversation.customer ? (
-                    <Link href={`/crm/customers/${selectedConversation.customer.id}`}>
-                      Open customer
+                    <Link
+                      className="whatsapp-customer-action-button"
+                      href={`/crm/customers/${selectedConversation.customer.id}`}
+                    >
+                      View customer
                     </Link>
                   ) : null}
                 </div>
@@ -258,7 +311,45 @@ export default async function WhatsAppInboxPage({
                         }
                         key={chatMessage.id}
                       >
-                        {chatMessage.messageType === "AUDIO" ? (
+                        {chatMessage.messageType === "IMAGE" ? (
+                          <div className="whatsapp-image-message">
+                            {chatMessage.mediaUrl ? (
+                              <>
+                                <a
+                                  href={chatMessage.mediaUrl}
+                                  rel="noreferrer"
+                                  target="_blank"
+                                >
+                                  <img
+                                    alt={decodeWhatsAppStoredText(chatMessage.body) || "WhatsApp image"}
+                                    src={chatMessage.mediaUrl}
+                                  />
+                                </a>
+                                <div className="whatsapp-document-actions">
+                                  <a
+                                    href={chatMessage.mediaUrl}
+                                    rel="noreferrer"
+                                    target="_blank"
+                                  >
+                                    Preview
+                                  </a>
+                                  <a
+                                    download={chatMessage.mediaFileName ?? true}
+                                    href={chatMessage.mediaUrl}
+                                  >
+                                    Download
+                                  </a>
+                                </div>
+                              </>
+                            ) : (
+                              <p className="muted">Image unavailable.</p>
+                            )}
+                            {decodeWhatsAppStoredText(chatMessage.body) &&
+                            decodeWhatsAppStoredText(chatMessage.body) !== "Image" ? (
+                              <p>{decodeWhatsAppStoredText(chatMessage.body)}</p>
+                            ) : null}
+                          </div>
+                        ) : chatMessage.messageType === "AUDIO" ? (
                           <div className="whatsapp-audio-player">
                             {chatMessage.mediaUrl ? (
                               <audio
@@ -276,20 +367,47 @@ export default async function WhatsAppInboxPage({
                           <div className="whatsapp-document-message">
                             <p>{decodeWhatsAppStoredText(chatMessage.body)}</p>
                             {chatMessage.mediaUrl ? (
-                              <a
-                                href={chatMessage.mediaUrl}
-                                rel="noreferrer"
-                                target="_blank"
-                              >
-                                {chatMessage.mediaFileName ?? "Open document"}
-                              </a>
-                            ) : null}
+                              <div className="whatsapp-document-card">
+                                <strong>
+                                  {chatMessage.mediaFileName ?? "WhatsApp document"}
+                                </strong>
+                                <div className="whatsapp-document-actions">
+                                  <a
+                                    href={chatMessage.mediaUrl}
+                                    rel="noreferrer"
+                                    target="_blank"
+                                  >
+                                    Preview
+                                  </a>
+                                  <a
+                                    download={chatMessage.mediaFileName ?? true}
+                                    href={chatMessage.mediaUrl}
+                                  >
+                                    Download
+                                  </a>
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="muted">Attachment unavailable.</span>
+                            )}
                           </div>
                         ) : (
                           <p>{decodeWhatsAppStoredText(chatMessage.body)}</p>
                         )}
-                        <span>
+                        <span className="whatsapp-message-meta">
                           {chatMessage.createdAt.toLocaleString()}
+                          {chatMessage.direction === "OUTBOUND" ? (
+                            <>
+                              {" "}
+                              <strong
+                                aria-label={getChatMessageStatusLabel(chatMessage.status)}
+                                className={getChatMessageStatusClass(chatMessage.status)}
+                                title={getChatMessageStatusLabel(chatMessage.status)}
+                              >
+                                {renderChatMessageStatusIcon(chatMessage.status)}
+                              </strong>
+                            </>
+                          ) : null}
                         </span>
                       </div>
                     ))
@@ -308,8 +426,9 @@ export default async function WhatsAppInboxPage({
                 />
 
                 <WhatsAppReplyForm
+                  connectionStatus={connectionStatus}
                   conversationId={selectedConversation.id}
-                  disabled={connection?.status !== "CONNECTED"}
+                  disabled={sendDisabled}
                 />
               </>
             ) : (
@@ -362,7 +481,17 @@ export default async function WhatsAppInboxPage({
                 )}
               </>
             ) : (
-              <p className="empty-state">No linked customer.</p>
+              <>
+                <p className="empty-state">No linked customer.</p>
+                {selectedConversation ? (
+                  <Link
+                    className="whatsapp-save-customer-button"
+                    href={getSaveCustomerHref(selectedConversation)}
+                  >
+                    Add customer
+                  </Link>
+                ) : null}
+              </>
             )}
           </aside>
         </div>
@@ -371,8 +500,118 @@ export default async function WhatsAppInboxPage({
   );
 }
 
-function formatStatus(status: string) {
-  return status.toLowerCase().replaceAll("_", " ");
+async function readInboxConnectorStatus(): Promise<ConnectorStatus> {
+  try {
+    return await getConnectorStatus();
+  } catch {
+    return {
+      status: "disconnected",
+      phoneNumber: null,
+      lastSeen: null,
+      hasSocket: false,
+      reconnectAttempts: 0,
+      lastConnectedAt: null,
+      lastDisconnectedAt: null,
+      lastError: null,
+      lastAckError: null,
+      sessionHealth: { ok: false },
+    };
+  }
+}
+
+function formatConnectorStatus(status: ConnectorStatus["status"]) {
+  if (status === "connected") {
+    return "Connected";
+  }
+
+  if (status === "qr") {
+    return "Scan QR";
+  }
+
+  if (status === "session_expired") {
+    return "Session Expired";
+  }
+
+  if (status === "connecting" || status === "reconnecting") {
+    return "Connecting";
+  }
+
+  return "Disconnected";
+}
+
+function getChatMessageStatusClass(status: string) {
+  return `whatsapp-message-status ${status.toLowerCase()}`;
+}
+
+function renderChatMessageStatusIcon(status: string) {
+  if (status === "FAILED") {
+    return <span className="whatsapp-status-failed-icon">!</span>;
+  }
+
+  const tickCount = status === "DELIVERED" || status === "READ" ? 2 : 1;
+
+  return (
+    <span className="whatsapp-status-ticks" aria-hidden="true">
+      <i />
+      {tickCount === 2 ? <i /> : null}
+    </span>
+  );
+}
+
+function getChatMessageStatusLabel(status: string) {
+  if (status === "SENT_TO_SERVER") {
+    return "Sent";
+  }
+
+  if (status === "DELIVERED") {
+    return "Delivered";
+  }
+
+  if (status === "READ") {
+    return "Read";
+  }
+
+  if (status === "FAILED") {
+    return "Failed";
+  }
+
+  return "Sent";
+}
+
+function getConnectorStatusMessage(status: ConnectorStatus) {
+  if (status.status === "connected") {
+    return status.phoneNumber ?? "Connected";
+  }
+
+  if (status.status === "qr") {
+    return "Scan QR in WhatsApp Settings";
+  }
+
+  if (status.status === "session_expired") {
+    return "Reconnect WhatsApp in Settings";
+  }
+
+  if (status.status === "connecting" || status.status === "reconnecting") {
+    return "Connecting to WhatsApp";
+  }
+
+  return "Disconnected";
+}
+
+function isSelfInternalConversation(
+  conversation: {
+    customer?: { id?: string | null } | null;
+    phone: string;
+    remoteJid: string | null;
+  },
+  connectorPhone: string | null,
+) {
+  return Boolean(
+    !conversation.customer?.id &&
+      connectorPhone &&
+      conversation.phone === connectorPhone &&
+      conversation.remoteJid?.endsWith("@lid"),
+  );
 }
 
 function formatConversationName(conversation: {
@@ -390,7 +629,7 @@ function formatConversationName(conversation: {
   const displayName = conversation.displayName.trim();
   const visiblePhone = getVisibleConversationPhone(conversation);
 
-  if (isInternalWhatsAppIdentifier(displayName, conversation.remoteJid)) {
+  if (isInternalWhatsAppIdentifier(displayName)) {
     return visiblePhone || "Phone not synced";
   }
 
@@ -424,11 +663,37 @@ function getVisibleConversationPhone(conversation: {
 
   const storedPhone = normalizeDisplayPhone(conversation.phone);
 
-  if (storedPhone && !isLikelyWhatsAppInternalId(conversation.phone, conversation.remoteJid)) {
+  if (storedPhone) {
     return storedPhone;
   }
 
   return "";
+}
+
+function getSaveCustomerHref(conversation: {
+  id: string;
+  displayName: string;
+  phone: string;
+  remoteJid: string | null;
+  customer?: { name: string; phone?: string | null } | null;
+}) {
+  const phone = getVisibleConversationPhone(conversation);
+  const displayName = formatConversationName(conversation);
+  const params = new URLSearchParams({
+    whatsappConversationId: conversation.id,
+  });
+
+  if (displayName && displayName !== phone && displayName !== "Phone not synced") {
+    params.set("name", displayName);
+  }
+
+  if (phone) {
+    params.set("phone", phone);
+  }
+
+  params.set("notes", "Created from WhatsApp inbox.");
+
+  return `/crm/customers/new?${params.toString()}`;
 }
 
 function getPhoneFromRemoteJid(remoteJid: string | null) {
@@ -455,8 +720,8 @@ function normalizeDisplayPhone(value: string | null | undefined) {
   return "";
 }
 
-function isInternalWhatsAppIdentifier(value: string, remoteJid: string | null) {
-  return isLikelyWhatsAppInternalId(value, remoteJid);
+function isInternalWhatsAppIdentifier(value: string) {
+  return isLikelyWhatsAppInternalId(value, null);
 }
 
 function isLikelyWhatsAppInternalId(value: string | null | undefined, remoteJid: string | null) {

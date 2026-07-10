@@ -2,14 +2,12 @@ import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { BranchForm } from "@/components/branch-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { createBranchAction } from "../actions";
 
 export default async function NewBranchPage() {
   const { user } = await requireBusinessUser();
-
-  if (user.role !== "BUSINESS_OWNER") {
-    throw new Error("Only business owners can create branches.");
-  }
+  assertStaffPermission(user, "BRANCHES");
 
   return (
     <AppShell user={user}>

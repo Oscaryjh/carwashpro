@@ -1,0 +1,1 @@
+ALTER TYPE "WhatsAppMessageType" ADD VALUE 'INBOX_REPLY';

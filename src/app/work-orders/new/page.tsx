@@ -3,9 +3,10 @@ import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { BranchSelect } from "@/components/branch-select";
 import { UppercaseInput } from "@/components/uppercase-input";
+import { VehicleSelectFields } from "@/components/vehicle-select-fields";
 import { WorkOrderForm } from "@/components/work-order-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { getActiveBranches } from "@/lib/branches";
+import { getOperationalBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { normalizePlateNumber } from "@/lib/validation/crm";
 import {
@@ -34,11 +35,16 @@ export default async function NewWorkOrderPage({
   const customerQuery = (customer ?? "").trim();
   const customerQueryIsValid = !customerQuery || isNumericPhone(customerQuery);
   const errorMessage = (error ?? "").trim();
+  const staffBranchId =
+    user.role === "BUSINESS_OWNER"
+      ? null
+      : user.branchId ?? "00000000-0000-0000-0000-000000000000";
 
   const vehicle = normalizedPlate
     ? await prisma.vehicle.findFirst({
         where: {
           businessId,
+          ...(staffBranchId ? { branchId: staffBranchId } : {}),
           plateNumber: normalizedPlate,
         },
         include: {
@@ -58,7 +64,7 @@ export default async function NewWorkOrderPage({
       },
       orderBy: [{ category: "asc" }, { name: "asc" }],
     }),
-    getActiveBranches(businessId),
+    getOperationalBranches(businessId, user),
     normalizedPlate && !vehicle && customerQuery && customerQueryIsValid
       ? prisma.customer.findMany({
           where: {
@@ -106,7 +112,6 @@ export default async function NewWorkOrderPage({
         <div className="page-header">
           <div>
             <h1>New Job</h1>
-            <p>Search a plate, choose services, then create a waiting job.</p>
           </div>
           <BackButton fallbackHref="/work-orders" />
         </div>
@@ -114,8 +119,11 @@ export default async function NewWorkOrderPage({
         {errorMessage ? <p className="error">{errorMessage}</p> : null}
 
         {!normalizedPlate || workOrderVehicle ? (
-          <div className="panel">
-            <h2>Find vehicle</h2>
+          <div className="panel job-entry-panel">
+            <div>
+              <h2>Vehicle</h2>
+              <p className="muted">Enter plate number to start a job.</p>
+            </div>
             <form className="search-form job-plate-search-form" action="/work-orders/new">
               <UppercaseInput
                 name="plate"
@@ -174,7 +182,7 @@ type MissingVehiclePanelProps = {
       plateNumber: string;
     }[];
   }[];
-  branches: Awaited<ReturnType<typeof getActiveBranches>>;
+  branches: Awaited<ReturnType<typeof getOperationalBranches>>;
 };
 
 function MissingVehiclePanel({
@@ -188,7 +196,7 @@ function MissingVehiclePanel({
     <div className="panel missing-vehicle-panel">
       <div className="missing-vehicle-top-row">
         <section className="subsection missing-vehicle-card missing-find-vehicle-card">
-          <h3>Find vehicle</h3>
+          <h3>Vehicle</h3>
           <form className="search-form job-plate-search-form" action="/work-orders/new">
             <UppercaseInput
               name="plate"
@@ -208,7 +216,7 @@ function MissingVehiclePanel({
         </div>
 
         <section className="subsection missing-vehicle-card missing-owner-search-card">
-          <h3>Find owner by phone</h3>
+          <h3>Owner</h3>
           <form className="search-form" action="/work-orders/new">
             <input type="hidden" name="plate" value={plateNumber} />
             <input
@@ -266,7 +274,7 @@ function MissingVehiclePanel({
 
       {customerQuery && customerQueryIsValid && !matchingCustomers.length ? (
         <section className="subsection missing-vehicle-card missing-register-card">
-          <h3>Register new customer</h3>
+          <h3>New customer</h3>
           <form action={createVehicleForWorkOrderAction} className="form">
             <input type="hidden" name="mode" value="new" />
             <input type="hidden" name="plateNumber" value={plateNumber} />
@@ -309,20 +317,5 @@ function MissingVehiclePanel({
 }
 
 function VehicleFields() {
-  return (
-    <>
-      <label>
-        <span>Brand optional</span>
-        <input name="brand" />
-      </label>
-      <label>
-        <span>Model optional</span>
-        <input name="model" />
-      </label>
-      <label>
-        <span>Color optional</span>
-        <input name="color" />
-      </label>
-    </>
-  );
+  return <VehicleSelectFields />;
 }

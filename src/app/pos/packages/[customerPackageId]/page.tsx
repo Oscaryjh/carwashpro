@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
@@ -21,8 +22,12 @@ export default async function PackageCheckoutPage({
     where: {
       id: customerPackageId,
       businessId,
+      ...(user.role === "BUSINESS_OWNER"
+        ? {}
+        : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
     },
     include: {
+      branch: true,
       customer: true,
       package: true,
       payments: {
@@ -36,7 +41,17 @@ export default async function PackageCheckoutPage({
   }
 
   const balance = Number(customerPackage.purchasePrice);
-  const canPay = customerPackage.status === "PENDING_PAYMENT";
+  const openShift = await prisma.cashierShift.findFirst({
+    where: {
+      businessId,
+      cashierId: user.userId,
+      status: "OPEN",
+    },
+    select: { branchId: true, id: true },
+  });
+  const shiftMatchesPackage =
+    Boolean(openShift) && openShift?.branchId === customerPackage.branchId;
+  const canPay = customerPackage.status === "PENDING_PAYMENT" && shiftMatchesPackage;
 
   return (
     <AppShell user={user}>
@@ -55,6 +70,7 @@ export default async function PackageCheckoutPage({
             value={`${customerPackage.customer.name} - ${customerPackage.customer.phone}`}
           />
           <Info label="Package" value={customerPackage.package.name} />
+          <Info label="Branch" value={customerPackage.branch?.name ?? "All branches"} />
           <Info label="Total washes" value={`${customerPackage.totalUses}`} />
           <Info label="Price" value={`RM${balance.toFixed(2)}`} />
           <Info label="Status" value={formatStatus(customerPackage.status)} />
@@ -68,6 +84,27 @@ export default async function PackageCheckoutPage({
               customerPackageId={customerPackage.id}
               balance={balance}
             />
+          ) : !openShift ? (
+            <div className="warning-panel">
+              <h2>Shift required</h2>
+              <p className="muted">
+                Start a cashier shift before collecting this package payment.
+              </p>
+              <Link className="button-link" href="/closing">
+                Start shift
+              </Link>
+            </div>
+          ) : !shiftMatchesPackage ? (
+            <div className="warning-panel">
+              <h2>Wrong shift branch</h2>
+              <p className="muted">
+                This package belongs to another branch. Use a cashier shift from the
+                same branch before collecting payment.
+              </p>
+              <Link className="button-link" href="/closing">
+                Go to Shift Closing
+              </Link>
+            </div>
           ) : (
             <p className="empty-state">This package purchase is already paid.</p>
           )}

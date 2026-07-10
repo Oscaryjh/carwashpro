@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { assertRole } from "@/lib/auth/permissions";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 
 const categorySchema = z.object({
@@ -19,7 +19,7 @@ const updateCategorySchema = categorySchema.extend({
 
 export async function createServiceCategoryAction(formData: FormData) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "SERVICES");
 
   try {
     const input = categorySchema.parse({
@@ -60,7 +60,7 @@ export async function createServiceCategoryAction(formData: FormData) {
 
 export async function updateServiceCategoryAction(formData: FormData) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "SERVICES");
 
   try {
     const input = updateCategorySchema.parse({

@@ -23,9 +23,11 @@ export function SendWhatsAppButton({
 }: SendWhatsAppButtonProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [fallbackUrl, setFallbackUrl] = useState("");
 
   function handleClick() {
     setError("");
+    setFallbackUrl("");
     startTransition(async () => {
       const result = await openWhatsAppDeepLinkAction({
         messageType,
@@ -36,6 +38,18 @@ export function SendWhatsAppButton({
 
       if (result.error || !result.url) {
         setError(result.error ?? "Unable to open WhatsApp.");
+        return;
+      }
+
+      setFallbackUrl(result.url);
+
+      if (result.appUrl) {
+        const appLink = document.createElement("a");
+        appLink.href = result.appUrl;
+        appLink.rel = "noopener noreferrer";
+        document.body.append(appLink);
+        appLink.click();
+        appLink.remove();
         return;
       }
 
@@ -54,6 +68,11 @@ export function SendWhatsAppButton({
         {isPending ? "Opening..." : label}
       </button>
       {error ? <small className="error">{error}</small> : null}
+      {fallbackUrl ? (
+        <a href={fallbackUrl} rel="noopener noreferrer" target="_blank">
+          Open WhatsApp Web
+        </a>
+      ) : null}
     </span>
   );
 }

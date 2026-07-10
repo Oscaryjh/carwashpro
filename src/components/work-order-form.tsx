@@ -102,13 +102,13 @@ export function WorkOrderForm({
         <aside className="panel job-cart-panel">
           <div className="section-header">
             <div>
-              <h2>Job cart</h2>
+              <h2>Create job</h2>
             </div>
-            <span className="status">new</span>
+            <span className="status">In Progress</span>
           </div>
 
           <div className="job-cart-cards">
-            <div className="job-cart-info">
+            <div className="job-cart-info job-cart-info-primary">
               <span>Customer</span>
               <strong>{vehicle.customer.name}</strong>
               <small>{vehicle.customer.phone}</small>
@@ -124,6 +124,7 @@ export function WorkOrderForm({
           </div>
 
           <div className="job-cart-section">
+            <h3>Branch</h3>
             <BranchSelect branches={branches} selectedBranchId={vehicle.branchId} />
           </div>
 

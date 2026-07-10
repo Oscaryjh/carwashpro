@@ -91,6 +91,7 @@ export function PosPaymentPanel({
                       <strong>
                         {customerPackage.remainingUses}/{customerPackage.totalUses}
                       </strong>
+                      <small>{customerPackage.purchaseBranchName}</small>
                       <small>washes left</small>
                     </button>
                   );

@@ -6,6 +6,7 @@ import { PACKAGE_PAYMENT_PREVIEW_EVENT } from "@/components/pos-payment-preview"
 export type PackagePaymentOption = {
   id: string;
   packageName: string;
+  purchaseBranchName?: string;
   remainingUses: number;
   totalUses: number;
 };

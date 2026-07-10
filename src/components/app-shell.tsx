@@ -67,9 +67,19 @@ export async function AppShell({ user, children }: AppShellProps) {
       ? [
           {
             href: "/work-orders",
-            label: "POS",
-            shortLabel: "POS",
+            label: "Cashier",
+            shortLabel: "Cashier",
             icon: "jobs" as const,
+          },
+        ]
+      : []),
+    ...(isStoreUser && canSee("APPOINTMENTS")
+      ? [
+          {
+            href: "/appointments",
+            label: "Appointments",
+            shortLabel: "Appt",
+            icon: "appointments" as const,
           },
         ]
       : []),
@@ -86,6 +96,16 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
+    ...(isStoreUser && canSee("CLOSING")
+      ? [
+          {
+            href: "/closing",
+            label: "Shift Closing",
+            shortLabel: "Close",
+            icon: "reports" as const,
+          },
+        ]
+      : []),
     ...(isStoreUser && canSee("WHATSAPP")
       ? [
           {
@@ -97,7 +117,7 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isBusinessOwner
+    ...(isStoreUser && canSee("TEAM")
       ? [
           {
             href: "/team",
@@ -105,30 +125,50 @@ export async function AppShell({ user, children }: AppShellProps) {
             shortLabel: "Team",
             icon: "team" as const,
           },
+        ]
+      : []),
+    ...(isStoreUser && canSee("REPORTS")
+      ? [
           {
             href: "/reports",
             label: "Reports",
             shortLabel: "Rpt",
             icon: "reports" as const,
           },
+        ]
+      : []),
+    ...(isStoreUser && canSee("SERVICES")
+      ? [
           {
             href: "/services",
             label: "Services",
             shortLabel: "Svc",
             icon: "services" as const,
           },
+        ]
+      : []),
+    ...(isStoreUser && canSee("PACKAGES")
+      ? [
           {
             href: "/packages",
             label: "Packages",
             shortLabel: "Pkg",
             icon: "packages" as const,
           },
+        ]
+      : []),
+    ...(isStoreUser && canSee("BRANCHES")
+      ? [
           {
             href: "/branches",
             label: "Branches",
             shortLabel: "Br",
             icon: "branches" as const,
           },
+        ]
+      : []),
+    ...(isBusinessOwner
+      ? [
           {
             href: "/business/settings",
             label: "Company settings",

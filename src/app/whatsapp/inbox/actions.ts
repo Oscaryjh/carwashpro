@@ -5,16 +5,31 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
+import { getConnectorStatus } from "@/lib/whatsapp/connector-client";
 import { mergeDuplicateWhatsAppConversations } from "@/lib/whatsapp/conversation-merge";
+import { enqueueInboxReply } from "@/lib/whatsapp/inbox-reply";
 import {
-  enqueueWhatsAppStartSession,
-  enqueueWhatsAppTextMessage,
-} from "@/lib/whatsapp/worker-commands";
+  getDefaultWhatsAppInstanceId,
+  normalizeWhatsAppInstanceId,
+} from "@/lib/whatsapp/instance";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
 
 const sendMessageSchema = z.object({
   conversationId: z.string().uuid(),
   body: z.string().trim().min(1, "Message is required."),
+});
+
+const openCustomerChatSchema = z.object({
+  customerId: z.string().uuid(),
+});
+
+const linkConversationToCustomerSchema = z.object({
+  conversationId: z.string().uuid(),
+  customerId: z.string().uuid(),
+});
+
+const unlinkConversationCustomerSchema = z.object({
+  conversationId: z.string().uuid(),
 });
 
 export async function recordWhatsAppReplyAction(formData: FormData) {
@@ -28,13 +43,14 @@ export async function recordWhatsAppReplyAction(formData: FormData) {
     redirect("/whatsapp/inbox?type=error&message=Message%20is%20required");
   }
 
-  const connection = await prisma.whatsAppConnection.findUnique({
-    where: { businessId },
-    select: { status: true },
-  });
+  const connectorStatus = await readConnectorStatus();
 
-  if (connection?.status !== "CONNECTED") {
-    redirect("/whatsapp/inbox?type=error&message=Connect%20WhatsApp%20before%20sending");
+  if (connectorStatus !== "connected") {
+    redirect(
+      `/whatsapp/inbox?type=error&message=${encodeURIComponent(
+        getConnectionRequiredMessage(connectorStatus),
+      )}`,
+    );
   }
 
   const conversation = await prisma.whatsAppConversation.findFirst({
@@ -50,7 +66,7 @@ export async function recordWhatsAppReplyAction(formData: FormData) {
   }
 
   try {
-    await enqueueWhatsAppTextMessage({
+    await enqueueInboxReply({
       businessId,
       conversationId: conversation.id,
       body: parsed.data.body,
@@ -68,8 +84,227 @@ export async function recordWhatsAppReplyAction(formData: FormData) {
   redirect(`/whatsapp/inbox?conversation=${conversation.id}`);
 }
 
-export async function syncCrmCustomersToWhatsAppAction() {
+export async function openCrmCustomerWhatsAppAction(formData: FormData) {
   const { businessId } = await requireBusinessUser();
+  const parsed = openCustomerChatSchema.safeParse({
+    customerId: formData.get("customerId"),
+  });
+
+  if (!parsed.success) {
+    redirect("/whatsapp/inbox?type=error&message=Customer%20not%20found");
+  }
+
+  const customer = await prisma.customer.findFirst({
+    where: {
+      id: parsed.data.customerId,
+      businessId,
+    },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+    },
+  });
+
+  if (!customer) {
+    redirect("/whatsapp/inbox?type=error&message=Customer%20not%20found");
+  }
+
+  const phone = normalizeMalaysiaWhatsAppPhone(customer.phone);
+
+  if (!phone) {
+    redirect(
+      `/whatsapp/inbox?type=error&message=${encodeURIComponent(
+        "Customer has no valid WhatsApp phone number.",
+      )}`,
+    );
+  }
+  const instanceId = await getCurrentWhatsAppInstanceId();
+
+  const existingConversations = await prisma.whatsAppConversation.findMany({
+    where: {
+      businessId,
+      instanceId,
+      OR: [{ customerId: customer.id }, { phone }],
+    },
+    orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
+    take: 10,
+  });
+  const existingConversation = pickBestConversationForCustomer(
+    existingConversations,
+    customer.id,
+  );
+
+  if (existingConversation) {
+    await prisma.whatsAppConversation.update({
+      where: { id: existingConversation.id },
+      data: {
+        customerId: customer.id,
+        displayName: customer.name,
+        ...(isPhoneConversation(existingConversation.remoteJid, existingConversation.phone)
+          ? {
+              phone,
+              remoteJid: `${phone}@s.whatsapp.net`,
+            }
+          : {}),
+      },
+    });
+
+    revalidatePath("/whatsapp/inbox");
+    redirect(`/whatsapp/inbox?conversation=${existingConversation.id}`);
+  }
+
+  const conversation = await prisma.whatsAppConversation.create({
+    data: {
+      businessId,
+      instanceId,
+      customerId: customer.id,
+      phone,
+      remoteJid: `${phone}@s.whatsapp.net`,
+      displayName: customer.name,
+      lastMessageBody: null,
+      lastMessageAt: null,
+      unreadCount: 0,
+    },
+  });
+
+  revalidatePath("/whatsapp/inbox");
+  redirect(`/whatsapp/inbox?conversation=${conversation.id}`);
+}
+
+export async function linkWhatsAppConversationToCustomerAction(formData: FormData) {
+  const { businessId } = await requireBusinessUser();
+  const parsed = linkConversationToCustomerSchema.safeParse({
+    conversationId: formData.get("conversationId"),
+    customerId: formData.get("customerId"),
+  });
+
+  if (!parsed.success) {
+    redirect("/whatsapp/inbox?type=error&message=Customer%20or%20chat%20not%20found");
+  }
+
+  const [conversation, customer] = await Promise.all([
+    prisma.whatsAppConversation.findFirst({
+      where: {
+        id: parsed.data.conversationId,
+        businessId,
+      },
+    }),
+    prisma.customer.findFirst({
+      where: {
+        id: parsed.data.customerId,
+        businessId,
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+      },
+    }),
+  ]);
+
+  if (!conversation || !customer) {
+    redirect("/whatsapp/inbox?type=error&message=Customer%20or%20chat%20not%20found");
+  }
+
+  const phone = normalizeMalaysiaWhatsAppPhone(customer.phone);
+
+  if (!phone) {
+    redirect(
+      `/whatsapp/inbox?conversation=${conversation.id}&type=error&message=${encodeURIComponent(
+        "Customer has no valid WhatsApp phone number.",
+      )}`,
+    );
+  }
+
+  await prisma.whatsAppConversation.update({
+    where: { id: conversation.id },
+    data: {
+      customerId: customer.id,
+      displayName: customer.name,
+      ...(isPhoneConversation(conversation.remoteJid, conversation.phone)
+        ? {
+            phone,
+            remoteJid: `${phone}@s.whatsapp.net`,
+          }
+        : {}),
+    },
+  });
+
+  await prisma.whatsAppChatMessage.updateMany({
+    where: {
+      businessId,
+      conversationId: conversation.id,
+      customerId: null,
+    },
+    data: {
+      customerId: customer.id,
+    },
+  });
+
+  revalidatePath("/whatsapp/inbox");
+  redirect(
+    `/whatsapp/inbox?conversation=${conversation.id}&type=success&message=${encodeURIComponent(
+      "WhatsApp chat linked to CRM customer.",
+    )}`,
+  );
+}
+
+export async function unlinkWhatsAppConversationCustomerAction(formData: FormData) {
+  const { businessId } = await requireBusinessUser();
+  const parsed = unlinkConversationCustomerSchema.safeParse({
+    conversationId: formData.get("conversationId"),
+  });
+
+  if (!parsed.success) {
+    redirect("/whatsapp/inbox?type=error&message=WhatsApp%20chat%20not%20found");
+  }
+
+  const conversation = await prisma.whatsAppConversation.findFirst({
+    where: {
+      id: parsed.data.conversationId,
+      businessId,
+    },
+    select: {
+      id: true,
+      phone: true,
+    },
+  });
+
+  if (!conversation) {
+    redirect("/whatsapp/inbox?type=error&message=WhatsApp%20chat%20not%20found");
+  }
+
+  await prisma.$transaction([
+    prisma.whatsAppConversation.update({
+      where: { id: conversation.id },
+      data: {
+        customerId: null,
+        displayName: conversation.phone,
+      },
+    }),
+    prisma.whatsAppChatMessage.updateMany({
+      where: {
+        businessId,
+        conversationId: conversation.id,
+      },
+      data: {
+        customerId: null,
+      },
+    }),
+  ]);
+
+  revalidatePath("/whatsapp/inbox");
+  redirect(
+    `/whatsapp/inbox?conversation=${conversation.id}&type=success&message=${encodeURIComponent(
+      "WhatsApp chat unlinked from CRM customer.",
+    )}`,
+  );
+}
+
+export async function syncCrmCustomersToWhatsAppAction(formData?: FormData) {
+  const { businessId } = await requireBusinessUser();
+  const returnTo = formData?.get("returnTo")?.toString();
   const customers = await prisma.customer.findMany({
     where: { businessId },
     orderBy: { updatedAt: "desc" },
@@ -81,6 +316,7 @@ export async function syncCrmCustomersToWhatsAppAction() {
   });
 
   let syncedCount = 0;
+  const instanceId = await getCurrentWhatsAppInstanceId();
 
   for (const customer of customers) {
     const phone = normalizeMalaysiaWhatsAppPhone(customer.phone);
@@ -91,13 +327,15 @@ export async function syncCrmCustomersToWhatsAppAction() {
 
     await prisma.whatsAppConversation.upsert({
       where: {
-        businessId_phone: {
+        businessId_instanceId_phone: {
           businessId,
+          instanceId,
           phone,
         },
       },
       create: {
         businessId,
+        instanceId,
         customerId: customer.id,
         phone,
         remoteJid: `${phone}@s.whatsapp.net`,
@@ -118,27 +356,58 @@ export async function syncCrmCustomersToWhatsAppAction() {
   await mergeDuplicateWhatsAppConversations(businessId);
 
   revalidatePath("/whatsapp/inbox");
+  if (returnTo === "/whatsapp/settings") {
+    revalidatePath("/whatsapp/settings");
+  }
+
   redirect(
-    `/whatsapp/inbox?type=success&message=${encodeURIComponent(
+    `${returnTo === "/whatsapp/settings" ? "/whatsapp/settings" : "/whatsapp/inbox"}?type=success&message=${encodeURIComponent(
       `Synced ${syncedCount} CRM customers to WhatsApp inbox`,
     )}`,
   );
 }
 
 export async function refreshWhatsAppInboxConnectionAction(formData?: FormData) {
-  const { businessId } = await requireBusinessUser();
+  await requireBusinessUser();
   const conversationId = formData?.get("conversationId")?.toString();
   const basePath = conversationId
     ? `/whatsapp/inbox?conversation=${conversationId}`
     : "/whatsapp/inbox";
 
-  await enqueueWhatsAppStartSession(businessId);
+  await readConnectorStatus();
 
   revalidatePath("/whatsapp/inbox");
 
   redirect(
-    `${basePath}${basePath.includes("?") ? "&" : "?"}type=success&message=WhatsApp%20refresh%20queued`,
+    `${basePath}${basePath.includes("?") ? "&" : "?"}type=success&message=WhatsApp%20status%20refreshed`,
   );
+}
+
+async function readConnectorStatus() {
+  try {
+    return (await getConnectorStatus()).status;
+  } catch {
+    return "disconnected";
+  }
+}
+
+async function getCurrentWhatsAppInstanceId() {
+  try {
+    const status = await getConnectorStatus();
+    return normalizeWhatsAppInstanceId(
+      status.phoneNumber ?? getDefaultWhatsAppInstanceId(),
+    );
+  } catch {
+    return getDefaultWhatsAppInstanceId();
+  }
+}
+
+function getConnectionRequiredMessage(status: Awaited<ReturnType<typeof readConnectorStatus>>) {
+  if (status === "qr") {
+    return "Scan QR before sending WhatsApp messages.";
+  }
+
+  return "WhatsApp is disconnected.";
 }
 
 function getErrorMessage(error: unknown) {
@@ -155,4 +424,42 @@ function getErrorMessage(error: unknown) {
   } catch {
     return "";
   }
+}
+
+function isPhoneConversation(remoteJid: string | null, phone: string) {
+  return !remoteJid?.endsWith("@lid") && !phone.includes("@lid");
+}
+
+function pickBestConversationForCustomer<
+  T extends {
+    customerId: string | null;
+    remoteJid: string | null;
+    phone: string;
+    lastMessageAt: Date | null;
+    updatedAt: Date;
+  },
+>(conversations: T[], customerId: string) {
+  return [...conversations].sort(
+    (a, b) => scoreCustomerConversation(b, customerId) - scoreCustomerConversation(a, customerId),
+  )[0];
+}
+
+function scoreCustomerConversation(
+  conversation: {
+    customerId: string | null;
+    remoteJid: string | null;
+    phone: string;
+    lastMessageAt: Date | null;
+    updatedAt: Date;
+  },
+  customerId: string,
+) {
+  const activity = conversation.lastMessageAt ?? conversation.updatedAt;
+
+  return (
+    (conversation.customerId === customerId ? 1000 : 0) +
+    (conversation.remoteJid?.endsWith("@lid") ? 800 : 0) +
+    (isPhoneConversation(conversation.remoteJid, conversation.phone) ? 200 : 0) +
+    Math.floor(activity.getTime() / 1_000_000_000)
+  );
 }

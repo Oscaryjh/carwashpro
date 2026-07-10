@@ -3,9 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { resolveBranchId } from "@/lib/branches";
+import { resolveOperationalBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
-import { customerSchema, normalizePlateNumber, vehicleSchema } from "@/lib/validation/crm";
+import {
+  customerPhoneSearchVariants,
+  customerSchema,
+  normalizeCustomerPhone,
+  normalizePlateNumber,
+  vehicleSchema,
+} from "@/lib/validation/crm";
 import { money } from "@/lib/validation/services";
 import {
   canMoveWorkOrderStatus,
@@ -77,7 +83,11 @@ async function redirectToWorkOrderFormError(
 
 export async function createVehicleForWorkOrderAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser();
-  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
+  const branchId = await resolveOperationalBranchId(
+    businessId,
+    user,
+    formData.get("branchId"),
+  );
   const mode = formData.get("mode")?.toString();
   const plateNumber = normalizePlateNumber(
     formData.get("plateNumber")?.toString() ?? "",
@@ -155,7 +165,9 @@ export async function createVehicleForWorkOrderAction(formData: FormData) {
       let customer = await tx.customer.findFirst({
         where: {
           businessId,
-          phone: customerInput.phone,
+          phone: {
+            in: customerPhoneSearchVariants(customerInput.phone),
+          },
         },
       });
 
@@ -217,7 +229,11 @@ export async function createVehicleForWorkOrderAction(formData: FormData) {
 
 export async function createWorkOrderAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser();
-  const branchId = await resolveBranchId(businessId, formData.get("branchId"));
+  const branchId = await resolveOperationalBranchId(
+    businessId,
+    user,
+    formData.get("branchId"),
+  );
   const parsedInput = createWorkOrderSchema.safeParse({
     vehicleId: formData.get("vehicleId"),
     contactType: formData.get("contactType"),
@@ -254,6 +270,9 @@ export async function createWorkOrderAction(formData: FormData) {
     where: {
       id: input.vehicleId,
       businessId,
+      ...(user.role === "BUSINESS_OWNER"
+        ? {}
+        : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
     },
     include: {
       customer: true,
@@ -317,6 +336,9 @@ export async function createWorkOrderAction(formData: FormData) {
       where: {
         id: vehicle.id,
         businessId,
+        ...(user.role === "BUSINESS_OWNER"
+          ? {}
+          : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
       },
       include: {
         customer: true,
@@ -331,14 +353,16 @@ export async function createWorkOrderAction(formData: FormData) {
 
     if (input.contactType === "OTHER_PERSON") {
       contactName = input.contactName!;
-      contactPhone = input.contactPhone!;
+      contactPhone = normalizeCustomerPhone(input.contactPhone!);
     }
 
     if (input.contactType === "NEW_OWNER") {
       let newOwner = await tx.customer.findFirst({
         where: {
           businessId,
-          phone: input.newOwnerPhone!,
+          phone: {
+            in: customerPhoneSearchVariants(input.newOwnerPhone!),
+          },
         },
       });
 
@@ -348,7 +372,7 @@ export async function createWorkOrderAction(formData: FormData) {
             businessId,
             branchId,
             name: input.newOwnerName!,
-            phone: input.newOwnerPhone!,
+            phone: normalizeCustomerPhone(input.newOwnerPhone!),
           },
         });
         newOwnerForWelcome = {
@@ -452,6 +476,9 @@ export async function updateWorkOrderStatusAction(formData: FormData) {
     where: {
       id: input.workOrderId,
       businessId,
+      ...(user.role === "BUSINESS_OWNER"
+        ? {}
+        : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
     },
     include: {
       business: true,
@@ -467,7 +494,10 @@ export async function updateWorkOrderStatusAction(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     await tx.workOrder.update({
       where: { id: workOrder.id },
-      data: { status: input.status },
+      data: {
+        status: input.status,
+        ...(input.status === "COMPLETED" ? { pickedUpAt: new Date() } : {}),
+      },
     });
   });
 
@@ -484,7 +514,7 @@ export async function updateWorkOrderStatusAction(formData: FormData) {
 }
 
 export async function updateWorkOrderContactAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser();
   const workOrderId = formData.get("workOrderId")?.toString() ?? "";
   const parsedInput = updateWorkOrderContactSchema.safeParse({
     workOrderId: formData.get("workOrderId"),
@@ -506,6 +536,9 @@ export async function updateWorkOrderContactAction(formData: FormData) {
     where: {
       id: input.workOrderId,
       businessId,
+      ...(user.role === "BUSINESS_OWNER"
+        ? {}
+        : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
     },
     include: {
       customer: true,
@@ -528,7 +561,7 @@ export async function updateWorkOrderContactAction(formData: FormData) {
   const contactPhone =
     input.contactType === "REGISTERED_OWNER"
       ? workOrder.customer.phone
-      : input.contactPhone;
+      : normalizeCustomerPhone(input.contactPhone ?? "");
 
   await prisma.workOrder.update({
     where: {

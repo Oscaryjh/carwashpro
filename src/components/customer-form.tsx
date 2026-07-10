@@ -1,6 +1,7 @@
 import type { Customer } from "@prisma/client";
 import { BranchSelect } from "@/components/branch-select";
 import { UppercaseInput } from "@/components/uppercase-input";
+import { VehicleSelectFields } from "@/components/vehicle-select-fields";
 import type { BranchOption } from "@/lib/branches";
 
 type CustomerFormProps = {
@@ -8,7 +9,11 @@ type CustomerFormProps = {
   branches?: BranchOption[];
   customer?: Customer;
   mode?: "create" | "edit";
+  initialName?: string;
+  initialNotes?: string;
+  initialPhone?: string;
   initialVehiclePlate?: string;
+  whatsappConversationId?: string;
 };
 
 export function CustomerForm({
@@ -16,11 +21,22 @@ export function CustomerForm({
   branches = [],
   customer,
   mode = "create",
+  initialName = "",
+  initialNotes = "",
+  initialPhone = "",
   initialVehiclePlate = "",
+  whatsappConversationId,
 }: CustomerFormProps) {
   return (
     <form action={action} className="form">
       {customer ? <input type="hidden" name="customerId" value={customer.id} /> : null}
+      {whatsappConversationId ? (
+        <input
+          type="hidden"
+          name="whatsappConversationId"
+          value={whatsappConversationId}
+        />
+      ) : null}
       <div className="field-grid">
         <BranchSelect
           branches={branches}
@@ -28,11 +44,11 @@ export function CustomerForm({
         />
         <label>
           <span>Name</span>
-          <input name="name" defaultValue={customer?.name ?? ""} required />
+          <input name="name" defaultValue={customer?.name ?? initialName} required />
         </label>
         <label>
           <span>Phone</span>
-          <input name="phone" defaultValue={customer?.phone ?? ""} required />
+          <input name="phone" defaultValue={customer?.phone ?? initialPhone} required />
         </label>
         <label>
           <span>Email optional</span>
@@ -41,7 +57,7 @@ export function CustomerForm({
       </div>
       <label>
         <span>Notes optional</span>
-        <textarea name="notes" rows={3} defaultValue={customer?.notes ?? ""} />
+        <textarea name="notes" rows={3} defaultValue={customer?.notes ?? initialNotes} />
       </label>
 
       {mode === "create" ? (
@@ -57,18 +73,7 @@ export function CustomerForm({
                 autoComplete="off"
               />
             </label>
-            <label>
-              <span>Brand optional</span>
-              <input name="brand" />
-            </label>
-            <label>
-              <span>Model optional</span>
-              <input name="model" />
-            </label>
-            <label>
-              <span>Color optional</span>
-              <input name="color" />
-            </label>
+            <VehicleSelectFields />
           </div>
           <label>
             <span>Vehicle notes optional</span>

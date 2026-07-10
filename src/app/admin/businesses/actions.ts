@@ -97,9 +97,13 @@ export async function updateBusinessAction(formData: FormData) {
 
   assertCanManageBusiness(user, businessId);
 
-  const current = await prisma.business.findUniqueOrThrow({
+  const current = await prisma.business.findUnique({
     where: { id: businessId },
   });
+
+  if (!current) {
+    throw new Error("Business not found, please login again");
+  }
 
   const parsed = businessSchema.parse({
     name: formData.get("name"),

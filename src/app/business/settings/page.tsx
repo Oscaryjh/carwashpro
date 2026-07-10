@@ -4,7 +4,7 @@ import { assertRole } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 import { requireBusinessContext } from "@/lib/tenant";
 import { updateBusinessAction } from "@/app/admin/businesses/actions";
-import { updateOwnerProfileAction } from "./actions";
+import Link from "next/link";
 
 type BusinessSettingsPageProps = {
   searchParams: Promise<{
@@ -17,22 +17,23 @@ export default async function BusinessSettingsPage({
 }: BusinessSettingsPageProps) {
   const context = await requireBusinessContext();
   assertRole(context.user, ["BUSINESS_OWNER"]);
-  const params = await searchParams;
+  await searchParams;
 
-  const [business, profile] = await Promise.all([
-    prisma.business.findUniqueOrThrow({
-      where: { id: context.businessId },
-    }),
-    prisma.user.findFirstOrThrow({
-      where: {
-        id: context.user.userId,
-        businessId: context.businessId,
-      },
-      select: {
-        whatsappPhone: true,
-      },
-    }),
-  ]);
+  const business = await prisma.business.findUnique({
+    where: { id: context.businessId },
+  });
+
+  if (!business) {
+    return (
+      <AppShell user={context.user}>
+        <section className="content">
+          <div className="panel">
+            <h1>Business not found, please login again</h1>
+          </div>
+        </section>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell user={context.user}>
@@ -42,6 +43,11 @@ export default async function BusinessSettingsPage({
             <h1>Company settings</h1>
             <p>Manage your company profile.</p>
           </div>
+          <div className="inline-actions">
+            <Link className="secondary-link-button" href="/business/settings/logs">
+              Staff logs
+            </Link>
+          </div>
         </div>
 
         <div className="panel">
@@ -50,31 +56,6 @@ export default async function BusinessSettingsPage({
             mode="edit"
             business={business}
           />
-        </div>
-
-        <div className="panel">
-          <div className="section-header">
-            <h2>Owner WhatsApp</h2>
-            {params.saved === "profile" ? (
-              <span className="status">saved</span>
-            ) : null}
-          </div>
-          <form action={updateOwnerProfileAction} className="form">
-            <div className="field-grid">
-              <label>
-                <span>Your WhatsApp Number</span>
-                <input
-                  defaultValue={profile.whatsappPhone ?? ""}
-                  inputMode="numeric"
-                  name="whatsappPhone"
-                  placeholder="60123456789"
-                />
-              </label>
-            </div>
-            <div className="form-actions">
-              <button type="submit">Save WhatsApp Number</button>
-            </div>
-          </form>
         </div>
       </section>
     </AppShell>

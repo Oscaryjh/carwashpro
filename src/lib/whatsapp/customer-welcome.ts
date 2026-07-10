@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { getDefaultWhatsAppInstanceId } from "@/lib/whatsapp/instance";
 import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
@@ -59,15 +60,19 @@ export async function sendNewCustomerWelcomeIfConnected(
     },
   });
 
+  const instanceId = getDefaultWhatsAppInstanceId();
+
   await prisma.whatsAppConversation.upsert({
     where: {
-      businessId_phone: {
+      businessId_instanceId_phone: {
         businessId: input.businessId,
+        instanceId,
         phone: recipientPhone,
       },
     },
     create: {
       businessId: input.businessId,
+      instanceId,
       customerId: input.customerId,
       phone: recipientPhone,
       remoteJid: `${recipientPhone}@s.whatsapp.net`,

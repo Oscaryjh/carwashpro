@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
+import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import { branchWhere, getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { getBusinessContext } from "@/lib/tenant";
@@ -13,6 +14,8 @@ type DashboardPageProps = {
 };
 
 type DashboardRange = "today" | "7days" | "month";
+
+const NO_BRANCH_ACCESS_ID = "00000000-0000-0000-0000-000000000000";
 
 export default async function DashboardPage({
   searchParams,
@@ -58,8 +61,17 @@ export default async function DashboardPage({
   const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
   const branches = await getActiveBranches(businessId);
-  const selectedBranch = branches.find((branch) => branch.id === params.branchId);
-  const selectedBranchId = selectedBranch?.id ?? null;
+  const canViewAllBranches = hasStaffPermission(context.user, "ALL_BRANCHES");
+  const staffBranch = context.user.branchId
+    ? branches.find((branch) => branch.id === context.user.branchId)
+    : null;
+  const selectableBranches = canViewAllBranches ? branches : staffBranch ? [staffBranch] : [];
+  const selectedBranch = canViewAllBranches
+    ? branches.find((branch) => branch.id === params.branchId)
+    : staffBranch;
+  const selectedBranchId = canViewAllBranches
+    ? selectedBranch?.id ?? null
+    : staffBranch?.id ?? NO_BRANCH_ACCESS_ID;
   const selectedBranchWhere = branchWhere(selectedBranchId);
 
   const [
@@ -80,7 +92,7 @@ export default async function DashboardPage({
     recentPayments,
     lowPackageBalanceCustomers,
   ] = await Promise.all([
-    prisma.business.findUniqueOrThrow({ where: { id: businessId } }),
+    prisma.business.findUnique({ where: { id: businessId } }),
     prisma.payment.aggregate({
       where: {
         businessId,
@@ -118,7 +130,7 @@ export default async function DashboardPage({
         businessId,
         ...selectedBranchWhere,
         status: "COMPLETED",
-        updatedAt: { gte: fromDate, lt: toDateExclusive },
+        pickedUpAt: { gte: fromDate, lt: toDateExclusive },
       },
     }),
     prisma.workOrder.count({
@@ -239,6 +251,19 @@ export default async function DashboardPage({
     }),
   ]);
 
+  if (!business) {
+    return (
+      <AppShell user={context.user}>
+        <section className="content">
+          <div className="panel">
+            <h1>Business not found, please login again</h1>
+            <Link href="/login">Back to login</Link>
+          </div>
+        </section>
+      </AppShell>
+    );
+  }
+
   const totalSales =
     Number(serviceSales._sum.amount ?? 0) + Number(packageSales._sum.amount ?? 0);
 
@@ -249,18 +274,24 @@ export default async function DashboardPage({
           <div>
             <h1>{business.name}</h1>
           </div>
-          <form className="dashboard-branch-filter" action="/dashboard">
-            <input type="hidden" name="range" value={activeRange} />
-            <select name="branchId" defaultValue={selectedBranchId ?? ""}>
-              <option value="">All branches</option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
-            <button type="submit">Filter</button>
-          </form>
+          {canViewAllBranches ? (
+            <form className="dashboard-branch-filter" action="/dashboard">
+              <input type="hidden" name="range" value={activeRange} />
+              <select name="branchId" defaultValue={selectedBranchId ?? ""}>
+                <option value="">All branches</option>
+                {selectableBranches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+              <button type="submit">Filter</button>
+            </form>
+          ) : (
+            <div className="dashboard-branch-lock">
+              {staffBranch?.name ?? "No active branch assigned"}
+            </div>
+          )}
         </div>
 
         <div className="dashboard-range-tabs">

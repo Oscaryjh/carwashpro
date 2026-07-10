@@ -3,14 +3,14 @@ import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { ServiceForm } from "@/components/service-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { assertRole } from "@/lib/auth/permissions";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { createServiceAction } from "../actions";
 
 export default async function NewServicePage() {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "SERVICES");
 
   const [branches, categories] = await Promise.all([
     getActiveBranches(businessId),

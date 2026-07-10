@@ -1,34 +1,51 @@
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
-import { assertRole } from "@/lib/auth/permissions";
-import {
-  defaultStaffPermissions,
-  staffPermissions,
-} from "@/lib/auth/staff-permissions";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
-import { createStaffAction, updateStaffAction } from "./actions";
 
 type TeamPageProps = {
   searchParams: Promise<{
     message?: string;
+    q?: string;
     type?: string;
   }>;
 };
 
 export default async function TeamPage({ searchParams }: TeamPageProps) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "TEAM");
 
   const params = await searchParams;
   const message = params.message;
   const messageType = params.type === "error" ? "error" : "success";
-  const staff = await prisma.user.findMany({
-    where: {
-      businessId,
-      role: "STAFF",
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const query = params.q?.trim() ?? "";
+  const [staff, branches] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        businessId,
+        role: "STAFF",
+        ...(query
+          ? {
+              OR: [
+                { name: { contains: query, mode: "insensitive" as const } },
+                { email: { contains: query, mode: "insensitive" as const } },
+                { whatsappPhone: { contains: query, mode: "insensitive" as const } },
+                { branch: { name: { contains: query, mode: "insensitive" as const } } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        branch: {
+          select: { id: true, name: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    getActiveBranches(businessId),
+  ]);
 
   return (
     <AppShell user={user}>
@@ -36,146 +53,88 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         <div className="page-header">
           <div>
             <h1>Team</h1>
-            <p>Manage staff login access and module permissions for this business.</p>
+            <p>Manage staff accounts, branch assignment, and access permissions.</p>
+          </div>
+          <div className="inline-actions">
+            <Link className="secondary-link-button" href="/branches/new">
+              Add branch
+            </Link>
+            <Link className="button-link" href="/team/new">
+              Create staff
+            </Link>
           </div>
         </div>
 
         {message ? <div className={messageType}>{message}</div> : null}
 
-        <div className="panel">
-          <div className="section-header">
-            <h2>Create staff</h2>
+        {!branches.length ? (
+          <div className="warning">
+            Create an active branch before adding staff. Staff POS, jobs, checkout, and
+            shift closing are tied to their assigned branch.
           </div>
-          <form className="form" action={createStaffAction}>
-            <div className="field-grid">
-              <label>
-                <span>Name</span>
-                <input name="name" required />
-              </label>
-              <label>
-                <span>Email</span>
-                <input name="email" type="email" required />
-              </label>
-              <label>
-                <span>WhatsApp Number</span>
-                <input
-                  inputMode="numeric"
-                  name="whatsappPhone"
-                  placeholder="60123456789"
-                />
-              </label>
-              <label>
-                <span>Password</span>
-                <input name="password" type="password" minLength={8} required />
-              </label>
-            </div>
-            <PermissionChecklist defaultPermissions={defaultStaffPermissions} />
-            <div className="form-actions">
-              <button type="submit">Create staff</button>
-            </div>
-          </form>
-        </div>
+        ) : null}
 
         <div className="panel">
+          <form className="search-form team-search-form" action="/team">
+            <input
+              name="q"
+              defaultValue={query}
+              placeholder="Search name, email, phone, or branch"
+            />
+            <button type="submit">Search</button>
+            {query ? (
+              <Link className="secondary-light-button clear-filter-link" href="/team">
+                Clear
+              </Link>
+            ) : null}
+          </form>
           <div className="section-header">
             <h2>Staff accounts</h2>
+            <span className="status">{staff.length} staff</span>
           </div>
           {staff.length ? (
-            <div className="team-list">
-              {staff.map((staffUser, index) => (
-                <form
-                  action={updateStaffAction}
-                  className="team-member-card"
-                  key={staffUser.id}
-                >
-                  <input type="hidden" name="userId" value={staffUser.id} />
-                  <div className="team-member-header">
-                    <span className="table-number">{index + 1}</span>
-                    <div>
+            <table className="table team-table">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Name</th>
+                  <th>Email / Login ID</th>
+                  <th>Branch</th>
+                  <th>Permissions</th>
+                  <th>Status</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {staff.map((staffUser, index) => (
+                  <tr key={staffUser.id}>
+                    <td className="table-number">{index + 1}</td>
+                    <td>
                       <strong>{staffUser.name}</strong>
-                      <div className="muted">{staffUser.email}</div>
-                    </div>
-                    <span className="status">{staffUser.status}</span>
-                  </div>
-                  <div className="field-grid">
-                    <label>
-                      <span>Name</span>
-                      <input name="name" defaultValue={staffUser.name} required />
-                    </label>
-                    <label>
-                      <span>Email</span>
-                      <input
-                        name="email"
-                        type="email"
-                        defaultValue={staffUser.email}
-                        required
-                      />
-                    </label>
-                    <label>
-                      <span>WhatsApp Number</span>
-                      <input
-                        defaultValue={staffUser.whatsappPhone ?? ""}
-                        inputMode="numeric"
-                        name="whatsappPhone"
-                        placeholder="60123456789"
-                      />
-                    </label>
-                    <label>
-                      <span>Status</span>
-                      <select name="status" defaultValue={staffUser.status}>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                      </select>
-                    </label>
-                    <label>
-                      <span>New password optional</span>
-                      <input
-                        name="password"
-                        type="password"
-                        minLength={8}
-                        placeholder="Leave blank to keep current"
-                      />
-                    </label>
-                  </div>
-                  <PermissionChecklist defaultPermissions={staffUser.permissions} />
-                  <div className="form-actions">
-                    <button type="submit">Save</button>
-                  </div>
-                </form>
-              ))}
-            </div>
+                      {staffUser.whatsappPhone ? (
+                        <span className="muted">WA {staffUser.whatsappPhone}</span>
+                      ) : null}
+                    </td>
+                    <td>{staffUser.email}</td>
+                    <td>{staffUser.branch?.name ?? "No branch"}</td>
+                    <td>{staffUser.permissions.length}</td>
+                    <td>
+                      <span className="status">{staffUser.status}</span>
+                    </td>
+                    <td>
+                      <Link href={`/team/${staffUser.id}`}>Edit</Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : (
-            <p className="empty-state">No staff accounts yet.</p>
+            <p className="empty-state">
+              {query ? "No staff match this search." : "No staff accounts yet."}
+            </p>
           )}
         </div>
       </section>
     </AppShell>
-  );
-}
-
-function PermissionChecklist({
-  defaultPermissions,
-}: {
-  defaultPermissions: string[];
-}) {
-  const selected = new Set(defaultPermissions);
-
-  return (
-    <div className="permission-grid">
-      {staffPermissions.map((permission) => (
-        <label className="permission-card" key={permission.key}>
-          <input
-            defaultChecked={selected.has(permission.key)}
-            name="permissions"
-            type="checkbox"
-            value={permission.key}
-          />
-          <span>
-            <strong>{permission.label}</strong>
-            <small>{permission.description}</small>
-          </span>
-        </label>
-      ))}
-    </div>
   );
 }

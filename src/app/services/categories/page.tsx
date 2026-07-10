@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { assertRole } from "@/lib/auth/permissions";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import {
   createServiceCategoryAction,
@@ -20,7 +20,7 @@ export default async function ServiceCategoriesPage({
   searchParams,
 }: ServiceCategoriesPageProps) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "SERVICES");
 
   const params = await searchParams;
   const message = params.message;

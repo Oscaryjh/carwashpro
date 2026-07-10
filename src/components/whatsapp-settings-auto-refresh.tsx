@@ -6,11 +6,21 @@ import { useRouter } from "next/navigation";
 type WhatsAppSettingsAutoRefreshProps = {
   enabled: boolean;
   intervalMs?: number;
+  status:
+    | "starting"
+    | "connecting"
+    | "qr"
+    | "connected"
+    | "session_expired"
+    | "disconnected"
+    | "reconnecting"
+    | "error";
 };
 
 export function WhatsAppSettingsAutoRefresh({
   enabled,
   intervalMs = 2000,
+  status,
 }: WhatsAppSettingsAutoRefreshProps) {
   const router = useRouter();
 
@@ -24,7 +34,7 @@ export function WhatsAppSettingsAutoRefresh({
     }, intervalMs);
 
     return () => window.clearInterval(timer);
-  }, [enabled, intervalMs, router]);
+  }, [enabled, intervalMs, router, status]);
 
   return null;
 }

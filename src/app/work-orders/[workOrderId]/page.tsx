@@ -5,8 +5,12 @@ import { BackButton } from "@/components/back-button";
 import { SendWhatsAppButton } from "@/components/send-whatsapp-button";
 import { WorkOrderContactForm } from "@/components/work-order-contact-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
-import { canMoveWorkOrderStatus } from "@/lib/validation/work-orders";
+import {
+  canMoveWorkOrderStatus,
+  formatOrderNumber,
+} from "@/lib/validation/work-orders";
 import {
   updateWorkOrderContactAction,
   updateWorkOrderStatusAction,
@@ -33,6 +37,9 @@ export default async function WorkOrderDetailsPage({
     where: {
       id: workOrderId,
       businessId,
+      ...(user.role === "BUSINESS_OWNER"
+        ? {}
+        : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
     },
     include: {
       customer: true,
@@ -64,7 +71,7 @@ export default async function WorkOrderDetailsPage({
       <section className="content">
         <div className="page-header">
           <div>
-            <h1>{workOrder.orderNumber}</h1>
+            <h1>{formatOrderNumber(workOrder.orderNumber)}</h1>
             <p>{formatStatus(workOrder.status)}</p>
           </div>
           <BackButton fallbackHref="/work-orders" />
@@ -87,6 +94,9 @@ export default async function WorkOrderDetailsPage({
           <Info label="Paid" value={Number(workOrder.paidAmount).toFixed(2)} />
           <Info label="Balance" value={Number(workOrder.balance).toFixed(2)} />
           <Info label="Payment" value={formatStatus(workOrder.paymentStatus)} />
+          {workOrder.pickedUpAt ? (
+            <Info label="Picked up" value={formatDateTime(workOrder.pickedUpAt)} />
+          ) : null}
         </div>
 
         <WorkOrderContactForm
@@ -106,7 +116,7 @@ export default async function WorkOrderDetailsPage({
                   <form action={updateWorkOrderStatusAction} key={status}>
                     <input type="hidden" name="workOrderId" value={workOrder.id} />
                     <input type="hidden" name="status" value={status} />
-                    <button type="submit">{formatStatus(status)}</button>
+                    <button type="submit">{statusActionLabel(status)}</button>
                   </form>
                 ) : null,
             )}
@@ -126,7 +136,7 @@ export default async function WorkOrderDetailsPage({
             ) : null}
             {workOrder.invoice ? (
               <Link href={`/invoices/${workOrder.invoice.id}`}>
-                View invoice {workOrder.invoice.invoiceNumber}
+                View invoice {formatInvoiceNumber(workOrder.invoice.invoiceNumber)}
               </Link>
             ) : null}
           </div>
@@ -212,6 +222,28 @@ function Info({ label, value }: { label: string; value: string }) {
 
 function formatStatus(status: string) {
   return status.toLowerCase().replaceAll("_", " ");
+}
+
+function statusActionLabel(nextStatus: string) {
+  if (nextStatus === "READY_FOR_PICKUP") {
+    return "Ready for pickup";
+  }
+
+  if (nextStatus === "COMPLETED") {
+    return "Vehicle Collected";
+  }
+
+  return formatStatus(nextStatus);
+}
+
+function formatDateTime(date: Date) {
+  return date.toLocaleString("en-MY", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function vehicleLabel(vehicle: { plateNumber: string; brand: string | null; model: string | null; color: string | null }) {

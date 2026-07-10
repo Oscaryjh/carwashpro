@@ -6,6 +6,8 @@ import { BackButton } from "@/components/back-button";
 import { SendWhatsAppButton } from "@/components/send-whatsapp-button";
 import { VoidInvoiceForm } from "@/components/void-invoice-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
+import { getInvoicePaymentSummary } from "@/lib/invoices/payment-summary";
 import { prisma } from "@/lib/prisma";
 
 type InvoiceDetailsPageProps = {
@@ -53,8 +55,10 @@ export default async function InvoiceDetailsPage({
   }
 
   const packagePayments = invoice.workOrder.payments.filter(
-    (payment) => payment.method === "PACKAGE",
+    (payment) => payment.method === "PACKAGE" && payment.status !== "VOID",
   );
+  const paymentSummary = getInvoicePaymentSummary(invoice.workOrder.payments);
+  const displayInvoiceNumber = formatInvoiceNumber(invoice.invoiceNumber);
 
   return (
     <AppShell user={user}>
@@ -68,7 +72,14 @@ export default async function InvoiceDetailsPage({
 
         <div className="pos-receipt-panel panel">
           <div className="invoice-receipt-actions">
+            <Link
+              className="secondary-link-button invoice-action-button"
+              href={`/invoices/${invoice.id}/pdf`}
+            >
+              Download PDF
+            </Link>
             <SendWhatsAppButton
+              className="button-link invoice-action-button"
               invoiceId={invoice.id}
               label="Send Invoice WhatsApp"
               messageType="INVOICE_SENT"
@@ -76,7 +87,7 @@ export default async function InvoiceDetailsPage({
           </div>
           <div className="pos-receipt-company">
             {invoice.business.logoUrl ? (
-              <Image src={invoice.business.logoUrl} alt="" width={58} height={58} />
+              <Image src={invoice.business.logoUrl} alt="" width={72} height={72} />
             ) : (
               <div className="pos-receipt-logo-placeholder">
                 {invoice.business.name.slice(0, 1)}
@@ -97,7 +108,7 @@ export default async function InvoiceDetailsPage({
           <div className="pos-receipt-header">
             <div>
               <span>Invoice No.</span>
-              <strong className="pos-receipt-number">{invoice.invoiceNumber}</strong>
+              <strong className="pos-receipt-number">{displayInvoiceNumber}</strong>
               <small>{invoice.issuedAt.toLocaleDateString("en-MY")}</small>
             </div>
             <div>
@@ -144,10 +155,23 @@ export default async function InvoiceDetailsPage({
               <span>Total</span>
               <strong>RM{Number(invoice.total).toFixed(2)}</strong>
             </div>
-            <div>
-              <span>Paid</span>
-              <strong>RM{Number(invoice.paidAmount).toFixed(2)}</strong>
-            </div>
+            {paymentSummary.hasPackageVoucher ? (
+              <>
+                <div>
+                  <span>Package voucher</span>
+                  <strong>RM{paymentSummary.packageVoucherAmount.toFixed(2)}</strong>
+                </div>
+                <div>
+                  <span>Cash paid</span>
+                  <strong>RM{paymentSummary.cashPaidAmount.toFixed(2)}</strong>
+                </div>
+              </>
+            ) : (
+              <div>
+                <span>Paid</span>
+                <strong>RM{Number(invoice.paidAmount).toFixed(2)}</strong>
+              </div>
+            )}
             <div className="is-balance">
               <span>Balance</span>
               <strong>RM{Number(invoice.balance).toFixed(2)}</strong>
@@ -221,7 +245,7 @@ export default async function InvoiceDetailsPage({
             </p>
             <VoidInvoiceForm
               invoiceId={invoice.id}
-              invoiceNumber={invoice.invoiceNumber}
+              invoiceNumber={displayInvoiceNumber}
             />
           </div>
         )}

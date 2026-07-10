@@ -4,7 +4,7 @@ import { BackButton } from "@/components/back-button";
 import { DeletePackageForm } from "@/components/delete-package-form";
 import { PackageForm } from "@/components/package-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { assertRole } from "@/lib/auth/permissions";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { updatePackageAction } from "../actions";
@@ -19,7 +19,7 @@ export default async function PackageDetailsPage({
   params,
 }: PackageDetailsPageProps) {
   const { user, businessId } = await requireBusinessUser();
-  assertRole(user, ["BUSINESS_OWNER"]);
+  assertStaffPermission(user, "PACKAGES");
 
   const { packageId } = await params;
 

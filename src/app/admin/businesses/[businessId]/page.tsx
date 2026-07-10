@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { AdminResetPasswordForm } from "@/components/admin-reset-password-form";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
@@ -21,7 +22,7 @@ export default async function BusinessDetailsPage({
   assertRole(user, ["PLATFORM_ADMIN"]);
   assertCanAccessBusiness(user, businessId);
 
-  const business = await prisma.business.findUniqueOrThrow({
+  const business = await prisma.business.findUnique({
     where: { id: businessId },
     include: {
       users: {
@@ -29,6 +30,10 @@ export default async function BusinessDetailsPage({
       },
     },
   });
+
+  if (!business) {
+    notFound();
+  }
 
   return (
     <AppShell user={user}>

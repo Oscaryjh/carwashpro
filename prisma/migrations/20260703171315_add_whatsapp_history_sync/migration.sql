@@ -1,0 +1,3 @@
+-- This migration was generated after the hand-written history sync migration
+-- had already been applied locally, but its timestamp sorts earlier.
+-- Keep it as a no-op so fresh shadow databases apply migrations in order.
