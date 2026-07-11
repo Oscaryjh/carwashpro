@@ -134,7 +134,7 @@ export async function createAppointmentAction(formData: FormData) {
     });
   }
 
-  const appointment = await prisma.appointment.create({
+  await prisma.appointment.create({
     data: {
       businessId,
       branchId: appointmentBranchId,
