@@ -40,6 +40,7 @@ export type ConnectorState = {
 };
 
 export type SendRequestBody = {
+  businessId?: unknown;
   audioBase64?: unknown;
   audioMimeType?: unknown;
   audioFileName?: unknown;

@@ -6,7 +6,7 @@ import { WhatsAppSessionRecovery } from "@/components/whatsapp-settings-session-
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import {
   getConnectorStatus,
-  getWhatsAppConnectorUrl,
+  getConnectorQrProxyPath,
   type ConnectorStatus,
 } from "@/lib/whatsapp/connector-client";
 import {
@@ -26,12 +26,11 @@ type WhatsAppSettingsPageProps = {
 export default async function WhatsAppSettingsPage({
   searchParams,
 }: WhatsAppSettingsPageProps) {
-  const { user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser();
   const params = await searchParams;
   const message = params.message;
   const messageType = params.type === "error" ? "error" : "success";
-  const connectorUrl = getWhatsAppConnectorUrl();
-  const connectorState = await readConnectorState();
+  const connectorState = await readConnectorState(businessId);
   const status = connectorState.status.status;
   const isConnected = status === "connected";
   const isQr = status === "qr";
@@ -40,7 +39,7 @@ export default async function WhatsAppSettingsPage({
     status === "connecting" ||
     status === "reconnecting" ||
     status === "starting";
-  const qrImageUrl = `${connectorUrl}/qr/image?refresh=${Date.now()}`;
+  const qrImageUrl = `${getConnectorQrProxyPath()}?refresh=${Date.now()}`;
   const sessionWarning =
     connectorState.status.sessionHealth.ok === false
       ? connectorState.status.sessionHealth.message ??
@@ -195,13 +194,13 @@ export default async function WhatsAppSettingsPage({
   );
 }
 
-async function readConnectorState(): Promise<{
+async function readConnectorState(businessId: string): Promise<{
   status: ConnectorStatus;
   errorMessage: string | null;
 }> {
   try {
     return {
-      status: await getConnectorStatus(),
+      status: await getConnectorStatus(businessId),
       errorMessage: null,
     };
   } catch (error) {

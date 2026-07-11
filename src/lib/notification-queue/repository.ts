@@ -170,7 +170,10 @@ export async function markDeliveryStatus(input: MarkNotificationDeliveryInput) {
 
   return prisma.$transaction(async (tx) => {
     const queueItems = await tx.notificationQueue.findMany({
-      where: { providerMessageId: input.providerMessageId },
+      where: {
+        businessId: input.businessId,
+        providerMessageId: input.providerMessageId,
+      },
       select: { id: true, messageLogId: true, status: true },
     });
 
@@ -207,6 +210,7 @@ export async function markDeliveryStatus(input: MarkNotificationDeliveryInput) {
 
     await tx.whatsAppChatMessage.updateMany({
       where: {
+        businessId: input.businessId,
         externalMessageId: input.providerMessageId,
         ...(input.instanceId ? { instanceId: input.instanceId } : {}),
         status: getChatMessageStatusFilter(input.status),
@@ -448,7 +452,8 @@ async function syncMessageLogToInbox(
 
   await tx.whatsAppChatMessage.upsert({
     where: {
-      instanceId_externalMessageId: {
+      businessId_instanceId_externalMessageId: {
+        businessId: messageLog.businessId,
         instanceId,
         externalMessageId: providerMessageId,
       },

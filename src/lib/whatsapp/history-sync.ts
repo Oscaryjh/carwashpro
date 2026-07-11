@@ -57,12 +57,16 @@ export async function syncWhatsAppHistory(input: WhatsAppHistorySyncInput) {
     let contactCount = 0;
     let chatCount = 0;
     let messageCount = 0;
+    let skippedContacts = 0;
+    let skippedChats = 0;
+    let skippedMessages = 0;
 
     for (const contact of contacts) {
       const remoteJid = contact.id?.trim();
       const phone = jidToPhone(remoteJid);
 
       if (!phone) {
+        skippedContacts += 1;
         continue;
       }
 
@@ -86,17 +90,17 @@ export async function syncWhatsAppHistory(input: WhatsAppHistorySyncInput) {
       const phone = jidToPhone(remoteJid);
 
       if (!phone) {
+        skippedChats += 1;
         continue;
       }
 
-      await upsertConversation(tx, {
+      await upsertContact(tx, {
         businessId,
         instanceId,
         phone,
         remoteJid,
         displayName: chat.name?.trim() || phone,
-        unreadCount: Math.max(chat.unreadCount ?? 0, 0),
-        lastMessageAt: parseBaileysTimestamp(chat.conversationTimestamp),
+        rawJson: chat.rawJson ?? chat,
       });
       chatCount += 1;
     }
@@ -110,6 +114,8 @@ export async function syncWhatsAppHistory(input: WhatsAppHistorySyncInput) {
 
       if (result) {
         messageCount += 1;
+      } else {
+        skippedMessages += 1;
       }
     }
 
@@ -117,6 +123,9 @@ export async function syncWhatsAppHistory(input: WhatsAppHistorySyncInput) {
       contacts: contactCount,
       chats: chatCount,
       messages: messageCount,
+      skippedContacts,
+      skippedChats,
+      skippedMessages,
       syncType: input.syncType ?? "unknown",
     };
   });
@@ -134,6 +143,10 @@ async function upsertHistoryMessage(
   const remoteJid = input.message.key?.remoteJid?.trim();
 
   if (!messageId || !remoteJid) {
+    return false;
+  }
+
+  if (isGroupJid(remoteJid) || isLidJid(remoteJid)) {
     return false;
   }
 
@@ -180,7 +193,8 @@ async function upsertHistoryMessage(
 
   await tx.whatsAppChatMessage.upsert({
     where: {
-      instanceId_externalMessageId: {
+      businessId_instanceId_externalMessageId: {
+        businessId: input.businessId,
         instanceId: input.instanceId,
         externalMessageId: messageId,
       },
@@ -349,6 +363,10 @@ function jidToPhone(jid: string | null | undefined) {
     return null;
   }
 
+  if (isGroupJid(jid) || isLidJid(jid)) {
+    return null;
+  }
+
   const user = jid.split("@")[0]?.split(":")[0] ?? "";
   const numericPhone = normalizeMalaysiaWhatsAppPhone(user);
 
@@ -356,7 +374,15 @@ function jidToPhone(jid: string | null | undefined) {
     return numericPhone;
   }
 
-  return user || null;
+  return /^\+?\d+$/.test(user) ? user : null;
+}
+
+function isGroupJid(jid: string | null | undefined) {
+  return jid?.endsWith("@g.us") ?? false;
+}
+
+function isLidJid(jid: string | null | undefined) {
+  return jid?.endsWith("@lid") ?? false;
 }
 
 function parseBaileysTimestamp(timestamp: unknown) {

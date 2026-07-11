@@ -28,6 +28,7 @@ export type MarkNotificationSentInput = {
 };
 
 export type MarkNotificationDeliveryInput = {
+  businessId: string;
   instanceId?: string | null;
   providerMessageId: string;
   status: "DELIVERED" | "READ" | "FAILED";

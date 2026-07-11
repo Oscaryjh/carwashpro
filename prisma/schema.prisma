@@ -512,38 +512,38 @@ model WorkOrder {
 }
 
 model Appointment {
-  id          String            @id @default(uuid()) @db.Uuid
-  businessId  String            @map("business_id") @db.Uuid
-  branchId    String?           @map("branch_id") @db.Uuid
-  customerId  String            @map("customer_id") @db.Uuid
-  vehicleId   String            @map("vehicle_id") @db.Uuid
-  serviceId   String?           @map("service_id") @db.Uuid
-  serviceIds  String[]          @default([]) @map("service_ids")
-  workOrderId String?           @unique @map("work_order_id") @db.Uuid
-  createdById String?           @map("created_by_id") @db.Uuid
-  assignedStaffId String?       @map("assigned_staff_id") @db.Uuid
-  contactType WorkOrderContactType @default(REGISTERED_OWNER) @map("contact_type")
-  contactName String?           @map("contact_name")
-  contactPhone String?          @map("contact_phone")
-  scheduledAt DateTime          @map("scheduled_at")
-  status      AppointmentStatus @default(SCHEDULED)
-  notes       String?
-  confirmedAt DateTime?         @map("confirmed_at")
-  arrivedAt   DateTime?         @map("arrived_at")
-  convertedAt DateTime?         @map("converted_at")
-  cancelledAt DateTime?         @map("cancelled_at")
-  noShowAt    DateTime?         @map("no_show_at")
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
+  id              String               @id @default(uuid()) @db.Uuid
+  businessId      String               @map("business_id") @db.Uuid
+  branchId        String?              @map("branch_id") @db.Uuid
+  customerId      String               @map("customer_id") @db.Uuid
+  vehicleId       String               @map("vehicle_id") @db.Uuid
+  serviceId       String?              @map("service_id") @db.Uuid
+  serviceIds      String[]             @default([]) @map("service_ids")
+  workOrderId     String?              @unique @map("work_order_id") @db.Uuid
+  createdById     String?              @map("created_by_id") @db.Uuid
+  assignedStaffId String?              @map("assigned_staff_id") @db.Uuid
+  contactType     WorkOrderContactType @default(REGISTERED_OWNER) @map("contact_type")
+  contactName     String?              @map("contact_name")
+  contactPhone    String?              @map("contact_phone")
+  scheduledAt     DateTime             @map("scheduled_at")
+  status          AppointmentStatus    @default(SCHEDULED)
+  notes           String?
+  confirmedAt     DateTime?            @map("confirmed_at")
+  arrivedAt       DateTime?            @map("arrived_at")
+  convertedAt     DateTime?            @map("converted_at")
+  cancelledAt     DateTime?            @map("cancelled_at")
+  noShowAt        DateTime?            @map("no_show_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
 
-  business  Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch    Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  customer  Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  vehicle   Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  service   Service?   @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
-  createdBy User?      @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  assignedStaff User?  @relation("AppointmentAssignedStaff", fields: [assignedStaffId], references: [id], onDelete: SetNull)
+  business      Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch        Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customer      Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicle       Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  service       Service?   @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  workOrder     WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  createdBy     User?      @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedStaff User?      @relation("AppointmentAssignedStaff", fields: [assignedStaffId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
   @@index([branchId])
@@ -727,14 +727,14 @@ model WhatsAppMessage {
   createdAt         DateTime              @default(now()) @map("created_at")
   updatedAt         DateTime              @updatedAt @map("updated_at")
 
-  business   Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch     Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  customer   Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  vehicle    Vehicle?   @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  workOrder  WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
-  invoice    Invoice?   @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  business   Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch     Branch?             @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customer   Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  vehicle    Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  workOrder  WorkOrder?          @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  invoice    Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   queueItems NotificationQueue[]
-  sentByUser User?      @relation("WhatsAppMessageSender", fields: [sentByUserId], references: [id], onDelete: SetNull)
+  sentByUser User?               @relation("WhatsAppMessageSender", fields: [sentByUserId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
   @@index([branchId])
@@ -835,7 +835,7 @@ model WhatsAppChatMessage {
   customer     Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
   sentByUser   User?                @relation("WhatsAppChatMessageSender", fields: [sentByUserId], references: [id], onDelete: SetNull)
 
-  @@unique([instanceId, externalMessageId])
+  @@unique([businessId, instanceId, externalMessageId])
   @@index([businessId])
   @@index([businessId, instanceId])
   @@index([conversationId])
@@ -909,8 +909,8 @@ model NotificationQueue {
   readAt            DateTime?                 @map("read_at")
   failedAt          DateTime?                 @map("failed_at")
 
-  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch   Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  business   Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch     Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
   messageLog WhatsAppMessage? @relation(fields: [messageLogId], references: [id], onDelete: SetNull)
 
   @@index([businessId])

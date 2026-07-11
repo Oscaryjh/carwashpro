@@ -12,6 +12,7 @@ import {
 import { createRequire } from "node:module";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 import { logger } from "./logger.js";
 import { getReconnectDelayMs } from "./reconnect.js";
@@ -22,12 +23,27 @@ import {
   postIncomingMessageWebhook
 } from "./webhook.js";
 
-let socket: WASocket | null = null;
-let connecting: Promise<WASocket> | null = null;
-let reconnectTimer: NodeJS.Timeout | null = null;
-let suppressReconnect = false;
-let socketGeneration = 0;
-let lastDisconnectStatusCode: number | undefined;
+type QrWaiter = {
+  resolve: (qr: string) => void;
+  reject: (error: Error) => void;
+  timeout: NodeJS.Timeout;
+};
+
+type SessionRuntime = {
+  businessId: string;
+  authInfoPath: string;
+  socket: WASocket | null;
+  connecting: Promise<WASocket> | null;
+  reconnectTimer: NodeJS.Timeout | null;
+  suppressReconnect: boolean;
+  socketGeneration: number;
+  lastDisconnectStatusCode?: number;
+  state: ConnectorState;
+  qrWaiters: Set<QrWaiter>;
+};
+
+const sessionStorage = new AsyncLocalStorage<SessionRuntime>();
+const sessions = new Map<string, SessionRuntime>();
 
 const clientName = "WashFlow Connector";
 const require = createRequire(import.meta.url);
@@ -39,26 +55,87 @@ const connectorVersion = packageJson.version ?? "0.1.0";
 const baileysVersion =
   packageJson.dependencies?.["@whiskeysockets/baileys"] ?? "unknown";
 
-const connectorState: ConnectorState = {
-  status: "starting",
-  startedAt: new Date().toISOString(),
-  reconnectAttempts: 0
-};
+const connectorState = new Proxy({} as ConnectorState, {
+  get: (_target, property) => getRuntime().state[property as keyof ConnectorState],
+  set: (_target, property, value) => {
+    (getRuntime().state as unknown as Record<PropertyKey, unknown>)[property] = value;
+    return true;
+  },
+  ownKeys: () => Reflect.ownKeys(getRuntime().state),
+  getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true })
+});
 
-const qrWaiters = new Set<{
-  resolve: (qr: string) => void;
-  reject: (error: Error) => void;
-  timeout: NodeJS.Timeout;
-}>();
+function getRuntime() {
+  const runtime = sessionStorage.getStore();
+
+  if (!runtime) {
+    throw new Error("WhatsApp session context is missing.");
+  }
+
+  return runtime;
+}
+
+function getOrCreateRuntime(businessId: string) {
+  const existing = sessions.get(businessId);
+
+  if (existing) {
+    return existing;
+  }
+
+  const runtime: SessionRuntime = {
+    businessId,
+    authInfoPath: getBusinessAuthInfoPath(businessId),
+    socket: null,
+    connecting: null,
+    reconnectTimer: null,
+    suppressReconnect: false,
+    socketGeneration: 0,
+    state: {
+      status: "starting",
+      startedAt: new Date().toISOString(),
+      reconnectAttempts: 0
+    },
+    qrWaiters: new Set()
+  };
+
+  sessions.set(businessId, runtime);
+  return runtime;
+}
+
+function withSession<T>(businessId: string, callback: () => T) {
+  return sessionStorage.run(getOrCreateRuntime(businessId), callback);
+}
+
+function bindCurrentSession<TArgs extends unknown[]>(
+  callback: (...args: TArgs) => void
+) {
+  const runtime = getRuntime();
+  return (...args: TArgs) => sessionStorage.run(runtime, () => callback(...args));
+}
 
 function getAuthInfoPath() {
+  return getRuntime().authInfoPath;
+}
+
+function getBusinessAuthInfoPath(businessId: string) {
   const authInfoPath = process.env.AUTH_INFO_PATH;
 
   if (!authInfoPath) {
     throw new Error("AUTH_INFO_PATH is required.");
   }
 
-  return authInfoPath;
+  const root = path.resolve(authInfoPath);
+  const legacyBusinessId =
+    process.env.WHATSAPP_DEFAULT_BUSINESS_ID?.trim() ||
+    process.env.WHATSAPP_INCOMING_BUSINESS_ID?.trim();
+
+  return businessId === legacyBusinessId
+    ? root
+    : path.join(root, "sessions", businessId);
+}
+
+export function getSessionAuthInfoPath(businessId: string) {
+  return getBusinessAuthInfoPath(businessId);
 }
 
 function getDisconnectStatusCode(error: unknown) {
@@ -97,6 +174,7 @@ function markSessionIssue(
 }
 
 function resolveQrWaiters(qr: string) {
+  const qrWaiters = getRuntime().qrWaiters;
   for (const waiter of qrWaiters) {
     clearTimeout(waiter.timeout);
     waiter.resolve(qr);
@@ -106,6 +184,7 @@ function resolveQrWaiters(qr: string) {
 }
 
 function rejectQrWaiters(error: Error) {
+  const qrWaiters = getRuntime().qrWaiters;
   for (const waiter of qrWaiters) {
     clearTimeout(waiter.timeout);
     waiter.reject(error);
@@ -437,7 +516,7 @@ async function handleIncomingMessage(
   }
 
   await postIncomingMessageWebhook({
-    businessId: process.env.WHATSAPP_INCOMING_BUSINESS_ID?.trim() || null,
+    businessId: getRuntime().businessId,
     instanceId: getInstanceId(activeSocket),
     body,
     direction: key.fromMe ? "OUTBOUND" : "INBOUND",
@@ -513,6 +592,7 @@ async function handleMessageStatusUpdate(update: {
   }
 
   await postDeliveryReceiptWebhook({
+    businessId: getRuntime().businessId,
     instanceId: getInstanceId(),
     messageId,
     remoteJid: update.key?.remoteJid ?? null,
@@ -553,6 +633,7 @@ async function handleMessageReceiptUpdate(update: {
   }
 
   await postDeliveryReceiptWebhook({
+    businessId: getRuntime().businessId,
     instanceId: getInstanceId(),
     messageId,
     remoteJid: update.key?.remoteJid ?? null,
@@ -590,7 +671,7 @@ async function handleMessagingHistorySet(
   );
 
   await postHistorySyncWebhook({
-    businessId: process.env.WHATSAPP_INCOMING_BUSINESS_ID?.trim() || null,
+    businessId: getRuntime().businessId,
     instanceId: getInstanceId(activeSocket),
     syncType,
     contacts,
@@ -651,6 +732,7 @@ async function handleAckError(attrs: {
   }
 
   await postDeliveryReceiptWebhook({
+    businessId: getRuntime().businessId,
     instanceId: getInstanceId(),
     messageId: attrs.id,
     remoteJid: attrs.from ?? null,
@@ -733,8 +815,9 @@ async function clearAuthSession() {
   await fs.mkdir(authInfoPath, { recursive: true });
 
   const entries = await fs.readdir(authInfoPath);
+  const isLegacyRoot = authInfoPath === path.resolve(process.env.AUTH_INFO_PATH ?? "");
   await Promise.all(
-    entries.map((entry) =>
+    entries.filter((entry) => !(isLegacyRoot && entry === "sessions")).map((entry) =>
       fs.rm(path.join(authInfoPath, entry), {
         force: true,
         recursive: true
@@ -749,6 +832,7 @@ function waitForQr(timeoutMs = 45000) {
   }
 
   return new Promise<string>((resolve, reject) => {
+    const qrWaiters = getRuntime().qrWaiters;
     const waiter = {
       resolve,
       reject,
@@ -763,7 +847,8 @@ function waitForQr(timeoutMs = 45000) {
 }
 
 function scheduleReconnect() {
-  if (reconnectTimer) {
+  const runtime = getRuntime();
+  if (runtime.reconnectTimer) {
     return;
   }
 
@@ -777,17 +862,17 @@ function scheduleReconnect() {
     "WhatsApp reconnect scheduled"
   );
 
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null;
+  runtime.reconnectTimer = setTimeout(bindCurrentSession(() => {
+    runtime.reconnectTimer = null;
 
-    void startSocket(true).catch((error: unknown) => {
+    void startSocketInternal(true).catch((error: unknown) => {
       connectorState.status = "error";
       connectorState.lastError =
         error instanceof Error ? error.stack ?? error.message : String(error);
       logger.error({ error }, "WhatsApp reconnect failed");
       scheduleReconnect();
     });
-  }, delayMs);
+  }), delayMs);
 }
 
 async function connectSocket(generation: number) {
@@ -808,14 +893,15 @@ async function connectSocket(generation: number) {
   });
   logger.info("after makeWASocket");
 
-  socket = nextSocket;
+  const runtime = getRuntime();
+  runtime.socket = nextSocket;
 
-  nextSocket.ev.on("creds.update", saveCreds);
+  nextSocket.ev.on("creds.update", bindCurrentSession(saveCreds));
 
-  nextSocket.ev.on("messages.upsert", (event) => {
-    if (generation !== socketGeneration) {
+  nextSocket.ev.on("messages.upsert", bindCurrentSession((event) => {
+    if (generation !== runtime.socketGeneration) {
       logger.info(
-        { generation, activeGeneration: socketGeneration },
+        { generation, activeGeneration: runtime.socketGeneration },
         "Ignoring stale messages.upsert"
       );
       return;
@@ -846,34 +932,34 @@ async function connectSocket(generation: number) {
         );
       });
     }
-  });
+  }));
 
-  nextSocket.ev.on("messages.update", (updates) => {
+  nextSocket.ev.on("messages.update", bindCurrentSession((updates) => {
     for (const update of updates) {
       void handleMessageStatusUpdate(update).catch((error: unknown) => {
         logger.error({ error, update }, "Failed to forward WhatsApp message update");
       });
     }
-  });
+  }));
 
-  nextSocket.ev.on("message-receipt.update", (updates) => {
+  nextSocket.ev.on("message-receipt.update", bindCurrentSession((updates) => {
     for (const update of updates) {
       void handleMessageReceiptUpdate(update).catch((error: unknown) => {
         logger.error({ error, update }, "Failed to forward WhatsApp receipt update");
       });
     }
-  });
+  }));
 
-  nextSocket.ev.on("messaging-history.set", (event) => {
+  nextSocket.ev.on("messaging-history.set", bindCurrentSession((event) => {
     void handleMessagingHistorySet(event, nextSocket).catch((error: unknown) => {
       logger.error({ error }, "Failed to forward WhatsApp messaging history");
     });
-  });
+  }));
 
-  nextSocket.ev.on("connection.update", (update) => {
-    if (generation !== socketGeneration) {
+  nextSocket.ev.on("connection.update", bindCurrentSession((update) => {
+    if (generation !== runtime.socketGeneration) {
       logger.info(
-        { generation, activeGeneration: socketGeneration },
+        { generation, activeGeneration: runtime.socketGeneration },
         "Ignoring stale connection.update"
       );
       return;
@@ -909,7 +995,7 @@ async function connectSocket(generation: number) {
 
     if (update.connection === "open") {
       hasConnected = true;
-      lastDisconnectStatusCode = undefined;
+      runtime.lastDisconnectStatusCode = undefined;
       connectorState.status = "connected";
       connectorState.qr = null;
       connectorState.lastError = undefined;
@@ -929,7 +1015,7 @@ async function connectSocket(generation: number) {
 
     if (update.connection === "close") {
       const statusCode = getDisconnectStatusCode(update.lastDisconnect?.error);
-      lastDisconnectStatusCode = statusCode;
+      runtime.lastDisconnectStatusCode = statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       const qrExpired = !hasConnected && Boolean(connectorState.qr);
 
@@ -963,7 +1049,7 @@ async function connectSocket(generation: number) {
           : update.lastDisconnect?.error
             ? String(update.lastDisconnect.error)
             : undefined;
-      socket = null;
+      runtime.socket = null;
 
       logger.warn(
         {
@@ -974,30 +1060,32 @@ async function connectSocket(generation: number) {
         "WhatsApp connection closed"
       );
 
-      if (shouldReconnect && !suppressReconnect) {
+      if (shouldReconnect && !runtime.suppressReconnect) {
         scheduleReconnect();
       }
     }
-  });
+  }));
 
   return nextSocket;
 }
 
-export function getSocket() {
-  return socket;
+export function getSocket(businessId: string) {
+  return withSession(businessId, () => getRuntime().socket);
 }
 
-export function getStatus() {
-  return {
+export function getStatus(businessId: string) {
+  return withSession(businessId, () => ({
     ...connectorState,
-    hasSocket: Boolean(socket)
-  };
+    businessId,
+    hasSocket: Boolean(getRuntime().socket)
+  }));
 }
 
-export async function getDiagnostics() {
-  return {
+export async function getDiagnostics(businessId: string) {
+  return withSession(businessId, async () => ({
     ok: true,
     data: {
+      businessId,
       whatsappNumber: connectorState.phoneNumber ?? null,
       connectionState: connectorState.status,
       linkedDeviceStatus: await hasAuthSession()
@@ -1005,7 +1093,7 @@ export async function getDiagnostics() {
           ? "active"
           : "session_present"
         : "no_session",
-      hasSocket: Boolean(socket),
+      hasSocket: Boolean(getRuntime().socket),
       hasSession: await hasAuthSession(),
       lastSuccessfulSend: connectorState.lastSuccessfulSendAt ?? null,
       lastSuccessfulReceive: connectorState.lastSuccessfulReceiveAt ?? null,
@@ -1019,129 +1107,148 @@ export async function getDiagnostics() {
       lastDisconnectedAt: connectorState.lastDisconnectedAt ?? null,
       reconnectAttempts: connectorState.reconnectAttempts
     }
-  };
+  }));
 }
 
-export function recordSuccessfulSend() {
-  connectorState.lastSuccessfulSendAt = new Date().toISOString();
+export function recordSuccessfulSend(businessId: string) {
+  return withSession(businessId, () => {
+    connectorState.lastSuccessfulSendAt = new Date().toISOString();
+  });
 }
 
-export async function getSession() {
-  return {
+export async function getSession(businessId: string) {
+  return withSession(businessId, async () => ({
     ok: true,
+    businessId,
     status: toSessionStatus(),
     hasSession: await hasAuthSession(),
-    hasSocket: Boolean(socket),
+    hasSocket: Boolean(getRuntime().socket),
     phone: connectorState.phoneNumber ?? null,
     clientName,
     startedAt: connectorState.startedAt,
     reconnectAttempts: connectorState.reconnectAttempts
-  };
+  }));
 }
 
-export function getQr() {
-  return connectorState.qr ?? null;
+export function getQr(businessId: string) {
+  return withSession(businessId, () => connectorState.qr ?? null);
 }
 
-export async function startSocket(force = false) {
+export async function startSocket(businessId: string, force = false) {
+  return withSession(businessId, () => startSocketInternal(force));
+}
+
+async function startSocketInternal(force = false) {
+  const runtime = getRuntime();
   logger.info(
     {
+      businessId: runtime.businessId,
       force,
-      hasSocket: Boolean(socket),
-      hasConnecting: Boolean(connecting),
-      hasReconnectTimer: Boolean(reconnectTimer),
+      hasSocket: Boolean(runtime.socket),
+      hasConnecting: Boolean(runtime.connecting),
+      hasReconnectTimer: Boolean(runtime.reconnectTimer),
       status: connectorState.status
     },
     "startSocket called"
   );
 
-  if (socket && !force) {
+  if (runtime.socket && !force) {
     logger.info("startSocket returning existing socket");
-    return socket;
+    return runtime.socket;
   }
 
-  if (connecting && !force) {
+  if (runtime.connecting && !force) {
     logger.info("startSocket returning existing connecting promise");
-    return connecting;
+    return runtime.connecting;
   }
 
   if (force) {
-    socketGeneration += 1;
+    runtime.socketGeneration += 1;
 
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
+    if (runtime.reconnectTimer) {
+      clearTimeout(runtime.reconnectTimer);
+      runtime.reconnectTimer = null;
     }
 
     try {
-      (socket as { end?: (error?: Error) => void } | null)?.end?.();
+      (runtime.socket as { end?: (error?: Error) => void } | null)?.end?.();
     } catch (error) {
       logger.warn({ error }, "Failed to close existing socket");
     }
 
-    socket = null;
-  } else if (!socket && !connecting) {
-    socketGeneration += 1;
+    runtime.socket = null;
+  } else if (!runtime.socket && !runtime.connecting) {
+    runtime.socketGeneration += 1;
   }
 
   connectorState.status = "connecting";
   logger.info("startSocket creating new socket connection");
-  const generation = socketGeneration;
-  connecting = connectSocket(generation).finally(() => {
+  const generation = runtime.socketGeneration;
+  runtime.connecting = connectSocket(generation).finally(bindCurrentSession(() => {
     logger.info("startSocket connectSocket finished");
-    connecting = null;
-  });
+    runtime.connecting = null;
+  }));
 
-  return connecting;
+  return runtime.connecting;
 }
 
-export async function reconnectSocket() {
+export async function reconnectSocket(businessId: string) {
+  return withSession(businessId, reconnectSocketInternal);
+}
+
+async function reconnectSocketInternal() {
+  const runtime = getRuntime();
   connectorState.lastError = undefined;
   connectorState.qr = null;
-  lastDisconnectStatusCode = undefined;
+  runtime.lastDisconnectStatusCode = undefined;
 
-  await startSocket(true);
+  await startSocketInternal(true);
 
   const firstOutcome = await waitForStatus(["connected", "qr"], 12000);
 
   if (firstOutcome === "connected" || firstOutcome === "qr") {
-    return getStatus();
+    return { ...connectorState, businessId: runtime.businessId, hasSocket: Boolean(runtime.socket) };
   }
 
-  if (lastDisconnectStatusCode === DisconnectReason.loggedOut) {
+  if (runtime.lastDisconnectStatusCode === DisconnectReason.loggedOut) {
     logger.warn("Reconnect detected logged out session. Clearing auth session.");
     await clearAuthSession();
     connectorState.reconnectAttempts = 0;
     connectorState.lastError = undefined;
     connectorState.qr = null;
 
-    await startSocket(true);
+    await startSocketInternal(true);
     await waitForStatus(["connected", "qr"], 15000);
   }
 
-  return getStatus();
+  return { ...connectorState, businessId: runtime.businessId, hasSocket: Boolean(runtime.socket) };
 }
 
-export async function logoutSession() {
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
+export async function logoutSession(businessId: string) {
+  return withSession(businessId, logoutSessionInternal);
+}
+
+async function logoutSessionInternal() {
+  const runtime = getRuntime();
+  if (runtime.reconnectTimer) {
+    clearTimeout(runtime.reconnectTimer);
+    runtime.reconnectTimer = null;
   }
 
-  suppressReconnect = true;
+  runtime.suppressReconnect = true;
 
   try {
-    if (socket) {
+    if (runtime.socket) {
       try {
-        await socket.logout("Session reset requested.");
+        await runtime.socket.logout("Session reset requested.");
       } catch (error) {
         logger.warn({ error }, "Failed to logout WhatsApp socket cleanly");
-        socket.end(new Error("Session reset requested."));
+        runtime.socket.end(new Error("Session reset requested."));
       }
     }
 
-    socket = null;
-    connecting = null;
+    runtime.socket = null;
+    runtime.connecting = null;
     connectorState.status = "disconnected";
     connectorState.qr = null;
     connectorState.phoneNumber = undefined;
@@ -1153,9 +1260,13 @@ export async function logoutSession() {
 
     await clearAuthSession();
   } finally {
-    suppressReconnect = false;
+    runtime.suppressReconnect = false;
   }
 
-  await startSocket(true);
+  await startSocketInternal(true);
   await waitForQr();
+}
+
+export function getActiveSessionCount() {
+  return sessions.size;
 }

@@ -74,6 +74,7 @@ async function processQueuedBatch() {
     try {
       const attachment = await getQueueDocumentAttachment(sendingItem.id);
       const result = await sendToConnector({
+        businessId: sendingItem.businessId,
         phone: sendingItem.phone,
         message: sendingItem.message,
         documentBase64: attachment.documentBase64,
@@ -115,6 +116,7 @@ async function processQueuedBatch() {
 }
 
 async function sendToConnector(input: {
+  businessId: string;
   phone: string;
   message: string;
   documentBase64?: string | null;
@@ -127,8 +129,15 @@ async function sendToConnector(input: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(process.env.WHATSAPP_CONNECTOR_API_SECRET?.trim()
+        ? {
+            "x-connector-api-secret":
+              process.env.WHATSAPP_CONNECTOR_API_SECRET.trim(),
+          }
+        : {}),
     },
     body: JSON.stringify({
+      businessId: input.businessId,
       phone: input.phone,
       message: input.message,
       ...(input.documentBase64 && isAudio

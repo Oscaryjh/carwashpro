@@ -5,6 +5,7 @@ import { markDeliveryStatus } from "@/lib/notification-queue/repository";
 export const runtime = "nodejs";
 
 const receiptSchema = z.object({
+  businessId: z.string().uuid(),
   instanceId: z.string().trim().optional().nullable(),
   messageId: z.string().trim().min(1),
   remoteJid: z.string().trim().optional().nullable(),
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
   }
 
   const result = await markDeliveryStatus({
+    businessId: parsed.data.businessId,
     instanceId: parsed.data.instanceId,
     providerMessageId: parsed.data.messageId,
     status: parsed.data.status,

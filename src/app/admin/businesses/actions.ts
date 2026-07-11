@@ -11,6 +11,7 @@ import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import {
   adminResetUserPasswordSchema,
+  adminUpdateUserEmailSchema,
   businessSchema,
   createBusinessSchema,
 } from "@/lib/validation/business";
@@ -53,7 +54,7 @@ export async function createBusinessAction(formData: FormData) {
   }
 
   if (existingUser) {
-    throw new Error("Owner email already exists.");
+    throw new Error("Login email already exists.");
   }
 
   const created = await prisma.$transaction(async (tx) => {
@@ -168,6 +169,62 @@ export type AdminResetUserPasswordState = {
   status: "idle" | "success" | "error";
   message: string;
 };
+
+export type AdminUpdateUserEmailState = AdminResetUserPasswordState;
+
+export async function adminUpdateUserEmailAction(
+  _previousState: AdminUpdateUserEmailState,
+  formData: FormData,
+): Promise<AdminUpdateUserEmailState> {
+  const user = await requireUser();
+  assertRole(user, ["PLATFORM_ADMIN"]);
+
+  try {
+    const input = adminUpdateUserEmailSchema.parse({
+      businessId: formData.get("businessId"),
+      userId: formData.get("userId"),
+      email: formData.get("email"),
+    });
+    const email = input.email.toLowerCase();
+
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        id: input.userId,
+        businessId: input.businessId,
+        role: { in: ["BUSINESS_OWNER", "STAFF"] },
+      },
+      select: { id: true, email: true },
+    });
+
+    if (!targetUser) {
+      return { status: "error", message: "User not found for this business." };
+    }
+
+    if (targetUser.email.toLowerCase() === email) {
+      return { status: "success", message: "Login email is unchanged." };
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+
+    if (existingUser) {
+      return { status: "error", message: "Login email already exists." };
+    }
+
+    await prisma.user.update({
+      where: { id: targetUser.id },
+      data: { email },
+    });
+
+    revalidatePath(`/admin/businesses/${input.businessId}`);
+
+    return { status: "success", message: "Login email updated successfully." };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Unable to update login email.",
+    };
+  }
+}
 
 export async function adminResetUserPasswordAction(
   _previousState: AdminResetUserPasswordState,

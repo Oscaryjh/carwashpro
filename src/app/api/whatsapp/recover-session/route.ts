@@ -15,8 +15,8 @@ const RECOVERABLE_STATUSES = new Set<ConnectorStatus["status"]>([
 ]);
 
 export async function GET() {
-  await requireBusinessUser();
-  const status = await getConnectorStatus();
+  const { businessId } = await requireBusinessUser();
+  const status = await getConnectorStatus(businessId);
 
   return NextResponse.json({
     ok: true,
@@ -25,9 +25,9 @@ export async function GET() {
 }
 
 export async function POST() {
-  await requireBusinessUser();
+  const { businessId } = await requireBusinessUser();
 
-  const before = await getConnectorStatus();
+  const before = await getConnectorStatus(businessId);
 
   if (!RECOVERABLE_STATUSES.has(before.status)) {
     return NextResponse.json({
@@ -37,8 +37,8 @@ export async function POST() {
     });
   }
 
-  await reconnectConnectorSession();
-  const after = await getConnectorStatus();
+  await reconnectConnectorSession(businessId);
+  const after = await getConnectorStatus(businessId);
 
   return NextResponse.json({
     ok: true,

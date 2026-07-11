@@ -2651,14 +2651,16 @@ label {
   gap: 4px;
 }
 
-.inline-password-form {
+.inline-password-form,
+.inline-account-form {
   display: grid;
   gap: 6px;
   min-width: 280px;
   grid-template-columns: minmax(180px, 1fr) auto;
 }
 
-.inline-password-form .form-message {
+.inline-password-form .form-message,
+.inline-account-form .form-message {
   grid-column: 1 / -1;
   margin: 0;
   font-size: 12px;
@@ -4250,6 +4252,30 @@ label {
   padding: 0;
 }
 
+.whatsapp-chat-empty {
+  grid-row: 1 / -1;
+  display: flex;
+  min-height: 100%;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--muted);
+  text-align: center;
+  padding: 24px;
+}
+
+.whatsapp-chat-empty strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.whatsapp-chat-empty span {
+  max-width: 320px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .whatsapp-chat-header {
   display: flex;
   min-height: 62px;
@@ -5305,7 +5331,8 @@ label {
     grid-template-columns: 1fr;
   }
 
-  .inline-password-form {
+  .inline-password-form,
+  .inline-account-form {
     grid-template-columns: 1fr;
   }
 

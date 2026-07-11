@@ -5,7 +5,7 @@ import { syncWhatsAppHistory } from "@/lib/whatsapp/history-sync";
 export const runtime = "nodejs";
 
 const historyPayloadSchema = z.object({
-  businessId: z.string().uuid().optional().nullable(),
+  businessId: z.string().uuid(),
   instanceId: z.string().trim().min(1),
   syncType: z.string().trim().optional().nullable(),
   contacts: z.array(z.unknown()).optional(),
@@ -34,9 +34,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const businessId = await resolveBusinessId(parsed.data.businessId);
     const result = await syncWhatsAppHistory({
-      businessId,
+      businessId: parsed.data.businessId,
       instanceId: parsed.data.instanceId,
       syncType: parsed.data.syncType,
       contacts: parsed.data.contacts?.map(wrapRawJson),
@@ -58,20 +57,6 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
-}
-
-async function resolveBusinessId(payloadBusinessId: string | null | undefined) {
-  if (payloadBusinessId) {
-    return payloadBusinessId;
-  }
-
-  const configuredBusinessId = process.env.WHATSAPP_INCOMING_BUSINESS_ID?.trim();
-
-  if (!configuredBusinessId) {
-    throw new Error("WHATSAPP_INCOMING_BUSINESS_ID is required for history sync.");
-  }
-
-  return configuredBusinessId;
 }
 
 function wrapRawJson(value: unknown) {

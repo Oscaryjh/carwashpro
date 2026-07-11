@@ -11,7 +11,7 @@ import {
 export default async function WhatsAppDiagnosticsPage() {
   const { user, businessId } = await requireBusinessUser();
   const [connector, database] = await Promise.all([
-    readConnectorDiagnostics(),
+    readConnectorDiagnostics(businessId),
     readDatabaseDiagnostics(businessId),
   ]);
 
@@ -156,13 +156,13 @@ export default async function WhatsAppDiagnosticsPage() {
   );
 }
 
-async function readConnectorDiagnostics(): Promise<{
+async function readConnectorDiagnostics(businessId: string): Promise<{
   data: ConnectorDiagnostics | null;
   error: string | null;
 }> {
   try {
     return {
-      data: await getConnectorDiagnostics(),
+      data: await getConnectorDiagnostics(businessId),
       error: null,
     };
   } catch (error) {

@@ -12,6 +12,7 @@ import {
 } from "./sender.js";
 import {
   getDiagnostics,
+  getActiveSessionCount,
   getQr,
   getSession,
   getStatus,
@@ -36,6 +37,45 @@ function getPort() {
 function assertRequiredEnv() {
   if (!process.env.AUTH_INFO_PATH) {
     throw new Error("AUTH_INFO_PATH is required.");
+  }
+}
+
+function getDefaultBusinessId() {
+  return (
+    process.env.WHATSAPP_DEFAULT_BUSINESS_ID?.trim() ||
+    process.env.WHATSAPP_INCOMING_BUSINESS_ID?.trim() ||
+    ""
+  );
+}
+
+function resolveBusinessId(url: URL, body?: SendRequestBody) {
+  const value =
+    url.searchParams.get("businessId")?.trim() ||
+    (typeof body?.businessId === "string" ? body.businessId.trim() : "") ||
+    getDefaultBusinessId();
+
+  if (!value) {
+    throw new HttpRequestError(400, "businessId is required.");
+  }
+
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(value)) {
+    throw new HttpRequestError(400, "businessId is invalid.");
+  }
+
+  return value;
+}
+
+class HttpRequestError extends Error {
+  constructor(public statusCode: number, message: string) {
+    super(message);
+  }
+}
+
+function assertConnectorAccess(request: http.IncomingMessage) {
+  const secret = process.env.CONNECTOR_API_SECRET?.trim();
+
+  if (secret && request.headers["x-connector-api-secret"] !== secret) {
+    throw new HttpRequestError(401, "Connector API authentication failed.");
   }
 }
 
@@ -101,6 +141,10 @@ function methodNotAllowed(response: http.ServerResponse) {
 }
 
 function errorStatusCode(error: unknown) {
+  if (error instanceof HttpRequestError) {
+    return error.statusCode;
+  }
+
   return error instanceof WhatsAppNotConnectedError ? 409 : 500;
 }
 
@@ -210,17 +254,24 @@ async function handleRequest(
       return;
     }
 
-      void lazyStartSocket();
-
     sendJson(response, 200, {
       ok: true,
       data: {
         service: "whatsapp-connector",
-        uptimeSeconds: Math.round(process.uptime())
+        uptimeSeconds: Math.round(process.uptime()),
+        activeSessions: getActiveSessionCount()
       }
     });
     return;
   }
+
+  assertConnectorAccess(request);
+
+  let body: SendRequestBody | undefined;
+  if (request.method === "POST") {
+    body = (await readJsonBody(request)) as SendRequestBody;
+  }
+  const businessId = resolveBusinessId(url, body);
 
     if (url.pathname === "/status") {
       if (request.method !== "GET") {
@@ -228,11 +279,11 @@ async function handleRequest(
         return;
       }
 
-    void lazyStartSocket();
+    void lazyStartSocket(businessId);
 
     sendJson(response, 200, {
       ok: true,
-      data: getStatus()
+      data: getStatus(businessId)
     });
       return;
     }
@@ -243,9 +294,9 @@ async function handleRequest(
         return;
       }
 
-      void lazyStartSocket();
+      void lazyStartSocket(businessId);
 
-      sendRawJson(response, 200, await getSession());
+      sendRawJson(response, 200, await getSession(businessId));
       return;
     }
 
@@ -255,17 +306,18 @@ async function handleRequest(
         return;
       }
 
-      void lazyStartSocket();
+      void lazyStartSocket(businessId);
 
-      sendRawJson(response, 200, await getDiagnostics());
+      sendRawJson(response, 200, await getDiagnostics(businessId));
       return;
     }
 
     if (request.method === "GET" && url.pathname === "/qr/image") {
       const QRCode = await import("qrcode");
 
-      const status = getStatus().status;
-      const qr = getQr();
+      void lazyStartSocket(businessId);
+      const status = getStatus(businessId).status;
+      const qr = getQr(businessId);
 
       if (status !== "qr" || !qr) {
         sendRawJson(response, 404, { ok: false, error: "QR not available" });
@@ -292,8 +344,9 @@ async function handleRequest(
         return;
       }
 
-      const qr = getQr();
-      const status = getStatus().status;
+      void lazyStartSocket(businessId);
+      const qr = getQr(businessId);
+      const status = getStatus(businessId).status;
 
       if (status === "connected") {
         sendRawJson(response, 200, {
@@ -328,7 +381,7 @@ async function handleRequest(
     }
 
     try {
-      const status = await reconnectSocket();
+      const status = await reconnectSocket(businessId);
       sendRawJson(response, 200, {
         ok: true,
         data: status
@@ -353,7 +406,7 @@ async function handleRequest(
       return;
     }
 
-    await logoutSession();
+    await logoutSession(businessId);
     sendRawJson(response, 200, { ok: true });
     return;
   }
@@ -374,7 +427,7 @@ async function handleRequest(
       return;
     }
 
-    const result = await validateWhatsAppRecipient(phone);
+    const result = await validateWhatsAppRecipient(businessId, phone);
     sendJson(response, 200, {
       ok: true,
       data: result
@@ -388,7 +441,7 @@ async function handleRequest(
       return;
     }
 
-    const body = (await readJsonBody(request)) as SendRequestBody;
+    body ??= {};
     const validationError = validateSendRequestBody(body);
 
     if (validationError) {
@@ -401,6 +454,7 @@ async function handleRequest(
 
     try {
       const result = await sendTextMessage(
+        businessId,
         body.phone as string,
         body.message as string,
         {
@@ -477,7 +531,7 @@ const server = http.createServer((request, response) => {
 
 const port = getPort();
 
-let socketStartPromise: Promise<unknown> | null = null;
+const socketStartPromises = new Map<string, Promise<unknown>>();
 
 logger.info(
   {
@@ -488,15 +542,18 @@ logger.info(
   "Runtime diagnostics enabled"
 );
 
-function lazyStartSocket() {
-  if (!socketStartPromise) {
-    socketStartPromise = startSocket().catch((error: unknown) => {
-      logger.error({ error }, "Failed to start WhatsApp socket");
-      socketStartPromise = null;
+function lazyStartSocket(businessId: string) {
+  let promise = socketStartPromises.get(businessId);
+
+  if (!promise) {
+    promise = startSocket(businessId).catch((error: unknown) => {
+      logger.error({ error, businessId }, "Failed to start WhatsApp socket");
+      socketStartPromises.delete(businessId);
     });
+    socketStartPromises.set(businessId, promise);
   }
 
-  return socketStartPromise;
+  return promise;
 }
 
 server.listen(port, () => {

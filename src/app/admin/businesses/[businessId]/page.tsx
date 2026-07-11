@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { AdminResetPasswordForm } from "@/components/admin-reset-password-form";
+import { AdminUpdateLoginEmailForm } from "@/components/admin-update-login-email-form";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { BusinessForm } from "@/components/business-form";
@@ -70,7 +71,7 @@ export default async function BusinessDetailsPage({
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Email</th>
+                <th>Login email</th>
                 <th>Role</th>
                 <th>Status</th>
                 <th>Reset password</th>
@@ -80,7 +81,13 @@ export default async function BusinessDetailsPage({
               {business.users.map((businessUser) => (
                 <tr key={businessUser.id}>
                   <td>{businessUser.name}</td>
-                  <td>{businessUser.email}</td>
+                  <td>
+                    <AdminUpdateLoginEmailForm
+                      businessId={business.id}
+                      userId={businessUser.id}
+                      email={businessUser.email}
+                    />
+                  </td>
                   <td>{businessUser.role.toLowerCase().replace("_", " ")}</td>
                   <td>
                     <span className={`status ${businessUser.status}`}>

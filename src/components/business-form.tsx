@@ -110,11 +110,11 @@ export function BusinessForm({
               <input name="ownerName" required />
             </label>
             <label>
-              <span>Owner email</span>
+              <span>Login email</span>
               <input name="ownerEmail" type="email" required />
             </label>
             <label>
-              <span>Owner password</span>
+              <span>Login password</span>
               <input name="ownerPassword" type="password" minLength={8} required />
             </label>
           </div>

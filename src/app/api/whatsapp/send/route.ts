@@ -34,7 +34,10 @@ export async function POST(request: Request) {
 
   if (directParsed.success) {
     try {
-      const result = await sendConnectorTextMessage(directParsed.data);
+      const result = await sendConnectorTextMessage({
+        businessId,
+        ...directParsed.data,
+      });
 
       return NextResponse.json({
         ok: true,
@@ -64,7 +67,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Phone and message are required." }, { status: 400 });
   }
 
-  const connectorStatus = await readConnectorStatus();
+  const connectorStatus = await readConnectorStatus(businessId);
 
   if (connectorStatus !== "connected") {
     return NextResponse.json(
@@ -101,9 +104,9 @@ export async function POST(request: Request) {
   }
 }
 
-async function readConnectorStatus() {
+async function readConnectorStatus(businessId: string) {
   try {
-    return (await getConnectorStatus()).status;
+    return (await getConnectorStatus(businessId)).status;
   } catch {
     return "disconnected";
   }

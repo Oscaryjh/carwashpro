@@ -10,10 +10,10 @@ import {
 } from "@/lib/whatsapp/connector-client";
 
 export async function refreshWhatsAppConnectionAction() {
-  await requireBusinessUser();
+  const { businessId } = await requireBusinessUser();
 
   try {
-    await getConnectorStatus();
+    await getConnectorStatus(businessId);
   } catch (error) {
     redirectWithConnectorError(error, "Unable to refresh WhatsApp status.");
   }
@@ -23,10 +23,10 @@ export async function refreshWhatsAppConnectionAction() {
 }
 
 export async function reconnectWhatsAppAction() {
-  await requireBusinessUser();
+  const { businessId } = await requireBusinessUser();
 
   try {
-    await reconnectConnectorSession();
+    await reconnectConnectorSession(businessId);
   } catch (error) {
     redirectWithConnectorError(error, "Unable to reconnect WhatsApp.");
   }
@@ -36,10 +36,10 @@ export async function reconnectWhatsAppAction() {
 }
 
 export async function logoutWhatsAppAction() {
-  await requireBusinessUser();
+  const { businessId } = await requireBusinessUser();
 
   try {
-    await logoutConnectorSession();
+    await logoutConnectorSession(businessId);
   } catch (error) {
     redirectWithConnectorError(error, "Unable to logout WhatsApp.");
   }

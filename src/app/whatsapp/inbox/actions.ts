@@ -43,7 +43,7 @@ export async function recordWhatsAppReplyAction(formData: FormData) {
     redirect("/whatsapp/inbox?type=error&message=Message%20is%20required");
   }
 
-  const connectorStatus = await readConnectorStatus();
+  const connectorStatus = await readConnectorStatus(businessId);
 
   if (connectorStatus !== "connected") {
     redirect(
@@ -119,7 +119,7 @@ export async function openCrmCustomerWhatsAppAction(formData: FormData) {
       )}`,
     );
   }
-  const instanceId = await getCurrentWhatsAppInstanceId();
+  const instanceId = await getCurrentWhatsAppInstanceId(businessId);
 
   const existingConversations = await prisma.whatsAppConversation.findMany({
     where: {
@@ -316,7 +316,7 @@ export async function syncCrmCustomersToWhatsAppAction(formData?: FormData) {
   });
 
   let syncedCount = 0;
-  const instanceId = await getCurrentWhatsAppInstanceId();
+  const instanceId = await getCurrentWhatsAppInstanceId(businessId);
 
   for (const customer of customers) {
     const phone = normalizeMalaysiaWhatsAppPhone(customer.phone);
@@ -368,13 +368,13 @@ export async function syncCrmCustomersToWhatsAppAction(formData?: FormData) {
 }
 
 export async function refreshWhatsAppInboxConnectionAction(formData?: FormData) {
-  await requireBusinessUser();
+  const { businessId } = await requireBusinessUser();
   const conversationId = formData?.get("conversationId")?.toString();
   const basePath = conversationId
     ? `/whatsapp/inbox?conversation=${conversationId}`
     : "/whatsapp/inbox";
 
-  await readConnectorStatus();
+  await readConnectorStatus(businessId);
 
   revalidatePath("/whatsapp/inbox");
 
@@ -383,17 +383,17 @@ export async function refreshWhatsAppInboxConnectionAction(formData?: FormData) 
   );
 }
 
-async function readConnectorStatus() {
+async function readConnectorStatus(businessId: string) {
   try {
-    return (await getConnectorStatus()).status;
+    return (await getConnectorStatus(businessId)).status;
   } catch {
     return "disconnected";
   }
 }
 
-async function getCurrentWhatsAppInstanceId() {
+async function getCurrentWhatsAppInstanceId(businessId: string) {
   try {
-    const status = await getConnectorStatus();
+    const status = await getConnectorStatus(businessId);
     return normalizeWhatsAppInstanceId(
       status.phoneNumber ?? getDefaultWhatsAppInstanceId(),
     );

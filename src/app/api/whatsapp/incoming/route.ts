@@ -5,7 +5,7 @@ import { recordIncomingWhatsAppMessage } from "@/lib/whatsapp/incoming";
 export const runtime = "nodejs";
 
 const incomingMessageSchema = z.object({
-  businessId: z.string().uuid().optional().nullable(),
+  businessId: z.string().uuid(),
   direction: z.enum(["INBOUND", "OUTBOUND"]).optional(),
   instanceId: z.string().trim().optional().nullable(),
   body: z.string().trim().min(1),

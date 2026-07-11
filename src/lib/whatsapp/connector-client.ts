@@ -113,8 +113,8 @@ export function getWhatsAppConnectorUrl() {
   return connectorUrl.replace(/\/+$/, "");
 }
 
-export async function getConnectorStatus(): Promise<ConnectorStatus> {
-  const response = await fetch(`${getWhatsAppConnectorUrl()}/status`, {
+export async function getConnectorStatus(businessId: string): Promise<ConnectorStatus> {
+  const response = await fetchConnector("/status", businessId, {
     method: "GET",
     cache: "no-store",
   });
@@ -161,8 +161,8 @@ export async function getConnectorStatus(): Promise<ConnectorStatus> {
   };
 }
 
-export async function getConnectorDiagnostics(): Promise<ConnectorDiagnostics> {
-  const response = await fetch(`${getWhatsAppConnectorUrl()}/diagnostics`, {
+export async function getConnectorDiagnostics(businessId: string): Promise<ConnectorDiagnostics> {
+  const response = await fetchConnector("/diagnostics", businessId, {
     method: "GET",
     cache: "no-store",
   });
@@ -217,8 +217,8 @@ export async function getConnectorDiagnostics(): Promise<ConnectorDiagnostics> {
   };
 }
 
-export async function getConnectorSession() {
-  const response = await fetch(`${getWhatsAppConnectorUrl()}/session`, {
+export async function getConnectorSession(businessId: string) {
+  const response = await fetchConnector("/session", businessId, {
     method: "GET",
     cache: "no-store",
   });
@@ -236,11 +236,13 @@ export async function getConnectorSession() {
 }
 
 export async function getConnectorJidLookup(
+  businessId: string,
   phone: string,
 ): Promise<ConnectorJidLookup> {
-  const params = new URLSearchParams({ phone });
+  const params = new URLSearchParams({ businessId, phone });
   const response = await fetch(`${getWhatsAppConnectorUrl()}/jid?${params}`, {
     method: "GET",
+    headers: getConnectorHeaders(),
     cache: "no-store",
   });
   const body = await readJson(response);
@@ -274,8 +276,8 @@ export async function getConnectorJidLookup(
   };
 }
 
-export async function reconnectConnectorSession() {
-  const response = await fetch(`${getWhatsAppConnectorUrl()}/reconnect`, {
+export async function reconnectConnectorSession(businessId: string) {
+  const response = await fetchConnector("/reconnect", businessId, {
     method: "POST",
     cache: "no-store",
   });
@@ -290,8 +292,8 @@ export async function reconnectConnectorSession() {
   }
 }
 
-export async function logoutConnectorSession() {
-  const response = await fetch(`${getWhatsAppConnectorUrl()}/logout`, {
+export async function logoutConnectorSession(businessId: string) {
+  const response = await fetchConnector("/logout", businessId, {
     method: "POST",
     cache: "no-store",
   });
@@ -307,14 +309,13 @@ export async function logoutConnectorSession() {
 }
 
 export async function sendConnectorTextMessage(input: {
+  businessId: string;
   phone: string;
   message: string;
 }) {
   const response = await fetch(`${getWhatsAppConnectorUrl()}/send`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getConnectorHeaders(true),
     body: JSON.stringify(input),
     cache: "no-store",
   });
@@ -329,6 +330,43 @@ export async function sendConnectorTextMessage(input: {
   }
 
   return body.data;
+}
+
+export function getConnectorQrProxyPath() {
+  return "/api/whatsapp/connector/qr";
+}
+
+async function fetchConnector(
+  pathname: string,
+  businessId: string,
+  init: RequestInit,
+) {
+  const url = new URL(`${getWhatsAppConnectorUrl()}${pathname}`);
+  url.searchParams.set("businessId", businessId);
+
+  return fetch(url, {
+    ...init,
+    headers: {
+      ...getConnectorHeaders(init.method === "POST"),
+      ...(init.headers ?? {}),
+    },
+    ...(init.method === "POST" ? { body: JSON.stringify({ businessId }) } : {}),
+  });
+}
+
+function getConnectorHeaders(includeJson = false) {
+  const headers: Record<string, string> = {};
+  const secret = process.env.WHATSAPP_CONNECTOR_API_SECRET?.trim();
+
+  if (includeJson) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (secret) {
+    headers["x-connector-api-secret"] = secret;
+  }
+
+  return headers;
 }
 
 function readConnectorStatusValue(

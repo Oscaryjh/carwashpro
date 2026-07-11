@@ -34,3 +34,9 @@ export const adminResetUserPasswordSchema = z.object({
   userId: z.string().uuid("User id is required."),
   newPassword: z.string().min(8, "New password must be at least 8 characters."),
 });
+
+export const adminUpdateUserEmailSchema = z.object({
+  businessId: z.string().uuid("Business id is required."),
+  userId: z.string().uuid("User id is required."),
+  email: z.string().trim().email("Enter a valid login email."),
+});

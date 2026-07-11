@@ -58,7 +58,7 @@ export default async function WhatsAppContactDiagnosticsPage() {
     orderBy: { createdAt: "desc" },
     take: 200,
   });
-  const diagnostics = await buildDiagnostics(conversations, recentMessages);
+  const diagnostics = await buildDiagnostics(businessId, conversations, recentMessages);
 
   return (
     <AppShell user={user}>
@@ -162,6 +162,7 @@ export default async function WhatsAppContactDiagnosticsPage() {
 }
 
 async function buildDiagnostics(
+  businessId: string,
   conversations: Array<{
     id: string;
     displayName: string;
@@ -187,7 +188,7 @@ async function buildDiagnostics(
       const visiblePhone = getVisibleConversationPhone(conversation);
       const jidType = getJidType(conversation.remoteJid);
       const lastSend = findLastSend(conversation, recentMessages);
-      const lookup = await lookupPhoneJid(jidType, visiblePhone);
+      const lookup = await lookupPhoneJid(businessId, jidType, visiblePhone);
       const lastSendStatus = lastSend?.queueItems[0]?.status ?? lastSend?.status ?? null;
       const lastAckError =
         lastSend?.queueItems[0]?.errorMessage ?? lastSend?.errorMessage ?? null;
@@ -218,6 +219,7 @@ async function buildDiagnostics(
 }
 
 async function lookupPhoneJid(
+  businessId: string,
   jidType: ConversationDiagnostic["jidType"],
   phone: string,
 ) {
@@ -227,7 +229,7 @@ async function lookupPhoneJid(
 
   try {
     return {
-      data: await getConnectorJidLookup(phone),
+      data: await getConnectorJidLookup(businessId, phone),
       error: null,
     };
   } catch (error) {

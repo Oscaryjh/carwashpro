@@ -27,8 +27,8 @@ export async function startWhatsAppSession(
     : null;
 
   try {
-    await reconnectConnectorSession();
-    const session = await getConnectorSession();
+    await reconnectConnectorSession(businessId);
+    const session = await getConnectorSession(businessId);
     const result = toStartResult(session.status, {
       phoneNumber: session.phone ?? undefined,
       pairingPhone,
@@ -48,7 +48,7 @@ export async function startWhatsAppSession(
 }
 
 export async function disconnectWhatsAppSession(businessId: string) {
-  await logoutConnectorSession();
+  await logoutConnectorSession(businessId);
   await prisma.whatsAppConnection.upsert({
     where: { businessId },
     create: {
@@ -86,6 +86,7 @@ export async function sendWhatsAppTextMessage(input: {
   });
   const phone = resolveConversationPhone(conversation.remoteJid, conversation.phone);
   const sent = await sendConnectorTextMessage({
+    businessId: input.businessId,
     phone,
     message: input.body,
   });
@@ -135,6 +136,7 @@ export async function sendWhatsAppDocumentMessage(input: {
   });
   const phone = resolveConversationPhone(conversation.remoteJid, conversation.phone);
   const sent = await sendConnectorTextMessage({
+    businessId: input.businessId,
     phone,
     message: input.body || input.fileName,
   });

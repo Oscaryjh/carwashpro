@@ -173,11 +173,11 @@ async function ensureTrustedContactToken(socket: WASocket, jid: string) {
   );
 }
 
-export async function validateWhatsAppRecipient(phone: string) {
+export async function validateWhatsAppRecipient(businessId: string, phone: string) {
   const normalizedPhone = normalizePhone(phone);
   const fallbackJid = `${normalizedPhone}@s.whatsapp.net`;
-  const socket = await startSocket();
-  const status = getStatus();
+  const socket = await startSocket(businessId);
+  const status = getStatus(businessId);
 
   if (status.status !== "connected") {
     throw new WhatsAppNotConnectedError();
@@ -243,6 +243,7 @@ async function buildMessageContent(
 }
 
 export async function sendTextMessage(
+  businessId: string,
   phone: string,
   message: string,
   options: SendTextMessageOptions = {}
@@ -254,8 +255,8 @@ export async function sendTextMessage(
   }
 
   const recipientInput = phone.trim();
-  const socket = await startSocket();
-  const status = getStatus();
+  const socket = await startSocket(businessId);
+  const status = getStatus(businessId);
 
   if (status.status !== "connected") {
     throw new WhatsAppNotConnectedError();
@@ -279,7 +280,7 @@ export async function sendTextMessage(
         },
         "WhatsApp direct JID send accepted"
       );
-      recordSuccessfulSend();
+      recordSuccessfulSend(businessId);
 
       return {
         messageId: result?.key?.id ?? null,
@@ -346,7 +347,7 @@ export async function sendTextMessage(
       },
       "WhatsApp send accepted"
     );
-    recordSuccessfulSend();
+    recordSuccessfulSend(businessId);
 
     return {
       messageId: result?.key?.id ?? null,

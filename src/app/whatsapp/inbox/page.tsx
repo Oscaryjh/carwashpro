@@ -37,7 +37,7 @@ export default async function WhatsAppInboxPage({
   const message = params.message;
   const query = params.q?.trim() ?? "";
   const messageType = params.type === "error" ? "error" : "success";
-  const connection = await readInboxConnectorStatus();
+  const connection = await readInboxConnectorStatus(businessId);
   const connectionStatus = connection.status;
   const instanceId = normalizeWhatsAppInstanceId(
     connection.phoneNumber ?? getDefaultWhatsAppInstanceId(),
@@ -270,7 +270,7 @@ export default async function WhatsAppInboxPage({
               <p className="empty-state">
                 {conversations.length
                   ? "No chats match this search."
-                  : "No WhatsApp conversations yet. Click Sync customers to bring CRM contacts here, or wait for WhatsApp history/new messages to sync."}
+                  : "No WhatsApp chats yet. Wait for a customer message, or tap + to start a chat from CRM."}
               </p>
             )}
           </aside>
@@ -432,7 +432,10 @@ export default async function WhatsAppInboxPage({
                 />
               </>
             ) : (
-              <p className="empty-state">Select a chat to view messages.</p>
+              <div className="whatsapp-chat-empty">
+                <strong>Select a chat</strong>
+                <span>Choose a conversation from the left to view messages.</span>
+              </div>
             )}
           </main>
 
@@ -500,9 +503,9 @@ export default async function WhatsAppInboxPage({
   );
 }
 
-async function readInboxConnectorStatus(): Promise<ConnectorStatus> {
+async function readInboxConnectorStatus(businessId: string): Promise<ConnectorStatus> {
   try {
-    return await getConnectorStatus();
+    return await getConnectorStatus(businessId);
   } catch {
     return {
       status: "disconnected",

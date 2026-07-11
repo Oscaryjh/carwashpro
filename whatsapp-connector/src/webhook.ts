@@ -8,7 +8,7 @@ const defaultHistoryWebhookUrl =
   "http://127.0.0.1:3000/api/whatsapp/history";
 
 export type IncomingMessageWebhookPayload = {
-  businessId?: string | null;
+  businessId: string;
   instanceId: string;
   body: string;
   direction?: "INBOUND" | "OUTBOUND";
@@ -25,6 +25,7 @@ export type IncomingMessageWebhookPayload = {
 };
 
 export type DeliveryReceiptWebhookPayload = {
+  businessId: string;
   instanceId?: string | null;
   messageId: string;
   remoteJid?: string | null;
@@ -34,7 +35,7 @@ export type DeliveryReceiptWebhookPayload = {
 };
 
 export type HistorySyncWebhookPayload = {
-  businessId?: string | null;
+  businessId: string;
   instanceId: string;
   syncType?: string | null;
   contacts: unknown[];
