@@ -12,10 +12,12 @@
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
     "dotenv": "^16.4.7",
-    "pino": "^9.5.0"
+    "pino": "^9.5.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/qrcode": "^1.5.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
