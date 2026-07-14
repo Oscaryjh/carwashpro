@@ -26,8 +26,14 @@ export function ServiceForm({
         <BranchSelect branches={branches} selectedBranchId={service?.branchId} />
         <label>
           <span>Category</span>
-          <select name="categoryId" defaultValue={service?.categoryId ?? ""}>
-            <option value="">Uncategorized</option>
+          <select
+            name="categoryId"
+            defaultValue={service?.categoryId ?? ""}
+            required
+          >
+            <option value="" disabled>
+              Select category
+            </option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}

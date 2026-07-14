@@ -13,8 +13,11 @@ export type EnqueueNotificationInput = {
   documentMimeType?: string | null;
   documentFileName?: string | null;
   messageLogId?: string | null;
+  appointmentId?: string | null;
+  dedupeKey?: string | null;
   priority?: NotificationQueuePriority;
   queuedAt?: Date;
+  nextAttemptAt?: Date | null;
 };
 
 export type FindQueuedNotificationsInput = {

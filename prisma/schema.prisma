@@ -51,6 +51,7 @@ enum PaymentStatus {
   UNPAID
   PARTIAL
   PAID
+  REFUNDED
 }
 
 enum PaymentMethod {
@@ -76,11 +77,13 @@ enum InvoiceStatus {
   UNPAID
   PARTIAL
   PAID
+  REFUNDED
   VOID
 }
 
 enum WhatsAppMessageType {
   NEW_CUSTOMER_WELCOME
+  APPOINTMENT_REMINDER
   SERVICE_CONFIRMATION
   READY_FOR_PICKUP
   INVOICE_SENT
@@ -153,6 +156,7 @@ enum NotificationQueueStatus {
   DELIVERED
   READ
   FAILED
+  CANCELLED
 }
 
 enum NotificationQueuePriority {
@@ -178,6 +182,27 @@ enum CustomerPackageStatus {
   CANCELLED
 }
 
+enum VehicleSize {
+  UNCLASSIFIED
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum VehicleSizeSource {
+  UNCLASSIFIED
+  PLATFORM_DEFAULT
+  BUSINESS_OVERRIDE
+  MANUAL
+}
+
+enum PackageVehicleSize {
+  ALL
+  SMALL
+  MEDIUM
+  LARGE
+}
+
 enum BranchStatus {
   ACTIVE
   INACTIVE
@@ -190,6 +215,18 @@ enum AppointmentStatus {
   CONVERTED_TO_JOB
   CANCELLED
   NO_SHOW
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum LoyaltyTransactionType {
+  EARN
+  WELCOME_BONUS
+  REFUND_REVERSAL
+  MANUAL_ADJUSTMENT
 }
 
 model Business {
@@ -214,6 +251,7 @@ model Business {
   workOrders                WorkOrder[]
   workOrderItems            WorkOrderItem[]
   payments                  Payment[]
+  paymentRefunds            PaymentRefund[]
   cashierShifts             CashierShift[]
   invoices                  Invoice[]
   whatsappMessages          WhatsAppMessage[]
@@ -225,9 +263,14 @@ model Business {
   notificationQueues        NotificationQueue[]
   packages                  Package[]
   customerPackages          CustomerPackage[]
+  vehicleSizeOverrides      BusinessVehicleSizeOverride[]
   branches                  Branch[]
   vehicleOwnershipHistories VehicleOwnershipHistory[]
   appointments              Appointment[]
+  auditLogs                 AuditLog[]
+  loyaltyProgram            LoyaltyProgram?
+  customerMemberships       CustomerMembership[]
+  loyaltyTransactions       LoyaltyTransaction[]
 
   @@index([slug])
   @@map("businesses")
@@ -252,12 +295,15 @@ model Branch {
   staffUsers                User[]
   workOrders                WorkOrder[]
   payments                  Payment[]
+  paymentRefunds            PaymentRefund[]
   cashierShifts             CashierShift[]
   invoices                  Invoice[]
   whatsappMessages          WhatsAppMessage[]
   notificationQueues        NotificationQueue[]
   vehicleOwnershipHistories VehicleOwnershipHistory[]
   appointments              Appointment[]
+  auditLogs                 AuditLog[]
+  loyaltyTransactions       LoyaltyTransaction[]
 
   @@unique([businessId, name])
   @@index([businessId])
@@ -283,10 +329,13 @@ model User {
   branch                   Branch?               @relation(fields: [branchId], references: [id], onDelete: SetNull)
   cashierShifts            CashierShift[]        @relation("CashierShiftCashier")
   cashierPayments          Payment[]             @relation("PaymentCashier")
+  processedPaymentRefunds  PaymentRefund[]       @relation("PaymentRefundProcessor")
   sentWhatsAppMessages     WhatsAppMessage[]     @relation("WhatsAppMessageSender")
   sentWhatsAppChatMessages WhatsAppChatMessage[] @relation("WhatsAppChatMessageSender")
   createdAppointments      Appointment[]         @relation("AppointmentCreatedBy")
   assignedAppointments     Appointment[]         @relation("AppointmentAssignedStaff")
+  auditLogs                AuditLog[]            @relation("AuditLogActor")
+  loyaltyTransactions      LoyaltyTransaction[]  @relation("LoyaltyTransactionCreator")
 
   @@index([businessId])
   @@index([branchId])
@@ -316,6 +365,9 @@ model Customer {
   previousVehicleOwnerships VehicleOwnershipHistory[] @relation("PreviousVehicleOwner")
   newVehicleOwnerships      VehicleOwnershipHistory[] @relation("NewVehicleOwner")
   appointments              Appointment[]
+  membership                CustomerMembership?
+  loyaltyTransactions       LoyaltyTransaction[]
+  invoices                  Invoice[]
 
   @@unique([businessId, phone])
   @@index([businessId])
@@ -324,17 +376,19 @@ model Customer {
 }
 
 model Vehicle {
-  id          String   @id @default(uuid()) @db.Uuid
-  businessId  String   @map("business_id") @db.Uuid
-  branchId    String?  @map("branch_id") @db.Uuid
-  customerId  String   @map("customer_id") @db.Uuid
-  plateNumber String   @map("plate_number")
+  id          String            @id @default(uuid()) @db.Uuid
+  businessId  String            @map("business_id") @db.Uuid
+  branchId    String?           @map("branch_id") @db.Uuid
+  customerId  String            @map("customer_id") @db.Uuid
+  plateNumber String            @map("plate_number")
   brand       String?
   model       String?
   color       String?
+  size        VehicleSize       @default(UNCLASSIFIED)
+  sizeSource  VehicleSizeSource @default(UNCLASSIFIED) @map("size_source")
   notes       String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
 
   business           Business                  @relation(fields: [businessId], references: [id], onDelete: Restrict)
   branch             Branch?                   @relation(fields: [branchId], references: [id], onDelete: SetNull)
@@ -348,7 +402,43 @@ model Vehicle {
   @@index([businessId])
   @@index([branchId])
   @@index([customerId])
+  @@index([businessId, size])
   @@map("vehicles")
+}
+
+model VehicleModelSizeDefault {
+  id              String      @id @default(uuid()) @db.Uuid
+  brand           String
+  model           String
+  normalizedBrand String      @map("normalized_brand")
+  normalizedModel String      @map("normalized_model")
+  size            VehicleSize
+  active          Boolean     @default(true)
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  @@unique([normalizedBrand, normalizedModel])
+  @@index([active])
+  @@index([size])
+  @@map("vehicle_model_size_defaults")
+}
+
+model BusinessVehicleSizeOverride {
+  id              String      @id @default(uuid()) @db.Uuid
+  businessId      String      @map("business_id") @db.Uuid
+  brand           String
+  model           String
+  normalizedBrand String      @map("normalized_brand")
+  normalizedModel String      @map("normalized_model")
+  size            VehicleSize
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, normalizedBrand, normalizedModel])
+  @@index([businessId, size])
+  @@map("business_vehicle_size_overrides")
 }
 
 model ServiceCategory {
@@ -397,18 +487,19 @@ model Service {
 }
 
 model Package {
-  id          String        @id @default(uuid()) @db.Uuid
-  businessId  String        @map("business_id") @db.Uuid
-  branchId    String?       @map("branch_id") @db.Uuid
-  categoryId  String?       @map("category_id") @db.Uuid
-  serviceId   String?       @map("service_id") @db.Uuid
-  name        String
-  description String?
-  price       Decimal       @db.Decimal(10, 2)
-  totalUses   Int           @default(10) @map("total_uses")
-  status      PackageStatus @default(ACTIVE)
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  id                  String             @id @default(uuid()) @db.Uuid
+  businessId          String             @map("business_id") @db.Uuid
+  branchId            String?            @map("branch_id") @db.Uuid
+  categoryId          String?            @map("category_id") @db.Uuid
+  serviceId           String?            @map("service_id") @db.Uuid
+  name                String
+  description         String?
+  price               Decimal            @db.Decimal(10, 2)
+  totalUses           Int                @default(10) @map("total_uses")
+  eligibleVehicleSize PackageVehicleSize @default(ALL) @map("eligible_vehicle_size")
+  status              PackageStatus      @default(ACTIVE)
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
 
   business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
   branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
@@ -443,24 +534,26 @@ model PackageCategory {
 }
 
 model CustomerPackage {
-  id            String                @id @default(uuid()) @db.Uuid
-  businessId    String                @map("business_id") @db.Uuid
-  branchId      String?               @map("branch_id") @db.Uuid
-  customerId    String                @map("customer_id") @db.Uuid
-  packageId     String                @map("package_id") @db.Uuid
-  purchasePrice Decimal               @map("purchase_price") @db.Decimal(10, 2)
-  totalUses     Int                   @map("total_uses")
-  remainingUses Int                   @map("remaining_uses")
-  status        CustomerPackageStatus @default(PENDING_PAYMENT)
-  purchasedAt   DateTime              @default(now()) @map("purchased_at")
-  createdAt     DateTime              @default(now()) @map("created_at")
-  updatedAt     DateTime              @updatedAt @map("updated_at")
+  id                  String                @id @default(uuid()) @db.Uuid
+  businessId          String                @map("business_id") @db.Uuid
+  branchId            String?               @map("branch_id") @db.Uuid
+  customerId          String                @map("customer_id") @db.Uuid
+  packageId           String                @map("package_id") @db.Uuid
+  purchasePrice       Decimal               @map("purchase_price") @db.Decimal(10, 2)
+  totalUses           Int                   @map("total_uses")
+  remainingUses       Int                   @map("remaining_uses")
+  eligibleVehicleSize PackageVehicleSize    @default(ALL) @map("eligible_vehicle_size")
+  status              CustomerPackageStatus @default(PENDING_PAYMENT)
+  purchasedAt         DateTime              @default(now()) @map("purchased_at")
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
 
   business Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
   branch   Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
   customer Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
   package  Package   @relation(fields: [packageId], references: [id], onDelete: Restrict)
   payments Payment[]
+  invoice  Invoice?
 
   @@index([businessId])
   @@index([branchId])
@@ -497,6 +590,7 @@ model WorkOrder {
   vehicle          Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   items            WorkOrderItem[]
   payments         Payment[]
+  paymentRefunds   PaymentRefund[]
   invoice          Invoice?
   whatsappMessages WhatsAppMessage[]
   appointment      Appointment?
@@ -536,14 +630,16 @@ model Appointment {
   createdAt       DateTime             @default(now()) @map("created_at")
   updatedAt       DateTime             @updatedAt @map("updated_at")
 
-  business      Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch        Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  customer      Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  vehicle       Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  service       Service?   @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  workOrder     WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
-  createdBy     User?      @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  assignedStaff User?      @relation("AppointmentAssignedStaff", fields: [assignedStaffId], references: [id], onDelete: SetNull)
+  business           Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch             Branch?             @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customer           Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicle            Vehicle             @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  service            Service?            @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  workOrder          WorkOrder?          @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  createdBy          User?               @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedStaff      User?               @relation("AppointmentAssignedStaff", fields: [assignedStaffId], references: [id], onDelete: SetNull)
+  whatsappMessages   WhatsAppMessage[]
+  notificationQueues NotificationQueue[]
 
   @@index([businessId])
   @@index([branchId])
@@ -624,12 +720,14 @@ model Payment {
   createdAt         DateTime            @default(now()) @map("created_at")
   updatedAt         DateTime            @updatedAt @map("updated_at")
 
-  business        Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch          Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  workOrder       WorkOrder?       @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
-  customerPackage CustomerPackage? @relation(fields: [customerPackageId], references: [id], onDelete: SetNull)
-  cashier         User?            @relation("PaymentCashier", fields: [cashierId], references: [id], onDelete: SetNull)
-  shift           CashierShift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  business            Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch              Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  workOrder           WorkOrder?           @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  customerPackage     CustomerPackage?     @relation(fields: [customerPackageId], references: [id], onDelete: SetNull)
+  cashier             User?                @relation("PaymentCashier", fields: [cashierId], references: [id], onDelete: SetNull)
+  shift               CashierShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  refunds             PaymentRefund[]
+  loyaltyTransactions LoyaltyTransaction[]
 
   @@index([businessId])
   @@index([branchId])
@@ -640,6 +738,113 @@ model Payment {
   @@index([status])
   @@index([paidAt])
   @@map("payments")
+}
+
+model PaymentRefund {
+  id                  String        @id @default(uuid()) @db.Uuid
+  businessId          String        @map("business_id") @db.Uuid
+  branchId            String?       @map("branch_id") @db.Uuid
+  paymentId           String        @map("payment_id") @db.Uuid
+  workOrderId         String?       @map("work_order_id") @db.Uuid
+  invoiceId           String?       @map("invoice_id") @db.Uuid
+  processedById       String?       @map("processed_by_id") @db.Uuid
+  shiftId             String?       @map("shift_id") @db.Uuid
+  amount              Decimal       @db.Decimal(10, 2)
+  method              PaymentMethod
+  reason              String
+  reference           String?
+  packageUsesRestored Int           @default(0) @map("package_uses_restored")
+  refundedAt          DateTime      @default(now()) @map("refunded_at")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  business            Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch              Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  payment             Payment              @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  workOrder           WorkOrder?           @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  invoice             Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  processedBy         User?                @relation("PaymentRefundProcessor", fields: [processedById], references: [id], onDelete: SetNull)
+  shift               CashierShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  loyaltyTransactions LoyaltyTransaction[]
+
+  @@index([businessId, refundedAt])
+  @@index([branchId])
+  @@index([paymentId])
+  @@index([workOrderId])
+  @@index([invoiceId])
+  @@index([processedById])
+  @@index([shiftId])
+  @@map("payment_refunds")
+}
+
+model LoyaltyProgram {
+  id               String   @id @default(uuid()) @db.Uuid
+  businessId       String   @unique @map("business_id") @db.Uuid
+  name             String   @default("Loyalty Member")
+  enabled          Boolean  @default(true)
+  pointsPerRinggit Decimal  @default(1) @map("points_per_ringgit") @db.Decimal(8, 2)
+  welcomePoints    Int      @default(0) @map("welcome_points")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@map("loyalty_programs")
+}
+
+model CustomerMembership {
+  id                     String           @id @default(uuid()) @db.Uuid
+  businessId             String           @map("business_id") @db.Uuid
+  customerId             String           @unique @map("customer_id") @db.Uuid
+  status                 MembershipStatus @default(ACTIVE)
+  pointsBalance          Int              @default(0) @map("points_balance")
+  lifetimePointsEarned   Int              @default(0) @map("lifetime_points_earned")
+  lifetimePointsReversed Int              @default(0) @map("lifetime_points_reversed")
+  lifetimePointsAdjusted Int              @default(0) @map("lifetime_points_adjusted")
+  joinedAt               DateTime         @default(now()) @map("joined_at")
+  createdAt              DateTime         @default(now()) @map("created_at")
+  updatedAt              DateTime         @updatedAt @map("updated_at")
+
+  business     Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customer     Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  transactions LoyaltyTransaction[]
+
+  @@unique([businessId, customerId])
+  @@index([businessId, status])
+  @@index([businessId, pointsBalance])
+  @@map("customer_memberships")
+}
+
+model LoyaltyTransaction {
+  id           String                 @id @default(uuid()) @db.Uuid
+  businessId   String                 @map("business_id") @db.Uuid
+  branchId     String?                @map("branch_id") @db.Uuid
+  membershipId String                 @map("membership_id") @db.Uuid
+  customerId   String                 @map("customer_id") @db.Uuid
+  paymentId    String?                @map("payment_id") @db.Uuid
+  refundId     String?                @map("refund_id") @db.Uuid
+  createdById  String?                @map("created_by_id") @db.Uuid
+  type         LoyaltyTransactionType
+  points       Int
+  description  String
+  createdAt    DateTime               @default(now()) @map("created_at")
+
+  business   Business           @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch     Branch?            @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  membership CustomerMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  customer   Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  payment    Payment?           @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  refund     PaymentRefund?     @relation(fields: [refundId], references: [id], onDelete: SetNull)
+  createdBy  User?              @relation("LoyaltyTransactionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([businessId, refundId, type])
+  @@index([businessId, createdAt])
+  @@index([branchId])
+  @@index([membershipId, createdAt])
+  @@index([customerId, createdAt])
+  @@index([paymentId])
+  @@index([refundId])
+  @@map("loyalty_transactions")
 }
 
 model CashierShift {
@@ -658,10 +863,11 @@ model CashierShift {
   createdAt      DateTime           @default(now()) @map("created_at")
   updatedAt      DateTime           @updatedAt @map("updated_at")
 
-  business Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch   Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  cashier  User      @relation("CashierShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict)
+  business Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch   Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  cashier  User            @relation("CashierShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict)
   payments Payment[]
+  refunds  PaymentRefund[]
 
   @@index([businessId])
   @@index([branchId])
@@ -672,30 +878,36 @@ model CashierShift {
 }
 
 model Invoice {
-  id            String        @id @default(uuid()) @db.Uuid
-  businessId    String        @map("business_id") @db.Uuid
-  branchId      String?       @map("branch_id") @db.Uuid
-  workOrderId   String        @unique @map("work_order_id") @db.Uuid
-  invoiceNumber String        @map("invoice_number")
-  subtotal      Decimal       @db.Decimal(10, 2)
-  total         Decimal       @db.Decimal(10, 2)
-  paidAmount    Decimal       @map("paid_amount") @db.Decimal(10, 2)
-  balance       Decimal       @db.Decimal(10, 2)
-  status        InvoiceStatus @default(UNPAID)
-  issuedAt      DateTime      @default(now()) @map("issued_at")
-  voidedAt      DateTime?     @map("voided_at")
-  voidReason    String?       @map("void_reason")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  id                String        @id @default(uuid()) @db.Uuid
+  businessId        String        @map("business_id") @db.Uuid
+  branchId          String?       @map("branch_id") @db.Uuid
+  workOrderId       String?       @unique @map("work_order_id") @db.Uuid
+  customerId        String?       @map("customer_id") @db.Uuid
+  customerPackageId String?       @unique @map("customer_package_id") @db.Uuid
+  invoiceNumber     String        @map("invoice_number")
+  subtotal          Decimal       @db.Decimal(10, 2)
+  total             Decimal       @db.Decimal(10, 2)
+  paidAmount        Decimal       @map("paid_amount") @db.Decimal(10, 2)
+  balance           Decimal       @db.Decimal(10, 2)
+  status            InvoiceStatus @default(UNPAID)
+  issuedAt          DateTime      @default(now()) @map("issued_at")
+  voidedAt          DateTime?     @map("voided_at")
+  voidReason        String?       @map("void_reason")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
   business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
   branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  workOrder        WorkOrder         @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  workOrder        WorkOrder?        @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  customer         Customer?         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerPackage  CustomerPackage?  @relation(fields: [customerPackageId], references: [id], onDelete: Restrict)
   whatsappMessages WhatsAppMessage[]
+  refunds          PaymentRefund[]
 
   @@unique([businessId, invoiceNumber])
   @@index([businessId])
   @@index([branchId])
+  @@index([customerId])
   @@index([status])
   @@map("invoices")
 }
@@ -708,6 +920,7 @@ model WhatsAppMessage {
   vehicleId         String?               @map("vehicle_id") @db.Uuid
   workOrderId       String?               @map("work_order_id") @db.Uuid
   invoiceId         String?               @map("invoice_id") @db.Uuid
+  appointmentId     String?               @map("appointment_id") @db.Uuid
   sentByUserId      String?               @map("sent_by_user_id") @db.Uuid
   phone             String
   senderPhone       String?               @map("sender_phone")
@@ -727,14 +940,15 @@ model WhatsAppMessage {
   createdAt         DateTime              @default(now()) @map("created_at")
   updatedAt         DateTime              @updatedAt @map("updated_at")
 
-  business   Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch     Branch?             @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  customer   Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  vehicle    Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  workOrder  WorkOrder?          @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
-  invoice    Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  queueItems NotificationQueue[]
-  sentByUser User?               @relation("WhatsAppMessageSender", fields: [sentByUserId], references: [id], onDelete: SetNull)
+  business    Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch      Branch?             @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customer    Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  vehicle     Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  workOrder   WorkOrder?          @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  invoice     Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  appointment Appointment?        @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  queueItems  NotificationQueue[]
+  sentByUser  User?               @relation("WhatsAppMessageSender", fields: [sentByUserId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
   @@index([branchId])
@@ -742,6 +956,7 @@ model WhatsAppMessage {
   @@index([vehicleId])
   @@index([workOrderId])
   @@index([invoiceId])
+  @@index([appointmentId])
   @@index([sentByUserId])
   @@index([status])
   @@index([messageType])
@@ -885,6 +1100,36 @@ model WhatsAppWorkerCommand {
   @@map("whatsapp_worker_commands")
 }
 
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  businessId  String   @map("business_id") @db.Uuid
+  branchId    String?  @map("branch_id") @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  actorName   String?  @map("actor_name")
+  actorEmail  String?  @map("actor_email")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  summary     String
+  status      String   @default("SUCCESS")
+  before      Json?
+  after       Json?
+  metadata    Json?
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch   Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  actor    User?    @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@index([businessId, actorUserId, createdAt])
+  @@index([businessId, action, createdAt])
+  @@index([businessId, entityType, entityId])
+  @@map("audit_logs")
+}
+
 model NotificationQueue {
   id                String                    @id @default(uuid()) @db.Uuid
   businessId        String                    @map("business_id") @db.Uuid
@@ -899,6 +1144,8 @@ model NotificationQueue {
   status            NotificationQueueStatus   @default(QUEUED)
   retryCount        Int                       @default(0) @map("retry_count")
   messageLogId      String?                   @map("message_log_id") @db.Uuid
+  appointmentId     String?                   @map("appointment_id") @db.Uuid
+  dedupeKey         String?                   @unique @map("dedupe_key")
   providerMessageId String?                   @map("provider_message_id")
   errorMessage      String?                   @map("error_message")
   createdAt         DateTime                  @default(now()) @map("created_at")
@@ -909,13 +1156,15 @@ model NotificationQueue {
   readAt            DateTime?                 @map("read_at")
   failedAt          DateTime?                 @map("failed_at")
 
-  business   Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch     Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  messageLog WhatsAppMessage? @relation(fields: [messageLogId], references: [id], onDelete: SetNull)
+  business    Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch      Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  messageLog  WhatsAppMessage? @relation(fields: [messageLogId], references: [id], onDelete: SetNull)
+  appointment Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
   @@index([branchId])
   @@index([messageLogId])
+  @@index([appointmentId])
   @@index([providerMessageId])
   @@index([status])
   @@index([status, priority, queuedAt])

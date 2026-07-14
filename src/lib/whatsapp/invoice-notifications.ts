@@ -82,6 +82,9 @@ export async function sendInvoiceIfConnected({
   if (!invoice) {
     return;
   }
+  if (!invoice.workOrder) {
+    return;
+  }
 
   const recipientPhone = normalizeMalaysiaWhatsAppPhone(
     invoice.workOrder.contactPhone || invoice.workOrder.customer.phone,

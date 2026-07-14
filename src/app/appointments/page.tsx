@@ -270,7 +270,7 @@ export default async function AppointmentsPage({
             selectedDateValue={selectedDateValue}
             services={services.map((service) => ({
               id: service.id,
-              category: service.serviceCategory?.name ?? service.category ?? "Uncategorized",
+              category: service.serviceCategory?.name ?? service.category ?? "Services",
               name: service.name,
               price: Number(service.price).toFixed(2),
             }))}

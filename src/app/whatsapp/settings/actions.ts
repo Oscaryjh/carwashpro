@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getAuditRequestContext, tryWriteAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import {
   getConnectorStatus,
@@ -23,10 +24,20 @@ export async function refreshWhatsAppConnectionAction() {
 }
 
 export async function reconnectWhatsAppAction() {
-  const { businessId } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser();
 
   try {
     await reconnectConnectorSession(businessId);
+    await tryWriteAuditLog({
+      businessId,
+      branchId: user.branchId,
+      actor: user,
+      action: "WHATSAPP_RECONNECT_REQUESTED",
+      entityType: "WhatsAppSession",
+      entityId: businessId,
+      summary: "Requested a fresh WhatsApp QR session",
+      request: await getAuditRequestContext(),
+    });
   } catch (error) {
     redirectWithConnectorError(error, "Unable to reconnect WhatsApp.");
   }
@@ -36,10 +47,20 @@ export async function reconnectWhatsAppAction() {
 }
 
 export async function logoutWhatsAppAction() {
-  const { businessId } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser();
 
   try {
     await logoutConnectorSession(businessId);
+    await tryWriteAuditLog({
+      businessId,
+      branchId: user.branchId,
+      actor: user,
+      action: "WHATSAPP_SESSION_CLEARED",
+      entityType: "WhatsAppSession",
+      entityId: businessId,
+      summary: "Disconnected WhatsApp and cleared the session",
+      request: await getAuditRequestContext(),
+    });
   } catch (error) {
     redirectWithConnectorError(error, "Unable to logout WhatsApp.");
   }

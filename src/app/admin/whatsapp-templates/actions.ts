@@ -10,6 +10,7 @@ import { getDefaultWhatsAppTemplate } from "@/lib/whatsapp/template-defaults";
 
 const messageTypes: WhatsAppMessageType[] = [
   "NEW_CUSTOMER_WELCOME",
+  "APPOINTMENT_REMINDER",
   "SERVICE_CONFIRMATION",
   "READY_FOR_PICKUP",
   "INVOICE_SENT",

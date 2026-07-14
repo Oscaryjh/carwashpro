@@ -30,8 +30,10 @@ export function PackageForm({
         <BranchSelect branches={branches} selectedBranchId={packagePlan?.branchId} />
         <label>
           <span>Category</span>
-          <select name="categoryId" defaultValue={packagePlan?.categoryId ?? ""}>
-            <option value="">Uncategorized</option>
+          <select name="categoryId" defaultValue={packagePlan?.categoryId ?? ""} required>
+            <option value="" disabled>
+              Select category
+            </option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}

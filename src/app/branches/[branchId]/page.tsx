@@ -5,10 +5,7 @@ import { BranchForm } from "@/components/branch-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
-import {
-  deactivateBranchAction,
-  updateBranchAction,
-} from "../actions";
+import { updateBranchAction } from "../actions";
 
 type BranchDetailsPageProps = {
   params: Promise<{
@@ -68,17 +65,6 @@ export default async function BranchDetailsPage({
             branch={branch}
             submitLabel="Save branch"
           />
-          {branch.status === "ACTIVE" ? (
-            <form
-              action={deactivateBranchAction}
-              className="form-actions branch-deactivate-actions"
-            >
-              <input type="hidden" name="branchId" value={branch.id} />
-              <button className="secondary-light-button" type="submit">
-                Deactivate branch
-              </button>
-            </form>
-          ) : null}
         </div>
       </section>
     </AppShell>

@@ -67,7 +67,7 @@ export default async function ServiceDetailsPage({
         <div className="grid">
           <Info
             label="Category"
-            value={service.serviceCategory?.name ?? service.category ?? "Uncategorized"}
+            value={service.serviceCategory?.name ?? service.category ?? "-"}
           />
           <Info label="Status" value={service.status} />
           <Info label="Branch" value={service.branch?.name ?? "All branches"} />

@@ -8,6 +8,7 @@ import {
 import { branchWhere, getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { requireBusinessContext } from "@/lib/tenant";
+import { fromCents, toCents } from "@/lib/validation/pos";
 
 type ReportsPageProps = {
   searchParams: Promise<{
@@ -66,16 +67,22 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const [
     business,
     totalSales,
+    totalRefunds,
     serviceSales,
+    serviceRefunds,
     packageUses,
+    packageUseRefunds,
     paymentMethods,
+    refundMethods,
     voidedPayments,
     jobsByStatus,
     invoicesByStatus,
     packageSales,
+    packageSaleRefunds,
     topServices,
     topCustomerGroups,
     recentPayments,
+    recentRefunds,
   ] = await Promise.all([
     prisma.business.findUnique({ where: { id: businessId } }),
     prisma.payment.aggregate({
@@ -85,6 +92,16 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         status: "ACTIVE",
         method: { not: "PACKAGE" },
         paidAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      _count: true,
+      _sum: { amount: true },
+    }),
+    prisma.paymentRefund.aggregate({
+      where: {
+        businessId,
+        ...selectedBranchWhere,
+        method: { not: "PACKAGE" },
+        refundedAt: { gte: fromDate, lt: toDateExclusive },
       },
       _count: true,
       _sum: { amount: true },
@@ -101,6 +118,17 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       _count: true,
       _sum: { amount: true },
     }),
+    prisma.paymentRefund.aggregate({
+      where: {
+        businessId,
+        ...selectedBranchWhere,
+        method: { not: "PACKAGE" },
+        workOrderId: { not: null },
+        refundedAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      _count: true,
+      _sum: { amount: true },
+    }),
     prisma.payment.aggregate({
       where: {
         businessId,
@@ -112,6 +140,16 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       _count: true,
       _sum: { amount: true, packageUses: true },
     }),
+    prisma.paymentRefund.aggregate({
+      where: {
+        businessId,
+        ...selectedBranchWhere,
+        method: "PACKAGE",
+        refundedAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      _count: true,
+      _sum: { amount: true, packageUsesRestored: true },
+    }),
     prisma.payment.groupBy({
       by: ["method"],
       where: {
@@ -120,6 +158,18 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         status: "ACTIVE",
         method: { not: "PACKAGE" },
         paidAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      _count: true,
+      _sum: { amount: true },
+      orderBy: { _sum: { amount: "desc" } },
+    }),
+    prisma.paymentRefund.groupBy({
+      by: ["method"],
+      where: {
+        businessId,
+        ...selectedBranchWhere,
+        method: { not: "PACKAGE" },
+        refundedAt: { gte: fromDate, lt: toDateExclusive },
       },
       _count: true,
       _sum: { amount: true },
@@ -166,6 +216,20 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         customerPackageId: { not: null },
         workOrderId: null,
         paidAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      _count: true,
+      _sum: { amount: true },
+    }),
+    prisma.paymentRefund.aggregate({
+      where: {
+        businessId,
+        ...selectedBranchWhere,
+        method: { not: "PACKAGE" },
+        payment: {
+          customerPackageId: { not: null },
+          workOrderId: null,
+        },
+        refundedAt: { gte: fromDate, lt: toDateExclusive },
       },
       _count: true,
       _sum: { amount: true },
@@ -226,6 +290,36 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       orderBy: { paidAt: "desc" },
       take: 12,
     }),
+    prisma.paymentRefund.findMany({
+      where: {
+        businessId,
+        ...selectedBranchWhere,
+        refundedAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      include: {
+        payment: {
+          include: {
+            customerPackage: {
+              include: {
+                customer: true,
+                package: true,
+              },
+            },
+          },
+        },
+        processedBy: {
+          select: { name: true },
+        },
+        workOrder: {
+          include: {
+            customer: true,
+            vehicle: true,
+          },
+        },
+      },
+      orderBy: { refundedAt: "desc" },
+      take: 12,
+    }),
   ]);
 
   const customers = await prisma.customer.findMany({
@@ -242,6 +336,39 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
     (total, row) => total + Number(row._sum.balance ?? 0),
     0,
   );
+  const grossSalesCents = toCents(totalSales._sum.amount ?? 0);
+  const refundedSalesCents = toCents(totalRefunds._sum.amount ?? 0);
+  const netSalesCents = grossSalesCents - refundedSalesCents;
+  const netServiceSalesCents =
+    toCents(serviceSales._sum.amount ?? 0) -
+    toCents(serviceRefunds._sum.amount ?? 0);
+  const netPackageSalesCents =
+    toCents(packageSales._sum.amount ?? 0) -
+    toCents(packageSaleRefunds._sum.amount ?? 0);
+  const netPackageUses =
+    Number(packageUses._sum.packageUses ?? 0) -
+    Number(packageUseRefunds._sum.packageUsesRestored ?? 0);
+  const refundMethodByMethod = new Map(
+    refundMethods.map((row) => [row.method, row]),
+  );
+  const paymentMethodSummary = Array.from(
+    new Set([...paymentMethods.map((row) => row.method), ...refundMethods.map((row) => row.method)]),
+  )
+    .map((method) => {
+      const payment = paymentMethods.find((row) => row.method === method);
+      const refund = refundMethodByMethod.get(method);
+      const grossCents = toCents(payment?._sum.amount ?? 0);
+      const refundCents = toCents(refund?._sum.amount ?? 0);
+
+      return {
+        count: payment?._count ?? 0,
+        grossCents,
+        method,
+        netCents: grossCents - refundCents,
+        refundCents,
+      };
+    })
+    .sort((left, right) => right.netCents - left.netCents);
 
   if (!business) {
     return (
@@ -326,17 +453,20 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         </div>
 
         <div className="report-kpis">
-          <Metric label="Total Sales" value={money(totalSales._sum.amount)} />
-          <Metric label="Service Sales" value={money(serviceSales._sum.amount)} />
+          <Metric label="Gross Sales" value={money(fromCents(grossSalesCents))} />
+          <Metric label="Refunds" value={money(fromCents(refundedSalesCents))} />
+          <Metric label="Net Sales" value={money(fromCents(netSalesCents))} />
+          <Metric label="Service Sales" value={money(fromCents(netServiceSalesCents))} />
           <Metric
             label="Package Sales"
-            value={`${packageSales._count} / ${money(packageSales._sum.amount)}`}
+            value={`${packageSales._count} / ${money(fromCents(netPackageSalesCents))}`}
           />
           <Metric
             label="Package Uses"
-            value={`${packageUses._sum.packageUses ?? 0} uses`}
+            value={`${netPackageUses} uses`}
           />
           <Metric label="Payments" value={totalSales._count} />
+          <Metric label="Refund Transactions" value={totalRefunds._count} />
           <Metric label="Jobs" value={jobCount} />
           <Metric label="Invoices" value={invoiceCount} />
           <Metric label="Outstanding" value={money(outstanding)} />
@@ -348,21 +478,25 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
 
         <section className="report-grid">
           <ReportCard title="Payment Methods">
-            {paymentMethods.length ? (
+            {paymentMethodSummary.length ? (
               <table className="table compact-table">
                 <thead>
                   <tr>
                     <th>Method</th>
                     <th>Count</th>
-                    <th>Amount</th>
+                    <th>Gross</th>
+                    <th>Refunds</th>
+                    <th>Net</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paymentMethods.map((row) => (
+                  {paymentMethodSummary.map((row) => (
                     <tr key={row.method}>
                       <td>{paymentMethodLabels[row.method]}</td>
-                      <td>{row._count}</td>
-                      <td>{money(row._sum.amount)}</td>
+                      <td>{row.count}</td>
+                      <td>{money(fromCents(row.grossCents))}</td>
+                      <td>{money(fromCents(row.refundCents))}</td>
+                      <td>{money(fromCents(row.netCents))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -542,6 +676,64 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
               </table>
             ) : (
               <p className="empty-state">No recent payments in this period.</p>
+            )}
+          </ReportCard>
+
+          <ReportCard title="Recent Refunds">
+            {recentRefunds.length ? (
+              <table className="table compact-table">
+                <thead>
+                  <tr>
+                    <th>Refunded at</th>
+                    <th>Customer</th>
+                    <th>Related</th>
+                    <th>Method</th>
+                    <th>Amount</th>
+                    <th>Processed by</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentRefunds.map((refund) => (
+                    <tr key={refund.id}>
+                      <td>{formatDateTime(refund.refundedAt)}</td>
+                      <td>
+                        {refund.workOrder?.customer.name ??
+                          refund.payment.customerPackage?.customer.name ??
+                          "No customer"}
+                        <div className="muted">{refund.reason}</div>
+                      </td>
+                      <td>
+                        {refund.workOrder && refund.invoiceId ? (
+                          <Link href={`/invoices/${refund.invoiceId}`}>
+                            {refund.workOrder.vehicle.plateNumber}
+                          </Link>
+                        ) : refund.workOrder ? (
+                          <Link href={`/work-orders/${refund.workOrder.id}`}>
+                            {refund.workOrder.vehicle.plateNumber}
+                          </Link>
+                        ) : refund.payment.customerPackage ? (
+                          <Link
+                            href={`/crm/customers/${refund.payment.customerPackage.customerId}`}
+                          >
+                            {refund.payment.customerPackage.package.name}
+                          </Link>
+                        ) : (
+                          "Refund"
+                        )}
+                      </td>
+                      <td>{paymentMethodLabels[refund.method]}</td>
+                      <td>
+                        {refund.method === "PACKAGE"
+                          ? `${refund.packageUsesRestored} use${refund.packageUsesRestored === 1 ? "" : "s"} restored`
+                          : `-${money(refund.amount)}`}
+                      </td>
+                      <td>{refund.processedBy?.name ?? "System"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="empty-state">No refunds in this period.</p>
             )}
           </ReportCard>
         </section>

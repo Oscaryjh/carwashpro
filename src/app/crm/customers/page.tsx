@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
-import { DeleteCustomerForm } from "@/components/delete-customer-form";
 import { requireCrmUser } from "@/lib/auth/crm";
 import { prisma } from "@/lib/prisma";
 import { normalizePlateNumber } from "@/lib/validation/crm";
@@ -127,12 +126,6 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
                     <td>
                       <div className="inline-actions">
                         <Link href={`/crm/customers/${customer.id}`}>View</Link>
-                        <Link href={`/crm/customers/${customer.id}/edit`}>Edit</Link>
-                        <DeleteCustomerForm
-                          customerId={customer.id}
-                          customerName={customer.name}
-                          label="Delete"
-                        />
                       </div>
                     </td>
                   </tr>

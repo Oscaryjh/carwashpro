@@ -71,7 +71,7 @@ export default async function PackageDetailsPage({
         <div className="grid">
           <Info
             label="Category"
-            value={packagePlan.packageCategory?.name ?? "Uncategorized"}
+            value={packagePlan.packageCategory?.name ?? "-"}
           />
           <Info label="Status" value={packagePlan.status} />
           <Info label="Total washes" value={packagePlan.totalUses} />

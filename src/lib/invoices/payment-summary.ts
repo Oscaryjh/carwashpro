@@ -2,21 +2,28 @@ type InvoicePaymentLike = {
   amount: unknown;
   method: string;
   status?: string | null;
+  refunds?: Array<{
+    amount: unknown;
+  }>;
 };
 
 export function getInvoicePaymentSummary(payments: InvoicePaymentLike[]) {
   const activePayments = payments.filter((payment) => payment.status !== "VOID");
-  const packageVoucherAmount = sumPayments(
+  const grossPaidAmount = sumPayments(activePayments);
+  const totalRefundedAmount = sumRefunds(activePayments);
+  const packageVoucherAmount = sumNetPayments(
     activePayments.filter((payment) => payment.method === "PACKAGE"),
   );
-  const cashPaidAmount = sumPayments(
+  const cashPaidAmount = sumNetPayments(
     activePayments.filter((payment) => payment.method !== "PACKAGE"),
   );
 
   return {
     cashPaidAmount,
+    grossPaidAmount,
     hasPackageVoucher: packageVoucherAmount > 0,
     packageVoucherAmount,
+    totalRefundedAmount,
   };
 }
 
@@ -34,5 +41,42 @@ export function formatInvoicePaymentStatus(
 }
 
 function sumPayments(payments: InvoicePaymentLike[]) {
-  return payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+  return fromCents(
+    payments.reduce((sum, payment) => sum + toCents(payment.amount), 0),
+  );
+}
+
+function sumRefunds(payments: InvoicePaymentLike[]) {
+  return fromCents(
+    payments.reduce(
+      (sum, payment) =>
+        sum +
+        (payment.refunds ?? []).reduce(
+          (refundSum, refund) => refundSum + toCents(refund.amount),
+          0,
+        ),
+      0,
+    ),
+  );
+}
+
+function sumNetPayments(payments: InvoicePaymentLike[]) {
+  return fromCents(
+    payments.reduce((sum, payment) => {
+      const refundedCents = (payment.refunds ?? []).reduce(
+        (refundSum, refund) => refundSum + toCents(refund.amount),
+        0,
+      );
+
+      return sum + Math.max(0, toCents(payment.amount) - refundedCents);
+    }, 0),
+  );
+}
+
+function toCents(value: unknown) {
+  return Math.round(Number(value ?? 0) * 100);
+}
+
+function fromCents(value: number) {
+  return value / 100;
 }

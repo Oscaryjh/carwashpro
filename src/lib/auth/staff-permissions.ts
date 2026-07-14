@@ -18,6 +18,11 @@ export const staffPermissions = [
     description: "Search, create, and update customers and vehicles.",
   },
   {
+    key: "LOYALTY",
+    label: "Membership",
+    description: "View members, point balances, and loyalty activity.",
+  },
+  {
     key: "JOBS",
     label: "Jobs",
     description: "Create jobs, update status, and manage pickup flow.",
@@ -84,6 +89,7 @@ export type StaffPermission = (typeof staffPermissions)[number]["key"];
 export const defaultStaffPermissions: StaffPermission[] = [
   "DASHBOARD",
   "CRM",
+  "LOYALTY",
   "JOBS",
   "APPOINTMENTS",
   "POS",
@@ -144,6 +150,10 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
 
   if (pathname === "/crm" || pathname.startsWith("/crm/")) {
     return "CRM";
+  }
+
+  if (pathname === "/loyalty" || pathname.startsWith("/loyalty/")) {
+    return "LOYALTY";
   }
 
   if (pathname === "/work-orders" || pathname.startsWith("/work-orders/")) {

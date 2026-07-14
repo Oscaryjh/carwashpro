@@ -29,6 +29,9 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
             { workOrder: { customer: { name: { contains: query, mode: "insensitive" } } } },
             { workOrder: { customer: { phone: { contains: query } } } },
             { workOrder: { vehicle: { plateNumber: { contains: query, mode: "insensitive" } } } },
+            { customer: { name: { contains: query, mode: "insensitive" } } },
+            { customer: { phone: { contains: query } } },
+            { customerPackage: { package: { name: { contains: query, mode: "insensitive" } } } },
           ],
         }
       : {}),
@@ -44,6 +47,8 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
             vehicle: true,
           },
         },
+        customer: true,
+        customerPackage: { include: { package: true } },
       },
       orderBy: { issuedAt: "desc" },
       skip: (currentPage - 1) * PAGE_SIZE,
@@ -108,14 +113,16 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                     </td>
                     <td>
                       <strong>{formatInvoiceNumber(invoice.invoiceNumber)}</strong>
-                      <div className="muted">{invoice.workOrder.orderNumber}</div>
+                      <div className="muted">
+                        {invoice.workOrder?.orderNumber ?? invoice.customerPackage?.package.name ?? "Package purchase"}
+                      </div>
                     </td>
                     <td>
-                      <strong>{invoice.workOrder.customer.name}</strong>
-                      <div className="muted">{invoice.workOrder.customer.phone}</div>
+                      <strong>{invoice.workOrder?.customer.name ?? invoice.customer?.name ?? "-"}</strong>
+                      <div className="muted">{invoice.workOrder?.customer.phone ?? invoice.customer?.phone ?? "-"}</div>
                     </td>
                     <td>
-                      <strong>{invoice.workOrder.vehicle.plateNumber}</strong>
+                      <strong>{invoice.workOrder?.vehicle.plateNumber ?? "-"}</strong>
                     </td>
                     <td>
                       <span className={`status ${invoice.status.toLowerCase()}`}>

@@ -13,6 +13,7 @@ import {
   vehicleSchema,
 } from "@/lib/validation/crm";
 import { sendNewCustomerWelcomeIfConnected } from "@/lib/whatsapp/customer-welcome";
+import { resolveVehicleSize } from "@/lib/vehicle-size";
 
 export type DeleteCustomerState = {
   status: "idle" | "success" | "error";
@@ -38,6 +39,9 @@ export async function createCustomerAction(formData: FormData) {
         color: formData.get("color"),
         notes: formData.get("vehicleNotes"),
       })
+    : null;
+  const resolvedVehicleSize = vehicleInput
+    ? await resolveVehicleSize(businessId, vehicleInput.brand, vehicleInput.model)
     : null;
 
   if (vehicleInput) {
@@ -103,6 +107,8 @@ export async function createCustomerAction(formData: FormData) {
           brand: vehicleInput.brand || null,
           model: vehicleInput.model || null,
           color: vehicleInput.color || null,
+          size: resolvedVehicleSize?.size ?? "UNCLASSIFIED",
+          sizeSource: resolvedVehicleSize?.source ?? "UNCLASSIFIED",
           notes: vehicleInput.notes || null,
         },
       });
@@ -513,6 +519,7 @@ export async function createVehicleAction(formData: FormData) {
       businessId,
     },
   });
+  const resolvedVehicleSize = await resolveVehicleSize(businessId, input.brand, input.model);
 
   await prisma.vehicle.create({
     data: {
@@ -523,6 +530,8 @@ export async function createVehicleAction(formData: FormData) {
       brand: input.brand || null,
       model: input.model || null,
       color: input.color || null,
+      size: resolvedVehicleSize.size,
+      sizeSource: resolvedVehicleSize.source,
       notes: input.notes || null,
     },
   });
@@ -573,6 +582,7 @@ export async function updateVehicleAction(formData: FormData) {
   }
 
   const plateNumber = normalizePlateNumber(input.plateNumber);
+  const resolvedVehicleSize = await resolveVehicleSize(businessId, input.brand, input.model);
   const existingPlate = await prisma.vehicle.findFirst({
     where: {
       businessId,
@@ -594,6 +604,8 @@ export async function updateVehicleAction(formData: FormData) {
       brand: input.brand || null,
       model: input.model || null,
       color: input.color || null,
+      size: resolvedVehicleSize.size,
+      sizeSource: resolvedVehicleSize.source,
       notes: input.notes || null,
     },
   });

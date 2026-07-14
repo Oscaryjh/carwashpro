@@ -15,7 +15,6 @@ type PackagesPageProps = {
   }>;
 };
 
-const UNCATEGORIZED = "uncategorized";
 const ALL_BRANCHES_ONLY = "all-branches-only";
 
 export default async function PackagesPage({ searchParams }: PackagesPageProps) {
@@ -24,10 +23,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
 
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
-  const categoryId =
-    params.categoryId === UNCATEGORIZED || isUuid(params.categoryId)
-      ? params.categoryId
-      : "";
+  const categoryId = isUuid(params.categoryId) ? params.categoryId : "";
   const status =
     params.status === "ACTIVE" || params.status === "INACTIVE" ? params.status : "";
   const branchId =
@@ -48,9 +44,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
     });
   }
 
-  if (categoryId === UNCATEGORIZED) {
-    filters.push({ categoryId: null });
-  } else if (categoryId) {
+  if (categoryId) {
     filters.push({ categoryId });
   }
 
@@ -120,7 +114,6 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
             />
             <select name="categoryId" defaultValue={categoryId} aria-label="Category">
               <option value="">All categories</option>
-              <option value={UNCATEGORIZED}>Uncategorized</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -168,7 +161,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
                 {packages.map((packagePlan, index) => (
                   <tr key={packagePlan.id}>
                     <td className="table-number">{index + 1}</td>
-                    <td>{packagePlan.packageCategory?.name ?? "Uncategorized"}</td>
+                    <td>{packagePlan.packageCategory?.name ?? "-"}</td>
                     <td>
                       <Link href={`/packages/${packagePlan.id}`}>
                         <strong>{packagePlan.name}</strong>

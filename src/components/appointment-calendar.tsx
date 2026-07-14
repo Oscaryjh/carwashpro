@@ -371,11 +371,15 @@ export function AppointmentCalendar({
             aria-label="Resize calendar"
             className="appointment-calendar-icon-link"
             onClick={() => setIsResizeOpen(true)}
+            title="Resize calendar"
             type="button"
           >
-            {"\u2194"}
+            <span aria-hidden="true" className="appointment-calendar-icon-glyph">
+              {"\u2194"}
+            </span>
           </button>
           <button
+            aria-label="New appointment"
             className="appointment-calendar-icon-link"
             onClick={() => {
               setNewAppointmentDate(toDateValue(new Date()));
@@ -384,10 +388,12 @@ export function AppointmentCalendar({
               setTimeModalOffset({ x: 0, y: 0 });
               setIsNewTimeOpen(true);
             }}
+            title="New appointment"
             type="button"
-            aria-label="New appointment"
           >
-            +
+            <span aria-hidden="true" className="appointment-calendar-icon-glyph">
+              +
+            </span>
           </button>
         </div>
       </div>

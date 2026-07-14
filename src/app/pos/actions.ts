@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
+import { awardLoyaltyPointsForPayment } from "@/lib/loyalty/service";
 import { prisma } from "@/lib/prisma";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import {
@@ -13,9 +15,11 @@ import {
   toCents,
 } from "@/lib/validation/pos";
 import { usePackagePaymentSchema } from "@/lib/validation/packages";
+import { packageAllowsVehicle, vehicleSizeLabel } from "@/lib/vehicle-size";
 
 export async function recordPaymentAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser();
+  const auditRequest = await getAuditRequestContext();
   const input = paymentSchema.parse({
     workOrderId: formData.get("workOrderId"),
     amount: formData.get("amount"),
@@ -78,7 +82,7 @@ export async function recordPaymentAction(formData: FormData) {
         },
       }));
 
-    await tx.payment.create({
+    const payment = await tx.payment.create({
       data: {
         businessId,
         branchId: workOrder.branchId,
@@ -89,6 +93,16 @@ export async function recordPaymentAction(formData: FormData) {
         method: input.method,
         reference: input.reference || null,
       },
+    });
+
+    await awardLoyaltyPointsForPayment(tx, {
+      businessId,
+      branchId: workOrder.branchId,
+      customerId: workOrder.customerId,
+      paymentId: payment.id,
+      amountCents,
+      paymentMethod: payment.method,
+      createdById: user.userId,
     });
 
     await tx.workOrder.update({
@@ -110,6 +124,35 @@ export async function recordPaymentAction(formData: FormData) {
         voidReason: null,
       },
     });
+
+    await writeAuditLog(
+      {
+        businessId,
+        branchId: workOrder.branchId,
+        actor: user,
+        action: "PAYMENT_RECORDED",
+        entityType: "Payment",
+        entityId: payment.id,
+        summary: `Recorded ${fromCents(amountCents)} ${input.method} payment`,
+        before: {
+          workOrderId: workOrder.id,
+          paidAmount: workOrder.paidAmount,
+          balance: workOrder.balance,
+          paymentStatus: workOrder.paymentStatus,
+        },
+        after: {
+          workOrderId: workOrder.id,
+          invoiceId: invoice.id,
+          amount: payment.amount,
+          method: payment.method,
+          paidAmount: fromCents(nextPaidCents),
+          balance: fromCents(nextBalanceCents),
+          paymentStatus,
+        },
+        request: auditRequest,
+      },
+      tx,
+    );
 
     return {
       invoiceId: invoice.id,
@@ -141,6 +184,7 @@ export async function recordPaymentAction(formData: FormData) {
 
 export async function usePackagePaymentAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser();
+  const auditRequest = await getAuditRequestContext();
   const input = usePackagePaymentSchema.parse({
     workOrderId: formData.get("workOrderId"),
     customerPackageId: formData.get("customerPackageId"),
@@ -159,6 +203,7 @@ export async function usePackagePaymentAction(formData: FormData) {
       include: {
         invoice: true,
         items: true,
+        vehicle: { select: { size: true } },
       },
     });
     assertShiftBranch(shift.branchId, workOrder.branchId);
@@ -193,6 +238,14 @@ export async function usePackagePaymentAction(formData: FormData) {
       )
     ) {
       throw new Error("This package cannot be used for the selected services.");
+    }
+
+    if (!packageAllowsVehicle(customerPackage.eligibleVehicleSize, workOrder.vehicle.size)) {
+      throw new Error(
+        workOrder.vehicle.size === "UNCLASSIFIED"
+          ? "Classify this vehicle as Small, Medium, or Large before using a package."
+          : `This package is for ${vehicleSizeLabel(customerPackage.eligibleVehicleSize)} vehicles and cannot be used for this ${vehicleSizeLabel(workOrder.vehicle.size)} vehicle.`,
+      );
     }
 
     const totalCents = toCents(workOrder.total);
@@ -230,7 +283,7 @@ export async function usePackagePaymentAction(formData: FormData) {
       },
     });
 
-    await tx.payment.create({
+    const payment = await tx.payment.create({
       data: {
         businessId,
         branchId: workOrder.branchId,
@@ -265,6 +318,31 @@ export async function usePackagePaymentAction(formData: FormData) {
       },
     });
 
+    await writeAuditLog(
+      {
+        businessId,
+        branchId: workOrder.branchId,
+        actor: user,
+        action: "PACKAGE_USE_RECORDED",
+        entityType: "Payment",
+        entityId: payment.id,
+        summary: `Used ${customerPackage.package.name} for checkout`,
+        before: {
+          customerPackageId: customerPackage.id,
+          remainingUses: customerPackage.remainingUses,
+          workOrderPaymentStatus: workOrder.paymentStatus,
+        },
+        after: {
+          customerPackageId: customerPackage.id,
+          remainingUses: nextRemainingUses,
+          workOrderPaymentStatus: "PAID",
+          invoiceId: invoice.id,
+        },
+        request: auditRequest,
+      },
+      tx,
+    );
+
     return invoice.id;
   });
 
@@ -289,6 +367,7 @@ export async function usePackagePaymentAction(formData: FormData) {
 
 export async function recordPackagePurchasePaymentAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser();
+  const auditRequest = await getAuditRequestContext();
   const input = packagePurchasePaymentSchema.parse({
     customerPackageId: formData.get("customerPackageId"),
     amount: formData.get("amount"),
@@ -321,7 +400,7 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
       throw new Error("Package purchase must be paid in full before activation.");
     }
 
-    await tx.payment.create({
+    const payment = await tx.payment.create({
       data: {
         businessId,
         branchId: customerPackage.branchId,
@@ -335,6 +414,16 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
       },
     });
 
+    await awardLoyaltyPointsForPayment(tx, {
+      businessId,
+      branchId: customerPackage.branchId,
+      customerId: customerPackage.customerId,
+      paymentId: payment.id,
+      amountCents,
+      paymentMethod: payment.method,
+      createdById: user.userId,
+    });
+
     await tx.customerPackage.update({
       where: { id: customerPackage.id },
       data: {
@@ -342,6 +431,32 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
         status: "ACTIVE",
       },
     });
+
+    await writeAuditLog(
+      {
+        businessId,
+        branchId: customerPackage.branchId,
+        actor: user,
+        action: "PACKAGE_PURCHASE_PAID",
+        entityType: "Payment",
+        entityId: payment.id,
+        summary: `Activated ${customerPackage.package.name} package`,
+        before: {
+          customerPackageId: customerPackage.id,
+          status: customerPackage.status,
+          remainingUses: customerPackage.remainingUses,
+        },
+        after: {
+          customerPackageId: customerPackage.id,
+          status: "ACTIVE",
+          remainingUses: customerPackage.totalUses,
+          amount: payment.amount,
+          method: payment.method,
+        },
+        request: auditRequest,
+      },
+      tx,
+    );
 
     return customerPackage.customer.id;
   });

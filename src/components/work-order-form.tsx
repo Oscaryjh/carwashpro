@@ -348,7 +348,7 @@ function groupServicesByCategory(services: ServiceOption[]) {
 }
 
 function getServiceCategory(service: ServiceOption) {
-  return service.category?.trim() || "Uncategorized";
+  return service.category?.trim() || "Services";
 }
 
 function formatMoney(value: number) {

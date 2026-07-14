@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { resolveOperationalBranchId } from "@/lib/branches";
+import { awardLoyaltyPointsForPayment } from "@/lib/loyalty/service";
 import { prisma } from "@/lib/prisma";
 import {
   customerPhoneSearchVariants,
@@ -13,6 +15,8 @@ import {
   vehicleSchema,
 } from "@/lib/validation/crm";
 import { money } from "@/lib/validation/services";
+import { cashierPackagePurchaseSchema } from "@/lib/validation/packages";
+import { fromCents } from "@/lib/validation/pos";
 import {
   canMoveWorkOrderStatus,
   createWorkOrderSchema,
@@ -21,6 +25,10 @@ import {
   updateWorkOrderStatusSchema,
 } from "@/lib/validation/work-orders";
 import { sendNewCustomerWelcomeIfConnected } from "@/lib/whatsapp/customer-welcome";
+import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
+import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
+import { resolveVehicleSize } from "@/lib/vehicle-size";
+import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
 import {
   sendReadyForPickupIfConnected,
   sendServiceConfirmationQueued,
@@ -28,6 +36,11 @@ import {
 
 function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
+}
+
+function redirectToWorkOrdersMessage(type: "error" | "success", message: string): never {
+  const params = new URLSearchParams({ type, message });
+  redirect(`/work-orders?${params.toString()}`);
 }
 
 function redirectToNewWorkOrderError(
@@ -117,6 +130,7 @@ export async function createVehicleForWorkOrderAction(formData: FormData) {
       color: formData.get("color") ?? "",
       notes: formData.get("vehicleNotes") ?? "",
     });
+  const resolvedVehicleSize = await resolveVehicleSize(businessId, vehicleInput.brand, vehicleInput.model);
 
   const createdCustomerForWelcome = await prisma.$transaction(async (tx) => {
     let customerId = "";
@@ -203,6 +217,8 @@ export async function createVehicleForWorkOrderAction(formData: FormData) {
         brand: vehicleInput.brand || null,
         model: vehicleInput.model || null,
         color: vehicleInput.color || null,
+        size: resolvedVehicleSize.size,
+        sizeSource: resolvedVehicleSize.source,
         notes: vehicleInput.notes || null,
       },
     });
@@ -229,6 +245,7 @@ export async function createVehicleForWorkOrderAction(formData: FormData) {
 
 export async function createWorkOrderAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser();
+  const auditRequest = await getAuditRequestContext();
   const branchId = await resolveOperationalBranchId(
     businessId,
     user,
@@ -441,6 +458,30 @@ export async function createWorkOrderAction(formData: FormData) {
       },
     });
 
+    await writeAuditLog(
+      {
+        businessId,
+        branchId,
+        actor: user,
+        action: "WORK_ORDER_CREATED",
+        entityType: "WorkOrder",
+        entityId: created.id,
+        summary: `Created job ${created.orderNumber}`,
+        after: {
+          orderNumber: created.orderNumber,
+          customerId: created.customerId,
+          vehicleId: created.vehicleId,
+          status: created.status,
+          paymentStatus: created.paymentStatus,
+          total: created.total,
+          contactType: created.contactType,
+        },
+        metadata: { serviceIds },
+        request: auditRequest,
+      },
+      tx,
+    );
+
     return { created, newOwnerForWelcome };
   });
 
@@ -465,8 +506,254 @@ export async function createWorkOrderAction(formData: FormData) {
   redirect("/work-orders");
 }
 
+export async function purchasePackageFromCashierAction(formData: FormData) {
+  const { businessId, user } = await requireBusinessUser();
+  const auditRequest = await getAuditRequestContext();
+  const parsed = cashierPackagePurchaseSchema.safeParse({
+    branchId: formData.get("branchId")?.toString() ?? "",
+    method: formData.get("method")?.toString(),
+    packageId: formData.get("packageId")?.toString(),
+    reference: formData.get("reference")?.toString() || undefined,
+    customerId: formData.get("customerId")?.toString(),
+  });
+
+  if (!parsed.success) {
+    redirectToWorkOrdersMessage(
+      "error",
+      parsed.error.issues[0]?.message ?? "Package purchase details are invalid.",
+    );
+  }
+
+  const input = parsed.data;
+
+  try {
+    const branchId = await resolveOperationalBranchId(
+      businessId,
+      user,
+      input.branchId || null,
+    );
+
+    const result = await prisma.$transaction(async (tx) => {
+      const shift = await tx.cashierShift.findFirst({
+        where: {
+          businessId,
+          cashierId: user.userId,
+          status: "OPEN",
+        },
+        select: { id: true, branchId: true },
+      });
+
+      if (!shift) {
+        throw new Error("Start a cashier shift before selling a package.");
+      }
+
+      if (shift.branchId !== branchId) {
+        throw new Error("This package sale does not belong to the current shift branch.");
+      }
+
+      const customer = await tx.customer.findFirst({
+        where: {
+          id: input.customerId,
+          businessId,
+        },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          _count: {
+            select: { vehicles: true },
+          },
+        },
+      });
+
+      if (!customer) {
+        throw new Error("Customer account could not be found.");
+      }
+
+      const packageDefinition = await tx.package.findFirst({
+        where: {
+          id: input.packageId,
+          businessId,
+          status: "ACTIVE",
+        },
+      });
+
+      if (!packageDefinition) {
+        throw new Error("This package is no longer available.");
+      }
+
+      const customerPackage = await tx.customerPackage.create({
+        data: {
+          businessId,
+          branchId,
+          customerId: customer.id,
+          packageId: packageDefinition.id,
+          purchasePrice: packageDefinition.price,
+          totalUses: packageDefinition.totalUses,
+          eligibleVehicleSize: packageDefinition.eligibleVehicleSize,
+          remainingUses: 0,
+          status: "PENDING_PAYMENT",
+        },
+      });
+      const amountCents = toCents(packageDefinition.price);
+      const payment = await tx.payment.create({
+        data: {
+          businessId,
+          branchId,
+          cashierId: user.userId,
+          customerPackageId: customerPackage.id,
+          shiftId: shift.id,
+          amount: fromCents(amountCents),
+          method: input.method,
+          reference:
+            input.reference || `${packageDefinition.name} package purchase`,
+        },
+      });
+
+      await awardLoyaltyPointsForPayment(tx, {
+        businessId,
+        branchId,
+        customerId: customer.id,
+        paymentId: payment.id,
+        amountCents,
+        paymentMethod: payment.method,
+        createdById: user.userId,
+      });
+
+      await tx.customerPackage.update({
+        where: { id: customerPackage.id },
+        data: {
+          remainingUses: packageDefinition.totalUses,
+          status: "ACTIVE",
+        },
+      });
+
+      const invoice = await tx.invoice.create({
+        data: {
+          businessId,
+          branchId,
+          customerId: customer.id,
+          customerPackageId: customerPackage.id,
+          invoiceNumber: makeInvoiceNumber(),
+          subtotal: packageDefinition.price,
+          total: packageDefinition.price,
+          paidAmount: packageDefinition.price,
+          balance: 0,
+          status: "PAID",
+        },
+      });
+
+      const recipientPhone = normalizeMalaysiaWhatsAppPhone(customer.phone);
+      const messageBody = [
+        `Hi ${customer.name}, thank you for your purchase.`,
+        `Invoice No: ${invoice.invoiceNumber}`,
+        `Package: ${packageDefinition.name}`,
+        `Total: RM${Number(packageDefinition.price).toFixed(2)}`,
+        `Paid: RM${Number(packageDefinition.price).toFixed(2)}`,
+        `Uses: ${packageDefinition.totalUses}`,
+        "Payment status: paid",
+      ].join("\\n");
+      const messageLog = recipientPhone
+        ? await tx.whatsAppMessage.create({
+            data: {
+              businessId,
+              branchId,
+              customerId: customer.id,
+              invoiceId: invoice.id,
+              messageBody,
+              messageType: "INVOICE_SENT",
+              phone: recipientPhone,
+              recipientPhone,
+              sentByUserId: user.userId,
+              status: "DRAFT",
+            },
+          })
+        : null;
+
+      await writeAuditLog(
+        {
+          businessId,
+          branchId,
+          actor: user,
+          action: "PACKAGE_PURCHASE_PAID",
+          entityType: "Payment",
+          entityId: payment.id,
+          summary: `Activated ${packageDefinition.name} package`,
+          before: {
+            customerPackageId: customerPackage.id,
+            status: "PENDING_PAYMENT",
+            remainingUses: 0,
+          },
+          after: {
+            customerPackageId: customerPackage.id,
+            status: "ACTIVE",
+            remainingUses: packageDefinition.totalUses,
+            amount: payment.amount,
+            method: payment.method,
+          },
+          metadata: {
+            customerId: customer.id,
+            customerPhone: customer.phone,
+            customerVehicleCount: customer._count.vehicles,
+            packageId: packageDefinition.id,
+          },
+          request: auditRequest,
+        },
+        tx,
+      );
+
+      return {
+        customerId: customer.id,
+        customerPackageId: customerPackage.id,
+        invoiceId: invoice.id,
+        messageLogId: messageLog?.id ?? null,
+        recipientPhone,
+        messageBody,
+      };
+    });
+
+    if (result.messageLogId && result.recipientPhone) {
+      try {
+        await enqueueWhatsAppLogMessage({
+          businessId,
+          branchId,
+          messageLogId: result.messageLogId,
+          messageType: "INVOICE_SENT",
+          phone: result.recipientPhone,
+          message: result.messageBody,
+        });
+      } catch (error) {
+        await prisma.whatsAppMessage.update({
+          where: { id: result.messageLogId },
+          data: {
+            status: "FAILED",
+            errorMessage: error instanceof Error ? error.message : "Unable to queue package invoice message.",
+          },
+        });
+      }
+    }
+
+    revalidatePath("/work-orders");
+    revalidatePath("/pos");
+    revalidatePath("/closing");
+    revalidatePath("/dashboard");
+    revalidatePath("/reports");
+    revalidatePath(`/crm/customers/${result.customerId}`);
+    revalidatePath(`/pos/packages/${result.customerPackageId}`);
+    revalidatePath(`/invoices/${result.invoiceId}`);
+  } catch (error) {
+    redirectToWorkOrdersMessage(
+      "error",
+      error instanceof Error ? error.message : "Unable to complete package purchase.",
+    );
+  }
+
+  redirectToWorkOrdersMessage("success", "Package purchased and activated.");
+}
+
 export async function updateWorkOrderStatusAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser();
+  const auditRequest = await getAuditRequestContext();
   const input = updateWorkOrderStatusSchema.parse({
     workOrderId: formData.get("workOrderId"),
     status: formData.get("status"),
@@ -492,13 +779,32 @@ export async function updateWorkOrderStatusAction(formData: FormData) {
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.workOrder.update({
+    const updated = await tx.workOrder.update({
       where: { id: workOrder.id },
       data: {
         status: input.status,
         ...(input.status === "COMPLETED" ? { pickedUpAt: new Date() } : {}),
       },
     });
+
+    await writeAuditLog(
+      {
+        businessId,
+        branchId: workOrder.branchId,
+        actor: user,
+        action:
+          input.status === "CANCELLED"
+            ? "WORK_ORDER_CANCELLED"
+            : "WORK_ORDER_STATUS_CHANGED",
+        entityType: "WorkOrder",
+        entityId: workOrder.id,
+        summary: `${workOrder.orderNumber}: ${workOrder.status} to ${updated.status}`,
+        before: { status: workOrder.status, pickedUpAt: workOrder.pickedUpAt },
+        after: { status: updated.status, pickedUpAt: updated.pickedUpAt },
+        request: auditRequest,
+      },
+      tx,
+    );
   });
 
   if (input.status === "READY_FOR_PICKUP") {
@@ -515,6 +821,7 @@ export async function updateWorkOrderStatusAction(formData: FormData) {
 
 export async function updateWorkOrderContactAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser();
+  const auditRequest = await getAuditRequestContext();
   const workOrderId = formData.get("workOrderId")?.toString() ?? "";
   const parsedInput = updateWorkOrderContactSchema.safeParse({
     workOrderId: formData.get("workOrderId"),
@@ -563,15 +870,37 @@ export async function updateWorkOrderContactAction(formData: FormData) {
       ? workOrder.customer.phone
       : normalizeCustomerPhone(input.contactPhone ?? "");
 
-  await prisma.workOrder.update({
-    where: {
-      id: workOrder.id,
-    },
-    data: {
-      contactType: input.contactType,
-      contactName,
-      contactPhone,
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.workOrder.update({
+      where: {
+        id: workOrder.id,
+      },
+      data: {
+        contactType: input.contactType,
+        contactName,
+        contactPhone,
+      },
+    });
+
+    await writeAuditLog(
+      {
+        businessId,
+        branchId: workOrder.branchId,
+        actor: user,
+        action: "WORK_ORDER_CONTACT_UPDATED",
+        entityType: "WorkOrder",
+        entityId: workOrder.id,
+        summary: `Updated pickup contact for ${workOrder.orderNumber}`,
+        before: {
+          contactType: workOrder.contactType,
+          contactName: workOrder.contactName,
+          contactPhone: workOrder.contactPhone,
+        },
+        after: { contactType: input.contactType, contactName, contactPhone },
+        request: auditRequest,
+      },
+      tx,
+    );
   });
 
   revalidatePath("/work-orders");

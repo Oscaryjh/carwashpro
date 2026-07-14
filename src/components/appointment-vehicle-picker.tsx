@@ -16,6 +16,7 @@ export type AppointmentVehicleOption = {
 
 type AppointmentVehiclePickerProps = {
   initialVehicles?: AppointmentVehicleOption[];
+  onSelectionChange?: (vehicle: AppointmentVehicleOption | null) => void;
 };
 
 type CreateCustomerDraft = {
@@ -32,7 +33,9 @@ type ExistingCustomerMatch = {
   phone: string;
 };
 
-export function AppointmentVehiclePicker({}: AppointmentVehiclePickerProps) {
+export function AppointmentVehiclePicker({
+  onSelectionChange,
+}: AppointmentVehiclePickerProps) {
   const [query, setQuery] = useState("");
   const [memberQuery, setMemberQuery] = useState("");
   const [isMemberOpen, setIsMemberOpen] = useState(false);
@@ -53,7 +56,13 @@ export function AppointmentVehiclePicker({}: AppointmentVehiclePickerProps) {
     useState<ExistingCustomerMatch | null>(null);
   const [isSearchingVehicles, setIsSearchingVehicles] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const memberSearchInputRef = useRef<HTMLInputElement>(null);
   const trimmedMemberQuery = memberQuery.trim();
+
+  function selectVehicle(vehicle: AppointmentVehicleOption) {
+    setSelectedVehicle(vehicle);
+    onSelectionChange?.(vehicle);
+  }
 
   const helperText = useMemo(() => {
     if (selectedVehicle) {
@@ -117,7 +126,7 @@ export function AppointmentVehiclePicker({}: AppointmentVehiclePickerProps) {
         return;
       }
 
-      setSelectedVehicle(data.vehicle);
+      selectVehicle(data.vehicle);
       setQuery(data.vehicle.label);
       setMemberQuery(data.vehicle.label);
       setVehicles([]);
@@ -203,6 +212,19 @@ export function AppointmentVehiclePicker({}: AppointmentVehiclePickerProps) {
   }, [selectedVehicle]);
 
   useEffect(() => {
+    if (!isMemberOpen) {
+      return undefined;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      memberSearchInputRef.current?.focus();
+      memberSearchInputRef.current?.select();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isMemberOpen]);
+
+  useEffect(() => {
     if (!isCreateOpen) {
       return;
     }
@@ -265,7 +287,7 @@ export function AppointmentVehiclePicker({}: AppointmentVehiclePickerProps) {
   }, [createCustomer.phone, isCreateOpen]);
 
   return (
-    <label className="vehicle-picker">
+    <div className="vehicle-picker">
       <span>Phone number or plate</span>
       <input type="hidden" name="vehicleId" value={selectedVehicle?.id ?? ""} />
       <div className="vehicle-picker-input-row" onClick={openMemberSearch}>
@@ -344,7 +366,8 @@ export function AppointmentVehiclePicker({}: AppointmentVehiclePickerProps) {
                     openCreateCustomer();
                   }
                 }}
-                placeholder="Search"
+                placeholder="Type name, phone, or plate"
+                ref={memberSearchInputRef}
                 type="text"
                 value={memberQuery}
               />
@@ -467,7 +490,7 @@ export function AppointmentVehiclePicker({}: AppointmentVehiclePickerProps) {
                   <button
                     key={vehicle.id}
                     onClick={() => {
-                      setSelectedVehicle(vehicle);
+                      selectVehicle(vehicle);
                       setQuery(vehicle.label);
                       setMemberQuery(vehicle.label);
                       setVehicles([]);
@@ -494,7 +517,7 @@ export function AppointmentVehiclePicker({}: AppointmentVehiclePickerProps) {
           </section>
         </div>
       ) : null}
-    </label>
+    </div>
   );
 }
 

@@ -55,8 +55,11 @@ export async function enqueue(input: EnqueueNotificationInput) {
       message: input.message,
       messageType: input.messageType,
       messageLogId: input.messageLogId ?? null,
+      appointmentId: input.appointmentId ?? null,
+      dedupeKey: input.dedupeKey ?? null,
       priority: input.priority ?? NotificationQueuePriority.NORMAL,
       queuedAt: input.queuedAt ?? new Date(),
+      nextAttemptAt: input.nextAttemptAt ?? null,
       status: "QUEUED",
     },
   });

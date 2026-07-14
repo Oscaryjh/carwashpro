@@ -5,6 +5,9 @@ node_modules
 dist
 coverage
 *.log
+*.tsbuildinfo
+.tmp/
+output/
 .local-postgres
 .local-postgres.pid
 .local-postgres-*.log
@@ -13,3 +16,5 @@ public/uploads/
 .whatsapp-sessions/
 auth_info/
 logs/
+!src/app/business/settings/logs/
+!src/app/business/settings/logs/**

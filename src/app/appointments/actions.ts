@@ -17,6 +17,10 @@ import {
 } from "@/lib/validation/appointments";
 import { money } from "@/lib/validation/services";
 import { makeOrderNumber } from "@/lib/validation/work-orders";
+import {
+  cancelAppointmentReminder,
+  scheduleAppointmentReminder,
+} from "@/lib/whatsapp/appointment-reminders";
 import { sendServiceConfirmationQueued } from "@/lib/whatsapp/work-order-notifications";
 
 function toCents(value: unknown) {
@@ -32,6 +36,38 @@ function staffBranchFilter(user: { role: string; branchId?: string | null }) {
 function optionalUuid(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+async function scheduleReminderSafely(input: {
+  appointmentId: string;
+  businessId: string;
+  sentByUserId: string;
+}) {
+  try {
+    await scheduleAppointmentReminder(input);
+  } catch (error) {
+    console.error("[appointment-reminder] Unable to schedule reminder", {
+      appointmentId: input.appointmentId,
+      businessId: input.businessId,
+      error,
+    });
+  }
+}
+
+async function cancelReminderSafely(input: {
+  appointmentId: string;
+  businessId: string;
+  reason: string;
+}) {
+  try {
+    await cancelAppointmentReminder(input);
+  } catch (error) {
+    console.error("[appointment-reminder] Unable to cancel reminder", {
+      appointmentId: input.appointmentId,
+      businessId: input.businessId,
+      error,
+    });
+  }
 }
 
 export async function createAppointmentAction(formData: FormData) {
@@ -134,7 +170,7 @@ export async function createAppointmentAction(formData: FormData) {
     });
   }
 
-  await prisma.appointment.create({
+  const appointment = await prisma.appointment.create({
     data: {
       businessId,
       branchId: appointmentBranchId,
@@ -150,6 +186,12 @@ export async function createAppointmentAction(formData: FormData) {
       scheduledAt,
       notes: input.notes || null,
     },
+  });
+
+  await scheduleReminderSafely({
+    appointmentId: appointment.id,
+    businessId,
+    sentByUserId: user.userId,
   });
 
   revalidatePath("/appointments");
@@ -191,6 +233,20 @@ export async function updateAppointmentStatusAction(formData: FormData) {
       noShowAt: input.status === "NO_SHOW" ? now : undefined,
     },
   });
+
+  if (input.status === "CONFIRMED") {
+    await scheduleReminderSafely({
+      appointmentId: appointment.id,
+      businessId,
+      sentByUserId: user.userId,
+    });
+  } else if (["ARRIVED", "CANCELLED", "NO_SHOW"].includes(input.status)) {
+    await cancelReminderSafely({
+      appointmentId: appointment.id,
+      businessId,
+      reason: `Appointment status changed to ${input.status}.`,
+    });
+  }
 
   revalidatePath("/appointments");
   revalidatePath(`/appointments/${appointment.id}`);
@@ -247,6 +303,12 @@ export async function rescheduleAppointmentAction(formData: FormData) {
       scheduledAt,
       ...(shouldUpdateStaff ? { assignedStaffId } : {}),
     },
+  });
+
+  await scheduleReminderSafely({
+    appointmentId: appointment.id,
+    businessId,
+    sentByUserId: user.userId,
   });
 
   revalidatePath("/appointments");
@@ -318,6 +380,12 @@ export async function updateAppointmentDetailsAction(formData: FormData) {
       serviceId,
       serviceIds,
     },
+  });
+
+  await scheduleReminderSafely({
+    appointmentId: appointment.id,
+    businessId,
+    sentByUserId: user.userId,
   });
 
   revalidatePath("/appointments");
@@ -428,6 +496,11 @@ export async function convertAppointmentToJobAction(formData: FormData) {
   revalidatePath("/appointments");
   revalidatePath(`/appointments/${input.appointmentId}`);
   revalidatePath("/work-orders");
+  await cancelReminderSafely({
+    appointmentId: input.appointmentId,
+    businessId,
+    reason: "Appointment converted to a job.",
+  });
   await sendServiceConfirmationQueued({
     businessId,
     workOrderId: result.workOrderId,

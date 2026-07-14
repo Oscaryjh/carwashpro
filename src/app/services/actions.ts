@@ -45,8 +45,8 @@ export async function createServiceAction(formData: FormData) {
       businessId,
       branchId,
       name: input.name,
-      categoryId: category?.id ?? null,
-      category: (category?.name ?? input.category) || null,
+      categoryId: category.id,
+      category: category.name,
       description: input.description || null,
       price: money(input.price),
       status: "ACTIVE",
@@ -104,8 +104,8 @@ export async function updateServiceAction(formData: FormData) {
     data: {
       name: input.name,
       branchId,
-      categoryId: category?.id ?? null,
-      category: (category?.name ?? input.category) || null,
+      categoryId: category.id,
+      category: category.name,
       description: input.description || null,
       price: money(input.price),
       status: input.status,
@@ -119,12 +119,8 @@ export async function updateServiceAction(formData: FormData) {
 
 async function resolveServiceCategory(
   businessId: string,
-  categoryId: string | undefined,
+  categoryId: string,
 ) {
-  if (!categoryId) {
-    return null;
-  }
-
   return prisma.serviceCategory.findFirstOrThrow({
     where: {
       id: categoryId,

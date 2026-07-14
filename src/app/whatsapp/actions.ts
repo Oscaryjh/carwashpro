@@ -165,6 +165,9 @@ async function buildMessageDraft(input: OpenWhatsAppInput, businessId: string) {
         },
       },
     });
+    if (!invoice.workOrder) {
+      throw new Error("Package invoice messages are queued automatically after purchase.");
+    }
 
     const services = invoice.workOrder.items
       .map((item) => `${item.name} x${item.quantity}`)

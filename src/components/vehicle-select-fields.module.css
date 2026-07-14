@@ -13,13 +13,13 @@
 .field > span {
   color: #64748b;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .field > span small {
   color: #64748b;
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 500;
 }
 
 .field > button,
@@ -67,8 +67,8 @@
   white-space: nowrap;
 }
 
-.value { color: #111827; font-weight: 750; }
-.placeholder { color: #7c8798; font-weight: 650; }
+.value { color: #111827; font-weight: 600; }
+.placeholder { color: #7c8798; font-weight: 500; }
 
 .chevron {
   width: 8px;

@@ -3,12 +3,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
+import { RefundPaymentForm } from "@/components/refund-payment-form";
 import { SendWhatsAppButton } from "@/components/send-whatsapp-button";
 import { VoidInvoiceForm } from "@/components/void-invoice-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { getInvoicePaymentSummary } from "@/lib/invoices/payment-summary";
 import { prisma } from "@/lib/prisma";
+import { getRefundableCents } from "@/lib/refunds/rules";
 
 type InvoiceDetailsPageProps = {
   params: Promise<{
@@ -38,6 +40,14 @@ export default async function InvoiceDetailsPage({
           payments: {
             orderBy: { paidAt: "desc" },
             include: {
+              refunds: {
+                orderBy: { refundedAt: "desc" },
+                include: {
+                  processedBy: {
+                    select: { name: true },
+                  },
+                },
+              },
               customerPackage: {
                 include: {
                   package: true,
@@ -47,6 +57,8 @@ export default async function InvoiceDetailsPage({
           },
         },
       },
+      customer: true,
+      customerPackage: { include: { package: true } },
     },
   });
 
@@ -54,11 +66,61 @@ export default async function InvoiceDetailsPage({
     notFound();
   }
 
+  if (!invoice.workOrder) {
+    const packageName = invoice.customerPackage?.package.name ?? "Package purchase";
+    return (
+      <AppShell user={user}>
+        <section className="content invoice-detail-layout">
+          <div className="page-header">
+            <div><h1>Invoice</h1></div>
+            <BackButton fallbackHref="/invoices" />
+          </div>
+          <div className="pos-receipt-panel panel">
+            <div className="invoice-receipt-actions">
+              <Link className="secondary-link-button invoice-action-button" href={`/invoices/${invoice.id}/pdf`}>Download PDF</Link>
+              <p className="muted-text">WhatsApp invoice notification was queued after purchase.</p>
+            </div>
+            <div className="pos-receipt-company">
+              {invoice.business.logoUrl ? <Image src={invoice.business.logoUrl} alt="" width={72} height={72} /> : <div className="pos-receipt-logo-placeholder">{invoice.business.name.slice(0, 1)}</div>}
+              <div><strong>{invoice.business.name}</strong>{invoice.business.companyNo ? <span>Company No. {invoice.business.companyNo}</span> : null}{invoice.business.phone ? <span>WhatsApp No. {invoice.business.phone}</span> : null}{invoice.business.address ? <span>{invoice.business.address}</span> : null}</div>
+            </div>
+            <div className="pos-receipt-header">
+              <div><span>Invoice No.</span><strong className="pos-receipt-number">{formatInvoiceNumber(invoice.invoiceNumber)}</strong><small>{invoice.issuedAt.toLocaleDateString("en-MY")}</small></div>
+              <div><span>Package</span><strong>{packageName}</strong><small>Package purchase</small></div>
+              <span className={`payment-state ${invoice.status.toLowerCase()}`}>{formatStatus(invoice.status)}</span>
+            </div>
+            <div className="pos-customer-strip"><div><span>Customer</span><strong>{invoice.customer?.name ?? "-"}</strong></div><div><span>Phone</span><strong>{invoice.customer?.phone ?? "-"}</strong></div></div>
+            <div className="pos-receipt-items"><div className="pos-receipt-row pos-receipt-head"><span>Item</span><span>Qty</span><span>Total</span></div><div className="pos-receipt-row"><span>{packageName}</span><span>1</span><span>RM{Number(invoice.total).toFixed(2)}</span></div></div>
+            <div className="pos-receipt-summary"><div><span>Total</span><strong>RM{Number(invoice.total).toFixed(2)}</strong></div><div><span>Paid</span><strong>RM{Number(invoice.paidAmount).toFixed(2)}</strong></div><div className="balance-row"><span>Balance</span><strong>RM{Number(invoice.balance).toFixed(2)}</strong></div></div>
+          </div>
+        </section>
+      </AppShell>
+    );
+  }
+
   const packagePayments = invoice.workOrder.payments.filter(
     (payment) => payment.method === "PACKAGE" && payment.status !== "VOID",
   );
   const paymentSummary = getInvoicePaymentSummary(invoice.workOrder.payments);
   const displayInvoiceNumber = formatInvoiceNumber(invoice.invoiceNumber);
+  const refunds = invoice.workOrder.payments
+    .flatMap((payment) =>
+      payment.refunds.map((refund) => ({
+        ...refund,
+        originalPaymentMethod: payment.method,
+      })),
+    )
+    .sort((left, right) => right.refundedAt.getTime() - left.refundedAt.getTime());
+  const refundablePayments = invoice.workOrder.payments
+    .filter((payment) => payment.status === "ACTIVE")
+    .map((payment) => ({
+      payment,
+      refundableCents: getRefundableCents(
+        Math.round(Number(payment.amount) * 100),
+        payment.refunds.map((refund) => Math.round(Number(refund.amount) * 100)),
+      ),
+    }))
+    .filter(({ refundableCents }) => refundableCents > 0);
 
   return (
     <AppShell user={user}>
@@ -172,6 +234,14 @@ export default async function InvoiceDetailsPage({
                 <strong>RM{Number(invoice.paidAmount).toFixed(2)}</strong>
               </div>
             )}
+            {paymentSummary.totalRefundedAmount > 0 ? (
+              <div className="is-refund-total">
+                <span>Refunded</span>
+                <strong>
+                  RM{paymentSummary.totalRefundedAmount.toFixed(2)}
+                </strong>
+              </div>
+            ) : null}
             <div className="is-balance">
               <span>Balance</span>
               <strong>RM{Number(invoice.balance).toFixed(2)}</strong>
@@ -190,6 +260,7 @@ export default async function InvoiceDetailsPage({
                     <span>
                       {payment.packageUses || 1} wash used
                       {payment.status === "VOID" ? " - voided" : ""}
+                      {payment.refunds.length ? " - restored" : ""}
                     </span>
                   </div>
                   <strong>RM{Number(payment.amount).toFixed(2)}</strong>
@@ -210,12 +281,83 @@ export default async function InvoiceDetailsPage({
                       ? `${payment.customerPackage?.package.name ?? "Package"} - ${payment.packageUses} wash`
                       : formatStatus(payment.method)}
                     {payment.status === "VOID" ? " - Void" : ""}
+                    {payment.refunds.length
+                      ? ` - Refunded RM${payment.refunds
+                          .reduce(
+                            (sum, refund) => sum + Number(refund.amount),
+                            0,
+                          )
+                          .toFixed(2)}`
+                      : ""}
                   </small>
                 </div>
               ))}
             </div>
           ) : null}
+
+          {refunds.length ? (
+            <div className="pos-refund-history">
+              <h3>Refund history</h3>
+              {refunds.map((refund) => (
+                <div className="pos-refund-row" key={refund.id}>
+                  <div>
+                    <strong>-RM{Number(refund.amount).toFixed(2)}</strong>
+                    <span>
+                      {formatStatus(refund.method)} - {refund.reason}
+                    </span>
+                  </div>
+                  <div>
+                    <span>{refund.refundedAt.toLocaleString()}</span>
+                    <small>
+                      {refund.processedBy?.name ?? "Owner"}
+                      {refund.reference ? ` - ${refund.reference}` : ""}
+                      {refund.packageUsesRestored
+                        ? ` - ${refund.packageUsesRestored} package use restored`
+                        : ""}
+                    </small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
+
+        {user.role === "BUSINESS_OWNER" &&
+        invoice.status !== "VOID" &&
+        refundablePayments.length ? (
+          <div className="panel invoice-refund-panel">
+            <div className="section-header">
+              <div>
+                <h2>Refund payment</h2>
+                <p className="muted">
+                  Refunds change payment totals only. Job and pickup status stay
+                  unchanged.
+                </p>
+              </div>
+              <span className="status">Owner only</span>
+            </div>
+            <div className="refund-payment-list">
+              {refundablePayments.map(({ payment, refundableCents }) => (
+                <div className="refund-payment-item" key={payment.id}>
+                  <div className="refund-payment-heading">
+                    <div>
+                      <strong>{formatStatus(payment.method)} payment</strong>
+                      <span>{payment.paidAt.toLocaleString()}</span>
+                    </div>
+                    <strong>RM{(refundableCents / 100).toFixed(2)} available</strong>
+                  </div>
+                  <RefundPaymentForm
+                    invoiceId={invoice.id}
+                    invoiceNumber={displayInvoiceNumber}
+                    paymentId={payment.id}
+                    originalMethod={payment.method}
+                    refundableAmount={refundableCents / 100}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {invoice.status === "VOID" ? (
           <div className="panel invoice-correction-panel danger-zone">
@@ -232,6 +374,17 @@ export default async function InvoiceDetailsPage({
             <Link className="button-link" href={`/pos/${invoice.workOrder.id}`}>
               Correct in POS
             </Link>
+          </div>
+        ) : refunds.length ? (
+          <div className="panel invoice-correction-panel danger-zone">
+            <div className="section-header">
+              <h2>Void invoice</h2>
+              <span className="status">Unavailable</span>
+            </div>
+            <p className="muted">
+              This invoice has refund records and cannot be voided. Refund
+              history remains permanent for audit accuracy.
+            </p>
           </div>
         ) : (
           <div className="panel invoice-correction-panel danger-zone">

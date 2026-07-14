@@ -102,6 +102,7 @@ export default async function WhatsAppQueuePage({
           <Metric label="Delivered" value={counts.DELIVERED} tone="sales" />
           <Metric label="Read" value={counts.READ} tone="sales" />
           <Metric label="Failed" value={counts.FAILED} tone="danger" />
+          <Metric label="Cancelled" value={counts.CANCELLED} />
           <Metric label="Retrying" value={retrying} tone={retrying ? "warning" : "default"} />
           <Metric
             label="Next attempt"
@@ -197,6 +198,7 @@ function createStatusCountMap(
       DELIVERED: 0,
       READ: 0,
       FAILED: 0,
+      CANCELLED: 0,
     } satisfies Record<NotificationQueueStatus, number>,
   );
 }

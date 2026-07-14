@@ -52,11 +52,42 @@ export async function GET(_request: Request, { params }: InvoicePdfRouteProps) {
           vehicle: true,
         },
       },
+      customer: true,
+      customerPackage: { include: { package: true } },
     },
   });
 
   if (!invoice) {
     notFound();
+  }
+
+  if (!invoice.workOrder) {
+    const packageName = invoice.customerPackage?.package.name ?? "Package purchase";
+    const logo = await loadInvoiceLogo(invoice.business.logoUrl);
+    const pdf = buildInvoicePdf({
+      company: { ...invoice.business, logo },
+      customer: {
+        name: invoice.customer?.name ?? "Customer",
+        phone: invoice.customer?.phone ?? "",
+      },
+      invoiceNumber: formatInvoiceNumber(invoice.invoiceNumber),
+      issuedAt: invoice.issuedAt,
+      items: [{ name: packageName, quantity: 1, unitPrice: invoice.total, lineTotal: invoice.total }],
+      paidAmount: invoice.paidAmount,
+      balance: invoice.balance,
+      status: invoice.status,
+      subtotal: invoice.subtotal,
+      total: invoice.total,
+      vehicle: { plateNumber: "PACKAGE" },
+    });
+    const fileName = invoicePdfFileName(formatInvoiceNumber(invoice.invoiceNumber));
+    return new Response(new Uint8Array(pdf), {
+      headers: {
+        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Length": String(pdf.length),
+        "Content-Type": "application/pdf",
+      },
+    });
   }
 
   const displayInvoiceNumber = formatInvoiceNumber(invoice.invoiceNumber);

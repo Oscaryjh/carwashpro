@@ -7,6 +7,7 @@ import { CustomerPackagePurchaseForm } from "@/components/customer-package-purch
 import { DeleteCustomerForm } from "@/components/delete-customer-form";
 import { getActiveBranches } from "@/lib/branches";
 import { requireCrmUser } from "@/lib/auth/crm";
+import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 
 type CustomerDetailsPageProps = {
@@ -53,6 +54,7 @@ export default async function CustomerDetailsPage({
         },
         orderBy: { purchasedAt: "desc" },
       },
+      membership: true,
     },
   });
 
@@ -77,6 +79,7 @@ export default async function CustomerDetailsPage({
       (total, customerPackage) => total + customerPackage.remainingUses,
       0,
     );
+  const canViewLoyaltyActivity = hasStaffPermission(user, "LOYALTY");
 
   return (
     <AppShell user={user}>
@@ -98,6 +101,22 @@ export default async function CustomerDetailsPage({
           <InfoCard label="Email" value={customer.email || "No email"} />
           <InfoCard label="Vehicles" value={customer.vehicles.length} />
           <InfoCard label="Package balance" value={`${activePackageBalance} washes`} />
+          <div className="customer-info-card customer-loyalty-summary">
+            <span>Loyalty points</span>
+            <strong>
+              {customer.membership ? `${customer.membership.pointsBalance} pts` : "Not enrolled"}
+            </strong>
+            <div className="customer-loyalty-meta">
+              <small>
+                {customer.membership ? formatStatus(customer.membership.status) : "No membership"}
+              </small>
+              {customer.membership && canViewLoyaltyActivity ? (
+                <Link href={`/loyalty/activity?q=${encodeURIComponent(customer.phone)}`}>
+                  View activity
+                </Link>
+              ) : null}
+            </div>
+          </div>
           <InfoCard label="Notes" value={customer.notes || "No notes"} />
         </div>
 

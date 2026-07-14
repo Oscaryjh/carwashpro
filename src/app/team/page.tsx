@@ -56,9 +56,6 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
             <p>Manage staff accounts, branch assignment, and access permissions.</p>
           </div>
           <div className="inline-actions">
-            <Link className="secondary-link-button" href="/branches/new">
-              Add branch
-            </Link>
             <Link className="button-link" href="/team/new">
               Create staff
             </Link>
@@ -69,8 +66,8 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
 
         {!branches.length ? (
           <div className="warning">
-            Create an active branch before adding staff. Staff POS, jobs, checkout, and
-            shift closing are tied to their assigned branch.
+            No active branch is available. Contact the platform administrator to
+            provision or reactivate a branch before adding staff.
           </div>
         ) : null}
 

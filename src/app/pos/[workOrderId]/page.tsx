@@ -8,6 +8,7 @@ import { PosReceiptTotalsPreview } from "@/components/pos-payment-preview";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
+import { packageAllowsVehicle } from "@/lib/vehicle-size";
 import { recordPaymentAction, usePackagePaymentAction } from "../actions";
 
 type PosCheckoutPageProps = {
@@ -76,10 +77,11 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
   });
   const usableCustomerPackages = customerPackages.filter(
     (customerPackage) =>
-      !customerPackage.package.serviceId ||
-      workOrder.items.some(
-        (item) => item.serviceId === customerPackage.package.serviceId,
-      ),
+      packageAllowsVehicle(customerPackage.eligibleVehicleSize, workOrder.vehicle.size) &&
+      (!customerPackage.package.serviceId ||
+        workOrder.items.some(
+          (item) => item.serviceId === customerPackage.package.serviceId,
+        )),
   );
   const packagePaymentOptions = usableCustomerPackages.map((customerPackage) => ({
     id: customerPackage.id,

@@ -12,6 +12,14 @@
   --sidebar-muted: #d9e4ef;
   --touch-target: 38px;
   --content-max: 1280px;
+  --font-sans: "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI",
+    "PingFang SC", Arial, sans-serif;
+  --font-size-body: 14px;
+  --line-height-body: 1.45;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 }
 
 * {
@@ -22,12 +30,15 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--text);
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-  font-size: 13.5px;
-  line-height: 1.4;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-synthesis: none;
+  font-weight: var(--font-weight-regular);
+  letter-spacing: 0;
+  line-height: var(--line-height-body);
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @media (min-width: 1181px) {
@@ -46,6 +57,12 @@ input,
 textarea,
 select {
   font: inherit;
+  letter-spacing: 0;
+}
+
+strong,
+b {
+  font-weight: var(--font-weight-semibold);
 }
 
 button {
@@ -55,7 +72,7 @@ button {
   background: var(--accent);
   color: white;
   cursor: pointer;
-  font-weight: 650;
+  font-weight: 600;
   padding: 0 13px;
   touch-action: manipulation;
 }
@@ -73,7 +90,7 @@ button:disabled {
   border-radius: 6px;
   background: var(--accent);
   color: white;
-  font-weight: 650;
+  font-weight: 600;
   padding: 0 13px;
   touch-action: manipulation;
 }
@@ -99,7 +116,7 @@ button:disabled {
   width: 44px;
   border: 0;
   font-size: 18px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .secondary-link-button:hover {
@@ -263,7 +280,7 @@ select:disabled {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .warning-hint {
@@ -307,7 +324,7 @@ select:disabled {
   gap: 10px;
   max-width: 100%;
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.1;
 }
 
@@ -417,7 +434,7 @@ select:disabled {
   border-radius: 6px;
   color: var(--sidebar-muted);
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   padding: 7px 9px;
   touch-action: manipulation;
 }
@@ -440,7 +457,7 @@ select:disabled {
   background: #ef4444;
   color: white;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   padding: 0 6px;
 }
@@ -545,7 +562,7 @@ select:disabled {
 .app-shell.sidebar-collapsed .secondary-button::before {
   content: "Exit";
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .secondary-button {
@@ -687,7 +704,7 @@ select:disabled {
   background: var(--panel);
   color: var(--text);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   padding: 0 12px;
 }
 
@@ -725,7 +742,7 @@ a.dashboard-kpi-card:hover {
   overflow: hidden;
   color: var(--muted);
   font-size: 10.5px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -839,7 +856,7 @@ a.dashboard-kpi-card:hover {
   overflow: hidden;
   color: var(--accent);
   font-size: 12.5px;
-  font-weight: 800;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -874,7 +891,7 @@ a.dashboard-kpi-card:hover {
   background: #e8f5f2;
   color: var(--accent-strong);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .dashboard-list-row:has(.dashboard-rank) {
@@ -936,7 +953,7 @@ a.dashboard-kpi-card:hover {
   border-radius: 6px;
   color: var(--muted);
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   padding: 0 10px;
 }
 
@@ -966,25 +983,25 @@ a.dashboard-kpi-card:hover {
   background: var(--panel-muted);
   color: var(--muted);
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   padding: 0 12px;
 }
 
 .report-kpis {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .report-kpi-card {
   display: grid;
-  min-height: 78px;
+  min-height: 64px;
   align-content: center;
-  gap: 5px;
+  gap: 3px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--panel);
-  padding: 12px;
+  padding: 9px 12px;
 }
 
 .report-kpi-card:first-child {
@@ -995,16 +1012,20 @@ a.dashboard-kpi-card:hover {
 .report-kpi-card span {
   overflow: hidden;
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .report-kpi-card strong {
   overflow-wrap: anywhere;
-  font-size: 21px;
-  line-height: 1.08;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0;
 }
 
 .report-grid {
@@ -1059,24 +1080,62 @@ a.dashboard-kpi-card:hover {
 }
 
 .closing-content {
-  gap: 14px;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.closing-page-header {
+  min-height: 44px;
+}
+
+.closing-page-header h1 {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.closing-period {
+  min-width: 198px;
+  gap: 2px;
+  padding: 8px 11px;
+}
+
+.closing-period span {
+  font-size: 11px;
+}
+
+.closing-period strong {
+  font-size: 13px;
 }
 
 .closing-overview-grid {
   align-items: stretch;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.88fr);
+  gap: 10px;
+  grid-template-columns: minmax(0, 1.08fr) minmax(330px, 0.92fr);
 }
 
 .closing-shift-card,
 .closing-total-card {
   display: grid;
   align-content: start;
+  padding: 12px;
+}
+
+.closing-shift-card .section-header,
+.closing-total-card .section-header,
+.closing-table-card .section-header {
+  padding-bottom: 7px;
+}
+
+.closing-shift-card h2,
+.closing-total-card h2,
+.closing-table-card h2 {
+  font-size: 15px;
 }
 
 .closing-shift-panel {
   display: grid;
-  gap: 14px;
-  padding-top: 12px;
+  gap: 10px;
+  padding-top: 10px;
 }
 
 .closing-shift-kpis {
@@ -1085,36 +1144,52 @@ a.dashboard-kpi-card:hover {
 
 .closing-total-kpis {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding-top: 12px;
+  padding-top: 10px;
 }
 
 .closing-shift-card .report-kpi-card,
 .closing-total-card .report-kpi-card {
-  min-height: 86px;
-  padding: 14px;
+  min-height: 68px;
+  gap: 3px;
+  padding: 9px 11px;
 }
 
 .closing-shift-card .report-kpi-card strong,
 .closing-total-card .report-kpi-card strong {
-  font-size: 22px;
+  font-size: 18px;
+  line-height: 1.12;
   letter-spacing: 0;
 }
 
 .closing-shift-card .report-kpi-card span,
 .closing-total-card .report-kpi-card span {
-  font-size: 12px;
+  font-size: 11px;
   text-transform: none;
 }
 
 .closing-end-form {
   border-top: 1px solid var(--line);
-  gap: 12px;
-  padding-top: 12px;
+  gap: 9px;
+  padding-top: 10px;
 }
 
 .closing-field-grid {
   align-items: end;
+  gap: 10px;
   grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr);
+}
+
+.closing-field-grid label {
+  gap: 4px;
+}
+
+.closing-field-grid label > span {
+  font-size: 11px;
+}
+
+.closing-field-grid input {
+  min-height: 38px;
+  padding: 8px 10px;
 }
 
 .closing-form-actions {
@@ -1122,6 +1197,7 @@ a.dashboard-kpi-card:hover {
 }
 
 .closing-form-actions button {
+  min-height: 40px;
   min-width: 108px;
 }
 
@@ -1130,7 +1206,12 @@ a.dashboard-kpi-card:hover {
 }
 
 .closing-table-card {
-  min-height: 214px;
+  min-height: 184px;
+  padding: 12px;
+}
+
+.closing-activity-grid {
+  gap: 10px;
 }
 
 .closing-shifts-table {
@@ -1141,11 +1222,44 @@ a.dashboard-kpi-card:hover {
   min-width: 560px;
 }
 
-.closing-shifts-table th,
-.closing-shifts-table td,
-.closing-payments-table th,
-.closing-payments-table td {
+.closing-table-card .closing-shifts-table th,
+.closing-table-card .closing-shifts-table td,
+.closing-table-card .closing-payments-table th,
+.closing-table-card .closing-payments-table td {
+  padding: 7px 8px;
   white-space: nowrap;
+}
+
+.closing-table-card .closing-shifts-table th,
+.closing-table-card .closing-payments-table th {
+  font-size: 10px;
+}
+
+.closing-table-card .closing-shifts-table td,
+.closing-table-card .closing-payments-table td {
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+@media (min-width: 901px) and (max-width: 1279px) {
+  .closing-content {
+    padding: 12px;
+  }
+
+  .closing-overview-grid {
+    grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.92fr);
+  }
+
+  .closing-shift-card .report-kpi-card,
+  .closing-total-card .report-kpi-card {
+    min-height: 64px;
+    padding: 8px 9px;
+  }
+
+  .closing-shift-card .report-kpi-card strong,
+  .closing-total-card .report-kpi-card strong {
+    font-size: 17px;
+  }
 }
 
 .closing-shifts-table td:nth-child(1),
@@ -1160,7 +1274,7 @@ a.dashboard-kpi-card:hover {
   align-items: center;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   padding: 3px 8px;
   white-space: nowrap;
 }
@@ -1201,7 +1315,7 @@ a.dashboard-kpi-card:hover {
   overflow: hidden;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1293,7 +1407,7 @@ a.dashboard-kpi-card:hover {
 .pos-card-status small {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
   text-transform: capitalize;
 }
 
@@ -1428,6 +1542,10 @@ a.dashboard-kpi-card:hover {
   font-size: 22px;
 }
 
+.invoice-detail-layout .pos-receipt-totals .is-refund-total {
+  color: var(--danger);
+}
+
 .invoice-detail-layout .pos-payment-history {
   gap: 5px;
   margin-top: 7px;
@@ -1447,9 +1565,174 @@ a.dashboard-kpi-card:hover {
   font-size: 10.5px;
 }
 
+.pos-refund-history {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.pos-refund-history h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.pos-refund-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #f5b8b1;
+  border-radius: 6px;
+  background: #fffafa;
+  padding: 7px 9px;
+}
+
+.pos-refund-row > div {
+  display: grid;
+  gap: 2px;
+}
+
+.pos-refund-row > div:last-child {
+  justify-items: end;
+  text-align: right;
+}
+
+.pos-refund-row strong {
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.pos-refund-row span,
+.pos-refund-row small {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
 .invoice-correction-panel {
   display: grid;
   gap: 10px;
+}
+
+.invoice-refund-panel {
+  display: grid;
+  gap: 10px;
+  border-color: #f5b8b1;
+}
+
+.invoice-refund-panel .section-header {
+  align-items: flex-start;
+  margin-bottom: 0;
+}
+
+.invoice-refund-panel .section-header p {
+  margin: 4px 0 0;
+}
+
+.refund-payment-list {
+  display: grid;
+  gap: 12px;
+}
+
+.refund-payment-item {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.refund-payment-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.refund-payment-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.refund-payment-heading span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.refund-payment-form {
+  display: grid;
+  gap: 10px;
+}
+
+.refund-form-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.refund-form-grid label,
+.refund-package-note {
+  display: grid;
+  gap: 5px;
+}
+
+.refund-form-grid label > span,
+.refund-package-note > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.refund-form-grid label > small {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.refund-package-note strong {
+  display: flex;
+  min-height: var(--touch-target);
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-muted);
+  padding: 8px 10px;
+}
+
+.refund-reason-field {
+  grid-column: 1 / -1;
+}
+
+.refund-form-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.refund-form-footer .form-message {
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .refund-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .refund-reason-field {
+    grid-column: auto;
+  }
+
+  .pos-refund-row,
+  .refund-payment-heading,
+  .refund-form-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pos-refund-row > div:last-child {
+    justify-items: start;
+    text-align: left;
+  }
 }
 
 .pos-receipt-panel,
@@ -1500,7 +1783,7 @@ a.dashboard-kpi-card:hover {
   background: #eaf7f4;
   color: var(--accent-strong);
   font-size: 24px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .pos-receipt-company div {
@@ -1520,7 +1803,7 @@ a.dashboard-kpi-card:hover {
   overflow-wrap: anywhere;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.25;
 }
 
@@ -1557,7 +1840,7 @@ a.dashboard-kpi-card:hover {
 .pos-history-row small {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .pos-customer-strip {
@@ -1605,7 +1888,7 @@ a.dashboard-kpi-card:hover {
 .pos-receipt-head {
   color: var(--muted);
   font-size: 10.5px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1658,7 +1941,7 @@ a.dashboard-kpi-card:hover {
 .pos-receipt-totals .pos-package-deduction-preview small {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .pos-payment-hero {
@@ -1673,7 +1956,7 @@ a.dashboard-kpi-card:hover {
 .pos-payment-hero span {
   color: rgba(255, 255, 255, 0.72);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .pos-payment-hero strong {
@@ -1684,7 +1967,7 @@ a.dashboard-kpi-card:hover {
 .pos-payment-hero small {
   color: rgba(255, 255, 255, 0.72);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .pos-payment-section {
@@ -1723,7 +2006,7 @@ a.dashboard-kpi-card:hover {
 .pos-payment-fields select {
   min-height: 38px;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   padding: 7px 10px;
 }
 
@@ -1749,7 +2032,7 @@ a.dashboard-kpi-card:hover {
 .pos-package-option span {
   overflow: hidden;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1757,13 +2040,13 @@ a.dashboard-kpi-card:hover {
 .pos-package-option strong {
   color: var(--accent);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .pos-package-option small {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .pos-package-option.is-selected {
@@ -1789,7 +2072,7 @@ a.dashboard-kpi-card:hover {
   color: var(--text);
   cursor: pointer;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   padding: 0 8px;
 }
 
@@ -1876,7 +2159,7 @@ a.dashboard-kpi-card:hover {
 .pos-package-deduction-row span {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .pos-history-row {
@@ -1946,12 +2229,168 @@ a.dashboard-kpi-card:hover {
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
+.field-grid > label {
+  align-self: start;
+}
+
+.loyalty-settings-form {
+  display: grid;
+  align-items: end;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.loyalty-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.loyalty-metrics .customer-info-card {
+  min-height: 56px;
+  gap: 2px;
+  padding: 7px 10px;
+}
+
+.loyalty-metrics .customer-info-card span {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.loyalty-metrics .customer-info-card strong {
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+.loyalty-settings-form .loyalty-enabled-toggle {
+  grid-column: 1 / 3;
+  width: 100%;
+}
+
+.loyalty-settings-form > button {
+  grid-column: 3;
+  justify-self: end;
+  min-height: 40px;
+}
+
+.loyalty-search-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: min(100%, 520px);
+}
+
+.loyalty-tabs {
+  margin-bottom: 0;
+}
+
+.loyalty-filter-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 150px auto auto;
+  align-items: center;
+  gap: 8px;
+  min-width: min(100%, 680px);
+}
+
+.loyalty-activity-filter {
+  grid-template-columns: minmax(240px, 1fr) 170px 140px auto auto;
+  min-width: min(100%, 920px);
+}
+
+.loyalty-search-form input {
+  flex: 1 1 260px;
+  min-width: 180px;
+}
+
+.loyalty-search-form button,
+.loyalty-search-form .secondary-link-button {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.loyalty-enabled-toggle {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-muted);
+  padding: 10px 12px;
+}
+
+.loyalty-enabled-toggle input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.loyalty-enabled-toggle > span {
+  display: grid;
+  gap: 3px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.loyalty-enabled-toggle small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.loyalty-activity-list {
+  display: grid;
+}
+
+.loyalty-activity-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) 72px minmax(240px, 1.6fr);
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.loyalty-activity-row:last-child {
+  border-bottom: 0;
+}
+
+.loyalty-activity-member,
+.loyalty-activity-detail {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.loyalty-activity-member a,
+.loyalty-activity-detail span {
+  overflow-wrap: anywhere;
+}
+
+.loyalty-activity-member span,
+.loyalty-activity-detail small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.loyalty-activity-row > .points-positive,
+.loyalty-activity-row > .points-negative {
+  font-size: 16px;
+  text-align: right;
+}
+
 label {
   display: grid;
   gap: 6px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .subsection {
@@ -2041,7 +2480,7 @@ label {
 
 .service-category-meta small {
   color: var(--muted);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .danger-zone {
@@ -2116,7 +2555,7 @@ label {
   align-items: center;
   justify-content: center;
   border-radius: 5px;
-  font-weight: 800;
+  font-weight: 700;
   padding: 0 14px;
 }
 
@@ -2270,7 +2709,7 @@ label {
 .customer-summary-grid {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .customer-info-card {
@@ -2288,7 +2727,7 @@ label {
   overflow: hidden;
   color: var(--muted);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2297,6 +2736,34 @@ label {
   overflow-wrap: anywhere;
   font-size: 15px;
   line-height: 1.15;
+}
+
+.customer-loyalty-summary {
+  gap: 3px;
+}
+
+.customer-loyalty-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.customer-loyalty-meta small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.customer-loyalty-meta a {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .customer-section-panel {
@@ -2365,7 +2832,7 @@ label {
 .customer-package-option small {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .customer-card-meta {
@@ -2455,7 +2922,7 @@ label {
   background: #fbfcfd;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .customer-package-option-grid.is-scrollable {
@@ -2485,7 +2952,7 @@ label {
 
 .customer-package-option span {
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .customer-package-option strong {
@@ -2613,7 +3080,7 @@ label {
   background: #fbfcfd;
   color: var(--text);
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   padding: 0 10px;
 }
 
@@ -2642,7 +3109,7 @@ label {
   background: #fbfcfd;
   color: var(--text);
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
   padding: 3px 8px;
 }
 
@@ -2664,7 +3131,7 @@ label {
   grid-column: 1 / -1;
   margin: 0;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .form-message.success {
@@ -3079,7 +3546,7 @@ label {
 
 .job-service-card span {
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.2;
 }
 
@@ -3100,7 +3567,7 @@ label {
   border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.03em;
   padding-bottom: 5px;
   text-transform: uppercase;
@@ -3175,7 +3642,7 @@ label {
 
 .checkbox-row small {
   color: var(--muted);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .permission-grid {
@@ -3246,7 +3713,7 @@ label {
   align-items: end;
   border-bottom: 1px solid var(--line);
   gap: 10px;
-  grid-template-columns: minmax(220px, 340px) auto auto;
+  grid-template-columns: repeat(2, minmax(200px, 300px)) auto auto;
   justify-content: start;
   margin-bottom: 14px;
   padding-bottom: 12px;
@@ -3290,7 +3757,7 @@ label {
 .staff-log-card small {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .staff-log-stats {
@@ -3306,7 +3773,7 @@ label {
   border-radius: 999px;
   background: #e8f5f2;
   color: #0f766e;
-  font-weight: 800;
+  font-weight: 700;
   padding: 0 8px;
 }
 
@@ -3317,6 +3784,41 @@ label {
 .staff-log-table td:nth-child(5) {
   min-width: 280px;
   white-space: normal;
+}
+
+.staff-log-table td small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.audit-details summary {
+  color: var(--teal-dark);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.audit-details pre {
+  max-width: 440px;
+  max-height: 280px;
+  overflow: auto;
+  margin: 8px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #f7f9fc;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 900px) {
+  .staff-log-filter {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .team-list {
@@ -3358,7 +3860,7 @@ label {
   background: #f2f4f7;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
   padding: 3px 8px;
 }
 
@@ -3437,7 +3939,7 @@ label {
   background: #edf9f6;
   color: var(--accent-strong);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   padding: 0 10px;
   text-transform: none;
 }
@@ -3475,7 +3977,7 @@ label {
 .work-orders-table td strong,
 .work-orders-table td a {
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .work-order-primary-text {
@@ -3484,7 +3986,7 @@ label {
   align-items: center;
   color: var(--text);
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 700;
   line-height: 1.2;
 }
 
@@ -3515,7 +4017,7 @@ label {
   background: #fff7ed;
   color: #9a3412;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   padding: 0 8px;
 }
@@ -3535,6 +4037,11 @@ label {
   color: #be123c;
 }
 
+.payment-state.refunded {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
 .payment-state.void {
   background: #fee2e2;
   color: #b91c1c;
@@ -3549,7 +4056,7 @@ label {
 .work-orders-table .table-number {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .work-orders-table .inline-actions {
@@ -3769,7 +4276,7 @@ label {
   display: block;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .whatsapp-connection-meta strong {
@@ -3809,7 +4316,7 @@ label {
   margin-bottom: 8px;
   color: var(--muted);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .whatsapp-pairing-row {
@@ -3841,7 +4348,7 @@ label {
   display: block;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -3869,7 +4376,7 @@ label {
 
 .whatsapp-setup-steps li {
   color: var(--text);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .whatsapp-settings-tools {
@@ -4116,7 +4623,7 @@ label {
   background: #dbeafe;
   color: #0f766e;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -4161,7 +4668,7 @@ label {
   color: #0f766e;
   font-size: 10px;
   font-style: normal;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   padding: 0 6px;
   white-space: nowrap;
@@ -4199,7 +4706,7 @@ label {
 .whatsapp-conversation time {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
 }
@@ -4221,7 +4728,7 @@ label {
   color: white;
   font-size: 11px;
   font-style: normal;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .whatsapp-conversation em.whatsapp-conversation-badge {
@@ -4307,7 +4814,7 @@ label {
 .whatsapp-chat-header span {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .whatsapp-chat-contact-row {
@@ -4366,14 +4873,14 @@ label {
   margin-top: 7px;
   color: var(--muted);
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .whatsapp-message-status {
   display: inline-flex;
   margin-left: 6px;
   color: #94a3b8;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .whatsapp-message-status.sent,
@@ -4450,7 +4957,7 @@ label {
   background: var(--panel-muted);
   color: var(--primary);
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
   padding: 7px 10px;
 }
 
@@ -4459,7 +4966,7 @@ label {
   margin-top: 6px;
   color: var(--muted);
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .whatsapp-bubble .whatsapp-message-status {
@@ -4469,7 +4976,7 @@ label {
   vertical-align: -1px;
   color: #94a3b8;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .whatsapp-bubble .whatsapp-message-status.sent,
@@ -4684,7 +5191,7 @@ label {
   background: transparent;
   color: var(--text);
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   padding: 0 8px;
   text-align: left;
 }
@@ -4758,7 +5265,7 @@ label {
 .whatsapp-attachment-preview small {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .whatsapp-attachment-preview button {
@@ -4861,7 +5368,7 @@ label {
   background: var(--accent);
   color: white;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   padding: 0 10px;
   white-space: nowrap;
@@ -4903,7 +5410,7 @@ label {
 .mini-list span {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 @media (max-width: 1180px) {
@@ -4970,7 +5477,7 @@ label {
 
 .table-number {
   color: var(--muted);
-  font-weight: 750;
+  font-weight: 700;
   width: 48px;
 }
 
@@ -4992,7 +5499,7 @@ label {
   border-radius: 5px;
   background: var(--panel-muted);
   color: var(--text);
-  font-weight: 750;
+  font-weight: 700;
   padding: 0 12px;
 }
 
@@ -5027,7 +5534,7 @@ label {
   background: #e8f5f2;
   color: #0f766e;
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
   padding: 3px 8px;
 }
 
@@ -5321,6 +5828,48 @@ label {
     grid-template-columns: 1fr;
   }
 
+  .loyalty-settings-form {
+    grid-template-columns: 1fr;
+  }
+
+  .loyalty-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .loyalty-metrics .customer-info-card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .loyalty-settings-form .loyalty-enabled-toggle {
+    grid-column: auto;
+  }
+
+  .loyalty-settings-form > button {
+    grid-column: auto;
+    justify-self: stretch;
+  }
+
+  .loyalty-search-form {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .loyalty-filter-form,
+  .loyalty-activity-filter {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .loyalty-activity-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+
+  .loyalty-activity-detail {
+    grid-column: 1 / -1;
+  }
+
   .closing-field-grid,
   .closing-shift-kpis,
   .closing-total-kpis {
@@ -5413,7 +5962,8 @@ label {
 
 .appointment-calendar-toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(300px, 420px) minmax(120px, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: 100%;
   gap: 12px;
   align-items: center;
 }
@@ -5427,6 +5977,9 @@ label {
 
 .appointment-calendar-toolbar-right {
   justify-content: flex-end;
+  justify-self: end;
+  margin-left: auto;
+  min-width: max-content;
 }
 
 .appointment-calendar-date,
@@ -5441,19 +5994,60 @@ label {
   background: #e5f2ff;
   color: #0b72e7;
   cursor: pointer;
-  font-weight: 850;
+  font-weight: 700;
   text-decoration: none;
 }
 
 .appointment-calendar-date {
   gap: 8px;
   padding: 0 14px;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
 .appointment-calendar-nav,
 .appointment-calendar-icon-link {
   width: 38px;
   font-size: 20px;
+}
+
+.appointment-calendar-icon-link {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  flex: 0 0 44px;
+  padding: 0;
+  border: 1px solid #d5e6f7;
+  background: #eaf4ff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.appointment-calendar-date:hover,
+.appointment-calendar-icon-link:hover {
+  border-color: #a9cdef;
+  background: #dceeff;
+  color: #075fbd;
+}
+
+.appointment-calendar-icon-link:focus-visible {
+  outline: 3px solid rgb(11 114 231 / 22%);
+  outline-offset: 2px;
+}
+
+.appointment-calendar-icon-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .appointment-calendar-view-tabs {
@@ -5463,7 +6057,7 @@ label {
   border-radius: 8px;
   background: #eef2f6;
   color: #6b7280;
-  font-weight: 850;
+  font-weight: 700;
   text-align: center;
 }
 
@@ -5509,7 +6103,7 @@ label {
   background: rgba(255, 255, 255, 0.92);
   color: #0b72e7;
   font-size: 20px;
-  font-weight: 850;
+  font-weight: 700;
   line-height: 1;
   text-decoration: none;
   box-shadow: 0 2px 7px rgba(15, 23, 42, 0.12);
@@ -5618,7 +6212,7 @@ label {
   background: #dff0ff;
   color: #0b72e7;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .appointment-calendar-staff-row {
@@ -5637,7 +6231,7 @@ label {
   margin: auto;
   color: #64748b;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .appointment-calendar-staff-card {
@@ -5666,7 +6260,7 @@ label {
   background: #dbeafe;
   color: #0f766e;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .appointment-calendar-staff-card strong,
@@ -5684,7 +6278,7 @@ label {
 .appointment-calendar-staff-card small {
   color: #0b72e7;
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .appointment-calendar-earlier-toggle {
@@ -5701,7 +6295,7 @@ label {
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .appointment-calendar-earlier-toggle strong {
@@ -5724,7 +6318,7 @@ label {
   background: #dff0ff;
   color: #0b72e7;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
   text-align: center;
 }
 
@@ -5760,7 +6354,7 @@ label {
   content: "+";
   opacity: 0;
   font-size: 18px;
-  font-weight: 900;
+  font-weight: 700;
   transition: opacity 120ms ease;
 }
 
@@ -5852,7 +6446,7 @@ label {
   overflow: hidden;
   color: #64748b;
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -5922,7 +6516,7 @@ label {
   margin: 0;
   color: #111827;
   font-size: 18px;
-  font-weight: 850;
+  font-weight: 700;
   text-align: center;
 }
 
@@ -5947,7 +6541,7 @@ label {
   border: 1px solid #dbeafe;
   background: #ffffff;
   font-size: 18px;
-  font-weight: 850;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -5968,7 +6562,7 @@ label {
   background: #fff7ed;
   color: #9a3412;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   padding: 0 10px;
   text-transform: uppercase;
@@ -6049,7 +6643,7 @@ button.appointment-detail-card:disabled:focus-visible,
 .appointment-detail-card strong {
   color: #111827;
   font-size: 14px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .appointment-detail-card small {
@@ -6110,7 +6704,7 @@ button.appointment-detail-card:disabled:focus-visible,
 .appointment-detail-service-add > span {
   background: #eef6ff;
   color: #0b72e7;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .appointment-detail-service-row strong,
@@ -6126,7 +6720,7 @@ button.appointment-detail-card:disabled:focus-visible,
 .appointment-detail-service-add strong {
   color: #111827;
   font-size: 14px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .appointment-detail-service-row small {
@@ -6165,7 +6759,7 @@ button.appointment-detail-card:disabled:focus-visible,
   color: #ffffff;
   cursor: pointer;
   font: inherit;
-  font-weight: 850;
+  font-weight: 700;
   text-decoration: none;
 }
 
@@ -6215,7 +6809,7 @@ button.appointment-detail-card:disabled:focus-visible,
   cursor: pointer;
   font: inherit;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   padding: 0 14px;
   text-align: left;
 }
@@ -6239,7 +6833,7 @@ button.appointment-detail-card:disabled:focus-visible,
   background: #eef2f7;
   color: currentColor;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 @media (max-width: 760px) {
@@ -6275,7 +6869,7 @@ button.appointment-detail-card:disabled:focus-visible,
 
 .appointment-edit-days span {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .appointment-edit-days strong {
@@ -6296,7 +6890,7 @@ button.appointment-detail-card:disabled:focus-visible,
   color: #0b72e7;
   font: inherit;
   font-size: 14px;
-  font-weight: 850;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -6339,14 +6933,14 @@ button.appointment-detail-card:disabled:focus-visible,
   background: #dbeafe;
   color: #0f766e;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .appointment-edit-staff-grid strong {
   max-width: 100%;
   overflow: hidden;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -6354,7 +6948,7 @@ button.appointment-detail-card:disabled:focus-visible,
 .appointment-edit-staff-grid small {
   color: #64748b;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .appointment-edit-save {
@@ -6368,7 +6962,7 @@ button.appointment-detail-card:disabled:focus-visible,
   background: #1478ff;
   color: #ffffff;
   font: inherit;
-  font-weight: 850;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -6433,7 +7027,7 @@ button.appointment-detail-card:disabled:focus-visible,
 .date-picker-day {
   border: 0;
   cursor: pointer;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .date-popover-close {
@@ -6498,7 +7092,7 @@ button.appointment-detail-card:disabled:focus-visible,
   padding: 0;
   color: #111827;
   font-size: 14px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .date-popover-month-title:hover {
@@ -6634,7 +7228,7 @@ button.appointment-detail-card:disabled:focus-visible,
   background: #dfe5ee;
   color: #111827;
   font-size: 20px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .appointment-time-modal-backdrop {
@@ -6731,7 +7325,7 @@ button.appointment-detail-card:disabled:focus-visible,
   background: #ffffff;
   color: #0b72e7;
   font-size: 20px;
-  font-weight: 900;
+  font-weight: 700;
   box-shadow: 0 5px 12px rgba(15, 23, 42, 0.08);
 }
 
@@ -6769,7 +7363,7 @@ button.appointment-detail-card:disabled:focus-visible,
   background: #e5e7eb;
   color: #0b72e7;
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .appointment-time-days button.is-selected small {
@@ -6794,7 +7388,7 @@ button.appointment-detail-card:disabled:focus-visible,
   color: #0b72e7;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .appointment-time-grid button:hover {
@@ -6882,7 +7476,7 @@ button.appointment-detail-card:disabled:focus-visible,
 .business-hour-break {
   border: 0;
   cursor: pointer;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .business-hour-close {
@@ -6915,7 +7509,7 @@ button.appointment-detail-card:disabled:focus-visible,
   background: #ffffff;
   padding: 0 16px;
   color: #111827;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .business-hour-toggle {
@@ -6985,7 +7579,7 @@ button.appointment-detail-card:disabled:focus-visible,
 
 .business-hour-on {
   color: #1478ff;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .business-hour-time-row {
@@ -7013,7 +7607,7 @@ button.appointment-detail-card:disabled:focus-visible,
 .business-hour-time-row label span {
   color: #6b7280;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .business-hour-time-row input {
@@ -7022,7 +7616,7 @@ button.appointment-detail-card:disabled:focus-visible,
   background: transparent;
   color: #111827;
   font: inherit;
-  font-weight: 850;
+  font-weight: 700;
   text-align: center;
 }
 
@@ -7206,14 +7800,14 @@ button.appointment-detail-card:disabled:focus-visible,
   margin: 0;
   color: #111827;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .appointment-contact-card p {
   margin: 0;
   color: #64748b;
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.35;
 }
 
@@ -7231,7 +7825,7 @@ button.appointment-detail-card:disabled:focus-visible,
   gap: 5px;
   color: #64748b;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .appointment-contact-fields input {
@@ -7265,7 +7859,7 @@ button.appointment-detail-card:disabled:focus-visible,
   background: #128174;
   color: #ffffff;
   cursor: pointer;
-  font-weight: 850;
+  font-weight: 700;
   padding: 0 18px;
 }
 
@@ -7309,7 +7903,7 @@ button.appointment-detail-card:disabled:focus-visible,
 .appointment-service-summary-item strong {
   color: #111827;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .appointment-service-summary-item small {
@@ -7345,13 +7939,13 @@ button.appointment-detail-card:disabled:focus-visible,
   background: #eef6ff;
   color: #0b72e7;
   font-size: 17px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .appointment-service-trigger strong {
   color: #0b72e7;
   font-size: 14px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.35;
   white-space: normal;
 }
@@ -7361,7 +7955,7 @@ button.appointment-detail-card:disabled:focus-visible,
   gap: 6px;
   color: #64748b;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .work-order-quick-modal textarea,
@@ -7382,6 +7976,586 @@ button.appointment-detail-card:disabled:focus-visible,
   border-color: #8dd5cf;
   box-shadow: 0 0 0 3px rgba(141, 213, 207, 0.45);
   outline: none;
+}
+
+.work-order-quick-modal {
+  position: relative;
+  width: min(400px, calc(100vw - 28px));
+  max-height: calc(100vh - 116px);
+  overflow-x: hidden;
+  zoom: 1;
+}
+
+.work-order-mode-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 12px;
+  border: 1px solid #d8dee7;
+  border-radius: 7px;
+  background: #ffffff;
+  padding: 4px;
+}
+
+.work-order-mode-switch button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.work-order-mode-switch button:hover {
+  background: #eef4f8;
+  color: #0f766e;
+}
+
+.work-order-mode-switch button.is-active,
+.work-order-mode-switch button.is-active:hover {
+  background: #0f7f75;
+  color: #ffffff;
+}
+
+.package-purchase-form,
+.package-purchase-flow,
+.package-payment-flow {
+  display: grid;
+  min-width: 0;
+}
+
+.package-purchase-flow,
+.package-payment-flow {
+  gap: 12px;
+}
+
+.package-purchase-section,
+.package-purchase-summary,
+.package-payment-summary,
+.package-payment-method-section {
+  min-width: 0;
+  border: 1px solid #e1e6ec;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.package-purchase-section,
+.package-payment-method-section {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+}
+
+.package-purchase-section h3,
+.package-payment-method-section h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.package-purchase-selection {
+  display: grid;
+  width: 100%;
+  min-height: 58px;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #cfd8e2;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #182333;
+  cursor: pointer;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.package-purchase-selection:hover {
+  border-color: #8ecdc7;
+  background: #f7fbfa;
+}
+
+.package-purchase-selection:disabled {
+  background: #eff2f5;
+  color: #8a96a7;
+  cursor: not-allowed;
+}
+
+.package-purchase-selection > span,
+.package-picker-list > button > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 7px;
+  background: #e9f3ff;
+  color: #0b72e7;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.package-purchase-selection > div,
+.package-picker-list > button > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.package-purchase-selection strong,
+.package-picker-list strong {
+  overflow: hidden;
+  color: #182333;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.package-purchase-selection small,
+.package-picker-list small {
+  overflow: hidden;
+  color: #66758a;
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.package-purchase-selection > b {
+  color: #0b72e7;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.package-customer-account-note {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  color: #5f6f83;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.package-customer-account-note span {
+  min-width: 0;
+}
+
+.package-customer-account-note button {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #0b72e7;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+}
+
+.package-customer-picker {
+  overflow: hidden;
+}
+
+.package-customer-picker-help {
+  margin: 10px 3px 0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.package-customer-results {
+  display: grid;
+  max-height: min(410px, calc(100dvh - 300px));
+  overflow-y: auto;
+  gap: 7px;
+  margin-top: 10px;
+  scrollbar-width: thin;
+}
+
+.package-customer-results > button {
+  display: grid;
+  min-height: 66px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #e0e6ed;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #182333;
+  cursor: pointer;
+  padding: 9px 10px;
+  text-align: left;
+}
+
+.package-customer-results > button:hover {
+  border-color: #9ed5cf;
+  background: #f8fcfb;
+}
+
+.package-customer-results > button > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #08766d;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.package-customer-results > button > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.package-customer-results strong,
+.package-customer-results small,
+.package-customer-results em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.package-customer-results strong {
+  font-size: 12px;
+}
+
+.package-customer-results small {
+  color: #526278;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.package-customer-results em {
+  color: #7a8799;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.package-customer-results > button > b {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.package-customer-state {
+  margin: 0;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #64748b;
+  padding: 14px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.package-customer-state.is-error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.package-purchase-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.package-purchase-summary > div {
+  display: grid;
+  gap: 4px;
+  border-right: 1px solid #e1e6ec;
+}
+
+.package-purchase-summary > div:nth-child(2) {
+  border-right: 0;
+}
+
+.package-purchase-summary span,
+.package-payment-summary span {
+  color: #657187;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.package-purchase-summary strong {
+  color: #182333;
+  font-size: 14px;
+}
+
+.package-purchase-summary p {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  color: #657187;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.package-purchase-actions,
+.package-payment-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.package-purchase-actions button,
+.package-payment-actions button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 7px;
+  background: #0f7f75;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 16px;
+}
+
+.package-purchase-actions button:disabled {
+  background: #a6c7c3;
+  cursor: not-allowed;
+}
+
+.package-payment-actions button:first-child {
+  border: 1px solid #d3dae4;
+  background: #ffffff;
+  color: #475569;
+}
+
+.package-purchase-actions button:hover:not(:disabled),
+.package-payment-actions button:last-child:hover {
+  background: #0d7168;
+}
+
+.package-payment-summary {
+  overflow: hidden;
+}
+
+.package-payment-summary > div {
+  display: grid;
+  min-height: 52px;
+  gap: 2px;
+  border-bottom: 1px solid #e1e6ec;
+  padding: 9px 11px;
+}
+
+.package-payment-summary > div:last-child {
+  border-bottom: 0;
+}
+
+.package-payment-summary strong {
+  color: #182333;
+  font-size: 12px;
+}
+
+.package-payment-summary small {
+  color: #657187;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.package-payment-summary .package-payment-total {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.package-payment-summary .package-payment-total strong {
+  color: #08766d;
+  font-size: 17px;
+}
+
+.package-payment-methods {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.package-payment-methods label {
+  display: grid;
+  min-height: 56px;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid #d3dae4;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  padding: 7px;
+  text-align: center;
+}
+
+.package-payment-methods label.is-selected {
+  border-color: #0f7f75;
+  background: #e9f6f4;
+  color: #08766d;
+}
+
+.package-payment-methods input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.package-payment-methods label > span {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #b9c3d0;
+  border-radius: 50%;
+}
+
+.package-payment-methods label.is-selected > span {
+  border: 4px solid #0f7f75;
+}
+
+.package-payment-methods strong {
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.package-payment-reference {
+  display: grid;
+  gap: 6px;
+}
+
+.package-payment-reference input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  color: #111827;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 10px;
+}
+
+.package-payment-reference input:focus {
+  border-color: #8dd5cf;
+  box-shadow: 0 0 0 3px rgba(141, 213, 207, 0.45);
+  outline: none;
+}
+
+.package-payment-note {
+  margin: 0;
+  color: #657187;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.package-picker-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  align-items: end;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.32);
+}
+
+.package-picker {
+  display: grid;
+  max-height: 82%;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+  background: #f4f3f8;
+  box-shadow: 0 -18px 38px rgba(15, 23, 42, 0.2);
+  padding: 12px;
+}
+
+.package-picker > header {
+  display: grid;
+  min-height: 44px;
+  grid-template-columns: 38px 1fr 38px;
+  align-items: center;
+}
+
+.package-picker > header button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #0b72e7;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.package-picker > header button:hover {
+  background: #e7eff8;
+}
+
+.package-picker > header h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 15px;
+  text-align: center;
+}
+
+.package-picker-list {
+  display: grid;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 8px;
+  margin-top: 8px;
+  scrollbar-width: thin;
+}
+
+.package-picker-list > button {
+  display: grid;
+  min-height: 64px;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #182333;
+  cursor: pointer;
+  padding: 9px 10px;
+  text-align: left;
+}
+
+.package-picker-list > button:hover,
+.package-picker-list > button.is-selected {
+  border-color: #9ed5cf;
+  background: #f8fcfb;
+}
+
+.package-picker-list > button > b {
+  color: #08766d;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+@media (max-width: 520px) {
+  .appointment-create-modal-backdrop {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+
+  .work-order-quick-modal {
+    width: min(400px, calc(100vw - 16px));
+    max-height: calc(100dvh - 24px);
+    padding: 12px;
+  }
+
+  .package-payment-methods {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .work-order-service-picker {
@@ -7412,7 +8586,7 @@ button.appointment-detail-card:disabled:focus-visible,
   background: transparent;
   color: #8a96a8;
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 700;
   padding: 0;
   text-transform: uppercase;
 }
@@ -7488,7 +8662,7 @@ button.appointment-detail-card:disabled:focus-visible,
   display: block;
   color: #111827;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .appointment-service-picker-list small {
@@ -7506,7 +8680,7 @@ button.appointment-detail-card:disabled:focus-visible,
   border-radius: 8px;
   background: #1677ff;
   color: #ffffff;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .appointment-service-save:hover {
@@ -7573,7 +8747,7 @@ button.appointment-detail-card:disabled:focus-visible,
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   outline: none;
   padding: 0;
 }
@@ -7598,7 +8772,7 @@ button.appointment-detail-card:disabled:focus-visible,
   background: #eff6ff;
   color: #0b72e7;
   cursor: pointer;
-  font-weight: 900;
+  font-weight: 700;
   padding: 0;
 }
 
@@ -7666,7 +8840,7 @@ button.appointment-detail-card:disabled:focus-visible,
   background: #dbeafe;
   color: #0f766e;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .vehicle-picker-result-main,
@@ -7688,7 +8862,7 @@ button.appointment-detail-card:disabled:focus-visible,
 .vehicle-picker-result-customer strong {
   color: #0f766e;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .vehicle-picker-result-customer strong {
@@ -7700,7 +8874,7 @@ button.appointment-detail-card:disabled:focus-visible,
   overflow: hidden;
   color: #64748b;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -7709,7 +8883,7 @@ button.appointment-detail-card:disabled:focus-visible,
   grid-column: 2;
   color: #64748b;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .member-picker-backdrop {
@@ -7743,7 +8917,7 @@ button.appointment-detail-card:disabled:focus-visible,
   margin: 0;
   color: #111827;
   font-size: 16px;
-  font-weight: 850;
+  font-weight: 700;
   text-align: center;
 }
 
@@ -7795,7 +8969,7 @@ button.appointment-detail-card:disabled:focus-visible,
   color: #111827;
   font: inherit;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   outline: none;
 }
 
@@ -7826,7 +9000,7 @@ button.appointment-detail-card:disabled:focus-visible,
   place-items: center;
   color: #8b95a1;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .member-picker-tabs strong {
@@ -7838,7 +9012,7 @@ button.appointment-detail-card:disabled:focus-visible,
   margin: 13px 4px 0;
   color: #64748b;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .member-picker-status:not(:empty) {
@@ -7868,7 +9042,7 @@ button.appointment-detail-card:disabled:focus-visible,
   padding: 0 14px;
   text-decoration: none;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .member-picker-empty-action:hover {
@@ -7887,7 +9061,7 @@ button.appointment-detail-card:disabled:focus-visible,
   margin: 0 0 11px;
   color: #111827;
   font-size: 15px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .member-picker-create-grid {
@@ -7903,7 +9077,7 @@ button.appointment-detail-card:disabled:focus-visible,
 .member-picker-create-grid span {
   color: #64748b;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .member-picker-create-grid input {
@@ -7915,7 +9089,7 @@ button.appointment-detail-card:disabled:focus-visible,
   color: #111827;
   padding: 0 11px;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   outline: none;
 }
 
@@ -7932,7 +9106,7 @@ button.appointment-detail-card:disabled:focus-visible,
   color: #b91c1c;
   padding: 8px 10px;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .member-picker-create-match {
@@ -7943,7 +9117,7 @@ button.appointment-detail-card:disabled:focus-visible,
   color: #b91c1c;
   padding: 9px 10px;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.45;
 }
 
@@ -7951,7 +9125,7 @@ button.appointment-detail-card:disabled:focus-visible,
   margin: 10px 0 0;
   color: #64748b;
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.45;
 }
 
@@ -7968,7 +9142,7 @@ button.appointment-detail-card:disabled:focus-visible,
   color: #ffffff;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .member-picker-create-submit:hover {
@@ -8010,7 +9184,7 @@ button.appointment-detail-card:disabled:focus-visible,
   margin: 0;
   color: #111827;
   font-size: 16px;
-  font-weight: 850;
+  font-weight: 700;
   text-align: center;
 }
 
@@ -8019,7 +9193,7 @@ button.appointment-detail-card:disabled:focus-visible,
   place-items: center;
   color: #0b72e7;
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .service-select-close {
@@ -8058,7 +9232,7 @@ button.appointment-detail-card:disabled:focus-visible,
   color: #8b95a1;
   cursor: pointer;
   font-size: 11px;
-  font-weight: 850;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -8075,7 +9249,7 @@ button.appointment-detail-card:disabled:focus-visible,
   background: #e5e7eb;
   color: #8b95a1;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .service-select-tabs button.selected > span {
@@ -8126,7 +9300,7 @@ button.appointment-detail-card:disabled:focus-visible,
   overflow: hidden;
   color: #111827;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -8143,14 +9317,14 @@ button.appointment-detail-card:disabled:focus-visible,
   color: #0b72e7;
   font-style: normal;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .service-select-list p {
   margin: 12px 4px;
   color: #64748b;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .service-select-save {
@@ -8163,7 +9337,7 @@ button.appointment-detail-card:disabled:focus-visible,
   color: #ffffff;
   cursor: pointer;
   font-size: 15px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .service-select-save:hover {
@@ -8184,11 +9358,11 @@ button.appointment-detail-card:disabled:focus-visible,
   }
 
   .appointment-calendar-toolbar {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .appointment-calendar-toolbar-right {
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 
   .appointment-form-layout {
@@ -8375,7 +9549,7 @@ button.appointment-detail-card:disabled:focus-visible,
   .app-shell.sidebar-collapsed .secondary-button::before {
     content: "Exit";
     font-size: 11px;
-    font-weight: 800;
+    font-weight: 700;
   }
 
   .main {

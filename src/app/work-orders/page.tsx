@@ -7,7 +7,11 @@ import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { normalizePlateNumber } from "@/lib/validation/crm";
-import { createWorkOrderAction, updateWorkOrderStatusAction } from "./actions";
+import {
+  createWorkOrderAction,
+  purchasePackageFromCashierAction,
+  updateWorkOrderStatusAction,
+} from "./actions";
 
 type WorkOrdersPageProps = {
   searchParams: Promise<{
@@ -63,7 +67,7 @@ export default async function WorkOrdersPage({
     date,
   });
 
-  const [workOrders, totalCount, services, branches] = await Promise.all([
+  const [workOrders, totalCount, services, packages, branches] = await Promise.all([
     prisma.workOrder.findMany({
       where,
       include: {
@@ -89,6 +93,13 @@ export default async function WorkOrdersPage({
       },
       orderBy: [{ category: "asc" }, { name: "asc" }],
     }),
+    prisma.package.findMany({
+      where: {
+        businessId,
+        status: "ACTIVE",
+      },
+      orderBy: { name: "asc" },
+    }),
     getOperationalBranches(businessId, user),
   ]);
   const serviceOptions = services.map((service) => ({
@@ -96,6 +107,13 @@ export default async function WorkOrdersPage({
     category: service.serviceCategory?.name ?? service.category,
     name: service.name,
     price: Number(service.price),
+  }));
+  const packageOptions = packages.map((packageOption) => ({
+    description: packageOption.description,
+    id: packageOption.id,
+    name: packageOption.name,
+    price: Number(packageOption.price),
+    totalUses: packageOption.totalUses,
   }));
 
   const totalPages = Math.max(Math.ceil(totalCount / PAGE_SIZE), 1);
@@ -117,6 +135,8 @@ export default async function WorkOrdersPage({
           <WorkOrderQuickCreateModal
             action={createWorkOrderAction}
             branches={branches}
+            packageAction={purchasePackageFromCashierAction}
+            packages={packageOptions}
             services={serviceOptions}
           />
         </div>

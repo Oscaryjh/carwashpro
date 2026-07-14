@@ -2,6 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
+import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { createSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validation/login";
@@ -44,6 +45,24 @@ export async function loginAction(
 
   if (!isPasswordValid) {
     return { error: "Invalid login details." };
+  }
+
+  if (user.businessId) {
+    await writeAuditLog({
+      businessId: user.businessId,
+      branchId: user.branchId,
+      actor: {
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+      },
+      action: "USER_LOGIN",
+      entityType: "User",
+      entityId: user.id,
+      summary: `${user.name} logged in`,
+      metadata: { role: user.role, rememberMe: parsed.data.rememberMe },
+      request: await getAuditRequestContext(),
+    });
   }
 
   await createSession({

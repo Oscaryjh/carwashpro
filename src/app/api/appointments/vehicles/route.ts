@@ -9,6 +9,7 @@ import {
   normalizePlateNumber,
 } from "@/lib/validation/crm";
 import { sendNewCustomerWelcomeIfConnected } from "@/lib/whatsapp/customer-welcome";
+import { resolveVehicleSize } from "@/lib/vehicle-size";
 
 export const runtime = "nodejs";
 
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
 
   const normalizedPlateNumber = normalizePlateNumber(vehicleInput.plateNumber);
   const branchId = user.branchId ?? null;
+  const resolvedVehicleSize = await resolveVehicleSize(businessId, vehicleInput.brand, vehicleInput.model);
 
   const [existingPhone, existingPlate] = await Promise.all([
     prisma.customer.findFirst({
@@ -157,6 +159,8 @@ export async function POST(request: Request) {
         brand: vehicleInput.brand || null,
         model: vehicleInput.model || null,
         color: vehicleInput.color || null,
+        size: resolvedVehicleSize.size,
+        sizeSource: resolvedVehicleSize.source,
         notes: vehicleInput.notes || null,
       },
     });

@@ -24,6 +24,8 @@ export const WHATSAPP_TEMPLATE_VARIABLES = [
   "paymentStatus",
   "invoiceNumber",
   "invoiceUrl",
+  "appointmentDate",
+  "appointmentTime",
 ] as const;
 
 export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppTemplateDefault[] = [
@@ -35,6 +37,17 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppTemplateDefault[] = [
       "Your customer profile has been created.",
       "WhatsApp No: {{companyPhone}}",
       "Thank you.",
+    ].join("\n"),
+  },
+  {
+    messageType: "APPOINTMENT_REMINDER",
+    title: "Appointment reminder",
+    body: [
+      "Hi {{customerName}}, this is a reminder for your appointment at {{companyName}}.",
+      "Date: {{appointmentDate}}",
+      "Time: {{appointmentTime}}",
+      "Vehicle: {{plateNumber}}",
+      "Please contact us if you need to reschedule. Thank you.",
     ].join("\n"),
   },
   {

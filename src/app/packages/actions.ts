@@ -56,7 +56,7 @@ export async function createPackageAction(formData: FormData) {
     data: {
       businessId,
       branchId,
-      categoryId: category?.id ?? null,
+      categoryId: category.id,
       serviceId,
       name: input.name,
       description: input.description || null,
@@ -127,7 +127,7 @@ export async function updatePackageAction(formData: FormData) {
   await prisma.package.update({
     where: { id: packagePlan.id },
     data: {
-      categoryId: category?.id ?? null,
+      categoryId: category.id,
       serviceId,
       branchId,
       name: input.name,
@@ -145,12 +145,8 @@ export async function updatePackageAction(formData: FormData) {
 
 async function resolvePackageCategory(
   businessId: string,
-  categoryId: string | undefined,
+  categoryId: string,
 ) {
-  if (!categoryId) {
-    return null;
-  }
-
   return prisma.packageCategory.findFirstOrThrow({
     where: {
       id: categoryId,

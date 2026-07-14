@@ -35,6 +35,11 @@ export default async function AppointmentDetailPage({
     include: {
       branch: true,
       customer: true,
+      notificationQueues: {
+        where: { messageType: "APPOINTMENT_REMINDER" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
       service: true,
       vehicle: true,
       workOrder: true,
@@ -84,6 +89,10 @@ export default async function AppointmentDetailPage({
           <Info
             label="Scheduled"
             value={appointment.scheduledAt.toLocaleString()}
+          />
+          <Info
+            label="Reminder"
+            value={formatReminderStatus(appointment.notificationQueues[0])}
           />
         </div>
 
@@ -168,6 +177,48 @@ function actionLabel(status: string) {
   }
 
   return "Cancel";
+}
+
+function formatReminderStatus(reminder?: {
+  deliveredAt: Date | null;
+  errorMessage: string | null;
+  nextAttemptAt: Date | null;
+  queuedAt: Date;
+  readAt: Date | null;
+  sentAt: Date | null;
+  status: string;
+}) {
+  if (!reminder) {
+    return "Not scheduled";
+  }
+
+  if (reminder.status === "QUEUED") {
+    return `Scheduled for ${(reminder.nextAttemptAt ?? reminder.queuedAt).toLocaleString()}`;
+  }
+
+  if (reminder.status === "READ") {
+    return `Read ${reminder.readAt?.toLocaleString() ?? ""}`.trim();
+  }
+
+  if (reminder.status === "DELIVERED") {
+    return `Delivered ${reminder.deliveredAt?.toLocaleString() ?? ""}`.trim();
+  }
+
+  if (reminder.status === "SENT") {
+    return `Sent ${reminder.sentAt?.toLocaleString() ?? ""}`.trim();
+  }
+
+  if (reminder.status === "FAILED") {
+    return reminder.errorMessage
+      ? `Failed: ${reminder.errorMessage}`
+      : "Failed";
+  }
+
+  if (reminder.status === "CANCELLED") {
+    return "Cancelled";
+  }
+
+  return reminder.status.toLowerCase().replaceAll("_", " ");
 }
 
 function vehicleDetails(vehicle: {

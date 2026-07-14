@@ -3,13 +3,20 @@ import type { Branch } from "@prisma/client";
 type BranchFormProps = {
   action: (formData: FormData) => Promise<void>;
   branch?: Branch;
+  businessId?: string;
   submitLabel: string;
 };
 
-export function BranchForm({ action, branch, submitLabel }: BranchFormProps) {
+export function BranchForm({
+  action,
+  branch,
+  businessId,
+  submitLabel,
+}: BranchFormProps) {
   return (
     <form action={action} className="form branch-form">
       {branch ? <input type="hidden" name="branchId" value={branch.id} /> : null}
+      {businessId ? <input type="hidden" name="businessId" value={businessId} /> : null}
       <div className="field-grid">
         <label>
           <span>Name</span>
@@ -19,15 +26,6 @@ export function BranchForm({ action, branch, submitLabel }: BranchFormProps) {
           <span>Phone optional</span>
           <input name="phone" defaultValue={branch?.phone ?? ""} />
         </label>
-        {branch ? (
-          <label>
-            <span>Status</span>
-            <select name="status" defaultValue={branch.status}>
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-            </select>
-          </label>
-        ) : null}
       </div>
       <label>
         <span>Address optional</span>

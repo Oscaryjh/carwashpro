@@ -15,7 +15,6 @@ type ServicesPageProps = {
   }>;
 };
 
-const UNCATEGORIZED = "uncategorized";
 const ALL_BRANCHES_ONLY = "all-branches-only";
 
 export default async function ServicesPage({ searchParams }: ServicesPageProps) {
@@ -24,10 +23,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
   const params = await searchParams;
 
   const query = params.q?.trim() ?? "";
-  const categoryId =
-    params.categoryId === UNCATEGORIZED || isUuid(params.categoryId)
-      ? params.categoryId
-      : "";
+  const categoryId = isUuid(params.categoryId) ? params.categoryId : "";
   const status =
     params.status === "ACTIVE" || params.status === "INACTIVE" ? params.status : "";
   const branchId =
@@ -48,12 +44,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
     });
   }
 
-  if (categoryId === UNCATEGORIZED) {
-    filters.push({
-      categoryId: null,
-      OR: [{ category: null }, { category: "" }],
-    });
-  } else if (categoryId) {
+  if (categoryId) {
     filters.push({ categoryId });
   }
 
@@ -116,7 +107,6 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
             />
             <select name="categoryId" defaultValue={categoryId} aria-label="Category">
               <option value="">All categories</option>
-              <option value={UNCATEGORIZED}>Uncategorized</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -162,7 +152,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                 {services.map((service, index) => (
                   <tr key={service.id}>
                     <td className="table-number">{index + 1}</td>
-                    <td>{service.serviceCategory?.name ?? service.category ?? "Uncategorized"}</td>
+                    <td>{service.serviceCategory?.name ?? service.category ?? "-"}</td>
                     <td>
                       <Link href={`/services/${service.id}`}>
                         <strong>{service.name}</strong>

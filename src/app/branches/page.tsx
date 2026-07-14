@@ -37,11 +37,8 @@ export default async function BranchesPage({ searchParams }: BranchesPageProps) 
         <div className="page-header">
           <div>
             <h1>Branches</h1>
-            <p>Manage locations under this business.</p>
+            <p>View locations provisioned for this business and maintain their details.</p>
           </div>
-          <Link className="button-link" href="/branches/new">
-            New Branch
-          </Link>
         </div>
 
         <div className="panel">
@@ -87,7 +84,9 @@ export default async function BranchesPage({ searchParams }: BranchesPageProps) 
             </table>
           ) : (
             <p className="empty-state">
-              {query ? "No branches match this search." : "No branches yet."}
+              {query
+                ? "No branches match this search."
+                : "No branches have been provisioned. Contact the platform administrator."}
             </p>
           )}
         </div>

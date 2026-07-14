@@ -51,6 +51,12 @@ export async function AppShell({ user, children }: AppShellProps) {
             shortLabel: "WA",
             icon: "whatsapp" as const,
           },
+          {
+            href: "/admin/vehicle-size-defaults",
+            label: "Vehicle Size Defaults",
+            shortLabel: "Sizes",
+            icon: "services" as const,
+          },
         ]
       : []),
     ...(isStoreUser && canSee("DASHBOARD")
@@ -85,6 +91,16 @@ export async function AppShell({ user, children }: AppShellProps) {
       : []),
     ...(isStoreUser && canSee("CRM")
       ? [{ href: "/crm", label: "CRM", shortLabel: "CRM", icon: "crm" as const }]
+      : []),
+    ...(isStoreUser && canSee("LOYALTY")
+      ? [
+          {
+            href: "/loyalty",
+            label: "Membership",
+            shortLabel: "Member",
+            icon: "packages" as const,
+          },
+        ]
       : []),
     ...(isStoreUser && canSee("INVOICES")
       ? [
