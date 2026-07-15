@@ -52,7 +52,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
       <section className="content">
         <div className="page-header">
           <div>
-            <h1>Team</h1>
+            <h1>Team & Permissions</h1>
             <p>Manage staff accounts, branch assignment, and access permissions.</p>
           </div>
           <div className="inline-actions">

@@ -2,6 +2,7 @@ import { NotificationQueueStatus } from "@prisma/client";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 
 type WhatsAppQueuePageProps = {
@@ -16,6 +17,7 @@ export default async function WhatsAppQueuePage({
   searchParams,
 }: WhatsAppQueuePageProps) {
   const { user, businessId } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP_SESSION");
   const params = await searchParams;
   const activeStatus = parseStatus(params.status);
 

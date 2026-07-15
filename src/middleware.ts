@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
-import { routePermission } from "@/lib/auth/staff-permissions";
+import { getStaffHomePath, routePermission } from "@/lib/auth/staff-permissions";
 
 const SESSION_COOKIE = "car_wash_session";
 
@@ -26,6 +26,10 @@ export async function middleware(request: NextRequest) {
     const verified = await jwtVerify(token, secret);
     const role = verified.payload.role;
     const pathname = request.nextUrl.pathname;
+    const permissions = Array.isArray(verified.payload.permissions)
+      ? verified.payload.permissions
+      : [];
+    const staffHomePath = getStaffHomePath(permissions);
 
     if (pathname.startsWith("/admin") && role !== "PLATFORM_ADMIN") {
       return NextResponse.redirect(new URL("/dashboard", request.url));
@@ -38,16 +42,12 @@ export async function middleware(request: NextRequest) {
     const requiredPermission = routePermission(pathname);
 
     if (requiredPermission === "OWNER_ONLY" && role !== "BUSINESS_OWNER") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return NextResponse.redirect(new URL(staffHomePath, request.url));
     }
 
     if (requiredPermission && requiredPermission !== "OWNER_ONLY" && role === "STAFF") {
-      const permissions = Array.isArray(verified.payload.permissions)
-        ? verified.payload.permissions
-        : [];
-
       if (!permissions.includes(requiredPermission)) {
-        return NextResponse.redirect(new URL("/dashboard", request.url));
+        return NextResponse.redirect(new URL(staffHomePath, request.url));
       }
     }
   } catch {
@@ -60,12 +60,14 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/admin/:path*",
+    "/appointments/:path*",
     "/branches/:path*",
     "/business/settings",
     "/closing/:path*",
     "/crm/:path*",
     "/dashboard/:path*",
     "/invoices/:path*",
+    "/loyalty/:path*",
     "/packages/:path*",
     "/pos/:path*",
     "/reports/:path*",

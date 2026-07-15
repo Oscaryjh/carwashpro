@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireCrmUser } from "@/lib/auth/crm";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import {
@@ -403,7 +404,8 @@ export async function deleteCustomerAction(
   _previousState: DeleteCustomerState,
   formData: FormData,
 ): Promise<DeleteCustomerState> {
-  const { businessId } = await requireCrmUser();
+  const { businessId, user } = await requireCrmUser();
+  assertStaffPermission(user, "DELETE_CUSTOMER");
   const customerId = formData.get("customerId")?.toString();
 
   if (!customerId) {

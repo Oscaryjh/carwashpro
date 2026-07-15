@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 import { createWhatsAppDeepLink, normalizeWhatsAppPhone } from "@/lib/whatsapp/deep-link";
@@ -20,6 +21,7 @@ export default async function WhatsAppDetailsPage({
   params,
 }: WhatsAppDetailsPageProps) {
   const { user, businessId } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP");
   const { messageId } = await params;
   const message = await prisma.whatsAppMessage.findFirst({
     where: {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import {
   getConnectorDiagnostics,
@@ -10,6 +11,7 @@ import {
 
 export default async function WhatsAppDiagnosticsPage() {
   const { user, businessId } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP_SESSION");
   const [connector, database] = await Promise.all([
     readConnectorDiagnostics(businessId),
     readDatabaseDiagnostics(businessId),

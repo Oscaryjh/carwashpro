@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAuditRequestContext, tryWriteAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import {
   getConnectorStatus,
   logoutConnectorSession,
@@ -11,7 +12,8 @@ import {
 } from "@/lib/whatsapp/connector-client";
 
 export async function refreshWhatsAppConnectionAction() {
-  const { businessId } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP_SESSION");
 
   try {
     await getConnectorStatus(businessId);
@@ -25,6 +27,7 @@ export async function refreshWhatsAppConnectionAction() {
 
 export async function reconnectWhatsAppAction() {
   const { businessId, user } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP_SESSION");
 
   try {
     await reconnectConnectorSession(businessId);
@@ -48,6 +51,7 @@ export async function reconnectWhatsAppAction() {
 
 export async function logoutWhatsAppAction() {
   const { businessId, user } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP_SESSION");
 
   try {
     await logoutConnectorSession(businessId);

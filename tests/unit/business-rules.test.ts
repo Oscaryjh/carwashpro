@@ -5,8 +5,11 @@ import {
   formatOrderNumber,
 } from "../../src/lib/validation/work-orders";
 import {
+  defaultStaffPermissions,
+  getStaffHomePath,
   hasStaffPermission,
   normalizeStaffPermissions,
+  routePermission,
 } from "../../src/lib/auth/staff-permissions";
 import { cashierPackagePurchaseSchema } from "../../src/lib/validation/packages";
 
@@ -34,6 +37,34 @@ test("staff permissions are allow-list based and deduplicated", () => {
     hasStaffPermission({ role: "BUSINESS_OWNER", permissions: [] }, "REPORTS"),
     true,
   );
+});
+
+test("new staff defaults are limited to daily cashier operations", () => {
+  assert.deepEqual(defaultStaffPermissions, [
+    "CRM",
+    "JOBS",
+    "APPOINTMENTS",
+    "POS",
+    "INVOICES",
+    "CLOSING",
+    "WHATSAPP",
+  ]);
+  assert.equal(defaultStaffPermissions.includes("REPORTS"), false);
+  assert.equal(defaultStaffPermissions.includes("WHATSAPP_SESSION"), false);
+  assert.equal(defaultStaffPermissions.includes("DELETE_CUSTOMER"), false);
+});
+
+test("sensitive WhatsApp routes use the session management permission", () => {
+  assert.equal(routePermission("/whatsapp/inbox"), "WHATSAPP");
+  assert.equal(routePermission("/whatsapp/settings"), "WHATSAPP_SESSION");
+  assert.equal(routePermission("/whatsapp/diagnostics"), "WHATSAPP_SESSION");
+  assert.equal(routePermission("/branches"), "OWNER_ONLY");
+});
+
+test("staff without dashboard access are redirected to their first allowed module", () => {
+  assert.equal(getStaffHomePath(["JOBS", "CRM"]), "/work-orders");
+  assert.equal(getStaffHomePath(["CRM"]), "/crm");
+  assert.equal(getStaffHomePath([]), "/login");
 });
 
 test("legacy work order numbers are shortened for display", () => {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import {
   getConnectorJidLookup,
@@ -31,6 +32,7 @@ type ConversationDiagnostic = {
 
 export default async function WhatsAppContactDiagnosticsPage() {
   const { user, businessId } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP_SESSION");
   const conversations = await prisma.whatsAppConversation.findMany({
     where: { businessId },
     include: {

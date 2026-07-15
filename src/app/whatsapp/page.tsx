@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import {
+  assertStaffPermission,
+  hasStaffPermission,
+} from "@/lib/auth/staff-permissions";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 import { createWhatsAppDeepLink, normalizeWhatsAppPhone } from "@/lib/whatsapp/deep-link";
@@ -11,6 +15,8 @@ import {
 
 export default async function WhatsAppPage() {
   const { user, businessId } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP");
+  const canManageWhatsAppSession = hasStaffPermission(user, "WHATSAPP_SESSION");
   const messages = await prisma.whatsAppMessage.findMany({
     where: { businessId },
     include: {
@@ -33,9 +39,11 @@ export default async function WhatsAppPage() {
             <Link className="secondary-link-button" href="/whatsapp/inbox">
               Inbox
             </Link>
-            <Link className="secondary-link-button" href="/whatsapp/settings">
-              Settings
-            </Link>
+            {canManageWhatsAppSession ? (
+              <Link className="secondary-link-button" href="/whatsapp/settings">
+                Settings
+              </Link>
+            ) : null}
           </div>
         </div>
 

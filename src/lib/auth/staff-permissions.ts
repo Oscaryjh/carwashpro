@@ -18,6 +18,11 @@ export const staffPermissions = [
     description: "Search, create, and update customers and vehicles.",
   },
   {
+    key: "DELETE_CUSTOMER",
+    label: "Delete customer",
+    description: "Delete customer records that do not have protected history.",
+  },
+  {
     key: "LOYALTY",
     label: "Membership",
     description: "View members, point balances, and loyalty activity.",
@@ -49,12 +54,17 @@ export const staffPermissions = [
   },
   {
     key: "WHATSAPP",
-    label: "WhatsApp",
+    label: "WhatsApp Inbox",
     description: "Use Inbox, message logs, and customer chats.",
   },
   {
+    key: "WHATSAPP_SESSION",
+    label: "Manage WhatsApp session",
+    description: "Reconnect, disconnect, and manage the linked WhatsApp session.",
+  },
+  {
     key: "TEAM",
-    label: "Team",
+    label: "Team & Permissions",
     description: "Create staff accounts and manage staff permissions.",
   },
   {
@@ -77,30 +87,18 @@ export const staffPermissions = [
     label: "Packages",
     description: "Create and update package plans and categories.",
   },
-  {
-    key: "BRANCHES",
-    label: "Branches",
-    description: "Create and update branch location records.",
-  },
 ] as const;
 
 export type StaffPermission = (typeof staffPermissions)[number]["key"];
 
 export const defaultStaffPermissions: StaffPermission[] = [
-  "DASHBOARD",
   "CRM",
-  "LOYALTY",
   "JOBS",
   "APPOINTMENTS",
   "POS",
   "INVOICES",
   "CLOSING",
   "WHATSAPP",
-  "TEAM",
-  "REPORTS",
-  "SERVICES",
-  "PACKAGES",
-  "BRANCHES",
 ];
 
 const permissionSet = new Set<string>(
@@ -139,8 +137,34 @@ export function assertStaffPermission(
   permission: StaffPermission,
 ) {
   if (!hasStaffPermission(user, permission)) {
-    redirect("/dashboard");
+    redirect(getStaffHomePath(user.permissions));
   }
+}
+
+const staffHomeRoutes: Array<[StaffPermission, string]> = [
+  ["JOBS", "/work-orders"],
+  ["APPOINTMENTS", "/appointments"],
+  ["CRM", "/crm"],
+  ["DASHBOARD", "/dashboard"],
+  ["POS", "/pos"],
+  ["INVOICES", "/invoices"],
+  ["CLOSING", "/closing"],
+  ["WHATSAPP", "/whatsapp/inbox"],
+  ["LOYALTY", "/loyalty"],
+  ["REPORTS", "/reports"],
+  ["SERVICES", "/services"],
+  ["PACKAGES", "/packages"],
+  ["TEAM", "/team"],
+];
+
+export function getStaffHomePath(permissions: unknown): string {
+  const values = Array.isArray(permissions) ? permissions : [];
+  const permissionValues = new Set(values.filter((value): value is string => typeof value === "string"));
+
+  return (
+    staffHomeRoutes.find(([permission]) => permissionValues.has(permission))?.[1] ??
+    "/login"
+  );
 }
 
 export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY" | null {
@@ -176,6 +200,19 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
     return "CLOSING";
   }
 
+  if (
+    pathname === "/whatsapp/settings" ||
+    pathname.startsWith("/whatsapp/settings/") ||
+    pathname === "/whatsapp/diagnostics" ||
+    pathname.startsWith("/whatsapp/diagnostics/") ||
+    pathname === "/whatsapp/contact-diagnostics" ||
+    pathname.startsWith("/whatsapp/contact-diagnostics/") ||
+    pathname === "/whatsapp/queue" ||
+    pathname.startsWith("/whatsapp/queue/")
+  ) {
+    return "WHATSAPP_SESSION";
+  }
+
   if (pathname === "/whatsapp" || pathname.startsWith("/whatsapp/")) {
     return "WHATSAPP";
   }
@@ -197,7 +234,7 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
   }
 
   if (pathname === "/branches" || pathname.startsWith("/branches/")) {
-    return "BRANCHES";
+    return "OWNER_ONLY";
   }
 
   if (pathname === "/business/settings") {

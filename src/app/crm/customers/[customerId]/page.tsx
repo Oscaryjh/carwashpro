@@ -80,6 +80,7 @@ export default async function CustomerDetailsPage({
       0,
     );
   const canViewLoyaltyActivity = hasStaffPermission(user, "LOYALTY");
+  const canDeleteCustomer = hasStaffPermission(user, "DELETE_CUSTOMER");
 
   return (
     <AppShell user={user}>
@@ -231,19 +232,21 @@ export default async function CustomerDetailsPage({
           )}
         </div>
 
-        <div className="panel danger-zone customer-section-panel">
-          <div className="section-header">
-            <h2>Delete customer</h2>
+        {canDeleteCustomer ? (
+          <div className="panel danger-zone customer-section-panel">
+            <div className="section-header">
+              <h2>Delete customer</h2>
+            </div>
+            <p className="muted">
+              Customers with jobs, packages, vehicle ownership history, or vehicle
+              history cannot be deleted.
+            </p>
+            <DeleteCustomerForm
+              customerId={customer.id}
+              customerName={customer.name}
+            />
           </div>
-          <p className="muted">
-            Customers with jobs, packages, vehicle ownership history, or vehicle
-            history cannot be deleted.
-          </p>
-          <DeleteCustomerForm
-            customerId={customer.id}
-            customerName={customer.name}
-          />
-        </div>
+        ) : null}
       </section>
     </AppShell>
   );

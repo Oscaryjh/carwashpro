@@ -4,6 +4,7 @@ import { BackButton } from "@/components/back-button";
 import { WhatsAppSettingsAutoRefresh } from "@/components/whatsapp-settings-auto-refresh";
 import { WhatsAppSessionRecovery } from "@/components/whatsapp-settings-session-recovery";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import {
   getConnectorStatus,
   getConnectorQrProxyPath,
@@ -27,6 +28,7 @@ export default async function WhatsAppSettingsPage({
   searchParams,
 }: WhatsAppSettingsPageProps) {
   const { businessId, user } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP_SESSION");
   const params = await searchParams;
   const message = params.message;
   const messageType = params.type === "error" ? "error" : "success";

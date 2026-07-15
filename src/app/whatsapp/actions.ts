@@ -3,6 +3,7 @@
 import type { WhatsAppMessageType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import {
   formatInvoicePaymentStatus,
@@ -26,8 +27,10 @@ type OpenWhatsAppInput = {
 };
 
 export async function openWhatsAppDeepLinkAction(input: OpenWhatsAppInput) {
+  const { user, businessId } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP");
+
   try {
-    const { user, businessId } = await requireBusinessUser();
     const senderPhone = await resolveSenderPhone(businessId, user.userId);
 
     const draft = await buildMessageDraft(input, businessId);
@@ -75,7 +78,8 @@ export async function openWhatsAppDeepLinkAction(input: OpenWhatsAppInput) {
 }
 
 export async function markWhatsAppMessageSentAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP");
   const message = await getBusinessMessage(formData, businessId);
   const now = new Date();
 
@@ -96,7 +100,8 @@ export async function markWhatsAppMessageSentAction(formData: FormData) {
 }
 
 export async function cancelWhatsAppMessageAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP");
   const message = await getBusinessMessage(formData, businessId);
 
   await prisma.whatsAppMessage.update({

@@ -7,6 +7,7 @@ import { WhatsAppMessageAutoScroll } from "@/components/whatsapp-message-auto-sc
 import { WhatsAppReplyForm } from "@/components/whatsapp-reply-form";
 import { WhatsAppSessionRecovery } from "@/components/whatsapp-settings-session-recovery";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import {
   getConnectorStatus,
@@ -33,6 +34,7 @@ export default async function WhatsAppInboxPage({
   searchParams,
 }: WhatsAppInboxPageProps) {
   const { user, businessId } = await requireBusinessUser();
+  const canManageWhatsAppSession = hasStaffPermission(user, "WHATSAPP_SESSION");
   const params = await searchParams;
   const message = params.message;
   const query = params.q?.trim() ?? "";
@@ -177,11 +179,13 @@ export default async function WhatsAppInboxPage({
                 Refresh
               </button>
             </form>
-            <form action="/whatsapp/settings" method="get">
-              <button className="secondary-link-button" type="submit">
-                Settings
-              </button>
-            </form>
+            {canManageWhatsAppSession ? (
+              <form action="/whatsapp/settings" method="get">
+                <button className="secondary-link-button" type="submit">
+                  Settings
+                </button>
+              </form>
+            ) : null}
           </div>
         </div>
 
