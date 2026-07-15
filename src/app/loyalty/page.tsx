@@ -66,13 +66,10 @@ export default async function LoyaltyPage({ searchParams }: LoyaltyPageProps) {
           <LoyaltyMetric label="Refund reversals" value={totals._sum.lifetimePointsReversed ?? 0} />
         </div>
 
-        <div className="panel">
-          <div className="section-header">
-            <div>
-              <h2>Recent point activity</h2>
-              <p className="muted">The latest changes across all members.</p>
-            </div>
-            <Link href="/loyalty/activity">View all</Link>
+        <div className="panel loyalty-activity-panel">
+          <div className="section-header loyalty-activity-header">
+            <h2>Recent point activity</h2>
+            <Link className="secondary-link-button" href="/loyalty/activity">View all</Link>
           </div>
           {recentActivity.length ? (
             <div className="loyalty-activity-list">
@@ -82,7 +79,7 @@ export default async function LoyaltyPage({ searchParams }: LoyaltyPageProps) {
                     <Link href={`/crm/customers/${activity.customerId}`}>
                       <strong>{activity.customer.name}</strong>
                     </Link>
-                    <span>{formatTransactionType(activity.type)}</span>
+                    <span className="loyalty-activity-type">{formatTransactionType(activity.type)}</span>
                   </div>
                   <strong className={activity.points >= 0 ? "points-positive" : "points-negative"}>
                     {activity.points > 0 ? "+" : ""}{activity.points}
