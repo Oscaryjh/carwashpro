@@ -29,7 +29,12 @@ type InvoicePdfInput = {
   status: string;
   subtotal: unknown;
   total: unknown;
-  vehicle: {
+  reference?: {
+    detail?: string | null;
+    label: string;
+    value: string;
+  };
+  vehicle?: {
     brand?: string | null;
     color?: string | null;
     model?: string | null;
@@ -111,9 +116,16 @@ export function buildInvoicePdf(input: InvoicePdfInput) {
     );
   };
 
-  const vehicleName = [input.vehicle.brand, input.vehicle.model, input.vehicle.color]
-    .filter(Boolean)
-    .join(" ");
+  const vehicleName = input.vehicle
+    ? [input.vehicle.brand, input.vehicle.model, input.vehicle.color]
+        .filter(Boolean)
+        .join(" ")
+    : "";
+  const reference = input.reference ?? {
+    detail: vehicleName,
+    label: "Vehicle",
+    value: input.vehicle?.plateNumber ?? "-",
+  };
 
   if (logoImage) {
     const { width, height } = fitImage(logoImage, LOGO_SIZE, LOGO_SIZE);
@@ -146,10 +158,10 @@ export function buildInvoicePdf(input: InvoicePdfInput) {
   text(input.invoiceNumber, 50, 675, { font: "bold", size: 14 });
   text(formatDate(input.issuedAt), 50, 658, { font: "bold", size: 9 });
 
-  text("Vehicle", 330, 692, { font: "bold", size: 9 });
-  text(input.vehicle.plateNumber, 330, 670, { font: "bold", size: 22 });
-  if (vehicleName) {
-    text(vehicleName, 330, 653, { font: "bold", size: 9 });
+  text(reference.label, 330, 692, { font: "bold", size: 9 });
+  text(reference.value, 330, 670, { font: "bold", size: 16 });
+  if (reference.detail) {
+    text(reference.detail, 330, 653, { font: "bold", size: 9 });
   }
   line(50, 635, 545, 635);
 

@@ -112,14 +112,21 @@ export default async function LoyaltyActivityPage({ searchParams }: LoyaltyActiv
 
           {activity.length ? (
             <div className="loyalty-activity-list">
+              <div className="loyalty-activity-columns" aria-hidden="true">
+                <span>Member</span>
+                <span>Activity</span>
+                <span>Points</span>
+                <span>Details</span>
+              </div>
               {activity.map((entry) => (
                 <div className="loyalty-activity-row" key={entry.id}>
                   <div className="loyalty-activity-member">
                     <Link href={`/crm/customers/${entry.customerId}`}>
                       <strong>{entry.customer.name}</strong>
                     </Link>
-                    <span>{formatTransactionType(entry.type)}</span>
+                    <small>{entry.customer.phone}</small>
                   </div>
+                  <span className="loyalty-activity-type">{formatTransactionType(entry.type)}</span>
                   <strong className={entry.points >= 0 ? "points-positive" : "points-negative"}>
                     {entry.points > 0 ? "+" : ""}{entry.points}
                   </strong>

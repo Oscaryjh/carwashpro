@@ -22,6 +22,99 @@
   --font-weight-bold: 700;
 }
 
+.input-with-suffix {
+  position: relative;
+}
+
+.input-with-suffix input {
+  width: 100%;
+  padding-right: 78px;
+}
+
+.input-with-suffix > span {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.service-staff-fieldset {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  gap: 10px;
+}
+
+.service-staff-fieldset legend {
+  padding: 0 6px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.field-helper {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.service-staff-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.service-staff-option {
+  display: grid;
+  min-height: 58px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfcfd;
+  gap: 10px;
+  grid-template-columns: 20px minmax(0, 1fr);
+  cursor: pointer;
+}
+
+.service-staff-option:has(input:checked) {
+  border-color: var(--accent);
+  background: #e9f6f4;
+}
+
+.service-staff-option input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+}
+
+.service-staff-option > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.service-staff-option small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-empty-state {
+  min-height: 0;
+  padding: 10px;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -1988,6 +2081,56 @@ a.dashboard-kpi-card:hover {
   gap: 8px;
 }
 
+.salon-checkout-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.salon-payment-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.salon-payment-form {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(150px, 1fr) minmax(150px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.salon-payment-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.salon-payment-form input,
+.salon-payment-form select {
+  min-height: 40px;
+}
+
+.salon-payment-submit {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .salon-payment-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .salon-payment-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .salon-payment-submit {
+    grid-column: 1 / -1;
+  }
+}
+
 .pos-payment-fields {
   display: grid;
   gap: 7px;
@@ -2247,19 +2390,24 @@ a.dashboard-kpi-card:hover {
 }
 
 .loyalty-metrics .customer-info-card {
-  min-height: 56px;
-  gap: 2px;
-  padding: 7px 10px;
+  min-height: 62px;
+  gap: 3px;
+  padding: 9px 11px;
 }
 
 .loyalty-metrics .customer-info-card span {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
 }
 
 .loyalty-metrics .customer-info-card strong {
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1.1;
+}
+
+.loyalty-metrics .customer-info-card:nth-child(3) {
+  border-color: rgba(15, 118, 110, 0.28);
+  background: #edf8f6;
 }
 
 .loyalty-settings-form .loyalty-enabled-toggle {
@@ -2347,6 +2495,32 @@ a.dashboard-kpi-card:hover {
   display: grid;
 }
 
+.loyalty-activity-columns,
+.loyalty-activity-row {
+  grid-template-columns:
+    minmax(150px, 0.9fr)
+    minmax(88px, 0.45fr)
+    76px
+    minmax(260px, 1.7fr);
+}
+
+.loyalty-activity-columns {
+  display: grid;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0;
+  padding: 6px 12px;
+  text-transform: uppercase;
+}
+
+.loyalty-activity-columns span:nth-child(3) {
+  text-align: right;
+}
+
 .loyalty-activity-panel {
   padding: 0;
   overflow: hidden;
@@ -2367,11 +2541,10 @@ a.dashboard-kpi-card:hover {
 
 .loyalty-activity-row {
   display: grid;
-  grid-template-columns: minmax(160px, 0.75fr) 76px minmax(240px, 1.6fr);
   align-items: center;
-  gap: 10px 16px;
-  min-height: 58px;
-  padding: 8px 12px;
+  gap: 12px;
+  min-height: 54px;
+  padding: 7px 12px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -2391,18 +2564,18 @@ a.dashboard-kpi-card:hover {
   overflow-wrap: anywhere;
 }
 
-.loyalty-activity-member span,
+.loyalty-activity-member small,
 .loyalty-activity-detail small {
   color: var(--muted);
   font-size: 11px;
   font-weight: 500;
 }
 
-.loyalty-activity-member .loyalty-activity-type {
+.loyalty-activity-type {
   width: fit-content;
   border-radius: 999px;
-  background: var(--panel-muted);
-  color: var(--muted);
+  background: #e8f5f2;
+  color: var(--accent-strong);
   font-size: 10px;
   font-weight: 650;
   line-height: 1;
@@ -2413,6 +2586,7 @@ a.dashboard-kpi-card:hover {
 .loyalty-activity-row > .points-positive,
 .loyalty-activity-row > .points-negative {
   font-size: 15px;
+  font-variant-numeric: tabular-nums;
   text-align: right;
 }
 
@@ -5933,6 +6107,16 @@ label {
   color: #0f766e;
 }
 
+.status.in_service {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.status.completed {
+  background: #ecfdf5;
+  color: #166534;
+}
+
 .status.read {
   background: #e0f2fe;
   color: #026aa2;
@@ -6240,8 +6424,12 @@ label {
     grid-template-columns: 1fr;
   }
 
+  .loyalty-activity-columns {
+    display: none;
+  }
+
   .loyalty-activity-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     gap: 8px 12px;
   }
 
@@ -6298,6 +6486,105 @@ label {
     "Liberation Mono", "Courier New", monospace;
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+.template-message-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.template-message-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.template-message-editor-header > label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.template-emoji-control {
+  position: relative;
+}
+
+.template-emoji-trigger {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  padding: 0;
+}
+
+.template-emoji-trigger:hover,
+.template-emoji-trigger[aria-expanded="true"] {
+  border-color: #b8dcd7;
+  background: #eaf6f4;
+  color: var(--primary);
+}
+
+.template-emoji-trigger svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.template-emoji-picker {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  width: 244px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 16px 36px rgb(15 23 42 / 18%);
+  padding: 8px;
+}
+
+.template-emoji-picker button {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 20px;
+  padding: 0;
+}
+
+.template-emoji-picker button:hover {
+  background: #f1f5f9;
+}
+
+@media (max-width: 520px) {
+  .template-emoji-picker {
+    width: 220px;
+  }
+
+  .template-emoji-picker button {
+    width: 30px;
+    height: 30px;
+    min-height: 30px;
+    font-size: 18px;
+  }
 }
 
 .template-side-panel {
@@ -7120,6 +7407,7 @@ button.appointment-detail-card:disabled:focus-visible,
 
 .appointment-detail-actions {
   display: grid;
+  gap: 8px;
   grid-template-columns: 1fr;
   margin-top: 16px;
 }
@@ -7159,6 +7447,17 @@ button.appointment-detail-card:disabled:focus-visible,
 
 .appointment-detail-action.secondary:hover {
   background: #e2e8f0;
+}
+
+.appointment-detail-complete {
+  display: grid;
+  min-height: 44px;
+  place-items: center;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #166534;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .appointment-detail-menu {
@@ -9530,6 +9829,57 @@ button.appointment-detail-card:disabled:focus-visible,
 
 .member-picker-results {
   margin-top: 8px;
+}
+
+.salon-customer-results {
+  display: grid;
+  gap: 8px;
+  max-height: 310px;
+  overflow-y: auto;
+}
+
+.salon-customer-results button {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  min-height: 62px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  cursor: pointer;
+  padding: 9px 11px;
+  text-align: left;
+}
+
+.salon-customer-results button:hover {
+  border-color: #9bd1ce;
+  background: #eaf7f4;
+}
+
+.salon-customer-results button > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.salon-customer-results strong,
+.salon-customer-results button > div span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.salon-customer-results strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.salon-customer-results button > div span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .service-select-backdrop {

@@ -3,6 +3,10 @@ import {
   BusinessLogoUpload,
   BusinessSubmitButton,
 } from "@/components/business-logo-upload";
+import {
+  BUSINESS_INDUSTRY_OPTIONS,
+  getBusinessIndustryLabel,
+} from "@/lib/business-industry";
 
 type BusinessFormProps = {
   action: (formData: FormData) => Promise<void>;
@@ -42,6 +46,25 @@ export function BusinessForm({
           {mode === "edit" ? (
             <input type="hidden" name="slug" value={business?.slug ?? ""} />
           ) : null}
+        </label>
+        <label>
+          <span>Industry</span>
+          {mode === "create" ? (
+            <select name="industryType" defaultValue="AUTO_DETAILING" required>
+              {BUSINESS_INDUSTRY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={getBusinessIndustryLabel(
+                business?.industryType ?? "AUTO_DETAILING",
+              )}
+              disabled
+            />
+          )}
         </label>
         <label>
           <span>Company No. optional</span>

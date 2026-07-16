@@ -16,8 +16,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <main className="auth-page">
       <section className="auth-panel">
-        <h1>WashFlow</h1>
-        <p>Sign in to manage your car wash business workspace.</p>
+        <h1>TETAMU POS</h1>
+        <p>Sign in to manage your business workspace.</p>
         {message ? <p className="status failed">{message}</p> : null}
         <LoginForm />
       </section>

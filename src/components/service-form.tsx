@@ -9,6 +9,14 @@ type ServiceFormProps = {
   branches?: BranchOption[];
   submitLabel?: string;
   formId?: string;
+  isSalonBusiness?: boolean;
+  staffOptions?: Array<{
+    id: string;
+    name: string;
+    role: string;
+    branchName: string | null;
+  }>;
+  selectedStaffIds?: string[];
 };
 
 export function ServiceForm({
@@ -18,6 +26,9 @@ export function ServiceForm({
   branches = [],
   submitLabel,
   formId,
+  isSalonBusiness = false,
+  staffOptions = [],
+  selectedStaffIds = [],
 }: ServiceFormProps) {
   return (
     <form action={action} className="form" id={formId}>
@@ -47,7 +58,7 @@ export function ServiceForm({
           <input
             name="name"
             defaultValue={service?.name ?? ""}
-            placeholder="Basic Wash - Small Car"
+            placeholder={isSalonBusiness ? "Haircut" : "Basic Wash - Small Car"}
             required
           />
         </label>
@@ -63,6 +74,24 @@ export function ServiceForm({
             required
           />
         </label>
+        {isSalonBusiness ? (
+          <label>
+            <span>Duration</span>
+            <div className="input-with-suffix">
+              <input
+                name="durationMinutes"
+                type="number"
+                step="5"
+                min="5"
+                max="720"
+                placeholder="60"
+                defaultValue={service?.durationMinutes ?? ""}
+                required
+              />
+              <span>minutes</span>
+            </div>
+          </label>
+        ) : null}
         {service ? (
           <label>
             <span>Status</span>
@@ -73,6 +102,40 @@ export function ServiceForm({
           </label>
         ) : null}
       </div>
+      {isSalonBusiness ? (
+        <fieldset className="service-staff-fieldset">
+          <legend>Available staff</legend>
+          <p className="field-helper">
+            Select the team members who can perform this service. Leave all
+            unchecked to allow every active team member.
+          </p>
+          {staffOptions.length ? (
+            <div className="service-staff-grid">
+              {staffOptions.map((staff) => (
+                <label className="service-staff-option" key={staff.id}>
+                  <input
+                    type="checkbox"
+                    name="staffIds"
+                    value={staff.id}
+                    defaultChecked={selectedStaffIds.includes(staff.id)}
+                  />
+                  <span>
+                    <strong>{staff.name}</strong>
+                    <small>
+                      {staff.role === "BUSINESS_OWNER" ? "Owner" : "Staff"}
+                      {staff.branchName ? ` · ${staff.branchName}` : ""}
+                    </small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-state compact-empty-state">
+              No active staff accounts are available yet.
+            </p>
+          )}
+        </fieldset>
+      ) : null}
       {submitLabel ? (
         <div className="form-actions">
           <button type="submit">{submitLabel}</button>

@@ -122,7 +122,7 @@ export async function scheduleAppointmentReminder({
     appointment.id,
     appointment.scheduledAt,
   );
-  const messageBody = await renderManagedWhatsAppTemplate("APPOINTMENT_REMINDER", {
+  const renderedMessageBody = await renderManagedWhatsAppTemplate("APPOINTMENT_REMINDER", {
     appointmentDate: formatAppointmentDate(appointment.scheduledAt),
     appointmentTime: formatAppointmentTime(appointment.scheduledAt),
     companyAddress: appointment.business.address,
@@ -131,15 +131,21 @@ export async function scheduleAppointmentReminder({
     companyPhone: appointment.business.phone,
     customerName: recipientName,
     customerPhone: rawRecipientPhone,
-    plateNumber: appointment.vehicle.plateNumber,
+    plateNumber: appointment.vehicle?.plateNumber ?? "",
     vehicleName: [
-      appointment.vehicle.brand,
-      appointment.vehicle.model,
-      appointment.vehicle.color,
+      appointment.vehicle?.brand,
+      appointment.vehicle?.model,
+      appointment.vehicle?.color,
     ]
       .filter(Boolean)
       .join(" "),
   });
+  const messageBody = appointment.vehicle
+    ? renderedMessageBody
+    : renderedMessageBody
+        .split("\n")
+        .filter((line) => !/^\s*vehicle\s*:\s*$/i.test(line))
+        .join("\n");
   const storedMessageBody =
     encodeWhatsAppStoredText(messageBody) ?? "Appointment reminder";
 

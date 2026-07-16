@@ -1,0 +1,6 @@
+ALTER TYPE "AppointmentStatus" ADD VALUE IF NOT EXISTS 'IN_SERVICE';
+ALTER TYPE "AppointmentStatus" ADD VALUE IF NOT EXISTS 'COMPLETED';
+
+ALTER TABLE "appointments"
+ADD COLUMN "started_at" TIMESTAMP(3),
+ADD COLUMN "completed_at" TIMESTAMP(3);

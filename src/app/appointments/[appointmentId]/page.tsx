@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
+import { SalonAppointmentPaymentForm } from "@/components/salon-appointment-payment-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
 import {
@@ -22,7 +23,7 @@ type AppointmentDetailPageProps = {
 export default async function AppointmentDetailPage({
   params,
 }: AppointmentDetailPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
   const { appointmentId } = await params;
   const appointment = await prisma.appointment.findFirst({
     where: {
@@ -43,6 +44,17 @@ export default async function AppointmentDetailPage({
       service: true,
       vehicle: true,
       workOrder: true,
+      invoice: {
+        include: {
+          items: {
+            orderBy: { createdAt: "asc" },
+          },
+          payments: {
+            where: { status: "ACTIVE" },
+            orderBy: { paidAt: "desc" },
+          },
+        },
+      },
     },
   });
 
@@ -51,16 +63,30 @@ export default async function AppointmentDetailPage({
   }
 
   const canConvert =
+    industryType !== "SALON_BEAUTY" &&
+    Boolean(appointment.vehicle) &&
     appointment.status !== "CONVERTED_TO_JOB" &&
     appointment.status !== "CANCELLED" &&
     appointment.status !== "NO_SHOW" &&
     Boolean(appointment.service || appointment.serviceIds.length);
   const assignedStaffName = await getAssignedStaffName(appointment.id, businessId);
-  const serviceNames = appointment.serviceIds.length
-    ? await getServiceNames(appointment.serviceIds, businessId)
+  const selectedServices = appointment.serviceIds.length
+    ? await getServices(appointment.serviceIds, businessId)
     : appointment.service
-      ? [appointment.service.name]
+      ? [appointment.service]
       : [];
+  const serviceNames = selectedServices.map((service) => service.name);
+  const serviceTotal = selectedServices.reduce(
+    (sum, service) => sum + Number(service.price),
+    0,
+  );
+  const salonInvoice = industryType === "SALON_BEAUTY" ? appointment.invoice : null;
+  const salonBalance = salonInvoice ? Number(salonInvoice.balance) : serviceTotal;
+  const canTakeSalonPayment =
+    industryType === "SALON_BEAUTY" &&
+    ["ARRIVED", "IN_SERVICE", "COMPLETED"].includes(appointment.status) &&
+    selectedServices.length > 0 &&
+    salonBalance > 0;
 
   return (
     <AppShell user={user}>
@@ -69,7 +95,7 @@ export default async function AppointmentDetailPage({
           <div>
             <h1>{appointment.customer.name}</h1>
             <p>
-              {appointment.vehicle.plateNumber} /{" "}
+              {appointment.vehicle ? `${appointment.vehicle.plateNumber} / ` : ""}
               {appointment.scheduledAt.toLocaleString()}
             </p>
           </div>
@@ -80,10 +106,12 @@ export default async function AppointmentDetailPage({
           <Info label="Status" value={formatAppointmentStatus(appointment.status)} />
           <Info label="Branch" value={appointment.branch?.name ?? "All branches"} />
           <Info label="Customer" value={`${appointment.customer.name} - ${appointment.customer.phone}`} />
-          <Info
-            label="Vehicle"
-            value={`${appointment.vehicle.plateNumber} ${vehicleDetails(appointment.vehicle)}`}
-          />
+          {appointment.vehicle ? (
+            <Info
+              label="Vehicle"
+              value={`${appointment.vehicle.plateNumber} ${vehicleDetails(appointment.vehicle)}`}
+            />
+          ) : null}
           <Info label="Service" value={serviceNames.join(", ") || "Not selected"} />
           <Info label="Staff" value={assignedStaffName ?? "Unassigned"} />
           <Info
@@ -108,7 +136,15 @@ export default async function AppointmentDetailPage({
           </div>
 
           <div className="inline-actions">
-            {(["CONFIRMED", "ARRIVED", "CANCELLED", "NO_SHOW"] as const).map(
+            {([
+              "CONFIRMED",
+              "ARRIVED",
+              ...(industryType === "SALON_BEAUTY"
+                ? (["IN_SERVICE", "COMPLETED"] as const)
+                : []),
+              "CANCELLED",
+              "NO_SHOW",
+            ] as const).map(
               (status) =>
                 canMoveAppointmentStatus(appointment.status, status) ? (
                   <form action={updateAppointmentStatusAction} key={status}>
@@ -137,13 +173,77 @@ export default async function AppointmentDetailPage({
                 <input type="hidden" name="appointmentId" value={appointment.id} />
                 <button type="submit">Create Job</button>
               </form>
-            ) : (
+            ) : industryType !== "SALON_BEAUTY" ? (
               <p className="empty-state">
-                Choose a service before converting this appointment to a job.
+                {appointment.vehicle
+                  ? "Choose a service before converting this appointment to a job."
+                  : "Choose a vehicle before converting this appointment to a job."}
               </p>
-            )}
+            ) : null}
           </div>
         </div>
+
+        {industryType === "SALON_BEAUTY" ? (
+          <div className="panel salon-checkout-panel">
+            <div className="section-header">
+              <div>
+                <h2>Payment</h2>
+                <p className="muted">
+                  Payment and appointment status are tracked separately.
+                </p>
+              </div>
+              {salonInvoice ? (
+                <Link className="secondary-link-button" href={`/invoices/${salonInvoice.id}`}>
+                  View invoice
+                </Link>
+              ) : null}
+            </div>
+
+            <div className="grid salon-payment-metrics">
+              <Info
+                label="Total"
+                value={`RM${(salonInvoice ? Number(salonInvoice.total) : serviceTotal).toFixed(2)}`}
+              />
+              <Info
+                label="Paid"
+                value={`RM${Number(salonInvoice?.paidAmount ?? 0).toFixed(2)}`}
+              />
+              <Info label="Balance" value={`RM${salonBalance.toFixed(2)}`} />
+              <Info
+                label="Payment status"
+                value={salonInvoice ? formatPaymentStatus(salonInvoice.status) : "Unpaid"}
+              />
+            </div>
+
+            {canTakeSalonPayment ? (
+              <SalonAppointmentPaymentForm
+                appointmentId={appointment.id}
+                balance={salonBalance}
+              />
+            ) : salonBalance <= 0 ? (
+              <p className="empty-state">This appointment is fully paid.</p>
+            ) : selectedServices.length === 0 ? (
+              <p className="empty-state">Select at least one service before checkout.</p>
+            ) : (
+              <p className="empty-state">
+                Mark the customer as arrived before taking payment.
+              </p>
+            )}
+
+            {salonInvoice?.payments.length ? (
+              <div className="pos-payment-history">
+                <h3>Payment history</h3>
+                {salonInvoice.payments.map((payment) => (
+                  <div className="pos-history-row" key={payment.id}>
+                    <span>{payment.paidAt.toLocaleString()}</span>
+                    <strong>RM{Number(payment.amount).toFixed(2)}</strong>
+                    <small>{formatPaymentStatus(payment.method)}</small>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="panel">
           <h2>Notes</h2>
@@ -174,6 +274,14 @@ function actionLabel(status: string) {
 
   if (status === "NO_SHOW") {
     return "No Show";
+  }
+
+  if (status === "IN_SERVICE") {
+    return "Start Service";
+  }
+
+  if (status === "COMPLETED") {
+    return "Complete Service";
   }
 
   return "Cancel";
@@ -243,7 +351,7 @@ async function getAssignedStaffName(appointmentId: string, businessId: string) {
   return rows[0]?.staffName ?? null;
 }
 
-async function getServiceNames(serviceIds: string[], businessId: string) {
+async function getServices(serviceIds: string[], businessId: string) {
   const services = await prisma.service.findMany({
     where: {
       businessId,
@@ -251,9 +359,18 @@ async function getServiceNames(serviceIds: string[], businessId: string) {
     },
     orderBy: [{ category: "asc" }, { name: "asc" }],
     select: {
+      id: true,
       name: true,
+      price: true,
     },
   });
 
-  return services.map((service) => service.name);
+  return services;
+}
+
+function formatPaymentStatus(status: string) {
+  return status
+    .toLowerCase()
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

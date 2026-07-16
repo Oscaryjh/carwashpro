@@ -14,7 +14,7 @@ export type DeleteServiceState = {
 };
 
 export async function createServiceAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
   assertStaffPermission(user, "SERVICES");
 
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
@@ -24,9 +24,20 @@ export async function createServiceAction(formData: FormData) {
     category: formData.get("category") ?? "",
     description: formData.get("description") ?? "",
     price: formData.get("price"),
+    durationMinutes: formData.get("durationMinutes"),
+    staffIds: formData.getAll("staffIds").map(String),
     status: "ACTIVE",
   });
   const category = await resolveServiceCategory(businessId, input.categoryId);
+  const isSalonBusiness = industryType === "SALON_BEAUTY";
+
+  if (isSalonBusiness && !input.durationMinutes) {
+    throw new Error("Service duration is required for salon services.");
+  }
+
+  const staffIds = isSalonBusiness
+    ? await resolveServiceStaff(businessId, input.staffIds)
+    : [];
 
   const existing = await prisma.service.findFirst({
     where: {
@@ -40,17 +51,32 @@ export async function createServiceAction(formData: FormData) {
     throw new Error("Service name already exists in this business.");
   }
 
-  const service = await prisma.service.create({
-    data: {
-      businessId,
-      branchId,
-      name: input.name,
-      categoryId: category.id,
-      category: category.name,
-      description: input.description || null,
-      price: money(input.price),
-      status: "ACTIVE",
-    },
+  const service = await prisma.$transaction(async (tx) => {
+    const createdService = await tx.service.create({
+      data: {
+        businessId,
+        branchId,
+        name: input.name,
+        categoryId: category.id,
+        category: category.name,
+        description: input.description || null,
+        price: money(input.price),
+        durationMinutes: isSalonBusiness ? input.durationMinutes : null,
+        status: "ACTIVE",
+      },
+    });
+
+    if (staffIds.length) {
+      await tx.serviceStaffAssignment.createMany({
+        data: staffIds.map((userId) => ({
+          businessId,
+          serviceId: createdService.id,
+          userId,
+        })),
+      });
+    }
+
+    return createdService;
   });
 
   revalidatePath("/services");
@@ -58,7 +84,7 @@ export async function createServiceAction(formData: FormData) {
 }
 
 export async function updateServiceAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
   assertStaffPermission(user, "SERVICES");
 
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
@@ -74,9 +100,20 @@ export async function updateServiceAction(formData: FormData) {
     category: formData.get("category") ?? "",
     description: formData.get("description") ?? "",
     price: formData.get("price"),
+    durationMinutes: formData.get("durationMinutes"),
+    staffIds: formData.getAll("staffIds").map(String),
     status: formData.get("status"),
   });
   const category = await resolveServiceCategory(businessId, input.categoryId);
+  const isSalonBusiness = industryType === "SALON_BEAUTY";
+
+  if (isSalonBusiness && !input.durationMinutes) {
+    throw new Error("Service duration is required for salon services.");
+  }
+
+  const staffIds = isSalonBusiness
+    ? await resolveServiceStaff(businessId, input.staffIds)
+    : [];
 
   const service = await prisma.service.findFirstOrThrow({
     where: {
@@ -99,17 +136,36 @@ export async function updateServiceAction(formData: FormData) {
     throw new Error("Service name already exists in this business.");
   }
 
-  await prisma.service.update({
-    where: { id: service.id },
-    data: {
-      name: input.name,
-      branchId,
-      categoryId: category.id,
-      category: category.name,
-      description: input.description || null,
-      price: money(input.price),
-      status: input.status,
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.service.update({
+      where: { id: service.id },
+      data: {
+        name: input.name,
+        branchId,
+        categoryId: category.id,
+        category: category.name,
+        description: input.description || null,
+        price: money(input.price),
+        durationMinutes: isSalonBusiness ? input.durationMinutes : null,
+        status: input.status,
+      },
+    });
+
+    if (isSalonBusiness) {
+      await tx.serviceStaffAssignment.deleteMany({
+        where: { businessId, serviceId: service.id },
+      });
+
+      if (staffIds.length) {
+        await tx.serviceStaffAssignment.createMany({
+          data: staffIds.map((userId) => ({
+            businessId,
+            serviceId: service.id,
+            userId,
+          })),
+        });
+      }
+    }
   });
 
   revalidatePath("/services");
@@ -131,6 +187,30 @@ async function resolveServiceCategory(
       name: true,
     },
   });
+}
+
+async function resolveServiceStaff(businessId: string, requestedIds: string[]) {
+  const staffIds = [...new Set(requestedIds)];
+
+  if (!staffIds.length) {
+    return [];
+  }
+
+  const users = await prisma.user.findMany({
+    where: {
+      id: { in: staffIds },
+      businessId,
+      status: "active",
+      role: { in: ["BUSINESS_OWNER", "STAFF"] },
+    },
+    select: { id: true },
+  });
+
+  if (users.length !== staffIds.length) {
+    throw new Error("One or more selected staff members are invalid.");
+  }
+
+  return users.map((user) => user.id);
 }
 
 export async function deactivateServiceAction(formData: FormData) {

@@ -6,6 +6,7 @@ import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { createSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validation/login";
+import { getBusinessHomeHref } from "@/lib/business-industry";
 
 export type LoginState = {
   error?: string;
@@ -82,5 +83,5 @@ export async function loginAction(
     redirect("/admin/businesses");
   }
 
-  redirect("/dashboard");
+  redirect(getBusinessHomeHref(user.business?.industryType ?? "AUTO_DETAILING"));
 }

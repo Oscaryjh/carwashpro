@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { hasStaffPermission } from "@/lib/auth/staff-permissions";
@@ -45,6 +46,10 @@ export default async function DashboardPage({
         </section>
       </AppShell>
     );
+  }
+
+  if (context.industryType === "SALON_BEAUTY") {
+    redirect("/salon/dashboard");
   }
 
   const businessId = context.businessId;

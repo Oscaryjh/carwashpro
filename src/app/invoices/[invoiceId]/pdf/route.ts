@@ -52,6 +52,18 @@ export async function GET(_request: Request, { params }: InvoicePdfRouteProps) {
           vehicle: true,
         },
       },
+      appointment: {
+        include: {
+          assignedStaff: { select: { name: true } },
+          customer: true,
+        },
+      },
+      items: { orderBy: { createdAt: "asc" } },
+      payments: {
+        where: { status: "ACTIVE" },
+        include: { refunds: true },
+        orderBy: { paidAt: "desc" },
+      },
       customer: true,
       customerPackage: { include: { package: true } },
     },
@@ -59,6 +71,40 @@ export async function GET(_request: Request, { params }: InvoicePdfRouteProps) {
 
   if (!invoice) {
     notFound();
+  }
+
+  if (invoice.appointment) {
+    const logo = await loadInvoiceLogo(invoice.business.logoUrl);
+    const paymentSummary = getInvoicePaymentSummary(invoice.payments);
+    const appointmentDate = invoice.appointment.scheduledAt.toLocaleDateString("en-MY");
+    const appointmentTime = invoice.appointment.scheduledAt.toLocaleTimeString("en-MY", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const pdf = buildInvoicePdf({
+      company: { ...invoice.business, logo },
+      customer: {
+        name: invoice.appointment.customer.name,
+        phone: invoice.appointment.customer.phone,
+      },
+      invoiceNumber: formatInvoiceNumber(invoice.invoiceNumber),
+      issuedAt: invoice.issuedAt,
+      items: invoice.items,
+      paidAmount: invoice.paidAmount,
+      cashPaidAmount: paymentSummary.cashPaidAmount,
+      packageVoucherAmount: paymentSummary.packageVoucherAmount,
+      balance: invoice.balance,
+      status: invoice.status,
+      subtotal: invoice.subtotal,
+      total: invoice.total,
+      reference: {
+        label: "Appointment",
+        value: appointmentDate,
+        detail: `${appointmentTime} / ${invoice.appointment.assignedStaff?.name ?? "Unassigned"}`,
+      },
+    });
+    const fileName = invoicePdfFileName(formatInvoiceNumber(invoice.invoiceNumber));
+    return pdfResponse(pdf, fileName);
   }
 
   if (!invoice.workOrder) {
@@ -78,16 +124,14 @@ export async function GET(_request: Request, { params }: InvoicePdfRouteProps) {
       status: invoice.status,
       subtotal: invoice.subtotal,
       total: invoice.total,
-      vehicle: { plateNumber: "PACKAGE" },
-    });
-    const fileName = invoicePdfFileName(formatInvoiceNumber(invoice.invoiceNumber));
-    return new Response(new Uint8Array(pdf), {
-      headers: {
-        "Content-Disposition": `attachment; filename="${fileName}"`,
-        "Content-Length": String(pdf.length),
-        "Content-Type": "application/pdf",
+      reference: {
+        label: "Package",
+        value: packageName,
+        detail: "Package purchase",
       },
     });
+    const fileName = invoicePdfFileName(formatInvoiceNumber(invoice.invoiceNumber));
+    return pdfResponse(pdf, fileName);
   }
 
   const displayInvoiceNumber = formatInvoiceNumber(invoice.invoiceNumber);
@@ -121,6 +165,10 @@ export async function GET(_request: Request, { params }: InvoicePdfRouteProps) {
   });
   const fileName = invoicePdfFileName(displayInvoiceNumber);
 
+  return pdfResponse(pdf, fileName);
+}
+
+function pdfResponse(pdf: Buffer, fileName: string) {
   return new Response(new Uint8Array(pdf), {
     headers: {
       "Content-Disposition": `attachment; filename="${fileName}"`,

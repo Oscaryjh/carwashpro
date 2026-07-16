@@ -76,12 +76,174 @@ export async function sendInvoiceIfConnected({
           },
         },
       },
+      appointment: {
+        include: {
+          assignedStaff: { select: { name: true } },
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+            },
+          },
+        },
+      },
+      items: { orderBy: { createdAt: "asc" } },
+      payments: {
+        where: { status: "ACTIVE" },
+        include: { refunds: true },
+        orderBy: { paidAt: "desc" },
+      },
     },
   });
 
   if (!invoice) {
     return;
   }
+
+  if (invoice.appointment) {
+    const recipientPhone = normalizeMalaysiaWhatsAppPhone(
+      invoice.appointment.contactPhone || invoice.appointment.customer.phone,
+    );
+
+    if (!recipientPhone) {
+      return;
+    }
+
+    const recipientName =
+      invoice.appointment.contactName || invoice.appointment.customer.name;
+    const services = invoice.items
+      .map((item) => `${item.name} x${item.quantity}`)
+      .join(", ");
+    const displayInvoiceNumber = formatInvoiceNumber(invoice.invoiceNumber);
+    const appointmentDate = invoice.appointment.scheduledAt.toLocaleDateString("en-MY");
+    const appointmentTime = invoice.appointment.scheduledAt.toLocaleTimeString("en-MY", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const appointmentReference = `${appointmentDate} ${appointmentTime}`;
+    const paymentSummary = getInvoicePaymentSummary(invoice.payments);
+    const messageBody = await renderManagedWhatsAppTemplate("INVOICE_SENT", {
+      balance: formatMoney(invoice.balance),
+      companyAddress: invoice.business.address,
+      companyName: invoice.business.name,
+      companyNo: invoice.business.companyNo,
+      companyPhone: invoice.business.phone,
+      customerName: recipientName,
+      customerPhone:
+        invoice.appointment.contactPhone || invoice.appointment.customer.phone,
+      invoiceNumber: displayInvoiceNumber,
+      invoiceUrl: "",
+      paidAmount: formatMoney(invoice.paidAmount),
+      paymentStatus: formatInvoicePaymentStatus(invoice.status, paymentSummary),
+      plateNumber: appointmentReference,
+      services,
+      subtotal: formatMoney(invoice.subtotal),
+      total: formatMoney(invoice.total),
+      vehicleName: invoice.appointment.assignedStaff?.name
+        ? `Staff: ${invoice.appointment.assignedStaff.name}`
+        : "Salon appointment",
+    });
+    const storedMessageBody =
+      encodeWhatsAppStoredText(messageBody) ?? "Invoice has been paid.";
+    const invoiceLogo = await loadInvoiceLogo(invoice.business.logoUrl);
+    const invoicePdf = buildInvoicePdf({
+      company: {
+        ...invoice.business,
+        logo: invoiceLogo,
+      },
+      customer: {
+        name: recipientName,
+        phone: recipientPhone,
+      },
+      invoiceNumber: displayInvoiceNumber,
+      issuedAt: invoice.issuedAt,
+      items: invoice.items,
+      paidAmount: invoice.paidAmount,
+      cashPaidAmount: paymentSummary.cashPaidAmount,
+      packageVoucherAmount: paymentSummary.packageVoucherAmount,
+      balance: invoice.balance,
+      status: invoice.status,
+      subtotal: invoice.subtotal,
+      total: invoice.total,
+      reference: {
+        label: "Appointment",
+        value: appointmentDate,
+        detail: `${appointmentTime} / ${invoice.appointment.assignedStaff?.name ?? "Unassigned"}`,
+      },
+    });
+    const invoiceFileName = invoicePdfFileName(displayInvoiceNumber);
+    const log = await prisma.whatsAppMessage.create({
+      data: {
+        businessId,
+        branchId: invoice.branchId,
+        customerId: invoice.appointment.customerId,
+        appointmentId: invoice.appointment.id,
+        invoiceId: invoice.id,
+        messageBody: storedMessageBody,
+        messageType: "INVOICE_SENT",
+        phone: recipientPhone,
+        provider: "WHATSAPP_WEB_AUTO",
+        recipientPhone,
+        sentByUserId,
+        status: "DRAFT",
+      },
+    });
+    const instanceId = getDefaultWhatsAppInstanceId();
+
+    await prisma.whatsAppConversation.upsert({
+      where: {
+        businessId_instanceId_phone: {
+          businessId,
+          instanceId,
+          phone: recipientPhone,
+        },
+      },
+      create: {
+        businessId,
+        instanceId,
+        customerId: invoice.appointment.customerId,
+        displayName: recipientName,
+        lastMessageAt: new Date(),
+        lastMessageBody: storedMessageBody,
+        phone: recipientPhone,
+        remoteJid: `${recipientPhone}@s.whatsapp.net`,
+        unreadCount: 0,
+      },
+      update: {
+        customerId: invoice.appointment.customerId,
+        displayName: recipientName,
+        remoteJid: `${recipientPhone}@s.whatsapp.net`,
+      },
+    });
+
+    try {
+      await enqueueWhatsAppLogMessage({
+        businessId,
+        branchId: invoice.branchId,
+        message: messageBody,
+        messageLogId: log.id,
+        messageType: "INVOICE_SENT",
+        phone: recipientPhone,
+        documentBase64: invoicePdf.toString("base64"),
+        documentMimeType: "application/pdf",
+        documentFileName: invoiceFileName,
+      });
+    } catch (error) {
+      await prisma.whatsAppMessage.update({
+        where: { id: log.id },
+        data: {
+          errorMessage:
+            error instanceof Error
+              ? error.message
+              : "Unable to send WhatsApp invoice PDF.",
+        },
+      });
+    }
+
+    return;
+  }
+
   if (!invoice.workOrder) {
     return;
   }

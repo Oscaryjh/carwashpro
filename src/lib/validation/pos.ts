@@ -33,6 +33,15 @@ export const packagePurchasePaymentSchema = z
   })
   .superRefine(requireReferenceForNonCash);
 
+export const salonAppointmentPaymentSchema = z
+  .object({
+    appointmentId: z.string().uuid("Appointment is required."),
+    amount: z.coerce.number().positive("Payment amount must be more than 0."),
+    method: paymentMethodSchema,
+    reference: z.string().trim().optional(),
+  })
+  .superRefine(requireReferenceForNonCash);
+
 export function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
 }

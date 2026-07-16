@@ -3,6 +3,7 @@ import { AppShellFrame } from "@/components/app-shell-frame";
 import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import type { AppSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { getBusinessHomeHref } from "@/lib/business-industry";
 
 type AppShellProps = {
   user: AppSession;
@@ -16,13 +17,16 @@ export async function AppShell({ user, children }: AppShellProps) {
   const isStoreUser = isBusinessOwner || isStaff;
   const canSee = (permission: Parameters<typeof hasStaffPermission>[1]) =>
     isBusinessOwner || hasStaffPermission(user, permission);
-  const homeHref = isPlatformAdmin ? "/admin/businesses" : "/dashboard";
   const business = user.businessId
     ? await prisma.business.findUnique({
         where: { id: user.businessId },
-        select: { name: true, logoUrl: true },
+        select: { name: true, logoUrl: true, industryType: true },
       })
     : null;
+  const isSalonBusiness = business?.industryType === "SALON_BEAUTY";
+  const homeHref = isPlatformAdmin
+    ? "/admin/businesses"
+    : getBusinessHomeHref(business?.industryType ?? "AUTO_DETAILING");
   const whatsAppUnreadCount =
     user.businessId && isStoreUser && canSee("WHATSAPP")
       ? (
@@ -35,7 +39,7 @@ export async function AppShell({ user, children }: AppShellProps) {
           })
         )._sum.unreadCount ?? 0
       : 0;
-  const brandName = business?.name ?? "WashFlow";
+  const brandName = business?.name ?? "TETAMU POS";
   const navItems = [
     ...(isPlatformAdmin
       ? [
@@ -62,14 +66,14 @@ export async function AppShell({ user, children }: AppShellProps) {
     ...(isStoreUser && canSee("DASHBOARD")
       ? [
           {
-            href: "/dashboard",
+            href: isSalonBusiness ? "/salon/dashboard" : "/dashboard",
             label: "Dashboard",
             shortLabel: "Dash",
             icon: "dashboard" as const,
           },
         ]
       : []),
-    ...(isStoreUser && canSee("JOBS")
+    ...(!isSalonBusiness && isStoreUser && canSee("JOBS")
       ? [
           {
             href: "/work-orders",
@@ -89,10 +93,10 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("CRM")
+    ...(!isSalonBusiness && isStoreUser && canSee("CRM")
       ? [{ href: "/crm", label: "CRM", shortLabel: "CRM", icon: "crm" as const }]
       : []),
-    ...(isStoreUser && canSee("LOYALTY")
+    ...(!isSalonBusiness && isStoreUser && canSee("LOYALTY")
       ? [
           {
             href: "/loyalty",
@@ -102,7 +106,7 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("INVOICES")
+    ...(!isSalonBusiness && isStoreUser && canSee("INVOICES")
       ? [
           {
             href: "/invoices",
@@ -112,7 +116,7 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("CLOSING")
+    ...(!isSalonBusiness && isStoreUser && canSee("CLOSING")
       ? [
           {
             href: "/closing",
@@ -143,7 +147,7 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("REPORTS")
+    ...(!isSalonBusiness && isStoreUser && canSee("REPORTS")
       ? [
           {
             href: "/reports",
@@ -157,13 +161,13 @@ export async function AppShell({ user, children }: AppShellProps) {
       ? [
           {
             href: "/services",
-            label: "Services",
+            label: isSalonBusiness ? "Salon Services" : "Services",
             shortLabel: "Svc",
             icon: "services" as const,
           },
         ]
       : []),
-    ...(isStoreUser && canSee("PACKAGES")
+    ...(!isSalonBusiness && isStoreUser && canSee("PACKAGES")
       ? [
           {
             href: "/packages",

@@ -5,6 +5,17 @@ const optionalText = z.preprocess(
   z.string().trim().optional(),
 );
 
+const optionalUuid = z.preprocess(
+  (value) => {
+    if (value === null || value === undefined || value === "") {
+      return undefined;
+    }
+
+    return value;
+  },
+  z.string().uuid("Customer is invalid.").optional(),
+);
+
 const contactType = z.preprocess(
   (value) => (value === null || value === "" ? "REGISTERED_OWNER" : value),
   z.enum(["REGISTERED_OWNER", "OTHER_PERSON"]),
@@ -21,7 +32,8 @@ export const createAppointmentSchema = z
     contactName: optionalText,
     contactPhone: optionalText,
     contactType,
-    vehicleId: z.string().uuid("Vehicle is required."),
+    customerId: optionalUuid,
+    vehicleId: optionalText,
     serviceId: optionalText,
     serviceIds: z.array(z.string().uuid("Service is invalid.")).default([]),
     scheduledDate: z.string().trim().min(1, "Date is required."),
@@ -61,7 +73,14 @@ export const createAppointmentSchema = z
 
 export const updateAppointmentStatusSchema = z.object({
   appointmentId: z.string().uuid("Appointment is required."),
-  status: z.enum(["CONFIRMED", "ARRIVED", "CANCELLED", "NO_SHOW"]),
+  status: z.enum([
+    "CONFIRMED",
+    "ARRIVED",
+    "IN_SERVICE",
+    "COMPLETED",
+    "CANCELLED",
+    "NO_SHOW",
+  ]),
 });
 
 export const convertAppointmentSchema = z.object({
@@ -94,17 +113,28 @@ export function parseAppointmentDateTime(date: string, time: string) {
 }
 
 export function canMoveAppointmentStatus(current: string, next: string) {
-  if (current === "CONVERTED_TO_JOB" || current === "CANCELLED" || current === "NO_SHOW") {
+  if (
+    current === "COMPLETED" ||
+    current === "CONVERTED_TO_JOB" ||
+    current === "CANCELLED" ||
+    current === "NO_SHOW"
+  ) {
     return false;
   }
 
-  if (next === "CANCELLED" || next === "NO_SHOW") {
-    return true;
+  if (next === "CANCELLED") {
+    return ["SCHEDULED", "CONFIRMED", "ARRIVED"].includes(current);
+  }
+
+  if (next === "NO_SHOW") {
+    return ["SCHEDULED", "CONFIRMED"].includes(current);
   }
 
   return (
     (current === "SCHEDULED" && next === "CONFIRMED") ||
-    ((current === "SCHEDULED" || current === "CONFIRMED") && next === "ARRIVED")
+    ((current === "SCHEDULED" || current === "CONFIRMED") && next === "ARRIVED") ||
+    (current === "ARRIVED" && next === "IN_SERVICE") ||
+    (current === "IN_SERVICE" && next === "COMPLETED")
   );
 }
 

@@ -35,13 +35,15 @@ const statusFilters = [
   { value: "scheduled", label: "Scheduled" },
   { value: "confirmed", label: "Confirmed" },
   { value: "arrived", label: "Arrived" },
+  { value: "in_service", label: "In Service" },
+  { value: "completed", label: "Completed" },
   { value: "history", label: "History" },
 ] as const;
 
 export default async function AppointmentsPage({
   searchParams,
 }: AppointmentsPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
   const params = await searchParams;
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
@@ -104,7 +106,16 @@ export default async function AppointmentsPage({
         where: {
           businessId,
           ...(staffBranchId ? { branchId: staffBranchId } : {}),
-          status: { in: ["SCHEDULED", "CONFIRMED", "ARRIVED", "CONVERTED_TO_JOB"] },
+          status: {
+            in: [
+              "SCHEDULED",
+              "CONFIRMED",
+              "ARRIVED",
+              "IN_SERVICE",
+              "COMPLETED",
+              "CONVERTED_TO_JOB",
+            ],
+          },
           scheduledAt: {
             gte: calendarStart,
             lt: calendarEnd,
@@ -127,7 +138,16 @@ export default async function AppointmentsPage({
         where: {
           businessId,
           ...(staffBranchId ? { branchId: staffBranchId } : {}),
-          status: { in: ["SCHEDULED", "CONFIRMED", "ARRIVED", "CONVERTED_TO_JOB"] },
+          status: {
+            in: [
+              "SCHEDULED",
+              "CONFIRMED",
+              "ARRIVED",
+              "IN_SERVICE",
+              "COMPLETED",
+              "CONVERTED_TO_JOB",
+            ],
+          },
           scheduledAt: {
             gte: datePickerRangeStart,
             lt: datePickerRangeEnd,
@@ -149,6 +169,12 @@ export default async function AppointmentsPage({
           name: true,
           price: true,
           category: true,
+          durationMinutes: true,
+          staffAssignments: {
+            select: {
+              userId: true,
+            },
+          },
           serviceCategory: {
             select: {
               name: true,
@@ -241,6 +267,7 @@ export default async function AppointmentsPage({
               id: branch.id,
               name: branch.name,
             }))}
+            isSalonBusiness={industryType === "SALON_BEAUTY"}
             createAppointmentAction={createAppointmentAction}
             convertAppointmentAction={convertAppointmentToJobAction}
             datePickerCounts={datePickerCounts}
@@ -271,8 +298,10 @@ export default async function AppointmentsPage({
             services={services.map((service) => ({
               id: service.id,
               category: service.serviceCategory?.name ?? service.category ?? "Services",
+              durationMinutes: service.durationMinutes,
               name: service.name,
               price: Number(service.price).toFixed(2),
+              staffIds: service.staffAssignments.map((assignment) => assignment.userId),
             }))}
             staffMembers={staffUsers}
             updateAppointmentAction={updateAppointmentDetailsAction}
@@ -337,10 +366,10 @@ export default async function AppointmentsPage({
                     </td>
                     <td>
                       <strong className="work-order-primary-text">
-                        {appointment.vehicle.plateNumber}
+                        {appointment.vehicle?.plateNumber ?? "Customer appointment"}
                       </strong>
                       <div className="work-order-subtext">
-                        {[appointment.vehicle.brand, appointment.vehicle.model, appointment.vehicle.color]
+                        {[appointment.vehicle?.brand, appointment.vehicle?.model, appointment.vehicle?.color]
                           .filter(Boolean)
                           .join(" ") || "No vehicle details"}
                       </div>
@@ -426,7 +455,7 @@ function toCalendarItem(appointment: {
   serviceIds: string[];
   assignedStaffId: string | null;
   status: string;
-  vehicle: { plateNumber: string };
+  vehicle: { plateNumber: string } | null;
   workOrder?: { paymentStatus: string; status: string } | null;
   workOrderId?: string | null;
 }, assignedStaffNames: Map<string, string>, serviceNameById: Map<string, string>, serviceDetailById: Map<string, {
@@ -443,7 +472,7 @@ function toCalendarItem(appointment: {
     customerPhone: appointment.customer.phone,
     staffId: appointment.assignedStaffId,
     staffName: assignedStaffNames.get(appointment.id) ?? null,
-    plateNumber: appointment.vehicle.plateNumber,
+    plateNumber: appointment.vehicle?.plateNumber ?? null,
     scheduledAt: appointment.scheduledAt.toISOString(),
     serviceName: formatAppointmentServices(appointment, serviceNameById),
     serviceNames: getAppointmentServiceNames(appointment, serviceNameById),
@@ -553,7 +582,11 @@ function buildAppointmentWhere({
   }
 
   if (status === "active") {
-    filters.push({ status: { in: ["SCHEDULED", "CONFIRMED", "ARRIVED", "CONVERTED_TO_JOB"] } });
+    filters.push({
+      status: {
+        in: ["SCHEDULED", "CONFIRMED", "ARRIVED", "IN_SERVICE", "CONVERTED_TO_JOB"],
+      },
+    });
   } else if (status === "today") {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -566,7 +599,9 @@ function buildAppointmentWhere({
       },
     });
   } else if (status === "history") {
-    filters.push({ status: { in: ["CONVERTED_TO_JOB", "CANCELLED", "NO_SHOW"] } });
+    filters.push({
+      status: { in: ["COMPLETED", "CONVERTED_TO_JOB", "CANCELLED", "NO_SHOW"] },
+    });
   } else {
     filters.push({ status: status.toUpperCase() as Prisma.EnumAppointmentStatusFilter["equals"] });
   }

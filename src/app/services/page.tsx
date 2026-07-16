@@ -18,8 +18,9 @@ type ServicesPageProps = {
 const ALL_BRANCHES_ONLY = "all-branches-only";
 
 export default async function ServicesPage({ searchParams }: ServicesPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
   assertStaffPermission(user, "SERVICES");
+  const isSalonBusiness = industryType === "SALON_BEAUTY";
   const params = await searchParams;
 
   const query = params.q?.trim() ?? "";
@@ -64,7 +65,11 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
         businessId,
         ...(filters.length ? { AND: filters } : {}),
       },
-      include: { branch: true, serviceCategory: true },
+      include: {
+        branch: true,
+        serviceCategory: true,
+        _count: { select: { staffAssignments: true } },
+      },
       orderBy: [{ status: "asc" }, { category: "asc" }, { name: "asc" }],
     }),
     prisma.serviceCategory.findMany({
@@ -81,11 +86,13 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
       <section className="content">
         <div className="page-header">
           <div>
-            <h1>Services</h1>
+            <h1>{isSalonBusiness ? "Salon Services" : "Services"}</h1>
             <p>
               {hasFilters
                 ? `${services.length} service${services.length === 1 ? "" : "s"} match this filter.`
-                : "Service menu for this business."}
+                : isSalonBusiness
+                  ? "Manage treatment pricing, duration, and available staff."
+                  : "Service menu for this business."}
             </p>
           </div>
           <div className="inline-actions">
@@ -143,6 +150,8 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                   <th>Category</th>
                   <th>Service</th>
                   <th>Price</th>
+                  {isSalonBusiness ? <th>Duration</th> : null}
+                  {isSalonBusiness ? <th>Staff</th> : null}
                   <th>Status</th>
                   <th>Branch</th>
                   <th>Actions</th>
@@ -159,6 +168,16 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                       </Link>
                     </td>
                     <td>RM{Number(service.price).toFixed(2)}</td>
+                    {isSalonBusiness ? (
+                      <td>
+                        {service.durationMinutes
+                          ? `${service.durationMinutes} min`
+                          : "-"}
+                      </td>
+                    ) : null}
+                    {isSalonBusiness ? (
+                      <td>{service._count.staffAssignments}</td>
+                    ) : null}
                     <td>
                       <span className={`status ${service.status.toLowerCase()}`}>
                         {service.status}

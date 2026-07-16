@@ -1,6 +1,7 @@
 "use client";
 
 import { AppointmentVehiclePicker } from "@/components/appointment-vehicle-picker";
+import { AppointmentCustomerPicker } from "@/components/appointment-customer-picker";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CSSProperties, PointerEvent } from "react";
@@ -13,7 +14,7 @@ export type AppointmentCalendarItem = {
   contactType: string;
   customerName: string;
   customerPhone: string;
-  plateNumber: string;
+  plateNumber: string | null;
   scheduledAt: string;
   serviceName: string | null;
   serviceNames: string[];
@@ -44,6 +45,7 @@ type AppointmentCalendarProps = {
     date: string;
   }[];
   datePickerHrefPrefix: string;
+  isSalonBusiness: boolean;
   days: {
     count: number;
     date: string;
@@ -57,9 +59,11 @@ type AppointmentCalendarProps = {
   selectedDateValue: string;
   services: {
     category: string;
+    durationMinutes: number | null;
     id: string;
     name: string;
     price: string;
+    staffIds: string[];
   }[];
   staffMembers: {
     id: string;
@@ -86,6 +90,7 @@ export function AppointmentCalendar({
   convertAppointmentAction,
   datePickerCounts,
   datePickerHrefPrefix,
+  isSalonBusiness,
   days,
   nextHref,
   previousHref,
@@ -148,6 +153,16 @@ export function AppointmentCalendar({
   const selectedServices = selectedServiceIds
     .map((serviceId) => services.find((service) => service.id === serviceId))
     .filter((service): service is (typeof services)[number] => Boolean(service));
+  const newAppointmentStaffMembers = filterStaffForServices(
+    staffMembers,
+    selectedServiceIds,
+    services,
+  );
+  const editAppointmentStaffMembers = filterStaffForServices(
+    staffMembers,
+    editAppointmentServiceIds,
+    services,
+  );
   const serviceCategories = getServiceCategories(services);
   const visibleServiceCategory = activeServiceCategory || serviceCategories[0] || "";
   const visibleServices = visibleServiceCategory
@@ -195,6 +210,24 @@ export function AppointmentCalendar({
   useEffect(() => {
     setShowEarlierSlots(false);
   }, [selectedDateValue]);
+
+  useEffect(() => {
+    if (
+      newAppointmentStaffId &&
+      !newAppointmentStaffMembers.some((staff) => staff.id === newAppointmentStaffId)
+    ) {
+      setNewAppointmentStaffId("");
+    }
+  }, [newAppointmentStaffId, newAppointmentStaffMembers]);
+
+  useEffect(() => {
+    if (
+      editAppointmentStaffId &&
+      !editAppointmentStaffMembers.some((staff) => staff.id === editAppointmentStaffId)
+    ) {
+      setEditAppointmentStaffId("");
+    }
+  }, [editAppointmentStaffId, editAppointmentStaffMembers]);
 
   function handleDrop(date: string, time: string, staffId: string) {
     if (!draggingId) {
@@ -282,7 +315,9 @@ export function AppointmentCalendar({
     });
   }
 
-  function updateAppointmentStatus(status: "CANCELLED" | "NO_SHOW") {
+  function updateAppointmentStatus(
+    status: "CONFIRMED" | "ARRIVED" | "IN_SERVICE" | "COMPLETED" | "CANCELLED" | "NO_SHOW",
+  ) {
     if (!selectedAppointment) {
       return;
     }
@@ -297,9 +332,7 @@ export function AppointmentCalendar({
     const formData = new FormData();
     formData.set("appointmentId", selectedAppointment.id);
     formData.set("status", status);
-    if (status === "CANCELLED") {
-      formData.set("redirectTo", "/appointments");
-    }
+    formData.set("redirectTo", "/appointments");
 
     startTransition(async () => {
       await updateAppointmentStatusAction(formData);
@@ -732,11 +765,11 @@ export function AppointmentCalendar({
                 </div>
 
                 <div className="appointment-create-primary">
-                  <AppointmentVehiclePicker />
+                  {isSalonBusiness ? <AppointmentCustomerPicker /> : <AppointmentVehiclePicker />}
                 </div>
 
                 <div className="appointment-create-secondary">
-                  <section className="appointment-contact-card">
+                  {!isSalonBusiness ? <section className="appointment-contact-card">
                     <h3>Pick up contact</h3>
                     <div className="job-contact-options appointment-contact-options">
                       <label
@@ -784,7 +817,7 @@ export function AppointmentCalendar({
                     ) : (
                       <p>Ready reminders will use the registered owner.</p>
                     )}
-                  </section>
+                  </section> : null}
 
                   {branches.length === 1 ? (
                     <input name="branchId" type="hidden" value={branches[0].id} />
@@ -841,7 +874,7 @@ export function AppointmentCalendar({
                       value={newAppointmentStaffId}
                     >
                       <option value="">Unassigned</option>
-                      {staffMembers.map((staff) => (
+                      {newAppointmentStaffMembers.map((staff) => (
                         <option key={staff.id} value={staff.id}>
                           {staff.name}
                           {staff.role === "BUSINESS_OWNER" ? " (Owner)" : ""}
@@ -963,7 +996,7 @@ export function AppointmentCalendar({
                         <span aria-hidden="true">{"\u25a7"}</span>
                         <strong>{service.name}</strong>
                         <small>{service.price}</small>
-                        <em>1hr</em>
+                        <em>{formatServiceDuration(service.durationMinutes)}</em>
                       </button>
                     ))}
                   </div>
@@ -1003,7 +1036,7 @@ export function AppointmentCalendar({
                       <strong>Unassigned</strong>
                       <small>No staff</small>
                     </button>
-                    {staffMembers.map((staff) => (
+                    {editAppointmentStaffMembers.map((staff) => (
                       <button
                         className={editAppointmentStaffId === staff.id ? "selected" : ""}
                         key={staff.id}
@@ -1043,7 +1076,7 @@ export function AppointmentCalendar({
                 <h2 id="appointment-detail-title">Appointment</h2>
                 {isLockedAppointment(selectedAppointment) ? (
                   <span className="appointment-detail-status">
-                    {isCompletedPaidAppointment(selectedAppointment) ? "Completed" : "In Progress"}
+                    {getAppointmentCardStatusLabel(selectedAppointment)}
                   </span>
                 ) : (
                   <button
@@ -1066,10 +1099,12 @@ export function AppointmentCalendar({
                       <span aria-hidden="true">60</span>
                       Delay by 60 min
                     </button>
-                    <button onClick={() => updateAppointmentStatus("NO_SHOW")} type="button">
-                      <span aria-hidden="true">!</span>
-                      No Show
-                    </button>
+                    {selectedAppointment.status !== "ARRIVED" ? (
+                      <button onClick={() => updateAppointmentStatus("NO_SHOW")} type="button">
+                        <span aria-hidden="true">!</span>
+                        No Show
+                      </button>
+                    ) : null}
                     <button
                       className="danger"
                       onClick={() => updateAppointmentStatus("CANCELLED")}
@@ -1104,7 +1139,7 @@ export function AppointmentCalendar({
                   </div>
                 </div>
 
-                <div className="appointment-detail-card">
+                {!isSalonBusiness ? <div className="appointment-detail-card">
                   <span aria-hidden="true">{"\u2706"}</span>
                   <div>
                     <strong>
@@ -1115,7 +1150,7 @@ export function AppointmentCalendar({
                       {selectedAppointment.contactPhone || selectedAppointment.customerPhone}
                     </small>
                   </div>
-                </div>
+                </div> : null}
 
                 <div className="appointment-detail-service-card">
                   {selectedAppointment.serviceDetails.map((service) => (
@@ -1157,7 +1192,7 @@ export function AppointmentCalendar({
                   </div>
                 </button>
 
-                {!isCompletedPaidAppointment(selectedAppointment) ? (
+                {!isSalonBusiness && !isCompletedPaidAppointment(selectedAppointment) ? (
                   <div className="appointment-detail-actions">
                     {isLockedAppointment(selectedAppointment) && selectedAppointment.workOrderId ? (
                       <Link
@@ -1180,6 +1215,13 @@ export function AppointmentCalendar({
                       </form>
                     )}
                   </div>
+                ) : null}
+
+                {isSalonBusiness ? (
+                  <SalonAppointmentAction
+                    appointment={selectedAppointment}
+                    onStatusChange={updateAppointmentStatus}
+                  />
                 ) : null}
               </div>
             </section>
@@ -1242,7 +1284,7 @@ export function AppointmentCalendar({
                     <span aria-hidden="true">{"\u25a7"}</span>
                     <strong>{service.name}</strong>
                     <small>{service.price}</small>
-                    <em>1hr</em>
+                    <em>{formatServiceDuration(service.durationMinutes)}</em>
                   </button>
                 ))
               ) : (
@@ -1453,7 +1495,7 @@ function CalendarRow({
                 className={`appointment-calendar-card ${
                   isLockedAppointment(appointment) ? "is-converted" : ""
                 } ${
-                  isCompletedPaidAppointment(appointment) ? "is-completed" : ""
+                  isCompletedAppointment(appointment) ? "is-completed" : ""
                 } ${
                   draggingId === appointment.id ? "is-dragging" : ""
                 }`}
@@ -1474,7 +1516,7 @@ function CalendarRow({
                 type="button"
               >
                 <strong>{appointment.customerName}</strong>
-                <span>{appointment.plateNumber}</span>
+                {appointment.plateNumber ? <span>{appointment.plateNumber}</span> : null}
                 <small>
                   {getAppointmentCardStatusLabel(appointment)}
                   {false
@@ -1493,11 +1535,15 @@ function CalendarRow({
 }
 
 function isLockedAppointment(appointment: AppointmentCalendarItem) {
-  return appointment.status === "CONVERTED_TO_JOB";
+  return ["IN_SERVICE", "COMPLETED", "CONVERTED_TO_JOB"].includes(appointment.status);
 }
 
 function isCompletedPaidAppointment(appointment: AppointmentCalendarItem) {
   return appointment.workOrderStatus === "COMPLETED" && appointment.workOrderPaymentStatus === "PAID";
+}
+
+function isCompletedAppointment(appointment: AppointmentCalendarItem) {
+  return appointment.status === "COMPLETED" || isCompletedPaidAppointment(appointment);
 }
 
 function getAppointmentCardStatusLabel(appointment: AppointmentCalendarItem) {
@@ -1506,13 +1552,104 @@ function getAppointmentCardStatusLabel(appointment: AppointmentCalendarItem) {
   }
 
   if (isLockedAppointment(appointment)) {
-    return "In Progress";
+    return appointment.status === "COMPLETED"
+      ? "Completed"
+      : appointment.status === "IN_SERVICE"
+        ? "In Service"
+        : "In Progress";
   }
 
   return appointment.status
     .toLowerCase()
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function SalonAppointmentAction({
+  appointment,
+  onStatusChange,
+}: {
+  appointment: AppointmentCalendarItem;
+  onStatusChange: (
+    status: "CONFIRMED" | "ARRIVED" | "IN_SERVICE" | "COMPLETED",
+  ) => void;
+}) {
+  const action = getSalonAppointmentAction(appointment);
+
+  if (!action) {
+    if (appointment.status !== "COMPLETED") {
+      return null;
+    }
+
+    return (
+      <div className="appointment-detail-actions">
+        <span className="appointment-detail-complete">Service completed</span>
+        <Link
+          className="appointment-detail-action primary"
+          href={`/appointments/${appointment.id}`}
+        >
+          Payment &amp; invoice
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="appointment-detail-actions">
+      <button
+        className="appointment-detail-action primary"
+        disabled={Boolean(action.disabledReason)}
+        onClick={() => onStatusChange(action.status)}
+        type="button"
+      >
+        {action.disabledReason ?? action.label}
+      </button>
+      {canOpenSalonCheckout(appointment) ? (
+        <Link
+          className="appointment-detail-action secondary"
+          href={`/appointments/${appointment.id}`}
+        >
+          Payment &amp; invoice
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+function canOpenSalonCheckout(appointment: AppointmentCalendarItem) {
+  return (
+    ["ARRIVED", "IN_SERVICE", "COMPLETED"].includes(appointment.status) &&
+    appointment.serviceDetails.length > 0
+  );
+}
+
+function getSalonAppointmentAction(appointment: AppointmentCalendarItem) {
+  if (appointment.status === "SCHEDULED") {
+    return { label: "Confirm appointment", status: "CONFIRMED" as const };
+  }
+
+  if (appointment.status === "CONFIRMED") {
+    return { label: "Check in", status: "ARRIVED" as const };
+  }
+
+  if (appointment.status === "ARRIVED") {
+    return {
+      disabledReason:
+        appointment.serviceDetails.length === 0
+          ? "Select service first"
+          : !appointment.staffId
+            ? "Assign staff first"
+            : undefined,
+      label: "Start service",
+      status: "IN_SERVICE" as const,
+    };
+  }
+
+  if (appointment.status === "IN_SERVICE") {
+    return { label: "Complete service", status: "COMPLETED" as const };
+  }
+
+  return null;
 }
 
 function isTodayDateValue(dateValue: string) {
@@ -1861,6 +1998,43 @@ function formatLongDate(dateValue: string) {
     month: "long",
     year: "numeric",
   });
+}
+
+function filterStaffForServices(
+  staffMembers: { id: string; name: string; role: string }[],
+  serviceIds: string[],
+  services: { id: string; staffIds: string[] }[],
+) {
+  const restrictedStaffLists = serviceIds
+    .map((serviceId) => services.find((service) => service.id === serviceId)?.staffIds ?? [])
+    .filter((staffIds) => staffIds.length > 0);
+
+  if (!restrictedStaffLists.length) {
+    return staffMembers;
+  }
+
+  const eligibleStaffIds = restrictedStaffLists.slice(1).reduce(
+    (eligibleIds, staffIds) =>
+      new Set([...eligibleIds].filter((staffId) => staffIds.includes(staffId))),
+    new Set(restrictedStaffLists[0]),
+  );
+
+  return staffMembers.filter((staff) => eligibleStaffIds.has(staff.id));
+}
+
+function formatServiceDuration(durationMinutes: number | null) {
+  if (!durationMinutes) {
+    return "Flexible";
+  }
+
+  const hours = Math.floor(durationMinutes / 60);
+  const minutes = durationMinutes % 60;
+
+  if (!hours) {
+    return `${minutes}m`;
+  }
+
+  return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
 function getServiceCategories(services: { category: string }[]) {

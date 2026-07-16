@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { getBusinessIndustryLabel } from "@/lib/business-industry";
 
 export default async function BusinessesPage() {
   const user = await requireUser();
@@ -23,7 +24,7 @@ export default async function BusinessesPage() {
         <div className="page-header">
           <div>
             <h1>Businesses</h1>
-            <p>Create and manage car wash companies.</p>
+            <p>Create and manage companies across supported industries.</p>
           </div>
           <Link className="button-link" href="/admin/businesses/new">
             Create Company
@@ -38,6 +39,7 @@ export default async function BusinessesPage() {
                 <tr>
                   <th>Company</th>
                   <th>Company No.</th>
+                  <th>Industry</th>
                   <th>Contact</th>
                   <th>Status</th>
                   <th>Users</th>
@@ -53,6 +55,7 @@ export default async function BusinessesPage() {
                       <div className="muted">{business.slug}</div>
                     </td>
                     <td>{business.companyNo || "No company no."}</td>
+                    <td>{getBusinessIndustryLabel(business.industryType)}</td>
                     <td>
                       <div>{business.phone || "No phone"}</div>
                       <div className="muted">{business.email || "No email"}</div>

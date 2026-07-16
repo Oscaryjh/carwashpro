@@ -19,8 +19,9 @@ type ServiceCategoriesPageProps = {
 export default async function ServiceCategoriesPage({
   searchParams,
 }: ServiceCategoriesPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
   assertStaffPermission(user, "SERVICES");
+  const isSalonBusiness = industryType === "SALON_BEAUTY";
 
   const params = await searchParams;
   const message = params.message;
@@ -41,7 +42,11 @@ export default async function ServiceCategoriesPage({
         <div className="page-header">
           <div>
             <h1>Service Categories</h1>
-            <p>Group services so staff can find the right wash menu faster.</p>
+            <p>
+              {isSalonBusiness
+                ? "Group treatments so staff can find the right salon service faster."
+                : "Group services so staff can find the right wash menu faster."}
+            </p>
           </div>
           <div className="inline-actions">
             <Link className="secondary-link-button" href="/services/new">
@@ -60,7 +65,11 @@ export default async function ServiceCategoriesPage({
           <form className="service-category-create-form" action={createServiceCategoryAction}>
             <label>
               <span>Category name</span>
-              <input name="name" placeholder="Basic Wash" required />
+              <input
+                name="name"
+                placeholder={isSalonBusiness ? "Hair Services" : "Basic Wash"}
+                required
+              />
             </label>
             <button type="submit">Create</button>
           </form>

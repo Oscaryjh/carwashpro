@@ -31,6 +31,17 @@ const LOGO_EXTENSIONS = new Map([
   ["image/webp", "webp"],
 ]);
 
+const SALON_DEFAULT_SERVICE_CATEGORIES = [
+  "Hair Services",
+  "Hair Colouring",
+  "Hair Treatment",
+  "Facial",
+  "Nails",
+  "Massage",
+  "Waxing",
+  "Other",
+] as const;
+
 export async function createBusinessAction(formData: FormData) {
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
@@ -39,6 +50,7 @@ export async function createBusinessAction(formData: FormData) {
   const input = createBusinessSchema.parse({
     name: formData.get("name"),
     slug: formData.get("slug"),
+    industryType: formData.get("industryType"),
     companyNo: formData.get("companyNo"),
     phone: formData.get("phone"),
     ownerName: formData.get("ownerName"),
@@ -65,6 +77,7 @@ export async function createBusinessAction(formData: FormData) {
       data: {
         name: input.name,
         slug: input.slug,
+        industryType: input.industryType,
         companyNo: input.companyNo || null,
         phone: input.phone || null,
         status: "active",
@@ -94,6 +107,16 @@ export async function createBusinessAction(formData: FormData) {
       },
     });
 
+    if (newBusiness.industryType === "SALON_BEAUTY") {
+      await tx.serviceCategory.createMany({
+        data: SALON_DEFAULT_SERVICE_CATEGORIES.map((name) => ({
+          businessId: newBusiness.id,
+          name,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
     await writeAuditLog(
       {
         businessId: newBusiness.id,
@@ -105,6 +128,7 @@ export async function createBusinessAction(formData: FormData) {
         after: {
           name: newBusiness.name,
           slug: newBusiness.slug,
+          industryType: newBusiness.industryType,
           companyNo: newBusiness.companyNo,
           phone: newBusiness.phone,
           status: newBusiness.status,

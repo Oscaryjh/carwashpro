@@ -29,6 +29,8 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
             { workOrder: { customer: { name: { contains: query, mode: "insensitive" } } } },
             { workOrder: { customer: { phone: { contains: query } } } },
             { workOrder: { vehicle: { plateNumber: { contains: query, mode: "insensitive" } } } },
+            { appointment: { customer: { name: { contains: query, mode: "insensitive" } } } },
+            { appointment: { customer: { phone: { contains: query } } } },
             { customer: { name: { contains: query, mode: "insensitive" } } },
             { customer: { phone: { contains: query } } },
             { customerPackage: { package: { name: { contains: query, mode: "insensitive" } } } },
@@ -45,6 +47,11 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
           include: {
             customer: true,
             vehicle: true,
+          },
+        },
+        appointment: {
+          include: {
+            customer: true,
           },
         },
         customer: true,
@@ -114,15 +121,31 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                     <td>
                       <strong>{formatInvoiceNumber(invoice.invoiceNumber)}</strong>
                       <div className="muted">
-                        {invoice.workOrder?.orderNumber ?? invoice.customerPackage?.package.name ?? "Package purchase"}
+                        {invoice.workOrder?.orderNumber ??
+                          (invoice.appointment ? "Salon appointment" : null) ??
+                          invoice.customerPackage?.package.name ??
+                          "Package purchase"}
                       </div>
                     </td>
                     <td>
-                      <strong>{invoice.workOrder?.customer.name ?? invoice.customer?.name ?? "-"}</strong>
-                      <div className="muted">{invoice.workOrder?.customer.phone ?? invoice.customer?.phone ?? "-"}</div>
+                      <strong>
+                        {invoice.workOrder?.customer.name ??
+                          invoice.appointment?.customer.name ??
+                          invoice.customer?.name ??
+                          "-"}
+                      </strong>
+                      <div className="muted">
+                        {invoice.workOrder?.customer.phone ??
+                          invoice.appointment?.customer.phone ??
+                          invoice.customer?.phone ??
+                          "-"}
+                      </div>
                     </td>
                     <td>
-                      <strong>{invoice.workOrder?.vehicle.plateNumber ?? "-"}</strong>
+                      <strong>
+                        {invoice.workOrder?.vehicle.plateNumber ??
+                          (invoice.appointment ? "Salon" : "-")}
+                      </strong>
                     </td>
                     <td>
                       <span className={`status ${invoice.status.toLowerCase()}`}>

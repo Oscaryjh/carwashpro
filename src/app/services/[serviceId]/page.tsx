@@ -18,12 +18,13 @@ type ServiceDetailsPageProps = {
 export default async function ServiceDetailsPage({
   params,
 }: ServiceDetailsPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
   assertStaffPermission(user, "SERVICES");
+  const isSalonBusiness = industryType === "SALON_BEAUTY";
 
   const { serviceId } = await params;
 
-  const [service, branches, categories] = await Promise.all([
+  const [service, branches, categories, staffOptions] = await Promise.all([
     prisma.service.findFirst({
       where: {
         id: serviceId,
@@ -32,6 +33,10 @@ export default async function ServiceDetailsPage({
       include: {
         branch: true,
         serviceCategory: true,
+        staffAssignments: {
+          where: { businessId },
+          select: { userId: true },
+        },
         _count: {
           select: {
             items: true,
@@ -45,6 +50,22 @@ export default async function ServiceDetailsPage({
       where: { businessId },
       orderBy: [{ status: "asc" }, { name: "asc" }],
     }),
+    isSalonBusiness
+      ? prisma.user.findMany({
+          where: {
+            businessId,
+            status: "active",
+            role: { in: ["BUSINESS_OWNER", "STAFF"] },
+          },
+          orderBy: [{ role: "asc" }, { name: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            role: true,
+            branch: { select: { name: true } },
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   if (!service) {
@@ -73,6 +94,22 @@ export default async function ServiceDetailsPage({
           <Info label="Branch" value={service.branch?.name ?? "All branches"} />
           <Info label="Work order usage" value={service._count.items} />
           <Info label="Package usage" value={service._count.packages} />
+          {isSalonBusiness ? (
+            <Info
+              label="Duration"
+              value={
+                service.durationMinutes
+                  ? `${service.durationMinutes} minutes`
+                  : "Not set"
+              }
+            />
+          ) : null}
+          {isSalonBusiness ? (
+            <Info
+              label="Available staff"
+              value={service.staffAssignments.length}
+            />
+          ) : null}
         </div>
 
         <div className="panel">
@@ -84,6 +121,16 @@ export default async function ServiceDetailsPage({
             service={service}
             branches={branches}
             categories={categories}
+            isSalonBusiness={isSalonBusiness}
+            staffOptions={staffOptions.map((staff) => ({
+              id: staff.id,
+              name: staff.name,
+              role: staff.role,
+              branchName: staff.branch?.name ?? null,
+            }))}
+            selectedStaffIds={service.staffAssignments.map(
+              (assignment) => assignment.userId,
+            )}
             formId={formId}
           />
           <div className="form-actions service-action-row">

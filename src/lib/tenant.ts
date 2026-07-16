@@ -19,7 +19,7 @@ export async function getBusinessContext() {
 
   const business = await prisma.business.findUnique({
     where: { id: user.businessId },
-    select: { id: true },
+    select: { id: true, industryType: true },
   });
 
   if (!business) {
@@ -30,6 +30,7 @@ export async function getBusinessContext() {
     user,
     isPlatformAdmin: false,
     businessId: user.businessId,
+    industryType: business.industryType,
   };
 }
 
@@ -43,6 +44,7 @@ export async function requireBusinessContext() {
   return {
     user: context.user,
     businessId: context.businessId,
+    industryType: context.industryType,
   };
 }
 

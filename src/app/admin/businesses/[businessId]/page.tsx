@@ -8,6 +8,7 @@ import { BusinessForm } from "@/components/business-form";
 import { assertCanAccessBusiness, assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { getBusinessIndustryLabel } from "@/lib/business-industry";
 import {
   updateAdminBusinessBranchStatusAction,
   updateBusinessAction,
@@ -58,6 +59,10 @@ export default async function BusinessDetailsPage({
           <Info label="Company ID" value={business.id} />
           <Info label="Company No." value={business.companyNo ?? "Not set"} />
           <Info label="Slug" value={business.slug} />
+          <Info
+            label="Industry"
+            value={getBusinessIndustryLabel(business.industryType)}
+          />
           <Info label="Status" value={business.status} />
           <Info label="Users" value={business.users.length.toString()} />
           <Info label="Branches" value={business.branches.length.toString()} />

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const businessIndustrySchema = z.enum(["AUTO_DETAILING", "SALON_BEAUTY"]);
+
 export const businessSchema = z.object({
   name: z.string().trim().min(2, "Company name is required."),
   slug: z
@@ -22,6 +24,7 @@ export type BusinessFormValues = z.infer<typeof businessSchema>;
 export const createBusinessSchema = z.object({
   name: businessSchema.shape.name,
   slug: businessSchema.shape.slug,
+  industryType: businessIndustrySchema,
   companyNo: businessSchema.shape.companyNo,
   phone: businessSchema.shape.phone,
   ownerName: z.string().trim().min(2, "Owner name is required."),

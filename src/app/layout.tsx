@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WashFlow SaaS",
+  title: "TETAMU POS",
   description: "Multi-tenant car wash CRM POS foundation",
 };
 

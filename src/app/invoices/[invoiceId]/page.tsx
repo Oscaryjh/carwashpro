@@ -57,6 +57,25 @@ export default async function InvoiceDetailsPage({
           },
         },
       },
+      appointment: {
+        include: {
+          assignedStaff: {
+            select: { name: true },
+          },
+          customer: true,
+        },
+      },
+      items: {
+        orderBy: { createdAt: "asc" },
+      },
+      payments: {
+        orderBy: { paidAt: "desc" },
+        include: {
+          refunds: {
+            orderBy: { refundedAt: "desc" },
+          },
+        },
+      },
       customer: true,
       customerPackage: { include: { package: true } },
     },
@@ -64,6 +83,113 @@ export default async function InvoiceDetailsPage({
 
   if (!invoice) {
     notFound();
+  }
+
+  if (invoice.appointment) {
+    const appointment = invoice.appointment;
+    return (
+      <AppShell user={user}>
+        <section className="content invoice-detail-layout">
+          <div className="page-header">
+            <div><h1>Invoice</h1></div>
+            <BackButton fallbackHref="/invoices" />
+          </div>
+          <div className="pos-receipt-panel panel">
+            <div className="invoice-receipt-actions">
+              <Link
+                className="secondary-link-button invoice-action-button"
+                href={`/invoices/${invoice.id}/pdf`}
+              >
+                Download PDF
+              </Link>
+              <SendWhatsAppButton
+                className="button-link invoice-action-button"
+                invoiceId={invoice.id}
+                label="Send Invoice WhatsApp"
+                messageType="INVOICE_SENT"
+              />
+            </div>
+            <div className="pos-receipt-company">
+              {invoice.business.logoUrl ? (
+                <Image src={invoice.business.logoUrl} alt="" width={72} height={72} />
+              ) : (
+                <div className="pos-receipt-logo-placeholder">
+                  {invoice.business.name.slice(0, 1)}
+                </div>
+              )}
+              <div>
+                <strong>{invoice.business.name}</strong>
+                {invoice.business.companyNo ? <span>Company No. {invoice.business.companyNo}</span> : null}
+                {invoice.business.phone ? <span>WhatsApp No. {invoice.business.phone}</span> : null}
+                {invoice.business.address ? <span>{invoice.business.address}</span> : null}
+              </div>
+            </div>
+            <div className="pos-receipt-header">
+              <div>
+                <span>Invoice No.</span>
+                <strong className="pos-receipt-number">
+                  {formatInvoiceNumber(invoice.invoiceNumber)}
+                </strong>
+                <small>{invoice.issuedAt.toLocaleDateString("en-MY")}</small>
+              </div>
+              <div>
+                <span>Appointment</span>
+                <strong>{appointment.scheduledAt.toLocaleDateString("en-MY")}</strong>
+                <small>{appointment.scheduledAt.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}</small>
+              </div>
+              <span className={`payment-state ${invoice.status.toLowerCase()}`}>
+                {formatStatus(invoice.status)}
+              </span>
+            </div>
+            <div className="pos-customer-strip">
+              <div><span>Customer</span><strong>{appointment.customer.name}</strong></div>
+              <div><span>Phone</span><strong>{appointment.customer.phone}</strong></div>
+              <div><span>Staff</span><strong>{appointment.assignedStaff?.name ?? "Unassigned"}</strong></div>
+            </div>
+            <div className="pos-receipt-items">
+              <div className="pos-receipt-row pos-receipt-head">
+                <span>Service</span><span>Qty</span><span>Total</span>
+              </div>
+              {invoice.items.map((item) => (
+                <div className="pos-receipt-row" key={item.id}>
+                  <div><strong>{item.name}</strong><small>RM{Number(item.unitPrice).toFixed(2)}</small></div>
+                  <span>{item.quantity}</span>
+                  <strong>RM{Number(item.lineTotal).toFixed(2)}</strong>
+                </div>
+              ))}
+            </div>
+            <div className="pos-receipt-totals">
+              <div><span>Total</span><strong>RM{Number(invoice.total).toFixed(2)}</strong></div>
+              <div><span>Paid</span><strong>RM{Number(invoice.paidAmount).toFixed(2)}</strong></div>
+              <div className="is-balance"><span>Balance</span><strong>RM{Number(invoice.balance).toFixed(2)}</strong></div>
+            </div>
+            {invoice.payments.length ? (
+              <div className="pos-payment-history">
+                <h3>Payment history</h3>
+                {invoice.payments.map((payment) => (
+                  <div className="pos-history-row" key={payment.id}>
+                    <span>{payment.paidAt.toLocaleString()}</span>
+                    <strong>RM{Number(payment.amount).toFixed(2)}</strong>
+                    <small>{formatStatus(payment.method)}</small>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <div className="panel">
+            <div className="section-header">
+              <div>
+                <h2>Appointment</h2>
+                <p className="muted">Payment does not change the service status.</p>
+              </div>
+              <Link className="secondary-link-button" href={`/appointments/${appointment.id}`}>
+                Open appointment
+              </Link>
+            </div>
+          </div>
+        </section>
+      </AppShell>
+    );
   }
 
   if (!invoice.workOrder) {

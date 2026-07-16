@@ -6,6 +6,7 @@ import {
   updateWhatsAppTemplateAction,
 } from "@/app/admin/whatsapp-templates/actions";
 import { AppShell } from "@/components/app-shell";
+import { WhatsAppTemplateMessageEditor } from "@/components/whatsapp-template-message-editor";
 import { assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -85,15 +86,7 @@ export default async function WhatsAppTemplateEditPage({
               </label>
             </div>
 
-            <label>
-              <span>Message body</span>
-              <textarea
-                className="template-body"
-                name="body"
-                required
-                defaultValue={template.body}
-              />
-            </label>
+            <WhatsAppTemplateMessageEditor defaultValue={template.body} />
 
             <div className="form-actions template-actions">
               <button type="submit">Save</button>
