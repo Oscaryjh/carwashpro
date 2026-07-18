@@ -50,12 +50,25 @@ export function renderWhatsAppTemplate(
 export async function renderManagedWhatsAppTemplate(
   messageType: WhatsAppMessageType,
   variables: WhatsAppTemplateVariables,
+  businessId?: string,
 ) {
+  const business = businessId
+    ? await prisma.business.findUnique({
+        where: { id: businessId },
+        select: { industryType: true },
+      })
+    : null;
+  const industryType = business?.industryType ?? "AUTO_DETAILING";
   const savedTemplate = await prisma.whatsAppTemplate.findUnique({
-    where: { messageType },
+    where: {
+      messageType_industryType: {
+        industryType,
+        messageType,
+      },
+    },
     select: { body: true, status: true },
   });
-  const defaultTemplate = getDefaultWhatsAppTemplate(messageType);
+  const defaultTemplate = getDefaultWhatsAppTemplate(messageType, industryType);
   const body =
     savedTemplate?.status === "ACTIVE"
       ? savedTemplate.body

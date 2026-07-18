@@ -1,29 +1,59 @@
+import type { BusinessIndustry } from "@prisma/client";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_WHATSAPP_TEMPLATES } from "@/lib/whatsapp/template-defaults";
+import {
+  BUSINESS_INDUSTRY_OPTIONS,
+  getBusinessIndustryLabel,
+} from "@/lib/business-industry";
+import {
+  DEFAULT_WHATSAPP_TEMPLATES_BY_INDUSTRY,
+  getDefaultWhatsAppTemplate,
+  getWhatsAppTemplateDescription,
+  getWhatsAppTemplateLabel,
+} from "@/lib/whatsapp/template-defaults";
 
-export default async function AdminWhatsAppTemplatesPage() {
+type AdminWhatsAppTemplatesPageProps = {
+  searchParams: Promise<{ industryType?: string }>;
+};
+
+export default async function AdminWhatsAppTemplatesPage({
+  searchParams,
+}: AdminWhatsAppTemplatesPageProps) {
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
+  const query = await searchParams;
+  const selectedIndustry = parseIndustryType(query.industryType);
 
-  const savedTemplates = await prisma.whatsAppTemplate.findMany();
+  const savedTemplates = await prisma.whatsAppTemplate.findMany({
+    where: { industryType: selectedIndustry },
+  });
   const savedByType = new Map(
     savedTemplates.map((template) => [template.messageType, template]),
   );
-  const templates = DEFAULT_WHATSAPP_TEMPLATES.map((defaultTemplate, index) => {
+  const templates = DEFAULT_WHATSAPP_TEMPLATES_BY_INDUSTRY[selectedIndustry].map(
+    (defaultTemplate, index) => {
     const savedTemplate = savedByType.get(defaultTemplate.messageType);
     return {
-      body: savedTemplate?.body ?? defaultTemplate.body,
+      body:
+        savedTemplate?.body ??
+        getDefaultWhatsAppTemplate(defaultTemplate.messageType, selectedIndustry)
+          ?.body ??
+        defaultTemplate.body,
       index: index + 1,
       messageType: defaultTemplate.messageType,
       status: savedTemplate?.status ?? "ACTIVE",
       title: savedTemplate?.title ?? defaultTemplate.title,
+      description: getWhatsAppTemplateDescription(
+        defaultTemplate.messageType,
+        selectedIndustry,
+      ),
       updatedAt: savedTemplate?.updatedAt ?? null,
     };
-  });
+    },
+  );
 
   return (
     <AppShell user={user}>
@@ -31,17 +61,33 @@ export default async function AdminWhatsAppTemplatesPage() {
         <div className="page-header">
           <div>
             <h1>WhatsApp Templates</h1>
-            <p>Manage platform default WhatsApp automation messages.</p>
+            <p>
+              Manage default WhatsApp automation messages for{" "}
+              {getBusinessIndustryLabel(selectedIndustry)}.
+            </p>
           </div>
         </div>
 
         <div className="panel">
+          <form className="filter-row" method="get">
+            <label>
+              <span>Industry</span>
+              <select name="industryType" defaultValue={selectedIndustry}>
+                {BUSINESS_INDUSTRY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="submit">View templates</button>
+          </form>
           <table className="table">
             <thead>
               <tr>
                 <th>No.</th>
                 <th>Template</th>
-                <th>Trigger</th>
+                <th>Purpose</th>
                 <th>Status</th>
                 <th>Updated</th>
                 <th>Actions</th>
@@ -55,7 +101,17 @@ export default async function AdminWhatsAppTemplatesPage() {
                     <strong>{template.title}</strong>
                     <div className="muted template-preview">{template.body}</div>
                   </td>
-                  <td>{formatMessageType(template.messageType)}</td>
+                  <td>
+                    <strong>
+                      {getWhatsAppTemplateLabel(
+                        template.messageType,
+                        selectedIndustry,
+                      )}
+                    </strong>
+                    <div className="muted template-purpose">
+                      {template.description}
+                    </div>
+                  </td>
                   <td>
                     <span className={`status ${template.status.toLowerCase()}`}>
                       {template.status.toLowerCase()}
@@ -68,7 +124,7 @@ export default async function AdminWhatsAppTemplatesPage() {
                   </td>
                   <td>
                     <Link
-                      href={`/admin/whatsapp-templates/${template.messageType}`}
+                      href={"/admin/whatsapp-templates/" + template.messageType + "?industryType=" + selectedIndustry}
                     >
                       Edit
                     </Link>
@@ -83,6 +139,8 @@ export default async function AdminWhatsAppTemplatesPage() {
   );
 }
 
-function formatMessageType(messageType: string) {
-  return messageType.toLowerCase().replaceAll("_", " ");
+function parseIndustryType(value?: string): BusinessIndustry {
+  return BUSINESS_INDUSTRY_OPTIONS.some((option) => option.value === value)
+    ? (value as BusinessIndustry)
+    : "AUTO_DETAILING";
 }

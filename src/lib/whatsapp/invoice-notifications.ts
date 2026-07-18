@@ -79,6 +79,14 @@ export async function sendInvoiceIfConnected({
       appointment: {
         include: {
           assignedStaff: { select: { name: true } },
+          vehicle: {
+            select: {
+              brand: true,
+              model: true,
+              color: true,
+              plateNumber: true,
+            },
+          },
           customer: {
             select: {
               id: true,
@@ -86,6 +94,18 @@ export async function sendInvoiceIfConnected({
               phone: true,
             },
           },
+        },
+      },
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+        },
+      },
+      customerPackage: {
+        include: {
+          package: true,
         },
       },
       items: { orderBy: { createdAt: "asc" } },
@@ -136,14 +156,23 @@ export async function sendInvoiceIfConnected({
       invoiceUrl: "",
       paidAmount: formatMoney(invoice.paidAmount),
       paymentStatus: formatInvoicePaymentStatus(invoice.status, paymentSummary),
-      plateNumber: appointmentReference,
+      plateNumber: invoice.appointment.vehicle?.plateNumber ?? appointmentReference,
       services,
       subtotal: formatMoney(invoice.subtotal),
       total: formatMoney(invoice.total),
+      vehicleBrand: invoice.appointment.vehicle?.brand ?? "",
+      vehicleModel: invoice.appointment.vehicle?.model ?? "",
+      vehicleDisplayName: [
+        invoice.appointment.vehicle?.brand,
+        invoice.appointment.vehicle?.model,
+        invoice.appointment.vehicle?.color,
+      ]
+        .filter(Boolean)
+        .join(" "),
       vehicleName: invoice.appointment.assignedStaff?.name
         ? `Staff: ${invoice.appointment.assignedStaff.name}`
         : "Salon appointment",
-    });
+    }, businessId);
     const storedMessageBody =
       encodeWhatsAppStoredText(messageBody) ?? "Invoice has been paid.";
     const invoiceLogo = await loadInvoiceLogo(invoice.business.logoUrl);
@@ -162,6 +191,9 @@ export async function sendInvoiceIfConnected({
       paidAmount: invoice.paidAmount,
       cashPaidAmount: paymentSummary.cashPaidAmount,
       packageVoucherAmount: paymentSummary.packageVoucherAmount,
+      discountAmount: invoice.discountAmount,
+      depositAmount: invoice.depositAmount,
+      tipAmount: invoice.tipAmount,
       balance: invoice.balance,
       status: invoice.status,
       subtotal: invoice.subtotal,
@@ -244,6 +276,140 @@ export async function sendInvoiceIfConnected({
     return;
   }
 
+  if (invoice.customerPackage && invoice.customer) {
+    const recipientPhone = normalizeMalaysiaWhatsAppPhone(invoice.customer.phone);
+
+    if (!recipientPhone) {
+      return;
+    }
+
+    const recipientName = invoice.customer.name;
+    const packagePlan = invoice.customerPackage.package;
+    const displayInvoiceNumber = formatInvoiceNumber(invoice.invoiceNumber);
+    const paymentSummary = getInvoicePaymentSummary(invoice.payments);
+    const messageBody = await renderManagedWhatsAppTemplate("INVOICE_SENT", {
+      balance: formatMoney(invoice.balance),
+      companyAddress: invoice.business.address,
+      companyName: invoice.business.name,
+      companyNo: invoice.business.companyNo,
+      companyPhone: invoice.business.phone,
+      customerName: recipientName,
+      customerPhone: invoice.customer.phone,
+      invoiceNumber: displayInvoiceNumber,
+      invoiceUrl: "",
+      paidAmount: formatMoney(invoice.paidAmount),
+      paymentStatus: formatInvoicePaymentStatus(invoice.status, paymentSummary),
+      plateNumber: "Package purchase",
+      services: `${packagePlan.name} x1`,
+      subtotal: formatMoney(invoice.subtotal),
+      total: formatMoney(invoice.total),
+      vehicleBrand: "",
+      vehicleModel: "",
+      vehicleDisplayName: `Package: ${packagePlan.name} (${packagePlan.totalUses} uses)`,
+      vehicleName: `Package: ${packagePlan.name} (${packagePlan.totalUses} uses)`,
+    }, businessId);
+    const storedMessageBody =
+      encodeWhatsAppStoredText(messageBody) ?? "Package invoice has been paid.";
+    const invoiceLogo = await loadInvoiceLogo(invoice.business.logoUrl);
+    const invoicePdf = buildInvoicePdf({
+      company: {
+        ...invoice.business,
+        logo: invoiceLogo,
+      },
+      customer: {
+        name: recipientName,
+        phone: recipientPhone,
+      },
+      invoiceNumber: displayInvoiceNumber,
+      issuedAt: invoice.issuedAt,
+      items: invoice.items,
+      paidAmount: invoice.paidAmount,
+      cashPaidAmount: paymentSummary.cashPaidAmount,
+      packageVoucherAmount: paymentSummary.packageVoucherAmount,
+      discountAmount: invoice.discountAmount,
+      depositAmount: invoice.depositAmount,
+      tipAmount: invoice.tipAmount,
+      balance: invoice.balance,
+      status: invoice.status,
+      subtotal: invoice.subtotal,
+      total: invoice.total,
+      reference: {
+        label: "Package",
+        value: packagePlan.name,
+        detail: `${packagePlan.totalUses} uses / ${formatMoney(packagePlan.price)}`,
+      },
+    });
+    const invoiceFileName = invoicePdfFileName(displayInvoiceNumber);
+    const log = await prisma.whatsAppMessage.create({
+      data: {
+        businessId,
+        branchId: invoice.branchId,
+        customerId: invoice.customer.id,
+        invoiceId: invoice.id,
+        messageBody: storedMessageBody,
+        messageType: "INVOICE_SENT",
+        phone: recipientPhone,
+        provider: "WHATSAPP_WEB_AUTO",
+        recipientPhone,
+        sentByUserId,
+        status: "DRAFT",
+      },
+    });
+    const instanceId = getDefaultWhatsAppInstanceId();
+
+    await prisma.whatsAppConversation.upsert({
+      where: {
+        businessId_instanceId_phone: {
+          businessId,
+          instanceId,
+          phone: recipientPhone,
+        },
+      },
+      create: {
+        businessId,
+        instanceId,
+        customerId: invoice.customer.id,
+        displayName: recipientName,
+        lastMessageAt: new Date(),
+        lastMessageBody: storedMessageBody,
+        phone: recipientPhone,
+        remoteJid: `${recipientPhone}@s.whatsapp.net`,
+        unreadCount: 0,
+      },
+      update: {
+        customerId: invoice.customer.id,
+        displayName: recipientName,
+        remoteJid: `${recipientPhone}@s.whatsapp.net`,
+      },
+    });
+
+    try {
+      await enqueueWhatsAppLogMessage({
+        businessId,
+        branchId: invoice.branchId,
+        message: messageBody,
+        messageLogId: log.id,
+        messageType: "INVOICE_SENT",
+        phone: recipientPhone,
+        documentBase64: invoicePdf.toString("base64"),
+        documentMimeType: "application/pdf",
+        documentFileName: invoiceFileName,
+      });
+    } catch (error) {
+      await prisma.whatsAppMessage.update({
+        where: { id: log.id },
+        data: {
+          errorMessage:
+            error instanceof Error
+              ? error.message
+              : "Unable to send WhatsApp package invoice PDF.",
+        },
+      });
+    }
+
+    return;
+  }
+
   if (!invoice.workOrder) {
     return;
   }
@@ -293,8 +459,11 @@ export async function sendInvoiceIfConnected({
     services,
     subtotal: formatMoney(invoice.subtotal),
     total: formatMoney(invoice.total),
+    vehicleBrand: invoice.workOrder.vehicle.brand,
+    vehicleModel: invoice.workOrder.vehicle.model,
+    vehicleDisplayName: vehicleName,
     vehicleName,
-  });
+  }, businessId);
   const storedMessageBody =
     encodeWhatsAppStoredText(messageBody) ?? "Invoice has been paid.";
   const invoicePdf = buildInvoicePdf({
@@ -312,6 +481,9 @@ export async function sendInvoiceIfConnected({
     paidAmount: invoice.paidAmount,
     cashPaidAmount: paymentSummary.cashPaidAmount,
     packageVoucherAmount: paymentSummary.packageVoucherAmount,
+    discountAmount: invoice.discountAmount,
+    depositAmount: invoice.depositAmount,
+    tipAmount: invoice.tipAmount,
     balance: invoice.balance,
     status: invoice.status,
     subtotal: invoice.subtotal,

@@ -199,6 +199,15 @@ async function buildMessageDraft(input: OpenWhatsAppInput, businessId: string) {
       services,
       subtotal: money(invoice.subtotal),
       total: money(invoice.total),
+      vehicleBrand: invoice.workOrder.vehicle.brand,
+      vehicleModel: invoice.workOrder.vehicle.model,
+      vehicleDisplayName: [
+        invoice.workOrder.vehicle.brand,
+        invoice.workOrder.vehicle.model,
+        invoice.workOrder.vehicle.color,
+      ]
+        .filter(Boolean)
+        .join(" "),
       vehicleName: [
         invoice.workOrder.vehicle.brand,
         invoice.workOrder.vehicle.model,
@@ -206,7 +215,7 @@ async function buildMessageDraft(input: OpenWhatsAppInput, businessId: string) {
       ]
         .filter(Boolean)
         .join(" "),
-    });
+    }, businessId);
 
     return {
       branchId: invoice.branchId,
@@ -251,6 +260,15 @@ async function buildMessageDraft(input: OpenWhatsAppInput, businessId: string) {
           services: workOrder.items.map((item) => item.name).join(", "),
           subtotal: money(workOrder.subtotal),
           total: money(workOrder.total),
+          vehicleBrand: workOrder.vehicle.brand,
+          vehicleModel: workOrder.vehicle.model,
+          vehicleDisplayName: [
+            workOrder.vehicle.brand,
+            workOrder.vehicle.model,
+            workOrder.vehicle.color,
+          ]
+            .filter(Boolean)
+            .join(" "),
           vehicleName: [
             workOrder.vehicle.brand,
             workOrder.vehicle.model,
@@ -258,7 +276,7 @@ async function buildMessageDraft(input: OpenWhatsAppInput, businessId: string) {
           ]
             .filter(Boolean)
             .join(" "),
-        }),
+        }, businessId),
       };
     }
 
@@ -282,6 +300,15 @@ async function buildMessageDraft(input: OpenWhatsAppInput, businessId: string) {
         services: workOrder.items.map((item) => item.name).join(", "),
         subtotal: money(workOrder.subtotal),
         total: money(workOrder.total),
+        vehicleBrand: workOrder.vehicle.brand,
+        vehicleModel: workOrder.vehicle.model,
+        vehicleDisplayName: [
+          workOrder.vehicle.brand,
+          workOrder.vehicle.model,
+          workOrder.vehicle.color,
+        ]
+          .filter(Boolean)
+          .join(" "),
         vehicleName: [
           workOrder.vehicle.brand,
           workOrder.vehicle.model,
@@ -289,7 +316,7 @@ async function buildMessageDraft(input: OpenWhatsAppInput, businessId: string) {
         ]
           .filter(Boolean)
           .join(" "),
-      }),
+      }, businessId),
     };
   }
 
@@ -313,7 +340,7 @@ async function buildMessageDraft(input: OpenWhatsAppInput, businessId: string) {
         companyPhone: customer.business.phone,
         customerName: customer.name,
         customerPhone: customer.phone,
-      }),
+      }, businessId),
     };
   }
 

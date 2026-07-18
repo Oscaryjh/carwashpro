@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import type { BusinessIndustry } from "@prisma/client";
 
 type WhatsAppTemplateMessageEditorProps = {
   defaultValue: string;
+  industryType: BusinessIndustry;
+  variables: readonly string[];
 };
 
 const TEMPLATE_EMOJIS = [
@@ -41,6 +44,8 @@ const TEMPLATE_EMOJIS = [
 
 export function WhatsAppTemplateMessageEditor({
   defaultValue,
+  industryType,
+  variables,
 }: WhatsAppTemplateMessageEditorProps) {
   const textareaId = useId();
   const pickerRef = useRef<HTMLDivElement | null>(null);
@@ -92,6 +97,52 @@ export function WhatsAppTemplateMessageEditor({
     });
   }
 
+  function insertVariable(variable: string) {
+    const textarea = textareaRef.current;
+    const selectionStart = textarea?.selectionStart ?? body.length;
+    const selectionEnd = textarea?.selectionEnd ?? body.length;
+    const placeholder = `{{${variable}}}`;
+    const nextBody =
+      body.slice(0, selectionStart) + placeholder + body.slice(selectionEnd);
+    const nextCaretPosition = selectionStart + placeholder.length;
+
+    setBody(nextBody);
+    requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(nextCaretPosition, nextCaretPosition);
+    });
+  }
+
+  const sampleValues: Record<string, string> = {
+    companyName: industryType === "SALON_BEAUTY" ? "Glow Studio" : "Oscar Car Wash",
+    companyPhone: "01112212259",
+    customerName: industryType === "SALON_BEAUTY" ? "Siti Aminah" : "Oscar Yong",
+    customerPhone: "01112212259",
+    services: industryType === "SALON_BEAUTY" ? "Hair colouring" : "Basic Wash",
+    appointmentDate: "18 July 2026",
+    appointmentTime: "10:00 AM",
+    orderNumber: "WO-260718-001",
+    invoiceNumber: "INV-260718-001",
+    subtotal: "RM100.00",
+    total: "RM100.00",
+    paidAmount: "RM100.00",
+    balance: "RM0.00",
+    paymentStatus: "paid",
+    companyNo: "15161718",
+    companyAddress: "Main Street",
+    invoiceUrl: "https://example.com/invoice",
+    plateNumber: "SAB0932A",
+    vehicleBrand: "Perodua",
+    vehicleModel: "Myvi",
+    vehicleDisplayName: "Perodua Myvi",
+    vehicleName: "Perodua Myvi",
+  };
+
+  const previewBody = body.replaceAll(
+    /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g,
+    (_, key: string) => sampleValues[key] ?? `{{${key}}}`,
+  );
+
   return (
     <div className="template-message-editor">
       <div className="template-message-editor-header">
@@ -138,6 +189,32 @@ export function WhatsAppTemplateMessageEditor({
         required
         value={body}
       />
+
+      <div className="template-quick-variables">
+        <span className="muted">Insert variable</span>
+        <div className="template-variable-grid">
+          {variables.map((variable) => (
+            <button
+              className="template-variable-chip"
+              key={variable}
+              onClick={() => insertVariable(variable)}
+              type="button"
+            >
+              {"{{"}
+              {variable}
+              {"}}"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="template-live-preview">
+        <div className="template-preview-heading">
+          <strong>Message preview</strong>
+          <span className="muted">Sample values</span>
+        </div>
+        <div className="template-preview-bubble">{previewBody}</div>
+      </div>
     </div>
   );
 }

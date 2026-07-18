@@ -5,6 +5,7 @@ import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
 
 export const APPOINTMENT_REMINDER_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
+export const DEFAULT_APPOINTMENT_REMINDER_LEAD_TIME_MINUTES = 24 * 60;
 
 const REMINDER_ELIGIBLE_STATUSES = new Set(["SCHEDULED", "CONFIRMED"]);
 const APPOINTMENT_TIME_ZONE = "Asia/Kuala_Lumpur";
@@ -22,13 +23,17 @@ type CancelAppointmentReminderInput = {
   reason?: string;
 };
 
-export function getAppointmentReminderAt(scheduledAt: Date, now = new Date()) {
+export function getAppointmentReminderAt(
+  scheduledAt: Date,
+  now = new Date(),
+  leadTimeMs = APPOINTMENT_REMINDER_LEAD_TIME_MS,
+) {
   if (scheduledAt.getTime() <= now.getTime()) {
     return null;
   }
 
   const preferredReminderAt = new Date(
-    scheduledAt.getTime() - APPOINTMENT_REMINDER_LEAD_TIME_MS,
+    scheduledAt.getTime() - leadTimeMs,
   );
 
   return preferredReminderAt.getTime() > now.getTime()
@@ -79,6 +84,20 @@ export async function scheduleAppointmentReminder({
     return { status: "NOT_FOUND" as const };
   }
 
+  const reminderSetting = await prisma.appointmentReminderSetting.findUnique({
+    where: { businessId },
+    select: { enabled: true, leadTimeMinutes: true },
+  });
+
+  if (reminderSetting?.enabled === false) {
+    await cancelAppointmentReminder({
+      appointmentId,
+      businessId,
+      reason: "Appointment reminders are disabled for this business.",
+    });
+    return { status: "DISABLED" as const };
+  }
+
   if (!canScheduleAppointmentReminder(appointment.status)) {
     await cancelAppointmentReminder({
       appointmentId,
@@ -88,7 +107,14 @@ export async function scheduleAppointmentReminder({
     return { status: "NOT_ELIGIBLE" as const };
   }
 
-  const reminderAt = getAppointmentReminderAt(appointment.scheduledAt, now);
+  const leadTimeMinutes = normalizeLeadTimeMinutes(
+    reminderSetting?.leadTimeMinutes,
+  );
+  const reminderAt = getAppointmentReminderAt(
+    appointment.scheduledAt,
+    now,
+    leadTimeMinutes * 60 * 1000,
+  );
 
   if (!reminderAt) {
     await cancelAppointmentReminder({
@@ -132,6 +158,15 @@ export async function scheduleAppointmentReminder({
     customerName: recipientName,
     customerPhone: rawRecipientPhone,
     plateNumber: appointment.vehicle?.plateNumber ?? "",
+    vehicleBrand: appointment.vehicle?.brand ?? "",
+    vehicleModel: appointment.vehicle?.model ?? "",
+    vehicleDisplayName: [
+      appointment.vehicle?.brand,
+      appointment.vehicle?.model,
+      appointment.vehicle?.color,
+    ]
+      .filter(Boolean)
+      .join(" "),
     vehicleName: [
       appointment.vehicle?.brand,
       appointment.vehicle?.model,
@@ -139,7 +174,7 @@ export async function scheduleAppointmentReminder({
     ]
       .filter(Boolean)
       .join(" "),
-  });
+  }, appointment.businessId);
   const messageBody = appointment.vehicle
     ? renderedMessageBody
     : renderedMessageBody
@@ -309,4 +344,12 @@ function formatAppointmentTime(value: Date) {
     minute: "2-digit",
     timeZone: APPOINTMENT_TIME_ZONE,
   });
+}
+
+function normalizeLeadTimeMinutes(value: number | null | undefined) {
+  if (!Number.isInteger(value) || value === undefined || value === null) {
+    return DEFAULT_APPOINTMENT_REMINDER_LEAD_TIME_MINUTES;
+  }
+
+  return Math.min(Math.max(value, 5), 10080);
 }

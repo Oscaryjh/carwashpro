@@ -58,8 +58,11 @@ export async function sendServiceConfirmationQueued({
     services: workOrder.items.map((item) => item.name).join(", "),
     subtotal: formatMoney(workOrder.subtotal),
     total: formatMoney(workOrder.total),
+    vehicleBrand: workOrder.vehicle.brand,
+    vehicleModel: workOrder.vehicle.model,
+    vehicleDisplayName: vehicleName,
     vehicleName,
-  });
+  }, businessId);
   const storedMessageBody =
     encodeWhatsAppStoredText(messageBody) ?? "Your car wash job has been checked in.";
 
@@ -142,8 +145,11 @@ export async function sendReadyForPickupIfConnected({
     services: workOrder.items.map((item) => item.name).join(", "),
     subtotal: formatMoney(workOrder.subtotal),
     total: formatMoney(workOrder.total),
+    vehicleBrand: workOrder.vehicle.brand,
+    vehicleModel: workOrder.vehicle.model,
+    vehicleDisplayName: vehicleName,
     vehicleName,
-  });
+  }, businessId);
   const storedMessageBody =
     encodeWhatsAppStoredText(messageBody) ?? "Your car is ready for pickup.";
 

@@ -1,4 +1,4 @@
-import type { WhatsAppMessageType } from "@prisma/client";
+import type { BusinessIndustry, WhatsAppMessageType } from "@prisma/client";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -11,13 +11,23 @@ import { assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import {
+  BUSINESS_INDUSTRY_OPTIONS,
+  getBusinessIndustryLabel,
+} from "@/lib/business-industry";
+import {
   getDefaultWhatsAppTemplate,
-  WHATSAPP_TEMPLATE_VARIABLES,
+  getWhatsAppTemplateDescription,
+  getWhatsAppTemplateLabel,
+  getWhatsAppTemplateVariables,
 } from "@/lib/whatsapp/template-defaults";
 
 type WhatsAppTemplateEditPageProps = {
   params: Promise<{ templateId: string }>;
-  searchParams: Promise<{ message?: string; type?: string }>;
+  searchParams: Promise<{
+    industryType?: string;
+    message?: string;
+    type?: string;
+  }>;
 };
 
 export default async function WhatsAppTemplateEditPage({
@@ -30,14 +40,23 @@ export default async function WhatsAppTemplateEditPage({
   const { templateId } = await params;
   const query = await searchParams;
   const messageType = templateId as WhatsAppMessageType;
-  const defaultTemplate = getDefaultWhatsAppTemplate(messageType);
+  const selectedIndustry = parseIndustryType(query.industryType);
+  const defaultTemplate = getDefaultWhatsAppTemplate(
+    messageType,
+    selectedIndustry,
+  );
 
   if (!defaultTemplate) {
     notFound();
   }
 
   const savedTemplate = await prisma.whatsAppTemplate.findUnique({
-    where: { messageType },
+    where: {
+      messageType_industryType: {
+        industryType: selectedIndustry,
+        messageType,
+      },
+    },
   });
   const template = {
     body: savedTemplate?.body ?? defaultTemplate.body,
@@ -50,10 +69,16 @@ export default async function WhatsAppTemplateEditPage({
       <section className="content">
         <div className="page-header">
           <div>
-            <h1>{template.title}</h1>
-            <p>Platform default WhatsApp message template.</p>
+            <h1>{getWhatsAppTemplateLabel(messageType, selectedIndustry)}</h1>
+            <p>
+              {getBusinessIndustryLabel(selectedIndustry)} WhatsApp message
+              template. {getWhatsAppTemplateDescription(messageType, selectedIndustry)}
+            </p>
           </div>
-          <Link className="secondary-button" href="/admin/whatsapp-templates">
+          <Link
+            className="secondary-button"
+            href={"/admin/whatsapp-templates?industryType=" + selectedIndustry}
+          >
             Back
           </Link>
         </div>
@@ -71,6 +96,11 @@ export default async function WhatsAppTemplateEditPage({
         <div className="template-editor-layout">
           <form action={updateWhatsAppTemplateAction} className="panel form">
             <input type="hidden" name="messageType" value={messageType} />
+            <input
+              type="hidden"
+              name="industryType"
+              value={selectedIndustry}
+            />
 
             <div className="field-grid">
               <label>
@@ -86,7 +116,11 @@ export default async function WhatsAppTemplateEditPage({
               </label>
             </div>
 
-            <WhatsAppTemplateMessageEditor defaultValue={template.body} />
+            <WhatsAppTemplateMessageEditor
+              defaultValue={template.body}
+              industryType={selectedIndustry}
+              variables={getWhatsAppTemplateVariables(selectedIndustry)}
+            />
 
             <div className="form-actions template-actions">
               <button type="submit">Save</button>
@@ -94,13 +128,13 @@ export default async function WhatsAppTemplateEditPage({
           </form>
 
           <aside className="panel template-side-panel">
-            <h2>Variables</h2>
+            <h2>Available variables</h2>
             <p className="muted">
-              Use these placeholders inside the message. The system will replace
-              them automatically.
+              Only use variables shown here. They are replaced automatically when
+              the message is sent.
             </p>
             <div className="template-variable-grid">
-              {WHATSAPP_TEMPLATE_VARIABLES.map((variable) => (
+              {getWhatsAppTemplateVariables(selectedIndustry).map((variable) => (
                 <code className="template-variable-chip" key={variable}>
                   {"{{"}
                   {variable}
@@ -111,6 +145,11 @@ export default async function WhatsAppTemplateEditPage({
 
             <form action={resetWhatsAppTemplateAction} className="template-reset-form">
               <input type="hidden" name="messageType" value={messageType} />
+              <input
+                type="hidden"
+                name="industryType"
+                value={selectedIndustry}
+              />
               <button className="secondary-button" type="submit">
                 Reset default
               </button>
@@ -120,4 +159,10 @@ export default async function WhatsAppTemplateEditPage({
       </section>
     </AppShell>
   );
+}
+
+function parseIndustryType(value?: string): BusinessIndustry {
+  return BUSINESS_INDUSTRY_OPTIONS.some((option) => option.value === value)
+    ? (value as BusinessIndustry)
+    : "AUTO_DETAILING";
 }
