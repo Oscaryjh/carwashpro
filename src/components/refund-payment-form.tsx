@@ -47,12 +47,13 @@ export function RefundPaymentForm({
     refundPaymentAction,
     initialState,
   );
+  const safeState = state ?? initialState;
 
   useEffect(() => {
-    if (state.status === "success") {
+    if (safeState.status === "success") {
       router.refresh();
     }
-  }, [router, state.status]);
+  }, [router, safeState.status]);
 
   return (
     <form
@@ -61,7 +62,7 @@ export function RefundPaymentForm({
       onSubmit={(event) => {
         const amount = new FormData(event.currentTarget).get("amount");
         const confirmed = window.confirm(
-          `Refund RM${amount} from invoice ${invoiceNumber}? This changes payment totals only; the job status will stay unchanged.`,
+          `Refund RM${amount} from invoice ${invoiceNumber}? This changes payment totals only; the related order status will stay unchanged.`,
         );
 
         if (!confirmed) {
@@ -141,8 +142,10 @@ export function RefundPaymentForm({
         <button className="danger-button" type="submit" disabled={pending}>
           {pending ? "Processing..." : "Process refund"}
         </button>
-        {state.status !== "idle" ? (
-          <p className={`form-message ${state.status}`}>{state.message}</p>
+        {safeState.status !== "idle" ? (
+          <p className={`form-message ${safeState.status}`}>
+            {safeState.message}
+          </p>
         ) : null}
       </div>
     </form>

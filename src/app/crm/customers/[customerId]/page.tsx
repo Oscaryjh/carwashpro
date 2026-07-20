@@ -1,12 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { purchasePackageAction } from "@/app/packages/actions";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
-import { CustomerPackagePurchaseForm } from "@/components/customer-package-purchase-form";
 import { DeleteCustomerForm } from "@/components/delete-customer-form";
-import { getActiveBranches } from "@/lib/branches";
-import { requireCrmUser } from "@/lib/auth/crm";
+import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -14,13 +11,37 @@ type CustomerDetailsPageProps = {
   params: Promise<{
     customerId: string;
   }>;
+  searchParams: Promise<{
+    appointmentPage?: string;
+  }>;
 };
+
+const APPOINTMENTS_PER_PAGE = 8;
 
 export default async function CustomerDetailsPage({
   params,
+  searchParams,
 }: CustomerDetailsPageProps) {
-  const { user, businessId } = await requireCrmUser();
+  const context = await requireBusinessIndustryContext();
+  const { user, businessId } = context;
+  const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const { customerId } = await params;
+  const query = await searchParams;
+  const requestedAppointmentPage = Math.max(
+    1,
+    Number.parseInt(query.appointmentPage ?? "1", 10) || 1,
+  );
+  const appointmentCount = await prisma.appointment.count({
+    where: { businessId, customerId },
+  });
+  const appointmentPageCount = Math.max(
+    1,
+    Math.ceil(appointmentCount / APPOINTMENTS_PER_PAGE),
+  );
+  const appointmentPage = Math.min(
+    requestedAppointmentPage,
+    appointmentPageCount,
+  );
 
   const customer = await prisma.customer.findFirst({
     where: {
@@ -55,6 +76,45 @@ export default async function CustomerDetailsPage({
         orderBy: { purchasedAt: "desc" },
       },
       membership: true,
+      appointments: {
+        include: {
+          service: true,
+          assignedStaff: true,
+          invoice: {
+            include: {
+              items: true,
+              payments: {
+                where: { status: "ACTIVE" },
+                orderBy: { paidAt: "desc" },
+              },
+            },
+          },
+        },
+        orderBy: { scheduledAt: "desc" },
+        skip: (appointmentPage - 1) * APPOINTMENTS_PER_PAGE,
+        take: APPOINTMENTS_PER_PAGE,
+      },
+      invoices: {
+        include: {
+          items: true,
+          payments: {
+            where: { status: "ACTIVE" },
+            orderBy: { paidAt: "desc" },
+          },
+        },
+        orderBy: { issuedAt: "desc" },
+        take: 50,
+      },
+      workOrders: {
+        include: {
+          branch: true,
+          vehicle: true,
+          items: true,
+          invoice: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      },
     },
   });
 
@@ -62,23 +122,30 @@ export default async function CustomerDetailsPage({
     notFound();
   }
 
-  const [packages, branches] = await Promise.all([
-    prisma.package.findMany({
-      where: {
-        businessId,
-        status: "ACTIVE",
-      },
-      orderBy: { name: "asc" },
-    }),
-    getActiveBranches(businessId),
-  ]);
-
   const activePackageBalance = customer.customerPackages
     .filter((customerPackage) => customerPackage.status === "ACTIVE")
     .reduce(
       (total, customerPackage) => total + customerPackage.remainingUses,
       0,
     );
+  const serviceIds = Array.from(
+    new Set(
+      customer.appointments.flatMap((appointment) => [
+        appointment.serviceId,
+        ...appointment.serviceIds,
+      ]).filter((serviceId): serviceId is string => Boolean(serviceId)),
+    ),
+  );
+  const services = serviceIds.length
+    ? await prisma.service.findMany({
+        where: { businessId, id: { in: serviceIds } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const serviceNamesById = new Map(services.map((service) => [service.id, service.name]));
+  const totalSpent = customer.invoices
+    .filter((invoice) => invoice.status !== "VOID")
+    .reduce((total, invoice) => total + Number(invoice.paidAmount), 0);
   const canViewLoyaltyActivity = hasStaffPermission(user, "LOYALTY");
   const canDeleteCustomer = hasStaffPermission(user, "DELETE_CUSTOMER");
 
@@ -100,8 +167,15 @@ export default async function CustomerDetailsPage({
 
         <div className="customer-summary-grid">
           <InfoCard label="Email" value={customer.email || "No email"} />
-          <InfoCard label="Vehicles" value={customer.vehicles.length} />
-          <InfoCard label="Package balance" value={`${activePackageBalance} washes`} />
+          <InfoCard
+            label={isSalonBusiness ? "Appointments" : "Vehicles"}
+            value={isSalonBusiness ? appointmentCount : customer.vehicles.length}
+          />
+          <InfoCard
+            label="Package balance"
+            value={`${activePackageBalance} ${isSalonBusiness ? "uses" : "washes"}`}
+          />
+          <InfoCard label="Total spent" value={formatCurrency(totalSpent)} />
           <div className="customer-info-card customer-loyalty-summary">
             <span>Loyalty points</span>
             <strong>
@@ -119,46 +193,151 @@ export default async function CustomerDetailsPage({
             </div>
           </div>
           <InfoCard label="Notes" value={customer.notes || "No notes"} />
+          <InfoCard label="Preferences" value={customer.preferences || "No preferences"} />
+          <InfoCard
+            label="Treatment notes"
+            value={customer.treatmentNotes || "No treatment notes"}
+          />
         </div>
+
+        {!isSalonBusiness ? (
+          <div className="panel customer-section-panel">
+            <div className="section-header">
+              <h2>Vehicles</h2>
+              <Link
+                className="button-link"
+                href={`/crm/vehicles/new?customerId=${customer.id}`}
+              >
+                Add Vehicle
+              </Link>
+            </div>
+
+            {customer.vehicles.length ? (
+              <div className="customer-vehicle-grid">
+                {customer.vehicles.map((vehicle) => (
+                  <Link
+                    className="customer-vehicle-card"
+                    href={`/crm/vehicles/${vehicle.id}`}
+                    key={vehicle.id}
+                  >
+                    <div className="customer-vehicle-title">
+                      <strong>{vehicle.plateNumber}</strong>
+                      <span>{vehicleLabel(vehicle)}</span>
+                    </div>
+                    <small>{vehicle.branch?.name ?? "All branches"}</small>
+                    <div className="customer-card-meta">
+                      <span>{vehicle.color || "No color"}</span>
+                      <span>
+                        {vehicle.ownershipHistories.length
+                          ? `${vehicle.ownershipHistories.length} transfer`
+                          : "Current owner"}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">No vehicles yet.</p>
+            )}
+          </div>
+        ) : null}
 
         <div className="panel customer-section-panel">
           <div className="section-header">
-            <h2>Vehicles</h2>
-            <Link
-              className="button-link"
-              href={`/crm/vehicles/new?customerId=${customer.id}`}
-            >
-              Add Vehicle
-            </Link>
+            <h2>Service history</h2>
           </div>
-
-          {customer.vehicles.length ? (
-            <div className="customer-vehicle-grid">
-              {customer.vehicles.map((vehicle) => (
-                <Link
-                  className="customer-vehicle-card"
-                  href={`/crm/vehicles/${vehicle.id}`}
-                  key={vehicle.id}
-                >
-                  <div className="customer-vehicle-title">
-                    <strong>{vehicle.plateNumber}</strong>
-                    <span>{vehicleLabel(vehicle)}</span>
-                  </div>
-                  <small>{vehicle.branch?.name ?? "All branches"}</small>
-                  <div className="customer-card-meta">
-                    <span>{vehicle.color || "No color"}</span>
+          {customer.workOrders.length ? (
+            <div className="customer-history-list">
+              {customer.workOrders.map((workOrder) => (
+                <div className="customer-history-row" key={workOrder.id}>
+                  <div>
+                    <Link href={`/work-orders/${workOrder.id}`}>
+                      {workOrder.orderNumber}
+                    </Link>
                     <span>
-                      {vehicle.ownershipHistories.length
-                        ? `${vehicle.ownershipHistories.length} transfer`
-                        : "Current owner"}
+                      {workOrder.items.map((item) => `${item.name} x${item.quantity}`).join(", ") ||
+                        "No service items"}
                     </span>
                   </div>
-                </Link>
+                  <small>
+                    {isSalonBusiness
+                      ? `${formatStatus(workOrder.status)} · ${formatCurrency(workOrder.total)}`
+                      : `${workOrder.vehicle.plateNumber} · ${formatStatus(workOrder.status)} · ${formatCurrency(workOrder.total)}`}
+                    <br />
+                    {formatDateTime(workOrder.createdAt)}
+                  </small>
+                </div>
               ))}
             </div>
           ) : (
-            <p className="empty-state">No vehicles yet.</p>
+            <p className="empty-state">No service history yet.</p>
           )}
+        </div>
+
+        <div className="customer-two-column">
+          <div className="panel customer-section-panel" id="appointment-history">
+            <div className="section-header">
+              <div>
+                <h2>Appointment history</h2>
+                <p className="customer-section-subtitle">
+                  {appointmentCount
+                    ? `${appointmentCount} appointment${appointmentCount === 1 ? "" : "s"}`
+                    : "Customer booking records"}
+                </p>
+              </div>
+            </div>
+            {customer.appointments.length ? (
+              <>
+                <div className="customer-history-list customer-appointment-history-list">
+                  {customer.appointments.map((appointment) => (
+                    <article className="customer-appointment-history-row" key={appointment.id}>
+                      <div className="customer-appointment-history-main">
+                        <Link href={`/appointments/${appointment.id}`}>
+                          {appointmentServiceNames(appointment, serviceNamesById)}
+                        </Link>
+                        <span>{appointment.assignedStaff?.name ?? "Unassigned"}</span>
+                      </div>
+                      <span className={`customer-appointment-status is-${appointment.status.toLowerCase()}`}>
+                        {formatStatus(appointment.status)}
+                      </span>
+                      <time dateTime={appointment.scheduledAt.toISOString()}>
+                        {formatDateTime(appointment.scheduledAt)}
+                      </time>
+                    </article>
+                  ))}
+                </div>
+                <HistoryPagination
+                  customerId={customer.id}
+                  page={appointmentPage}
+                  pageCount={appointmentPageCount}
+                  total={appointmentCount}
+                />
+              </>
+            ) : (
+              <p className="empty-state">No appointment history yet.</p>
+            )}
+          </div>
+
+          <div className="panel customer-section-panel">
+            <div className="section-header">
+              <h2>Spending history</h2>
+            </div>
+            {customer.invoices.length ? (
+              <div className="customer-history-list">
+                {customer.invoices.map((invoice) => (
+                  <div className="customer-history-row" key={invoice.id}>
+                    <div>
+                      <Link href={`/invoices/${invoice.id}`}>{invoice.invoiceNumber}</Link>
+                      <span>{formatStatus(invoice.status)} · RM{Number(invoice.total).toFixed(2)}</span>
+                    </div>
+                    <small>{formatDateTime(invoice.issuedAt)}</small>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">No spending history yet.</p>
+            )}
+          </div>
         </div>
 
         <div className="customer-two-column">
@@ -179,7 +358,7 @@ export default async function CustomerDetailsPage({
                       <strong>
                         {customerPackage.remainingUses}/{customerPackage.totalUses}
                       </strong>
-                      <span>washes left</span>
+                      <span>{isSalonBusiness ? "uses left" : "washes left"}</span>
                     </div>
                     <small>
                       RM{Number(customerPackage.purchasePrice).toFixed(2)} /{" "}
@@ -193,44 +372,34 @@ export default async function CustomerDetailsPage({
             )}
           </div>
 
-          <div className="panel customer-section-panel customer-sell-package-panel">
+        </div>
+
+        {!isSalonBusiness ? (
+          <div className="panel customer-section-panel">
             <div className="section-header">
-              <h2>Sell package</h2>
+              <h2>Previous ownership</h2>
             </div>
-            <CustomerPackagePurchaseForm
-              action={purchasePackageAction}
-              customerId={customer.id}
-              packages={packages}
-              branches={branches}
-              selectedBranchId={customer.branchId}
-            />
-          </div>
-        </div>
 
-        <div className="panel customer-section-panel">
-          <div className="section-header">
-            <h2>Previous ownership</h2>
+            {customer.previousVehicleOwnerships.length ? (
+              <div className="customer-history-list">
+                {customer.previousVehicleOwnerships.map((history) => (
+                  <div className="customer-history-row" key={history.id}>
+                    <Link href={`/crm/vehicles/${history.vehicle.id}`}>
+                      {history.vehicle.plateNumber}
+                    </Link>
+                    <span>
+                      Transferred to {history.newCustomer.name} -{" "}
+                      {history.newCustomer.phone}
+                    </span>
+                    <small>{history.transferredAt.toLocaleString()}</small>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">No previous vehicle ownership records.</p>
+            )}
           </div>
-
-          {customer.previousVehicleOwnerships.length ? (
-            <div className="customer-history-list">
-              {customer.previousVehicleOwnerships.map((history) => (
-                <div className="customer-history-row" key={history.id}>
-                  <Link href={`/crm/vehicles/${history.vehicle.id}`}>
-                    {history.vehicle.plateNumber}
-                  </Link>
-                  <span>
-                    Transferred to {history.newCustomer.name} -{" "}
-                    {history.newCustomer.phone}
-                  </span>
-                  <small>{history.transferredAt.toLocaleString()}</small>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="empty-state">No previous vehicle ownership records.</p>
-          )}
-        </div>
+        ) : null}
 
         {canDeleteCustomer ? (
           <div className="panel danger-zone customer-section-panel">
@@ -238,8 +407,9 @@ export default async function CustomerDetailsPage({
               <h2>Delete customer</h2>
             </div>
             <p className="muted">
-              Customers with jobs, packages, vehicle ownership history, or vehicle
-              history cannot be deleted.
+              {isSalonBusiness
+                ? "Customers with appointments or packages cannot be deleted."
+                : "Customers with jobs, packages, vehicle ownership history, or vehicle history cannot be deleted."}
             </p>
             <DeleteCustomerForm
               customerId={customer.id}
@@ -267,6 +437,50 @@ function InfoCard({
   );
 }
 
+function HistoryPagination({
+  customerId,
+  page,
+  pageCount,
+  total,
+}: {
+  customerId: string;
+  page: number;
+  pageCount: number;
+  total: number;
+}) {
+  if (pageCount <= 1) {
+    return null;
+  }
+
+  const first = (page - 1) * APPOINTMENTS_PER_PAGE + 1;
+  const last = Math.min(page * APPOINTMENTS_PER_PAGE, total);
+  const pageHref = (targetPage: number) =>
+    `/crm/customers/${customerId}?appointmentPage=${targetPage}#appointment-history`;
+
+  return (
+    <nav className="customer-history-pagination" aria-label="Appointment history pages">
+      <span>
+        {first}-{last} of {total}
+      </span>
+      <div>
+        {page > 1 ? (
+          <Link href={pageHref(page - 1)}>Previous</Link>
+        ) : (
+          <span aria-disabled="true">Previous</span>
+        )}
+        <strong>
+          {page} / {pageCount}
+        </strong>
+        {page < pageCount ? (
+          <Link href={pageHref(page + 1)}>Next</Link>
+        ) : (
+          <span aria-disabled="true">Next</span>
+        )}
+      </div>
+    </nav>
+  );
+}
+
 function vehicleLabel(vehicle: {
   brand: string | null;
   model: string | null;
@@ -279,4 +493,32 @@ function vehicleLabel(vehicle: {
 
 function formatStatus(status: string) {
   return status.toLowerCase().replaceAll("_", " ");
+}
+
+function appointmentServiceNames(
+  appointment: {
+    service: { name: string } | null;
+    serviceId: string | null;
+    serviceIds: string[];
+  },
+  serviceNamesById: Map<string, string>,
+) {
+  const names = [
+    appointment.service?.name,
+    ...(appointment.serviceIds ?? []).map((serviceId) => serviceNamesById.get(serviceId)),
+    appointment.serviceId ? serviceNamesById.get(appointment.serviceId) : null,
+  ].filter((name): name is string => Boolean(name));
+
+  return Array.from(new Set(names)).join(", ") || "Consultation / service not selected";
+}
+
+function formatCurrency(value: number | { toString(): string }) {
+  return `RM${Number(value).toFixed(2)}`;
+}
+
+function formatDateTime(value: Date) {
+  return value.toLocaleString("en-MY", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }

@@ -23,11 +23,30 @@ export const cashierPackagePurchaseSchema = z
   .object({
     branchId: z.string().uuid("Branch is invalid.").optional().or(z.literal("")),
     method: z.enum(["CASH", "CARD", "DUITNOW", "EWALLET", "BANK_TRANSFER"]),
-    packageId: z.string().uuid("Package is required."),
+    packageIds: z
+      .array(z.string().uuid("Package is invalid."))
+      .min(1, "Select at least one package."),
+    quantities: z
+      .array(
+        z.coerce
+          .number()
+          .int("Quantity must be a whole number.")
+          .min(1, "Quantity must be at least 1.")
+          .max(99, "Quantity cannot exceed 99."),
+      )
+      .min(1, "Quantity must be at least 1."),
     reference: z.string().trim().max(120, "Reference is too long.").optional(),
     customerId: z.string().uuid("Customer account is required."),
   })
   .superRefine((input, context) => {
+    if (input.packageIds.length !== input.quantities.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Each package must have a quantity.",
+        path: ["quantities"],
+      });
+    }
+
     if (input.method !== "CASH" && !input.reference) {
       context.addIssue({
         code: z.ZodIssueCode.custom,

@@ -20,7 +20,7 @@ type WhatsAppDetailsPageProps = {
 export default async function WhatsAppDetailsPage({
   params,
 }: WhatsAppDetailsPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
   assertStaffPermission(user, "WHATSAPP");
   const { messageId } = await params;
   const message = await prisma.whatsAppMessage.findFirst({
@@ -64,7 +64,9 @@ export default async function WhatsAppDetailsPage({
           <Info label="Sender WhatsApp" value={message.senderPhone ?? "Not set"} />
           <Info label="Recipient" value={recipientPhone || "No phone"} />
           <Info label="Customer" value={message.customer?.name ?? "No customer"} />
-          <Info label="Vehicle" value={message.vehicle?.plateNumber ?? "No vehicle"} />
+          {industryType !== "SALON_BEAUTY" ? (
+            <Info label="Vehicle" value={message.vehicle?.plateNumber ?? "No vehicle"} />
+          ) : null}
           <Info
             label="Related"
             value={

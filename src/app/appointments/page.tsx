@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Prisma } from "@prisma/client";
+import { AppointmentStatus, Prisma } from "@prisma/client";
 import {
   AppointmentCalendar,
   type AppointmentCalendarItem,
@@ -8,10 +8,14 @@ import { AppShell } from "@/components/app-shell";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
-import { formatAppointmentStatus } from "@/lib/validation/appointments";
+import {
+  ACTIVE_APPOINTMENT_STATUSES,
+  SALON_APPOINTMENT_CALENDAR_STATUSES,
+  formatAppointmentStatus,
+} from "@/lib/validation/appointments";
 import {
   convertAppointmentToJobAction,
-  createAppointmentAction,
+  createAppointmentInlineAction,
   rescheduleAppointmentAction,
   updateAppointmentDetailsAction,
   updateAppointmentStatusAction,
@@ -19,6 +23,8 @@ import {
 
 type AppointmentsPageProps = {
   searchParams: Promise<{
+    appointment?: string;
+    checkout?: string;
     date?: string;
     message?: string;
     page?: string;
@@ -33,9 +39,6 @@ const statusFilters = [
   { value: "active", label: "Active" },
   { value: "today", label: "Today" },
   { value: "scheduled", label: "Scheduled" },
-  { value: "confirmed", label: "Confirmed" },
-  { value: "arrived", label: "Arrived" },
-  { value: "in_service", label: "In Service" },
   { value: "completed", label: "Completed" },
   { value: "history", label: "History" },
 ] as const;
@@ -44,9 +47,12 @@ export default async function AppointmentsPage({
   searchParams,
 }: AppointmentsPageProps) {
   const { user, businessId, industryType } = await requireBusinessUser();
+  const resolvedIndustryType = industryType ?? "AUTO_DETAILING";
   const params = await searchParams;
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
+  const showPageMessage =
+    message && message !== "Customer is required." && message !== "Vehicle is required.";
   const rawSearch = (params.q ?? "").trim();
   const status = getValidStatus(params.status);
   const currentPage = Math.max(1, Number(params.page) || 1);
@@ -54,6 +60,17 @@ export default async function AppointmentsPage({
   const calendarStart = startOfWeek(selectedDate);
   const calendarEnd = new Date(calendarStart);
   calendarEnd.setDate(calendarEnd.getDate() + 7);
+  const calendarStatuses: AppointmentStatus[] =
+    resolvedIndustryType === "SALON_BEAUTY"
+      ? [...SALON_APPOINTMENT_CALENDAR_STATUSES]
+      : [
+          "SCHEDULED",
+          "CONFIRMED",
+          "ARRIVED",
+          "IN_SERVICE",
+          "COMPLETED",
+          "CONVERTED_TO_JOB",
+        ];
   const datePickerMonthStart = startOfMonth(selectedDate);
   const datePickerRangeStart = startOfWeek(addMonths(datePickerMonthStart, -6));
   const datePickerRangeEnd = startOfWeek(addMonths(datePickerMonthStart, 7));
@@ -68,6 +85,7 @@ export default async function AppointmentsPage({
     branchId: staffBranchId,
     rawSearch,
     status,
+    industryType: resolvedIndustryType,
   });
 
   const staffWhere =
@@ -83,9 +101,12 @@ export default async function AppointmentsPage({
     totalCount,
     calendarAppointments,
     datePickerAppointments,
+    recentServiceAppointments,
     branches,
     services,
     staffUsers,
+    openCashierShift,
+    businessTaxSettings,
   ] =
     await Promise.all([
       prisma.appointment.findMany({
@@ -106,16 +127,10 @@ export default async function AppointmentsPage({
         where: {
           businessId,
           ...(staffBranchId ? { branchId: staffBranchId } : {}),
-          status: {
-            in: [
-              "SCHEDULED",
-              "CONFIRMED",
-              "ARRIVED",
-              "IN_SERVICE",
-              "COMPLETED",
-              "CONVERTED_TO_JOB",
-            ],
-          },
+          OR: [
+            { status: { in: calendarStatuses } },
+            ...(params.appointment ? [{ id: params.appointment }] : []),
+          ],
           scheduledAt: {
             gte: calendarStart,
             lt: calendarEnd,
@@ -123,6 +138,33 @@ export default async function AppointmentsPage({
         },
         include: {
           customer: true,
+          invoice: {
+            select: {
+              balance: true,
+              discountAmount: true,
+              id: true,
+              invoiceNumber: true,
+              issuedAt: true,
+              items: {
+                orderBy: { createdAt: "asc" },
+                select: {
+                  id: true,
+                  lineTotal: true,
+                  name: true,
+                  quantity: true,
+                  unitPrice: true,
+                },
+              },
+              paidAmount: true,
+              status: true,
+              subtotal: true,
+              taxAmount: true,
+              taxLabel: true,
+              taxRate: true,
+              tipAmount: true,
+              total: true,
+            },
+          },
           service: true,
           vehicle: true,
           workOrder: {
@@ -139,14 +181,16 @@ export default async function AppointmentsPage({
           businessId,
           ...(staffBranchId ? { branchId: staffBranchId } : {}),
           status: {
-            in: [
-              "SCHEDULED",
-              "CONFIRMED",
-              "ARRIVED",
-              "IN_SERVICE",
-              "COMPLETED",
-              "CONVERTED_TO_JOB",
-            ],
+            in: resolvedIndustryType === "SALON_BEAUTY"
+              ? [...SALON_APPOINTMENT_CALENDAR_STATUSES]
+              : [
+                  "SCHEDULED",
+                  "CONFIRMED",
+                  "ARRIVED",
+                  "IN_SERVICE",
+                  "COMPLETED",
+                  "CONVERTED_TO_JOB",
+                ],
           },
           scheduledAt: {
             gte: datePickerRangeStart,
@@ -155,6 +199,21 @@ export default async function AppointmentsPage({
         },
         select: {
           scheduledAt: true,
+        },
+      }),
+      prisma.appointment.findMany({
+        where: {
+          businessId,
+          ...(staffBranchId ? { branchId: staffBranchId } : {}),
+          status: {
+            notIn: ["CANCELLED", "NO_SHOW"],
+          },
+        },
+        orderBy: [{ scheduledAt: "desc" }, { createdAt: "desc" }],
+        take: 100,
+        select: {
+          serviceId: true,
+          serviceIds: true,
         },
       }),
       getOperationalBranches(businessId, user),
@@ -170,6 +229,8 @@ export default async function AppointmentsPage({
           price: true,
           category: true,
           durationMinutes: true,
+          taxable: true,
+          taxRate: true,
           staffAssignments: {
             select: {
               userId: true,
@@ -191,6 +252,22 @@ export default async function AppointmentsPage({
           role: true,
         },
       }),
+      prisma.cashierShift.findFirst({
+        where: {
+          businessId,
+          cashierId: user.userId,
+          status: "OPEN",
+        },
+        select: { id: true },
+      }),
+      prisma.business.findUniqueOrThrow({
+        where: { id: businessId },
+        select: {
+          sstEnabled: true,
+          sstLabel: true,
+          sstRate: true,
+        },
+      }),
     ]);
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const firstItem = totalCount ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
@@ -200,6 +277,7 @@ export default async function AppointmentsPage({
     businessId,
   );
   const serviceNameById = new Map(services.map((service) => [service.id, service.name]));
+  const recentServiceIds = rankRecentServiceIds(recentServiceAppointments, 5);
   const serviceDetailById = new Map(
     services.map((service) => [
       service.id,
@@ -207,6 +285,8 @@ export default async function AppointmentsPage({
         id: service.id,
         name: service.name,
         price: Number(service.price).toFixed(2),
+        taxable: service.taxable,
+        taxRate: service.taxRate == null ? null : Number(service.taxRate),
       },
     ]),
   );
@@ -244,7 +324,7 @@ export default async function AppointmentsPage({
 
   return (
     <AppShell user={user}>
-      <section className="content">
+      <section className="content appointments-page">
         <div className="page-header">
           <div>
             <h1>Appointments</h1>
@@ -256,9 +336,9 @@ export default async function AppointmentsPage({
           </div>
         </div>
 
-        {message ? <div className={messageType}>{message}</div> : null}
+        {showPageMessage ? <div className={messageType}>{message}</div> : null}
 
-        <div className="panel">
+        <div className="panel appointment-calendar-panel">
           <AppointmentCalendar
             appointments={calendarAppointments.map((appointment) =>
               toCalendarItem(appointment, assignedStaffNames, serviceNameById, serviceDetailById),
@@ -267,8 +347,12 @@ export default async function AppointmentsPage({
               id: branch.id,
               name: branch.name,
             }))}
-            isSalonBusiness={industryType === "SALON_BEAUTY"}
-            createAppointmentAction={createAppointmentAction}
+            isSalonBusiness={resolvedIndustryType === "SALON_BEAUTY"}
+            initialAppointmentId={params.appointment}
+            initialCheckoutAppointmentId={
+              params.checkout === "1" ? params.appointment : undefined
+            }
+            createAppointmentAction={createAppointmentInlineAction}
             convertAppointmentAction={convertAppointmentToJobAction}
             datePickerCounts={datePickerCounts}
             datePickerHrefPrefix={makeAppointmentDateHrefPrefix({
@@ -295,6 +379,7 @@ export default async function AppointmentsPage({
               year: "numeric",
             })}
             selectedDateValue={selectedDateValue}
+            recentServiceIds={recentServiceIds}
             services={services.map((service) => ({
               id: service.id,
               category: service.serviceCategory?.name ?? service.category ?? "Services",
@@ -302,7 +387,13 @@ export default async function AppointmentsPage({
               name: service.name,
               price: Number(service.price).toFixed(2),
               staffIds: service.staffAssignments.map((assignment) => assignment.userId),
+              taxable: service.taxable,
+              taxRate: service.taxRate == null ? null : Number(service.taxRate),
             }))}
+            hasOpenShift={Boolean(openCashierShift)}
+            sstEnabled={businessTaxSettings.sstEnabled}
+            sstLabel={businessTaxSettings.sstLabel}
+            sstRate={Number(businessTaxSettings.sstRate)}
             staffMembers={staffUsers}
             updateAppointmentAction={updateAppointmentDetailsAction}
             updateAppointmentStatusAction={updateAppointmentStatusAction}
@@ -332,7 +423,11 @@ export default async function AppointmentsPage({
             <input type="hidden" name="status" value={status} />
             <input
               name="q"
-              placeholder="Search customer, phone, plate, or service"
+              placeholder={
+                resolvedIndustryType === "SALON_BEAUTY"
+                  ? "Search customer, phone, or service"
+                  : "Search customer, phone, plate, or service"
+              }
               defaultValue={rawSearch}
             />
             <button type="submit">Search</button>
@@ -344,7 +439,7 @@ export default async function AppointmentsPage({
                 <tr>
                   <th>No.</th>
                   <th>Customer</th>
-                  <th>Vehicle</th>
+                  {resolvedIndustryType !== "SALON_BEAUTY" ? <th>Vehicle</th> : null}
                   <th>Service</th>
                   <th>Staff</th>
                   <th>Time</th>
@@ -364,16 +459,18 @@ export default async function AppointmentsPage({
                         {appointment.customer.phone}
                       </div>
                     </td>
-                    <td>
-                      <strong className="work-order-primary-text">
-                        {appointment.vehicle?.plateNumber ?? "Customer appointment"}
-                      </strong>
-                      <div className="work-order-subtext">
-                        {[appointment.vehicle?.brand, appointment.vehicle?.model, appointment.vehicle?.color]
-                          .filter(Boolean)
-                          .join(" ") || "No vehicle details"}
-                      </div>
-                    </td>
+                    {resolvedIndustryType !== "SALON_BEAUTY" ? (
+                      <td>
+                        <strong className="work-order-primary-text">
+                          {appointment.vehicle?.plateNumber ?? "Customer appointment"}
+                        </strong>
+                        <div className="work-order-subtext">
+                          {[appointment.vehicle?.brand, appointment.vehicle?.model, appointment.vehicle?.color]
+                            .filter(Boolean)
+                            .join(" ") || "No vehicle details"}
+                        </div>
+                      </td>
+                    ) : null}
                     <td>{formatAppointmentServices(appointment, serviceNameById) ?? "Not selected"}</td>
                     <td>{assignedStaffNames.get(appointment.id) ?? "Unassigned"}</td>
                     <td>
@@ -394,7 +491,9 @@ export default async function AppointmentsPage({
                       <div className="table-actions">
                         <Link href={`/appointments/${appointment.id}`}>View</Link>
                         {appointment.workOrder ? (
-                          <Link href={`/work-orders/${appointment.workOrder.id}`}>Job</Link>
+                          <Link href={`/work-orders/${appointment.workOrder.id}`}>
+                            {resolvedIndustryType === "SALON_BEAUTY" ? "Service order" : "Job"}
+                          </Link>
                         ) : null}
                       </div>
                     </td>
@@ -443,6 +542,38 @@ export default async function AppointmentsPage({
   );
 }
 
+function rankRecentServiceIds(
+  appointments: { serviceId: string | null; serviceIds: string[] }[],
+  limit: number,
+) {
+  const usage = new Map<string, { count: number; recentIndex: number }>();
+
+  appointments.forEach((appointment, recentIndex) => {
+    const appointmentServiceIds = [
+      ...new Set([
+        ...appointment.serviceIds,
+        ...(appointment.serviceId ? [appointment.serviceId] : []),
+      ]),
+    ];
+
+    appointmentServiceIds.forEach((serviceId) => {
+      const current = usage.get(serviceId);
+      usage.set(serviceId, {
+        count: (current?.count ?? 0) + 1,
+        recentIndex: Math.min(current?.recentIndex ?? recentIndex, recentIndex),
+      });
+    });
+  });
+
+  return [...usage.entries()]
+    .sort((left, right) => {
+      const usageDifference = right[1].count - left[1].count;
+      return usageDifference || left[1].recentIndex - right[1].recentIndex;
+    })
+    .slice(0, limit)
+    .map(([serviceId]) => serviceId);
+}
+
 function toCalendarItem(appointment: {
   id: string;
   contactName: string | null;
@@ -450,18 +581,44 @@ function toCalendarItem(appointment: {
   contactType: string;
   customer: { name: string; phone: string };
   scheduledAt: Date;
+  durationMinutes: number;
+  notes: string | null;
   service: { name: string } | null;
   serviceId: string | null;
   serviceIds: string[];
   assignedStaffId: string | null;
   status: string;
   vehicle: { plateNumber: string } | null;
+  invoice?: {
+    balance: Prisma.Decimal;
+    discountAmount: Prisma.Decimal;
+    id: string;
+    invoiceNumber: string;
+    issuedAt: Date;
+    items: Array<{
+      id: string;
+      lineTotal: Prisma.Decimal;
+      name: string;
+      quantity: number;
+      unitPrice: Prisma.Decimal;
+    }>;
+    paidAmount: Prisma.Decimal;
+    status: string;
+    subtotal: Prisma.Decimal;
+    taxAmount: Prisma.Decimal;
+    taxLabel: string | null;
+    taxRate: Prisma.Decimal;
+    tipAmount: Prisma.Decimal;
+    total: Prisma.Decimal;
+  } | null;
   workOrder?: { paymentStatus: string; status: string } | null;
   workOrderId?: string | null;
 }, assignedStaffNames: Map<string, string>, serviceNameById: Map<string, string>, serviceDetailById: Map<string, {
   id: string;
   name: string;
   price: string;
+  taxable: boolean;
+  taxRate: number | null;
 }>): AppointmentCalendarItem {
   return {
     id: appointment.id,
@@ -474,11 +631,43 @@ function toCalendarItem(appointment: {
     staffName: assignedStaffNames.get(appointment.id) ?? null,
     plateNumber: appointment.vehicle?.plateNumber ?? null,
     scheduledAt: appointment.scheduledAt.toISOString(),
+    durationMinutes: appointment.durationMinutes,
+    notes: appointment.notes,
     serviceName: formatAppointmentServices(appointment, serviceNameById),
     serviceNames: getAppointmentServiceNames(appointment, serviceNameById),
     serviceDetails: getAppointmentServiceDetails(appointment, serviceDetailById),
     serviceIds: appointment.serviceIds,
     status: appointment.status,
+    invoiceBalance: appointment.invoice ? Number(appointment.invoice.balance) : null,
+    invoiceId: appointment.invoice?.id ?? null,
+    invoiceSummary: appointment.invoice ? {
+      id: appointment.invoice.id,
+      invoiceNumber: appointment.invoice.invoiceNumber,
+      status: appointment.invoice.status,
+      issuedAt: appointment.invoice.issuedAt.toISOString(),
+      customerName: appointment.customer.name,
+      customerPhone: appointment.customer.phone,
+      items: appointment.invoice.items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        lineTotal: Number(item.lineTotal),
+      })),
+      subtotal: Number(appointment.invoice.subtotal),
+      discountAmount: Number(appointment.invoice.discountAmount),
+      tipAmount: Number(appointment.invoice.tipAmount),
+      taxAmount: Number(appointment.invoice.taxAmount),
+      taxRate: Number(appointment.invoice.taxRate),
+      taxLabel: appointment.invoice.taxLabel,
+      total: Number(appointment.invoice.total),
+      paidAmount: Number(appointment.invoice.paidAmount),
+      balance: Number(appointment.invoice.balance),
+    } : null,
+    invoicePaidAmount: appointment.invoice ? Number(appointment.invoice.paidAmount) : null,
+    invoiceStatus: appointment.invoice?.status ?? null,
+    invoiceSubtotal: appointment.invoice ? Number(appointment.invoice.subtotal) : null,
+    invoiceTotal: appointment.invoice ? Number(appointment.invoice.total) : null,
     workOrderPaymentStatus: appointment.workOrder?.paymentStatus ?? null,
     workOrderStatus: appointment.workOrder?.status ?? null,
     workOrderId: appointment.workOrderId ?? null,
@@ -491,7 +680,13 @@ function getAppointmentServiceDetails(
     serviceId?: string | null;
     serviceIds?: string[];
   },
-  serviceDetailById: Map<string, { id: string; name: string; price: string }>,
+  serviceDetailById: Map<string, {
+    id: string;
+    name: string;
+    price: string;
+    taxable: boolean;
+    taxRate: number | null;
+  }>,
 ) {
   const details = [
     ...(appointment.serviceIds ?? []).map((serviceId) => serviceDetailById.get(serviceId)),
@@ -501,9 +696,17 @@ function getAppointmentServiceDetails(
           id: appointment.service.name,
           name: appointment.service.name,
           price: "",
+          taxable: true,
+          taxRate: null,
         }
       : undefined,
-  ].filter((service): service is { id: string; name: string; price: string } => Boolean(service));
+  ].filter((service): service is {
+    id: string;
+    name: string;
+    price: string;
+    taxable: boolean;
+    taxRate: number | null;
+  } => Boolean(service));
 
   return [...new Map(details.map((service) => [service.id, service])).values()];
 }
@@ -569,11 +772,13 @@ function buildAppointmentWhere({
   branchId,
   rawSearch,
   status,
+  industryType,
 }: {
   businessId: string;
   branchId: string | null;
   rawSearch: string;
   status: string;
+  industryType: string;
 }) {
   const filters: Prisma.AppointmentWhereInput[] = [{ businessId }];
 
@@ -584,7 +789,9 @@ function buildAppointmentWhere({
   if (status === "active") {
     filters.push({
       status: {
-        in: ["SCHEDULED", "CONFIRMED", "ARRIVED", "IN_SERVICE", "CONVERTED_TO_JOB"],
+        in: industryType === "SALON_BEAUTY"
+          ? [...ACTIVE_APPOINTMENT_STATUSES]
+          : ["SCHEDULED", "CONFIRMED", "ARRIVED", "IN_SERVICE", "CONVERTED_TO_JOB"],
       },
     });
   } else if (status === "today") {
@@ -603,7 +810,11 @@ function buildAppointmentWhere({
       status: { in: ["COMPLETED", "CONVERTED_TO_JOB", "CANCELLED", "NO_SHOW"] },
     });
   } else {
-    filters.push({ status: status.toUpperCase() as Prisma.EnumAppointmentStatusFilter["equals"] });
+    filters.push({
+      status: status === "scheduled" && industryType === "SALON_BEAUTY"
+        ? { in: [...ACTIVE_APPOINTMENT_STATUSES] }
+        : (status.toUpperCase() as Prisma.EnumAppointmentStatusFilter["equals"]),
+    });
   }
 
   if (rawSearch) {
@@ -620,7 +831,7 @@ function buildAppointmentWhere({
   return { AND: filters };
 }
 
-function getValidStatus(value?: string) {
+function getValidStatus(value?: string): string {
   return statusFilters.some((item) => item.value === value) ? value! : "active";
 }
 

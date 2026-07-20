@@ -9,10 +9,15 @@ import { endShiftAction, startShiftAction } from "./actions";
 
 type ClosingPageProps = {
   searchParams: Promise<{
+    activityPage?: string;
     message?: string;
+    shiftPage?: string;
     type?: string;
   }>;
 };
+
+const ACTIVITY_PAGE_SIZE = 10;
+const SHIFT_PAGE_SIZE = 10;
 
 const paymentMethodLabels: Record<PaymentMethod, string> = {
   BANK_TRANSFER: "Bank transfer",
@@ -28,6 +33,14 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const params = await searchParams;
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
+  const requestedActivityPage = Math.max(
+    1,
+    Number.parseInt(params.activityPage ?? "1", 10) || 1,
+  );
+  const requestedShiftPage = Math.max(
+    1,
+    Number.parseInt(params.shiftPage ?? "1", 10) || 1,
+  );
 
   if (!context.businessId) {
     return (
@@ -96,7 +109,18 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const currentShiftSummary = openShift
     ? summarizePayments(openShift.payments, openShift.refunds)
     : null;
-  const visibleActivities = buildShiftActivities(openShift ? [openShift] : shifts).slice(0, 80);
+  const allActivities = buildShiftActivities(openShift ? [openShift] : shifts);
+  const activityPageCount = Math.max(1, Math.ceil(allActivities.length / ACTIVITY_PAGE_SIZE));
+  const activityPage = Math.min(requestedActivityPage, activityPageCount);
+  const activityStart = (activityPage - 1) * ACTIVITY_PAGE_SIZE;
+  const visibleActivities = allActivities.slice(
+    activityStart,
+    activityStart + ACTIVITY_PAGE_SIZE,
+  );
+  const shiftPageCount = Math.max(1, Math.ceil(shifts.length / SHIFT_PAGE_SIZE));
+  const shiftPage = Math.min(requestedShiftPage, shiftPageCount);
+  const shiftStart = (shiftPage - 1) * SHIFT_PAGE_SIZE;
+  const visibleShifts = shifts.slice(shiftStart, shiftStart + SHIFT_PAGE_SIZE);
   const canStartShift = isOwner || branches.length > 0;
 
   return (
@@ -175,7 +199,11 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                       <label>
                         <span>Branch</span>
                         {isOwner && branches.length ? (
-                          <select name="branchId" defaultValue="" required>
+                          <select
+                            name="branchId"
+                            defaultValue={branches.length === 1 ? branches[0].id : ""}
+                            required
+                          >
                             <option value="" disabled>
                               Select branch
                             </option>
@@ -263,7 +291,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {shifts.map((shift) => {
+                    {visibleShifts.map((shift) => {
                       const summary = summarizePayments(shift.payments, shift.refunds);
                       const expectedCash =
                         shift.expectedCash ??
@@ -291,6 +319,28 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
             ) : (
               <p className="empty-state">No shifts today.</p>
             )}
+            {shifts.length > SHIFT_PAGE_SIZE ? (
+              <div className="pagination">
+                <Link
+                  className={shiftPage <= 1 ? "disabled" : ""}
+                  href={makeClosingHref(params, { shiftPage: Math.max(1, shiftPage - 1) })}
+                >
+                  Previous
+                </Link>
+                <span>
+                  {shiftStart + 1}-
+                  {Math.min(shiftStart + SHIFT_PAGE_SIZE, shifts.length)} of {shifts.length}
+                </span>
+                <Link
+                  className={shiftPage >= shiftPageCount ? "disabled" : ""}
+                  href={makeClosingHref(params, {
+                    shiftPage: Math.min(shiftPageCount, shiftPage + 1),
+                  })}
+                >
+                  Next
+                </Link>
+              </div>
+            ) : null}
           </ReportCard>
 
           <ReportCard
@@ -331,11 +381,60 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
             ) : (
               <p className="empty-state">No payment or refund records for this shift.</p>
             )}
+            {allActivities.length > ACTIVITY_PAGE_SIZE ? (
+              <div className="pagination">
+                <Link
+                  className={activityPage <= 1 ? "disabled" : ""}
+                  href={makeClosingHref(params, {
+                    activityPage: Math.max(1, activityPage - 1),
+                  })}
+                >
+                  Previous
+                </Link>
+                <span>
+                  {activityStart + 1}-
+                  {Math.min(activityStart + ACTIVITY_PAGE_SIZE, allActivities.length)} of{" "}
+                  {allActivities.length}
+                </span>
+                <Link
+                  className={activityPage >= activityPageCount ? "disabled" : ""}
+                  href={makeClosingHref(params, {
+                    activityPage: Math.min(activityPageCount, activityPage + 1),
+                  })}
+                >
+                  Next
+                </Link>
+              </div>
+            ) : null}
           </ReportCard>
         </section>
       </section>
     </AppShell>
   );
+}
+
+function makeClosingHref(
+  params: Awaited<ClosingPageProps["searchParams"]>,
+  pages: {
+    activityPage?: number;
+    shiftPage?: number;
+  },
+) {
+  const query = new URLSearchParams();
+  const activityPage =
+    pages.activityPage ??
+    Math.max(1, Number.parseInt(params.activityPage ?? "1", 10) || 1);
+  const shiftPage =
+    pages.shiftPage ??
+    Math.max(1, Number.parseInt(params.shiftPage ?? "1", 10) || 1);
+
+  if (params.message) query.set("message", params.message);
+  if (params.type) query.set("type", params.type);
+  if (activityPage > 1) query.set("activityPage", String(activityPage));
+  if (shiftPage > 1) query.set("shiftPage", String(shiftPage));
+
+  const search = query.toString();
+  return search ? `/closing?${search}` : "/closing";
 }
 
 type ShiftActivity = {

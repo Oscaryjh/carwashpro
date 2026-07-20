@@ -6,6 +6,11 @@ export const serviceSchema = z.object({
   category: z.string().trim().optional(),
   description: z.string().trim().optional(),
   price: z.coerce.number().min(0, "Price must be 0 or more."),
+  taxable: z.boolean().default(true),
+  taxRate: z.preprocess(
+    (value) => (value === "" || value == null ? undefined : value),
+    z.coerce.number().min(0, "Tax rate cannot be negative.").max(100, "Tax rate cannot exceed 100.").optional(),
+  ),
   durationMinutes: z.preprocess(
     (value) => (value === "" || value == null ? undefined : value),
     z.coerce

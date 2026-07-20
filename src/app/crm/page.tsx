@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
-import { requireCrmUser } from "@/lib/auth/crm";
+import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { prisma } from "@/lib/prisma";
 import { normalizePlateNumber } from "@/lib/validation/crm";
 
@@ -15,7 +15,9 @@ type CrmPageProps = {
 const CUSTOMERS_PER_PAGE = 30;
 
 export default async function CrmPage({ searchParams }: CrmPageProps) {
-  const { user, businessId } = await requireCrmUser();
+  const context = await requireBusinessIndustryContext();
+  const { user, businessId } = context;
+  const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const { q, plate, page } = await searchParams;
   const rawSearch = (q ?? plate ?? "").trim();
   const normalizedPlate = rawSearch ? normalizePlateNumber(rawSearch) : "";
@@ -75,9 +77,10 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       })
     : [];
 
-  const [customerCount, vehicleCount, customers] = await Promise.all([
+  const [customerCount, vehicleCount, appointmentCount, customers] = await Promise.all([
     prisma.customer.count({ where: { businessId } }),
     prisma.vehicle.count({ where: { businessId } }),
+    prisma.appointment.count({ where: { businessId } }),
     prisma.customer.findMany({
       where: { businessId },
       include: {
@@ -99,42 +102,64 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
 
   return (
     <AppShell user={user}>
-      <section className="content">
+      <section className="content crm-page">
         <div className="page-header">
           <div>
             <h1>CRM</h1>
           </div>
           <Link className="button-link" href={newCustomerHref}>
-            + Customer
+            New customer
           </Link>
         </div>
 
-        <div className="grid crm-metrics">
+        <div className="panel crm-metrics" aria-label="CRM summary">
           <Metric label="Customers" value={customerCount} />
-          <Metric label="Vehicles" value={vehicleCount} />
+          <Metric
+            label={isSalonBusiness ? "Appointments" : "Vehicles"}
+            value={isSalonBusiness ? appointmentCount : vehicleCount}
+          />
         </div>
 
-        <div className="panel crm-search-panel">
-          <h2>Find customer or vehicle</h2>
-          <form className="search-form" action="/crm">
-            <input
-              name="q"
-              placeholder="Plate number, phone, or customer name"
-              defaultValue={rawSearch}
-            />
-            <button type="submit">Search</button>
-          </form>
+        <div className="panel crm-directory-panel">
+          <div className="crm-directory-toolbar">
+            <div>
+              <h2>Customers</h2>
+              <p>
+                Showing {customers.length ? customerSkip + 1 : 0}-
+                {customerSkip + customers.length} of {customerCount}
+              </p>
+            </div>
+            <form className="search-form crm-directory-search" action="/crm">
+              <input
+                name="q"
+                aria-label={isSalonBusiness ? "Find customer" : "Find customer or vehicle"}
+                placeholder={
+                  isSalonBusiness
+                    ? "Search phone, email, or customer name"
+                    : "Search plate, phone, or customer name"
+                }
+                defaultValue={rawSearch}
+              />
+              <button type="submit">Search</button>
+            </form>
+          </div>
 
           {rawSearch ? (
             customerProfiles.length ? (
               <div className="customer-record-list">
                 {customerProfiles.map((customer) => (
-                  <CustomerRecord key={customer.id} customer={customer} />
+                  <CustomerRecord
+                    key={customer.id}
+                    customer={customer}
+                    isSalonBusiness={isSalonBusiness}
+                  />
                 ))}
               </div>
             ) : (
               <div className="result-box">
-                <strong>No customer or vehicle found for {rawSearch}</strong>
+                <strong>
+                  No {isSalonBusiness ? "customer" : "customer or vehicle"} found for {rawSearch}
+                </strong>
                 <div className="inline-actions">
                   <Link
                     className="button-link"
@@ -147,55 +172,46 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             )
           ) : null}
 
-        </div>
-
-        <div className="panel crm-customer-list-panel">
-          <div className="section-header">
-            <div>
-              <h2>Customer list</h2>
-              <p>
-                Showing {customers.length ? customerSkip + 1 : 0}-
-                {customerSkip + customers.length} of {customerCount}
-              </p>
-            </div>
-          </div>
-
           {customers.length ? (
             <>
-              <table className="table customer-directory-table crm-home-customer-table">
-                <thead>
-                  <tr>
-                    <th>No.</th>
-                    <th>Customer</th>
-                    <th>Contact</th>
-                    <th>Email</th>
-                    <th>Vehicles</th>
-                    <th>Joined</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customers.map((customer, index) => (
-                    <tr key={customer.id}>
-                      <td className="table-number">{customerSkip + index + 1}</td>
-                      <td>
-                        <Link href={`/crm/customers/${customer.id}`}>
-                          <strong>{customer.name}</strong>
-                        </Link>
-                      </td>
-                      <td>{customer.phone}</td>
-                      <td className="muted">{customer.email || "No email"}</td>
-                      <td>{customer._count.vehicles}</td>
-                      <td>{formatDate(customer.createdAt)}</td>
-                      <td>
-                        <div className="inline-actions">
-                          <Link href={`/crm/customers/${customer.id}`}>View</Link>
-                        </div>
-                      </td>
+              <div className="crm-table-scroll">
+                <table
+                  className={`table customer-directory-table crm-home-customer-table${
+                    isSalonBusiness ? " crm-home-customer-table--salon" : ""
+                  }`}
+                >
+                  <thead>
+                    <tr>
+                      <th>No.</th>
+                      <th>Customer</th>
+                      <th>Contact</th>
+                      <th>Email</th>
+                      {!isSalonBusiness ? <th>Vehicles</th> : null}
+                      <th>Joined</th>
+                      <th aria-label="Actions" />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {customers.map((customer, index) => (
+                      <tr key={customer.id}>
+                        <td className="table-number">{customerSkip + index + 1}</td>
+                        <td>
+                          <Link href={`/crm/customers/${customer.id}`}>
+                            <strong>{customer.name}</strong>
+                          </Link>
+                        </td>
+                        <td>{customer.phone}</td>
+                        <td className="muted">{customer.email || "No email"}</td>
+                        {!isSalonBusiness ? <td>{customer._count.vehicles}</td> : null}
+                        <td>{formatDate(customer.createdAt)}</td>
+                        <td className="crm-table-action">
+                          <Link href={`/crm/customers/${customer.id}`}>View</Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               <div className="pagination">
                 <span>
@@ -226,7 +242,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="panel metric">
+    <div className="metric">
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -257,6 +273,7 @@ function formatDate(value: Date) {
 }
 
 type CustomerRecordProps = {
+  isSalonBusiness: boolean;
   customer: {
     id: string;
     name: string;
@@ -274,7 +291,7 @@ type CustomerRecordProps = {
   };
 };
 
-function CustomerRecord({ customer }: CustomerRecordProps) {
+function CustomerRecord({ customer, isSalonBusiness }: CustomerRecordProps) {
   return (
     <article className="customer-record-card">
       <div className="customer-record-main">
@@ -293,7 +310,7 @@ function CustomerRecord({ customer }: CustomerRecordProps) {
         </div>
       </div>
 
-      {customer.vehicles.length ? (
+      {!isSalonBusiness && customer.vehicles.length ? (
         <div className="vehicle-chip-list">
           {customer.vehicles.map((vehicle) => (
             <Link
@@ -310,7 +327,7 @@ function CustomerRecord({ customer }: CustomerRecordProps) {
             </Link>
           ))}
         </div>
-      ) : (
+      ) : !isSalonBusiness ? (
         <div className="result-box">
           <span>No vehicles yet.</span>
           <Link
@@ -320,7 +337,7 @@ function CustomerRecord({ customer }: CustomerRecordProps) {
             Add vehicle
           </Link>
         </div>
-      )}
+      ) : null}
     </article>
   );
 }

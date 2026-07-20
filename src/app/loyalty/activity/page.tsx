@@ -18,8 +18,10 @@ type LoyaltyActivityPageProps = {
 const PAGE_SIZE = 25;
 const transactionTypes: LoyaltyTransactionType[] = [
   "EARN",
+  "REDEEM",
   "WELCOME_BONUS",
   "REFUND_REVERSAL",
+  "REDEMPTION_REFUND",
   "MANUAL_ADJUSTMENT",
 ];
 const activityRanges = ["today", "7days", "30days"] as const;

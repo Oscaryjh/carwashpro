@@ -8,7 +8,7 @@ export function isPlatformAdmin(user: AppSession) {
 
 export function assertRole(user: AppSession, roles: UserRole[]) {
   if (!roles.includes(user.role)) {
-    redirect("/dashboard");
+    redirect("/reports");
   }
 }
 
@@ -31,5 +31,5 @@ export function assertCanManageBusiness(user: AppSession, businessId: string) {
     return;
   }
 
-  redirect("/dashboard");
+  redirect("/reports");
 }

@@ -23,6 +23,7 @@ type WhatsAppCustomerPickerProps = {
   buttonLabel?: string;
   conversationId?: string;
   customers: WhatsAppCustomerPickerCustomer[];
+  includeVehicleDetails?: boolean;
   title?: string;
 };
 
@@ -30,6 +31,7 @@ export function WhatsAppCustomerPicker({
   buttonLabel,
   conversationId,
   customers,
+  includeVehicleDetails = true,
   title = "CRM Customers",
 }: WhatsAppCustomerPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -47,12 +49,14 @@ export function WhatsAppCustomerPicker({
           customer.name,
           customer.phone,
           customer.email ?? "",
-          ...customer.vehicles.flatMap((vehicle) => [
-            vehicle.plateNumber,
-            vehicle.brand ?? "",
-            vehicle.model ?? "",
-            vehicle.color ?? "",
-          ]),
+          ...(includeVehicleDetails
+            ? customer.vehicles.flatMap((vehicle) => [
+                vehicle.plateNumber,
+                vehicle.brand ?? "",
+                vehicle.model ?? "",
+                vehicle.color ?? "",
+              ])
+            : []),
         ]
           .join(" ")
           .toLowerCase();
@@ -60,7 +64,7 @@ export function WhatsAppCustomerPicker({
         return searchable.includes(normalizedQuery);
       })
       .slice(0, 40);
-  }, [customers, query]);
+  }, [customers, includeVehicleDetails, query]);
 
   return (
     <>
@@ -97,7 +101,11 @@ export function WhatsAppCustomerPicker({
             <input
               autoFocus
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search customer, phone, email, or plate"
+              placeholder={
+                includeVehicleDetails
+                  ? "Search customer, phone, email, or plate"
+                  : "Search customer, phone, or email"
+              }
               type="search"
               value={query}
             />
@@ -128,7 +136,7 @@ export function WhatsAppCustomerPicker({
                       <span>
                         <strong>{customer.name}</strong>
                         <small>{customer.phone}</small>
-                        {customer.vehicles[0] ? (
+                        {includeVehicleDetails && customer.vehicles[0] ? (
                           <small>
                             {[
                               customer.vehicles[0].plateNumber,

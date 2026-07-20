@@ -63,20 +63,20 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("DASHBOARD")
-      ? [
-          {
-            href: isSalonBusiness ? "/salon/dashboard" : "/dashboard",
-            label: "Dashboard",
-            shortLabel: "Dash",
-            icon: "dashboard" as const,
-          },
-        ]
-      : []),
     ...(!isSalonBusiness && isStoreUser && canSee("JOBS")
       ? [
           {
             href: "/work-orders",
+            label: "Cashier",
+            shortLabel: "Cashier",
+            icon: "jobs" as const,
+          },
+        ]
+      : []),
+    ...(isSalonBusiness && isStoreUser && canSee("POS")
+      ? [
+          {
+            href: "/cashier",
             label: "Cashier",
             shortLabel: "Cashier",
             icon: "jobs" as const,
@@ -93,7 +93,7 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(!isSalonBusiness && isStoreUser && canSee("CRM")
+    ...(isStoreUser && canSee("CRM")
       ? [{ href: "/crm", label: "CRM", shortLabel: "CRM", icon: "crm" as const }]
       : []),
     ...(!isSalonBusiness && isStoreUser && canSee("LOYALTY")
@@ -106,7 +106,7 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(!isSalonBusiness && isStoreUser && canSee("INVOICES")
+    ...(isStoreUser && canSee("INVOICES")
       ? [
           {
             href: "/invoices",
@@ -116,7 +116,7 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(!isSalonBusiness && isStoreUser && canSee("CLOSING")
+    ...(isStoreUser && canSee("CLOSING")
       ? [
           {
             href: "/closing",
@@ -147,7 +147,7 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(!isSalonBusiness && isStoreUser && canSee("REPORTS")
+    ...(isStoreUser && canSee("REPORTS")
       ? [
           {
             href: "/reports",
@@ -161,19 +161,29 @@ export async function AppShell({ user, children }: AppShellProps) {
       ? [
           {
             href: "/services",
-            label: isSalonBusiness ? "Salon Services" : "Services",
+            label: "Services",
             shortLabel: "Svc",
             icon: "services" as const,
           },
         ]
       : []),
-    ...(!isSalonBusiness && isStoreUser && canSee("PACKAGES")
+    ...(isStoreUser && canSee("PACKAGES")
       ? [
           {
             href: "/packages",
             label: "Packages",
             shortLabel: "Pkg",
             icon: "packages" as const,
+          },
+        ]
+      : []),
+    ...(isStoreUser && canSee("PRODUCTS")
+      ? [
+          {
+            href: "/products",
+            label: "Products",
+            shortLabel: "Prod",
+            icon: "services" as const,
           },
         ]
       : []),

@@ -8,7 +8,13 @@ type AppointmentCustomer = {
   phone: string;
 };
 
-export function AppointmentCustomerPicker() {
+type AppointmentCustomerPickerProps = {
+  onSelectionChange?: (customer: AppointmentCustomer | null) => void;
+};
+
+export function AppointmentCustomerPicker({
+  onSelectionChange,
+}: AppointmentCustomerPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [customers, setCustomers] = useState<AppointmentCustomer[]>([]);
@@ -71,6 +77,7 @@ export function AppointmentCustomerPicker() {
 
   function chooseCustomer(customer: AppointmentCustomer) {
     setSelectedCustomer(customer);
+    onSelectionChange?.(customer);
     setIsOpen(false);
     setQuery("");
     setCustomers([]);
@@ -100,7 +107,11 @@ export function AppointmentCustomerPicker() {
       <span>Customer</span>
       <input name="customerId" type="hidden" value={selectedCustomer?.id ?? ""} />
       <div className="vehicle-picker-input-row" onClick={() => setIsOpen(true)}>
-        <span aria-hidden="true">{"\u263a"}</span>
+        <span aria-hidden="true" className="appointment-picker-icon appointment-customer-icon">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M12 12.2a4.2 4.2 0 1 0 0-8.4 4.2 4.2 0 0 0 0 8.4Zm0-6.6a2.4 2.4 0 1 1 0 4.8 2.4 2.4 0 0 1 0-4.8ZM4.1 20.2c.4-3.2 3.7-5.3 7.9-5.3s7.5 2.1 7.9 5.3c.1.5-.3.9-.8.9H4.9c-.5 0-.9-.4-.8-.9Zm2.1-.9h11.6c-.8-1.3-2.9-2.6-5.8-2.6s-5 1.3-5.8 2.6Z" />
+          </svg>
+        </span>
         <input
           aria-readonly="true"
           onFocus={() => setIsOpen(true)}

@@ -92,7 +92,10 @@ export default async function ServiceDetailsPage({
           />
           <Info label="Status" value={service.status} />
           <Info label="Branch" value={service.branch?.name ?? "All branches"} />
-          <Info label="Work order usage" value={service._count.items} />
+          <Info
+            label={isSalonBusiness ? "Service usage" : "Work order usage"}
+            value={service._count.items}
+          />
           <Info label="Package usage" value={service._count.packages} />
           {isSalonBusiness ? (
             <Info

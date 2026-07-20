@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Prisma } from "@prisma/client";
 import { AppShell } from "@/components/app-shell";
 import { WorkOrderQuickCreateModal } from "@/components/work-order-quick-create-modal";
+import { type ProductSaleOption } from "@/components/product-sale-form";
 import { WorkOrderFilterForm } from "@/components/work-order-filter-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
@@ -12,6 +13,7 @@ import {
   purchasePackageFromCashierAction,
   updateWorkOrderStatusAction,
 } from "./actions";
+import { sellProductAction } from "@/app/products/actions";
 
 type WorkOrdersPageProps = {
   searchParams: Promise<{
@@ -67,7 +69,7 @@ export default async function WorkOrdersPage({
     date,
   });
 
-  const [workOrders, totalCount, services, packages, branches] = await Promise.all([
+  const [workOrders, totalCount, services, packages, products, branches, business] = await Promise.all([
     prisma.workOrder.findMany({
       where,
       include: {
@@ -98,9 +100,19 @@ export default async function WorkOrdersPage({
         businessId,
         status: "ACTIVE",
       },
+      include: { service: { select: { taxable: true, taxRate: true } } },
+      orderBy: { name: "asc" },
+    }),
+    prisma.product.findMany({
+      where: { businessId, status: "ACTIVE" },
+      include: { stocks: true },
       orderBy: { name: "asc" },
     }),
     getOperationalBranches(businessId, user),
+    prisma.business.findUniqueOrThrow({
+      where: { id: businessId },
+      select: { sstEnabled: true, sstLabel: true, sstRate: true },
+    }),
   ]);
   const serviceOptions = services.map((service) => ({
     id: service.id,
@@ -113,7 +125,21 @@ export default async function WorkOrdersPage({
     id: packageOption.id,
     name: packageOption.name,
     price: Number(packageOption.price),
+    taxable: packageOption.service?.taxable ?? true,
+    taxRate: packageOption.service?.taxRate == null ? null : Number(packageOption.service.taxRate),
     totalUses: packageOption.totalUses,
+  }));
+  const productOptions: ProductSaleOption[] = products.map((product) => ({
+    id: product.id,
+    name: product.name,
+    sku: product.sku,
+    price: Number(product.price),
+    taxable: product.taxable,
+    taxRate: product.taxRate == null ? null : Number(product.taxRate),
+    stock: product.stocks.map((stock) => ({
+      branchId: stock.branchId,
+      quantity: stock.quantity,
+    })),
   }));
 
   const totalPages = Math.max(Math.ceil(totalCount / PAGE_SIZE), 1);
@@ -137,7 +163,14 @@ export default async function WorkOrdersPage({
             branches={branches}
             packageAction={purchasePackageFromCashierAction}
             packages={packageOptions}
+            productAction={sellProductAction}
+            products={productOptions}
             services={serviceOptions}
+            taxSettings={{
+              enabled: business.sstEnabled,
+              label: business.sstLabel,
+              rate: Number(business.sstRate),
+            }}
           />
         </div>
 

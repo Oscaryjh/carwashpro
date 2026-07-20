@@ -1,7 +1,7 @@
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { CustomerForm } from "@/components/customer-form";
-import { requireCrmUser } from "@/lib/auth/crm";
+import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { getActiveBranches } from "@/lib/branches";
 import { normalizePlateNumber } from "@/lib/validation/crm";
 import { createCustomerAction } from "../../actions";
@@ -19,7 +19,9 @@ type NewCustomerPageProps = {
 export default async function NewCustomerPage({
   searchParams,
 }: NewCustomerPageProps) {
-  const { user, businessId } = await requireCrmUser();
+  const context = await requireBusinessIndustryContext();
+  const { user, businessId } = context;
+  const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const { name, notes, phone, plate, whatsappConversationId } = await searchParams;
   const initialVehiclePlate = plate ? normalizePlateNumber(plate) : "";
   const branches = await getActiveBranches(businessId);
@@ -30,7 +32,11 @@ export default async function NewCustomerPage({
         <div className="page-header">
           <div>
             <h1>New Customer</h1>
-            <p>Add the customer and vehicle under this business.</p>
+            <p>
+              {isSalonBusiness
+                ? "Add a customer profile under this business."
+                : "Add the customer and vehicle under this business."}
+            </p>
           </div>
           <BackButton fallbackHref="/crm" />
         </div>
@@ -43,6 +49,7 @@ export default async function NewCustomerPage({
             initialNotes={notes ?? ""}
             initialPhone={phone ?? ""}
             initialVehiclePlate={initialVehiclePlate}
+            isSalonBusiness={isSalonBusiness}
             whatsappConversationId={whatsappConversationId}
           />
         </div>

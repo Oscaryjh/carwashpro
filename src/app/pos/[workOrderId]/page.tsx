@@ -8,6 +8,7 @@ import { PosReceiptTotalsPreview } from "@/components/pos-payment-preview";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
+import { calculateTax } from "@/lib/tax/calculator";
 import { packageAllowsVehicle } from "@/lib/vehicle-size";
 import { recordPaymentAction, usePackagePaymentAction } from "../actions";
 
@@ -34,6 +35,9 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
       vehicle: true,
       items: {
         orderBy: { createdAt: "asc" },
+        include: {
+          service: { select: { taxable: true, taxRate: true } },
+        },
       },
       payments: {
         orderBy: { paidAt: "desc" },
@@ -46,7 +50,22 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
     notFound();
   }
 
-  const balance = Number(workOrder.balance);
+  const projectedTax = workOrder.invoice
+    ? null
+    : calculateTax({
+        sstEnabled: workOrder.business.sstEnabled,
+        sstLabel: workOrder.business.sstLabel,
+        sstRate: Number(workOrder.business.sstRate),
+        lines: workOrder.items.map((item) => ({
+          lineTotal: Number(item.lineTotal),
+          taxable: item.service?.taxable ?? false,
+          taxRate: item.service?.taxRate == null ? null : Number(item.service.taxRate),
+        })),
+      });
+  const checkoutTotal = workOrder.invoice
+    ? Number(workOrder.invoice.total)
+    : projectedTax?.total ?? Number(workOrder.total);
+  const balance = Math.max(0, checkoutTotal - Number(workOrder.paidAmount));
   const openShift = await prisma.cashierShift.findFirst({
     where: {
       businessId,
@@ -182,9 +201,11 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
             </div>
 
             <PosReceiptTotalsPreview
-              total={Number(workOrder.total)}
+              total={checkoutTotal}
               paidAmount={Number(workOrder.paidAmount)}
               balance={balance}
+              taxAmount={workOrder.invoice ? Number(workOrder.invoice.taxAmount) : projectedTax?.tax ?? 0}
+              taxLabel={workOrder.invoice?.taxLabel ?? projectedTax?.taxLabel}
             />
 
             {workOrder.payments.length ? (

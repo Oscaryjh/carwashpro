@@ -1,15 +1,17 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
-import { SalonAppointmentPaymentForm } from "@/components/salon-appointment-payment-form";
+import { SalonAppointmentCheckoutModal } from "@/components/salon-appointment-checkout-modal";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
+import { calculateTax } from "@/lib/tax/calculator";
 import {
   canMoveAppointmentStatus,
   formatAppointmentStatus,
 } from "@/lib/validation/appointments";
 import {
+  addAppointmentServicesAction,
   convertAppointmentToJobAction,
   updateAppointmentStatusAction,
 } from "../actions";
@@ -18,13 +20,19 @@ type AppointmentDetailPageProps = {
   params: Promise<{
     appointmentId: string;
   }>;
+  searchParams: Promise<{
+    checkout?: string;
+    legacy?: string;
+  }>;
 };
 
 export default async function AppointmentDetailPage({
   params,
+  searchParams,
 }: AppointmentDetailPageProps) {
   const { user, businessId, industryType } = await requireBusinessUser();
   const { appointmentId } = await params;
+  const { checkout, legacy } = await searchParams;
   const appointment = await prisma.appointment.findFirst({
     where: {
       id: appointmentId,
@@ -34,6 +42,9 @@ export default async function AppointmentDetailPage({
         : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
     },
     include: {
+      business: {
+        select: { sstEnabled: true, sstLabel: true, sstRate: true },
+      },
       branch: true,
       customer: true,
       notificationQueues: {
@@ -62,6 +73,21 @@ export default async function AppointmentDetailPage({
     notFound();
   }
 
+  if (legacy !== "1") {
+    const query = new URLSearchParams({
+      appointment: appointment.id,
+      date: toLocalDateValue(appointment.scheduledAt),
+      page: "1",
+      status: "active",
+    });
+
+    if (checkout === "1") {
+      query.set("checkout", "1");
+    }
+
+    redirect(`/appointments?${query.toString()}`);
+  }
+
   const canConvert =
     industryType !== "SALON_BEAUTY" &&
     Boolean(appointment.vehicle) &&
@@ -76,18 +102,55 @@ export default async function AppointmentDetailPage({
       ? [appointment.service]
       : [];
   const serviceNames = selectedServices.map((service) => service.name);
+  const canAddSalonServices =
+    industryType === "SALON_BEAUTY" &&
+    ["SCHEDULED", "CONFIRMED", "ARRIVED", "IN_SERVICE"].includes(appointment.status) &&
+    !appointment.invoice;
+  const availableServices = canAddSalonServices
+    ? await prisma.service.findMany({
+        where: { businessId, status: "ACTIVE" },
+        orderBy: [{ category: "asc" }, { name: "asc" }],
+        select: { id: true, category: true, name: true, price: true },
+      })
+    : [];
+  const selectedServiceIds = new Set(selectedServices.map((service) => service.id));
   const serviceTotal = selectedServices.reduce(
     (sum, service) => sum + Number(service.price),
     0,
   );
+  const projectedSalonTax = calculateTax({
+    sstEnabled: appointment.business.sstEnabled,
+    sstLabel: appointment.business.sstLabel,
+    sstRate: Number(appointment.business.sstRate),
+    lines: selectedServices.map((service) => ({
+      lineTotal: Number(service.price),
+      taxable: service.taxable,
+      taxRate: service.taxRate == null ? null : Number(service.taxRate),
+    })),
+  });
   const salonInvoice = industryType === "SALON_BEAUTY" ? appointment.invoice : null;
-  const salonBalance = salonInvoice ? Number(salonInvoice.balance) : serviceTotal;
+  const salonBalance = salonInvoice
+    ? Number(salonInvoice.balance)
+    : projectedSalonTax.total;
   const canTakeSalonPayment =
     industryType === "SALON_BEAUTY" &&
-    ["ARRIVED", "IN_SERVICE", "COMPLETED"].includes(appointment.status) &&
+    appointment.status === "COMPLETED" &&
     selectedServices.length > 0 &&
     salonBalance > 0;
-
+  const canOpenSalonCheckout =
+    industryType === "SALON_BEAUTY" &&
+    appointment.status === "COMPLETED" &&
+    selectedServices.length > 0;
+  const hasOpenShift = Boolean(
+    await prisma.cashierShift.findFirst({
+      where: {
+        businessId,
+        cashierId: user.userId,
+        status: "OPEN",
+      },
+      select: { id: true },
+    }),
+  );
   return (
     <AppShell user={user}>
       <section className="content">
@@ -95,7 +158,9 @@ export default async function AppointmentDetailPage({
           <div>
             <h1>{appointment.customer.name}</h1>
             <p>
-              {appointment.vehicle ? `${appointment.vehicle.plateNumber} / ` : ""}
+              {industryType !== "SALON_BEAUTY" && appointment.vehicle
+                ? `${appointment.vehicle.plateNumber} / `
+                : ""}
               {appointment.scheduledAt.toLocaleString()}
             </p>
           </div>
@@ -106,7 +171,7 @@ export default async function AppointmentDetailPage({
           <Info label="Status" value={formatAppointmentStatus(appointment.status)} />
           <Info label="Branch" value={appointment.branch?.name ?? "All branches"} />
           <Info label="Customer" value={`${appointment.customer.name} - ${appointment.customer.phone}`} />
-          {appointment.vehicle ? (
+          {industryType !== "SALON_BEAUTY" && appointment.vehicle ? (
             <Info
               label="Vehicle"
               value={`${appointment.vehicle.plateNumber} ${vehicleDetails(appointment.vehicle)}`}
@@ -137,11 +202,7 @@ export default async function AppointmentDetailPage({
 
           <div className="inline-actions">
             {([
-              "CONFIRMED",
-              "ARRIVED",
-              ...(industryType === "SALON_BEAUTY"
-                ? (["IN_SERVICE", "COMPLETED"] as const)
-                : []),
+              ...(industryType === "SALON_BEAUTY" ? (["COMPLETED"] as const) : []),
               "CANCELLED",
               "NO_SHOW",
             ] as const).map(
@@ -166,12 +227,14 @@ export default async function AppointmentDetailPage({
 
             {appointment.workOrder ? (
               <Link className="button-link" href={`/work-orders/${appointment.workOrder.id}`}>
-                Open Job
+                {industryType === "SALON_BEAUTY" ? "Open service order" : "Open Job"}
               </Link>
             ) : canConvert ? (
               <form action={convertAppointmentToJobAction}>
                 <input type="hidden" name="appointmentId" value={appointment.id} />
-                <button type="submit">Create Job</button>
+                <button type="submit">
+                  Create Job
+                </button>
               </form>
             ) : industryType !== "SALON_BEAUTY" ? (
               <p className="empty-state">
@@ -184,65 +247,123 @@ export default async function AppointmentDetailPage({
         </div>
 
         {industryType === "SALON_BEAUTY" ? (
-          <div className="panel salon-checkout-panel">
-            <div className="section-header">
-              <div>
-                <h2>Payment</h2>
-                <p className="muted">
-                  Payment and appointment status are tracked separately.
-                </p>
-              </div>
-              {salonInvoice ? (
-                <Link className="secondary-link-button" href={`/invoices/${salonInvoice.id}`}>
-                  View invoice
-                </Link>
-              ) : null}
-            </div>
-
-            <div className="grid salon-payment-metrics">
-              <Info
-                label="Total"
-                value={`RM${(salonInvoice ? Number(salonInvoice.total) : serviceTotal).toFixed(2)}`}
-              />
-              <Info
-                label="Paid"
-                value={`RM${Number(salonInvoice?.paidAmount ?? 0).toFixed(2)}`}
-              />
-              <Info label="Balance" value={`RM${salonBalance.toFixed(2)}`} />
-              <Info
-                label="Payment status"
-                value={salonInvoice ? formatPaymentStatus(salonInvoice.status) : "Unpaid"}
-              />
-            </div>
-
-            {canTakeSalonPayment ? (
-              <SalonAppointmentPaymentForm
-                appointmentId={appointment.id}
-                balance={salonBalance}
-              />
-            ) : salonBalance <= 0 ? (
-              <p className="empty-state">This appointment is fully paid.</p>
-            ) : selectedServices.length === 0 ? (
-              <p className="empty-state">Select at least one service before checkout.</p>
-            ) : (
-              <p className="empty-state">
-                Mark the customer as arrived before taking payment.
-              </p>
-            )}
-
-            {salonInvoice?.payments.length ? (
-              <div className="pos-payment-history">
-                <h3>Payment history</h3>
-                {salonInvoice.payments.map((payment) => (
-                  <div className="pos-history-row" key={payment.id}>
-                    <span>{payment.paidAt.toLocaleString()}</span>
-                    <strong>RM{Number(payment.amount).toFixed(2)}</strong>
-                    <small>{formatPaymentStatus(payment.method)}</small>
+          <>
+            {canAddSalonServices ? (
+              <div className="panel salon-add-service-panel">
+                <div className="section-header">
+                  <div>
+                    <h2>Add services</h2>
+                    <p className="muted">Add extra services while the customer is being served.</p>
                   </div>
-                ))}
+                </div>
+                {availableServices.filter((service) => !selectedServiceIds.has(service.id)).length ? (
+                  <form action={addAppointmentServicesAction} className="salon-add-service-form">
+                    <input type="hidden" name="appointmentId" value={appointment.id} />
+                    <div className="salon-add-service-list">
+                      {availableServices.map((service) => (
+                        <label className={`salon-add-service-option${selectedServiceIds.has(service.id) ? " is-selected" : ""}`} key={service.id}>
+                          <input
+                            defaultChecked={false}
+                            disabled={selectedServiceIds.has(service.id)}
+                            name="serviceIds"
+                            type="checkbox"
+                            value={service.id}
+                          />
+                          <span>
+                            <strong>{service.name}</strong>
+                            <small>{service.category || "Service"}</small>
+                          </span>
+                          <b>RM{Number(service.price).toFixed(2)}</b>
+                        </label>
+                      ))}
+                    </div>
+                    <button type="submit">Add selected services</button>
+                  </form>
+                ) : (
+                  <p className="empty-state">All active services are already included.</p>
+                )}
               </div>
             ) : null}
-          </div>
+            <div className="panel salon-checkout-panel">
+              <div className="section-header">
+                <div>
+                  <h2>Payment</h2>
+                  <p className="muted">
+                    Payment and appointment status are tracked separately.
+                  </p>
+                </div>
+                {salonInvoice ? (
+                  <Link className="secondary-link-button" href={`/invoices/${salonInvoice.id}`}>
+                    View invoice
+                  </Link>
+                ) : null}
+              </div>
+
+              <div className="grid salon-payment-metrics">
+                <Info
+                  label="Total"
+                  value={`RM${(salonInvoice ? Number(salonInvoice.total) : serviceTotal).toFixed(2)}`}
+                />
+                <Info
+                  label="Paid"
+                  value={`RM${Number(salonInvoice?.paidAmount ?? 0).toFixed(2)}`}
+                />
+                <Info label="Balance" value={`RM${salonBalance.toFixed(2)}`} />
+                <Info
+                  label="Payment status"
+                  value={salonInvoice ? formatPaymentStatus(salonInvoice.status) : "Unpaid"}
+                />
+              </div>
+
+              {canOpenSalonCheckout ? (
+                <SalonAppointmentCheckoutModal
+                  appointmentId={appointment.id}
+                  balance={salonBalance}
+                  canTakePayment={canTakeSalonPayment}
+                  customerName={appointment.customer.name}
+                  customerPhone={appointment.customer.phone}
+                  hasInvoice={Boolean(salonInvoice)}
+                  hasOpenShift={hasOpenShift}
+                  initialOpen={checkout === "1"}
+                  services={selectedServices.map((service) => ({
+                    name: service.name,
+                    price: Number(service.price),
+                  }))}
+                  subtotal={salonInvoice ? Number(salonInvoice.subtotal) : serviceTotal}
+                  totalAmount={salonInvoice ? Number(salonInvoice.total) : projectedSalonTax.total}
+                  taxLines={selectedServices.map((service) => ({
+                    lineTotal: Number(service.price),
+                    taxable: service.taxable,
+                    taxRate: service.taxRate == null ? null : Number(service.taxRate),
+                  }))}
+                  sstEnabled={appointment.business.sstEnabled}
+                  sstLabel={appointment.business.sstLabel}
+                  sstRate={Number(appointment.business.sstRate)}
+                />
+              ) : salonBalance <= 0 ? (
+                <p className="empty-state">This appointment is fully paid.</p>
+              ) : selectedServices.length === 0 ? (
+                <p className="empty-state">Select at least one service before checkout.</p>
+              ) : (
+                <p className="empty-state">
+                  Complete the service before checkout.
+                </p>
+              )}
+
+              {salonInvoice?.payments.length ? (
+                <div className="pos-payment-history">
+                  <h3>Payment history</h3>
+                  {salonInvoice.payments.map((payment) => (
+                    <div className="pos-history-row" key={payment.id}>
+                      <span>{payment.paidAt.toLocaleString()}</span>
+                      <strong>RM{Number(payment.amount).toFixed(2)}</strong>
+                      <small>{formatPaymentStatus(payment.method)}</small>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </>
         ) : null}
 
         <div className="panel">
@@ -263,21 +384,17 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
+function toLocalDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 function actionLabel(status: string) {
-  if (status === "CONFIRMED") {
-    return "Confirm";
-  }
-
-  if (status === "ARRIVED") {
-    return "Mark Arrived";
-  }
-
   if (status === "NO_SHOW") {
     return "No Show";
-  }
-
-  if (status === "IN_SERVICE") {
-    return "Start Service";
   }
 
   if (status === "COMPLETED") {
@@ -362,6 +479,8 @@ async function getServices(serviceIds: string[], businessId: string) {
       id: true,
       name: true,
       price: true,
+      taxable: true,
+      taxRate: true,
     },
   });
 

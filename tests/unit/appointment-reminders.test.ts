@@ -26,6 +26,16 @@ test("appointments within 24 hours are queued immediately", () => {
   assert.equal(getAppointmentReminderAt(scheduledAt, now)?.toISOString(), now.toISOString());
 });
 
+test("appointment reminder lead time can be configured per business", () => {
+  const now = new Date("2026-07-13T02:00:00.000Z");
+  const scheduledAt = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+
+  assert.equal(
+    getAppointmentReminderAt(scheduledAt, now, 2 * 60 * 60 * 1000)?.toISOString(),
+    new Date(scheduledAt.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+  );
+});
+
 test("past appointments are not scheduled", () => {
   const now = new Date("2026-07-13T02:00:00.000Z");
 

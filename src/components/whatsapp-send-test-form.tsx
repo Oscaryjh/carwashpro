@@ -9,7 +9,7 @@ type SendStatus = {
 
 export function WhatsAppSendTestForm() {
   const [phone, setPhone] = useState("");
-  const [message, setMessage] = useState("WashFlow test message from system");
+  const [message, setMessage] = useState("Tetamu POS test message from system");
   const [isSending, setIsSending] = useState(false);
   const [status, setStatus] = useState<SendStatus | null>(null);
 

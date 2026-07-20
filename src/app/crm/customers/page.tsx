@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
-import { requireCrmUser } from "@/lib/auth/crm";
+import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { prisma } from "@/lib/prisma";
 import { normalizePlateNumber } from "@/lib/validation/crm";
 
@@ -12,7 +12,9 @@ type CustomersPageProps = {
 };
 
 export default async function CustomersPage({ searchParams }: CustomersPageProps) {
-  const { user, businessId } = await requireCrmUser();
+  const context = await requireBusinessIndustryContext();
+  const { user, businessId } = context;
+  const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const { q } = await searchParams;
   const rawSearch = (q ?? "").trim();
   const normalizedPlate = rawSearch ? normalizePlateNumber(rawSearch) : "";
@@ -84,7 +86,11 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
           <form className="search-form" action="/crm/customers">
             <input
               name="q"
-              placeholder="Search name, phone, email, or plate"
+              placeholder={
+                isSalonBusiness
+                  ? "Search name, phone, or email"
+                  : "Search name, phone, email, or plate"
+              }
               defaultValue={rawSearch}
             />
             <button type="submit">Search</button>

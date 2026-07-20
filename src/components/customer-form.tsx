@@ -13,6 +13,7 @@ type CustomerFormProps = {
   initialNotes?: string;
   initialPhone?: string;
   initialVehiclePlate?: string;
+  isSalonBusiness?: boolean;
   whatsappConversationId?: string;
 };
 
@@ -25,6 +26,7 @@ export function CustomerForm({
   initialNotes = "",
   initialPhone = "",
   initialVehiclePlate = "",
+  isSalonBusiness = false,
   whatsappConversationId,
 }: CustomerFormProps) {
   return (
@@ -59,8 +61,28 @@ export function CustomerForm({
         <span>Notes optional</span>
         <textarea name="notes" rows={3} defaultValue={customer?.notes ?? initialNotes} />
       </label>
+      <div className="field-grid">
+        <label>
+          <span>Preferences optional</span>
+          <textarea
+            name="preferences"
+            rows={3}
+            defaultValue={customer?.preferences ?? ""}
+            placeholder="Preferred stylist, products, or service notes"
+          />
+        </label>
+        <label>
+          <span>Treatment notes optional</span>
+          <textarea
+            name="treatmentNotes"
+            rows={3}
+            defaultValue={customer?.treatmentNotes ?? ""}
+            placeholder="Colour formula, treatment history, or sensitivities"
+          />
+        </label>
+      </div>
 
-      {mode === "create" ? (
+      {mode === "create" && !isSalonBusiness ? (
         <div className="subsection">
           <h3>Vehicle details</h3>
           <div className="field-grid">

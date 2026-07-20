@@ -21,7 +21,7 @@ export function CustomerPackagePurchaseForm({
   if (!packages.length) {
     return (
       <p className="empty-state">
-        No active packages yet. Create a package before selling prepaid washes.
+        No active packages yet. Create a package before selling prepaid packages.
       </p>
     );
   }

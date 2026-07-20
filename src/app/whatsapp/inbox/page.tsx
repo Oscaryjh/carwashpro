@@ -33,7 +33,8 @@ type WhatsAppInboxPageProps = {
 export default async function WhatsAppInboxPage({
   searchParams,
 }: WhatsAppInboxPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
+  const isSalonBusiness = industryType === "SALON_BEAUTY";
   const canManageWhatsAppSession = hasStaffPermission(user, "WHATSAPP_SESSION");
   const params = await searchParams;
   const message = params.message;
@@ -202,7 +203,10 @@ export default async function WhatsAppInboxPage({
             <div className="section-header">
               <h2>Chats</h2>
               <div className="whatsapp-chat-list-actions">
-                <WhatsAppCustomerPicker customers={customerPickerCustomers} />
+                <WhatsAppCustomerPicker
+                  customers={customerPickerCustomers}
+                  includeVehicleDetails={!isSalonBusiness}
+                />
                 <span className="muted">
                   {query
                     ? `${filteredConversations.length}/${conversations.length}`
@@ -453,23 +457,27 @@ export default async function WhatsAppInboxPage({
                 <span>{selectedConversation.customer.phone}</span>
                 <span>{selectedConversation.customer.email ?? "No email"}</span>
 
-                <h3>Vehicles</h3>
-                {selectedConversation.customer.vehicles.length ? (
-                  <div className="mini-list">
-                    {selectedConversation.customer.vehicles.map((vehicle) => (
-                      <Link href={`/crm/vehicles/${vehicle.id}`} key={vehicle.id}>
-                        <strong>{vehicle.plateNumber}</strong>
-                        <span>
-                          {[vehicle.brand, vehicle.model, vehicle.color]
-                            .filter(Boolean)
-                            .join(" ") || "No vehicle details"}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="muted">No vehicles.</p>
-                )}
+                {!isSalonBusiness ? (
+                  <>
+                    <h3>Vehicles</h3>
+                    {selectedConversation.customer.vehicles.length ? (
+                      <div className="mini-list">
+                        {selectedConversation.customer.vehicles.map((vehicle) => (
+                          <Link href={`/crm/vehicles/${vehicle.id}`} key={vehicle.id}>
+                            <strong>{vehicle.plateNumber}</strong>
+                            <span>
+                              {[vehicle.brand, vehicle.model, vehicle.color]
+                                .filter(Boolean)
+                                .join(" ") || "No vehicle details"}
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted">No vehicles.</p>
+                    )}
+                  </>
+                ) : null}
 
                 <h3>Packages</h3>
                 {selectedConversation.customer.customerPackages.length ? (

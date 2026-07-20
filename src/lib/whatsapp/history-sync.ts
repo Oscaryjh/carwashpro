@@ -163,13 +163,19 @@ async function upsertHistoryMessage(
   }
 
   const customer = await findCustomerByPhone(tx, input.businessId, phone);
-  const body = getMessageText(input.message.message);
+  const messageType = getHistoryMessageType(input.message.message);
+  const body =
+    getMessageText(input.message.message) ||
+    getHistoryMessageFallback(input.message.message, messageType);
   const storedBody = encodeWhatsAppStoredText(body) ?? body;
   const messageDate = parseBaileysTimestamp(input.message.messageTimestamp) ?? new Date();
 
-  if (!storedBody) {
+  if (!storedBody && !messageType) {
     return false;
   }
+
+  const mediaFileName = getHistoryMediaFileName(input.message.message);
+  const mediaMimeType = getHistoryMediaMimeType(input.message.message);
 
   await upsertContact(tx, {
     businessId: input.businessId,
@@ -205,8 +211,10 @@ async function upsertHistoryMessage(
       conversationId: conversation.id,
       customerId: customer?.id ?? null,
       direction: input.message.key?.fromMe ? "OUTBOUND" : "INBOUND",
-      messageType: "TEXT",
+      messageType: messageType ?? "TEXT",
       body: storedBody,
+      mediaFileName,
+      mediaMimeType,
       status: input.message.key?.fromMe ? "SENT" : "RECEIVED",
       externalMessageId: messageId,
       rawMessageJson: toPrismaJson(input.message.rawJson ?? input.message),
@@ -348,6 +356,60 @@ function getMessageText(message: unknown) {
   ).trim();
 }
 
+function getHistoryMessageType(message: unknown) {
+  const candidate = unwrapMessageObject(message);
+
+  if (candidate?.imageMessage) {
+    return "IMAGE" as const;
+  }
+
+  if (candidate?.audioMessage) {
+    return "AUDIO" as const;
+  }
+
+  if (candidate?.documentMessage) {
+    return "DOCUMENT" as const;
+  }
+
+  return null;
+}
+
+function getHistoryMessageFallback(
+  message: unknown,
+  messageType: ReturnType<typeof getHistoryMessageType>,
+) {
+  if (messageType === "IMAGE") {
+    return "Image";
+  }
+
+  if (messageType === "AUDIO") {
+    return "Voice message";
+  }
+
+  if (messageType === "DOCUMENT") {
+    const fileName = getHistoryMediaFileName(message);
+    return fileName ? `Document: ${fileName}` : "Document";
+  }
+
+  return "";
+}
+
+function getHistoryMediaFileName(message: unknown) {
+  const candidate = unwrapMessageObject(message);
+
+  return readNestedString(candidate ?? {}, "documentMessage", "fileName");
+}
+
+function getHistoryMediaMimeType(message: unknown) {
+  const candidate = unwrapMessageObject(message);
+
+  return (
+    readNestedString(candidate ?? {}, "imageMessage", "mimetype") ??
+    readNestedString(candidate ?? {}, "audioMessage", "mimetype") ??
+    readNestedString(candidate ?? {}, "documentMessage", "mimetype")
+  );
+}
+
 function unwrapMessage(message: Record<string, unknown>): Record<string, unknown> {
   const nested =
     readNestedObject(message, "ephemeralMessage", "message") ??
@@ -356,6 +418,12 @@ function unwrapMessage(message: Record<string, unknown>): Record<string, unknown
     readNestedObject(message, "documentWithCaptionMessage", "message");
 
   return nested ?? message;
+}
+
+function unwrapMessageObject(message: unknown) {
+  return message && typeof message === "object"
+    ? unwrapMessage(message as Record<string, unknown>)
+    : null;
 }
 
 function jidToPhone(jid: string | null | undefined) {

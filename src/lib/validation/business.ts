@@ -1,6 +1,16 @@
 import { z } from "zod";
 
-const businessIndustrySchema = z.enum(["AUTO_DETAILING", "SALON_BEAUTY"]);
+const businessIndustrySchema = z.enum([
+  "AUTO_DETAILING",
+  "SALON_BEAUTY",
+  "PET_GROOMING",
+  "DEVICE_REPAIR",
+  "BICYCLE_REPAIR",
+  "SHOE_CLEANING",
+  "LAUNDRY",
+  "WATCH_REPAIR",
+  "GENERAL_SERVICE",
+]);
 
 export const businessSchema = z.object({
   name: z.string().trim().min(2, "Company name is required."),
@@ -16,6 +26,10 @@ export const businessSchema = z.object({
   phone: z.string().trim().optional(),
   email: z.string().trim().email("Enter a valid email.").optional().or(z.literal("")),
   address: z.string().trim().optional(),
+  sstEnabled: z.boolean(),
+  sstLabel: z.string().trim().min(1, "Tax label is required.").max(30),
+  sstRate: z.coerce.number().min(0, "Tax rate cannot be negative.").max(100, "Tax rate cannot exceed 100."),
+  sstRegistrationNo: z.string().trim().max(80).optional(),
   status: z.enum(["active", "inactive"]),
 });
 

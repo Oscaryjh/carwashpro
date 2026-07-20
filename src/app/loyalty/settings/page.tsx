@@ -34,7 +34,7 @@ export default async function LoyaltySettingsPage({
         <div className="page-header">
           <div>
             <h1>Membership</h1>
-            <p>Configure how customers earn loyalty points.</p>
+            <p>Configure how customers earn and redeem loyalty points.</p>
           </div>
         </div>
 
@@ -91,6 +91,41 @@ export default async function LoyaltySettingsPage({
               <span>
                 <strong>Earn points automatically</strong>
                 <small>Allow eligible purchases to add loyalty points.</small>
+              </span>
+            </label>
+            <label>
+              <span>Points required for RM1</span>
+              <input
+                name="redemptionPointsPerRinggit"
+                type="number"
+                min="1"
+                max="1000000"
+                step="1"
+                defaultValue={program?.redemptionPointsPerRinggit ?? 100}
+                required
+              />
+            </label>
+            <label>
+              <span>Minimum redemption</span>
+              <input
+                name="minimumRedemptionPoints"
+                type="number"
+                min="1"
+                max="1000000"
+                step="1"
+                defaultValue={program?.minimumRedemptionPoints ?? 100}
+                required
+              />
+            </label>
+            <label className="loyalty-enabled-toggle">
+              <input
+                name="redemptionEnabled"
+                type="checkbox"
+                defaultChecked={program?.redemptionEnabled ?? false}
+              />
+              <span>
+                <strong>Allow points at checkout</strong>
+                <small>Customers can use points as a discount in Cashier POS.</small>
               </span>
             </label>
             <button type="submit">Save settings</button>

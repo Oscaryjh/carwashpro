@@ -6,11 +6,12 @@ import { BackButton } from "@/components/back-button";
 import { RefundPaymentForm } from "@/components/refund-payment-form";
 import { SendWhatsAppButton } from "@/components/send-whatsapp-button";
 import { VoidInvoiceForm } from "@/components/void-invoice-form";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { getInvoicePaymentSummary } from "@/lib/invoices/payment-summary";
 import { prisma } from "@/lib/prisma";
 import { getRefundableCents } from "@/lib/refunds/rules";
+import { formatTaxLabel } from "@/lib/tax/format";
 
 type InvoiceDetailsPageProps = {
   params: Promise<{
@@ -21,7 +22,8 @@ type InvoiceDetailsPageProps = {
 export default async function InvoiceDetailsPage({
   params,
 }: InvoiceDetailsPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const context = await requireBusinessIndustryContext();
+  const { user, businessId } = context;
   const { invoiceId } = await params;
   const invoice = await prisma.invoice.findFirst({
     where: {
@@ -67,23 +69,47 @@ export default async function InvoiceDetailsPage({
       },
       items: {
         orderBy: { createdAt: "asc" },
+        include: {
+          customerPackage: {
+            include: { package: true },
+          },
+        },
       },
       payments: {
         orderBy: { paidAt: "desc" },
         include: {
           refunds: {
             orderBy: { refundedAt: "desc" },
+            include: {
+              processedBy: {
+                select: { name: true },
+              },
+            },
           },
         },
       },
       customer: true,
       customerPackage: { include: { package: true } },
+      creditNotes: {
+        orderBy: { issuedAt: "desc" },
+        include: {
+          createdBy: {
+            select: { name: true },
+          },
+        },
+      },
     },
   });
 
   if (!invoice) {
     notFound();
   }
+
+  const loyaltyDiscountAmount = Number(invoice.loyaltyDiscountAmount ?? 0);
+  const manualDiscountAmount = Math.max(
+    0,
+    Number(invoice.discountAmount) - loyaltyDiscountAmount,
+  );
 
   if (invoice.appointment) {
     const appointment = invoice.appointment;
@@ -96,6 +122,13 @@ export default async function InvoiceDetailsPage({
           </div>
           <div className="pos-receipt-panel panel">
             <div className="invoice-receipt-actions">
+              <Link
+                className="secondary-link-button invoice-action-button"
+                href={`/invoices/${invoice.id}/pdf?format=receipt`}
+                target="_blank"
+              >
+                Print
+              </Link>
               <Link
                 className="secondary-link-button invoice-action-button"
                 href={`/invoices/${invoice.id}/pdf`}
@@ -159,7 +192,13 @@ export default async function InvoiceDetailsPage({
               ))}
             </div>
             <div className="pos-receipt-totals">
-              <div><span>Total</span><strong>RM{Number(invoice.total).toFixed(2)}</strong></div>
+              <div><span>Subtotal</span><strong>RM{Number(invoice.subtotal).toFixed(2)}</strong></div>
+              {manualDiscountAmount > 0 ? <div><span>Discount</span><strong>-RM{manualDiscountAmount.toFixed(2)}</strong></div> : null}
+              {loyaltyDiscountAmount > 0 ? <div><span>TETAMU Points ({invoice.loyaltyPointsRedeemed} pts)</span><strong>-RM{loyaltyDiscountAmount.toFixed(2)}</strong></div> : null}
+              {Number(invoice.taxAmount) > 0 ? <div><span>{formatTaxLabel(invoice.taxLabel, invoice.taxRate)}</span><strong>RM{Number(invoice.taxAmount).toFixed(2)}</strong></div> : null}
+              {Number(invoice.tipAmount) > 0 ? <div><span>Tip</span><strong>RM{Number(invoice.tipAmount).toFixed(2)}</strong></div> : null}
+              <div className="is-total"><span>Total</span><strong>RM{Number(invoice.total).toFixed(2)}</strong></div>
+              {Number(invoice.depositAmount) > 0 ? <div><span>Deposit</span><strong>RM{Number(invoice.depositAmount).toFixed(2)}</strong></div> : null}
               <div><span>Paid</span><strong>RM{Number(invoice.paidAmount).toFixed(2)}</strong></div>
               <div className="is-balance"><span>Balance</span><strong>RM{Number(invoice.balance).toFixed(2)}</strong></div>
             </div>
@@ -176,10 +215,35 @@ export default async function InvoiceDetailsPage({
               </div>
             ) : null}
           </div>
+          {invoice.creditNotes.length ? (
+            <div className="panel invoice-correction-panel danger-zone">
+              <div className="section-header">
+                <h2>Credit Note</h2>
+                <span className="status">Refunded</span>
+              </div>
+              {invoice.creditNotes.map((creditNote) => (
+                <div className="pos-refund-row" key={creditNote.id}>
+                  <div>
+                    <strong>{creditNote.creditNoteNumber}</strong>
+                    <span>{creditNote.reason}</span>
+                  </div>
+                  <div>
+                    <strong>-RM{Number(creditNote.total).toFixed(2)}</strong>
+                    <small>
+                      {creditNote.issuedAt.toLocaleString()}{" "}
+                      <Link href={`/invoices/${invoice.id}/credit-notes/${creditNote.id}/pdf`}>
+                        Download PDF
+                      </Link>
+                    </small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <div className="panel">
             <div className="section-header">
               <div>
-                <h2>Appointment</h2>
+                <h2>{context.industry.orderLabel}</h2>
                 <p className="muted">Payment does not change the service status.</p>
               </div>
               <Link className="secondary-link-button" href={`/appointments/${appointment.id}`}>
@@ -193,7 +257,29 @@ export default async function InvoiceDetailsPage({
   }
 
   if (!invoice.workOrder) {
-    const packageName = invoice.customerPackage?.package.name ?? "Package purchase";
+    const groupedPackageItems = new Map<
+      string,
+      { name: string; quantity: number; lineTotal: number }
+    >();
+    invoice.items.forEach((item) => {
+      const name = item.customerPackage?.package.name ?? item.name;
+      const current = groupedPackageItems.get(name);
+      groupedPackageItems.set(name, {
+        name,
+        quantity: (current?.quantity ?? 0) + item.quantity,
+        lineTotal: (current?.lineTotal ?? 0) + Number(item.lineTotal),
+      });
+    });
+    const packageItems = groupedPackageItems.size
+      ? [...groupedPackageItems.values()]
+      : [{
+          name: invoice.customerPackage?.package.name ?? "Package purchase",
+          quantity: 1,
+          lineTotal: Number(invoice.subtotal),
+        }];
+    const packageCount = packageItems.reduce((sum, item) => sum + item.quantity, 0);
+    const packageName =
+      packageItems.length === 1 ? packageItems[0].name : `${packageCount} packages`;
     return (
       <AppShell user={user}>
         <section className="content invoice-detail-layout">
@@ -203,6 +289,7 @@ export default async function InvoiceDetailsPage({
           </div>
           <div className="pos-receipt-panel panel">
             <div className="invoice-receipt-actions">
+              <Link className="secondary-link-button invoice-action-button" href={`/invoices/${invoice.id}/pdf?format=receipt`} target="_blank">Print</Link>
               <Link className="secondary-link-button invoice-action-button" href={`/invoices/${invoice.id}/pdf`}>Download PDF</Link>
               <p className="muted-text">WhatsApp invoice notification was queued after purchase.</p>
             </div>
@@ -216,9 +303,93 @@ export default async function InvoiceDetailsPage({
               <span className={`payment-state ${invoice.status.toLowerCase()}`}>{formatStatus(invoice.status)}</span>
             </div>
             <div className="pos-customer-strip"><div><span>Customer</span><strong>{invoice.customer?.name ?? "-"}</strong></div><div><span>Phone</span><strong>{invoice.customer?.phone ?? "-"}</strong></div></div>
-            <div className="pos-receipt-items"><div className="pos-receipt-row pos-receipt-head"><span>Item</span><span>Qty</span><span>Total</span></div><div className="pos-receipt-row"><span>{packageName}</span><span>1</span><span>RM{Number(invoice.total).toFixed(2)}</span></div></div>
-            <div className="pos-receipt-summary"><div><span>Total</span><strong>RM{Number(invoice.total).toFixed(2)}</strong></div><div><span>Paid</span><strong>RM{Number(invoice.paidAmount).toFixed(2)}</strong></div><div className="balance-row"><span>Balance</span><strong>RM{Number(invoice.balance).toFixed(2)}</strong></div></div>
+            <div className="pos-receipt-items">
+              <div className="pos-receipt-row pos-receipt-head"><span>Item</span><span>Qty</span><span>Total</span></div>
+              {packageItems.map((item) => (
+                <div className="pos-receipt-row" key={item.name}>
+                  <span>{item.name}</span>
+                  <span>{item.quantity}</span>
+                  <span>RM{item.lineTotal.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="pos-receipt-summary invoice-package-summary">
+              <div><span>Subtotal</span><strong>RM{Number(invoice.subtotal).toFixed(2)}</strong></div>
+              {manualDiscountAmount > 0 ? <div><span>Discount</span><strong>-RM{manualDiscountAmount.toFixed(2)}</strong></div> : null}
+              {loyaltyDiscountAmount > 0 ? <div><span>TETAMU Points ({invoice.loyaltyPointsRedeemed} pts)</span><strong>-RM{loyaltyDiscountAmount.toFixed(2)}</strong></div> : null}
+              {Number(invoice.taxAmount) > 0 ? <div><span>{formatTaxLabel(invoice.taxLabel, invoice.taxRate)}</span><strong>RM{Number(invoice.taxAmount).toFixed(2)}</strong></div> : null}
+              {Number(invoice.tipAmount) > 0 ? <div><span>Tip</span><strong>RM{Number(invoice.tipAmount).toFixed(2)}</strong></div> : null}
+              <div className="is-total"><span>Total</span><strong>RM{Number(invoice.total).toFixed(2)}</strong></div>
+              {Number(invoice.depositAmount) > 0 ? <div><span>Deposit</span><strong>RM{Number(invoice.depositAmount).toFixed(2)}</strong></div> : null}
+              <div><span>Paid</span><strong>RM{Number(invoice.paidAmount).toFixed(2)}</strong></div>
+              <div className="balance-row"><span>Balance</span><strong>RM{Number(invoice.balance).toFixed(2)}</strong></div>
+            </div>
           </div>
+          {invoice.creditNotes.length ? (
+            <div className="panel invoice-correction-panel danger-zone">
+              <div className="section-header">
+                <h2>Credit Note</h2>
+                <span className="status">Refunded</span>
+              </div>
+              {invoice.creditNotes.map((creditNote) => (
+                <div className="pos-refund-row" key={creditNote.id}>
+                  <div>
+                    <strong>{creditNote.creditNoteNumber}</strong>
+                    <span>{creditNote.reason}</span>
+                  </div>
+                  <div>
+                    <strong>-RM{Number(creditNote.total).toFixed(2)}</strong>
+                    <small>
+                      {creditNote.issuedAt.toLocaleString()}
+                      {" "}
+                      <Link href={`/invoices/${invoice.id}/credit-notes/${creditNote.id}/pdf`}>
+                        Download PDF
+                      </Link>
+                    </small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {user.role === "BUSINESS_OWNER" &&
+          invoice.status !== "VOID" &&
+          invoice.payments.some((payment) => payment.status === "ACTIVE") ? (
+            <div className="panel invoice-refund-panel">
+              <div className="section-header">
+                <div>
+                  <h2>Refund package purchase</h2>
+                  <p className="muted">All packages in this invoice must be unused and refunded together.</p>
+                </div>
+                <span className="status">Owner only</span>
+              </div>
+              {invoice.payments
+                .filter((payment) => payment.status === "ACTIVE")
+                .map((payment) => {
+                  const refundableCents = getRefundableCents(
+                    Math.round(Number(payment.amount) * 100),
+                    payment.refunds.map((refund) => Math.round(Number(refund.amount) * 100)),
+                  );
+                  return refundableCents > 0 ? (
+                    <div className="refund-payment-item" key={payment.id}>
+                      <div className="refund-payment-heading">
+                        <div>
+                          <strong>{formatStatus(payment.method)} payment</strong>
+                          <span>{payment.paidAt.toLocaleString()}</span>
+                        </div>
+                        <strong>RM{(refundableCents / 100).toFixed(2)} available</strong>
+                      </div>
+                      <RefundPaymentForm
+                        invoiceId={invoice.id}
+                        invoiceNumber={formatInvoiceNumber(invoice.invoiceNumber)}
+                        paymentId={payment.id}
+                        originalMethod={payment.method}
+                        refundableAmount={refundableCents / 100}
+                      />
+                    </div>
+                  ) : null;
+                })}
+            </div>
+          ) : null}
         </section>
       </AppShell>
     );
@@ -262,6 +433,13 @@ export default async function InvoiceDetailsPage({
           <div className="invoice-receipt-actions">
             <Link
               className="secondary-link-button invoice-action-button"
+              href={`/invoices/${invoice.id}/pdf?format=receipt`}
+              target="_blank"
+            >
+              Print
+            </Link>
+            <Link
+              className="secondary-link-button invoice-action-button"
               href={`/invoices/${invoice.id}/pdf`}
             >
               Download PDF
@@ -299,11 +477,13 @@ export default async function InvoiceDetailsPage({
               <strong className="pos-receipt-number">{displayInvoiceNumber}</strong>
               <small>{invoice.issuedAt.toLocaleDateString("en-MY")}</small>
             </div>
-            <div>
-              <span>Vehicle</span>
-              <strong>{invoice.workOrder.vehicle.plateNumber}</strong>
-              <small>{vehicleDetails(invoice.workOrder.vehicle)}</small>
-            </div>
+            {context.industry.industryType !== "SALON_BEAUTY" ? (
+              <div className="is-total">
+                <span>Vehicle</span>
+                <strong>{invoice.workOrder.vehicle.plateNumber}</strong>
+                <small>{vehicleDetails(invoice.workOrder.vehicle)}</small>
+              </div>
+            ) : null}
             <span className={`payment-state ${invoice.status.toLowerCase()}`}>
               {formatStatus(invoice.status)}
             </span>
@@ -338,8 +518,12 @@ export default async function InvoiceDetailsPage({
             ))}
           </div>
 
-          <div className="pos-receipt-totals">
-            <div>
+            <div className="pos-receipt-totals">
+              <div><span>Subtotal</span><strong>RM{Number(invoice.subtotal).toFixed(2)}</strong></div>
+              {manualDiscountAmount > 0 ? <div><span>Discount</span><strong>-RM{manualDiscountAmount.toFixed(2)}</strong></div> : null}
+              {loyaltyDiscountAmount > 0 ? <div><span>TETAMU Points ({invoice.loyaltyPointsRedeemed} pts)</span><strong>-RM{loyaltyDiscountAmount.toFixed(2)}</strong></div> : null}
+              {Number(invoice.taxAmount) > 0 ? <div><span>{formatTaxLabel(invoice.taxLabel, invoice.taxRate)}</span><strong>RM{Number(invoice.taxAmount).toFixed(2)}</strong></div> : null}
+              <div>
               <span>Total</span>
               <strong>RM{Number(invoice.total).toFixed(2)}</strong>
             </div>
@@ -384,7 +568,7 @@ export default async function InvoiceDetailsPage({
                       {payment.customerPackage?.package.name ?? "Prepaid package"}
                     </strong>
                     <span>
-                      {payment.packageUses || 1} wash used
+                      {payment.packageUses || 1} {context.industry.industryType === "SALON_BEAUTY" ? "service use" : "wash used"}
                       {payment.status === "VOID" ? " - voided" : ""}
                       {payment.refunds.length ? " - restored" : ""}
                     </span>
@@ -404,7 +588,7 @@ export default async function InvoiceDetailsPage({
                   <strong>RM{Number(payment.amount).toFixed(2)}</strong>
                   <small>
                     {payment.method === "PACKAGE"
-                      ? `${payment.customerPackage?.package.name ?? "Package"} - ${payment.packageUses} wash`
+                      ? `${payment.customerPackage?.package.name ?? "Package"} - ${payment.packageUses} ${context.industry.industryType === "SALON_BEAUTY" ? "service use" : "wash"}`
                       : formatStatus(payment.method)}
                     {payment.status === "VOID" ? " - Void" : ""}
                     {payment.refunds.length
@@ -446,6 +630,32 @@ export default async function InvoiceDetailsPage({
               ))}
             </div>
           ) : null}
+          {invoice.creditNotes.length ? (
+            <div className="panel invoice-correction-panel danger-zone">
+              <div className="section-header">
+                <h2>Credit Note</h2>
+                <span className="status">Refunded</span>
+              </div>
+              {invoice.creditNotes.map((creditNote) => (
+                <div className="pos-refund-row" key={creditNote.id}>
+                  <div>
+                    <strong>{creditNote.creditNoteNumber}</strong>
+                    <span>{creditNote.reason}</span>
+                  </div>
+                  <div>
+                    <strong>-RM{Number(creditNote.total).toFixed(2)}</strong>
+                    <small>
+                      {creditNote.issuedAt.toLocaleString()}
+                      {" "}
+                      <Link href={`/invoices/${invoice.id}/credit-notes/${creditNote.id}/pdf`}>
+                        Download PDF
+                      </Link>
+                    </small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {user.role === "BUSINESS_OWNER" &&
@@ -456,8 +666,9 @@ export default async function InvoiceDetailsPage({
               <div>
                 <h2>Refund payment</h2>
                 <p className="muted">
-                  Refunds change payment totals only. Job and pickup status stay
-                  unchanged.
+                  {context.industry.industryType === "SALON_BEAUTY"
+                    ? "Refunds change payment totals only. Appointment and service status stay unchanged."
+                    : "Refunds change payment totals only. Job and pickup status stay unchanged."}
                 </p>
               </div>
               <span className="status">Owner only</span>
@@ -498,7 +709,9 @@ export default async function InvoiceDetailsPage({
               Voided at: {invoice.voidedAt?.toLocaleString() ?? "Unknown"}
             </p>
             <Link className="button-link" href={`/pos/${invoice.workOrder.id}`}>
-              Correct in POS
+              {context.industry.industryType === "SALON_BEAUTY"
+                ? "Correct payment"
+                : "Correct in POS"}
             </Link>
           </div>
         ) : refunds.length ? (
@@ -519,8 +732,9 @@ export default async function InvoiceDetailsPage({
               <span className="status">{formatStatus(invoice.status)}</span>
             </div>
             <p className="muted">
-              Use this only when payment was recorded wrongly. Related payments
-              will be voided and this job will reopen for POS correction.
+              {context.industry.industryType === "SALON_BEAUTY"
+                ? "Use this only when payment was recorded wrongly. Related payments will be voided and this service order will reopen for cashier correction."
+                : "Use this only when payment was recorded wrongly. Related payments will be voided and this job will reopen for POS correction."}
             </p>
             <VoidInvoiceForm
               invoiceId={invoice.id}

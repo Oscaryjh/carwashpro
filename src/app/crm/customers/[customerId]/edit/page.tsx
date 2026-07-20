@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { VehicleSelectFields } from "@/components/vehicle-select-fields";
-import { requireCrmUser } from "@/lib/auth/crm";
+import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { getActiveBranches, type BranchOption } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { updateCustomerProfileAction } from "../../../actions";
@@ -17,7 +17,9 @@ type EditCustomerPageProps = {
 export default async function EditCustomerPage({
   params,
 }: EditCustomerPageProps) {
-  const { user, businessId } = await requireCrmUser();
+  const context = await requireBusinessIndustryContext();
+  const { user, businessId } = context;
+  const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const { customerId } = await params;
 
   const [customer, branches] = await Promise.all([
@@ -48,7 +50,11 @@ export default async function EditCustomerPage({
         <div className="page-header">
           <div>
             <h1>Edit Customer Profile</h1>
-            <p>Update customer contact details and linked vehicles in one place.</p>
+            <p>
+              {isSalonBusiness
+                ? "Update customer contact details, preferences, and treatment notes in one place."
+                : "Update customer contact details and linked vehicles in one place."}
+            </p>
           </div>
           <div className="inline-actions">
             <BackButton fallbackHref={`/crm/customers/${customer.id}`} />
@@ -85,9 +91,29 @@ export default async function EditCustomerPage({
               <span>Notes optional</span>
               <textarea name="notes" rows={3} defaultValue={customer.notes ?? ""} />
             </label>
+            <div className="field-grid">
+              <label>
+                <span>Preferences optional</span>
+                <textarea
+                  name="preferences"
+                  rows={3}
+                  defaultValue={customer.preferences ?? ""}
+                  placeholder="Preferred stylist, products, or service notes"
+                />
+              </label>
+              <label>
+                <span>Treatment notes optional</span>
+                <textarea
+                  name="treatmentNotes"
+                  rows={3}
+                  defaultValue={customer.treatmentNotes ?? ""}
+                  placeholder="Colour formula, treatment history, or sensitivities"
+                />
+              </label>
+            </div>
           </div>
 
-          <div className="panel">
+          {!isSalonBusiness ? <div className="panel">
             <div className="section-header">
               <h2>Vehicles</h2>
               <Link
@@ -143,7 +169,7 @@ export default async function EditCustomerPage({
                 No vehicles yet. Add the first vehicle for this customer.
               </p>
             )}
-          </div>
+          </div> : null}
 
           <div className="form-actions">
             <button type="submit">Save</button>

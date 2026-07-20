@@ -30,6 +30,8 @@ export async function createCustomerAction(formData: FormData) {
     phone: formData.get("phone"),
     email: formData.get("email"),
     notes: formData.get("notes"),
+    preferences: formData.get("preferences"),
+    treatmentNotes: formData.get("treatmentNotes"),
   });
   const rawPlateNumber = formData.get("plateNumber")?.toString().trim() ?? "";
   const vehicleInput = rawPlateNumber
@@ -95,6 +97,8 @@ export async function createCustomerAction(formData: FormData) {
           phone: input.phone,
           email: input.email || null,
           notes: input.notes || null,
+          preferences: formData.get("preferences")?.toString().trim() || null,
+          treatmentNotes: formData.get("treatmentNotes")?.toString().trim() || null,
         },
       }));
 
@@ -195,6 +199,8 @@ export async function updateCustomerAction(formData: FormData) {
     phone: formData.get("phone"),
     email: formData.get("email"),
     notes: formData.get("notes"),
+    preferences: formData.get("preferences"),
+    treatmentNotes: formData.get("treatmentNotes"),
   });
 
   const customer = await prisma.customer.findFirst({
@@ -232,6 +238,8 @@ export async function updateCustomerAction(formData: FormData) {
       phone: input.phone,
       email: input.email || null,
       notes: input.notes || null,
+      preferences: formData.get("preferences")?.toString().trim() || null,
+      treatmentNotes: formData.get("treatmentNotes")?.toString().trim() || null,
     },
   });
 
@@ -375,6 +383,8 @@ export async function updateCustomerProfileAction(formData: FormData) {
         phone: input.phone,
         email: input.email || null,
         notes: input.notes || null,
+        preferences: formData.get("preferences")?.toString().trim() || null,
+        treatmentNotes: formData.get("treatmentNotes")?.toString().trim() || null,
       },
     });
 

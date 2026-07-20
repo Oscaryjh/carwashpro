@@ -42,7 +42,7 @@ export default async function NewServicePage() {
       <section className="content">
         <div className="page-header">
           <div>
-            <h1>{isSalonBusiness ? "New Salon Service" : "New Service"}</h1>
+            <h1>{isSalonBusiness ? "New Beauty & Wellness Service" : "New Service"}</h1>
             <p>
               {isSalonBusiness
                 ? "Set the category, price, duration, and available staff."

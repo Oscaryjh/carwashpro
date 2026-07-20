@@ -26,9 +26,9 @@ import {
 } from "@/lib/validation/work-orders";
 import { sendNewCustomerWelcomeIfConnected } from "@/lib/whatsapp/customer-welcome";
 import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
-import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
 import { resolveVehicleSize } from "@/lib/vehicle-size";
-import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
+import { calculateTax } from "@/lib/tax/calculator";
+import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import {
   sendReadyForPickupIfConnected,
   sendServiceConfirmationQueued,
@@ -38,9 +38,21 @@ function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
 }
 
-function redirectToWorkOrdersMessage(type: "error" | "success", message: string): never {
+function packagePurchaseReturnPath(value: FormDataEntryValue | null) {
+  const path = value?.toString().trim();
+
+  return path && (path === "/cashier" || /^\/appointments\/[0-9a-f-]+$/i.test(path))
+    ? path
+    : "/work-orders";
+}
+
+function redirectToPackagePurchaseMessage(
+  returnPath: string,
+  type: "error" | "success",
+  message: string,
+): never {
   const params = new URLSearchParams({ type, message });
-  redirect(`/work-orders?${params.toString()}`);
+  redirect(`${returnPath}?${params.toString()}`);
 }
 
 function redirectToNewWorkOrderError(
@@ -509,16 +521,19 @@ export async function createWorkOrderAction(formData: FormData) {
 export async function purchasePackageFromCashierAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser();
   const auditRequest = await getAuditRequestContext();
+  const returnPath = packagePurchaseReturnPath(formData.get("returnTo"));
   const parsed = cashierPackagePurchaseSchema.safeParse({
     branchId: formData.get("branchId")?.toString() ?? "",
     method: formData.get("method")?.toString(),
-    packageId: formData.get("packageId")?.toString(),
+    packageIds: formData.getAll("packageId").map((value) => value.toString()),
+    quantities: formData.getAll("quantity"),
     reference: formData.get("reference")?.toString() || undefined,
     customerId: formData.get("customerId")?.toString(),
   });
 
   if (!parsed.success) {
-    redirectToWorkOrdersMessage(
+    redirectToPackagePurchaseMessage(
+      returnPath,
       "error",
       parsed.error.issues[0]?.message ?? "Package purchase details are invalid.",
     );
@@ -570,43 +585,132 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
         throw new Error("Customer account could not be found.");
       }
 
-      const packageDefinition = await tx.package.findFirst({
+      const mergedQuantities = new Map<string, number>();
+      input.packageIds.forEach((packageId, index) => {
+        mergedQuantities.set(
+          packageId,
+          (mergedQuantities.get(packageId) ?? 0) + input.quantities[index],
+        );
+      });
+
+      const packageDefinitions = await tx.package.findMany({
         where: {
-          id: input.packageId,
+          id: { in: [...mergedQuantities.keys()] },
           businessId,
           status: "ACTIVE",
         },
+        include: {
+          service: {
+            select: { taxable: true, taxRate: true },
+          },
+        },
       });
 
-      if (!packageDefinition) {
-        throw new Error("This package is no longer available.");
+      if (packageDefinitions.length !== mergedQuantities.size) {
+        throw new Error("One of the selected packages is no longer available.");
       }
 
-      const customerPackage = await tx.customerPackage.create({
+      const business = await tx.business.findUniqueOrThrow({
+        where: { id: businessId },
+        select: { sstEnabled: true, sstLabel: true, sstRate: true },
+      });
+      const purchaseLines = packageDefinitions.flatMap((packageDefinition) =>
+        Array.from(
+          { length: mergedQuantities.get(packageDefinition.id) ?? 0 },
+          () => ({ packageDefinition }),
+        ),
+      );
+      const lineTotals = purchaseLines.map(({ packageDefinition }) =>
+        Number(packageDefinition.price),
+      );
+      const tax = calculateTax({
+        sstEnabled: business.sstEnabled,
+        sstLabel: business.sstLabel,
+        sstRate: Number(business.sstRate),
+        lines: purchaseLines.map(({ packageDefinition }, index) => ({
+          lineTotal: lineTotals[index],
+          taxable: packageDefinition.service?.taxable ?? true,
+          taxRate:
+            packageDefinition.service?.taxRate == null
+              ? null
+              : Number(packageDefinition.service.taxRate),
+        })),
+      });
+      const customerPackages: Array<{ id: string }> = [];
+
+      for (const { packageDefinition } of purchaseLines) {
+        customerPackages.push(
+          await tx.customerPackage.create({
+            data: {
+              businessId,
+              branchId,
+              customerId: customer.id,
+              packageId: packageDefinition.id,
+              purchasePrice: packageDefinition.price,
+              totalUses: packageDefinition.totalUses,
+              eligibleVehicleSize: packageDefinition.eligibleVehicleSize,
+              remainingUses: 0,
+              status: "PENDING_PAYMENT",
+            },
+          }),
+        );
+      }
+
+      const primaryCustomerPackage = customerPackages[0];
+      if (!primaryCustomerPackage) {
+        throw new Error("Select at least one package.");
+      }
+      const amountCents = Math.round(tax.total * 100);
+      const invoice = await tx.invoice.create({
         data: {
           businessId,
           branchId,
           customerId: customer.id,
-          packageId: packageDefinition.id,
-          purchasePrice: packageDefinition.price,
-          totalUses: packageDefinition.totalUses,
-          eligibleVehicleSize: packageDefinition.eligibleVehicleSize,
-          remainingUses: 0,
-          status: "PENDING_PAYMENT",
+          customerPackageId: primaryCustomerPackage.id,
+          invoiceNumber: makeInvoiceNumber(),
+          subtotal: fromCents(Math.round(tax.subtotal * 100)),
+          taxableSubtotal: fromCents(Math.round(tax.taxableSubtotal * 100)),
+          taxAmount: fromCents(Math.round(tax.tax * 100)),
+          taxRate: fromCents(Math.round(tax.taxRate * 100)),
+          taxLabel: tax.tax > 0 ? tax.taxLabel : null,
+          total: fromCents(amountCents),
+          paidAmount: fromCents(amountCents),
+          balance: 0,
+          status: "PAID",
+          items: {
+            create: purchaseLines.map(({ packageDefinition }, index) => ({
+              businessId,
+              customerPackageId: customerPackages[index].id,
+              serviceId: packageDefinition.serviceId,
+              name: packageDefinition.name,
+              quantity: 1,
+              unitPrice: packageDefinition.price,
+              lineTotal: packageDefinition.price,
+              taxable: packageDefinition.service?.taxable ?? true,
+              taxRate: fromCents(
+                Math.round(
+                  ((packageDefinition.service?.taxable ?? true)
+                    ? Number(packageDefinition.service?.taxRate ?? business.sstRate)
+                    : 0) * 100,
+                ),
+              ),
+              taxAmount: fromCents(Math.round(tax.lineTax[index] * 100)),
+            })),
+          },
         },
       });
-      const amountCents = toCents(packageDefinition.price);
       const payment = await tx.payment.create({
         data: {
           businessId,
           branchId,
           cashierId: user.userId,
-          customerPackageId: customerPackage.id,
+          invoiceId: invoice.id,
+          customerPackageId: primaryCustomerPackage.id,
           shiftId: shift.id,
           amount: fromCents(amountCents),
           method: input.method,
           reference:
-            input.reference || `${packageDefinition.name} package purchase`,
+            input.reference || `${purchaseLines.length} package purchase`,
         },
       });
 
@@ -620,55 +724,23 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
         createdById: user.userId,
       });
 
-      await tx.customerPackage.update({
-        where: { id: customerPackage.id },
-        data: {
-          remainingUses: packageDefinition.totalUses,
-          status: "ACTIVE",
-        },
-      });
-
-      const invoice = await tx.invoice.create({
-        data: {
-          businessId,
-          branchId,
-          customerId: customer.id,
-          customerPackageId: customerPackage.id,
-          invoiceNumber: makeInvoiceNumber(),
-          subtotal: packageDefinition.price,
-          total: packageDefinition.price,
-          paidAmount: packageDefinition.price,
-          balance: 0,
-          status: "PAID",
-        },
-      });
-
-      const recipientPhone = normalizeMalaysiaWhatsAppPhone(customer.phone);
-      const messageBody = [
-        `Hi ${customer.name}, thank you for your purchase.`,
-        `Invoice No: ${invoice.invoiceNumber}`,
-        `Package: ${packageDefinition.name}`,
-        `Total: RM${Number(packageDefinition.price).toFixed(2)}`,
-        `Paid: RM${Number(packageDefinition.price).toFixed(2)}`,
-        `Uses: ${packageDefinition.totalUses}`,
-        "Payment status: paid",
-      ].join("\\n");
-      const messageLog = recipientPhone
-        ? await tx.whatsAppMessage.create({
+      await Promise.all(
+        customerPackages.map((customerPackage, index) =>
+          tx.customerPackage.update({
+            where: { id: customerPackage.id },
             data: {
-              businessId,
-              branchId,
-              customerId: customer.id,
-              invoiceId: invoice.id,
-              messageBody,
-              messageType: "INVOICE_SENT",
-              phone: recipientPhone,
-              recipientPhone,
-              sentByUserId: user.userId,
-              status: "DRAFT",
+              remainingUses: purchaseLines[index].packageDefinition.totalUses,
+              status: "ACTIVE",
             },
-          })
-        : null;
+          }),
+        ),
+      );
+
+      const packageSummary = packageDefinitions.map((packageDefinition) => ({
+        packageId: packageDefinition.id,
+        name: packageDefinition.name,
+        quantity: mergedQuantities.get(packageDefinition.id) ?? 0,
+      }));
 
       await writeAuditLog(
         {
@@ -678,16 +750,16 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
           action: "PACKAGE_PURCHASE_PAID",
           entityType: "Payment",
           entityId: payment.id,
-          summary: `Activated ${packageDefinition.name} package`,
+          summary: `Activated ${purchaseLines.length} customer packages`,
           before: {
-            customerPackageId: customerPackage.id,
+            customerPackageIds: customerPackages.map((item) => item.id),
             status: "PENDING_PAYMENT",
             remainingUses: 0,
           },
           after: {
-            customerPackageId: customerPackage.id,
+            customerPackageIds: customerPackages.map((item) => item.id),
             status: "ACTIVE",
-            remainingUses: packageDefinition.totalUses,
+            packages: packageSummary,
             amount: payment.amount,
             method: payment.method,
           },
@@ -695,7 +767,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
             customerId: customer.id,
             customerPhone: customer.phone,
             customerVehicleCount: customer._count.vehicles,
-            packageId: packageDefinition.id,
+            packages: packageSummary,
           },
           request: auditRequest,
         },
@@ -704,34 +776,16 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
 
       return {
         customerId: customer.id,
-        customerPackageId: customerPackage.id,
+        customerPackageIds: customerPackages.map((item) => item.id),
         invoiceId: invoice.id,
-        messageLogId: messageLog?.id ?? null,
-        recipientPhone,
-        messageBody,
       };
     });
 
-    if (result.messageLogId && result.recipientPhone) {
-      try {
-        await enqueueWhatsAppLogMessage({
-          businessId,
-          branchId,
-          messageLogId: result.messageLogId,
-          messageType: "INVOICE_SENT",
-          phone: result.recipientPhone,
-          message: result.messageBody,
-        });
-      } catch (error) {
-        await prisma.whatsAppMessage.update({
-          where: { id: result.messageLogId },
-          data: {
-            status: "FAILED",
-            errorMessage: error instanceof Error ? error.message : "Unable to queue package invoice message.",
-          },
-        });
-      }
-    }
+    await sendInvoiceIfConnected({
+      businessId,
+      invoiceId: result.invoiceId,
+      sentByUserId: user.userId,
+    });
 
     revalidatePath("/work-orders");
     revalidatePath("/pos");
@@ -739,16 +793,20 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
     revalidatePath("/dashboard");
     revalidatePath("/reports");
     revalidatePath(`/crm/customers/${result.customerId}`);
-    revalidatePath(`/pos/packages/${result.customerPackageId}`);
+    result.customerPackageIds.forEach((customerPackageId) => {
+      revalidatePath(`/pos/packages/${customerPackageId}`);
+    });
     revalidatePath(`/invoices/${result.invoiceId}`);
+    revalidatePath(returnPath);
   } catch (error) {
-    redirectToWorkOrdersMessage(
+    redirectToPackagePurchaseMessage(
+      returnPath,
       "error",
       error instanceof Error ? error.message : "Unable to complete package purchase.",
     );
   }
 
-  redirectToWorkOrdersMessage("success", "Package purchased and activated.");
+  redirectToPackagePurchaseMessage(returnPath, "success", "Packages purchased and activated.");
 }
 
 export async function updateWorkOrderStatusAction(formData: FormData) {

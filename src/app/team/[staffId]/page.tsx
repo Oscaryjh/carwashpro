@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
 import { StaffForm } from "@/components/staff-form";
+import { StaffAvailabilityForm } from "@/components/staff-availability-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import {
   assertStaffPermission,
@@ -22,7 +23,7 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
   assertStaffPermission(user, "TEAM");
 
   const { staffId } = await params;
-  const [staff, branches] = await Promise.all([
+  const [staff, branches, availability, breaks, timeOff] = await Promise.all([
     prisma.user.findFirst({
       where: {
         id: staffId,
@@ -31,11 +32,37 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
       },
     }),
     getActiveBranches(businessId),
+    prisma.staffAvailability.findMany({
+      where: { businessId, userId: staffId },
+      orderBy: { dayOfWeek: "asc" },
+    }),
+    prisma.staffBreak.findMany({
+      where: { businessId, userId: staffId },
+      orderBy: { dayOfWeek: "asc" },
+    }),
+    prisma.staffTimeOff.findMany({
+      where: { businessId, userId: staffId, endsAt: { gte: new Date() } },
+      orderBy: { startsAt: "asc" },
+    }),
   ]);
 
   if (!staff) {
     notFound();
   }
+
+  const assignedBranchIds = staff.employeeAccountId
+    ? (
+        await prisma.employeeBranchAssignment.findMany({
+          where: {
+            businessId,
+            membership: { employeeAccountId: staff.employeeAccountId },
+          },
+          select: { branchId: true },
+        })
+      ).map((assignment) => assignment.branchId)
+    : staff.branchId
+      ? [staff.branchId]
+      : [];
 
   const canDeleteStaff =
     hasStaffPermission(user, "DELETE_STAFF") && staff.id !== user.userId;
@@ -66,9 +93,17 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
             action={updateStaffAction}
             branches={branches}
             staff={staff}
+            assignedBranchIds={assignedBranchIds}
             submitLabel="Save staff"
           />
         </div>
+
+        <StaffAvailabilityForm
+          staffId={staff.id}
+          availability={availability}
+          breaks={breaks}
+          timeOff={timeOff}
+        />
 
         {canDeleteStaff ? (
           <div className="panel danger-panel">

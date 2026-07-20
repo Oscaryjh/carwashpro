@@ -19,7 +19,8 @@ type PackageCategoriesPageProps = {
 export default async function PackageCategoriesPage({
   searchParams,
 }: PackageCategoriesPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
+  const isSalonBusiness = industryType === "SALON_BEAUTY";
   assertStaffPermission(user, "PACKAGES");
 
   const params = await searchParams;
@@ -60,7 +61,11 @@ export default async function PackageCategoriesPage({
           <form className="service-category-create-form" action={createPackageCategoryAction}>
             <label>
               <span>Category name</span>
-              <input name="name" placeholder="Prepaid wash" required />
+              <input
+                name="name"
+                placeholder={isSalonBusiness ? "Prepaid service" : "Prepaid wash"}
+                required
+              />
             </label>
             <button type="submit">Create</button>
           </form>

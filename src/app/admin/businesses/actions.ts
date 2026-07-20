@@ -311,6 +311,10 @@ export async function updateBusinessAction(formData: FormData) {
     phone: formData.get("phone"),
     email: formData.get("email"),
     address: formData.get("address"),
+    sstEnabled: formData.get("sstEnabled") === "on",
+    sstLabel: formData.get("sstLabel") ?? "SST",
+    sstRate: formData.get("sstRate") ?? "0",
+    sstRegistrationNo: formData.get("sstRegistrationNo"),
     status: user.role === "PLATFORM_ADMIN" ? formData.get("status") : current.status,
   });
   const logoUrl = await saveBusinessLogo(formData.get("logo"), businessId);
@@ -324,6 +328,10 @@ export async function updateBusinessAction(formData: FormData) {
         phone: parsed.phone || null,
         email: parsed.email || null,
         address: parsed.address || null,
+        sstEnabled: parsed.sstEnabled,
+        sstLabel: parsed.sstLabel,
+        sstRate: parsed.sstRate,
+        sstRegistrationNo: parsed.sstRegistrationNo || null,
         status: parsed.status,
         ...(logoUrl ? { logoUrl } : {}),
       },
@@ -417,7 +425,7 @@ export async function adminUpdateUserEmailAction(
       return { status: "error", message: "User not found for this business." };
     }
 
-    if (targetUser.email.toLowerCase() === email) {
+    if (targetUser.email?.toLowerCase() === email) {
       return { status: "success", message: "Login email is unchanged." };
     }
 
@@ -430,7 +438,7 @@ export async function adminUpdateUserEmailAction(
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: targetUser.id },
-        data: { email },
+        data: { email, loginEnabled: true },
       });
 
       await writeAuditLog(
@@ -496,7 +504,7 @@ export async function adminResetUserPasswordAction(
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: targetUser.id },
-        data: { passwordHash },
+        data: { passwordHash, loginEnabled: true },
       });
 
       await writeAuditLog(

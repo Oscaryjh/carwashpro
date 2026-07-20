@@ -2,6 +2,16 @@ import { z } from "zod";
 
 const paymentMethodSchema = z.enum(["CASH", "CARD", "DUITNOW", "EWALLET", "BANK_TRANSFER"]);
 
+const optionalReferenceSchema = z.preprocess(
+  (value) => (value === null ? undefined : value),
+  z.string().trim().optional(),
+);
+
+const optionalMoney = z.preprocess(
+  (value) => (value === null || value === undefined || value === "" ? 0 : value),
+  z.coerce.number().min(0, "Amount cannot be negative."),
+);
+
 function requireReferenceForNonCash<T extends { method: string; reference?: string }>(
   input: T,
   context: z.RefinementCtx,
@@ -20,7 +30,7 @@ export const paymentSchema = z
     workOrderId: z.string().uuid("Work order is required."),
     amount: z.coerce.number().positive("Payment amount must be more than 0."),
     method: paymentMethodSchema,
-    reference: z.string().trim().optional(),
+    reference: optionalReferenceSchema,
   })
   .superRefine(requireReferenceForNonCash);
 
@@ -29,18 +39,43 @@ export const packagePurchasePaymentSchema = z
     customerPackageId: z.string().uuid("Customer package is required."),
     amount: z.coerce.number().positive("Payment amount must be more than 0."),
     method: paymentMethodSchema,
-    reference: z.string().trim().optional(),
+    reference: optionalReferenceSchema,
   })
   .superRefine(requireReferenceForNonCash);
 
 export const salonAppointmentPaymentSchema = z
   .object({
     appointmentId: z.string().uuid("Appointment is required."),
-    amount: z.coerce.number().positive("Payment amount must be more than 0."),
+    amount: optionalMoney,
     method: paymentMethodSchema,
-    reference: z.string().trim().optional(),
+    reference: optionalReferenceSchema,
+    discountAmount: optionalMoney,
+    depositAmount: optionalMoney,
+    depositMethod: paymentMethodSchema.default("CASH"),
+    depositReference: optionalReferenceSchema,
+    tipAmount: optionalMoney,
   })
-  .superRefine(requireReferenceForNonCash);
+  .superRefine((input, context) => {
+    if (input.amount <= 0 && input.depositAmount <= 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter a payment amount or deposit amount.",
+        path: ["amount"],
+      });
+    }
+
+    if (input.amount > 0) {
+      requireReferenceForNonCash(input, context);
+    }
+
+    if (input.depositAmount > 0 && input.depositMethod !== "CASH" && !input.depositReference?.trim()) {
+      context.addIssue({
+        code: "custom",
+        message: "Reference is required for non-cash deposits.",
+        path: ["depositReference"],
+      });
+    }
+  });
 
 export function toCents(value: unknown) {
   return Math.round(Number(value) * 100);

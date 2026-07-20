@@ -40,7 +40,7 @@ export function VoidInvoiceForm({
       className="danger-zone-form"
       onSubmit={(event) => {
         const confirmed = window.confirm(
-          `Void invoice ${invoiceNumber}? Related active payments will be marked void and this work order will reopen for POS correction.`,
+          `Void invoice ${invoiceNumber}? Related active payments will be marked void and this order will reopen for cashier correction.`,
         );
 
         if (!confirmed) {
@@ -54,7 +54,7 @@ export function VoidInvoiceForm({
         <textarea
           name="voidReason"
           rows={3}
-          placeholder="Example: Wrong payment amount entered at POS"
+          placeholder="Example: Wrong payment amount entered at checkout"
           required
         />
       </label>

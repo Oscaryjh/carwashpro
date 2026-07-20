@@ -112,6 +112,141 @@ test("customers and audit logs stay inside their business", async () => {
   }
 });
 
+test("WhatsApp conversations, contacts, media, and message IDs stay isolated by business", async () => {
+  assertLocalDatabase();
+
+  const suffix = randomUUID().slice(0, 8);
+  const businessIds: string[] = [];
+  const conversationIds: string[] = [];
+
+  try {
+    const businessA = await prisma.business.create({
+      data: { name: `WhatsApp Isolation A ${suffix}`, slug: `wa-a-${suffix}` },
+    });
+    const businessB = await prisma.business.create({
+      data: { name: `WhatsApp Isolation B ${suffix}`, slug: `wa-b-${suffix}` },
+    });
+    businessIds.push(businessA.id, businessB.id);
+
+    const sharedPhone = `6011${suffix.replace(/[^0-9]/g, "").padEnd(8, "7")}`;
+    const sharedInstanceId = "601122233344";
+    const sharedExternalMessageId = `shared-message-${suffix}`;
+
+    const [contactA, contactB] = await Promise.all([
+      prisma.whatsAppContact.create({
+        data: {
+          businessId: businessA.id,
+          instanceId: sharedInstanceId,
+          phone: sharedPhone,
+          displayName: "Customer A",
+          rawJson: { business: "A" },
+        },
+      }),
+      prisma.whatsAppContact.create({
+        data: {
+          businessId: businessB.id,
+          instanceId: sharedInstanceId,
+          phone: sharedPhone,
+          displayName: "Customer B",
+          rawJson: { business: "B" },
+        },
+      }),
+    ]);
+
+    const [conversationA, conversationB] = await Promise.all([
+      prisma.whatsAppConversation.create({
+        data: {
+          businessId: businessA.id,
+          instanceId: sharedInstanceId,
+          phone: sharedPhone,
+          displayName: contactA.displayName,
+          lastMessageBody: "Image from A",
+        },
+      }),
+      prisma.whatsAppConversation.create({
+        data: {
+          businessId: businessB.id,
+          instanceId: sharedInstanceId,
+          phone: sharedPhone,
+          displayName: contactB.displayName,
+          lastMessageBody: "PDF from B",
+        },
+      }),
+    ]);
+    conversationIds.push(conversationA.id, conversationB.id);
+
+    await prisma.whatsAppChatMessage.createMany({
+      data: [
+        {
+          businessId: businessA.id,
+          instanceId: sharedInstanceId,
+          conversationId: conversationA.id,
+          direction: "INBOUND",
+          messageType: "IMAGE",
+          body: "Image from A",
+          mediaUrl: "/uploads/whatsapp-images/a.jpg",
+          mediaMimeType: "image/jpeg",
+          externalMessageId: sharedExternalMessageId,
+          rawMessageJson: { business: "A", media: "image" },
+        },
+        {
+          businessId: businessB.id,
+          instanceId: sharedInstanceId,
+          conversationId: conversationB.id,
+          direction: "INBOUND",
+          messageType: "DOCUMENT",
+          body: "PDF from B",
+          mediaUrl: "/uploads/whatsapp-documents/b.pdf",
+          mediaMimeType: "application/pdf",
+          externalMessageId: sharedExternalMessageId,
+          rawMessageJson: { business: "B", media: "pdf" },
+        },
+      ],
+    });
+
+    const businessAMessages = await prisma.whatsAppChatMessage.findMany({
+      where: { businessId: businessA.id },
+    });
+    const businessBMessages = await prisma.whatsAppChatMessage.findMany({
+      where: { businessId: businessB.id },
+    });
+
+    assert.deepEqual(businessAMessages.map((message) => message.messageType), ["IMAGE"]);
+    assert.deepEqual(businessBMessages.map((message) => message.messageType), ["DOCUMENT"]);
+    assert.deepEqual(businessAMessages[0]?.rawMessageJson, { business: "A", media: "image" });
+    assert.deepEqual(businessBMessages[0]?.rawMessageJson, { business: "B", media: "pdf" });
+    assert.equal(
+      await prisma.whatsAppChatMessage.count({
+        where: { businessId: businessA.id, externalMessageId: sharedExternalMessageId },
+      }),
+      1,
+    );
+    assert.equal(
+      await prisma.whatsAppChatMessage.count({
+        where: { businessId: businessB.id, externalMessageId: sharedExternalMessageId },
+      }),
+      1,
+    );
+  } finally {
+    if (conversationIds.length) {
+      await prisma.whatsAppChatMessage.deleteMany({
+        where: { conversationId: { in: conversationIds } },
+      });
+      await prisma.whatsAppConversation.deleteMany({
+        where: { id: { in: conversationIds } },
+      });
+    }
+    if (businessIds.length) {
+      await prisma.whatsAppContact.deleteMany({
+        where: { businessId: { in: businessIds } },
+      });
+      await prisma.business.deleteMany({ where: { id: { in: businessIds } } });
+    }
+
+    await prisma.$disconnect();
+  }
+});
+
 function assertLocalDatabase() {
   const databaseUrl = process.env.DATABASE_URL;
 

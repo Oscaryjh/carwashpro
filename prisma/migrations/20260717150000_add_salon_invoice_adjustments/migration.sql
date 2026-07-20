@@ -1,0 +1,4 @@
+ALTER TABLE "invoices"
+  ADD COLUMN "discount_amount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+  ADD COLUMN "deposit_amount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+  ADD COLUMN "tip_amount" DECIMAL(10,2) NOT NULL DEFAULT 0;

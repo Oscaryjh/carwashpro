@@ -4,8 +4,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { reverseLoyaltyPointsForRefund } from "@/lib/loyalty/service";
+import { makeCreditNoteNumber } from "@/lib/invoices/credit-note-number";
+import {
+  restoreRedeemedLoyaltyPointsForRefund,
+  reverseLoyaltyPointsForRefund,
+} from "@/lib/loyalty/service";
 import { prisma } from "@/lib/prisma";
+import { calculateCreditNoteAmounts } from "@/lib/tax/calculator";
 import {
   getRefundableCents,
   getRefundedPaymentState,
@@ -112,16 +117,34 @@ export async function refundPaymentAction(
           },
           include: {
             workOrder: true,
+            customerPackage: {
+              include: {
+                package: true,
+              },
+            },
+            items: {
+              include: {
+                customerPackage: {
+                  include: { package: true },
+                },
+              },
+            },
           },
         });
 
         if (!invoice) {
           throw new Error("Invoice not found.");
         }
-        if (!invoice.workOrder) {
-          throw new Error("Package invoices cannot be refunded from this screen yet.");
-        }
-
+        const purchasedPackages = Array.from(
+          new Map(
+            [
+              ...invoice.items
+                .map((item) => item.customerPackage)
+                .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+              ...(invoice.customerPackage ? [invoice.customerPackage] : []),
+            ].map((item) => [item.id, item]),
+          ).values(),
+        );
         if (invoice.status === "VOID") {
           throw new Error("A void invoice cannot be refunded.");
         }
@@ -130,7 +153,12 @@ export async function refundPaymentAction(
           where: {
             id: input.paymentId,
             businessId,
-            workOrderId: invoice.workOrderId,
+            OR: [
+              { invoiceId: invoice.id },
+              ...(invoice.workOrderId
+                ? [{ workOrderId: invoice.workOrderId }]
+                : []),
+            ],
             status: "ACTIVE",
           },
           include: {
@@ -141,6 +169,13 @@ export async function refundPaymentAction(
 
         if (!payment) {
           throw new Error("Active payment not found for this invoice.");
+        }
+
+        if (!payment.invoiceId) {
+          await tx.payment.update({
+            where: { id: payment.id },
+            data: { invoiceId: invoice.id },
+          });
         }
 
         if (
@@ -164,6 +199,26 @@ export async function refundPaymentAction(
           throw new Error(
             `Refund cannot exceed RM${fromCents(refundableCents)}.`,
           );
+        }
+
+        if (!invoice.workOrder) {
+          if (!purchasedPackages.length) {
+            throw new Error("This invoice is not linked to a refundable package.");
+          }
+          if (amountCents !== refundableCents) {
+            throw new Error("Package purchases must be refunded in full.");
+          }
+          if (
+            purchasedPackages.some(
+              (customerPackage) =>
+                customerPackage.status !== "ACTIVE" ||
+                customerPackage.remainingUses !== customerPackage.totalUses,
+            )
+          ) {
+            throw new Error(
+              "All packages in this invoice must be unused before they can be refunded.",
+            );
+          }
         }
 
         if (payment.method === "PACKAGE" && amountCents !== refundableCents) {
@@ -220,6 +275,16 @@ export async function refundPaymentAction(
           },
         });
 
+        if (!invoice.workOrder && purchasedPackages.length) {
+          await tx.customerPackage.updateMany({
+            where: { id: { in: purchasedPackages.map((item) => item.id) } },
+            data: {
+              status: "CANCELLED",
+              remainingUses: 0,
+            },
+          });
+        }
+
         await reverseLoyaltyPointsForRefund(tx, {
           businessId,
           branchId: payment.branchId,
@@ -228,11 +293,16 @@ export async function refundPaymentAction(
           paymentAmountCents: toCents(payment.amount),
           createdById: user.userId,
         });
+        await restoreRedeemedLoyaltyPointsForRefund(tx, {
+          businessId,
+          branchId: payment.branchId,
+          paymentId: payment.id,
+          refundId: refund.id,
+          paymentAmountCents: toCents(payment.amount),
+          createdById: user.userId,
+        });
 
-        const nextPaidCents = Math.max(
-          0,
-          toCents(invoice.workOrder.paidAmount) - amountCents,
-        );
+        const nextPaidCents = Math.max(0, toCents(invoice.paidAmount) - amountCents);
         const totalCents = toCents(invoice.total);
         const nextBalanceCents = Math.max(0, totalCents - nextPaidCents);
         const nextStatus = getRefundedPaymentState(
@@ -241,14 +311,16 @@ export async function refundPaymentAction(
           true,
         );
 
-        await tx.workOrder.update({
-          where: { id: invoice.workOrder.id },
-          data: {
-            paidAmount: fromCents(nextPaidCents),
-            balance: fromCents(nextBalanceCents),
-            paymentStatus: nextStatus,
-          },
-        });
+        if (invoice.workOrder) {
+          await tx.workOrder.update({
+            where: { id: invoice.workOrder.id },
+            data: {
+              paidAmount: fromCents(nextPaidCents),
+              balance: fromCents(nextBalanceCents),
+              paymentStatus: nextStatus,
+            },
+          });
+        }
 
         await tx.invoice.update({
           where: { id: invoice.id },
@@ -256,6 +328,47 @@ export async function refundPaymentAction(
             paidAmount: fromCents(nextPaidCents),
             balance: fromCents(nextBalanceCents),
             status: nextStatus,
+          },
+        });
+
+        const creditNoteAmounts = calculateCreditNoteAmounts({
+          invoiceSubtotal: Number(invoice.subtotal),
+          invoiceTax: Number(invoice.taxAmount),
+          invoiceTotal: Number(invoice.total),
+          refundTotal: amountCents / 100,
+        });
+        const creditNote = await tx.creditNote.create({
+          data: {
+            businessId,
+            branchId: payment.branchId,
+            invoiceId: invoice.id,
+            refundId: refund.id,
+            customerId: invoice.customerId,
+            createdById: user.userId,
+            creditNoteNumber: makeCreditNoteNumber(),
+            reason: input.reason,
+            subtotal: fromCents(toCents(creditNoteAmounts.subtotal)),
+            taxableSubtotal: fromCents(toCents(creditNoteAmounts.taxableSubtotal)),
+            taxAmount: fromCents(toCents(creditNoteAmounts.tax)),
+            taxRate: invoice.taxRate,
+            taxLabel: invoice.taxLabel,
+            total: fromCents(toCents(creditNoteAmounts.total)),
+            items: {
+              create: {
+                businessId,
+                name: purchasedPackages.length
+                  ? purchasedPackages.length === 1
+                    ? `${purchasedPackages[0].package.name} refund`
+                    : `${purchasedPackages.length} package purchases refund`
+                  : `Refund for ${invoice.invoiceNumber}`,
+                quantity: 1,
+                unitPrice: fromCents(toCents(creditNoteAmounts.subtotal)),
+                lineTotal: fromCents(toCents(creditNoteAmounts.subtotal)),
+                taxable: creditNoteAmounts.tax > 0,
+                taxRate: invoice.taxRate,
+                taxAmount: fromCents(toCents(creditNoteAmounts.tax)),
+              },
+            },
           },
         });
 
@@ -272,16 +385,17 @@ export async function refundPaymentAction(
               invoiceStatus: invoice.status,
               paidAmount: invoice.paidAmount,
               balance: invoice.balance,
-              workOrderStatus: invoice.workOrder.status,
-              paymentStatus: invoice.workOrder.paymentStatus,
+              workOrderStatus: invoice.workOrder?.status ?? null,
+              paymentStatus: invoice.workOrder?.paymentStatus ?? null,
               refundableAmount: fromCents(refundableCents),
             },
             after: {
               invoiceStatus: nextStatus,
               paidAmount: fromCents(nextPaidCents),
               balance: fromCents(nextBalanceCents),
-              workOrderStatus: invoice.workOrder.status,
+              workOrderStatus: invoice.workOrder?.status ?? null,
               paymentStatus: nextStatus,
+              creditNoteNumber: creditNote.creditNoteNumber,
             },
             metadata: {
               originalPaymentId: payment.id,
@@ -299,7 +413,8 @@ export async function refundPaymentAction(
         return {
           invoiceId: invoice.id,
           workOrderId: invoice.workOrderId,
-          customerId: invoice.workOrder.customerId,
+          customerId: invoice.customerId ?? invoice.workOrder?.customerId ?? null,
+          creditNoteNumber: creditNote.creditNoteNumber,
         };
       },
       { isolationLevel: "Serializable" },
@@ -310,14 +425,18 @@ export async function refundPaymentAction(
     revalidatePath("/invoices");
     revalidatePath(`/invoices/${result.invoiceId}`);
     revalidatePath("/loyalty");
-    revalidatePath(`/crm/customers/${result.customerId}`);
+    if (result.customerId) {
+      revalidatePath(`/crm/customers/${result.customerId}`);
+    }
     revalidatePath("/reports");
     revalidatePath("/work-orders");
-    revalidatePath(`/work-orders/${result.workOrderId}`);
+    if (result.workOrderId) {
+      revalidatePath(`/work-orders/${result.workOrderId}`);
+    }
 
     return {
       status: "success",
-      message: "Refund recorded. The job and pickup status were not changed.",
+      message: `Refund recorded. Credit Note ${result.creditNoteNumber} created.`,
     };
   } catch (error) {
     return {

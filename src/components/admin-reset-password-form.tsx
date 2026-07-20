@@ -9,7 +9,7 @@ import {
 type AdminResetPasswordFormProps = {
   businessId: string;
   userId: string;
-  userEmail: string;
+  userEmail: string | null;
 };
 
 const initialState: AdminResetUserPasswordState = {
@@ -40,7 +40,7 @@ export function AdminResetPasswordForm({
       <input type="hidden" name="userId" value={userId} />
       <input
         ref={passwordRef}
-        aria-label={`New password for ${userEmail}`}
+        aria-label={`New password for ${userEmail ?? "staff member"}`}
         name="newPassword"
         type="password"
         minLength={8}

@@ -5,7 +5,14 @@ export const BUSINESS_INDUSTRY_OPTIONS: Array<{
   label: string;
 }> = [
   { value: "AUTO_DETAILING", label: "Auto Detailing" },
-  { value: "SALON_BEAUTY", label: "Salon & Beauty" },
+  { value: "SALON_BEAUTY", label: "Beauty & Wellness" },
+  { value: "PET_GROOMING", label: "Pet Grooming" },
+  { value: "DEVICE_REPAIR", label: "Phone & Computer Repair" },
+  { value: "BICYCLE_REPAIR", label: "Bicycle Repair" },
+  { value: "SHOE_CLEANING", label: "Shoe Cleaning" },
+  { value: "LAUNDRY", label: "Laundry" },
+  { value: "WATCH_REPAIR", label: "Watch Repair" },
+  { value: "GENERAL_SERVICE", label: "General Service" },
 ];
 
 export function getBusinessIndustryLabel(industry: BusinessIndustry) {
@@ -16,5 +23,6 @@ export function getBusinessIndustryLabel(industry: BusinessIndustry) {
 }
 
 export function getBusinessHomeHref(industry: BusinessIndustry) {
-  return industry === "SALON_BEAUTY" ? "/salon/dashboard" : "/dashboard";
+  void industry;
+  return "/reports";
 }

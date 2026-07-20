@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { AppShell } from "@/components/app-shell";
-import { requireBusinessUser } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
+import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { prisma } from "@/lib/prisma";
 
 type ServicesPageProps = {
@@ -18,9 +18,10 @@ type ServicesPageProps = {
 const ALL_BRANCHES_ONLY = "all-branches-only";
 
 export default async function ServicesPage({ searchParams }: ServicesPageProps) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const context = await requireBusinessIndustryContext();
+  const { user, businessId } = context;
   assertStaffPermission(user, "SERVICES");
-  const isSalonBusiness = industryType === "SALON_BEAUTY";
+  const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const params = await searchParams;
 
   const query = params.q?.trim() ?? "";
@@ -68,6 +69,10 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
       include: {
         branch: true,
         serviceCategory: true,
+        staffAssignments: {
+          where: { businessId },
+          include: { user: { select: { name: true } } },
+        },
         _count: { select: { staffAssignments: true } },
       },
       orderBy: [{ status: "asc" }, { category: "asc" }, { name: "asc" }],
@@ -86,7 +91,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
       <section className="content">
         <div className="page-header">
           <div>
-            <h1>{isSalonBusiness ? "Salon Services" : "Services"}</h1>
+            <h1>Services</h1>
             <p>
               {hasFilters
                 ? `${services.length} service${services.length === 1 ? "" : "s"} match this filter.`
@@ -176,7 +181,17 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                       </td>
                     ) : null}
                     {isSalonBusiness ? (
-                      <td>{service._count.staffAssignments}</td>
+                      <td>
+                        {service.staffAssignments.length ? (
+                          <div className="service-staff-summary">
+                            {service.staffAssignments.map((assignment) => (
+                              <span key={assignment.userId}>{assignment.user.name}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="muted">All active staff</span>
+                        )}
+                      </td>
                     ) : null}
                     <td>
                       <span className={`status ${service.status.toLowerCase()}`}>

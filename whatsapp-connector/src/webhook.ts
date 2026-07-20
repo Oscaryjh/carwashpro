@@ -14,7 +14,7 @@ export type IncomingMessageWebhookPayload = {
   direction?: "INBOUND" | "OUTBOUND";
   from: string;
   messageId: string;
-  messageType: "audio" | "image" | "text";
+  messageType: "audio" | "document" | "image" | "text";
   mediaBase64?: string | null;
   mediaFileName?: string | null;
   mediaMimeType?: string | null;

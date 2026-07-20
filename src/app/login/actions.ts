@@ -31,7 +31,13 @@ export async function loginAction(
     include: { business: true },
   });
 
-  if (!user || user.status !== "active") {
+  if (
+    !user ||
+    user.status !== "active" ||
+    !user.loginEnabled ||
+    !user.email ||
+    !user.passwordHash
+  ) {
     return { error: "Invalid login details." };
   }
 

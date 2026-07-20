@@ -66,7 +66,7 @@ export function CustomerPackageSelector({
               />
               <span>{packagePlan.name}</span>
               <strong>RM{packagePlan.price.toFixed(2)}</strong>
-              <small>{packagePlan.totalUses} washes</small>
+              <small>{packagePlan.totalUses} uses</small>
             </label>
           ))}
         </div>
@@ -76,7 +76,7 @@ export function CustomerPackageSelector({
 
       <div className="form-actions">
         <button disabled={!selectedPackageId} type="submit">
-          Send to POS
+          Continue to payment
         </button>
       </div>
     </div>

@@ -18,7 +18,8 @@ type PackagesPageProps = {
 const ALL_BRANCHES_ONLY = "all-branches-only";
 
 export default async function PackagesPage({ searchParams }: PackagesPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
+  const isSalonBusiness = industryType === "SALON_BEAUTY";
   assertStaffPermission(user, "PACKAGES");
 
   const params = await searchParams;
@@ -92,7 +93,9 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
             <p>
               {hasFilters
                 ? `${packages.length} package${packages.length === 1 ? "" : "s"} match this filter.`
-                : "Prepaid wash packages and remaining-use tracking."}
+                : isSalonBusiness
+                  ? "Prepaid service packages and remaining-use tracking."
+                  : "Prepaid wash packages and remaining-use tracking."}
             </p>
           </div>
           <div className="inline-actions">
@@ -150,7 +153,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
                   <th>Category</th>
                   <th>Package</th>
                   <th>Price</th>
-                  <th>Washes</th>
+                  <th>{isSalonBusiness ? "Uses" : "Washes"}</th>
                   <th>Service</th>
                   <th>Status</th>
                   <th>Sold</th>
@@ -172,7 +175,10 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
                     </td>
                     <td>RM{Number(packagePlan.price).toFixed(2)}</td>
                     <td>{packagePlan.totalUses}</td>
-                    <td>{packagePlan.service?.name ?? "Any wash service"}</td>
+                    <td>
+                      {packagePlan.service?.name ??
+                        (isSalonBusiness ? "Any service" : "Any wash service")}
+                    </td>
                     <td>
                       <span className={`status ${packagePlan.status.toLowerCase()}`}>
                         {packagePlan.status}

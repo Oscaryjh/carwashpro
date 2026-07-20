@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import {
   buildInvoicePdf,
+  buildInvoiceReceiptPdf,
   invoicePdfFileName,
 } from "@/lib/invoices/invoice-pdf";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
@@ -17,9 +18,11 @@ type InvoicePdfRouteProps = {
   }>;
 };
 
-export async function GET(_request: Request, { params }: InvoicePdfRouteProps) {
+export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
   const { businessId } = await requireBusinessUser();
   const { invoiceId } = await params;
+  const isReceipt = new URL(request.url).searchParams.get("format") === "receipt";
+  const buildPdfDocument = isReceipt ? buildInvoiceReceiptPdf : buildInvoicePdf;
   const invoice = await prisma.invoice.findFirst({
     where: {
       businessId,
@@ -81,7 +84,7 @@ export async function GET(_request: Request, { params }: InvoicePdfRouteProps) {
       hour: "2-digit",
       minute: "2-digit",
     });
-    const pdf = buildInvoicePdf({
+    const pdf = buildPdfDocument({
       company: { ...invoice.business, logo },
       customer: {
         name: invoice.appointment.customer.name,
@@ -93,6 +96,14 @@ export async function GET(_request: Request, { params }: InvoicePdfRouteProps) {
       paidAmount: invoice.paidAmount,
       cashPaidAmount: paymentSummary.cashPaidAmount,
       packageVoucherAmount: paymentSummary.packageVoucherAmount,
+      discountAmount: invoice.discountAmount,
+      loyaltyDiscountAmount: invoice.loyaltyDiscountAmount,
+      loyaltyPointsRedeemed: invoice.loyaltyPointsRedeemed,
+      depositAmount: invoice.depositAmount,
+      taxAmount: invoice.taxAmount,
+      taxLabel: invoice.taxLabel,
+      taxRate: invoice.taxRate,
+      tipAmount: invoice.tipAmount,
       balance: invoice.balance,
       status: invoice.status,
       subtotal: invoice.subtotal,
@@ -103,14 +114,24 @@ export async function GET(_request: Request, { params }: InvoicePdfRouteProps) {
         detail: `${appointmentTime} / ${invoice.appointment.assignedStaff?.name ?? "Unassigned"}`,
       },
     });
-    const fileName = invoicePdfFileName(formatInvoiceNumber(invoice.invoiceNumber));
-    return pdfResponse(pdf, fileName);
+    const fileName = receiptFileName(formatInvoiceNumber(invoice.invoiceNumber), isReceipt);
+    return pdfResponse(pdf, fileName, isReceipt);
   }
 
   if (!invoice.workOrder) {
-    const packageName = invoice.customerPackage?.package.name ?? "Package purchase";
+    const packageItems = invoice.items.length
+      ? invoice.items
+      : [{
+          name: invoice.customerPackage?.package.name ?? "Package purchase",
+          quantity: 1,
+          unitPrice: invoice.subtotal,
+          lineTotal: invoice.subtotal,
+        }];
+    const packageCount = packageItems.reduce((sum, item) => sum + item.quantity, 0);
+    const packageName =
+      packageItems.length === 1 ? packageItems[0].name : `${packageCount} packages`;
     const logo = await loadInvoiceLogo(invoice.business.logoUrl);
-    const pdf = buildInvoicePdf({
+    const pdf = buildPdfDocument({
       company: { ...invoice.business, logo },
       customer: {
         name: invoice.customer?.name ?? "Customer",
@@ -118,8 +139,16 @@ export async function GET(_request: Request, { params }: InvoicePdfRouteProps) {
       },
       invoiceNumber: formatInvoiceNumber(invoice.invoiceNumber),
       issuedAt: invoice.issuedAt,
-      items: [{ name: packageName, quantity: 1, unitPrice: invoice.total, lineTotal: invoice.total }],
+      items: packageItems,
       paidAmount: invoice.paidAmount,
+      discountAmount: invoice.discountAmount,
+      loyaltyDiscountAmount: invoice.loyaltyDiscountAmount,
+      loyaltyPointsRedeemed: invoice.loyaltyPointsRedeemed,
+      depositAmount: invoice.depositAmount,
+      taxAmount: invoice.taxAmount,
+      taxLabel: invoice.taxLabel,
+      taxRate: invoice.taxRate,
+      tipAmount: invoice.tipAmount,
       balance: invoice.balance,
       status: invoice.status,
       subtotal: invoice.subtotal,
@@ -127,17 +156,17 @@ export async function GET(_request: Request, { params }: InvoicePdfRouteProps) {
       reference: {
         label: "Package",
         value: packageName,
-        detail: "Package purchase",
+        detail: packageItems.map((item) => `${item.name} x${item.quantity}`).join(", "),
       },
     });
-    const fileName = invoicePdfFileName(formatInvoiceNumber(invoice.invoiceNumber));
-    return pdfResponse(pdf, fileName);
+    const fileName = receiptFileName(formatInvoiceNumber(invoice.invoiceNumber), isReceipt);
+    return pdfResponse(pdf, fileName, isReceipt);
   }
 
   const displayInvoiceNumber = formatInvoiceNumber(invoice.invoiceNumber);
   const paymentSummary = getInvoicePaymentSummary(invoice.workOrder.payments);
   const logo = await loadInvoiceLogo(invoice.business.logoUrl);
-  const pdf = buildInvoicePdf({
+  const pdf = buildPdfDocument({
     company: {
       ...invoice.business,
       logo,
@@ -157,25 +186,38 @@ export async function GET(_request: Request, { params }: InvoicePdfRouteProps) {
     paidAmount: invoice.paidAmount,
     cashPaidAmount: paymentSummary.cashPaidAmount,
     packageVoucherAmount: paymentSummary.packageVoucherAmount,
+    discountAmount: invoice.discountAmount,
+    loyaltyDiscountAmount: invoice.loyaltyDiscountAmount,
+    loyaltyPointsRedeemed: invoice.loyaltyPointsRedeemed,
+    depositAmount: invoice.depositAmount,
+    taxAmount: invoice.taxAmount,
+    taxLabel: invoice.taxLabel,
+    taxRate: invoice.taxRate,
+    tipAmount: invoice.tipAmount,
     balance: invoice.balance,
     status: invoice.status,
     subtotal: invoice.subtotal,
     total: invoice.total,
     vehicle: invoice.workOrder.vehicle,
   });
-  const fileName = invoicePdfFileName(displayInvoiceNumber);
+  const fileName = receiptFileName(displayInvoiceNumber, isReceipt);
 
-  return pdfResponse(pdf, fileName);
+  return pdfResponse(pdf, fileName, isReceipt);
 }
 
-function pdfResponse(pdf: Buffer, fileName: string) {
+function pdfResponse(pdf: Buffer, fileName: string, inline = false) {
   return new Response(new Uint8Array(pdf), {
     headers: {
-      "Content-Disposition": `attachment; filename="${fileName}"`,
+      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${fileName}"`,
       "Content-Length": String(pdf.length),
       "Content-Type": "application/pdf",
     },
   });
+}
+
+function receiptFileName(invoiceNumber: string, receipt: boolean) {
+  const fileName = invoicePdfFileName(invoiceNumber);
+  return receipt ? fileName.replace(/\.pdf$/i, "-58mm.pdf") : fileName;
 }
 
 async function loadInvoiceLogo(logoUrl?: string | null) {

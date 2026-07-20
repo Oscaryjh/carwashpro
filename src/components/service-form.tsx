@@ -74,6 +74,34 @@ export function ServiceForm({
             required
           />
         </label>
+        <label className="service-taxable-field">
+          <input
+            name="taxable"
+            type="checkbox"
+            defaultChecked={service?.taxable ?? true}
+          />
+          <span className="service-taxable-indicator" aria-hidden="true">✓</span>
+          <span className="service-taxable-copy">
+            <strong>Taxable service</strong>
+            <small>Include SST when this service is selected.</small>
+          </span>
+        </label>
+        <label className="service-tax-rate-field">
+          <span>Tax rate override optional</span>
+          <div className="input-with-suffix">
+            <input
+              name="taxRate"
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              placeholder="Use company SST rate"
+              defaultValue={service?.taxRate == null ? "" : Number(service.taxRate).toFixed(2)}
+            />
+            <span>%</span>
+          </div>
+          <small className="field-helper">Leave blank to use the company SST rate.</small>
+        </label>
         {isSalonBusiness ? (
           <label>
             <span>Duration</span>

@@ -7,6 +7,7 @@ import { requireBusinessUser } from "@/lib/auth/business-user";
 import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { awardLoyaltyPointsForPayment } from "@/lib/loyalty/service";
 import { prisma } from "@/lib/prisma";
+import { calculatePackageTax, calculateTax } from "@/lib/tax/calculator";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import {
   fromCents,
@@ -38,7 +39,16 @@ export async function recordPaymentAction(formData: FormData) {
           : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
       },
       include: {
+        business: {
+          select: { sstEnabled: true, sstLabel: true, sstRate: true },
+        },
         invoice: true,
+        items: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            service: { select: { taxable: true, taxRate: true } },
+          },
+        },
       },
     });
     assertShiftBranch(shift.branchId, workOrder.branchId);
@@ -51,7 +61,21 @@ export async function recordPaymentAction(formData: FormData) {
       throw new Error("This work order is already fully paid.");
     }
 
-    const totalCents = toCents(workOrder.total);
+    const tax = workOrder.invoice
+      ? null
+      : calculateTax({
+          sstEnabled: workOrder.business.sstEnabled,
+          sstLabel: workOrder.business.sstLabel,
+          sstRate: Number(workOrder.business.sstRate),
+          lines: workOrder.items.map((item) => ({
+            lineTotal: Number(item.lineTotal),
+            taxable: item.service?.taxable ?? false,
+            taxRate: item.service?.taxRate == null ? null : Number(item.service.taxRate),
+          })),
+        });
+    const totalCents = workOrder.invoice
+      ? toCents(workOrder.invoice.total)
+      : toCents(tax?.total ?? workOrder.total);
     const paidCents = toCents(workOrder.paidAmount);
     const amountCents = toCents(input.amount);
     const balanceCents = totalCents - paidCents;
@@ -75,10 +99,33 @@ export async function recordPaymentAction(formData: FormData) {
           workOrderId: workOrder.id,
           invoiceNumber: makeInvoiceNumber(),
           subtotal: workOrder.subtotal,
-          total: workOrder.total,
+          taxableSubtotal: fromCents(toCents(tax?.taxableSubtotal)),
+          taxAmount: fromCents(toCents(tax?.tax)),
+          taxRate: fromCents(toCents(tax?.taxRate)),
+          taxLabel: tax?.tax && tax.tax > 0 ? tax.taxLabel : null,
+          total: fromCents(totalCents),
           paidAmount: fromCents(0),
-          balance: workOrder.total,
+          balance: fromCents(totalCents),
           status: "UNPAID",
+          items: {
+            create: workOrder.items.map((item, index) => ({
+              businessId,
+              serviceId: item.serviceId,
+              name: item.name,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              lineTotal: item.lineTotal,
+              taxable: item.service?.taxable ?? false,
+              taxRate: fromCents(toCents(
+                item.service?.taxable && workOrder.business.sstEnabled
+                  ? item.service.taxRate == null
+                    ? Number(workOrder.business.sstRate)
+                    : Number(item.service.taxRate)
+                  : 0,
+              )),
+              taxAmount: fromCents(toCents(tax?.lineTax[index])),
+            })),
+          },
         },
       }));
 
@@ -89,6 +136,7 @@ export async function recordPaymentAction(formData: FormData) {
         cashierId: user.userId,
         shiftId: shift.id,
         workOrderId: workOrder.id,
+        invoiceId: invoice.id,
         amount: fromCents(amountCents),
         method: input.method,
         reference: input.reference || null,
@@ -108,6 +156,7 @@ export async function recordPaymentAction(formData: FormData) {
     await tx.workOrder.update({
       where: { id: workOrder.id },
       data: {
+        total: fromCents(totalCents),
         paidAmount: fromCents(nextPaidCents),
         balance: fromCents(nextBalanceCents),
         paymentStatus,
@@ -201,8 +250,16 @@ export async function usePackagePaymentAction(formData: FormData) {
           : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
       },
       include: {
+        business: {
+          select: { sstEnabled: true, sstLabel: true, sstRate: true },
+        },
         invoice: true,
-        items: true,
+        items: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            service: { select: { taxable: true, taxRate: true } },
+          },
+        },
         vehicle: { select: { size: true } },
       },
     });
@@ -248,7 +305,21 @@ export async function usePackagePaymentAction(formData: FormData) {
       );
     }
 
-    const totalCents = toCents(workOrder.total);
+    const tax = workOrder.invoice
+      ? null
+      : calculateTax({
+          sstEnabled: workOrder.business.sstEnabled,
+          sstLabel: workOrder.business.sstLabel,
+          sstRate: Number(workOrder.business.sstRate),
+          lines: workOrder.items.map((item) => ({
+            lineTotal: Number(item.lineTotal),
+            taxable: item.service?.taxable ?? false,
+            taxRate: item.service?.taxRate == null ? null : Number(item.service.taxRate),
+          })),
+        });
+    const totalCents = workOrder.invoice
+      ? toCents(workOrder.invoice.total)
+      : toCents(tax?.total ?? workOrder.total);
     const paidCents = toCents(workOrder.paidAmount);
     const balanceCents = totalCents - paidCents;
 
@@ -268,10 +339,33 @@ export async function usePackagePaymentAction(formData: FormData) {
           workOrderId: workOrder.id,
           invoiceNumber: makeInvoiceNumber(),
           subtotal: workOrder.subtotal,
-          total: workOrder.total,
+          taxableSubtotal: fromCents(toCents(tax?.taxableSubtotal)),
+          taxAmount: fromCents(toCents(tax?.tax)),
+          taxRate: fromCents(toCents(tax?.taxRate)),
+          taxLabel: tax?.tax && tax.tax > 0 ? tax.taxLabel : null,
+          total: fromCents(totalCents),
           paidAmount: fromCents(0),
-          balance: workOrder.total,
+          balance: fromCents(totalCents),
           status: "UNPAID",
+          items: {
+            create: workOrder.items.map((item, index) => ({
+              businessId,
+              serviceId: item.serviceId,
+              name: item.name,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              lineTotal: item.lineTotal,
+              taxable: item.service?.taxable ?? false,
+              taxRate: fromCents(toCents(
+                item.service?.taxable && workOrder.business.sstEnabled
+                  ? item.service.taxRate == null
+                    ? Number(workOrder.business.sstRate)
+                    : Number(item.service.taxRate)
+                  : 0,
+              )),
+              taxAmount: fromCents(toCents(tax?.lineTax[index])),
+            })),
+          },
         },
       }));
 
@@ -289,6 +383,7 @@ export async function usePackagePaymentAction(formData: FormData) {
         branchId: workOrder.branchId,
         cashierId: user.userId,
         workOrderId: workOrder.id,
+        invoiceId: invoice.id,
         customerPackageId: customerPackage.id,
         shiftId: shift.id,
         amount: fromCents(balanceCents),
@@ -301,6 +396,7 @@ export async function usePackagePaymentAction(formData: FormData) {
     await tx.workOrder.update({
       where: { id: workOrder.id },
       data: {
+        total: fromCents(totalCents),
         paidAmount: fromCents(nextPaidCents),
         balance: fromCents(0),
         paymentStatus: "PAID",
@@ -375,7 +471,7 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
     reference: formData.get("reference"),
   });
 
-  const customerId = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const shift = await getOpenShift(tx, businessId, user.userId);
     const customerPackage = await tx.customerPackage.findFirstOrThrow({
       where: {
@@ -388,17 +484,72 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
       },
       include: {
         customer: true,
-        package: true,
+        package: {
+          include: {
+            service: true,
+          },
+        },
       },
     });
     assertShiftBranch(shift.branchId, customerPackage.branchId);
 
-    const priceCents = toCents(customerPackage.purchasePrice);
+    const business = await tx.business.findUniqueOrThrow({
+      where: { id: businessId },
+      select: {
+        sstEnabled: true,
+        sstLabel: true,
+        sstRate: true,
+      },
+    });
+    const packageTax = calculatePackageTax({
+      price: Number(customerPackage.purchasePrice),
+      taxable: customerPackage.package.service?.taxable ?? true,
+      taxRate: customerPackage.package.service?.taxRate
+        ? Number(customerPackage.package.service.taxRate)
+        : null,
+      sstEnabled: business.sstEnabled,
+      sstLabel: business.sstLabel,
+      sstRate: Number(business.sstRate),
+    });
+
+    const priceCents = toCents(packageTax.total);
     const amountCents = toCents(input.amount);
 
     if (amountCents !== priceCents) {
       throw new Error("Package purchase must be paid in full before activation.");
     }
+
+    const invoice = await tx.invoice.create({
+      data: {
+        businessId,
+        branchId: customerPackage.branchId,
+        customerId: customerPackage.customerId,
+        customerPackageId: customerPackage.id,
+        invoiceNumber: makeInvoiceNumber(),
+        subtotal: fromCents(toCents(packageTax.subtotal)),
+        taxableSubtotal: fromCents(toCents(packageTax.taxableSubtotal)),
+        taxAmount: fromCents(toCents(packageTax.tax)),
+        taxRate: packageTax.taxRate,
+        taxLabel: packageTax.taxLabel,
+        total: fromCents(priceCents),
+        paidAmount: fromCents(priceCents),
+        balance: fromCents(0),
+        status: "PAID",
+        items: {
+          create: {
+            businessId,
+            serviceId: customerPackage.package.serviceId,
+            name: customerPackage.package.name,
+            quantity: 1,
+            unitPrice: fromCents(toCents(packageTax.subtotal)),
+            lineTotal: fromCents(toCents(packageTax.subtotal)),
+            taxable: customerPackage.package.service?.taxable ?? true,
+            taxRate: customerPackage.package.service?.taxRate ?? packageTax.taxRate,
+            taxAmount: fromCents(toCents(packageTax.lineTax[0] ?? 0)),
+          },
+        },
+      },
+    });
 
     const payment = await tx.payment.create({
       data: {
@@ -406,9 +557,10 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
         branchId: customerPackage.branchId,
         cashierId: user.userId,
         workOrderId: null,
+        invoiceId: invoice.id,
         customerPackageId: customerPackage.id,
         shiftId: shift.id,
-        amount: fromCents(amountCents),
+        amount: fromCents(priceCents),
         method: input.method,
         reference: input.reference || `${customerPackage.package.name} package purchase`,
       },
@@ -419,7 +571,7 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
       branchId: customerPackage.branchId,
       customerId: customerPackage.customerId,
       paymentId: payment.id,
-      amountCents,
+      amountCents: priceCents,
       paymentMethod: payment.method,
       createdById: user.userId,
     });
@@ -452,19 +604,30 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
           remainingUses: customerPackage.totalUses,
           amount: payment.amount,
           method: payment.method,
+          invoiceId: invoice.id,
         },
         request: auditRequest,
       },
       tx,
     );
 
-    return customerPackage.customer.id;
+    return {
+      customerId: customerPackage.customer.id,
+      invoiceId: invoice.id,
+    };
   });
 
   revalidatePath("/pos");
   revalidatePath(`/pos/packages/${input.customerPackageId}`);
-  revalidatePath(`/crm/customers/${customerId}`);
-  redirect(`/crm/customers/${customerId}`);
+  revalidatePath(`/crm/customers/${result.customerId}`);
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${result.invoiceId}`);
+  await sendInvoiceIfConnected({
+    businessId,
+    invoiceId: result.invoiceId,
+    sentByUserId: user.userId,
+  });
+  redirect(`/crm/customers/${result.customerId}`);
 }
 
 type PosTransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];

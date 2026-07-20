@@ -18,7 +18,8 @@ type PackageDetailsPageProps = {
 export default async function PackageDetailsPage({
   params,
 }: PackageDetailsPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
+  const isSalonBusiness = industryType === "SALON_BEAUTY";
   assertStaffPermission(user, "PACKAGES");
 
   const { packageId } = await params;
@@ -74,10 +75,10 @@ export default async function PackageDetailsPage({
             value={packagePlan.packageCategory?.name ?? "-"}
           />
           <Info label="Status" value={packagePlan.status} />
-          <Info label="Total washes" value={packagePlan.totalUses} />
+          <Info label={isSalonBusiness ? "Total uses" : "Total washes"} value={packagePlan.totalUses} />
           <Info
             label="Linked service"
-            value={packagePlan.service?.name ?? "Any wash service"}
+            value={packagePlan.service?.name ?? (isSalonBusiness ? "Any service" : "Any wash service")}
           />
           <Info label="Sold" value={packagePlan._count.customerPackages} />
         </div>

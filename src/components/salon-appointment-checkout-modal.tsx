@@ -1,0 +1,198 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { SalonCheckoutInvoiceSummary } from "@/app/appointments/actions";
+import { AppointmentInvoiceModal } from "@/components/appointment-invoice-modal";
+import type { InvoiceModalSummary } from "@/components/appointment-invoice-modal";
+import { SalonAppointmentPaymentForm } from "@/components/salon-appointment-payment-form";
+import type { TaxLineInput } from "@/lib/tax/calculator";
+
+type CheckoutService = {
+  name: string;
+  price: number;
+};
+
+type SalonAppointmentCheckoutModalProps = {
+  appointmentId: string;
+  balance: number;
+  canTakePayment: boolean;
+  customerName: string;
+  customerPhone: string;
+  hasInvoice: boolean;
+  hasOpenShift: boolean;
+  initialOpen?: boolean;
+  invoice?: InvoiceModalSummary | null;
+  onDone?: () => void;
+  services: CheckoutService[];
+  subtotal: number;
+  totalAmount: number;
+  taxLines: TaxLineInput[];
+  sstEnabled: boolean;
+  sstLabel: string;
+  sstRate: number;
+};
+
+export function SalonAppointmentCheckoutModal({
+  appointmentId,
+  balance,
+  canTakePayment,
+  customerName,
+  customerPhone,
+  hasInvoice,
+  hasOpenShift,
+  initialOpen = false,
+  invoice = null,
+  onDone,
+  services,
+  subtotal,
+  totalAmount,
+  taxLines,
+  sstEnabled,
+  sstLabel,
+  sstRate,
+}: SalonAppointmentCheckoutModalProps) {
+  const [open, setOpen] = useState(initialOpen && canTakePayment);
+  const [completedInvoice, setCompletedInvoice] = useState<SalonCheckoutInvoiceSummary | null>(
+    initialOpen && invoice && !canTakePayment ? invoice : null,
+  );
+  const handledInitialOpenRef = useRef(initialOpen);
+
+  const handleCheckoutComplete = useCallback((invoice: SalonCheckoutInvoiceSummary) => {
+    setOpen(false);
+    setCompletedInvoice(invoice);
+  }, []);
+
+  useEffect(() => {
+    if (!initialOpen || handledInitialOpenRef.current) {
+      return;
+    }
+
+    handledInitialOpenRef.current = true;
+
+    if (!canTakePayment) {
+      setOpen(false);
+      if (invoice) {
+        setCompletedInvoice(invoice);
+      }
+      return;
+    }
+
+    setOpen(true);
+  }, [canTakePayment, initialOpen, invoice]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
+  if (!canTakePayment && !invoice) {
+    return null;
+  }
+
+  return (
+    <>
+      <button
+        className="appointment-checkout-trigger"
+        onClick={() => {
+          if (invoice && !canTakePayment) {
+            setCompletedInvoice(invoice);
+            return;
+          }
+
+          setOpen(true);
+        }}
+        type="button"
+      >
+        {invoice && !canTakePayment ? "View Invoice" : "Payment & Invoice"}
+      </button>
+
+      {open ? (
+        <div
+          aria-label="Checkout"
+          className="appointment-checkout-modal-backdrop"
+          onMouseDown={() => setOpen(false)}
+          role="presentation"
+        >
+          <section
+            aria-modal="true"
+            className="appointment-checkout-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <header className="appointment-checkout-modal-header">
+              <div>
+                <span className="appointment-checkout-eyebrow">Beauty &amp; Wellness checkout</span>
+                <h2>Checkout</h2>
+                <p>
+                  {customerName} · {customerPhone}
+                </p>
+              </div>
+              <button
+                aria-label="Close checkout"
+                className="appointment-checkout-close"
+                onClick={() => setOpen(false)}
+                type="button"
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="appointment-checkout-modal-body">
+                <div className="appointment-checkout-services">
+                  <div className="appointment-checkout-section-heading">
+                    <h3>Services</h3>
+                    <span>{services.length}</span>
+                  </div>
+                  {services.map((service) => (
+                    <div className="appointment-checkout-service-row" key={`${service.name}-${service.price}`}>
+                      <span>{service.name}</span>
+                      <strong>RM{service.price.toFixed(2)}</strong>
+                    </div>
+                  ))}
+                  <div className="appointment-checkout-total">
+                    <span>Current total</span>
+                    <strong>RM{totalAmount.toFixed(2)}</strong>
+                  </div>
+                </div>
+
+                <SalonAppointmentPaymentForm
+                  appointmentId={appointmentId}
+                  balance={balance}
+                  hasInvoice={hasInvoice}
+                  hasOpenShift={hasOpenShift}
+                  subtotal={subtotal}
+                  totalAmount={totalAmount}
+                  taxLines={taxLines}
+                  sstEnabled={sstEnabled}
+                  sstLabel={sstLabel}
+                  sstRate={sstRate}
+                  onCheckoutComplete={handleCheckoutComplete}
+                />
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {completedInvoice ? (
+        <AppointmentInvoiceModal
+          invoice={completedInvoice}
+          onClose={() => setCompletedInvoice(null)}
+          onDone={() => {
+            setCompletedInvoice(null);
+            onDone?.();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}

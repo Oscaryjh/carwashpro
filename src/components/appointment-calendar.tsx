@@ -2,10 +2,18 @@
 
 import { AppointmentVehiclePicker } from "@/components/appointment-vehicle-picker";
 import { AppointmentCustomerPicker } from "@/components/appointment-customer-picker";
+import { SalonAppointmentCheckoutModal } from "@/components/salon-appointment-checkout-modal";
+import type { InvoiceModalSummary } from "@/components/appointment-invoice-modal";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CSSProperties, PointerEvent } from "react";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { formatAppointmentStatus } from "@/lib/validation/appointments";
+import {
+  calculateAppointmentDurationMinutes,
+  getAppointmentSlotCount,
+} from "@/lib/appointments/scheduling";
+import { calculateTax } from "@/lib/tax/calculator";
 
 export type AppointmentCalendarItem = {
   id: string;
@@ -16,17 +24,28 @@ export type AppointmentCalendarItem = {
   customerPhone: string;
   plateNumber: string | null;
   scheduledAt: string;
+  durationMinutes: number;
   serviceName: string | null;
   serviceNames: string[];
   serviceDetails: {
     id: string;
     name: string;
     price: string;
+    taxable: boolean;
+    taxRate: number | null;
   }[];
   serviceIds: string[];
   staffId: string | null;
   staffName: string | null;
   status: string;
+  notes: string | null;
+  invoiceBalance: number | null;
+  invoiceId: string | null;
+  invoiceSummary: InvoiceModalSummary | null;
+  invoicePaidAmount: number | null;
+  invoiceStatus: string | null;
+  invoiceSubtotal: number | null;
+  invoiceTotal: number | null;
   workOrderPaymentStatus: string | null;
   workOrderStatus: string | null;
   workOrderId: string | null;
@@ -38,7 +57,9 @@ type AppointmentCalendarProps = {
     id: string;
     name: string;
   }[];
-  createAppointmentAction: (formData: FormData) => Promise<void>;
+  createAppointmentAction: (
+    formData: FormData,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   convertAppointmentAction: (formData: FormData) => Promise<void>;
   datePickerCounts: {
     count: number;
@@ -46,6 +67,9 @@ type AppointmentCalendarProps = {
   }[];
   datePickerHrefPrefix: string;
   isSalonBusiness: boolean;
+  initialAppointmentId?: string;
+  initialCheckoutAppointmentId?: string;
+  hasOpenShift: boolean;
   days: {
     count: number;
     date: string;
@@ -54,7 +78,8 @@ type AppointmentCalendarProps = {
   }[];
   nextHref: string;
   previousHref: string;
-  rescheduleAction: (formData: FormData) => Promise<void>;
+  recentServiceIds: string[];
+  rescheduleAction: (formData: FormData) => Promise<unknown>;
   selectedDateLabel: string;
   selectedDateValue: string;
   services: {
@@ -64,14 +89,19 @@ type AppointmentCalendarProps = {
     name: string;
     price: string;
     staffIds: string[];
+    taxable: boolean;
+    taxRate: number | null;
   }[];
   staffMembers: {
     id: string;
     name: string;
     role: string;
   }[];
-  updateAppointmentAction: (formData: FormData) => Promise<void>;
+  updateAppointmentAction: (formData: FormData) => Promise<unknown>;
   updateAppointmentStatusAction: (formData: FormData) => Promise<void>;
+  sstEnabled: boolean;
+  sstLabel: string;
+  sstRate: number;
 };
 
 type CalendarStaffSlot = {
@@ -80,6 +110,8 @@ type CalendarStaffSlot = {
   role: string;
   isEmpty?: boolean;
 };
+
+const RECENT_SERVICES_CATEGORY = "Recently";
 
 const BUSINESS_HOUR_STORAGE_KEY = "washflow:appointment-business-hours";
 
@@ -91,14 +123,21 @@ export function AppointmentCalendar({
   datePickerCounts,
   datePickerHrefPrefix,
   isSalonBusiness,
+  initialAppointmentId,
+  initialCheckoutAppointmentId,
+  hasOpenShift,
   days,
   nextHref,
   previousHref,
+  recentServiceIds,
   rescheduleAction,
   selectedDateLabel,
   selectedDateValue,
   services,
   staffMembers,
+  sstEnabled,
+  sstLabel,
+  sstRate,
   updateAppointmentAction,
   updateAppointmentStatusAction,
 }: AppointmentCalendarProps) {
@@ -134,22 +173,33 @@ export function AppointmentCalendar({
   >("REGISTERED_OWNER");
   const [newAppointmentStaffId, setNewAppointmentStaffId] = useState("");
   const [newAppointmentTime, setNewAppointmentTime] = useState("10:00");
+  const [newAppointmentError, setNewAppointmentError] = useState("");
   const [selectedAppointment, setSelectedAppointment] =
     useState<AppointmentCalendarItem | null>(null);
   const [isAppointmentMenuOpen, setIsAppointmentMenuOpen] = useState(false);
-  const [appointmentEditor, setAppointmentEditor] = useState<"time" | "service" | "staff" | null>(
+  const [appointmentEditor, setAppointmentEditor] = useState<
+    "time" | "service" | "staff" | "notes" | null
+  >(
     null,
   );
   const [editAppointmentDate, setEditAppointmentDate] = useState(selectedDateValue);
   const [editAppointmentStaffId, setEditAppointmentStaffId] = useState("");
   const [editAppointmentTime, setEditAppointmentTime] = useState("10:00");
   const [editAppointmentServiceIds, setEditAppointmentServiceIds] = useState<string[]>([]);
+  const [editAppointmentNotes, setEditAppointmentNotes] = useState("");
+  const [appointmentUpdateError, setAppointmentUpdateError] = useState<string | null>(null);
   const [isServicePickerOpen, setIsServicePickerOpen] = useState(false);
   const [activeServiceCategory, setActiveServiceCategory] = useState("");
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [showEarlierSlots, setShowEarlierSlots] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const pendingCreateScrollRef = useRef<{
+    mainScrollTop: number;
+    windowScrollY: number;
+  } | null>(null);
+  const handledInitialAppointmentRef = useRef<string | null>(null);
   const grouped = groupAppointments(appointments);
+  const blockedSlots = groupBlockedAppointmentSlots(appointments);
   const selectedServices = selectedServiceIds
     .map((serviceId) => services.find((service) => service.id === serviceId))
     .filter((service): service is (typeof services)[number] => Boolean(service));
@@ -163,11 +213,15 @@ export function AppointmentCalendar({
     editAppointmentServiceIds,
     services,
   );
-  const serviceCategories = getServiceCategories(services);
+  const recentServices = getRecentServices(services, recentServiceIds, 5);
+  const serviceCategories = [RECENT_SERVICES_CATEGORY, ...getServiceCategories(services)];
   const visibleServiceCategory = activeServiceCategory || serviceCategories[0] || "";
-  const visibleServices = visibleServiceCategory
-    ? services.filter((service) => service.category === visibleServiceCategory)
-    : services;
+  const visibleServices =
+    visibleServiceCategory === RECENT_SERVICES_CATEGORY
+      ? recentServices
+      : visibleServiceCategory
+        ? services.filter((service) => service.category === visibleServiceCategory)
+        : services;
   const dateCountByDay = new Map(datePickerCounts.map((day) => [day.date, day.count]));
   const newAppointmentDays = buildAppointmentWeekDays(newAppointmentDate, dateCountByDay);
   const visibleMonthDate = monthValueToDate(visibleMonth);
@@ -179,10 +233,10 @@ export function AppointmentCalendar({
   const allTimeSlots = buildTimeSlots(businessStartTime, businessEndTime);
   const shouldHidePastSlots = isTodayDateValue(selectedDateValue) && !showEarlierSlots;
   const hiddenPastSlots = shouldHidePastSlots
-    ? allTimeSlots.filter((time) => isPastAppointmentSlot(selectedDateValue, time))
+    ? allTimeSlots.filter((time) => isEarlierThanPastVisibilityWindow(selectedDateValue, time))
     : [];
   const visibleTimeSlots = shouldHidePastSlots
-    ? allTimeSlots.filter((time) => !isPastAppointmentSlot(selectedDateValue, time))
+    ? allTimeSlots.filter((time) => !isEarlierThanPastVisibilityWindow(selectedDateValue, time))
     : allTimeSlots;
   const hiddenPastAppointmentCount = countAppointmentsInSlots(
     hiddenPastSlots,
@@ -210,6 +264,42 @@ export function AppointmentCalendar({
   useEffect(() => {
     setShowEarlierSlots(false);
   }, [selectedDateValue]);
+
+  useEffect(() => {
+    const pendingScroll = pendingCreateScrollRef.current;
+
+    if (!pendingScroll) {
+      return;
+    }
+
+    pendingCreateScrollRef.current = null;
+    requestAnimationFrame(() => {
+      const main = document.querySelector<HTMLElement>(".main");
+      if (main) {
+        main.scrollTop = pendingScroll.mainScrollTop;
+      }
+      window.scrollTo({ top: pendingScroll.windowScrollY });
+    });
+  }, [appointments]);
+
+  useEffect(() => {
+    if (
+      !initialAppointmentId ||
+      handledInitialAppointmentRef.current === initialAppointmentId
+    ) {
+      return;
+    }
+
+    const initialAppointment = appointments.find(
+      (appointment) => appointment.id === initialAppointmentId,
+    );
+
+    if (initialAppointment) {
+      handledInitialAppointmentRef.current = initialAppointmentId;
+      setSelectedAppointment(initialAppointment);
+      clearAppointmentQueryFromAddress();
+    }
+  }, [appointments, initialAppointmentId]);
 
   useEffect(() => {
     if (
@@ -257,37 +347,167 @@ export function AppointmentCalendar({
     setIsNewAppointmentOpen(true);
   }
 
+  function handleDatePickerDaySelect(date: string) {
+    setDraftDate(date);
+
+    if (datePickerTarget === "newAppointment") {
+      setNewAppointmentDate(date);
+    } else {
+      router.push(`${datePickerHrefPrefix}${date}`);
+    }
+
+    setIsMonthPickerOpen(false);
+    setIsDatePickerOpen(false);
+  }
+
   function openAppointmentEditor(
     appointment: AppointmentCalendarItem,
-    editor: "time" | "service" | "staff",
+    editor: "time" | "service" | "staff" | "notes",
   ) {
     const scheduledAt = new Date(appointment.scheduledAt);
     setEditAppointmentDate(toDateValue(scheduledAt));
     setEditAppointmentTime(toTimeValue(scheduledAt));
     setEditAppointmentStaffId(appointment.staffId ?? "");
     setEditAppointmentServiceIds(appointment.serviceIds);
+    setEditAppointmentNotes(appointment.notes ?? "");
+    setAppointmentUpdateError(null);
     setIsAppointmentMenuOpen(false);
     setAppointmentEditor(editor);
   }
 
-  function handleAppointmentUpdate(formData: FormData) {
+  function handleAppointmentUpdate(
+    formData: FormData,
+    serviceIds = editAppointmentServiceIds,
+    reopenEditorOnFailure: "service" | null = null,
+  ) {
     if (!selectedAppointment) {
       return;
     }
 
+    const normalizedServiceIds = normalizeServiceIdsByCategory(
+      serviceIds,
+      services,
+    );
     formData.set("appointmentId", selectedAppointment.id);
     formData.set("scheduledDate", editAppointmentDate);
     formData.set("scheduledTime", editAppointmentTime);
     formData.set("assignedStaffId", editAppointmentStaffId);
+    formData.set("notes", editAppointmentNotes);
     formData.delete("serviceIds");
-    normalizeServiceIdsByCategory(editAppointmentServiceIds, services).forEach((serviceId) =>
+    normalizedServiceIds.forEach((serviceId) =>
       formData.append("serviceIds", serviceId),
     );
 
+    if (reopenEditorOnFailure) {
+      setAppointmentUpdateError(null);
+      setAppointmentEditor(null);
+    }
+
+    startTransition(async () => {
+      try {
+        const result = await updateAppointmentAction(formData);
+        if (isFailedAppointmentMutation(result)) {
+          if (reopenEditorOnFailure) {
+            const attemptedServices = normalizedServiceIds
+              .map((serviceId) => services.find((service) => service.id === serviceId))
+              .filter((service): service is (typeof services)[number] => Boolean(service));
+            const attemptedDuration = calculateAppointmentDurationMinutes(
+              attemptedServices.map((service) => service.durationMinutes),
+            );
+            const attemptedEnd = new Date(
+              new Date(`${editAppointmentDate}T${editAppointmentTime}:00`).getTime() +
+                attemptedDuration * 60_000,
+            );
+            const conflictPrefix = result.error.includes("booked from")
+              ? `This service would run until ${formatTimeLabel(toTimeValue(attemptedEnd))}. `
+              : "";
+
+            setEditAppointmentServiceIds(selectedAppointment.serviceIds);
+            setAppointmentUpdateError(
+              `${conflictPrefix}${result.error} Choose a shorter service or reschedule the appointment.`,
+            );
+            setAppointmentEditor(reopenEditorOnFailure);
+          }
+          return;
+        }
+
+        setAppointmentUpdateError(null);
+        setAppointmentEditor(null);
+        const updatedServices = normalizedServiceIds
+          .map((serviceId) => services.find((service) => service.id === serviceId))
+          .filter((service): service is (typeof services)[number] => Boolean(service));
+        const updatedStaff = staffMembers.find((staff) => staff.id === editAppointmentStaffId);
+
+        setSelectedAppointment((current) =>
+          current
+            ? {
+                ...current,
+                durationMinutes: calculateAppointmentDurationMinutes(
+                  updatedServices.map((service) => service.durationMinutes),
+                ),
+                notes: editAppointmentNotes.trim() || null,
+                scheduledAt: new Date(
+                  `${editAppointmentDate}T${editAppointmentTime}:00`,
+                ).toISOString(),
+                serviceDetails: updatedServices.map((service) => ({
+                  id: service.id,
+                  name: service.name,
+                  price: service.price,
+                  taxable: service.taxable,
+                  taxRate: service.taxRate,
+                })),
+                serviceIds: normalizedServiceIds,
+                serviceName: updatedServices[0]?.name ?? null,
+                serviceNames: updatedServices.map((service) => service.name),
+                staffId: editAppointmentStaffId || null,
+                staffName: updatedStaff?.name ?? null,
+              }
+            : current,
+        );
+        router.refresh();
+      } catch {
+        if (reopenEditorOnFailure) {
+          setEditAppointmentServiceIds(selectedAppointment.serviceIds);
+          setAppointmentUpdateError(
+            "Unable to update this service. Check the appointment time and try again.",
+          );
+          setAppointmentEditor(reopenEditorOnFailure);
+        }
+      }
+    });
+  }
+
+  function removeAppointmentService(serviceId: string) {
+    if (!selectedAppointment || isLockedAppointment(selectedAppointment)) {
+      return;
+    }
+
+    const appointment = selectedAppointment;
+    const scheduledAt = new Date(appointment.scheduledAt);
+    const remainingServices = appointment.serviceDetails.filter(
+      (service) => service.id !== serviceId,
+    );
+    const formData = new FormData();
+    formData.set("appointmentId", appointment.id);
+    formData.set("scheduledDate", toDateValue(scheduledAt));
+    formData.set("scheduledTime", toTimeValue(scheduledAt));
+    formData.set("assignedStaffId", appointment.staffId ?? "");
+    formData.set("notes", appointment.notes ?? "");
+    remainingServices.forEach((service) => formData.append("serviceIds", service.id));
+
     startTransition(async () => {
       await updateAppointmentAction(formData);
-      setAppointmentEditor(null);
-      setSelectedAppointment(null);
+      setSelectedAppointment((current) =>
+        current?.id === appointment.id
+          ? {
+              ...current,
+              serviceDetails: remainingServices,
+              serviceIds: remainingServices.map((service) => service.id),
+              serviceName: remainingServices[0]?.name ?? null,
+              serviceNames: remainingServices.map((service) => service.name),
+            }
+          : current,
+      );
       router.refresh();
     });
   }
@@ -304,6 +524,7 @@ export function AppointmentCalendar({
     formData.set("scheduledDate", toDateValue(nextDate));
     formData.set("scheduledTime", toTimeValue(nextDate));
     formData.set("assignedStaffId", selectedAppointment.staffId ?? "");
+    formData.set("notes", selectedAppointment.notes ?? "");
     selectedAppointment.serviceIds.forEach((serviceId) => formData.append("serviceIds", serviceId));
 
     startTransition(async () => {
@@ -316,7 +537,7 @@ export function AppointmentCalendar({
   }
 
   function updateAppointmentStatus(
-    status: "CONFIRMED" | "ARRIVED" | "IN_SERVICE" | "COMPLETED" | "CANCELLED" | "NO_SHOW",
+    status: "COMPLETED" | "CANCELLED" | "NO_SHOW",
   ) {
     if (!selectedAppointment) {
       return;
@@ -332,7 +553,13 @@ export function AppointmentCalendar({
     const formData = new FormData();
     formData.set("appointmentId", selectedAppointment.id);
     formData.set("status", status);
-    formData.set("redirectTo", "/appointments");
+    const appointmentDate = toDateValue(new Date(selectedAppointment.scheduledAt));
+    formData.set(
+      "redirectTo",
+      status === "COMPLETED"
+        ? `/appointments?status=active&page=1&date=${appointmentDate}&appointment=${selectedAppointment.id}&checkout=1`
+        : `/appointments?status=active&page=1&date=${appointmentDate}`,
+    );
 
     startTransition(async () => {
       await updateAppointmentStatusAction(formData);
@@ -418,6 +645,7 @@ export function AppointmentCalendar({
               setNewAppointmentDate(toDateValue(new Date()));
               setNewAppointmentStaffId("");
               setSelectedServiceIds([]);
+              setNewAppointmentError("");
               setTimeModalOffset({ x: 0, y: 0 });
               setIsNewTimeOpen(true);
             }}
@@ -431,66 +659,70 @@ export function AppointmentCalendar({
         </div>
       </div>
 
-      <div className="appointment-calendar-grid" style={calendarStyle}>
-        <button
-          className="appointment-calendar-time-head"
-          onClick={() => {
-            setDraftStartTime(businessStartTime);
-            setDraftEndTime(businessEndTime);
-            setIsBusinessHourOpen(true);
-          }}
-          type="button"
-          aria-label="Business hour"
-        >
-          <span>{"\u2699"}</span>
-        </button>
-        <Link
-          aria-label="Previous week"
-          className="appointment-calendar-week-nav previous"
-          href={previousHref}
-        >
-          {"\u2039"}
-        </Link>
-        {days.map((day) => (
-          <Link
-            className={`appointment-calendar-day-head${
-              day.date === selectedDateValue ? " selected" : ""
-            }`}
-            href={`${datePickerHrefPrefix}${day.date}`}
-            key={day.date}
+      <div className="appointment-calendar-sticky">
+        <div className="appointment-calendar-grid appointment-calendar-header-grid" style={calendarStyle}>
+          <button
+            className="appointment-calendar-time-head"
+            onClick={() => {
+              setDraftStartTime(businessStartTime);
+              setDraftEndTime(businessEndTime);
+              setIsBusinessHourOpen(true);
+            }}
+            type="button"
+            aria-label="Business hour"
           >
-            <strong>{day.shortLabel}</strong>
-            <span>{day.label}</span>
-            <small>{day.count} appts</small>
+            <span>{"\u2699"}</span>
+          </button>
+          <Link
+            aria-label="Previous week"
+            className="appointment-calendar-week-nav previous"
+            href={previousHref}
+          >
+            {"\u2039"}
           </Link>
-        ))}
-        <Link aria-label="Next week" className="appointment-calendar-week-nav next" href={nextHref}>
-          {"\u203a"}
-        </Link>
+          {days.map((day) => (
+            <Link
+              className={`appointment-calendar-day-head${
+                day.date === selectedDateValue ? " selected" : ""
+              }`}
+              href={`${datePickerHrefPrefix}${day.date}`}
+              key={day.date}
+            >
+              <strong>{day.shortLabel}</strong>
+              <span>{day.label}</span>
+              <small>{day.count} appts</small>
+            </Link>
+          ))}
+          <Link aria-label="Next week" className="appointment-calendar-week-nav next" href={nextHref}>
+            {"\u203a"}
+          </Link>
 
-        <div className="appointment-calendar-staff-head">Staff</div>
-        <div className="appointment-calendar-staff-row">
-          {staffMembers.length ? (
-            calendarStaffSlots.map((staff, index) =>
-              staff.isEmpty ? (
-                <div
-                  aria-hidden="true"
-                  className="appointment-calendar-staff-card is-empty"
-                  key={`empty-staff-${index}`}
-                />
-              ) : (
-                <div className="appointment-calendar-staff-card" key={staff.id}>
-                  <span>{getInitials(staff.name)}</span>
-                  <strong>{staff.name}</strong>
-                  <small>{staff.role === "BUSINESS_OWNER" ? "Owner" : "Staff"}</small>
-                </div>
-              ),
-            )
-          ) : (
-            <p>No staff assigned.</p>
-          )}
+          <div className="appointment-calendar-staff-head">Staff</div>
+          <div className="appointment-calendar-staff-row">
+            {staffMembers.length ? (
+              calendarStaffSlots.map((staff, index) =>
+                staff.isEmpty ? (
+                  <div
+                    aria-hidden="true"
+                    className="appointment-calendar-staff-card is-empty"
+                    key={`empty-staff-${index}`}
+                  />
+                ) : (
+                  <div className="appointment-calendar-staff-card" key={staff.id}>
+                    <span>{getInitials(staff.name)}</span>
+                    <strong>{staff.name}</strong>
+                    <small>{staff.role === "BUSINESS_OWNER" ? "Owner" : "Staff"}</small>
+                  </div>
+                ),
+              )
+            ) : (
+              <p>No staff assigned.</p>
+            )}
+          </div>
         </div>
+      </div>
 
+      <div className="appointment-calendar-grid appointment-calendar-body-grid" style={calendarStyle}>
         {hiddenPastSlots.length ? (
           <button
             className="appointment-calendar-earlier-toggle"
@@ -513,6 +745,7 @@ export function AppointmentCalendar({
 
         {visibleTimeSlots.map((time) => (
           <CalendarRow
+            blockedSlots={blockedSlots}
             appointmentsBySlot={grouped}
             draggingId={draggingId}
             dropTarget={dropTarget}
@@ -533,6 +766,7 @@ export function AppointmentCalendar({
             selectedDate={selectedDateValue}
             staffSlots={calendarStaffSlots}
             time={time}
+            isSalonBusiness={isSalonBusiness}
           />
         ))}
       </div>
@@ -550,20 +784,7 @@ export function AppointmentCalendar({
                 {"\u00d7"}
               </button>
               <h2 id="date-picker-title">Date</h2>
-              <button
-                className="date-popover-save"
-                onClick={() => {
-                  if (datePickerTarget === "newAppointment") {
-                    setNewAppointmentDate(draftDate);
-                  } else {
-                    router.push(`${datePickerHrefPrefix}${draftDate}`);
-                  }
-                  setIsDatePickerOpen(false);
-                }}
-                type="button"
-              >
-                Save
-              </button>
+              <span aria-hidden="true" className="date-popover-header-spacer" />
             </div>
 
             <div className="date-popover-month-row">
@@ -620,7 +841,7 @@ export function AppointmentCalendar({
                       .filter(Boolean)
                       .join(" ")}
                     key={day.date}
-                    onClick={() => setDraftDate(day.date)}
+                    onClick={() => handleDatePickerDaySelect(day.date)}
                     type="button"
                   >
                     <span>{day.day}</span>
@@ -718,6 +939,7 @@ export function AppointmentCalendar({
                       setNewAppointmentTime(time);
                       setNewAppointmentContactType("REGISTERED_OWNER");
                       setNewAppointmentStaffId("");
+                      setNewAppointmentError("");
                       setIsNewTimeOpen(false);
                       setIsNewAppointmentOpen(true);
                     }}
@@ -743,7 +965,10 @@ export function AppointmentCalendar({
               <button
                 aria-label="Close new appointment"
                 className="appointment-time-close"
-                onClick={() => setIsNewAppointmentOpen(false)}
+                onClick={() => {
+                  setNewAppointmentError("");
+                  setIsNewAppointmentOpen(false);
+                }}
                 type="button"
               >
                 {"\u00d7"}
@@ -751,7 +976,48 @@ export function AppointmentCalendar({
               <h2 id="new-appointment-title">New Appointment</h2>
               <span />
             </div>
-            <form action={createAppointmentAction} className="appointment-create-form">
+            <form
+              className="appointment-create-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const formData = new FormData(event.currentTarget);
+                const requiredSelection = formData
+                  .get(isSalonBusiness ? "customerId" : "vehicleId")
+                  ?.toString()
+                  .trim();
+
+                if (!requiredSelection) {
+                  setNewAppointmentError(
+                    isSalonBusiness
+                      ? "Select a customer before confirming."
+                      : "Select a vehicle before confirming.",
+                  );
+                  return;
+                }
+
+                setNewAppointmentError("");
+                const main = document.querySelector<HTMLElement>(".main");
+                const scrollPosition = {
+                  mainScrollTop: main?.scrollTop ?? 0,
+                  windowScrollY: window.scrollY,
+                };
+
+                startTransition(async () => {
+                  const result = await createAppointmentAction(formData);
+
+                  if (!result.ok) {
+                    setNewAppointmentError(result.error);
+                    return;
+                  }
+
+                  pendingCreateScrollRef.current = scrollPosition;
+                  setIsNewAppointmentOpen(false);
+                  setSelectedServiceIds([]);
+                  setNewAppointmentError("");
+                  router.refresh();
+                });
+              }}
+            >
               <input name="scheduledDate" type="hidden" value={newAppointmentDate} />
               <input name="scheduledTime" type="hidden" value={newAppointmentTime} />
               <input name="notes" type="hidden" value="" />
@@ -765,7 +1031,15 @@ export function AppointmentCalendar({
                 </div>
 
                 <div className="appointment-create-primary">
-                  {isSalonBusiness ? <AppointmentCustomerPicker /> : <AppointmentVehiclePicker />}
+                  {isSalonBusiness ? (
+                    <AppointmentCustomerPicker
+                      onSelectionChange={() => setNewAppointmentError("")}
+                    />
+                  ) : (
+                    <AppointmentVehiclePicker
+                      onSelectionChange={() => setNewAppointmentError("")}
+                    />
+                  )}
                 </div>
 
                 <div className="appointment-create-secondary">
@@ -842,7 +1116,9 @@ export function AppointmentCalendar({
                   <div className="appointment-service-summary">
                     {selectedServices.map((service) => (
                       <div className="appointment-service-summary-item" key={service.id}>
-                        <span aria-hidden="true">{"\u25a7"}</span>
+                        <span aria-hidden="true" className="appointment-service-glyph">
+                          {"\u2726"}
+                        </span>
                         <div>
                           <strong>{service.name}</strong>
                           <small>{service.price}</small>
@@ -854,15 +1130,13 @@ export function AppointmentCalendar({
                       onClick={() => {
                         setActiveServiceCategory(
                           selectedServices[0]?.category ??
-                            activeServiceCategory ??
-                            serviceCategories[0] ??
-                            "",
+                            RECENT_SERVICES_CATEGORY,
                         );
                         setIsServicePickerOpen(true);
                       }}
                       type="button"
                     >
-                      <span>{"\u2295"}</span>
+                      <span aria-hidden="true" className="appointment-service-icon">+</span>
                       <strong>Select Service</strong>
                     </button>
                   </div>
@@ -885,7 +1159,14 @@ export function AppointmentCalendar({
                 </div>
 
                 <div className="appointment-create-actions">
-                  <button type="submit">Confirm</button>
+                  {newAppointmentError ? (
+                    <p className="appointment-create-inline-error" role="alert">
+                      {newAppointmentError}
+                    </p>
+                  ) : null}
+                  <button disabled={isPending} type="submit">
+                    {isPending ? "Saving..." : "Confirm"}
+                  </button>
                 </div>
               </div>
             </form>
@@ -967,6 +1248,12 @@ export function AppointmentCalendar({
                   <h2 id="appointment-edit-service-title">Select Service</h2>
                   <span />
                 </div>
+                {appointmentUpdateError ? (
+                  <div className="appointment-service-conflict" role="alert">
+                    <strong>Time conflict</strong>
+                    <span>{appointmentUpdateError}</span>
+                  </div>
+                ) : null}
                 <form action={handleAppointmentUpdate}>
                   <div className="service-select-tabs compact" aria-label="Service categories">
                     {serviceCategories.map((category) => (
@@ -985,24 +1272,32 @@ export function AppointmentCalendar({
                     {visibleServices.map((service) => (
                       <button
                         className={editAppointmentServiceIds.includes(service.id) ? "selected" : ""}
+                        disabled={isPending}
                         key={service.id}
                         onClick={() => {
-                          setEditAppointmentServiceIds((current) =>
-                            toggleServiceIdByCategory(current, service, services),
-                          );
+                          const nextServiceIds = editAppointmentServiceIds.includes(service.id)
+                            ? editAppointmentServiceIds.filter(
+                                (serviceId) => serviceId !== service.id,
+                              )
+                            : toggleServiceIdByCategory(
+                                editAppointmentServiceIds,
+                                service,
+                                services,
+                              );
+                          setEditAppointmentServiceIds(nextServiceIds);
+                          handleAppointmentUpdate(new FormData(), nextServiceIds, "service");
                         }}
                         type="button"
                       >
-                        <span aria-hidden="true">{"\u25a7"}</span>
+                        <span aria-hidden="true" className="appointment-service-glyph">
+                          {"\u2726"}
+                        </span>
                         <strong>{service.name}</strong>
                         <small>{service.price}</small>
                         <em>{formatServiceDuration(service.durationMinutes)}</em>
                       </button>
                     ))}
                   </div>
-                  <button className="appointment-edit-save" type="submit">
-                    Save
-                  </button>
                 </form>
               </section>
             ) : null}
@@ -1056,6 +1351,43 @@ export function AppointmentCalendar({
               </section>
             ) : null}
 
+            {appointmentEditor === "notes" ? (
+              <section
+                aria-labelledby="appointment-edit-notes-title"
+                className="appointment-edit-modal"
+                role="dialog"
+              >
+                <div className="appointment-edit-header">
+                  <button
+                    aria-label="Close notes editor"
+                    className="appointment-detail-close"
+                    onClick={() => setAppointmentEditor(null)}
+                    type="button"
+                  >
+                    {"\u00d7"}
+                  </button>
+                  <h2 id="appointment-edit-notes-title">Notes</h2>
+                  <span />
+                </div>
+                <form action={handleAppointmentUpdate}>
+                  <label className="appointment-edit-notes-field">
+                    <span>Appointment notes</span>
+                    <textarea
+                      autoFocus
+                      maxLength={1000}
+                      onChange={(event) => setEditAppointmentNotes(event.target.value)}
+                      placeholder="Add a short note"
+                      rows={6}
+                      value={editAppointmentNotes}
+                    />
+                  </label>
+                  <button className="appointment-edit-save" type="submit">
+                    Save
+                  </button>
+                </form>
+              </section>
+            ) : null}
+
             <section
               aria-labelledby="appointment-detail-title"
               className="appointment-detail-modal"
@@ -1068,6 +1400,7 @@ export function AppointmentCalendar({
                   onClick={() => {
                     setAppointmentEditor(null);
                     setSelectedAppointment(null);
+                    clearAppointmentQueryFromAddress();
                   }}
                   type="button"
                 >
@@ -1099,12 +1432,10 @@ export function AppointmentCalendar({
                       <span aria-hidden="true">60</span>
                       Delay by 60 min
                     </button>
-                    {selectedAppointment.status !== "ARRIVED" ? (
-                      <button onClick={() => updateAppointmentStatus("NO_SHOW")} type="button">
-                        <span aria-hidden="true">!</span>
-                        No Show
-                      </button>
-                    ) : null}
+                    <button onClick={() => updateAppointmentStatus("NO_SHOW")} type="button">
+                      <span aria-hidden="true">!</span>
+                      No Show
+                    </button>
                     <button
                       className="danger"
                       onClick={() => updateAppointmentStatus("CANCELLED")}
@@ -1119,7 +1450,7 @@ export function AppointmentCalendar({
 
               <div className="appointment-detail-body">
                 <button
-                  className="appointment-detail-card"
+                  className="appointment-detail-card appointment-detail-staff"
                   disabled={isLockedAppointment(selectedAppointment)}
                   onClick={() => openAppointmentEditor(selectedAppointment, "time")}
                   type="button"
@@ -1128,6 +1459,19 @@ export function AppointmentCalendar({
                   <div>
                     <strong>{formatLongDate(toDateValue(new Date(selectedAppointment.scheduledAt)))}</strong>
                     <small>{formatTimeLabelFromDate(selectedAppointment.scheduledAt)}</small>
+                  </div>
+                </button>
+
+                <button
+                  className="appointment-detail-card appointment-detail-notes"
+                  disabled={isLockedAppointment(selectedAppointment)}
+                  onClick={() => openAppointmentEditor(selectedAppointment, "notes")}
+                  type="button"
+                >
+                  <span aria-hidden="true">{"\u270e"}</span>
+                  <div>
+                    <strong>Notes</strong>
+                    <small>{selectedAppointment.notes || "No notes"}</small>
                   </div>
                 </button>
 
@@ -1154,19 +1498,35 @@ export function AppointmentCalendar({
 
                 <div className="appointment-detail-service-card">
                   {selectedAppointment.serviceDetails.map((service) => (
-                    <button
+                    <div
                       className="appointment-detail-service-row"
-                      disabled={isLockedAppointment(selectedAppointment)}
                       key={service.id}
-                      onClick={() => openAppointmentEditor(selectedAppointment, "service")}
-                      type="button"
                     >
-                      <span aria-hidden="true">{"\u25a7"}</span>
-                      <div>
-                        <strong>{service.name}</strong>
-                        <small>{service.price}</small>
-                      </div>
-                    </button>
+                      <button
+                        className="appointment-detail-service-main"
+                        disabled={isLockedAppointment(selectedAppointment)}
+                        onClick={() => openAppointmentEditor(selectedAppointment, "service")}
+                        type="button"
+                      >
+                        <span aria-hidden="true" className="appointment-service-glyph">
+                          {"\u2726"}
+                        </span>
+                        <span className="appointment-detail-service-copy">
+                          <strong>{service.name}</strong>
+                          <small>{service.price}</small>
+                        </span>
+                      </button>
+                      <button
+                        aria-label={`Remove ${service.name}`}
+                        className="appointment-detail-service-remove"
+                        disabled={isLockedAppointment(selectedAppointment) || isPending}
+                        onClick={() => removeAppointmentService(service.id)}
+                        title={`Remove ${service.name}`}
+                        type="button"
+                      >
+                        {"\u00d7"}
+                      </button>
+                    </div>
                   ))}
                   <button
                     className="appointment-detail-service-add"
@@ -1220,7 +1580,18 @@ export function AppointmentCalendar({
                 {isSalonBusiness ? (
                   <SalonAppointmentAction
                     appointment={selectedAppointment}
+                    hasOpenShift={hasOpenShift}
+                    initialCheckout={initialCheckoutAppointmentId === selectedAppointment.id}
+                    onInvoiceDone={() => {
+                      setAppointmentEditor(null);
+                      setIsAppointmentMenuOpen(false);
+                      setSelectedAppointment(null);
+                      clearAppointmentQueryFromAddress();
+                    }}
                     onStatusChange={updateAppointmentStatus}
+                    sstEnabled={sstEnabled}
+                    sstLabel={sstLabel}
+                    sstRate={sstRate}
                   />
                 ) : null}
               </div>
@@ -1278,10 +1649,13 @@ export function AppointmentCalendar({
 
                         return toggleServiceIdByCategory(current, service, services);
                       });
+                      setIsServicePickerOpen(false);
                     }}
                     type="button"
                   >
-                    <span aria-hidden="true">{"\u25a7"}</span>
+                    <span aria-hidden="true" className="appointment-service-glyph">
+                      {"\u2726"}
+                    </span>
                     <strong>{service.name}</strong>
                     <small>{service.price}</small>
                     <em>{formatServiceDuration(service.durationMinutes)}</em>
@@ -1292,13 +1666,6 @@ export function AppointmentCalendar({
               )}
             </div>
 
-            <button
-              className="service-select-save"
-              onClick={() => setIsServicePickerOpen(false)}
-              type="button"
-            >
-              Save
-            </button>
           </section>
         </div>
       ) : null}
@@ -1424,6 +1791,7 @@ export function AppointmentCalendar({
 
 function CalendarRow({
   appointmentsBySlot,
+  blockedSlots,
   draggingId,
   dropTarget,
   onCreate,
@@ -1435,8 +1803,10 @@ function CalendarRow({
   selectedDate,
   staffSlots,
   time,
+  isSalonBusiness,
 }: {
   appointmentsBySlot: Map<string, AppointmentCalendarItem[]>;
+  blockedSlots: Map<string, { endTime: string }>;
   draggingId: string | null;
   dropTarget: string | null;
   onCreate: (date: string, time: string, staffId: string) => void;
@@ -1448,6 +1818,7 @@ function CalendarRow({
   selectedDate: string;
   staffSlots: CalendarStaffSlot[];
   time: string;
+  isSalonBusiness: boolean;
 }) {
   const isPastSlot = isPastAppointmentSlot(selectedDate, time);
 
@@ -1457,6 +1828,7 @@ function CalendarRow({
       {staffSlots.map((staff, index) => {
         const key = `${selectedDate}T${time}::${staff.id ?? `empty-${index}`}`;
         const appointments = appointmentsBySlot.get(key) ?? [];
+        const blockedSlot = blockedSlots.get(key);
         const isDropTarget = dropTarget === key;
 
         return (
@@ -1466,7 +1838,7 @@ function CalendarRow({
             }`}
             key={key}
             onDragOver={(event) => {
-              if (isPastSlot || !staff.id) {
+              if (isPastSlot || !staff.id || blockedSlot) {
                 return;
               }
 
@@ -1474,7 +1846,7 @@ function CalendarRow({
               onDragOver(key);
             }}
             onDrop={(event) => {
-              if (isPastSlot || !staff.id) {
+              if (isPastSlot || !staff.id || blockedSlot) {
                 return;
               }
 
@@ -1482,7 +1854,7 @@ function CalendarRow({
               onDrop(selectedDate, time, staff.id);
             }}
           >
-            {staff.id && appointments.length === 0 && !isPastSlot ? (
+            {staff.id && appointments.length === 0 && !blockedSlot && !isPastSlot ? (
               <button
                 aria-label={`New appointment for ${staff.name} at ${formatTimeLabel(time)}`}
                 className="appointment-calendar-slot-create"
@@ -1490,12 +1862,20 @@ function CalendarRow({
                 type="button"
               />
             ) : null}
+            {staff.id && appointments.length === 0 && blockedSlot ? (
+              <div className="appointment-calendar-slot-blocked" title={`Busy until ${formatTimeLabel(blockedSlot.endTime)}`}>
+                <span>Busy</span>
+                <small>until {formatTimeLabel(blockedSlot.endTime)}</small>
+              </div>
+            ) : null}
             {appointments.map((appointment) => (
               <button
                 className={`appointment-calendar-card ${
                   isLockedAppointment(appointment) ? "is-converted" : ""
                 } ${
                   isCompletedAppointment(appointment) ? "is-completed" : ""
+                } ${
+                  isPaidAppointment(appointment) ? "is-paid" : ""
                 } ${
                   draggingId === appointment.id ? "is-dragging" : ""
                 }`}
@@ -1516,7 +1896,9 @@ function CalendarRow({
                 type="button"
               >
                 <strong>{appointment.customerName}</strong>
-                {appointment.plateNumber ? <span>{appointment.plateNumber}</span> : null}
+                {!isSalonBusiness && appointment.plateNumber ? (
+                  <span>{appointment.plateNumber}</span>
+                ) : null}
                 <small>
                   {getAppointmentCardStatusLabel(appointment)}
                   {false
@@ -1524,6 +1906,9 @@ function CalendarRow({
                     : false
                       ? " · In Progress"
                       : ""}
+                </small>
+                <small className="appointment-calendar-card-time">
+                  {formatAppointmentTimeRange(appointment)}
                 </small>
               </button>
             ))}
@@ -1546,35 +1931,83 @@ function isCompletedAppointment(appointment: AppointmentCalendarItem) {
   return appointment.status === "COMPLETED" || isCompletedPaidAppointment(appointment);
 }
 
+function isPaidAppointment(appointment: AppointmentCalendarItem) {
+  return appointment.invoiceStatus === "PAID" || appointment.workOrderPaymentStatus === "PAID";
+}
+
 function getAppointmentCardStatusLabel(appointment: AppointmentCalendarItem) {
-  if (isCompletedPaidAppointment(appointment)) {
-    return "Completed";
+  if (isPaidAppointment(appointment)) {
+    return "Paid";
   }
 
-  if (isLockedAppointment(appointment)) {
-    return appointment.status === "COMPLETED"
-      ? "Completed"
-      : appointment.status === "IN_SERVICE"
-        ? "In Service"
-        : "In Progress";
-  }
-
-  return appointment.status
-    .toLowerCase()
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const label = formatAppointmentStatus(appointment.status);
+  return label.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function SalonAppointmentAction({
   appointment,
+  hasOpenShift,
+  initialCheckout,
+  onInvoiceDone,
   onStatusChange,
+  sstEnabled,
+  sstLabel,
+  sstRate,
 }: {
   appointment: AppointmentCalendarItem;
+  hasOpenShift: boolean;
+  initialCheckout: boolean;
+  onInvoiceDone: () => void;
   onStatusChange: (
-    status: "CONFIRMED" | "ARRIVED" | "IN_SERVICE" | "COMPLETED",
+    status: "COMPLETED",
   ) => void;
+  sstEnabled: boolean;
+  sstLabel: string;
+  sstRate: number;
 }) {
   const action = getSalonAppointmentAction(appointment);
+  const subtotal = appointment.serviceDetails.reduce(
+    (sum, service) => sum + Number(service.price || 0),
+    0,
+  );
+  const taxLines = appointment.serviceDetails.map((service) => ({
+    lineTotal: Number(service.price || 0),
+    taxable: service.taxable,
+    taxRate: service.taxRate,
+  }));
+  const projectedTax = calculateTax({
+    lines: taxLines,
+    sstEnabled,
+    sstLabel,
+    sstRate,
+  });
+  const balance = appointment.invoiceBalance ?? projectedTax.total;
+  const canTakePayment = appointment.status === "COMPLETED" && balance > 0;
+  const checkout = canOpenSalonCheckout(appointment) ? (
+    <SalonAppointmentCheckoutModal
+      key={appointment.id}
+      appointmentId={appointment.id}
+      balance={balance}
+      canTakePayment={canTakePayment}
+      customerName={appointment.customerName}
+      customerPhone={appointment.customerPhone}
+      hasInvoice={Boolean(appointment.invoiceId)}
+      hasOpenShift={hasOpenShift}
+      initialOpen={initialCheckout}
+      invoice={appointment.invoiceSummary}
+      onDone={onInvoiceDone}
+      services={appointment.serviceDetails.map((service) => ({
+        name: service.name,
+        price: Number(service.price || 0),
+      }))}
+      subtotal={appointment.invoiceSubtotal ?? subtotal}
+      totalAmount={appointment.invoiceTotal ?? projectedTax.total}
+      taxLines={taxLines}
+      sstEnabled={sstEnabled}
+      sstLabel={sstLabel}
+      sstRate={sstRate}
+    />
+  ) : null;
 
   if (!action) {
     if (appointment.status !== "COMPLETED") {
@@ -1584,12 +2017,16 @@ function SalonAppointmentAction({
     return (
       <div className="appointment-detail-actions">
         <span className="appointment-detail-complete">Service completed</span>
-        <Link
-          className="appointment-detail-action primary"
-          href={`/appointments/${appointment.id}`}
-        >
-          Payment &amp; invoice
-        </Link>
+        {appointment.invoiceId ? (
+          <div className="appointment-detail-payment-summary">
+            <span>
+              {appointment.invoiceStatus ?? "Unpaid"} · Paid RM
+              {(appointment.invoicePaidAmount ?? 0).toFixed(2)}
+            </span>
+            <strong>Balance RM{balance.toFixed(2)}</strong>
+          </div>
+        ) : null}
+        {checkout}
       </div>
     );
   }
@@ -1605,48 +2042,39 @@ function SalonAppointmentAction({
         {action.disabledReason ?? action.label}
       </button>
       {canOpenSalonCheckout(appointment) ? (
-        <Link
-          className="appointment-detail-action secondary"
-          href={`/appointments/${appointment.id}`}
-        >
-          Payment &amp; invoice
-        </Link>
+        checkout
       ) : null}
     </div>
   );
 }
 
+function clearAppointmentQueryFromAddress() {
+  const url = new URL(window.location.href);
+
+  if (!url.searchParams.has("appointment") && !url.searchParams.has("checkout")) {
+    return;
+  }
+
+  url.searchParams.delete("appointment");
+  url.searchParams.delete("checkout");
+  window.history.replaceState(window.history.state, "", url.toString());
+}
+
 function canOpenSalonCheckout(appointment: AppointmentCalendarItem) {
   return (
-    ["ARRIVED", "IN_SERVICE", "COMPLETED"].includes(appointment.status) &&
+    appointment.status === "COMPLETED" &&
     appointment.serviceDetails.length > 0
   );
 }
 
 function getSalonAppointmentAction(appointment: AppointmentCalendarItem) {
-  if (appointment.status === "SCHEDULED") {
-    return { label: "Confirm appointment", status: "CONFIRMED" as const };
-  }
-
-  if (appointment.status === "CONFIRMED") {
-    return { label: "Check in", status: "ARRIVED" as const };
-  }
-
-  if (appointment.status === "ARRIVED") {
+  if (["SCHEDULED", "CONFIRMED", "ARRIVED", "IN_SERVICE"].includes(appointment.status)) {
     return {
       disabledReason:
-        appointment.serviceDetails.length === 0
-          ? "Select service first"
-          : !appointment.staffId
-            ? "Assign staff first"
-            : undefined,
-      label: "Start service",
-      status: "IN_SERVICE" as const,
+        appointment.serviceDetails.length === 0 ? "Select service first" : undefined,
+      label: "Complete service",
+      status: "COMPLETED" as const,
     };
-  }
-
-  if (appointment.status === "IN_SERVICE") {
-    return { label: "Complete service", status: "COMPLETED" as const };
   }
 
   return null;
@@ -1674,6 +2102,13 @@ function isPastAppointmentSlot(dateValue: string, timeValue: string) {
   const slotDate = new Date(`${dateValue}T${timeValue}:00`);
 
   return slotDate.getTime() < Date.now();
+}
+
+function isEarlierThanPastVisibilityWindow(dateValue: string, timeValue: string) {
+  const slotDate = new Date(`${dateValue}T${timeValue}:00`);
+  const oneHourAgo = Date.now() - 60 * 60 * 1000;
+
+  return slotDate.getTime() < oneHourAgo;
 }
 
 function readStoredBusinessHours() {
@@ -1848,6 +2283,31 @@ function groupAppointments(appointments: AppointmentCalendarItem[]) {
   return grouped;
 }
 
+function groupBlockedAppointmentSlots(appointments: AppointmentCalendarItem[]) {
+  const blocked = new Map<string, { endTime: string }>();
+
+  appointments.forEach((appointment) => {
+    if (!appointment.staffId) {
+      return;
+    }
+
+    const scheduledAt = new Date(appointment.scheduledAt);
+    const slotCount = getAppointmentSlotCount(appointment.durationMinutes);
+    const endAt = new Date(scheduledAt.getTime() + slotCount * 15 * 60_000);
+
+    for (let index = 1; index < slotCount; index += 1) {
+      const slotAt = new Date(scheduledAt.getTime() + index * 15 * 60_000);
+      const date = toDateValue(slotAt);
+      const time = toTimeValue(slotAt);
+      blocked.set(`${date}T${time}::${appointment.staffId}`, {
+        endTime: toTimeValue(endAt),
+      });
+    }
+  });
+
+  return blocked;
+}
+
 function buildAppointmentWeekDays(dateValue: string, dateCountByDay: Map<string, number>) {
   const weekStart = startOfWeek(new Date(`${dateValue}T00:00:00`));
 
@@ -1992,6 +2452,21 @@ function formatTimeLabelFromDate(dateValue: string) {
   return formatTimeLabel(`${hour}:${minute}`);
 }
 
+function formatAppointmentTimeRange(appointment: AppointmentCalendarItem) {
+  const scheduledAt = new Date(appointment.scheduledAt);
+  const endAt = new Date(scheduledAt.getTime() + appointment.durationMinutes * 60_000);
+
+  return `${formatTimeLabelFromDate(appointment.scheduledAt)} - ${formatTimeLabelFromDate(
+    toLocalDateTimeValue(endAt),
+  )}`;
+}
+
+function toLocalDateTimeValue(date: Date) {
+  const dateValue = toDateValue(date);
+  const timeValue = toTimeValue(date);
+  return `${dateValue}T${timeValue}`;
+}
+
 function formatLongDate(dateValue: string) {
   return new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-MY", {
     day: "2-digit",
@@ -2037,8 +2512,40 @@ function formatServiceDuration(durationMinutes: number | null) {
   return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
+function isFailedAppointmentMutation(
+  result: unknown,
+): result is { error: string; ok: false } {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "ok" in result &&
+    result.ok === false
+  );
+}
+
 function getServiceCategories(services: { category: string }[]) {
   return [...new Set(services.map((service) => service.category).filter(Boolean))];
+}
+
+function getRecentServices<T extends { id: string }>(
+  services: T[],
+  recentServiceIds: string[],
+  limit: number,
+) {
+  const serviceById = new Map(services.map((service) => [service.id, service]));
+  const recent = recentServiceIds
+    .map((serviceId) => serviceById.get(serviceId))
+    .filter((service): service is T => Boolean(service));
+  const recentIds = new Set(recent.map((service) => service.id));
+
+  if (recent.length >= limit) {
+    return recent.slice(0, limit);
+  }
+
+  return [
+    ...recent,
+    ...services.filter((service) => !recentIds.has(service.id)),
+  ].slice(0, limit);
 }
 
 function getCategoryInitial(category: string) {

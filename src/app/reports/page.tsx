@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { PaymentMethod } from "@prisma/client";
+import type { PaymentMethod, Prisma } from "@prisma/client";
 import { AppShell } from "@/components/app-shell";
 import {
   assertStaffPermission,
@@ -83,6 +83,8 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
     topCustomerGroups,
     recentPayments,
     recentRefunds,
+    taxSummary,
+    creditNoteTaxSummary,
   ] = await Promise.all([
     prisma.business.findUnique({ where: { id: businessId } }),
     prisma.payment.aggregate({
@@ -320,6 +322,23 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       orderBy: { refundedAt: "desc" },
       take: 12,
     }),
+    prisma.invoice.aggregate({
+      where: {
+        businessId,
+        ...selectedBranchWhere,
+        status: { not: "VOID" },
+        issuedAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      _sum: { taxAmount: true },
+    }),
+    prisma.creditNote.aggregate({
+      where: {
+        businessId,
+        ...selectedBranchWhere,
+        issuedAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      _sum: { taxAmount: true },
+    }),
   ]);
 
   const customers = await prisma.customer.findMany({
@@ -339,6 +358,11 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const grossSalesCents = toCents(totalSales._sum.amount ?? 0);
   const refundedSalesCents = toCents(totalRefunds._sum.amount ?? 0);
   const netSalesCents = grossSalesCents - refundedSalesCents;
+  const taxCollectedCents = Math.max(
+    0,
+    toCents(taxSummary._sum.taxAmount ?? 0) -
+      toCents(creditNoteTaxSummary._sum.taxAmount ?? 0),
+  );
   const netServiceSalesCents =
     toCents(serviceSales._sum.amount ?? 0) -
     toCents(serviceRefunds._sum.amount ?? 0);
@@ -370,6 +394,16 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
     })
     .sort((left, right) => right.netCents - left.netCents);
 
+  const salonReport =
+    context.industryType === "SALON_BEAUTY"
+      ? await getSalonReportData({
+          businessId,
+          branchId: selectedBranchId,
+          fromDate,
+          toDateExclusive,
+        })
+      : null;
+
   if (!business) {
     return (
       <AppShell user={context.user}>
@@ -390,7 +424,9 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
           <div>
             <h1>Reports</h1>
             <p>
-              Sales, jobs, invoices, packages, and service performance for{" "}
+              {context.industryType === "SALON_BEAUTY"
+                ? "Appointments, service, staff, and revenue performance for "
+                : "Sales, jobs, invoices, packages, and service performance for "}
               {selectedBranch ? selectedBranch.name : business.name}.
             </p>
           </div>
@@ -452,11 +488,14 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
           </form>
         </div>
 
-        <div className="report-kpis">
+        {salonReport ? <SalonReportSections data={salonReport} /> : null}
+
+        {!salonReport ? <div className="report-kpis">
           <Metric label="Gross Sales" value={money(fromCents(grossSalesCents))} />
           <Metric label="Refunds" value={money(fromCents(refundedSalesCents))} />
           <Metric label="Net Sales" value={money(fromCents(netSalesCents))} />
           <Metric label="Service Sales" value={money(fromCents(netServiceSalesCents))} />
+          <Metric label="SST / Tax" value={money(fromCents(taxCollectedCents))} />
           <Metric
             label="Package Sales"
             value={`${packageSales._count} / ${money(fromCents(netPackageSalesCents))}`}
@@ -474,9 +513,9 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
             label="Voided Payments"
             value={`${voidedPayments._count} / ${money(voidedPayments._sum.amount)}`}
           />
-        </div>
+        </div> : null}
 
-        <section className="report-grid">
+        {!salonReport ? <section className="report-grid">
           <ReportCard title="Payment Methods">
             {paymentMethodSummary.length ? (
               <table className="table compact-table">
@@ -736,9 +775,367 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
               <p className="empty-state">No refunds in this period.</p>
             )}
           </ReportCard>
-        </section>
+        </section> : null}
       </section>
     </AppShell>
+  );
+}
+
+type SalonServiceReportRow = {
+  name: string;
+  quantity: number;
+  amount: number;
+};
+
+type SalonStaffReportRow = {
+  id: string;
+  name: string;
+  appointments: number;
+  amount: number;
+};
+
+type SalonStatusReportRow = {
+  status: string;
+  appointments: number;
+};
+
+type SalonReportData = {
+  grossRevenueCents: number;
+  refundCents: number;
+  netRevenueCents: number;
+  discountCents: number;
+  depositCents: number;
+  tipCents: number;
+  sstCollectedCents: number;
+  totalAppointments: number;
+  completedAppointments: number;
+  cancelledAppointments: number;
+  noShowAppointments: number;
+  repeatCustomers: number;
+  serviceSales: SalonServiceReportRow[];
+  staffSales: SalonStaffReportRow[];
+  statusRows: SalonStatusReportRow[];
+};
+
+async function getSalonReportData({
+  businessId,
+  branchId,
+  fromDate,
+  toDateExclusive,
+}: {
+  businessId: string;
+  branchId: string | null;
+  fromDate: Date;
+  toDateExclusive: Date;
+}): Promise<SalonReportData> {
+  const branchFilter = branchWhere(branchId);
+  const appointmentWhere: Prisma.AppointmentWhereInput = {
+    businessId,
+    ...branchFilter,
+    scheduledAt: { gte: fromDate, lt: toDateExclusive },
+  };
+  const validAppointmentWhere: Prisma.AppointmentWhereInput = {
+    ...appointmentWhere,
+    status: { notIn: ["CANCELLED", "NO_SHOW"] },
+  };
+  const salonRevenueLink = {
+    OR: [
+      { appointmentId: { not: null } },
+      { workOrderId: { not: null } },
+    ],
+  } satisfies Prisma.PaymentWhereInput;
+  const salonInvoiceLink = {
+    OR: [
+      { appointmentId: { not: null } },
+      { workOrderId: { not: null } },
+    ],
+  } satisfies Prisma.InvoiceWhereInput;
+
+  const [
+    appointmentsByStatus,
+    repeatCustomerGroups,
+    paymentTotals,
+    refundTotals,
+    taxSummary,
+    creditNoteTaxSummary,
+    invoices,
+    staffAppointmentGroups,
+  ] = await Promise.all([
+    prisma.appointment.groupBy({
+      by: ["status"],
+      where: appointmentWhere,
+      _count: true,
+      orderBy: { _count: { status: "desc" } },
+    }),
+    prisma.appointment.groupBy({
+      by: ["customerId"],
+      where: validAppointmentWhere,
+      _count: true,
+    }),
+    prisma.payment.aggregate({
+      where: {
+        businessId,
+        ...branchFilter,
+        ...salonRevenueLink,
+        status: "ACTIVE",
+        paidAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.paymentRefund.aggregate({
+      where: {
+        businessId,
+        ...branchFilter,
+        payment: salonRevenueLink,
+        refundedAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.invoice.aggregate({
+      where: {
+        businessId,
+        ...branchFilter,
+        ...salonInvoiceLink,
+        status: { not: "VOID" },
+        issuedAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      _sum: { taxAmount: true },
+    }),
+    prisma.creditNote.aggregate({
+      where: {
+        businessId,
+        ...branchFilter,
+        invoice: salonInvoiceLink,
+        issuedAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      _sum: { taxAmount: true },
+    }),
+    prisma.invoice.findMany({
+      where: {
+        businessId,
+        ...branchFilter,
+        ...salonInvoiceLink,
+        status: { not: "VOID" },
+        issuedAt: { gte: fromDate, lt: toDateExclusive },
+      },
+      select: {
+        discountAmount: true,
+        depositAmount: true,
+        tipAmount: true,
+        items: {
+          select: { name: true, quantity: true, lineTotal: true },
+        },
+        appointment: {
+          select: {
+            assignedStaffId: true,
+            assignedStaff: { select: { id: true, name: true } },
+          },
+        },
+      },
+    }),
+    prisma.appointment.groupBy({
+      by: ["assignedStaffId"],
+      where: validAppointmentWhere,
+      _count: true,
+    }),
+  ]);
+
+  const assignedStaffIds = staffAppointmentGroups
+    .map((row) => row.assignedStaffId)
+    .filter((id): id is string => Boolean(id));
+  const staffUsers = assignedStaffIds.length
+    ? await prisma.user.findMany({
+        where: { businessId, id: { in: assignedStaffIds } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const staffNames = new Map(staffUsers.map((staff) => [staff.id, staff.name]));
+
+  const serviceMap = new Map<string, { quantity: number; amount: number }>();
+  const staffAmountMap = new Map<string, { name: string; amount: number }>();
+  let discountCents = 0;
+  let depositCents = 0;
+  let tipCents = 0;
+  for (const invoice of invoices) {
+    discountCents += toCents(invoice.discountAmount);
+    depositCents += toCents(invoice.depositAmount);
+    tipCents += toCents(invoice.tipAmount);
+    const staffId = invoice.appointment?.assignedStaffId ?? "unassigned";
+    const staffName =
+      invoice.appointment?.assignedStaff?.name ?? staffNames.get(staffId) ?? "Unassigned";
+    const staffEntry = staffAmountMap.get(staffId) ?? { name: staffName, amount: 0 };
+
+    for (const item of invoice.items) {
+      const serviceEntry = serviceMap.get(item.name) ?? { quantity: 0, amount: 0 };
+      serviceEntry.quantity += item.quantity;
+      serviceEntry.amount += Number(item.lineTotal);
+      serviceMap.set(item.name, serviceEntry);
+      staffEntry.amount += Number(item.lineTotal);
+    }
+
+    staffAmountMap.set(staffId, staffEntry);
+  }
+
+  const staffSales = Array.from(
+    new Set([
+      ...staffAppointmentGroups.map((row) => row.assignedStaffId ?? "unassigned"),
+      ...staffAmountMap.keys(),
+    ]),
+  )
+    .map((id) => {
+      const appointmentGroup = staffAppointmentGroups.find(
+        (row) => (row.assignedStaffId ?? "unassigned") === id,
+      );
+      const amount = staffAmountMap.get(id);
+      return {
+        id,
+        name:
+          amount?.name ??
+          (id === "unassigned" ? "Unassigned" : staffNames.get(id) ?? "Staff"),
+        appointments: appointmentGroup?._count ?? 0,
+        amount: amount?.amount ?? 0,
+      };
+    })
+    .sort((left, right) => right.amount - left.amount);
+
+  const statusCountMap = new Map<string, number>();
+  for (const row of appointmentsByStatus) {
+    const status = ["CONFIRMED", "ARRIVED", "IN_SERVICE"].includes(row.status)
+      ? "SCHEDULED"
+      : row.status;
+    statusCountMap.set(status, (statusCountMap.get(status) ?? 0) + row._count);
+  }
+  const statusRows = Array.from(statusCountMap.entries())
+    .map(([status, appointments]) => ({ status, appointments }))
+    .sort((left, right) => right.appointments - left.appointments);
+  const countForStatus = (status: string) =>
+    statusRows.find((row) => row.status === status)?.appointments ?? 0;
+  const totalAppointments = statusRows.reduce((total, row) => total + row.appointments, 0);
+  const grossRevenueCents = toCents(paymentTotals._sum.amount ?? 0);
+  const refundCents = toCents(refundTotals._sum.amount ?? 0);
+  const sstCollectedCents = Math.max(
+    0,
+    toCents(taxSummary._sum.taxAmount ?? 0) -
+      toCents(creditNoteTaxSummary._sum.taxAmount ?? 0),
+  );
+
+  return {
+    grossRevenueCents,
+    refundCents,
+    netRevenueCents: grossRevenueCents - refundCents,
+    discountCents,
+    depositCents,
+    tipCents,
+    sstCollectedCents,
+    totalAppointments,
+    completedAppointments: countForStatus("COMPLETED"),
+    cancelledAppointments: countForStatus("CANCELLED"),
+    noShowAppointments: countForStatus("NO_SHOW"),
+    repeatCustomers: repeatCustomerGroups.filter((row) => row._count > 1).length,
+    serviceSales: Array.from(serviceMap.entries())
+      .map(([name, row]) => ({ name, ...row }))
+      .sort((left, right) => right.amount - left.amount)
+      .slice(0, 10),
+    staffSales,
+    statusRows,
+  };
+}
+
+function SalonReportSections({ data }: { data: SalonReportData }) {
+  return (
+    <>
+      <div className="report-kpis salon-report-kpis">
+        <Metric label="Revenue" value={money(fromCents(data.grossRevenueCents))} />
+        <Metric label="Refunds" value={money(fromCents(data.refundCents))} />
+        <Metric label="Net revenue" value={money(fromCents(data.netRevenueCents))} />
+        <Metric label="SST / Tax" value={money(fromCents(data.sstCollectedCents))} />
+        <Metric label="Discounts" value={money(fromCents(data.discountCents))} />
+        <Metric label="Deposits" value={money(fromCents(data.depositCents))} />
+        <Metric label="Tips" value={money(fromCents(data.tipCents))} />
+        <Metric label="Appointments" value={data.totalAppointments} />
+        <Metric label="Completed" value={data.completedAppointments} />
+        <Metric label="Cancelled" value={data.cancelledAppointments} />
+        <Metric label="No-show" value={data.noShowAppointments} />
+        <Metric label="Repeat customers" value={data.repeatCustomers} />
+      </div>
+
+      <section className="report-grid">
+        <ReportCard title="Service Sales">
+          {data.serviceSales.length ? (
+            <table className="table compact-table">
+              <thead>
+                <tr>
+                  <th>Service</th>
+                  <th>Qty</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.serviceSales.map((row) => (
+                  <tr key={row.name}>
+                    <td>{row.name}</td>
+                    <td>{row.quantity}</td>
+                    <td>{money(row.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="empty-state">No service sales in this period.</p>
+          )}
+        </ReportCard>
+
+        <ReportCard title="Staff Sales">
+          {data.staffSales.length ? (
+            <table className="table compact-table">
+              <thead>
+                <tr>
+                  <th>Staff</th>
+                  <th>Appointments</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.staffSales.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.name}</td>
+                    <td>{row.appointments}</td>
+                    <td>{money(row.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="empty-state">No staff activity in this period.</p>
+          )}
+        </ReportCard>
+
+        <ReportCard title="Appointments by Status">
+          {data.statusRows.length ? (
+            <table className="table compact-table">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Appointments</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.statusRows.map((row) => (
+                  <tr key={row.status}>
+                    <td>
+                      <span className="status">{formatStatus(row.status)}</span>
+                    </td>
+                    <td>{row.appointments}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="empty-state">No appointments in this period.</p>
+          )}
+        </ReportCard>
+      </section>
+    </>
   );
 }
 

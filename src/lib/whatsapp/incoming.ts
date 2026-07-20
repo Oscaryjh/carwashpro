@@ -13,7 +13,7 @@ export type IncomingWhatsAppMessageInput = {
   body: string;
   from: string;
   messageId: string;
-  messageType: "audio" | "image" | "text";
+  messageType: "audio" | "document" | "image" | "text";
   mediaBase64?: string | null;
   mediaFileName?: string | null;
   mediaMimeType?: string | null;
@@ -46,11 +46,15 @@ export async function recordIncomingWhatsAppMessage(
   const chatMessageType =
     input.messageType === "audio"
       ? "AUDIO"
-      : input.messageType === "image"
-        ? "IMAGE"
-        : "TEXT";
+      : input.messageType === "document"
+        ? "DOCUMENT"
+        : input.messageType === "image"
+          ? "IMAGE"
+          : "TEXT";
   const mediaUrl =
-    chatMessageType === "AUDIO" || chatMessageType === "IMAGE"
+    chatMessageType === "AUDIO" ||
+    chatMessageType === "DOCUMENT" ||
+    chatMessageType === "IMAGE"
       ? await saveIncomingMediaAttachment({
           mediaBase64: input.mediaBase64 ?? null,
           mediaFileName: input.mediaFileName ?? null,
@@ -141,21 +145,27 @@ async function saveIncomingMediaAttachment(input: {
   mediaFileName: string | null;
   mediaMimeType: string | null;
   messageId: string;
-  type: "AUDIO" | "IMAGE";
+  type: "AUDIO" | "DOCUMENT" | "IMAGE";
 }) {
   if (!input.mediaBase64) {
     return null;
   }
 
   const uploadFolder =
-    input.type === "IMAGE" ? "whatsapp-images" : "whatsapp-audio";
+    input.type === "IMAGE"
+      ? "whatsapp-images"
+      : input.type === "DOCUMENT"
+        ? "whatsapp-documents"
+        : "whatsapp-audio";
   const uploadDir = path.join(process.cwd(), "public", "uploads", uploadFolder);
   await fs.mkdir(uploadDir, { recursive: true });
 
   const extension =
     input.type === "IMAGE"
       ? getImageExtension(input.mediaFileName, input.mediaMimeType)
-      : getAudioExtension(input.mediaFileName, input.mediaMimeType);
+      : input.type === "DOCUMENT"
+        ? getDocumentExtension(input.mediaFileName, input.mediaMimeType)
+        : getAudioExtension(input.mediaFileName, input.mediaMimeType);
   const fileName = `${sanitizeFileSegment(input.messageId)}${extension}`;
   const filePath = path.join(uploadDir, fileName);
 
@@ -212,8 +222,30 @@ function getImageExtension(fileName: string | null, mimeType: string | null) {
   return ".jpg";
 }
 
+function getDocumentExtension(fileName: string | null, mimeType: string | null) {
+  const existingExtension = fileName ? path.extname(fileName) : "";
+
+  if (existingExtension) {
+    return existingExtension;
+  }
+
+  if (mimeType?.includes("pdf")) {
+    return ".pdf";
+  }
+
+  if (mimeType?.includes("word") || mimeType?.includes("document")) {
+    return ".docx";
+  }
+
+  if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel")) {
+    return ".xlsx";
+  }
+
+  return ".bin";
+}
+
 function sanitizeFileSegment(value: string) {
-  return value.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "audio";
+  return value.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "attachment";
 }
 
 async function resolveIncomingBusinessId(payloadBusinessId?: string | null) {

@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 
 export type PackageCustomerOption = {
+  activePackageCount?: number;
   id: string;
+  loyaltyPoints?: number;
+  loyaltyStatus?: string | null;
   name: string;
   phone: string;
   vehicleCount: number;
@@ -15,7 +18,12 @@ export type PackageCustomerOption = {
 };
 
 type PackageCustomerPickerProps = {
+  buttonClassName?: string;
+  compactAccountNote?: boolean;
+  includeVehicleDetails?: boolean;
   onSelectionChange?: (customer: PackageCustomerOption | null) => void;
+  posDisplay?: boolean;
+  required?: boolean;
 };
 
 type CustomerSearchResponse = {
@@ -24,7 +32,12 @@ type CustomerSearchResponse = {
 };
 
 export function PackageCustomerPicker({
+  buttonClassName,
+  compactAccountNote = false,
+  includeVehicleDetails = true,
   onSelectionChange,
+  posDisplay = false,
+  required = false,
 }: PackageCustomerPickerProps) {
   const requestSequence = useRef(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -101,26 +114,39 @@ export function PackageCustomerPicker({
         value={selectedCustomer?.id ?? ""}
       />
       <button
-        className="package-purchase-selection package-customer-selection"
+        className={`package-purchase-selection package-customer-selection ${buttonClassName ?? ""}`.trim()}
         onClick={() => setIsOpen(true)}
         type="button"
       >
-        <span aria-hidden="true">C</span>
+        <span aria-hidden="true">{selectedCustomer ? getInitials(selectedCustomer.name) : "C"}</span>
         <div>
-          <strong>{selectedCustomer?.name ?? "Select customer"}</strong>
+          <strong>{selectedCustomer?.name ?? (required ? "Select customer" : "Walk-in customer")}</strong>
           <small>
             {selectedCustomer
-              ? selectedCustomer.phone
-              : "Search by phone, name, or plate"}
+              ? `${selectedCustomer.phone}${posDisplay && selectedCustomer.loyaltyStatus === "ACTIVE" ? " · Loyalty member" : ""}`
+              : includeVehicleDetails
+                ? "Search by phone, name, or plate"
+                : required
+                  ? "Required for package purchase"
+                  : "Optional for product sales"}
           </small>
         </div>
-        <b>{selectedCustomer ? "Change" : "Choose"}</b>
+        {posDisplay && selectedCustomer ? (
+          <span className="package-customer-pos-meta">
+            <strong>{selectedCustomer.loyaltyPoints ?? 0} pts</strong>
+            <small>{selectedCustomer.activePackageCount ?? 0} active packages</small>
+          </span>
+        ) : (
+          <b>{selectedCustomer ? "Change" : "Choose"}</b>
+        )}
       </button>
-      {selectedCustomer ? (
+      {selectedCustomer && !compactAccountNote ? (
         <div className="package-customer-account-note">
           <span>
-            Package account: {selectedCustomer.phone}. Usable by all vehicles under
-            this customer.
+            Package account: {selectedCustomer.phone}.{" "}
+            {includeVehicleDetails
+              ? "Usable by all vehicles under this customer."
+              : "Usable for this customer."}
           </span>
           <button onClick={clearCustomer} type="button">
             Clear
@@ -153,7 +179,11 @@ export function PackageCustomerPicker({
               <input
                 autoFocus
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Phone, name, or plate"
+                placeholder={
+                  includeVehicleDetails
+                    ? "Phone, name, or plate"
+                    : "Phone or customer name"
+                }
                 value={query}
               />
               {query ? (
@@ -170,7 +200,9 @@ export function PackageCustomerPicker({
             </label>
 
             <p className="package-customer-picker-help">
-              Packages belong to the customer phone account, not one vehicle.
+              {includeVehicleDetails
+                ? "Packages belong to the customer phone account, not one vehicle."
+                : "Packages belong to the customer phone account."}
             </p>
 
             <div className="package-customer-results">
@@ -189,12 +221,16 @@ export function PackageCustomerPicker({
                     <div>
                       <strong>{customer.name}</strong>
                       <small>{customer.phone}</small>
-                      <em>{formatVehicleSummary(customer)}</em>
+                      {includeVehicleDetails ? (
+                        <em>{formatVehicleSummary(customer)}</em>
+                      ) : null}
                     </div>
-                    <b>
-                      {customer.vehicleCount} vehicle
-                      {customer.vehicleCount === 1 ? "" : "s"}
-                    </b>
+                    {includeVehicleDetails ? (
+                      <b>
+                        {customer.vehicleCount} vehicle
+                        {customer.vehicleCount === 1 ? "" : "s"}
+                      </b>
+                    ) : null}
                   </button>
                 ))
               ) : (

@@ -10,7 +10,7 @@ export const staffPermissions = [
   {
     key: "ALL_BRANCHES",
     label: "All branch access",
-    description: "View all branches and switch branch filters on Dashboard and Reports.",
+    description: "View all branches and switch branch filters in Reports.",
   },
   {
     key: "CRM",
@@ -87,6 +87,11 @@ export const staffPermissions = [
     label: "Packages",
     description: "Create and update package plans and categories.",
   },
+  {
+    key: "PRODUCTS",
+    label: "Products",
+    description: "Create and update retail products and branch stock.",
+  },
 ] as const;
 
 export type StaffPermission = (typeof staffPermissions)[number]["key"];
@@ -145,8 +150,7 @@ const staffHomeRoutes: Array<[StaffPermission, string]> = [
   ["JOBS", "/work-orders"],
   ["APPOINTMENTS", "/appointments"],
   ["CRM", "/crm"],
-  ["DASHBOARD", "/dashboard"],
-  ["POS", "/pos"],
+  ["POS", "/cashier"],
   ["INVOICES", "/invoices"],
   ["CLOSING", "/closing"],
   ["WHATSAPP", "/whatsapp/inbox"],
@@ -154,6 +158,7 @@ const staffHomeRoutes: Array<[StaffPermission, string]> = [
   ["REPORTS", "/reports"],
   ["SERVICES", "/services"],
   ["PACKAGES", "/packages"],
+  ["PRODUCTS", "/products"],
   ["TEAM", "/team"],
 ];
 
@@ -189,6 +194,10 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
   }
 
   if (pathname === "/pos" || pathname.startsWith("/pos/")) {
+    return "POS";
+  }
+
+  if (pathname === "/cashier" || pathname.startsWith("/cashier/")) {
     return "POS";
   }
 
@@ -231,6 +240,10 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
 
   if (pathname === "/packages" || pathname.startsWith("/packages/")) {
     return "PACKAGES";
+  }
+
+  if (pathname === "/products" || pathname.startsWith("/products/")) {
+    return "PRODUCTS";
   }
 
   if (pathname === "/branches" || pathname.startsWith("/branches/")) {

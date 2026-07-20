@@ -41,6 +41,18 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         branch: {
           select: { id: true, name: true },
         },
+        employeeAccount: {
+          include: {
+            memberships: {
+              where: { businessId },
+              include: {
+                branchAssignments: {
+                  include: { branch: { select: { id: true, name: true } } },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -56,6 +68,9 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
             <p>Manage staff accounts, branch assignment, and access permissions.</p>
           </div>
           <div className="inline-actions">
+            <Link className="secondary-light-button" href="/team/attendance">
+              Attendance
+            </Link>
             <Link className="button-link" href="/team/new">
               Create staff
             </Link>
@@ -109,12 +124,28 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
                     <td>
                       <strong>{staffUser.name}</strong>
                       {staffUser.whatsappPhone ? (
-                        <span className="muted">WA {staffUser.whatsappPhone}</span>
+                        <span className="muted">{staffUser.whatsappPhone}</span>
                       ) : null}
                     </td>
-                    <td>{staffUser.email}</td>
-                    <td>{staffUser.branch?.name ?? "No branch"}</td>
-                    <td>{staffUser.permissions.length}</td>
+                    <td>{staffUser.loginEnabled ? staffUser.email : "No system login"}</td>
+                    <td>
+                      {(() => {
+                        const assignedBranches = staffUser.employeeAccount?.memberships
+                          .flatMap((membership) => membership.branchAssignments.map((assignment) => assignment.branch))
+                          .filter((branch, index, all) => all.findIndex((item) => item.id === branch.id) === index) ?? [];
+                        const names = assignedBranches.length
+                          ? assignedBranches.map((branch) => branch.name)
+                          : staffUser.branch?.name
+                            ? [staffUser.branch.name]
+                            : [];
+                        return names.length ? names.join(", ") : "No branch";
+                      })()}
+                    </td>
+                    <td>
+                      {staffUser.loginEnabled
+                        ? `${staffUser.permissions.length} permissions`
+                        : "Staff record only"}
+                    </td>
                     <td>
                       <span className="status">{staffUser.status}</span>
                     </td>

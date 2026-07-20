@@ -45,6 +45,10 @@ type SessionRuntime = {
 const sessionStorage = new AsyncLocalStorage<SessionRuntime>();
 const sessions = new Map<string, SessionRuntime>();
 
+export function shouldForwardMessagesUpsert(type: unknown) {
+  return type === "notify" || type === "append";
+}
+
 const clientName = "WashFlow Connector";
 const require = createRequire(import.meta.url);
 const packageJson = require("../package.json") as {
@@ -228,6 +232,10 @@ function getImageMessage(message: proto.IMessage | null | undefined) {
   return getMessageContent(message)?.imageMessage ?? null;
 }
 
+function getDocumentMessage(message: proto.IMessage | null | undefined) {
+  return getMessageContent(message)?.documentMessage ?? null;
+}
+
 async function downloadImageMessage(
   message: proto.IWebMessageInfo,
   activeSocket: WASocket
@@ -286,6 +294,36 @@ async function downloadAudioMessage(
   };
 }
 
+async function downloadDocumentMessage(
+  message: proto.IWebMessageInfo,
+  activeSocket: WASocket
+) {
+  const documentMessage = getDocumentMessage(message.message);
+
+  if (!documentMessage) {
+    return null;
+  }
+
+  const mediaBuffer = await downloadMediaMessage(
+    message as WAMessage,
+    "buffer",
+    {},
+    {
+      logger,
+      reuploadRequest: activeSocket.updateMediaMessage
+    }
+  );
+  const mimeType = documentMessage.mimetype ?? "application/octet-stream";
+  const fileName = documentMessage.fileName?.trim();
+  const extension = getDocumentExtension(fileName, mimeType);
+
+  return {
+    mediaBase64: Buffer.from(mediaBuffer).toString("base64"),
+    mediaFileName: fileName || `${message.key?.id ?? "whatsapp-document"}${extension}`,
+    mediaMimeType: mimeType
+  };
+}
+
 function getAudioExtension(mimeType: string) {
   if (mimeType.includes("mpeg") || mimeType.includes("mp3")) {
     return ".mp3";
@@ -320,6 +358,28 @@ function getImageExtension(mimeType: string) {
   }
 
   return ".jpg";
+}
+
+function getDocumentExtension(fileName: string | null | undefined, mimeType: string) {
+  const existingExtension = fileName ? path.extname(fileName) : "";
+
+  if (existingExtension) {
+    return existingExtension;
+  }
+
+  if (mimeType.includes("pdf")) {
+    return ".pdf";
+  }
+
+  if (mimeType.includes("word") || mimeType.includes("document")) {
+    return ".docx";
+  }
+
+  if (mimeType.includes("spreadsheet") || mimeType.includes("excel")) {
+    return ".xlsx";
+  }
+
+  return ".bin";
 }
 
 function isPhoneJid(jid: string) {
@@ -481,11 +541,26 @@ async function handleIncomingMessage(
   const audioAttachment = imageAttachment
     ? null
     : await downloadAudioMessage(message, activeSocket);
-  const mediaAttachment = imageAttachment ?? audioAttachment;
-  const messageType = imageAttachment ? "image" : audioAttachment ? "audio" : "text";
+  const documentAttachment = imageAttachment || audioAttachment
+    ? null
+    : await downloadDocumentMessage(message, activeSocket);
+  const mediaAttachment = imageAttachment ?? audioAttachment ?? documentAttachment;
+  const messageType = imageAttachment
+    ? "image"
+    : audioAttachment
+      ? "audio"
+      : documentAttachment
+        ? "document"
+        : "text";
   const body =
     getMessageText(message.message) ||
-    (imageAttachment ? "Image" : audioAttachment ? "Voice message" : "");
+    (imageAttachment
+      ? "Image"
+      : audioAttachment
+        ? "Voice message"
+        : documentAttachment
+          ? `Document: ${documentAttachment.mediaFileName}`
+          : "");
 
   if (!body) {
     return;
@@ -916,7 +991,7 @@ async function connectSocket(generation: number) {
       "messages.upsert received"
     );
 
-    if (event.type !== "notify") {
+    if (!shouldForwardMessagesUpsert(event.type)) {
       return;
     }
 

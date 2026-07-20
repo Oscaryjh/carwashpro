@@ -11,7 +11,7 @@ const incomingMessageSchema = z.object({
   body: z.string().trim().min(1),
   from: z.string().trim().min(1),
   messageId: z.string().trim().min(1),
-  messageType: z.enum(["audio", "image", "text"]),
+  messageType: z.enum(["audio", "document", "image", "text"]),
   mediaBase64: z.string().trim().optional().nullable(),
   mediaFileName: z.string().trim().optional().nullable(),
   mediaMimeType: z.string().trim().optional().nullable(),

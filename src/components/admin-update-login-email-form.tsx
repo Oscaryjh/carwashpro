@@ -9,7 +9,7 @@ import {
 type AdminUpdateLoginEmailFormProps = {
   businessId: string;
   userId: string;
-  email: string;
+  email: string | null;
 };
 
 const initialState: AdminUpdateUserEmailState = {
@@ -32,10 +32,10 @@ export function AdminUpdateLoginEmailForm({
       <input type="hidden" name="businessId" value={businessId} />
       <input type="hidden" name="userId" value={userId} />
       <input
-        aria-label={`Login email for ${email}`}
+        aria-label={`Login email for ${email ?? "staff member"}`}
         name="email"
         type="email"
-        defaultValue={email}
+        defaultValue={email ?? ""}
         autoComplete="off"
         required
       />

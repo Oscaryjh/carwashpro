@@ -18,14 +18,14 @@ export default async function NewStaffPage() {
         <div className="page-header">
           <div>
             <h1>Create staff</h1>
-            <p>Create one login and assign it to a branch.</p>
+            <p>Create a staff record, assign branches, and optionally enable login.</p>
           </div>
           <BackButton fallbackHref="/team" />
         </div>
 
         {!branches.length ? (
           <div className="warning">
-            Create an active branch before adding staff. Staff accounts must belong to
+            Create an active branch before adding staff. Staff records must belong to at least
             one branch.
           </div>
         ) : null}

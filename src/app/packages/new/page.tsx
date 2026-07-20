@@ -8,7 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { createPackageAction } from "../actions";
 
 export default async function NewPackagePage() {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
+  const isSalonBusiness = industryType === "SALON_BEAUTY";
   assertStaffPermission(user, "PACKAGES");
 
   const [services, branches, categories] = await Promise.all([
@@ -32,7 +33,11 @@ export default async function NewPackagePage() {
         <div className="page-header">
           <div>
             <h1>New Package</h1>
-            <p>Create a prepaid wash package, such as RM180 for 10 washes.</p>
+            <p>
+              {isSalonBusiness
+                ? "Create a prepaid service package, such as RM180 for 10 uses."
+                : "Create a prepaid wash package, such as RM180 for 10 washes."}
+            </p>
           </div>
           <BackButton fallbackHref="/packages" />
         </div>

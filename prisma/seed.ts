@@ -1,6 +1,8 @@
-import { PrismaClient, UserRole } from "@prisma/client";
+import { PrismaClient, UserRole, type BusinessIndustry } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { DEFAULT_WHATSAPP_TEMPLATES } from "../src/lib/whatsapp/template-defaults";
+import {
+  DEFAULT_WHATSAPP_TEMPLATES_BY_INDUSTRY,
+} from "../src/lib/whatsapp/template-defaults";
 
 const prisma = new PrismaClient();
 
@@ -31,13 +33,28 @@ async function main() {
 
   console.log(`Seeded platform admin: ${email}`);
 
+  const seededTemplates = Object.entries(
+    DEFAULT_WHATSAPP_TEMPLATES_BY_INDUSTRY,
+  ).flatMap(([industryType, templates]) =>
+    templates.map((template) => ({
+      industryType: industryType as BusinessIndustry,
+      template,
+    })),
+  );
+
   await Promise.all(
-    DEFAULT_WHATSAPP_TEMPLATES.map((template) =>
+    seededTemplates.map(({ industryType, template }) =>
       prisma.whatsAppTemplate.upsert({
-        where: { messageType: template.messageType },
+        where: {
+          messageType_industryType: {
+            industryType,
+            messageType: template.messageType,
+          },
+        },
         update: {},
         create: {
           body: template.body,
+          industryType,
           messageType: template.messageType,
           status: "ACTIVE",
           title: template.title,
@@ -46,7 +63,7 @@ async function main() {
     ),
   );
 
-  console.log(`Seeded WhatsApp templates: ${DEFAULT_WHATSAPP_TEMPLATES.length}`);
+  console.log(`Seeded WhatsApp templates: ${seededTemplates.length}`);
 }
 
 main()

@@ -12,12 +12,20 @@ import {
   routePermission,
 } from "../../src/lib/auth/staff-permissions";
 import { cashierPackagePurchaseSchema } from "../../src/lib/validation/packages";
+import { cashierSaleSchema } from "../../src/lib/validation/cashier";
 import { salonAppointmentPaymentSchema } from "../../src/lib/validation/pos";
 import { serviceSchema } from "../../src/lib/validation/services";
-import { buildInvoicePdf } from "../../src/lib/invoices/invoice-pdf";
+import {
+  buildInvoicePdf,
+  buildInvoiceReceiptPdf,
+} from "../../src/lib/invoices/invoice-pdf";
+import { packageAllowsVehicle } from "../../src/lib/vehicle-size";
 import {
   canMoveAppointmentStatus,
   createAppointmentSchema,
+  addAppointmentServicesSchema,
+  formatAppointmentStatus,
+  normalizeSalonAppointmentStatus,
 } from "../../src/lib/validation/appointments";
 
 test("payment does not participate in the job status transition rules", () => {
@@ -25,6 +33,88 @@ test("payment does not participate in the job status transition rules", () => {
   assert.equal(canMoveWorkOrderStatus("READY_FOR_PICKUP", "COMPLETED"), true);
   assert.equal(canMoveWorkOrderStatus("IN_PROGRESS", "COMPLETED"), false);
   assert.equal(canMoveWorkOrderStatus("COMPLETED", "CANCELLED"), false);
+});
+
+test("cashier sale allows anonymous products but requires a customer for packages", () => {
+  const productId = "11111111-1111-4111-8111-111111111111";
+  const packageId = "22222222-2222-4222-8222-222222222222";
+  const customerId = "33333333-3333-4333-8333-333333333333";
+
+  assert.equal(
+    cashierSaleSchema.safeParse({
+      branchId: "",
+      customerId: "",
+      method: "CASH",
+      packageIds: [],
+      packageQuantities: [],
+      productIds: [productId],
+      productQuantities: [2],
+    }).success,
+    true,
+  );
+  assert.equal(
+    cashierSaleSchema.safeParse({
+      branchId: "",
+      customerId: "",
+      method: "CASH",
+      packageIds: [packageId],
+      packageQuantities: [1],
+      productIds: [],
+      productQuantities: [],
+    }).success,
+    false,
+  );
+  assert.equal(
+    cashierSaleSchema.safeParse({
+      branchId: "",
+      customerId,
+      method: "DUITNOW",
+      reference: "TX-001",
+      packageIds: [packageId],
+      packageQuantities: [1],
+      productIds: [productId],
+      productQuantities: [1],
+    }).success,
+    true,
+  );
+});
+
+test("cashier discounts require a reason and loyalty redemption requires a customer", () => {
+  const productId = "11111111-1111-4111-8111-111111111111";
+  const baseSale = {
+    branchId: "",
+    customerId: "",
+    method: "CASH" as const,
+    packageIds: [],
+    packageQuantities: [],
+    productIds: [productId],
+    productQuantities: [1],
+  };
+
+  assert.equal(
+    cashierSaleSchema.safeParse({
+      ...baseSale,
+      discountType: "PERCENT",
+      discountValue: 10,
+      discountReason: "Member promotion",
+    }).success,
+    true,
+  );
+  assert.equal(
+    cashierSaleSchema.safeParse({
+      ...baseSale,
+      discountType: "AMOUNT",
+      discountValue: 5,
+    }).success,
+    false,
+  );
+  assert.equal(
+    cashierSaleSchema.safeParse({
+      ...baseSale,
+      loyaltyPoints: 100,
+    }).success,
+    false,
+  );
 });
 
 test("salon appointment payments support partial payment and protect non-cash references", () => {
@@ -41,11 +131,42 @@ test("salon appointment payments support partial payment and protect non-cash re
   assert.equal(
     salonAppointmentPaymentSchema.safeParse({
       appointmentId,
+      amount: "25.50",
+      method: "CASH",
+      reference: null,
+    }).success,
+    true,
+  );
+  assert.equal(
+    salonAppointmentPaymentSchema.safeParse({
+      appointmentId,
       amount: 25.5,
       method: "DUITNOW",
     }).success,
     false,
   );
+  assert.equal(
+    salonAppointmentPaymentSchema.safeParse({
+      appointmentId,
+      amount: 0,
+      method: "CASH",
+      discountAmount: 5,
+      depositAmount: 10,
+      depositMethod: "CARD",
+      depositReference: "CARD-001",
+      tipAmount: 2,
+    }).success,
+    true,
+  );
+});
+
+test("salon appointment statuses use the short workflow while preserving legacy records", () => {
+  assert.equal(normalizeSalonAppointmentStatus("SCHEDULED"), "SCHEDULED");
+  assert.equal(normalizeSalonAppointmentStatus("CONFIRMED"), "SCHEDULED");
+  assert.equal(normalizeSalonAppointmentStatus("ARRIVED"), "SCHEDULED");
+  assert.equal(normalizeSalonAppointmentStatus("IN_SERVICE"), "SCHEDULED");
+  assert.equal(normalizeSalonAppointmentStatus("COMPLETED"), "COMPLETED");
+  assert.equal(formatAppointmentStatus("IN_SERVICE"), "scheduled");
 });
 
 test("salon invoices render without a vehicle or work order", () => {
@@ -73,6 +194,41 @@ test("salon invoices render without a vehicle or work order", () => {
   assert.ok(pdf.length > 500);
 });
 
+test("58mm invoice receipts use thermal paper width and support long item names", () => {
+  const pdf = buildInvoiceReceiptPdf({
+    company: { name: "Tetamu Beauty and Wellness" },
+    customer: { name: "OSCAR YONG", phone: "01112212259" },
+    invoiceNumber: "INV-58MM-TEST",
+    issuedAt: new Date("2026-07-20T10:00:00+08:00"),
+    items: [
+      {
+        name: "Balayage Highlights and Hair Treatment",
+        quantity: 2,
+        unitPrice: 120,
+        lineTotal: 240,
+      },
+    ],
+    paidAmount: 254.4,
+    balance: 0,
+    status: "paid",
+    subtotal: 240,
+    taxAmount: 14.4,
+    taxLabel: "SST",
+    taxRate: 6,
+    total: 254.4,
+    reference: {
+      label: "Appointment",
+      value: "20/07/2026",
+      detail: "01:00 pm / OSCAR",
+    },
+  });
+
+  const source = pdf.toString("latin1");
+  assert.equal(pdf.subarray(0, 4).toString("ascii"), "%PDF");
+  assert.match(source, /\/MediaBox \[0 0 164\.41 /);
+  assert.ok(pdf.length > 500);
+});
+
 test("staff permissions are allow-list based and deduplicated", () => {
   assert.deepEqual(
     normalizeStaffPermissions(["CRM", "CRM", "POS", "UNKNOWN"]),
@@ -89,6 +245,17 @@ test("staff permissions are allow-list based and deduplicated", () => {
   assert.equal(
     hasStaffPermission({ role: "BUSINESS_OWNER", permissions: [] }, "REPORTS"),
     true,
+  );
+  assert.equal(
+    hasStaffPermission(
+      { role: "STAFF", permissions: ["REPORTS", "ALL_BRANCHES"] },
+      "ALL_BRANCHES",
+    ),
+    true,
+  );
+  assert.equal(
+    hasStaffPermission({ role: "STAFF", permissions: ["REPORTS"] }, "ALL_BRANCHES"),
+    false,
   );
 });
 
@@ -107,11 +274,51 @@ test("new staff defaults are limited to daily cashier operations", () => {
   assert.equal(defaultStaffPermissions.includes("DELETE_CUSTOMER"), false);
 });
 
+test("permission matrix separates cashier, manager, and owner capabilities", () => {
+  const cashier = { role: "STAFF" as const, permissions: defaultStaffPermissions };
+  const manager = {
+    role: "STAFF" as const,
+    permissions: [
+      ...defaultStaffPermissions,
+      "DASHBOARD" as const,
+      "REPORTS" as const,
+      "ALL_BRANCHES" as const,
+    ],
+  };
+  const owner = { role: "BUSINESS_OWNER" as const, permissions: [] };
+
+  assert.equal(hasStaffPermission(cashier, "POS"), true);
+  assert.equal(hasStaffPermission(cashier, "DASHBOARD"), false);
+  assert.equal(hasStaffPermission(cashier, "REPORTS"), false);
+  assert.equal(hasStaffPermission(cashier, "TEAM"), false);
+  assert.equal(hasStaffPermission(cashier, "DELETE_STAFF"), false);
+
+  assert.equal(hasStaffPermission(manager, "DASHBOARD"), true);
+  assert.equal(hasStaffPermission(manager, "REPORTS"), true);
+  assert.equal(hasStaffPermission(manager, "ALL_BRANCHES"), true);
+  assert.equal(hasStaffPermission(manager, "TEAM"), false);
+  assert.equal(hasStaffPermission(manager, "DELETE_STAFF"), false);
+
+  assert.equal(hasStaffPermission(owner, "DASHBOARD"), true);
+  assert.equal(hasStaffPermission(owner, "REPORTS"), true);
+  assert.equal(hasStaffPermission(owner, "TEAM"), true);
+  assert.equal(hasStaffPermission(owner, "DELETE_STAFF"), true);
+});
+
 test("sensitive WhatsApp routes use the session management permission", () => {
   assert.equal(routePermission("/whatsapp/inbox"), "WHATSAPP");
   assert.equal(routePermission("/whatsapp/settings"), "WHATSAPP_SESSION");
   assert.equal(routePermission("/whatsapp/diagnostics"), "WHATSAPP_SESSION");
   assert.equal(routePermission("/branches"), "OWNER_ONLY");
+});
+
+test("management routes are restricted to the permissions that protect them", () => {
+  assert.equal(routePermission("/dashboard"), "DASHBOARD");
+  assert.equal(routePermission("/reports"), "REPORTS");
+  assert.equal(routePermission("/team"), "TEAM");
+  assert.equal(routePermission("/team/123"), "TEAM");
+  assert.equal(routePermission("/business/settings"), "OWNER_ONLY");
+  assert.equal(routePermission("/branches/123"), "OWNER_ONLY");
 });
 
 test("staff without dashboard access are redirected to their first allowed module", () => {
@@ -132,7 +339,11 @@ test("cashier package purchases bind to a customer account, not a vehicle", () =
     branchId: "00000000-0000-4000-8000-000000000001",
     customerId: "00000000-0000-4000-8000-000000000002",
     method: "CASH" as const,
-    packageId: "00000000-0000-4000-8000-000000000003",
+    packageIds: [
+      "00000000-0000-4000-8000-000000000003",
+      "00000000-0000-4000-8000-000000000004",
+    ],
+    quantities: [2, 1],
   };
 
   assert.equal(cashierPackagePurchaseSchema.safeParse(baseInput).success, true);
@@ -140,10 +351,50 @@ test("cashier package purchases bind to a customer account, not a vehicle", () =
     cashierPackagePurchaseSchema.safeParse({
       ...baseInput,
       customerId: undefined,
-      vehicleId: "00000000-0000-4000-8000-000000000004",
+      vehicleId: "00000000-0000-4000-8000-000000000005",
     }).success,
     false,
   );
+  assert.equal(
+    cashierPackagePurchaseSchema.safeParse({
+      ...baseInput,
+      quantities: [1],
+    }).success,
+    false,
+  );
+});
+
+test("package use is restricted by vehicle size and rejects unclassified vehicles", () => {
+  assert.equal(packageAllowsVehicle("SMALL", "SMALL"), true);
+  assert.equal(packageAllowsVehicle("SMALL", "MEDIUM"), false);
+  assert.equal(packageAllowsVehicle("MEDIUM", "LARGE"), false);
+  assert.equal(packageAllowsVehicle("ALL", "LARGE"), true);
+  assert.equal(packageAllowsVehicle("ALL", "UNCLASSIFIED"), false);
+});
+
+test("package invoice PDFs render without a vehicle reference", () => {
+  const pdf = buildInvoicePdf({
+    company: { name: "Tetamu Salon" },
+    customer: { name: "CUSTOMER", phone: "60123456789" },
+    invoiceNumber: "INV-PACKAGE-TEST",
+    issuedAt: new Date("2026-07-16T11:00:00+08:00"),
+    items: [
+      { name: "10+1 Basic Wash Package", quantity: 1, unitPrice: 150, lineTotal: 150 },
+    ],
+    paidAmount: 150,
+    balance: 0,
+    status: "paid",
+    subtotal: 150,
+    total: 150,
+    reference: {
+      label: "Package",
+      value: "10+1 Basic Wash Package",
+      detail: "11 uses / RM150.00",
+    },
+  });
+
+  assert.equal(pdf.subarray(0, 4).toString("ascii"), "%PDF");
+  assert.ok(pdf.length > 500);
 });
 
 test("salon service fields accept a practical duration and staff assignments", () => {
@@ -224,18 +475,39 @@ test("appointment input supports either a Salon customer or an AUTO vehicle", ()
   );
 });
 
-test("salon appointments follow the service lifecycle in order", () => {
-  assert.equal(canMoveAppointmentStatus("SCHEDULED", "CONFIRMED"), true);
-  assert.equal(canMoveAppointmentStatus("CONFIRMED", "ARRIVED"), true);
-  assert.equal(canMoveAppointmentStatus("ARRIVED", "IN_SERVICE"), true);
-  assert.equal(canMoveAppointmentStatus("IN_SERVICE", "COMPLETED"), true);
-  assert.equal(canMoveAppointmentStatus("ARRIVED", "COMPLETED"), false);
-  assert.equal(canMoveAppointmentStatus("COMPLETED", "CANCELLED"), false);
+test("salon service additions require at least one valid new service", () => {
+  const appointmentId = "00000000-0000-4000-8000-000000000001";
+  const serviceId = "00000000-0000-4000-8000-000000000002";
+
+  assert.equal(
+    addAppointmentServicesSchema.safeParse({ appointmentId, serviceIds: [serviceId] }).success,
+    true,
+  );
+  assert.equal(
+    addAppointmentServicesSchema.safeParse({ appointmentId, serviceIds: [] }).success,
+    false,
+  );
+  assert.equal(
+    addAppointmentServicesSchema.safeParse({ appointmentId, serviceIds: ["not-a-uuid"] }).success,
+    false,
+  );
 });
 
-test("no show and cancellation stop once salon service starts", () => {
+test("salon appointments complete service directly before checkout", () => {
+  assert.equal(canMoveAppointmentStatus("SCHEDULED", "COMPLETED"), true);
+  assert.equal(canMoveAppointmentStatus("CONFIRMED", "COMPLETED"), true);
+  assert.equal(canMoveAppointmentStatus("ARRIVED", "COMPLETED"), true);
+  assert.equal(canMoveAppointmentStatus("IN_SERVICE", "COMPLETED"), true);
+  assert.equal(canMoveAppointmentStatus("SCHEDULED", "CONFIRMED"), false);
+  assert.equal(canMoveAppointmentStatus("COMPLETED", "CANCELLED"), false);
+  assert.equal(formatAppointmentStatus("CONFIRMED"), "scheduled");
+  assert.equal(formatAppointmentStatus("IN_SERVICE"), "scheduled");
+});
+
+test("no show and cancellation remain available before completion", () => {
   assert.equal(canMoveAppointmentStatus("SCHEDULED", "NO_SHOW"), true);
-  assert.equal(canMoveAppointmentStatus("ARRIVED", "NO_SHOW"), false);
+  assert.equal(canMoveAppointmentStatus("ARRIVED", "NO_SHOW"), true);
   assert.equal(canMoveAppointmentStatus("ARRIVED", "CANCELLED"), true);
-  assert.equal(canMoveAppointmentStatus("IN_SERVICE", "CANCELLED"), false);
+  assert.equal(canMoveAppointmentStatus("IN_SERVICE", "CANCELLED"), true);
+  assert.equal(canMoveAppointmentStatus("COMPLETED", "NO_SHOW"), false);
 });

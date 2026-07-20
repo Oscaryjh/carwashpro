@@ -69,7 +69,7 @@ export default async function AdminWhatsAppTemplatesPage({
         </div>
 
         <div className="panel">
-          <form className="filter-row" method="get">
+          <form className="template-industry-filter" method="get">
             <label>
               <span>Industry</span>
               <select name="industryType" defaultValue={selectedIndustry}>

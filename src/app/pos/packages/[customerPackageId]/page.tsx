@@ -5,6 +5,7 @@ import { BackButton } from "@/components/back-button";
 import { PackagePurchasePaymentForm } from "@/components/package-purchase-payment-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
+import { calculatePackageTax } from "@/lib/tax/calculator";
 import { recordPackagePurchasePaymentAction } from "../../actions";
 
 type PackageCheckoutPageProps = {
@@ -29,7 +30,11 @@ export default async function PackageCheckoutPage({
     include: {
       branch: true,
       customer: true,
-      package: true,
+      package: {
+        include: {
+          service: true,
+        },
+      },
       payments: {
         orderBy: { paidAt: "desc" },
       },
@@ -40,7 +45,25 @@ export default async function PackageCheckoutPage({
     notFound();
   }
 
-  const balance = Number(customerPackage.purchasePrice);
+  const business = await prisma.business.findUniqueOrThrow({
+    where: { id: businessId },
+    select: {
+      sstEnabled: true,
+      sstLabel: true,
+      sstRate: true,
+    },
+  });
+  const packageTax = calculatePackageTax({
+    price: Number(customerPackage.purchasePrice),
+    taxable: customerPackage.package.service?.taxable ?? true,
+    taxRate: customerPackage.package.service?.taxRate
+      ? Number(customerPackage.package.service.taxRate)
+      : null,
+    sstEnabled: business.sstEnabled,
+    sstLabel: business.sstLabel,
+    sstRate: Number(business.sstRate),
+  });
+  const balance = packageTax.total;
   const openShift = await prisma.cashierShift.findFirst({
     where: {
       businessId,
@@ -72,7 +95,11 @@ export default async function PackageCheckoutPage({
           <Info label="Package" value={customerPackage.package.name} />
           <Info label="Branch" value={customerPackage.branch?.name ?? "All branches"} />
           <Info label="Total washes" value={`${customerPackage.totalUses}`} />
-          <Info label="Price" value={`RM${balance.toFixed(2)}`} />
+          <Info label="Price" value={`RM${packageTax.subtotal.toFixed(2)}`} />
+          {packageTax.tax > 0 ? (
+            <Info label={packageTax.taxLabel} value={`RM${packageTax.tax.toFixed(2)}`} />
+          ) : null}
+          <Info label="Total" value={`RM${balance.toFixed(2)}`} />
           <Info label="Status" value={formatStatus(customerPackage.status)} />
         </div>
 

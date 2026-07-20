@@ -32,11 +32,17 @@ export async function middleware(request: NextRequest) {
     const staffHomePath = getStaffHomePath(permissions);
 
     if (pathname.startsWith("/admin") && role !== "PLATFORM_ADMIN") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return NextResponse.redirect(
+        new URL(role === "STAFF" ? staffHomePath : "/reports", request.url),
+      );
     }
 
     if (!pathname.startsWith("/admin") && role === "PLATFORM_ADMIN") {
       return NextResponse.redirect(new URL("/admin/businesses", request.url));
+    }
+
+    if (pathname === "/dashboard" || pathname === "/salon/dashboard") {
+      return NextResponse.redirect(new URL("/reports", request.url));
     }
 
     const requiredPermission = routePermission(pathname);
@@ -63,6 +69,7 @@ export const config = {
     "/appointments/:path*",
     "/branches/:path*",
     "/business/settings",
+    "/cashier/:path*",
     "/closing/:path*",
     "/crm/:path*",
     "/dashboard/:path*",
@@ -71,6 +78,7 @@ export const config = {
     "/packages/:path*",
     "/pos/:path*",
     "/reports/:path*",
+    "/salon/dashboard",
     "/services/:path*",
     "/team/:path*",
     "/whatsapp/:path*",

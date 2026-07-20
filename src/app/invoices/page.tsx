@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Prisma } from "@prisma/client";
 import { AppShell } from "@/components/app-shell";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 
@@ -15,7 +15,9 @@ type InvoicesPageProps = {
 const PAGE_SIZE = 10;
 
 export default async function InvoicesPage({ searchParams }: InvoicesPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const context = await requireBusinessIndustryContext();
+  const { user, businessId } = context;
+  const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const currentPage = Math.max(Number(params.page) || 1, 1);
@@ -56,6 +58,10 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
         },
         customer: true,
         customerPackage: { include: { package: true } },
+        items: {
+          select: { name: true, quantity: true },
+          orderBy: { createdAt: "asc" },
+        },
       },
       orderBy: { issuedAt: "desc" },
       skip: (currentPage - 1) * PAGE_SIZE,
@@ -78,7 +84,9 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                 ? `Showing ${firstItem}-${lastItem} of ${totalCount} invoice${totalCount === 1 ? "" : "s"}${query ? ` for "${query}"` : ""}.`
                 : query
                   ? `No invoices found for "${query}".`
-                  : "Invoices generated from POS payments."}
+                  : isSalonBusiness
+                    ? "Invoices generated from appointments and cashier payments."
+                    : "Invoices generated from cashier payments."}
             </p>
           </div>
         </div>
@@ -88,7 +96,11 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
             <input
               name="q"
               defaultValue={query}
-              placeholder="Search invoice, job, plate, customer, or phone"
+              placeholder={
+                isSalonBusiness
+                  ? "Search invoice, appointment, customer, or phone"
+                  : "Search invoice, job, plate, customer, or phone"
+              }
             />
             <button type="submit">Search</button>
             {query ? (
@@ -104,7 +116,7 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                   <th>No.</th>
                   <th>Invoice</th>
                   <th>Customer</th>
-                  <th>Vehicle</th>
+                  <th>{isSalonBusiness ? "Reference" : context.industry.subjectLabel}</th>
                   <th>Status</th>
                   <th>Total</th>
                   <th>Balance</th>
@@ -121,10 +133,26 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                     <td>
                       <strong>{formatInvoiceNumber(invoice.invoiceNumber)}</strong>
                       <div className="muted">
-                        {invoice.workOrder?.orderNumber ??
-                          (invoice.appointment ? "Salon appointment" : null) ??
-                          invoice.customerPackage?.package.name ??
-                          "Package purchase"}
+                        {isSalonBusiness
+                          ? invoice.appointment
+                            ? `${context.industry.orderLabel} record`
+                            : invoice.workOrder
+                              ? "Service order"
+                              : invoice.items.length
+                                ? invoice.items
+                                    .map((item) => `${item.name}${item.quantity > 1 ? ` x${item.quantity}` : ""}`)
+                                    .join(", ")
+                                : invoice.customerPackage?.package.name ?? "Package purchase"
+                          : invoice.workOrder?.orderNumber ??
+                            (invoice.appointment
+                              ? `${context.industry.orderLabel} record`
+                              : null) ??
+                            (invoice.items.length
+                              ? invoice.items
+                                  .map((item) => `${item.name}${item.quantity > 1 ? ` x${item.quantity}` : ""}`)
+                                  .join(", ")
+                              : invoice.customerPackage?.package.name) ??
+                            "Package purchase"}
                       </div>
                     </td>
                     <td>
@@ -143,8 +171,14 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                     </td>
                     <td>
                       <strong>
-                        {invoice.workOrder?.vehicle.plateNumber ??
-                          (invoice.appointment ? "Salon" : "-")}
+                        {isSalonBusiness
+                          ? invoice.appointment
+                            ? context.industry.orderLabel
+                            : invoice.workOrder
+                              ? "Service order"
+                              : "-"
+                          : invoice.workOrder?.vehicle.plateNumber ??
+                            (invoice.appointment ? context.industry.orderLabel : "-")}
                       </strong>
                     </td>
                     <td>

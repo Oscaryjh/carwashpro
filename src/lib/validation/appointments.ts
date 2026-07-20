@@ -73,14 +73,7 @@ export const createAppointmentSchema = z
 
 export const updateAppointmentStatusSchema = z.object({
   appointmentId: z.string().uuid("Appointment is required."),
-  status: z.enum([
-    "CONFIRMED",
-    "ARRIVED",
-    "IN_SERVICE",
-    "COMPLETED",
-    "CANCELLED",
-    "NO_SHOW",
-  ]),
+  status: z.enum(["COMPLETED", "CANCELLED", "NO_SHOW"]),
 });
 
 export const convertAppointmentSchema = z.object({
@@ -97,10 +90,40 @@ export const rescheduleAppointmentSchema = z.object({
 export const updateAppointmentDetailsSchema = z.object({
   appointmentId: z.string().uuid("Appointment is required."),
   assignedStaffId: optionalText,
+  notes: optionalText,
   serviceIds: z.array(z.string().uuid("Service is invalid.")).default([]),
   scheduledDate: z.string().trim().min(1, "Date is required."),
   scheduledTime: z.string().trim().min(1, "Time is required."),
 });
+
+export const addAppointmentServicesSchema = z.object({
+  appointmentId: z.string().uuid("Appointment is required."),
+  serviceIds: z.array(z.string().uuid("Service is invalid.")).min(1, "Select at least one service."),
+});
+
+// Legacy states remain readable for existing records, but new appointment
+// workflows only expose Scheduled, Completed, Cancelled and No Show.
+export const LEGACY_ACTIVE_APPOINTMENT_STATUSES = [
+  "CONFIRMED",
+  "ARRIVED",
+  "IN_SERVICE",
+] as const;
+
+// Salon exposes a short operational flow. Legacy values stay readable so old
+// appointments can still be displayed and completed safely.
+export const SALON_APPOINTMENT_ACTIVE_STATUSES = [
+  "SCHEDULED",
+  ...LEGACY_ACTIVE_APPOINTMENT_STATUSES,
+] as const;
+
+export const SALON_APPOINTMENT_CALENDAR_STATUSES = [
+  ...SALON_APPOINTMENT_ACTIVE_STATUSES,
+  "COMPLETED",
+] as const;
+
+export const ACTIVE_APPOINTMENT_STATUSES = [
+  ...SALON_APPOINTMENT_ACTIVE_STATUSES,
+] as const;
 
 export function parseAppointmentDateTime(date: string, time: string) {
   const scheduledAt = new Date(`${date}T${time}:00`);
@@ -123,21 +146,33 @@ export function canMoveAppointmentStatus(current: string, next: string) {
   }
 
   if (next === "CANCELLED") {
-    return ["SCHEDULED", "CONFIRMED", "ARRIVED"].includes(current);
+    return ACTIVE_APPOINTMENT_STATUSES.includes(current as (typeof ACTIVE_APPOINTMENT_STATUSES)[number]);
   }
 
   if (next === "NO_SHOW") {
-    return ["SCHEDULED", "CONFIRMED"].includes(current);
+    return ["SCHEDULED", ...LEGACY_ACTIVE_APPOINTMENT_STATUSES].includes(
+      current as (typeof ACTIVE_APPOINTMENT_STATUSES)[number],
+    );
   }
 
-  return (
-    (current === "SCHEDULED" && next === "CONFIRMED") ||
-    ((current === "SCHEDULED" || current === "CONFIRMED") && next === "ARRIVED") ||
-    (current === "ARRIVED" && next === "IN_SERVICE") ||
-    (current === "IN_SERVICE" && next === "COMPLETED")
-  );
+  return next === "COMPLETED" &&
+    ACTIVE_APPOINTMENT_STATUSES.includes(current as (typeof ACTIVE_APPOINTMENT_STATUSES)[number]);
 }
 
 export function formatAppointmentStatus(status: string) {
+  if (LEGACY_ACTIVE_APPOINTMENT_STATUSES.includes(status as (typeof LEGACY_ACTIVE_APPOINTMENT_STATUSES)[number])) {
+    return "scheduled";
+  }
+
   return status.toLowerCase().replaceAll("_", " ");
+}
+
+export function normalizeSalonAppointmentStatus(status: string) {
+  if (LEGACY_ACTIVE_APPOINTMENT_STATUSES.includes(
+    status as (typeof LEGACY_ACTIVE_APPOINTMENT_STATUSES)[number],
+  )) {
+    return "SCHEDULED" as const;
+  }
+
+  return status;
 }

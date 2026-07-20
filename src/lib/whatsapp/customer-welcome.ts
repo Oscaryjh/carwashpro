@@ -41,7 +41,7 @@ export async function sendNewCustomerWelcomeIfConnected(
     companyPhone: business.phone,
     customerName: input.customerName,
     customerPhone: input.customerPhone,
-  });
+  }, input.businessId);
   const storedMessageBody =
     encodeWhatsAppStoredText(messageBody) ?? "Welcome to our car wash.";
 

@@ -1,0 +1,12 @@
+ALTER TYPE "LoyaltyTransactionType" ADD VALUE IF NOT EXISTS 'REDEEM';
+ALTER TYPE "LoyaltyTransactionType" ADD VALUE IF NOT EXISTS 'REDEMPTION_REFUND';
+
+ALTER TABLE "loyalty_programs"
+  ADD COLUMN IF NOT EXISTS "redemption_enabled" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "redemption_points_per_ringgit" INTEGER NOT NULL DEFAULT 100,
+  ADD COLUMN IF NOT EXISTS "minimum_redemption_points" INTEGER NOT NULL DEFAULT 100;
+
+ALTER TABLE "invoices"
+  ADD COLUMN IF NOT EXISTS "discount_reason" TEXT,
+  ADD COLUMN IF NOT EXISTS "loyalty_points_redeemed" INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "loyalty_discount_amount" DECIMAL(10,2) NOT NULL DEFAULT 0;

@@ -13,6 +13,8 @@ const settingsSchema = z.object({
   name: z.string().trim().min(2).max(60),
   pointsPerRinggit: z.coerce.number().min(0).max(100),
   welcomePoints: z.coerce.number().int().min(0).max(100000),
+  redemptionPointsPerRinggit: z.coerce.number().int().min(1).max(1000000),
+  minimumRedemptionPoints: z.coerce.number().int().min(1).max(1000000),
 });
 
 const customerSchema = z.string().uuid();
@@ -31,8 +33,11 @@ export async function updateLoyaltySettingsAction(formData: FormData) {
     name: formData.get("name"),
     pointsPerRinggit: formData.get("pointsPerRinggit"),
     welcomePoints: formData.get("welcomePoints"),
+    redemptionPointsPerRinggit: formData.get("redemptionPointsPerRinggit"),
+    minimumRedemptionPoints: formData.get("minimumRedemptionPoints"),
   });
   const enabled = formData.get("enabled") === "on";
+  const redemptionEnabled = formData.get("redemptionEnabled") === "on";
 
   await prisma.$transaction(async (tx) => {
     const before = await tx.loyaltyProgram.findUnique({ where: { businessId } });
@@ -43,6 +48,9 @@ export async function updateLoyaltySettingsAction(formData: FormData) {
         name: input.name,
         pointsPerRinggit: input.pointsPerRinggit.toString(),
         welcomePoints: input.welcomePoints,
+        redemptionEnabled,
+        redemptionPointsPerRinggit: input.redemptionPointsPerRinggit,
+        minimumRedemptionPoints: input.minimumRedemptionPoints,
       },
       create: {
         businessId,
@@ -50,6 +58,9 @@ export async function updateLoyaltySettingsAction(formData: FormData) {
         name: input.name,
         pointsPerRinggit: input.pointsPerRinggit.toString(),
         welcomePoints: input.welcomePoints,
+        redemptionEnabled,
+        redemptionPointsPerRinggit: input.redemptionPointsPerRinggit,
+        minimumRedemptionPoints: input.minimumRedemptionPoints,
       },
     });
 

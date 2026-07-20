@@ -100,8 +100,12 @@ export function AppShellFrame({
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={logoUrl} alt="" />
-            ) : null}
-            <span>{brandName}</span>
+            ) : (
+              <span aria-hidden="true" className="brand-fallback">
+                {brandInitials(brandName)}
+              </span>
+            )}
+            <span className="brand-name">{brandName}</span>
           </Link>
         </div>
         <nav>
@@ -154,6 +158,15 @@ export function AppShellFrame({
       <main className="main">{children}</main>
     </div>
   );
+}
+
+function brandInitials(brandName: string) {
+  return brandName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "TP";
 }
 
 function isActiveNavItem(pathname: string | null, href: string) {

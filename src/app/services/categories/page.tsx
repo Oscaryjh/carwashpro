@@ -45,7 +45,7 @@ export default async function ServiceCategoriesPage({
             <p>
               {isSalonBusiness
                 ? "Group treatments so staff can find the right salon service faster."
-                : "Group services so staff can find the right wash menu faster."}
+                : "Group services so staff can find the right service menu faster."}
             </p>
           </div>
           <div className="inline-actions">

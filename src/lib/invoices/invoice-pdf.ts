@@ -1,4 +1,5 @@
 import { deflateSync, inflateSync } from "node:zlib";
+import { formatTaxLabel } from "@/lib/tax/format";
 
 type InvoicePdfItem = {
   name: string;
@@ -7,7 +8,7 @@ type InvoicePdfItem = {
   lineTotal: unknown;
 };
 
-type InvoicePdfInput = {
+export type InvoicePdfInput = {
   company: {
     address?: string | null;
     companyNo?: string | null;
@@ -20,11 +21,21 @@ type InvoicePdfInput = {
     phone: string;
   };
   invoiceNumber: string;
+  documentTitle?: string;
+  numberLabel?: string;
   issuedAt: Date;
   items: InvoicePdfItem[];
   paidAmount: unknown;
   cashPaidAmount?: unknown;
   packageVoucherAmount?: unknown;
+  discountAmount?: unknown;
+  loyaltyDiscountAmount?: unknown;
+  loyaltyPointsRedeemed?: number | null;
+  depositAmount?: unknown;
+  taxAmount?: unknown;
+  taxLabel?: string | null;
+  taxRate?: unknown;
+  tipAmount?: unknown;
   balance: unknown;
   status: string;
   subtotal: unknown;
@@ -62,6 +73,8 @@ type PreparedPdfImage = {
 const PAGE_WIDTH = 595;
 const PAGE_HEIGHT = 842;
 const LOGO_SIZE = 72;
+const RECEIPT_WIDTH = 164.41;
+const RECEIPT_MARGIN = 10;
 
 export function buildInvoicePdf(input: InvoicePdfInput) {
   const commands: string[] = [];
@@ -151,10 +164,10 @@ export function buildInvoicePdf(input: InvoicePdfInput) {
     });
   }
 
-  text(invoiceStatusLabel(input.status), 480, 785, { font: "bold", size: 11 });
+  text(input.documentTitle ?? invoiceStatusLabel(input.status), 480, 785, { font: "bold", size: 11 });
   line(50, 715, 545, 715);
 
-  text("Invoice No.", 50, 692, { font: "bold", size: 9 });
+  text(input.numberLabel ?? "Invoice No.", 50, 692, { font: "bold", size: 9 });
   text(input.invoiceNumber, 50, 675, { font: "bold", size: 14 });
   text(formatDate(input.issuedAt), 50, 658, { font: "bold", size: 9 });
 
@@ -186,41 +199,292 @@ export function buildInvoicePdf(input: InvoicePdfInput) {
     y -= 44;
   });
 
-  const totalsY = Math.max(y - 8, 170);
+  const discountAmount = Number(input.discountAmount ?? 0);
+  const loyaltyDiscountAmount = Number(input.loyaltyDiscountAmount ?? 0);
+  const manualDiscountAmount = Math.max(0, discountAmount - loyaltyDiscountAmount);
+  const depositAmount = Number(input.depositAmount ?? 0);
+  const taxAmount = Number(input.taxAmount ?? 0);
+  const tipAmount = Number(input.tipAmount ?? 0);
+  const balanceAmount = Number(input.balance ?? 0);
+  const adjustmentRows =
+    (manualDiscountAmount > 0 ? 1 : 0) +
+    (loyaltyDiscountAmount > 0 ? 1 : 0) +
+    (taxAmount > 0 ? 1 : 0) +
+    (tipAmount > 0 ? 1 : 0);
+  const totalsY = Math.max(y - 8, 170 + adjustmentRows * 28);
   text("Subtotal", 50, totalsY, { font: "bold", size: 9 });
   rightText(formatMoney(input.subtotal), 545, totalsY, { font: "bold", size: 16 });
-  text("Total", 50, totalsY - 28, { font: "bold", size: 9 });
-  rightText(formatMoney(input.total), 545, totalsY - 28, { font: "bold", size: 16 });
+  let totalY = totalsY - 28;
+  if (manualDiscountAmount > 0) {
+    text("Discount", 50, totalY, { font: "bold", size: 9 });
+    rightText(`-${formatMoney(manualDiscountAmount)}`, 545, totalY, { font: "bold", size: 16 });
+    totalY -= 28;
+  }
+  if (loyaltyDiscountAmount > 0) {
+    text(`TETAMU Points (${input.loyaltyPointsRedeemed ?? 0} pts)`, 50, totalY, { font: "bold", size: 9 });
+    rightText(`-${formatMoney(loyaltyDiscountAmount)}`, 545, totalY, { font: "bold", size: 16 });
+    totalY -= 28;
+  }
+  if (taxAmount > 0) {
+    text(formatTaxLabel(input.taxLabel, input.taxRate), 50, totalY, { font: "bold", size: 9 });
+    rightText(formatMoney(taxAmount), 545, totalY, { font: "bold", size: 16 });
+    totalY -= 28;
+  }
+  if (tipAmount > 0) {
+    text("Tip", 50, totalY, { font: "bold", size: 9 });
+    rightText(formatMoney(tipAmount), 545, totalY, { font: "bold", size: 16 });
+    totalY -= 28;
+  }
+  text("Total", 50, totalY, { font: "bold", size: 9 });
+  rightText(formatMoney(input.total), 545, totalY, { font: "bold", size: 16 });
   const hasPackageVoucher = Number(input.packageVoucherAmount ?? 0) > 0;
+  let paymentY = totalY - 28;
 
   if (hasPackageVoucher) {
-    text("Package voucher", 50, totalsY - 56, { font: "bold", size: 9 });
-    rightText(formatMoney(input.packageVoucherAmount), 545, totalsY - 56, {
+    text("Package voucher", 50, paymentY, { font: "bold", size: 9 });
+    rightText(formatMoney(input.packageVoucherAmount), 545, paymentY, {
       font: "bold",
       size: 16,
     });
-    text("Cash paid", 50, totalsY - 84, { font: "bold", size: 9 });
-    rightText(formatMoney(input.cashPaidAmount), 545, totalsY - 84, {
+    paymentY -= 28;
+    text("Cash paid", 50, paymentY, { font: "bold", size: 9 });
+    rightText(formatMoney(input.cashPaidAmount), 545, paymentY, {
       font: "bold",
       size: 16,
     });
+    paymentY -= 28;
   } else {
-    text("Paid", 50, totalsY - 56, { font: "bold", size: 9 });
-    rightText(formatMoney(input.paidAmount), 545, totalsY - 56, {
+    text("Paid", 50, paymentY, { font: "bold", size: 9 });
+    rightText(formatMoney(input.paidAmount), 545, paymentY, {
       font: "bold",
       size: 16,
+    });
+    paymentY -= 28;
+  }
+
+  if (depositAmount > 0 && !hasPackageVoucher) {
+    text("Deposit", 50, paymentY, { font: "bold", size: 9 });
+    rightText(formatMoney(depositAmount), 545, paymentY, { font: "bold", size: 16 });
+    paymentY -= 28;
+  }
+
+  if (balanceAmount > 0) {
+    const balanceY = paymentY - 28;
+    fillRect(50, balanceY, 495, 42, "0.91 0.97 0.95");
+    text("Balance", 62, balanceY + 18, { font: "bold", size: 9 });
+    rightText(formatMoney(balanceAmount), 530, balanceY + 12, {
+      font: "bold",
+      size: 22,
     });
   }
 
-  const balanceY = hasPackageVoucher ? totalsY - 140 : totalsY - 112;
-  fillRect(50, balanceY, 495, 42, "0.91 0.97 0.95");
-  text("Balance", 62, balanceY + 18, { font: "bold", size: 9 });
-  rightText(formatMoney(input.balance), 530, balanceY + 12, {
-    font: "bold",
-    size: 22,
-  });
-
   return buildPdf(commands.join("\n"), logoImage);
+}
+
+export function buildInvoiceReceiptPdf(input: InvoicePdfInput) {
+  const logoImage = preparePdfImage(input.company.logo ?? null);
+  const companyNameLines = wrapText(input.company.name, 24).slice(0, 2);
+  const companyDetailLines = [
+    input.company.companyNo ? `Company No. ${input.company.companyNo}` : null,
+    input.company.phone ? `Tel ${input.company.phone}` : null,
+    ...(input.company.address ? wrapText(input.company.address, 34).slice(0, 3) : []),
+  ].filter((value): value is string => Boolean(value));
+  const reference = input.reference ?? {
+    detail: input.vehicle
+      ? [input.vehicle.brand, input.vehicle.model, input.vehicle.color]
+          .filter(Boolean)
+          .join(" ")
+      : "",
+    label: "Vehicle",
+    value: input.vehicle?.plateNumber ?? "-",
+  };
+  const receiptItems = input.items.map((item) => ({
+    ...item,
+    nameLines: wrapText(item.name, 28),
+  }));
+  const discountAmount = Number(input.discountAmount ?? 0);
+  const loyaltyDiscountAmount = Number(input.loyaltyDiscountAmount ?? 0);
+  const manualDiscountAmount = Math.max(0, discountAmount - loyaltyDiscountAmount);
+  const depositAmount = Number(input.depositAmount ?? 0);
+  const taxAmount = Number(input.taxAmount ?? 0);
+  const tipAmount = Number(input.tipAmount ?? 0);
+  const balanceAmount = Number(input.balance ?? 0);
+  const hasPackageVoucher = Number(input.packageVoucherAmount ?? 0) > 0;
+  const summaryRows: Array<[string, string]> = [
+    ["Subtotal", formatMoney(input.subtotal)],
+    ...(manualDiscountAmount > 0
+      ? [["Discount", `-${formatMoney(manualDiscountAmount)}`] as [string, string]]
+      : []),
+    ...(loyaltyDiscountAmount > 0
+      ? [[
+          `Points (${input.loyaltyPointsRedeemed ?? 0})`,
+          `-${formatMoney(loyaltyDiscountAmount)}`,
+        ] as [string, string]]
+      : []),
+    ...(taxAmount > 0
+      ? [[formatTaxLabel(input.taxLabel, input.taxRate), formatMoney(taxAmount)] as [string, string]]
+      : []),
+    ...(tipAmount > 0
+      ? [["Tip", formatMoney(tipAmount)] as [string, string]]
+      : []),
+    ["TOTAL", formatMoney(input.total)],
+    ...(hasPackageVoucher
+      ? [
+          ["Package voucher", formatMoney(input.packageVoucherAmount)] as [string, string],
+          ["Cash paid", formatMoney(input.cashPaidAmount)] as [string, string],
+        ]
+      : [["Paid", formatMoney(input.paidAmount)] as [string, string]]),
+    ...(depositAmount > 0 && !hasPackageVoucher
+      ? [["Deposit", formatMoney(depositAmount)] as [string, string]]
+      : []),
+    ...(balanceAmount > 0
+      ? [["Balance", formatMoney(balanceAmount)] as [string, string]]
+      : []),
+  ];
+  const itemHeight = receiptItems.reduce(
+    (height, item) => height + Math.max(1, item.nameLines.length) * 9 + 15,
+    0,
+  );
+  const pageHeight = Math.max(
+    280,
+    128 +
+      (logoImage ? 38 : 0) +
+      companyNameLines.length * 12 +
+      companyDetailLines.length * 9 +
+      itemHeight +
+      summaryRows.length * 11,
+  );
+  const commands: string[] = [];
+  const rightX = RECEIPT_WIDTH - RECEIPT_MARGIN;
+  let cursor = pageHeight - RECEIPT_MARGIN;
+
+  const text = (
+    value: string,
+    x: number,
+    y: number,
+    style: TextStyle = {},
+  ) => {
+    const font = style.font === "bold" ? "F2" : "F1";
+    const size = style.size ?? 7.5;
+    commands.push(
+      `BT /${font} ${size} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${escapePdfText(
+        value,
+      )}) Tj ET`,
+    );
+  };
+  const estimatedWidth = (value: string, size: number) =>
+    safePdfText(value).length * size * 0.52;
+  const centeredText = (value: string, y: number, style: TextStyle = {}) => {
+    const size = style.size ?? 7.5;
+    text(
+      value,
+      Math.max(RECEIPT_MARGIN, (RECEIPT_WIDTH - estimatedWidth(value, size)) / 2),
+      y,
+      style,
+    );
+  };
+  const rightText = (value: string, y: number, style: TextStyle = {}) => {
+    const size = style.size ?? 7.5;
+    text(value, rightX - estimatedWidth(value, size), y, style);
+  };
+  const divider = () => {
+    cursor -= 4;
+    commands.push(
+      `q 0.55 0.55 0.55 RG 0.45 w ${RECEIPT_MARGIN} ${cursor.toFixed(
+        2,
+      )} m ${rightX.toFixed(2)} ${cursor.toFixed(2)} l S Q`,
+    );
+    cursor -= 7;
+  };
+  const centeredLines = (lines: string[], size: number, bold = false) => {
+    lines.forEach((lineValue) => {
+      centeredText(lineValue, cursor, {
+        font: bold ? "bold" : "regular",
+        size,
+      });
+      cursor -= size + 3;
+    });
+  };
+
+  if (logoImage) {
+    const fitted = fitImage(logoImage, 32, 32);
+    const imageX = (RECEIPT_WIDTH - fitted.width) / 2;
+    const imageY = cursor - fitted.height;
+    commands.push(
+      `q ${fitted.width.toFixed(2)} 0 0 ${fitted.height.toFixed(2)} ${imageX.toFixed(
+        2,
+      )} ${imageY.toFixed(2)} cm /Im1 Do Q`,
+    );
+    cursor = imageY - 5;
+  }
+
+  centeredLines(companyNameLines, 10.5, true);
+  centeredLines(companyDetailLines, 6.5);
+  divider();
+  centeredText((input.documentTitle ?? "INVOICE").toUpperCase(), cursor, {
+    font: "bold",
+    size: 9,
+  });
+  cursor -= 14;
+  text("Invoice", RECEIPT_MARGIN, cursor, { font: "bold", size: 6.5 });
+  rightText(input.invoiceNumber, cursor, { font: "bold", size: 6.5 });
+  cursor -= 10;
+  text("Date", RECEIPT_MARGIN, cursor, { size: 6.5 });
+  rightText(formatDateTime(input.issuedAt), cursor, { size: 6.5 });
+  cursor -= 10;
+  text(reference.label, RECEIPT_MARGIN, cursor, { size: 6.5 });
+  rightText(reference.value, cursor, { font: "bold", size: 6.5 });
+  cursor -= 10;
+  if (reference.detail) {
+    centeredLines(wrapText(reference.detail, 34), 6.5);
+  }
+  text("Customer", RECEIPT_MARGIN, cursor, { size: 6.5 });
+  rightText(input.customer.name || "Walk-in", cursor, { font: "bold", size: 6.5 });
+  cursor -= 10;
+  if (input.customer.phone) {
+    text("Phone", RECEIPT_MARGIN, cursor, { size: 6.5 });
+    rightText(input.customer.phone, cursor, { size: 6.5 });
+    cursor -= 10;
+  }
+  divider();
+
+  receiptItems.forEach((item) => {
+    item.nameLines.forEach((nameLine) => {
+      text(nameLine, RECEIPT_MARGIN, cursor, { font: "bold", size: 7.5 });
+      cursor -= 9;
+    });
+    text(`${item.quantity} x ${formatMoney(item.unitPrice)}`, RECEIPT_MARGIN, cursor, {
+      size: 6.5,
+    });
+    rightText(formatMoney(item.lineTotal), cursor, { font: "bold", size: 7 });
+    cursor -= 11;
+  });
+  divider();
+
+  summaryRows.forEach(([label, amount]) => {
+    const isEmphasis = label === "TOTAL" || label === "Balance";
+    text(label, RECEIPT_MARGIN, cursor, {
+      font: isEmphasis ? "bold" : "regular",
+      size: isEmphasis ? 8.5 : 7,
+    });
+    rightText(amount, cursor, {
+      font: "bold",
+      size: isEmphasis ? 8.5 : 7,
+    });
+    cursor -= isEmphasis ? 13 : 10;
+  });
+  divider();
+  centeredText(invoiceStatusLabel(input.status).toUpperCase(), cursor, {
+    font: "bold",
+    size: 7,
+  });
+  cursor -= 12;
+  centeredText("Thank you", cursor, { font: "bold", size: 8 });
+
+  return buildPdf(commands.join("\n"), logoImage, {
+    width: RECEIPT_WIDTH,
+    height: pageHeight,
+  });
 }
 
 export function invoicePdfFileName(invoiceNumber: string) {
@@ -230,7 +494,11 @@ export function invoicePdfFileName(invoiceNumber: string) {
   return `${safeInvoiceNumber}.pdf`;
 }
 
-function buildPdf(content: string, logoImage: PreparedPdfImage | null) {
+function buildPdf(
+  content: string,
+  logoImage: PreparedPdfImage | null,
+  page = { width: PAGE_WIDTH, height: PAGE_HEIGHT },
+) {
   const contentBuffer = Buffer.from(content, "utf8");
   const contentStream = streamObject(contentBuffer);
   const objects: Buffer[] = logoImage
@@ -238,7 +506,7 @@ function buildPdf(content: string, logoImage: PreparedPdfImage | null) {
         objectBuffer("<< /Type /Catalog /Pages 2 0 R >>"),
         objectBuffer("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
         objectBuffer(
-          `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> /XObject << /Im1 6 0 R >> >> /Contents 7 0 R >>`,
+          `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width.toFixed(2)} ${page.height.toFixed(2)}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> /XObject << /Im1 6 0 R >> >> /Contents 7 0 R >>`,
         ),
         objectBuffer("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
         objectBuffer("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>"),
@@ -249,7 +517,7 @@ function buildPdf(content: string, logoImage: PreparedPdfImage | null) {
         objectBuffer("<< /Type /Catalog /Pages 2 0 R >>"),
         objectBuffer("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
         objectBuffer(
-          `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>`,
+          `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width.toFixed(2)} ${page.height.toFixed(2)}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>`,
         ),
         objectBuffer("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
         objectBuffer("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>"),
@@ -518,6 +786,16 @@ function formatMoney(value: unknown) {
 function formatDate(value: Date) {
   return value.toLocaleDateString("en-MY", {
     day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function formatDateTime(value: Date) {
+  return value.toLocaleString("en-MY", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
     month: "2-digit",
     year: "numeric",
   });

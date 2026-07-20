@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { AppointmentVehiclePicker } from "@/components/appointment-vehicle-picker";
 import { BranchSelect } from "@/components/branch-select";
+import { ProductSaleForm, type ProductSaleOption } from "@/components/product-sale-form";
 import {
   WorkOrderPackagePurchase,
   type WorkOrderPackageOption,
 } from "@/components/work-order-package-purchase";
 import type { BranchOption } from "@/lib/branches";
+import type { TaxDisplaySettings } from "@/lib/tax/calculator";
 
 type ServiceOption = {
   id: string;
@@ -21,7 +23,10 @@ type WorkOrderQuickCreateModalProps = {
   branches: BranchOption[];
   packageAction: (formData: FormData) => Promise<void>;
   packages: WorkOrderPackageOption[];
+  productAction: (formData: FormData) => Promise<void>;
+  products: ProductSaleOption[];
   services: ServiceOption[];
+  taxSettings: TaxDisplaySettings;
 };
 
 export function WorkOrderQuickCreateModal({
@@ -29,10 +34,13 @@ export function WorkOrderQuickCreateModal({
   branches,
   packageAction,
   packages,
+  productAction,
+  products,
   services,
+  taxSettings,
 }: WorkOrderQuickCreateModalProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [mode, setMode] = useState<"job" | "package">("job");
+  const [mode, setMode] = useState<"job" | "package" | "product">("job");
   const [contactType, setContactType] = useState("REGISTERED_OWNER");
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [isServicePickerOpen, setIsServicePickerOpen] = useState(false);
@@ -108,7 +116,9 @@ export function WorkOrderQuickCreateModal({
               >
                 {"\u00d7"}
               </button>
-              <h2 id="new-job-title">{mode === "job" ? "New Job" : "Buy Package"}</h2>
+              <h2 id="new-job-title">
+                {mode === "job" ? "New Job" : mode === "package" ? "Buy Package" : "Sell Product"}
+              </h2>
               <span />
             </div>
 
@@ -129,6 +139,16 @@ export function WorkOrderQuickCreateModal({
                 type="button"
               >
                 Buy Package
+              </button>
+              <button
+                className={mode === "product" ? "is-active" : ""}
+                onClick={() => {
+                  setIsServicePickerOpen(false);
+                  setMode("product");
+                }}
+                type="button"
+              >
+                Sell Product
               </button>
             </div>
 
@@ -235,11 +255,19 @@ export function WorkOrderQuickCreateModal({
                   </div>
                 </div>
               </form>
-            ) : (
+            ) : mode === "package" ? (
               <WorkOrderPackagePurchase
                 action={packageAction}
                 branches={branches}
                 packages={packages}
+                taxSettings={taxSettings}
+              />
+            ) : (
+              <ProductSaleForm
+                action={productAction}
+                branches={branches}
+                products={products}
+                taxSettings={taxSettings}
               />
             )}
           </section>

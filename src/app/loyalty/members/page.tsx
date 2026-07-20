@@ -18,7 +18,8 @@ const PAGE_SIZE = 20;
 const membershipStatuses: MembershipStatus[] = ["ACTIVE", "INACTIVE"];
 
 export default async function LoyaltyMembersPage({ searchParams }: LoyaltyMembersPageProps) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user, industryType } = await requireBusinessUser();
+  const isSalonBusiness = industryType === "SALON_BEAUTY";
   assertStaffPermission(user, "LOYALTY");
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
@@ -79,7 +80,11 @@ export default async function LoyaltyMembersPage({ searchParams }: LoyaltyMember
               </p>
             </div>
             <form className="loyalty-filter-form" action="/loyalty/members">
-              <input name="q" defaultValue={query} placeholder="Search name, phone, or plate" />
+              <input
+                name="q"
+                defaultValue={query}
+                placeholder={isSalonBusiness ? "Search name or phone" : "Search name, phone, or plate"}
+              />
               <select name="status" defaultValue={status ?? ""} aria-label="Membership status">
                 <option value="">All statuses</option>
                 <option value="ACTIVE">Active</option>

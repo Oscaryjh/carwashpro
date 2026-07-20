@@ -1,203 +1,334 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   PackageCustomerPicker,
   type PackageCustomerOption,
 } from "@/components/package-customer-picker";
 import { BranchSelect } from "@/components/branch-select";
+import { SaleTaxSummary } from "@/components/sale-tax-summary";
 import type { BranchOption } from "@/lib/branches";
+import { calculateTax, type TaxDisplaySettings } from "@/lib/tax/calculator";
 
 export type WorkOrderPackageOption = {
+  category?: string | null;
   description: string | null;
   id: string;
   name: string;
   price: number;
+  taxable: boolean;
+  taxRate: number | null;
   totalUses: number;
+};
+
+type PackagePurchaseLine = {
+  packageId: string;
+  quantity: number;
 };
 
 type WorkOrderPackagePurchaseProps = {
   action: (formData: FormData) => Promise<void>;
   branches: BranchOption[];
+  branchId?: string;
+  hideBranch?: boolean;
+  includeVehicleDetails?: boolean;
   packages: WorkOrderPackageOption[];
+  returnTo?: string;
+  taxSettings: TaxDisplaySettings;
 };
-
-const paymentMethods = [
-  { label: "Cash", value: "CASH" },
-  { label: "Card", value: "CARD" },
-  { label: "DuitNow", value: "DUITNOW" },
-  { label: "E-wallet", value: "EWALLET" },
-  { label: "Transfer", value: "BANK_TRANSFER" },
-] as const;
 
 export function WorkOrderPackagePurchase({
   action,
   branches,
+  branchId,
+  hideBranch = false,
+  includeVehicleDetails = true,
   packages,
+  returnTo,
+  taxSettings,
 }: WorkOrderPackagePurchaseProps) {
   const [selectedCustomer, setSelectedCustomer] =
     useState<PackageCustomerOption | null>(null);
-  const [selectedPackageId, setSelectedPackageId] = useState("");
-  const [isPackagePickerOpen, setIsPackagePickerOpen] = useState(false);
+  const [lines, setLines] = useState<PackagePurchaseLine[]>([]);
+  const [pickerLineIndex, setPickerLineIndex] = useState<number | null>(null);
+  const [packageQuery, setPackageQuery] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [step, setStep] = useState<"details" | "payment">("details");
-  const selectedPackage =
-    packages.find((packageOption) => packageOption.id === selectedPackageId) ?? null;
-  const canContinue = Boolean(selectedCustomer && selectedPackage);
+  const totalPackages = useMemo(
+    () => lines.reduce((sum, line) => sum + line.quantity, 0),
+    [lines],
+  );
+  const tax = useMemo(() => calculateTax({
+    sstEnabled: taxSettings.enabled,
+    sstLabel: taxSettings.label,
+    sstRate: taxSettings.rate,
+    lines: lines.map((line) => {
+      const packageOption = packages.find((item) => item.id === line.packageId);
+      return {
+        lineTotal: (packageOption?.price ?? 0) * line.quantity,
+        taxable: packageOption?.taxable ?? true,
+        taxRate: packageOption?.taxRate ?? null,
+      };
+    }),
+  }), [lines, packages, taxSettings]);
+  const filteredPackages = useMemo(() => {
+    const normalizedQuery = packageQuery.trim().toLowerCase();
+    if (!normalizedQuery) return packages;
+    return packages.filter((packageOption) =>
+      [packageOption.name, packageOption.description]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(normalizedQuery)),
+    );
+  }, [packageQuery, packages]);
+
+  function addLine() {
+    if (!selectedCustomer || lines.some((line) => !line.packageId)) return;
+    const nextIndex = lines.length;
+    setLines((current) => [...current, { packageId: "", quantity: 1 }]);
+    setPackageQuery("");
+    setPickerLineIndex(nextIndex);
+  }
+
+  function removeLine(index: number) {
+    setLines((current) => current.filter((_, lineIndex) => lineIndex !== index));
+  }
+
+  function selectPackage(index: number, packageId: string) {
+    setLines((current) => {
+      const currentLine = current[index];
+      if (!currentLine) return current;
+      const existingIndex = current.findIndex(
+        (line, lineIndex) => lineIndex !== index && line.packageId === packageId,
+      );
+
+      if (existingIndex < 0) {
+        return current.map((line, lineIndex) =>
+          lineIndex === index ? { ...line, packageId } : line,
+        );
+      }
+
+      return current
+        .map((line, lineIndex) =>
+          lineIndex === existingIndex
+            ? { ...line, quantity: Math.min(99, line.quantity + currentLine.quantity) }
+            : line,
+        )
+        .filter((_, lineIndex) => lineIndex !== index);
+    });
+    setPackageQuery("");
+    setPickerLineIndex(null);
+  }
+
+  function updateQuantity(index: number, requestedQuantity: number) {
+    const quantity = Math.min(
+      99,
+      Math.max(1, Number.isFinite(requestedQuantity) ? requestedQuantity : 1),
+    );
+    setLines((current) =>
+      current.map((line, lineIndex) =>
+        lineIndex === index ? { ...line, quantity } : line,
+      ),
+    );
+  }
+
+  function closePicker() {
+    if (pickerLineIndex != null && !lines[pickerLineIndex]?.packageId) {
+      removeLine(pickerLineIndex);
+    }
+    setPackageQuery("");
+    setPickerLineIndex(null);
+  }
 
   return (
-    <form action={action} className="package-purchase-form">
-      {step === "details" ? (
-        <div className="package-purchase-flow">
-          <section className="package-purchase-section">
-            <h3>Customer account</h3>
-            <PackageCustomerPicker onSelectionChange={setSelectedCustomer} />
-          </section>
+    <form action={action} className="product-sale-form package-cart-form">
+      <section className="product-sale-section">
+        <h3>Customer account</h3>
+        <p className="field-helper">
+          Packages belong to the customer phone account and can be used across eligible visits.
+        </p>
+        <PackageCustomerPicker
+          includeVehicleDetails={includeVehicleDetails}
+          onSelectionChange={(customer) => {
+            setSelectedCustomer(customer);
+            if (!customer) setLines([]);
+          }}
+        />
+      </section>
 
-          <section className="package-purchase-section">
-            <h3>Package</h3>
-            <button
-              className="package-purchase-selection"
-              disabled={!selectedCustomer || !packages.length}
-              onClick={() => setIsPackagePickerOpen(true)}
-              type="button"
-            >
-              <span aria-hidden="true">P</span>
-              <div>
-                <strong>{selectedPackage?.name ?? "Select package"}</strong>
-                <small>
-                  {selectedPackage
-                    ? selectedPackage.description || "Active customer package"
-                    : selectedCustomer
-                      ? packages.length
-                        ? "Choose an active package"
-                        : "No active packages available"
-                      : "Select a customer first"}
-                </small>
-              </div>
-              <b>Choose</b>
-            </button>
-          </section>
-
-          {selectedPackage ? (
-            <section className="package-purchase-summary">
-              <div>
-                <span>Package uses</span>
-                <strong>{selectedPackage.totalUses}</strong>
-              </div>
-              <div>
-                <span>Purchase price</span>
-                <strong>{formatMoney(selectedPackage.price)}</strong>
-              </div>
-              <p>This sale activates the package only. No job will be created.</p>
-            </section>
-          ) : null}
-
-          <div className="package-purchase-actions">
-            <button
-              disabled={!canContinue}
-              onClick={() => setStep("payment")}
-              type="button"
-            >
-              Proceed to payment
-            </button>
-          </div>
+      <section className="product-sale-section product-sale-cart">
+        <div className="product-sale-section-heading">
+          <span className="product-sale-label">Packages</span>
+          <button
+            className="product-sale-add"
+            disabled={
+              !selectedCustomer ||
+              lines.some((line) => !line.packageId) ||
+              lines.length >= packages.length
+            }
+            onClick={addLine}
+            type="button"
+          >
+            + Add package
+          </button>
         </div>
-      ) : selectedCustomer && selectedPackage ? (
-        <div className="package-payment-flow">
-          <section className="package-payment-summary">
-            <div>
-              <span>Customer</span>
-              <strong>{selectedCustomer.name}</strong>
-              <small>{selectedCustomer.phone}</small>
-            </div>
-            <div>
-              <span>Package</span>
-              <strong>{selectedPackage.name}</strong>
-              <small>{selectedPackage.totalUses} total uses</small>
-            </div>
-            <div className="package-payment-total">
-              <span>Total</span>
-              <strong>{formatMoney(selectedPackage.price)}</strong>
-            </div>
-          </section>
 
-          <section className="package-payment-method-section">
-            <h3>Payment method</h3>
-            <div className="package-payment-methods">
-              {paymentMethods.map((method) => (
-                <label
-                  className={paymentMethod === method.value ? "is-selected" : ""}
-                  key={method.value}
-                >
-                  <input
-                    checked={paymentMethod === method.value}
-                    name="method"
-                    onChange={() => setPaymentMethod(method.value)}
-                    type="radio"
-                    value={method.value}
-                  />
-                  <span aria-hidden="true" />
-                  <strong>{method.label}</strong>
-                </label>
-              ))}
-            </div>
-          </section>
+        {lines.length ? (
+          <div className="product-sale-lines package-cart-lines">
+            {lines.map((line, index) => {
+              const selectedPackage = packages.find(
+                (packageOption) => packageOption.id === line.packageId,
+              );
+              const lineTotal = (selectedPackage?.price ?? 0) * line.quantity;
 
-          {paymentMethod !== "CASH" ? (
-            <label className="package-payment-reference">
-              <span>Payment reference</span>
-              <input
-                autoComplete="off"
-                maxLength={120}
-                name="reference"
-                placeholder="Enter transaction reference"
-                required
-              />
-            </label>
-          ) : null}
-
-          <BranchSelect branches={branches} />
-          <input name="customerId" type="hidden" value={selectedCustomer.id} />
-          <input name="packageId" type="hidden" value={selectedPackage.id} />
-
-          <p className="package-payment-note">
-            Full payment activates all {selectedPackage.totalUses} uses for the
-            customer account {selectedCustomer.phone}.
-          </p>
-
-          <div className="package-payment-actions">
-            <button onClick={() => setStep("details")} type="button">
-              Back
-            </button>
-            <button type="submit">Pay {formatMoney(selectedPackage.price)}</button>
+              return (
+                <div className="product-sale-line package-cart-line" key={`${line.packageId}-${index}`}>
+                  <button
+                    className="package-cart-choice"
+                    onClick={() => {
+                      setPackageQuery("");
+                      setPickerLineIndex(index);
+                    }}
+                    type="button"
+                  >
+                    <strong>{selectedPackage?.name ?? "Select package"}</strong>
+                    <small>
+                      {selectedPackage
+                        ? `${selectedPackage.totalUses} uses · ${formatMoney(selectedPackage.price)}`
+                        : "Choose an active package"}
+                    </small>
+                  </button>
+                  <label className="product-sale-quantity">
+                    <span>Qty</span>
+                    <input
+                      aria-label={`${selectedPackage?.name ?? "Package"} quantity`}
+                      inputMode="numeric"
+                      max="99"
+                      min="1"
+                      name="quantity"
+                      onChange={(event) => updateQuantity(index, Number(event.target.value))}
+                      required
+                      type="number"
+                      value={line.quantity}
+                    />
+                  </label>
+                  <strong className="product-sale-line-total">{formatMoney(lineTotal)}</strong>
+                  <button
+                    aria-label={`Remove ${selectedPackage?.name ?? "package"}`}
+                    className="product-sale-remove"
+                    onClick={() => removeLine(index)}
+                    title="Remove package"
+                    type="button"
+                  >
+                    <span aria-hidden="true">x</span>
+                  </button>
+                  <input name="packageId" type="hidden" value={line.packageId} />
+                </div>
+              );
+            })}
           </div>
-        </div>
-      ) : null}
+        ) : (
+          <button
+            className="package-cart-empty"
+            disabled={!selectedCustomer || !packages.length}
+            onClick={addLine}
+            type="button"
+          >
+            <strong>Select packages</strong>
+            <span>
+              {!selectedCustomer
+                ? "Select a customer first"
+                : packages.length
+                  ? "Add one or more packages to this sale"
+                  : "No active packages available"}
+            </span>
+          </button>
+        )}
 
-      {isPackagePickerOpen ? (
+        {hideBranch && branchId ? (
+          <input name="branchId" type="hidden" value={branchId} />
+        ) : (
+          <BranchSelect branches={branches} selectedBranchId={branchId} />
+        )}
+      </section>
+
+      <SaleTaxSummary
+        itemLabel={`${totalPackages} ${totalPackages === 1 ? "package" : "packages"}`}
+        sstEnabled={taxSettings.enabled}
+        tax={tax}
+      />
+
+      <section className="product-sale-section">
+        <label>
+          <span>Payment method</span>
+          <select
+            name="method"
+            onChange={(event) => setPaymentMethod(event.target.value)}
+            value={paymentMethod}
+          >
+            <option value="CASH">Cash</option>
+            <option value="CARD">Card</option>
+            <option value="DUITNOW">DuitNow</option>
+            <option value="EWALLET">E-wallet</option>
+            <option value="BANK_TRANSFER">Bank transfer</option>
+          </select>
+        </label>
+        {paymentMethod !== "CASH" ? (
+          <label>
+            <span>Reference</span>
+            <input
+              maxLength={120}
+              name="reference"
+              placeholder="Receipt or transaction reference"
+              required
+            />
+          </label>
+        ) : null}
+      </section>
+
+      {returnTo ? <input name="returnTo" type="hidden" value={returnTo} /> : null}
+      <p className="package-cart-note">
+        Payment activates every selected package immediately. No appointment or service order is created.
+      </p>
+      <div className="form-actions">
+        <button
+          disabled={!selectedCustomer || !lines.length || lines.some((line) => !line.packageId)}
+          type="submit"
+        >
+          Pay {formatMoney(tax.total)}
+        </button>
+      </div>
+
+      {pickerLineIndex != null ? (
         <div className="package-picker-backdrop" role="presentation">
           <section aria-labelledby="package-picker-title" className="package-picker" role="dialog">
             <header>
-              <button
-                aria-label="Close package picker"
-                onClick={() => setIsPackagePickerOpen(false)}
-                type="button"
-              >
+              <button aria-label="Close package picker" onClick={closePicker} type="button">
                 {"\u00d7"}
               </button>
-              <h3 id="package-picker-title">Select Package</h3>
+              <h3 id="package-picker-title">Select package</h3>
               <span />
             </header>
+            <label className="package-picker-search">
+              <span aria-hidden="true">S</span>
+              <input
+                autoFocus
+                onChange={(event) => setPackageQuery(event.target.value)}
+                placeholder="Search package"
+                value={packageQuery}
+              />
+              {packageQuery ? (
+                <button aria-label="Clear package search" onClick={() => setPackageQuery("")} type="button">
+                  {"\u00d7"}
+                </button>
+              ) : (
+                <span />
+              )}
+            </label>
             <div className="package-picker-list">
-              {packages.map((packageOption) => (
+              {filteredPackages.map((packageOption) => (
                 <button
-                  className={packageOption.id === selectedPackageId ? "is-selected" : ""}
+                  className={lines.some((line) => line.packageId === packageOption.id) ? "is-selected" : ""}
                   key={packageOption.id}
-                  onClick={() => {
-                    setSelectedPackageId(packageOption.id);
-                    setIsPackagePickerOpen(false);
-                  }}
+                  onClick={() => selectPackage(pickerLineIndex, packageOption.id)}
                   type="button"
                 >
                   <span aria-hidden="true">P</span>
@@ -208,6 +339,9 @@ export function WorkOrderPackagePurchase({
                   <b>{formatMoney(packageOption.price)}</b>
                 </button>
               ))}
+              {!filteredPackages.length ? (
+                <p className="empty-state">No matching package.</p>
+              ) : null}
             </div>
           </section>
         </div>

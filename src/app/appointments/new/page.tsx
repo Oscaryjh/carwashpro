@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell";
+import { AppointmentCustomerPicker } from "@/components/appointment-customer-picker";
 import { AppointmentVehiclePicker } from "@/components/appointment-vehicle-picker";
 import { BackButton } from "@/components/back-button";
 import { BranchSelect } from "@/components/branch-select";
@@ -17,7 +18,8 @@ type NewAppointmentPageProps = {
 export default async function NewAppointmentPage({
   searchParams,
 }: NewAppointmentPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
+  const isSalonBusiness = industryType === "SALON_BEAUTY";
   const params = await searchParams;
   const staffWhere =
     user.role === "BUSINESS_OWNER"
@@ -27,11 +29,11 @@ export default async function NewAppointmentPage({
           status: "active" as const,
           OR: [{ branchId: user.branchId }, { id: user.userId }],
         };
-  const [branches, vehicleCount, services, staffUsers] = await Promise.all([
+  const [branches, appointmentSubjectCount, services, staffUsers] = await Promise.all([
     getOperationalBranches(businessId, user),
-    prisma.vehicle.count({
-      where: { businessId },
-    }),
+    isSalonBusiness
+      ? prisma.customer.count({ where: { businessId } })
+      : prisma.vehicle.count({ where: { businessId } }),
     prisma.service.findMany({
       where: {
         businessId,
@@ -62,13 +64,17 @@ export default async function NewAppointmentPage({
         <div className="page-header">
           <div>
             <h1>New Appointment</h1>
-            <p>Schedule a customer visit before creating a job.</p>
+            <p>
+              {isSalonBusiness
+                ? "Schedule a customer visit and select services when ready."
+                : "Schedule a customer visit before creating a job."}
+            </p>
           </div>
           <BackButton fallbackHref="/appointments" />
         </div>
 
         <div className="panel appointment-create-panel">
-          {vehicleCount ? (
+          {appointmentSubjectCount ? (
             <form action={createAppointmentAction} className="appointment-create-form">
               <input name="scheduledDate" type="hidden" value={defaultDate} />
               <input name="scheduledTime" type="hidden" value={defaultTime} />
@@ -94,7 +100,11 @@ export default async function NewAppointmentPage({
                 </div>
 
                 <div className="appointment-create-primary">
-                  <AppointmentVehiclePicker />
+                  {isSalonBusiness ? (
+                    <AppointmentCustomerPicker />
+                  ) : (
+                    <AppointmentVehiclePicker />
+                  )}
                 </div>
 
                 <div className="appointment-create-secondary">
@@ -131,7 +141,9 @@ export default async function NewAppointmentPage({
             </form>
           ) : (
             <p className="empty-state">
-              Create a customer and vehicle before scheduling an appointment.
+              {isSalonBusiness
+                ? "Create a customer before scheduling an appointment."
+                : "Create a customer and vehicle before scheduling an appointment."}
             </p>
           )}
         </div>

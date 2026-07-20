@@ -61,11 +61,15 @@ export function PosReceiptTotalsPreview({
   total,
   paidAmount,
   balance,
+  taxAmount = 0,
+  taxLabel = "SST",
   defaultPackageSelected = false,
 }: {
   total: number;
   paidAmount: number;
   balance: number;
+  taxAmount?: number;
+  taxLabel?: string | null;
   defaultPackageSelected?: boolean;
 }) {
   const packagePreview = usePackagePaymentPreview(defaultPackageSelected);
@@ -81,6 +85,12 @@ export function PosReceiptTotalsPreview({
         <span>Total</span>
         <strong>RM{total.toFixed(2)}</strong>
       </div>
+      {taxAmount > 0 ? (
+        <div>
+          <span>{taxLabel ?? "SST"}</span>
+          <strong>RM{taxAmount.toFixed(2)}</strong>
+        </div>
+      ) : null}
       <div>
         <span>Paid</span>
         <strong>{isPackageSelected ? "Paid by prepaid" : `RM${paidAmount.toFixed(2)}`}</strong>

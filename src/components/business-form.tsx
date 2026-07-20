@@ -118,6 +118,45 @@ export function BusinessForm({
             <span>Address</span>
             <textarea name="address" defaultValue={business?.address ?? ""} rows={3} />
           </label>
+          <section className="subsection">
+            <div>
+              <h3>Tax settings</h3>
+              <p>These settings apply to every industry and branch in this company.</p>
+            </div>
+            <div className="field-grid">
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  name="sstEnabled"
+                  defaultChecked={business?.sstEnabled ?? false}
+                />
+                <span>Enable SST</span>
+              </label>
+              <label>
+                <span>Tax label</span>
+                <input name="sstLabel" defaultValue={business?.sstLabel ?? "SST"} />
+              </label>
+              <label>
+                <span>Tax rate (%)</span>
+                <input
+                  name="sstRate"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  defaultValue={business?.sstRate?.toString() ?? "0"}
+                />
+              </label>
+              <label>
+                <span>SST registration no. optional</span>
+                <input
+                  name="sstRegistrationNo"
+                  defaultValue={business?.sstRegistrationNo ?? ""}
+                  placeholder="Registration number"
+                />
+              </label>
+            </div>
+          </section>
         </>
       ) : null}
 

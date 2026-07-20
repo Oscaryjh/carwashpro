@@ -32,8 +32,19 @@ export async function GET(request: Request) {
         },
         take: 4,
       },
+      membership: {
+        select: {
+          pointsBalance: true,
+          status: true,
+        },
+      },
       _count: {
-        select: { vehicles: true },
+        select: {
+          customerPackages: {
+            where: { status: "ACTIVE" },
+          },
+          vehicles: true,
+        },
       },
     },
     orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
@@ -45,6 +56,9 @@ export async function GET(request: Request) {
       id: customer.id,
       name: customer.name,
       phone: customer.phone,
+      activePackageCount: customer._count.customerPackages,
+      loyaltyPoints: customer.membership?.pointsBalance ?? 0,
+      loyaltyStatus: customer.membership?.status ?? null,
       vehicleCount: customer._count.vehicles,
       vehicles: customer.vehicles,
     })),
