@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { RefundPaymentForm } from "@/components/refund-payment-form";
+import { ModalCloseButton } from "@/components/ui/modal-close-button";
 import { VoidInvoiceForm } from "@/components/void-invoice-form";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { formatTaxLabel } from "@/lib/tax/format";
@@ -128,14 +129,11 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
             <span className={`payment-state ${invoice.status.toLowerCase()}`}>
               {formatStatus(invoice.status)}
             </span>
-            <button
-              aria-label="Close invoice"
+            <ModalCloseButton
+              ariaLabel="Close invoice"
               className="appointment-checkout-close"
               onClick={onClose}
-              type="button"
-            >
-              ×
-            </button>
+            />
           </div>
         </header>
 

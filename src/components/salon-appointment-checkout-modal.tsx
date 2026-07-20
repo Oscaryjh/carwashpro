@@ -5,6 +5,7 @@ import type { SalonCheckoutInvoiceSummary } from "@/app/(business)/appointments/
 import { AppointmentInvoiceModal } from "@/components/appointment-invoice-modal";
 import type { InvoiceModalSummary } from "@/components/appointment-invoice-modal";
 import { SalonAppointmentPaymentForm } from "@/components/salon-appointment-payment-form";
+import { ModalCloseButton } from "@/components/ui/modal-close-button";
 import type { TaxLineInput } from "@/lib/tax/calculator";
 
 type CheckoutItem = {
@@ -153,14 +154,11 @@ export function SalonAppointmentCheckoutModal({
                   {customerName} · {customerPhone}
                 </p>
               </div>
-              <button
-                aria-label="Close checkout"
+              <ModalCloseButton
+                ariaLabel="Close checkout"
                 className="appointment-checkout-close"
                 onClick={() => setOpen(false)}
-                type="button"
-              >
-                ×
-              </button>
+              />
             </header>
 
             <div className="appointment-checkout-modal-body">

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import type { Prisma, ProductStatus } from "@prisma/client";
 import { CatalogCategoriesModal } from "@/components/catalog-categories-modal";
+import { CatalogPagination } from "@/components/catalog-pagination";
 import { DeleteProductForm } from "@/components/delete-product-form";
 import { ProductCreateModal } from "@/components/product-create-modal";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
@@ -21,8 +23,11 @@ type ProductsPageProps = {
     modal?: string;
     type?: string;
     message?: string;
+    page?: string;
   }>;
 };
+
+const CATALOG_PAGE_SIZE = 10;
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const { user, businessId } = await requireBusinessUser();
@@ -31,17 +36,23 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const query = params.q?.trim() ?? "";
   const status = params.status === "ACTIVE" || params.status === "INACTIVE" ? params.status : "";
   const categoryId = params.categoryId ?? "";
-  const [products, categories] = await Promise.all([
+  const currentPage = Math.max(1, Number(params.page) || 1);
+  const pageSkip = (currentPage - 1) * CATALOG_PAGE_SIZE;
+  const productWhere: Prisma.ProductWhereInput = {
+    businessId,
+    ...(status ? { status: status as ProductStatus } : {}),
+    ...(categoryId ? { categoryId } : {}),
+    ...(query ? { OR: [{ name: { contains: query, mode: "insensitive" } }, { sku: { contains: query, mode: "insensitive" } }, { category: { contains: query, mode: "insensitive" } }] } : {}),
+  };
+  const [products, matchingCount, categories] = await Promise.all([
     prisma.product.findMany({
-      where: {
-        businessId,
-        ...(status ? { status } : {}),
-        ...(categoryId ? { categoryId } : {}),
-        ...(query ? { OR: [{ name: { contains: query, mode: "insensitive" } }, { sku: { contains: query, mode: "insensitive" } }, { category: { contains: query, mode: "insensitive" } }] } : {}),
-      },
+      where: productWhere,
       include: { productCategory: true, stocks: { include: { branch: { select: { name: true } } } }, _count: { select: { invoiceItems: true } } },
       orderBy: [{ status: "asc" }, { name: "asc" }],
+      skip: pageSkip,
+      take: CATALOG_PAGE_SIZE,
     }),
+    prisma.product.count({ where: productWhere }),
     prisma.productCategory.findMany({
       where: { businessId },
       include: { _count: { select: { products: true } } },
@@ -53,6 +64,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const messageType = params.type === "error" ? "error" : "success";
   const isCreateOpen = params.modal === "create" || params.type === "create";
   const isCategoriesOpen = params.modal === "categories";
+  const hasFilters = Boolean(query || status || categoryId);
+  const totalPages = Math.max(1, Math.ceil(matchingCount / CATALOG_PAGE_SIZE));
 
   return (
     <>
@@ -60,7 +73,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         <div className="page-header">
           <div>
             <h1>Products</h1>
-            <p>Manage retail products and stock for each branch.</p>
+            <p>{hasFilters ? `${matchingCount} product${matchingCount === 1 ? "" : "s"} match this filter.` : "Manage retail products and stock for each branch."}</p>
           </div>
           <div className="inline-actions">
             <Link className="secondary-link-button" href="/products?modal=categories">
@@ -73,7 +86,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         </div>
         {message && !isCategoriesOpen ? <div className={messageType}>{message}</div> : null}
         <div className="panel">
-          <form action="/products" className="search-form">
+          <form action="/products" className="search-form product-filter-form">
             <input defaultValue={query} name="q" placeholder="Search product, SKU, or category" />
             <select defaultValue={status} name="status" aria-label="Status">
               <option value="">All status</option>
@@ -85,16 +98,19 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               {categories.map((category) => <option key={category.id} value={category.id}>{category.name}{category.status === "INACTIVE" ? " (inactive)" : ""}</option>)}
             </select>
             <button type="submit">Filter</button>
+            {hasFilters ? <Link className="secondary-link-button" href="/products">Clear</Link> : null}
           </form>
           {products.length ? (
-            <table className="table">
+            <>
+            <div className="catalog-table-scroll">
+            <table className="table catalog-table catalog-table--products">
               <thead>
                 <tr><th>No.</th><th>Product</th><th>SKU</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {products.map((product, index) => (
                   <tr key={product.id}>
-                    <td className="table-number">{index + 1}</td>
+                    <td className="table-number">{pageSkip + index + 1}</td>
                     <td><Link href={`/products/${product.id}`}><strong>{product.name}</strong></Link>{product.productCategory?.name ?? product.category ? <div className="work-order-subtext">{product.productCategory?.name ?? product.category}</div> : null}</td>
                     <td>{product.sku ?? "-"}</td>
                     <td>RM{Number(product.price).toFixed(2)}</td>
@@ -114,6 +130,16 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 ))}
               </tbody>
             </table>
+            </div>
+            <CatalogPagination
+              basePath="/products"
+              currentPage={currentPage}
+              pageSize={CATALOG_PAGE_SIZE}
+              query={{ q: query, status, categoryId }}
+              total={matchingCount}
+              totalPages={totalPages}
+            />
+            </>
           ) : <p className="empty-state">No products yet.</p>}
         </div>
       </section>

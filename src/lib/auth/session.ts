@@ -10,6 +10,7 @@ const REMEMBERED_SESSION_SECONDS = 60 * 60 * 24 * 30;
 export type AppSession = {
   userId: string;
   businessId: string | null;
+  industryType?: string | null;
   branchId?: string | null;
   name: string;
   email: string;

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CustomerForm } from "@/components/customer-form";
+import { ModalCloseButton } from "@/components/ui/modal-close-button";
 import type { BranchOption } from "@/lib/branches";
 
 type CrmNewCustomerModalProps = {
@@ -70,14 +71,11 @@ export function CrmNewCustomerModal({
                     : "Create a customer and add vehicle details if needed."}
                 </span>
               </div>
-              <button
-                aria-label="Close new customer"
+              <ModalCloseButton
+                ariaLabel="Close new customer"
                 className="crm-customer-modal-close"
                 onClick={() => setIsOpen(false)}
-                type="button"
-              >
-                X
-              </button>
+              />
             </header>
 
             <div className="crm-customer-modal-body">

@@ -6,7 +6,7 @@ import { getActiveBranches } from "@/lib/branches";
 import { createStaffAction } from "../actions";
 
 export default async function NewStaffPage() {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
   assertStaffPermission(user, "TEAM");
 
   const branches = await getActiveBranches(businessId);
@@ -36,6 +36,7 @@ export default async function NewStaffPage() {
           <StaffForm
             action={createStaffAction}
             branches={branches}
+            industryType={industryType}
             submitLabel="Create staff"
           />
         </div>

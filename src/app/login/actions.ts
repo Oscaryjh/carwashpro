@@ -75,6 +75,7 @@ export async function loginAction(
   await createSession({
     userId: user.id,
     businessId: user.businessId,
+    industryType: user.business?.industryType ?? null,
     branchId: user.branchId,
     name: user.name,
     email: user.email,

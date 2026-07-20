@@ -6,9 +6,12 @@ import {
 } from "../../src/lib/validation/work-orders";
 import {
   defaultStaffPermissions,
+  getDefaultStaffPermissionsForIndustry,
   getStaffHomePath,
+  getStaffPermissionsForIndustry,
   hasStaffPermission,
   normalizeStaffPermissions,
+  normalizeStaffPermissionsForIndustry,
   routePermission,
 } from "../../src/lib/auth/staff-permissions";
 import {
@@ -340,6 +343,30 @@ test("new staff defaults are limited to daily cashier operations", () => {
   assert.equal(defaultStaffPermissions.includes("DELETE_CUSTOMER"), false);
 });
 
+test("Beauty & Wellness staff permissions exclude Auto-only jobs", () => {
+  assert.equal(
+    getStaffPermissionsForIndustry("SALON_BEAUTY").some(
+      (permission) => permission.key === "JOBS",
+    ),
+    false,
+  );
+  assert.deepEqual(getDefaultStaffPermissionsForIndustry("SALON_BEAUTY"), [
+    "CRM",
+    "APPOINTMENTS",
+    "POS",
+    "INVOICES",
+    "CLOSING",
+    "WHATSAPP",
+  ]);
+  assert.deepEqual(
+    normalizeStaffPermissionsForIndustry(
+      ["CRM", "JOBS", "APPOINTMENTS", "POS"],
+      "SALON_BEAUTY",
+    ),
+    ["CRM", "APPOINTMENTS", "POS"],
+  );
+});
+
 test("permission matrix separates cashier, manager, and owner capabilities", () => {
   const cashier = { role: "STAFF" as const, permissions: defaultStaffPermissions };
   const manager = {
@@ -389,6 +416,10 @@ test("management routes are restricted to the permissions that protect them", ()
 
 test("staff without dashboard access are redirected to their first allowed module", () => {
   assert.equal(getStaffHomePath(["JOBS", "CRM"]), "/work-orders");
+  assert.equal(
+    getStaffHomePath(["JOBS", "APPOINTMENTS", "POS"], "SALON_BEAUTY"),
+    "/appointments",
+  );
   assert.equal(getStaffHomePath(["CRM"]), "/crm");
   assert.equal(getStaffHomePath([]), "/login");
 });

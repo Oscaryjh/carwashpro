@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { CatalogCategoriesModal } from "@/components/catalog-categories-modal";
+import { CatalogPagination } from "@/components/catalog-pagination";
 import { DeletePackageForm } from "@/components/delete-package-form";
 import { PackageCreateModal } from "@/components/package-create-modal";
 import { requireBusinessUser } from "@/lib/auth/business-user";
@@ -23,10 +24,12 @@ type PackagesPageProps = {
     modal?: string;
     message?: string;
     type?: string;
+    page?: string;
   }>;
 };
 
 const ALL_BRANCHES_ONLY = "all-branches-only";
+const CATALOG_PAGE_SIZE = 10;
 
 export default async function PackagesPage({ searchParams }: PackagesPageProps) {
   const { user, businessId, industryType } = await requireBusinessUser();
@@ -39,13 +42,15 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
   const query = params.q?.trim() ?? "";
-  const categoryId = isUuid(params.categoryId) ? params.categoryId : "";
+  const categoryId = isUuid(params.categoryId) ? (params.categoryId ?? "") : "";
   const status =
     params.status === "ACTIVE" || params.status === "INACTIVE" ? params.status : "";
   const branchId =
     params.branchId === ALL_BRANCHES_ONLY || isUuid(params.branchId)
-      ? params.branchId
+      ? (params.branchId ?? "")
       : "";
+  const currentPage = Math.max(1, Number(params.page) || 1);
+  const pageSkip = (currentPage - 1) * CATALOG_PAGE_SIZE;
 
   const filters: Prisma.PackageWhereInput[] = [];
 
@@ -79,12 +84,14 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
     filters.push({ branchId });
   }
 
-  const [packages, categories, branches, activeServices] = await Promise.all([
+  const packageWhere: Prisma.PackageWhereInput = {
+    businessId,
+    ...(filters.length ? { AND: filters } : {}),
+  };
+
+  const [packages, matchingCount, categories, branches, activeServices] = await Promise.all([
     prisma.package.findMany({
-      where: {
-        businessId,
-        ...(filters.length ? { AND: filters } : {}),
-      },
+      where: packageWhere,
       include: {
         branch: true,
           packageCategory: true,
@@ -98,7 +105,10 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
         },
       },
       orderBy: [{ status: "asc" }, { name: "asc" }],
+      skip: pageSkip,
+      take: CATALOG_PAGE_SIZE,
     }),
+    prisma.package.count({ where: packageWhere }),
     prisma.packageCategory.findMany({
       where: { businessId },
       include: { _count: { select: { packages: true } } },
@@ -113,6 +123,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
   ]);
 
   const hasFilters = Boolean(query || categoryId || status || branchId);
+  const totalPages = Math.max(1, Math.ceil(matchingCount / CATALOG_PAGE_SIZE));
 
   return (
     <>
@@ -122,7 +133,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
             <h1>Packages</h1>
             <p>
               {hasFilters
-                ? `${packages.length} package${packages.length === 1 ? "" : "s"} match this filter.`
+                ? `${matchingCount} package${matchingCount === 1 ? "" : "s"} match this filter.`
                 : isSalonBusiness
                   ? "Prepaid service packages and remaining-use tracking."
                   : "Prepaid wash packages and remaining-use tracking."}
@@ -178,7 +189,9 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
             ) : null}
           </form>
           {packages.length ? (
-            <table className="table">
+            <>
+            <div className="catalog-table-scroll">
+            <table className="table catalog-table catalog-table--packages">
               <thead>
                 <tr>
                   <th>No.</th>
@@ -195,7 +208,7 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
               <tbody>
                 {packages.map((packagePlan, index) => (
                   <tr key={packagePlan.id}>
-                    <td className="table-number">{index + 1}</td>
+                    <td className="table-number">{pageSkip + index + 1}</td>
                     <td>{packagePlan.packageCategory?.name ?? "-"}</td>
                     <td>
                       <Link href={`/packages/${packagePlan.id}`}>
@@ -235,6 +248,16 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
                 ))}
               </tbody>
             </table>
+            </div>
+            <CatalogPagination
+              basePath="/packages"
+              currentPage={currentPage}
+              pageSize={CATALOG_PAGE_SIZE}
+              query={{ q: query, categoryId, status, branchId }}
+              total={matchingCount}
+              totalPages={totalPages}
+            />
+            </>
           ) : (
             <p className="empty-state">No packages yet.</p>
           )}

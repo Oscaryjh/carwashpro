@@ -9,7 +9,7 @@ import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import {
   assertStaffPermission,
-  normalizeStaffPermissions,
+  normalizeStaffPermissionsForIndustry,
 } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
@@ -61,7 +61,7 @@ const staffTimeOffSchema = z.object({
 });
 
 export async function createStaffAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
   assertStaffPermission(user, "TEAM");
   const auditRequest = await getAuditRequestContext();
 
@@ -74,7 +74,10 @@ export async function createStaffAction(formData: FormData) {
       password: String(formData.get("password") ?? ""),
       accessType: formData.get("accessType"),
     });
-    const permissions = normalizeStaffPermissions(formData.getAll("permissions"));
+    const permissions = normalizeStaffPermissionsForIndustry(
+      formData.getAll("permissions"),
+      industryType,
+    );
     const loginEnabled = input.accessType === "LOGIN";
 
     const existingUser = input.email
@@ -161,7 +164,7 @@ export async function createStaffAction(formData: FormData) {
 }
 
 export async function updateStaffAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
   assertStaffPermission(user, "TEAM");
   const auditRequest = await getAuditRequestContext();
 
@@ -176,7 +179,10 @@ export async function updateStaffAction(formData: FormData) {
       status: formData.get("status"),
       accessType: formData.get("accessType"),
     });
-    const permissions = normalizeStaffPermissions(formData.getAll("permissions"));
+    const permissions = normalizeStaffPermissionsForIndustry(
+      formData.getAll("permissions"),
+      industryType,
+    );
     const loginEnabled = input.accessType === "LOGIN";
 
     const staff = await prisma.user.findFirst({

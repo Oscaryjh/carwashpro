@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Prisma } from "@prisma/client";
+import { redirect } from "next/navigation";
 import { WorkOrderQuickCreateModal } from "@/components/work-order-quick-create-modal";
 import { type ProductSaleOption } from "@/components/product-sale-form";
 import { WorkOrderFilterForm } from "@/components/work-order-filter-form";
@@ -45,7 +46,12 @@ const dateFilters = [
 export default async function WorkOrdersPage({
   searchParams,
 }: WorkOrdersPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
+
+  if (industryType === "SALON_BEAUTY") {
+    redirect("/cashier");
+  }
+
   const params = await searchParams;
   const rawSearch = (params.q ?? "").trim();
   const message = params.message?.trim();

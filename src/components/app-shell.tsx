@@ -96,7 +96,7 @@ export async function AppShell({ user, children }: AppShellProps) {
     ...(isStoreUser && canSee("CRM")
       ? [{ href: "/crm", label: "CRM", shortLabel: "CRM", icon: "crm" as const }]
       : []),
-    ...(!isSalonBusiness && isStoreUser && canSee("LOYALTY")
+    ...(isStoreUser && canSee("LOYALTY")
       ? [
           {
             href: "/loyalty",

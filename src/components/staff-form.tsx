@@ -3,8 +3,8 @@
 import { useState } from "react";
 import type { User } from "@prisma/client";
 import {
-  defaultStaffPermissions,
-  staffPermissions,
+  getDefaultStaffPermissionsForIndustry,
+  getStaffPermissionsForIndustry,
 } from "@/lib/auth/staff-permissions";
 
 type StaffBranch = {
@@ -17,18 +17,27 @@ type StaffFormProps = {
   branches: StaffBranch[];
   staff?: User;
   assignedBranchIds?: string[];
+  industryType?: string;
   submitLabel: string;
 };
 
 type AccessType = "LOGIN" | "NO_LOGIN";
 
-export function StaffForm({ action, branches, staff, assignedBranchIds = [], submitLabel }: StaffFormProps) {
+export function StaffForm({
+  action,
+  branches,
+  staff,
+  assignedBranchIds = [],
+  industryType,
+  submitLabel,
+}: StaffFormProps) {
   const isEdit = Boolean(staff);
   const [accessType, setAccessType] = useState<AccessType>(
     staff?.loginEnabled === false ? "NO_LOGIN" : "LOGIN",
   );
   const selectedPermissions =
-    staff?.permissions ?? (accessType === "LOGIN" ? defaultStaffPermissions : []);
+    staff?.permissions ??
+    (accessType === "LOGIN" ? getDefaultStaffPermissionsForIndustry(industryType) : []);
   const selectedBranchIds = new Set(
     assignedBranchIds.length ? assignedBranchIds : staff?.branchId ? [staff.branchId] : [],
   );
@@ -173,6 +182,7 @@ export function StaffForm({ action, branches, staff, assignedBranchIds = [], sub
         <PermissionChecklist
           defaultPermissions={accessType === "LOGIN" ? selectedPermissions : []}
           disabled={accessType === "NO_LOGIN"}
+          industryType={industryType}
           title="Access permissions"
         />
       </fieldset>
@@ -188,10 +198,12 @@ export function StaffForm({ action, branches, staff, assignedBranchIds = [], sub
 export function PermissionChecklist({
   defaultPermissions,
   disabled = false,
+  industryType,
   title,
 }: {
   defaultPermissions: string[];
   disabled?: boolean;
+  industryType?: string;
   title?: string;
 }) {
   const selected = new Set(defaultPermissions);
@@ -203,7 +215,9 @@ export function PermissionChecklist({
         <p className="form-hint">No permissions are needed for a staff record without login.</p>
       ) : null}
       <div className="permission-grid">
-        {staffPermissions.filter((permission) => permission.key !== "DASHBOARD").map((permission) => (
+        {getStaffPermissionsForIndustry(industryType)
+          .filter((permission) => permission.key !== "DASHBOARD")
+          .map((permission) => (
           <label className="permission-card" key={permission.key}>
             <input
               defaultChecked={selected.has(permission.key)}
@@ -217,7 +231,7 @@ export function PermissionChecklist({
               <small>{permission.description}</small>
             </span>
           </label>
-        ))}
+          ))}
       </div>
     </div>
   );

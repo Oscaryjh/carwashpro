@@ -8,9 +8,20 @@
   --accent: #0f766e;
   --accent-strong: #0b5d57;
   --danger: #b42318;
+  --danger-soft: #fff1ef;
+  --warning: #92400e;
+  --warning-soft: #fffbeb;
+  --success: #166534;
+  --success-soft: #effaf2;
   --sidebar: #16202d;
   --sidebar-muted: #d9e4ef;
-  --touch-target: 38px;
+  --touch-target: 40px;
+  --control-height: 40px;
+  --radius-control: 6px;
+  --radius-panel: 8px;
+  --focus-ring: 0 0 0 3px rgba(15, 118, 110, 0.14);
+  --border: var(--line);
+  --ink: var(--text);
   --content-max: 1280px;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI",
     "Microsoft YaHei UI", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
@@ -891,7 +902,7 @@ b {
 button {
   min-height: var(--touch-target);
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--accent);
   color: white;
   cursor: pointer;
@@ -910,7 +921,7 @@ button:disabled {
   min-height: var(--touch-target);
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--accent);
   color: white;
   font-weight: 600;
@@ -923,7 +934,8 @@ button:disabled {
   min-height: var(--touch-target);
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
   background: var(--panel-muted);
   color: var(--text);
   font-weight: 700;
@@ -973,12 +985,19 @@ button.secondary-link-button:hover {
   background: var(--line);
 }
 
+@media (hover: none) and (pointer: coarse) {
+  :root {
+    --touch-target: 42px;
+    --control-height: 42px;
+  }
+}
+
 input,
 textarea,
 select {
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: white;
   color: var(--text);
   min-height: var(--touch-target);
@@ -1061,25 +1080,25 @@ select:disabled {
 
 .error {
   border: 1px solid #f5b8b1;
-  border-radius: 6px;
-  background: #fff1ef;
+  border-radius: var(--radius-control);
+  background: var(--danger-soft);
   color: var(--danger);
   padding: 9px 10px;
 }
 
 .success {
   border: 1px solid #b7dfc2;
-  border-radius: 6px;
-  background: #effaf2;
-  color: #166534;
+  border-radius: var(--radius-control);
+  background: var(--success-soft);
+  color: var(--success);
   padding: 9px 10px;
 }
 
 .warning {
   border: 1px solid #fbbf24;
-  border-radius: 6px;
-  background: #fffbeb;
-  color: #92400e;
+  border-radius: var(--radius-control);
+  background: var(--warning-soft);
+  color: var(--warning);
   padding: 9px 10px;
 }
 
@@ -6789,7 +6808,7 @@ label {
   --danger: #b42318;
   --sidebar: #17212e;
   --sidebar-muted: #d7e1eb;
-  --touch-target: 38px;
+  --touch-target: 40px;
   --content-max: 1440px;
   --font-size-body: 14px;
   --line-height-body: 1.45;
@@ -12450,7 +12469,7 @@ button.appointment-detail-card:disabled:focus-visible,
 
 .cashier-unified-footer {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
 }
@@ -15584,6 +15603,127 @@ button.appointment-detail-card:disabled:focus-visible,
     min-width: 640px;
   }
 }
+/* Catalog lists share one compact, paginated layout across business types. */
+.catalog-table-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  border-top: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+
+.catalog-table {
+  min-width: 840px;
+}
+
+.catalog-table--services,
+.catalog-table--packages {
+  min-width: 1040px;
+}
+
+.catalog-table th,
+.catalog-table td {
+  height: 43px;
+  padding: 6px 9px;
+  vertical-align: middle;
+}
+
+.catalog-pagination {
+  min-height: 40px;
+  margin-top: 0;
+  padding-top: 8px;
+}
+
+.catalog-pagination-range {
+  margin-right: auto;
+  color: var(--text);
+  font-weight: 650;
+}
+
+.service-filter-form {
+  grid-template-columns: minmax(240px, 1.7fr) repeat(3, minmax(130px, 0.75fr)) auto auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.service-filter-form input,
+.service-filter-form select,
+.service-filter-form button,
+.service-filter-form .secondary-link-button {
+  min-height: 40px;
+}
+
+.product-filter-form {
+  grid-template-columns: minmax(260px, 1.7fr) repeat(2, minmax(140px, 0.75fr)) auto auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.product-filter-form input,
+.product-filter-form select,
+.product-filter-form button,
+.product-filter-form .secondary-link-button {
+  min-height: 40px;
+}
+
+@media (min-width: 901px) and (max-width: 1279px) {
+  .service-filter-form {
+    grid-template-columns: minmax(230px, 1.5fr) repeat(3, minmax(112px, 0.7fr)) auto auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .service-filter-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .service-filter-form input {
+    grid-column: 1 / -1;
+  }
+
+  .product-filter-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .product-filter-form input {
+    grid-column: 1 / -1;
+  }
+
+  .page-header .inline-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .catalog-pagination {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 560px) {
+  .service-filter-form {
+    grid-template-columns: 1fr;
+  }
+
+  .service-filter-form input {
+    grid-column: auto;
+  }
+
+  .product-filter-form,
+  .page-header .inline-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .product-filter-form input {
+    grid-column: auto;
+  }
+
+  .catalog-pagination-range {
+    flex-basis: 100%;
+  }
+}
+
 .package-benefits-fieldset {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -15664,6 +15804,115 @@ button.appointment-detail-card:disabled:focus-visible,
 
 .package-benefits-summary {
   text-align: right;
+}
+
+/* Phase 1 design-system alignment: shared controls, feedback and modal chrome. */
+.ui-modal-close,
+.crm-customer-modal-close,
+.product-create-modal-close,
+.appointment-checkout-close {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--text);
+  padding: 0;
+  box-shadow: none;
+}
+
+.ui-modal-close > span,
+.crm-customer-modal-close > span,
+.product-create-modal-close > span,
+.appointment-checkout-close > span {
+  display: block;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.ui-modal-close:hover,
+.crm-customer-modal-close:hover,
+.product-create-modal-close:hover,
+.appointment-checkout-close:hover {
+  border-color: #99d6cf;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.crm-customer-modal-backdrop,
+.product-create-modal-backdrop,
+.appointment-checkout-modal-backdrop,
+.appointment-create-modal-backdrop,
+.appointment-detail-modal-backdrop,
+.appointment-time-modal-backdrop,
+.business-hour-modal-backdrop {
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(1.5px);
+}
+
+.crm-customer-modal,
+.product-create-modal,
+.appointment-checkout-modal,
+.appointment-invoice-modal,
+.appointment-create-modal,
+.appointment-detail-modal,
+.appointment-time-modal,
+.business-hour-modal {
+  border-color: rgba(255, 255, 255, 0.78);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 22px 56px rgba(15, 23, 42, 0.24);
+}
+
+.form-error,
+.field-error,
+.member-picker-create-error,
+.appointment-create-inline-error,
+.appointment-service-conflict,
+.appointment-invoice-document-error,
+.salon-payment-action-error {
+  border: 1px solid #f5b8b1;
+  border-radius: var(--radius-control);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 8px 10px;
+}
+
+.form-success,
+.appointment-invoice-document-message {
+  border: 1px solid #b7dfc2;
+  border-radius: var(--radius-control);
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 8px 10px;
+}
+
+button:disabled,
+.button-link[aria-disabled="true"],
+.secondary-link-button[aria-disabled="true"] {
+  filter: saturate(0.55);
+  opacity: 0.58;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .ui-modal-close,
+  .crm-customer-modal-close,
+  .product-create-modal-close,
+  .appointment-checkout-close {
+    width: 42px;
+    height: 42px;
+    min-height: 42px;
+    flex-basis: 42px;
+  }
 }
 
 @media (max-width: 700px) {

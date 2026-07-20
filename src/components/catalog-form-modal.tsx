@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { ModalCloseButton } from "@/components/ui/modal-close-button";
 
 type CatalogFormModalProps = {
   ariaLabel: string;
@@ -48,14 +49,11 @@ export function CatalogFormModal({
         role="dialog"
       >
         <header className="product-create-modal-header">
-          <button
-            aria-label={`Close ${ariaLabel}`}
+          <ModalCloseButton
+            ariaLabel={`Close ${ariaLabel}`}
             className="product-create-modal-close"
             onClick={closeModal}
-            type="button"
-          >
-            X
-          </button>
+          />
           <div>
             <p>{eyebrow}</p>
             <h2>{title}</h2>

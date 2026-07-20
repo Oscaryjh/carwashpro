@@ -15,7 +15,7 @@ export const staffPermissions = [
   {
     key: "CRM",
     label: "CRM",
-    description: "Search, create, and update customers and vehicles.",
+    description: "Search, create, and update customer records.",
   },
   {
     key: "DELETE_CUSTOMER",
@@ -35,12 +35,12 @@ export const staffPermissions = [
   {
     key: "APPOINTMENTS",
     label: "Appointments",
-    description: "Schedule visits, confirm arrivals, and convert appointments to jobs.",
+    description: "Schedule visits and manage appointment details.",
   },
   {
     key: "POS",
-    label: "POS",
-    description: "Checkout jobs, collect payments, and use packages.",
+    label: "Cashier",
+    description: "Collect payments, complete checkout, and use packages.",
   },
   {
     key: "INVOICES",
@@ -75,7 +75,7 @@ export const staffPermissions = [
   {
     key: "REPORTS",
     label: "Reports",
-    description: "View sales, job, invoice, and payment reports.",
+    description: "View sales, invoice, payment, and operational reports.",
   },
   {
     key: "SERVICES",
@@ -106,6 +106,22 @@ export const defaultStaffPermissions: StaffPermission[] = [
   "WHATSAPP",
 ];
 
+export function getStaffPermissionsForIndustry(industryType: string | null | undefined) {
+  return industryType === "SALON_BEAUTY"
+    ? staffPermissions.filter((permission) => permission.key !== "JOBS")
+    : staffPermissions;
+}
+
+export function getDefaultStaffPermissionsForIndustry(
+  industryType: string | null | undefined,
+): StaffPermission[] {
+  const available = new Set(
+    getStaffPermissionsForIndustry(industryType).map((permission) => permission.key),
+  );
+
+  return defaultStaffPermissions.filter((permission) => available.has(permission));
+}
+
 const permissionSet = new Set<string>(
   staffPermissions.map((permission) => permission.key),
 );
@@ -120,6 +136,17 @@ export function normalizeStaffPermissions(values: unknown[]): StaffPermission[] 
   });
 
   return Array.from(unique);
+}
+
+export function normalizeStaffPermissionsForIndustry(
+  values: unknown[],
+  industryType: string | null | undefined,
+): StaffPermission[] {
+  const available = new Set(
+    getStaffPermissionsForIndustry(industryType).map((permission) => permission.key),
+  );
+
+  return normalizeStaffPermissions(values).filter((permission) => available.has(permission));
 }
 
 export function hasStaffPermission(
@@ -162,12 +189,18 @@ const staffHomeRoutes: Array<[StaffPermission, string]> = [
   ["TEAM", "/team"],
 ];
 
-export function getStaffHomePath(permissions: unknown): string {
+export function getStaffHomePath(
+  permissions: unknown,
+  industryType?: string | null,
+): string {
   const values = Array.isArray(permissions) ? permissions : [];
   const permissionValues = new Set(values.filter((value): value is string => typeof value === "string"));
+  const routes = industryType === "SALON_BEAUTY"
+    ? staffHomeRoutes.filter(([permission]) => permission !== "JOBS")
+    : staffHomeRoutes;
 
   return (
-    staffHomeRoutes.find(([permission]) => permissionValues.has(permission))?.[1] ??
+    routes.find(([permission]) => permissionValues.has(permission))?.[1] ??
     "/login"
   );
 }

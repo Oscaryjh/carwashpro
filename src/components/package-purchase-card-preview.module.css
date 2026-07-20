@@ -9,7 +9,7 @@
   display: flex;
   width: min(920px, 100%);
   margin: 0 auto 18px;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 18px;
 }

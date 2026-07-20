@@ -18,7 +18,7 @@ type StaffDetailsPageProps = {
 };
 
 export default async function StaffDetailsPage({ params }: StaffDetailsPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser();
   assertStaffPermission(user, "TEAM");
 
   const { staffId } = await params;
@@ -93,6 +93,7 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
             branches={branches}
             staff={staff}
             assignedBranchIds={assignedBranchIds}
+            industryType={industryType}
             submitLabel="Save staff"
           />
         </div>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { CatalogCategoriesModal } from "@/components/catalog-categories-modal";
+import { CatalogPagination } from "@/components/catalog-pagination";
 import { DeleteServiceForm } from "@/components/delete-service-form";
 import { ServiceCreateModal } from "@/components/service-create-modal";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
@@ -23,10 +24,12 @@ type ServicesPageProps = {
     modal?: string;
     message?: string;
     type?: string;
+    page?: string;
   }>;
 };
 
 const ALL_BRANCHES_ONLY = "all-branches-only";
+const CATALOG_PAGE_SIZE = 10;
 
 export default async function ServicesPage({ searchParams }: ServicesPageProps) {
   const context = await requireBusinessIndustryContext();
@@ -40,13 +43,15 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
   const messageType = params.type === "error" ? "error" : "success";
 
   const query = params.q?.trim() ?? "";
-  const categoryId = isUuid(params.categoryId) ? params.categoryId : "";
+  const categoryId = isUuid(params.categoryId) ? (params.categoryId ?? "") : "";
   const status =
     params.status === "ACTIVE" || params.status === "INACTIVE" ? params.status : "";
   const branchId =
     params.branchId === ALL_BRANCHES_ONLY || isUuid(params.branchId)
-      ? params.branchId
+      ? (params.branchId ?? "")
       : "";
+  const currentPage = Math.max(1, Number(params.page) || 1);
+  const pageSkip = (currentPage - 1) * CATALOG_PAGE_SIZE;
 
   const filters: Prisma.ServiceWhereInput[] = [];
 
@@ -75,12 +80,14 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
     filters.push({ branchId });
   }
 
-  const [services, categories, branches, staffOptions] = await Promise.all([
+  const serviceWhere: Prisma.ServiceWhereInput = {
+    businessId,
+    ...(filters.length ? { AND: filters } : {}),
+  };
+
+  const [services, matchingCount, categories, branches, staffOptions] = await Promise.all([
     prisma.service.findMany({
-      where: {
-        businessId,
-        ...(filters.length ? { AND: filters } : {}),
-      },
+      where: serviceWhere,
       include: {
         branch: true,
         serviceCategory: true,
@@ -91,7 +98,10 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
         _count: { select: { staffAssignments: true } },
       },
       orderBy: [{ status: "asc" }, { category: "asc" }, { name: "asc" }],
+      skip: pageSkip,
+      take: CATALOG_PAGE_SIZE,
     }),
+    prisma.service.count({ where: serviceWhere }),
     prisma.serviceCategory.findMany({
       where: { businessId },
       include: { _count: { select: { services: true } } },
@@ -117,6 +127,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
   ]);
 
   const hasFilters = Boolean(query || categoryId || status || branchId);
+  const totalPages = Math.max(1, Math.ceil(matchingCount / CATALOG_PAGE_SIZE));
 
   return (
     <>
@@ -126,7 +137,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
             <h1>Services</h1>
             <p>
               {hasFilters
-                ? `${services.length} service${services.length === 1 ? "" : "s"} match this filter.`
+                ? `${matchingCount} service${matchingCount === 1 ? "" : "s"} match this filter.`
                 : isSalonBusiness
                   ? "Manage treatment pricing, duration, and available staff."
                   : "Service menu for this business."}
@@ -182,7 +193,9 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
             ) : null}
           </form>
           {services.length ? (
-            <table className="table">
+            <>
+            <div className="catalog-table-scroll">
+            <table className="table catalog-table catalog-table--services">
               <thead>
                 <tr>
                   <th>No.</th>
@@ -199,7 +212,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
               <tbody>
                 {services.map((service, index) => (
                   <tr key={service.id}>
-                    <td className="table-number">{index + 1}</td>
+                    <td className="table-number">{pageSkip + index + 1}</td>
                     <td>{service.serviceCategory?.name ?? service.category ?? "-"}</td>
                     <td>
                       <Link href={`/services/${service.id}`}>
@@ -247,6 +260,16 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                 ))}
               </tbody>
             </table>
+            </div>
+            <CatalogPagination
+              basePath="/services"
+              currentPage={currentPage}
+              pageSize={CATALOG_PAGE_SIZE}
+              query={{ q: query, categoryId, status, branchId }}
+              total={matchingCount}
+              totalPages={totalPages}
+            />
+            </>
           ) : (
             <p className="empty-state">No services yet.</p>
           )}

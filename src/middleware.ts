@@ -26,10 +26,14 @@ export async function middleware(request: NextRequest) {
     const verified = await jwtVerify(token, secret);
     const role = verified.payload.role;
     const pathname = request.nextUrl.pathname;
+    const industryType =
+      typeof verified.payload.industryType === "string"
+        ? verified.payload.industryType
+        : null;
     const permissions = Array.isArray(verified.payload.permissions)
       ? verified.payload.permissions
       : [];
-    const staffHomePath = getStaffHomePath(permissions);
+    const staffHomePath = getStaffHomePath(permissions, industryType);
 
     if (pathname.startsWith("/admin") && role !== "PLATFORM_ADMIN") {
       return NextResponse.redirect(
@@ -43,6 +47,18 @@ export async function middleware(request: NextRequest) {
 
     if (pathname === "/dashboard" || pathname === "/salon/dashboard") {
       return NextResponse.redirect(new URL("/reports", request.url));
+    }
+
+    if (industryType === "SALON_BEAUTY" && pathname.startsWith("/work-orders")) {
+      return NextResponse.redirect(
+        new URL(permissions.includes("POS") || role === "BUSINESS_OWNER" ? "/cashier" : staffHomePath, request.url),
+      );
+    }
+
+    if (industryType === "AUTO_DETAILING" && pathname.startsWith("/cashier")) {
+      return NextResponse.redirect(
+        new URL(permissions.includes("JOBS") || role === "BUSINESS_OWNER" ? "/work-orders" : staffHomePath, request.url),
+      );
     }
 
     const requiredPermission = routePermission(pathname);
@@ -77,6 +93,7 @@ export const config = {
     "/loyalty/:path*",
     "/packages/:path*",
     "/pos/:path*",
+    "/products/:path*",
     "/reports/:path*",
     "/salon/dashboard",
     "/services/:path*",
