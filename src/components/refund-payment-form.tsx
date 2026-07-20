@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   refundPaymentAction,
   type RefundPaymentState,
-} from "@/app/invoices/actions";
+} from "@/app/(business)/invoices/actions";
 
 type RefundPaymentFormProps = {
   invoiceId: string;
@@ -13,6 +13,7 @@ type RefundPaymentFormProps = {
   paymentId: string;
   originalMethod: string;
   refundableAmount: number;
+  onSuccess?: () => void;
 };
 
 const initialState: RefundPaymentState = {
@@ -34,6 +35,7 @@ export function RefundPaymentForm({
   paymentId,
   originalMethod,
   refundableAmount,
+  onSuccess,
 }: RefundPaymentFormProps) {
   const router = useRouter();
   const packageRefund = originalMethod === "PACKAGE";
@@ -52,8 +54,9 @@ export function RefundPaymentForm({
   useEffect(() => {
     if (safeState.status === "success") {
       router.refresh();
+      onSuccess?.();
     }
-  }, [router, safeState.status]);
+  }, [onSuccess, router, safeState.status]);
 
   return (
     <form

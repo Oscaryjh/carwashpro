@@ -1,8 +1,9 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 
-export async function getBusinessContext() {
+export const getBusinessContext = cache(async function getBusinessContext() {
   const user = await requireUser();
 
   if (user.role === "PLATFORM_ADMIN") {
@@ -32,7 +33,7 @@ export async function getBusinessContext() {
     businessId: user.businessId,
     industryType: business.industryType,
   };
-}
+});
 
 export async function requireBusinessContext() {
   const context = await getBusinessContext();

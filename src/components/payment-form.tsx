@@ -68,7 +68,6 @@ export function PaymentForm({
               {[
                 ["CASH", "Cash"],
                 ["CARD", "Card"],
-                ["DUITNOW", "DuitNow"],
                 ["EWALLET", "E-wallet"],
                 ["BANK_TRANSFER", "Bank"],
               ].map(([value, label]) => (
@@ -96,7 +95,6 @@ export function PaymentForm({
             >
               <option value="CASH">Cash</option>
               <option value="CARD">Card</option>
-              <option value="DUITNOW">DuitNow</option>
               <option value="EWALLET">E-wallet</option>
               <option value="BANK_TRANSFER">Bank transfer</option>
             </select>

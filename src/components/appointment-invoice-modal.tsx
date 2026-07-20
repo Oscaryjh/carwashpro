@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { RefundPaymentForm } from "@/components/refund-payment-form";
+import { VoidInvoiceForm } from "@/components/void-invoice-form";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { formatTaxLabel } from "@/lib/tax/format";
 
@@ -34,13 +36,22 @@ export type InvoiceModalSummary = {
   total: number;
   paidAmount: number;
   balance: number;
+  canManagePayments?: boolean;
+  canVoid?: boolean;
+  voidUnavailableReason?: string | null;
+  refundablePayments?: Array<{
+    id: string;
+    method: string;
+    refundableAmount: number;
+  }>;
 };
 
 export function AppointmentInvoiceModal({ invoice, onClose, onDone }: AppointmentInvoiceModalProps) {
   const [mounted, setMounted] = useState(false);
-  const [documentAction, setDocumentAction] = useState<"download" | "print" | null>(null);
+  const [documentAction, setDocumentAction] = useState<"print" | null>(null);
   const [documentError, setDocumentError] = useState("");
   const [documentMessage, setDocumentMessage] = useState("");
+  const [managementAction, setManagementAction] = useState<"refund" | "void" | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -58,34 +69,6 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
   if (!mounted) {
     return null;
   }
-
-  const downloadPdf = async () => {
-    setDocumentAction("download");
-    setDocumentError("");
-    setDocumentMessage("");
-
-    try {
-      const response = await fetch(`/invoices/${invoice.id}/pdf`);
-      if (!response.ok) {
-        throw new Error("The invoice PDF could not be prepared.");
-      }
-
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download = getPdfFileName(response.headers.get("content-disposition"), invoice.invoiceNumber);
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
-      setDocumentMessage("PDF download started.");
-    } catch {
-      setDocumentError("PDF download failed. Please try again.");
-    } finally {
-      setDocumentAction(null);
-    }
-  };
 
   const printReceipt = () => {
     setDocumentAction("print");
@@ -107,6 +90,20 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
     setDocumentAction(null);
   };
 
+  const refundablePayments = invoice.refundablePayments ?? [];
+  const canRefund = Boolean(
+    invoice.canManagePayments &&
+    invoice.status !== "VOID" &&
+    refundablePayments.length,
+  );
+  const showManagementActions = Boolean(
+    invoice.canManagePayments && (canRefund || invoice.canVoid || invoice.voidUnavailableReason),
+  );
+  const handleManagementComplete = () => {
+    setManagementAction(null);
+    (onDone ?? onClose)();
+  };
+
   return createPortal(
     <div
       aria-label="Invoice"
@@ -115,6 +112,7 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
       role="presentation"
     >
       <section
+        aria-label="Invoice"
         aria-modal="true"
         className="appointment-invoice-modal"
         onMouseDown={(event) => event.stopPropagation()}
@@ -152,7 +150,7 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
 
         <div className="appointment-invoice-items">
           <div className="appointment-invoice-row is-heading">
-            <span>Service</span><span>Qty</span><span>Total</span>
+            <span>Item</span><span>Qty</span><span>Total</span>
           </div>
           {invoice.items.map((item) => (
             <div className="appointment-invoice-row" key={item.id}>
@@ -175,6 +173,81 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
           ) : null}
         </div>
 
+        {showManagementActions ? (
+          <div className="appointment-invoice-management">
+            <div className="appointment-invoice-management-tabs">
+              {canRefund ? (
+                <button
+                  className={managementAction === "refund" ? "is-active" : ""}
+                  onClick={() => setManagementAction((current) => current === "refund" ? null : "refund")}
+                  type="button"
+                >
+                  Refund
+                </button>
+              ) : null}
+              {invoice.canVoid ? (
+                <button
+                  className={managementAction === "void" ? "is-active is-danger" : "is-danger"}
+                  onClick={() => setManagementAction((current) => current === "void" ? null : "void")}
+                  type="button"
+                >
+                  Void
+                </button>
+              ) : null}
+            </div>
+
+            {managementAction === "refund" ? (
+              <div className="appointment-invoice-management-panel">
+                <div className="appointment-invoice-management-heading">
+                  <div>
+                    <strong>Refund payment</strong>
+                    <span>A credit note will be created for every refund.</span>
+                  </div>
+                  <span className="status">Owner only</span>
+                </div>
+                <div className="refund-payment-list">
+                  {refundablePayments.map((payment) => (
+                    <div className="refund-payment-item" key={payment.id}>
+                      <div className="refund-payment-heading">
+                        <strong>{formatStatus(payment.method)} payment</strong>
+                        <strong>RM{payment.refundableAmount.toFixed(2)} available</strong>
+                      </div>
+                      <RefundPaymentForm
+                        invoiceId={invoice.id}
+                        invoiceNumber={formatInvoiceNumber(invoice.invoiceNumber)}
+                        onSuccess={handleManagementComplete}
+                        originalMethod={payment.method}
+                        paymentId={payment.id}
+                        refundableAmount={payment.refundableAmount}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {managementAction === "void" && invoice.canVoid ? (
+              <div className="appointment-invoice-management-panel is-danger">
+                <div className="appointment-invoice-management-heading">
+                  <div>
+                    <strong>Void invoice</strong>
+                    <span>Use this only to correct a wrongly recorded payment.</span>
+                  </div>
+                </div>
+                <VoidInvoiceForm
+                  invoiceId={invoice.id}
+                  invoiceNumber={formatInvoiceNumber(invoice.invoiceNumber)}
+                  onSuccess={handleManagementComplete}
+                />
+              </div>
+            ) : null}
+
+            {!invoice.canVoid && invoice.voidUnavailableReason ? (
+              <p className="appointment-invoice-void-note">{invoice.voidUnavailableReason}</p>
+            ) : null}
+          </div>
+        ) : null}
+
         <footer className="appointment-invoice-footer">
           {documentError ? <p className="appointment-invoice-document-error">{documentError}</p> : null}
           {documentMessage ? <p className="appointment-invoice-document-message">{documentMessage}</p> : null}
@@ -186,30 +259,23 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
           >
             {documentAction === "print" ? "Opening..." : "Print"}
           </button>
-          <button
+          <a
             className="secondary-link-button"
-            disabled={documentAction !== null}
-            onClick={downloadPdf}
-            type="button"
+            download
+            href={`/invoices/${invoice.id}/pdf`}
+            onClick={() => {
+              setDocumentError("");
+              setDocumentMessage("PDF download started.");
+            }}
           >
-            {documentAction === "download" ? "Downloading..." : "Download PDF"}
-          </button>
+            Download PDF
+          </a>
           <button className="button-link" onClick={onDone ?? onClose} type="button">Done</button>
         </footer>
       </section>
     </div>,
     document.body,
   );
-}
-
-function getPdfFileName(contentDisposition: string | null, invoiceNumber: string) {
-  const encodedMatch = contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i);
-  if (encodedMatch?.[1]) {
-    return decodeURIComponent(encodedMatch[1]);
-  }
-
-  const plainMatch = contentDisposition?.match(/filename="?([^";]+)"?/i);
-  return plainMatch?.[1] ?? `${formatInvoiceNumber(invoiceNumber)}.pdf`;
 }
 
 function formatStatus(status: string) {

@@ -3,7 +3,7 @@ import {
   addStaffTimeOffAction,
   deleteStaffTimeOffAction,
   saveStaffScheduleAction,
-} from "@/app/team/actions";
+} from "@/app/(business)/team/actions";
 
 const DAYS = [
   [0, "Sunday"],

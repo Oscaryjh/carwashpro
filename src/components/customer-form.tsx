@@ -14,6 +14,7 @@ type CustomerFormProps = {
   initialPhone?: string;
   initialVehiclePlate?: string;
   isSalonBusiness?: boolean;
+  returnPath?: "/crm";
   whatsappConversationId?: string;
 };
 
@@ -27,11 +28,13 @@ export function CustomerForm({
   initialPhone = "",
   initialVehiclePlate = "",
   isSalonBusiness = false,
+  returnPath,
   whatsappConversationId,
 }: CustomerFormProps) {
   return (
     <form action={action} className="form">
       {customer ? <input type="hidden" name="customerId" value={customer.id} /> : null}
+      {returnPath ? <input type="hidden" name="returnPath" value={returnPath} /> : null}
       {whatsappConversationId ? (
         <input
           type="hidden"
@@ -55,6 +58,15 @@ export function CustomerForm({
         <label>
           <span>Email optional</span>
           <input name="email" type="email" defaultValue={customer?.email ?? ""} />
+        </label>
+        <label>
+          <span>Date of birth optional</span>
+          <input
+            name="dateOfBirth"
+            type="date"
+            defaultValue={customer?.dateOfBirth?.toISOString().slice(0, 10) ?? ""}
+            max={new Date().toISOString().slice(0, 10)}
+          />
         </label>
       </div>
       <label>

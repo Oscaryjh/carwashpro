@@ -201,7 +201,6 @@ export function ProductSaleForm({
           <select name="method" onChange={(event) => setMethod(event.target.value)} value={method}>
             <option value="CASH">Cash</option>
             <option value="CARD">Card</option>
-            <option value="DUITNOW">DuitNow</option>
             <option value="EWALLET">E-wallet</option>
             <option value="BANK_TRANSFER">Bank transfer</option>
           </select>

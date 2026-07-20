@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { CashierSaleState } from "@/app/cashier/actions";
+import type { CashierSaleState } from "@/app/(business)/cashier/actions";
 import { CashierUnifiedSaleForm } from "@/components/cashier-unified-sale-form";
 import type { CashierCatalogResult } from "@/lib/cashier/catalog";
 import type { TaxDisplaySettings } from "@/lib/tax/calculator";

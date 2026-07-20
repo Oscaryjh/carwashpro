@@ -315,6 +315,8 @@ model Business {
   notificationQueues         NotificationQueue[]
   packages                   Package[]
   customerPackages           CustomerPackage[]
+  packageServiceBenefits     PackageServiceBenefit[]
+  customerPackageBalances    CustomerPackageServiceBalance[]
   vehicleSizeOverrides       BusinessVehicleSizeOverride[]
   branches                   Branch[]
   vehicleOwnershipHistories  VehicleOwnershipHistory[]
@@ -502,6 +504,7 @@ model Customer {
   name           String
   phone          String
   email          String?
+  dateOfBirth    DateTime? @map("date_of_birth") @db.Date
   notes          String?
   preferences    String?
   treatmentNotes String?  @map("treatment_notes")
@@ -629,11 +632,13 @@ model Service {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  business         Business                 @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch           Branch?                  @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  serviceCategory  ServiceCategory?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  business         Business                        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch           Branch?                         @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  serviceCategory  ServiceCategory?                @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   items            WorkOrderItem[]
   packages         Package[]
+  packageBenefits  PackageServiceBenefit[]
+  packageBalances  CustomerPackageServiceBalance[]
   appointments     Appointment[]
   staffAssignments ServiceStaffAssignment[]
   invoiceItems     InvoiceItem[]
@@ -798,11 +803,12 @@ model Package {
   createdAt           DateTime           @default(now()) @map("created_at")
   updatedAt           DateTime           @updatedAt @map("updated_at")
 
-  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  packageCategory  PackageCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  service          Service?          @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  business         Business                @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch           Branch?                 @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  packageCategory  PackageCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  service          Service?                @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   customerPackages CustomerPackage[]
+  serviceBenefits  PackageServiceBenefit[]
 
   @@unique([businessId, name])
   @@index([businessId])
@@ -830,6 +836,25 @@ model PackageCategory {
   @@map("package_categories")
 }
 
+model PackageServiceBenefit {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  packageId  String   @map("package_id") @db.Uuid
+  serviceId  String   @map("service_id") @db.Uuid
+  totalUses  Int      @map("total_uses")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  package  Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@unique([packageId, serviceId])
+  @@index([businessId])
+  @@index([serviceId])
+  @@map("package_service_benefits")
+}
+
 model CustomerPackage {
   id                  String                @id @default(uuid()) @db.Uuid
   businessId          String                @map("business_id") @db.Uuid
@@ -845,13 +870,14 @@ model CustomerPackage {
   createdAt           DateTime              @default(now()) @map("created_at")
   updatedAt           DateTime              @updatedAt @map("updated_at")
 
-  business     Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch       Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  package      Package       @relation(fields: [packageId], references: [id], onDelete: Restrict)
-  payments     Payment[]
-  invoice      Invoice?
-  invoiceItems InvoiceItem[]
+  business        Business                        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch          Branch?                         @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customer        Customer                        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  package         Package                         @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  payments        Payment[]
+  invoice         Invoice?
+  invoiceItems    InvoiceItem[]
+  serviceBalances CustomerPackageServiceBalance[]
 
   @@index([businessId])
   @@index([branchId])
@@ -859,6 +885,27 @@ model CustomerPackage {
   @@index([packageId])
   @@index([status])
   @@map("customer_packages")
+}
+
+model CustomerPackageServiceBalance {
+  id                String   @id @default(uuid()) @db.Uuid
+  businessId        String   @map("business_id") @db.Uuid
+  customerPackageId String   @map("customer_package_id") @db.Uuid
+  serviceId         String   @map("service_id") @db.Uuid
+  totalUses         Int      @map("total_uses")
+  remainingUses     Int      @map("remaining_uses")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  business        Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customerPackage CustomerPackage @relation(fields: [customerPackageId], references: [id], onDelete: Cascade)
+  service         Service         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  payments        Payment[]
+
+  @@unique([customerPackageId, serviceId])
+  @@index([businessId])
+  @@index([serviceId])
+  @@map("customer_package_service_balances")
 }
 
 model WorkOrder {
@@ -911,6 +958,8 @@ model Appointment {
   vehicleId       String?              @map("vehicle_id") @db.Uuid
   serviceId       String?              @map("service_id") @db.Uuid
   serviceIds      String[]             @default([]) @map("service_ids")
+  productIds      String[]             @default([]) @map("product_ids")
+  packageIds      String[]             @default([]) @map("package_ids")
   workOrderId     String?              @unique @map("work_order_id") @db.Uuid
   createdById     String?              @map("created_by_id") @db.Uuid
   assignedStaffId String?              @map("assigned_staff_id") @db.Uuid
@@ -1019,36 +1068,38 @@ model WorkOrderItem {
 }
 
 model Payment {
-  id                String              @id @default(uuid()) @db.Uuid
-  businessId        String              @map("business_id") @db.Uuid
-  branchId          String?             @map("branch_id") @db.Uuid
-  workOrderId       String?             @map("work_order_id") @db.Uuid
-  appointmentId     String?             @map("appointment_id") @db.Uuid
-  invoiceId         String?             @map("invoice_id") @db.Uuid
-  customerPackageId String?             @map("customer_package_id") @db.Uuid
-  cashierId         String?             @map("cashier_id") @db.Uuid
-  shiftId           String?             @map("shift_id") @db.Uuid
-  amount            Decimal             @db.Decimal(10, 2)
-  method            PaymentMethod
-  status            PaymentRecordStatus @default(ACTIVE)
-  packageUses       Int                 @default(0) @map("package_uses")
-  reference         String?
-  paidAt            DateTime            @default(now()) @map("paid_at")
-  voidedAt          DateTime?           @map("voided_at")
-  voidReason        String?             @map("void_reason")
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
+  id                              String              @id @default(uuid()) @db.Uuid
+  businessId                      String              @map("business_id") @db.Uuid
+  branchId                        String?             @map("branch_id") @db.Uuid
+  workOrderId                     String?             @map("work_order_id") @db.Uuid
+  appointmentId                   String?             @map("appointment_id") @db.Uuid
+  invoiceId                       String?             @map("invoice_id") @db.Uuid
+  customerPackageId               String?             @map("customer_package_id") @db.Uuid
+  customerPackageServiceBalanceId String?             @map("customer_package_service_balance_id") @db.Uuid
+  cashierId                       String?             @map("cashier_id") @db.Uuid
+  shiftId                         String?             @map("shift_id") @db.Uuid
+  amount                          Decimal             @db.Decimal(10, 2)
+  method                          PaymentMethod
+  status                          PaymentRecordStatus @default(ACTIVE)
+  packageUses                     Int                 @default(0) @map("package_uses")
+  reference                       String?
+  paidAt                          DateTime            @default(now()) @map("paid_at")
+  voidedAt                        DateTime?           @map("voided_at")
+  voidReason                      String?             @map("void_reason")
+  createdAt                       DateTime            @default(now()) @map("created_at")
+  updatedAt                       DateTime            @updatedAt @map("updated_at")
 
-  business            Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch              Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  workOrder           WorkOrder?           @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
-  appointment         Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
-  invoice             Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  customerPackage     CustomerPackage?     @relation(fields: [customerPackageId], references: [id], onDelete: SetNull)
-  cashier             User?                @relation("PaymentCashier", fields: [cashierId], references: [id], onDelete: SetNull)
-  shift               CashierShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
-  refunds             PaymentRefund[]
-  loyaltyTransactions LoyaltyTransaction[]
+  business                      Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch                        Branch?                        @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  workOrder                     WorkOrder?                     @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  appointment                   Appointment?                   @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  invoice                       Invoice?                       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  customerPackage               CustomerPackage?               @relation(fields: [customerPackageId], references: [id], onDelete: SetNull)
+  customerPackageServiceBalance CustomerPackageServiceBalance? @relation(fields: [customerPackageServiceBalanceId], references: [id], onDelete: SetNull)
+  cashier                       User?                          @relation("PaymentCashier", fields: [cashierId], references: [id], onDelete: SetNull)
+  shift                         CashierShift?                  @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  refunds                       PaymentRefund[]
+  loyaltyTransactions           LoyaltyTransaction[]
 
   @@index([businessId])
   @@index([branchId])
@@ -1056,6 +1107,7 @@ model Payment {
   @@index([appointmentId])
   @@index([invoiceId])
   @@index([customerPackageId])
+  @@index([customerPackageServiceBalanceId])
   @@index([cashierId])
   @@index([shiftId])
   @@index([status])

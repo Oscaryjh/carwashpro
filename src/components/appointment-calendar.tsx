@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CSSProperties, PointerEvent } from "react";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { flushSync } from "react-dom";
 import { formatAppointmentStatus } from "@/lib/validation/appointments";
 import {
   calculateAppointmentDurationMinutes,
@@ -17,6 +18,7 @@ import { calculateTax } from "@/lib/tax/calculator";
 
 export type AppointmentCalendarItem = {
   id: string;
+  customerId: string;
   contactName: string | null;
   contactPhone: string | null;
   contactType: string;
@@ -35,6 +37,27 @@ export type AppointmentCalendarItem = {
     taxRate: number | null;
   }[];
   serviceIds: string[];
+  productIds: string[];
+  productDetails: {
+    id: string;
+    name: string;
+    price: string;
+    category: string;
+    quantity: number;
+    taxable: boolean;
+    taxRate: number | null;
+  }[];
+  packageIds: string[];
+  packageDetails: {
+    id: string;
+    name: string;
+    price: string;
+    category: string;
+    quantity: number;
+    totalUses: number;
+    taxable: boolean;
+    taxRate: number | null;
+  }[];
   staffId: string | null;
   staffName: string | null;
   status: string;
@@ -49,6 +72,14 @@ export type AppointmentCalendarItem = {
   workOrderPaymentStatus: string | null;
   workOrderStatus: string | null;
   workOrderId: string | null;
+  availablePackages: {
+    id: string;
+    name: string;
+    remainingUses: number;
+    totalUses: number;
+    serviceId: string;
+    serviceName: string;
+  }[];
 };
 
 type AppointmentCalendarProps = {
@@ -92,6 +123,23 @@ type AppointmentCalendarProps = {
     taxable: boolean;
     taxRate: number | null;
   }[];
+  products: {
+    category: string;
+    id: string;
+    name: string;
+    price: string;
+    taxable: boolean;
+    taxRate: number | null;
+  }[];
+  packages: {
+    category: string;
+    id: string;
+    name: string;
+    price: string;
+    totalUses: number;
+    taxable: boolean;
+    taxRate: number | null;
+  }[];
   staffMembers: {
     id: string;
     name: string;
@@ -115,6 +163,37 @@ const RECENT_SERVICES_CATEGORY = "Recently";
 
 const BUSINESS_HOUR_STORAGE_KEY = "washflow:appointment-business-hours";
 
+function countOccurrences(ids: string[], id: string) {
+  return ids.filter((value) => value === id).length;
+}
+
+function countSelectedItems<T extends { id: string }>(ids: string[], items: T[]) {
+  const quantities = new Map<string, number>();
+  ids.forEach((id) => quantities.set(id, (quantities.get(id) ?? 0) + 1));
+
+  return [...quantities].flatMap(([id, quantity]) => {
+    const item = items.find((candidate) => candidate.id === id);
+    return item ? [{ ...item, quantity }] : [];
+  });
+}
+
+function getItemCategories(items: Array<{ category: string }>) {
+  return [...new Set(items.map((item) => item.category).filter(Boolean))];
+}
+
+function getAppointmentDisplayItems(appointment: AppointmentCalendarItem) {
+  return [
+    ...appointment.serviceDetails.map((item) => ({
+      ...item,
+      category: "Services",
+      quantity: 1,
+      type: "service" as const,
+    })),
+    ...appointment.productDetails.map((item) => ({ ...item, type: "product" as const })),
+    ...appointment.packageDetails.map((item) => ({ ...item, type: "package" as const })),
+  ];
+}
+
 export function AppointmentCalendar({
   appointments,
   branches,
@@ -134,6 +213,8 @@ export function AppointmentCalendar({
   selectedDateLabel,
   selectedDateValue,
   services,
+  products,
+  packages,
   staffMembers,
   sstEnabled,
   sstLabel,
@@ -176,6 +257,8 @@ export function AppointmentCalendar({
   const [newAppointmentError, setNewAppointmentError] = useState("");
   const [selectedAppointment, setSelectedAppointment] =
     useState<AppointmentCalendarItem | null>(null);
+  const [autoCheckoutAppointmentId, setAutoCheckoutAppointmentId] =
+    useState<string | null>(null);
   const [isAppointmentMenuOpen, setIsAppointmentMenuOpen] = useState(false);
   const [appointmentEditor, setAppointmentEditor] = useState<
     "time" | "service" | "staff" | "notes" | null
@@ -186,11 +269,17 @@ export function AppointmentCalendar({
   const [editAppointmentStaffId, setEditAppointmentStaffId] = useState("");
   const [editAppointmentTime, setEditAppointmentTime] = useState("10:00");
   const [editAppointmentServiceIds, setEditAppointmentServiceIds] = useState<string[]>([]);
+  const [editAppointmentProductIds, setEditAppointmentProductIds] = useState<string[]>([]);
+  const [editAppointmentPackageIds, setEditAppointmentPackageIds] = useState<string[]>([]);
   const [editAppointmentNotes, setEditAppointmentNotes] = useState("");
   const [appointmentUpdateError, setAppointmentUpdateError] = useState<string | null>(null);
   const [isServicePickerOpen, setIsServicePickerOpen] = useState(false);
   const [activeServiceCategory, setActiveServiceCategory] = useState("");
+  const [activeItemType, setActiveItemType] = useState<"service" | "product" | "package">("service");
+  const [activeItemCategory, setActiveItemCategory] = useState("");
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [selectedPackageIds, setSelectedPackageIds] = useState<string[]>([]);
   const [showEarlierSlots, setShowEarlierSlots] = useState(false);
   const [isPending, startTransition] = useTransition();
   const pendingCreateScrollRef = useRef<{
@@ -203,6 +292,8 @@ export function AppointmentCalendar({
   const selectedServices = selectedServiceIds
     .map((serviceId) => services.find((service) => service.id === serviceId))
     .filter((service): service is (typeof services)[number] => Boolean(service));
+  const selectedProducts = countSelectedItems(selectedProductIds, products);
+  const selectedPackages = countSelectedItems(selectedPackageIds, packages);
   const newAppointmentStaffMembers = filterStaffForServices(
     staffMembers,
     selectedServiceIds,
@@ -222,6 +313,20 @@ export function AppointmentCalendar({
       : visibleServiceCategory
         ? services.filter((service) => service.category === visibleServiceCategory)
         : services;
+  const itemCategories = activeItemType === "product"
+    ? getItemCategories(products)
+    : activeItemType === "package"
+      ? getItemCategories(packages)
+      : serviceCategories;
+  const visibleItemCategory = activeItemType === "service"
+    ? visibleServiceCategory
+    : activeItemCategory || itemCategories[0] || "";
+  const visibleProducts = visibleItemCategory
+    ? products.filter((product) => product.category === visibleItemCategory)
+    : products;
+  const visiblePackages = visibleItemCategory
+    ? packages.filter((item) => item.category === visibleItemCategory)
+    : packages;
   const dateCountByDay = new Map(datePickerCounts.map((day) => [day.date, day.count]));
   const newAppointmentDays = buildAppointmentWeekDays(newAppointmentDate, dateCountByDay);
   const visibleMonthDate = monthValueToDate(visibleMonth);
@@ -344,6 +449,8 @@ export function AppointmentCalendar({
     setNewAppointmentContactType("REGISTERED_OWNER");
     setNewAppointmentStaffId(staffId);
     setSelectedServiceIds([]);
+    setSelectedProductIds([]);
+    setSelectedPackageIds([]);
     setIsNewAppointmentOpen(true);
   }
 
@@ -369,6 +476,8 @@ export function AppointmentCalendar({
     setEditAppointmentTime(toTimeValue(scheduledAt));
     setEditAppointmentStaffId(appointment.staffId ?? "");
     setEditAppointmentServiceIds(appointment.serviceIds);
+    setEditAppointmentProductIds(appointment.productIds);
+    setEditAppointmentPackageIds(appointment.packageIds);
     setEditAppointmentNotes(appointment.notes ?? "");
     setAppointmentUpdateError(null);
     setIsAppointmentMenuOpen(false);
@@ -379,6 +488,8 @@ export function AppointmentCalendar({
     formData: FormData,
     serviceIds = editAppointmentServiceIds,
     reopenEditorOnFailure: "service" | null = null,
+    productIds = editAppointmentProductIds,
+    packageIds = editAppointmentPackageIds,
   ) {
     if (!selectedAppointment) {
       return;
@@ -397,6 +508,10 @@ export function AppointmentCalendar({
     normalizedServiceIds.forEach((serviceId) =>
       formData.append("serviceIds", serviceId),
     );
+    formData.delete("productIds");
+    productIds.forEach((productId) => formData.append("productIds", productId));
+    formData.delete("packageIds");
+    packageIds.forEach((packageId) => formData.append("packageIds", packageId));
 
     if (reopenEditorOnFailure) {
       setAppointmentUpdateError(null);
@@ -457,6 +572,10 @@ export function AppointmentCalendar({
                   taxRate: service.taxRate,
                 })),
                 serviceIds: normalizedServiceIds,
+                productIds,
+                productDetails: countSelectedItems(productIds, products),
+                packageIds,
+                packageDetails: countSelectedItems(packageIds, packages),
                 serviceName: updatedServices[0]?.name ?? null,
                 serviceNames: updatedServices.map((service) => service.name),
                 staffId: editAppointmentStaffId || null,
@@ -477,15 +596,27 @@ export function AppointmentCalendar({
     });
   }
 
-  function removeAppointmentService(serviceId: string) {
-    if (!selectedAppointment || isLockedAppointment(selectedAppointment)) {
+  function removeAppointmentItem(type: "service" | "product" | "package", itemId: string) {
+    if (
+      !selectedAppointment ||
+      !canEditAppointmentItem(selectedAppointment, type)
+    ) {
       return;
     }
 
     const appointment = selectedAppointment;
     const scheduledAt = new Date(appointment.scheduledAt);
+    const remainingServiceIds = type === "service"
+      ? appointment.serviceIds.filter((id) => id !== itemId)
+      : appointment.serviceIds;
+    const remainingProductIds = type === "product"
+      ? appointment.productIds.filter((id) => id !== itemId)
+      : appointment.productIds;
+    const remainingPackageIds = type === "package"
+      ? appointment.packageIds.filter((id) => id !== itemId)
+      : appointment.packageIds;
     const remainingServices = appointment.serviceDetails.filter(
-      (service) => service.id !== serviceId,
+      (service) => remainingServiceIds.includes(service.id),
     );
     const formData = new FormData();
     formData.set("appointmentId", appointment.id);
@@ -493,7 +624,9 @@ export function AppointmentCalendar({
     formData.set("scheduledTime", toTimeValue(scheduledAt));
     formData.set("assignedStaffId", appointment.staffId ?? "");
     formData.set("notes", appointment.notes ?? "");
-    remainingServices.forEach((service) => formData.append("serviceIds", service.id));
+    remainingServiceIds.forEach((id) => formData.append("serviceIds", id));
+    remainingProductIds.forEach((id) => formData.append("productIds", id));
+    remainingPackageIds.forEach((id) => formData.append("packageIds", id));
 
     startTransition(async () => {
       await updateAppointmentAction(formData);
@@ -503,6 +636,10 @@ export function AppointmentCalendar({
               ...current,
               serviceDetails: remainingServices,
               serviceIds: remainingServices.map((service) => service.id),
+              productIds: remainingProductIds,
+              productDetails: countSelectedItems(remainingProductIds, products),
+              packageIds: remainingPackageIds,
+              packageDetails: countSelectedItems(remainingPackageIds, packages),
               serviceName: remainingServices[0]?.name ?? null,
               serviceNames: remainingServices.map((service) => service.name),
             }
@@ -526,6 +663,8 @@ export function AppointmentCalendar({
     formData.set("assignedStaffId", selectedAppointment.staffId ?? "");
     formData.set("notes", selectedAppointment.notes ?? "");
     selectedAppointment.serviceIds.forEach((serviceId) => formData.append("serviceIds", serviceId));
+    selectedAppointment.productIds.forEach((productId) => formData.append("productIds", productId));
+    selectedAppointment.packageIds.forEach((packageId) => formData.append("packageIds", packageId));
 
     startTransition(async () => {
       await updateAppointmentAction(formData);
@@ -554,15 +693,50 @@ export function AppointmentCalendar({
     formData.set("appointmentId", selectedAppointment.id);
     formData.set("status", status);
     const appointmentDate = toDateValue(new Date(selectedAppointment.scheduledAt));
+
+    if (status === "COMPLETED") {
+      formData.set("returnToClient", "1");
+    }
+
     formData.set(
       "redirectTo",
       status === "COMPLETED"
         ? `/appointments?status=active&page=1&date=${appointmentDate}&appointment=${selectedAppointment.id}&checkout=1`
-        : `/appointments?status=active&page=1&date=${appointmentDate}`,
+          : `/appointments?status=active&page=1&date=${appointmentDate}`,
     );
 
+    const appointmentBeforeCompletion = selectedAppointment;
+
+    if (status === "COMPLETED") {
+      flushSync(() => {
+        setAppointmentEditor(null);
+        setIsAppointmentMenuOpen(false);
+        setAppointmentUpdateError(null);
+        setSelectedAppointment({ ...selectedAppointment, status: "COMPLETED" });
+        setAutoCheckoutAppointmentId(selectedAppointment.id);
+      });
+    }
+
     startTransition(async () => {
-      await updateAppointmentStatusAction(formData);
+      try {
+        await updateAppointmentStatusAction(formData);
+      } catch {
+        if (status === "COMPLETED") {
+          setSelectedAppointment(appointmentBeforeCompletion);
+          setAutoCheckoutAppointmentId(null);
+          setAppointmentUpdateError(
+            "Unable to complete this service. Please try again.",
+          );
+          return;
+        }
+
+        throw new Error("Unable to update this appointment. Please try again.");
+      }
+
+      if (status === "COMPLETED") {
+        return;
+      }
+
       setAppointmentEditor(null);
       setIsAppointmentMenuOpen(false);
       setSelectedAppointment(null);
@@ -1113,6 +1287,12 @@ export function AppointmentCalendar({
                   {selectedServiceIds.map((serviceId) => (
                     <input key={serviceId} name="serviceIds" type="hidden" value={serviceId} />
                   ))}
+                  {selectedProductIds.map((productId, index) => (
+                    <input key={`${productId}-${index}`} name="productIds" type="hidden" value={productId} />
+                  ))}
+                  {selectedPackageIds.map((packageId, index) => (
+                    <input key={`${packageId}-${index}`} name="packageIds" type="hidden" value={packageId} />
+                  ))}
                   <div className="appointment-service-summary">
                     {selectedServices.map((service) => (
                       <div className="appointment-service-summary-item" key={service.id}>
@@ -1125,19 +1305,37 @@ export function AppointmentCalendar({
                         </div>
                       </div>
                     ))}
+                    {selectedProducts.map((product) => (
+                      <div className="appointment-service-summary-item" key={`product-${product.id}`}>
+                        <span aria-hidden="true" className="appointment-service-glyph">P</span>
+                        <div>
+                          <strong>{product.name}</strong>
+                          <small>{product.quantity} × RM{product.price}</small>
+                        </div>
+                      </div>
+                    ))}
+                    {selectedPackages.map((item) => (
+                      <div className="appointment-service-summary-item" key={`package-${item.id}`}>
+                        <span aria-hidden="true" className="appointment-service-glyph">PK</span>
+                        <div>
+                          <strong>{item.name}</strong>
+                          <small>{item.quantity} × RM{item.price}</small>
+                        </div>
+                      </div>
+                    ))}
                     <button
                       className="appointment-service-trigger"
                       onClick={() => {
                         setActiveServiceCategory(
-                          selectedServices[0]?.category ??
-                            RECENT_SERVICES_CATEGORY,
+                          selectedServices[0]?.category ?? RECENT_SERVICES_CATEGORY,
                         );
+                        setActiveItemType("service");
                         setIsServicePickerOpen(true);
                       }}
                       type="button"
                     >
                       <span aria-hidden="true" className="appointment-service-icon">+</span>
-                      <strong>Select Service</strong>
+                      <strong>Add service, product or package</strong>
                     </button>
                   </div>
                   <label>
@@ -1245,7 +1443,7 @@ export function AppointmentCalendar({
                   >
                     {"\u00d7"}
                   </button>
-                  <h2 id="appointment-edit-service-title">Select Service</h2>
+                  <h2 id="appointment-edit-service-title">Add service, product or package</h2>
                   <span />
                 </div>
                 {appointmentUpdateError ? (
@@ -1255,12 +1453,29 @@ export function AppointmentCalendar({
                   </div>
                 ) : null}
                 <form action={handleAppointmentUpdate}>
-                  <div className="service-select-tabs compact" aria-label="Service categories">
-                    {serviceCategories.map((category) => (
+                  <div className="appointment-item-type-tabs" aria-label="Item type">
+                    {(["service", "product", "package"] as const).map((type) => (
                       <button
-                        className={category === visibleServiceCategory ? "selected" : ""}
+                        className={activeItemType === type ? "selected" : ""}
+                        key={type}
+                        onClick={() => {
+                          setActiveItemType(type);
+                          setActiveItemCategory("");
+                        }}
+                        type="button"
+                      >
+                        {type === "service" ? "Services" : type === "product" ? "Products" : "Packages"}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="service-select-tabs compact" aria-label="Service categories">
+                    {itemCategories.map((category) => (
+                      <button
+                        className={category === visibleItemCategory ? "selected" : ""}
                         key={category}
-                        onClick={() => setActiveServiceCategory(category)}
+                        onClick={() => activeItemType === "service"
+                          ? setActiveServiceCategory(category)
+                          : setActiveItemCategory(category)}
                         type="button"
                       >
                         <span>{getCategoryInitial(category)}</span>
@@ -1269,7 +1484,7 @@ export function AppointmentCalendar({
                     ))}
                   </div>
                   <div className="service-select-list compact">
-                    {visibleServices.map((service) => (
+                    {activeItemType === "service" ? visibleServices.map((service) => (
                       <button
                         className={editAppointmentServiceIds.includes(service.id) ? "selected" : ""}
                         disabled={isPending}
@@ -1295,6 +1510,52 @@ export function AppointmentCalendar({
                         <strong>{service.name}</strong>
                         <small>{service.price}</small>
                         <em>{formatServiceDuration(service.durationMinutes)}</em>
+                      </button>
+                    )) : activeItemType === "product" ? visibleProducts.map((product) => (
+                      <button
+                        className={editAppointmentProductIds.includes(product.id) ? "selected" : ""}
+                        disabled={isPending}
+                        key={product.id}
+                        onClick={() => {
+                          const nextIds = [...editAppointmentProductIds, product.id];
+                          setEditAppointmentProductIds(nextIds);
+                          handleAppointmentUpdate(
+                            new FormData(),
+                            editAppointmentServiceIds,
+                            "service",
+                            nextIds,
+                            editAppointmentPackageIds,
+                          );
+                        }}
+                        type="button"
+                      >
+                        <span aria-hidden="true" className="appointment-service-glyph">P</span>
+                        <strong>{product.name}</strong>
+                        <small>RM{product.price}</small>
+                        <em>{countOccurrences(editAppointmentProductIds, product.id) || ""}</em>
+                      </button>
+                    )) : visiblePackages.map((item) => (
+                      <button
+                        className={editAppointmentPackageIds.includes(item.id) ? "selected" : ""}
+                        disabled={isPending}
+                        key={item.id}
+                        onClick={() => {
+                          const nextIds = [...editAppointmentPackageIds, item.id];
+                          setEditAppointmentPackageIds(nextIds);
+                          handleAppointmentUpdate(
+                            new FormData(),
+                            editAppointmentServiceIds,
+                            "service",
+                            editAppointmentProductIds,
+                            nextIds,
+                          );
+                        }}
+                        type="button"
+                      >
+                        <span aria-hidden="true" className="appointment-service-glyph">PK</span>
+                        <strong>{item.name}</strong>
+                        <small>RM{item.price}</small>
+                        <em>{item.totalUses} uses</em>
                       </button>
                     ))}
                   </div>
@@ -1396,12 +1657,17 @@ export function AppointmentCalendar({
               <div className="appointment-detail-modal-header">
                 <button
                   aria-label="Close appointment details"
-                  className="appointment-detail-close"
-                  onClick={() => {
-                    setAppointmentEditor(null);
-                    setSelectedAppointment(null);
-                    clearAppointmentQueryFromAddress();
-                  }}
+                    className="appointment-detail-close"
+                    onClick={() => {
+                      const shouldRefresh = autoCheckoutAppointmentId !== null;
+                      setAppointmentEditor(null);
+                      setAutoCheckoutAppointmentId(null);
+                      setSelectedAppointment(null);
+                      clearAppointmentQueryFromAddress();
+                      if (shouldRefresh) {
+                        router.refresh();
+                      }
+                    }}
                   type="button"
                 >
                   {"\u00d7"}
@@ -1497,31 +1763,39 @@ export function AppointmentCalendar({
                 </div> : null}
 
                 <div className="appointment-detail-service-card">
-                  {selectedAppointment.serviceDetails.map((service) => (
+                  {getAppointmentDisplayItems(selectedAppointment).map((item) => (
                     <div
                       className="appointment-detail-service-row"
-                      key={service.id}
+                      key={`${item.type}-${item.id}`}
                     >
                       <button
                         className="appointment-detail-service-main"
-                        disabled={isLockedAppointment(selectedAppointment)}
-                        onClick={() => openAppointmentEditor(selectedAppointment, "service")}
+                        disabled={!canEditAppointmentItem(selectedAppointment, item.type)}
+                        onClick={() => {
+                          setActiveItemType(item.type);
+                          setActiveItemCategory(item.category);
+                          openAppointmentEditor(selectedAppointment, "service");
+                        }}
                         type="button"
                       >
                         <span aria-hidden="true" className="appointment-service-glyph">
-                          {"\u2726"}
+                          {item.type === "service" ? "\u2726" : item.type === "product" ? "P" : "PK"}
                         </span>
                         <span className="appointment-detail-service-copy">
-                          <strong>{service.name}</strong>
-                          <small>{service.price}</small>
+                          <strong>{item.name}</strong>
+                          <small>
+                            {item.quantity > 1 ? `${item.quantity} × ` : ""}RM{item.price}
+                          </small>
                         </span>
                       </button>
                       <button
-                        aria-label={`Remove ${service.name}`}
+                        aria-label={`Remove ${item.name}`}
                         className="appointment-detail-service-remove"
-                        disabled={isLockedAppointment(selectedAppointment) || isPending}
-                        onClick={() => removeAppointmentService(service.id)}
-                        title={`Remove ${service.name}`}
+                        disabled={
+                          !canEditAppointmentItem(selectedAppointment, item.type) || isPending
+                        }
+                        onClick={() => removeAppointmentItem(item.type, item.id)}
+                        title={`Remove ${item.name}`}
                         type="button"
                       >
                         {"\u00d7"}
@@ -1530,12 +1804,17 @@ export function AppointmentCalendar({
                   ))}
                   <button
                     className="appointment-detail-service-add"
-                    disabled={isLockedAppointment(selectedAppointment)}
-                    onClick={() => openAppointmentEditor(selectedAppointment, "service")}
+                    disabled={!canAddAppointmentItems(selectedAppointment)}
+                    onClick={() => {
+                      setActiveItemType("service");
+                      openAppointmentEditor(selectedAppointment, "service");
+                    }}
                     type="button"
                   >
                     <span aria-hidden="true">{"\u2295"}</span>
-                    <strong>Select Service</strong>
+                    <strong>
+                      Add service, product or package
+                    </strong>
                   </button>
                 </div>
 
@@ -1580,11 +1859,16 @@ export function AppointmentCalendar({
                 {isSalonBusiness ? (
                   <SalonAppointmentAction
                     appointment={selectedAppointment}
+                    checkoutReady={!isPending}
                     hasOpenShift={hasOpenShift}
-                    initialCheckout={initialCheckoutAppointmentId === selectedAppointment.id}
+                    initialCheckout={
+                      initialCheckoutAppointmentId === selectedAppointment.id ||
+                      autoCheckoutAppointmentId === selectedAppointment.id
+                    }
                     onInvoiceDone={() => {
                       setAppointmentEditor(null);
                       setIsAppointmentMenuOpen(false);
+                      setAutoCheckoutAppointmentId(null);
                       setSelectedAppointment(null);
                       clearAppointmentQueryFromAddress();
                     }}
@@ -1617,16 +1901,34 @@ export function AppointmentCalendar({
               >
                 {"\u00d7"}
               </button>
-              <h2 id="service-select-title">Select Service</h2>
+              <h2 id="service-select-title">Add service, product or package</h2>
               <span aria-hidden="true">{"\u2315"}</span>
             </div>
 
-            <div className="service-select-tabs" aria-label="Service categories">
-              {serviceCategories.map((category) => (
+            <div className="appointment-item-type-tabs" aria-label="Item type">
+              {(["service", "product", "package"] as const).map((type) => (
                 <button
-                  className={category === visibleServiceCategory ? "selected" : ""}
+                  className={activeItemType === type ? "selected" : ""}
+                  key={type}
+                  onClick={() => {
+                    setActiveItemType(type);
+                    setActiveItemCategory("");
+                  }}
+                  type="button"
+                >
+                  {type === "service" ? "Services" : type === "product" ? "Products" : "Packages"}
+                </button>
+              ))}
+            </div>
+
+            <div className="service-select-tabs" aria-label="Item categories">
+              {itemCategories.map((category) => (
+                <button
+                  className={category === visibleItemCategory ? "selected" : ""}
                   key={category}
-                  onClick={() => setActiveServiceCategory(category)}
+                  onClick={() => activeItemType === "service"
+                    ? setActiveServiceCategory(category)
+                    : setActiveItemCategory(category)}
                   type="button"
                 >
                   <span>{getCategoryInitial(category)}</span>
@@ -1636,7 +1938,7 @@ export function AppointmentCalendar({
             </div>
 
             <div className="service-select-list">
-              {visibleServices.length ? (
+              {activeItemType === "service" && visibleServices.length ? (
                 visibleServices.map((service) => (
                   <button
                     className={selectedServiceIds.includes(service.id) ? "selected" : ""}
@@ -1661,9 +1963,41 @@ export function AppointmentCalendar({
                     <em>{formatServiceDuration(service.durationMinutes)}</em>
                   </button>
                 ))
-              ) : (
-                <p>No services in this category.</p>
-              )}
+              ) : activeItemType === "product" && visibleProducts.length ? (
+                visibleProducts.map((product) => (
+                  <button
+                    className={selectedProductIds.includes(product.id) ? "selected" : ""}
+                    key={product.id}
+                    onClick={() => {
+                      setSelectedProductIds((current) => [...current, product.id]);
+                      setIsServicePickerOpen(false);
+                    }}
+                    type="button"
+                  >
+                    <span aria-hidden="true" className="appointment-service-glyph">P</span>
+                    <strong>{product.name}</strong>
+                    <small>RM{product.price}</small>
+                    <em>{countOccurrences(selectedProductIds, product.id) || ""}</em>
+                  </button>
+                ))
+              ) : activeItemType === "package" && visiblePackages.length ? (
+                visiblePackages.map((item) => (
+                  <button
+                    className={selectedPackageIds.includes(item.id) ? "selected" : ""}
+                    key={item.id}
+                    onClick={() => {
+                      setSelectedPackageIds((current) => [...current, item.id]);
+                      setIsServicePickerOpen(false);
+                    }}
+                    type="button"
+                  >
+                    <span aria-hidden="true" className="appointment-service-glyph">PK</span>
+                    <strong>{item.name}</strong>
+                    <small>RM{item.price}</small>
+                    <em>{item.totalUses} uses</em>
+                  </button>
+                ))
+              ) : <p>No items in this category.</p>}
             </div>
 
           </section>
@@ -1877,6 +2211,8 @@ function CalendarRow({
                 } ${
                   isPaidAppointment(appointment) ? "is-paid" : ""
                 } ${
+                  isRefundedAppointment(appointment) ? "is-refunded" : ""
+                } ${
                   draggingId === appointment.id ? "is-dragging" : ""
                 }`}
                 draggable={!isLockedAppointment(appointment)}
@@ -1923,6 +2259,26 @@ function isLockedAppointment(appointment: AppointmentCalendarItem) {
   return ["IN_SERVICE", "COMPLETED", "CONVERTED_TO_JOB"].includes(appointment.status);
 }
 
+function canAppendCompletedItems(appointment: AppointmentCalendarItem) {
+  return (
+    appointment.status === "COMPLETED" &&
+    !appointment.invoiceId &&
+    !isPaidAppointment(appointment)
+  );
+}
+
+function canAddAppointmentItems(appointment: AppointmentCalendarItem) {
+  return !isLockedAppointment(appointment) || canAppendCompletedItems(appointment);
+}
+
+function canEditAppointmentItem(
+  appointment: AppointmentCalendarItem,
+  type: "service" | "product" | "package",
+) {
+  void type;
+  return !isLockedAppointment(appointment) || canAppendCompletedItems(appointment);
+}
+
 function isCompletedPaidAppointment(appointment: AppointmentCalendarItem) {
   return appointment.workOrderStatus === "COMPLETED" && appointment.workOrderPaymentStatus === "PAID";
 }
@@ -1935,7 +2291,15 @@ function isPaidAppointment(appointment: AppointmentCalendarItem) {
   return appointment.invoiceStatus === "PAID" || appointment.workOrderPaymentStatus === "PAID";
 }
 
+function isRefundedAppointment(appointment: AppointmentCalendarItem) {
+  return appointment.invoiceStatus === "REFUNDED" || appointment.workOrderPaymentStatus === "REFUNDED";
+}
+
 function getAppointmentCardStatusLabel(appointment: AppointmentCalendarItem) {
+  if (isRefundedAppointment(appointment)) {
+    return "Refunded";
+  }
+
   if (isPaidAppointment(appointment)) {
     return "Paid";
   }
@@ -1946,6 +2310,7 @@ function getAppointmentCardStatusLabel(appointment: AppointmentCalendarItem) {
 
 function SalonAppointmentAction({
   appointment,
+  checkoutReady,
   hasOpenShift,
   initialCheckout,
   onInvoiceDone,
@@ -1955,6 +2320,7 @@ function SalonAppointmentAction({
   sstRate,
 }: {
   appointment: AppointmentCalendarItem;
+  checkoutReady: boolean;
   hasOpenShift: boolean;
   initialCheckout: boolean;
   onInvoiceDone: () => void;
@@ -1966,14 +2332,15 @@ function SalonAppointmentAction({
   sstRate: number;
 }) {
   const action = getSalonAppointmentAction(appointment);
-  const subtotal = appointment.serviceDetails.reduce(
-    (sum, service) => sum + Number(service.price || 0),
+  const checkoutItems = getAppointmentDisplayItems(appointment);
+  const subtotal = checkoutItems.reduce(
+    (sum, item) => sum + Number(item.price || 0) * item.quantity,
     0,
   );
-  const taxLines = appointment.serviceDetails.map((service) => ({
-    lineTotal: Number(service.price || 0),
-    taxable: service.taxable,
-    taxRate: service.taxRate,
+  const taxLines = checkoutItems.map((item) => ({
+    lineTotal: Number(item.price || 0) * item.quantity,
+    taxable: item.taxable,
+    taxRate: item.taxRate,
   }));
   const projectedTax = calculateTax({
     lines: taxLines,
@@ -1982,13 +2349,15 @@ function SalonAppointmentAction({
     sstRate,
   });
   const balance = appointment.invoiceBalance ?? projectedTax.total;
-  const canTakePayment = appointment.status === "COMPLETED" && balance > 0;
+  const isRefunded = isRefundedAppointment(appointment);
+  const canTakePayment = appointment.status === "COMPLETED" && balance > 0 && !isRefunded;
   const checkout = canOpenSalonCheckout(appointment) ? (
     <SalonAppointmentCheckoutModal
       key={appointment.id}
       appointmentId={appointment.id}
       balance={balance}
       canTakePayment={canTakePayment}
+      checkoutReady={checkoutReady}
       customerName={appointment.customerName}
       customerPhone={appointment.customerPhone}
       hasInvoice={Boolean(appointment.invoiceId)}
@@ -1996,10 +2365,14 @@ function SalonAppointmentAction({
       initialOpen={initialCheckout}
       invoice={appointment.invoiceSummary}
       onDone={onInvoiceDone}
-      services={appointment.serviceDetails.map((service) => ({
-        name: service.name,
-        price: Number(service.price || 0),
+      items={checkoutItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        price: Number(item.price || 0),
+        quantity: item.quantity,
+        type: item.type,
       }))}
+      availablePackages={appointment.availablePackages}
       subtotal={appointment.invoiceSubtotal ?? subtotal}
       totalAmount={appointment.invoiceTotal ?? projectedTax.total}
       taxLines={taxLines}
@@ -2016,14 +2389,16 @@ function SalonAppointmentAction({
 
     return (
       <div className="appointment-detail-actions">
-        <span className="appointment-detail-complete">Service completed</span>
+        <span className={`appointment-detail-complete ${isRefunded ? "is-refunded" : ""}`}>
+          {isRefunded ? "Refunded" : "Service completed"}
+        </span>
         {appointment.invoiceId ? (
-          <div className="appointment-detail-payment-summary">
+          <div className={`appointment-detail-payment-summary ${isRefunded ? "is-refunded" : ""}`}>
             <span>
               {appointment.invoiceStatus ?? "Unpaid"} · Paid RM
               {(appointment.invoicePaidAmount ?? 0).toFixed(2)}
             </span>
-            <strong>Balance RM{balance.toFixed(2)}</strong>
+            {isRefunded ? <strong>Invoice closed</strong> : <strong>Balance RM{balance.toFixed(2)}</strong>}
           </div>
         ) : null}
         {checkout}
@@ -2063,7 +2438,9 @@ function clearAppointmentQueryFromAddress() {
 function canOpenSalonCheckout(appointment: AppointmentCalendarItem) {
   return (
     appointment.status === "COMPLETED" &&
-    appointment.serviceDetails.length > 0
+    appointment.serviceDetails.length > 0 &&
+    !isRefundedAppointment(appointment) &&
+    appointment.invoiceStatus !== "VOID"
   );
 }
 

@@ -25,7 +25,6 @@ type AppointmentPackagePurchaseFormProps = {
 const paymentMethods = [
   { label: "Cash", value: "CASH" },
   { label: "Card", value: "CARD" },
-  { label: "DuitNow", value: "DUITNOW" },
   { label: "E-wallet", value: "EWALLET" },
   { label: "Transfer", value: "BANK_TRANSFER" },
 ] as const;

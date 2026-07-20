@@ -56,17 +56,23 @@ export function StaffForm({ action, branches, staff, assignedBranchIds = [], sub
           <div className={`staff-branch-picker${branches.length === 1 ? " staff-branch-picker-single" : ""}`}>
             <div className="staff-branch-heading">
               <span>Work branches</span>
-              <span className="staff-branch-required">Required</span>
             </div>
             <div className="staff-branch-options">
               {branches.length === 1 ? (
                 <>
                   <input type="hidden" name="branchIds" value={branches[0].id} />
                   <div className="staff-branch-fixed-card">
-                    <span className="staff-branch-fixed-check" aria-hidden="true">✓</span>
+                    <input
+                      aria-label={`${branches[0].name} assigned`}
+                      checked
+                      className="staff-branch-fixed-check"
+                      disabled
+                      readOnly
+                      type="checkbox"
+                    />
                     <span className="staff-branch-fixed-copy">
                       <strong>{branches[0].name}</strong>
-                      <small>Only active branch available</small>
+                      <small>Only active branch</small>
                     </span>
                     <span className="staff-branch-fixed-state">Auto-assigned</span>
                   </div>
@@ -85,11 +91,11 @@ export function StaffForm({ action, branches, staff, assignedBranchIds = [], sub
                 ))
               )}
             </div>
-            <small className="form-hint">
-              {branches.length === 1
-                ? "This staff member will be assigned here automatically."
-                : "Select every branch where this employee may work."}
-            </small>
+            {branches.length > 1 ? (
+              <small className="form-hint">
+                Select every branch where this employee may work.
+              </small>
+            ) : null}
           </div>
           {isEdit ? (
             <label>

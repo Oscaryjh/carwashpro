@@ -2,7 +2,7 @@
 
 import type { WhatsAppMessageType } from "@prisma/client";
 import { useState, useTransition } from "react";
-import { openWhatsAppDeepLinkAction } from "@/app/whatsapp/actions";
+import { openWhatsAppDeepLinkAction } from "@/app/(business)/whatsapp/actions";
 
 type SendWhatsAppButtonProps = {
   label: string;

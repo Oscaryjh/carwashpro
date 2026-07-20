@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import {
   deleteCustomerAction,
   type DeleteCustomerState,
-} from "@/app/crm/actions";
+} from "@/app/(business)/crm/actions";
 
 type DeleteCustomerFormProps = {
   customerId: string;

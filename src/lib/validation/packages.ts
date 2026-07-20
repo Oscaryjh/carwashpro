@@ -14,6 +14,32 @@ export const packageSchema = z.object({
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
 });
 
+export const packageServiceBenefitsSchema = z
+  .array(
+    z.object({
+      serviceId: z.string().uuid("Select a valid service."),
+      totalUses: z.coerce
+        .number()
+        .int("Service uses must be a whole number.")
+        .min(1, "Service uses must be at least 1.")
+        .max(999, "Service uses cannot exceed 999."),
+    }),
+  )
+  .min(1, "Add at least one service to this package.")
+  .superRefine((benefits, context) => {
+    const seen = new Set<string>();
+    benefits.forEach((benefit, index) => {
+      if (seen.has(benefit.serviceId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "The same service can only be added once.",
+          path: [index, "serviceId"],
+        });
+      }
+      seen.add(benefit.serviceId);
+    });
+  });
+
 export const purchasePackageSchema = z.object({
   customerId: z.string().uuid("Customer is required."),
   packageId: z.string().uuid("Package is required."),

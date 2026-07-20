@@ -61,7 +61,7 @@
 .formalShell {
   width: 100%;
   max-width: none;
-  height: calc(100vh - 150px);
+  height: calc(100dvh - 100px);
   min-height: 520px;
   margin-top: 12px;
 }
@@ -356,15 +356,23 @@
 
 .orderPanel {
   display: grid;
-  grid-template-rows: auto auto minmax(110px, 1fr) auto auto auto auto;
+  grid-template-rows: auto auto minmax(110px, 1fr) auto auto auto auto auto;
   min-width: 0;
   border-left: 1px solid #d7e0e8;
   background: #fafbfc;
-  padding: 14px;
+  padding: 12px;
+}
+
+.orderPanelEmpty {
+  grid-template-rows: auto auto 68px auto auto auto auto minmax(42px, 1fr);
+}
+
+.orderPanelEmpty .payButton {
+  align-self: end;
 }
 
 .adjustmentsPanel {
-  margin-top: 8px;
+  margin-top: 6px;
   overflow: hidden;
   border: 1px solid #d7e0e8;
   border-radius: 7px;
@@ -377,13 +385,13 @@
   justify-content: space-between;
   gap: 10px;
   width: 100%;
-  min-height: 50px;
+  min-height: 44px;
   border: 0;
   border-radius: 6px;
   background: #ffffff;
   color: #182333;
   cursor: pointer;
-  padding: 8px 10px;
+  padding: 6px 9px;
   text-align: left;
   transition: background-color 150ms ease, box-shadow 150ms ease;
 }
@@ -431,13 +439,15 @@
 .adjustmentsToggle > b {
   display: grid;
   place-items: center;
-  width: 27px;
-  height: 27px;
+  width: auto;
+  min-width: 26px;
+  height: 26px;
   border: 1px solid #b9ddd8;
   border-radius: 7px;
   background: #eaf7f5;
   color: #0f7f75;
-  font-size: 16px;
+  padding: 0 8px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -532,11 +542,339 @@
   font-weight: 700;
 }
 
+.adjustmentBackdrop {
+  position: fixed;
+  z-index: 1500;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  background: rgb(24 35 51 / 56%);
+  padding: 20px;
+}
+
+.adjustmentDialog {
+  width: min(440px, 100%);
+  max-height: min(760px, calc(100dvh - 40px));
+  overflow: auto;
+  border: 1px solid #d5dfe8;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 22px 55px rgb(15 23 42 / 24%);
+}
+
+.adjustmentDialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #dce4eb;
+  padding: 16px 18px 14px;
+}
+
+.adjustmentDialogHeader > div {
+  display: grid;
+  gap: 2px;
+}
+
+.adjustmentDialogHeader span {
+  color: #087d73;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.adjustmentDialogHeader h2 {
+  margin: 0;
+  color: #182333;
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.adjustmentDialogClose {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border: 1px solid #d5dfe8;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #182333;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.adjustmentTabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin: 14px 18px 0;
+  border-radius: 7px;
+  background: #edf2f6;
+  padding: 4px;
+}
+
+.adjustmentTabs button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.adjustmentTabs .activeAdjustmentTab {
+  background: #ffffff;
+  color: #087d73;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 10%);
+}
+
+.adjustmentDialogBody {
+  display: grid;
+  gap: 14px;
+  padding: 14px 18px 16px;
+}
+
+.adjustmentContent {
+  display: grid;
+  gap: 12px;
+}
+
+.adjustmentMode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #d5dfe8;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.adjustmentMode button {
+  min-height: 42px;
+  border: 0;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.adjustmentMode .activeAdjustmentMode {
+  background: #e7f5f3;
+  color: #087d73;
+}
+
+.adjustmentField {
+  display: grid;
+  gap: 6px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.adjustmentField input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid #cfdbe5;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #182333;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.adjustmentField input:focus-visible {
+  border-color: #64bcb2;
+  outline: 2px solid rgb(100 188 178 / 22%);
+  outline-offset: 1px;
+}
+
+.pointsAccount,
+.savtNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #d5dfe8;
+  border-radius: 7px;
+  background: #f8fafc;
+  padding: 11px 12px;
+}
+
+.pointsAccountAction {
+  width: 100%;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.pointsAccountAction:hover {
+  border-color: #8fcfc7;
+  background: #f1faf8;
+}
+
+.pointsAccountAction:focus-visible {
+  border-color: #64bcb2;
+  outline: 2px solid rgb(100 188 178 / 24%);
+  outline-offset: 2px;
+}
+
+.pointsAccount > div,
+.savtNotice > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.pointsAccount strong,
+.savtNotice strong {
+  color: #182333;
+  font-size: 12px;
+}
+
+.pointsAccount small,
+.savtNotice small {
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.pointsAccount > b {
+  color: #087d73;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.pointsInputRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.maximumPointsButton {
+  min-height: 44px;
+  border: 1px solid #b9ddd8;
+  border-radius: 7px;
+  background: #edf8f6;
+  color: #087d73;
+  cursor: pointer;
+  padding: 0 13px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.maximumPointsButton:disabled,
+.adjustmentField input:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.savtNotice {
+  border-style: dashed;
+  background: #f4f6f8;
+}
+
+.savtNotice > b {
+  color: #7b8796;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.adjustmentPreview {
+  display: grid;
+  gap: 7px;
+  border: 1px solid #cfe4e1;
+  border-radius: 7px;
+  background: #f3faf9;
+  padding: 11px 12px;
+}
+
+.adjustmentPreview > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.adjustmentPreview strong {
+  color: #182333;
+}
+
+.adjustmentPreview .adjustmentPreviewTotal {
+  margin-top: 2px;
+  border-top: 1px solid #cfe4e1;
+  padding-top: 9px;
+  color: #182333;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.adjustmentPreviewTotal strong {
+  color: #087d73;
+  font-size: 18px;
+}
+
+.adjustmentDialogError {
+  margin: -4px 0 0;
+  border-radius: 6px;
+  background: #fff1f0;
+  color: #c62828;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.adjustmentDialogActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  border-top: 1px solid #dce4eb;
+  padding: 13px 18px 16px;
+}
+
+.adjustmentDialogActions button {
+  min-height: 44px;
+  border: 1px solid #d5dfe8;
+  border-radius: 7px;
+  background: #f3f6f8;
+  color: #182333;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.adjustmentDialogActions button:last-child {
+  border-color: #14877d;
+  background: #14877d;
+  color: #ffffff;
+}
+
+.adjustmentDialogActions button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
 .orderHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 12px;
+  padding-bottom: 8px;
 }
 
 .orderHeader > button {
@@ -550,17 +888,17 @@
 
 .customerButton {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) minmax(84px, auto);
+  grid-template-columns: 36px minmax(0, 1fr) minmax(80px, auto);
   align-items: center;
-  gap: 11px;
+  gap: 9px;
   width: 100%;
-  min-height: 74px;
+  min-height: 62px;
   border: 1px solid #d7e0e8;
   border-radius: 7px;
   background: #fff;
   color: #182333;
   cursor: pointer;
-  padding: 11px 12px;
+  padding: 8px 10px;
   text-align: left;
 }
 
@@ -583,14 +921,14 @@
 
 .customerArea :global(.package-customer-pos-meta) {
   display: flex;
-  min-width: 104px;
-  min-height: 38px;
+  min-width: 96px;
+  min-height: 34px;
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
   gap: 3px;
   border-left: 1px solid #dce7e5;
-  padding-left: 12px;
+  padding-left: 10px;
   text-align: right;
 }
 
@@ -651,7 +989,7 @@
 }
 
 .orderLines {
-  margin-top: 10px;
+  margin-top: 7px;
   overflow-y: auto;
   border-top: 1px solid #e0e7ee;
 }
@@ -747,23 +1085,27 @@
 
 .emptyOrder {
   display: grid;
-  place-items: center;
+  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  place-items: center start;
   align-content: center;
-  gap: 5px;
+  gap: 1px 9px;
   height: 100%;
   color: #64748b;
-  text-align: center;
+  padding: 4px 2px;
+  text-align: left;
 }
 
 .emptyOrder > span {
   display: grid;
+  grid-row: 1 / 3;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: #eaf7f5;
   color: #0f7f75;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .emptyOrder strong { font-size: 12px; }
@@ -771,9 +1113,9 @@
 
 .orderSummary {
   display: grid;
-  gap: 7px;
+  gap: 5px;
   border-top: 1px solid #d7e0e8;
-  padding: 12px 2px;
+  padding: 9px 2px;
 }
 
 .orderSummary > div {
@@ -801,15 +1143,15 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 5px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .paymentMethodsAll {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .paymentMethods button {
-  min-height: 35px;
+  min-height: 34px;
   border: 1px solid #d5dfe8;
   border-radius: 6px;
   background: #fff;
@@ -846,7 +1188,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(112px, .72fr);
   gap: 7px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .cashTender label,
@@ -865,7 +1207,7 @@
 
 .cashTender input,
 .cashChange {
-  min-height: 42px;
+  min-height: 40px;
   box-sizing: border-box;
   border: 1px solid #d5dfe8;
   border-radius: 6px;
@@ -908,7 +1250,7 @@
 }
 
 .payButton {
-  min-height: 46px;
+  min-height: 42px;
   border: 0;
   border-radius: 7px;
   background: #11857a;
@@ -938,7 +1280,7 @@
   }
 
   .formalShell {
-    height: calc(100dvh - 168px);
+    height: calc(100dvh - 100px);
     min-height: 540px;
     margin-top: 8px;
   }
@@ -1041,7 +1383,7 @@
   .itemTile { min-height: 64px; }
   .searchField { width: 48%; }
   .formalShell {
-    height: calc(100vh - 135px);
+    height: calc(100dvh - 100px);
     min-height: 520px;
   }
 }
@@ -1069,6 +1411,31 @@
 }
 
 @media (max-width: 440px) {
+  .adjustmentBackdrop {
+    place-items: end center;
+    padding: 0;
+  }
+  .adjustmentDialog {
+    width: 100%;
+    max-height: calc(100dvh - 12px);
+    border-radius: 8px 8px 0 0;
+  }
+  .adjustmentDialogHeader,
+  .adjustmentDialogBody,
+  .adjustmentDialogActions {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+  .adjustmentTabs {
+    margin-right: 14px;
+    margin-left: 14px;
+  }
+  .pointsInputRow {
+    grid-template-columns: 1fr;
+  }
+  .maximumPointsButton {
+    width: 100%;
+  }
   .page { padding: 8px; }
   .previewHeader h1 { font-size: 21px; }
   .catalogPanel, .orderPanel { padding: 10px; }

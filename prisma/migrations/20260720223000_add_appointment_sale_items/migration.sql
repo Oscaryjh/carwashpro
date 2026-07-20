@@ -1,0 +1,3 @@
+ALTER TABLE "appointments"
+ADD COLUMN "product_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+ADD COLUMN "package_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

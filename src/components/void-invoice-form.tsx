@@ -6,11 +6,12 @@ import { useRouter } from "next/navigation";
 import {
   voidInvoiceAction,
   type VoidInvoiceState,
-} from "@/app/invoices/actions";
+} from "@/app/(business)/invoices/actions";
 
 type VoidInvoiceFormProps = {
   invoiceId: string;
   invoiceNumber: string;
+  onSuccess?: () => void;
 };
 
 const initialState: VoidInvoiceState = {
@@ -21,6 +22,7 @@ const initialState: VoidInvoiceState = {
 export function VoidInvoiceForm({
   invoiceId,
   invoiceNumber,
+  onSuccess,
 }: VoidInvoiceFormProps) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(
@@ -31,8 +33,9 @@ export function VoidInvoiceForm({
   useEffect(() => {
     if (state.status === "success") {
       router.refresh();
+      onSuccess?.();
     }
-  }, [router, state.status]);
+  }, [onSuccess, router, state.status]);
 
   return (
     <form

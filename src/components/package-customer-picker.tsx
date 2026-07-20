@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 
 export type PackageCustomerOption = {
   activePackageCount?: number;
@@ -18,6 +18,7 @@ export type PackageCustomerOption = {
 };
 
 type PackageCustomerPickerProps = {
+  buttonRef?: Ref<HTMLButtonElement>;
   buttonClassName?: string;
   compactAccountNote?: boolean;
   includeVehicleDetails?: boolean;
@@ -31,7 +32,13 @@ type CustomerSearchResponse = {
   error?: string;
 };
 
+type CustomerCreateResponse = {
+  customer?: PackageCustomerOption;
+  error?: string;
+};
+
 export function PackageCustomerPicker({
+  buttonRef,
   buttonClassName,
   compactAccountNote = false,
   includeVehicleDetails = true,
@@ -46,6 +53,10 @@ export function PackageCustomerPicker({
   const [selectedCustomer, setSelectedCustomer] =
     useState<PackageCustomerOption | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+  const [createPhone, setCreatePhone] = useState("");
+  const [createName, setCreateName] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -98,12 +109,60 @@ export function PackageCustomerPicker({
     setSelectedCustomer(customer);
     setIsOpen(false);
     setQuery("");
+    setIsCreating(false);
+    setCreatePhone("");
+    setCreateName("");
+    setError("");
     onSelectionChange?.(customer);
   }
 
   function clearCustomer() {
     setSelectedCustomer(null);
     onSelectionChange?.(null);
+  }
+
+  function showCreateCustomer() {
+    const searchValue = query.trim();
+    setIsCreating(true);
+    setError("");
+    if (/^[0-9+\-\s()]+$/.test(searchValue)) {
+      setCreatePhone(searchValue.replace(/[^0-9]/g, ""));
+    } else if (searchValue) {
+      setCreateName(searchValue);
+    }
+  }
+
+  async function createCustomer() {
+    if (isCreatingCustomer) return;
+
+    setIsCreatingCustomer(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/appointments/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: createName, phone: createPhone }),
+      });
+      const responseText = await response.text();
+      const payload = responseText
+        ? (JSON.parse(responseText) as CustomerCreateResponse)
+        : {};
+
+      if (!response.ok || !payload.customer) {
+        throw new Error(payload.error || "Unable to create customer.");
+      }
+
+      chooseCustomer(payload.customer);
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Unable to create customer.",
+      );
+    } finally {
+      setIsCreatingCustomer(false);
+    }
   }
 
   return (
@@ -114,6 +173,7 @@ export function PackageCustomerPicker({
         value={selectedCustomer?.id ?? ""}
       />
       <button
+        ref={buttonRef}
         className={`package-purchase-selection package-customer-selection ${buttonClassName ?? ""}`.trim()}
         onClick={() => setIsOpen(true)}
         type="button"
@@ -171,11 +231,25 @@ export function PackageCustomerPicker({
                 {"\u00d7"}
               </button>
               <h2 id="package-customer-picker-title">Customer account</h2>
-              <span className="member-picker-header-spacer" />
+              <button
+                aria-label={isCreating ? "Back to customer search" : "Add new customer"}
+                className="member-picker-add"
+                onClick={() => {
+                  if (isCreating) {
+                    setIsCreating(false);
+                    setError("");
+                    return;
+                  }
+                  showCreateCustomer();
+                }}
+                type="button"
+              >
+                {isCreating ? "\u2190" : "+"}
+              </button>
             </header>
 
             <label className="member-picker-search">
-              <span aria-hidden="true">S</span>
+              <span aria-hidden="true" className="member-picker-search-icon" />
               <input
                 autoFocus
                 onChange={(event) => setQuery(event.target.value)}
@@ -200,12 +274,68 @@ export function PackageCustomerPicker({
             </label>
 
             <p className="package-customer-picker-help">
-              {includeVehicleDetails
-                ? "Packages belong to the customer phone account, not one vehicle."
-                : "Packages belong to the customer phone account."}
+              {isCreating
+                ? "Create a customer, then continue with this sale."
+                : query.trim()
+                  ? "Showing up to 20 matching customers."
+                  : "Recent customers. Search by phone or customer name."}
             </p>
 
-            <div className="package-customer-results">
+            {isCreating ? (
+              <div className="member-picker-create-card package-customer-create-card">
+                <div className="package-customer-create-heading">
+                  <span aria-hidden="true">C</span>
+                  <div>
+                    <h3>New customer</h3>
+                    <p>The phone number identifies this customer account.</p>
+                  </div>
+                </div>
+                <div className="member-picker-create-grid">
+                  <label>
+                    <span>Phone</span>
+                    <input
+                      autoFocus
+                      inputMode="tel"
+                      onChange={(event) => setCreatePhone(event.target.value)}
+                      placeholder="Phone number"
+                      value={createPhone}
+                    />
+                  </label>
+                  <label>
+                    <span>Name</span>
+                    <input
+                      onChange={(event) => setCreateName(event.target.value)}
+                      placeholder="Customer name"
+                      value={createName}
+                    />
+                  </label>
+                </div>
+                {error ? <p className="member-picker-create-error">{error}</p> : null}
+                <div className="package-customer-create-actions">
+                  <button
+                    className="package-customer-create-cancel"
+                    disabled={isCreatingCustomer}
+                    onClick={() => {
+                      setIsCreating(false);
+                      setError("");
+                    }}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="member-picker-create-submit"
+                    disabled={isCreatingCustomer}
+                    onClick={() => void createCustomer()}
+                    type="button"
+                  >
+                    {isCreatingCustomer ? "Creating..." : "Create customer"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {!isCreating ? <div className="package-customer-results">
               {isLoading ? (
                 <p className="package-customer-state">Searching customers...</p>
               ) : error ? (
@@ -234,9 +364,18 @@ export function PackageCustomerPicker({
                   </button>
                 ))
               ) : (
-                <p className="package-customer-state">No matching customer found.</p>
+                <div className="package-customer-empty">
+                  <p className="package-customer-state">No matching customer found.</p>
+                  <button
+                    className="member-picker-empty-action"
+                    onClick={showCreateCustomer}
+                    type="button"
+                  >
+                    + Add customer
+                  </button>
+                </div>
               )}
-            </div>
+            </div> : null}
           </section>
         </div>
       ) : null}

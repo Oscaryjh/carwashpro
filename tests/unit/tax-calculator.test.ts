@@ -39,6 +39,7 @@ test("applies an explicit service rate after discount allocation", () => {
   assert.equal(result.tax, 13.3);
   assert.equal(result.tip, 5);
   assert.equal(result.total, 208.3);
+  assert.deepEqual(result.lineDiscount, [5, 5]);
 });
 
 test("returns no tax when SST is disabled", () => {
@@ -52,6 +53,22 @@ test("returns no tax when SST is disabled", () => {
   assert.equal(result.taxableSubtotal, 0);
   assert.equal(result.total, 100);
   assert.deepEqual(result.lineTax, [0]);
+});
+
+test("exposes the allocated line discount for package coverage", () => {
+  const result = calculateTax({
+    sstEnabled: true,
+    sstRate: 6,
+    discount: 15,
+    lines: [
+      { lineTotal: 100, taxable: true },
+      { lineTotal: 50, taxable: true },
+    ],
+  });
+
+  assert.deepEqual(result.lineDiscount, [10, 5]);
+  assert.deepEqual(result.lineTax, [5.4, 2.7]);
+  assert.equal(result.total, 143.1);
 });
 
 test("calculates package tax using the service taxability and rate", () => {

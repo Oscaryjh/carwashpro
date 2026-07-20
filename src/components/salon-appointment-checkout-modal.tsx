@@ -1,21 +1,35 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SalonCheckoutInvoiceSummary } from "@/app/appointments/actions";
+import type { SalonCheckoutInvoiceSummary } from "@/app/(business)/appointments/actions";
 import { AppointmentInvoiceModal } from "@/components/appointment-invoice-modal";
 import type { InvoiceModalSummary } from "@/components/appointment-invoice-modal";
 import { SalonAppointmentPaymentForm } from "@/components/salon-appointment-payment-form";
 import type { TaxLineInput } from "@/lib/tax/calculator";
 
-type CheckoutService = {
+type CheckoutItem = {
+  id: string;
   name: string;
   price: number;
+  quantity: number;
+  type: "service" | "product" | "package";
+};
+
+type AvailableCustomerPackage = {
+  id: string;
+  name: string;
+  remainingUses: number;
+  totalUses: number;
+  serviceId: string;
+  serviceName: string;
 };
 
 type SalonAppointmentCheckoutModalProps = {
   appointmentId: string;
+  availablePackages: AvailableCustomerPackage[];
   balance: number;
   canTakePayment: boolean;
+  checkoutReady?: boolean;
   customerName: string;
   customerPhone: string;
   hasInvoice: boolean;
@@ -23,7 +37,7 @@ type SalonAppointmentCheckoutModalProps = {
   initialOpen?: boolean;
   invoice?: InvoiceModalSummary | null;
   onDone?: () => void;
-  services: CheckoutService[];
+  items: CheckoutItem[];
   subtotal: number;
   totalAmount: number;
   taxLines: TaxLineInput[];
@@ -34,8 +48,10 @@ type SalonAppointmentCheckoutModalProps = {
 
 export function SalonAppointmentCheckoutModal({
   appointmentId,
+  availablePackages,
   balance,
   canTakePayment,
+  checkoutReady = true,
   customerName,
   customerPhone,
   hasInvoice,
@@ -43,7 +59,7 @@ export function SalonAppointmentCheckoutModal({
   initialOpen = false,
   invoice = null,
   onDone,
-  services,
+  items,
   subtotal,
   totalAmount,
   taxLines,
@@ -150,13 +166,16 @@ export function SalonAppointmentCheckoutModal({
             <div className="appointment-checkout-modal-body">
                 <div className="appointment-checkout-services">
                   <div className="appointment-checkout-section-heading">
-                    <h3>Services</h3>
-                    <span>{services.length}</span>
+                    <h3>Items</h3>
+                    <span>{items.reduce((sum, item) => sum + item.quantity, 0)}</span>
                   </div>
-                  {services.map((service) => (
-                    <div className="appointment-checkout-service-row" key={`${service.name}-${service.price}`}>
-                      <span>{service.name}</span>
-                      <strong>RM{service.price.toFixed(2)}</strong>
+                  {items.map((item) => (
+                    <div className="appointment-checkout-service-row" key={`${item.type}-${item.name}-${item.price}`}>
+                      <span>
+                        {item.name}
+                        {item.quantity > 1 ? ` × ${item.quantity}` : ""}
+                      </span>
+                      <strong>RM{(item.price * item.quantity).toFixed(2)}</strong>
                     </div>
                   ))}
                   <div className="appointment-checkout-total">
@@ -167,12 +186,15 @@ export function SalonAppointmentCheckoutModal({
 
                 <SalonAppointmentPaymentForm
                   appointmentId={appointmentId}
+                  availablePackages={availablePackages}
                   balance={balance}
                   hasInvoice={hasInvoice}
                   hasOpenShift={hasOpenShift}
+                  checkoutReady={checkoutReady}
                   subtotal={subtotal}
                   totalAmount={totalAmount}
                   taxLines={taxLines}
+                  checkoutItems={items}
                   sstEnabled={sstEnabled}
                   sstLabel={sstLabel}
                   sstRate={sstRate}

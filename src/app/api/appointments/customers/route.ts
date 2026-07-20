@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     name: body.name,
     phone: body.phone,
     email: "",
-    notes: "Created from Salon appointment.",
+    notes: "Created from customer picker.",
   });
 
   if (!parsed.success) {
@@ -40,11 +40,15 @@ export async function POST(request: Request) {
       businessId: user.businessId,
       phone: { in: customerPhoneSearchVariants(parsed.data.phone) },
     },
-    select: { id: true, name: true, phone: true },
+    select: customerPickerSelect,
   });
 
   if (existingCustomer) {
-    return NextResponse.json({ ok: true, customer: existingCustomer, existing: true });
+    return NextResponse.json({
+      ok: true,
+      customer: toCustomerPickerOption(existingCustomer),
+      existing: true,
+    });
   }
 
   const customer = await prisma.customer.create({
@@ -55,7 +59,7 @@ export async function POST(request: Request) {
       phone: parsed.data.phone,
       notes: parsed.data.notes || null,
     },
-    select: { id: true, name: true, phone: true },
+    select: customerPickerSelect,
   });
 
   await sendNewCustomerWelcomeIfConnected({
@@ -67,5 +71,62 @@ export async function POST(request: Request) {
     sentByUserId: user.userId,
   });
 
-  return NextResponse.json({ ok: true, customer, existing: false });
+  return NextResponse.json({
+    ok: true,
+    customer: toCustomerPickerOption(customer),
+    existing: false,
+  });
+}
+
+const customerPickerSelect = {
+  id: true,
+  name: true,
+  phone: true,
+  vehicles: {
+    orderBy: { updatedAt: "desc" as const },
+    select: {
+      brand: true,
+      model: true,
+      plateNumber: true,
+    },
+    take: 4,
+  },
+  membership: {
+    select: {
+      pointsBalance: true,
+      status: true,
+    },
+  },
+  _count: {
+    select: {
+      customerPackages: {
+        where: { status: "ACTIVE" as const },
+      },
+      vehicles: true,
+    },
+  },
+};
+
+function toCustomerPickerOption(customer: {
+  id: string;
+  name: string;
+  phone: string;
+  vehicles: Array<{
+    brand: string | null;
+    model: string | null;
+    plateNumber: string;
+  }>;
+  membership: { pointsBalance: number; status: string } | null;
+  _count: { customerPackages: number; vehicles: number };
+}) {
+  return {
+    id: customer.id,
+    name: customer.name,
+    phone: customer.phone,
+    activePackageCount: customer._count.customerPackages,
+    loyaltyPoints: customer.membership?.pointsBalance ?? 0,
+    loyaltyStatus: customer.membership?.status ?? null,
+    vehicleCount: customer._count.vehicles,
+    vehicles: customer.vehicles,
+  };
 }

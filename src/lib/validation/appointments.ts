@@ -36,6 +36,8 @@ export const createAppointmentSchema = z
     vehicleId: optionalText,
     serviceId: optionalText,
     serviceIds: z.array(z.string().uuid("Service is invalid.")).default([]),
+    productIds: z.array(z.string().uuid("Product is invalid.")).max(100).default([]),
+    packageIds: z.array(z.string().uuid("Package is invalid.")).max(100).default([]),
     scheduledDate: z.string().trim().min(1, "Date is required."),
     scheduledTime: z.string().trim().min(1, "Time is required."),
     notes: optionalText,
@@ -92,6 +94,8 @@ export const updateAppointmentDetailsSchema = z.object({
   assignedStaffId: optionalText,
   notes: optionalText,
   serviceIds: z.array(z.string().uuid("Service is invalid.")).default([]),
+  productIds: z.array(z.string().uuid("Product is invalid.")).max(100).default([]),
+  packageIds: z.array(z.string().uuid("Package is invalid.")).max(100).default([]),
   scheduledDate: z.string().trim().min(1, "Date is required."),
   scheduledTime: z.string().trim().min(1, "Time is required."),
 });

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import {
   linkWhatsAppConversationToCustomerAction,
   openCrmCustomerWhatsAppAction,
-} from "@/app/whatsapp/inbox/actions";
+} from "@/app/(business)/whatsapp/inbox/actions";
 
 type WhatsAppCustomerPickerCustomer = {
   id: string;

@@ -1,0 +1,348 @@
+import Link from "next/link";
+import { CrmNewCustomerModal } from "@/components/crm-new-customer-modal";
+import { getActiveBranches } from "@/lib/branches";
+import { requireBusinessIndustryContext } from "@/lib/industry-context";
+import { prisma } from "@/lib/prisma";
+import { normalizePlateNumber } from "@/lib/validation/crm";
+import { createCustomerAction } from "./actions";
+
+type CrmPageProps = {
+  searchParams: Promise<{
+    q?: string;
+    plate?: string;
+    page?: string;
+  }>;
+};
+
+const CUSTOMERS_PER_PAGE = 30;
+
+export default async function CrmPage({ searchParams }: CrmPageProps) {
+  const context = await requireBusinessIndustryContext();
+  const { businessId } = context;
+  const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
+  const { q, plate, page } = await searchParams;
+  const rawSearch = (q ?? plate ?? "").trim();
+  const normalizedPlate = rawSearch ? normalizePlateNumber(rawSearch) : "";
+  const isLikelyPlateSearch = /[A-Z]/i.test(rawSearch) && /\d/.test(rawSearch);
+  const currentPage = Math.max(1, Number(page) || 1);
+  const customerSkip = (currentPage - 1) * CUSTOMERS_PER_PAGE;
+  const initialVehiclePlate = isLikelyPlateSearch ? normalizedPlate : "";
+
+  const customerProfiles = rawSearch
+    ? await prisma.customer.findMany({
+        where: {
+          businessId,
+          OR: [
+            {
+              name: {
+                contains: rawSearch,
+                mode: "insensitive",
+              },
+            },
+            {
+              phone: {
+                contains: rawSearch,
+                mode: "insensitive",
+              },
+            },
+            {
+              email: {
+                contains: rawSearch,
+                mode: "insensitive",
+              },
+            },
+            {
+              vehicles: {
+                some: {
+                  plateNumber: {
+                    contains: normalizedPlate,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+          ],
+        },
+        include: {
+          branch: true,
+          vehicles: {
+            include: {
+              branch: true,
+            },
+            orderBy: { createdAt: "desc" },
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 20,
+      })
+    : [];
+
+  const [customerCount, vehicleCount, appointmentCount, customers, branches] = await Promise.all([
+    prisma.customer.count({ where: { businessId } }),
+    prisma.vehicle.count({ where: { businessId } }),
+    prisma.appointment.count({ where: { businessId } }),
+    prisma.customer.findMany({
+      where: { businessId },
+      include: {
+        _count: {
+          select: {
+            vehicles: true,
+          },
+        },
+      },
+      orderBy: [
+        { updatedAt: "desc" },
+        { createdAt: "desc" },
+      ],
+      skip: customerSkip,
+      take: CUSTOMERS_PER_PAGE,
+    }),
+    getActiveBranches(businessId),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(customerCount / CUSTOMERS_PER_PAGE));
+
+  return (
+    <>
+      <section className="content crm-page">
+        <div className="page-header">
+          <div>
+            <h1>CRM</h1>
+          </div>
+          <CrmNewCustomerModal
+            action={createCustomerAction}
+            branches={branches}
+            initialVehiclePlate={initialVehiclePlate}
+            isSalonBusiness={isSalonBusiness}
+          />
+        </div>
+
+        <div className="panel crm-metrics" aria-label="CRM summary">
+          <Metric label="Customers" value={customerCount} />
+          <Metric
+            label={isSalonBusiness ? "Appointments" : "Vehicles"}
+            value={isSalonBusiness ? appointmentCount : vehicleCount}
+          />
+        </div>
+
+        <div className="panel crm-directory-panel">
+          <div className="crm-directory-toolbar">
+            <div>
+              <h2>Customers</h2>
+              <p>
+                Showing {customers.length ? customerSkip + 1 : 0}-
+                {customerSkip + customers.length} of {customerCount}
+              </p>
+            </div>
+            <form className="search-form crm-directory-search" action="/crm">
+              <input
+                name="q"
+                aria-label={isSalonBusiness ? "Find customer" : "Find customer or vehicle"}
+                placeholder={
+                  isSalonBusiness
+                    ? "Search phone, email, or customer name"
+                    : "Search plate, phone, or customer name"
+                }
+                defaultValue={rawSearch}
+              />
+              <button type="submit">Search</button>
+            </form>
+          </div>
+
+          {rawSearch ? (
+            customerProfiles.length ? (
+              <div className="customer-record-list">
+                {customerProfiles.map((customer) => (
+                  <CustomerRecord
+                    key={customer.id}
+                    customer={customer}
+                    isSalonBusiness={isSalonBusiness}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="result-box">
+                <strong>
+                  No {isSalonBusiness ? "customer" : "customer or vehicle"} found for {rawSearch}
+                </strong>
+                <div className="inline-actions">
+                  <CrmNewCustomerModal
+                    action={createCustomerAction}
+                    branches={branches}
+                    initialVehiclePlate={initialVehiclePlate}
+                    isSalonBusiness={isSalonBusiness}
+                    label="Create customer"
+                  />
+                </div>
+              </div>
+            )
+          ) : null}
+
+          {customers.length ? (
+            <>
+              <div className="crm-table-scroll">
+                <table
+                  className={`table customer-directory-table crm-home-customer-table${
+                    isSalonBusiness ? " crm-home-customer-table--salon" : ""
+                  }`}
+                >
+                  <thead>
+                    <tr>
+                      <th>No.</th>
+                      <th>Customer</th>
+                      <th>Contact</th>
+                      <th>Email</th>
+                      {!isSalonBusiness ? <th>Vehicles</th> : null}
+                      <th>Joined</th>
+                      <th aria-label="Actions" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customers.map((customer, index) => (
+                      <tr key={customer.id}>
+                        <td className="table-number">{customerSkip + index + 1}</td>
+                        <td>
+                          <Link href={`/crm/customers/${customer.id}`}>
+                            <strong>{customer.name}</strong>
+                          </Link>
+                        </td>
+                        <td>{customer.phone}</td>
+                        <td className="muted">{customer.email || "No email"}</td>
+                        {!isSalonBusiness ? <td>{customer._count.vehicles}</td> : null}
+                        <td>{formatDate(customer.createdAt)}</td>
+                        <td className="crm-table-action">
+                          <Link href={`/crm/customers/${customer.id}`}>View</Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="pagination">
+                <span>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Link
+                  className={currentPage <= 1 ? "disabled" : ""}
+                  href={makeCrmPageHref(rawSearch, currentPage - 1)}
+                >
+                  Previous
+                </Link>
+                <Link
+                  className={currentPage >= totalPages ? "disabled" : ""}
+                  href={makeCrmPageHref(rawSearch, currentPage + 1)}
+                >
+                  Next
+                </Link>
+              </div>
+            </>
+          ) : (
+            <p className="empty-state">No customers yet.</p>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function makeCrmPageHref(rawSearch: string, page: number) {
+  const params = new URLSearchParams();
+
+  if (rawSearch) {
+    params.set("q", rawSearch);
+  }
+
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+
+  const query = params.toString();
+  return query ? `/crm?${query}` : "/crm";
+}
+
+function formatDate(value: Date) {
+  return value.toLocaleDateString("en-MY", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+type CustomerRecordProps = {
+  isSalonBusiness: boolean;
+  customer: {
+    id: string;
+    name: string;
+    phone: string;
+    email: string | null;
+    branch: { name: string } | null;
+    vehicles: {
+      id: string;
+      plateNumber: string;
+      brand: string | null;
+      model: string | null;
+      color: string | null;
+      branch: { name: string } | null;
+    }[];
+  };
+};
+
+function CustomerRecord({ customer, isSalonBusiness }: CustomerRecordProps) {
+  return (
+    <article className="customer-record-card">
+      <div className="customer-record-main">
+        <div>
+          <h3>{customer.name}</h3>
+          <p>
+            {customer.phone}
+            {customer.email ? ` - ${customer.email}` : ""}
+          </p>
+          <small>{customer.branch?.name ?? "All branches"}</small>
+        </div>
+        <div className="inline-actions">
+          <Link className="button-link" href={`/crm/customers/${customer.id}`}>
+            Open Profile
+          </Link>
+        </div>
+      </div>
+
+      {!isSalonBusiness && customer.vehicles.length ? (
+        <div className="vehicle-chip-list">
+          {customer.vehicles.map((vehicle) => (
+            <Link
+              className="vehicle-chip"
+              key={vehicle.id}
+              href={`/crm/vehicles/${vehicle.id}`}
+            >
+              <strong>{vehicle.plateNumber}</strong>
+              <span>
+                {[vehicle.brand, vehicle.model].filter(Boolean).join(" ") ||
+                  "No vehicle details"}
+                {vehicle.color ? ` - ${vehicle.color}` : ""}
+              </span>
+            </Link>
+          ))}
+        </div>
+      ) : !isSalonBusiness ? (
+        <div className="result-box">
+          <span>No vehicles yet.</span>
+          <Link
+            className="secondary-link-button"
+            href={`/crm/vehicles/new?customerId=${customer.id}`}
+          >
+            Add vehicle
+          </Link>
+        </div>
+      ) : null}
+    </article>
+  );
+}

@@ -12,7 +12,7 @@ const businessIndustrySchema = z.enum([
   "GENERAL_SERVICE",
 ]);
 
-export const businessSchema = z.object({
+const businessFieldsSchema = z.object({
   name: z.string().trim().min(2, "Company name is required."),
   slug: z
     .string()
@@ -33,14 +33,24 @@ export const businessSchema = z.object({
   status: z.enum(["active", "inactive"]),
 });
 
+export const businessSchema = businessFieldsSchema.superRefine((business, context) => {
+  if (business.sstEnabled && !business.sstRegistrationNo) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "SST registration number is required when SST is enabled.",
+      path: ["sstRegistrationNo"],
+    });
+  }
+});
+
 export type BusinessFormValues = z.infer<typeof businessSchema>;
 
 export const createBusinessSchema = z.object({
-  name: businessSchema.shape.name,
-  slug: businessSchema.shape.slug,
+  name: businessFieldsSchema.shape.name,
+  slug: businessFieldsSchema.shape.slug,
   industryType: businessIndustrySchema,
-  companyNo: businessSchema.shape.companyNo,
-  phone: businessSchema.shape.phone,
+  companyNo: businessFieldsSchema.shape.companyNo,
+  phone: businessFieldsSchema.shape.phone,
   ownerName: z.string().trim().min(2, "Owner name is required."),
   ownerEmail: z.string().trim().email("Enter a valid owner email."),
   ownerPassword: z.string().min(8, "Owner password must be at least 8 characters."),

@@ -37,7 +37,7 @@ export function ProductForm({ action, branches, categories, product, submitLabel
               </option>
             ))}
           </select>
-          {!categories.length ? <small className="field-helper">Create a product category before adding products. <Link href="/products/categories">Manage categories</Link></small> : null}
+          {!categories.length ? <small className="field-helper">Create a product category before adding products. <Link href="/products?modal=categories">Manage categories</Link></small> : null}
         </label>
         <label>
           <span>Price</span>

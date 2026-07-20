@@ -1,0 +1,128 @@
+.backdrop {
+  position: fixed;
+  z-index: 1800;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 30, 43, 0.48);
+  padding: 18px;
+}
+
+.dialog {
+  width: min(360px, 100%);
+  border: 1px solid #d7e0e8;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header span {
+  color: #08776e;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.header h2 {
+  margin: 2px 0 0;
+  color: #182333;
+  font-size: 19px;
+}
+
+.close {
+  width: 38px;
+  height: 38px;
+  border: 1px solid #d7e0e8;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #182333;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.amountPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 12px;
+  margin: 14px 0 12px;
+  border: 1px solid #b8e2dc;
+  border-radius: 7px;
+  background: #eaf7f5;
+  padding: 11px 13px;
+}
+
+.amountPanel span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.amountPanel strong {
+  color: #526278;
+  font-size: 12px;
+}
+
+.amountPanel output {
+  grid-column: 1 / -1;
+  color: #08776e;
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1.15;
+  text-align: right;
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(72px, 1.15fr);
+  gap: 7px;
+}
+
+.keypad button {
+  min-height: 52px;
+  border: 1px solid #d7e0e8;
+  border-radius: 7px;
+  background: #f7f9fb;
+  color: #182333;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.keypad button:active {
+  background: #e8eef3;
+  transform: translateY(1px);
+}
+
+.keypad .softKey {
+  border-color: #9fd3cd;
+  background: #edf8f6;
+  color: #08776e;
+  font-size: 12px;
+}
+
+.keypad .primaryKey {
+  border-color: #11857a;
+  background: #11857a;
+  color: #ffffff;
+  font-size: 13px;
+}
+
+@media (max-width: 440px) {
+  .backdrop {
+    align-items: end;
+    padding: 8px;
+  }
+
+  .dialog {
+    width: 100%;
+    padding: 14px;
+  }
+}

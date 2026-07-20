@@ -225,7 +225,7 @@ export function CashierPosPreview() {
           </div>
 
           <div className={styles.paymentMethods} aria-label="Payment method">
-            {['Cash', 'Card', 'DuitNow'].map((method, index) => (
+            {['Cash', 'Card', 'E-Wallet'].map((method, index) => (
               <button className={index === 0 ? styles.activePayment : ""} key={method} type="button">{method}</button>
             ))}
           </div>

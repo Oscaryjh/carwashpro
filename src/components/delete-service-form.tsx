@@ -4,12 +4,13 @@ import { useActionState } from "react";
 import {
   deleteServiceAction,
   type DeleteServiceState,
-} from "@/app/services/actions";
+} from "@/app/(business)/services/actions";
 
 type DeleteServiceFormProps = {
   serviceId: string;
   serviceName: string;
   label?: string;
+  compact?: boolean;
 };
 
 const initialState: DeleteServiceState = {
@@ -21,6 +22,7 @@ export function DeleteServiceForm({
   serviceId,
   serviceName,
   label = "Delete",
+  compact = false,
 }: DeleteServiceFormProps) {
   const [state, formAction, pending] = useActionState(
     deleteServiceAction,
@@ -30,7 +32,7 @@ export function DeleteServiceForm({
   return (
     <form
       action={formAction}
-      className="danger-zone-form"
+      className={`danger-zone-form${compact ? " catalog-delete-form" : ""}`}
       onSubmit={(event) => {
         const confirmed = window.confirm(
           `Are you sure you want to delete "${serviceName}"? This cannot be undone.`,

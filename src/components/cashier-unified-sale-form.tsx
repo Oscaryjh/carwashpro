@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useFormStatus } from "react-dom";
-import type { CashierSaleInvoiceSummary, CashierSaleState } from "@/app/cashier/actions";
+import { createPortal, useFormStatus } from "react-dom";
+import type { CashierSaleInvoiceSummary, CashierSaleState } from "@/app/(business)/cashier/actions";
 import { AppointmentInvoiceModal } from "@/components/appointment-invoice-modal";
+import { MoneyNumpadInput } from "@/components/money-numpad-input";
 import {
   PackageCustomerPicker,
   type PackageCustomerOption,
@@ -36,7 +37,6 @@ type CashierUnifiedSaleFormProps = {
 const paymentMethods = [
   { label: "Cash", value: "CASH" },
   { label: "Card", value: "CARD" },
-  { label: "DuitNow", value: "DUITNOW" },
   { label: "E-Wallet", value: "EWALLET" },
   { label: "Bank", value: "BANK_TRANSFER" },
 ] as const;
@@ -62,15 +62,21 @@ export function CashierUnifiedSaleForm({
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState("");
   const [adjustmentsOpen, setAdjustmentsOpen] = useState(false);
+  const [adjustmentTab, setAdjustmentTab] = useState<"DISCOUNT" | "POINTS">("DISCOUNT");
   const [discountType, setDiscountType] = useState<"AMOUNT" | "PERCENT">("AMOUNT");
   const [discountValue, setDiscountValue] = useState("0");
   const [discountReason, setDiscountReason] = useState("");
   const [loyaltyPoints, setLoyaltyPoints] = useState("0");
+  const [draftDiscountType, setDraftDiscountType] = useState<"AMOUNT" | "PERCENT">("AMOUNT");
+  const [draftDiscountValue, setDraftDiscountValue] = useState("0");
+  const [draftDiscountReason, setDraftDiscountReason] = useState("");
+  const [draftLoyaltyPoints, setDraftLoyaltyPoints] = useState("0");
   const [saleError, setSaleError] = useState("");
   const [completedInvoice, setCompletedInvoice] = useState<CashierSaleInvoiceSummary | null>(null);
   const [customerPickerKey, setCustomerPickerKey] = useState(0);
   const skipInitialRequest = useRef(true);
   const cashReceivedRef = useRef<HTMLInputElement>(null);
+  const customerPickerButtonRef = useRef<HTMLButtonElement>(null);
   const categories = ["All categories", ...catalogData.categories];
   const currentCatalogPage = catalogData.page;
   const catalogPageCount = catalogData.pageCount;
@@ -164,6 +170,52 @@ export function CashierUnifiedSaleForm({
   const loyaltyDiscount = redemption.discountCents / 100;
   const totalDiscount = manualDiscount + loyaltyDiscount;
 
+  const draftNumericDiscountValue = Math.max(0, Number(draftDiscountValue) || 0);
+  const draftManualDiscount = Math.min(
+    subtotal,
+    draftDiscountType === "PERCENT"
+      ? subtotal * Math.min(100, draftNumericDiscountValue) / 100
+      : draftNumericDiscountValue,
+  );
+  const draftManualDiscountError = draftManualDiscount > 0 && !draftDiscountReason.trim()
+    ? "Enter a reason for the discount."
+    : "";
+  const draftRedemption = useMemo(() => {
+    const requestedPoints = Math.max(0, Math.floor(Number(draftLoyaltyPoints) || 0));
+    if (!requestedPoints) return { discountCents: 0, error: "", points: 0 };
+    if (!customer) {
+      return { discountCents: 0, error: "Select a customer to use points.", points: 0 };
+    }
+    if (!loyaltySettings.enabled || !loyaltySettings.redemptionEnabled) {
+      return { discountCents: 0, error: "Point redemption is not enabled.", points: 0 };
+    }
+
+    try {
+      const result = calculateLoyaltyRedemption({
+        availablePoints: customer.loyaltyPoints ?? 0,
+        maximumDiscountCents: Math.max(0, Math.round((subtotal - draftManualDiscount) * 100)),
+        minimumPoints: loyaltySettings.minimumPoints,
+        pointsPerRinggit: loyaltySettings.pointsPerRinggit,
+        requestedPoints,
+      });
+      return { ...result, error: "" };
+    } catch (error) {
+      return {
+        discountCents: 0,
+        error: error instanceof Error ? error.message : "Points cannot be applied.",
+        points: 0,
+      };
+    }
+  }, [
+    customer,
+    draftLoyaltyPoints,
+    draftManualDiscount,
+    loyaltySettings,
+    subtotal,
+  ]);
+  const draftLoyaltyDiscount = draftRedemption.discountCents / 100;
+  const draftTotalDiscount = draftManualDiscount + draftLoyaltyDiscount;
+
   const tax = useMemo(() => calculateTax({
     lines: lines.map((line) => {
       return {
@@ -177,6 +229,18 @@ export function CashierUnifiedSaleForm({
     sstRate: taxSettings.rate,
     discount: totalDiscount,
   }), [lines, taxSettings, totalDiscount]);
+
+  const draftTax = useMemo(() => calculateTax({
+    lines: lines.map((line) => ({
+      lineTotal: line.price * line.quantity,
+      taxable: line.taxable,
+      taxRate: line.taxRate,
+    })),
+    sstEnabled: taxSettings.enabled,
+    sstLabel: taxSettings.label,
+    sstRate: taxSettings.rate,
+    discount: draftTotalDiscount,
+  }), [draftTotalDiscount, lines, taxSettings]);
 
   const totalCents = Math.max(0, Math.round(tax.total * 100));
   const cashReceivedCents = Math.max(0, Math.round((Number(cashReceived) || 0) * 100));
@@ -193,11 +257,34 @@ export function CashierUnifiedSaleForm({
 
   function useMaximumPoints() {
     if (!customer || !loyaltySettings.redemptionEnabled) return;
-    const affordableRinggit = Math.floor(Math.max(0, subtotal - manualDiscount));
+    const affordableRinggit = Math.floor(Math.max(0, subtotal - draftManualDiscount));
     const maximumBySale = affordableRinggit * loyaltySettings.pointsPerRinggit;
     const maximum = Math.min(customer.loyaltyPoints ?? 0, maximumBySale);
     const wholePoints = Math.floor(maximum / loyaltySettings.pointsPerRinggit) * loyaltySettings.pointsPerRinggit;
-    setLoyaltyPoints(String(wholePoints));
+    setDraftLoyaltyPoints(String(wholePoints));
+  }
+
+  function openCustomerPickerFromRewards() {
+    setAdjustmentsOpen(false);
+    window.setTimeout(() => customerPickerButtonRef.current?.click(), 0);
+  }
+
+  function openAdjustments() {
+    setDraftDiscountType(discountType);
+    setDraftDiscountValue(discountValue);
+    setDraftDiscountReason(discountReason);
+    setDraftLoyaltyPoints(loyaltyPoints);
+    setAdjustmentTab(Number(loyaltyPoints) > 0 ? "POINTS" : "DISCOUNT");
+    setAdjustmentsOpen(true);
+  }
+
+  function applyAdjustments() {
+    if (draftManualDiscountError || draftRedemption.error) return;
+    setDiscountType(draftDiscountType);
+    setDiscountValue(draftDiscountValue);
+    setDiscountReason(draftDiscountReason);
+    setLoyaltyPoints(String(draftRedemption.points));
+    setAdjustmentsOpen(false);
   }
 
   function switchCatalog(nextType: CashierCatalogType) {
@@ -243,7 +330,7 @@ export function CashierUnifiedSaleForm({
     setSaleError("");
     if (!cashPaymentReady) {
       setSaleError(`Enter at least ${formatMoney(tax.total)} cash received.`);
-      cashReceivedRef.current?.focus();
+      cashReceivedRef.current?.click();
       return;
     }
 
@@ -395,7 +482,10 @@ export function CashierUnifiedSaleForm({
         ) : null}
       </section>
 
-      <aside aria-label="Current sale" className={styles.orderPanel}>
+      <aside
+        aria-label="Current sale"
+        className={`${styles.orderPanel} ${lines.length ? "" : styles.orderPanelEmpty}`}
+      >
         <header className={styles.orderHeader}>
           <div>
             <span>CURRENT SALE</span>
@@ -406,6 +496,7 @@ export function CashierUnifiedSaleForm({
 
         <div className={styles.customerArea}>
           <PackageCustomerPicker
+            buttonRef={customerPickerButtonRef}
             buttonClassName={`${styles.customerButton} ${hasPackages && !customer ? styles.customerRequired : ""}`}
             compactAccountNote
             includeVehicleDetails={false}
@@ -497,8 +588,9 @@ export function CashierUnifiedSaleForm({
         <section className={styles.adjustmentsPanel}>
           <button
             aria-expanded={adjustmentsOpen}
+            aria-haspopup="dialog"
             className={styles.adjustmentsToggle}
-            onClick={() => setAdjustmentsOpen((open) => !open)}
+            onClick={openAdjustments}
             type="button"
           >
             <span>
@@ -509,80 +601,8 @@ export function CashierUnifiedSaleForm({
                   : "Manual discount or TETAMU Points"}
               </small>
             </span>
-            <b>{adjustmentsOpen ? "−" : "+"}</b>
+            <b>{totalDiscount > 0 ? "Edit" : "+"}</b>
           </button>
-          {adjustmentsOpen ? (
-            <div className={styles.adjustmentsBody}>
-              <div className={styles.discountControls}>
-                <div className={styles.discountMode}>
-                  <button
-                    className={discountType === "AMOUNT" ? styles.activeAdjustment : ""}
-                    onClick={() => setDiscountType("AMOUNT")}
-                    type="button"
-                  >
-                    RM
-                  </button>
-                  <button
-                    className={discountType === "PERCENT" ? styles.activeAdjustment : ""}
-                    onClick={() => setDiscountType("PERCENT")}
-                    type="button"
-                  >
-                    %
-                  </button>
-                </div>
-                <input
-                  aria-label="Discount value"
-                  min="0"
-                  onChange={(event) => setDiscountValue(event.target.value)}
-                  placeholder="0"
-                  step={discountType === "PERCENT" ? "1" : "0.01"}
-                  type="number"
-                  value={discountValue}
-                />
-              </div>
-              <input
-                aria-label="Discount reason"
-                className={styles.reasonInput}
-                maxLength={160}
-                onChange={(event) => setDiscountReason(event.target.value)}
-                placeholder="Discount reason"
-                value={discountReason}
-              />
-              <div className={styles.rewardRow}>
-                <span>
-                  <strong>TETAMU Points</strong>
-                  <small>
-                    {customer
-                      ? `${customer.loyaltyPoints ?? 0} pts available · ${loyaltySettings.pointsPerRinggit} pts = RM1`
-                      : "Select a customer to use points"}
-                  </small>
-                </span>
-                <input
-                  aria-label="Loyalty points to redeem"
-                  disabled={!customer || !loyaltySettings.redemptionEnabled}
-                  min="0"
-                  onChange={(event) => setLoyaltyPoints(event.target.value)}
-                  step={loyaltySettings.pointsPerRinggit}
-                  type="number"
-                  value={loyaltyPoints}
-                />
-                <button
-                  disabled={!customer || !loyaltySettings.redemptionEnabled}
-                  onClick={useMaximumPoints}
-                  type="button"
-                >
-                  Max
-                </button>
-              </div>
-              <div className={styles.savtRow}>
-                <span><strong>SAVT rewards</strong><small>Partner connection not available</small></span>
-                <b>Not connected</b>
-              </div>
-              {manualDiscountError || redemption.error ? (
-                <p className={styles.adjustmentError}>{manualDiscountError || redemption.error}</p>
-              ) : null}
-            </div>
-          ) : null}
         </section>
 
         <div className={styles.orderSummary}>
@@ -610,7 +630,7 @@ export function CashierUnifiedSaleForm({
               onClick={() => {
                 setPaymentMethod(method.value);
                 if (method.value === "CASH") {
-                  window.requestAnimationFrame(() => cashReceivedRef.current?.focus());
+                  window.requestAnimationFrame(() => cashReceivedRef.current?.click());
                 }
               }}
               type="button"
@@ -628,15 +648,12 @@ export function CashierUnifiedSaleForm({
           <div className={styles.cashTender}>
             <label>
               <span>Cash received</span>
-              <input
+              <MoneyNumpadInput
                 aria-invalid={!cashPaymentReady}
-                inputMode="decimal"
-                min="0"
-                onChange={(event) => setCashReceived(event.target.value)}
+                amountDue={tax.total}
+                onValueChange={setCashReceived}
                 placeholder={formatMoney(tax.total)}
                 ref={cashReceivedRef}
-                step="0.01"
-                type="number"
                 value={cashReceived}
               />
             </label>
@@ -663,6 +680,206 @@ export function CashierUnifiedSaleForm({
         <input name="branchId" type="hidden" value={branchId} />
       </aside>
     </form>
+    {adjustmentsOpen && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className={styles.adjustmentBackdrop}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setAdjustmentsOpen(false);
+            }}
+          >
+            <section
+              aria-label="Discount and rewards"
+              aria-modal="true"
+              className={styles.adjustmentDialog}
+              role="dialog"
+            >
+              <header className={styles.adjustmentDialogHeader}>
+                <div>
+                  <span>ORDER ADJUSTMENT</span>
+                  <h2>Discount &amp; rewards</h2>
+                </div>
+                <button
+                  aria-label="Close discount and rewards"
+                  className={styles.adjustmentDialogClose}
+                  onClick={() => setAdjustmentsOpen(false)}
+                  type="button"
+                >
+                  &times;
+                </button>
+              </header>
+
+              <div aria-label="Adjustment type" className={styles.adjustmentTabs} role="tablist">
+                <button
+                  aria-selected={adjustmentTab === "DISCOUNT"}
+                  className={adjustmentTab === "DISCOUNT" ? styles.activeAdjustmentTab : ""}
+                  onClick={() => setAdjustmentTab("DISCOUNT")}
+                  role="tab"
+                  type="button"
+                >
+                  Discount
+                </button>
+                <button
+                  aria-selected={adjustmentTab === "POINTS"}
+                  className={adjustmentTab === "POINTS" ? styles.activeAdjustmentTab : ""}
+                  onClick={() => setAdjustmentTab("POINTS")}
+                  role="tab"
+                  type="button"
+                >
+                  TETAMU Points
+                </button>
+              </div>
+
+              <div className={styles.adjustmentDialogBody}>
+                {adjustmentTab === "DISCOUNT" ? (
+                  <div className={styles.adjustmentContent}>
+                    <div aria-label="Discount type" className={styles.adjustmentMode}>
+                      <button
+                        className={draftDiscountType === "AMOUNT" ? styles.activeAdjustmentMode : ""}
+                        onClick={() => setDraftDiscountType("AMOUNT")}
+                        type="button"
+                      >
+                        RM amount
+                      </button>
+                      <button
+                        className={draftDiscountType === "PERCENT" ? styles.activeAdjustmentMode : ""}
+                        onClick={() => setDraftDiscountType("PERCENT")}
+                        type="button"
+                      >
+                        Percentage
+                      </button>
+                    </div>
+
+                    <label className={styles.adjustmentField}>
+                      <span>{draftDiscountType === "PERCENT" ? "Discount percentage" : "Discount amount"}</span>
+                      <MoneyNumpadInput
+                        aria-label="Discount value"
+                        amountDue={draftDiscountType === "PERCENT" ? 100 : subtotal}
+                        amountLabel="Maximum"
+                        dialogEyebrow="ORDER ADJUSTMENT"
+                        dialogTitle={draftDiscountType === "PERCENT" ? "Discount percentage" : "Discount amount"}
+                        exactLabel="Maximum"
+                        onValueChange={setDraftDiscountValue}
+                        placeholder={draftDiscountType === "PERCENT" ? "0%" : "RM0.00"}
+                        prefix={draftDiscountType === "PERCENT" ? "" : "RM"}
+                        suffix={draftDiscountType === "PERCENT" ? "%" : ""}
+                        value={draftDiscountValue}
+                      />
+                    </label>
+
+                    <label className={styles.adjustmentField}>
+                      <span>Reason</span>
+                      <input
+                        maxLength={160}
+                        onChange={(event) => setDraftDiscountReason(event.target.value)}
+                        placeholder="e.g. Staff approval or promotion"
+                        value={draftDiscountReason}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div className={styles.adjustmentContent}>
+                    <button
+                      aria-label={customer ? "Change loyalty customer" : "Select a customer to redeem points"}
+                      className={`${styles.pointsAccount} ${styles.pointsAccountAction}`}
+                      onClick={openCustomerPickerFromRewards}
+                      type="button"
+                    >
+                      <div>
+                        <strong>{customer?.name ?? "Select a customer"}</strong>
+                        <small>
+                          {customer
+                            ? `${customer.phone} · Loyalty member`
+                            : "A customer account is required to redeem points."}
+                        </small>
+                      </div>
+                      <b>{customer ? `${customer.loyaltyPoints ?? 0} pts` : "Required"}</b>
+                    </button>
+
+                    <div className={styles.pointsInputRow}>
+                      <label className={styles.adjustmentField}>
+                        <span>Points to redeem</span>
+                        <MoneyNumpadInput
+                          aria-label="Points to redeem"
+                          amountDue={customer?.loyaltyPoints ?? 0}
+                          amountLabel="Available"
+                          decimalPlaces={0}
+                          dialogEyebrow="LOYALTY REWARD"
+                          dialogTitle="Points to redeem"
+                          disabled={!customer || !loyaltySettings.redemptionEnabled}
+                          exactLabel="Maximum"
+                          onValueChange={setDraftLoyaltyPoints}
+                          placeholder="0 pts"
+                          prefix=""
+                          suffix=" pts"
+                          value={draftLoyaltyPoints}
+                        />
+                      </label>
+                      <button
+                        className={styles.maximumPointsButton}
+                        disabled={!customer || !loyaltySettings.redemptionEnabled}
+                        onClick={useMaximumPoints}
+                        type="button"
+                      >
+                        Use maximum
+                      </button>
+                    </div>
+
+                    <div className={styles.savtNotice}>
+                      <span>
+                        <strong>SAVT rewards</strong>
+                        <small>External rewards are not connected yet.</small>
+                      </span>
+                      <b>Unavailable</b>
+                    </div>
+                  </div>
+                )}
+
+                <div className={styles.adjustmentPreview}>
+                  <div><span>Subtotal</span><strong>{formatMoney(draftTax.subtotal)}</strong></div>
+                  {draftManualDiscount > 0 ? (
+                    <div><span>Manual discount</span><strong>−{formatMoney(draftManualDiscount)}</strong></div>
+                  ) : null}
+                  {draftLoyaltyDiscount > 0 ? (
+                    <div>
+                      <span>TETAMU Points ({draftRedemption.points} pts)</span>
+                      <strong>−{formatMoney(draftLoyaltyDiscount)}</strong>
+                    </div>
+                  ) : null}
+                  {taxSettings.enabled ? (
+                    <div>
+                      <span>{formatTaxLabel(draftTax.taxLabel, draftTax.taxRate)}</span>
+                      <strong>{formatMoney(draftTax.tax)}</strong>
+                    </div>
+                  ) : null}
+                  <div className={styles.adjustmentPreviewTotal}>
+                    <span>New total</span>
+                    <strong>{formatMoney(draftTax.total)}</strong>
+                  </div>
+                </div>
+
+                {draftManualDiscountError || draftRedemption.error ? (
+                  <p className={styles.adjustmentDialogError}>
+                    {draftManualDiscountError || draftRedemption.error}
+                  </p>
+                ) : null}
+              </div>
+
+              <footer className={styles.adjustmentDialogActions}>
+                <button onClick={() => setAdjustmentsOpen(false)} type="button">Cancel</button>
+                <button
+                  disabled={Boolean(draftManualDiscountError || draftRedemption.error)}
+                  onClick={applyAdjustments}
+                  type="button"
+                >
+                  Apply
+                </button>
+              </footer>
+            </section>
+          </div>,
+          document.body,
+        )
+      : null}
     {completedInvoice ? (
       <AppointmentInvoiceModal
         invoice={completedInvoice}

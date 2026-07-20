@@ -11,7 +11,12 @@ import {
   normalizeStaffPermissions,
   routePermission,
 } from "../../src/lib/auth/staff-permissions";
-import { cashierPackagePurchaseSchema } from "../../src/lib/validation/packages";
+import {
+  cashierPackagePurchaseSchema,
+  packageSchema,
+  packageServiceBenefitsSchema,
+} from "../../src/lib/validation/packages";
+import { getPackageBenefitDefinitions } from "../../src/lib/packages/service-balances";
 import { cashierSaleSchema } from "../../src/lib/validation/cashier";
 import { salonAppointmentPaymentSchema } from "../../src/lib/validation/pos";
 import { serviceSchema } from "../../src/lib/validation/services";
@@ -76,6 +81,50 @@ test("cashier sale allows anonymous products but requires a customer for package
       productQuantities: [1],
     }).success,
     true,
+  );
+});
+
+test("multi-service package benefits require unique services and preserve each allowance", () => {
+  const washServiceId = "11111111-1111-4111-8111-111111111111";
+  const haircutServiceId = "22222222-2222-4222-8222-222222222222";
+  const parsed = packageServiceBenefitsSchema.parse([
+    { serviceId: washServiceId, totalUses: 10 },
+    { serviceId: haircutServiceId, totalUses: 2 },
+  ]);
+
+  assert.deepEqual(parsed, [
+    { serviceId: washServiceId, totalUses: 10 },
+    { serviceId: haircutServiceId, totalUses: 2 },
+  ]);
+  assert.equal(
+    packageServiceBenefitsSchema.safeParse([
+      { serviceId: washServiceId, totalUses: 10 },
+      { serviceId: washServiceId, totalUses: 2 },
+    ]).success,
+    false,
+  );
+});
+
+test("multi-service package accepts no legacy linked service", () => {
+  assert.equal(
+    packageSchema.safeParse({
+      name: "Hair Wash 10 + Haircut 2",
+      categoryId: "33333333-3333-4333-8333-333333333333",
+      description: "",
+      serviceId: "",
+      price: "300",
+      totalUses: 12,
+      status: "ACTIVE",
+    }).success,
+    true,
+  );
+});
+
+test("legacy single-service packages still produce one service balance", () => {
+  const serviceId = "11111111-1111-4111-8111-111111111111";
+  assert.deepEqual(
+    getPackageBenefitDefinitions({ serviceId, totalUses: 10 }),
+    [{ serviceId, totalUses: 10 }],
   );
 });
 
@@ -157,6 +206,23 @@ test("salon appointment payments support partial payment and protect non-cash re
       tipAmount: 2,
     }).success,
     true,
+  );
+  assert.equal(
+    salonAppointmentPaymentSchema.safeParse({
+      appointmentId,
+      amount: 0,
+      method: "CASH",
+      customerPackageIds: ["22222222-2222-4222-8222-222222222222"],
+    }).success,
+    true,
+  );
+  assert.equal(
+    salonAppointmentPaymentSchema.safeParse({
+      appointmentId,
+      amount: 0,
+      method: "CASH",
+    }).success,
+    false,
   );
 });
 
@@ -435,7 +501,9 @@ test("service duration rejects values outside the supported salon range", () => 
   );
 });
 
-test("appointment input supports either a Salon customer or an AUTO vehicle", () => {
+test("appointment input supports customers, vehicles, and mixed sale items", () => {
+  const productId = "00000000-0000-4000-8000-000000000003";
+  const packageId = "00000000-0000-4000-8000-000000000004";
   const baseInput = {
     assignedStaffId: "",
     branchId: "",
@@ -444,6 +512,8 @@ test("appointment input supports either a Salon customer or an AUTO vehicle", ()
     contactType: "REGISTERED_OWNER" as const,
     serviceId: "",
     serviceIds: [],
+    productIds: [productId, productId],
+    packageIds: [packageId],
     scheduledDate: "2026-07-20",
     scheduledTime: "10:30",
     notes: "",
@@ -457,6 +527,13 @@ test("appointment input supports either a Salon customer or an AUTO vehicle", ()
     }).success,
     true,
   );
+  const parsed = createAppointmentSchema.parse({
+    ...baseInput,
+    customerId: "00000000-0000-4000-8000-000000000001",
+    vehicleId: "",
+  });
+  assert.deepEqual(parsed.productIds, [productId, productId]);
+  assert.deepEqual(parsed.packageIds, [packageId]);
   assert.equal(
     createAppointmentSchema.safeParse({
       ...baseInput,

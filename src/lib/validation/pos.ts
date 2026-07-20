@@ -54,9 +54,10 @@ export const salonAppointmentPaymentSchema = z
     depositMethod: paymentMethodSchema.default("CASH"),
     depositReference: optionalReferenceSchema,
     tipAmount: optionalMoney,
+    customerPackageIds: z.array(z.string().uuid("Customer package is invalid.")).default([]),
   })
   .superRefine((input, context) => {
-    if (input.amount <= 0 && input.depositAmount <= 0) {
+    if (input.amount <= 0 && input.depositAmount <= 0 && input.customerPackageIds.length === 0) {
       context.addIssue({
         code: "custom",
         message: "Enter a payment amount or deposit amount.",

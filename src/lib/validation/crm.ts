@@ -53,8 +53,35 @@ export const customerSchema = z.object({
     .regex(/^[0-9]+$/, "Phone can only contain numbers.")
     .transform(normalizeCustomerPhone),
   email: z.string().trim().email("Enter a valid email.").optional().or(z.literal("")),
+  dateOfBirth: z
+    .string()
+    .trim()
+    .refine(
+      (value) => !value || isValidDateInput(value),
+      "Enter a valid date of birth.",
+    )
+    .refine(
+      (value) => !value || new Date(`${value}T00:00:00.000Z`) <= new Date(),
+      "Date of birth cannot be in the future.",
+    )
+    .optional()
+    .or(z.literal("")),
   notes: z.string().trim().optional(),
 });
+
+function isValidDateInput(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+export function parseDateOfBirth(value?: string) {
+  return value ? new Date(`${value}T00:00:00.000Z`) : null;
+}
 
 export const vehicleSchema = z.object({
   customerId: z.string().uuid("Customer is required."),

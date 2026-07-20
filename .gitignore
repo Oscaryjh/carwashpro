@@ -8,6 +8,7 @@ coverage
 *.tsbuildinfo
 .tmp/
 output/
+tmp/
 .local-postgres
 .local-postgres.pid
 .local-postgres-*.log
@@ -16,5 +17,10 @@ public/uploads/
 .whatsapp-sessions/
 auth_info/
 logs/
+baileys-connection-test.mjs
+whatsapp-connector/test-send.ts
+scripts/local-refund-pdf-fixture.ts
+process.exit(0)
+{
 !src/app/business/settings/logs/
 !src/app/business/settings/logs/**

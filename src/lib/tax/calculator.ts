@@ -13,6 +13,7 @@ export type TaxCalculation = {
   total: number;
   taxRate: number;
   taxLabel: string;
+  lineDiscount: number[];
   lineTax: number[];
 };
 
@@ -44,6 +45,7 @@ export function calculateTax(input: {
   const tipCents = cents(input.tip);
   const taxRate = Math.max(0, Number(input.sstRate) || 0);
   const taxLabel = input.sstLabel?.trim() || "SST";
+  const lineDiscount: number[] = [];
   const lineTax: number[] = [];
 
   let taxableSubtotalCents = 0;
@@ -52,13 +54,14 @@ export function calculateTax(input: {
 
   lineCents.forEach((lineCentsValue, index) => {
     const isLast = index === lineCents.length - 1;
-    const lineDiscount = subtotalCents === 0
+    const allocatedLineDiscount = subtotalCents === 0
       ? 0
       : isLast
         ? discountCents - allocatedDiscount
         : Math.round(discountCents * lineCentsValue / subtotalCents);
-    allocatedDiscount += lineDiscount;
-    const taxableBase = Math.max(0, lineCentsValue - lineDiscount);
+    allocatedDiscount += allocatedLineDiscount;
+    lineDiscount.push(money(allocatedLineDiscount));
+    const taxableBase = Math.max(0, lineCentsValue - allocatedLineDiscount);
     const line = input.lines[index];
     const lineRate = line.taxable && input.sstEnabled
       ? Math.max(0, Number(line.taxRate ?? taxRate) || 0)
@@ -79,6 +82,7 @@ export function calculateTax(input: {
     total: money(totalCents),
     taxRate: input.sstEnabled ? taxRate : 0,
     taxLabel,
+    lineDiscount,
     lineTax,
   };
 }
