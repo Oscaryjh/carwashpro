@@ -156,7 +156,7 @@ export default async function WhatsAppInboxPage({
     <>
       <WhatsAppInboxAutoRefresh enabled={canSend} />
       <section className="content whatsapp-inbox-page">
-        <div className="page-header">
+        <div className="page-header whatsapp-inbox-page-header">
           <div>
             <h1>WhatsApp Inbox</h1>
           </div>
@@ -175,13 +175,13 @@ export default async function WhatsAppInboxPage({
                   value={selectedConversation.id}
                 />
               ) : null}
-              <button className="secondary-light-button compact-link-button" type="submit">
+              <button className="whatsapp-toolbar-button" type="submit">
                 Refresh
               </button>
             </form>
             {canManageWhatsAppSession ? (
               <form action="/whatsapp/settings" method="get">
-                <button className="secondary-link-button" type="submit">
+                <button className="whatsapp-toolbar-button" type="submit">
                   Settings
                 </button>
               </form>
@@ -199,14 +199,14 @@ export default async function WhatsAppInboxPage({
 
         <div className="whatsapp-inbox-layout">
           <aside className="panel whatsapp-chat-list">
-            <div className="section-header">
+            <div className="section-header whatsapp-chat-list-header">
               <h2>Chats</h2>
               <div className="whatsapp-chat-list-actions">
                 <WhatsAppCustomerPicker
                   customers={customerPickerCustomers}
                   includeVehicleDetails={!isSalonBusiness}
                 />
-                <span className="muted">
+                <span className="whatsapp-chat-count">
                   {query
                     ? `${filteredConversations.length}/${conversations.length}`
                     : conversations.length}
@@ -229,9 +229,9 @@ export default async function WhatsAppInboxPage({
                 type="search"
               />
               {query ? (
-                <Link className="secondary-light-button compact-link-button" href="/whatsapp/inbox">
-                  Clear
-                </Link>
+                  <Link className="whatsapp-search-clear" href="/whatsapp/inbox">
+                    Clear
+                  </Link>
               ) : null}
             </form>
             {filteredConversations.length ? (
@@ -402,7 +402,7 @@ export default async function WhatsAppInboxPage({
                           <p>{decodeWhatsAppStoredText(chatMessage.body)}</p>
                         )}
                         <span className="whatsapp-message-meta">
-                          {chatMessage.createdAt.toLocaleString()}
+                          {formatChatMessageTime(chatMessage.createdAt)}
                           {chatMessage.direction === "OUTBOUND" ? (
                             <>
                               {" "}
@@ -447,14 +447,25 @@ export default async function WhatsAppInboxPage({
           </main>
 
           <aside className="panel whatsapp-customer-side">
-            <div className="section-header">
+            <div className="section-header whatsapp-customer-side-header">
               <h2>Customer</h2>
             </div>
             {selectedConversation?.customer ? (
               <>
-                <strong>{selectedConversation.customer.name}</strong>
-                <span>{selectedConversation.customer.phone}</span>
-                <span>{selectedConversation.customer.email ?? "No email"}</span>
+                <div className="whatsapp-customer-profile">
+                  <span className="whatsapp-avatar whatsapp-profile-avatar" aria-hidden="true">
+                    {getAvatarText(selectedConversation.customer.name)}
+                  </span>
+                  <strong>{selectedConversation.customer.name}</strong>
+                  <span>{selectedConversation.customer.phone}</span>
+                  <span>{selectedConversation.customer.email ?? "No email"}</span>
+                  <Link
+                    className="whatsapp-customer-action-button"
+                    href={`/crm/customers/${selectedConversation.customer.id}`}
+                  >
+                    Open customer profile
+                  </Link>
+                </div>
 
                 {!isSalonBusiness ? (
                   <>
@@ -495,8 +506,12 @@ export default async function WhatsAppInboxPage({
                 )}
               </>
             ) : (
-              <>
-                <p className="empty-state">No linked customer.</p>
+              <div className="whatsapp-customer-empty">
+                <span className="whatsapp-avatar whatsapp-profile-avatar" aria-hidden="true">
+                  {selectedConversation ? getConversationAvatarText(selectedConversation) : "WA"}
+                </span>
+                <strong>No linked customer</strong>
+                <p>Save this WhatsApp contact to CRM to view customer details here.</p>
                 {selectedConversation ? (
                   <Link
                     className="whatsapp-save-customer-button"
@@ -505,7 +520,7 @@ export default async function WhatsAppInboxPage({
                     Add customer
                   </Link>
                 ) : null}
-              </>
+              </div>
             )}
           </aside>
         </div>
@@ -883,6 +898,13 @@ function formatConversationTime(date: Date) {
   return date.toLocaleDateString("en-MY", {
     day: "numeric",
     month: "short",
+  });
+}
+
+function formatChatMessageTime(date: Date) {
+  return date.toLocaleTimeString("en-MY", {
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
