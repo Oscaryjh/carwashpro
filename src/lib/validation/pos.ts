@@ -50,6 +50,8 @@ export const salonAppointmentPaymentSchema = z
     method: paymentMethodSchema,
     reference: optionalReferenceSchema,
     discountAmount: optionalMoney,
+    catalogDiscountId: z.string().uuid("Catalog discount is invalid.").optional().or(z.literal("")),
+    discountReference: z.string().trim().max(160, "Discount reference is too long.").optional(),
     depositAmount: optionalMoney,
     depositMethod: paymentMethodSchema.default("CASH"),
     depositReference: optionalReferenceSchema,
@@ -57,6 +59,20 @@ export const salonAppointmentPaymentSchema = z
     customerPackageIds: z.array(z.string().uuid("Customer package is invalid.")).default([]),
   })
   .superRefine((input, context) => {
+    if (input.catalogDiscountId && input.discountAmount > 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Use either a catalog discount or a manual discount.",
+        path: ["catalogDiscountId"],
+      });
+    }
+    if (input.catalogDiscountId && !input.discountReference) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter a reference for the catalog discount.",
+        path: ["discountReference"],
+      });
+    }
     if (input.amount <= 0 && input.depositAmount <= 0 && input.customerPackageIds.length === 0) {
       context.addIssue({
         code: "custom",

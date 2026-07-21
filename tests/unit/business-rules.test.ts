@@ -131,8 +131,9 @@ test("legacy single-service packages still produce one service balance", () => {
   );
 });
 
-test("cashier discounts require a reason and loyalty redemption requires a customer", () => {
+test("cashier discounts require a reference and loyalty redemption requires a customer", () => {
   const productId = "11111111-1111-4111-8111-111111111111";
+  const catalogDiscountId = "33333333-3333-4333-8333-333333333333";
   const baseSale = {
     branchId: "",
     customerId: "",
@@ -148,7 +149,7 @@ test("cashier discounts require a reason and loyalty redemption requires a custo
       ...baseSale,
       discountType: "PERCENT",
       discountValue: 10,
-      discountReason: "Member promotion",
+      discountReference: "PROMO-10",
     }).success,
     true,
   );
@@ -163,6 +164,21 @@ test("cashier discounts require a reason and loyalty redemption requires a custo
   assert.equal(
     cashierSaleSchema.safeParse({
       ...baseSale,
+      catalogDiscountId,
+    }).success,
+    false,
+  );
+  assert.equal(
+    cashierSaleSchema.safeParse({
+      ...baseSale,
+      catalogDiscountId,
+      discountReference: "CATALOG-JULY",
+    }).success,
+    true,
+  );
+  assert.equal(
+    cashierSaleSchema.safeParse({
+      ...baseSale,
       loyaltyPoints: 100,
     }).success,
     false,
@@ -171,6 +187,7 @@ test("cashier discounts require a reason and loyalty redemption requires a custo
 
 test("salon appointment payments support partial payment and protect non-cash references", () => {
   const appointmentId = "11111111-1111-4111-8111-111111111111";
+  const catalogDiscountId = "33333333-3333-4333-8333-333333333333";
 
   assert.equal(
     salonAppointmentPaymentSchema.safeParse({
@@ -226,6 +243,25 @@ test("salon appointment payments support partial payment and protect non-cash re
       method: "CASH",
     }).success,
     false,
+  );
+  assert.equal(
+    salonAppointmentPaymentSchema.safeParse({
+      appointmentId,
+      amount: 25,
+      method: "CASH",
+      catalogDiscountId,
+    }).success,
+    false,
+  );
+  assert.equal(
+    salonAppointmentPaymentSchema.safeParse({
+      appointmentId,
+      amount: 25,
+      method: "CASH",
+      catalogDiscountId,
+      discountReference: "CATALOG-JULY",
+    }).success,
+    true,
   );
 });
 

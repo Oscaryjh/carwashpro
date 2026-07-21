@@ -70,6 +70,18 @@ enum ServiceCategoryStatus {
   INACTIVE
 }
 
+enum CatalogDiscountScope {
+  ALL
+  SERVICES
+  PRODUCTS
+  PACKAGES
+}
+
+enum CatalogDiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
 enum WorkOrderStatus {
   WAITING
   IN_PROGRESS
@@ -333,6 +345,7 @@ model Business {
   employeeMemberships        EmployeeBusinessMembership[]
   employeeBranchAssignments  EmployeeBranchAssignment[]
   employeeAttendances        EmployeeAttendance[]
+  catalogDiscounts           CatalogDiscount[]
 
   @@index([slug])
   @@index([industryType])
@@ -371,6 +384,7 @@ model Branch {
   loyaltyTransactions       LoyaltyTransaction[]
   employeeBranchAssignments EmployeeBranchAssignment[]
   employeeAttendances       EmployeeAttendance[]
+  catalogDiscounts          CatalogDiscount[]
 
   @@unique([businessId, name])
   @@index([businessId])
@@ -379,20 +393,21 @@ model Branch {
 }
 
 model User {
-  id                String     @id @default(uuid()) @db.Uuid
-  businessId        String?    @map("business_id") @db.Uuid
-  branchId          String?    @map("branch_id") @db.Uuid
-  name              String
-  email             String?    @unique
-  whatsappPhone     String?    @map("whatsapp_phone")
-  passwordHash      String?    @map("password_hash")
-  loginEnabled      Boolean    @default(true) @map("login_enabled")
-  employeeAccountId String?    @map("employee_account_id") @db.Uuid
-  role              UserRole
-  permissions       String[]   @default([])
-  status            UserStatus @default(active)
-  createdAt         DateTime   @default(now()) @map("created_at")
-  updatedAt         DateTime   @updatedAt @map("updated_at")
+  id                  String     @id @default(uuid()) @db.Uuid
+  businessId          String?    @map("business_id") @db.Uuid
+  branchId            String?    @map("branch_id") @db.Uuid
+  name                String
+  email               String?    @unique
+  whatsappPhone       String?    @map("whatsapp_phone")
+  passwordHash        String?    @map("password_hash")
+  loginEnabled        Boolean    @default(true) @map("login_enabled")
+  appointmentBookable Boolean    @default(false) @map("appointment_bookable")
+  employeeAccountId   String?    @map("employee_account_id") @db.Uuid
+  role                UserRole
+  permissions         String[]   @default([])
+  status              UserStatus @default(active)
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
 
   business                 Business?                @relation(fields: [businessId], references: [id], onDelete: Restrict)
   branch                   Branch?                  @relation(fields: [branchId], references: [id], onDelete: SetNull)
@@ -498,18 +513,18 @@ model EmployeeAttendance {
 }
 
 model Customer {
-  id             String   @id @default(uuid()) @db.Uuid
-  businessId     String   @map("business_id") @db.Uuid
-  branchId       String?  @map("branch_id") @db.Uuid
+  id             String    @id @default(uuid()) @db.Uuid
+  businessId     String    @map("business_id") @db.Uuid
+  branchId       String?   @map("branch_id") @db.Uuid
   name           String
   phone          String
   email          String?
   dateOfBirth    DateTime? @map("date_of_birth") @db.Date
   notes          String?
   preferences    String?
-  treatmentNotes String?  @map("treatment_notes")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  treatmentNotes String?   @map("treatment_notes")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   business                  Business                  @relation(fields: [businessId], references: [id], onDelete: Restrict)
   branch                    Branch?                   @relation(fields: [branchId], references: [id], onDelete: SetNull)
@@ -853,6 +868,34 @@ model PackageServiceBenefit {
   @@index([businessId])
   @@index([serviceId])
   @@map("package_service_benefits")
+}
+
+model CatalogDiscount {
+  id                   String               @id @default(uuid()) @db.Uuid
+  businessId           String               @map("business_id") @db.Uuid
+  branchId             String?              @map("branch_id") @db.Uuid
+  name                 String
+  discountType         CatalogDiscountType  @default(PERCENTAGE) @map("discount_type")
+  percentage           Decimal?             @db.Decimal(5, 2)
+  fixedAmount          Decimal?             @map("fixed_amount") @db.Decimal(10, 2)
+  scope                CatalogDiscountScope @default(ALL)
+  minimumSpend         Decimal              @default(0) @map("minimum_spend") @db.Decimal(10, 2)
+  maximumDiscount      Decimal?             @map("maximum_discount") @db.Decimal(10, 2)
+  allowLoyaltyStacking Boolean              @default(false) @map("allow_loyalty_stacking")
+  startsAt             DateTime?            @map("starts_at")
+  endsAt               DateTime?            @map("ends_at")
+  active               Boolean              @default(true)
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branch   Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@unique([businessId, name])
+  @@index([businessId, active])
+  @@index([branchId])
+  @@index([startsAt, endsAt])
+  @@map("catalog_discounts")
 }
 
 model CustomerPackage {

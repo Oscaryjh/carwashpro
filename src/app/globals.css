@@ -33,6 +33,245 @@
   --font-weight-bold: 700;
 }
 
+/* Catalog navigation and discount management */
+.catalog-category-hub {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.catalog-category-hub > a {
+  display: grid;
+  min-height: 118px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.catalog-category-hub > a:hover {
+  border-color: var(--accent);
+  background: #eef9f7;
+}
+
+.catalog-category-hub strong { font-size: 16px; }
+.catalog-category-hub span { align-self: center; color: var(--muted); font-size: 13px; }
+.catalog-category-hub b { align-self: end; color: var(--accent); font-size: 13px; }
+
+.catalog-discount-modal {
+  width: min(900px, calc(100vw - 28px));
+}
+
+.catalog-discount-modal .product-create-modal-mark {
+  visibility: hidden;
+}
+
+.catalog-discount-form { display: grid; gap: 12px; }
+.catalog-discount-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.catalog-discount-grid label,
+.catalog-discount-options label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.catalog-discount-name { grid-column: span 5; }
+.catalog-discount-type { grid-column: span 4; }
+.catalog-discount-rate { grid-column: span 3; }
+.catalog-discount-scope,
+.catalog-discount-branch,
+.catalog-discount-minimum,
+.catalog-discount-maximum { grid-column: span 4; }
+.catalog-discount-starts,
+.catalog-discount-ends { grid-column: span 4; }
+.catalog-discount-grid.is-fixed-amount .catalog-discount-starts,
+.catalog-discount-grid.is-fixed-amount .catalog-discount-ends { grid-column: span 6; }
+.catalog-discount-grid input,
+.catalog-discount-grid select { width: 100%; }
+.catalog-discount-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+.catalog-discount-percent-field {
+  position: relative;
+}
+
+.catalog-discount-percent-field input {
+  padding-right: 34px;
+}
+
+.catalog-discount-percent-field > span {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.catalog-discount-type {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.catalog-discount-type legend {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.catalog-discount-type-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  min-height: 46px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel-muted);
+}
+
+.catalog-discount-type-control label {
+  display: block;
+  cursor: pointer;
+}
+
+.catalog-discount-type-control input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.catalog-discount-type-control span {
+  display: grid;
+  min-height: 36px;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.catalog-discount-type-control input:checked + span {
+  color: var(--accent);
+  background: var(--panel);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 10%);
+}
+
+.catalog-discount-options .setting-toggle-row {
+  position: relative;
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.catalog-discount-options .setting-toggle-row:hover {
+  border-color: #9ecfc9;
+  background: #f5fbfa;
+}
+
+.catalog-discount-options .setting-toggle-row input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.catalog-discount-option-copy { display: grid; gap: 2px; }
+.catalog-discount-option-copy strong { color: var(--text); font-size: 13px; }
+.catalog-discount-option-copy small { color: var(--muted); font-weight: 500; }
+
+.catalog-discount-switch {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border: 1px solid #bcc7d3;
+  border-radius: 999px;
+  background: #dbe2ea;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.catalog-discount-switch::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+  content: "";
+  transition: transform 150ms ease;
+}
+
+.catalog-discount-options input:checked + .catalog-discount-switch {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.catalog-discount-options input:checked + .catalog-discount-switch::after {
+  transform: translateX(16px);
+}
+
+.catalog-discount-options input:focus-visible + .catalog-discount-switch {
+  box-shadow: var(--focus-ring);
+}
+
+.catalog-discount-form .catalog-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.catalog-discount-form .catalog-modal-actions button {
+  min-width: 150px;
+}
+.catalog-discount-table td:first-child { min-width: 190px; }
+.salon-checkout-adjustments .salon-checkout-catalog-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+@media (max-width: 1100px) {
+  .catalog-discount-modal { width: min(840px, calc(100vw - 28px)); }
+}
+
+@media (max-width: 760px) {
+  .catalog-category-hub,
+  .catalog-discount-options { grid-template-columns: 1fr; }
+  .catalog-discount-name,
+  .catalog-discount-type,
+  .catalog-discount-rate,
+  .catalog-discount-scope,
+  .catalog-discount-branch,
+  .catalog-discount-minimum,
+  .catalog-discount-maximum,
+  .catalog-discount-starts,
+  .catalog-discount-ends { grid-column: 1 / -1; }
+  .catalog-discount-form .catalog-modal-actions button { width: 100%; }
+}
+
 .input-with-suffix {
   position: relative;
 }
@@ -1405,6 +1644,75 @@ select:disabled {
   content: "Exit";
   font-size: 11px;
   font-weight: 700;
+}
+
+.sidebar .nav-group {
+  display: grid;
+  gap: 3px;
+}
+
+.sidebar .nav-group-toggle {
+  display: flex;
+  width: 100%;
+  min-height: var(--touch-target);
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sidebar-muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.sidebar .nav-group-toggle:hover,
+.sidebar .nav-group-toggle.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.sidebar .nav-group-chevron {
+  margin-left: auto;
+  font-size: 20px;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform 160ms ease;
+}
+
+.sidebar .nav-group.open .nav-group-chevron {
+  transform: rotate(90deg);
+}
+
+.sidebar .nav-group-children {
+  display: grid;
+  gap: 2px;
+  margin-left: 17px;
+  padding-left: 9px;
+  border-left: 1px solid rgba(217, 228, 239, 0.2);
+}
+
+.sidebar .nav-group-children a {
+  min-height: 36px;
+  font-size: 12px;
+}
+
+.sidebar .nav-group-children .sidebar-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.app-shell.sidebar-collapsed .nav-group-toggle {
+  justify-content: center;
+  min-height: 40px;
+  padding: 0;
+}
+
+.app-shell.sidebar-collapsed .nav-group-toggle .nav-label,
+.app-shell.sidebar-collapsed .nav-group-toggle .nav-group-chevron,
+.app-shell.sidebar-collapsed .nav-group-children {
+  display: none;
 }
 
 .secondary-button {
@@ -4343,6 +4651,10 @@ a.dashboard-kpi-card:hover {
     grid-template-columns: 1fr;
   }
 
+  .salon-checkout-adjustments .salon-checkout-catalog-row {
+    grid-template-columns: 1fr;
+  }
+
   .salon-checkout-payment-methods {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -6269,6 +6581,116 @@ label {
   padding: 12px;
 }
 
+.staff-appointment-setting {
+  display: grid;
+  min-height: 62px;
+  align-items: center;
+  gap: 10px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.staff-appointment-setting:has(input:checked) {
+  border-color: rgba(12, 126, 116, 0.42);
+  background: #f1faf8;
+}
+
+.staff-appointment-setting input {
+  width: 19px;
+  height: 19px;
+  min-height: 19px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.staff-appointment-setting span {
+  display: grid;
+  gap: 2px;
+}
+
+.staff-appointment-setting strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.staff-appointment-setting small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.team-appointment-panel {
+  display: grid;
+  align-items: center;
+  gap: 14px;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(360px, 1.2fr);
+}
+
+.team-appointment-copy h2,
+.team-appointment-copy p {
+  margin: 0;
+}
+
+.team-appointment-copy p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.team-owner-list {
+  display: grid;
+  gap: 8px;
+}
+
+.team-owner-list form {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  grid-template-columns: minmax(120px, 1fr) auto auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 8px 10px;
+}
+
+.team-owner-list form > span:first-of-type {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.team-owner-list small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-neutral {
+  color: var(--muted);
+  background: #eef1f5;
+}
+
+@media (max-width: 900px) {
+  .team-appointment-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .team-owner-list form {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .team-owner-list button {
+    grid-column: 1 / -1;
+  }
+}
+
 .staff-branch-picker {
   display: grid;
   gap: 8px;
@@ -6549,6 +6971,46 @@ label {
 .team-create-card {
   display: grid;
   gap: 12px;
+}
+
+.staff-create-modal-content {
+  display: grid;
+  gap: 10px;
+}
+
+.staff-create-modal-content .staff-login-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.staff-create-modal-content .permission-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.staff-create-modal-content .permission-card {
+  min-height: 64px;
+  padding: 8px 10px;
+}
+
+.staff-create-modal-content .form-actions {
+  position: sticky;
+  bottom: -1px;
+  z-index: 2;
+  border-top: 1px solid var(--line);
+  background: #f4f3f8;
+  padding: 10px 0 0;
+}
+
+@media (max-width: 900px) {
+  .staff-create-modal-content .permission-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .staff-create-modal-content .staff-login-fields,
+  .staff-create-modal-content .permission-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .staff-availability-layout {

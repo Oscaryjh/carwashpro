@@ -117,6 +117,18 @@ export function StaffForm({
           ) : null}
         </div>
 
+        <label className="staff-appointment-setting">
+          <input
+            defaultChecked={staff?.appointmentBookable ?? true}
+            name="appointmentBookable"
+            type="checkbox"
+          />
+          <span>
+            <strong>Available for appointments</strong>
+            <small>Show this employee in the appointment calendar and staff selector.</small>
+          </span>
+        </label>
+
         <div className="staff-access-mode">
           <h3>System access</h3>
           <div className="staff-access-options">

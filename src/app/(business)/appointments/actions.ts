@@ -6,6 +6,11 @@ import { redirect } from "next/navigation";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { resolveOperationalBranchId } from "@/lib/branches";
+import {
+  calculateCatalogDiscountCents,
+  formatCatalogDiscountValue,
+  type CatalogDiscountOption,
+} from "@/lib/catalog-discounts";
 import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
 import {
   activateCustomerPackageServiceBalances,
@@ -271,6 +276,7 @@ async function createAppointment(formData: FormData): Promise<AppointmentMutatio
         id: assignedStaffId,
         businessId,
         status: "active",
+        appointmentBookable: true,
         ...(appointmentBranchId ? { OR: [{ branchId: appointmentBranchId }, { role: "BUSINESS_OWNER" }] } : {}),
       },
       select: { id: true },
@@ -493,6 +499,7 @@ export async function rescheduleAppointmentAction(
         id: assignedStaffId,
         businessId,
         status: "active",
+        appointmentBookable: true,
         ...(appointment.branchId
           ? { OR: [{ branchId: appointment.branchId }, { role: "BUSINESS_OWNER" }] }
           : {}),
@@ -662,6 +669,7 @@ export async function updateAppointmentDetailsAction(
         id: assignedStaffId,
         businessId,
         status: "active",
+        appointmentBookable: true,
         ...(appointment.branchId
           ? { OR: [{ branchId: appointment.branchId }, { role: "BUSINESS_OWNER" }] }
           : {}),
@@ -1049,6 +1057,8 @@ export async function recordSalonAppointmentPaymentAction(
     method: formData.get("method"),
     reference: formData.get("reference"),
     discountAmount: formData.get("discountAmount"),
+    catalogDiscountId: formData.get("catalogDiscountId")?.toString() || undefined,
+    discountReference: formData.get("discountReference")?.toString() || undefined,
     depositAmount: formData.get("depositAmount"),
     depositMethod: formData.get("depositMethod"),
     depositReference: formData.get("depositReference"),
@@ -1126,6 +1136,37 @@ export async function recordSalonAppointmentPaymentAction(
 
     if (shift.branchId !== appointment.branchId) {
       throw new Error("This payment does not belong to the current shift branch.");
+    }
+
+    const now = new Date();
+    const catalogDiscountRecord = input.catalogDiscountId
+      ? await tx.catalogDiscount.findFirst({
+          where: {
+            id: input.catalogDiscountId,
+            businessId,
+            active: true,
+            OR: [{ branchId: null }, { branchId: appointment.branchId }],
+            AND: [
+              { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+              { OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
+            ],
+          },
+          select: {
+            id: true,
+            name: true,
+            discountType: true,
+            percentage: true,
+            fixedAmount: true,
+            scope: true,
+            minimumSpend: true,
+            maximumDiscount: true,
+            allowLoyaltyStacking: true,
+          },
+        })
+      : null;
+
+    if (input.catalogDiscountId && !catalogDiscountRecord) {
+      throw new Error("This catalog discount is no longer available for this branch.");
     }
 
     let invoice = appointment.invoice;
@@ -1285,8 +1326,35 @@ export async function recordSalonAppointmentPaymentAction(
         throw new Error("The selected items must have a valid price.");
       }
 
-      const discountCents = toCents(input.discountAmount);
+      const catalogDiscount = catalogDiscountRecord
+        ? {
+            id: catalogDiscountRecord.id,
+            name: catalogDiscountRecord.name,
+            discountType: catalogDiscountRecord.discountType,
+            percentage: catalogDiscountRecord.percentage == null ? null : Number(catalogDiscountRecord.percentage),
+            fixedAmount: catalogDiscountRecord.fixedAmount == null ? null : Number(catalogDiscountRecord.fixedAmount),
+            scope: catalogDiscountRecord.scope,
+            minimumSpend: Number(catalogDiscountRecord.minimumSpend),
+            maximumDiscount: catalogDiscountRecord.maximumDiscount == null
+              ? null
+              : Number(catalogDiscountRecord.maximumDiscount),
+            allowLoyaltyStacking: catalogDiscountRecord.allowLoyaltyStacking,
+          } satisfies CatalogDiscountOption
+        : null;
+      const discountCents = catalogDiscount
+        ? calculateCatalogDiscountCents({
+            discount: catalogDiscount,
+            lines: saleLines.map((line) => ({
+              lineTotalCents: toCents(line.lineTotal),
+              type: line.kind,
+            })),
+          })
+        : toCents(input.discountAmount);
       const tipCents = toCents(input.tipAmount);
+
+      if (catalogDiscount && discountCents <= 0) {
+        throw new Error("This catalog discount does not apply to the current appointment.");
+      }
       if (discountCents > subtotalCents) {
         throw new Error("Discount cannot exceed the item subtotal.");
       }
@@ -1369,6 +1437,9 @@ export async function recordSalonAppointmentPaymentAction(
           invoiceNumber: makeInvoiceNumber(),
           subtotal: fromCents(subtotalCents),
           discountAmount: fromCents(discountCents),
+          discountReason: catalogDiscount
+            ? `Catalog: ${catalogDiscount.name} (${formatCatalogDiscountValue(catalogDiscount)}) · Reference: ${input.discountReference}`
+            : discountCents > 0 ? "Checkout discount" : null,
           depositAmount: fromCents(depositCents),
           tipAmount: fromCents(tipCents),
           taxableSubtotal: fromCents(toCents(tax.taxableSubtotal)),
@@ -1482,7 +1553,7 @@ export async function recordSalonAppointmentPaymentAction(
       throw new Error("This invoice cannot accept another payment.");
     }
 
-    if (!isNewInvoice && (input.discountAmount > 0 || input.depositAmount > 0 || input.tipAmount > 0)) {
+    if (!isNewInvoice && (input.discountAmount > 0 || input.catalogDiscountId || input.depositAmount > 0 || input.tipAmount > 0)) {
       throw new Error("Discount, deposit, and tip can only be set when the invoice is created.");
     }
 

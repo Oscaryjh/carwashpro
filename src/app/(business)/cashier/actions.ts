@@ -5,6 +5,11 @@ import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveOperationalBranchId } from "@/lib/branches";
+import {
+  calculateCatalogDiscountCents,
+  formatCatalogDiscountValue,
+  type CatalogDiscountOption,
+} from "@/lib/catalog-discounts";
 import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
 import {
   activateCustomerPackageServiceBalances,
@@ -79,7 +84,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
     reference: formData.get("reference")?.toString() || undefined,
     discountType: formData.get("discountType")?.toString() || "AMOUNT",
     discountValue: formData.get("discountValue")?.toString() || "0",
-    discountReason: formData.get("discountReason")?.toString() || undefined,
+    discountReference: formData.get("discountReference")?.toString() || undefined,
+    catalogDiscountId: formData.get("catalogDiscountId")?.toString() || undefined,
     loyaltyPoints: formData.get("loyaltyPoints")?.toString() || "0",
   });
 
@@ -146,7 +152,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         input.serviceIds,
         input.serviceQuantities,
       );
-      const [business, packageDefinitions, products, services, loyaltyProgram, membership] = await Promise.all([
+      const now = new Date();
+      const [business, packageDefinitions, products, services, loyaltyProgram, membership, catalogDiscountRecord] = await Promise.all([
         tx.business.findUniqueOrThrow({
           where: { id: businessId },
           select: { sstEnabled: true, sstLabel: true, sstRate: true },
@@ -192,7 +199,36 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               select: { pointsBalance: true },
             })
           : Promise.resolve(null),
+        input.catalogDiscountId
+          ? tx.catalogDiscount.findFirst({
+              where: {
+                id: input.catalogDiscountId,
+                businessId,
+                active: true,
+                OR: [{ branchId: null }, { branchId }],
+                AND: [
+                  { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+                  { OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
+                ],
+              },
+              select: {
+                id: true,
+                name: true,
+                discountType: true,
+                percentage: true,
+                fixedAmount: true,
+                scope: true,
+                minimumSpend: true,
+                maximumDiscount: true,
+                allowLoyaltyStacking: true,
+              },
+            })
+          : Promise.resolve(null),
       ]);
+
+      if (input.catalogDiscountId && !catalogDiscountRecord) {
+        throw new Error("This catalog discount is no longer available for this branch.");
+      }
 
       if (packageDefinitions.length !== packageQuantities.size) {
         throw new Error("One of the selected packages is no longer available.");
@@ -258,14 +294,49 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           )) *
           100,
       );
-      const requestedManualDiscountCents =
-        input.discountType === "PERCENT"
+      const catalogDiscount = catalogDiscountRecord
+        ? {
+            id: catalogDiscountRecord.id,
+            name: catalogDiscountRecord.name,
+            discountType: catalogDiscountRecord.discountType,
+            percentage: catalogDiscountRecord.percentage == null ? null : Number(catalogDiscountRecord.percentage),
+            fixedAmount: catalogDiscountRecord.fixedAmount == null ? null : Number(catalogDiscountRecord.fixedAmount),
+            scope: catalogDiscountRecord.scope,
+            minimumSpend: Number(catalogDiscountRecord.minimumSpend),
+            maximumDiscount: catalogDiscountRecord.maximumDiscount == null
+              ? null
+              : Number(catalogDiscountRecord.maximumDiscount),
+            allowLoyaltyStacking: catalogDiscountRecord.allowLoyaltyStacking,
+          } satisfies CatalogDiscountOption
+        : null;
+      const requestedManualDiscountCents = catalogDiscount
+        ? calculateCatalogDiscountCents({
+            discount: catalogDiscount,
+            lines: [
+              ...productTotals.map((total) => ({ lineTotalCents: Math.round(total * 100), type: "product" as const })),
+              ...serviceTotals.map((total) => ({ lineTotalCents: Math.round(total * 100), type: "service" as const })),
+              ...packageUnits.map((item) => ({
+                lineTotalCents: Math.round(Number(item.price) * 100),
+                type: "package" as const,
+              })),
+            ],
+          })
+        : input.discountType === "PERCENT"
           ? Math.round((subtotalCents * input.discountValue) / 100)
           : Math.round(input.discountValue * 100);
-      const manualDiscountCents = Math.min(
-        subtotalCents,
-        requestedManualDiscountCents,
-      );
+      const manualDiscountCents = Math.min(subtotalCents, requestedManualDiscountCents);
+
+      if (catalogDiscount && manualDiscountCents <= 0) {
+        throw new Error("This catalog discount does not apply to the current sale.");
+      }
+
+      if (catalogDiscount && input.loyaltyPoints > 0 && !catalogDiscount.allowLoyaltyStacking) {
+        throw new Error("This catalog discount cannot be combined with loyalty points.");
+      }
+
+      const discountReason = catalogDiscount
+        ? `Catalog: ${catalogDiscount.name} (${formatCatalogDiscountValue(catalogDiscount)}) · Reference: ${input.discountReference}`
+        : input.discountReference ?? null;
       let loyaltyPointsRedeemed = 0;
       let loyaltyDiscountCents = 0;
 
@@ -361,7 +432,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           taxLabel: tax.tax > 0 ? tax.taxLabel : null,
           discountAmount: fromCents(totalDiscountCents),
           discountReason:
-            manualDiscountCents > 0 ? input.discountReason ?? null : null,
+            manualDiscountCents > 0 ? discountReason : null,
           loyaltyPointsRedeemed,
           loyaltyDiscountAmount: fromCents(loyaltyDiscountCents),
           total: fromCents(amountCents),
@@ -514,7 +585,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             })),
             customerPackageIds: customerPackages.map((item) => item.id),
             manualDiscount: fromCents(manualDiscountCents),
-            discountReason: input.discountReason ?? null,
+            catalogDiscountId: catalogDiscount?.id ?? null,
+            discountReference: input.discountReference ?? null,
             loyaltyPointsRedeemed,
             loyaltyDiscount: fromCents(loyaltyDiscountCents),
           },

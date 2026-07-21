@@ -24,7 +24,8 @@ export const cashierSaleSchema = z
       .min(0, "Discount cannot be negative.")
       .max(1000000, "Discount is too large.")
       .default(0),
-    discountReason: z.string().trim().max(160, "Discount reason is too long.").optional(),
+    discountReference: z.string().trim().max(160, "Discount reference is too long.").optional(),
+    catalogDiscountId: z.string().uuid("Catalog discount is invalid.").optional().or(z.literal("")),
     loyaltyPoints: z.coerce
       .number()
       .int("Loyalty points must be a whole number.")
@@ -89,11 +90,19 @@ export const cashierSaleSchema = z
       });
     }
 
-    if (input.discountValue > 0 && !input.discountReason) {
+    if ((input.discountValue > 0 || input.catalogDiscountId) && !input.discountReference) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Enter a reason for the discount.",
-        path: ["discountReason"],
+        message: "Enter a reference for the discount.",
+        path: ["discountReference"],
+      });
+    }
+
+    if (input.catalogDiscountId && input.discountValue > 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Use either a catalog discount or a manual discount.",
+        path: ["catalogDiscountId"],
       });
     }
 

@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
-type NavItem = {
+export type NavItem = {
   href: string;
   label: string;
   shortLabel: string;
   icon: IconName;
   badgeCount?: number;
+  children?: NavItem[];
 };
 
 type AppShellFrameProps = {
@@ -31,12 +32,24 @@ export function AppShellFrame({
   children,
 }: AppShellFrameProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const initialWhatsAppUnreadCount =
-    navItems.find((item) => item.icon === "whatsapp")?.badgeCount ?? 0;
+    flattenNavItems(navItems).find((item) => item.icon === "whatsapp")?.badgeCount ?? 0;
   const [whatsAppUnreadCount, setWhatsAppUnreadCount] = useState(
     initialWhatsAppUnreadCount,
   );
   const pathname = usePathname();
+
+  useEffect(() => {
+    const activeGroups = Object.fromEntries(
+      navItems
+        .filter((item) => item.children?.some((child) => isActiveNavItem(pathname, child.href)))
+        .map((item) => [item.href, true]),
+    );
+    if (Object.keys(activeGroups).length) {
+      setOpenGroups((current) => ({ ...current, ...activeGroups }));
+    }
+  }, [navItems, pathname]);
 
   useEffect(() => {
     setIsCollapsed(localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true");
@@ -47,7 +60,7 @@ export function AppShellFrame({
   }, [initialWhatsAppUnreadCount]);
 
   useEffect(() => {
-    if (!navItems.some((item) => item.icon === "whatsapp")) {
+    if (!flattenNavItems(navItems).some((item) => item.icon === "whatsapp")) {
       return;
     }
 
@@ -110,6 +123,48 @@ export function AppShellFrame({
         </div>
         <nav>
           {navItems.map((item) => {
+            if (item.children?.length) {
+              const groupActive = item.children.some((child) => isActiveNavItem(pathname, child.href));
+              const groupOpen = openGroups[item.href] ?? groupActive;
+
+              return (
+                <div className={`nav-group${groupOpen ? " open" : ""}`} key={item.href}>
+                  <button
+                    aria-expanded={groupOpen}
+                    className={`nav-group-toggle${groupActive ? " active" : ""}`}
+                    onClick={() => {
+                      if (isCollapsed) {
+                        setIsCollapsed(false);
+                        localStorage.setItem(SIDEBAR_STORAGE_KEY, "false");
+                      }
+                      setOpenGroups((current) => ({ ...current, [item.href]: !groupOpen }));
+                    }}
+                    title={item.label}
+                    type="button"
+                  >
+                    <ShellIcon name={item.icon} />
+                    <span className="nav-label">{item.label}</span>
+                    <span aria-hidden="true" className="nav-group-chevron">&gt;</span>
+                  </button>
+                  {groupOpen ? (
+                    <div className="nav-group-children">
+                      {item.children.map((child) => (
+                        <Link
+                          className={isActiveNavItem(pathname, child.href) ? "active" : undefined}
+                          data-short={child.shortLabel}
+                          href={child.href}
+                          key={child.href}
+                          title={child.label}
+                        >
+                          <ShellIcon name={child.icon} />
+                          <span className="nav-label">{child.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            }
             const badgeCount =
               item.icon === "whatsapp"
                 ? whatsAppUnreadCount
@@ -158,6 +213,10 @@ export function AppShellFrame({
       <main className="main">{children}</main>
     </div>
   );
+}
+
+function flattenNavItems(items: NavItem[]): NavItem[] {
+  return items.flatMap((item) => [item, ...(item.children ? flattenNavItems(item.children) : [])]);
 }
 
 function brandInitials(brandName: string) {

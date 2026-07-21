@@ -4,11 +4,13 @@ import Link from "next/link";
 import type { CashierSaleState } from "@/app/(business)/cashier/actions";
 import { CashierUnifiedSaleForm } from "@/components/cashier-unified-sale-form";
 import type { CashierCatalogResult } from "@/lib/cashier/catalog";
+import type { CatalogDiscountOption } from "@/lib/catalog-discounts";
 import type { TaxDisplaySettings } from "@/lib/tax/calculator";
 
 type CashierSalesPanelProps = {
   action: (formData: FormData) => Promise<CashierSaleState>;
   branchId: string;
+  catalogDiscounts: CatalogDiscountOption[];
   initialCatalog: CashierCatalogResult;
   taxSettings: TaxDisplaySettings;
   loyaltySettings: {
@@ -22,6 +24,7 @@ type CashierSalesPanelProps = {
 export function CashierSalesPanel({
   action,
   branchId,
+  catalogDiscounts,
   initialCatalog,
   taxSettings,
   loyaltySettings,
@@ -46,6 +49,7 @@ export function CashierSalesPanel({
     <CashierUnifiedSaleForm
       action={action}
       branchId={branchId}
+      catalogDiscounts={catalogDiscounts}
       initialCatalog={initialCatalog}
       taxSettings={taxSettings}
       loyaltySettings={loyaltySettings}

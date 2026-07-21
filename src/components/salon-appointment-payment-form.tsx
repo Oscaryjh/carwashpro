@@ -10,6 +10,12 @@ import {
 } from "@/app/(business)/appointments/actions";
 import { MoneyNumpadInput } from "@/components/money-numpad-input";
 import { calculateTax, type TaxLineInput } from "@/lib/tax/calculator";
+import {
+  calculateCatalogDiscountCents,
+  formatCatalogDiscountScope,
+  formatCatalogDiscountValue,
+  type CatalogDiscountOption,
+} from "@/lib/catalog-discounts";
 
 type SalonAppointmentPaymentFormProps = {
   appointmentId: string;
@@ -32,6 +38,7 @@ type SalonAppointmentPaymentFormProps = {
     id: string;
     type: "service" | "product" | "package";
   }[];
+  catalogDiscounts: CatalogDiscountOption[];
   sstEnabled: boolean;
   sstLabel: string;
   sstRate: number;
@@ -56,6 +63,7 @@ export function SalonAppointmentPaymentForm({
   totalAmount,
   taxLines,
   checkoutItems,
+  catalogDiscounts,
   sstEnabled,
   sstLabel,
   sstRate,
@@ -65,6 +73,8 @@ export function SalonAppointmentPaymentForm({
   const [method, setMethod] = useState("CASH");
   const [depositMethod, setDepositMethod] = useState("CASH");
   const [discount, setDiscount] = useState("0");
+  const [catalogDiscountId, setCatalogDiscountId] = useState("");
+  const [discountReference, setDiscountReference] = useState("");
   const [deposit, setDeposit] = useState("0");
   const [tip, setTip] = useState("0");
   const [cashReceived, setCashReceived] = useState("");
@@ -80,12 +90,23 @@ export function SalonAppointmentPaymentForm({
     initialPaymentState,
   );
   const safePaymentState = paymentState ?? initialPaymentState;
+  const selectedCatalogDiscount = catalogDiscounts.find((item) => item.id === catalogDiscountId) ?? null;
+  const catalogDiscountCents = selectedCatalogDiscount
+    ? calculateCatalogDiscountCents({
+        discount: selectedCatalogDiscount,
+        lines: checkoutItems.map((item, index) => ({
+          lineTotalCents: Math.round((taxLines[index]?.lineTotal ?? 0) * 100),
+          type: item.type,
+        })),
+      })
+    : 0;
+  const appliedDiscount = selectedCatalogDiscount ? catalogDiscountCents / 100 : Number(discount || 0);
   const tax = calculateTax({
     sstEnabled,
     sstLabel,
     sstRate,
     lines: taxLines,
-    discount: Number(discount || 0),
+    discount: appliedDiscount,
     tip: Number(tip || 0),
   });
   const total = tax.total;
@@ -160,6 +181,12 @@ export function SalonAppointmentPaymentForm({
     );
     const packageIds = formDataValues(form, "customerPackageIds");
 
+    if (catalogDiscountId && !discountReference.trim()) {
+      event.preventDefault();
+      setValidationError("Enter a reference for the catalog discount.");
+      return;
+    }
+
     if (paymentAmount <= 0 && depositAmount <= 0 && packageIds.length === 0) {
       event.preventDefault();
       setValidationError("Enter a payment amount or deposit amount.");
@@ -183,6 +210,7 @@ export function SalonAppointmentPaymentForm({
       onSubmit={validatePayment}
     >
       <input type="hidden" name="appointmentId" value={appointmentId} />
+      <input type="hidden" name="catalogDiscountId" value={catalogDiscountId} />
       {selectedCustomerPackageIds.map((customerPackageId) => (
         <input
           key={customerPackageId}
@@ -244,9 +272,48 @@ export function SalonAppointmentPaymentForm({
       ) : null}
       {!hasInvoice ? (
         <div className="salon-checkout-adjustments">
+          {catalogDiscounts.length ? (
+            <div className="salon-checkout-catalog-row">
+              <label>
+                Catalog discount
+                <select
+                  name="catalogDiscountPicker"
+                  onChange={(event) => {
+                    setCatalogDiscountId(event.target.value);
+                    setDiscountReference("");
+                    if (event.target.value) setDiscount("0");
+                    setAmountEdited(false);
+                  }}
+                  value={catalogDiscountId}
+                >
+                  <option value="">Manual discount</option>
+                  {catalogDiscounts.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} · {formatCatalogDiscountValue(item)} · {formatCatalogDiscountScope(item.scope)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {catalogDiscountId ? (
+                <label>
+                  Reference required
+                  <input
+                    autoFocus
+                    maxLength={160}
+                    name="discountReference"
+                    onChange={(event) => setDiscountReference(event.target.value)}
+                    placeholder="e.g. Promotion code or manager approval"
+                    required
+                    value={discountReference}
+                  />
+                </label>
+              ) : null}
+            </div>
+          ) : null}
           <label>
             Discount
             <input
+              disabled={Boolean(catalogDiscountId)}
               min="0"
               name="discountAmount"
               onChange={(event) => setDiscount(event.target.value)}
@@ -270,7 +337,12 @@ export function SalonAppointmentPaymentForm({
       ) : null}
       <div className="salon-checkout-summary" aria-live="polite">
         <span>Subtotal <strong>RM{subtotal.toFixed(2)}</strong></span>
-        {!hasInvoice && Number(discount) > 0 ? <span>Discount <strong>-RM{Number(discount).toFixed(2)}</strong></span> : null}
+        {!hasInvoice && appliedDiscount > 0 ? (
+          <span>
+            {selectedCatalogDiscount?.name ?? "Discount"}
+            <strong>-RM{appliedDiscount.toFixed(2)}</strong>
+          </span>
+        ) : null}
         {!hasInvoice && tax.tax > 0 ? (
           <span>
             {formatTaxLabel(tax.taxLabel, tax.taxRate)}

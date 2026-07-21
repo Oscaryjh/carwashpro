@@ -10,6 +10,7 @@ type CatalogFormModalProps = {
   children: ReactNode;
   closePath: string;
   eyebrow: string;
+  modalClassName?: string;
   title: string;
   wide?: boolean;
 };
@@ -19,6 +20,7 @@ export function CatalogFormModal({
   children,
   closePath,
   eyebrow,
+  modalClassName,
   title,
   wide = false,
 }: CatalogFormModalProps) {
@@ -45,7 +47,7 @@ export function CatalogFormModal({
       <section
         aria-label={ariaLabel}
         aria-modal="true"
-        className={`product-create-modal${wide ? " catalog-form-modal-wide" : ""}`}
+        className={`product-create-modal${wide ? " catalog-form-modal-wide" : ""}${modalClassName ? ` ${modalClassName}` : ""}`}
         role="dialog"
       >
         <header className="product-create-modal-header">

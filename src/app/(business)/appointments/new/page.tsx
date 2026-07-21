@@ -22,10 +22,11 @@ export default async function NewAppointmentPage({
   const params = await searchParams;
   const staffWhere =
     user.role === "BUSINESS_OWNER"
-      ? { businessId, status: "active" as const }
+      ? { businessId, status: "active" as const, appointmentBookable: true }
       : {
           businessId,
           status: "active" as const,
+          appointmentBookable: true,
           OR: [{ branchId: user.branchId }, { id: user.userId }],
         };
   const [branches, appointmentSubjectCount, services, staffUsers] = await Promise.all([

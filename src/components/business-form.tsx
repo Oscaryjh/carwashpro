@@ -10,11 +10,13 @@ import {
 } from "@/lib/business-industry";
 
 type BusinessFormProps = {
-  action: (formData: FormData) => Promise<void>;
+  action: (formData: FormData) => void | Promise<void>;
   business?: Business;
   mode: "create" | "edit";
   canEditStatus?: boolean;
   showOwnerFields?: boolean;
+  formError?: string;
+  fieldErrors?: Record<string, string | undefined>;
 };
 
 export function BusinessForm({
@@ -23,17 +25,31 @@ export function BusinessForm({
   mode,
   canEditStatus = false,
   showOwnerFields = false,
+  formError,
+  fieldErrors = {},
 }: BusinessFormProps) {
   const status = business?.status ?? "active";
 
   return (
     <form action={action} className="form">
       {business ? <input type="hidden" name="businessId" value={business.id} /> : null}
+      {formError ? (
+        <p className="form-error" role="alert" aria-live="polite">
+          {formError}
+        </p>
+      ) : null}
 
       <div className="field-grid">
         <label>
           <span>Company name</span>
-          <input name="name" defaultValue={business?.name} required />
+          <input
+            name="name"
+            defaultValue={business?.name}
+            required
+            aria-invalid={Boolean(fieldErrors.name)}
+            aria-describedby={fieldErrors.name ? "business-name-error" : undefined}
+          />
+          <FieldError id="business-name-error" message={fieldErrors.name} />
         </label>
         <label>
           <span>Company slug</span>
@@ -43,7 +59,10 @@ export function BusinessForm({
             pattern="[a-z0-9]+(-[a-z0-9]+)*"
             required
             disabled={mode === "edit"}
+            aria-invalid={Boolean(fieldErrors.slug)}
+            aria-describedby={fieldErrors.slug ? "business-slug-error" : undefined}
           />
+          <FieldError id="business-slug-error" message={fieldErrors.slug} />
           {mode === "edit" ? (
             <input type="hidden" name="slug" value={business?.slug ?? ""} />
           ) : null}
@@ -66,6 +85,7 @@ export function BusinessForm({
               disabled
             />
           )}
+          <FieldError id="business-industry-error" message={fieldErrors.industryType} />
         </label>
         <label>
           <span>Company No. optional</span>
@@ -143,15 +163,41 @@ export function BusinessForm({
           <div className="field-grid">
             <label>
               <span>Owner name</span>
-              <input name="ownerName" required />
+              <input
+                name="ownerName"
+                required
+                aria-invalid={Boolean(fieldErrors.ownerName)}
+                aria-describedby={fieldErrors.ownerName ? "owner-name-error" : undefined}
+              />
+              <FieldError id="owner-name-error" message={fieldErrors.ownerName} />
             </label>
             <label>
               <span>Login email</span>
-              <input name="ownerEmail" type="email" required />
+              <input
+                name="ownerEmail"
+                type="email"
+                required
+                aria-invalid={Boolean(fieldErrors.ownerEmail)}
+                aria-describedby={fieldErrors.ownerEmail ? "owner-email-error" : undefined}
+              />
+              <FieldError id="owner-email-error" message={fieldErrors.ownerEmail} />
             </label>
             <label>
               <span>Login password</span>
-              <input name="ownerPassword" type="password" minLength={8} required />
+              <input
+                name="ownerPassword"
+                type="password"
+                minLength={8}
+                required
+                aria-invalid={Boolean(fieldErrors.ownerPassword)}
+                aria-describedby={
+                  fieldErrors.ownerPassword ? "owner-password-error" : undefined
+                }
+              />
+              <FieldError
+                id="owner-password-error"
+                message={fieldErrors.ownerPassword}
+              />
             </label>
           </div>
         </section>
@@ -164,6 +210,14 @@ export function BusinessForm({
       </div>
     </form>
   );
+}
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  return message ? (
+    <span className="field-error" id={id}>
+      {message}
+    </span>
+  ) : null;
 }
 
 function formatStatus(status: BusinessStatus) {

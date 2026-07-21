@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { BackButton } from "@/components/back-button";
-import { BusinessForm } from "@/components/business-form";
+import { BusinessCreateForm } from "@/components/business-create-form";
 import { assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { createBusinessAction } from "../actions";
@@ -21,10 +21,8 @@ export default async function NewBusinessPage() {
         </div>
 
         <div className="panel">
-          <BusinessForm
+          <BusinessCreateForm
             action={createBusinessAction}
-            mode="create"
-            showOwnerFields
           />
         </div>
       </section>

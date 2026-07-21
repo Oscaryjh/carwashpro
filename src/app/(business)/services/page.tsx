@@ -113,6 +113,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
           where: {
             businessId,
             status: "active",
+            appointmentBookable: true,
             role: { in: ["BUSINESS_OWNER", "STAFF"] },
           },
           orderBy: [{ role: "asc" }, { name: "asc" }],

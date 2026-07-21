@@ -209,6 +209,7 @@ async function resolveServiceStaff(businessId: string, requestedIds: string[]) {
       id: { in: staffIds },
       businessId,
       status: "active",
+      appointmentBookable: true,
       role: { in: ["BUSINESS_OWNER", "STAFF"] },
     },
     select: { id: true },

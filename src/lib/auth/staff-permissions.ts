@@ -92,6 +92,11 @@ export const staffPermissions = [
     label: "Products",
     description: "Create and update retail products and branch stock.",
   },
+  {
+    key: "DISCOUNTS",
+    label: "Discounts",
+    description: "Create and manage reusable catalog discount rules.",
+  },
 ] as const;
 
 export type StaffPermission = (typeof staffPermissions)[number]["key"];
@@ -186,6 +191,7 @@ const staffHomeRoutes: Array<[StaffPermission, string]> = [
   ["SERVICES", "/services"],
   ["PACKAGES", "/packages"],
   ["PRODUCTS", "/products"],
+  ["DISCOUNTS", "/discounts"],
   ["TEAM", "/team"],
 ];
 
@@ -277,6 +283,10 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
 
   if (pathname === "/products" || pathname.startsWith("/products/")) {
     return "PRODUCTS";
+  }
+
+  if (pathname === "/discounts" || pathname.startsWith("/discounts/")) {
+    return "DISCOUNTS";
   }
 
   if (pathname === "/branches" || pathname.startsWith("/branches/")) {

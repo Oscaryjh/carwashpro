@@ -16,6 +16,12 @@ import type {
   CashierCatalogResult,
   CashierCatalogType,
 } from "@/lib/cashier/catalog";
+import {
+  calculateCatalogDiscountCents,
+  formatCatalogDiscountScope,
+  formatCatalogDiscountValue,
+  type CatalogDiscountOption,
+} from "@/lib/catalog-discounts";
 import { calculateLoyaltyRedemption } from "@/lib/loyalty/rules";
 import { calculateTax, type TaxDisplaySettings } from "@/lib/tax/calculator";
 
@@ -24,6 +30,7 @@ type CartLine = CashierCatalogItem & { quantity: number };
 type CashierUnifiedSaleFormProps = {
   action: (formData: FormData) => Promise<CashierSaleState>;
   branchId: string;
+  catalogDiscounts: CatalogDiscountOption[];
   initialCatalog: CashierCatalogResult;
   taxSettings: TaxDisplaySettings;
   loyaltySettings: {
@@ -44,6 +51,7 @@ const paymentMethods = [
 export function CashierUnifiedSaleForm({
   action,
   branchId,
+  catalogDiscounts,
   initialCatalog,
   taxSettings,
   loyaltySettings,
@@ -65,11 +73,13 @@ export function CashierUnifiedSaleForm({
   const [adjustmentTab, setAdjustmentTab] = useState<"DISCOUNT" | "POINTS">("DISCOUNT");
   const [discountType, setDiscountType] = useState<"AMOUNT" | "PERCENT">("AMOUNT");
   const [discountValue, setDiscountValue] = useState("0");
-  const [discountReason, setDiscountReason] = useState("");
+  const [discountReference, setDiscountReference] = useState("");
+  const [catalogDiscountId, setCatalogDiscountId] = useState("");
   const [loyaltyPoints, setLoyaltyPoints] = useState("0");
   const [draftDiscountType, setDraftDiscountType] = useState<"AMOUNT" | "PERCENT">("AMOUNT");
   const [draftDiscountValue, setDraftDiscountValue] = useState("0");
-  const [draftDiscountReason, setDraftDiscountReason] = useState("");
+  const [draftDiscountReference, setDraftDiscountReference] = useState("");
+  const [draftCatalogDiscountId, setDraftCatalogDiscountId] = useState("");
   const [draftLoyaltyPoints, setDraftLoyaltyPoints] = useState("0");
   const [saleError, setSaleError] = useState("");
   const [completedInvoice, setCompletedInvoice] = useState<CashierSaleInvoiceSummary | null>(null);
@@ -130,21 +140,36 @@ export function CashierUnifiedSaleForm({
   const totalItems = lines.reduce((sum, line) => sum + line.quantity, 0);
   const hasStockError = lines.some((line) => line.type === "product" && line.quantity > (line.stock ?? 0));
   const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  const selectedCatalogDiscount = catalogDiscounts.find((discount) => discount.id === catalogDiscountId) ?? null;
+  const catalogDiscountAmount = selectedCatalogDiscount
+    ? calculateCatalogDiscountCents({
+        discount: selectedCatalogDiscount,
+        lines: lines.map((line) => ({
+          lineTotalCents: Math.round(line.price * line.quantity * 100),
+          type: line.type,
+        })),
+      }) / 100
+    : 0;
   const numericDiscountValue = Math.max(0, Number(discountValue) || 0);
-  const manualDiscount = Math.min(
-    subtotal,
-    discountType === "PERCENT"
-      ? subtotal * Math.min(100, numericDiscountValue) / 100
-      : numericDiscountValue,
-  );
-  const manualDiscountError = manualDiscount > 0 && !discountReason.trim()
-    ? "Enter a reason for the discount."
+  const manualDiscount = selectedCatalogDiscount
+    ? catalogDiscountAmount
+    : Math.min(
+        subtotal,
+        discountType === "PERCENT"
+          ? subtotal * Math.min(100, numericDiscountValue) / 100
+          : numericDiscountValue,
+      );
+  const discountReferenceError = (selectedCatalogDiscount || manualDiscount > 0) && !discountReference.trim()
+    ? "Enter a reference for the discount."
     : "";
   const redemption = useMemo(() => {
     const requestedPoints = Math.max(0, Math.floor(Number(loyaltyPoints) || 0));
     if (!requestedPoints) return { discountCents: 0, error: "", points: 0 };
     if (!customer) {
       return { discountCents: 0, error: "Select a customer to use points.", points: 0 };
+    }
+    if (selectedCatalogDiscount && !selectedCatalogDiscount.allowLoyaltyStacking) {
+      return { discountCents: 0, error: "This discount cannot be combined with loyalty points.", points: 0 };
     }
     if (!loyaltySettings.enabled || !loyaltySettings.redemptionEnabled) {
       return { discountCents: 0, error: "Point redemption is not enabled.", points: 0 };
@@ -166,25 +191,40 @@ export function CashierUnifiedSaleForm({
         points: 0,
       };
     }
-  }, [customer, loyaltyPoints, loyaltySettings, manualDiscount, subtotal]);
+  }, [customer, loyaltyPoints, loyaltySettings, manualDiscount, selectedCatalogDiscount, subtotal]);
   const loyaltyDiscount = redemption.discountCents / 100;
   const totalDiscount = manualDiscount + loyaltyDiscount;
 
   const draftNumericDiscountValue = Math.max(0, Number(draftDiscountValue) || 0);
-  const draftManualDiscount = Math.min(
-    subtotal,
-    draftDiscountType === "PERCENT"
-      ? subtotal * Math.min(100, draftNumericDiscountValue) / 100
-      : draftNumericDiscountValue,
-  );
-  const draftManualDiscountError = draftManualDiscount > 0 && !draftDiscountReason.trim()
-    ? "Enter a reason for the discount."
+  const draftCatalogDiscount = catalogDiscounts.find((discount) => discount.id === draftCatalogDiscountId) ?? null;
+  const draftCatalogDiscountAmount = draftCatalogDiscount
+    ? calculateCatalogDiscountCents({
+        discount: draftCatalogDiscount,
+        lines: lines.map((line) => ({
+          lineTotalCents: Math.round(line.price * line.quantity * 100),
+          type: line.type,
+        })),
+      }) / 100
+    : 0;
+  const draftManualDiscount = draftCatalogDiscount
+    ? draftCatalogDiscountAmount
+    : Math.min(
+        subtotal,
+        draftDiscountType === "PERCENT"
+          ? subtotal * Math.min(100, draftNumericDiscountValue) / 100
+          : draftNumericDiscountValue,
+      );
+  const draftDiscountReferenceError = (draftCatalogDiscount || draftManualDiscount > 0) && !draftDiscountReference.trim()
+    ? "Enter a reference for the discount."
     : "";
   const draftRedemption = useMemo(() => {
     const requestedPoints = Math.max(0, Math.floor(Number(draftLoyaltyPoints) || 0));
     if (!requestedPoints) return { discountCents: 0, error: "", points: 0 };
     if (!customer) {
       return { discountCents: 0, error: "Select a customer to use points.", points: 0 };
+    }
+    if (draftCatalogDiscount && !draftCatalogDiscount.allowLoyaltyStacking) {
+      return { discountCents: 0, error: "This discount cannot be combined with loyalty points.", points: 0 };
     }
     if (!loyaltySettings.enabled || !loyaltySettings.redemptionEnabled) {
       return { discountCents: 0, error: "Point redemption is not enabled.", points: 0 };
@@ -210,6 +250,7 @@ export function CashierUnifiedSaleForm({
     customer,
     draftLoyaltyPoints,
     draftManualDiscount,
+    draftCatalogDiscount,
     loyaltySettings,
     subtotal,
   ]);
@@ -251,7 +292,7 @@ export function CashierUnifiedSaleForm({
     lines.length &&
       (!hasPackages || customer) &&
       !hasStockError &&
-      !manualDiscountError &&
+      !discountReferenceError &&
       !redemption.error,
   );
 
@@ -272,17 +313,19 @@ export function CashierUnifiedSaleForm({
   function openAdjustments() {
     setDraftDiscountType(discountType);
     setDraftDiscountValue(discountValue);
-    setDraftDiscountReason(discountReason);
+    setDraftDiscountReference(discountReference);
+    setDraftCatalogDiscountId(catalogDiscountId);
     setDraftLoyaltyPoints(loyaltyPoints);
     setAdjustmentTab(Number(loyaltyPoints) > 0 ? "POINTS" : "DISCOUNT");
     setAdjustmentsOpen(true);
   }
 
   function applyAdjustments() {
-    if (draftManualDiscountError || draftRedemption.error) return;
+    if (draftDiscountReferenceError || draftRedemption.error) return;
     setDiscountType(draftDiscountType);
     setDiscountValue(draftDiscountValue);
-    setDiscountReason(draftDiscountReason);
+    setDiscountReference(draftDiscountReference);
+    setCatalogDiscountId(draftCatalogDiscountId);
     setLoyaltyPoints(String(draftRedemption.points));
     setAdjustmentsOpen(false);
   }
@@ -347,7 +390,7 @@ export function CashierUnifiedSaleForm({
     setCustomerPickerKey((key) => key + 1);
     setDiscountType("AMOUNT");
     setDiscountValue("0");
-    setDiscountReason("");
+    setDiscountReference("");
     setLoyaltyPoints("0");
     setAdjustmentsOpen(false);
     setCashReceived("");
@@ -608,7 +651,7 @@ export function CashierUnifiedSaleForm({
         <div className={styles.orderSummary}>
           <div><span>Subtotal</span><strong>{formatMoney(tax.subtotal)}</strong></div>
           {manualDiscount > 0 ? (
-            <div><span>Discount</span><strong>−{formatMoney(manualDiscount)}</strong></div>
+            <div><span>{selectedCatalogDiscount?.name ?? "Discount"}</span><strong>−{formatMoney(manualDiscount)}</strong></div>
           ) : null}
           {loyaltyDiscount > 0 ? (
             <div>
@@ -642,7 +685,8 @@ export function CashierUnifiedSaleForm({
         <input name="method" type="hidden" value={paymentMethod} />
         <input name="discountType" type="hidden" value={discountType} />
         <input name="discountValue" type="hidden" value={numericDiscountValue} />
-        <input name="discountReason" type="hidden" value={discountReason} />
+        <input name="discountReference" type="hidden" value={discountReference} />
+        <input name="catalogDiscountId" type="hidden" value={catalogDiscountId} />
         <input name="loyaltyPoints" type="hidden" value={redemption.points} />
         {paymentMethod === "CASH" ? (
           <div className={styles.cashTender}>
@@ -733,9 +777,34 @@ export function CashierUnifiedSaleForm({
               <div className={styles.adjustmentDialogBody}>
                 {adjustmentTab === "DISCOUNT" ? (
                   <div className={styles.adjustmentContent}>
+                    {catalogDiscounts.length ? (
+                      <label className={styles.adjustmentField}>
+                        <span>Catalog discount</span>
+                        <select
+                          onChange={(event) => {
+                            const nextId = event.target.value;
+                            setDraftCatalogDiscountId(nextId);
+                            if (nextId) {
+                              setDraftDiscountValue("0");
+                              const selected = catalogDiscounts.find((item) => item.id === nextId);
+                              if (selected && !selected.allowLoyaltyStacking) setDraftLoyaltyPoints("0");
+                            }
+                          }}
+                          value={draftCatalogDiscountId}
+                        >
+                          <option value="">Manual discount</option>
+                          {catalogDiscounts.map((discount) => (
+                            <option key={discount.id} value={discount.id}>
+                              {discount.name} · {formatCatalogDiscountValue(discount)} · {formatCatalogDiscountScope(discount.scope)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
                     <div aria-label="Discount type" className={styles.adjustmentMode}>
                       <button
                         className={draftDiscountType === "AMOUNT" ? styles.activeAdjustmentMode : ""}
+                        disabled={Boolean(draftCatalogDiscountId)}
                         onClick={() => setDraftDiscountType("AMOUNT")}
                         type="button"
                       >
@@ -743,6 +812,7 @@ export function CashierUnifiedSaleForm({
                       </button>
                       <button
                         className={draftDiscountType === "PERCENT" ? styles.activeAdjustmentMode : ""}
+                        disabled={Boolean(draftCatalogDiscountId)}
                         onClick={() => setDraftDiscountType("PERCENT")}
                         type="button"
                       >
@@ -758,6 +828,7 @@ export function CashierUnifiedSaleForm({
                         amountLabel="Maximum"
                         dialogEyebrow="ORDER ADJUSTMENT"
                         dialogTitle={draftDiscountType === "PERCENT" ? "Discount percentage" : "Discount amount"}
+                        disabled={Boolean(draftCatalogDiscountId)}
                         exactLabel="Maximum"
                         onValueChange={setDraftDiscountValue}
                         placeholder={draftDiscountType === "PERCENT" ? "0%" : "RM0.00"}
@@ -768,12 +839,12 @@ export function CashierUnifiedSaleForm({
                     </label>
 
                     <label className={styles.adjustmentField}>
-                      <span>Reason</span>
+                      <span>Reference</span>
                       <input
                         maxLength={160}
-                        onChange={(event) => setDraftDiscountReason(event.target.value)}
-                        placeholder="e.g. Staff approval or promotion"
-                        value={draftDiscountReason}
+                        onChange={(event) => setDraftDiscountReference(event.target.value)}
+                        placeholder="e.g. Promotion code or manager approval"
+                        value={draftDiscountReference}
                       />
                     </label>
                   </div>
@@ -838,7 +909,7 @@ export function CashierUnifiedSaleForm({
                 <div className={styles.adjustmentPreview}>
                   <div><span>Subtotal</span><strong>{formatMoney(draftTax.subtotal)}</strong></div>
                   {draftManualDiscount > 0 ? (
-                    <div><span>Manual discount</span><strong>−{formatMoney(draftManualDiscount)}</strong></div>
+                    <div><span>{draftCatalogDiscount?.name ?? "Manual discount"}</span><strong>−{formatMoney(draftManualDiscount)}</strong></div>
                   ) : null}
                   {draftLoyaltyDiscount > 0 ? (
                     <div>
@@ -858,9 +929,9 @@ export function CashierUnifiedSaleForm({
                   </div>
                 </div>
 
-                {draftManualDiscountError || draftRedemption.error ? (
+                {draftDiscountReferenceError || draftRedemption.error ? (
                   <p className={styles.adjustmentDialogError}>
-                    {draftManualDiscountError || draftRedemption.error}
+                    {draftDiscountReferenceError || draftRedemption.error}
                   </p>
                 ) : null}
               </div>
@@ -868,7 +939,7 @@ export function CashierUnifiedSaleForm({
               <footer className={styles.adjustmentDialogActions}>
                 <button onClick={() => setAdjustmentsOpen(false)} type="button">Cancel</button>
                 <button
-                  disabled={Boolean(draftManualDiscountError || draftRedemption.error)}
+                  disabled={Boolean(draftDiscountReferenceError || draftRedemption.error)}
                   onClick={applyAdjustments}
                   type="button"
                 >

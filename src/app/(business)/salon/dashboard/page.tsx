@@ -72,6 +72,7 @@ export default async function SalonDashboardPage() {
       where: {
         businessId: context.businessId,
         status: "active",
+        appointmentBookable: true,
         ...(context.user.role === "BUSINESS_OWNER"
           ? {}
           : { branchId: context.user.branchId ?? "00000000-0000-0000-0000-000000000000" }),

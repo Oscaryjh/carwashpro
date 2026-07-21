@@ -89,10 +89,11 @@ export default async function AppointmentsPage({
 
   const staffWhere =
     user.role === "BUSINESS_OWNER"
-      ? { businessId, status: "active" as const }
+      ? { businessId, status: "active" as const, appointmentBookable: true }
       : {
           businessId,
           status: "active" as const,
+          appointmentBookable: true,
           OR: [{ branchId: user.branchId }, { id: user.userId }],
         };
   const [
@@ -108,6 +109,7 @@ export default async function AppointmentsPage({
     staffUsers,
     openCashierShift,
     businessTaxSettings,
+    catalogDiscounts,
   ] =
     await Promise.all([
       prisma.appointment.findMany({
@@ -298,6 +300,18 @@ export default async function AppointmentsPage({
           sstRate: true,
         },
       }),
+      prisma.catalogDiscount.findMany({
+        where: {
+          businessId,
+          active: true,
+          ...(staffBranchId ? { OR: [{ branchId: null }, { branchId: staffBranchId }] } : {}),
+          AND: [
+            { OR: [{ startsAt: null }, { startsAt: { lte: new Date() } }] },
+            { OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] },
+          ],
+        },
+        orderBy: [{ name: "asc" }],
+      }),
     ]);
   const customerPackageBalances = resolvedIndustryType === "SALON_BEAUTY"
     ? await prisma.customerPackageServiceBalance.findMany({
@@ -448,6 +462,18 @@ export default async function AppointmentsPage({
             branches={branches.map((branch) => ({
               id: branch.id,
               name: branch.name,
+            }))}
+            catalogDiscounts={catalogDiscounts.map((discount) => ({
+              id: discount.id,
+              branchId: discount.branchId,
+              name: discount.name,
+              discountType: discount.discountType,
+              percentage: discount.percentage == null ? null : Number(discount.percentage),
+              fixedAmount: discount.fixedAmount == null ? null : Number(discount.fixedAmount),
+              scope: discount.scope,
+              minimumSpend: Number(discount.minimumSpend),
+              maximumDiscount: discount.maximumDiscount == null ? null : Number(discount.maximumDiscount),
+              allowLoyaltyStacking: discount.allowLoyaltyStacking,
             }))}
             isSalonBusiness={resolvedIndustryType === "SALON_BEAUTY"}
             initialAppointmentId={params.appointment}
@@ -776,6 +802,7 @@ function toCalendarItem(appointment: {
 
   return {
     id: appointment.id,
+    branchId: appointment.branchId,
     customerId: appointment.customerId,
     contactName: appointment.contactName,
     contactPhone: appointment.contactPhone,

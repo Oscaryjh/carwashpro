@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AppShellFrame } from "@/components/app-shell-frame";
+import type { NavItem } from "@/components/app-shell-frame";
 import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import type { AppSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -40,6 +41,20 @@ export async function AppShell({ user, children }: AppShellProps) {
         )._sum.unreadCount ?? 0
       : 0;
   const brandName = business?.name ?? "TETAMU POS";
+  const catalogChildren: NavItem[] = [
+    ...(isStoreUser && canSee("SERVICES")
+      ? [{ href: "/services", label: "Services", shortLabel: "Svc", icon: "services" as const }]
+      : []),
+    ...(isStoreUser && canSee("PACKAGES")
+      ? [{ href: "/packages", label: "Packages", shortLabel: "Pkg", icon: "packages" as const }]
+      : []),
+    ...(isStoreUser && canSee("PRODUCTS")
+      ? [{ href: "/products", label: "Products", shortLabel: "Prod", icon: "services" as const }]
+      : []),
+    ...(isStoreUser && canSee("DISCOUNTS")
+      ? [{ href: "/discounts", label: "Discounts", shortLabel: "Disc", icon: "reports" as const }]
+      : []),
+  ];
   const navItems = [
     ...(isPlatformAdmin
       ? [
@@ -157,33 +172,14 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("SERVICES")
+    ...(catalogChildren.length
       ? [
           {
-            href: "/services",
-            label: "Services",
-            shortLabel: "Svc",
+            href: "/catalog",
+            label: "Catalog",
+            shortLabel: "Catalog",
             icon: "services" as const,
-          },
-        ]
-      : []),
-    ...(isStoreUser && canSee("PACKAGES")
-      ? [
-          {
-            href: "/packages",
-            label: "Packages",
-            shortLabel: "Pkg",
-            icon: "packages" as const,
-          },
-        ]
-      : []),
-    ...(isStoreUser && canSee("PRODUCTS")
-      ? [
-          {
-            href: "/products",
-            label: "Products",
-            shortLabel: "Prod",
-            icon: "services" as const,
+            children: catalogChildren,
           },
         ]
       : []),

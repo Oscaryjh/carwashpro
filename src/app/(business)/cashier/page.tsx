@@ -44,9 +44,24 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
     }),
   ]);
   const cashierBranchId = openShift?.branchId ?? user.branchId ?? (branches.length === 1 ? branches[0].id : "");
-  const initialCatalog = cashierBranchId
-    ? await getCashierCatalog({ branchId: cashierBranchId, businessId, type: "product" })
-    : { categories: [], items: [], page: 1, pageCount: 1, pageSize: 8, total: 0 };
+  const now = new Date();
+  const [initialCatalog, catalogDiscounts] = await Promise.all([
+    cashierBranchId
+      ? getCashierCatalog({ branchId: cashierBranchId, businessId, type: "product" })
+      : Promise.resolve({ categories: [], items: [], page: 1, pageCount: 1, pageSize: 8, total: 0 }),
+    prisma.catalogDiscount.findMany({
+      where: {
+        businessId,
+        active: true,
+        OR: [{ branchId: null }, ...(cashierBranchId ? [{ branchId: cashierBranchId }] : [])],
+        AND: [
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
+        ],
+      },
+      orderBy: [{ name: "asc" }],
+    }),
+  ]);
 
   return (
     <>
@@ -65,6 +80,17 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
         <CashierSalesPanel
           action={completeCashierSaleAction}
           branchId={cashierBranchId}
+          catalogDiscounts={catalogDiscounts.map((discount) => ({
+            id: discount.id,
+            name: discount.name,
+            discountType: discount.discountType,
+            percentage: discount.percentage == null ? null : Number(discount.percentage),
+            fixedAmount: discount.fixedAmount == null ? null : Number(discount.fixedAmount),
+            scope: discount.scope,
+            minimumSpend: Number(discount.minimumSpend),
+            maximumDiscount: discount.maximumDiscount == null ? null : Number(discount.maximumDiscount),
+            allowLoyaltyStacking: discount.allowLoyaltyStacking,
+          }))}
           initialCatalog={initialCatalog}
           taxSettings={{
             enabled: business.sstEnabled,

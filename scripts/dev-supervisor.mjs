@@ -14,11 +14,14 @@ import {
 const pg = createEmbeddedPostgres();
 const nextBin = join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
 const whatsappWorkerRunner = join(process.cwd(), "scripts", "run-whatsapp-worker.mjs");
+const whatsappConnectorDir = join(process.cwd(), "whatsapp-connector");
+const whatsappConnectorPackage = join(whatsappConnectorDir, "package.json");
 const binPath = join(process.cwd(), "node_modules", ".bin");
 const restartDelayMs = 1500;
 
 let nextChild;
 let whatsappWorkerChild;
+let whatsappConnectorChild;
 let ownsPostgres = false;
 let shuttingDown = false;
 let cacheResetRequested = false;
@@ -30,8 +33,10 @@ async function main() {
 
   console.log("WashFlow dev supervisor started.");
   console.log("Local URL: http://localhost:3000");
+  console.log("WhatsApp Connector: http://127.0.0.1:8787");
   console.log("Press Ctrl+C to stop.");
 
+  startWhatsAppConnector();
   startWhatsAppWorker();
   startNext();
 }
@@ -102,6 +107,43 @@ function startWhatsAppWorker() {
   });
 }
 
+function startWhatsAppConnector() {
+  if (!existsSync(whatsappConnectorPackage)) {
+    console.warn("WhatsApp Connector not started because its package.json is missing.");
+    return;
+  }
+
+  whatsappConnectorChild = spawn(
+    process.execPath,
+    ["--use-system-ca", "--import", "tsx", "src/server.ts"],
+    {
+      cwd: whatsappConnectorDir,
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      env: getChildEnv(),
+    },
+  );
+
+  whatsappConnectorChild.stdout?.on("data", (chunk) => {
+    writePrefixed("[connector] ", chunk, process.stdout);
+  });
+
+  whatsappConnectorChild.stderr?.on("data", (chunk) => {
+    writePrefixed("[connector] ", chunk, process.stderr);
+  });
+
+  whatsappConnectorChild.on("close", (code, signal) => {
+    if (shuttingDown) {
+      return;
+    }
+
+    console.warn(
+      `WhatsApp Connector stopped (code: ${code ?? "none"}, signal: ${signal ?? "none"}). Restarting...`,
+    );
+    setTimeout(startWhatsAppConnector, restartDelayMs);
+  });
+}
+
 async function shutdown() {
   if (shuttingDown) {
     return;
@@ -110,6 +152,7 @@ async function shutdown() {
   shuttingDown = true;
   nextChild?.kill("SIGTERM");
   whatsappWorkerChild?.kill("SIGTERM");
+  whatsappConnectorChild?.kill("SIGTERM");
   await stopOwnedPostgres(pg, ownsPostgres);
   process.exit(0);
 }

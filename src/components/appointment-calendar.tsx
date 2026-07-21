@@ -15,9 +15,11 @@ import {
   getAppointmentSlotCount,
 } from "@/lib/appointments/scheduling";
 import { calculateTax } from "@/lib/tax/calculator";
+import type { CatalogDiscountOption } from "@/lib/catalog-discounts";
 
 export type AppointmentCalendarItem = {
   id: string;
+  branchId: string | null;
   customerId: string;
   contactName: string | null;
   contactPhone: string | null;
@@ -88,6 +90,7 @@ type AppointmentCalendarProps = {
     id: string;
     name: string;
   }[];
+  catalogDiscounts: CatalogDiscountOption[];
   createAppointmentAction: (
     formData: FormData,
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
@@ -197,6 +200,7 @@ function getAppointmentDisplayItems(appointment: AppointmentCalendarItem) {
 export function AppointmentCalendar({
   appointments,
   branches,
+  catalogDiscounts,
   createAppointmentAction,
   convertAppointmentAction,
   datePickerCounts,
@@ -1859,6 +1863,9 @@ export function AppointmentCalendar({
                 {isSalonBusiness ? (
                   <SalonAppointmentAction
                     appointment={selectedAppointment}
+                    catalogDiscounts={catalogDiscounts.filter((discount) => (
+                      !discount.branchId || discount.branchId === selectedAppointment.branchId
+                    ))}
                     checkoutReady={!isPending}
                     hasOpenShift={hasOpenShift}
                     initialCheckout={
@@ -2310,6 +2317,7 @@ function getAppointmentCardStatusLabel(appointment: AppointmentCalendarItem) {
 
 function SalonAppointmentAction({
   appointment,
+  catalogDiscounts,
   checkoutReady,
   hasOpenShift,
   initialCheckout,
@@ -2320,6 +2328,7 @@ function SalonAppointmentAction({
   sstRate,
 }: {
   appointment: AppointmentCalendarItem;
+  catalogDiscounts: CatalogDiscountOption[];
   checkoutReady: boolean;
   hasOpenShift: boolean;
   initialCheckout: boolean;
@@ -2355,6 +2364,7 @@ function SalonAppointmentAction({
     <SalonAppointmentCheckoutModal
       key={appointment.id}
       appointmentId={appointment.id}
+      catalogDiscounts={catalogDiscounts}
       balance={balance}
       canTakePayment={canTakePayment}
       checkoutReady={checkoutReady}

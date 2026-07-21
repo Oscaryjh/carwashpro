@@ -6,6 +6,7 @@ import { mkdir, writeFile } from "fs/promises";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import path from "path";
+import { Prisma } from "@prisma/client";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { assertCanManageBusiness, assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
@@ -42,12 +43,34 @@ const SALON_DEFAULT_SERVICE_CATEGORIES = [
   "Other",
 ] as const;
 
-export async function createBusinessAction(formData: FormData) {
+const CREATE_BUSINESS_FIELDS = [
+  "name",
+  "slug",
+  "industryType",
+  "companyNo",
+  "phone",
+  "ownerName",
+  "ownerEmail",
+  "ownerPassword",
+] as const;
+
+type CreateBusinessField = (typeof CREATE_BUSINESS_FIELDS)[number];
+
+export type CreateBusinessState = {
+  status: "idle" | "error";
+  message: string;
+  fieldErrors?: Partial<Record<CreateBusinessField, string>>;
+};
+
+export async function createBusinessAction(
+  _previousState: CreateBusinessState,
+  formData: FormData,
+): Promise<CreateBusinessState> {
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
   const auditRequest = await getAuditRequestContext();
 
-  const input = createBusinessSchema.parse({
+  const parsed = createBusinessSchema.safeParse({
     name: formData.get("name"),
     slug: formData.get("slug"),
     industryType: formData.get("industryType"),
@@ -57,6 +80,27 @@ export async function createBusinessAction(formData: FormData) {
     ownerEmail: formData.get("ownerEmail"),
     ownerPassword: formData.get("ownerPassword"),
   });
+
+  if (!parsed.success) {
+    const flattened = parsed.error.flatten().fieldErrors;
+    const fieldErrors: CreateBusinessState["fieldErrors"] = {};
+
+    for (const field of CREATE_BUSINESS_FIELDS) {
+      const message = flattened[field]?.[0];
+
+      if (message) {
+        fieldErrors[field] = message;
+      }
+    }
+
+    return {
+      status: "error",
+      message: "Check the highlighted fields and try again.",
+      fieldErrors,
+    };
+  }
+
+  const input = parsed.data;
   const ownerEmail = input.ownerEmail.toLowerCase();
 
   const [existingBusiness, existingUser] = await Promise.all([
@@ -65,104 +109,148 @@ export async function createBusinessAction(formData: FormData) {
   ]);
 
   if (existingBusiness) {
-    throw new Error("Business slug already exists.");
+    return duplicateBusinessState("slug");
   }
 
   if (existingUser) {
-    throw new Error("Login email already exists.");
+    return duplicateBusinessState("ownerEmail");
   }
 
-  const created = await prisma.$transaction(async (tx) => {
-    const newBusiness = await tx.business.create({
-      data: {
-        name: input.name,
-        slug: input.slug,
-        industryType: input.industryType,
-        companyNo: input.companyNo || null,
-        phone: input.phone || null,
-        status: "active",
-      },
-    });
+  let created: { id: string };
 
-    const mainBranch = await tx.branch.create({
-      data: {
-        businessId: newBusiness.id,
-        name: newBusiness.name,
-        phone: newBusiness.phone,
-        status: "ACTIVE",
-      },
-    });
-
-    const passwordHash = await bcrypt.hash(input.ownerPassword, 12);
-
-    const owner = await tx.user.create({
-      data: {
-        businessId: newBusiness.id,
-        branchId: mainBranch.id,
-        name: input.ownerName,
-        email: ownerEmail,
-        passwordHash,
-        role: "BUSINESS_OWNER",
-        status: "active",
-      },
-    });
-
-    if (newBusiness.industryType === "SALON_BEAUTY") {
-      await tx.serviceCategory.createMany({
-        data: SALON_DEFAULT_SERVICE_CATEGORIES.map((name) => ({
-          businessId: newBusiness.id,
-          name,
-        })),
-        skipDuplicates: true,
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const newBusiness = await tx.business.create({
+        data: {
+          name: input.name,
+          slug: input.slug,
+          industryType: input.industryType,
+          companyNo: input.companyNo || null,
+          phone: input.phone || null,
+          status: "active",
+        },
       });
+
+      const mainBranch = await tx.branch.create({
+        data: {
+          businessId: newBusiness.id,
+          name: newBusiness.name,
+          phone: newBusiness.phone,
+          status: "ACTIVE",
+        },
+      });
+
+      const passwordHash = await bcrypt.hash(input.ownerPassword, 12);
+
+      const owner = await tx.user.create({
+        data: {
+          businessId: newBusiness.id,
+          branchId: mainBranch.id,
+          name: input.ownerName,
+          email: ownerEmail,
+          passwordHash,
+          role: "BUSINESS_OWNER",
+          status: "active",
+        },
+      });
+
+      if (newBusiness.industryType === "SALON_BEAUTY") {
+        await tx.serviceCategory.createMany({
+          data: SALON_DEFAULT_SERVICE_CATEGORIES.map((name) => ({
+            businessId: newBusiness.id,
+            name,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      await writeAuditLog(
+        {
+          businessId: newBusiness.id,
+          actor: user,
+          action: "BUSINESS_CREATED",
+          entityType: "Business",
+          entityId: newBusiness.id,
+          summary: `Created business ${newBusiness.name}`,
+          after: {
+            name: newBusiness.name,
+            slug: newBusiness.slug,
+            industryType: newBusiness.industryType,
+            companyNo: newBusiness.companyNo,
+            phone: newBusiness.phone,
+            status: newBusiness.status,
+            ownerId: owner.id,
+            ownerEmail: owner.email,
+            mainBranchId: mainBranch.id,
+            mainBranchName: mainBranch.name,
+          },
+          request: auditRequest,
+        },
+        tx,
+      );
+
+      await writeAuditLog(
+        {
+          businessId: newBusiness.id,
+          branchId: mainBranch.id,
+          actor: user,
+          action: "BRANCH_CREATED",
+          entityType: "Branch",
+          entityId: mainBranch.id,
+          summary: `Provisioned main branch ${mainBranch.name}`,
+          after: mainBranch,
+          metadata: { provisionedWithBusiness: true },
+          request: auditRequest,
+        },
+        tx,
+      );
+
+      return { id: newBusiness.id };
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.join(" ")
+        : String(error.meta?.target ?? "");
+
+      if (target.toLowerCase().includes("email")) {
+        return duplicateBusinessState("ownerEmail");
+      }
+
+      if (target.toLowerCase().includes("slug")) {
+        return duplicateBusinessState("slug");
+      }
+
+      return {
+        status: "error",
+        message: "A company or login with these details already exists.",
+      };
     }
 
-    await writeAuditLog(
-      {
-        businessId: newBusiness.id,
-        actor: user,
-        action: "BUSINESS_CREATED",
-        entityType: "Business",
-        entityId: newBusiness.id,
-        summary: `Created business ${newBusiness.name}`,
-        after: {
-          name: newBusiness.name,
-          slug: newBusiness.slug,
-          industryType: newBusiness.industryType,
-          companyNo: newBusiness.companyNo,
-          phone: newBusiness.phone,
-          status: newBusiness.status,
-          ownerId: owner.id,
-          ownerEmail: owner.email,
-          mainBranchId: mainBranch.id,
-          mainBranchName: mainBranch.name,
-        },
-        request: auditRequest,
-      },
-      tx,
-    );
-
-    await writeAuditLog(
-      {
-        businessId: newBusiness.id,
-        branchId: mainBranch.id,
-        actor: user,
-        action: "BRANCH_CREATED",
-        entityType: "Branch",
-        entityId: mainBranch.id,
-        summary: `Provisioned main branch ${mainBranch.name}`,
-        after: mainBranch,
-        metadata: { provisionedWithBusiness: true },
-        request: auditRequest,
-      },
-      tx,
-    );
-
-    return newBusiness;
-  });
+    console.error("Unable to create company", error);
+    return {
+      status: "error",
+      message: "Unable to create the company. Please try again.",
+    };
+  }
 
   revalidatePath("/admin/businesses");
   redirect(`/admin/businesses/${created.id}`);
+}
+
+function duplicateBusinessState(
+  field: "slug" | "ownerEmail",
+): CreateBusinessState {
+  const message =
+    field === "slug"
+      ? "Company slug already exists."
+      : "Login email already exists.";
+
+  return {
+    status: "error",
+    message,
+    fieldErrors: { [field]: message },
+  };
 }
 
 export async function createAdminBusinessBranchAction(formData: FormData) {

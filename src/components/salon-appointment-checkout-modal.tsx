@@ -7,6 +7,7 @@ import type { InvoiceModalSummary } from "@/components/appointment-invoice-modal
 import { SalonAppointmentPaymentForm } from "@/components/salon-appointment-payment-form";
 import { ModalCloseButton } from "@/components/ui/modal-close-button";
 import type { TaxLineInput } from "@/lib/tax/calculator";
+import type { CatalogDiscountOption } from "@/lib/catalog-discounts";
 
 type CheckoutItem = {
   id: string;
@@ -30,6 +31,7 @@ type SalonAppointmentCheckoutModalProps = {
   availablePackages: AvailableCustomerPackage[];
   balance: number;
   canTakePayment: boolean;
+  catalogDiscounts: CatalogDiscountOption[];
   checkoutReady?: boolean;
   customerName: string;
   customerPhone: string;
@@ -52,6 +54,7 @@ export function SalonAppointmentCheckoutModal({
   availablePackages,
   balance,
   canTakePayment,
+  catalogDiscounts,
   checkoutReady = true,
   customerName,
   customerPhone,
@@ -184,6 +187,7 @@ export function SalonAppointmentCheckoutModal({
 
                 <SalonAppointmentPaymentForm
                   appointmentId={appointmentId}
+                  catalogDiscounts={catalogDiscounts}
                   availablePackages={availablePackages}
                   balance={balance}
                   hasInvoice={hasInvoice}

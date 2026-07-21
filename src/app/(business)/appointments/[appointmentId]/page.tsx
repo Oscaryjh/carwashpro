@@ -170,6 +170,21 @@ export default async function AppointmentDetailPage({
         orderBy: [{ purchasedAt: "asc" }, { createdAt: "asc" }],
       })
     : [];
+  const catalogDiscounts = await prisma.catalogDiscount.findMany({
+    where: {
+      businessId,
+      active: true,
+      OR: [
+        { branchId: null },
+        ...(appointment.branchId ? [{ branchId: appointment.branchId }] : []),
+      ],
+      AND: [
+        { OR: [{ startsAt: null }, { startsAt: { lte: new Date() } }] },
+        { OR: [{ endsAt: null }, { endsAt: { gte: new Date() } }] },
+      ],
+    },
+    orderBy: [{ name: "asc" }],
+  });
   return (
     <>
       <section className="content">
@@ -350,6 +365,21 @@ export default async function AppointmentDetailPage({
                       : [],
                   )}
                   balance={salonBalance}
+                  catalogDiscounts={catalogDiscounts.map((discount) => ({
+                    id: discount.id,
+                    name: discount.name,
+                    discountType: discount.discountType,
+                    percentage: discount.percentage == null ? null : Number(discount.percentage),
+                    fixedAmount: discount.fixedAmount == null ? null : Number(discount.fixedAmount),
+                    scope: discount.scope,
+                    minimumSpend: Number(discount.minimumSpend),
+                    maximumDiscount:
+                      discount.maximumDiscount == null
+                        ? null
+                        : Number(discount.maximumDiscount),
+                    allowLoyaltyStacking: discount.allowLoyaltyStacking,
+                    branchId: discount.branchId,
+                  }))}
                   canTakePayment={canTakeSalonPayment}
                   customerName={appointment.customer.name}
                   customerPhone={appointment.customer.phone}

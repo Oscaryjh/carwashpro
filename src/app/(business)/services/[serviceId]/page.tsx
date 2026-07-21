@@ -54,6 +54,7 @@ export default async function ServiceDetailsPage({
           where: {
             businessId,
             status: "active",
+            appointmentBookable: true,
             role: { in: ["BUSINESS_OWNER", "STAFF"] },
           },
           orderBy: [{ role: "asc" }, { name: "asc" }],

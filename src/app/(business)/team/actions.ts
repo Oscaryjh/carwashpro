@@ -21,6 +21,7 @@ const createStaffSchema = z.object({
   whatsappPhone: z.string().trim().optional(),
   password: z.string().optional(),
   accessType: z.enum(["LOGIN", "NO_LOGIN"]),
+  appointmentBookable: z.boolean(),
 }).superRefine((input, ctx) => {
   if (input.accessType === "LOGIN" && !input.email) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["email"], message: "Login email is required." });
@@ -39,6 +40,7 @@ const updateStaffSchema = z.object({
   password: z.string().optional(),
   status: z.enum(["active", "inactive"]),
   accessType: z.enum(["LOGIN", "NO_LOGIN"]),
+  appointmentBookable: z.boolean(),
 }).superRefine((input, ctx) => {
   if (input.accessType === "LOGIN" && !input.email) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["email"], message: "Login email is required." });
@@ -51,6 +53,11 @@ const deleteStaffSchema = z.object({
 
 const staffScheduleSchema = z.object({
   userId: z.string().uuid(),
+});
+
+const ownerAppointmentAvailabilitySchema = z.object({
+  userId: z.string().uuid(),
+  appointmentBookable: z.enum(["true", "false"]).transform((value) => value === "true"),
 });
 
 const staffTimeOffSchema = z.object({
@@ -73,6 +80,7 @@ export async function createStaffAction(formData: FormData) {
       whatsappPhone: formData.get("whatsappPhone"),
       password: String(formData.get("password") ?? ""),
       accessType: formData.get("accessType"),
+      appointmentBookable: formData.get("appointmentBookable") === "on",
     });
     const permissions = normalizeStaffPermissionsForIndustry(
       formData.getAll("permissions"),
@@ -121,6 +129,7 @@ export async function createStaffAction(formData: FormData) {
           employeeAccountId: employeeAccount?.id ?? null,
           passwordHash,
           loginEnabled,
+          appointmentBookable: input.appointmentBookable,
           role: "STAFF",
           status: "active",
           permissions,
@@ -143,6 +152,7 @@ export async function createStaffAction(formData: FormData) {
             branchIds: input.branchIds,
             whatsappPhone: created.whatsappPhone,
             loginEnabled: created.loginEnabled,
+            appointmentBookable: created.appointmentBookable,
             status: created.status,
             permissions: created.permissions,
           },
@@ -178,6 +188,7 @@ export async function updateStaffAction(formData: FormData) {
       password: String(formData.get("password") ?? ""),
       status: formData.get("status"),
       accessType: formData.get("accessType"),
+      appointmentBookable: formData.get("appointmentBookable") === "on",
     });
     const permissions = normalizeStaffPermissionsForIndustry(
       formData.getAll("permissions"),
@@ -199,6 +210,7 @@ export async function updateStaffAction(formData: FormData) {
         email: true,
         whatsappPhone: true,
         loginEnabled: true,
+        appointmentBookable: true,
         status: true,
         permissions: true,
       },
@@ -263,6 +275,7 @@ export async function updateStaffAction(formData: FormData) {
           whatsappPhone,
           employeeAccountId: employeeAccount?.id ?? null,
           loginEnabled,
+          appointmentBookable: input.appointmentBookable,
           status: input.status,
           permissions,
           ...(passwordHash ? { passwordHash } : {}),
@@ -286,6 +299,7 @@ export async function updateStaffAction(formData: FormData) {
             branchIds: input.branchIds,
             whatsappPhone: updated.whatsappPhone,
             loginEnabled: updated.loginEnabled,
+            appointmentBookable: updated.appointmentBookable,
             status: updated.status,
             permissions: updated.permissions,
           },
@@ -304,6 +318,79 @@ export async function updateStaffAction(formData: FormData) {
     }
 
     redirectWithTeamMessage(getErrorMessage(error, "Unable to update staff."), "error");
+  }
+}
+
+export async function updateOwnerAppointmentAvailabilityAction(formData: FormData) {
+  const { user, businessId } = await requireBusinessUser();
+  assertStaffPermission(user, "TEAM");
+  const auditRequest = await getAuditRequestContext();
+
+  try {
+    const input = ownerAppointmentAvailabilitySchema.parse({
+      userId: formData.get("userId"),
+      appointmentBookable: formData.get("appointmentBookable"),
+    });
+
+    const owner = await prisma.user.findFirst({
+      where: {
+        id: input.userId,
+        businessId,
+        role: "BUSINESS_OWNER",
+      },
+      select: {
+        id: true,
+        branchId: true,
+        name: true,
+        appointmentBookable: true,
+      },
+    });
+
+    if (!owner) {
+      redirectWithTeamMessage("Owner account not found.", "error");
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: owner.id },
+        data: { appointmentBookable: input.appointmentBookable },
+      });
+
+      await writeAuditLog(
+        {
+          businessId,
+          branchId: owner.branchId,
+          actor: user,
+          action: "STAFF_UPDATED",
+          entityType: "User",
+          entityId: owner.id,
+          summary: `${input.appointmentBookable ? "Enabled" : "Disabled"} appointment availability for ${owner.name}`,
+          before: { appointmentBookable: owner.appointmentBookable },
+          after: { appointmentBookable: updated.appointmentBookable },
+          request: auditRequest,
+        },
+        tx,
+      );
+    });
+
+    revalidatePath("/team");
+    revalidatePath("/appointments");
+    revalidatePath("/services");
+    redirectWithTeamMessage(
+      input.appointmentBookable
+        ? "Owner is now available for appointments."
+        : "Owner was removed from appointment scheduling.",
+      "success",
+    );
+  } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
+    redirectWithTeamMessage(
+      getErrorMessage(error, "Unable to update appointment availability."),
+      "error",
+    );
   }
 }
 
