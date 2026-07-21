@@ -1371,7 +1371,9 @@ select:disabled {
 .app-shell {
   display: grid;
   height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
+  min-height: 100dvh;
   grid-template-columns: 252px minmax(0, 1fr);
   transition: grid-template-columns 160ms ease;
 }
@@ -1385,7 +1387,9 @@ select:disabled {
   flex-direction: column;
   gap: 18px;
   height: 100vh;
-  overflow-y: auto;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   border-right: 1px solid var(--line);
   background: var(--sidebar);
   color: white;
@@ -1395,6 +1399,7 @@ select:disabled {
 
 .brand-row {
   display: block;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
@@ -1446,8 +1451,12 @@ select:disabled {
 
 .sidebar-footer {
   display: grid;
+  flex: 0 0 auto;
   gap: 8px;
-  margin-top: auto;
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--sidebar);
 }
 
 .sidebar-footer .sidebar-toggle {
@@ -1503,7 +1512,14 @@ select:disabled {
 
 .sidebar nav {
   display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   gap: 6px;
+  padding-right: 2px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .sidebar nav a {
@@ -15325,7 +15341,9 @@ button.appointment-detail-card:disabled:focus-visible,
   .app-shell,
   .app-shell.sidebar-collapsed {
     height: 100vh;
+    height: 100dvh;
     min-height: 100vh;
+    min-height: 100dvh;
     grid-template-columns: 78px minmax(0, 1fr);
   }
 
@@ -15336,8 +15354,10 @@ button.appointment-detail-card:disabled:focus-visible,
     z-index: 10;
     display: flex;
     height: 100vh;
+    height: 100dvh;
+    min-height: 0;
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: hidden;
     flex-direction: column;
     align-items: center;
     gap: 14px;
@@ -15382,6 +15402,8 @@ button.appointment-detail-card:disabled:focus-visible,
   .app-shell.sidebar-collapsed .sidebar nav {
     display: flex;
     width: 100%;
+    min-height: 0;
+    flex: 1 1 auto;
     overflow-x: hidden;
     overflow-y: auto;
     flex-direction: column;
@@ -15429,10 +15451,12 @@ button.appointment-detail-card:disabled:focus-visible,
   .sidebar-footer,
   .app-shell.sidebar-collapsed .sidebar-footer {
     width: 100%;
+    padding-top: 8px;
   }
 
   .sidebar-footer .sidebar-toggle {
-    display: none;
+    display: grid;
+    place-items: center;
   }
 
   .sidebar-footer form {
@@ -15455,8 +15479,65 @@ button.appointment-detail-card:disabled:focus-visible,
     font-weight: 700;
   }
 
+  .app-shell:not(.sidebar-collapsed) {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .app-shell:not(.sidebar-collapsed) .sidebar {
+    align-items: stretch;
+    padding: 14px 12px;
+  }
+
+  .app-shell:not(.sidebar-collapsed) .sidebar .brand {
+    justify-content: flex-start;
+  }
+
+  .app-shell:not(.sidebar-collapsed) .sidebar .brand img {
+    width: 38px;
+    height: 38px;
+  }
+
+  .app-shell:not(.sidebar-collapsed) .sidebar .brand-fallback {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .app-shell:not(.sidebar-collapsed) .sidebar .brand-name,
+  .app-shell:not(.sidebar-collapsed) .sidebar nav a .nav-label {
+    display: -webkit-box;
+  }
+
+  .app-shell:not(.sidebar-collapsed) .sidebar nav a {
+    justify-content: flex-start;
+    gap: 9px;
+    padding: 0 10px;
+  }
+
+  .app-shell:not(.sidebar-collapsed) .sidebar nav a .nav-badge {
+    position: static;
+    min-width: 22px;
+    width: auto;
+    height: 20px;
+    margin-left: auto;
+    color: inherit;
+    font-size: 10px;
+    padding: 0 6px;
+  }
+
+  .app-shell:not(.sidebar-collapsed) .sidebar .secondary-button {
+    padding: 0 12px;
+    font-size: 12.5px;
+  }
+
+  .app-shell:not(.sidebar-collapsed) .sidebar .secondary-button::before {
+    content: none;
+  }
+
   .main {
     height: 100vh;
+    height: 100dvh;
     overflow-y: auto;
   }
 
@@ -15664,6 +15745,9 @@ button.appointment-detail-card:disabled:focus-visible,
     width: auto;
     grid-area: footer;
     margin: 0;
+    padding-top: 0;
+    border-top: 0;
+    background: transparent;
   }
 
   .sidebar-footer .sidebar-toggle,
