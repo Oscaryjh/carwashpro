@@ -9,6 +9,7 @@ const quantitySchema = z.coerce
 export const cashierSaleSchema = z
   .object({
     branchId: z.string().uuid("Branch is invalid.").optional().or(z.literal("")),
+    appointmentId: z.string().uuid("Appointment is invalid.").optional().or(z.literal("")),
     customerId: z.string().uuid("Customer is invalid.").optional().or(z.literal("")),
     method: z.enum(["CASH", "CARD", "DUITNOW", "EWALLET", "BANK_TRANSFER"]),
     packageIds: z.array(z.string().uuid("Package is invalid.")),

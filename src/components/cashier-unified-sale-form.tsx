@@ -26,7 +26,14 @@ import {
 import { calculateLoyaltyRedemption } from "@/lib/loyalty/rules";
 import { calculateTax, type TaxDisplaySettings } from "@/lib/tax/calculator";
 
-type CartLine = CashierCatalogItem & { quantity: number };
+export type CashierCartLine = CashierCatalogItem & { quantity: number };
+
+export type CashierInitialSale = {
+  appointmentId: string;
+  customer: PackageCustomerOption;
+  lines: CashierCartLine[];
+  returnTo: string;
+};
 
 type CustomerPackageBalanceOption = {
   id: string;
@@ -43,6 +50,7 @@ type CashierUnifiedSaleFormProps = {
   branchId: string;
   catalogDiscounts: CatalogDiscountOption[];
   initialCatalog: CashierCatalogResult;
+  initialSale?: CashierInitialSale | null;
   taxSettings: TaxDisplaySettings;
   loyaltySettings: {
     enabled: boolean;
@@ -64,14 +72,18 @@ export function CashierUnifiedSaleForm({
   branchId,
   catalogDiscounts,
   initialCatalog,
+  initialSale = null,
   taxSettings,
   loyaltySettings,
 }: CashierUnifiedSaleFormProps) {
   const router = useRouter();
+  const [appointmentSale] = useState(initialSale);
   const [catalogType, setCatalogType] = useState<CashierCatalogType>("service");
   const [category, setCategory] = useState("All categories");
-  const [customer, setCustomer] = useState<PackageCustomerOption | null>(null);
-  const [lines, setLines] = useState<CartLine[]>([]);
+  const [customer, setCustomer] = useState<PackageCustomerOption | null>(
+    appointmentSale?.customer ?? null,
+  );
+  const [lines, setLines] = useState<CashierCartLine[]>(appointmentSale?.lines ?? []);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [cashReceived, setCashReceived] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
@@ -510,9 +522,11 @@ export function CashierUnifiedSaleForm({
     }
 
     setCompletedInvoice(result.invoice);
-    setLines([]);
-    setCustomer(null);
-    setCustomerPickerKey((key) => key + 1);
+    if (!appointmentSale) {
+      setLines([]);
+      setCustomer(null);
+      setCustomerPickerKey((key) => key + 1);
+    }
     setDiscountType("AMOUNT");
     setDiscountValue("0");
     setDiscountReference("");
@@ -523,7 +537,9 @@ export function CashierUnifiedSaleForm({
     setSelectedCustomerPackageIds([]);
     setAvailableCustomerPackages([]);
     setPaymentOpen(false);
-    router.refresh();
+    if (!appointmentSale) {
+      router.refresh();
+    }
   }
 
   return (
@@ -682,12 +698,14 @@ export function CashierUnifiedSaleForm({
             buttonClassName={`${styles.customerButton} ${hasPackages && !customer ? styles.customerRequired : ""}`}
             compactAccountNote
             includeVehicleDetails={false}
+            initialCustomer={appointmentSale?.customer}
             key={customerPickerKey}
             onSelectionChange={(nextCustomer) => {
               setCustomer(nextCustomer);
               if (!nextCustomer) setLoyaltyPoints("0");
             }}
             posDisplay
+            readOnly={Boolean(appointmentSale)}
             required={hasPackages}
           />
         </div>
@@ -810,6 +828,9 @@ export function CashierUnifiedSaleForm({
             : `Payment · ${formatMoney(amountDue)}`}
         </button>
         <input name="branchId" type="hidden" value={branchId} />
+        {appointmentSale ? (
+          <input name="appointmentId" type="hidden" value={appointmentSale.appointmentId} />
+        ) : null}
       </aside>
 
       {paymentOpen ? (
@@ -1264,7 +1285,13 @@ export function CashierUnifiedSaleForm({
     {completedInvoice ? (
       <AppointmentInvoiceModal
         invoice={completedInvoice}
-        onClose={() => setCompletedInvoice(null)}
+        onClose={() => {
+          if (appointmentSale) {
+            router.push(appointmentSale.returnTo);
+            return;
+          }
+          setCompletedInvoice(null);
+        }}
       />
     ) : null}
     </>

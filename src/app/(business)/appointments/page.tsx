@@ -24,7 +24,6 @@ import {
 type AppointmentsPageProps = {
   searchParams: Promise<{
     appointment?: string;
-    checkout?: string;
     date?: string;
     message?: string;
     page?: string;
@@ -108,9 +107,6 @@ export default async function AppointmentsPage({
     products,
     packages,
     staffUsers,
-    openCashierShift,
-    businessTaxSettings,
-    catalogDiscounts,
   ] =
     await Promise.all([
       prisma.appointment.findMany({
@@ -293,65 +289,7 @@ export default async function AppointmentsPage({
           role: true,
         },
       }),
-      prisma.cashierShift.findFirst({
-        where: {
-          businessId,
-          cashierId: user.userId,
-          status: "OPEN",
-        },
-        select: { id: true },
-      }),
-      prisma.business.findUniqueOrThrow({
-        where: { id: businessId },
-        select: {
-          sstEnabled: true,
-          sstLabel: true,
-          sstRate: true,
-        },
-      }),
-      prisma.catalogDiscount.findMany({
-        where: {
-          businessId,
-          active: true,
-          ...(staffBranchId ? { OR: [{ branchId: null }, { branchId: staffBranchId }] } : {}),
-          AND: [
-            { OR: [{ startsAt: null }, { startsAt: { lte: new Date() } }] },
-            { OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] },
-          ],
-        },
-        orderBy: [{ name: "asc" }],
-      }),
     ]);
-  const customerPackageBalances = resolvedIndustryType === "SALON_BEAUTY"
-    ? await prisma.customerPackageServiceBalance.findMany({
-        where: {
-          businessId,
-          remainingUses: { gt: 0 },
-          customerPackage: {
-            customerId: {
-              in: [...new Set(calendarAppointments.map((appointment) => appointment.customerId))],
-            },
-            status: "ACTIVE",
-            package: { status: "ACTIVE" },
-          },
-        },
-        orderBy: [{ customerPackage: { purchasedAt: "asc" } }, { createdAt: "asc" }],
-        select: {
-          id: true,
-          remainingUses: true,
-          totalUses: true,
-          serviceId: true,
-          service: { select: { name: true } },
-          customerPackage: {
-            select: {
-              branchId: true,
-              customerId: true,
-              package: { select: { name: true } },
-            },
-          },
-        },
-      })
-    : [];
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const firstItem = totalCount ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
   const lastItem = Math.min(currentPage * PAGE_SIZE, totalCount);
@@ -360,13 +298,6 @@ export default async function AppointmentsPage({
     businessId,
   );
   const serviceNameById = new Map(services.map((service) => [service.id, service.name]));
-  const customerPackagesByCustomerId = new Map<string, typeof customerPackageBalances>();
-  customerPackageBalances.forEach((serviceBalance) => {
-    const customerId = serviceBalance.customerPackage.customerId;
-    const current = customerPackagesByCustomerId.get(customerId) ?? [];
-    current.push(serviceBalance);
-    customerPackagesByCustomerId.set(customerId, current);
-  });
   const recentServiceIds = rankRecentServiceIds(recentServiceAppointments, 5);
   const serviceDetailById = new Map(
     services.map((service) => [
@@ -465,30 +396,15 @@ export default async function AppointmentsPage({
                 serviceDetailById,
                 productDetailById,
                 packageDetailById,
-                customerPackagesByCustomerId,
               ),
             )}
             branches={branches.map((branch) => ({
               id: branch.id,
               name: branch.name,
             }))}
-            catalogDiscounts={catalogDiscounts.map((discount) => ({
-              id: discount.id,
-              branchId: discount.branchId,
-              name: discount.name,
-              discountType: discount.discountType,
-              percentage: discount.percentage == null ? null : Number(discount.percentage),
-              fixedAmount: discount.fixedAmount == null ? null : Number(discount.fixedAmount),
-              scope: discount.scope,
-              minimumSpend: Number(discount.minimumSpend),
-              maximumDiscount: discount.maximumDiscount == null ? null : Number(discount.maximumDiscount),
-              allowLoyaltyStacking: discount.allowLoyaltyStacking,
-            }))}
+            catalogDiscounts={[]}
             isSalonBusiness={resolvedIndustryType === "SALON_BEAUTY"}
             initialAppointmentId={params.appointment}
-            initialCheckoutAppointmentId={
-              params.checkout === "1" ? params.appointment : undefined
-            }
             createAppointmentAction={createAppointmentInlineAction}
             convertAppointmentAction={convertAppointmentToJobAction}
             datePickerCounts={datePickerCounts}
@@ -544,10 +460,6 @@ export default async function AppointmentsPage({
               taxable: item.service?.taxable ?? true,
               taxRate: item.service?.taxRate == null ? null : Number(item.service.taxRate),
             }))}
-            hasOpenShift={Boolean(openCashierShift)}
-            sstEnabled={businessTaxSettings.sstEnabled}
-            sstLabel={businessTaxSettings.sstLabel}
-            sstRate={Number(businessTaxSettings.sstRate)}
             staffMembers={staffUsers}
             updateAppointmentAction={updateAppointmentDetailsAction}
             updateAppointmentStatusAction={updateAppointmentStatusAction}
@@ -798,23 +710,7 @@ function toCalendarItem(appointment: {
   totalUses: number;
   taxable: boolean;
   taxRate: number | null;
-}>, customerPackagesByCustomerId: Map<string, Array<{
-  id: string;
-  remainingUses: number;
-  totalUses: number;
-  serviceId: string;
-  service: { name: string };
-  customerPackage: {
-    branchId: string | null;
-    customerId: string;
-    package: { name: string };
-  };
-}>>): AppointmentCalendarItem {
-  const appointmentServiceIds = new Set([
-    ...appointment.serviceIds,
-    ...(appointment.serviceId ? [appointment.serviceId] : []),
-  ]);
-
+}>): AppointmentCalendarItem {
   return {
     id: appointment.id,
     branchId: appointment.branchId,
@@ -877,20 +773,6 @@ function toCalendarItem(appointment: {
     workOrderPaymentStatus: appointment.workOrder?.paymentStatus ?? null,
     workOrderStatus: appointment.workOrder?.status ?? null,
     workOrderId: appointment.workOrderId ?? null,
-    availablePackages: (customerPackagesByCustomerId.get(appointment.customerId) ?? [])
-      .filter((serviceBalance) => (
-        appointmentServiceIds.has(serviceBalance.serviceId) &&
-        (!serviceBalance.customerPackage.branchId ||
-          serviceBalance.customerPackage.branchId === appointment.branchId)
-      ))
-      .map((serviceBalance) => ({
-        id: serviceBalance.id,
-        name: serviceBalance.customerPackage.package.name,
-        remainingUses: serviceBalance.remainingUses,
-        totalUses: serviceBalance.totalUses,
-        serviceId: serviceBalance.serviceId,
-        serviceName: serviceBalance.service.name,
-      })),
   };
 }
 

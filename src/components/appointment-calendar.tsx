@@ -2,7 +2,6 @@
 
 import { AppointmentVehiclePicker } from "@/components/appointment-vehicle-picker";
 import { AppointmentCustomerPicker } from "@/components/appointment-customer-picker";
-import { SalonAppointmentCheckoutModal } from "@/components/salon-appointment-checkout-modal";
 import type { InvoiceModalSummary } from "@/components/appointment-invoice-modal";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,8 +13,6 @@ import {
   calculateAppointmentDurationMinutes,
   getAppointmentSlotCount,
 } from "@/lib/appointments/scheduling";
-import { calculateTax } from "@/lib/tax/calculator";
-import type { CatalogDiscountOption } from "@/lib/catalog-discounts";
 
 export type AppointmentCalendarItem = {
   id: string;
@@ -74,14 +71,6 @@ export type AppointmentCalendarItem = {
   workOrderPaymentStatus: string | null;
   workOrderStatus: string | null;
   workOrderId: string | null;
-  availablePackages: {
-    id: string;
-    name: string;
-    remainingUses: number;
-    totalUses: number;
-    serviceId: string;
-    serviceName: string;
-  }[];
 };
 
 type AppointmentCalendarProps = {
@@ -90,7 +79,8 @@ type AppointmentCalendarProps = {
     id: string;
     name: string;
   }[];
-  catalogDiscounts: CatalogDiscountOption[];
+  /** Keeps older cached appointment bundles compatible during a rolling client refresh. */
+  catalogDiscounts?: unknown[];
   createAppointmentAction: (
     formData: FormData,
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
@@ -102,8 +92,6 @@ type AppointmentCalendarProps = {
   datePickerHrefPrefix: string;
   isSalonBusiness: boolean;
   initialAppointmentId?: string;
-  initialCheckoutAppointmentId?: string;
-  hasOpenShift: boolean;
   days: {
     count: number;
     date: string;
@@ -150,9 +138,6 @@ type AppointmentCalendarProps = {
   }[];
   updateAppointmentAction: (formData: FormData) => Promise<unknown>;
   updateAppointmentStatusAction: (formData: FormData) => Promise<void>;
-  sstEnabled: boolean;
-  sstLabel: string;
-  sstRate: number;
 };
 
 type CalendarStaffSlot = {
@@ -197,32 +182,40 @@ function getAppointmentDisplayItems(appointment: AppointmentCalendarItem) {
   ];
 }
 
+function normalizeCalendarAppointment(
+  appointment: AppointmentCalendarItem,
+): AppointmentCalendarItem {
+  return {
+    ...appointment,
+    serviceIds: appointment.serviceIds ?? [],
+    serviceDetails: appointment.serviceDetails ?? [],
+    productIds: appointment.productIds ?? [],
+    productDetails: appointment.productDetails ?? [],
+    packageIds: appointment.packageIds ?? [],
+    packageDetails: appointment.packageDetails ?? [],
+  };
+}
+
 export function AppointmentCalendar({
-  appointments,
-  branches,
-  catalogDiscounts,
+  appointments = [],
+  branches = [],
   createAppointmentAction,
   convertAppointmentAction,
-  datePickerCounts,
+  datePickerCounts = [],
   datePickerHrefPrefix,
   isSalonBusiness,
   initialAppointmentId,
-  initialCheckoutAppointmentId,
-  hasOpenShift,
-  days,
+  days = [],
   nextHref,
   previousHref,
-  recentServiceIds,
+  recentServiceIds = [],
   rescheduleAction,
   selectedDateLabel,
   selectedDateValue,
-  services,
-  products,
-  packages,
-  staffMembers,
-  sstEnabled,
-  sstLabel,
-  sstRate,
+  services = [],
+  products = [],
+  packages = [],
+  staffMembers = [],
   updateAppointmentAction,
   updateAppointmentStatusAction,
 }: AppointmentCalendarProps) {
@@ -261,8 +254,6 @@ export function AppointmentCalendar({
   const [newAppointmentError, setNewAppointmentError] = useState("");
   const [selectedAppointment, setSelectedAppointment] =
     useState<AppointmentCalendarItem | null>(null);
-  const [autoCheckoutAppointmentId, setAutoCheckoutAppointmentId] =
-    useState<string | null>(null);
   const [isAppointmentMenuOpen, setIsAppointmentMenuOpen] = useState(false);
   const [appointmentEditor, setAppointmentEditor] = useState<
     "time" | "service" | "staff" | "notes" | null
@@ -405,7 +396,7 @@ export function AppointmentCalendar({
 
     if (initialAppointment) {
       handledInitialAppointmentRef.current = initialAppointmentId;
-      setSelectedAppointment(initialAppointment);
+      setSelectedAppointment(normalizeCalendarAppointment(initialAppointment));
       clearAppointmentQueryFromAddress();
     }
   }, [appointments, initialAppointmentId]);
@@ -704,9 +695,7 @@ export function AppointmentCalendar({
 
     formData.set(
       "redirectTo",
-      status === "COMPLETED"
-        ? `/appointments?status=active&page=1&date=${appointmentDate}&appointment=${selectedAppointment.id}&checkout=1`
-          : `/appointments?status=active&page=1&date=${appointmentDate}`,
+      `/appointments?status=active&page=1&date=${appointmentDate}`,
     );
 
     const appointmentBeforeCompletion = selectedAppointment;
@@ -717,7 +706,6 @@ export function AppointmentCalendar({
         setIsAppointmentMenuOpen(false);
         setAppointmentUpdateError(null);
         setSelectedAppointment({ ...selectedAppointment, status: "COMPLETED" });
-        setAutoCheckoutAppointmentId(selectedAppointment.id);
       });
     }
 
@@ -727,7 +715,6 @@ export function AppointmentCalendar({
       } catch {
         if (status === "COMPLETED") {
           setSelectedAppointment(appointmentBeforeCompletion);
-          setAutoCheckoutAppointmentId(null);
           setAppointmentUpdateError(
             "Unable to complete this service. Please try again.",
           );
@@ -738,6 +725,7 @@ export function AppointmentCalendar({
       }
 
       if (status === "COMPLETED") {
+        router.refresh();
         return;
       }
 
@@ -939,7 +927,7 @@ export function AppointmentCalendar({
             onOpen={(appointment) => {
               setIsAppointmentMenuOpen(false);
               setAppointmentEditor(null);
-              setSelectedAppointment(appointment);
+              setSelectedAppointment(normalizeCalendarAppointment(appointment));
             }}
             selectedDate={selectedDateValue}
             staffSlots={calendarStaffSlots}
@@ -1663,14 +1651,9 @@ export function AppointmentCalendar({
                   aria-label="Close appointment details"
                     className="appointment-detail-close"
                     onClick={() => {
-                      const shouldRefresh = autoCheckoutAppointmentId !== null;
                       setAppointmentEditor(null);
-                      setAutoCheckoutAppointmentId(null);
                       setSelectedAppointment(null);
                       clearAppointmentQueryFromAddress();
-                      if (shouldRefresh) {
-                        router.refresh();
-                      }
                     }}
                   type="button"
                 >
@@ -1861,29 +1844,10 @@ export function AppointmentCalendar({
                 ) : null}
 
                 {isSalonBusiness ? (
-                  <SalonAppointmentAction
-                    appointment={selectedAppointment}
-                    catalogDiscounts={catalogDiscounts.filter((discount) => (
-                      !discount.branchId || discount.branchId === selectedAppointment.branchId
-                    ))}
-                    checkoutReady={!isPending}
-                    hasOpenShift={hasOpenShift}
-                    initialCheckout={
-                      initialCheckoutAppointmentId === selectedAppointment.id ||
-                      autoCheckoutAppointmentId === selectedAppointment.id
-                    }
-                    onInvoiceDone={() => {
-                      setAppointmentEditor(null);
-                      setIsAppointmentMenuOpen(false);
-                      setAutoCheckoutAppointmentId(null);
-                      setSelectedAppointment(null);
-                      clearAppointmentQueryFromAddress();
-                    }}
-                    onStatusChange={updateAppointmentStatus}
-                    sstEnabled={sstEnabled}
-                    sstLabel={sstLabel}
-                    sstRate={sstRate}
-                  />
+                  renderSalonAppointmentAction(
+                    selectedAppointment,
+                    updateAppointmentStatus,
+                  )
                 ) : null}
               </div>
             </section>
@@ -2315,82 +2279,13 @@ function getAppointmentCardStatusLabel(appointment: AppointmentCalendarItem) {
   return label.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function SalonAppointmentAction({
-  appointment,
-  catalogDiscounts,
-  checkoutReady,
-  hasOpenShift,
-  initialCheckout,
-  onInvoiceDone,
-  onStatusChange,
-  sstEnabled,
-  sstLabel,
-  sstRate,
-}: {
-  appointment: AppointmentCalendarItem;
-  catalogDiscounts: CatalogDiscountOption[];
-  checkoutReady: boolean;
-  hasOpenShift: boolean;
-  initialCheckout: boolean;
-  onInvoiceDone: () => void;
-  onStatusChange: (
-    status: "COMPLETED",
-  ) => void;
-  sstEnabled: boolean;
-  sstLabel: string;
-  sstRate: number;
-}) {
+function renderSalonAppointmentAction(
+  appointment: AppointmentCalendarItem,
+  onStatusChange: (status: "COMPLETED") => void,
+) {
   const action = getSalonAppointmentAction(appointment);
-  const checkoutItems = getAppointmentDisplayItems(appointment);
-  const subtotal = checkoutItems.reduce(
-    (sum, item) => sum + Number(item.price || 0) * item.quantity,
-    0,
-  );
-  const taxLines = checkoutItems.map((item) => ({
-    lineTotal: Number(item.price || 0) * item.quantity,
-    taxable: item.taxable,
-    taxRate: item.taxRate,
-  }));
-  const projectedTax = calculateTax({
-    lines: taxLines,
-    sstEnabled,
-    sstLabel,
-    sstRate,
-  });
-  const balance = appointment.invoiceBalance ?? projectedTax.total;
   const isRefunded = isRefundedAppointment(appointment);
-  const canTakePayment = appointment.status === "COMPLETED" && balance > 0 && !isRefunded;
-  const checkout = canOpenSalonCheckout(appointment) ? (
-    <SalonAppointmentCheckoutModal
-      key={appointment.id}
-      appointmentId={appointment.id}
-      catalogDiscounts={catalogDiscounts}
-      balance={balance}
-      canTakePayment={canTakePayment}
-      checkoutReady={checkoutReady}
-      customerName={appointment.customerName}
-      customerPhone={appointment.customerPhone}
-      hasInvoice={Boolean(appointment.invoiceId)}
-      hasOpenShift={hasOpenShift}
-      initialOpen={initialCheckout}
-      invoice={appointment.invoiceSummary}
-      onDone={onInvoiceDone}
-      items={checkoutItems.map((item) => ({
-        id: item.id,
-        name: item.name,
-        price: Number(item.price || 0),
-        quantity: item.quantity,
-        type: item.type,
-      }))}
-      availablePackages={appointment.availablePackages}
-      subtotal={appointment.invoiceSubtotal ?? subtotal}
-      totalAmount={appointment.invoiceTotal ?? projectedTax.total}
-      taxLines={taxLines}
-      sstEnabled={sstEnabled}
-      sstLabel={sstLabel}
-      sstRate={sstRate}
-    />
-  ) : null;
+  const balance = appointment.invoiceBalance ?? 0;
 
   if (!action) {
     if (appointment.status !== "COMPLETED") {
@@ -2408,10 +2303,19 @@ function SalonAppointmentAction({
               {appointment.invoiceStatus ?? "Unpaid"} · Paid RM
               {(appointment.invoicePaidAmount ?? 0).toFixed(2)}
             </span>
-            {isRefunded ? <strong>Invoice closed</strong> : <strong>Balance RM{balance.toFixed(2)}</strong>}
+            {isRefunded ? <strong>Invoice closed</strong> : balance > 0 ? <strong>Balance RM{balance.toFixed(2)}</strong> : null}
           </div>
         ) : null}
-        {checkout}
+        {appointment.invoiceId && !isRefunded ? (
+          <Link className="appointment-detail-action primary" href={`/invoices?invoice=${appointment.invoiceId}`}>
+            View invoice
+          </Link>
+        ) : null}
+        {!appointment.invoiceId && !isRefunded ? (
+          <Link className="appointment-detail-action primary" href={`/cashier?appointmentId=${appointment.id}`}>
+            Payment &amp; Invoice
+          </Link>
+        ) : null}
       </div>
     );
   }
@@ -2426,9 +2330,6 @@ function SalonAppointmentAction({
       >
         {action.disabledReason ?? action.label}
       </button>
-      {canOpenSalonCheckout(appointment) ? (
-        checkout
-      ) : null}
     </div>
   );
 }
@@ -2443,15 +2344,6 @@ function clearAppointmentQueryFromAddress() {
   url.searchParams.delete("appointment");
   url.searchParams.delete("checkout");
   window.history.replaceState(window.history.state, "", url.toString());
-}
-
-function canOpenSalonCheckout(appointment: AppointmentCalendarItem) {
-  return (
-    appointment.status === "COMPLETED" &&
-    appointment.serviceDetails.length > 0 &&
-    !isRefundedAppointment(appointment) &&
-    appointment.invoiceStatus !== "VOID"
-  );
 }
 
 function getSalonAppointmentAction(appointment: AppointmentCalendarItem) {

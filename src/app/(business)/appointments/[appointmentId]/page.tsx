@@ -20,7 +20,6 @@ type AppointmentDetailPageProps = {
     appointmentId: string;
   }>;
   searchParams: Promise<{
-    checkout?: string;
     legacy?: string;
   }>;
 };
@@ -31,7 +30,7 @@ export default async function AppointmentDetailPage({
 }: AppointmentDetailPageProps) {
   const { user, businessId, industryType } = await requireBusinessUser();
   const { appointmentId } = await params;
-  const { checkout, legacy } = await searchParams;
+  const { legacy } = await searchParams;
   const appointment = await prisma.appointment.findFirst({
     where: {
       id: appointmentId,
@@ -79,10 +78,6 @@ export default async function AppointmentDetailPage({
       page: "1",
       status: "active",
     });
-
-    if (checkout === "1") {
-      query.set("checkout", "1");
-    }
 
     redirect(`/appointments?${query.toString()}`);
   }
@@ -385,7 +380,7 @@ export default async function AppointmentDetailPage({
                   customerPhone={appointment.customer.phone}
                   hasInvoice={Boolean(salonInvoice)}
                   hasOpenShift={hasOpenShift}
-                  initialOpen={checkout === "1"}
+                  initialOpen={false}
                   items={selectedServices.map((service) => ({
                     id: service.id,
                     name: service.name,

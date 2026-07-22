@@ -1,4 +1,4 @@
-const CACHE_NAME = "tetamu-pos-static-v1";
+const CACHE_NAME = "tetamu-pos-static-v2";
 const APP_ASSETS = [
   "/manifest.webmanifest",
   "/pwa/icon-192.png",
@@ -39,10 +39,10 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Next.js chunks must always come from the active deployment. Caching route chunks
+  // can hydrate new server props with an older client component after an update.
   const cacheable =
-    url.pathname.startsWith("/_next/static/") ||
-    url.pathname.startsWith("/pwa/") ||
-    url.pathname === "/manifest.webmanifest";
+    url.pathname.startsWith("/pwa/") || url.pathname === "/manifest.webmanifest";
 
   if (!cacheable) {
     return;

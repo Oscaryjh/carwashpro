@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import type { CashierSaleState } from "@/app/(business)/cashier/actions";
-import { CashierUnifiedSaleForm } from "@/components/cashier-unified-sale-form";
+import {
+  CashierUnifiedSaleForm,
+  type CashierInitialSale,
+} from "@/components/cashier-unified-sale-form";
 import type { CashierCatalogResult } from "@/lib/cashier/catalog";
 import type { CatalogDiscountOption } from "@/lib/catalog-discounts";
 import type { TaxDisplaySettings } from "@/lib/tax/calculator";
@@ -12,6 +15,7 @@ type CashierSalesPanelProps = {
   branchId: string;
   catalogDiscounts: CatalogDiscountOption[];
   initialCatalog: CashierCatalogResult;
+  initialSale?: CashierInitialSale | null;
   taxSettings: TaxDisplaySettings;
   loyaltySettings: {
     enabled: boolean;
@@ -26,10 +30,11 @@ export function CashierSalesPanel({
   branchId,
   catalogDiscounts,
   initialCatalog,
+  initialSale = null,
   taxSettings,
   loyaltySettings,
 }: CashierSalesPanelProps) {
-  if (!initialCatalog.total) {
+  if (!initialCatalog.total && !initialSale?.lines.length) {
     return (
       <div className="cashier-empty-state">
         <span aria-hidden="true" className="cashier-empty-icon">+</span>
@@ -51,6 +56,7 @@ export function CashierSalesPanel({
       branchId={branchId}
       catalogDiscounts={catalogDiscounts}
       initialCatalog={initialCatalog}
+      initialSale={initialSale}
       taxSettings={taxSettings}
       loyaltySettings={loyaltySettings}
     />

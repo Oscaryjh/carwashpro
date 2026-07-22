@@ -22,8 +22,10 @@ type PackageCustomerPickerProps = {
   buttonClassName?: string;
   compactAccountNote?: boolean;
   includeVehicleDetails?: boolean;
+  initialCustomer?: PackageCustomerOption | null;
   onSelectionChange?: (customer: PackageCustomerOption | null) => void;
   posDisplay?: boolean;
+  readOnly?: boolean;
   required?: boolean;
 };
 
@@ -42,8 +44,10 @@ export function PackageCustomerPicker({
   buttonClassName,
   compactAccountNote = false,
   includeVehicleDetails = true,
+  initialCustomer = null,
   onSelectionChange,
   posDisplay = false,
+  readOnly = false,
   required = false,
 }: PackageCustomerPickerProps) {
   const requestSequence = useRef(0);
@@ -51,13 +55,17 @@ export function PackageCustomerPicker({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PackageCustomerOption[]>([]);
   const [selectedCustomer, setSelectedCustomer] =
-    useState<PackageCustomerOption | null>(null);
+    useState<PackageCustomerOption | null>(initialCustomer);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
   const [createPhone, setCreatePhone] = useState("");
   const [createName, setCreateName] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setSelectedCustomer(initialCustomer);
+  }, [initialCustomer]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -175,7 +183,9 @@ export function PackageCustomerPicker({
       <button
         ref={buttonRef}
         className={`package-purchase-selection package-customer-selection ${buttonClassName ?? ""}`.trim()}
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          if (!readOnly) setIsOpen(true);
+        }}
         type="button"
       >
         <span aria-hidden="true">{selectedCustomer ? getInitials(selectedCustomer.name) : "C"}</span>
@@ -196,7 +206,7 @@ export function PackageCustomerPicker({
             <strong>{selectedCustomer.loyaltyPoints ?? 0} pts</strong>
             <small>{selectedCustomer.activePackageCount ?? 0} active packages</small>
           </span>
-        ) : (
+        ) : readOnly && selectedCustomer ? null : (
           <b>{selectedCustomer ? "Change" : "Choose"}</b>
         )}
       </button>
@@ -208,9 +218,11 @@ export function PackageCustomerPicker({
               ? "Usable by all vehicles under this customer."
               : "Usable for this customer."}
           </span>
-          <button onClick={clearCustomer} type="button">
-            Clear
-          </button>
+          {!readOnly ? (
+            <button onClick={clearCustomer} type="button">
+              Clear
+            </button>
+          ) : null}
         </div>
       ) : null}
 

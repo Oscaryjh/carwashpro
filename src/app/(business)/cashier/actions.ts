@@ -76,6 +76,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
 
   const parsed = cashierSaleSchema.safeParse({
     branchId: formData.get("branchId")?.toString() || "",
+    appointmentId: formData.get("appointmentId")?.toString() || "",
     customerId: formData.get("customerId")?.toString() || "",
     method: formData.get("method")?.toString(),
     packageIds: formData.getAll("packageId").map((value) => value.toString()),
@@ -127,6 +128,39 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
 
       if (shift.branchId !== branchId) {
         throw new Error("This sale does not belong to the current shift branch.");
+      }
+
+      const appointment = input.appointmentId
+        ? await tx.appointment.findFirst({
+            where: { id: input.appointmentId, businessId },
+            select: {
+              id: true,
+              branchId: true,
+              customerId: true,
+              status: true,
+              invoice: { select: { id: true } },
+            },
+          })
+        : null;
+
+      if (input.appointmentId && !appointment) {
+        throw new Error("Appointment could not be found.");
+      }
+
+      if (appointment && appointment.status !== "COMPLETED") {
+        throw new Error("Complete the appointment before checkout.");
+      }
+
+      if (appointment?.invoice) {
+        throw new Error("This appointment already has an invoice.");
+      }
+
+      if (appointment?.branchId && appointment.branchId !== branchId) {
+        throw new Error("Start a cashier shift for the appointment branch before checkout.");
+      }
+
+      if (appointment && input.customerId !== appointment.customerId) {
+        throw new Error("This sale must use the appointment customer.");
       }
 
       const customer = input.customerId
@@ -494,6 +528,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         data: {
           businessId,
           branchId,
+          appointmentId: appointment?.id ?? null,
           customerId: customer?.id ?? null,
           customerPackageId: primaryCustomerPackage?.id ?? null,
           invoiceNumber: makeInvoiceNumber(),
@@ -608,6 +643,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             branchId,
             cashierId: user.userId,
             shiftId: shift.id,
+            appointmentId: appointment?.id ?? null,
             invoiceId: invoice.id,
             customerPackageId: balance.customerPackageId,
             customerPackageServiceBalanceId: balance.id,
@@ -636,6 +672,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               branchId,
               cashierId: user.userId,
               shiftId: shift.id,
+              appointmentId: appointment?.id ?? null,
               invoiceId: invoice.id,
               customerPackageId: primaryCustomerPackage?.id ?? null,
               amount: fromCents(amountCents),
@@ -714,6 +751,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             packageCoverage: fromCents(packageCoverageCents),
             methods: createdPayments.map((entry) => entry.method),
             invoiceId: invoice.id,
+            appointmentId: appointment?.id ?? null,
             productLines: stocks.map(({ product, quantity }) => ({
               productId: product.id,
               quantity,
@@ -732,7 +770,10 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             loyaltyPointsRedeemed,
             loyaltyDiscount: fromCents(loyaltyDiscountCents),
           },
-          metadata: { customerId: customer?.id ?? null },
+          metadata: {
+            appointmentId: appointment?.id ?? null,
+            customerId: customer?.id ?? null,
+          },
           request: auditRequest,
         },
         tx,
@@ -747,6 +788,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           ]),
         ],
         invoiceId: invoice.id,
+        appointmentId: appointment?.id ?? null,
         invoice: {
           id: invoice.id,
           invoiceNumber: invoice.invoiceNumber,
@@ -810,6 +852,10 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
     revalidatePath("/reports");
     revalidatePath("/dashboard");
     revalidatePath("/closing");
+    if (result.appointmentId) {
+      revalidatePath("/appointments");
+      revalidatePath(`/appointments/${result.appointmentId}`);
+    }
     result.customerPackageIds.forEach((customerPackageId) => {
       revalidatePath(`/pos/packages/${customerPackageId}`);
     });
