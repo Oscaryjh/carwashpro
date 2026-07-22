@@ -346,6 +346,8 @@ model Business {
   employeeBranchAssignments  EmployeeBranchAssignment[]
   employeeAttendances        EmployeeAttendance[]
   catalogDiscounts           CatalogDiscount[]
+  staffRoleProfiles          StaffRoleProfile[]
+  staffLevels                StaffLevel[]
 
   @@index([slug])
   @@index([industryType])
@@ -403,6 +405,8 @@ model User {
   loginEnabled        Boolean    @default(true) @map("login_enabled")
   appointmentBookable Boolean    @default(false) @map("appointment_bookable")
   employeeAccountId   String?    @map("employee_account_id") @db.Uuid
+  staffRoleProfileId  String?    @map("staff_role_profile_id") @db.Uuid
+  staffLevelId        String?    @map("staff_level_id") @db.Uuid
   role                UserRole
   permissions         String[]   @default([])
   status              UserStatus @default(active)
@@ -426,11 +430,54 @@ model User {
   staffBreaks              StaffBreak[]
   staffTimeOff             StaffTimeOff[]
   employeeAccount          EmployeeAccount?         @relation("EmployeeAccountLegacyUsers", fields: [employeeAccountId], references: [id], onDelete: SetNull)
+  staffRoleProfile         StaffRoleProfile?        @relation(fields: [staffRoleProfileId], references: [id], onDelete: SetNull)
+  staffLevel               StaffLevel?              @relation(fields: [staffLevelId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
   @@index([branchId])
   @@index([role])
+  @@index([staffRoleProfileId])
+  @@index([staffLevelId])
   @@map("users")
+}
+
+model StaffRoleProfile {
+  id          String   @id @default(uuid()) @db.Uuid
+  businessId  String   @map("business_id") @db.Uuid
+  name        String
+  permissions String[] @default([])
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  users    User[]
+
+  @@unique([businessId, name])
+  @@index([businessId, active])
+  @@map("staff_role_profiles")
+}
+
+model StaffLevel {
+  id                 String   @id @default(uuid()) @db.Uuid
+  businessId         String   @map("business_id") @db.Uuid
+  name               String
+  serviceFixedAmount Decimal  @default(0) @map("service_fixed_amount") @db.Decimal(10, 2)
+  servicePercent     Decimal  @default(0) @map("service_percent") @db.Decimal(5, 2)
+  productFixedAmount Decimal  @default(0) @map("product_fixed_amount") @db.Decimal(10, 2)
+  productPercent     Decimal  @default(0) @map("product_percent") @db.Decimal(5, 2)
+  packageFixedAmount Decimal  @default(0) @map("package_fixed_amount") @db.Decimal(10, 2)
+  packagePercent     Decimal  @default(0) @map("package_percent") @db.Decimal(5, 2)
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  users    User[]
+
+  @@unique([businessId, name])
+  @@index([businessId, active])
+  @@map("staff_levels")
 }
 
 // Industry-neutral employee identity used by the future staff app.

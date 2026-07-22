@@ -607,7 +607,7 @@ export default async function InvoiceDetailsPage({
               <>
                 <div>
                   <span>Package voucher</span>
-                  <strong>RM{paymentSummary.packageVoucherAmount.toFixed(2)}</strong>
+                  <strong>-RM{paymentSummary.packageVoucherAmount.toFixed(2)}</strong>
                 </div>
                 <div>
                   <span>Cash paid</span>

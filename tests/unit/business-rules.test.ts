@@ -360,6 +360,31 @@ test("58mm invoice receipts use thermal paper width and support long item names"
   assert.ok(pdf.length > 500);
 });
 
+test("invoice PDFs render package vouchers as deductions", () => {
+  const input = {
+    company: { name: "Tetamu Beauty and Wellness" },
+    customer: { name: "OSCAR YONG", phone: "01112212259" },
+    invoiceNumber: "INV-VOUCHER-TEST",
+    issuedAt: new Date("2026-07-22T10:00:00+08:00"),
+    items: [
+      { name: "SST Test Haircut", quantity: 1, unitPrice: 70, lineTotal: 70 },
+    ],
+    paidAmount: 74.2,
+    cashPaidAmount: 0,
+    packageVoucherAmount: 74.2,
+    balance: 0,
+    status: "paid",
+    subtotal: 70,
+    taxAmount: 4.2,
+    taxLabel: "SST",
+    taxRate: 6,
+    total: 74.2,
+  };
+
+  assert.match(buildInvoicePdf(input).toString("latin1"), /-RM74\.20/);
+  assert.match(buildInvoiceReceiptPdf(input).toString("latin1"), /-RM74\.20/);
+});
+
 test("staff permissions are allow-list based and deduplicated", () => {
   assert.deepEqual(
     normalizeStaffPermissions(["CRM", "CRM", "POS", "UNKNOWN"]),

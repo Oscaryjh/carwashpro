@@ -47,6 +47,7 @@ type CustomerPackageBalanceOption = {
 
 type CashierUnifiedSaleFormProps = {
   action: (formData: FormData) => Promise<CashierSaleState>;
+  appointmentError?: string | null;
   branchId: string;
   catalogDiscounts: CatalogDiscountOption[];
   initialCatalog: CashierCatalogResult;
@@ -69,6 +70,7 @@ const paymentMethods = [
 
 export function CashierUnifiedSaleForm({
   action,
+  appointmentError = null,
   branchId,
   catalogDiscounts,
   initialCatalog,
@@ -79,7 +81,7 @@ export function CashierUnifiedSaleForm({
   const router = useRouter();
   const [appointmentSale] = useState(initialSale);
   const [catalogType, setCatalogType] = useState<CashierCatalogType>("service");
-  const [category, setCategory] = useState("All categories");
+  const [category, setCategory] = useState(RECENT_CATALOG_CATEGORY);
   const [customer, setCustomer] = useState<PackageCustomerOption | null>(
     appointmentSale?.customer ?? null,
   );
@@ -469,7 +471,7 @@ export function CashierUnifiedSaleForm({
 
   function switchCatalog(nextType: CashierCatalogType) {
     setCatalogType(nextType);
-    setCategory("All categories");
+    setCategory(RECENT_CATALOG_CATEGORY);
     setCatalogPage(1);
   }
 
@@ -544,7 +546,8 @@ export function CashierUnifiedSaleForm({
 
   return (
     <>
-    <form action={submitSale} className={`${styles.posShell} ${styles.formalShell}`}>
+      {appointmentError && !completedInvoice ? <div className="error">{appointmentError}</div> : null}
+      <form action={submitSale} className={`${styles.posShell} ${styles.formalShell}`}>
       <section aria-label="Sale catalog" className={styles.catalogPanel}>
         <header className={styles.panelHeader}>
           <div>
@@ -1054,7 +1057,7 @@ export function CashierUnifiedSaleForm({
           </section>
         </div>
       ) : null}
-    </form>
+      </form>
     {adjustmentsOpen && typeof document !== "undefined"
       ? createPortal(
           <div
@@ -1285,6 +1288,10 @@ export function CashierUnifiedSaleForm({
     {completedInvoice ? (
       <AppointmentInvoiceModal
         invoice={completedInvoice}
+        onDone={() => {
+          setCompletedInvoice(null);
+          window.location.replace("/cashier");
+        }}
         onClose={() => {
           if (appointmentSale) {
             router.push(appointmentSale.returnTo);

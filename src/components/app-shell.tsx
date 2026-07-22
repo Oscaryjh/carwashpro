@@ -121,16 +121,6 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("INVOICES")
-      ? [
-          {
-            href: "/invoices",
-            label: "Invoices",
-            shortLabel: "Inv",
-            icon: "invoices" as const,
-          },
-        ]
-      : []),
     ...(isStoreUser && canSee("CLOSING")
       ? [
           {

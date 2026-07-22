@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { requireCrmUser } from "@/lib/auth/crm";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveBranchId } from "@/lib/branches";
@@ -21,6 +22,17 @@ export type DeleteCustomerState = {
   status: "idle" | "success" | "error";
   message: string;
 };
+
+export type UpdateCustomerNotesState = {
+  status: "idle" | "success" | "error";
+  message: string;
+};
+
+const customerNotesSchema = z.object({
+  notes: z.string().trim().max(5000, "General notes must be 5,000 characters or fewer."),
+  preferences: z.string().trim().max(5000, "Preferences must be 5,000 characters or fewer."),
+  treatmentNotes: z.string().trim().max(5000, "Treatment notes must be 5,000 characters or fewer."),
+});
 
 export async function createCustomerAction(formData: FormData) {
   const { businessId, user } = await requireCrmUser();
@@ -188,7 +200,7 @@ export async function createCustomerAction(formData: FormData) {
 
   if (formData.get("returnPath") === "/crm") {
     redirect(
-      `/crm?type=success&message=${encodeURIComponent(
+      `/crm?customer=${customer.id}&type=success&message=${encodeURIComponent(
         `${customer.name} created successfully.`,
       )}`,
     );
@@ -261,6 +273,49 @@ export async function updateCustomerAction(formData: FormData) {
   revalidatePath("/crm/customers");
   revalidatePath(`/crm/customers/${customer.id}`);
   redirect(`/crm/customers/${customer.id}`);
+}
+
+export async function updateCustomerNotesAction(
+  _previousState: UpdateCustomerNotesState,
+  formData: FormData,
+): Promise<UpdateCustomerNotesState> {
+  const { businessId } = await requireCrmUser();
+  const customerId = formData.get("customerId")?.toString().trim();
+
+  if (!customerId) {
+    return { status: "error", message: "Customer id is required." };
+  }
+
+  const parsed = customerNotesSchema.safeParse({
+    notes: formData.get("notes")?.toString() ?? "",
+    preferences: formData.get("preferences")?.toString() ?? "",
+    treatmentNotes: formData.get("treatmentNotes")?.toString() ?? "",
+  });
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Check the notes and try again.",
+    };
+  }
+
+  const result = await prisma.customer.updateMany({
+    where: { id: customerId, businessId },
+    data: {
+      notes: parsed.data.notes || null,
+      preferences: parsed.data.preferences || null,
+      treatmentNotes: parsed.data.treatmentNotes || null,
+    },
+  });
+
+  if (!result.count) {
+    return { status: "error", message: "Customer not found." };
+  }
+
+  revalidatePath("/crm");
+  revalidatePath(`/crm/customers/${customerId}`);
+
+  return { status: "success", message: "Customer notes updated." };
 }
 
 export async function updateCustomerProfileAction(formData: FormData) {
@@ -423,7 +478,12 @@ export async function updateCustomerProfileAction(formData: FormData) {
   revalidatePath("/crm/customers");
   revalidatePath("/crm/vehicles");
   revalidatePath(`/crm/customers/${customer.id}`);
-  redirect(`/crm/customers/${customer.id}`);
+  const requestedReturnPath = formData.get("returnPath")?.toString();
+  const returnPath =
+    requestedReturnPath === "/crm" || requestedReturnPath?.startsWith("/crm?")
+      ? requestedReturnPath
+      : `/crm/customers/${customer.id}`;
+  redirect(returnPath);
 }
 
 export async function deleteCustomerAction(

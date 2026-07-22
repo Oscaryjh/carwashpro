@@ -12,6 +12,7 @@ import type { TaxDisplaySettings } from "@/lib/tax/calculator";
 
 type CashierSalesPanelProps = {
   action: (formData: FormData) => Promise<CashierSaleState>;
+  appointmentError?: string | null;
   branchId: string;
   catalogDiscounts: CatalogDiscountOption[];
   initialCatalog: CashierCatalogResult;
@@ -27,6 +28,7 @@ type CashierSalesPanelProps = {
 
 export function CashierSalesPanel({
   action,
+  appointmentError = null,
   branchId,
   catalogDiscounts,
   initialCatalog,
@@ -53,6 +55,7 @@ export function CashierSalesPanel({
   return (
     <CashierUnifiedSaleForm
       action={action}
+      appointmentError={appointmentError}
       branchId={branchId}
       catalogDiscounts={catalogDiscounts}
       initialCatalog={initialCatalog}

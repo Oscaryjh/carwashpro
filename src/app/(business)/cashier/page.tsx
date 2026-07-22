@@ -6,7 +6,7 @@ import type {
 } from "@/components/cashier-unified-sale-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
-import { getCashierCatalog } from "@/lib/cashier/catalog";
+import { getCashierCatalog, RECENT_CATALOG_CATEGORY } from "@/lib/cashier/catalog";
 import { prisma } from "@/lib/prisma";
 import { completeCashierSaleAction } from "@/app/(business)/cashier/actions";
 
@@ -128,7 +128,12 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
   const packageCounts = countIds(requestedAppointment?.packageIds ?? []);
   const [initialCatalog, catalogDiscounts, appointmentServices, appointmentProducts, appointmentPackages] = await Promise.all([
     cashierBranchId
-      ? getCashierCatalog({ branchId: cashierBranchId, businessId, type: "service" })
+      ? getCashierCatalog({
+          branchId: cashierBranchId,
+          businessId,
+          category: RECENT_CATALOG_CATEGORY,
+          type: "service",
+        })
       : Promise.resolve({ categories: [], items: [], page: 1, pageCount: 1, pageSize: 8, total: 0 }),
     prisma.catalogDiscount.findMany({
       where: {
@@ -239,10 +244,9 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
         </div>
 
         {message ? <div className={messageType}>{message}</div> : null}
-        {appointmentError ? <div className="error">{appointmentError}</div> : null}
-
         <CashierSalesPanel
           action={completeCashierSaleAction}
+          appointmentError={appointmentError}
           branchId={cashierBranchId}
           catalogDiscounts={catalogDiscounts.map((discount) => ({
             id: discount.id,

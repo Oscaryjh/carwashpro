@@ -242,7 +242,7 @@ export function buildInvoicePdf(input: InvoicePdfInput) {
 
   if (hasPackageVoucher) {
     text("Package voucher", 50, paymentY, { font: "bold", size: 9 });
-    rightText(formatMoney(input.packageVoucherAmount), 545, paymentY, {
+    rightText(`-${formatMoney(input.packageVoucherAmount)}`, 545, paymentY, {
       font: "bold",
       size: 16,
     });
@@ -330,7 +330,7 @@ export function buildInvoiceReceiptPdf(input: InvoicePdfInput) {
     ["TOTAL", formatMoney(input.total)],
     ...(hasPackageVoucher
       ? [
-          ["Package voucher", formatMoney(input.packageVoucherAmount)] as [string, string],
+          ["Package voucher", `-${formatMoney(input.packageVoucherAmount)}`] as [string, string],
           ["Cash paid", formatMoney(input.cashPaidAmount)] as [string, string],
         ]
       : [["Paid", formatMoney(input.paidAmount)] as [string, string]]),

@@ -1,25 +1,39 @@
 "use client";
 
+import type { Customer } from "@prisma/client";
 import { useEffect, useState } from "react";
 import { CustomerForm } from "@/components/customer-form";
 import { ModalCloseButton } from "@/components/ui/modal-close-button";
 import type { BranchOption } from "@/lib/branches";
 
-type CrmNewCustomerModalProps = {
+type EditableCustomer = Pick<
+  Customer,
+  | "id"
+  | "branchId"
+  | "name"
+  | "phone"
+  | "email"
+  | "dateOfBirth"
+  | "notes"
+  | "preferences"
+  | "treatmentNotes"
+>;
+
+type CrmEditCustomerModalProps = {
   action: (formData: FormData) => Promise<void>;
   branches: BranchOption[];
-  initialVehiclePlate?: string;
+  customer: EditableCustomer;
   isSalonBusiness: boolean;
-  label?: string;
+  returnPath: string;
 };
 
-export function CrmNewCustomerModal({
+export function CrmEditCustomerModal({
   action,
   branches,
-  initialVehiclePlate = "",
+  customer,
   isSalonBusiness,
-  label = "New customer",
-}: CrmNewCustomerModalProps) {
+  returnPath,
+}: CrmEditCustomerModalProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
@@ -41,9 +55,8 @@ export function CrmNewCustomerModal({
 
   return (
     <>
-      <button className="button-link" onClick={() => setIsOpen(true)} type="button">
-        <span aria-hidden="true">+</span>
-        {label}
+      <button className="crm-edit-link" onClick={() => setIsOpen(true)} type="button">
+        Edit
       </button>
 
       {isOpen ? (
@@ -55,7 +68,7 @@ export function CrmNewCustomerModal({
           role="presentation"
         >
           <section
-            aria-labelledby="crm-new-customer-title"
+            aria-labelledby="crm-edit-customer-title"
             aria-modal="true"
             className={`crm-customer-modal${
               isSalonBusiness ? " crm-customer-modal--salon" : ""
@@ -64,16 +77,12 @@ export function CrmNewCustomerModal({
           >
             <header className="crm-customer-modal-header">
               <div>
-                <p>CRM</p>
-                <h2 id="crm-new-customer-title">New customer</h2>
-                <span>
-                  {isSalonBusiness
-                    ? "Create a customer profile."
-                    : "Create a customer and add vehicle details if needed."}
-                </span>
+                <p>Customer profile</p>
+                <h2 id="crm-edit-customer-title">Edit customer</h2>
+                <span>Update contact details and customer preferences.</span>
               </div>
               <ModalCloseButton
-                ariaLabel="Close new customer"
+                ariaLabel="Close customer editor"
                 className="crm-customer-modal-close"
                 onClick={() => setIsOpen(false)}
               />
@@ -84,9 +93,10 @@ export function CrmNewCustomerModal({
                 action={action}
                 branches={branches}
                 compactCreate
-                initialVehiclePlate={initialVehiclePlate}
+                customer={customer}
                 isSalonBusiness={isSalonBusiness}
-                returnPath="/crm"
+                mode="edit"
+                returnPath={returnPath}
               />
             </div>
           </section>
