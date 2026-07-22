@@ -2,6 +2,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const CASHIER_CATALOG_PAGE_SIZE = 8;
+export const RECENT_CATALOG_CATEGORY = "Recently";
+const RECENT_CATALOG_LIMIT = 5;
 
 export type CashierCatalogType = "all" | "package" | "product" | "service";
 
@@ -43,6 +45,21 @@ export async function getCashierCatalog({
   query = "",
   type = "all",
 }: CashierCatalogInput): Promise<CashierCatalogResult> {
+  if (category === RECENT_CATALOG_CATEGORY) {
+    const [categories, items] = await Promise.all([
+      getCashierCatalogCategories(businessId, type),
+      getRecentlySoldCatalogItems({ branchId, businessId, query, type }),
+    ]);
+    return {
+      categories,
+      items,
+      page: 1,
+      pageCount: 1,
+      pageSize: CASHIER_CATALOG_PAGE_SIZE,
+      total: items.length,
+    };
+  }
+
   const packageWhere = buildPackageWhere(businessId, category, query);
   const productWhere = buildProductWhere(businessId, category, query);
   const serviceWhere = buildServiceWhere(businessId, branchId, category, query);
@@ -147,6 +164,132 @@ export async function getCashierCatalog({
     pageSize: CASHIER_CATALOG_PAGE_SIZE,
     total,
   };
+}
+
+async function getRecentlySoldCatalogItems({
+  branchId,
+  businessId,
+  query,
+  type,
+}: {
+  branchId: string;
+  businessId: string;
+  query: string;
+  type: CashierCatalogType;
+}) {
+  const recentInvoiceItems = await prisma.invoiceItem.findMany({
+    where: {
+      businessId,
+      invoice: { branchId },
+      ...(type === "product"
+        ? { productId: { not: null } }
+        : type === "service"
+          ? { serviceId: { not: null }, customerPackageId: null }
+          : type === "package"
+            ? { customerPackageId: { not: null } }
+            : {
+                OR: [
+                  { productId: { not: null } },
+                  { serviceId: { not: null }, customerPackageId: null },
+                  { customerPackageId: { not: null } },
+                ],
+              }),
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: {
+      customerPackage: { select: { packageId: true } },
+      customerPackageId: true,
+      productId: true,
+      serviceId: true,
+    },
+    take: 100,
+  });
+
+  const recentKeys: Array<{ id: string; type: Exclude<CashierCatalogType, "all"> }> = [];
+  const seen = new Set<string>();
+  for (const item of recentInvoiceItems) {
+    const recentItem = item.customerPackage?.packageId
+      ? { id: item.customerPackage.packageId, type: "package" as const }
+      : item.productId
+        ? { id: item.productId, type: "product" as const }
+        : item.serviceId
+          ? { id: item.serviceId, type: "service" as const }
+          : null;
+    if (!recentItem || (type !== "all" && recentItem.type !== type)) continue;
+    const key = `${recentItem.type}:${recentItem.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    recentKeys.push(recentItem);
+    if (recentKeys.length >= RECENT_CATALOG_LIMIT * 4) break;
+  }
+
+  const packageIds = recentKeys.filter((item) => item.type === "package").map((item) => item.id);
+  const productIds = recentKeys.filter((item) => item.type === "product").map((item) => item.id);
+  const serviceIds = recentKeys.filter((item) => item.type === "service").map((item) => item.id);
+  const [packageRows, productRows, serviceRows] = await Promise.all([
+    packageIds.length
+      ? prisma.package.findMany({
+          where: { AND: [buildPackageWhere(businessId, undefined, query), { id: { in: packageIds } }] },
+          include: {
+            packageCategory: { select: { name: true } },
+            service: { select: { taxable: true, taxRate: true } },
+          },
+        })
+      : Promise.resolve([]),
+    productIds.length
+      ? prisma.product.findMany({
+          where: { AND: [buildProductWhere(businessId, undefined, query), { id: { in: productIds } }] },
+          include: {
+            productCategory: { select: { name: true } },
+            stocks: { where: { branchId }, select: { quantity: true }, take: 1 },
+          },
+        })
+      : Promise.resolve([]),
+    serviceIds.length
+      ? prisma.service.findMany({
+          where: { AND: [buildServiceWhere(businessId, branchId, undefined, query), { id: { in: serviceIds } }] },
+          include: { serviceCategory: { select: { name: true } } },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const itemByKey = new Map<string, CashierCatalogItem>();
+  packageRows.forEach((item) => itemByKey.set(`package:${item.id}`, {
+    category: item.packageCategory?.name ?? null,
+    description: `${item.totalUses} total uses`,
+    id: item.id,
+    name: item.name,
+    price: Number(item.price),
+    taxable: item.service?.taxable ?? true,
+    taxRate: item.service?.taxRate == null ? null : Number(item.service.taxRate),
+    type: "package",
+  }));
+  productRows.forEach((item) => itemByKey.set(`product:${item.id}`, {
+    category: item.productCategory?.name ?? item.category,
+    description: `${item.stocks[0]?.quantity ?? 0} in stock`,
+    id: item.id,
+    name: item.name,
+    price: Number(item.price),
+    stock: item.stocks[0]?.quantity ?? 0,
+    taxable: item.taxable,
+    taxRate: item.taxRate == null ? null : Number(item.taxRate),
+    type: "product",
+  }));
+  serviceRows.forEach((item) => itemByKey.set(`service:${item.id}`, {
+    category: item.serviceCategory?.name ?? item.category,
+    description: item.durationMinutes ? `${item.durationMinutes} min` : "Flexible duration",
+    id: item.id,
+    name: item.name,
+    price: Number(item.price),
+    taxable: item.taxable,
+    taxRate: item.taxRate == null ? null : Number(item.taxRate),
+    type: "service",
+  }));
+
+  return recentKeys
+    .map((item) => itemByKey.get(`${item.type}:${item.id}`))
+    .filter((item): item is CashierCatalogItem => Boolean(item))
+    .slice(0, RECENT_CATALOG_LIMIT);
 }
 
 async function getCashierCatalogCategories(

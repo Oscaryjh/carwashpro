@@ -1467,6 +1467,45 @@ select:disabled {
   margin-top: 0;
 }
 
+.pwa-install-button {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(94, 234, 212, 0.34);
+  border-radius: 6px;
+  background: rgba(15, 130, 121, 0.3);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 10px;
+}
+
+.pwa-install-button:hover {
+  background: rgba(15, 130, 121, 0.48);
+}
+
+.pwa-install-button svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.app-shell.sidebar-collapsed .pwa-install-button {
+  min-height: 38px;
+  padding: 0;
+}
+
+.app-shell.sidebar-collapsed .pwa-install-button span {
+  display: none;
+}
+
 .business-logo-row {
   display: grid;
   align-items: center;
@@ -15759,6 +15798,18 @@ button.appointment-detail-card:disabled:focus-visible,
   .app-shell.sidebar-collapsed .sidebar-footer form {
     width: auto;
     margin: 0;
+  }
+
+  .pwa-install-button,
+  .app-shell.sidebar-collapsed .pwa-install-button {
+    width: 34px;
+    min-height: 34px;
+    padding: 0;
+  }
+
+  .pwa-install-button span,
+  .app-shell.sidebar-collapsed .pwa-install-button span {
+    display: none;
   }
 
   .sidebar .secondary-button,

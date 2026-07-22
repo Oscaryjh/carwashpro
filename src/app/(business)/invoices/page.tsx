@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { InvoiceViewButton } from "@/components/invoice-view-button";
 import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
+import { getInvoicePaymentSummary } from "@/lib/invoices/payment-summary";
 import { prisma } from "@/lib/prisma";
 import { getRefundableCents } from "@/lib/refunds/rules";
 
@@ -146,6 +147,7 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
               </thead>
               <tbody>
                 {invoices.map((invoice, index) => {
+                  const paymentSummary = getInvoicePaymentSummary(invoice.payments);
                   const refundablePayments = invoice.payments
                     .filter((payment) => payment.status === "ACTIVE")
                     .map((payment) => ({
@@ -286,6 +288,8 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                           total: Number(invoice.total),
                           paidAmount: Number(invoice.paidAmount),
                           balance: Number(invoice.balance),
+                          packageVoucherAmount: paymentSummary.packageVoucherAmount,
+                          cashPaidAmount: paymentSummary.cashPaidAmount,
                           canManagePayments,
                           canVoid,
                           voidUnavailableReason,

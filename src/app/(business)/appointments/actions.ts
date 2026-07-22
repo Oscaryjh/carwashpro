@@ -12,6 +12,7 @@ import {
   type CatalogDiscountOption,
 } from "@/lib/catalog-discounts";
 import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
+import { getInvoicePaymentSummary } from "@/lib/invoices/payment-summary";
 import {
   activateCustomerPackageServiceBalances,
   createCustomerPackageServiceBalances,
@@ -1010,6 +1011,8 @@ export type SalonCheckoutInvoiceSummary = {
   total: number;
   paidAmount: number;
   balance: number;
+  packageVoucherAmount?: number;
+  cashPaidAmount?: number;
 };
 
 export type SalonAppointmentPaymentState = {
@@ -1125,7 +1128,10 @@ export async function recordSalonAppointmentPaymentAction(
       include: {
         customer: true,
         invoice: {
-          include: { items: true },
+          include: {
+            items: true,
+            payments: { include: { refunds: { select: { amount: true } } } },
+          },
         },
       },
     });
@@ -1471,7 +1477,10 @@ export async function recordSalonAppointmentPaymentAction(
             })),
           },
         },
-        include: { items: true },
+        include: {
+          items: true,
+          payments: { include: { refunds: { select: { amount: true } } } },
+        },
       });
 
       for (const serviceBalance of customerPackages) {
@@ -1607,6 +1616,10 @@ export async function recordSalonAppointmentPaymentAction(
     const nextPaidCents = paidCents + depositCents + amountCents;
     const nextBalanceCents = totalCents - nextPaidCents;
     const nextStatus = nextBalanceCents === 0 ? "PAID" : "PARTIAL";
+    const paymentSummary = getInvoicePaymentSummary([
+      ...invoice.payments,
+      ...createdPayments,
+    ]);
 
     for (const payment of createdPayments) {
       await awardLoyaltyPointsForPayment(tx, {
@@ -1732,6 +1745,8 @@ export async function recordSalonAppointmentPaymentAction(
         total: Number(invoice.total),
         paidAmount: nextPaidCents / 100,
         balance: nextBalanceCents / 100,
+        packageVoucherAmount: paymentSummary.packageVoucherAmount,
+        cashPaidAmount: paymentSummary.cashPaidAmount,
       },
     };
     });

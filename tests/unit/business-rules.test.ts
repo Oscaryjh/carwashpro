@@ -87,6 +87,32 @@ test("cashier sale allows anonymous products but requires a customer for package
   );
 });
 
+test("cashier sale requires a customer before redeeming an existing package", () => {
+  const customerId = "11111111-1111-4111-8111-111111111111";
+  const serviceId = "22222222-2222-4222-8222-222222222222";
+  const customerPackageBalanceId = "33333333-3333-4333-8333-333333333333";
+  const baseSale = {
+    branchId: "",
+    method: "CASH" as const,
+    packageIds: [],
+    packageQuantities: [],
+    productIds: [],
+    productQuantities: [],
+    serviceIds: [serviceId],
+    serviceQuantities: [1],
+    customerPackageIds: [customerPackageBalanceId],
+  };
+
+  assert.equal(
+    cashierSaleSchema.safeParse({ ...baseSale, customerId: "" }).success,
+    false,
+  );
+  assert.equal(
+    cashierSaleSchema.safeParse({ ...baseSale, customerId }).success,
+    true,
+  );
+});
+
 test("multi-service package benefits require unique services and preserve each allowance", () => {
   const washServiceId = "11111111-1111-4111-8111-111111111111";
   const haircutServiceId = "22222222-2222-4222-8222-222222222222";

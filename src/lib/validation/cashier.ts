@@ -17,6 +17,7 @@ export const cashierSaleSchema = z
     productQuantities: z.array(quantitySchema),
     serviceIds: z.array(z.string().uuid("Service is invalid.")).default([]),
     serviceQuantities: z.array(quantitySchema).default([]),
+    customerPackageIds: z.array(z.string().uuid("Customer package is invalid.")).default([]),
     reference: z.string().trim().max(120, "Reference is too long.").optional(),
     discountType: z.enum(["AMOUNT", "PERCENT"]).default("AMOUNT"),
     discountValue: z.coerce
@@ -110,6 +111,14 @@ export const cashierSaleSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Select a customer before redeeming loyalty points.",
+        path: ["customerId"],
+      });
+    }
+
+    if (input.customerPackageIds.length && !input.customerId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Select a customer before using a package.",
         path: ["customerId"],
       });
     }

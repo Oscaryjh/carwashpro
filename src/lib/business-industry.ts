@@ -23,6 +23,5 @@ export function getBusinessIndustryLabel(industry: BusinessIndustry) {
 }
 
 export function getBusinessHomeHref(industry: BusinessIndustry) {
-  void industry;
-  return "/reports";
+  return industry === "AUTO_DETAILING" ? "/work-orders" : "/cashier";
 }

@@ -16,6 +16,7 @@ import type {
   CashierCatalogResult,
   CashierCatalogType,
 } from "@/lib/cashier/catalog";
+import { RECENT_CATALOG_CATEGORY } from "@/lib/cashier/catalog";
 import {
   calculateCatalogDiscountCents,
   formatCatalogDiscountScope,
@@ -26,6 +27,16 @@ import { calculateLoyaltyRedemption } from "@/lib/loyalty/rules";
 import { calculateTax, type TaxDisplaySettings } from "@/lib/tax/calculator";
 
 type CartLine = CashierCatalogItem & { quantity: number };
+
+type CustomerPackageBalanceOption = {
+  id: string;
+  customerPackageId: string;
+  name: string;
+  remainingUses: number;
+  serviceId: string;
+  serviceName: string;
+  totalUses: number;
+};
 
 type CashierUnifiedSaleFormProps = {
   action: (formData: FormData) => Promise<CashierSaleState>;
@@ -57,12 +68,14 @@ export function CashierUnifiedSaleForm({
   loyaltySettings,
 }: CashierUnifiedSaleFormProps) {
   const router = useRouter();
-  const [catalogType, setCatalogType] = useState<CashierCatalogType>("product");
+  const [catalogType, setCatalogType] = useState<CashierCatalogType>("service");
   const [category, setCategory] = useState("All categories");
   const [customer, setCustomer] = useState<PackageCustomerOption | null>(null);
   const [lines, setLines] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [cashReceived, setCashReceived] = useState("");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [catalogPage, setCatalogPage] = useState(1);
@@ -84,10 +97,20 @@ export function CashierUnifiedSaleForm({
   const [saleError, setSaleError] = useState("");
   const [completedInvoice, setCompletedInvoice] = useState<CashierSaleInvoiceSummary | null>(null);
   const [customerPickerKey, setCustomerPickerKey] = useState(0);
+  const [availableCustomerPackages, setAvailableCustomerPackages] = useState<CustomerPackageBalanceOption[]>([]);
+  const [selectedCustomerPackageIds, setSelectedCustomerPackageIds] = useState<string[]>([]);
+  const [customerPackagesLoading, setCustomerPackagesLoading] = useState(false);
+  const [customerPackagesError, setCustomerPackagesError] = useState("");
   const skipInitialRequest = useRef(true);
   const cashReceivedRef = useRef<HTMLInputElement>(null);
   const customerPickerButtonRef = useRef<HTMLButtonElement>(null);
-  const categories = ["All categories", ...catalogData.categories];
+  const categories = [
+    RECENT_CATALOG_CATEGORY,
+    "All categories",
+    ...catalogData.categories.filter(
+      (option) => option !== RECENT_CATALOG_CATEGORY && option !== "All categories",
+    ),
+  ];
   const currentCatalogPage = catalogData.page;
   const catalogPageCount = catalogData.pageCount;
   const visibleItems = catalogData.items;
@@ -100,6 +123,22 @@ export function CashierUnifiedSaleForm({
   useEffect(() => {
     setCatalogData(initialCatalog);
   }, [initialCatalog]);
+
+  useEffect(() => {
+    if (!paymentOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPaymentOpen(false);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [paymentOpen]);
 
   useEffect(() => {
     if (skipInitialRequest.current) {
@@ -135,6 +174,53 @@ export function CashierUnifiedSaleForm({
 
     return () => controller.abort();
   }, [branchId, catalogPage, catalogType, category, debouncedQuery]);
+
+  const serviceIdsKey = useMemo(
+    () => lines
+      .filter((line) => line.type === "service")
+      .map((line) => line.id)
+      .sort()
+      .join(","),
+    [lines],
+  );
+
+  useEffect(() => {
+    setSelectedCustomerPackageIds([]);
+    setCustomerPackagesError("");
+
+    if (!customer || !serviceIdsKey) {
+      setAvailableCustomerPackages([]);
+      setCustomerPackagesLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({ branchId, customerId: customer.id });
+    serviceIdsKey.split(",").forEach((serviceId) => params.append("serviceId", serviceId));
+    setCustomerPackagesLoading(true);
+
+    fetch(`/api/cashier/customer-packages?${params.toString()}`, { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json() as {
+          error?: string;
+          packages?: CustomerPackageBalanceOption[];
+        };
+        if (!response.ok) throw new Error(payload.error || "Unable to load customer packages.");
+        setAvailableCustomerPackages(payload.packages ?? []);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setAvailableCustomerPackages([]);
+        setCustomerPackagesError(
+          error instanceof Error ? error.message : "Unable to load customer packages.",
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCustomerPackagesLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [branchId, customer, serviceIdsKey]);
 
   const hasPackages = lines.some((line) => line.type === "package");
   const totalItems = lines.reduce((sum, line) => sum + line.quantity, 0);
@@ -271,6 +357,32 @@ export function CashierUnifiedSaleForm({
     discount: totalDiscount,
   }), [lines, taxSettings, totalDiscount]);
 
+  const selectedCustomerPackages = availableCustomerPackages.filter((option) =>
+    selectedCustomerPackageIds.includes(option.id),
+  );
+  const selectedPackageApplications = selectedCustomerPackages.flatMap((option) => {
+    const lineIndex = lines.findIndex(
+      (line) => line.type === "service" && line.id === option.serviceId,
+    );
+    if (lineIndex < 0) return [];
+
+    const quantity = Math.max(1, lines[lineIndex].quantity);
+    const coveredAmount = Math.max(
+      0,
+      lines[lineIndex].price
+        - (tax.lineDiscount[lineIndex] ?? 0) / quantity
+        + (tax.lineTax[lineIndex] ?? 0) / quantity,
+    );
+    if (coveredAmount <= 0) return [];
+
+    return [{ ...option, coveredAmount }];
+  });
+  const packageCoverage = selectedPackageApplications.reduce(
+    (sum, option) => sum + option.coveredAmount,
+    0,
+  );
+  const amountDue = Math.max(0, tax.total - packageCoverage);
+
   const draftTax = useMemo(() => calculateTax({
     lines: lines.map((line) => ({
       lineTotal: line.price * line.quantity,
@@ -283,10 +395,17 @@ export function CashierUnifiedSaleForm({
     discount: draftTotalDiscount,
   }), [draftTotalDiscount, lines, taxSettings]);
 
-  const totalCents = Math.max(0, Math.round(tax.total * 100));
+  const totalCents = Math.max(0, Math.round(amountDue * 100));
   const cashReceivedCents = Math.max(0, Math.round((Number(cashReceived) || 0) * 100));
   const cashPaymentReady = paymentMethod !== "CASH" || totalCents === 0 || cashReceivedCents >= totalCents;
   const cashChange = Math.max(0, cashReceivedCents - totalCents) / 100;
+  const paymentReferenceReady = paymentMethod === "CASH" || Boolean(paymentReference.trim());
+  const cashSuggestions = useMemo(() => {
+    const exact = amountDue;
+    const roundedFive = Math.ceil(exact / 5) * 5;
+    const roundedTen = Math.ceil(exact / 10) * 10;
+    return Array.from(new Set([exact, roundedFive, roundedTen].map((value) => value.toFixed(2))));
+  }, [amountDue]);
 
   const canPay = Boolean(
     lines.length &&
@@ -328,6 +447,12 @@ export function CashierUnifiedSaleForm({
     setCatalogDiscountId(draftCatalogDiscountId);
     setLoyaltyPoints(String(draftRedemption.points));
     setAdjustmentsOpen(false);
+  }
+
+  function openPayment() {
+    if (!canPay) return;
+    setSaleError("");
+    setPaymentOpen(true);
   }
 
   function switchCatalog(nextType: CashierCatalogType) {
@@ -372,7 +497,7 @@ export function CashierUnifiedSaleForm({
   async function submitSale(formData: FormData) {
     setSaleError("");
     if (!cashPaymentReady) {
-      setSaleError(`Enter at least ${formatMoney(tax.total)} cash received.`);
+      setSaleError(`Enter at least ${formatMoney(amountDue)} cash received.`);
       cashReceivedRef.current?.click();
       return;
     }
@@ -394,6 +519,10 @@ export function CashierUnifiedSaleForm({
     setLoyaltyPoints("0");
     setAdjustmentsOpen(false);
     setCashReceived("");
+    setPaymentReference("");
+    setSelectedCustomerPackageIds([]);
+    setAvailableCustomerPackages([]);
+    setPaymentOpen(false);
     router.refresh();
   }
 
@@ -420,7 +549,7 @@ export function CashierUnifiedSaleForm({
         </header>
 
         <div className={styles.catalogTabs} role="tablist">
-          {(["product", "service", "package"] as CashierCatalogType[]).map((option) => (
+          {(["service", "product", "package"] as CashierCatalogType[]).map((option) => (
             <button
               aria-selected={catalogType === option}
               className={catalogType === option ? styles.activeTab : ""}
@@ -429,16 +558,26 @@ export function CashierUnifiedSaleForm({
               role="tab"
               type="button"
             >
-              {option === "product"
-                ? "Products"
-                : option === "service"
-                  ? "Services"
+              {option === "service"
+                ? "Services"
+                : option === "product"
+                  ? "Products"
                   : "Packages"}
             </button>
           ))}
         </div>
 
-        <div aria-label="Catalog categories" className={styles.categoryBar}>
+        <div
+          aria-label="Catalog categories"
+          className={styles.categoryBar}
+          onWheel={(event) => {
+            if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+            if (event.currentTarget.scrollWidth <= event.currentTarget.clientWidth) return;
+
+            event.currentTarget.scrollLeft += event.deltaY;
+            event.preventDefault();
+          }}
+        >
           {categories.map((option) => (
             <button
               className={category === option ? styles.activeCategory : ""}
@@ -628,26 +767,6 @@ export function CashierUnifiedSaleForm({
           ) : null}
         </div>
 
-        <section className={styles.adjustmentsPanel}>
-          <button
-            aria-expanded={adjustmentsOpen}
-            aria-haspopup="dialog"
-            className={styles.adjustmentsToggle}
-            onClick={openAdjustments}
-            type="button"
-          >
-            <span>
-              <strong>Discount &amp; rewards</strong>
-              <small>
-                {totalDiscount > 0
-                  ? `${formatMoney(totalDiscount)} applied`
-                  : "Manual discount or TETAMU Points"}
-              </small>
-            </span>
-            <b>{totalDiscount > 0 ? "Edit" : "+"}</b>
-          </button>
-        </section>
-
         <div className={styles.orderSummary}>
           <div><span>Subtotal</span><strong>{formatMoney(tax.subtotal)}</strong></div>
           {manualDiscount > 0 ? (
@@ -665,64 +784,255 @@ export function CashierUnifiedSaleForm({
           <div className={styles.totalRow}><span>Total</span><strong>{formatMoney(tax.total)}</strong></div>
         </div>
 
-        <div aria-label="Payment method" className={`${styles.paymentMethods} ${styles.paymentMethodsAll}`}>
-          {paymentMethods.map((method) => (
-            <button
-              className={paymentMethod === method.value ? styles.activePayment : ""}
-              key={method.value}
-              onClick={() => {
-                setPaymentMethod(method.value);
-                if (method.value === "CASH") {
-                  window.requestAnimationFrame(() => cashReceivedRef.current?.click());
-                }
-              }}
-              type="button"
-            >
-              {method.label}
-            </button>
-          ))}
-        </div>
         <input name="method" type="hidden" value={paymentMethod} />
         <input name="discountType" type="hidden" value={discountType} />
         <input name="discountValue" type="hidden" value={numericDiscountValue} />
         <input name="discountReference" type="hidden" value={discountReference} />
         <input name="catalogDiscountId" type="hidden" value={catalogDiscountId} />
         <input name="loyaltyPoints" type="hidden" value={redemption.points} />
-        {paymentMethod === "CASH" ? (
-          <div className={styles.cashTender}>
-            <label>
-              <span>Cash received</span>
-              <MoneyNumpadInput
-                aria-invalid={!cashPaymentReady}
-                amountDue={tax.total}
-                onValueChange={setCashReceived}
-                placeholder={formatMoney(tax.total)}
-                ref={cashReceivedRef}
-                value={cashReceived}
-              />
-            </label>
-            <div className={styles.cashChange}>
-              <span>Change</span>
-              <strong>{formatMoney(cashChange)}</strong>
-            </div>
-          </div>
-        ) : (
-          <label className={styles.referenceField}>
-            <span>Payment reference</span>
-            <input maxLength={120} name="reference" placeholder="Enter transaction reference" required />
-          </label>
-        )}
-
+        {selectedCustomerPackageIds.map((customerPackageId) => (
+          <input
+            key={customerPackageId}
+            name="customerPackageId"
+            type="hidden"
+            value={customerPackageId}
+          />
+        ))}
         {hasStockError ? <p className={styles.submitMessage}>A product quantity exceeds available stock.</p> : null}
-        {saleError ? <p className={styles.submitMessage}>{saleError}</p> : null}
-        <CashierPayButton
-          canPay={canPay && cashPaymentReady}
-          cashRequired={paymentMethod === "CASH" && !cashPaymentReady}
-          customerRequired={hasPackages && !customer}
-          total={tax.total}
-        />
+        <button
+          className={styles.payButton}
+          disabled={!canPay}
+          onClick={openPayment}
+          type="button"
+        >
+          {hasPackages && !customer
+            ? "Select customer to continue"
+            : `Payment · ${formatMoney(amountDue)}`}
+        </button>
         <input name="branchId" type="hidden" value={branchId} />
       </aside>
+
+      {paymentOpen ? (
+        <div
+          className={styles.paymentBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setPaymentOpen(false);
+          }}
+        >
+          <section aria-label="Payment" aria-modal="true" className={styles.paymentDialog} role="dialog">
+            <header className={styles.paymentHeader}>
+              <div>
+                <span>CHECKOUT</span>
+                <h2>Payment</h2>
+              </div>
+              <button aria-label="Close payment" onClick={() => setPaymentOpen(false)} type="button">×</button>
+            </header>
+
+            <div className={styles.paymentBody}>
+              <div className={styles.paymentControls}>
+                <section className={styles.paymentAmount}>
+                  <span>Balance to pay</span>
+                  <strong>{formatMoney(amountDue)}</strong>
+                  <small>{totalItems} {totalItems === 1 ? "item" : "items"}</small>
+                </section>
+
+                {customer && serviceIdsKey ? (
+                  <section className={styles.customerPackagePanel}>
+                    <header>
+                      <div>
+                        <strong>Customer packages</strong>
+                        <small>Use a purchased package for a matching service.</small>
+                      </div>
+                      {selectedCustomerPackages.length ? (
+                        <span>{selectedCustomerPackages.length} selected</span>
+                      ) : null}
+                    </header>
+                    {customerPackagesLoading ? (
+                      <p>Checking available packages...</p>
+                    ) : customerPackagesError ? (
+                      <p className={styles.customerPackageError}>{customerPackagesError}</p>
+                    ) : availableCustomerPackages.length ? (
+                      <div className={styles.customerPackageOptions}>
+                        {availableCustomerPackages.map((option) => {
+                          const selected = selectedCustomerPackageIds.includes(option.id);
+                          return (
+                            <button
+                              aria-pressed={selected}
+                              className={selected ? styles.customerPackageSelected : ""}
+                              key={option.id}
+                              onClick={() => {
+                                setSelectedCustomerPackageIds((current) => {
+                                  if (current.includes(option.id)) {
+                                    return current.filter((id) => id !== option.id);
+                                  }
+                                  const sameServiceIds = new Set(
+                                    availableCustomerPackages
+                                      .filter((item) => item.serviceId === option.serviceId)
+                                      .map((item) => item.id),
+                                  );
+                                  return [
+                                    ...current.filter((id) => !sameServiceIds.has(id)),
+                                    option.id,
+                                  ];
+                                });
+                                setCashReceived("");
+                              }}
+                              type="button"
+                            >
+                              <span>
+                                <strong>{option.name}</strong>
+                                <small>{option.serviceName}</small>
+                              </span>
+                              <b>{option.remainingUses}/{option.totalUses} uses</b>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p>No purchased package matches these services.</p>
+                    )}
+                  </section>
+                ) : null}
+
+                <section className={styles.adjustmentsPanel}>
+                  <button
+                    aria-expanded={adjustmentsOpen}
+                    aria-haspopup="dialog"
+                    className={styles.adjustmentsToggle}
+                    onClick={openAdjustments}
+                    type="button"
+                  >
+                    <span>
+                      <strong>Discount &amp; rewards</strong>
+                      <small>
+                        {totalDiscount > 0
+                          ? `${formatMoney(totalDiscount)} applied`
+                          : "Manual discount or TETAMU Points"}
+                      </small>
+                    </span>
+                    <b>{totalDiscount > 0 ? "Edit" : "+"}</b>
+                  </button>
+                </section>
+
+                <section className={styles.paymentSection}>
+                  <h3>Payment method</h3>
+                  <div aria-label="Payment method" className={styles.paymentChoices}>
+                    {paymentMethods.map((method) => (
+                      <button
+                        className={paymentMethod === method.value ? styles.activePaymentChoice : ""}
+                        key={method.value}
+                        onClick={() => {
+                          setPaymentMethod(method.value);
+                          setSaleError("");
+                        }}
+                        type="button"
+                      >
+                        {method.label}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                {paymentMethod === "CASH" ? (
+                  <section className={styles.paymentSection}>
+                    <h3>Cash received</h3>
+                    <div className={styles.cashSuggestions}>
+                      {cashSuggestions.map((amount, index) => (
+                        <button
+                          className={cashReceived === amount ? styles.activeCashSuggestion : ""}
+                          key={amount}
+                          onClick={() => setCashReceived(amount)}
+                          type="button"
+                        >
+                          {index === 0 ? "Exact " : ""}{formatMoney(Number(amount))}
+                        </button>
+                      ))}
+                      <button onClick={() => cashReceivedRef.current?.click()} type="button">Custom</button>
+                    </div>
+                    <div className={styles.cashTender}>
+                      <label>
+                        <span>Amount received</span>
+                        <MoneyNumpadInput
+                          aria-invalid={!cashPaymentReady}
+                          amountDue={amountDue}
+                          onValueChange={setCashReceived}
+                          placeholder={formatMoney(amountDue)}
+                          ref={cashReceivedRef}
+                          value={cashReceived}
+                        />
+                      </label>
+                      <div className={styles.cashChange}>
+                        <span>Change</span>
+                        <strong>{formatMoney(cashChange)}</strong>
+                      </div>
+                    </div>
+                  </section>
+                ) : (
+                  <label className={`${styles.referenceField} ${styles.paymentReferenceField}`}>
+                    <span>Payment reference</span>
+                    <input
+                      maxLength={120}
+                      name="reference"
+                      onChange={(event) => setPaymentReference(event.target.value)}
+                      placeholder="Enter transaction reference"
+                      required
+                      value={paymentReference}
+                    />
+                  </label>
+                )}
+              </div>
+
+              <aside className={styles.paymentOrder}>
+                <header>
+                  <div>
+                    <span>ORDER SUMMARY</span>
+                    <h3>{customer?.name ?? "Walk-in customer"}</h3>
+                  </div>
+                  {customer ? <small>{customer.phone}</small> : null}
+                </header>
+                <div className={styles.paymentOrderLines}>
+                  {lines.map((line) => (
+                    <div className={styles.paymentOrderLine} key={`${line.type}-${line.id}`}>
+                      <div>
+                        <strong>{line.name}</strong>
+                        <small>{line.type === "package" ? "Package" : line.type === "service" ? "Service" : formatMoney(line.price)}</small>
+                      </div>
+                      <span>×{line.quantity}</span>
+                      <strong>{formatMoney(line.price * line.quantity)}</strong>
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.paymentOrderTotals}>
+                  <div><span>Subtotal</span><strong>{formatMoney(tax.subtotal)}</strong></div>
+                  {totalDiscount > 0 ? <div><span>Discount</span><strong>−{formatMoney(totalDiscount)}</strong></div> : null}
+                  {taxSettings.enabled ? <div><span>{formatTaxLabel(tax.taxLabel, tax.taxRate)}</span><strong>{formatMoney(tax.tax)}</strong></div> : null}
+                  {selectedPackageApplications.map((option) => (
+                    <div className={styles.packageCoverageRow} key={option.id}>
+                      <span>{option.serviceName} · Package voucher</span>
+                      <strong>−{formatMoney(option.coveredAmount)}</strong>
+                    </div>
+                  ))}
+                  <div><span>Total</span><strong>{formatMoney(tax.total)}</strong></div>
+                  {packageCoverage > 0 ? (
+                    <div className={styles.amountDueRow}><span>Amount due</span><strong>{formatMoney(amountDue)}</strong></div>
+                  ) : null}
+                </div>
+              </aside>
+            </div>
+
+            {saleError ? <p className={styles.paymentError}>{saleError}</p> : null}
+            <footer className={styles.paymentFooter}>
+              <button onClick={() => setPaymentOpen(false)} type="button">Back</button>
+              <CashierPayButton
+                canPay={canPay && cashPaymentReady && paymentReferenceReady}
+                cashRequired={paymentMethod === "CASH" && !cashPaymentReady}
+                referenceRequired={!paymentReferenceReady}
+                total={amountDue}
+              />
+            </footer>
+          </section>
+        </div>
+      ) : null}
     </form>
     {adjustmentsOpen && typeof document !== "undefined"
       ? createPortal(
@@ -964,24 +1274,24 @@ export function CashierUnifiedSaleForm({
 function CashierPayButton({
   canPay,
   cashRequired,
-  customerRequired,
+  referenceRequired,
   total,
 }: {
   canPay: boolean;
   cashRequired: boolean;
-  customerRequired: boolean;
+  referenceRequired: boolean;
   total: number;
 }) {
   const { pending } = useFormStatus();
   return (
-    <button className={styles.payButton} disabled={!canPay || pending} type="submit">
+    <button className={styles.paymentConfirmButton} disabled={!canPay || pending} type="submit">
       {pending
         ? "Processing..."
-        : customerRequired
-          ? "Select customer to continue"
-          : cashRequired
-            ? "Enter cash received"
-            : `Pay ${formatMoney(total)}`}
+        : cashRequired
+          ? "Enter cash received"
+          : referenceRequired
+            ? "Enter payment reference"
+            : `Confirm payment · ${formatMoney(total)}`}
     </button>
   );
 }

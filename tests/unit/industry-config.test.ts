@@ -5,6 +5,7 @@ import {
   INDUSTRY_CONFIG,
   getIndustryConfig,
 } from "../../src/config/industry-config";
+import { getBusinessHomeHref } from "../../src/lib/business-industry";
 
 test("every supported industry has a complete configuration", () => {
   const industries: BusinessIndustry[] = [
@@ -37,4 +38,10 @@ test("Auto and Salon keep their current subject behavior", () => {
   assert.equal(getIndustryConfig("AUTO_DETAILING").usesVehicleFields, true);
   assert.equal(getIndustryConfig("SALON_BEAUTY").subjectLabel, "Customer");
   assert.equal(getIndustryConfig("SALON_BEAUTY").usesVehicleFields, false);
+});
+
+test("business users land on their primary operating workspace", () => {
+  assert.equal(getBusinessHomeHref("AUTO_DETAILING"), "/work-orders");
+  assert.equal(getBusinessHomeHref("SALON_BEAUTY"), "/cashier");
+  assert.equal(getBusinessHomeHref("PET_GROOMING"), "/cashier");
 });

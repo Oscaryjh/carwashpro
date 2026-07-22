@@ -37,6 +37,8 @@ export type InvoiceModalSummary = {
   total: number;
   paidAmount: number;
   balance: number;
+  packageVoucherAmount?: number;
+  cashPaidAmount?: number;
   canManagePayments?: boolean;
   canVoid?: boolean;
   voidUnavailableReason?: string | null;
@@ -100,6 +102,9 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
   const showManagementActions = Boolean(
     invoice.canManagePayments && (canRefund || invoice.canVoid || invoice.voidUnavailableReason),
   );
+  const packageVoucherAmount = invoice.packageVoucherAmount ?? 0;
+  const cashPaidAmount = invoice.cashPaidAmount ?? invoice.paidAmount;
+  const hasPackageVoucher = packageVoucherAmount > 0;
   const handleManagementComplete = () => {
     setManagementAction(null);
     (onDone ?? onClose)();
@@ -165,8 +170,20 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
           {invoice.taxAmount > 0 ? <div><span>{formatTaxLabel(invoice.taxLabel, invoice.taxRate)}</span><strong>RM{invoice.taxAmount.toFixed(2)}</strong></div> : null}
           {invoice.tipAmount > 0 ? <div><span>Tip</span><strong>RM{invoice.tipAmount.toFixed(2)}</strong></div> : null}
           <div className="is-total"><span>Total</span><strong>RM{invoice.total.toFixed(2)}</strong></div>
-          <div><span>Paid</span><strong>RM{invoice.paidAmount.toFixed(2)}</strong></div>
-          {invoice.balance > 0 ? (
+          {hasPackageVoucher ? (
+            <>
+              <div><span>Package voucher</span><strong>-RM{packageVoucherAmount.toFixed(2)}</strong></div>
+              {cashPaidAmount > 0 ? (
+                <div><span>Other payment</span><strong>RM{cashPaidAmount.toFixed(2)}</strong></div>
+              ) : null}
+              <div className={invoice.balance > 0 ? "is-balance" : ""}>
+                <span>Amount due</span><strong>RM{invoice.balance.toFixed(2)}</strong>
+              </div>
+            </>
+          ) : (
+            <div><span>Paid</span><strong>RM{invoice.paidAmount.toFixed(2)}</strong></div>
+          )}
+          {!hasPackageVoucher && invoice.balance > 0 ? (
             <div className="is-balance"><span>Balance</span><strong>RM{invoice.balance.toFixed(2)}</strong></div>
           ) : null}
         </div>

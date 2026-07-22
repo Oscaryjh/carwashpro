@@ -1,5 +1,6 @@
 "use server";
 
+import type { Payment } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
@@ -49,6 +50,8 @@ export type CashierSaleInvoiceSummary = {
   total: number;
   paidAmount: number;
   balance: number;
+  packageVoucherAmount: number;
+  cashPaidAmount: number;
 };
 
 export type CashierSaleState = {
@@ -81,6 +84,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
     productQuantities: formData.getAll("productQuantity"),
     serviceIds: formData.getAll("serviceId").map((value) => value.toString()),
     serviceQuantities: formData.getAll("serviceQuantity"),
+    customerPackageIds: formData.getAll("customerPackageId").map((value) => value.toString()),
     reference: formData.get("reference")?.toString() || undefined,
     discountType: formData.get("discountType")?.toString() || "AMOUNT",
     discountValue: formData.get("discountValue")?.toString() || "0",
@@ -153,7 +157,16 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         input.serviceQuantities,
       );
       const now = new Date();
-      const [business, packageDefinitions, products, services, loyaltyProgram, membership, catalogDiscountRecord] = await Promise.all([
+      const [
+        business,
+        packageDefinitions,
+        products,
+        services,
+        loyaltyProgram,
+        membership,
+        catalogDiscountRecord,
+        redeemedPackageBalances,
+      ] = await Promise.all([
         tx.business.findUniqueOrThrow({
           where: { id: businessId },
           select: { sstEnabled: true, sstLabel: true, sstRate: true },
@@ -224,6 +237,26 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               },
             })
           : Promise.resolve(null),
+        input.customerPackageIds.length && customer
+          ? tx.customerPackageServiceBalance.findMany({
+              where: {
+                businessId,
+                id: { in: [...new Set(input.customerPackageIds)] },
+                remainingUses: { gt: 0 },
+                customerPackage: {
+                  customerId: customer.id,
+                  status: "ACTIVE",
+                  OR: [{ branchId: null }, { branchId }],
+                  package: { status: "ACTIVE" },
+                },
+              },
+              include: {
+                customerPackage: { include: { package: true } },
+                service: true,
+              },
+              orderBy: [{ customerPackage: { purchasedAt: "asc" } }, { createdAt: "asc" }],
+            })
+          : Promise.resolve([]),
       ]);
 
       if (input.catalogDiscountId && !catalogDiscountRecord) {
@@ -242,11 +275,28 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         throw new Error("One of the selected services is no longer available.");
       }
 
+      if (redeemedPackageBalances.length !== new Set(input.customerPackageIds).size) {
+        throw new Error("This customer package is no longer available.");
+      }
+
       const packageById = new Map(
         packageDefinitions.map((packageDefinition) => [packageDefinition.id, packageDefinition]),
       );
       const productById = new Map(products.map((product) => [product.id, product]));
       const serviceById = new Map(services.map((service) => [service.id, service]));
+      const redeemedPackageByServiceId = new Map<
+        string,
+        typeof redeemedPackageBalances[number]
+      >();
+      for (const balance of redeemedPackageBalances) {
+        if (!serviceQuantities.has(balance.serviceId)) {
+          throw new Error("This package cannot be used for the selected services.");
+        }
+        if (redeemedPackageByServiceId.has(balance.serviceId)) {
+          throw new Error("Only one package can be used for each service.");
+        }
+        redeemedPackageByServiceId.set(balance.serviceId, balance);
+      }
       const packageUnits = [...packageQuantities].flatMap(([packageId, quantity]) => {
         const packageDefinition = packageById.get(packageId);
         if (!packageDefinition) {
@@ -389,6 +439,27 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         ],
         discount: totalDiscountCents / 100,
       });
+      const packageCoverageByBalanceId = new Map<string, number>();
+      let packageCoverageCents = 0;
+      for (const balance of redeemedPackageBalances) {
+        const serviceLineIndex = serviceLines.findIndex(
+          ({ service }) => service.id === balance.serviceId,
+        );
+        if (serviceLineIndex < 0) {
+          throw new Error("This package cannot be used for the selected services.");
+        }
+
+        const quantity = serviceLines[serviceLineIndex].quantity;
+        const taxLineIndex = stocks.length + packageUnits.length + serviceLineIndex;
+        const coveredCents = Math.max(
+          0,
+          Math.round(Number(serviceLines[serviceLineIndex].service.price) * 100)
+            - Math.round((tax.lineDiscount[taxLineIndex] ?? 0) * 100 / quantity)
+            + Math.round((tax.lineTax[taxLineIndex] ?? 0) * 100 / quantity),
+        );
+        packageCoverageByBalanceId.set(balance.id, coveredCents);
+        packageCoverageCents += coveredCents;
+      }
       const customerPackages: Array<{ id: string }> = [];
 
       if (customer) {
@@ -417,7 +488,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       }
 
       const primaryCustomerPackage = customerPackages[0] ?? null;
-      const amountCents = Math.round(tax.total * 100);
+      const invoiceTotalCents = Math.round(tax.total * 100);
+      const amountCents = Math.max(0, invoiceTotalCents - packageCoverageCents);
       const invoice = await tx.invoice.create({
         data: {
           businessId,
@@ -435,8 +507,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             manualDiscountCents > 0 ? discountReason : null,
           loyaltyPointsRedeemed,
           loyaltyDiscountAmount: fromCents(loyaltyDiscountCents),
-          total: fromCents(amountCents),
-          paidAmount: fromCents(amountCents),
+          total: fromCents(invoiceTotalCents),
+          paidAmount: fromCents(invoiceTotalCents),
           balance: "0.00",
           status: "PAID",
           items: {
@@ -481,6 +553,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               ...serviceLines.map(({ service, quantity }, index) => ({
                 businessId,
                 serviceId: service.id,
+                customerPackageId:
+                  redeemedPackageByServiceId.get(service.id)?.customerPackageId ?? null,
                 name: service.name,
                 quantity,
                 unitPrice: service.price,
@@ -501,21 +575,82 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           },
         },
       });
-      const payment = await tx.payment.create({
-        data: {
+      const packagePayments: Payment[] = [];
+      for (const balance of redeemedPackageBalances) {
+        const updatedBalance = await tx.customerPackageServiceBalance.updateMany({
+          where: {
+            id: balance.id,
+            businessId,
+            remainingUses: balance.remainingUses,
+          },
+          data: { remainingUses: balance.remainingUses - 1 },
+        });
+        if (updatedBalance.count !== 1) {
+          throw new Error("This customer package is no longer available.");
+        }
+
+        const updatedPackage = await tx.customerPackage.updateMany({
+          where: {
+            id: balance.customerPackageId,
+            businessId,
+            remainingUses: { gt: 0 },
+            status: "ACTIVE",
+          },
+          data: { remainingUses: { decrement: 1 } },
+        });
+        if (updatedPackage.count !== 1) {
+          throw new Error("This customer package is no longer available.");
+        }
+
+        packagePayments.push(await tx.payment.create({
+          data: {
+            businessId,
+            branchId,
+            cashierId: user.userId,
+            shiftId: shift.id,
+            invoiceId: invoice.id,
+            customerPackageId: balance.customerPackageId,
+            customerPackageServiceBalanceId: balance.id,
+            amount: fromCents(packageCoverageByBalanceId.get(balance.id) ?? 0),
+            method: "PACKAGE",
+            packageUses: 1,
+            reference: `${balance.customerPackage.package.name} - ${balance.service.name}`,
+          },
+        }));
+      }
+
+      await tx.customerPackage.updateMany({
+        where: {
+          id: { in: redeemedPackageBalances.map((balance) => balance.customerPackageId) },
           businessId,
-          branchId,
-          cashierId: user.userId,
-          shiftId: shift.id,
-          invoiceId: invoice.id,
-          customerPackageId: primaryCustomerPackage?.id ?? null,
-          amount: fromCents(amountCents),
-          method: input.method,
-          reference:
-            input.reference ||
-            `${stocks.length} product lines, ${serviceLines.length} service lines, ${packageUnits.length} packages`,
+          remainingUses: 0,
+          status: "ACTIVE",
         },
+        data: { status: "USED_UP" },
       });
+
+      const cashPayment = amountCents > 0 || !packagePayments.length
+        ? await tx.payment.create({
+            data: {
+              businessId,
+              branchId,
+              cashierId: user.userId,
+              shiftId: shift.id,
+              invoiceId: invoice.id,
+              customerPackageId: primaryCustomerPackage?.id ?? null,
+              amount: fromCents(amountCents),
+              method: input.method,
+              reference:
+                input.reference ||
+                `${stocks.length} product lines, ${serviceLines.length} service lines, ${packageUnits.length} packages`,
+            },
+          })
+        : null;
+      const createdPayments = [...packagePayments, ...(cashPayment ? [cashPayment] : [])];
+      const payment = cashPayment ?? packagePayments.at(-1);
+      if (!payment) {
+        throw new Error("At least one payment is required.");
+      }
 
       for (const { stock, quantity } of stocks) {
         const updated = await tx.productStock.updateMany({
@@ -551,15 +686,17 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             createdById: user.userId,
           });
         }
-        await awardLoyaltyPointsForPayment(tx, {
-          businessId,
-          branchId,
-          customerId: customer.id,
-          paymentId: payment.id,
-          amountCents,
-          paymentMethod: payment.method,
-          createdById: user.userId,
-        });
+        for (const createdPayment of createdPayments) {
+          await awardLoyaltyPointsForPayment(tx, {
+            businessId,
+            branchId,
+            customerId: customer.id,
+            paymentId: createdPayment.id,
+            amountCents: Math.round(Number(createdPayment.amount) * 100),
+            paymentMethod: createdPayment.method,
+            createdById: user.userId,
+          });
+        }
       }
 
       await writeAuditLog(
@@ -572,8 +709,10 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           entityId: payment.id,
           summary: `Completed cashier sale with ${stocks.length} product lines, ${serviceLines.length} service lines, and ${packageUnits.length} packages`,
           after: {
-            amount: payment.amount,
-            method: payment.method,
+            amount: fromCents(invoiceTotalCents),
+            amountDue: fromCents(amountCents),
+            packageCoverage: fromCents(packageCoverageCents),
+            methods: createdPayments.map((entry) => entry.method),
             invoiceId: invoice.id,
             productLines: stocks.map(({ product, quantity }) => ({
               productId: product.id,
@@ -584,6 +723,9 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               quantity,
             })),
             customerPackageIds: customerPackages.map((item) => item.id),
+            redeemedCustomerPackageIds: redeemedPackageBalances.map(
+              (balance) => balance.customerPackageId,
+            ),
             manualDiscount: fromCents(manualDiscountCents),
             catalogDiscountId: catalogDiscount?.id ?? null,
             discountReference: input.discountReference ?? null,
@@ -598,7 +740,12 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
 
       return {
         customerId: customer?.id ?? null,
-        customerPackageIds: customerPackages.map((item) => item.id),
+        customerPackageIds: [
+          ...new Set([
+            ...customerPackages.map((item) => item.id),
+            ...redeemedPackageBalances.map((balance) => balance.customerPackageId),
+          ]),
+        ],
         invoiceId: invoice.id,
         invoice: {
           id: invoice.id,
@@ -639,6 +786,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           total: tax.total,
           paidAmount: tax.total,
           balance: 0,
+          packageVoucherAmount: packageCoverageCents / 100,
+          cashPaidAmount: amountCents / 100,
         },
       };
     });

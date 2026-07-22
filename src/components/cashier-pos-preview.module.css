@@ -156,19 +156,54 @@
 
 .categoryBar {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 7px;
   margin: 12px 0;
+  padding: 2px 1px;
   overflow-x: auto;
-  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  scroll-padding-inline: 1px;
+  scroll-snap-type: x proximity;
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+}
+
+.categoryBar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .categoryBar {
+    padding-bottom: 6px;
+    scrollbar-color: #aebac6 transparent;
+    scrollbar-width: thin;
+  }
+
+  .categoryBar::-webkit-scrollbar {
+    display: block;
+    height: 5px;
+  }
+
+  .categoryBar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .categoryBar::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: #aebac6;
+  }
 }
 
 .categoryBar button {
   flex: 0 0 auto;
-  min-height: 30px;
+  min-height: 32px;
   border: 1px solid #d8e2eb;
   border-radius: 999px;
   background: #fff;
-  padding: 0 11px;
+  padding: 0 12px;
+  scroll-snap-align: start;
+  white-space: nowrap;
 }
 
 .categoryBar .activeCategory {
@@ -356,7 +391,7 @@
 
 .orderPanel {
   display: grid;
-  grid-template-rows: auto auto minmax(110px, 1fr) auto auto auto auto auto;
+  grid-template-rows: auto auto minmax(110px, 1fr) auto auto auto;
   min-width: 0;
   border-left: 1px solid #d7e0e8;
   background: #fafbfc;
@@ -364,7 +399,7 @@
 }
 
 .orderPanelEmpty {
-  grid-template-rows: auto auto 68px auto auto auto auto minmax(42px, 1fr);
+  grid-template-rows: auto auto minmax(110px, 1fr) auto auto minmax(42px, auto);
 }
 
 .orderPanelEmpty .payButton {
@@ -544,7 +579,7 @@
 
 .adjustmentBackdrop {
   position: fixed;
-  z-index: 1500;
+  z-index: 1700;
   inset: 0;
   display: grid;
   place-items: center;
@@ -1265,6 +1300,398 @@
   cursor: not-allowed;
 }
 
+.paymentBackdrop {
+  position: fixed;
+  z-index: 1600;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  background: rgb(20 29 42 / 54%);
+  padding: 20px;
+}
+
+.paymentDialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  width: min(1060px, calc(100vw - 40px));
+  max-height: calc(100dvh - 40px);
+  overflow: hidden;
+  border: 1px solid #d7e0e8;
+  border-radius: 8px;
+  background: #f7f9fb;
+  box-shadow: 0 24px 70px rgb(15 23 42 / 24%);
+}
+
+.paymentHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #d7e0e8;
+  background: #fff;
+  padding: 14px 16px;
+}
+
+.paymentHeader div,
+.paymentOrder header div {
+  display: grid;
+  gap: 2px;
+}
+
+.paymentHeader span,
+.paymentOrder header span {
+  color: #08776e;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.paymentHeader h2,
+.paymentOrder header h3 {
+  margin: 0;
+  color: #182333;
+  font-size: 20px;
+}
+
+.paymentHeader > button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid #d5dfe8;
+  border-radius: 50%;
+  background: #fff;
+  color: #182333;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.paymentBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, .82fr);
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.paymentControls,
+.paymentOrder {
+  min-width: 0;
+  border: 1px solid #d7e0e8;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.paymentControls {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  overflow: auto;
+  padding: 14px;
+}
+
+.paymentAmount {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 2px 12px;
+  border-bottom: 1px solid #d7e0e8;
+  padding-bottom: 12px;
+}
+
+.paymentAmount > span {
+  color: #08776e;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.paymentAmount strong {
+  grid-row: span 2;
+  color: #182333;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.paymentAmount small {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.customerPackagePanel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #b9ddd8;
+  border-radius: 7px;
+  background: #f1faf8;
+}
+
+.customerPackagePanel > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.customerPackagePanel > header > div,
+.customerPackageOptions button > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.customerPackagePanel strong {
+  color: #182333;
+  font-size: 12px;
+}
+
+.customerPackagePanel small,
+.customerPackagePanel p {
+  margin: 0;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.customerPackagePanel > header > span {
+  color: #08776e;
+  font-size: 10px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.customerPackageOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.customerPackageOptions button {
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #cbd8e2;
+  border-radius: 6px;
+  background: #fff;
+  text-align: left;
+}
+
+.customerPackageOptions button:hover,
+.customerPackageOptions .customerPackageSelected {
+  border-color: #178b80;
+  background: #e4f5f2;
+}
+
+.customerPackageOptions button b {
+  color: #08776e;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.customerPackageError {
+  color: #b42318 !important;
+}
+
+.packageCoverageRow span,
+.packageCoverageRow strong {
+  color: #08776e;
+}
+
+.amountDueRow {
+  padding-top: 6px;
+  border-top: 1px solid #d7e0e8;
+}
+
+.paymentSection {
+  display: grid;
+  gap: 8px;
+}
+
+.paymentSection h3 {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.paymentChoices {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.paymentChoices button,
+.cashSuggestions button {
+  min-height: 44px;
+  border: 1px solid #d5dfe8;
+  border-radius: 6px;
+  background: #fff;
+  color: #52627a;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.paymentChoices .activePaymentChoice,
+.cashSuggestions .activeCashSuggestion {
+  border-color: #74bbb3;
+  background: #eaf7f5;
+  color: #08776e;
+}
+
+.cashSuggestions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.paymentReferenceField {
+  margin: 0;
+}
+
+.paymentReferenceField input {
+  min-height: 44px;
+}
+
+.paymentOrder {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.paymentOrder > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #d7e0e8;
+  padding: 13px 14px;
+}
+
+.paymentOrder header h3 {
+  font-size: 15px;
+}
+
+.paymentOrder > header > small {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.paymentOrderLines {
+  min-height: 120px;
+  overflow: auto;
+  padding: 0 14px;
+}
+
+.paymentOrderLine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  border-bottom: 1px solid #e1e7ed;
+}
+
+.paymentOrderLine > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.paymentOrderLine > div strong {
+  overflow: hidden;
+  color: #182333;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paymentOrderLine small,
+.paymentOrderLine > span {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.paymentOrderLine > strong {
+  color: #182333;
+  font-size: 12px;
+}
+
+.paymentOrderTotals {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid #d7e0e8;
+  padding: 12px 14px;
+}
+
+.paymentOrderTotals div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.paymentOrderTotals div:last-child {
+  color: #182333;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.paymentOrderTotals div:last-child strong {
+  color: #08776e;
+  font-size: 20px;
+}
+
+.paymentError {
+  margin: 0 12px 10px;
+  border: 1px solid #f3b4ae;
+  border-radius: 6px;
+  background: #fff1f0;
+  padding: 9px 11px;
+  color: #b42318;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.paymentFooter {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 10px;
+  border-top: 1px solid #d7e0e8;
+  background: #fff;
+  padding: 12px;
+}
+
+.paymentFooter > button,
+.paymentConfirmButton {
+  min-height: 46px;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.paymentFooter > button {
+  border: 1px solid #d5dfe8;
+  background: #fff;
+  color: #52627a;
+}
+
+.paymentConfirmButton {
+  background: #11857a;
+  color: #fff;
+}
+
+.paymentConfirmButton:disabled {
+  background: #b8cfcc;
+  cursor: not-allowed;
+}
+
 /* iPad 11 landscape: preserve the POS split view without crowding either pane. */
 @media (min-width: 981px) and (max-width: 1200px) {
   .page {
@@ -1313,14 +1740,15 @@
   }
 
   .categoryBar {
-    gap: 5px;
+    gap: 6px;
     margin: 8px 0;
+    padding-block: 2px;
   }
 
   .categoryBar button {
-    min-height: 28px;
-    padding: 0 9px;
-    font-size: 10px;
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 10.5px;
   }
 
   .catalogGrid {
@@ -1422,6 +1850,38 @@
   .orderLines {
     max-height: 320px;
   }
+
+  .paymentBackdrop {
+    place-items: end center;
+    padding: 0;
+  }
+
+  .paymentDialog {
+    width: 100%;
+    max-height: calc(100dvh - 8px);
+    border-radius: 8px 8px 0 0;
+  }
+
+  .paymentBody {
+    display: block;
+    overflow: auto;
+  }
+
+  .paymentControls {
+    overflow: visible;
+  }
+
+  .paymentOrder {
+    margin-top: 10px;
+  }
+
+  .paymentOrderLines {
+    max-height: 210px;
+  }
+
+  .customerPackageOptions {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1444,6 +1904,19 @@
   }
   .formalShell .catalogPanel { display: block; }
   .paymentMethodsAll { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 520px) {
+  .paymentChoices,
+  .cashSuggestions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .paymentAmount strong {
+    font-size: 25px;
+  }
+  .paymentFooter {
+    grid-template-columns: 90px minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 440px) {

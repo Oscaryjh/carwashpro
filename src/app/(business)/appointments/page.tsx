@@ -6,6 +6,7 @@ import {
 } from "@/components/appointment-calendar";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
+import { getInvoicePaymentSummary } from "@/lib/invoices/payment-summary";
 import { prisma } from "@/lib/prisma";
 import {
   ACTIVE_APPOINTMENT_STATUSES,
@@ -156,6 +157,14 @@ export default async function AppointmentsPage({
                   name: true,
                   quantity: true,
                   unitPrice: true,
+                },
+              },
+              payments: {
+                select: {
+                  amount: true,
+                  method: true,
+                  status: true,
+                  refunds: { select: { amount: true } },
                 },
               },
               paidAmount: true,
@@ -759,6 +768,12 @@ function toCalendarItem(appointment: {
     taxRate: Prisma.Decimal;
     tipAmount: Prisma.Decimal;
     total: Prisma.Decimal;
+    payments: Array<{
+      amount: Prisma.Decimal;
+      method: string;
+      status: string;
+      refunds: Array<{ amount: Prisma.Decimal }>;
+    }>;
   } | null;
   workOrder?: { paymentStatus: string; status: string } | null;
   workOrderId?: string | null;
@@ -826,30 +841,35 @@ function toCalendarItem(appointment: {
     status: appointment.status,
     invoiceBalance: appointment.invoice ? Number(appointment.invoice.balance) : null,
     invoiceId: appointment.invoice?.id ?? null,
-    invoiceSummary: appointment.invoice ? {
-      id: appointment.invoice.id,
-      invoiceNumber: appointment.invoice.invoiceNumber,
-      status: appointment.invoice.status,
-      issuedAt: appointment.invoice.issuedAt.toISOString(),
-      customerName: appointment.customer.name,
-      customerPhone: appointment.customer.phone,
-      items: appointment.invoice.items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        unitPrice: Number(item.unitPrice),
-        lineTotal: Number(item.lineTotal),
-      })),
-      subtotal: Number(appointment.invoice.subtotal),
-      discountAmount: Number(appointment.invoice.discountAmount),
-      tipAmount: Number(appointment.invoice.tipAmount),
-      taxAmount: Number(appointment.invoice.taxAmount),
-      taxRate: Number(appointment.invoice.taxRate),
-      taxLabel: appointment.invoice.taxLabel,
-      total: Number(appointment.invoice.total),
-      paidAmount: Number(appointment.invoice.paidAmount),
-      balance: Number(appointment.invoice.balance),
-    } : null,
+    invoiceSummary: appointment.invoice ? (() => {
+      const paymentSummary = getInvoicePaymentSummary(appointment.invoice.payments);
+      return {
+        id: appointment.invoice.id,
+        invoiceNumber: appointment.invoice.invoiceNumber,
+        status: appointment.invoice.status,
+        issuedAt: appointment.invoice.issuedAt.toISOString(),
+        customerName: appointment.customer.name,
+        customerPhone: appointment.customer.phone,
+        items: appointment.invoice.items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+          lineTotal: Number(item.lineTotal),
+        })),
+        subtotal: Number(appointment.invoice.subtotal),
+        discountAmount: Number(appointment.invoice.discountAmount),
+        tipAmount: Number(appointment.invoice.tipAmount),
+        taxAmount: Number(appointment.invoice.taxAmount),
+        taxRate: Number(appointment.invoice.taxRate),
+        taxLabel: appointment.invoice.taxLabel,
+        total: Number(appointment.invoice.total),
+        paidAmount: Number(appointment.invoice.paidAmount),
+        balance: Number(appointment.invoice.balance),
+        packageVoucherAmount: paymentSummary.packageVoucherAmount,
+        cashPaidAmount: paymentSummary.cashPaidAmount,
+      };
+    })() : null,
     invoicePaidAmount: appointment.invoice ? Number(appointment.invoice.paidAmount) : null,
     invoiceStatus: appointment.invoice?.status ?? null,
     invoiceSubtotal: appointment.invoice ? Number(appointment.invoice.subtotal) : null,

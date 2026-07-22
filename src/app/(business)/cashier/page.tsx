@@ -47,7 +47,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
   const now = new Date();
   const [initialCatalog, catalogDiscounts] = await Promise.all([
     cashierBranchId
-      ? getCashierCatalog({ branchId: cashierBranchId, businessId, type: "product" })
+      ? getCashierCatalog({ branchId: cashierBranchId, businessId, type: "service" })
       : Promise.resolve({ categories: [], items: [], page: 1, pageCount: 1, pageSize: 8, total: 0 }),
     prisma.catalogDiscount.findMany({
       where: {

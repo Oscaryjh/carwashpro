@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { PwaInstallButton } from "@/components/pwa-install-button";
 
 export type NavItem = {
   href: string;
@@ -194,6 +195,7 @@ export function AppShellFrame({
           })}
         </nav>
         <div className="sidebar-footer">
+          <PwaInstallButton />
           <button
             type="button"
             className="sidebar-toggle"
