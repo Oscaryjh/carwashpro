@@ -3,6 +3,7 @@ import { CashierSalesPanel } from "@/components/cashier-sales-panel";
 import type {
   CashierCartLine,
   CashierInitialSale,
+  CashierStaffOption,
 } from "@/components/cashier-unified-sale-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
@@ -72,6 +73,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
             id: true,
             branchId: true,
             customerId: true,
+            assignedStaffId: true,
             scheduledAt: true,
             status: true,
             serviceId: true,
@@ -79,6 +81,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
             productIds: true,
             packageIds: true,
             invoice: { select: { id: true } },
+            assignedStaff: { select: { id: true, name: true } },
             customer: {
               select: {
                 id: true,
@@ -126,7 +129,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
   const serviceCounts = countIds(serviceIds);
   const productCounts = countIds(requestedAppointment?.productIds ?? []);
   const packageCounts = countIds(requestedAppointment?.packageIds ?? []);
-  const [initialCatalog, catalogDiscounts, appointmentServices, appointmentProducts, appointmentPackages] = await Promise.all([
+  const [initialCatalog, catalogDiscounts, appointmentServices, appointmentProducts, appointmentPackages, availableStaff] = await Promise.all([
     cashierBranchId
       ? getCashierCatalog({
           branchId: cashierBranchId,
@@ -173,7 +176,45 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
           },
         })
       : Promise.resolve([]),
+    cashierBranchId
+      ? prisma.user.findMany({
+          where: {
+            businessId,
+            status: "active",
+            appointmentBookable: true,
+            OR: [
+              { branchId: cashierBranchId },
+              {
+                employeeAccount: {
+                  memberships: {
+                    some: {
+                      businessId,
+                      status: "ACTIVE",
+                      branchAssignments: {
+                        some: { businessId, branchId: cashierBranchId },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
   ]);
+
+  const staffOptions: CashierStaffOption[] = availableStaff.map((staff) => ({
+    id: staff.id,
+    name: staff.name,
+  }));
+  if (
+    requestedAppointment?.assignedStaff &&
+    !staffOptions.some((staff) => staff.id === requestedAppointment.assignedStaff!.id)
+  ) {
+    staffOptions.unshift(requestedAppointment.assignedStaff);
+  }
 
   const initialLines: CashierCartLine[] = [
     ...appointmentServices.map((service) => ({
@@ -216,6 +257,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
   const initialSale: CashierInitialSale | null = requestedAppointment && !appointmentError
     ? {
         appointmentId: requestedAppointment.id,
+        assignedStaffId: requestedAppointment.assignedStaffId ?? "",
         customer: {
           activePackageCount: requestedAppointment.customer._count.customerPackages,
           id: requestedAppointment.customer.id,
@@ -261,6 +303,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
           }))}
           initialCatalog={initialCatalog}
           initialSale={initialSale}
+          staffOptions={staffOptions}
           taxSettings={{
             enabled: business.sstEnabled,
             label: business.sstLabel,

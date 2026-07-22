@@ -10,6 +10,7 @@ export const cashierSaleSchema = z
   .object({
     branchId: z.string().uuid("Branch is invalid.").optional().or(z.literal("")),
     appointmentId: z.string().uuid("Appointment is invalid.").optional().or(z.literal("")),
+    assignedStaffId: z.string().uuid("Staff member is invalid.").optional().or(z.literal("")),
     customerId: z.string().uuid("Customer is invalid.").optional().or(z.literal("")),
     method: z.enum(["CASH", "CARD", "DUITNOW", "EWALLET", "BANK_TRANSFER"]),
     packageIds: z.array(z.string().uuid("Package is invalid.")),
@@ -73,6 +74,22 @@ export const cashierSaleSchema = z
         code: z.ZodIssueCode.custom,
         message: "Select a customer before selling a package.",
         path: ["customerId"],
+      });
+    }
+
+    if (input.serviceIds.length && !input.customerId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Select a customer before selling a service.",
+        path: ["customerId"],
+      });
+    }
+
+    if (input.serviceIds.length && !input.assignedStaffId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Select a staff member for the service.",
+        path: ["assignedStaffId"],
       });
     }
 

@@ -77,6 +77,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
   const parsed = cashierSaleSchema.safeParse({
     branchId: formData.get("branchId")?.toString() || "",
     appointmentId: formData.get("appointmentId")?.toString() || "",
+    assignedStaffId: formData.get("assignedStaffId")?.toString() || "",
     customerId: formData.get("customerId")?.toString() || "",
     method: formData.get("method")?.toString(),
     packageIds: formData.getAll("packageId").map((value) => value.toString()),
@@ -137,6 +138,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               id: true,
               branchId: true,
               customerId: true,
+              assignedStaffId: true,
               status: true,
               invoice: { select: { id: true } },
             },
@@ -176,6 +178,10 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
 
       if (input.packageIds.length && !customer) {
         throw new Error("Select a customer before selling a package.");
+      }
+
+      if (input.serviceIds.length && !customer) {
+        throw new Error("Select a customer before selling a service.");
       }
 
       const packageQuantities = mergeQuantities(
@@ -363,6 +369,114 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           return { product, quantity, stock };
         }),
       );
+      const assignedStaff = serviceLines.length && input.assignedStaffId
+        ? await tx.user.findFirst({
+            where: {
+              id: input.assignedStaffId,
+              businessId,
+              ...(appointment?.assignedStaffId === input.assignedStaffId
+                ? {}
+                : {
+                    status: "active",
+                    appointmentBookable: true,
+                    OR: [
+                      { branchId },
+                      {
+                        employeeAccount: {
+                          memberships: {
+                            some: {
+                              businessId,
+                              status: "ACTIVE",
+                              branchAssignments: { some: { businessId, branchId } },
+                            },
+                          },
+                        },
+                      },
+                    ],
+                  }),
+            },
+            select: {
+              id: true,
+              serviceStaffAssignments: {
+                where: { serviceId: { in: serviceLines.map(({ service }) => service.id) } },
+                select: { serviceId: true },
+              },
+            },
+          })
+        : null;
+
+      if (serviceLines.length && !assignedStaff) {
+        throw new Error("Select an available staff member for the service.");
+      }
+
+      if (appointment?.assignedStaffId && appointment.assignedStaffId !== assignedStaff?.id) {
+        throw new Error("This sale must use the appointment staff member.");
+      }
+
+      if (assignedStaff) {
+        const restrictedServices = await tx.service.findMany({
+          where: {
+            id: { in: serviceLines.map(({ service }) => service.id) },
+            businessId,
+            staffAssignments: { some: {} },
+          },
+          select: { id: true, name: true },
+        });
+        const supportedServiceIds = new Set(
+          assignedStaff.serviceStaffAssignments.map((assignment) => assignment.serviceId),
+        );
+        const unsupportedService = restrictedServices.find(
+          (service) => !supportedServiceIds.has(service.id),
+        );
+        if (unsupportedService) {
+          throw new Error(`The selected staff member is not assigned to ${unsupportedService.name}.`);
+        }
+      }
+
+      let effectiveAppointmentId = appointment?.id ?? null;
+      if (appointment && assignedStaff && !appointment.assignedStaffId) {
+        await tx.appointment.update({
+          where: { id: appointment.id },
+          data: { assignedStaffId: assignedStaff.id },
+        });
+      }
+
+      if (!appointment && serviceLines.length) {
+        const completedAt = new Date();
+        const durationMinutes = Math.max(
+          15,
+          serviceLines.reduce(
+            (sum, { service, quantity }) =>
+              sum + Math.max(1, service.durationMinutes || 15) * quantity,
+            0,
+          ),
+        );
+        const scheduledAt = new Date(completedAt.getTime() - durationMinutes * 60_000);
+        const createdAppointment = await tx.appointment.create({
+          data: {
+            businessId,
+            branchId,
+            customerId: customer!.id,
+            createdById: user.userId,
+            assignedStaffId: assignedStaff!.id,
+            serviceId: serviceLines[0].service.id,
+            serviceIds: serviceLines.flatMap(({ service, quantity }) =>
+              Array.from({ length: quantity }, () => service.id),
+            ),
+            productIds: stocks.flatMap(({ product, quantity }) =>
+              Array.from({ length: quantity }, () => product.id),
+            ),
+            packageIds: packageUnits.map((packageDefinition) => packageDefinition.id),
+            scheduledAt,
+            durationMinutes,
+            status: "COMPLETED",
+            startedAt: scheduledAt,
+            completedAt,
+          },
+          select: { id: true },
+        });
+        effectiveAppointmentId = createdAppointment.id;
+      }
       const productTotals = stocks.map(
         ({ product, quantity }) => Number(product.price) * quantity,
       );
@@ -528,7 +642,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         data: {
           businessId,
           branchId,
-          appointmentId: appointment?.id ?? null,
+          appointmentId: effectiveAppointmentId,
           customerId: customer?.id ?? null,
           customerPackageId: primaryCustomerPackage?.id ?? null,
           invoiceNumber: makeInvoiceNumber(),
@@ -643,7 +757,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             branchId,
             cashierId: user.userId,
             shiftId: shift.id,
-            appointmentId: appointment?.id ?? null,
+            appointmentId: effectiveAppointmentId,
             invoiceId: invoice.id,
             customerPackageId: balance.customerPackageId,
             customerPackageServiceBalanceId: balance.id,
@@ -672,7 +786,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               branchId,
               cashierId: user.userId,
               shiftId: shift.id,
-              appointmentId: appointment?.id ?? null,
+              appointmentId: effectiveAppointmentId,
               invoiceId: invoice.id,
               customerPackageId: primaryCustomerPackage?.id ?? null,
               amount: fromCents(amountCents),
@@ -751,7 +865,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             packageCoverage: fromCents(packageCoverageCents),
             methods: createdPayments.map((entry) => entry.method),
             invoiceId: invoice.id,
-            appointmentId: appointment?.id ?? null,
+            appointmentId: effectiveAppointmentId,
             productLines: stocks.map(({ product, quantity }) => ({
               productId: product.id,
               quantity,
@@ -771,7 +885,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             loyaltyDiscount: fromCents(loyaltyDiscountCents),
           },
           metadata: {
-            appointmentId: appointment?.id ?? null,
+            appointmentId: effectiveAppointmentId,
             customerId: customer?.id ?? null,
           },
           request: auditRequest,
@@ -788,7 +902,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           ]),
         ],
         invoiceId: invoice.id,
-        appointmentId: appointment?.id ?? null,
+        appointmentId: effectiveAppointmentId,
         invoice: {
           id: invoice.id,
           invoiceNumber: invoice.invoiceNumber,

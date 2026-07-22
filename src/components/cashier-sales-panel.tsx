@@ -5,6 +5,7 @@ import type { CashierSaleState } from "@/app/(business)/cashier/actions";
 import {
   CashierUnifiedSaleForm,
   type CashierInitialSale,
+  type CashierStaffOption,
 } from "@/components/cashier-unified-sale-form";
 import type { CashierCatalogResult } from "@/lib/cashier/catalog";
 import type { CatalogDiscountOption } from "@/lib/catalog-discounts";
@@ -17,6 +18,7 @@ type CashierSalesPanelProps = {
   catalogDiscounts: CatalogDiscountOption[];
   initialCatalog: CashierCatalogResult;
   initialSale?: CashierInitialSale | null;
+  staffOptions: CashierStaffOption[];
   taxSettings: TaxDisplaySettings;
   loyaltySettings: {
     enabled: boolean;
@@ -33,6 +35,7 @@ export function CashierSalesPanel({
   catalogDiscounts,
   initialCatalog,
   initialSale = null,
+  staffOptions,
   taxSettings,
   loyaltySettings,
 }: CashierSalesPanelProps) {
@@ -42,7 +45,7 @@ export function CashierSalesPanel({
         <span aria-hidden="true" className="cashier-empty-icon">+</span>
         <div>
           <h3>No sale items yet</h3>
-          <p>Create an active package or product before starting a direct sale.</p>
+          <p>Create an active service, product, or package before starting a sale.</p>
           <div className="cashier-empty-actions">
             <Link className="button-link" href="/packages/new">Create package</Link>
             <Link className="button-link secondary" href="/products?type=create">Create product</Link>
@@ -60,6 +63,7 @@ export function CashierSalesPanel({
       catalogDiscounts={catalogDiscounts}
       initialCatalog={initialCatalog}
       initialSale={initialSale}
+      staffOptions={staffOptions}
       taxSettings={taxSettings}
       loyaltySettings={loyaltySettings}
     />

@@ -30,9 +30,15 @@ export type CashierCartLine = CashierCatalogItem & { quantity: number };
 
 export type CashierInitialSale = {
   appointmentId: string;
+  assignedStaffId: string;
   customer: PackageCustomerOption;
   lines: CashierCartLine[];
   returnTo: string;
+};
+
+export type CashierStaffOption = {
+  id: string;
+  name: string;
 };
 
 type CustomerPackageBalanceOption = {
@@ -52,6 +58,7 @@ type CashierUnifiedSaleFormProps = {
   catalogDiscounts: CatalogDiscountOption[];
   initialCatalog: CashierCatalogResult;
   initialSale?: CashierInitialSale | null;
+  staffOptions: CashierStaffOption[];
   taxSettings: TaxDisplaySettings;
   loyaltySettings: {
     enabled: boolean;
@@ -75,6 +82,7 @@ export function CashierUnifiedSaleForm({
   catalogDiscounts,
   initialCatalog,
   initialSale = null,
+  staffOptions,
   taxSettings,
   loyaltySettings,
 }: CashierUnifiedSaleFormProps) {
@@ -86,6 +94,9 @@ export function CashierUnifiedSaleForm({
     appointmentSale?.customer ?? null,
   );
   const [lines, setLines] = useState<CashierCartLine[]>(appointmentSale?.lines ?? []);
+  const [assignedStaffId, setAssignedStaffId] = useState(
+    appointmentSale?.assignedStaffId ?? "",
+  );
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [cashReceived, setCashReceived] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
@@ -237,6 +248,8 @@ export function CashierUnifiedSaleForm({
   }, [branchId, customer, serviceIdsKey]);
 
   const hasPackages = lines.some((line) => line.type === "package");
+  const hasServices = lines.some((line) => line.type === "service");
+  const requiresCustomer = hasPackages || hasServices;
   const totalItems = lines.reduce((sum, line) => sum + line.quantity, 0);
   const hasStockError = lines.some((line) => line.type === "product" && line.quantity > (line.stock ?? 0));
   const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
@@ -423,7 +436,8 @@ export function CashierUnifiedSaleForm({
 
   const canPay = Boolean(
     lines.length &&
-      (!hasPackages || customer) &&
+      (!requiresCustomer || customer) &&
+      (!hasServices || assignedStaffId) &&
       !hasStockError &&
       !discountReferenceError &&
       !redemption.error,
@@ -527,6 +541,7 @@ export function CashierUnifiedSaleForm({
     if (!appointmentSale) {
       setLines([]);
       setCustomer(null);
+      setAssignedStaffId("");
       setCustomerPickerKey((key) => key + 1);
     }
     setDiscountType("AMOUNT");
@@ -692,13 +707,23 @@ export function CashierUnifiedSaleForm({
             <span>CURRENT SALE</span>
             <h2>{totalItems ? `${totalItems} ${totalItems === 1 ? "item" : "items"}` : "New sale"}</h2>
           </div>
-          {lines.length ? <button onClick={() => setLines([])} type="button">Clear</button> : null}
+          {lines.length ? (
+            <button
+              onClick={() => {
+                setLines([]);
+                if (!appointmentSale) setAssignedStaffId("");
+              }}
+              type="button"
+            >
+              Clear
+            </button>
+          ) : null}
         </header>
 
         <div className={styles.customerArea}>
           <PackageCustomerPicker
             buttonRef={customerPickerButtonRef}
-            buttonClassName={`${styles.customerButton} ${hasPackages && !customer ? styles.customerRequired : ""}`}
+            buttonClassName={`${styles.customerButton} ${requiresCustomer && !customer ? styles.customerRequired : ""}`}
             compactAccountNote
             includeVehicleDetails={false}
             initialCustomer={appointmentSale?.customer}
@@ -709,9 +734,31 @@ export function CashierUnifiedSaleForm({
             }}
             posDisplay
             readOnly={Boolean(appointmentSale)}
-            required={hasPackages}
+            required={requiresCustomer}
           />
         </div>
+
+        {hasServices ? (
+          <label className={`${styles.staffArea} ${!assignedStaffId ? styles.staffRequired : ""}`}>
+            <span>
+              <strong>Service staff</strong>
+              <small>Used for the walk-in appointment and commission.</small>
+            </span>
+            <select
+              disabled={Boolean(appointmentSale?.assignedStaffId)}
+              onChange={(event) => setAssignedStaffId(event.target.value)}
+              required
+              value={assignedStaffId}
+            >
+              <option value="">Select staff</option>
+              {staffOptions.map((staff) => (
+                <option key={staff.id} value={staff.id}>
+                  {staff.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         <div className={styles.orderLines}>
           {lines.map((line, index) => {
@@ -811,6 +858,7 @@ export function CashierUnifiedSaleForm({
         <input name="discountReference" type="hidden" value={discountReference} />
         <input name="catalogDiscountId" type="hidden" value={catalogDiscountId} />
         <input name="loyaltyPoints" type="hidden" value={redemption.points} />
+        <input name="assignedStaffId" type="hidden" value={assignedStaffId} />
         {selectedCustomerPackageIds.map((customerPackageId) => (
           <input
             key={customerPackageId}
@@ -826,8 +874,10 @@ export function CashierUnifiedSaleForm({
           onClick={openPayment}
           type="button"
         >
-          {hasPackages && !customer
+          {requiresCustomer && !customer
             ? "Select customer to continue"
+            : hasServices && !assignedStaffId
+              ? "Select service staff to continue"
             : `Payment · ${formatMoney(amountDue)}`}
         </button>
         <input name="branchId" type="hidden" value={branchId} />
