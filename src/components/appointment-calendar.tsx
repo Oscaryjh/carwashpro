@@ -8,6 +8,18 @@ import { useRouter } from "next/navigation";
 import type { CSSProperties, PointerEvent } from "react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { flushSync } from "react-dom";
+import {
+  addDaysToDateValue as addBusinessDaysToDateValue,
+  addMonthsToDateValue,
+  dateValueToUtcDate,
+  formatDateValue,
+  getBusinessTodayDateValue,
+  parseBusinessDateTime,
+  startOfBusinessWeek,
+  toBusinessDateValue,
+  toBusinessTimeValue,
+  utcDateToDateValue,
+} from "@/lib/business-time";
 import { formatAppointmentStatus } from "@/lib/validation/appointments";
 import {
   calculateAppointmentDurationMinutes,
@@ -325,7 +337,7 @@ export function AppointmentCalendar({
   const dateCountByDay = new Map(datePickerCounts.map((day) => [day.date, day.count]));
   const newAppointmentDays = buildAppointmentWeekDays(newAppointmentDate, dateCountByDay);
   const visibleMonthDate = monthValueToDate(visibleMonth);
-  const visibleMonthLabel = visibleMonthDate.toLocaleDateString("en-MY", {
+  const visibleMonthLabel = formatDateValue(`${visibleMonth}-01`, {
     month: "long",
     year: "numeric",
   });
@@ -525,7 +537,7 @@ export function AppointmentCalendar({
               attemptedServices.map((service) => service.durationMinutes),
             );
             const attemptedEnd = new Date(
-              new Date(`${editAppointmentDate}T${editAppointmentTime}:00`).getTime() +
+              parseBusinessDateTime(editAppointmentDate, editAppointmentTime).getTime() +
                 attemptedDuration * 60_000,
             );
             const conflictPrefix = result.error.includes("booked from")
@@ -556,8 +568,9 @@ export function AppointmentCalendar({
                   updatedServices.map((service) => service.durationMinutes),
                 ),
                 notes: editAppointmentNotes.trim() || null,
-                scheduledAt: new Date(
-                  `${editAppointmentDate}T${editAppointmentTime}:00`,
+                scheduledAt: parseBusinessDateTime(
+                  editAppointmentDate,
+                  editAppointmentTime,
                 ).toISOString(),
                 serviceDetails: updatedServices.map((service) => ({
                   id: service.id,
@@ -649,8 +662,9 @@ export function AppointmentCalendar({
       return;
     }
 
-    const nextDate = new Date(selectedAppointment.scheduledAt);
-    nextDate.setMinutes(nextDate.getMinutes() + minutes);
+    const nextDate = new Date(
+      new Date(selectedAppointment.scheduledAt).getTime() + minutes * 60_000,
+    );
     const formData = new FormData();
     formData.set("appointmentId", selectedAppointment.id);
     formData.set("scheduledDate", toDateValue(nextDate));
@@ -1079,7 +1093,7 @@ export function AppointmentCalendar({
                   type="button"
                 >
                   <span>{day.shortLabel}</span>
-                  <strong>{new Date(`${day.date}T00:00:00`).getDate()}</strong>
+                  <strong>{Number(day.date.slice(8, 10))}</strong>
                   <small>{day.count}</small>
                 </button>
               ))}
@@ -1397,7 +1411,7 @@ export function AppointmentCalendar({
                         type="button"
                       >
                         <span>{day.shortLabel}</span>
-                        <strong>{new Date(`${day.date}T00:00:00`).getDate()}</strong>
+                        <strong>{Number(day.date.slice(8, 10))}</strong>
                       </button>
                     ))}
                   </div>
@@ -2360,7 +2374,7 @@ function getSalonAppointmentAction(appointment: AppointmentCalendarItem) {
 }
 
 function isTodayDateValue(dateValue: string) {
-  return dateValue === toDateValue(new Date());
+  return dateValue === getBusinessTodayDateValue();
 }
 
 function countAppointmentsInSlots(
@@ -2378,13 +2392,13 @@ function countAppointmentsInSlots(
 }
 
 function isPastAppointmentSlot(dateValue: string, timeValue: string) {
-  const slotDate = new Date(`${dateValue}T${timeValue}:00`);
+  const slotDate = parseBusinessDateTime(dateValue, timeValue);
 
   return slotDate.getTime() < Date.now();
 }
 
 function isEarlierThanPastVisibilityWindow(dateValue: string, timeValue: string) {
-  const slotDate = new Date(`${dateValue}T${timeValue}:00`);
+  const slotDate = parseBusinessDateTime(dateValue, timeValue);
   const oneHourAgo = Date.now() - 60 * 60 * 1000;
 
   return slotDate.getTime() < oneHourAgo;
@@ -2497,8 +2511,8 @@ function MonthYearPicker({
   visibleMonth: string;
 }) {
   const currentDate = monthValueToDate(visibleMonth);
-  const selectedMonth = currentDate.getMonth();
-  const selectedYear = currentDate.getFullYear();
+  const selectedMonth = currentDate.getUTCMonth();
+  const selectedYear = currentDate.getUTCFullYear();
   const years = Array.from({ length: 11 }, (_, index) => selectedYear - 5 + index);
   const months = [
     "January",
@@ -2551,8 +2565,8 @@ function groupAppointments(appointments: AppointmentCalendarItem[]) {
   appointments.forEach((appointment) => {
     const scheduledAt = new Date(appointment.scheduledAt);
     const date = toDateValue(scheduledAt);
-    const hour = String(scheduledAt.getHours()).padStart(2, "0");
-    const minute = Math.floor(scheduledAt.getMinutes() / 15) * 15;
+    const [hour, rawMinute] = toTimeValue(scheduledAt).split(":");
+    const minute = Math.floor(Number(rawMinute) / 15) * 15;
     const key = `${date}T${hour}:${String(minute).padStart(2, "0")}::${appointment.staffId ?? "unassigned"}`;
     const current = grouped.get(key) ?? [];
     current.push(appointment);
@@ -2588,17 +2602,15 @@ function groupBlockedAppointmentSlots(appointments: AppointmentCalendarItem[]) {
 }
 
 function buildAppointmentWeekDays(dateValue: string, dateCountByDay: Map<string, number>) {
-  const weekStart = startOfWeek(new Date(`${dateValue}T00:00:00`));
+  const weekStart = startOfBusinessWeek(dateValue);
 
   return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(weekStart);
-    date.setDate(weekStart.getDate() + index);
-    const nextDateValue = toDateValue(date);
+    const nextDateValue = addBusinessDaysToDateValue(weekStart, index);
 
     return {
       count: dateCountByDay.get(nextDateValue) ?? 0,
       date: nextDateValue,
-      shortLabel: date.toLocaleDateString("en-MY", {
+      shortLabel: formatDateValue(nextDateValue, {
         weekday: "short",
       }),
     };
@@ -2627,31 +2639,23 @@ function buildStaffSlots(
 }
 
 function toDateValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return toBusinessDateValue(date);
 }
 
 function toTimeValue(date: Date) {
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return toBusinessTimeValue(date);
 }
 
 function monthValueToDate(monthValue: string) {
-  return new Date(`${monthValue}-01T00:00:00`);
+  return dateValueToUtcDate(`${monthValue}-01`);
 }
 
 function addMonthsToMonthValue(monthValue: string, amount: number) {
-  const date = monthValueToDate(monthValue);
-  date.setMonth(date.getMonth() + amount);
-  return toDateValue(date).slice(0, 7);
+  return addMonthsToDateValue(`${monthValue}-01`, amount).slice(0, 7);
 }
 
 function addDaysToDateValue(dateValue: string, amount: number) {
-  const date = new Date(`${dateValue}T00:00:00`);
-  date.setDate(date.getDate() + amount);
-
-  return toDateValue(date);
+  return addBusinessDaysToDateValue(dateValue, amount);
 }
 
 function toMonthValue(year: number, monthIndex: number) {
@@ -2661,7 +2665,7 @@ function toMonthValue(year: number, monthIndex: number) {
 function clampDraftDateToMonth(currentDateValue: string, nextMonthValue: string) {
   const currentDay = Number(currentDateValue.slice(8, 10)) || 1;
   const [year, month] = nextMonthValue.split("-").map(Number);
-  const daysInMonth = new Date(year, month, 0).getDate();
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const day = Math.min(currentDay, daysInMonth);
 
   return `${nextMonthValue}-${String(day).padStart(2, "0")}`;
@@ -2669,31 +2673,21 @@ function clampDraftDateToMonth(currentDateValue: string, nextMonthValue: string)
 
 function buildDatePickerDays(monthDate: Date, countByDay: Map<string, number>) {
   const monthStart = new Date(monthDate);
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const gridStart = startOfWeek(monthStart);
+  monthStart.setUTCDate(1);
+  const monthStartValue = utcDateToDateValue(monthStart);
+  const gridStartValue = startOfBusinessWeek(monthStartValue);
 
   return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(gridStart);
-    date.setDate(gridStart.getDate() + index);
-    const dateValue = toDateValue(date);
+    const dateValue = addBusinessDaysToDateValue(gridStartValue, index);
+    const date = dateValueToUtcDate(dateValue);
 
     return {
       count: countByDay.get(dateValue) ?? 0,
       date: dateValue,
-      day: date.getDate(),
-      isCurrentMonth: date.getMonth() === monthStart.getMonth(),
+      day: date.getUTCDate(),
+      isCurrentMonth: date.getUTCMonth() === monthStart.getUTCMonth(),
     };
   });
-}
-
-function startOfWeek(date: Date) {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const day = start.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  start.setDate(start.getDate() + diff);
-  return start;
 }
 
 function buildTimeSlots(startTime = "10:00", endTime = "22:00") {
@@ -2724,11 +2718,7 @@ function formatTimeLabel(time: string) {
 }
 
 function formatTimeLabelFromDate(dateValue: string) {
-  const date = new Date(dateValue);
-  const hour = String(date.getHours()).padStart(2, "0");
-  const minute = String(date.getMinutes()).padStart(2, "0");
-
-  return formatTimeLabel(`${hour}:${minute}`);
+  return formatTimeLabel(toBusinessTimeValue(dateValue));
 }
 
 function formatAppointmentTimeRange(appointment: AppointmentCalendarItem) {
@@ -2736,18 +2726,12 @@ function formatAppointmentTimeRange(appointment: AppointmentCalendarItem) {
   const endAt = new Date(scheduledAt.getTime() + appointment.durationMinutes * 60_000);
 
   return `${formatTimeLabelFromDate(appointment.scheduledAt)} - ${formatTimeLabelFromDate(
-    toLocalDateTimeValue(endAt),
+    endAt.toISOString(),
   )}`;
 }
 
-function toLocalDateTimeValue(date: Date) {
-  const dateValue = toDateValue(date);
-  const timeValue = toTimeValue(date);
-  return `${dateValue}T${timeValue}`;
-}
-
 function formatLongDate(dateValue: string) {
-  return new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-MY", {
+  return formatDateValue(dateValue, {
     day: "2-digit",
     month: "long",
     year: "numeric",

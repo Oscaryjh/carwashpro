@@ -6,6 +6,18 @@ import {
 } from "@/components/appointment-calendar";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
+import {
+  addDaysToDateValue,
+  addMonthsToDateValue,
+  formatDateValue,
+  getBusinessTodayDateValue,
+  isValidDateValue,
+  parseBusinessDateTime,
+  startOfBusinessMonth,
+  startOfBusinessWeek,
+  toBusinessDateValue,
+  toBusinessTimeValue,
+} from "@/lib/business-time";
 import { getInvoicePaymentSummary } from "@/lib/invoices/payment-summary";
 import { prisma } from "@/lib/prisma";
 import {
@@ -55,10 +67,13 @@ export default async function AppointmentsPage({
   const rawSearch = (params.q ?? "").trim();
   const status = getValidStatus(params.status);
   const currentPage = Math.max(1, Number(params.page) || 1);
-  const selectedDate = parseDateParam(params.date) ?? new Date();
-  const calendarStart = startOfWeek(selectedDate);
-  const calendarEnd = new Date(calendarStart);
-  calendarEnd.setDate(calendarEnd.getDate() + 7);
+  const selectedDateValue = isValidDateValue(params.date ?? "")
+    ? params.date!
+    : getBusinessTodayDateValue();
+  const calendarStartValue = startOfBusinessWeek(selectedDateValue);
+  const calendarEndValue = addDaysToDateValue(calendarStartValue, 7);
+  const calendarStart = parseBusinessDateTime(calendarStartValue, "00:00");
+  const calendarEnd = parseBusinessDateTime(calendarEndValue, "00:00");
   const calendarStatuses: AppointmentStatus[] =
     resolvedIndustryType === "SALON_BEAUTY"
       ? [...SALON_APPOINTMENT_CALENDAR_STATUSES]
@@ -70,11 +85,16 @@ export default async function AppointmentsPage({
           "COMPLETED",
           "CONVERTED_TO_JOB",
         ];
-  const datePickerMonthStart = startOfMonth(selectedDate);
-  const datePickerRangeStart = startOfWeek(addMonths(datePickerMonthStart, -6));
-  const datePickerRangeEnd = startOfWeek(addMonths(datePickerMonthStart, 7));
-  datePickerRangeEnd.setDate(datePickerRangeEnd.getDate() + 42);
-  const selectedDateValue = toDateValue(selectedDate);
+  const datePickerMonthStartValue = startOfBusinessMonth(selectedDateValue);
+  const datePickerRangeStartValue = startOfBusinessWeek(
+    addMonthsToDateValue(datePickerMonthStartValue, -6),
+  );
+  const datePickerRangeEndValue = addDaysToDateValue(
+    startOfBusinessWeek(addMonthsToDateValue(datePickerMonthStartValue, 7)),
+    42,
+  );
+  const datePickerRangeStart = parseBusinessDateTime(datePickerRangeStartValue, "00:00");
+  const datePickerRangeEnd = parseBusinessDateTime(datePickerRangeEndValue, "00:00");
   const staffBranchId =
     user.role === "BUSINESS_OWNER"
       ? null
@@ -342,18 +362,16 @@ export default async function AppointmentsPage({
     calendarAppointments.map((appointment) => appointment.scheduledAt),
   );
   const calendarDays = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(calendarStart);
-    date.setDate(calendarStart.getDate() + index);
-    const dateValue = toDateValue(date);
+    const dateValue = addDaysToDateValue(calendarStartValue, index);
 
     return {
       count: appointmentCountByDay.get(dateValue) ?? 0,
       date: dateValue,
-      label: date.toLocaleDateString("en-MY", {
+      label: formatDateValue(dateValue, {
         day: "2-digit",
         month: "short",
       }),
-      shortLabel: date.toLocaleDateString("en-MY", {
+      shortLabel: formatDateValue(dateValue, {
         weekday: "short",
       }),
     };
@@ -365,10 +383,8 @@ export default async function AppointmentsPage({
     count,
     date,
   }));
-  const previousWeek = new Date(calendarStart);
-  previousWeek.setDate(calendarStart.getDate() - 7);
-  const nextWeek = new Date(calendarStart);
-  nextWeek.setDate(calendarStart.getDate() + 7);
+  const previousWeekValue = addDaysToDateValue(calendarStartValue, -7);
+  const nextWeekValue = addDaysToDateValue(calendarStartValue, 7);
 
   return (
     <>
@@ -414,19 +430,19 @@ export default async function AppointmentsPage({
             })}
             days={calendarDays}
             nextHref={makeAppointmentHref({
-              date: toDateValue(nextWeek),
+              date: nextWeekValue,
               q: rawSearch,
               status,
               page: 1,
             })}
             previousHref={makeAppointmentHref({
-              date: toDateValue(previousWeek),
+              date: previousWeekValue,
               q: rawSearch,
               status,
               page: 1,
             })}
             rescheduleAction={rescheduleAppointmentAction}
-            selectedDateLabel={selectedDate.toLocaleDateString("en-MY", {
+            selectedDateLabel={formatDateValue(selectedDateValue, {
               day: "2-digit",
               month: "2-digit",
               year: "numeric",
@@ -540,12 +556,15 @@ export default async function AppointmentsPage({
                     <td>{formatAppointmentServices(appointment, serviceNameById) ?? "Not selected"}</td>
                     <td>{assignedStaffNames.get(appointment.id) ?? "Unassigned"}</td>
                     <td>
-                      <strong>{appointment.scheduledAt.toLocaleDateString()}</strong>
-                      <div className="work-order-subtext">
-                        {appointment.scheduledAt.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
+                      <strong>
+                        {formatDateValue(toBusinessDateValue(appointment.scheduledAt), {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
                         })}
+                      </strong>
+                      <div className="work-order-subtext">
+                        {formatAppointmentTime(toBusinessTimeValue(appointment.scheduledAt))}
                       </div>
                     </td>
                     <td>
@@ -907,10 +926,9 @@ function buildAppointmentWhere({
       },
     });
   } else if (status === "today") {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
+    const today = getBusinessTodayDateValue();
+    const start = parseBusinessDateTime(today, "00:00");
+    const end = parseBusinessDateTime(addDaysToDateValue(today, 1), "00:00");
     filters.push({
       scheduledAt: {
         gte: start,
@@ -990,52 +1008,21 @@ function makeAppointmentDateHrefPrefix({
   return `/appointments?${params.toString()}&date=`;
 }
 
-function parseDateParam(value?: string) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
-  }
+function formatAppointmentTime(timeValue: string) {
+  const [hourValue, minuteValue] = timeValue.split(":").map(Number);
+  const period = hourValue >= 12 ? "pm" : "am";
+  const hour = hourValue % 12 || 12;
 
-  const date = new Date(`${value}T00:00:00`);
-
-  return Number.isNaN(date.getTime()) ? null : date;
+  return `${hour}:${String(minuteValue).padStart(2, "0")} ${period}`;
 }
 
 function countAppointmentsByDay(dates: Date[]) {
   const countByDay = new Map<string, number>();
 
   dates.forEach((date) => {
-    const key = toDateValue(date);
+    const key = toBusinessDateValue(date);
     countByDay.set(key, (countByDay.get(key) ?? 0) + 1);
   });
 
   return countByDay;
-}
-
-function startOfWeek(date: Date) {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const day = start.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  start.setDate(start.getDate() + diff);
-  return start;
-}
-
-function startOfMonth(date: Date) {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  start.setDate(1);
-  return start;
-}
-
-function addMonths(date: Date, amount: number) {
-  const next = new Date(date);
-  next.setMonth(next.getMonth() + amount);
-  return next;
-}
-
-function toDateValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }

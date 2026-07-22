@@ -1,7 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { BUSINESS_TIME_ZONE } from "@/lib/business-time";
 import { getAppointmentEnd } from "./scheduling";
-
-const STAFF_TIME_ZONE = "Asia/Kuala_Lumpur";
 
 type StaffAvailabilityRecord = {
   dayOfWeek: number;
@@ -71,7 +70,7 @@ export function timeRangesOverlap(input: {
 
 function getLocalAppointmentParts(date: Date) {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: STAFF_TIME_ZONE,
+    timeZone: BUSINESS_TIME_ZONE,
     weekday: "short",
     hour: "2-digit",
     minute: "2-digit",

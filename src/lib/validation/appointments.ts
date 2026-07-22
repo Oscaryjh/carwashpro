@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseBusinessDateTime } from "@/lib/business-time";
 
 const optionalText = z.preprocess(
   (value) => (value === null ? "" : value),
@@ -130,13 +131,7 @@ export const ACTIVE_APPOINTMENT_STATUSES = [
 ] as const;
 
 export function parseAppointmentDateTime(date: string, time: string) {
-  const scheduledAt = new Date(`${date}T${time}:00`);
-
-  if (Number.isNaN(scheduledAt.getTime())) {
-    throw new Error("Appointment date or time is invalid.");
-  }
-
-  return scheduledAt;
+  return parseBusinessDateTime(date, time);
 }
 
 export function canMoveAppointmentStatus(current: string, next: string) {

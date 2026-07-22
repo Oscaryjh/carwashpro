@@ -3,6 +3,11 @@ import { notFound, redirect } from "next/navigation";
 import { BackButton } from "@/components/back-button";
 import { SalonAppointmentCheckoutModal } from "@/components/salon-appointment-checkout-modal";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import {
+  formatDateValue,
+  toBusinessDateValue,
+  toBusinessTimeValue,
+} from "@/lib/business-time";
 import { prisma } from "@/lib/prisma";
 import { calculateTax } from "@/lib/tax/calculator";
 import {
@@ -74,7 +79,7 @@ export default async function AppointmentDetailPage({
   if (legacy !== "1") {
     const query = new URLSearchParams({
       appointment: appointment.id,
-      date: toLocalDateValue(appointment.scheduledAt),
+      date: toBusinessDateValue(appointment.scheduledAt),
       page: "1",
       status: "active",
     });
@@ -190,7 +195,7 @@ export default async function AppointmentDetailPage({
               {industryType !== "SALON_BEAUTY" && appointment.vehicle
                 ? `${appointment.vehicle.plateNumber} / `
                 : ""}
-              {appointment.scheduledAt.toLocaleString()}
+              {formatBusinessDateTime(appointment.scheduledAt)}
             </p>
           </div>
           <BackButton fallbackHref="/appointments" />
@@ -210,7 +215,7 @@ export default async function AppointmentDetailPage({
           <Info label="Staff" value={assignedStaffName ?? "Unassigned"} />
           <Info
             label="Scheduled"
-            value={appointment.scheduledAt.toLocaleString()}
+            value={formatBusinessDateTime(appointment.scheduledAt)}
           />
           <Info
             label="Reminder"
@@ -414,7 +419,7 @@ export default async function AppointmentDetailPage({
                   <h3>Payment history</h3>
                   {salonInvoice.payments.map((payment) => (
                     <div className="pos-history-row" key={payment.id}>
-                      <span>{payment.paidAt.toLocaleString()}</span>
+                      <span>{formatBusinessDateTime(payment.paidAt)}</span>
                       <strong>RM{Number(payment.amount).toFixed(2)}</strong>
                       <small>{formatPaymentStatus(payment.method)}</small>
                     </div>
@@ -443,12 +448,17 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
-function toLocalDateValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+function formatBusinessDateTime(date: Date) {
+  const dateLabel = formatDateValue(toBusinessDateValue(date), {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const [hourValue, minuteValue] = toBusinessTimeValue(date).split(":").map(Number);
+  const period = hourValue >= 12 ? "pm" : "am";
+  const hour = hourValue % 12 || 12;
 
-  return `${year}-${month}-${day}`;
+  return `${dateLabel}, ${hour}:${String(minuteValue).padStart(2, "0")} ${period}`;
 }
 
 function actionLabel(status: string) {
@@ -477,19 +487,19 @@ function formatReminderStatus(reminder?: {
   }
 
   if (reminder.status === "QUEUED") {
-    return `Scheduled for ${(reminder.nextAttemptAt ?? reminder.queuedAt).toLocaleString()}`;
+    return `Scheduled for ${formatBusinessDateTime(reminder.nextAttemptAt ?? reminder.queuedAt)}`;
   }
 
   if (reminder.status === "READ") {
-    return `Read ${reminder.readAt?.toLocaleString() ?? ""}`.trim();
+    return `Read ${reminder.readAt ? formatBusinessDateTime(reminder.readAt) : ""}`.trim();
   }
 
   if (reminder.status === "DELIVERED") {
-    return `Delivered ${reminder.deliveredAt?.toLocaleString() ?? ""}`.trim();
+    return `Delivered ${reminder.deliveredAt ? formatBusinessDateTime(reminder.deliveredAt) : ""}`.trim();
   }
 
   if (reminder.status === "SENT") {
-    return `Sent ${reminder.sentAt?.toLocaleString() ?? ""}`.trim();
+    return `Sent ${reminder.sentAt ? formatBusinessDateTime(reminder.sentAt) : ""}`.trim();
   }
 
   if (reminder.status === "FAILED") {

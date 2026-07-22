@@ -4,6 +4,12 @@ import { BackButton } from "@/components/back-button";
 import { BranchSelect } from "@/components/branch-select";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
+import {
+  addDaysToDateValue,
+  formatDateValue,
+  getBusinessDateTimeParts,
+  isValidDateValue,
+} from "@/lib/business-time";
 import { prisma } from "@/lib/prisma";
 import { createAppointmentAction } from "../actions";
 
@@ -51,12 +57,14 @@ export default async function NewAppointmentPage({
       },
     }),
   ]);
-  const today = new Date();
-  const defaultDate = parseDateParam(params.date) ?? today.toISOString().slice(0, 10);
-  const defaultTime = parseTimeParam(params.time) ?? `${String(today.getHours()).padStart(2, "0")}:${String(
-    Math.ceil(today.getMinutes() / 15) * 15,
-  ).padStart(2, "0")}`.replace(":60", ":00");
-  const scheduledPreview = new Date(`${defaultDate}T${defaultTime}:00`);
+  const now = getBusinessDateTimeParts();
+  const currentDateValue = `${now.year}-${String(now.month).padStart(2, "0")}-${String(now.day).padStart(2, "0")}`;
+  const roundedMinutes = Math.ceil(now.minute / 15) * 15;
+  const rollsToNextDay = now.hour === 23 && roundedMinutes === 60;
+  const defaultDate = parseDateParam(params.date)
+    ?? (rollsToNextDay ? addDaysToDateValue(currentDateValue, 1) : currentDateValue);
+  const defaultTime = parseTimeParam(params.time)
+    ?? `${String((now.hour + Math.floor(roundedMinutes / 60)) % 24).padStart(2, "0")}:${String(roundedMinutes % 60).padStart(2, "0")}`;
 
   return (
     <>
@@ -84,18 +92,13 @@ export default async function NewAppointmentPage({
                   <span>{"\u25a6"}</span>
                   <div>
                     <strong>
-                      {scheduledPreview.toLocaleDateString("en-MY", {
+                      {formatDateValue(defaultDate, {
                         day: "2-digit",
                         month: "long",
                         year: "numeric",
                       })}
                     </strong>
-                    <small>
-                      {scheduledPreview.toLocaleTimeString("en-MY", {
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </small>
+                    <small>{formatTimeLabel(defaultTime)}</small>
                   </div>
                 </div>
 
@@ -153,13 +156,7 @@ export default async function NewAppointmentPage({
 }
 
 function parseDateParam(value?: string) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
-  }
-
-  const date = new Date(`${value}T00:00:00`);
-
-  return Number.isNaN(date.getTime()) ? null : value;
+  return value && isValidDateValue(value) ? value : null;
 }
 
 function parseTimeParam(value?: string) {
@@ -174,4 +171,12 @@ function parseTimeParam(value?: string) {
   }
 
   return value;
+}
+
+function formatTimeLabel(timeValue: string) {
+  const [hourValue, minuteValue] = timeValue.split(":").map(Number);
+  const period = hourValue >= 12 ? "pm" : "am";
+  const hour = hourValue % 12 || 12;
+
+  return `${hour}:${String(minuteValue).padStart(2, "0")} ${period}`;
 }
