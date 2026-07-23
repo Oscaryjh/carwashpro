@@ -6,28 +6,18 @@ import {
   markSending,
   markSentToServer,
 } from "../src/lib/notification-queue/repository";
+import { queueDueUnclosedClosingReminders } from "../src/lib/closing-whatsapp/scheduler";
+import {
+  getWhatsAppSendModeRuntimeConfig,
+  isConnectorNotConnected,
+  sendWhatsAppQueueItem,
+} from "../src/lib/notification-queue/worker-send";
 
 const pollIntervalMs = 1000;
 const batchSize = 10;
+const queuedAfter = parseQueuedAfter(process.argv);
 let shuttingDown = false;
-
-type ConnectorSendResponse =
-  | {
-      ok: true;
-      data: {
-        messageId: string | null;
-        to: string;
-      };
-    }
-  | {
-      ok: false;
-      error:
-        | string
-        | {
-            code?: string;
-            message?: string;
-          };
-    };
+let lastClosingReminderSweepAt = 0;
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
@@ -39,7 +29,13 @@ main().catch(async (error) => {
 });
 
 async function main() {
-  console.log("[notification-queue-worker] Started");
+  const sendModeConfig = getWhatsAppSendModeRuntimeConfig();
+
+  console.log("[notification-queue-worker] Started", {
+    connectorCallsEnabled: sendModeConfig.connectorCallsEnabled,
+    queuedAfter: queuedAfter?.toISOString() ?? null,
+    sendMode: sendModeConfig.mode,
+  });
 
   while (!shuttingDown) {
     const processed = await processQueuedBatch();
@@ -53,8 +49,30 @@ async function main() {
   console.log("[notification-queue-worker] Stopped");
 }
 
+function parseQueuedAfter(args: string[]) {
+  const value = args
+    .find((argument) => argument.startsWith("--queued-after="))
+    ?.slice("--queued-after=".length);
+
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invalid --queued-after value: ${value}`);
+  }
+
+  return parsed;
+}
+
 async function processQueuedBatch() {
-  const queueItems = await findQueued({ limit: batchSize });
+  await queueClosingReminderSweep();
+  const queueItems = await findQueued({
+    limit: batchSize,
+    queuedAfter,
+  });
 
   if (!queueItems.length) {
     return false;
@@ -73,8 +91,9 @@ async function processQueuedBatch() {
 
     try {
       const attachment = await getQueueDocumentAttachment(sendingItem.id);
-      const result = await sendToConnector({
+      const result = await sendWhatsAppQueueItem({
         businessId: sendingItem.businessId,
+        queueId: sendingItem.id,
         phone: sendingItem.phone,
         message: sendingItem.message,
         documentBase64: attachment.documentBase64,
@@ -82,17 +101,16 @@ async function processQueuedBatch() {
         documentFileName: attachment.documentFileName,
       });
 
-      if (!result.messageId) {
-        throw new Error("WhatsApp connector did not return a messageId.");
-      }
-
       await markSentToServer({
         id: sendingItem.id,
         providerMessageId: result.messageId,
       });
       console.log("[notification-queue-worker] Sent to server", {
+        connectorCallsEnabled: result.connectorCallsEnabled,
         id: sendingItem.id,
         providerMessageId: result.messageId,
+        sendMode: result.mode,
+        simulated: result.simulated,
       });
     } catch (error) {
       const message = getErrorMessage(error);
@@ -115,111 +133,30 @@ async function processQueuedBatch() {
   return true;
 }
 
-async function sendToConnector(input: {
-  businessId: string;
-  phone: string;
-  message: string;
-  documentBase64?: string | null;
-  documentMimeType?: string | null;
-  documentFileName?: string | null;
-}) {
-  const isAudio = input.documentMimeType?.startsWith("audio/");
-  const isImage = input.documentMimeType?.startsWith("image/");
-  const response = await fetch(`${getConnectorUrl()}/send`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(process.env.WHATSAPP_CONNECTOR_API_SECRET?.trim()
-        ? {
-            "x-connector-api-secret":
-              process.env.WHATSAPP_CONNECTOR_API_SECRET.trim(),
-          }
-        : {}),
-    },
-    body: JSON.stringify({
-      businessId: input.businessId,
-      phone: input.phone,
-      message: input.message,
-      ...(input.documentBase64 && isAudio
-        ? {
-            audioBase64: input.documentBase64,
-            audioMimeType: input.documentMimeType,
-            audioFileName: input.documentFileName,
-          }
-        : input.documentBase64 && isImage
-        ? {
-            imageBase64: input.documentBase64,
-            imageMimeType: input.documentMimeType,
-            imageFileName: input.documentFileName,
-          }
-        : input.documentBase64
-        ? {
-            documentBase64: input.documentBase64,
-            documentMimeType: input.documentMimeType,
-            documentFileName: input.documentFileName,
-          }
-        : {}),
-    }),
-  });
-  const body = (await readJson(response)) as ConnectorSendResponse;
+async function queueClosingReminderSweep() {
+  const now = Date.now();
 
-  if (!response.ok || !body?.ok) {
-    throw new ConnectorSendError(
-      response.status,
-      getConnectorErrorMessage(body) || "WhatsApp connector send failed.",
-    );
+  if (now - lastClosingReminderSweepAt < 60_000) {
+    return;
   }
 
-  return body.data;
-}
-
-function getConnectorUrl() {
-  const connectorUrl = process.env.WHATSAPP_CONNECTOR_URL?.trim();
-
-  if (!connectorUrl) {
-    throw new Error("WHATSAPP_CONNECTOR_URL is not configured.");
-  }
-
-  return connectorUrl.replace(/\/+$/, "");
-}
-
-async function readJson(response: Response) {
-  const text = await response.text();
-
-  if (!text) {
-    return null;
-  }
+  lastClosingReminderSweepAt = now;
 
   try {
-    return JSON.parse(text);
-  } catch {
-    return { ok: false, error: text };
+    const result = await queueDueUnclosedClosingReminders({ now: new Date(now) });
+
+    if (result.queued) {
+      console.log("[notification-queue-worker] Queued closing reminders", {
+        branches: result.branchesChecked,
+        created: result.queued,
+      });
+    }
+  } catch (error) {
+    console.error(
+      "[notification-queue-worker] Closing reminder sweep failed",
+      getErrorMessage(error),
+    );
   }
-}
-
-function getConnectorErrorMessage(body: unknown) {
-  if (!body || typeof body !== "object" || !("error" in body)) {
-    return "";
-  }
-
-  if (typeof body.error === "string") {
-    return body.error;
-  }
-
-  if (
-    body.error &&
-    typeof body.error === "object" &&
-    "message" in body.error &&
-    typeof body.error.message === "string"
-  ) {
-    return body.error.message;
-  }
-
-  return "";
-}
-
-function isConnectorNotConnected(error: unknown) {
-  return error instanceof ConnectorSendError && error.status === 409;
 }
 
 function getErrorMessage(error: unknown) {
@@ -246,13 +183,4 @@ function sleep(milliseconds: number) {
 
 function shutdown() {
   shuttingDown = true;
-}
-
-class ConnectorSendError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
 }

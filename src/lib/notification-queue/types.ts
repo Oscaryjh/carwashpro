@@ -14,6 +14,7 @@ export type EnqueueNotificationInput = {
   documentFileName?: string | null;
   messageLogId?: string | null;
   appointmentId?: string | null;
+  dailyClosingSnapshotId?: string | null;
   dedupeKey?: string | null;
   priority?: NotificationQueuePriority;
   queuedAt?: Date;
@@ -23,6 +24,7 @@ export type EnqueueNotificationInput = {
 export type FindQueuedNotificationsInput = {
   limit?: number;
   businessId?: string;
+  queuedAfter?: Date;
 };
 
 export type MarkNotificationSentInput = {

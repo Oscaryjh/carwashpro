@@ -1,6 +1,6 @@
 "use server";
 
-import { Prisma } from "@prisma/client";
+import { ClosingWhatsAppSendTrigger, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -19,6 +19,10 @@ import {
   getExpectedCashCents,
   normalizeBusinessDate,
 } from "@/lib/daily-closing/snapshot";
+import {
+  enqueueClosingReportForSnapshot,
+  enqueueManualClosingWhatsAppSend,
+} from "@/lib/closing-whatsapp/queue";
 import { prisma } from "@/lib/prisma";
 import { fromCents, toCents } from "@/lib/validation/pos";
 
@@ -48,6 +52,15 @@ const closeDailySnapshotSchema = z.object({
     .string()
     .refine(isValidDateValue, "Business date is invalid."),
   closingNote: z.string().trim().max(1000, "Closing note is too long.").optional(),
+});
+
+const manualClosingWhatsAppSendSchema = z.object({
+  attemptId: z.string().uuid("Send record is required."),
+  reason: z.string().trim().max(500, "Reason is too long.").optional(),
+  trigger: z.nativeEnum(ClosingWhatsAppSendTrigger).refine(
+    (value) => value === "MANUAL_RETRY" || value === "MANUAL_RESEND",
+    "Manual send action is invalid.",
+  ),
 });
 
 export type CloseDailySnapshotState = {
@@ -385,6 +398,8 @@ export async function closeDailySnapshotAction(
           tx,
         );
 
+        await enqueueClosingReportForSnapshot(created.id, tx);
+
         return created;
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -416,6 +431,79 @@ export async function closeDailySnapshotAction(
       status: "error",
     };
   }
+}
+
+export async function manualClosingWhatsAppSendAction(formData: FormData) {
+  const { businessId, user } = await requireBusinessUser();
+  assertStaffPermission(user, "CLOSING");
+
+  const input = manualClosingWhatsAppSendSchema.parse({
+    attemptId: formData.get("attemptId"),
+    reason: formData.get("reason"),
+    trigger: formData.get("trigger"),
+  });
+  const source = await prisma.closingWhatsAppSendAttempt.findFirst({
+    where: { businessId, id: input.attemptId },
+    select: {
+      branchId: true,
+      id: true,
+      sendType: true,
+      status: true,
+    },
+  });
+
+  if (!source) {
+    throw new Error("Closing WhatsApp send record not found.");
+  }
+
+  if (source.branchId) {
+    await resolveOperationalBranchId(businessId, user, source.branchId);
+  }
+
+  const auditRequest = await getAuditRequestContext();
+  await prisma.$transaction(async (tx) => {
+    await enqueueManualClosingWhatsAppSend(
+      {
+        attemptId: source.id,
+        businessId,
+        reason:
+          input.reason ||
+          (input.trigger === "MANUAL_RETRY" ? "Manual retry" : "Manual resend"),
+        requestedByUserId: user.userId,
+        trigger: input.trigger,
+      },
+      tx,
+    );
+
+    await writeAuditLog(
+      {
+        action:
+          input.trigger === "MANUAL_RETRY"
+            ? "CLOSING_WHATSAPP_MANUAL_RETRY"
+            : "CLOSING_WHATSAPP_MANUAL_RESEND",
+        actor: user,
+        after: {
+          reason: input.reason ?? null,
+          sendType: source.sendType,
+          sourceStatus: source.status,
+          trigger: input.trigger,
+        },
+        branchId: source.branchId,
+        businessId,
+        entityId: source.id,
+        entityType: "ClosingWhatsAppSendAttempt",
+        request: auditRequest,
+        summary:
+          input.trigger === "MANUAL_RETRY"
+            ? "Queued manual retry for closing WhatsApp"
+            : "Queued manual resend for closing WhatsApp",
+      },
+      tx,
+    );
+  });
+
+  revalidatePath("/closing");
+  revalidatePath("/closing/history");
 }
 
 class DailyClosingAlreadyExistsError extends Error {

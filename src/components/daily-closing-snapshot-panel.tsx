@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   closeDailySnapshotAction,
+  manualClosingWhatsAppSendAction,
   type CloseDailySnapshotState,
 } from "@/app/(business)/closing/actions";
 import { formatMoneyFromCents } from "@/lib/daily-closing/format";
@@ -21,6 +22,22 @@ type ClosedSnapshot = {
   closedByName: string;
   closingNote: string | null;
   expectedCashCents: number;
+  whatsappSends: ClosingWhatsAppSendView[];
+};
+
+type ClosingWhatsAppSendView = {
+  completedAtLabel: string | null;
+  errorMessage: string | null;
+  id: string;
+  phone: string;
+  reason: string | null;
+  recipientLabel: string;
+  recipientRole: string | null;
+  requestedAtLabel: string;
+  requestedByName: string | null;
+  sendType: string;
+  status: string;
+  trigger: string;
 };
 
 export function DailyClosingSnapshotPanel({
@@ -92,6 +109,7 @@ export function DailyClosingSnapshotPanel({
             <span>{snapshot.closingNote}</span>
           </div>
         ) : null}
+        <ClosingWhatsAppStatus sends={snapshot.whatsappSends} />
         <div className="daily-closing-snapshot-actions">
           <Link href="/closing/history" className="button secondary">
             View closing history
@@ -234,6 +252,118 @@ export function DailyClosingSnapshotPanel({
       ) : null}
     </>
   );
+}
+
+function ClosingWhatsAppStatus({ sends }: { sends: ClosingWhatsAppSendView[] }) {
+  if (!sends.length) {
+    return (
+      <div className="daily-closing-whatsapp-status empty">
+        <div>
+          <strong>WhatsApp automation</strong>
+          <span>No closing WhatsApp send records for this snapshot.</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="daily-closing-whatsapp-status">
+      <div className="daily-closing-whatsapp-status-header">
+        <div>
+          <strong>WhatsApp automation</strong>
+          <span>Frozen report and resend activity.</span>
+        </div>
+        <span>{sends.length} records</span>
+      </div>
+      <div className="daily-closing-whatsapp-send-list">
+        {sends.map((send) => (
+          <div key={send.id} className="daily-closing-whatsapp-send-row">
+            <div>
+              <strong>{formatSendType(send.sendType)}</strong>
+              <span>
+                {send.recipientLabel}
+                {send.recipientRole ? ` - ${formatRole(send.recipientRole)}` : ""} -{" "}
+                {send.phone}
+              </span>
+              <small>
+                {formatTrigger(send.trigger)} - {send.requestedAtLabel}
+                {send.requestedByName ? ` - by ${send.requestedByName}` : ""}
+              </small>
+              {send.reason ? <small>Reason: {send.reason}</small> : null}
+              {send.errorMessage ? <small className="error-text">{send.errorMessage}</small> : null}
+            </div>
+            <div className="daily-closing-whatsapp-send-actions">
+              <span className={`status ${send.status.toLowerCase()}`}>
+                {formatStatus(send.status)}
+              </span>
+              {send.completedAtLabel ? <small>{send.completedAtLabel}</small> : null}
+              {send.status === "FAILED" ? (
+                <ManualSendForm send={send} trigger="MANUAL_RETRY" />
+              ) : isResendable(send.status) ? (
+                <ManualSendForm send={send} trigger="MANUAL_RESEND" />
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ManualSendForm({
+  send,
+  trigger,
+}: {
+  send: ClosingWhatsAppSendView;
+  trigger: "MANUAL_RETRY" | "MANUAL_RESEND";
+}) {
+  return (
+    <form action={manualClosingWhatsAppSendAction} className="daily-closing-whatsapp-manual-form">
+      <input type="hidden" name="attemptId" value={send.id} />
+      <input type="hidden" name="trigger" value={trigger} />
+      <input
+        aria-label={`${trigger === "MANUAL_RETRY" ? "Retry" : "Resend"} reason`}
+        name="reason"
+        placeholder="Reason"
+      />
+      <button className="secondary compact" type="submit">
+        {trigger === "MANUAL_RETRY" ? "Retry" : "Resend"}
+      </button>
+    </form>
+  );
+}
+
+function isResendable(status: string) {
+  return ["SENT_TO_SERVER", "DELIVERED", "READ"].includes(status);
+}
+
+function formatStatus(status: string) {
+  return status
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatSendType(sendType: string) {
+  return sendType === "UNCLOSED_REMINDER"
+    ? "Unclosed reminder"
+    : "Closing report";
+}
+
+function formatTrigger(trigger: string) {
+  if (trigger === "AUTO_REMINDER") return "Auto reminder";
+  if (trigger === "AUTO_CLOSING") return "Auto closing";
+  if (trigger === "MANUAL_RETRY") return "Manual retry";
+  return "Manual resend";
+}
+
+function formatRole(role: string) {
+  return role
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function CashMetric({

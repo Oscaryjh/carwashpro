@@ -24,6 +24,11 @@ enum BusinessIndustry {
   GENERAL_SERVICE
 }
 
+enum BusinessLanguage {
+  EN
+  ZH
+}
+
 enum DailyClosingStatus {
   CLOSED
 }
@@ -141,6 +146,8 @@ enum WhatsAppMessageType {
   READY_FOR_PICKUP
   INVOICE_SENT
   INBOX_REPLY
+  DAILY_CLOSING_REPORT
+  DAILY_CLOSING_UNCLOSED_REMINDER
 }
 
 enum WhatsAppMessageStatus {
@@ -216,6 +223,29 @@ enum NotificationQueuePriority {
   HIGH
   NORMAL
   LOW
+}
+
+enum ClosingWhatsAppRecipientRole {
+  OWNER
+  BRANCH_MANAGER
+  FINANCE
+}
+
+enum ClosingWhatsAppRecipientScope {
+  BUSINESS
+  BRANCH
+}
+
+enum ClosingWhatsAppSendType {
+  CLOSING_REPORT
+  UNCLOSED_REMINDER
+}
+
+enum ClosingWhatsAppSendTrigger {
+  AUTO_CLOSING
+  AUTO_REMINDER
+  MANUAL_RETRY
+  MANUAL_RESEND
 }
 
 enum PackageStatus {
@@ -296,6 +326,7 @@ model Business {
   phone             String?
   email             String?
   address           String?
+  language          BusinessLanguage @default(EN)
   sstEnabled        Boolean          @default(false) @map("sst_enabled")
   sstLabel          String           @default("SST") @map("sst_label")
   sstRate           Decimal          @default(0) @map("sst_rate") @db.Decimal(5, 2)
@@ -353,6 +384,10 @@ model Business {
   staffRoleProfiles          StaffRoleProfile[]
   staffLevels                StaffLevel[]
   dailyClosingSnapshots      DailyClosingSnapshot[]
+  closingWhatsAppSetting        ClosingWhatsAppSetting?
+  closingWhatsAppBranchSettings ClosingWhatsAppBranchSetting[]
+  closingWhatsAppRecipients     ClosingWhatsAppRecipient[]
+  closingWhatsAppSends          ClosingWhatsAppSendAttempt[]
 
   @@index([slug])
   @@index([industryType])
@@ -393,6 +428,9 @@ model Branch {
   employeeAttendances       EmployeeAttendance[]
   catalogDiscounts          CatalogDiscount[]
   dailyClosingSnapshots     DailyClosingSnapshot[]
+  closingWhatsAppSetting    ClosingWhatsAppBranchSetting?
+  closingWhatsAppRecipients ClosingWhatsAppRecipient[]
+  closingWhatsAppSends      ClosingWhatsAppSendAttempt[]
 
   @@unique([businessId, name])
   @@index([businessId])
@@ -439,6 +477,7 @@ model User {
   staffRoleProfile         StaffRoleProfile?        @relation(fields: [staffRoleProfileId], references: [id], onDelete: SetNull)
   staffLevel               StaffLevel?              @relation(fields: [staffLevelId], references: [id], onDelete: SetNull)
   closedDailySnapshots     DailyClosingSnapshot[]  @relation("DailyClosingClosedBy")
+  closingWhatsAppSends     ClosingWhatsAppSendAttempt[] @relation("ClosingWhatsAppRequestedBy")
 
   @@index([businessId])
   @@index([branchId])
@@ -1433,12 +1472,113 @@ model DailyClosingSnapshot {
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
   branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
   closedBy User     @relation("DailyClosingClosedBy", fields: [closedByUserId], references: [id], onDelete: Restrict)
+  whatsappMessages WhatsAppMessage[]
+  notificationQueues NotificationQueue[]
+  closingWhatsAppSends ClosingWhatsAppSendAttempt[]
 
   @@unique([businessId, branchId, businessDate])
   @@index([businessId, businessDate])
   @@index([branchId, businessDate])
   @@index([closedByUserId])
   @@map("daily_closing_snapshots")
+}
+
+model ClosingWhatsAppSetting {
+  id                   String   @id @default(uuid()) @db.Uuid
+  businessId           String   @unique @map("business_id") @db.Uuid
+  enabled              Boolean  @default(false)
+  sendClosingReport    Boolean  @default(true) @map("send_closing_report")
+  sendUnclosedReminder Boolean  @default(true) @map("send_unclosed_reminder")
+  deadlineTime         String   @default("22:30") @map("deadline_time")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@map("closing_whatsapp_settings")
+}
+
+model ClosingWhatsAppBranchSetting {
+  id                        String   @id @default(uuid()) @db.Uuid
+  businessId                String   @map("business_id") @db.Uuid
+  branchId                  String   @unique @map("branch_id") @db.Uuid
+  useBusinessRecipients     Boolean  @default(true) @map("use_business_recipients")
+  deadlineTimeOverride      String?  @map("deadline_time_override")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, branchId])
+  @@index([businessId])
+  @@map("closing_whatsapp_branch_settings")
+}
+
+model ClosingWhatsAppRecipient {
+  id              String                         @id @default(uuid()) @db.Uuid
+  businessId      String                         @map("business_id") @db.Uuid
+  branchId        String?                        @map("branch_id") @db.Uuid
+  scope           ClosingWhatsAppRecipientScope  @default(BUSINESS)
+  scopeKey        String                         @default("BUSINESS") @map("scope_key")
+  role            ClosingWhatsAppRecipientRole
+  label           String
+  phone           String
+  normalizedPhone String                         @map("normalized_phone")
+  isActive        Boolean                        @default(true) @map("is_active")
+  sortOrder       Int                            @default(0) @map("sort_order")
+  createdAt       DateTime                       @default(now()) @map("created_at")
+  updatedAt       DateTime                       @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch   Branch?  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  sends    ClosingWhatsAppSendAttempt[]
+
+  @@unique([businessId, scope, scopeKey, normalizedPhone], map: "closing_whatsapp_recipient_scope_phone_key")
+  @@index([businessId, scope, scopeKey])
+  @@index([branchId])
+  @@index([normalizedPhone])
+  @@map("closing_whatsapp_recipients")
+}
+
+model ClosingWhatsAppSendAttempt {
+  id                     String                     @id @default(uuid()) @db.Uuid
+  businessId             String                     @map("business_id") @db.Uuid
+  branchId               String?                    @map("branch_id") @db.Uuid
+  dailyClosingSnapshotId String?                    @map("daily_closing_snapshot_id") @db.Uuid
+  recipientId            String?                    @map("recipient_id") @db.Uuid
+  queueId                String?                    @map("queue_id") @db.Uuid
+  messageLogId           String?                    @map("message_log_id") @db.Uuid
+  requestedByUserId      String?                    @map("requested_by_user_id") @db.Uuid
+  sendType               ClosingWhatsAppSendType    @map("send_type")
+  trigger                ClosingWhatsAppSendTrigger
+  dedupeKey              String                     @unique @map("dedupe_key")
+  phone                  String
+  normalizedPhone        String                     @map("normalized_phone")
+  reason                 String?
+  status                 NotificationQueueStatus    @default(QUEUED)
+  errorMessage           String?                    @map("error_message")
+  requestedAt            DateTime                   @default(now()) @map("requested_at")
+  completedAt            DateTime?                  @map("completed_at")
+  createdAt              DateTime                   @default(now()) @map("created_at")
+  updatedAt              DateTime                   @updatedAt @map("updated_at")
+
+  business             Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch               Branch?                    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  dailyClosingSnapshot DailyClosingSnapshot?      @relation(fields: [dailyClosingSnapshotId], references: [id], onDelete: SetNull)
+  recipient            ClosingWhatsAppRecipient?  @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  queue                NotificationQueue?         @relation(fields: [queueId], references: [id], onDelete: SetNull)
+  messageLog           WhatsAppMessage?           @relation(fields: [messageLogId], references: [id], onDelete: SetNull)
+  requestedBy          User?                      @relation("ClosingWhatsAppRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([branchId])
+  @@index([dailyClosingSnapshotId])
+  @@index([queueId])
+  @@index([messageLogId])
+  @@index([requestedByUserId])
+  @@index([sendType, status])
+  @@map("closing_whatsapp_send_attempts")
 }
 
 model Invoice {
@@ -1531,6 +1671,7 @@ model WhatsAppMessage {
   workOrderId       String?               @map("work_order_id") @db.Uuid
   invoiceId         String?               @map("invoice_id") @db.Uuid
   appointmentId     String?               @map("appointment_id") @db.Uuid
+  dailyClosingSnapshotId String?          @map("daily_closing_snapshot_id") @db.Uuid
   sentByUserId      String?               @map("sent_by_user_id") @db.Uuid
   phone             String
   senderPhone       String?               @map("sender_phone")
@@ -1557,7 +1698,9 @@ model WhatsAppMessage {
   workOrder   WorkOrder?          @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
   invoice     Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   appointment Appointment?        @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  dailyClosingSnapshot DailyClosingSnapshot? @relation(fields: [dailyClosingSnapshotId], references: [id], onDelete: SetNull)
   queueItems  NotificationQueue[]
+  closingWhatsAppSends ClosingWhatsAppSendAttempt[]
   sentByUser  User?               @relation("WhatsAppMessageSender", fields: [sentByUserId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
@@ -1567,6 +1710,7 @@ model WhatsAppMessage {
   @@index([workOrderId])
   @@index([invoiceId])
   @@index([appointmentId])
+  @@index([dailyClosingSnapshotId])
   @@index([sentByUserId])
   @@index([status])
   @@index([messageType])
@@ -1758,6 +1902,7 @@ model NotificationQueue {
   retryCount        Int                       @default(0) @map("retry_count")
   messageLogId      String?                   @map("message_log_id") @db.Uuid
   appointmentId     String?                   @map("appointment_id") @db.Uuid
+  dailyClosingSnapshotId String?              @map("daily_closing_snapshot_id") @db.Uuid
   dedupeKey         String?                   @unique @map("dedupe_key")
   providerMessageId String?                   @map("provider_message_id")
   errorMessage      String?                   @map("error_message")
@@ -1773,11 +1918,14 @@ model NotificationQueue {
   branch      Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
   messageLog  WhatsAppMessage? @relation(fields: [messageLogId], references: [id], onDelete: SetNull)
   appointment Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  dailyClosingSnapshot DailyClosingSnapshot? @relation(fields: [dailyClosingSnapshotId], references: [id], onDelete: SetNull)
+  closingWhatsAppSends ClosingWhatsAppSendAttempt[]
 
   @@index([businessId])
   @@index([branchId])
   @@index([messageLogId])
   @@index([appointmentId])
+  @@index([dailyClosingSnapshotId])
   @@index([providerMessageId])
   @@index([status])
   @@index([status, priority, queuedAt])

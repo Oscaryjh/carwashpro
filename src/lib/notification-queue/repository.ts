@@ -6,6 +6,13 @@ import {
   NotificationQueuePriority,
   Prisma,
 } from "@prisma/client";
+import {
+  CLOSING_REPORT_MESSAGE_TYPE,
+  CLOSING_WHATSAPP_MAX_AUTO_RETRIES,
+  CLOSING_WHATSAPP_RETRY_DELAYS_MS,
+  type ClosingWhatsAppMessageType,
+  UNCLOSED_REMINDER_MESSAGE_TYPE,
+} from "@/lib/closing-whatsapp/types";
 import { prisma } from "@/lib/prisma";
 import {
   DEFAULT_WHATSAPP_INSTANCE_ID,
@@ -56,6 +63,7 @@ export async function enqueue(input: EnqueueNotificationInput) {
       messageType: input.messageType,
       messageLogId: input.messageLogId ?? null,
       appointmentId: input.appointmentId ?? null,
+      dailyClosingSnapshotId: input.dailyClosingSnapshotId ?? null,
       dedupeKey: input.dedupeKey ?? null,
       priority: input.priority ?? NotificationQueuePriority.NORMAL,
       queuedAt: input.queuedAt ?? new Date(),
@@ -85,6 +93,9 @@ export async function findQueued(input: FindQueuedNotificationsInput = {}) {
     where: {
       businessId: input.businessId,
       status: "QUEUED",
+      ...(input.queuedAfter
+        ? { queuedAt: { gte: input.queuedAfter } }
+        : {}),
       OR: [
         { nextAttemptAt: null },
         { nextAttemptAt: { lte: now } },
@@ -160,6 +171,11 @@ export async function markSentToServer(input: MarkNotificationSentInput) {
     });
 
     await markMessageLogSent(tx, queueItem, input.providerMessageId);
+    await syncClosingWhatsAppAttemptStatus(tx, queueItem.id, {
+      errorMessage: null,
+      messageLogId: queueItem.messageLogId,
+      status: "SENT_TO_SERVER",
+    });
 
     return queueItem;
   });
@@ -195,6 +211,17 @@ export async function markDeliveryStatus(input: MarkNotificationDeliveryInput) {
         where: { id: { in: queueIdsToUpdate } },
         data: getQueueDeliveryData(input.status, timestamp, errorMessage),
       });
+      await tx.closingWhatsAppSendAttempt.updateMany({
+        where: { queueId: { in: queueIdsToUpdate } },
+        data: {
+          completedAt:
+            input.status === "DELIVERED" || input.status === "READ"
+              ? timestamp
+              : null,
+          errorMessage: input.status === "FAILED" ? errorMessage : null,
+          status: input.status,
+        },
+      });
     }
 
     const messageLogIds = queueItems
@@ -229,10 +256,13 @@ export async function markFailed(input: MarkNotificationFailedInput) {
   return prisma.$transaction(async (tx) => {
     const currentQueueItem = await tx.notificationQueue.findUniqueOrThrow({
       where: { id: input.id },
-      select: { retryCount: true },
+      select: { messageType: true, retryCount: true },
     });
     const nextRetryCount = currentQueueItem.retryCount + 1;
-    const shouldRetry = nextRetryCount < MAX_RETRY_COUNT;
+    const shouldRetry = shouldRetryQueueItem(
+      currentQueueItem.messageType,
+      nextRetryCount,
+    );
 
     const queueItem = await tx.notificationQueue.update({
       where: { id: input.id },
@@ -240,7 +270,7 @@ export async function markFailed(input: MarkNotificationFailedInput) {
         status: shouldRetry ? "QUEUED" : "FAILED",
         retryCount: nextRetryCount,
         nextAttemptAt: shouldRetry
-          ? getNextAttemptAt(nextRetryCount)
+          ? getNextAttemptAt(nextRetryCount, currentQueueItem.messageType)
           : null,
         failedAt: shouldRetry ? null : new Date(),
         errorMessage: input.errorMessage,
@@ -248,6 +278,13 @@ export async function markFailed(input: MarkNotificationFailedInput) {
     });
 
     await markMessageLogFailed(tx, queueItem, input.errorMessage);
+    await syncClosingWhatsAppAttemptStatus(tx, queueItem.id, {
+      completedAt: shouldRetry ? null : queueItem.failedAt,
+      errorMessage: input.errorMessage,
+      messageLogId: queueItem.messageLogId,
+      queueId: queueItem.id,
+      status: queueItem.status,
+    });
 
     return queueItem;
   });
@@ -261,10 +298,41 @@ function normalizeLimit(limit: number | undefined) {
   return Math.min(limit, MAX_FIND_LIMIT);
 }
 
-function getNextAttemptAt(retryCount: number) {
-  const delayMs = RETRY_DELAYS_MS[retryCount - 1] ?? RETRY_DELAYS_MS.at(-1)!;
+function getNextAttemptAt(retryCount: number, messageType: string) {
+  const retryDelays = isClosingWhatsAppMessageType(messageType)
+    ? CLOSING_WHATSAPP_RETRY_DELAYS_MS
+    : RETRY_DELAYS_MS;
+  const delayMs = retryDelays[retryCount - 1] ?? retryDelays.at(-1)!;
 
   return new Date(Date.now() + delayMs);
+}
+
+function shouldRetryQueueItem(messageType: string, retryCount: number) {
+  if (isClosingWhatsAppMessageType(messageType)) {
+    return retryCount <= CLOSING_WHATSAPP_MAX_AUTO_RETRIES;
+  }
+
+  return retryCount < MAX_RETRY_COUNT;
+}
+
+function isClosingWhatsAppMessageType(
+  messageType: string,
+): messageType is ClosingWhatsAppMessageType {
+  return (
+    messageType === CLOSING_REPORT_MESSAGE_TYPE ||
+    messageType === UNCLOSED_REMINDER_MESSAGE_TYPE
+  );
+}
+
+async function syncClosingWhatsAppAttemptStatus(
+  tx: Prisma.TransactionClient,
+  queueId: string,
+  data: Prisma.ClosingWhatsAppSendAttemptUncheckedUpdateManyInput,
+) {
+  await tx.closingWhatsAppSendAttempt.updateMany({
+    where: { queueId },
+    data,
+  });
 }
 
 async function markMessageLogSent(

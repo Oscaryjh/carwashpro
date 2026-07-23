@@ -147,6 +147,20 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
           },
         },
         include: {
+          closingWhatsAppSends: {
+            include: {
+              recipient: {
+                select: {
+                  label: true,
+                  role: true,
+                },
+              },
+              requestedBy: {
+                select: { name: true },
+              },
+            },
+            orderBy: { requestedAt: "desc" },
+          },
           closedBy: {
             select: { name: true },
           },
@@ -376,6 +390,24 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                         snapshotPayload.closedBy.name,
                       closingNote: snapshotPayload.closingNote,
                       expectedCashCents: snapshotPayload.cash.expectedCents,
+                      whatsappSends: existingSnapshot.closingWhatsAppSends.map(
+                        (send) => ({
+                          completedAtLabel: send.completedAt
+                            ? formatSnapshotDateTime(send.completedAt)
+                            : null,
+                          errorMessage: send.errorMessage,
+                          id: send.id,
+                          phone: send.phone,
+                          reason: send.reason,
+                          recipientLabel: send.recipient?.label ?? send.phone,
+                          recipientRole: send.recipient?.role ?? null,
+                          requestedAtLabel: formatSnapshotDateTime(send.requestedAt),
+                          requestedByName: send.requestedBy?.name ?? null,
+                          sendType: send.sendType,
+                          status: send.status,
+                          trigger: send.trigger,
+                        }),
+                      ),
                     }
                   : null
               }
@@ -547,7 +579,6 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
     </>
   );
 }
-
 
 function makeClosingHref(
   params: Awaited<ClosingPageProps["searchParams"]>,

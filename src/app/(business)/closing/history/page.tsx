@@ -68,6 +68,14 @@ export default async function ClosingHistoryPage({
       branch: {
         select: { name: true },
       },
+      closingWhatsAppSends: {
+        orderBy: { requestedAt: "desc" },
+        select: {
+          sendType: true,
+          status: true,
+        },
+        take: 5,
+      },
       closedBy: {
         select: { name: true },
       },
@@ -134,6 +142,7 @@ export default async function ClosingHistoryPage({
                     <th>Expected cash</th>
                     <th>Actual cash</th>
                     <th>Difference</th>
+                    <th>WhatsApp</th>
                     <th>Closed by</th>
                     <th>Closed at</th>
                     <th>Report</th>
@@ -160,6 +169,7 @@ export default async function ClosingHistoryPage({
                             {formatSignedMoney(snapshot.cashDifferenceCents)}
                           </span>
                         </td>
+                        <td>{formatWhatsAppStatus(snapshot.closingWhatsAppSends)}</td>
                         <td>{snapshot.closedBy.name}</td>
                         <td>{formatDateTime(snapshot.closedAt)}</td>
                         <td>
@@ -211,6 +221,33 @@ export default async function ClosingHistoryPage({
       </section>
     </section>
   );
+}
+
+function formatWhatsAppStatus(
+  sends: {
+    sendType: string;
+    status: string;
+  }[],
+) {
+  if (!sends.length) {
+    return <span className="status neutral">Not queued</span>;
+  }
+
+  const hasFailed = sends.some((send) => send.status === "FAILED");
+  const hasPending = sends.some((send) =>
+    ["QUEUED", "SENDING", "RETRY_SCHEDULED"].includes(send.status),
+  );
+  const hasReport = sends.some((send) => send.sendType === "CLOSING_REPORT");
+  const label = hasFailed
+    ? "Failed"
+    : hasPending
+      ? "Pending"
+      : hasReport
+        ? "Sent"
+        : "Reminder";
+  const tone = hasFailed ? "failed" : hasPending ? "pending" : "sent";
+
+  return <span className={`status ${tone}`}>{label}</span>;
 }
 
 function makeHistoryHref(
