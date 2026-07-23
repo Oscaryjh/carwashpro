@@ -1,6 +1,22 @@
 import Link from "next/link";
 import type { PaymentMethod, PaymentRecordStatus } from "@prisma/client";
+import { DailyClosingSnapshotPanel } from "@/components/daily-closing-snapshot-panel";
 import { getOperationalBranches } from "@/lib/branches";
+import {
+  BUSINESS_TIME_ZONE,
+  formatDateValue,
+  getBusinessTodayDateValue,
+  isValidDateValue,
+} from "@/lib/business-time";
+import { formatMoneyFromCents } from "@/lib/daily-closing/format";
+import { getDailyClosingReport } from "@/lib/daily-closing/query";
+import { getDailyClosingRange } from "@/lib/daily-closing/range";
+import {
+  getExpectedCashCents,
+  isDailyClosingSnapshotPayload,
+  normalizeBusinessDate,
+} from "@/lib/daily-closing/snapshot";
+import { isDailyClosingIndustry } from "@/lib/daily-closing/types";
 import { prisma } from "@/lib/prisma";
 import { requireBusinessContext } from "@/lib/tenant";
 import { fromCents, toCents } from "@/lib/validation/pos";
@@ -12,6 +28,8 @@ type ClosingPageProps = {
     message?: string;
     shiftPage?: string;
     type?: string;
+    branchId?: string;
+    date?: string;
   }>;
 };
 
@@ -32,6 +50,11 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const params = await searchParams;
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
+  const todayDateValue = getBusinessTodayDateValue();
+  const requestedDate =
+    params.date && isValidDateValue(params.date)
+      ? params.date
+      : todayDateValue;
   const requestedActivityPage = Math.max(
     1,
     Number.parseInt(params.activityPage ?? "1", 10) || 1,
@@ -55,7 +78,11 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   }
 
   const businessId = context.businessId;
-  const { fromDate, toDateExclusive } = getTodayRange();
+  const closingIndustry = isDailyClosingIndustry(context.industryType)
+    ? context.industryType
+    : null;
+  const todayRange = getDailyClosingRange(undefined, requestedDate);
+  const { dateValue, fromDate, toDateExclusive } = todayRange;
   const isOwner = context.user.role === "BUSINESS_OWNER";
   const [branches, openShift, shifts] = await Promise.all([
     getOperationalBranches(businessId, context.user),
@@ -105,6 +132,59 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
       orderBy: { startedAt: "desc" },
     }),
   ]);
+  const selectedBranch =
+    branches.find((branch) => branch.id === params.branchId) ??
+    (openShift ? branches.find((branch) => branch.id === openShift.branchId) : undefined) ??
+    branches[0] ??
+    null;
+  const existingSnapshot = selectedBranch
+    ? await prisma.dailyClosingSnapshot.findUnique({
+        where: {
+          businessId_branchId_businessDate: {
+            branchId: selectedBranch.id,
+            businessDate: normalizeBusinessDate(dateValue),
+            businessId,
+          },
+        },
+        include: {
+          closedBy: {
+            select: { name: true },
+          },
+        },
+      })
+    : null;
+  const snapshotPayload =
+    existingSnapshot &&
+    isDailyClosingSnapshotPayload(existingSnapshot.reportDataJson)
+      ? existingSnapshot.reportDataJson
+      : null;
+  const dailyClosing = selectedBranch && closingIndustry
+    ? snapshotPayload
+      ? {
+          branchId: snapshotPayload.branch.id,
+          branchName: snapshotPayload.branch.name,
+          businessName: snapshotPayload.business.name,
+          dateValue: snapshotPayload.businessDate,
+          fromDate,
+          generatedAt: new Date(snapshotPayload.generatedAt),
+          generatedAtLabel: formatSnapshotDateTime(
+            new Date(snapshotPayload.generatedAt),
+          ),
+          industry: closingIndustry,
+          preview: existingSnapshot?.whatsappText ?? "",
+          report: snapshotPayload.report,
+          timeZone: snapshotPayload.timezone,
+          toDateExclusive,
+        }
+      : existingSnapshot
+        ? null
+        : await getDailyClosingReport({
+            branchId: selectedBranch.id,
+            businessId,
+            dateValue,
+            industryType: closingIndustry,
+          })
+    : null;
   const currentShiftSummary = openShift
     ? summarizePayments(openShift.payments, openShift.refunds)
     : null;
@@ -128,13 +208,11 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
         <div className="page-header report-header closing-page-header">
           <div>
             <h1>Shift Closing</h1>
-            <p>Cashier shift closing for {formatDisplayDate(fromDate)}.</p>
+            <p>Cashier shift closing and daily business summary.</p>
           </div>
           <div className="report-period closing-period">
-            <span>Today</span>
-            <strong>
-              {formatDisplayDate(fromDate)} - {formatDisplayDate(addDays(toDateExclusive, -1))}
-            </strong>
+            <span>{dateValue === todayDateValue ? "Today" : "Business date"}</span>
+            <strong>{formatBusinessDate(dateValue)}</strong>
           </div>
         </div>
 
@@ -269,8 +347,66 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
           </ReportCard>
         </section>
 
+        {dailyClosing ? (
+          <>
+            <DailyClosingSummary
+              dailyClosing={dailyClosing}
+              branches={branches}
+              isFrozen={Boolean(existingSnapshot)}
+            />
+            <DailyClosingSnapshotPanel
+              branchId={dailyClosing.branchId}
+              branchName={dailyClosing.branchName}
+              businessDate={dailyClosing.dateValue}
+              expectedCashCents={
+                snapshotPayload?.cash.expectedCents ??
+                getExpectedCashCents(dailyClosing.report)
+              }
+              snapshot={
+                existingSnapshot && snapshotPayload
+                  ? {
+                      actualCashCents: snapshotPayload.cash.actualCents,
+                      cashDifferenceCents:
+                        snapshotPayload.cash.differenceCents,
+                      closedAtLabel: formatSnapshotDateTime(
+                        existingSnapshot.closedAt,
+                      ),
+                      closedByName:
+                        existingSnapshot.closedBy.name ||
+                        snapshotPayload.closedBy.name,
+                      closingNote: snapshotPayload.closingNote,
+                      expectedCashCents: snapshotPayload.cash.expectedCents,
+                    }
+                  : null
+              }
+            />
+          </>
+        ) : existingSnapshot ? (
+          <div className="panel daily-closing-empty error">
+            <h2>Frozen report cannot be displayed</h2>
+            <p>
+              This closing snapshot has an unsupported report format. Its stored
+              data was not recalculated or replaced.
+            </p>
+          </div>
+        ) : (
+          <div className="panel daily-closing-empty">
+            <h2>Daily Closing Report</h2>
+            <p className="empty-state">
+              Assign this account to an active branch to view today&apos;s business summary.
+            </p>
+          </div>
+        )}
+
         <section className="report-grid closing-activity-grid">
-          <ReportCard title={isOwner ? "Today's Shifts" : "My Shifts"} className="closing-table-card">
+          <ReportCard
+            title={
+              isOwner
+                ? `${dateValue === todayDateValue ? "Today's" : "Business day"} Shifts`
+                : "My Shifts"
+            }
+            className="closing-table-card"
+          >
             {shifts.length ? (
               <div className="table-scroll">
                 <table className="table compact-table closing-shifts-table">
@@ -412,6 +548,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   );
 }
 
+
 function makeClosingHref(
   params: Awaited<ClosingPageProps["searchParams"]>,
   pages: {
@@ -429,6 +566,8 @@ function makeClosingHref(
 
   if (params.message) query.set("message", params.message);
   if (params.type) query.set("type", params.type);
+  if (params.branchId) query.set("branchId", params.branchId);
+  if (params.date) query.set("date", params.date);
   if (activityPage > 1) query.set("activityPage", String(activityPage));
   if (shiftPage > 1) query.set("shiftPage", String(shiftPage));
 
@@ -594,20 +733,6 @@ function ReportCard({
   );
 }
 
-function getTodayRange() {
-  const now = new Date();
-  const fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const toDateExclusive = addDays(fromDate, 1);
-
-  return { fromDate, toDateExclusive };
-}
-
-function addDays(date: Date, days: number) {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-}
-
 function money(value: unknown) {
   return `RM${Number(value ?? 0).toFixed(2)}`;
 }
@@ -638,20 +763,13 @@ function formatPaymentStatus(status: PaymentRecordStatus) {
   return status.toLowerCase();
 }
 
-function formatDisplayDate(value: Date) {
-  return value.toLocaleDateString("en-MY", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
 function formatDateTime(value: Date) {
   return value.toLocaleString("en-MY", {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     month: "short",
+    timeZone: BUSINESS_TIME_ZONE,
   });
 }
 
@@ -659,5 +777,270 @@ function formatTime(value: Date) {
   return value.toLocaleTimeString("en-MY", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: BUSINESS_TIME_ZONE,
   });
+}
+
+function formatBusinessDate(dateValue: string) {
+  return formatDateValue(dateValue, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatSnapshotDateTime(value: Date) {
+  return value.toLocaleString("en-MY", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short",
+    timeZone: BUSINESS_TIME_ZONE,
+    year: "numeric",
+  });
+}
+
+type DailyClosingResult = Awaited<ReturnType<typeof getDailyClosingReport>>;
+
+function DailyClosingSummary({
+  dailyClosing,
+  branches,
+  isFrozen,
+}: {
+  dailyClosing: DailyClosingResult;
+  branches: Awaited<ReturnType<typeof getOperationalBranches>>;
+  isFrozen: boolean;
+}) {
+  const report = dailyClosing.report;
+  const operationUnit =
+    dailyClosing.industry === "AUTO_DETAILING" ? "Work orders" : "Appointments";
+
+  return (
+    <section className="panel daily-closing-report" aria-labelledby="daily-closing-title">
+      <div className="daily-closing-header">
+        <div>
+          <span className="daily-closing-eyebrow">DAILY CLOSING REPORT</span>
+          <h2 id="daily-closing-title">{dailyClosing.branchName}</h2>
+          <p>
+            {formatBusinessDate(dailyClosing.dateValue)} | {dailyClosing.timeZone} |{" "}
+            {isFrozen ? "Frozen closing snapshot" : "Live operational summary"}
+          </p>
+        </div>
+        <form method="get" className="daily-closing-branch-form">
+          <input type="hidden" name="date" value={dailyClosing.dateValue} />
+          <label>
+            <span>Branch</span>
+            <select name="branchId" defaultValue={dailyClosing.branchId}>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="secondary">
+            View
+          </button>
+        </form>
+      </div>
+
+      <div className="daily-closing-kpis">
+        <ClosingMetric label="Gross sales" value={formatMoneyFromCents(report.financial.grossSalesCents)} />
+        <ClosingMetric label="Collected" value={formatMoneyFromCents(report.financial.collectedCents)} />
+        <ClosingMetric label="Outstanding" value={formatMoneyFromCents(report.financial.outstandingCents)} />
+        <ClosingMetric label="Discounts" value={formatMoneyFromCents(report.financial.discountsCents)} />
+        <ClosingMetric label="Refunds" value={formatMoneyFromCents(report.financial.refundsCents)} />
+        <ClosingMetric label="Net sales" value={formatMoneyFromCents(report.financial.netSalesCents)} emphasis />
+      </div>
+
+      <div className="daily-closing-columns">
+        <section className="daily-closing-section">
+          <div className="daily-closing-section-heading">
+            <div>
+              <h3>Payment breakdown</h3>
+              <p>Actual active payments less refunds. Package voucher use is excluded.</p>
+            </div>
+          </div>
+          <div className="daily-closing-table-wrap">
+            <table className="table compact-table daily-closing-table">
+              <thead>
+                <tr>
+                  <th>Method</th>
+                  <th>Collected</th>
+                  <th>Refunded</th>
+                  <th>Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.paymentMethods.map((payment) => (
+                  <tr key={payment.method}>
+                    <td>{dailyPaymentMethodLabel(payment.method)}</td>
+                    <td>{formatMoneyFromCents(payment.grossCents)}</td>
+                    <td>{formatMoneyFromCents(payment.refundCents)}</td>
+                    <td>
+                      <strong>{formatMoneyFromCents(payment.netCents)}</strong>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="daily-closing-section">
+          <div className="daily-closing-section-heading">
+            <div>
+              <h3>Operations</h3>
+              <p>{operationUnit}, customers and invoice status for this business day.</p>
+            </div>
+          </div>
+          <dl className="daily-closing-facts">
+            <ClosingFact label={`${operationUnit} completed`} value={report.operations.completed} />
+            <ClosingFact label={`${operationUnit} cancelled`} value={report.operations.cancelled} />
+            <ClosingFact label="Customers served" value={report.operations.customersServed} />
+            <ClosingFact label="New customers" value={report.operations.newCustomers} />
+            <ClosingFact label="Returning customers" value={report.operations.returningCustomers} />
+            {dailyClosing.industry === "AUTO_DETAILING" ? (
+              <ClosingFact label="Vehicles served" value={report.operations.vehiclesServed} />
+            ) : null}
+            <ClosingFact
+              label="Average spend"
+              value={formatMoneyFromCents(report.operations.averageSpendCents)}
+            />
+            <ClosingFact label="Invoices" value={report.invoiceCounts.total} />
+            <ClosingFact label="Paid" value={report.invoiceCounts.paid} />
+            <ClosingFact label="Partial" value={report.invoiceCounts.partial} />
+            <ClosingFact label="Unpaid" value={report.invoiceCounts.unpaid} />
+            <ClosingFact label="Refunded" value={report.invoiceCounts.refunded} />
+          </dl>
+          {dailyClosing.industry === "AUTO_DETAILING" ? (
+            <p className="daily-closing-note">
+              Cancelled work orders use records created today because the current Auto schema has no
+              cancellation timestamp.
+            </p>
+          ) : null}
+        </section>
+      </div>
+
+      <div className="daily-closing-columns daily-closing-lower">
+        <section className="daily-closing-section">
+          <div className="daily-closing-section-heading">
+            <div>
+              <h3>Top services</h3>
+              <p>
+                Top 3 from completed appointments or work orders, before order-level
+                discounts.
+              </p>
+            </div>
+          </div>
+          {report.topServices.length ? (
+            <ol className="daily-closing-ranking">
+              {report.topServices.map((service) => (
+                <li key={service.serviceId}>
+                  <span>{service.name}</span>
+                  <small>{service.quantity} sold</small>
+                  <strong>{formatMoneyFromCents(service.salesCents)}</strong>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="empty-state">No service sales today.</p>
+          )}
+        </section>
+
+        <section className="daily-closing-section">
+          <div className="daily-closing-section-heading">
+            <div>
+              <h3>Packages</h3>
+              <p>Sales and voucher usage recorded today.</p>
+            </div>
+          </div>
+          <dl className="daily-closing-facts package-facts">
+            <ClosingFact label="Packages sold" value={report.packages.sold} />
+            <ClosingFact
+              label="Package sales"
+              value={formatMoneyFromCents(report.packages.amountCents)}
+            />
+            <ClosingFact label="Voucher redemptions" value={report.packages.redemptions} />
+          </dl>
+        </section>
+      </div>
+
+      <div className="daily-closing-columns daily-closing-lower">
+        <section className="daily-closing-section">
+          <div className="daily-closing-section-heading">
+            <div>
+              <h3>Alerts</h3>
+              <p>Deterministic checks based on today&apos;s records.</p>
+            </div>
+          </div>
+          <ul className="daily-closing-alerts">
+            {report.alerts.map((alert) => (
+              <li key={alert.message} className={alert.level}>
+                {alert.message}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="daily-closing-section daily-closing-preview">
+          <div className="daily-closing-section-heading">
+            <div>
+              <h3>WhatsApp Preview</h3>
+              <p>Fixed preview only. No message will be sent in this phase.</p>
+            </div>
+            <span className="status">Preview only</span>
+          </div>
+          <pre>{dailyClosing.preview}</pre>
+        </section>
+      </div>
+
+      <footer className="daily-closing-footer">
+        <span>
+          Generated {dailyClosing.generatedAtLabel} · {dailyClosing.businessName}
+        </span>
+        <span>
+          Scope: business + branch · {formatBusinessDate(dailyClosing.dateValue)} 00:00 to next
+          day 00:00
+        </span>
+      </footer>
+    </section>
+  );
+}
+
+function ClosingMetric({
+  label,
+  value,
+  emphasis = false,
+}: {
+  label: string;
+  value: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div className={emphasis ? "daily-closing-kpi emphasis" : "daily-closing-kpi"}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function ClosingFact({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function dailyPaymentMethodLabel(method: string) {
+  const labels: Record<string, string> = {
+    BANK_TRANSFER: "Bank",
+    CARD: "Card",
+    CASH: "Cash",
+    DUITNOW: "DuitNow",
+    EWALLET: "E-wallet",
+  };
+  return labels[method] ?? method;
 }

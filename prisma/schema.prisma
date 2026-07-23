@@ -24,6 +24,10 @@ enum BusinessIndustry {
   GENERAL_SERVICE
 }
 
+enum DailyClosingStatus {
+  CLOSED
+}
+
 enum UserRole {
   PLATFORM_ADMIN
   BUSINESS_OWNER
@@ -348,6 +352,7 @@ model Business {
   catalogDiscounts           CatalogDiscount[]
   staffRoleProfiles          StaffRoleProfile[]
   staffLevels                StaffLevel[]
+  dailyClosingSnapshots      DailyClosingSnapshot[]
 
   @@index([slug])
   @@index([industryType])
@@ -387,6 +392,7 @@ model Branch {
   employeeBranchAssignments EmployeeBranchAssignment[]
   employeeAttendances       EmployeeAttendance[]
   catalogDiscounts          CatalogDiscount[]
+  dailyClosingSnapshots     DailyClosingSnapshot[]
 
   @@unique([businessId, name])
   @@index([businessId])
@@ -432,6 +438,7 @@ model User {
   employeeAccount          EmployeeAccount?         @relation("EmployeeAccountLegacyUsers", fields: [employeeAccountId], references: [id], onDelete: SetNull)
   staffRoleProfile         StaffRoleProfile?        @relation(fields: [staffRoleProfileId], references: [id], onDelete: SetNull)
   staffLevel               StaffLevel?              @relation(fields: [staffLevelId], references: [id], onDelete: SetNull)
+  closedDailySnapshots     DailyClosingSnapshot[]  @relation("DailyClosingClosedBy")
 
   @@index([businessId])
   @@index([branchId])
@@ -1401,6 +1408,37 @@ model CashierShift {
   @@index([status])
   @@index([startedAt])
   @@map("cashier_shifts")
+}
+
+model DailyClosingSnapshot {
+  id                  String             @id @default(uuid()) @db.Uuid
+  businessId          String             @map("business_id") @db.Uuid
+  branchId            String             @map("branch_id") @db.Uuid
+  businessDate        DateTime           @map("business_date") @db.Date
+  timezone            String
+  businessType        BusinessIndustry   @map("business_type")
+  status              DailyClosingStatus @default(CLOSED)
+  closedAt            DateTime           @default(now()) @map("closed_at")
+  closedByUserId      String             @map("closed_by_user_id") @db.Uuid
+  expectedCashCents   Int                @map("expected_cash_cents")
+  actualCashCents     Int                @map("actual_cash_cents")
+  cashDifferenceCents Int                @map("cash_difference_cents")
+  closingNote         String?            @map("closing_note")
+  reportDataJson      Json               @map("report_data_json")
+  whatsappText        String             @map("whatsapp_text") @db.Text
+  reportVersion       Int                @default(1) @map("report_version")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  closedBy User     @relation("DailyClosingClosedBy", fields: [closedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, branchId, businessDate])
+  @@index([businessId, businessDate])
+  @@index([branchId, businessDate])
+  @@index([closedByUserId])
+  @@map("daily_closing_snapshots")
 }
 
 model Invoice {
