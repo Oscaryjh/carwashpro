@@ -668,6 +668,7 @@ function toCalendarItem(appointment: {
   contactType: string;
   customer: { name: string; phone: string };
   scheduledAt: Date;
+  startedAt: Date | null;
   durationMinutes: number;
   notes: string | null;
   service: { name: string } | null;
@@ -743,6 +744,7 @@ function toCalendarItem(appointment: {
     staffName: assignedStaffNames.get(appointment.id) ?? null,
     plateNumber: appointment.vehicle?.plateNumber ?? null,
     scheduledAt: appointment.scheduledAt.toISOString(),
+    startedAt: appointment.startedAt?.toISOString() ?? null,
     durationMinutes: appointment.durationMinutes,
     notes: appointment.notes,
     serviceName: formatAppointmentServices(appointment, serviceNameById),

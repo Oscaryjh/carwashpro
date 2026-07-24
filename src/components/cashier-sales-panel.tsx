@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { CashierSaleState } from "@/app/(business)/cashier/actions";
 import {
   CashierUnifiedSaleForm,
+  type CashierBranchOption,
   type CashierInitialSale,
   type CashierStaffOption,
 } from "@/components/cashier-unified-sale-form";
@@ -15,7 +16,9 @@ type CashierSalesPanelProps = {
   action: (formData: FormData) => Promise<CashierSaleState>;
   appointmentError?: string | null;
   branchId: string;
+  branches: CashierBranchOption[];
   catalogDiscounts: CatalogDiscountOption[];
+  hasOpenShift: boolean;
   initialCatalog: CashierCatalogResult;
   initialSale?: CashierInitialSale | null;
   staffOptions: CashierStaffOption[];
@@ -32,7 +35,9 @@ export function CashierSalesPanel({
   action,
   appointmentError = null,
   branchId,
+  branches,
   catalogDiscounts,
+  hasOpenShift,
   initialCatalog,
   initialSale = null,
   staffOptions,
@@ -45,7 +50,7 @@ export function CashierSalesPanel({
         <span aria-hidden="true" className="cashier-empty-icon">+</span>
         <div>
           <h3>No sale items yet</h3>
-          <p>Create an active service, product, or package before starting a sale.</p>
+          <p>Create an active product or package before starting a sale.</p>
           <div className="cashier-empty-actions">
             <Link className="button-link" href="/packages/new">Create package</Link>
             <Link className="button-link secondary" href="/products?type=create">Create product</Link>
@@ -60,7 +65,9 @@ export function CashierSalesPanel({
       action={action}
       appointmentError={appointmentError}
       branchId={branchId}
+      branches={branches}
       catalogDiscounts={catalogDiscounts}
+      hasOpenShift={hasOpenShift}
       initialCatalog={initialCatalog}
       initialSale={initialSale}
       staffOptions={staffOptions}

@@ -1169,7 +1169,7 @@ function getReportRange(value: string | undefined): Exclude<ReportRange, "custom
     return value;
   }
 
-  return "month";
+  return "today";
 }
 
 function getDefaultDateRange(range: Exclude<ReportRange, "custom">) {

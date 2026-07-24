@@ -18,33 +18,46 @@ export function BusinessTaxFields({
   const [sstEnabled, setSstEnabled] = useState(initialEnabled);
 
   return (
-    <div className="field-grid">
-      <label className="checkbox-row">
-        <input
-          checked={sstEnabled}
-          name="sstEnabled"
-          onChange={(event) => setSstEnabled(event.target.checked)}
-          type="checkbox"
-        />
-        <span>Enable SST</span>
+    <div className="business-tax-fields">
+      <label className="business-tax-status-field">
+        <span>Tax status</span>
+        <span className="business-tax-toggle">
+          <span className="business-tax-toggle-copy">
+            {sstEnabled ? "SST enabled" : "Enable SST"}
+          </span>
+          <input
+            checked={sstEnabled}
+            name="sstEnabled"
+            onChange={(event) => setSstEnabled(event.target.checked)}
+            type="checkbox"
+          />
+          <span aria-hidden="true" className="business-tax-switch" />
+        </span>
       </label>
       <label>
         <span>Tax label</span>
-        <input name="sstLabel" defaultValue={initialLabel} />
+        <input
+          aria-required={sstEnabled}
+          name="sstLabel"
+          defaultValue={initialLabel}
+          required={sstEnabled}
+        />
       </label>
       <label>
         <span>Tax rate (%)</span>
         <input
+          aria-required={sstEnabled}
           defaultValue={initialRate}
           max="100"
           min="0"
           name="sstRate"
+          required={sstEnabled}
           step="0.01"
           type="number"
         />
       </label>
       <label>
-        <span>SST registration no.{sstEnabled ? "" : " optional"}</span>
+        <span>SST registration no.{sstEnabled ? " *" : " optional"}</span>
         <input
           aria-required={sstEnabled}
           defaultValue={initialRegistrationNo}

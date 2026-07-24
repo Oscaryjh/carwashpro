@@ -146,8 +146,8 @@ export async function AppShell({ user, children }: AppShellProps) {
       ? [
           {
             href: "/team",
-            label: "Team & Permissions",
-            shortLabel: "Team & Permissions",
+            label: "Team",
+            shortLabel: "Team",
             icon: "team" as const,
           },
         ]
@@ -155,7 +155,7 @@ export async function AppShell({ user, children }: AppShellProps) {
     ...(isStoreUser && canSee("REPORTS")
       ? [
           {
-            href: "/reports",
+            href: "/reports?range=today",
             label: "Reports",
             shortLabel: "Rpt",
             icon: "reports" as const,

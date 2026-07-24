@@ -22,6 +22,22 @@ const contactType = z.preprocess(
   z.enum(["REGISTERED_OWNER", "OTHER_PERSON"]),
 );
 
+export const WALK_IN_WINDOW_MINUTES = 30;
+export type AppointmentVisitType = "BOOKING" | "WALK_IN";
+
+const appointmentVisitType = z.preprocess(
+  (value) => (value === null || value === "" ? undefined : value),
+  z.enum(["BOOKING", "WALK_IN"]).optional(),
+);
+
+export function getDefaultAppointmentVisitType(
+  scheduledAt: Date,
+  now = new Date(),
+): AppointmentVisitType {
+  const differenceMinutes = Math.abs(scheduledAt.getTime() - now.getTime()) / 60_000;
+  return differenceMinutes <= WALK_IN_WINDOW_MINUTES ? "WALK_IN" : "BOOKING";
+}
+
 function isPhoneLike(value: string) {
   return /^[0-9]{7,20}$/.test(value.trim().replace(/[^\d]/g, ""));
 }
@@ -41,6 +57,7 @@ export const createAppointmentSchema = z
     packageIds: z.array(z.string().uuid("Package is invalid.")).max(100).default([]),
     scheduledDate: z.string().trim().min(1, "Date is required."),
     scheduledTime: z.string().trim().min(1, "Time is required."),
+    visitType: appointmentVisitType,
     notes: optionalText,
   })
   .superRefine((input, context) => {

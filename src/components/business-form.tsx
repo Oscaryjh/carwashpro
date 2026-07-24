@@ -15,6 +15,7 @@ type BusinessFormProps = {
   mode: "create" | "edit";
   canEditStatus?: boolean;
   showOwnerFields?: boolean;
+  settingsLayout?: boolean;
   formError?: string;
   fieldErrors?: Record<string, string | undefined>;
 };
@@ -25,10 +26,149 @@ export function BusinessForm({
   mode,
   canEditStatus = false,
   showOwnerFields = false,
+  settingsLayout = false,
   formError,
   fieldErrors = {},
 }: BusinessFormProps) {
   const status = business?.status ?? "active";
+
+  if (settingsLayout && mode === "edit" && business) {
+    return (
+      <form action={action} className="company-settings-form">
+        <input type="hidden" name="businessId" value={business.id} />
+        <input type="hidden" name="slug" value={business.slug} />
+        <input type="hidden" name="status" value={status} />
+
+        {formError ? (
+          <p className="form-error" role="alert" aria-live="polite">
+            {formError}
+          </p>
+        ) : null}
+
+        <header className="company-settings-hero">
+          <div className="company-settings-hero-topline">
+            <div>
+              <span className="company-settings-eyebrow">Company settings</span>
+              <h1>Branding &amp; profile</h1>
+            </div>
+            <div className="company-settings-save">
+              <BusinessSubmitButton idleLabel="Save changes" />
+            </div>
+          </div>
+
+          <div className="company-settings-identity">
+            <BusinessLogoUpload
+              businessName={business.name}
+              currentLogoUrl={business.logoUrl}
+              variant="hero"
+            />
+            <div>
+              <h2>{business.name}</h2>
+              <p>
+                {getBusinessIndustryLabel(business.industryType)}
+                <span aria-hidden="true"> · </span>
+                {formatStatus(status)}
+              </p>
+            </div>
+          </div>
+        </header>
+
+        <nav className="company-settings-tabs" aria-label="Company settings sections">
+          <a href="#company-profile">Company profile</a>
+          <a href="#company-tax">Tax &amp; invoice</a>
+        </nav>
+
+        <section className="company-settings-sheet" id="company-profile">
+          <div className="company-settings-section-heading">
+            <div>
+              <span className="company-settings-eyebrow">Company</span>
+              <h2>Business details</h2>
+            </div>
+            <p>Information used across invoices, receipts and customer records.</p>
+          </div>
+
+          <div className="company-settings-field-grid">
+            <label>
+              <span>Company name</span>
+              <input
+                name="name"
+                defaultValue={business.name}
+                required
+                aria-invalid={Boolean(fieldErrors.name)}
+                aria-describedby={fieldErrors.name ? "business-name-error" : undefined}
+              />
+              <FieldError id="business-name-error" message={fieldErrors.name} />
+            </label>
+            <label>
+              <span>Company registration no.</span>
+              <input
+                name="companyNo"
+                defaultValue={business.companyNo ?? ""}
+                placeholder="Optional"
+              />
+            </label>
+            <label>
+              <span>Phone</span>
+              <input
+                name="phone"
+                defaultValue={business.phone ?? ""}
+                placeholder="Optional"
+              />
+            </label>
+            <label>
+              <span>Email</span>
+              <input
+                name="email"
+                type="email"
+                defaultValue={business.email ?? ""}
+                placeholder="Optional"
+              />
+            </label>
+            <label>
+              <span>Industry</span>
+              <input
+                value={getBusinessIndustryLabel(business.industryType)}
+                disabled
+              />
+            </label>
+            <label>
+              <span>Company URL</span>
+              <input value={business.slug} disabled />
+            </label>
+            <label className="company-settings-address-field">
+              <span>Address</span>
+              <textarea
+                name="address"
+                defaultValue={business.address ?? ""}
+                rows={3}
+                placeholder="Company or head office address"
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="company-settings-sheet" id="company-tax">
+          <div className="company-settings-section-heading">
+            <div>
+              <span className="company-settings-eyebrow">Tax &amp; invoice</span>
+              <h2>Tax settings</h2>
+            </div>
+            <p>Applied to every industry and active branch in this company.</p>
+          </div>
+          <BusinessTaxFields
+            initialEnabled={business.sstEnabled}
+            initialLabel={business.sstLabel ?? "SST"}
+            initialRate={business.sstRate?.toString() ?? "0"}
+            initialRegistrationNo={business.sstRegistrationNo ?? ""}
+          />
+        </section>
+
+        <div className="company-settings-bottom-save">
+          <BusinessSubmitButton idleLabel="Save changes" />
+        </div>
+      </form>
+    );
+  }
 
   return (
     <form action={action} className="form">

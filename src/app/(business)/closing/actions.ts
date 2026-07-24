@@ -29,6 +29,7 @@ import { fromCents, toCents } from "@/lib/validation/pos";
 const startShiftSchema = z.object({
   branchId: z.string().optional(),
   openingFloat: z.coerce.number().min(0, "Opening float cannot be negative."),
+  returnTo: z.string().optional(),
 });
 
 const endShiftSchema = z.object({
@@ -75,7 +76,9 @@ export async function startShiftAction(formData: FormData) {
   const input = startShiftSchema.parse({
     branchId: formData.get("branchId")?.toString(),
     openingFloat: formData.get("openingFloat"),
+    returnTo: formData.get("returnTo")?.toString(),
   });
+  const returnTo = normalizeCashierReturnTo(input.returnTo);
   const branchId = await resolveOperationalBranchId(
     businessId,
     user,
@@ -93,9 +96,11 @@ export async function startShiftAction(formData: FormData) {
 
   if (existingOpenShift) {
     redirect(
-      `/closing?type=error&message=${encodeURIComponent(
-        "You already have an open shift.",
-      )}`,
+      returnTo
+        ? withStatusMessage(returnTo, "error", "You already have an open shift.")
+        : `/closing?type=error&message=${encodeURIComponent(
+            "You already have an open shift.",
+          )}`,
     );
   }
 
@@ -132,8 +137,32 @@ export async function startShiftAction(formData: FormData) {
 
   revalidatePath("/closing");
   redirect(
-    `/closing?type=success&message=${encodeURIComponent("Shift started.")}`,
+    returnTo
+      ? withStatusMessage(returnTo, "success", "Shift started.")
+      : `/closing?type=success&message=${encodeURIComponent("Shift started.")}`,
   );
+}
+
+function normalizeCashierReturnTo(value: string | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value, "http://localhost");
+    if (url.origin !== "http://localhost" || url.pathname !== "/cashier") return null;
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return null;
+  }
+}
+
+function withStatusMessage(
+  returnTo: string,
+  type: "error" | "success",
+  message: string,
+) {
+  const url = new URL(returnTo, "http://localhost");
+  url.searchParams.set("type", type);
+  url.searchParams.set("message", message);
+  return `${url.pathname}${url.search}`;
 }
 
 export async function endShiftAction(formData: FormData) {

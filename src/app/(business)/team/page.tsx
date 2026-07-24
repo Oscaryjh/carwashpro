@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { CatalogFormModal } from "@/components/catalog-form-modal";
 import { PermissionChecklist } from "@/components/staff-form";
-import { StaffCreateModal } from "@/components/staff-create-modal";
+import { StaffCreateModal, StaffEditModal } from "@/components/staff-create-modal";
+import { StaffAvailabilityForm } from "@/components/staff-availability-form";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import {
   createStaffAction,
+  updateStaffAction,
   updateOwnerAppointmentAvailabilityAction,
 } from "./actions";
 import {
@@ -20,7 +22,7 @@ const teamSections = [
   { key: "staff", label: "Staff", description: "People & access" },
   { key: "schedule", label: "Schedule", description: "Hours & services" },
   { key: "attendance", label: "Attendance", description: "Clock records" },
-  { key: "roles", label: "Roles & Permissions", description: "Access & commission" },
+  { key: "roles", label: "Roles & Permissions", description: "Access roles" },
   { key: "activity", label: "Activity", description: "Changes & logs" },
 ] as const;
 
@@ -34,6 +36,7 @@ type TeamPageProps = {
     q?: string;
     roleId?: string;
     section?: string;
+    staffId?: string;
     type?: string;
   }>;
 };
@@ -48,6 +51,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
     : "staff";
   const query = params.q?.trim() ?? "";
   const now = new Date();
+  const attendanceModalOpen = params.modal === "attendance";
 
   const [staff, owners, branches, roleProfiles, staffLevels, recentActivity, attendance] =
     await Promise.all([
@@ -129,7 +133,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           branch: { select: { name: true } },
         },
         orderBy: { clockInAt: "desc" },
-        take: 10,
+        take: attendanceModalOpen ? 100 : 10,
       }),
     ]);
 
@@ -141,6 +145,26 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
     : undefined;
   const roleModalOpen = params.modal === "role";
   const levelModalOpen = params.modal === "level";
+  const editingStaff = params.staffId
+    ? staff.find((member) => member.id === params.staffId)
+    : undefined;
+  const scheduleModalOpen = params.modal === "schedule" && Boolean(editingStaff);
+  const scheduleDetails = scheduleModalOpen && editingStaff
+    ? await Promise.all([
+        prisma.staffAvailability.findMany({
+          where: { businessId, userId: editingStaff.id },
+          orderBy: { dayOfWeek: "asc" },
+        }),
+        prisma.staffBreak.findMany({
+          where: { businessId, userId: editingStaff.id },
+          orderBy: { dayOfWeek: "asc" },
+        }),
+        prisma.staffTimeOff.findMany({
+          where: { businessId, userId: editingStaff.id, endsAt: { gte: now } },
+          orderBy: { startsAt: "asc" },
+        }),
+      ])
+    : null;
   const messageType = params.type === "error" ? "error" : "success";
 
   return (
@@ -210,6 +234,94 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           industryType={industryType}
         />
       ) : null}
+      {params.modal === "edit" && editingStaff ? (
+        <StaffEditModal
+          action={updateStaffAction}
+          assignedBranchIds={assignedBranchIds(editingStaff)}
+          branches={branches}
+          industryType={industryType}
+          staff={editingStaff}
+        />
+      ) : null}
+      {scheduleDetails && editingStaff ? (
+        <CatalogFormModal
+          ariaLabel={`Manage schedule for ${editingStaff.name}`}
+          closePath="/team?section=schedule"
+          eyebrow="SCHEDULE"
+          modalClassName="team-schedule-modal"
+          title="Availability & time off"
+          wide
+        >
+          <div className="team-schedule-modal-summary">
+            <span className="team-avatar">{initials(editingStaff.name)}</span>
+            <span>
+              <strong>{editingStaff.name}</strong>
+              <small>{branchNames(editingStaff)}</small>
+            </span>
+          </div>
+          <StaffAvailabilityForm
+            availability={scheduleDetails[0]}
+            breaks={scheduleDetails[1]}
+            returnTo="/team?section=schedule"
+            staffId={editingStaff.id}
+            timeOff={scheduleDetails[2]}
+          />
+        </CatalogFormModal>
+      ) : null}
+      {attendanceModalOpen ? (
+        <CatalogFormModal
+          ariaLabel="View all attendance records"
+          closePath="/team?section=attendance"
+          eyebrow="ATTENDANCE"
+          modalClassName="team-attendance-modal"
+          showMark={false}
+          title="Clock activity"
+          wide
+        >
+          <div className="team-attendance-modal-summary">
+            <span>
+              <small>Records</small>
+              <strong>{attendance.length}</strong>
+            </span>
+            <span>
+              <small>Clocked in</small>
+              <strong>{attendance.filter((entry) => entry.status === "OPEN").length}</strong>
+            </span>
+            <span>
+              <small>Clocked out</small>
+              <strong>{attendance.filter((entry) => entry.status === "CLOSED").length}</strong>
+            </span>
+          </div>
+          <div className="team-attendance-modal-list">
+            {attendance.length ? attendance.map((entry) => (
+              <article key={entry.id}>
+                <span className="team-avatar">{initials(entry.employeeAccount.name)}</span>
+                <span className="team-attendance-person">
+                  <strong>{entry.employeeAccount.name}</strong>
+                  <small>{entry.branch.name} - {entry.employeeAccount.phoneNormalized}</small>
+                </span>
+                <span>
+                  <small>Clock in</small>
+                  <strong>{formatDateTime(entry.clockInAt)}</strong>
+                </span>
+                <span>
+                  <small>Clock out</small>
+                  <strong>{entry.clockOutAt ? formatDateTime(entry.clockOutAt) : "Still working"}</strong>
+                </span>
+                <span>
+                  <small>Duration</small>
+                  <strong>{formatAttendanceDuration(entry.clockInAt, entry.clockOutAt)}</strong>
+                </span>
+                <span className={entry.status === "OPEN" ? "status" : "status status-neutral"}>
+                  {entry.status === "OPEN" ? "Clocked in" : "Clocked out"}
+                </span>
+              </article>
+            )) : (
+              <div className="empty-state">No attendance records yet.</div>
+            )}
+          </div>
+        </CatalogFormModal>
+      ) : null}
       {roleModalOpen ? (
         <CatalogFormModal
           ariaLabel={editingRole ? "Edit role profile" : "New role profile"}
@@ -221,24 +333,36 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         >
           <form action={saveStaffRoleProfileAction} className="form team-role-form">
             <input name="id" type="hidden" value={editingRole?.id ?? ""} />
-            <div className="team-config-heading-grid">
-              <label>
-                <span>Role name</span>
-                <input defaultValue={editingRole?.name ?? ""} name="name" required />
-              </label>
-              <label className="team-active-toggle">
-                <span>
-                  <strong>Active role</strong>
-                  <small>Available when assigning staff.</small>
-                </span>
-                <input defaultChecked={editingRole?.active ?? true} name="active" type="checkbox" />
-              </label>
-            </div>
-            <PermissionChecklist
-              defaultPermissions={editingRole?.permissions ?? []}
-              industryType={industryType}
-              title="Page permissions"
-            />
+            <section className="team-role-form-section">
+              <header className="team-role-form-heading">
+                <div>
+                  <h3>Role details</h3>
+                  <p>Name the role and control whether it can be assigned to staff.</p>
+                </div>
+              </header>
+              <div className="team-config-heading-grid">
+                <label>
+                  <span>Role name</span>
+                  <input defaultValue={editingRole?.name ?? ""} name="name" required />
+                </label>
+                <label className="team-active-field">
+                  <span>Active role</span>
+                  <span className="team-active-toggle">
+                    <small>Available when assigning staff.</small>
+                    <input defaultChecked={editingRole?.active ?? true} name="active" type="checkbox" />
+                    <span aria-hidden="true" className="team-active-switch" />
+                  </span>
+                </label>
+              </div>
+            </section>
+            <section className="team-role-form-section">
+              <PermissionChecklist
+                defaultPermissions={editingRole?.permissions ?? []}
+                description="These permissions apply to every staff member assigned to this role."
+                industryType={industryType}
+                title="Access permissions"
+              />
+            </section>
             <div className="form-actions">
               <button type="submit">Save role</button>
             </div>
@@ -261,12 +385,13 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
                 <span>Level name</span>
                 <input defaultValue={editingLevel?.name ?? ""} name="name" required />
               </label>
-              <label className="team-active-toggle">
-                <span>
-                  <strong>Active level</strong>
+              <label className="team-active-field">
+                <span>Active level</span>
+                <span className="team-active-toggle">
                   <small>Available when assigning staff.</small>
+                  <input defaultChecked={editingLevel?.active ?? true} name="active" type="checkbox" />
+                  <span aria-hidden="true" className="team-active-switch" />
                 </span>
-                <input defaultChecked={editingLevel?.active ?? true} name="active" type="checkbox" />
               </label>
             </div>
             <div className="team-level-rules">
@@ -367,7 +492,7 @@ function StaffSection({
               <label>
                 <span>Role</span>
                 <select defaultValue={member.staffRoleProfileId ?? ""} name="staffRoleProfileId">
-                  <option value="">Custom permissions</option>
+                  <option value="">Advanced override (custom)</option>
                   {roleProfiles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
                 </select>
               </label>
@@ -380,7 +505,14 @@ function StaffSection({
               </label>
               <button className="secondary-light-button" type="submit">Apply</button>
             </form>
-            <Link className="secondary-light-button" href={`/team/${member.id}`}>Edit</Link>
+            <Link
+              aria-label={`Edit ${member.name}`}
+              className="secondary-light-button team-row-action"
+              href={`/team?section=staff&modal=edit&staffId=${member.id}`}
+            >
+              <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
+              <span>Edit</span>
+            </Link>
           </article>
         )) : (
           <div className="empty-state">{query ? "No staff match this search." : branchesAvailable ? "No staff yet." : "Add an active branch first."}</div>
@@ -395,6 +527,7 @@ function ScheduleSection({ owners, staff }: { owners: OwnerRow[]; staff: StaffRo
     <section className="team-section-panel">
       <div className="team-section-toolbar">
         <div><p className="eyebrow">SCHEDULE</p><h2>Availability & services</h2></div>
+        <span className="status">{staff.length} staff</span>
       </div>
       {owners.length ? (
         <div className="team-owner-availability">
@@ -420,7 +553,12 @@ function ScheduleSection({ owners, staff }: { owners: OwnerRow[]; staff: StaffRo
               <span><strong>{member.serviceStaffAssignments.length}</strong><small>services</small></span>
               <span><strong>{member.staffTimeOff.length}</strong><small>upcoming leave</small></span>
             </div>
-            <Link className="secondary-light-button" href={`/team/${member.id}`}>Manage schedule</Link>
+            <Link
+              className="secondary-light-button team-row-action"
+              href={`/team?section=schedule&modal=schedule&staffId=${member.id}`}
+            >
+              Manage
+            </Link>
           </article>
         ))}
       </div>
@@ -433,7 +571,7 @@ function AttendanceSection({ attendance }: { attendance: AttendanceRow[] }) {
     <section className="team-section-panel">
       <div className="team-section-toolbar">
         <div><p className="eyebrow">ATTENDANCE</p><h2>Recent clock activity</h2></div>
-        <Link className="button-link" href="/team/attendance">Open attendance</Link>
+        <Link className="button-link" href="/team?section=attendance&modal=attendance">View all</Link>
       </div>
       <div className="team-activity-table" role="table">
         {attendance.length ? attendance.map((entry) => (
@@ -452,7 +590,7 @@ function AttendanceSection({ attendance }: { attendance: AttendanceRow[] }) {
 function RolesSection({ roleProfiles, staffLevels }: { roleProfiles: RoleRow[]; staffLevels: LevelRow[] }) {
   return (
     <section className="team-section-panel team-roles-section">
-      <div className="team-section-toolbar"><div><p className="eyebrow">ROLES & PERMISSIONS</p><h2>Access roles</h2></div><Link className="button-link" href="/team?section=roles&modal=role">New role</Link></div>
+      <div className="team-section-toolbar"><div><p className="eyebrow">TEAM ACCESS</p><h2>Roles & Permissions</h2></div><Link className="button-link" href="/team?section=roles&modal=role">New role</Link></div>
       <div className="team-config-list">
         {roleProfiles.length ? roleProfiles.map((role) => (
           <article key={role.id}>
@@ -466,7 +604,7 @@ function RolesSection({ roleProfiles, staffLevels }: { roleProfiles: RoleRow[]; 
 
       <div className="team-section-toolbar team-level-heading"><div><p className="eyebrow">STAFF LEVELS</p><h2>Commission presets</h2></div><Link className="button-link" href="/team?section=roles&modal=level">New level</Link></div>
       <div className="team-level-list">
-        <div className="team-level-list-head"><span>Level</span><span>Service</span><span>Product</span><span>Package</span><span>Assigned</span><span /></div>
+        <div className="team-level-list-head"><span>Level</span><span>Service</span><span>Product</span><span>Package</span><span>Assigned</span><span>Actions</span></div>
         {staffLevels.length ? staffLevels.map((level) => (
           <article key={level.id}>
             <span><strong>{level.name}</strong><small>{level.active ? "Active" : "Inactive"}</small></span>
@@ -474,7 +612,14 @@ function RolesSection({ roleProfiles, staffLevels }: { roleProfiles: RoleRow[]; 
             <span>{commissionLabel(level.productFixedAmount, level.productPercent)}</span>
             <span>{commissionLabel(level.packageFixedAmount, level.packagePercent)}</span>
             <span>{level._count.users} staff</span>
-            <Link className="secondary-light-button" href={`/team?section=roles&modal=level&levelId=${level.id}`}>Edit</Link>
+            <Link
+              aria-label={`Edit ${level.name} level`}
+              className="secondary-light-button team-row-action team-level-action"
+              href={`/team?section=roles&modal=level&levelId=${level.id}`}
+            >
+              <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
+              <span>Edit</span>
+            </Link>
           </article>
         )) : <div className="empty-state">No staff levels yet.</div>}
       </div>
@@ -581,6 +726,16 @@ function branchNames(member: StaffRow) {
   return names.length ? names.join(", ") : "No branch";
 }
 
+function assignedBranchIds(member: {
+  branchId: string | null;
+  employeeAccount: StaffRow["employeeAccount"];
+}) {
+  const assigned = member.employeeAccount?.memberships.flatMap((membership) =>
+    membership.branchAssignments.map((assignment) => assignment.branch.id),
+  ) ?? [];
+  return Array.from(new Set(assigned.length ? assigned : member.branchId ? [member.branchId] : []));
+}
+
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "S";
 }
@@ -606,6 +761,14 @@ function formatDateTime(value: Date) {
     timeZone: "Asia/Kuala_Lumpur", day: "2-digit", month: "short", year: "numeric",
     hour: "numeric", minute: "2-digit",
   }).format(value);
+}
+
+function formatAttendanceDuration(clockInAt: Date, clockOutAt: Date | null) {
+  const end = clockOutAt ?? new Date();
+  const minutes = Math.max(0, Math.floor((end.getTime() - clockInAt.getTime()) / 60_000));
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return hours ? `${hours}h ${remainingMinutes}m` : `${remainingMinutes}m`;
 }
 
 function humanizeAction(action: string) {

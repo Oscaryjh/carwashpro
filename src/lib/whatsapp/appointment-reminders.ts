@@ -84,6 +84,15 @@ export async function scheduleAppointmentReminder({
     return { status: "NOT_FOUND" as const };
   }
 
+  if (appointment.startedAt) {
+    await cancelAppointmentReminder({
+      appointmentId,
+      businessId,
+      reason: "Walk-in appointments do not receive reminders.",
+    });
+    return { status: "WALK_IN" as const };
+  }
+
   const reminderSetting = await prisma.appointmentReminderSetting.findUnique({
     where: { businessId },
     select: { enabled: true, leadTimeMinutes: true },

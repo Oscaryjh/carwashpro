@@ -3,7 +3,6 @@ import { assertRole } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 import { requireBusinessContext } from "@/lib/tenant";
 import { updateBusinessAction } from "@/app/admin/businesses/actions";
-import { saveAppointmentReminderSettingsAction } from "./actions";
 import Link from "next/link";
 import { saveBusinessVehicleSizeOverrideAction, removeBusinessVehicleSizeOverrideAction } from "./vehicle-size-actions";
 
@@ -29,10 +28,6 @@ export default async function BusinessSettingsPage({
     orderBy: [{ brand: "asc" }, { model: "asc" }],
   });
 
-  const appointmentReminderSetting = await prisma.appointmentReminderSetting.findUnique({
-    where: { businessId: context.businessId },
-  });
-
   if (!business) {
     return (
       <>
@@ -47,30 +42,28 @@ export default async function BusinessSettingsPage({
 
   return (
     <>
-      <section className="content">
-        <div className="page-header">
-          <div>
-            <h1>Company settings</h1>
-            <p>Manage your company profile.</p>
-          </div>
-          <div className="inline-actions">
-            <Link className="secondary-link-button" href="/business/settings/logs">
-              Staff logs
-            </Link>
-          </div>
+      <section className="content company-settings-page">
+        <div className="company-settings-page-actions">
+          <Link className="secondary-link-button" href="/business/settings/logs">
+            Staff logs
+          </Link>
         </div>
 
-        <div className="panel">
-          <BusinessForm
-            action={updateBusinessAction}
-            mode="edit"
-            business={business}
-          />
-        </div>
+        <BusinessForm
+          action={updateBusinessAction}
+          mode="edit"
+          business={business}
+          settingsLayout
+        />
         {business.industryType === "AUTO_DETAILING" ? (
-          <div className="panel">
-            <h2>Vehicle size rules</h2>
-            <p className="muted">Override the platform default for this business only.</p>
+          <div className="company-settings-sheet company-settings-secondary-section" id="vehicle-rules">
+            <div className="company-settings-section-heading">
+              <div>
+                <span className="company-settings-eyebrow">Auto detailing</span>
+                <h2>Vehicle size rules</h2>
+              </div>
+              <p>Override the platform default for this business only.</p>
+            </div>
             <form action={saveBusinessVehicleSizeOverrideAction} className="form-grid">
               <label>Brand<input name="brand" placeholder="Toyota" required /></label>
               <label>Model<input name="model" placeholder="Vios" required /></label>
@@ -80,43 +73,6 @@ export default async function BusinessSettingsPage({
             {sizeOverrides.length ? <table className="table"><thead><tr><th>Brand</th><th>Model</th><th>Size</th><th /></tr></thead><tbody>{sizeOverrides.map((item) => <tr key={item.id}><td>{item.brand}</td><td>{item.model}</td><td>{item.size}</td><td><form action={removeBusinessVehicleSizeOverrideAction}><input type="hidden" name="id" value={item.id} /><button className="secondary-button" type="submit">Remove</button></form></td></tr>)}</tbody></table> : <p className="empty-state">No business overrides yet.</p>}
           </div>
         ) : null}
-        <div className="panel">
-          <div className="section-heading">
-            <div>
-              <h2>Appointment reminders</h2>
-              <p className="muted">Send WhatsApp reminders automatically before scheduled appointments.</p>
-            </div>
-            <Link className="secondary-link-button" href="/whatsapp/queue">View send logs</Link>
-          </div>
-          <form action={saveAppointmentReminderSettingsAction} className="form-grid appointment-reminder-settings">
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                name="enabled"
-                defaultChecked={appointmentReminderSetting?.enabled ?? true}
-              />
-              <span>
-                Send appointment reminders
-                <small>Customers receive a WhatsApp reminder before their appointment.</small>
-              </span>
-            </label>
-            <label>
-              Send reminder
-              <select
-                name="leadTimeMinutes"
-                defaultValue={String(appointmentReminderSetting?.leadTimeMinutes ?? 1440)}
-              >
-                <option value="15">15 minutes before</option>
-                <option value="60">1 hour before</option>
-                <option value="120">2 hours before</option>
-                <option value="1440">24 hours before</option>
-                <option value="2880">48 hours before</option>
-              </select>
-            </label>
-            <p className="form-help">Failed reminders are retried automatically. Check the send logs to view their delivery status.</p>
-            <button className="primary-button" type="submit">Save settings</button>
-          </form>
-        </div>
       </section>
     </>
   );

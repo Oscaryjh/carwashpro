@@ -191,12 +191,26 @@ export function StaffForm({
             and activity history.
           </p>
         ) : null}
-        <PermissionChecklist
-          defaultPermissions={accessType === "LOGIN" ? selectedPermissions : []}
-          disabled={accessType === "NO_LOGIN"}
-          industryType={industryType}
-          title="Access permissions"
-        />
+        {accessType === "LOGIN" ? (
+          <details className="staff-permission-override">
+            <summary>
+              <span>
+                <strong>Advanced permission override</strong>
+                <small>Use only when this employee needs access different from an assigned role.</small>
+              </span>
+              <span className="staff-permission-override-action">Configure</span>
+            </summary>
+            <PermissionChecklist
+              defaultPermissions={selectedPermissions}
+              industryType={industryType}
+            />
+          </details>
+        ) : (
+          <div className="staff-record-access-note">
+            <strong>No system permissions</strong>
+            <span>This employee remains available for appointments and staff records.</span>
+          </div>
+        )}
       </fieldset>
       <div className="form-actions">
         <button type="submit" disabled={!branches.length}>
@@ -209,11 +223,13 @@ export function StaffForm({
 
 export function PermissionChecklist({
   defaultPermissions,
+  description,
   disabled = false,
   industryType,
   title,
 }: {
   defaultPermissions: string[];
+  description?: string;
   disabled?: boolean;
   industryType?: string;
   title?: string;
@@ -223,6 +239,7 @@ export function PermissionChecklist({
   return (
     <div className={`permission-section${disabled ? " disabled" : ""}`}>
       {title ? <h3>{title}</h3> : null}
+      {description ? <p className="permission-section-description">{description}</p> : null}
       {disabled ? (
         <p className="form-hint">No permissions are needed for a staff record without login.</p>
       ) : null}

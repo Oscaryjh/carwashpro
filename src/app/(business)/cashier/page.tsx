@@ -290,6 +290,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
           action={completeCashierSaleAction}
           appointmentError={appointmentError}
           branchId={cashierBranchId}
+          branches={branches}
           catalogDiscounts={catalogDiscounts.map((discount) => ({
             id: discount.id,
             name: discount.name,
@@ -301,6 +302,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
             maximumDiscount: discount.maximumDiscount == null ? null : Number(discount.maximumDiscount),
             allowLoyaltyStacking: discount.allowLoyaltyStacking,
           }))}
+          hasOpenShift={Boolean(openShift)}
           initialCatalog={initialCatalog}
           initialSale={initialSale}
           staffOptions={staffOptions}

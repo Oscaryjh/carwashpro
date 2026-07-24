@@ -27,11 +27,13 @@ export function StaffAvailabilityForm({
   staffId,
   availability,
   breaks,
+  returnTo,
   timeOff,
 }: {
   staffId: string;
   availability: StaffAvailability[];
   breaks: StaffBreak[];
+  returnTo?: string;
   timeOff: StaffTimeOff[];
 }) {
   const availabilityByDay = new Map(availability.map((slot) => [slot.dayOfWeek, slot]));
@@ -48,6 +50,7 @@ export function StaffAvailabilityForm({
         </div>
         <form className="form" action={saveStaffScheduleAction}>
           <input type="hidden" name="userId" value={staffId} />
+          {returnTo ? <input name="returnTo" type="hidden" value={returnTo} /> : null}
           <div className="staff-schedule-grid">
             {DAYS.map(([dayOfWeek, label]) => {
               const slot = availabilityByDay.get(dayOfWeek);
@@ -113,6 +116,7 @@ export function StaffAvailabilityForm({
         </div>
         <form className="form" action={addStaffTimeOffAction}>
           <input type="hidden" name="userId" value={staffId} />
+          {returnTo ? <input name="returnTo" type="hidden" value={returnTo} /> : null}
           <div className="field-grid">
             <label>
               <span>Starts</span>
@@ -143,6 +147,7 @@ export function StaffAvailabilityForm({
                 <form action={deleteStaffTimeOffAction}>
                   <input type="hidden" name="userId" value={staffId} />
                   <input type="hidden" name="timeOffId" value={entry.id} />
+                  {returnTo ? <input name="returnTo" type="hidden" value={returnTo} /> : null}
                   <button className="secondary-light-button" type="submit">Remove</button>
                 </form>
               </div>

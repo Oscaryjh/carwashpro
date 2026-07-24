@@ -33,6 +33,7 @@ import {
   createAppointmentSchema,
   addAppointmentServicesSchema,
   formatAppointmentStatus,
+  getDefaultAppointmentVisitType,
   normalizeSalonAppointmentStatus,
 } from "../../src/lib/validation/appointments";
 
@@ -43,12 +44,13 @@ test("payment does not participate in the job status transition rules", () => {
   assert.equal(canMoveWorkOrderStatus("COMPLETED", "CANCELLED"), false);
 });
 
-test("cashier sale allows anonymous products but requires a customer for services and packages", () => {
+test("cashier sale allows products and packages while services require an appointment", () => {
   const productId = "11111111-1111-4111-8111-111111111111";
   const packageId = "22222222-2222-4222-8222-222222222222";
   const customerId = "33333333-3333-4333-8333-333333333333";
   const serviceId = "44444444-4444-4444-8444-444444444444";
   const staffId = "55555555-5555-4555-8555-555555555555";
+  const appointmentId = "66666666-6666-4666-8666-666666666666";
 
   assert.equal(
     cashierSaleSchema.safeParse({
@@ -130,6 +132,22 @@ test("cashier sale allows anonymous products but requires a customer for service
       serviceIds: [serviceId],
       serviceQuantities: [1],
     }).success,
+    false,
+  );
+  assert.equal(
+    cashierSaleSchema.safeParse({
+      appointmentId,
+      assignedStaffId: staffId,
+      branchId: "",
+      customerId,
+      method: "CASH",
+      packageIds: [],
+      packageQuantities: [],
+      productIds: [],
+      productQuantities: [],
+      serviceIds: [serviceId],
+      serviceQuantities: [1],
+    }).success,
     true,
   );
 });
@@ -140,6 +158,7 @@ test("cashier sale requires a customer before redeeming an existing package", ()
   const customerPackageBalanceId = "33333333-3333-4333-8333-333333333333";
   const staffId = "44444444-4444-4444-8444-444444444444";
   const baseSale = {
+    appointmentId: "55555555-5555-4555-8555-555555555555",
     assignedStaffId: staffId,
     branchId: "",
     method: "CASH" as const,
@@ -159,6 +178,23 @@ test("cashier sale requires a customer before redeeming an existing package", ()
   assert.equal(
     cashierSaleSchema.safeParse({ ...baseSale, customerId }).success,
     true,
+  );
+});
+
+test("appointments within 30 minutes default to walk-in", () => {
+  const now = new Date("2026-07-22T15:00:00.000Z");
+
+  assert.equal(
+    getDefaultAppointmentVisitType(new Date("2026-07-22T15:30:00.000Z"), now),
+    "WALK_IN",
+  );
+  assert.equal(
+    getDefaultAppointmentVisitType(new Date("2026-07-22T14:40:00.000Z"), now),
+    "WALK_IN",
+  );
+  assert.equal(
+    getDefaultAppointmentVisitType(new Date("2026-07-22T15:31:00.000Z"), now),
+    "BOOKING",
   );
 });
 

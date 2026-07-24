@@ -10,11 +10,13 @@ const LOGO_QUALITY_STEPS = [0.86, 0.78, 0.7, 0.62, 0.54];
 type BusinessLogoUploadProps = {
   businessName: string;
   currentLogoUrl?: string | null;
+  variant?: "standard" | "hero";
 };
 
 export function BusinessLogoUpload({
   businessName,
   currentLogoUrl,
+  variant = "standard",
 }: BusinessLogoUploadProps) {
   const { pending } = useFormStatus();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -77,6 +79,49 @@ export function BusinessLogoUpload({
   }
 
   const imageUrl = previewUrl ?? currentLogoUrl;
+  const statusMessage =
+    error ||
+    (isCompressing
+      ? "Compressing logo..."
+      : pending
+        ? "Uploading logo..."
+        : fileName
+          ? `${fileName}. Click Save to upload.`
+          : currentLogoUrl
+            ? "Current logo is displayed."
+            : "PNG, JPG, or WebP. Large images are compressed automatically.");
+
+  if (variant === "hero") {
+    return (
+      <div className="business-logo-hero-control">
+        <label className="business-logo-hero-upload">
+          <span className="sr-only">Change company logo</span>
+          <span className="company-settings-identity-logo">
+            {imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imageUrl} alt={`${businessName} logo preview`} />
+            ) : (
+              <span>{getInitials(businessName)}</span>
+            )}
+          </span>
+          <span className="business-logo-edit-badge" aria-hidden="true">
+            Edit
+          </span>
+          <input
+            name="logo"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={handleChange}
+          />
+        </label>
+        {error || fileName || isCompressing ? (
+          <p className={error ? "business-logo-error" : undefined}>
+            {statusMessage}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="business-logo-row">
@@ -99,20 +144,23 @@ export function BusinessLogoUpload({
           />
         </label>
         <p className={error ? "business-logo-error" : undefined}>
-          {error ||
-            (isCompressing
-              ? "Compressing logo..."
-              : pending
-                ? "Uploading logo..."
-                : fileName
-                  ? `${fileName}. Click Save to upload.`
-                  : currentLogoUrl
-                    ? "Current logo is displayed."
-                    : "PNG, JPG, or WebP. Large images are compressed automatically.")}
+          {statusMessage}
         </p>
       </div>
     </div>
   );
+}
+
+function getInitials(name: string) {
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+
+  return initials || "CO";
 }
 
 async function compressLogo(file: File) {

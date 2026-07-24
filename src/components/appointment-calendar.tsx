@@ -20,7 +20,11 @@ import {
   toBusinessTimeValue,
   utcDateToDateValue,
 } from "@/lib/business-time";
-import { formatAppointmentStatus } from "@/lib/validation/appointments";
+import {
+  formatAppointmentStatus,
+  getDefaultAppointmentVisitType,
+  type AppointmentVisitType,
+} from "@/lib/validation/appointments";
 import {
   calculateAppointmentDurationMinutes,
   getAppointmentSlotCount,
@@ -37,6 +41,7 @@ export type AppointmentCalendarItem = {
   customerPhone: string;
   plateNumber: string | null;
   scheduledAt: string;
+  startedAt: string | null;
   durationMinutes: number;
   serviceName: string | null;
   serviceNames: string[];
@@ -263,6 +268,8 @@ export function AppointmentCalendar({
   >("REGISTERED_OWNER");
   const [newAppointmentStaffId, setNewAppointmentStaffId] = useState("");
   const [newAppointmentTime, setNewAppointmentTime] = useState("10:00");
+  const [newAppointmentVisitType, setNewAppointmentVisitType] =
+    useState<AppointmentVisitType>("BOOKING");
   const [newAppointmentError, setNewAppointmentError] = useState("");
   const [selectedAppointment, setSelectedAppointment] =
     useState<AppointmentCalendarItem | null>(null);
@@ -453,6 +460,9 @@ export function AppointmentCalendar({
   function openNewAppointmentForSlot(date: string, time: string, staffId: string) {
     setNewAppointmentDate(date);
     setNewAppointmentTime(time);
+    setNewAppointmentVisitType(
+      getDefaultAppointmentVisitType(parseBusinessDateTime(date, time)),
+    );
     setNewAppointmentContactType("REGISTERED_OWNER");
     setNewAppointmentStaffId(staffId);
     setSelectedServiceIds([]);
@@ -466,6 +476,9 @@ export function AppointmentCalendar({
 
     if (datePickerTarget === "newAppointment") {
       setNewAppointmentDate(date);
+      setNewAppointmentVisitType(
+        getDefaultAppointmentVisitType(parseBusinessDateTime(date, newAppointmentTime)),
+      );
     } else {
       router.push(`${datePickerHrefPrefix}${date}`);
     }
@@ -1117,6 +1130,11 @@ export function AppointmentCalendar({
                     key={time}
                     onClick={() => {
                       setNewAppointmentTime(time);
+                      setNewAppointmentVisitType(
+                        getDefaultAppointmentVisitType(
+                          parseBusinessDateTime(newAppointmentDate, time),
+                        ),
+                      );
                       setNewAppointmentContactType("REGISTERED_OWNER");
                       setNewAppointmentStaffId("");
                       setNewAppointmentError("");
@@ -1175,6 +1193,16 @@ export function AppointmentCalendar({
                   return;
                 }
 
+                if (newAppointmentVisitType === "WALK_IN" && selectedServiceIds.length === 0) {
+                  setNewAppointmentError("Select at least one service for a walk-in.");
+                  return;
+                }
+
+                if (newAppointmentVisitType === "WALK_IN" && !newAppointmentStaffId) {
+                  setNewAppointmentError("Select a staff member for a walk-in.");
+                  return;
+                }
+
                 setNewAppointmentError("");
                 const main = document.querySelector<HTMLElement>(".main");
                 const scrollPosition = {
@@ -1200,6 +1228,7 @@ export function AppointmentCalendar({
             >
               <input name="scheduledDate" type="hidden" value={newAppointmentDate} />
               <input name="scheduledTime" type="hidden" value={newAppointmentTime} />
+              <input name="visitType" type="hidden" value={newAppointmentVisitType} />
               <input name="notes" type="hidden" value="" />
               <div className="appointment-create-card">
                 <div className="appointment-create-summary">
@@ -1208,6 +1237,30 @@ export function AppointmentCalendar({
                     <strong>{formatLongDate(newAppointmentDate)}</strong>
                     <small>{formatTimeLabel(newAppointmentTime)}</small>
                   </div>
+                </div>
+
+                <div className="appointment-visit-type" role="group" aria-label="Visit type">
+                  <button
+                    aria-pressed={newAppointmentVisitType === "WALK_IN"}
+                    className={newAppointmentVisitType === "WALK_IN" ? "is-selected" : ""}
+                    onClick={() => setNewAppointmentVisitType("WALK_IN")}
+                    type="button"
+                  >
+                    Walk-in
+                  </button>
+                  <button
+                    aria-pressed={newAppointmentVisitType === "BOOKING"}
+                    className={newAppointmentVisitType === "BOOKING" ? "is-selected" : ""}
+                    onClick={() => setNewAppointmentVisitType("BOOKING")}
+                    type="button"
+                  >
+                    Booking
+                  </button>
+                  <p>
+                    {newAppointmentVisitType === "WALK_IN"
+                      ? "Starts now. Appointment confirmation and reminder will not be sent."
+                      : "Scheduled visit. Appointment reminder rules apply."}
+                  </p>
                 </div>
 
                 <div className="appointment-create-primary">
@@ -1345,10 +1398,13 @@ export function AppointmentCalendar({
                     </button>
                   </div>
                   <label>
-                    <span>Staff optional</span>
+                    <span>
+                      {newAppointmentVisitType === "WALK_IN" ? "Staff required" : "Staff optional"}
+                    </span>
                     <select
                       name="assignedStaffId"
                       onChange={(event) => setNewAppointmentStaffId(event.target.value)}
+                      required={newAppointmentVisitType === "WALK_IN"}
                       value={newAppointmentStaffId}
                     >
                       <option value="">Unassigned</option>
@@ -2276,6 +2332,10 @@ function isPaidAppointment(appointment: AppointmentCalendarItem) {
   return appointment.invoiceStatus === "PAID" || appointment.workOrderPaymentStatus === "PAID";
 }
 
+function isWalkInAppointment(appointment: AppointmentCalendarItem) {
+  return Boolean(appointment.startedAt);
+}
+
 function isRefundedAppointment(appointment: AppointmentCalendarItem) {
   return appointment.invoiceStatus === "REFUNDED" || appointment.workOrderPaymentStatus === "REFUNDED";
 }
@@ -2286,7 +2346,11 @@ function getAppointmentCardStatusLabel(appointment: AppointmentCalendarItem) {
   }
 
   if (isPaidAppointment(appointment)) {
-    return "Paid";
+    return isWalkInAppointment(appointment) ? "Walk-in · Paid" : "Paid";
+  }
+
+  if (isWalkInAppointment(appointment) && !isCompletedAppointment(appointment)) {
+    return "Walk-in · In service";
   }
 
   const label = formatAppointmentStatus(appointment.status);

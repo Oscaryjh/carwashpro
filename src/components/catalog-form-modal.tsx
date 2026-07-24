@@ -11,6 +11,7 @@ type CatalogFormModalProps = {
   closePath: string;
   eyebrow: string;
   modalClassName?: string;
+  showMark?: boolean;
   title: string;
   wide?: boolean;
 };
@@ -21,6 +22,7 @@ export function CatalogFormModal({
   closePath,
   eyebrow,
   modalClassName,
+  showMark = true,
   title,
   wide = false,
 }: CatalogFormModalProps) {
@@ -60,7 +62,7 @@ export function CatalogFormModal({
             <p>{eyebrow}</p>
             <h2>{title}</h2>
           </div>
-          <span aria-hidden="true" className="product-create-modal-mark">+</span>
+          {showMark ? <span aria-hidden="true" className="product-create-modal-mark">+</span> : null}
         </header>
         <div className="product-create-modal-body catalog-form-modal-body">{children}</div>
       </section>

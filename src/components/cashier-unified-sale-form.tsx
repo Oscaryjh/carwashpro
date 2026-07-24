@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal, useFormStatus } from "react-dom";
 import type { CashierSaleInvoiceSummary, CashierSaleState } from "@/app/(business)/cashier/actions";
+import { startShiftAction } from "@/app/(business)/closing/actions";
 import { AppointmentInvoiceModal } from "@/components/appointment-invoice-modal";
 import { MoneyNumpadInput } from "@/components/money-numpad-input";
 import {
@@ -41,6 +42,11 @@ export type CashierStaffOption = {
   name: string;
 };
 
+export type CashierBranchOption = {
+  id: string;
+  name: string;
+};
+
 type CustomerPackageBalanceOption = {
   id: string;
   customerPackageId: string;
@@ -55,7 +61,9 @@ type CashierUnifiedSaleFormProps = {
   action: (formData: FormData) => Promise<CashierSaleState>;
   appointmentError?: string | null;
   branchId: string;
+  branches: CashierBranchOption[];
   catalogDiscounts: CatalogDiscountOption[];
+  hasOpenShift: boolean;
   initialCatalog: CashierCatalogResult;
   initialSale?: CashierInitialSale | null;
   staffOptions: CashierStaffOption[];
@@ -79,7 +87,9 @@ export function CashierUnifiedSaleForm({
   action,
   appointmentError = null,
   branchId,
+  branches,
   catalogDiscounts,
+  hasOpenShift,
   initialCatalog,
   initialSale = null,
   staffOptions,
@@ -101,6 +111,8 @@ export function CashierUnifiedSaleForm({
   const [cashReceived, setCashReceived] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [shiftModalOpen, setShiftModalOpen] = useState(false);
+  const activeModal = shiftModalOpen ? "shift" : paymentOpen ? "payment" : null;
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [catalogPage, setCatalogPage] = useState(1);
@@ -139,6 +151,10 @@ export function CashierUnifiedSaleForm({
   const currentCatalogPage = catalogData.page;
   const catalogPageCount = catalogData.pageCount;
   const visibleItems = catalogData.items;
+  const shiftReturnPath = appointmentSale
+    ? `/cashier?appointmentId=${encodeURIComponent(appointmentSale.appointmentId)}`
+    : "/cashier";
+  const shiftDraftKey = `cashier-shift-draft:${appointmentSale?.appointmentId ?? "direct"}`;
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
@@ -150,11 +166,41 @@ export function CashierUnifiedSaleForm({
   }, [initialCatalog]);
 
   useEffect(() => {
-    if (!paymentOpen) return;
+    const rawDraft = window.sessionStorage.getItem(shiftDraftKey);
+    if (!rawDraft) return;
+
+    window.sessionStorage.removeItem(shiftDraftKey);
+    try {
+      const draft = JSON.parse(rawDraft) as {
+        assignedStaffId?: unknown;
+        customer?: unknown;
+        lines?: unknown;
+      };
+      if (Array.isArray(draft.lines)) {
+        setLines(draft.lines as CashierCartLine[]);
+      }
+      if (draft.customer && typeof draft.customer === "object") {
+        setCustomer(draft.customer as PackageCustomerOption);
+      }
+      if (typeof draft.assignedStaffId === "string") {
+        setAssignedStaffId(draft.assignedStaffId);
+      }
+    } catch {
+      // Ignore an invalid one-time browser draft and use the server-loaded sale.
+    }
+  }, [shiftDraftKey]);
+
+  useEffect(() => {
+    if (!activeModal) return;
 
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPaymentOpen(false);
+      if (event.key !== "Escape") return;
+      if (activeModal === "shift") {
+        setShiftModalOpen(false);
+        return;
+      }
+      setPaymentOpen(false);
     };
 
     document.body.style.overflow = "hidden";
@@ -163,7 +209,7 @@ export function CashierUnifiedSaleForm({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [paymentOpen]);
+  }, [activeModal]);
 
   useEffect(() => {
     if (skipInitialRequest.current) {
@@ -479,6 +525,10 @@ export function CashierUnifiedSaleForm({
 
   function openPayment() {
     if (!canPay) return;
+    if (!hasOpenShift) {
+      setShiftModalOpen(true);
+      return;
+    }
     setSaleError("");
     setPaymentOpen(true);
   }
@@ -559,15 +609,28 @@ export function CashierUnifiedSaleForm({
     }
   }
 
+  function saveShiftDraft() {
+    window.sessionStorage.setItem(
+      shiftDraftKey,
+      JSON.stringify({ assignedStaffId, customer, lines }),
+    );
+  }
+
   return (
     <>
       {appointmentError && !completedInvoice ? <div className="error">{appointmentError}</div> : null}
+      {!hasOpenShift && !completedInvoice ? (
+        <div className={styles.shiftNotice} role="alert">
+          <span>Start a cashier shift before completing a sale.</span>
+          <button onClick={() => setShiftModalOpen(true)} type="button">Start shift</button>
+        </div>
+      ) : null}
       <form action={submitSale} className={`${styles.posShell} ${styles.formalShell}`}>
       <section aria-label="Sale catalog" className={styles.catalogPanel}>
         <header className={styles.panelHeader}>
           <div>
             <span>SALE CATALOG</span>
-            <h2>Products, services and packages</h2>
+            <h2>Services, products and packages</h2>
           </div>
           <label className={styles.searchField}>
             <input
@@ -576,7 +639,7 @@ export function CashierUnifiedSaleForm({
                 setQuery(event.target.value);
                 setCatalogPage(1);
               }}
-              placeholder="Search product, service, package, SKU, or category"
+              placeholder="Search service, product, package, SKU, or category"
               value={query}
             />
           </label>
@@ -738,14 +801,13 @@ export function CashierUnifiedSaleForm({
           />
         </div>
 
-        {hasServices ? (
+        {hasServices && !appointmentSale ? (
           <label className={`${styles.staffArea} ${!assignedStaffId ? styles.staffRequired : ""}`}>
             <span>
               <strong>Service staff</strong>
-              <small>Used for the walk-in appointment and commission.</small>
+              <small>Used for commission and service reporting.</small>
             </span>
             <select
-              disabled={Boolean(appointmentSale?.assignedStaffId)}
               onChange={(event) => setAssignedStaffId(event.target.value)}
               required
               value={assignedStaffId}
@@ -1108,6 +1170,77 @@ export function CashierUnifiedSaleForm({
         </div>
       ) : null}
       </form>
+    {shiftModalOpen && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className={styles.shiftModalBackdrop}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShiftModalOpen(false);
+            }}
+          >
+            <section
+              aria-label="Start shift"
+              aria-modal="true"
+              className={styles.shiftModalDialog}
+              role="dialog"
+            >
+              <header className={styles.shiftModalHeader}>
+                <div>
+                  <span>CASHIER SHIFT</span>
+                  <h2>Start shift</h2>
+                </div>
+                <button
+                  aria-label="Close start shift"
+                  onClick={() => setShiftModalOpen(false)}
+                  type="button"
+                >
+                  &times;
+                </button>
+              </header>
+              <form
+                action={startShiftAction}
+                className={styles.shiftModalForm}
+                onSubmit={saveShiftDraft}
+              >
+                <input name="returnTo" type="hidden" value={shiftReturnPath} />
+                <div className={styles.shiftModalFields}>
+                  <label>
+                    <span>Branch</span>
+                    <select
+                      defaultValue={branchId || (branches.length === 1 ? branches[0].id : "")}
+                      name="branchId"
+                      required
+                    >
+                      <option disabled value="">Select branch</option>
+                      {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Opening cash float</span>
+                    <input
+                      defaultValue="0.00"
+                      inputMode="decimal"
+                      min="0"
+                      name="openingFloat"
+                      required
+                      step="0.01"
+                      type="number"
+                    />
+                  </label>
+                </div>
+                <footer className={styles.shiftModalFooter}>
+                  <StartShiftButton disabled={!branches.length} />
+                </footer>
+              </form>
+            </section>
+          </div>,
+          document.body,
+        )
+      : null}
     {adjustmentsOpen && typeof document !== "undefined"
       ? createPortal(
           <div
@@ -1376,6 +1509,16 @@ function CashierPayButton({
           : referenceRequired
             ? "Enter payment reference"
             : `Confirm payment · ${formatMoney(total)}`}
+    </button>
+  );
+}
+
+function StartShiftButton({ disabled }: { disabled: boolean }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button disabled={disabled || pending} type="submit">
+      {pending ? "Starting..." : "Start shift"}
     </button>
   );
 }

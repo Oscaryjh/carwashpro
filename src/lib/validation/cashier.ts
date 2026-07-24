@@ -69,6 +69,14 @@ export const cashierSaleSchema = z
       });
     }
 
+    if (input.serviceIds.length && !input.appointmentId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Create service visits from Appointments before checkout.",
+        path: ["appointmentId"],
+      });
+    }
+
     if (input.packageIds.length && !input.customerId) {
       context.addIssue({
         code: z.ZodIssueCode.custom,

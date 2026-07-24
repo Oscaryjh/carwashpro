@@ -547,14 +547,16 @@ export async function saveStaffScheduleAction(formData: FormData) {
       );
     });
 
+    revalidatePath("/team");
     revalidatePath(`/team/${input.userId}`);
-    redirectWithStaffMessage(input.userId, "Staff availability saved.", "success");
+    redirectWithScheduleMessage(formData, input.userId, "Staff availability saved.", "success");
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
     }
 
-    redirectWithStaffMessage(
+    redirectWithScheduleMessage(
+      formData,
       String(formData.get("userId") ?? ""),
       getErrorMessage(error, "Unable to save staff availability."),
       "error",
@@ -603,14 +605,16 @@ export async function addStaffTimeOffAction(formData: FormData) {
       request: await getAuditRequestContext(),
     });
 
+    revalidatePath("/team");
     revalidatePath(`/team/${input.userId}`);
-    redirectWithStaffMessage(input.userId, "Staff leave added.", "success");
+    redirectWithScheduleMessage(formData, input.userId, "Staff leave added.", "success");
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
     }
 
-    redirectWithStaffMessage(
+    redirectWithScheduleMessage(
+      formData,
       String(formData.get("userId") ?? ""),
       getErrorMessage(error, "Unable to add staff leave."),
       "error",
@@ -640,13 +644,19 @@ export async function deleteStaffTimeOffAction(formData: FormData) {
       metadata: { timeOffId },
       request: await getAuditRequestContext(),
     });
+    revalidatePath("/team");
     revalidatePath(`/team/${staffId}`);
-    redirectWithStaffMessage(staffId, "Staff leave removed.", "success");
+    redirectWithScheduleMessage(formData, staffId, "Staff leave removed.", "success");
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
     }
-    redirectWithStaffMessage(staffId, getErrorMessage(error, "Unable to remove staff leave."), "error");
+    redirectWithScheduleMessage(
+      formData,
+      staffId,
+      getErrorMessage(error, "Unable to remove staff leave."),
+      "error",
+    );
   }
 }
 
@@ -671,6 +681,19 @@ function redirectWithStaffMessage(
   type: "success" | "error",
 ): never {
   redirect(`/team/${userId}?type=${type}&message=${encodeURIComponent(message)}`);
+}
+
+function redirectWithScheduleMessage(
+  formData: FormData,
+  userId: string,
+  message: string,
+  type: "success" | "error",
+): never {
+  const returnTo = String(formData.get("returnTo") ?? "");
+  if (returnTo === "/team?section=schedule") {
+    redirect(`${returnTo}&type=${type}&message=${encodeURIComponent(message)}`);
+  }
+  redirectWithStaffMessage(userId, message, type);
 }
 
 function getErrorMessage(error: unknown, fallback: string) {

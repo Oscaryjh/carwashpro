@@ -433,7 +433,11 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         }
       }
 
-      let effectiveAppointmentId = appointment?.id ?? null;
+      if (!appointment && serviceLines.length) {
+        throw new Error("Create service visits from Appointments before checkout.");
+      }
+
+      const effectiveAppointmentId = appointment?.id ?? null;
       if (appointment && assignedStaff && !appointment.assignedStaffId) {
         await tx.appointment.update({
           where: { id: appointment.id },
@@ -441,42 +445,6 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         });
       }
 
-      if (!appointment && serviceLines.length) {
-        const completedAt = new Date();
-        const durationMinutes = Math.max(
-          15,
-          serviceLines.reduce(
-            (sum, { service, quantity }) =>
-              sum + Math.max(1, service.durationMinutes || 15) * quantity,
-            0,
-          ),
-        );
-        const scheduledAt = new Date(completedAt.getTime() - durationMinutes * 60_000);
-        const createdAppointment = await tx.appointment.create({
-          data: {
-            businessId,
-            branchId,
-            customerId: customer!.id,
-            createdById: user.userId,
-            assignedStaffId: assignedStaff!.id,
-            serviceId: serviceLines[0].service.id,
-            serviceIds: serviceLines.flatMap(({ service, quantity }) =>
-              Array.from({ length: quantity }, () => service.id),
-            ),
-            productIds: stocks.flatMap(({ product, quantity }) =>
-              Array.from({ length: quantity }, () => product.id),
-            ),
-            packageIds: packageUnits.map((packageDefinition) => packageDefinition.id),
-            scheduledAt,
-            durationMinutes,
-            status: "COMPLETED",
-            startedAt: scheduledAt,
-            completedAt,
-          },
-          select: { id: true },
-        });
-        effectiveAppointmentId = createdAppointment.id;
-      }
       const productTotals = stocks.map(
         ({ product, quantity }) => Number(product.price) * quantity,
       );

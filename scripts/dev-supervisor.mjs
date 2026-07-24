@@ -14,13 +14,20 @@ import {
 const pg = createEmbeddedPostgres();
 const nextBin = join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
 const whatsappWorkerRunner = join(process.cwd(), "scripts", "run-whatsapp-worker.mjs");
+const notificationWorkerScript = join(
+  process.cwd(),
+  "scripts",
+  "notification-queue-worker.ts",
+);
 const whatsappConnectorDir = join(process.cwd(), "whatsapp-connector");
 const whatsappConnectorPackage = join(whatsappConnectorDir, "package.json");
 const binPath = join(process.cwd(), "node_modules", ".bin");
 const restartDelayMs = 1500;
+const notificationWorkerQueuedAfter = new Date().toISOString();
 
 let nextChild;
 let whatsappWorkerChild;
+let notificationWorkerChild;
 let whatsappConnectorChild;
 let ownsPostgres = false;
 let shuttingDown = false;
@@ -38,6 +45,7 @@ async function main() {
 
   startWhatsAppConnector();
   startWhatsAppWorker();
+  startNotificationWorker();
   startNext();
 }
 
@@ -107,6 +115,50 @@ function startWhatsAppWorker() {
   });
 }
 
+function startNotificationWorker() {
+  if (!existsSync(notificationWorkerScript)) {
+    console.warn(
+      "Notification queue worker not started because its script is missing.",
+    );
+    return;
+  }
+
+  notificationWorkerChild = spawn(
+    process.execPath,
+    [
+      "--use-system-ca",
+      "--import",
+      "tsx",
+      notificationWorkerScript,
+      `--queued-after=${notificationWorkerQueuedAfter}`,
+    ],
+    {
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      env: getChildEnv(),
+    },
+  );
+
+  notificationWorkerChild.stdout?.on("data", (chunk) => {
+    writePrefixed("[notifications] ", chunk, process.stdout);
+  });
+
+  notificationWorkerChild.stderr?.on("data", (chunk) => {
+    writePrefixed("[notifications] ", chunk, process.stderr);
+  });
+
+  notificationWorkerChild.on("close", (code, signal) => {
+    if (shuttingDown) {
+      return;
+    }
+
+    console.warn(
+      `Notification queue worker stopped (code: ${code ?? "none"}, signal: ${signal ?? "none"}). Restarting...`,
+    );
+    setTimeout(startNotificationWorker, restartDelayMs);
+  });
+}
+
 function startWhatsAppConnector() {
   if (!existsSync(whatsappConnectorPackage)) {
     console.warn("WhatsApp Connector not started because its package.json is missing.");
@@ -152,6 +204,7 @@ async function shutdown() {
   shuttingDown = true;
   nextChild?.kill("SIGTERM");
   whatsappWorkerChild?.kill("SIGTERM");
+  notificationWorkerChild?.kill("SIGTERM");
   whatsappConnectorChild?.kill("SIGTERM");
   await stopOwnedPostgres(pg, ownsPostgres);
   process.exit(0);

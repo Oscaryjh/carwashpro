@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "db:start": "node scripts/start-embedded-postgres.mjs",
-    "dev": "next dev",
+    "dev": "node scripts/dev-supervisor.mjs",
     "dev:clean": "node scripts/dev-clean.mjs",
     "dev:once": "next dev",
-    "dev:stable": "next dev",
+    "dev:stable": "node scripts/dev-supervisor.mjs",
     "dev:window": "node scripts/start-dev-detached.mjs",
     "dev:all": "node scripts/start-dev-detached.mjs",
     "dev:detached": "node scripts/start-dev-detached.mjs",

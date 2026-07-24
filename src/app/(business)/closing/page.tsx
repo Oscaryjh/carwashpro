@@ -28,6 +28,7 @@ type ClosingPageProps = {
     message?: string;
     shiftPage?: string;
     type?: string;
+    returnTo?: string;
     branchId?: string;
     date?: string;
   }>;
@@ -50,6 +51,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const params = await searchParams;
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
+  const returnTo = normalizeCashierReturnTo(params.returnTo);
   const todayDateValue = getBusinessTodayDateValue();
   const requestedDate =
     params.date && isValidDateValue(params.date)
@@ -284,6 +286,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
               </div>
             ) : (
               <form action={startShiftAction} className="form closing-form">
+                {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
                 {canStartShift ? (
                   <>
                     <div className="field-grid">
@@ -366,6 +369,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
             <DailyClosingSummary
               dailyClosing={dailyClosing}
               branches={branches}
+              returnTo={returnTo}
               isFrozen={Boolean(existingSnapshot)}
             />
             <DailyClosingSnapshotPanel
@@ -580,6 +584,17 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   );
 }
 
+function normalizeCashierReturnTo(value: string | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value, "http://localhost");
+    if (url.origin !== "http://localhost" || url.pathname !== "/cashier") return null;
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return null;
+  }
+}
+
 function makeClosingHref(
   params: Awaited<ClosingPageProps["searchParams"]>,
   pages: {
@@ -599,6 +614,7 @@ function makeClosingHref(
   if (params.type) query.set("type", params.type);
   if (params.branchId) query.set("branchId", params.branchId);
   if (params.date) query.set("date", params.date);
+  if (params.returnTo) query.set("returnTo", params.returnTo);
   if (activityPage > 1) query.set("activityPage", String(activityPage));
   if (shiftPage > 1) query.set("shiftPage", String(shiftPage));
 
@@ -837,10 +853,12 @@ function DailyClosingSummary({
   dailyClosing,
   branches,
   isFrozen,
+  returnTo,
 }: {
   dailyClosing: DailyClosingResult;
   branches: Awaited<ReturnType<typeof getOperationalBranches>>;
   isFrozen: boolean;
+  returnTo: string | null;
 }) {
   const report = dailyClosing.report;
   const operationUnit =
@@ -858,6 +876,7 @@ function DailyClosingSummary({
           </p>
         </div>
         <form method="get" className="daily-closing-branch-form">
+          {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
           <input type="hidden" name="date" value={dailyClosing.dateValue} />
           <label>
             <span>Branch</span>

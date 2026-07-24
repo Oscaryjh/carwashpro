@@ -33,6 +33,7 @@ import {
   addAppointmentServicesSchema,
   convertAppointmentSchema,
   createAppointmentSchema,
+  getDefaultAppointmentVisitType,
   parseAppointmentDateTime,
   rescheduleAppointmentSchema,
   updateAppointmentDetailsSchema,
@@ -161,6 +162,7 @@ async function createAppointment(formData: FormData): Promise<AppointmentMutatio
     packageIds: formData.getAll("packageIds"),
     scheduledDate: formData.get("scheduledDate"),
     scheduledTime: formData.get("scheduledTime"),
+    visitType: formData.get("visitType"),
     notes: formData.get("notes"),
   });
 
@@ -180,6 +182,8 @@ async function createAppointment(formData: FormData): Promise<AppointmentMutatio
     input.scheduledDate,
     input.scheduledTime,
   );
+  const visitType = input.visitType ?? getDefaultAppointmentVisitType(scheduledAt);
+  const isWalkIn = visitType === "WALK_IN";
 
   const isSalon = industryType === "SALON_BEAUTY";
   const vehicle = input.vehicleId
@@ -295,6 +299,15 @@ async function createAppointment(formData: FormData): Promise<AppointmentMutatio
     : serviceId
       ? [serviceId]
       : [];
+
+  if (isWalkIn && selectedServiceIds.length === 0) {
+    return { ok: false, error: "Select at least one service for a walk-in." };
+  }
+
+  if (isWalkIn && !assignedStaffId) {
+    return { ok: false, error: "Select a staff member for a walk-in." };
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     const durationMinutes = await resolveAppointmentDurationMinutes(tx, {
       businessId,
@@ -338,6 +351,7 @@ async function createAppointment(formData: FormData): Promise<AppointmentMutatio
         contactPhone: appointmentContactPhone,
         durationMinutes,
         scheduledAt,
+        startedAt: isWalkIn ? new Date() : null,
         notes: input.notes || null,
       },
     });
@@ -354,11 +368,13 @@ async function createAppointment(formData: FormData): Promise<AppointmentMutatio
 
   const appointment = result.appointment!;
 
-  await scheduleReminderSafely({
-    appointmentId: appointment.id,
-    businessId,
-    sentByUserId: user.userId,
-  });
+  if (!isWalkIn) {
+    await scheduleReminderSafely({
+      appointmentId: appointment.id,
+      businessId,
+      sentByUserId: user.userId,
+    });
+  }
 
   revalidatePath("/appointments");
   return { ok: true };
