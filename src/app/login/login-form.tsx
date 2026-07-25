@@ -36,10 +36,6 @@ export function LoginForm() {
           </button>
         </div>
       </label>
-      <label className="checkbox-control">
-        <input name="rememberMe" type="checkbox" value="true" />
-        <span>Remember me</span>
-      </label>
       <button type="submit" disabled={pending}>
         {pending ? "Signing in..." : "Sign in"}
       </button>

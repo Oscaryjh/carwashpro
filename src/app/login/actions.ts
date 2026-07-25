@@ -19,7 +19,6 @@ export async function loginAction(
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
-    rememberMe: formData.get("rememberMe"),
   });
 
   if (!parsed.success) {
@@ -67,7 +66,7 @@ export async function loginAction(
       entityType: "User",
       entityId: user.id,
       summary: `${user.name} logged in`,
-      metadata: { role: user.role, rememberMe: parsed.data.rememberMe },
+      metadata: { role: user.role },
       request: await getAuditRequestContext(),
     });
   }
@@ -82,8 +81,6 @@ export async function loginAction(
     role: user.role,
     permissions: user.permissions,
     status: user.status,
-  }, {
-    rememberMe: parsed.data.rememberMe,
   });
 
   if (user.role === "PLATFORM_ADMIN") {

@@ -1,8 +1,9 @@
-import { jwtVerify } from "jose";
+import { jwtVerify, SignJWT } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 import { getStaffHomePath, routePermission } from "@/lib/auth/staff-permissions";
 
 const SESSION_COOKIE = "car_wash_session";
+const SESSION_IDLE_SECONDS = 60 * 60 * 24 * 7;
 
 function getSecret() {
   const secret = process.env.SESSION_SECRET;
@@ -72,11 +73,38 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL(staffHomePath, request.url));
       }
     }
+    const response = NextResponse.next();
+    await refreshSessionCookie(response, verified.payload, secret);
+    return response;
   } catch {
     return NextResponse.redirect(new URL("/login", request.url));
   }
+}
 
-  return NextResponse.next();
+async function refreshSessionCookie(
+  response: NextResponse,
+  payload: Record<string, unknown>,
+  secret: Uint8Array,
+) {
+  const session = { ...payload };
+  delete session.exp;
+  delete session.iat;
+  delete session.nbf;
+  delete session.jti;
+
+  const token = await new SignJWT(session)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(`${SESSION_IDLE_SECONDS}s`)
+    .sign(secret);
+
+  response.cookies.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: SESSION_IDLE_SECONDS,
+  });
 }
 
 export const config = {
