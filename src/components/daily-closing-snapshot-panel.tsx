@@ -80,10 +80,11 @@ export function DailyClosingSnapshotPanel({
       <section className="panel daily-closing-snapshot-panel is-closed">
         <div className="daily-closing-snapshot-heading">
           <div>
-            <span className="daily-closing-eyebrow">FORMAL DAILY CLOSING</span>
-            <h2>Business day closed</h2>
+            <span className="daily-closing-eyebrow">DAILY CLOSE</span>
+            <h2>Daily closing completed</h2>
             <p>
-              Frozen by {snapshot.closedByName} on {snapshot.closedAtLabel}.
+              Final figures were locked by {snapshot.closedByName} on{" "}
+              {snapshot.closedAtLabel}.
             </p>
           </div>
           <span className="status">Closed</span>
@@ -124,14 +125,14 @@ export function DailyClosingSnapshotPanel({
       <section className="panel daily-closing-snapshot-panel">
         <div className="daily-closing-snapshot-heading">
           <div>
-            <span className="daily-closing-eyebrow">FORMAL DAILY CLOSING</span>
-            <h2>Confirm and freeze this report</h2>
+            <span className="daily-closing-eyebrow">DAILY CLOSE</span>
+            <h2>Complete daily closing</h2>
             <p>
-              Enter the counted cash for {branchName}. Once confirmed, this
-              business day becomes read-only.
+              Count the cash for {branchName}, then lock the final report and
+              WhatsApp summary.
             </p>
           </div>
-          <span className="status neutral">Live</span>
+          <span className="status neutral">Not closed</span>
         </div>
         <div className="daily-closing-cash-entry">
           <CashMetric
@@ -173,7 +174,7 @@ export function DailyClosingSnapshotPanel({
             Closing history
           </Link>
           <button type="button" onClick={() => setModalOpen(true)}>
-            Confirm daily closing
+            Complete daily closing
           </button>
         </div>
       </section>
@@ -196,8 +197,8 @@ export function DailyClosingSnapshotPanel({
           >
             <div className="daily-closing-confirm-header">
               <div>
-                <span className="daily-closing-eyebrow">FINAL CONFIRMATION</span>
-                <h2 id="daily-closing-confirm-title">Close {businessDate}</h2>
+                <span className="daily-closing-eyebrow">COMPLETE DAILY CLOSING</span>
+                <h2 id="daily-closing-confirm-title">Lock {businessDate}</h2>
               </div>
               <button
                 aria-label="Close"
@@ -243,7 +244,7 @@ export function DailyClosingSnapshotPanel({
                   Cancel
                 </button>
                 <button disabled={pending} type="submit">
-                  {pending ? "Closing..." : "Confirm and freeze"}
+                  {pending ? "Closing..." : "Complete and lock report"}
                 </button>
               </div>
             </form>

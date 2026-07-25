@@ -11,8 +11,10 @@ import { resolveOperationalBranchId } from "@/lib/branches";
 import {
   getBusinessTodayDateValue,
   isValidDateValue,
+  toBusinessDateValue,
 } from "@/lib/business-time";
 import { getDailyClosingReport } from "@/lib/daily-closing/query";
+import { getDailyClosingRange } from "@/lib/daily-closing/range";
 import {
   buildDailyClosingSnapshotPayload,
   buildFrozenDailyClosingWhatsAppText,
@@ -84,6 +86,30 @@ export async function startShiftAction(formData: FormData) {
     user,
     input.branchId ?? null,
   );
+
+  if (branchId) {
+    const businessDate = getBusinessTodayDateValue();
+    const completedDailyClosing = await prisma.dailyClosingSnapshot.findUnique({
+      where: {
+        businessId_branchId_businessDate: {
+          businessDate: normalizeBusinessDate(businessDate),
+          branchId,
+          businessId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (completedDailyClosing) {
+      const message =
+        "Daily closing is already completed for this branch today. A new shift cannot be started.";
+      redirect(
+        returnTo
+          ? withStatusMessage(returnTo, "error", message)
+          : `/closing?type=error&message=${encodeURIComponent(message)}`,
+      );
+    }
+  }
 
   const existingOpenShift = await prisma.cashierShift.findFirst({
     where: {
@@ -167,6 +193,7 @@ function withStatusMessage(
 
 export async function endShiftAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser();
+  assertStaffPermission(user, "CLOSING");
   const auditRequest = await getAuditRequestContext();
   const input = endShiftSchema.parse({
     closingCash: formData.get("closingCash"),
@@ -182,8 +209,10 @@ export async function endShiftAction(formData: FormData) {
       status: "OPEN",
     },
     select: {
+      branchId: true,
       id: true,
       openingFloat: true,
+      startedAt: true,
     },
   });
 
@@ -232,48 +261,161 @@ export async function endShiftAction(formData: FormData) {
     );
   }
 
-  await prisma.$transaction(async (tx) => {
-    const updated = await tx.cashierShift.update({
-      where: { id: shift.id },
-      data: {
-        closingCash: fromCents(closingCashCents),
-        cashDifference: fromCents(differenceCents),
-        endedAt: new Date(),
-        expectedCash: fromCents(expectedCashCents),
-        notes,
-        status: "CLOSED",
-      },
-    });
+  let dailyClosingCompleted = false;
 
-    await writeAuditLog(
-      {
-        businessId,
-        branchId: updated.branchId,
-        actor: user,
-        action: "SHIFT_ENDED",
-        entityType: "CashierShift",
-        entityId: updated.id,
-        summary: `Ended shift with ${moneyFromCents(differenceCents)} difference`,
-        before: { status: "OPEN", openingFloat: shift.openingFloat },
-        after: {
-          status: updated.status,
-          closingCash: updated.closingCash,
-          expectedCash: updated.expectedCash,
-          cashPayments: fromCents(cashPaymentCents),
-          cashRefunds: fromCents(cashRefundCents),
-          cashDifference: updated.cashDifference,
-          notes: updated.notes,
-          endedAt: updated.endedAt,
-        },
-        request: auditRequest,
+  try {
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const closed = await tx.cashierShift.updateMany({
+          where: {
+            businessId,
+            cashierId: user.userId,
+            id: shift.id,
+            status: "OPEN",
+          },
+          data: {
+            closingCash: fromCents(closingCashCents),
+            cashDifference: fromCents(differenceCents),
+            endedAt: new Date(),
+            expectedCash: fromCents(expectedCashCents),
+            notes,
+            status: "CLOSED",
+          },
+        });
+
+        if (closed.count !== 1) {
+          throw new ShiftAlreadyClosedError();
+        }
+
+        const updated = await tx.cashierShift.findUniqueOrThrow({
+          where: { id: shift.id },
+        });
+
+        await writeAuditLog(
+          {
+            businessId,
+            branchId: updated.branchId,
+            actor: user,
+            action: "SHIFT_ENDED",
+            entityType: "CashierShift",
+            entityId: updated.id,
+            summary: `Ended shift with ${moneyFromCents(differenceCents)} difference`,
+            before: { status: "OPEN", openingFloat: shift.openingFloat },
+            after: {
+              status: updated.status,
+              closingCash: updated.closingCash,
+              expectedCash: updated.expectedCash,
+              cashPayments: fromCents(cashPaymentCents),
+              cashRefunds: fromCents(cashRefundCents),
+              cashDifference: updated.cashDifference,
+              notes: updated.notes,
+              endedAt: updated.endedAt,
+            },
+            request: auditRequest,
+          },
+          tx,
+        );
+
+        if (!updated.branchId) {
+          return { dailyClosingCompleted: false };
+        }
+
+        const otherOpenShift = await tx.cashierShift.findFirst({
+          where: {
+            branchId: updated.branchId,
+            businessId,
+            status: "OPEN",
+          },
+          select: { id: true },
+        });
+
+        if (otherOpenShift) {
+          return { dailyClosingCompleted: false };
+        }
+
+        const businessDate = toBusinessDateValue(updated.startedAt);
+        const normalizedBusinessDate = normalizeBusinessDate(businessDate);
+        const existingSnapshot = await tx.dailyClosingSnapshot.findUnique({
+          where: {
+            businessId_branchId_businessDate: {
+              branchId: updated.branchId,
+              businessDate: normalizedBusinessDate,
+              businessId,
+            },
+          },
+          select: { id: true },
+        });
+
+        if (existingSnapshot) {
+          return { dailyClosingCompleted: false };
+        }
+
+        const { fromDate, toDateExclusive } = getDailyClosingRange(
+          undefined,
+          businessDate,
+        );
+        const closedShifts = await tx.cashierShift.findMany({
+          where: {
+            branchId: updated.branchId,
+            businessId,
+            closingCash: { not: null },
+            startedAt: { gte: fromDate, lt: toDateExclusive },
+            status: "CLOSED",
+          },
+          select: {
+            closingCash: true,
+            openingFloat: true,
+          },
+        });
+        const actualCashCents = closedShifts.reduce(
+          (total, closedShift) =>
+            total +
+            toCents(closedShift.closingCash ?? 0) -
+            toCents(closedShift.openingFloat),
+          0,
+        );
+
+        await createDailyClosingSnapshotInTransaction({
+          actualCashCents,
+          auditRequest,
+          branchId: updated.branchId,
+          businessDate,
+          businessId,
+          closingNote: notes,
+          tx,
+          user,
+        });
+
+        return { dailyClosingCompleted: true };
       },
-      tx,
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-  });
+    dailyClosingCompleted = result.dailyClosingCompleted;
+  } catch (error) {
+    if (error instanceof ShiftAlreadyClosedError) {
+      redirect(
+        `/closing?type=error&message=${encodeURIComponent(
+          "This shift has already been closed.",
+        )}`,
+      );
+    }
+
+    console.error("[shift-closing] Unable to close shift", error);
+    redirect(
+      `/closing?type=error&message=${encodeURIComponent(
+        "Unable to close this shift. No changes were saved.",
+      )}`,
+    );
+  }
 
   revalidatePath("/closing");
+  revalidatePath("/closing/history");
   redirect(
-    `/closing?type=success&message=${encodeURIComponent("Shift closed.")}`,
+    `/closing?type=success&message=${encodeURIComponent(
+      dailyClosingCompleted
+        ? "Shift ended and daily closing completed."
+        : "Shift ended. Daily closing will complete after the final open shift ends.",
+    )}`,
   );
 }
 
@@ -343,93 +485,16 @@ export async function closeDailySnapshotAction(
           throw new DailyClosingAlreadyExistsError(existing.id);
         }
 
-        const [branch, business] = await Promise.all([
-          tx.branch.findFirstOrThrow({
-            where: { businessId, id: branchId },
-            select: { id: true, name: true },
-          }),
-          tx.business.findUniqueOrThrow({
-            where: { id: businessId },
-            select: { id: true, industryType: true, name: true },
-          }),
-        ]);
-        const generatedAt = new Date();
-        const closingReport = await getDailyClosingReport(
-          {
-            branchId,
-            businessId,
-            dateValue: parsed.data.businessDate,
-            industryType: business.industryType,
-            now: generatedAt,
-          },
-          tx,
-        );
-        const expectedCashCents = getExpectedCashCents(closingReport.report);
-        const actualCashCents = Math.round(parsed.data.actualCash * 100);
-        const closingNote = parsed.data.closingNote || null;
-        const closedAt = new Date();
-        const payload = buildDailyClosingSnapshotPayload({
-          actualCashCents,
-          branch,
-          business,
+        return createDailyClosingSnapshotInTransaction({
+          actualCashCents: Math.round(parsed.data.actualCash * 100),
+          auditRequest,
+          branchId,
           businessDate: parsed.data.businessDate,
-          businessType: business.industryType,
-          closedAt,
-          closedBy: { id: user.userId, name: user.name },
-          closingNote,
-          expectedCashCents,
-          generatedAt,
-          report: closingReport.report,
-        });
-        const whatsappText = buildFrozenDailyClosingWhatsAppText({
-          baseText: closingReport.preview,
-          payload,
-        });
-
-        const created = await tx.dailyClosingSnapshot.create({
-          data: {
-            actualCashCents,
-            branchId,
-            businessDate: normalizeBusinessDate(parsed.data.businessDate),
-            businessId,
-            businessType: business.industryType,
-            cashDifferenceCents: payload.cash.differenceCents,
-            closedAt,
-            closedByUserId: user.userId,
-            closingNote,
-            expectedCashCents,
-            reportDataJson: payload as unknown as Prisma.InputJsonValue,
-            reportVersion: payload.version,
-            timezone: payload.timezone,
-            whatsappText,
-          },
-        });
-
-        await writeAuditLog(
-          {
-            action: "DAILY_CLOSING_CONFIRMED",
-            actor: user,
-            after: {
-              actualCashCents,
-              businessDate: parsed.data.businessDate,
-              cashDifferenceCents: payload.cash.differenceCents,
-              expectedCashCents,
-              reportVersion: payload.version,
-              status: created.status,
-            },
-            branchId,
-            businessId,
-            entityId: created.id,
-            entityType: "DailyClosingSnapshot",
-            request: auditRequest,
-            summary: `Closed ${parsed.data.businessDate} for ${branch.name}`,
-          },
+          businessId,
+          closingNote: parsed.data.closingNote || null,
           tx,
-        );
-
-        await enqueueClosingReportForSnapshot(created.id, tx);
-
-        return created;
+          user,
+        });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -539,6 +604,121 @@ class DailyClosingAlreadyExistsError extends Error {
   constructor(readonly snapshotId: string) {
     super("Daily closing snapshot already exists.");
   }
+}
+
+class ShiftAlreadyClosedError extends Error {
+  constructor() {
+    super("Shift has already been closed.");
+  }
+}
+
+type BusinessUserContext = Awaited<ReturnType<typeof requireBusinessUser>>;
+type AuditRequestContext = Awaited<ReturnType<typeof getAuditRequestContext>>;
+
+async function createDailyClosingSnapshotInTransaction({
+  actualCashCents,
+  auditRequest,
+  branchId,
+  businessDate,
+  businessId,
+  closingNote,
+  tx,
+  user,
+}: {
+  actualCashCents: number;
+  auditRequest: AuditRequestContext;
+  branchId: string;
+  businessDate: string;
+  businessId: string;
+  closingNote: string | null;
+  tx: Prisma.TransactionClient;
+  user: BusinessUserContext["user"];
+}) {
+  const [branch, business] = await Promise.all([
+    tx.branch.findFirstOrThrow({
+      where: { businessId, id: branchId },
+      select: { id: true, name: true },
+    }),
+    tx.business.findUniqueOrThrow({
+      where: { id: businessId },
+      select: { id: true, industryType: true, name: true },
+    }),
+  ]);
+  const generatedAt = new Date();
+  const closingReport = await getDailyClosingReport(
+    {
+      branchId,
+      businessId,
+      dateValue: businessDate,
+      industryType: business.industryType,
+      now: generatedAt,
+    },
+    tx,
+  );
+  const expectedCashCents = getExpectedCashCents(closingReport.report);
+  const closedAt = new Date();
+  const payload = buildDailyClosingSnapshotPayload({
+    actualCashCents,
+    branch,
+    business,
+    businessDate,
+    businessType: business.industryType,
+    closedAt,
+    closedBy: { id: user.userId, name: user.name },
+    closingNote,
+    expectedCashCents,
+    generatedAt,
+    report: closingReport.report,
+  });
+  const whatsappText = buildFrozenDailyClosingWhatsAppText({
+    baseText: closingReport.preview,
+    payload,
+  });
+
+  const created = await tx.dailyClosingSnapshot.create({
+    data: {
+      actualCashCents,
+      branchId,
+      businessDate: normalizeBusinessDate(businessDate),
+      businessId,
+      businessType: business.industryType,
+      cashDifferenceCents: payload.cash.differenceCents,
+      closedAt,
+      closedByUserId: user.userId,
+      closingNote,
+      expectedCashCents,
+      reportDataJson: payload as unknown as Prisma.InputJsonValue,
+      reportVersion: payload.version,
+      timezone: payload.timezone,
+      whatsappText,
+    },
+  });
+
+  await writeAuditLog(
+    {
+      action: "DAILY_CLOSING_CONFIRMED",
+      actor: user,
+      after: {
+        actualCashCents,
+        businessDate,
+        cashDifferenceCents: payload.cash.differenceCents,
+        expectedCashCents,
+        reportVersion: payload.version,
+        status: created.status,
+      },
+      branchId,
+      businessId,
+      entityId: created.id,
+      entityType: "DailyClosingSnapshot",
+      request: auditRequest,
+      summary: `Closed ${businessDate} for ${branch.name}`,
+    },
+    tx,
+  );
+
+  await enqueueClosingReportForSnapshot(created.id, tx);
+
+  return created;
 }
 
 function moneyFromCents(cents: number) {

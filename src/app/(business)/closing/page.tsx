@@ -7,6 +7,7 @@ import {
   formatDateValue,
   getBusinessTodayDateValue,
   isValidDateValue,
+  toBusinessDateValue,
 } from "@/lib/business-time";
 import { formatMoneyFromCents } from "@/lib/daily-closing/format";
 import { getDailyClosingReport } from "@/lib/daily-closing/query";
@@ -53,10 +54,8 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const messageType = params.type === "error" ? "error" : "success";
   const returnTo = normalizeCashierReturnTo(params.returnTo);
   const todayDateValue = getBusinessTodayDateValue();
-  const requestedDate =
-    params.date && isValidDateValue(params.date)
-      ? params.date
-      : todayDateValue;
+  const explicitDate =
+    params.date && isValidDateValue(params.date) ? params.date : null;
   const requestedActivityPage = Math.max(
     1,
     Number.parseInt(params.activityPage ?? "1", 10) || 1,
@@ -83,59 +82,72 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const closingIndustry = isDailyClosingIndustry(context.industryType)
     ? context.industryType
     : null;
-  const todayRange = getDailyClosingRange(undefined, requestedDate);
-  const { dateValue, fromDate, toDateExclusive } = todayRange;
   const isOwner = context.user.role === "BUSINESS_OWNER";
-  const [branches, openShift, shifts] = await Promise.all([
-    getOperationalBranches(businessId, context.user),
+  const branches = await getOperationalBranches(businessId, context.user);
+  const todayStart = getDailyClosingRange(undefined, todayDateValue).fromDate;
+  const authorizedBranchIds = branches.map((branch) => branch.id);
+  const shiftInclude = {
+    branch: true,
+    cashier: {
+      select: { name: true },
+    },
+    payments: {
+      where: { status: "ACTIVE" as const },
+      orderBy: { paidAt: "desc" as const },
+    },
+    refunds: {
+      orderBy: { refundedAt: "desc" as const },
+    },
+  };
+  const [openShift, staleOpenShifts] = await Promise.all([
     prisma.cashierShift.findFirst({
       where: {
         businessId,
         cashierId: context.user.userId,
         status: "OPEN",
       },
-      include: {
-        branch: true,
-        cashier: {
-          select: { name: true },
-        },
-        payments: {
-          where: { status: "ACTIVE" },
-          orderBy: { paidAt: "desc" },
-        },
-        refunds: {
-          orderBy: { refundedAt: "desc" },
-        },
-      },
+      include: shiftInclude,
     }),
     prisma.cashierShift.findMany({
       where: {
         businessId,
-        ...(isOwner ? {} : { cashierId: context.user.userId }),
-        OR: [
-          { startedAt: { gte: fromDate, lt: toDateExclusive } },
-          { endedAt: { gte: fromDate, lt: toDateExclusive } },
-          { status: "OPEN" },
-        ],
+        status: "OPEN",
+        startedAt: { lt: todayStart },
+        ...(isOwner
+          ? authorizedBranchIds.length
+            ? { branchId: { in: authorizedBranchIds } }
+            : {}
+          : { cashierId: context.user.userId }),
       },
-      include: {
-        branch: true,
-        cashier: {
-          select: { name: true },
-        },
-        payments: {
-          where: { status: "ACTIVE" },
-          orderBy: { paidAt: "desc" },
-        },
-        refunds: {
-          orderBy: { refundedAt: "desc" },
-        },
-      },
-      orderBy: { startedAt: "desc" },
+      include: shiftInclude,
+      orderBy: { startedAt: "asc" },
+      take: 5,
     }),
   ]);
+  const staleShiftForDate = staleOpenShifts[0] ?? null;
+  const requestedDate =
+    explicitDate ??
+    (staleShiftForDate ? toBusinessDateValue(staleShiftForDate.startedAt) : todayDateValue);
+  const todayRange = getDailyClosingRange(undefined, requestedDate);
+  const { dateValue, fromDate, toDateExclusive } = todayRange;
+  const shifts = await prisma.cashierShift.findMany({
+    where: {
+      businessId,
+      ...(isOwner ? {} : { cashierId: context.user.userId }),
+      OR: [
+        { startedAt: { gte: fromDate, lt: toDateExclusive } },
+        { endedAt: { gte: fromDate, lt: toDateExclusive } },
+        { status: "OPEN" },
+      ],
+    },
+    include: shiftInclude,
+    orderBy: { startedAt: "desc" },
+  });
   const selectedBranch =
     branches.find((branch) => branch.id === params.branchId) ??
+    (staleShiftForDate
+      ? branches.find((branch) => branch.id === staleShiftForDate.branchId)
+      : undefined) ??
     (openShift ? branches.find((branch) => branch.id === openShift.branchId) : undefined) ??
     branches[0] ??
     null;
@@ -169,6 +181,39 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
         },
       })
     : null;
+  const openShiftBusinessDate = openShift
+    ? toBusinessDateValue(openShift.startedAt)
+    : null;
+  const [otherOpenShiftCount, openShiftSnapshot] = openShift?.branchId
+    ? await Promise.all([
+        prisma.cashierShift.count({
+          where: {
+            branchId: openShift.branchId,
+            businessId,
+            id: { not: openShift.id },
+            status: "OPEN",
+          },
+        }),
+        prisma.dailyClosingSnapshot.findUnique({
+          where: {
+            businessId_branchId_businessDate: {
+              branchId: openShift.branchId,
+              businessDate: normalizeBusinessDate(openShiftBusinessDate!),
+              businessId,
+            },
+          },
+          select: { id: true },
+        }),
+      ])
+    : [0, null];
+  const willCompleteDailyClosing =
+    Boolean(openShift?.branchId) &&
+    otherOpenShiftCount === 0 &&
+    !openShiftSnapshot;
+  const isViewingOpenShiftBusinessDay =
+    Boolean(openShift?.branchId) &&
+    selectedBranch?.id === openShift?.branchId &&
+    dateValue === openShiftBusinessDate;
   const snapshotPayload =
     existingSnapshot &&
     isDailyClosingSnapshotPayload(existingSnapshot.reportDataJson)
@@ -233,6 +278,36 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
         </div>
 
         {message ? <div className={messageType}>{message}</div> : null}
+        {staleOpenShifts.length > 0 ? (
+          <div className="warning closing-stale-shift-notice" role="alert">
+            <div className="closing-stale-shift-copy">
+              <strong>Previous shift still open</strong>
+              <span>
+                Close the old shift before confirming daily closing. This page is showing
+                the oldest unclosed business date.
+              </span>
+            </div>
+            <div className="closing-stale-shift-list">
+              {staleOpenShifts.map((shift) => {
+                const shiftDateValue = toBusinessDateValue(shift.startedAt);
+                return (
+                  <Link
+                    className="secondary-link-button"
+                    href={makeClosingHref(params, {
+                      activityPage: 1,
+                      branchId: shift.branchId ?? undefined,
+                      date: shiftDateValue,
+                      shiftPage: 1,
+                    })}
+                    key={shift.id}
+                  >
+                    {shift.branch?.name ?? "Branch"} · {formatBusinessDate(shiftDateValue)}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         <section className="report-grid closing-overview-grid">
           <div className="panel report-card closing-shift-card">
@@ -279,8 +354,36 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                       <input name="notes" placeholder="Reason for any difference" />
                     </label>
                   </div>
+                  <div
+                    className={`closing-shift-completion-note ${
+                      willCompleteDailyClosing
+                        ? "closing-shift-completion-note-final"
+                        : ""
+                    }`}
+                  >
+                    <strong>
+                      {willCompleteDailyClosing
+                        ? "Final open shift for this branch"
+                        : otherOpenShiftCount > 0
+                          ? `${otherOpenShiftCount} other open ${
+                              otherOpenShiftCount === 1 ? "shift" : "shifts"
+                            }`
+                          : "Daily closing already completed"}
+                    </strong>
+                    <span>
+                      {willCompleteDailyClosing
+                        ? "Ending this shift will also freeze today's daily closing report."
+                        : otherOpenShiftCount > 0
+                          ? "This shift will end now. Daily closing completes when the final shift ends."
+                          : "Ending this shift will not create another daily closing report."}
+                    </span>
+                  </div>
                   <div className="form-actions closing-form-actions">
-                    <button type="submit">End shift</button>
+                    <button type="submit">
+                      {willCompleteDailyClosing
+                        ? "End shift & complete daily closing"
+                        : "End shift"}
+                    </button>
                   </div>
                 </form>
               </div>
@@ -372,7 +475,25 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
               returnTo={returnTo}
               isFrozen={Boolean(existingSnapshot)}
             />
-            <DailyClosingSnapshotPanel
+            {isViewingOpenShiftBusinessDay && !existingSnapshot ? (
+              <div className="panel daily-closing-auto-panel">
+                <div>
+                  <span className="eyebrow">DAILY CLOSE</span>
+                  <h2>Completed with the final shift</h2>
+                  <p>
+                    Staff only need to count cash and end their shift. The system
+                    freezes this daily report automatically when the branch&apos;s
+                    final open shift ends.
+                  </p>
+                </div>
+                <span className="status">
+                  {otherOpenShiftCount > 0
+                    ? `${otherOpenShiftCount + 1} shifts open`
+                    : "Ready with this shift"}
+                </span>
+              </div>
+            ) : (
+              <DailyClosingSnapshotPanel
               branchId={dailyClosing.branchId}
               branchName={dailyClosing.branchName}
               businessDate={dailyClosing.dateValue}
@@ -415,7 +536,8 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                     }
                   : null
               }
-            />
+              />
+            )}
           </>
         ) : existingSnapshot ? (
           <div className="panel daily-closing-empty error">
@@ -599,6 +721,8 @@ function makeClosingHref(
   params: Awaited<ClosingPageProps["searchParams"]>,
   pages: {
     activityPage?: number;
+    branchId?: string;
+    date?: string;
     shiftPage?: number;
   },
 ) {
@@ -612,8 +736,10 @@ function makeClosingHref(
 
   if (params.message) query.set("message", params.message);
   if (params.type) query.set("type", params.type);
-  if (params.branchId) query.set("branchId", params.branchId);
-  if (params.date) query.set("date", params.date);
+  const branchId = pages.branchId ?? params.branchId;
+  const date = pages.date ?? params.date;
+  if (branchId) query.set("branchId", branchId);
+  if (date) query.set("date", date);
   if (params.returnTo) query.set("returnTo", params.returnTo);
   if (activityPage > 1) query.set("activityPage", String(activityPage));
   if (shiftPage > 1) query.set("shiftPage", String(shiftPage));
@@ -868,11 +994,11 @@ function DailyClosingSummary({
     <section className="panel daily-closing-report" aria-labelledby="daily-closing-title">
       <div className="daily-closing-header">
         <div>
-          <span className="daily-closing-eyebrow">DAILY CLOSING REPORT</span>
+          <span className="daily-closing-eyebrow">OWNER CLOSING SUMMARY</span>
           <h2 id="daily-closing-title">{dailyClosing.branchName}</h2>
           <p>
             {formatBusinessDate(dailyClosing.dateValue)} | {dailyClosing.timeZone} |{" "}
-            {isFrozen ? "Frozen closing snapshot" : "Live operational summary"}
+            {isFrozen ? "Final figures from the frozen snapshot" : "Preview before daily closing"}
           </p>
         </div>
         <form method="get" className="daily-closing-branch-form">
@@ -894,6 +1020,44 @@ function DailyClosingSummary({
         </form>
       </div>
 
+      <div className="daily-closing-owner-view">
+        <section className="daily-closing-section daily-closing-preview daily-closing-preview-primary">
+          <div className="daily-closing-section-heading">
+            <div>
+              <h3>WhatsApp daily summary</h3>
+              <p>This is the short summary the owner receives after daily closing.</p>
+            </div>
+            <span className="status">{isFrozen ? "Final" : "Preview"}</span>
+          </div>
+          <pre>{dailyClosing.preview}</pre>
+        </section>
+
+        <section className="daily-closing-owner-totals" aria-label="Closing totals">
+          <ClosingMetric
+            label="Net sales"
+            value={formatMoneyFromCents(report.financial.netSalesCents)}
+            emphasis
+          />
+          <ClosingMetric
+            label="Collected"
+            value={formatMoneyFromCents(report.financial.collectedCents)}
+          />
+          <ClosingMetric
+            label="Outstanding"
+            value={formatMoneyFromCents(report.financial.outstandingCents)}
+          />
+        </section>
+      </div>
+
+      <details className="daily-closing-details">
+        <summary>
+          <span>
+            <strong>View full report details</strong>
+            <small>Payments, operations, services, packages and alerts</small>
+          </span>
+          <span className="daily-closing-details-action">Expand</span>
+        </summary>
+        <div className="daily-closing-details-content">
       <div className="daily-closing-kpis">
         <ClosingMetric label="Gross sales" value={formatMoneyFromCents(report.financial.grossSalesCents)} />
         <ClosingMetric label="Collected" value={formatMoneyFromCents(report.financial.collectedCents)} />
@@ -973,7 +1137,7 @@ function DailyClosingSummary({
       </div>
 
       <div className="daily-closing-columns daily-closing-lower">
-        <section className="daily-closing-section">
+        <section className="daily-closing-section daily-closing-alert-section">
           <div className="daily-closing-section-heading">
             <div>
               <h3>Top services</h3>
@@ -1033,24 +1197,16 @@ function DailyClosingSummary({
           </ul>
         </section>
 
-        <section className="daily-closing-section daily-closing-preview">
-          <div className="daily-closing-section-heading">
-            <div>
-              <h3>WhatsApp Preview</h3>
-              <p>Fixed preview only. No message will be sent in this phase.</p>
-            </div>
-            <span className="status">Preview only</span>
-          </div>
-          <pre>{dailyClosing.preview}</pre>
-        </section>
       </div>
+        </div>
+      </details>
 
       <footer className="daily-closing-footer">
         <span>
-          Generated {dailyClosing.generatedAtLabel} · {dailyClosing.businessName}
+          Generated {dailyClosing.generatedAtLabel} | {dailyClosing.businessName}
         </span>
         <span>
-          Scope: business + branch · {formatBusinessDate(dailyClosing.dateValue)} 00:00 to next
+          Scope: business + branch | {formatBusinessDate(dailyClosing.dateValue)} 00:00 to next
           day 00:00
         </span>
       </footer>
