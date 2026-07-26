@@ -1,5 +1,7 @@
 import type { UserRole } from "@prisma/client";
 import { notFound, redirect } from "next/navigation";
+import type { BusinessCapability } from "@/lib/business-groups/capabilities";
+import type { ResolvedBusinessAccess } from "@/lib/business-groups/business-access";
 import type { AppSession } from "./session";
 
 export function isPlatformAdmin(user: AppSession) {
@@ -17,7 +19,7 @@ export function assertCanAccessBusiness(user: AppSession, businessId: string) {
     return;
   }
 
-  if (user.businessId !== businessId) {
+  if (user.homeBusinessId !== businessId) {
     notFound();
   }
 }
@@ -27,9 +29,25 @@ export function assertCanManageBusiness(user: AppSession, businessId: string) {
     return;
   }
 
-  if (user.role === "BUSINESS_OWNER" && user.businessId === businessId) {
+  if (
+    user.role === "BUSINESS_OWNER" &&
+    user.homeBusinessId === businessId
+  ) {
     return;
   }
 
   redirect("/reports");
+}
+
+export function assertResolvedBusinessCapability(
+  access: ResolvedBusinessAccess,
+  capability: BusinessCapability,
+) {
+  if (!access.granted || access.businessId === null) {
+    notFound();
+  }
+
+  if (access.capability !== capability) {
+    notFound();
+  }
 }

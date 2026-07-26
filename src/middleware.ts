@@ -25,6 +25,27 @@ export async function middleware(request: NextRequest) {
 
   try {
     const verified = await jwtVerify(token, secret);
+    const legacyBusinessId =
+      typeof verified.payload.businessId === "string"
+        ? verified.payload.businessId
+        : null;
+    const homeBusinessId =
+      typeof verified.payload.homeBusinessId === "string"
+        ? verified.payload.homeBusinessId
+        : legacyBusinessId;
+    const activeBusinessId =
+      typeof verified.payload.activeBusinessId === "string"
+        ? verified.payload.activeBusinessId
+        : legacyBusinessId;
+    verified.payload.homeBusinessId = homeBusinessId;
+    verified.payload.activeBusinessId = activeBusinessId;
+    verified.payload.businessId = activeBusinessId;
+    verified.payload.contextVersion =
+      typeof verified.payload.contextVersion === "number" &&
+      Number.isSafeInteger(verified.payload.contextVersion) &&
+      verified.payload.contextVersion > 0
+        ? verified.payload.contextVersion
+        : 1;
     const role = verified.payload.role;
     const pathname = request.nextUrl.pathname;
     const industryType =

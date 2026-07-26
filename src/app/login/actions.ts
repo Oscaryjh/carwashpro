@@ -3,7 +3,10 @@
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
-import { createSession } from "@/lib/auth/session";
+import {
+  createSession,
+  SESSION_CONTEXT_VERSION,
+} from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validation/login";
 import { getBusinessHomeHref } from "@/lib/business-industry";
@@ -73,7 +76,9 @@ export async function loginAction(
 
   await createSession({
     userId: user.id,
-    businessId: user.businessId,
+    homeBusinessId: user.businessId,
+    activeBusinessId: user.businessId,
+    contextVersion: SESSION_CONTEXT_VERSION,
     industryType: user.business?.industryType ?? null,
     branchId: user.branchId,
     name: user.name,
