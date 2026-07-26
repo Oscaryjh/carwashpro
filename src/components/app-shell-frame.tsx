@@ -34,6 +34,7 @@ export function AppShellFrame({
 }: AppShellFrameProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
   const initialWhatsAppUnreadCount =
     flattenNavItems(navItems).find((item) => item.icon === "whatsapp")?.badgeCount ?? 0;
   const [whatsAppUnreadCount, setWhatsAppUnreadCount] = useState(
@@ -111,9 +112,9 @@ export function AppShellFrame({
       <aside className="sidebar">
         <div className="brand-row">
           <Link href={homeHref} className="brand" title={brandName}>
-            {logoUrl ? (
+            {logoUrl && logoUrl !== failedLogoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="" />
+              <img src={logoUrl} alt="" onError={() => setFailedLogoUrl(logoUrl)} />
             ) : (
               <span aria-hidden="true" className="brand-fallback">
                 {brandInitials(brandName)}

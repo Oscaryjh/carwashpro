@@ -23,6 +23,7 @@ export function BusinessLogoUpload({
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState("");
   const [isCompressing, setIsCompressing] = useState(false);
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -44,10 +45,12 @@ export function BusinessLogoUpload({
       setFileName("");
       setError("");
       setIsCompressing(false);
+      setFailedImageUrl(null);
       return;
     }
 
     setError("");
+    setFailedImageUrl(null);
 
     if (file.size > LOGO_MAX_BYTES) {
       setIsCompressing(true);
@@ -78,18 +81,24 @@ export function BusinessLogoUpload({
     setFileName(file.name);
   }
 
-  const imageUrl = previewUrl ?? currentLogoUrl;
+  const selectedImageUrl = previewUrl ?? currentLogoUrl;
+  const imageLoadFailed =
+    Boolean(selectedImageUrl) && selectedImageUrl === failedImageUrl;
+  const imageUrl = imageLoadFailed ? null : selectedImageUrl;
   const statusMessage =
-    error ||
-    (isCompressing
-      ? "Compressing logo..."
-      : pending
-        ? "Uploading logo..."
-        : fileName
-          ? `${fileName}. Click Save to upload.`
-          : currentLogoUrl
-            ? "Current logo is displayed."
-            : "PNG, JPG, or WebP. Large images are compressed automatically.");
+    error
+      ? error
+      : imageLoadFailed
+      ? "The saved logo file is unavailable. Choose the logo again and click Save."
+      : isCompressing
+        ? "Compressing logo..."
+        : pending
+          ? "Uploading logo..."
+          : fileName
+            ? `${fileName}. Click Save to upload.`
+            : currentLogoUrl
+              ? "Current logo is displayed."
+              : "PNG, JPG, or WebP. Large images are compressed automatically.";
 
   if (variant === "hero") {
     return (
@@ -99,7 +108,11 @@ export function BusinessLogoUpload({
           <span className="company-settings-identity-logo">
             {imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageUrl} alt={`${businessName} logo preview`} />
+              <img
+                src={imageUrl}
+                alt={`${businessName} logo preview`}
+                onError={() => setFailedImageUrl(imageUrl)}
+              />
             ) : (
               <span>{getInitials(businessName)}</span>
             )}
@@ -114,7 +127,7 @@ export function BusinessLogoUpload({
             onChange={handleChange}
           />
         </label>
-        {error || fileName || isCompressing ? (
+        {error || fileName || isCompressing || imageLoadFailed ? (
           <p className={error ? "business-logo-error" : undefined}>
             {statusMessage}
           </p>
@@ -128,9 +141,13 @@ export function BusinessLogoUpload({
       <div className="business-logo-preview">
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={`${businessName} logo preview`} />
+          <img
+            src={imageUrl}
+            alt={`${businessName} logo preview`}
+            onError={() => setFailedImageUrl(imageUrl)}
+          />
         ) : (
-          <span>No logo</span>
+          <span>{getInitials(businessName)}</span>
         )}
       </div>
       <div className="business-logo-input">
