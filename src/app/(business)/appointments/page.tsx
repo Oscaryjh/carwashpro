@@ -57,7 +57,8 @@ const statusFilters = [
 export default async function AppointmentsPage({
   searchParams,
 }: AppointmentsPageProps) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const { access, user, businessId, industryType } =
+    await requireBusinessUser("VIEW_APPOINTMENTS");
   const resolvedIndustryType = industryType ?? "AUTO_DETAILING";
   const params = await searchParams;
   const message = params.message?.trim();
@@ -96,7 +97,7 @@ export default async function AppointmentsPage({
   const datePickerRangeStart = parseBusinessDateTime(datePickerRangeStartValue, "00:00");
   const datePickerRangeEnd = parseBusinessDateTime(datePickerRangeEndValue, "00:00");
   const staffBranchId =
-    user.role === "BUSINESS_OWNER"
+    access.source === "GROUP_ACCESS" || user.role === "BUSINESS_OWNER"
       ? null
       : user.branchId ?? "00000000-0000-0000-0000-000000000000";
   const where = buildAppointmentWhere({
@@ -108,7 +109,7 @@ export default async function AppointmentsPage({
   });
 
   const staffWhere =
-    user.role === "BUSINESS_OWNER"
+    access.source === "GROUP_ACCESS" || user.role === "BUSINESS_OWNER"
       ? { businessId, status: "active" as const, appointmentBookable: true }
       : {
           businessId,

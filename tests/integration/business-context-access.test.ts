@@ -220,14 +220,17 @@ test("business context access is revalidated against direct and group authorizat
       userId: groupOwner.id,
       requestedBusinessId: scoped.id,
     });
-    assertDenied(missingCapability, "CAPABILITY_REQUIRED", home.id);
+    assertGranted(missingCapability, "GROUP_ACCESS", "BUSINESS_OWNER");
 
     const groupOwnerFallback = await resolveBusinessAccess({
       userId: groupOnlyOwner.id,
       requestedBusinessId: null,
       capability: "VIEW_DASHBOARD",
     });
-    assertGroupFallback(groupOwnerFallback, scoped.id);
+    assertGroupFallback(
+      groupOwnerFallback,
+      [scoped.id, secondMember.id].sort()[0],
+    );
 
     const groupManagerFallback = await resolveBusinessAccess({
       userId: groupOnlyManager.id,

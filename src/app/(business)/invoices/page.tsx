@@ -17,8 +17,8 @@ type InvoicesPageProps = {
 const PAGE_SIZE = 10;
 
 export default async function InvoicesPage({ searchParams }: InvoicesPageProps) {
-  const context = await requireBusinessIndustryContext();
-  const { businessId, user } = context;
+  const context = await requireBusinessIndustryContext("VIEW_INVOICES");
+  const { businessId } = context;
   const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
@@ -171,7 +171,8 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                     invoice.workOrder ||
                     (invoice.appointment && !hasProductItems && !hasPurchasedPackages),
                   );
-                  const canManagePayments = user.role === "BUSINESS_OWNER";
+                  const canManagePayments =
+                    context.access.effectiveBusinessRole === "BUSINESS_OWNER";
                   const canVoid = Boolean(
                     canManagePayments &&
                     invoice.status !== "VOID" &&

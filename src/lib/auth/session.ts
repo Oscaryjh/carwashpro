@@ -42,16 +42,23 @@ function getSecret() {
 }
 
 export async function createSession(session: CreateSessionInput) {
+  const token = await createSessionToken(session);
+  await setSessionCookie(token);
+}
+
+export async function createSessionToken(session: CreateSessionInput) {
   const normalizedSession = normalizeSession({
     ...session,
     businessId: session.activeBusinessId,
   });
-  const token = await new SignJWT(normalizedSession)
+  return new SignJWT(normalizedSession)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_IDLE_SECONDS}s`)
     .sign(getSecret());
+}
 
+export async function setSessionCookie(token: string) {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,

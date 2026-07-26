@@ -17,21 +17,20 @@ export const getBusinessContext = cache(async function getBusinessContext(
   const user = await requireUser();
   const requestedBusinessId =
     user.activeBusinessId ?? user.homeBusinessId;
-  let access = await resolveBusinessAccess({
+  const access = await resolveBusinessAccess({
     userId: user.userId,
     requestedBusinessId,
     capability,
   });
 
   if (!access.granted && canUseFallback(access)) {
-    access = await resolveBusinessAccess({
-      userId: user.userId,
-      requestedBusinessId: access.fallback.businessId,
-      capability,
-    });
+    redirect("/business-context/recover");
   }
 
   if (!access.granted) {
+    if (access.fallback.kind === "NO_ACCESS") {
+      redirect("/no-business-access");
+    }
     redirect("/login?error=business-access-denied");
   }
 
@@ -52,6 +51,11 @@ export const getBusinessContext = cache(async function getBusinessContext(
     businessId: access.businessId,
     branchId: access.branchId,
     industryType: access.industryType,
+    permissions: access.permissions,
+    role:
+      access.effectiveBusinessRole === "BUSINESS_OWNER"
+        ? ("BUSINESS_OWNER" as const)
+        : user.role,
   };
 
   return {

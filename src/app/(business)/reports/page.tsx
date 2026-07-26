@@ -32,8 +32,10 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
 };
 
 export default async function ReportsPage({ searchParams }: ReportsPageProps) {
-  const context = await requireBusinessContext();
-  assertStaffPermission(context.user, "REPORTS");
+  const context = await requireBusinessContext({ capability: "VIEW_REPORTS" });
+  if (context.access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(context.user, "REPORTS");
+  }
 
   if (!context.businessId) {
     throw new Error("Business context is required.");
@@ -50,7 +52,9 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const { fromDate, toDateExclusive } = getDateRange(fromValue, toValue);
 
   const branches = await getActiveBranches(businessId);
-  const canViewAllBranches = hasStaffPermission(context.user, "ALL_BRANCHES");
+  const canViewAllBranches =
+    context.access.source === "GROUP_ACCESS" ||
+    hasStaffPermission(context.user, "ALL_BRANCHES");
   const staffBranch = context.user.branchId
     ? branches.find((branch) => branch.id === context.user.branchId)
     : null;

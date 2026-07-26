@@ -30,8 +30,11 @@ type ProductsPageProps = {
 const CATALOG_PAGE_SIZE = 10;
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { user, businessId } = await requireBusinessUser();
-  assertStaffPermission(user, "PRODUCTS");
+  const { access, user, businessId } =
+    await requireBusinessUser("VIEW_INVENTORY");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "PRODUCTS");
+  }
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const status = params.status === "ACTIVE" || params.status === "INACTIVE" ? params.status : "";

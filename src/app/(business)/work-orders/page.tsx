@@ -46,7 +46,8 @@ const dateFilters = [
 export default async function WorkOrdersPage({
   searchParams,
 }: WorkOrdersPageProps) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const { access, user, businessId, industryType } =
+    await requireBusinessUser("VIEW_WORK_ORDERS");
 
   if (industryType === "SALON_BEAUTY") {
     redirect("/cashier");
@@ -61,7 +62,7 @@ export default async function WorkOrdersPage({
   const date = getValidValue(params.date, dateFilters, "all");
   const currentPage = Math.max(Number(params.page) || 1, 1);
   const staffBranchId =
-    user.role === "BUSINESS_OWNER"
+    access.source === "GROUP_ACCESS" || user.role === "BUSINESS_OWNER"
       ? null
       : user.branchId ?? "00000000-0000-0000-0000-000000000000";
 

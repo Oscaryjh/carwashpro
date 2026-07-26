@@ -103,7 +103,7 @@ const ACTIVITY_STEP = 10;
 const MAX_ACTIVITY_LIMIT = 50;
 
 export default async function CrmPage({ searchParams }: CrmPageProps) {
-  const context = await requireBusinessIndustryContext();
+  const context = await requireBusinessIndustryContext("VIEW_CRM");
   const { businessId } = context;
   const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const params = await searchParams;

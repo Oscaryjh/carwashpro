@@ -21,8 +21,11 @@ export default async function DiscountsPage({
 }: {
   searchParams: Promise<{ edit?: string; message?: string; modal?: string; page?: string; type?: string }>;
 }) {
-  const { user, businessId } = await requireBusinessUser();
-  assertStaffPermission(user, "DISCOUNTS");
+  const { access, user, businessId } =
+    await requireBusinessUser("VIEW_CATALOG");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "DISCOUNTS");
+  }
   const params = await searchParams;
   const page = Math.max(1, Number(params.page) || 1);
   const [discounts, total, branches, editingDiscount] = await Promise.all([

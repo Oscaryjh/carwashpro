@@ -171,3 +171,32 @@ test("tampered business context token returns a structured error", async () => {
     }
   }
 });
+
+test("a stale context token prevents the guarded business write", async () => {
+  const previousSecret = process.env.SESSION_SECRET;
+  process.env.SESSION_SECRET = "unit-test-session-secret-that-is-long-enough";
+  let writes = 0;
+
+  try {
+    const token = await createBusinessContextToken({
+      userId: "user-1",
+      businessId: "business-a",
+      contextVersion: 2,
+    });
+    const result = await verifyBusinessContextToken(token, {
+      userId: "user-1",
+      businessId: "business-b",
+      contextVersion: 3,
+    });
+    if (result.valid) writes += 1;
+
+    assert.equal(result.valid, false);
+    assert.equal(writes, 0);
+  } finally {
+    if (previousSecret === undefined) {
+      delete process.env.SESSION_SECRET;
+    } else {
+      process.env.SESSION_SECRET = previousSecret;
+    }
+  }
+});

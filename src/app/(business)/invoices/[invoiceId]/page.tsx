@@ -21,8 +21,8 @@ type InvoiceDetailsPageProps = {
 export default async function InvoiceDetailsPage({
   params,
 }: InvoiceDetailsPageProps) {
-  const context = await requireBusinessIndustryContext();
-  const { user, businessId } = context;
+  const context = await requireBusinessIndustryContext("VIEW_INVOICES");
+  const { businessId } = context;
   const { invoiceId } = await params;
   const invoice = await prisma.invoice.findFirst({
     where: {
@@ -281,7 +281,7 @@ export default async function InvoiceDetailsPage({
               ))}
             </div>
           ) : null}
-          {user.role === "BUSINESS_OWNER" &&
+          {context.access.effectiveBusinessRole === "BUSINESS_OWNER" &&
           invoice.status !== "VOID" &&
           appointmentRefundablePayments.length ? (
             <div className="panel invoice-refund-panel">
@@ -427,7 +427,7 @@ export default async function InvoiceDetailsPage({
               ))}
             </div>
           ) : null}
-          {user.role === "BUSINESS_OWNER" &&
+          {context.access.effectiveBusinessRole === "BUSINESS_OWNER" &&
           invoice.status !== "VOID" &&
           invoice.payments.some((payment) => payment.status === "ACTIVE") ? (
             <div className="panel invoice-refund-panel">
@@ -734,7 +734,7 @@ export default async function InvoiceDetailsPage({
           ) : null}
         </div>
 
-        {user.role === "BUSINESS_OWNER" &&
+        {context.access.effectiveBusinessRole === "BUSINESS_OWNER" &&
         invoice.status !== "VOID" &&
         refundablePayments.length ? (
           <div className="panel invoice-refund-panel">

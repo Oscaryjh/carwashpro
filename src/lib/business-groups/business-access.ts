@@ -224,7 +224,7 @@ export async function resolveBusinessAccess(
     );
   }
 
-  if (!input.capability) {
+  if (!input.capability && groupGrant.role === "GROUP_MANAGER") {
     return denied(
       input,
       "CAPABILITY_REQUIRED",
@@ -245,9 +245,10 @@ export async function resolveBusinessAccess(
   }
 
   const capabilityAllowed =
-    groupGrant.role === "GROUP_OWNER"
+    !input.capability ||
+    (groupGrant.role === "GROUP_OWNER"
       ? canGroupOwner(input.capability)
-      : canGroupManager(input.capability);
+      : canGroupManager(input.capability));
   if (!capabilityAllowed) {
     return denied(
       input,
@@ -273,7 +274,7 @@ export async function resolveBusinessAccess(
     source: "GROUP_ACCESS",
     groupId: groupGrant.groupId,
     groupUserId: groupGrant.id,
-    capability: input.capability,
+    capability: input.capability ?? null,
   };
 }
 

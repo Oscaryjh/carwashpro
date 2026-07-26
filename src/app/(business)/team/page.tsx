@@ -42,8 +42,11 @@ type TeamPageProps = {
 };
 
 export default async function TeamPage({ searchParams }: TeamPageProps) {
-  const { user, businessId, industryType } = await requireBusinessUser();
-  assertStaffPermission(user, "TEAM");
+  const { access, user, businessId, industryType } =
+    await requireBusinessUser("VIEW_TEAM_DIRECTORY");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "TEAM");
+  }
 
   const params = await searchParams;
   const section = teamSections.some((item) => item.key === params.section)

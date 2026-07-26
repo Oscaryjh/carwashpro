@@ -32,9 +32,11 @@ const ALL_BRANCHES_ONLY = "all-branches-only";
 const CATALOG_PAGE_SIZE = 10;
 
 export default async function ServicesPage({ searchParams }: ServicesPageProps) {
-  const context = await requireBusinessIndustryContext();
+  const context = await requireBusinessIndustryContext("VIEW_CATALOG");
   const { user, businessId } = context;
-  assertStaffPermission(user, "SERVICES");
+  if (context.access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "SERVICES");
+  }
   const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const params = await searchParams;
   const isCreateOpen = params.modal === "create";

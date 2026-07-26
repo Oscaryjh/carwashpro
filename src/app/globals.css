@@ -8961,6 +8961,68 @@ label {
   line-height: 1;
 }
 
+.business-context-toolbar {
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  padding: 8px 16px;
+}
+
+.business-context-switcher {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) minmax(0, 420px);
+  align-items: center;
+  gap: 10px;
+}
+
+.business-context-switcher label {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.business-context-switcher > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px;
+}
+
+.business-context-switcher select,
+.business-context-switcher button {
+  min-width: 0;
+  min-height: 38px;
+  font-size: 12px;
+}
+
+.business-context-switcher select {
+  padding: 5px 7px;
+}
+
+.business-context-switcher button {
+  padding: 5px 8px;
+}
+
+.business-context-switcher p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+@media (max-width: 620px) {
+  .business-context-toolbar {
+    padding: 8px 12px;
+  }
+
+  .business-context-switcher {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+
 .sidebar nav {
   gap: 3px;
 }

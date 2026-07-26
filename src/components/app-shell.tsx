@@ -1,23 +1,45 @@
 import type { ReactNode } from "react";
 import { AppShellFrame } from "@/components/app-shell-frame";
 import type { NavItem } from "@/components/app-shell-frame";
+import { BusinessContextSwitcher } from "@/components/business-context-switcher";
+import { createBusinessContextToken } from "@/lib/auth/business-context-token";
 import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import type { AppSession } from "@/lib/auth/session";
+import type { ResolvedBusinessAccess } from "@/lib/business-groups/business-access";
+import {
+  getAvailableBusinessContexts,
+} from "@/lib/business-groups/business-context";
+import {
+  canGroupManager,
+  type BusinessCapability,
+} from "@/lib/business-groups/capabilities";
 import { prisma } from "@/lib/prisma";
 import { getBusinessHomeHref } from "@/lib/business-industry";
 
 type AppShellProps = {
   user: AppSession;
+  access?: ResolvedBusinessAccess;
   children: ReactNode;
 };
 
-export async function AppShell({ user, children }: AppShellProps) {
+export async function AppShell({ user, access, children }: AppShellProps) {
   const isPlatformAdmin = user.role === "PLATFORM_ADMIN";
-  const isBusinessOwner = user.role === "BUSINESS_OWNER";
-  const isStaff = user.role === "STAFF";
+  const grantedAccess = access?.granted ? access : null;
+  const isBusinessOwner =
+    grantedAccess?.effectiveBusinessRole === "BUSINESS_OWNER" ||
+    (!grantedAccess && user.role === "BUSINESS_OWNER");
+  const isGroupManager =
+    grantedAccess?.effectiveBusinessRole === "GROUP_MANAGER_READ_ONLY";
+  const isStaff = user.role === "STAFF" || isGroupManager;
   const isStoreUser = isBusinessOwner || isStaff;
   const canSee = (permission: Parameters<typeof hasStaffPermission>[1]) =>
     isBusinessOwner || hasStaffPermission(user, permission);
+  const canSeeCapability = (
+    permission: Parameters<typeof hasStaffPermission>[1],
+    capability: BusinessCapability,
+  ) =>
+    isBusinessOwner ||
+    (isGroupManager ? canGroupManager(capability) : canSee(permission));
   const business = user.businessId
     ? await prisma.business.findUnique({
         where: { id: user.businessId },
@@ -42,16 +64,16 @@ export async function AppShell({ user, children }: AppShellProps) {
       : 0;
   const brandName = business?.name ?? "TETAMU POS";
   const catalogChildren: NavItem[] = [
-    ...(isStoreUser && canSee("SERVICES")
+    ...(isStoreUser && canSeeCapability("SERVICES", "VIEW_CATALOG")
       ? [{ href: "/services", label: "Services", shortLabel: "Svc", icon: "services" as const }]
       : []),
-    ...(isStoreUser && canSee("PACKAGES")
+    ...(isStoreUser && canSeeCapability("PACKAGES", "VIEW_CATALOG")
       ? [{ href: "/packages", label: "Packages", shortLabel: "Pkg", icon: "packages" as const }]
       : []),
-    ...(isStoreUser && canSee("PRODUCTS")
+    ...(isStoreUser && canSeeCapability("PRODUCTS", "VIEW_INVENTORY")
       ? [{ href: "/products", label: "Products", shortLabel: "Prod", icon: "services" as const }]
       : []),
-    ...(isStoreUser && canSee("DISCOUNTS")
+    ...(isStoreUser && canSeeCapability("DISCOUNTS", "VIEW_CATALOG")
       ? [{ href: "/discounts", label: "Discounts", shortLabel: "Disc", icon: "reports" as const }]
       : []),
   ];
@@ -84,7 +106,9 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(!isSalonBusiness && isStoreUser && canSee("JOBS")
+    ...(!isSalonBusiness &&
+    isStoreUser &&
+    canSeeCapability("JOBS", "VIEW_WORK_ORDERS")
       ? [
           {
             href: "/work-orders",
@@ -94,7 +118,10 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isSalonBusiness && isStoreUser && canSee("POS")
+    ...(isSalonBusiness &&
+    isStoreUser &&
+    !isGroupManager &&
+    canSee("POS")
       ? [
           {
             href: "/cashier",
@@ -104,7 +131,8 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("APPOINTMENTS")
+    ...(isStoreUser &&
+    canSeeCapability("APPOINTMENTS", "VIEW_APPOINTMENTS")
       ? [
           {
             href: "/appointments",
@@ -114,10 +142,10 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("CRM")
+    ...(isStoreUser && canSeeCapability("CRM", "VIEW_CRM")
       ? [{ href: "/crm", label: "CRM", shortLabel: "CRM", icon: "crm" as const }]
       : []),
-    ...(isStoreUser && canSee("LOYALTY")
+    ...(isStoreUser && !isGroupManager && canSee("LOYALTY")
       ? [
           {
             href: "/loyalty",
@@ -127,7 +155,7 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("CLOSING")
+    ...(isStoreUser && !isGroupManager && canSee("CLOSING")
       ? [
           {
             href: "/closing",
@@ -137,7 +165,7 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("WHATSAPP")
+    ...(isStoreUser && !isGroupManager && canSee("WHATSAPP")
       ? [
           {
             href: "/whatsapp/inbox",
@@ -148,7 +176,8 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("TEAM")
+    ...(isStoreUser &&
+    canSeeCapability("TEAM", "VIEW_TEAM_DIRECTORY")
       ? [
           {
             href: "/team",
@@ -158,7 +187,7 @@ export async function AppShell({ user, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSee("REPORTS")
+    ...(isStoreUser && canSeeCapability("REPORTS", "VIEW_REPORTS")
       ? [
           {
             href: "/reports?range=today",
@@ -190,6 +219,18 @@ export async function AppShell({ user, children }: AppShellProps) {
         ]
       : []),
   ];
+  const businessContexts =
+    !isPlatformAdmin && user.businessId
+      ? await getAvailableBusinessContexts(user.userId, user.businessId)
+      : null;
+  const contextToken =
+    businessContexts?.canSwitch && user.businessId
+      ? await createBusinessContextToken({
+          userId: user.userId,
+          businessId: user.businessId,
+          contextVersion: user.contextVersion,
+        })
+      : null;
 
   return (
     <AppShellFrame
@@ -197,6 +238,17 @@ export async function AppShell({ user, children }: AppShellProps) {
       logoUrl={business?.logoUrl}
       homeHref={homeHref}
       navItems={navItems}
+      businessSwitcher={
+        businessContexts?.canSwitch &&
+        businessContexts.group &&
+        contextToken ? (
+          <BusinessContextSwitcher
+            businesses={businessContexts.businesses}
+            contextToken={contextToken}
+            groupName={businessContexts.group.name}
+          />
+        ) : undefined
+      }
     >
       {children}
     </AppShellFrame>

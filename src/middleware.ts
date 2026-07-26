@@ -55,6 +55,9 @@ export async function middleware(request: NextRequest) {
     const permissions = Array.isArray(verified.payload.permissions)
       ? verified.payload.permissions
       : [];
+    const isDelegatedBusinessContext =
+      Boolean(activeBusinessId) &&
+      activeBusinessId !== homeBusinessId;
     const staffHomePath = getStaffHomePath(permissions, industryType);
 
     if (pathname.startsWith("/admin") && role !== "PLATFORM_ADMIN") {
@@ -85,11 +88,20 @@ export async function middleware(request: NextRequest) {
 
     const requiredPermission = routePermission(pathname);
 
-    if (requiredPermission === "OWNER_ONLY" && role !== "BUSINESS_OWNER") {
+    if (
+      !isDelegatedBusinessContext &&
+      requiredPermission === "OWNER_ONLY" &&
+      role !== "BUSINESS_OWNER"
+    ) {
       return NextResponse.redirect(new URL(staffHomePath, request.url));
     }
 
-    if (requiredPermission && requiredPermission !== "OWNER_ONLY" && role === "STAFF") {
+    if (
+      !isDelegatedBusinessContext &&
+      requiredPermission &&
+      requiredPermission !== "OWNER_ONLY" &&
+      role === "STAFF"
+    ) {
       if (!permissions.includes(requiredPermission)) {
         return NextResponse.redirect(new URL(staffHomePath, request.url));
       }
@@ -134,6 +146,7 @@ export const config = {
     "/appointments/:path*",
     "/branches/:path*",
     "/business/settings",
+    "/business-context/:path*",
     "/cashier/:path*",
     "/closing/:path*",
     "/crm/:path*",

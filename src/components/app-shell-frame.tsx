@@ -20,6 +20,7 @@ type AppShellFrameProps = {
   logoUrl?: string | null;
   homeHref: string;
   navItems: NavItem[];
+  businessSwitcher?: ReactNode;
   children: ReactNode;
 };
 
@@ -30,6 +31,7 @@ export function AppShellFrame({
   logoUrl,
   homeHref,
   navItems,
+  businessSwitcher,
   children,
 }: AppShellFrameProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -213,7 +215,12 @@ export function AppShellFrame({
           </form>
         </div>
       </aside>
-      <main className="main">{children}</main>
+      <main className="main">
+        {businessSwitcher ? (
+          <div className="business-context-toolbar">{businessSwitcher}</div>
+        ) : null}
+        {children}
+      </main>
     </div>
   );
 }
