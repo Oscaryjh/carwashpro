@@ -242,7 +242,7 @@ test("group conflicts preserve one active record and do not create audit logs", 
         auditActor,
       ),
     );
-    assert.equal(duplicateRevokeError.message, "Active group access was not found.");
+    assert.equal(duplicateRevokeError.message, "This group role has already been revoked.");
     assert.equal(
       await prisma.businessGroupAuditLog.count({ where: { groupId: groupA.id } }),
       auditCountAfterRevoke,
@@ -269,6 +269,149 @@ test("group conflicts preserve one active record and do not create audit logs", 
     await prisma.$disconnect();
   }
 });
+
+for (const role of ["GROUP_OWNER", "GROUP_MANAGER"] as const) {
+  test(`concurrent ${role} revocation is atomic and writes one audit log`, async () => {
+    assertLocalDatabase();
+
+    const suffix = randomUUID().slice(0, 8);
+    const group = await prisma.businessGroup.create({
+      data: {
+        name: `QA Concurrent ${role} ${suffix}`,
+        code: `qa-concurrent-${role.toLowerCase()}-${suffix}`,
+      },
+    });
+    const business = await prisma.business.create({
+      data: {
+        name: `QA Concurrent Business ${suffix}`,
+        slug: `qa-concurrent-business-${suffix}`,
+      },
+    });
+    const [actor, targetUser] = await Promise.all([
+      prisma.user.create({
+        data: {
+          name: `QA Concurrent Actor ${suffix}`,
+          email: `qa-concurrent-actor-${suffix}@example.test`,
+          passwordHash: "not-a-real-password",
+          role: "PLATFORM_ADMIN",
+        },
+      }),
+      prisma.user.create({
+        data: {
+          businessId: business.id,
+          name: `QA Concurrent Target ${suffix}`,
+          email: `qa-concurrent-target-${suffix}@example.test`,
+          passwordHash: "not-a-real-password",
+          role: role === "GROUP_OWNER" ? "BUSINESS_OWNER" : "STAFF",
+        },
+      }),
+    ]);
+
+    try {
+      await addBusinessToGroup(
+        { groupId: group.id, businessId: business.id },
+        { userId: actor.id },
+      );
+      await grantBusinessGroupUser(
+        {
+          groupId: group.id,
+          userId: targetUser.id,
+          role,
+          businessIds: role === "GROUP_MANAGER" ? [business.id] : [],
+        },
+        { userId: actor.id },
+      );
+
+      const activeGrant = await prisma.businessGroupUser.findFirstOrThrow({
+        where: { groupId: group.id, userId: targetUser.id, role, status: "ACTIVE" },
+      });
+      const auditCountBefore = await prisma.businessGroupAuditLog.count({
+        where: { groupId: group.id, action: `${role}_REVOKED` },
+      });
+
+      const results = await Promise.allSettled([
+        revokeBusinessGroupUser(
+          { groupId: group.id, groupUserId: activeGrant.id },
+          { userId: actor.id },
+        ),
+        revokeBusinessGroupUser(
+          { groupId: group.id, groupUserId: activeGrant.id },
+          { userId: actor.id },
+        ),
+      ]);
+
+      const fulfilled = results.filter((result) => result.status === "fulfilled");
+      const rejected = results.filter(
+        (result): result is PromiseRejectedResult => result.status === "rejected",
+      );
+      assert.equal(fulfilled.length, 1);
+      assert.equal(rejected.length, 1);
+      assert.ok(rejected[0].reason instanceof BusinessGroupConflictError);
+      assert.deepEqual(businessGroupConflictState(rejected[0].reason), {
+        status: "error",
+        message: "This group role has already been revoked.",
+      });
+
+      const persistedGrant = await prisma.businessGroupUser.findUniqueOrThrow({
+        where: { id: activeGrant.id },
+      });
+      assert.equal(persistedGrant.status, "REVOKED");
+      assert.ok(persistedGrant.revokedAt);
+
+      const revokeAudits = await prisma.businessGroupAuditLog.findMany({
+        where: { groupId: group.id, action: `${role}_REVOKED` },
+        orderBy: { createdAt: "asc" },
+      });
+      assert.equal(revokeAudits.length, auditCountBefore + 1);
+      const audit = revokeAudits.at(-1);
+      assert.ok(audit);
+      assert.equal(audit.actorUserId, actor.id);
+      assert.equal(audit.groupId, group.id);
+      assert.equal(audit.entityId, activeGrant.id);
+      assert.equal(audit.action, `${role}_REVOKED`);
+      assert.deepEqual(audit.before, { status: "ACTIVE", role });
+      assert.equal((audit.after as { status?: string })?.status, "REVOKED");
+      assert.ok((audit.after as { revokedAt?: string })?.revokedAt);
+      assert.ok(audit.createdAt);
+
+      const auditCountAfterConcurrentRevoke = revokeAudits.length;
+      const sequentialError = await captureConflict(() =>
+        revokeBusinessGroupUser(
+          { groupId: group.id, groupUserId: activeGrant.id },
+          { userId: actor.id },
+        ),
+      );
+      assert.equal(sequentialError.message, "This group role has already been revoked.");
+      assert.equal(
+        await prisma.businessGroupAuditLog.count({
+          where: { groupId: group.id, action: `${role}_REVOKED` },
+        }),
+        auditCountAfterConcurrentRevoke,
+      );
+
+      const missingRoleError = await captureConflict(() =>
+        revokeBusinessGroupUser(
+          { groupId: group.id, groupUserId: randomUUID() },
+          { userId: actor.id },
+        ),
+      );
+      assert.equal(missingRoleError.message, "This group role was not found.");
+      assert.equal(
+        await prisma.businessGroupAuditLog.count({
+          where: { groupId: group.id, action: `${role}_REVOKED` },
+        }),
+        auditCountAfterConcurrentRevoke,
+      );
+    } finally {
+      await prisma.businessGroupAuditLog.deleteMany({ where: { groupId: group.id } });
+      await prisma.businessGroupUser.deleteMany({ where: { groupId: group.id } });
+      await prisma.businessGroupMember.deleteMany({ where: { groupId: group.id } });
+      await prisma.businessGroup.delete({ where: { id: group.id } });
+      await prisma.user.deleteMany({ where: { id: { in: [actor.id, targetUser.id] } } });
+      await prisma.business.delete({ where: { id: business.id } });
+    }
+  });
+}
 
 async function captureConflict(operation: () => Promise<unknown>) {
   try {

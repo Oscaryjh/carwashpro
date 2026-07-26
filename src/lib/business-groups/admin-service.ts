@@ -176,17 +176,29 @@ export async function revokeBusinessGroupUser(
 ) {
   await prisma.$transaction(async (tx) => {
     const grant = await tx.businessGroupUser.findFirst({
-      where: { id: input.groupUserId, groupId: input.groupId, status: "ACTIVE" },
+      where: { id: input.groupUserId, groupId: input.groupId },
       include: { user: { select: { name: true } } },
     });
     if (!grant) {
-      throw new BusinessGroupConflictError("Active group access was not found.");
+      throw new BusinessGroupConflictError("This group role was not found.");
+    }
+    if (grant.status !== "ACTIVE") {
+      throw new BusinessGroupConflictError("This group role has already been revoked.");
     }
 
-    const revoked = await tx.businessGroupUser.update({
-      where: { id: grant.id },
-      data: { status: "REVOKED", revokedAt: new Date() },
+    const revokedAt = new Date();
+    const revoked = await tx.businessGroupUser.updateMany({
+      where: {
+        id: grant.id,
+        groupId: input.groupId,
+        status: "ACTIVE",
+      },
+      data: { status: "REVOKED", revokedAt },
     });
+    if (revoked.count !== 1) {
+      throw new BusinessGroupConflictError("This group role has already been revoked.");
+    }
+
     await writeBusinessGroupAuditLog(
       {
         groupId: input.groupId,
@@ -196,7 +208,7 @@ export async function revokeBusinessGroupUser(
         entityId: grant.id,
         summary: `Revoked ${grant.role} from ${grant.user.name}`,
         before: { status: grant.status, role: grant.role },
-        after: { status: revoked.status, revokedAt: revoked.revokedAt },
+        after: { status: "REVOKED", revokedAt },
       },
       tx,
     );
