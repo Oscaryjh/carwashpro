@@ -7,6 +7,10 @@ import {
   businessGroupUserSchema,
   uniqueIds,
 } from "../../src/lib/validation/business-group";
+import {
+  BusinessGroupConflictError,
+  businessGroupConflictState,
+} from "../../src/lib/business-groups/admin-service";
 
 test("business group validation accepts a stable group code", () => {
   const result = businessGroupSchema.safeParse({ name: "Oscar Group", code: "oscar-group" });
@@ -40,6 +44,21 @@ test("group owners use all-business scope without selected businesses", () => {
 
 test("group business selection removes duplicate IDs before persistence", () => {
   assert.deepEqual(uniqueIds(["business-a", "business-b", "business-a"]), ["business-a", "business-b"]);
+});
+
+test("expected group conflicts become structured action errors", () => {
+  const state = businessGroupConflictState(
+    new BusinessGroupConflictError("This user already has an active role in this group."),
+  );
+
+  assert.deepEqual(state, {
+    status: "error",
+    message: "This user already has an active role in this group.",
+  });
+});
+
+test("unexpected group failures are not hidden as business conflicts", () => {
+  assert.equal(businessGroupConflictState(new Error("Database unavailable")), null);
 });
 
 test("group migration protects one active membership and preserves history", async () => {
