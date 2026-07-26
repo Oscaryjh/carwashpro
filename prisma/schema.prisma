@@ -12,6 +12,31 @@ enum BusinessStatus {
   inactive
 }
 
+enum BusinessGroupStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BusinessGroupMemberStatus {
+  ACTIVE
+  REMOVED
+}
+
+enum BusinessGroupUserRole {
+  GROUP_OWNER
+  GROUP_MANAGER
+}
+
+enum BusinessGroupUserStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum BusinessGroupAccessScope {
+  ALL_GROUP_BUSINESSES
+  SELECTED_BUSINESSES
+}
+
 enum BusinessIndustry {
   AUTO_DETAILING
   SALON_BEAUTY
@@ -388,6 +413,9 @@ model Business {
   closingWhatsAppBranchSettings ClosingWhatsAppBranchSetting[]
   closingWhatsAppRecipients     ClosingWhatsAppRecipient[]
   closingWhatsAppSends          ClosingWhatsAppSendAttempt[]
+  businessGroupMemberships      BusinessGroupMember[]
+  businessGroupAccessGrants     BusinessGroupUserBusinessAccess[]
+  businessGroupAuditEntries     BusinessGroupAuditLog[]
 
   @@index([slug])
   @@index([industryType])
@@ -478,6 +506,8 @@ model User {
   staffLevel               StaffLevel?              @relation(fields: [staffLevelId], references: [id], onDelete: SetNull)
   closedDailySnapshots     DailyClosingSnapshot[]  @relation("DailyClosingClosedBy")
   closingWhatsAppSends     ClosingWhatsAppSendAttempt[] @relation("ClosingWhatsAppRequestedBy")
+  businessGroupUsers       BusinessGroupUser[]
+  businessGroupAuditEntries BusinessGroupAuditLog[]
 
   @@index([businessId])
   @@index([branchId])
@@ -485,6 +515,110 @@ model User {
   @@index([staffRoleProfileId])
   @@index([staffLevelId])
   @@map("users")
+}
+
+// A Business Group is a management and reporting layer above independent
+// businesses. Transaction records remain owned by their existing businessId.
+model BusinessGroup {
+  id        String              @id @default(uuid()) @db.Uuid
+  name      String
+  code      String              @unique
+  status    BusinessGroupStatus @default(ACTIVE)
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+
+  members   BusinessGroupMember[]
+  users     BusinessGroupUser[]
+  auditLogs BusinessGroupAuditLog[]
+
+  @@index([status])
+  @@map("business_groups")
+}
+
+// Membership history is retained. A database partial unique index ensures a
+// business can have only one ACTIVE membership across all groups.
+model BusinessGroupMember {
+  id        String                    @id @default(uuid()) @db.Uuid
+  groupId   String                    @map("group_id") @db.Uuid
+  businessId String                   @map("business_id") @db.Uuid
+  status    BusinessGroupMemberStatus @default(ACTIVE)
+  joinedAt  DateTime                  @default(now()) @map("joined_at")
+  removedAt DateTime?                 @map("removed_at")
+  createdAt DateTime                  @default(now()) @map("created_at")
+  updatedAt DateTime                  @updatedAt @map("updated_at")
+
+  group    BusinessGroup @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@index([groupId, status])
+  @@index([businessId, status])
+  @@map("business_group_members")
+}
+
+// Group privileges are separate from UserRole so legacy BUSINESS_OWNER and
+// STAFF semantics continue to apply within each individual business.
+model BusinessGroupUser {
+  id          String                   @id @default(uuid()) @db.Uuid
+  groupId     String                   @map("group_id") @db.Uuid
+  userId      String                   @map("user_id") @db.Uuid
+  role        BusinessGroupUserRole
+  status      BusinessGroupUserStatus  @default(ACTIVE)
+  accessScope BusinessGroupAccessScope @default(ALL_GROUP_BUSINESSES) @map("access_scope")
+  grantedAt   DateTime                 @default(now()) @map("granted_at")
+  revokedAt   DateTime?                @map("revoked_at")
+  createdAt   DateTime                 @default(now()) @map("created_at")
+  updatedAt   DateTime                 @updatedAt @map("updated_at")
+
+  group            BusinessGroup                      @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  user             User                               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  businessAccesses BusinessGroupUserBusinessAccess[]
+
+  @@index([groupId, status])
+  @@index([userId, status])
+  @@map("business_group_users")
+}
+
+// GROUP_MANAGER can be limited to selected businesses. GROUP_OWNER uses the
+// ALL_GROUP_BUSINESSES scope and does not need rows here.
+model BusinessGroupUserBusinessAccess {
+  id          String            @id @default(uuid()) @db.Uuid
+  groupUserId String            @map("group_user_id") @db.Uuid
+  businessId  String            @map("business_id") @db.Uuid
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  groupUser BusinessGroupUser @relation(fields: [groupUserId], references: [id], onDelete: Cascade)
+  business  Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@unique([groupUserId, businessId])
+  @@index([businessId])
+  @@map("business_group_user_business_access")
+}
+
+// Group actions cannot use AuditLog alone because it requires businessId.
+// This table retains platform-level group, membership, and access history.
+model BusinessGroupAuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  groupId     String   @map("group_id") @db.Uuid
+  businessId  String?  @map("business_id") @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  summary     String
+  before      Json?
+  after       Json?
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  group    BusinessGroup @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  business Business?     @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  actor    User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([groupId, createdAt])
+  @@index([businessId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([groupId, action, createdAt])
+  @@map("business_group_audit_logs")
 }
 
 model StaffRoleProfile {

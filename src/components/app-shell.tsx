@@ -65,6 +65,12 @@ export async function AppShell({ user, children }: AppShellProps) {
             icon: "businesses" as const,
           },
           {
+            href: "/admin/business-groups",
+            label: "Business Groups",
+            shortLabel: "Groups",
+            icon: "businesses" as const,
+          },
+          {
             href: "/admin/whatsapp-templates",
             label: "WhatsApp Templates",
             shortLabel: "WA",
