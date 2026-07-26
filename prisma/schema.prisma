@@ -1624,6 +1624,7 @@ model ClosingWhatsAppSetting {
   sendClosingReport    Boolean  @default(true) @map("send_closing_report")
   sendUnclosedReminder Boolean  @default(true) @map("send_unclosed_reminder")
   deadlineTime         String   @default("22:30") @map("deadline_time")
+  businessDayCutoffTime String  @default("02:00") @map("business_day_cutoff_time")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
