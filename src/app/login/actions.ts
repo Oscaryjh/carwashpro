@@ -95,7 +95,13 @@ export async function loginAction(
     status: user.status,
   };
 
-  if (!user.businessId) {
+  const loginDestination = getLoginDestination({
+    role: user.role,
+    businessId: user.businessId,
+    industryType: user.business?.industryType ?? null,
+  });
+
+  if (loginDestination === "/business-context/recover") {
     const recoverySession = {
       ...session,
       businessId: null,
@@ -126,11 +132,5 @@ export async function loginAction(
 
   await createSession(session);
 
-  redirect(
-    getLoginDestination({
-      role: user.role,
-      businessId: user.businessId,
-      industryType: user.business?.industryType ?? null,
-    }),
-  );
+  redirect(loginDestination);
 }
