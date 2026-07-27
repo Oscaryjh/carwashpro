@@ -117,6 +117,12 @@ export default async function GroupOverviewPage({
               active stores in your reporting scope
             </p>
           </div>
+          <Link
+            className="secondary-button"
+            href={`/groups/${groupId}/reports?range=today`}
+          >
+            Group reports
+          </Link>
         </header>
 
         <section className="group-overview-intro">

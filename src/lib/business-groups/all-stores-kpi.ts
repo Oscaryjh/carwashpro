@@ -85,7 +85,7 @@ type AllStoresKpiInput = {
   to?: string;
 };
 
-type PeriodPair = {
+export type PeriodPair = {
   current: BusinessDayRange;
   previous: BusinessDayRange;
 };
@@ -365,7 +365,7 @@ export function moneyToCents(value: unknown) {
   return match[1] ? -cents : cents;
 }
 
-function normalizeRange(value: string | undefined): AllStoresRange {
+export function normalizeRange(value: string | undefined): AllStoresRange {
   if (!value || value === "today") return "today";
   if (value === "7days" || value === "30days" || value === "custom") {
     return value;
@@ -373,7 +373,7 @@ function normalizeRange(value: string | undefined): AllStoresRange {
   throw new AllStoresKpiRangeError("Select a valid reporting range.");
 }
 
-function validateCustomRange(
+export function validateCustomRange(
   range: AllStoresRange,
   from: string | undefined,
   to: string | undefined,
@@ -401,7 +401,7 @@ function validateCustomRange(
   return { from, to };
 }
 
-function buildBusinessPeriods(input: {
+export function buildBusinessPeriods(input: {
   range: AllStoresRange;
   from: string | null;
   to: string | null;
@@ -498,7 +498,7 @@ function finalizeAverage(kpi: AllStoresKpi) {
       : null;
 }
 
-function sumKpis(values: AllStoresKpi[]) {
+export function sumKpis(values: AllStoresKpi[]) {
   const result = emptyKpi();
   for (const value of values) {
     result.grossSalesCents += value.grossSalesCents;

@@ -9,9 +9,13 @@ const initialState: BusinessContextActionState = { status: "idle" };
 export function BusinessContextDrilldownButton({
   businessId,
   contextToken,
+  label = "Open store",
+  returnTo,
 }: {
   businessId: string;
   contextToken: string;
+  label?: string;
+  returnTo?: string;
 }) {
   const [state, formAction, pending] = useActionState(
     switchBusinessContextAction,
@@ -22,8 +26,9 @@ export function BusinessContextDrilldownButton({
     <form action={formAction} className="group-store-action">
       <input name="targetBusinessId" type="hidden" value={businessId} />
       <input name="contextToken" type="hidden" value={contextToken} />
+      {returnTo ? <input name="returnTo" type="hidden" value={returnTo} /> : null}
       <button disabled={pending} type="submit">
-        {pending ? "Opening..." : "Open store"}
+        {pending ? "Opening..." : label}
       </button>
       {state.status === "error" ? <p role="alert">{state.message}</p> : null}
     </form>

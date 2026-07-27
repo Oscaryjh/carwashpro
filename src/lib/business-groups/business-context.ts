@@ -600,12 +600,19 @@ export function safeBusinessReturnTo(
     context.industryType === "AUTO_DETAILING"
       ? new Set(["/work-orders"])
       : new Set(["/appointments", "/salon/dashboard"]);
+  const invoiceDetailPath = /^\/invoices\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const industryOwnerPaths =
     context.industryType === "AUTO_DETAILING"
       ? new Set<string>()
       : new Set(["/cashier"]);
 
-  if (commonReadPaths.has(path) || industryReadPaths.has(path)) return path;
+  if (
+    commonReadPaths.has(path) ||
+    industryReadPaths.has(path) ||
+    invoiceDetailPath.test(path)
+  ) {
+    return path;
+  }
   if (
     context.effectiveBusinessRole === "BUSINESS_OWNER" &&
     (ownerOnlyPaths.has(path) || industryOwnerPaths.has(path)) &&
