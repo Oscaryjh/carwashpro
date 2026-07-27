@@ -75,6 +75,7 @@ export function BusinessForm({
 
         <nav className="company-settings-tabs" aria-label="Company settings sections">
           <a href="#company-profile">Company profile</a>
+          <a href="#business-day">Business day</a>
           <a href="#company-tax">Tax &amp; invoice</a>
         </nav>
 
@@ -142,6 +143,35 @@ export function BusinessForm({
                 defaultValue={business.address ?? ""}
                 rows={3}
                 placeholder="Company or head office address"
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="company-settings-sheet" id="business-day">
+          <div className="company-settings-section-heading">
+            <div>
+              <span className="company-settings-eyebrow">Operations</span>
+              <h2>Business day</h2>
+            </div>
+          </div>
+          <div className="company-settings-field-grid">
+            <label>
+              <span>Timezone</span>
+              <input
+                name="timezone"
+                defaultValue={business.timezone}
+                placeholder="Asia/Kuching"
+                required
+              />
+            </label>
+            <label>
+              <span>Business day cutoff</span>
+              <input
+                name="businessDayCutoffTime"
+                type="time"
+                defaultValue={business.businessDayCutoffTime}
+                required
               />
             </label>
           </div>
@@ -258,6 +288,24 @@ export function BusinessForm({
                   <input value={formatStatus(status)} disabled />
                 </>
               )}
+            </label>
+            <label>
+              <span>Timezone</span>
+              <input
+                name="timezone"
+                defaultValue={business?.timezone ?? "Asia/Kuching"}
+                placeholder="Asia/Kuching"
+                required
+              />
+            </label>
+            <label>
+              <span>Business day cutoff</span>
+              <input
+                name="businessDayCutoffTime"
+                type="time"
+                defaultValue={business?.businessDayCutoffTime ?? "02:00"}
+                required
+              />
             </label>
           </>
         ) : null}

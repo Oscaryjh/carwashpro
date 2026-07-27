@@ -114,6 +114,10 @@ export async function saveClosingWhatsAppAutomationSettingsAction(
   const businessRecipients = parseRecipientRows(formData, "businessRecipient");
 
   await prisma.$transaction(async (tx) => {
+    const canonicalBusinessTime = await tx.business.findUniqueOrThrow({
+      where: { id: businessId },
+      select: { businessDayCutoffTime: true },
+    });
     const branches = await tx.branch.findMany({
       where: { businessId, id: { in: branchIds } },
       select: { id: true },
@@ -124,12 +128,16 @@ export async function saveClosingWhatsAppAutomationSettingsAction(
       where: { businessId },
       create: {
         businessId,
+        businessDayCutoffTime:
+          canonicalBusinessTime.businessDayCutoffTime,
         deadlineTime: input.deadlineTime,
         enabled: input.enabled,
         sendClosingReport: input.sendClosingReport,
         sendUnclosedReminder: input.sendUnclosedReminder,
       },
       update: {
+        businessDayCutoffTime:
+          canonicalBusinessTime.businessDayCutoffTime,
         deadlineTime: input.deadlineTime,
         enabled: input.enabled,
         sendClosingReport: input.sendClosingReport,

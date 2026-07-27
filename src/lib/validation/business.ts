@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  DEFAULT_BUSINESS_DAY_CUTOFF_TIME,
+  DEFAULT_BUSINESS_TIME_ZONE,
+  isValidBusinessDayCutoffTime,
+  isValidIanaTimeZone,
+} from "@/lib/business-day";
 
 const businessIndustrySchema = z.enum([
   "AUTO_DETAILING",
@@ -26,6 +32,19 @@ const businessFieldsSchema = z.object({
   phone: z.string().trim().optional(),
   email: z.string().trim().email("Enter a valid email.").optional().or(z.literal("")),
   address: z.string().trim().optional(),
+  timezone: z
+    .string()
+    .trim()
+    .default(DEFAULT_BUSINESS_TIME_ZONE)
+    .refine(isValidIanaTimeZone, "Enter a valid IANA timezone."),
+  businessDayCutoffTime: z
+    .string()
+    .trim()
+    .default(DEFAULT_BUSINESS_DAY_CUTOFF_TIME)
+    .refine(
+      isValidBusinessDayCutoffTime,
+      "Business day cutoff time must use HH:mm.",
+    ),
   sstEnabled: z.boolean(),
   sstLabel: z.string().trim().min(1, "Tax label is required.").max(30),
   sstRate: z.coerce.number().min(0, "Tax rate cannot be negative.").max(100, "Tax rate cannot exceed 100."),

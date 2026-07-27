@@ -352,6 +352,8 @@ model Business {
   email             String?
   address           String?
   language          BusinessLanguage @default(EN)
+  timezone          String           @default("Asia/Kuching")
+  businessDayCutoffTime String        @default("02:00") @map("business_day_cutoff_time")
   sstEnabled        Boolean          @default(false) @map("sst_enabled")
   sstLabel          String           @default("SST") @map("sst_label")
   sstRate           Decimal          @default(0) @map("sst_rate") @db.Decimal(5, 2)

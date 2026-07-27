@@ -399,6 +399,10 @@ export async function updateBusinessAction(formData: FormData) {
     phone: formData.get("phone"),
     email: formData.get("email"),
     address: formData.get("address"),
+    timezone: formData.get("timezone") ?? current.timezone,
+    businessDayCutoffTime:
+      formData.get("businessDayCutoffTime") ??
+      current.businessDayCutoffTime,
     sstEnabled: formData.get("sstEnabled") === "on",
     sstLabel: formData.get("sstLabel") ?? "SST",
     sstRate: formData.get("sstRate") ?? "0",
@@ -416,12 +420,20 @@ export async function updateBusinessAction(formData: FormData) {
         phone: parsed.phone || null,
         email: parsed.email || null,
         address: parsed.address || null,
+        timezone: parsed.timezone,
+        businessDayCutoffTime: parsed.businessDayCutoffTime,
         sstEnabled: parsed.sstEnabled,
         sstLabel: parsed.sstLabel,
         sstRate: parsed.sstRate,
         sstRegistrationNo: parsed.sstRegistrationNo || null,
         status: parsed.status,
         ...(logoUrl ? { logoUrl } : {}),
+      },
+    });
+    await tx.closingWhatsAppSetting.updateMany({
+      where: { businessId },
+      data: {
+        businessDayCutoffTime: updated.businessDayCutoffTime,
       },
     });
 
