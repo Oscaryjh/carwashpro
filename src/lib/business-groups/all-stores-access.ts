@@ -11,6 +11,8 @@ export type AuthorizedGroupBusiness = {
   name: string;
   industryType: BusinessIndustry;
   logoUrl: string | null;
+  timezone: string;
+  businessDayCutoffTime: string;
   isCurrent: boolean;
 };
 
@@ -93,6 +95,8 @@ export async function getAvailableGroupReportingContexts(
                   name: true,
                   industryType: true,
                   logoUrl: true,
+                  timezone: true,
+                  businessDayCutoffTime: true,
                 },
               },
             },
