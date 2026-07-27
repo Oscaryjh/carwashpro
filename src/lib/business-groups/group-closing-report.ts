@@ -52,6 +52,7 @@ export type GroupClosingRow = {
   branchId: string;
   branchName: string;
   businessDate: string;
+  timezone: string;
   expectedCashCents: number;
   actualCashCents: number;
   cashDifferenceCents: number;
@@ -147,6 +148,7 @@ export async function getGroupClosingReport(
       businessId: true,
       branchId: true,
       businessDate: true,
+      timezone: true,
       expectedCashCents: true,
       actualCashCents: true,
       cashDifferenceCents: true,
@@ -252,6 +254,7 @@ type SnapshotRow = Prisma.DailyClosingSnapshotGetPayload<{
     businessId: true;
     branchId: true;
     businessDate: true;
+    timezone: true;
     expectedCashCents: true;
     actualCashCents: true;
     cashDifferenceCents: true;
@@ -279,6 +282,7 @@ function toGroupClosingRow(snapshot: SnapshotRow): GroupClosingRow {
     branchId: snapshot.branchId,
     branchName: snapshot.branch.name,
     businessDate: snapshot.businessDate.toISOString().slice(0, 10),
+    timezone: snapshot.timezone,
     expectedCashCents: snapshot.expectedCashCents,
     actualCashCents: snapshot.actualCashCents,
     cashDifferenceCents: snapshot.cashDifferenceCents,

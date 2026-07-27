@@ -66,6 +66,23 @@ test("CSV export includes report data and prevents spreadsheet formula injection
   assert.match(csv, /"Net sales","110"/);
 });
 
+test("CSV export prevents formula injection after leading whitespace", () => {
+  const csv = buildGroupReportCsv({
+    ...report,
+    rows: [
+      {
+        ...report.rows[0],
+        invoiceNumber: " \t=HYPERLINK(\"https://example.invalid\")",
+      },
+    ],
+  }).toString("utf8");
+
+  assert.match(
+    csv,
+    /"' \t=HYPERLINK\(""https:\/\/example\.invalid""\)"/,
+  );
+});
+
 test("Excel export creates a valid XLSX zip with workbook and worksheet entries", () => {
   const xlsx = buildGroupReportXlsx(report);
   assert.equal(xlsx.subarray(0, 4).toString("hex"), "504b0304");

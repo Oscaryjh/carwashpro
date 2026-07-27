@@ -202,7 +202,9 @@ export default async function GroupClosingPage({
                           <td>{formatEnum(row.whatsappStatus)}</td>
                           <td>
                             {row.closedByName}
-                            <small>{formatTimestamp(row.closedAt)}</small>
+                            <small>
+                              {formatTimestamp(row.closedAt, row.timezone)}
+                            </small>
                           </td>
                           <td>
                             <BusinessContextDrilldownButton
@@ -365,11 +367,11 @@ function formatDate(value: string) {
   }).format(new Date(`${value}T00:00:00.000Z`));
 }
 
-function formatTimestamp(value: Date) {
+function formatTimestamp(value: Date, timezone: string) {
   return new Intl.DateTimeFormat("en-MY", {
     dateStyle: "medium",
     timeStyle: "short",
-    timeZone: "Asia/Kuching",
+    timeZone: timezone,
   }).format(value);
 }
 

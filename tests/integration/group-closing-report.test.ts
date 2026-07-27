@@ -95,6 +95,7 @@ test("Group Daily Closing reads frozen snapshots and enforces live group scope",
       refundsCents: 1_000,
       expectedCashCents: 10_000,
       actualCashCents: 10_500,
+      timezone: "Asia/Tokyo",
     });
     await createSnapshot({
       businessId: outside.id,
@@ -129,6 +130,10 @@ test("Group Daily Closing reads frozen snapshots and enforces live group scope",
     assert.equal(ownerReport?.summary.grossSalesCents, 32_000);
     assert.equal(ownerReport?.summary.netSalesCents, 29_000);
     assert.equal(ownerReport?.summary.cashDifferenceCents, 500);
+    assert.equal(
+      ownerReport?.rows.find((row) => row.businessId === auto.id)?.timezone,
+      "Asia/Tokyo",
+    );
     assert.equal(ownerReport?.rows.some((row) => row.businessId === outside.id), false);
     assert.equal(ownerReport?.rows.find((row) => row.id === salonSnapshot.id)?.financial?.netSalesCents, 10_000);
     assert.equal(
@@ -237,6 +242,7 @@ async function createSnapshot(input: {
   refundsCents: number;
   expectedCashCents: number;
   actualCashCents: number;
+  timezone?: string;
 }) {
   const businessDate = "2026-07-01";
   const closedAt = new Date("2026-07-01T15:00:00.000Z");
@@ -252,7 +258,7 @@ async function createSnapshot(input: {
       businessId: input.businessId,
       branchId: input.branchId,
       businessDate: new Date(`${businessDate}T00:00:00.000Z`),
-      timezone: "Asia/Kuching",
+      timezone: input.timezone ?? "Asia/Kuching",
       businessType: input.businessType,
       closedAt,
       closedByUserId: input.closedByUserId,
@@ -264,7 +270,7 @@ async function createSnapshot(input: {
       reportDataJson: {
         version: 1,
         businessDate,
-        timezone: "Asia/Kuching",
+        timezone: input.timezone ?? "Asia/Kuching",
         businessType: input.businessType,
         generatedAt: closedAt.toISOString(),
         closedAt: closedAt.toISOString(),

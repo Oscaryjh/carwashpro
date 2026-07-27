@@ -155,6 +155,7 @@ function closingRow(
     businessName: "QA Store",
     branchName: "QA Branch",
     businessDate: "2026-07-01",
+    timezone: "Asia/Kuching",
     expectedCashCents: 0,
     actualCashCents: 0,
     cashDifferenceCents: 0,

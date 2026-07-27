@@ -150,7 +150,7 @@ function centsValue(value: number) {
 
 function csvCell(value: string | number) {
   const raw = String(value);
-  const safe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  const safe = /^[\t\r\n ]*[=+\-@]/.test(raw) ? `'${raw}` : raw;
   return `"${safe.replaceAll('"', '""')}"`;
 }
 
