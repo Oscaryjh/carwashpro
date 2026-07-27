@@ -149,6 +149,8 @@ export default async function GroupReportsPage({
               <SummaryGrid summary={report.summary} />
             </section>
 
+            <ReportAnalytics report={report} />
+
             <section aria-labelledby="group-transactions-heading">
               <div className="section-header">
                 <div>
@@ -236,6 +238,130 @@ export default async function GroupReportsPage({
         ) : null}
       </div>
     </AppShellFrame>
+  );
+}
+
+function ReportAnalytics({ report }: { report: GroupReportsResult }) {
+  const trendMaximum = Math.max(
+    1,
+    ...report.trend.map((point) => Math.max(0, point.netSalesCents)),
+  );
+  const performanceMaximum = Math.max(
+    1,
+    ...report.businessPerformance.map((item) =>
+      Math.max(0, item.metrics.netSalesCents),
+    ),
+  );
+
+  return (
+    <div className="group-report-analytics">
+      <section
+        className="group-report-analysis-panel"
+        aria-labelledby="group-sales-trend-heading"
+      >
+        <div className="section-header">
+          <div>
+            <h2 id="group-sales-trend-heading">Net sales trend</h2>
+            <p>Daily totals use each store&apos;s timezone and cutoff.</p>
+          </div>
+        </div>
+        <div className="group-report-trend-scroll">
+          <div
+            className="group-report-trend"
+            style={{
+              gridTemplateColumns: `repeat(${report.trend.length}, minmax(46px, 1fr))`,
+            }}
+          >
+            {report.trend.map((point) => {
+              const barHeight =
+                point.netSalesCents > 0
+                  ? Math.max(
+                      4,
+                      Math.round((point.netSalesCents / trendMaximum) * 144),
+                    )
+                  : 2;
+              return (
+                <div className="group-report-trend-point" key={point.businessDate}>
+                  <span className="group-report-trend-value">
+                    {compactMoney(point.netSalesCents)}
+                  </span>
+                  <span
+                    aria-label={`${formatReportDate(point.businessDate)} net sales ${formatMoney(point.netSalesCents)}`}
+                    className="group-report-trend-bar"
+                    style={{ height: `${barHeight}px` }}
+                    title={`${formatReportDate(point.businessDate)}: ${formatMoney(point.netSalesCents)}`}
+                  />
+                  <time dateTime={point.businessDate}>
+                    {formatShortDate(point.businessDate)}
+                  </time>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section
+        className="group-report-analysis-panel"
+        aria-labelledby="group-store-performance-heading"
+      >
+        <div className="section-header">
+          <div>
+            <h2 id="group-store-performance-heading">Store performance</h2>
+            <p>Sorted by net sales for the selected filters.</p>
+          </div>
+        </div>
+        <div className="group-report-performance-wrap">
+          <table className="group-report-performance-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Store</th>
+                <th>Gross</th>
+                <th>Net</th>
+                <th>Collected</th>
+                <th>Refunds</th>
+                <th>Transactions</th>
+                <th>Average</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.businessPerformance.map((item) => (
+                <tr key={item.businessId}>
+                  <td>{item.rank}</td>
+                  <td>
+                    <strong>{item.businessName}</strong>
+                    <span className="group-report-performance-track">
+                      <span
+                        style={{
+                          width: `${Math.max(
+                            0,
+                            Math.round(
+                              (item.metrics.netSalesCents / performanceMaximum) *
+                                100,
+                            ),
+                          )}%`,
+                        }}
+                      />
+                    </span>
+                  </td>
+                  <td>{formatMoney(item.metrics.grossSalesCents)}</td>
+                  <td>{formatMoney(item.metrics.netSalesCents)}</td>
+                  <td>{formatMoney(item.metrics.paymentsCollectedCents)}</td>
+                  <td>{formatMoney(item.metrics.refundsCents)}</td>
+                  <td>{item.metrics.transactionCount}</td>
+                  <td>
+                    {item.metrics.averageTransactionValueCents === null
+                      ? "—"
+                      : formatMoney(item.metrics.averageTransactionValueCents)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -400,12 +526,26 @@ function formatReportDate(value: string) {
   });
 }
 
+function formatShortDate(value: string) {
+  return formatDateValue(value, {
+    day: "2-digit",
+    month: "short",
+  });
+}
+
 function formatIssuedAt(value: Date, timezone: string) {
   return new Intl.DateTimeFormat("en-MY", {
     timeZone: timezone,
     dateStyle: "medium",
     timeStyle: "short",
   }).format(value);
+}
+
+function compactMoney(value: number) {
+  return new Intl.NumberFormat("en-MY", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value / 100);
 }
 
 function formatMoney(value: number) {

@@ -5,6 +5,9 @@ import type {
 } from "@prisma/client";
 import { z } from "zod";
 import {
+  addDaysToDateValue,
+} from "@/lib/business-time";
+import {
   buildBusinessPeriods,
   calculateAllStoresKpis,
   getCurrentBusinessDateValue,
@@ -75,6 +78,18 @@ export type GroupReportInvoiceRow = {
   paymentMethods: GroupReportPaymentMethod[];
 };
 
+export type GroupReportTrendPoint = AllStoresKpi & {
+  businessDate: string;
+};
+
+export type GroupReportBusinessPerformance = {
+  rank: number;
+  businessId: string;
+  businessName: string;
+  industryType: AuthorizedGroupReportingContext["businesses"][number]["industryType"];
+  metrics: AllStoresKpi;
+};
+
 export type GroupReportsResult = {
   groupId: string;
   groupName: string;
@@ -82,6 +97,8 @@ export type GroupReportsResult = {
   authorizedBusinesses: AuthorizedGroupReportingContext["businesses"];
   filters: GroupReportFilters;
   summary: AllStoresKpi;
+  trend: GroupReportTrendPoint[];
+  businessPerformance: GroupReportBusinessPerformance[];
   rows: GroupReportInvoiceRow[];
   totalRows: number;
   totalPages: number;
@@ -238,6 +255,29 @@ export async function getGroupReports(
   const summary = sumKpis(
     businesses.map((business) => calculated.get(business.id)!.current),
   );
+  const trend = buildGroupReportTrend({
+    businesses,
+    periods,
+    invoices: summaryInvoices,
+    payments: summaryPayments,
+    refunds: summaryRefunds,
+  });
+  const businessPerformance = businesses
+    .map((business) => ({
+      rank: 0,
+      businessId: business.id,
+      businessName: business.name,
+      industryType: business.industryType,
+      metrics: calculated.get(business.id)!.current,
+    }))
+    .sort(
+      (left, right) =>
+        right.metrics.netSalesCents - left.metrics.netSalesCents ||
+        right.metrics.grossSalesCents - left.metrics.grossSalesCents ||
+        left.businessName.localeCompare(right.businessName) ||
+        left.businessId.localeCompare(right.businessId),
+    )
+    .map((business, index) => ({ ...business, rank: index + 1 }));
   const businessById = new Map(
     businesses.map((business) => [business.id, business]),
   );
@@ -249,6 +289,8 @@ export async function getGroupReports(
     authorizedBusinesses: scope.businesses,
     filters,
     summary,
+    trend,
+    businessPerformance,
     rows: invoices.map((invoice) =>
       toGroupReportInvoiceRow(
         invoice,
@@ -259,6 +301,154 @@ export async function getGroupReports(
     ),
     totalRows,
     totalPages: Math.max(1, Math.ceil(totalRows / GROUP_REPORT_PAGE_SIZE)),
+  };
+}
+
+type TrendInvoiceRow = {
+  businessId: string;
+  discountAmount: unknown;
+  issuedAt: Date;
+  loyaltyDiscountAmount: unknown;
+  payments: Array<{ amount: unknown }>;
+  tipAmount: unknown;
+  total: unknown;
+};
+
+type TrendPaymentRow = {
+  amount: unknown;
+  businessId: string;
+  paidAt: Date;
+};
+
+type TrendRefundRow = {
+  amount: unknown;
+  businessId: string;
+  refundedAt: Date;
+};
+
+export function buildGroupReportTrend(input: {
+  businesses: AuthorizedGroupReportingContext["businesses"];
+  periods: Map<string, PeriodPair>;
+  invoices: TrendInvoiceRow[];
+  payments: TrendPaymentRow[];
+  refunds: TrendRefundRow[];
+}): GroupReportTrendPoint[] {
+  const dateValues = new Set<string>();
+  for (const business of input.businesses) {
+    const range = input.periods.get(business.id)?.current;
+    if (!range) continue;
+    for (let index = 0; index < range.dayCount; index += 1) {
+      dateValues.add(addDaysToDateValue(range.fromDateValue, index));
+    }
+  }
+  const points = new Map(
+    [...dateValues]
+      .sort()
+      .map((businessDate) => [businessDate, emptyTrendPoint(businessDate)]),
+  );
+  const businessById = new Map(
+    input.businesses.map((business) => [business.id, business]),
+  );
+
+  for (const invoice of input.invoices) {
+    const business = businessById.get(invoice.businessId);
+    const period = input.periods.get(invoice.businessId);
+    if (!business || !period || !inCurrentPeriod(invoice.issuedAt, period)) {
+      continue;
+    }
+    const point = points.get(
+      getCurrentBusinessDateValue(
+        invoice.issuedAt,
+        business.timezone,
+        business.businessDayCutoffTime,
+      ),
+    );
+    if (!point) continue;
+    const packageRedemptionCents = invoice.payments.reduce(
+      (sum, payment) => sum + moneyToCents(payment.amount),
+      0,
+    );
+    const discountCents =
+      moneyToCents(invoice.discountAmount) +
+      moneyToCents(invoice.loyaltyDiscountAmount);
+    const discountedSalesCents =
+      moneyToCents(invoice.total) -
+      moneyToCents(invoice.tipAmount) -
+      packageRedemptionCents;
+    point.grossSalesCents += discountedSalesCents + discountCents;
+    point.netSalesCents += discountedSalesCents;
+    point.transactionCount += 1;
+  }
+
+  for (const payment of input.payments) {
+    addEventToTrend(
+      points,
+      businessById,
+      input.periods,
+      payment.businessId,
+      payment.paidAt,
+      (point) => {
+        point.paymentsCollectedCents += moneyToCents(payment.amount);
+      },
+    );
+  }
+
+  for (const refund of input.refunds) {
+    addEventToTrend(
+      points,
+      businessById,
+      input.periods,
+      refund.businessId,
+      refund.refundedAt,
+      (point) => {
+        const amount = moneyToCents(refund.amount);
+        point.refundsCents += amount;
+        point.netSalesCents -= amount;
+      },
+    );
+  }
+
+  return [...points.values()].map((point) => ({
+    ...point,
+    averageTransactionValueCents: point.transactionCount
+      ? Math.round(point.netSalesCents / point.transactionCount)
+      : null,
+  }));
+}
+
+function addEventToTrend(
+  points: Map<string, GroupReportTrendPoint>,
+  businessById: Map<
+    string,
+    AuthorizedGroupReportingContext["businesses"][number]
+  >,
+  periods: Map<string, PeriodPair>,
+  businessId: string,
+  occurredAt: Date,
+  apply: (point: GroupReportTrendPoint) => void,
+) {
+  const business = businessById.get(businessId);
+  const period = periods.get(businessId);
+  if (!business || !period || !inCurrentPeriod(occurredAt, period)) return;
+  const point = points.get(
+    getCurrentBusinessDateValue(
+      occurredAt,
+      business.timezone,
+      business.businessDayCutoffTime,
+    ),
+  );
+  if (point) apply(point);
+}
+
+function emptyTrendPoint(businessDate: string): GroupReportTrendPoint {
+  return {
+    businessDate,
+    grossSalesCents: 0,
+    netSalesCents: 0,
+    paymentsCollectedCents: 0,
+    refundsCents: 0,
+    transactionCount: 0,
+    averageTransactionValueCents: null,
   };
 }
 

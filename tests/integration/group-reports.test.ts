@@ -225,6 +225,19 @@ test("Group Reports enforces live scope, event filters, and database pagination"
     assert.equal(ownerPageOne?.totalRows, 28);
     assert.equal(ownerPageOne?.rows.length, 25);
     assert.equal(ownerPageOne?.summary.transactionCount, 28);
+    assert.equal(ownerPageOne?.trend.length, 1);
+    assert.equal(ownerPageOne?.trend[0].transactionCount, 28);
+    assert.deepEqual(
+      ownerPageOne?.businessPerformance.map((item) => item.businessId),
+      [auto.id, salon.id],
+    );
+    assert.equal(ownerPageOne?.businessPerformance[0].rank, 1);
+    assert.equal(
+      ownerPageOne?.businessPerformance.some(
+        (item) => item.businessId === outside.id,
+      ),
+      false,
+    );
     assert.equal(
       ownerPageOne?.rows.some((row) => row.businessId === outside.id),
       false,

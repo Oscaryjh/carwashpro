@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildGroupReportTrend,
   getGroupReports,
   GroupReportsInputError,
   parseGroupReportFilters,
@@ -196,6 +197,27 @@ test("uses five bounded queries and keeps payment/refund events in their own bus
   assert.equal(result?.summary.paymentsCollectedCents, 5_000);
   assert.equal(result?.summary.refundsCents, 500);
   assert.equal(result?.summary.transactionCount, 1);
+  assert.equal(result?.trend.length, 1);
+  assert.deepEqual(result?.trend[0], {
+    businessDate: "2026-07-01",
+    grossSalesCents: 10_500,
+    netSalesCents: 8_500,
+    paymentsCollectedCents: 5_000,
+    refundsCents: 500,
+    transactionCount: 1,
+    averageTransactionValueCents: 8_500,
+  });
+  assert.deepEqual(
+    result?.businessPerformance.map((item) => ({
+      rank: item.rank,
+      businessId: item.businessId,
+      netSalesCents: item.metrics.netSalesCents,
+    })),
+    [
+      { rank: 1, businessId: salon.id, netSalesCents: 8_500 },
+      { rank: 2, businessId: auto.id, netSalesCents: 0 },
+    ],
+  );
   assert.equal(result?.rows.length, 1);
   assert.equal(result?.rows[0].paidAmountCents, 5_000);
   assert.equal(result?.rows[0].refundAmountCents, 500);
@@ -210,6 +232,110 @@ test("uses five bounded queries and keeps payment/refund events in their own bus
   assert.equal(paged.take, 25);
   assert.equal(paged.skip, 0);
   assert.deepEqual(paged.orderBy, [{ issuedAt: "desc" }, { id: "desc" }]);
+});
+
+test("builds a zero-filled multi-timezone trend with refund events on their own business date", () => {
+  const periods = new Map([
+    [
+      salon.id,
+      {
+        current: {
+          fromDate: new Date("2026-06-30T18:00:00.000Z"),
+          toDateExclusive: new Date("2026-07-03T18:00:00.000Z"),
+          fromDateValue: "2026-07-01",
+          toDateValue: "2026-07-03",
+          dayCount: 3,
+          timezone: "Asia/Kuching",
+          businessDayCutoffTime: "02:00",
+        },
+        previous: {
+          fromDate: new Date("2026-06-27T18:00:00.000Z"),
+          toDateExclusive: new Date("2026-06-30T18:00:00.000Z"),
+          fromDateValue: "2026-06-28",
+          toDateValue: "2026-06-30",
+          dayCount: 3,
+          timezone: "Asia/Kuching",
+          businessDayCutoffTime: "02:00",
+        },
+      },
+    ],
+    [
+      auto.id,
+      {
+        current: {
+          fromDate: new Date("2026-06-30T19:00:00.000Z"),
+          toDateExclusive: new Date("2026-07-03T19:00:00.000Z"),
+          fromDateValue: "2026-07-01",
+          toDateValue: "2026-07-03",
+          dayCount: 3,
+          timezone: "Asia/Tokyo",
+          businessDayCutoffTime: "04:00",
+        },
+        previous: {
+          fromDate: new Date("2026-06-27T19:00:00.000Z"),
+          toDateExclusive: new Date("2026-06-30T19:00:00.000Z"),
+          fromDateValue: "2026-06-28",
+          toDateValue: "2026-06-30",
+          dayCount: 3,
+          timezone: "Asia/Tokyo",
+          businessDayCutoffTime: "04:00",
+        },
+      },
+    ],
+  ]);
+  const trend = buildGroupReportTrend({
+    businesses: [salon, auto],
+    periods,
+    invoices: [
+      {
+        businessId: salon.id,
+        discountAmount: "10.00",
+        issuedAt: new Date("2026-06-30T20:00:00.000Z"),
+        loyaltyDiscountAmount: "0.00",
+        payments: [],
+        tipAmount: "0.00",
+        total: "100.00",
+      },
+      {
+        businessId: auto.id,
+        discountAmount: "0.00",
+        issuedAt: new Date("2026-07-01T20:00:00.000Z"),
+        loyaltyDiscountAmount: "0.00",
+        payments: [],
+        tipAmount: "0.00",
+        total: "200.00",
+      },
+    ],
+    payments: [
+      {
+        amount: "50.00",
+        businessId: salon.id,
+        paidAt: new Date("2026-06-30T21:00:00.000Z"),
+      },
+    ],
+    refunds: [
+      {
+        amount: "20.00",
+        businessId: auto.id,
+        refundedAt: new Date("2026-07-02T20:00:00.000Z"),
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    trend.map((point) => ({
+      date: point.businessDate,
+      net: point.netSalesCents,
+      collected: point.paymentsCollectedCents,
+      refunds: point.refundsCents,
+      count: point.transactionCount,
+    })),
+    [
+      { date: "2026-07-01", net: 10_000, collected: 5_000, refunds: 0, count: 1 },
+      { date: "2026-07-02", net: 20_000, collected: 0, refunds: 0, count: 1 },
+      { date: "2026-07-03", net: -2_000, collected: 0, refunds: 2_000, count: 0 },
+    ],
+  );
 });
 
 test("returns null before any report query when authorization is unavailable", async () => {
