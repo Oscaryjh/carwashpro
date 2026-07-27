@@ -10,6 +10,7 @@ export const SESSION_CONTEXT_VERSION = 1;
 
 export type AppSession = {
   userId: string;
+  sessionId?: string | null;
   homeBusinessId: string | null;
   activeBusinessId: string | null;
   contextVersion: number;
@@ -157,6 +158,7 @@ export function normalizeSession(payload: Record<string, unknown>): AppSession {
 
   return {
     userId: requiredString(payload.userId, "userId"),
+    sessionId: nullableString(payload.sessionId),
     homeBusinessId,
     activeBusinessId,
     contextVersion,

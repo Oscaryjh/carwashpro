@@ -3,10 +3,13 @@ import type {
   BusinessIndustry,
   Prisma,
 } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import type { AppSession, CreateSessionInput } from "@/lib/auth/session";
 import { createSession } from "@/lib/auth/session";
+import { getStaffHomePath } from "@/lib/auth/staff-permissions";
 import { writeBusinessGroupAuditLog } from "@/lib/business-groups/audit";
 import type { EffectiveBusinessRole } from "@/lib/business-groups/business-access";
+import { canGroupManager } from "@/lib/business-groups/capabilities";
 import { prisma } from "@/lib/prisma";
 
 export type BusinessContextErrorCode =
@@ -54,6 +57,7 @@ export type AuthorizedBusinessContext = {
   industryType: BusinessIndustry;
   actorRole: "BUSINESS_OWNER" | "STAFF" | BusinessGroupUserRole;
   effectiveBusinessRole: Exclude<EffectiveBusinessRole, "PLATFORM_ADMIN">;
+  permissions: string[];
   source: "DIRECT_BUSINESS" | "GROUP_ACCESS";
   groupId: string | null;
 };
@@ -64,7 +68,7 @@ type ContextDatabase = Pick<
 >;
 
 type ContextTransaction = ContextDatabase &
-  Pick<Prisma.TransactionClient, "businessGroupAuditLog">;
+  Pick<Prisma.TransactionClient, "businessGroupAuditLog" | "$queryRaw">;
 
 type ContextRootDatabase = ContextDatabase & {
   $transaction<T>(
@@ -251,6 +255,7 @@ export async function authorizeBusinessContextTarget(
       role: true,
       status: true,
       loginEnabled: true,
+      permissions: true,
       business: {
         select: { id: true, status: true, industryType: true },
       },
@@ -302,6 +307,7 @@ export async function authorizeBusinessContextTarget(
         actorRole: user.role,
         effectiveBusinessRole:
           user.role === "BUSINESS_OWNER" ? "BUSINESS_OWNER" : "STAFF",
+        permissions: user.permissions,
         source: "DIRECT_BUSINESS",
         groupId: null,
       },
@@ -372,6 +378,7 @@ export async function authorizeBusinessContextTarget(
         grant.role === "GROUP_OWNER"
           ? "BUSINESS_OWNER"
           : "GROUP_MANAGER_READ_ONLY",
+      permissions: [],
       source: "GROUP_ACCESS",
       groupId: grant.groupId,
     },
@@ -463,7 +470,26 @@ export async function commitBusinessContextSwitch(
       );
     }
 
-    if (auditGroupId) {
+    const recoveryKey =
+      input.source === "RECOVERY" && input.session.sessionId
+        ? recoveryIdempotencyKey(
+            input.session,
+            input.targetBusinessId,
+          )
+        : null;
+    const duplicateRecovery =
+      input.source === "RECOVERY" &&
+      recoveryKey &&
+      auditGroupId
+        ? await findCompletedRecovery(
+            input.session.userId,
+            recoveryKey,
+            auditGroupId,
+            transaction,
+          )
+        : null;
+
+    if (auditGroupId && !duplicateRecovery) {
       await writeBusinessGroupAuditLog(
         {
           groupId: auditGroupId,
@@ -484,6 +510,9 @@ export async function commitBusinessContextSwitch(
           metadata: {
             actorRole: context.actorRole,
             source: input.source,
+            ...(input.source === "RECOVERY" && recoveryKey
+              ? { recoveryKey }
+              : {}),
           },
         },
         transaction,
@@ -512,7 +541,7 @@ export function safeBusinessReturnTo(
   value: string | null | undefined,
   context: Pick<
     AuthorizedBusinessContext,
-    "effectiveBusinessRole" | "industryType"
+    "effectiveBusinessRole" | "industryType" | "permissions"
   >,
 ) {
   const fallback = safeBusinessHome(context);
@@ -608,11 +637,33 @@ export function businessContextErrorMessage(code: BusinessContextErrorCode) {
 function safeBusinessHome(
   context: Pick<
     AuthorizedBusinessContext,
-    "effectiveBusinessRole" | "industryType"
+    "effectiveBusinessRole" | "industryType" | "permissions"
   >,
 ) {
+  if (context.effectiveBusinessRole === "STAFF") {
+    const staffHome = getStaffHomePath(
+      context.permissions,
+      context.industryType,
+    );
+    return staffHome === "/login" ? "/no-business-access" : staffHome;
+  }
+
   if (context.effectiveBusinessRole === "GROUP_MANAGER_READ_ONLY") {
-    return "/reports";
+    const managerDestinations = [
+      ["VIEW_REPORTS", "/reports"],
+      ["VIEW_APPOINTMENTS", "/appointments"],
+      ["VIEW_WORK_ORDERS", "/work-orders"],
+      ["VIEW_CRM", "/crm"],
+      ["VIEW_INVOICES", "/invoices"],
+      ["VIEW_CATALOG", "/services"],
+      ["VIEW_INVENTORY", "/products"],
+      ["VIEW_TEAM_DIRECTORY", "/team"],
+    ] as const;
+    return (
+      managerDestinations.find(([capability]) =>
+        canGroupManager(capability),
+      )?.[1] ?? "/no-business-access"
+    );
   }
   return context.industryType === "AUTO_DETAILING"
     ? "/work-orders"
@@ -625,6 +676,7 @@ function rotatedSession(
 ): CreateSessionInput {
   return {
     userId: session.userId,
+    sessionId: session.sessionId ?? randomUUID(),
     homeBusinessId: session.homeBusinessId,
     activeBusinessId: context.businessId,
     contextVersion: session.contextVersion + 1,
@@ -636,6 +688,50 @@ function rotatedSession(
     permissions: session.permissions,
     status: session.status,
   };
+}
+
+async function findCompletedRecovery(
+  userId: string,
+  recoveryKey: string,
+  groupId: string,
+  transaction: ContextTransaction,
+) {
+  await transaction.$queryRaw`
+    SELECT 1 AS locked
+    FROM (
+      SELECT pg_advisory_xact_lock(
+        hashtextextended(${"business-context-recovery:" + userId}, 0)
+      )
+    ) AS recovery_lock
+  `;
+
+  return transaction.businessGroupAuditLog.findFirst({
+    where: {
+      groupId,
+      actorUserId: userId,
+      action: "BUSINESS_CONTEXT_SWITCHED",
+      metadata: {
+        path: ["recoveryKey"],
+        equals: recoveryKey,
+      },
+    },
+    select: { id: true },
+  });
+}
+
+function recoveryIdempotencyKey(
+  session: Pick<
+    AppSession,
+    "sessionId" | "activeBusinessId" | "contextVersion"
+  >,
+  targetBusinessId: string,
+) {
+  return [
+    session.sessionId,
+    session.activeBusinessId ?? "none",
+    session.contextVersion,
+    targetBusinessId,
+  ].join(":");
 }
 
 async function findAuditGroupId(

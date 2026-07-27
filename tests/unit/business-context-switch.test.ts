@@ -8,14 +8,27 @@ import {
 const groupOwnerContext = {
   effectiveBusinessRole: "BUSINESS_OWNER" as const,
   industryType: "SALON_BEAUTY" as const,
+  permissions: [],
 };
 const groupManagerContext = {
   effectiveBusinessRole: "GROUP_MANAGER_READ_ONLY" as const,
   industryType: "AUTO_DETAILING" as const,
+  permissions: [],
 };
 const autoOwnerContext = {
   effectiveBusinessRole: "BUSINESS_OWNER" as const,
   industryType: "AUTO_DETAILING" as const,
+  permissions: [],
+};
+const directStaffContext = {
+  effectiveBusinessRole: "STAFF" as const,
+  industryType: "SALON_BEAUTY" as const,
+  permissions: ["CRM"],
+};
+const directStaffWithoutAccess = {
+  effectiveBusinessRole: "STAFF" as const,
+  industryType: "SALON_BEAUTY" as const,
+  permissions: [],
 };
 
 test("business return paths are restricted to safe internal route roots", () => {
@@ -46,6 +59,14 @@ test("business return paths are restricted to safe internal route roots", () => 
   assert.equal(
     safeBusinessReturnTo("/work-orders", groupOwnerContext),
     "/cashier",
+  );
+  assert.equal(
+    safeBusinessReturnTo(null, directStaffContext),
+    "/crm",
+  );
+  assert.equal(
+    safeBusinessReturnTo(null, directStaffWithoutAccess),
+    "/no-business-access",
   );
 });
 

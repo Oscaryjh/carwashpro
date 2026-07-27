@@ -1,13 +1,19 @@
 "use server";
 
 import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import {
   createSession,
   SESSION_CONTEXT_VERSION,
 } from "@/lib/auth/session";
+import type { AppSession, CreateSessionInput } from "@/lib/auth/session";
 import { getLoginDestination } from "@/lib/auth/login-destination";
+import {
+  commitBusinessContextSwitch,
+  getRecoveryBusinessContext,
+} from "@/lib/business-groups/business-context";
 import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validation/login";
 
@@ -74,8 +80,9 @@ export async function loginAction(
     });
   }
 
-  await createSession({
+  const session: CreateSessionInput = {
     userId: user.id,
+    sessionId: randomUUID(),
     homeBusinessId: user.businessId,
     activeBusinessId: user.businessId,
     contextVersion: SESSION_CONTEXT_VERSION,
@@ -86,7 +93,38 @@ export async function loginAction(
     role: user.role,
     permissions: user.permissions,
     status: user.status,
-  });
+  };
+
+  if (!user.businessId) {
+    const recoverySession = {
+      ...session,
+      businessId: null,
+    } satisfies AppSession;
+    const recovery = await getRecoveryBusinessContext(recoverySession);
+
+    if (!recovery.ok) {
+      await createSession(session);
+      redirect("/no-business-access");
+    }
+
+    const result = await commitBusinessContextSwitch(
+      {
+        session: recoverySession,
+        targetBusinessId: recovery.context.businessId,
+        source: "RECOVERY",
+      },
+      { writeSession: createSession },
+    );
+
+    if (!result.ok) {
+      await createSession(session);
+      redirect("/no-business-access");
+    }
+
+    redirect(result.destination);
+  }
+
+  await createSession(session);
 
   redirect(
     getLoginDestination({

@@ -10,6 +10,7 @@ import {
   SESSION_COOKIE,
 } from "../../src/lib/auth/session";
 import { middleware } from "../../src/middleware";
+import { internalRedirect } from "../../src/lib/http/internal-redirect";
 
 const secret = "unit-test-session-secret-that-is-long-enough";
 
@@ -116,6 +117,45 @@ test("a recovery-rotated token carries the new context into the next middleware 
   } finally {
     restoreSecret(previousSecret);
   }
+});
+
+test("recovery redirects stay relative behind Railway-style proxy headers", () => {
+  const railwayRequest = new NextRequest(
+    "https://localhost:8080/business-context/recover",
+    {
+      headers: {
+        host: "localhost:8080",
+        "x-forwarded-host": "tetamu-pos-web-testing.up.railway.app",
+        "x-forwarded-proto": "https",
+      },
+    },
+  );
+  const response = internalRedirect("/work-orders");
+
+  assert.equal(response.status, 307);
+  assert.equal(response.headers.get("location"), "/work-orders");
+  assert.equal(
+    new URL(
+      response.headers.get("location")!,
+      `https://${railwayRequest.headers.get("x-forwarded-host")}`,
+    ).href,
+    "https://tetamu-pos-web-testing.up.railway.app/work-orders",
+  );
+  assert.notEqual(
+    response.headers.get("location"),
+    "https://localhost:8080/work-orders",
+  );
+});
+
+test("internal redirects reject external and protocol-relative destinations", () => {
+  assert.throws(
+    () => internalRedirect("https://example.test/work-orders"),
+    /site-relative path/,
+  );
+  assert.throws(
+    () => internalRedirect("//example.test/work-orders"),
+    /site-relative path/,
+  );
 });
 
 test("legacy tokens without context fields still derive context from businessId", async () => {

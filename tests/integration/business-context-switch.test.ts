@@ -381,6 +381,75 @@ test("business context switching is scoped, audited, and transaction safe", asyn
       assert.equal(recovery.context.businessId, auto.id);
     }
 
+    const recoverySession = {
+      ...sessionFor(groupOnly, null, null, 1),
+      sessionId: `recovery-${suffix}`,
+    };
+    const recoveryWrites: CreateSessionInput[] = [];
+    const concurrentRecoveries = await Promise.all([
+      commitBusinessContextSwitch(
+        {
+          session: recoverySession,
+          targetBusinessId: auto.id,
+          source: "RECOVERY",
+        },
+        {
+          writeSession: async (session) => {
+            recoveryWrites.push(session);
+          },
+        },
+      ),
+      commitBusinessContextSwitch(
+        {
+          session: recoverySession,
+          targetBusinessId: auto.id,
+          source: "RECOVERY",
+        },
+        {
+          writeSession: async (session) => {
+            recoveryWrites.push(session);
+          },
+        },
+      ),
+    ]);
+    assert.equal(concurrentRecoveries.every((result) => result.ok), true);
+    assert.equal(recoveryWrites.length, 2);
+    assert.equal(
+      await prisma.businessGroupAuditLog.count({
+        where: {
+          groupId: group.id,
+          actorUserId: groupOnly.id,
+          action: "BUSINESS_CONTEXT_SWITCHED",
+        },
+      }),
+      1,
+    );
+
+    const laterRecovery = await commitBusinessContextSwitch(
+      {
+        session: {
+          ...recoverySession,
+          activeBusinessId: outside.id,
+          businessId: outside.id,
+          contextVersion: 2,
+        },
+        targetBusinessId: auto.id,
+        source: "RECOVERY",
+      },
+      { writeSession: async () => undefined },
+    );
+    assert.equal(laterRecovery.ok, true);
+    assert.equal(
+      await prisma.businessGroupAuditLog.count({
+        where: {
+          groupId: group.id,
+          actorUserId: groupOnly.id,
+          action: "BUSINESS_CONTEXT_SWITCHED",
+        },
+      }),
+      2,
+    );
+
     await prisma.businessGroupUser.update({
       where: { id: managerGrant.id },
       data: { status: "REVOKED", revokedAt: new Date() },
