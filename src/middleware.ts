@@ -29,14 +29,18 @@ export async function middleware(request: NextRequest) {
       typeof verified.payload.businessId === "string"
         ? verified.payload.businessId
         : null;
-    const homeBusinessId =
-      typeof verified.payload.homeBusinessId === "string"
-        ? verified.payload.homeBusinessId
-        : legacyBusinessId;
-    const activeBusinessId =
-      typeof verified.payload.activeBusinessId === "string"
-        ? verified.payload.activeBusinessId
-        : legacyBusinessId;
+    const homeBusinessId = Object.prototype.hasOwnProperty.call(
+      verified.payload,
+      "homeBusinessId",
+    )
+      ? nullableString(verified.payload.homeBusinessId)
+      : legacyBusinessId;
+    const activeBusinessId = Object.prototype.hasOwnProperty.call(
+      verified.payload,
+      "activeBusinessId",
+    )
+      ? nullableString(verified.payload.activeBusinessId)
+      : legacyBusinessId;
     verified.payload.homeBusinessId = homeBusinessId;
     verified.payload.activeBusinessId = activeBusinessId;
     verified.payload.businessId = activeBusinessId;
@@ -68,6 +72,10 @@ export async function middleware(request: NextRequest) {
 
     if (!pathname.startsWith("/admin") && role === "PLATFORM_ADMIN") {
       return NextResponse.redirect(new URL("/admin/businesses", request.url));
+    }
+
+    if (pathname === "/business-context/recover") {
+      return NextResponse.next();
     }
 
     if (pathname === "/dashboard" || pathname === "/salon/dashboard") {
@@ -112,6 +120,10 @@ export async function middleware(request: NextRequest) {
   } catch {
     return NextResponse.redirect(new URL("/login", request.url));
   }
+}
+
+function nullableString(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 async function refreshSessionCookie(

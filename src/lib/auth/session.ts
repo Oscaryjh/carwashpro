@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 
-const SESSION_COOKIE = "car_wash_session";
+export const SESSION_COOKIE = "car_wash_session";
 export const SESSION_IDLE_SECONDS = 60 * 60 * 24 * 7;
 export const SESSION_CONTEXT_VERSION = 1;
 
@@ -60,13 +60,17 @@ export async function createSessionToken(session: CreateSessionInput) {
 
 export async function setSessionCookie(token: string) {
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, token, {
+  cookieStore.set(SESSION_COOKIE, token, sessionCookieOptions());
+}
+
+export function sessionCookieOptions() {
+  return {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_IDLE_SECONDS,
-  });
+  };
 }
 
 export async function getSession(): Promise<AppSession | null> {
@@ -137,10 +141,12 @@ export async function requireUser() {
 
 export function normalizeSession(payload: Record<string, unknown>): AppSession {
   const legacyBusinessId = nullableString(payload.businessId);
-  const homeBusinessId =
-    nullableString(payload.homeBusinessId) ?? legacyBusinessId;
-  const activeBusinessId =
-    nullableString(payload.activeBusinessId) ?? legacyBusinessId;
+  const homeBusinessId = hasOwn(payload, "homeBusinessId")
+    ? nullableString(payload.homeBusinessId)
+    : legacyBusinessId;
+  const activeBusinessId = hasOwn(payload, "activeBusinessId")
+    ? nullableString(payload.activeBusinessId)
+    : legacyBusinessId;
   const rawContextVersion = payload.contextVersion;
   const contextVersion =
     typeof rawContextVersion === "number" &&
@@ -167,6 +173,10 @@ export function normalizeSession(payload: Record<string, unknown>): AppSession {
       : [],
     status: requiredUserStatus(payload.status),
   };
+}
+
+function hasOwn(value: object, key: string) {
+  return Object.prototype.hasOwnProperty.call(value, key);
 }
 
 function nullableString(value: unknown) {

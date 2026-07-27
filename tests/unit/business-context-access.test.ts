@@ -81,6 +81,28 @@ test("new sessions keep home and active businesses distinct", () => {
   assert.equal(session.contextVersion, 4);
 });
 
+test("explicit null context fields are not filled from the legacy business alias", () => {
+  const session = normalizeSession({
+    userId: "user-1",
+    homeBusinessId: null,
+    activeBusinessId: null,
+    businessId: "stale-legacy-value",
+    contextVersion: 2,
+    branchId: null,
+    industryType: null,
+    name: "Group-only Owner",
+    email: "group-only@example.test",
+    role: "STAFF",
+    permissions: [],
+    status: "active",
+  });
+
+  assert.equal(session.homeBusinessId, null);
+  assert.equal(session.activeBusinessId, null);
+  assert.equal(session.businessId, null);
+  assert.equal(session.contextVersion, 2);
+});
+
 test("missing legacy identity fields fail closed instead of producing a partial session", () => {
   assert.throws(
     () =>

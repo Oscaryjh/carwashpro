@@ -7,9 +7,9 @@ import {
   createSession,
   SESSION_CONTEXT_VERSION,
 } from "@/lib/auth/session";
+import { getLoginDestination } from "@/lib/auth/login-destination";
 import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validation/login";
-import { getBusinessHomeHref } from "@/lib/business-industry";
 
 export type LoginState = {
   error?: string;
@@ -88,9 +88,11 @@ export async function loginAction(
     status: user.status,
   });
 
-  if (user.role === "PLATFORM_ADMIN") {
-    redirect("/admin/businesses");
-  }
-
-  redirect(getBusinessHomeHref(user.business?.industryType ?? "AUTO_DETAILING"));
+  redirect(
+    getLoginDestination({
+      role: user.role,
+      businessId: user.businessId,
+      industryType: user.business?.industryType ?? null,
+    }),
+  );
 }
