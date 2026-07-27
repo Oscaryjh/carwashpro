@@ -1,17 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { usePathname } from "next/navigation";
+import { useMemo, useState } from "react";
 import { switchBusinessContextAction } from "@/app/(business)/business-context/actions";
 import type {
   AvailableBusinessContext,
   BusinessContextActionState,
 } from "@/lib/business-groups/business-context";
+import type { AuthorizedGroupReportingContext } from "@/lib/business-groups/all-stores-access";
 
 type BusinessContextSwitcherProps = {
-  businesses: AvailableBusinessContext[];
+  groups: AuthorizedGroupReportingContext[];
+  homeBusiness: AvailableBusinessContext | null;
   contextToken: string;
-  groupName: string;
+  selectedGroupId?: string;
 };
 
 const initialBusinessContextActionState: BusinessContextActionState = {
@@ -19,42 +23,97 @@ const initialBusinessContextActionState: BusinessContextActionState = {
 };
 
 export function BusinessContextSwitcher({
-  businesses,
+  groups,
+  homeBusiness,
   contextToken,
-  groupName,
+  selectedGroupId,
 }: BusinessContextSwitcherProps) {
   const pathname = usePathname();
+  const initialGroupId =
+    selectedGroupId ??
+    groups.find((group) =>
+      group.businesses.some((business) => business.isCurrent),
+    )?.groupId ??
+    groups[0]?.groupId ??
+    (homeBusiness ? "home" : "");
+  const [activeGroupId, setActiveGroupId] = useState(initialGroupId);
+  const activeGroup = groups.find((group) => group.groupId === activeGroupId);
+  const businesses = useMemo(
+    () =>
+      activeGroup
+        ? activeGroup.businesses
+        : homeBusiness
+          ? [homeBusiness]
+          : [],
+    [activeGroup, homeBusiness],
+  );
   const current = businesses.find((business) => business.isCurrent);
   const [state, formAction, pending] = useActionState(
     switchBusinessContextAction,
     initialBusinessContextActionState,
   );
+  const showHomeContext =
+    Boolean(homeBusiness) &&
+    !groups.some((group) =>
+      group.businesses.some((business) => business.id === homeBusiness?.id),
+    );
+  const contextOptions = groups.length + (showHomeContext ? 1 : 0);
 
   return (
-    <form action={formAction} className="business-context-switcher">
-      <label htmlFor="business-context-target">{groupName}</label>
-      <div>
-        <select
-          defaultValue={current?.id}
-          disabled={pending}
-          id="business-context-target"
-          name="targetBusinessId"
-        >
-          {businesses.map((business) => (
-            <option key={business.id} value={business.id}>
-              {business.name}
-            </option>
-          ))}
-        </select>
-        <button disabled={pending} type="submit">
-          {pending ? "Switching..." : "Switch"}
-        </button>
+    <div className="business-context-switcher">
+      <div className="business-context-scope">
+        <label htmlFor="business-context-group">Business group</label>
+        {contextOptions > 1 ? (
+          <select
+            id="business-context-group"
+            onChange={(event) => setActiveGroupId(event.target.value)}
+            value={activeGroupId}
+          >
+            {groups.map((group) => (
+              <option key={group.groupId} value={group.groupId}>
+                {group.groupName}
+              </option>
+            ))}
+            {showHomeContext ? <option value="home">Direct business</option> : null}
+          </select>
+        ) : (
+          <strong>{activeGroup?.groupName ?? "Direct business"}</strong>
+        )}
       </div>
-      <input name="contextToken" type="hidden" value={contextToken} />
-      <input name="returnTo" type="hidden" value={pathname ?? "/reports"} />
-      {state.status === "error" ? (
-        <p role="alert">{state.message}</p>
+      <form action={formAction}>
+        <label htmlFor="business-context-target">Business</label>
+        <div>
+          <select
+            defaultValue={current?.id ?? businesses[0]?.id}
+            disabled={pending}
+            id="business-context-target"
+            key={activeGroupId}
+            name="targetBusinessId"
+          >
+            {businesses.map((business) => (
+              <option key={business.id} value={business.id}>
+                {business.name}
+              </option>
+            ))}
+          </select>
+          <button disabled={pending || !businesses.length} type="submit">
+            {pending ? "Switching..." : "Switch"}
+          </button>
+        </div>
+        <input name="contextToken" type="hidden" value={contextToken} />
+        <input name="returnTo" type="hidden" value={pathname ?? "/reports"} />
+        {state.status === "error" ? (
+          <p role="alert">{state.message}</p>
+        ) : null}
+      </form>
+      {activeGroup?.canViewAllStores ? (
+        <Link
+          className="business-context-all-stores"
+          href={`/groups/${activeGroup.groupId}/overview`}
+        >
+          All Stores
+        </Link>
       ) : null}
-    </form>
+    </div>
   );
 }

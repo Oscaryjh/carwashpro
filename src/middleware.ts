@@ -163,6 +163,7 @@ export const config = {
     "/closing/:path*",
     "/crm/:path*",
     "/dashboard/:path*",
+    "/groups/:path*",
     "/invoices/:path*",
     "/loyalty/:path*",
     "/packages/:path*",

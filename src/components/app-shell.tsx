@@ -9,6 +9,7 @@ import type { ResolvedBusinessAccess } from "@/lib/business-groups/business-acce
 import {
   getAvailableBusinessContexts,
 } from "@/lib/business-groups/business-context";
+import { getAvailableGroupReportingContexts } from "@/lib/business-groups/all-stores-access";
 import {
   canGroupManager,
   type BusinessCapability,
@@ -223,8 +224,17 @@ export async function AppShell({ user, access, children }: AppShellProps) {
     !isPlatformAdmin && user.businessId
       ? await getAvailableBusinessContexts(user.userId, user.businessId)
       : null;
+  const groupReportingContexts =
+    !isPlatformAdmin
+      ? await getAvailableGroupReportingContexts(
+          user.userId,
+          user.activeBusinessId,
+        )
+      : [];
   const contextToken =
-    businessContexts?.canSwitch && user.businessId
+    (businessContexts?.canSwitch ||
+      groupReportingContexts.some((group) => group.canViewAllStores)) &&
+    user.businessId
       ? await createBusinessContextToken({
           userId: user.userId,
           businessId: user.businessId,
@@ -239,13 +249,16 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       homeHref={homeHref}
       navItems={navItems}
       businessSwitcher={
-        businessContexts?.canSwitch &&
-        businessContexts.group &&
+        (businessContexts?.canSwitch ||
+          groupReportingContexts.some((group) => group.canViewAllStores)) &&
         contextToken ? (
           <BusinessContextSwitcher
-            businesses={businessContexts.businesses}
+            groups={groupReportingContexts}
+            homeBusiness={
+              businessContexts?.businesses.find((business) => business.isHome) ??
+              null
+            }
             contextToken={contextToken}
-            groupName={businessContexts.group.name}
           />
         ) : undefined
       }
