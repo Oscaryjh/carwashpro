@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { PwaInstallButton } from "@/components/pwa-install-button";
+import { shouldPollWhatsAppUnread } from "@/lib/whatsapp/unread-access";
 
 export type NavItem = {
   href: string;
@@ -64,7 +65,7 @@ export function AppShellFrame({
   }, [initialWhatsAppUnreadCount]);
 
   useEffect(() => {
-    if (!flattenNavItems(navItems).some((item) => item.icon === "whatsapp")) {
+    if (!shouldPollWhatsAppUnread(navItems)) {
       return;
     }
 
