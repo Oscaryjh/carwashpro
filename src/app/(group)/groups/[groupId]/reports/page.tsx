@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AppShellFrame, type NavItem } from "@/components/app-shell-frame";
+import { AppShellFrame } from "@/components/app-shell-frame";
 import { BusinessContextDrilldownButton } from "@/components/business-context-drilldown-button";
 import { BusinessContextSwitcher } from "@/components/business-context-switcher";
 import { createBusinessContextToken } from "@/lib/auth/business-context-token";
@@ -15,11 +15,8 @@ import {
   GROUP_REPORT_PAYMENT_METHODS,
   type GroupReportsResult,
 } from "@/lib/business-groups/group-reports";
+import { getBusinessGroupNavItems } from "@/lib/business-groups/navigation";
 import { formatDateValue } from "@/lib/business-time";
-
-const reportsNav: NavItem[] = [
-  { href: "/groups", label: "All Stores", shortLabel: "All", icon: "businesses" },
-];
 
 type SearchQuery = {
   range?: string;
@@ -79,10 +76,7 @@ export default async function GroupReportsPage({
     businessId: user.activeBusinessId,
     contextVersion: user.contextVersion,
   });
-  const navItems = reportsNav.map((item) => ({
-    ...item,
-    href: `/groups/${groupId}/overview`,
-  }));
+  const navItems = getBusinessGroupNavItems(groupId);
 
   return (
     <AppShellFrame
@@ -146,10 +140,13 @@ export default async function GroupReportsPage({
                   MYR · {report.filters.storeId ? "1 store" : `${report.authorizedBusinesses.length} stores`}
                 </span>
               </div>
+              <ExportLinks groupId={groupId} query={query} />
               <SummaryGrid summary={report.summary} />
             </section>
 
             <ReportAnalytics report={report} />
+
+            <CatalogRankings report={report} />
 
             <section aria-labelledby="group-transactions-heading">
               <div className="section-header">
@@ -238,6 +235,72 @@ export default async function GroupReportsPage({
         ) : null}
       </div>
     </AppShellFrame>
+  );
+}
+
+function ExportLinks({
+  groupId,
+  query,
+}: {
+  groupId: string;
+  query: SearchQuery;
+}) {
+  return (
+    <nav className="group-report-export-actions" aria-label="Report exports">
+      {(["csv", "xlsx", "pdf"] as const).map((format) => (
+        <a
+          href={exportHref(groupId, query, format)}
+          key={format}
+          download
+        >
+          {format === "xlsx" ? "Excel" : format.toUpperCase()}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+function CatalogRankings({ report }: { report: GroupReportsResult }) {
+  const groups = [
+    ["Top services", report.catalogRankings.services],
+    ["Top products", report.catalogRankings.products],
+    ["Top packages", report.catalogRankings.packages],
+  ] as const;
+
+  return (
+    <section aria-labelledby="group-catalog-ranking-heading">
+      <div className="section-header">
+        <div>
+          <h2 id="group-catalog-ranking-heading">Catalog performance</h2>
+          <p>Top invoice line items across the selected stores and filters.</p>
+        </div>
+      </div>
+      <div className="group-report-ranking-grid">
+        {groups.map(([title, items]) => (
+          <div className="group-report-ranking-panel" key={title}>
+            <h3>{title}</h3>
+            {items.length ? (
+              <ol>
+                {items.map((item) => (
+                  <li key={item.name.toLocaleLowerCase("en")}>
+                    <span>
+                      <strong>{item.name}</strong>
+                      <small>
+                        {item.quantity} sold · {item.storeCount}{" "}
+                        {item.storeCount === 1 ? "store" : "stores"}
+                      </small>
+                    </span>
+                    <b>{formatMoney(item.salesCents)}</b>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="group-report-ranking-empty">No matching sales</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -524,6 +587,19 @@ function formatReportDate(value: string) {
     month: "short",
     year: "numeric",
   });
+}
+
+function exportHref(
+  groupId: string,
+  query: SearchQuery,
+  format: "csv" | "xlsx" | "pdf",
+) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (key !== "page" && value) params.set(key, value);
+  }
+  params.set("format", format);
+  return `/groups/${groupId}/reports/export?${params.toString()}`;
 }
 
 function formatShortDate(value: string) {

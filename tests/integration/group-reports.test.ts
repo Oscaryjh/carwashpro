@@ -181,6 +181,17 @@ test("Group Reports enforces live scope, event filters, and database pagination"
             paidAt: new Date("2026-06-30T20:30:00.000Z"),
           },
         },
+        items: {
+          create: {
+            businessId: auto.id,
+            serviceId: null,
+            productId: null,
+            name: "Stage3B2 Auto Service",
+            quantity: 2,
+            unitPrice: "100.00",
+            lineTotal: "200.00",
+          },
+        },
       },
     });
     await prisma.invoice.create({
@@ -232,6 +243,7 @@ test("Group Reports enforces live scope, event filters, and database pagination"
       [auto.id, salon.id],
     );
     assert.equal(ownerPageOne?.businessPerformance[0].rank, 1);
+    assert.deepEqual(ownerPageOne?.catalogRankings.services, []);
     assert.equal(
       ownerPageOne?.businessPerformance.some(
         (item) => item.businessId === outside.id,

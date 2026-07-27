@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AppShellFrame, type NavItem } from "@/components/app-shell-frame";
+import { AppShellFrame } from "@/components/app-shell-frame";
 import { BusinessContextDrilldownButton } from "@/components/business-context-drilldown-button";
 import { BusinessContextSwitcher } from "@/components/business-context-switcher";
 import { createBusinessContextToken } from "@/lib/auth/business-context-token";
@@ -14,17 +14,9 @@ import {
   type AllStoresKpiWithComparisons,
 } from "@/lib/business-groups/all-stores-kpi";
 import { getAvailableBusinessContexts } from "@/lib/business-groups/business-context";
+import { getBusinessGroupNavItems } from "@/lib/business-groups/navigation";
 import { getBusinessIndustryLabel } from "@/lib/business-industry";
 import { formatDateValue } from "@/lib/business-time";
-
-const overviewNav: NavItem[] = [
-  {
-    href: "/groups",
-    label: "All Stores",
-    shortLabel: "All",
-    icon: "businesses",
-  },
-];
 
 export default async function GroupOverviewPage({
   params,
@@ -85,10 +77,7 @@ export default async function GroupOverviewPage({
     businessId: user.activeBusinessId,
     contextVersion: user.contextVersion,
   });
-  const navItems = overviewNav.map((item) => ({
-    ...item,
-    href: `/groups/${selectedGroup.groupId}/overview`,
-  }));
+  const navItems = getBusinessGroupNavItems(selectedGroup.groupId);
 
   return (
     <AppShellFrame

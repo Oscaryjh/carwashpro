@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildGroupCatalogRankings,
   buildGroupReportTrend,
   getGroupReports,
   GroupReportsInputError,
@@ -132,11 +133,12 @@ test("uses five bounded queries and keeps payment/refund events in their own bus
         calls.push({ model: "invoice", operation: "findMany", args });
         return calls.filter((call) => call.model === "invoice").length === 1
           ? [
-              {
-                businessId: salon.id,
-                discountAmount: "10.00",
-                id: invoice.id,
-                issuedAt: invoice.issuedAt,
+          {
+            businessId: salon.id,
+            discountAmount: "10.00",
+            id: invoice.id,
+            items: [],
+            issuedAt: invoice.issuedAt,
                 loyaltyDiscountAmount: "5.00",
                 payments: [{ amount: "20.00" }],
                 tipAmount: "10.00",
@@ -223,6 +225,11 @@ test("uses five bounded queries and keeps payment/refund events in their own bus
   assert.equal(result?.rows[0].refundAmountCents, 500);
   assert.equal(result?.rows[0].packageRedemptionCents, 2_000);
   assert.deepEqual(result?.rows[0].paymentMethods, ["CASH"]);
+  assert.deepEqual(result?.catalogRankings, {
+    services: [],
+    products: [],
+    packages: [],
+  });
   const paged = calls.find(
     (call) =>
       call.model === "invoice" &&
@@ -232,6 +239,84 @@ test("uses five bounded queries and keeps payment/refund events in their own bus
   assert.equal(paged.take, 25);
   assert.equal(paged.skip, 0);
   assert.deepEqual(paged.orderBy, [{ issuedAt: "desc" }, { id: "desc" }]);
+});
+
+test("ranks service, product, and package lines by value with stable cross-store aggregation", () => {
+  assert.deepEqual(
+    buildGroupCatalogRankings([
+      {
+        businessId: salon.id,
+        customerPackageId: null,
+        lineTotal: "60.00",
+        name: "Hair Cut",
+        productId: null,
+        quantity: 2,
+        serviceId: "service-1",
+      },
+      {
+        businessId: auto.id,
+        customerPackageId: null,
+        lineTotal: "40.00",
+        name: "hair cut",
+        productId: null,
+        quantity: 1,
+        serviceId: "service-2",
+      },
+      {
+        businessId: salon.id,
+        customerPackageId: null,
+        lineTotal: "90.00",
+        name: "Shampoo",
+        productId: "product-1",
+        quantity: 3,
+        serviceId: null,
+      },
+      {
+        businessId: salon.id,
+        customerPackageId: "customer-package-1",
+        lineTotal: "150.00",
+        name: "Wellness Pack",
+        productId: null,
+        quantity: 1,
+        serviceId: "service-1",
+      },
+      {
+        businessId: salon.id,
+        customerPackageId: null,
+        lineTotal: "999.00",
+        name: "Unlinked adjustment",
+        productId: null,
+        quantity: 1,
+        serviceId: null,
+      },
+    ]),
+    {
+      services: [
+        {
+          name: "Hair Cut",
+          quantity: 3,
+          salesCents: 10_000,
+          storeCount: 2,
+        },
+      ],
+      products: [
+        {
+          name: "Shampoo",
+          quantity: 3,
+          salesCents: 9_000,
+          storeCount: 1,
+        },
+      ],
+      packages: [
+        {
+          name: "Wellness Pack",
+          quantity: 1,
+          salesCents: 15_000,
+          storeCount: 1,
+        },
+      ],
+    },
+  );
 });
 
 test("builds a zero-filled multi-timezone trend with refund events on their own business date", () => {

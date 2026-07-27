@@ -26,6 +26,7 @@ import {
 import { prisma } from "@/lib/prisma";
 
 export const GROUP_REPORT_PAGE_SIZE = 25;
+export const GROUP_REPORT_EXPORT_LIMIT = 5_000;
 export const GROUP_REPORT_PAYMENT_METHODS = [
   "CASH",
   "CARD",
@@ -90,6 +91,13 @@ export type GroupReportBusinessPerformance = {
   metrics: AllStoresKpi;
 };
 
+export type GroupReportCatalogRanking = {
+  name: string;
+  quantity: number;
+  salesCents: number;
+  storeCount: number;
+};
+
 export type GroupReportsResult = {
   groupId: string;
   groupName: string;
@@ -99,6 +107,11 @@ export type GroupReportsResult = {
   summary: AllStoresKpi;
   trend: GroupReportTrendPoint[];
   businessPerformance: GroupReportBusinessPerformance[];
+  catalogRankings: {
+    services: GroupReportCatalogRanking[];
+    products: GroupReportCatalogRanking[];
+    packages: GroupReportCatalogRanking[];
+  };
   rows: GroupReportInvoiceRow[];
   totalRows: number;
   totalPages: number;
@@ -113,10 +126,11 @@ type ResolveScope = typeof resolveAuthorizedGroupReportingScope;
 
 type GroupReportsDependencies = {
   now?: Date;
+  pageSize?: number;
   resolveScope?: ResolveScope;
 };
 
-type GroupReportsInput = {
+export type GroupReportsInput = {
   userId: string;
   groupId: string;
   activeBusinessId: string;
@@ -132,6 +146,7 @@ type GroupReportsInput = {
 const optionalUuid = z.string().uuid();
 
 export class GroupReportsInputError extends Error {}
+export class GroupReportsExportLimitError extends Error {}
 
 export async function getGroupReports(
   input: GroupReportsInput,
@@ -148,6 +163,7 @@ export async function getGroupReports(
   if (!scope?.canViewAllStores) return null;
 
   const filters = parseGroupReportFilters(input, scope);
+  const pageSize = dependencies.pageSize ?? GROUP_REPORT_PAGE_SIZE;
   const businesses = filters.storeId
     ? scope.businesses.filter((business) => business.id === filters.storeId)
     : scope.businesses;
@@ -196,6 +212,17 @@ export async function getGroupReports(
             where: { method: "PACKAGE", status: "ACTIVE" },
             select: { amount: true },
           },
+          items: {
+            select: {
+              businessId: true,
+              customerPackageId: true,
+              lineTotal: true,
+              name: true,
+              productId: true,
+              quantity: true,
+              serviceId: true,
+            },
+          },
           tipAmount: true,
           total: true,
         },
@@ -212,8 +239,8 @@ export async function getGroupReports(
       database.invoice.findMany({
         where: detailWhere,
         orderBy: [{ issuedAt: "desc" }, { id: "desc" }],
-        skip: (filters.page - 1) * GROUP_REPORT_PAGE_SIZE,
-        take: GROUP_REPORT_PAGE_SIZE,
+        skip: (filters.page - 1) * pageSize,
+        take: pageSize,
         select: {
           id: true,
           businessId: true,
@@ -278,6 +305,9 @@ export async function getGroupReports(
         left.businessId.localeCompare(right.businessId),
     )
     .map((business, index) => ({ ...business, rank: index + 1 }));
+  const catalogRankings = buildGroupCatalogRankings(
+    summaryInvoices.flatMap((invoice) => invoice.items),
+  );
   const businessById = new Map(
     businesses.map((business) => [business.id, business]),
   );
@@ -291,6 +321,7 @@ export async function getGroupReports(
     summary,
     trend,
     businessPerformance,
+    catalogRankings,
     rows: invoices.map((invoice) =>
       toGroupReportInvoiceRow(
         invoice,
@@ -300,8 +331,29 @@ export async function getGroupReports(
       ),
     ),
     totalRows,
-    totalPages: Math.max(1, Math.ceil(totalRows / GROUP_REPORT_PAGE_SIZE)),
+    totalPages: Math.max(1, Math.ceil(totalRows / pageSize)),
   };
+}
+
+export async function getGroupReportExportData(
+  input: GroupReportsInput,
+  database: GroupReportsDatabase = prisma,
+  dependencies: GroupReportsDependencies = {},
+) {
+  const report = await getGroupReports(
+    { ...input, page: "1" },
+    database,
+    {
+      ...dependencies,
+      pageSize: GROUP_REPORT_EXPORT_LIMIT + 1,
+    },
+  );
+  if (report && report.totalRows > GROUP_REPORT_EXPORT_LIMIT) {
+    throw new GroupReportsExportLimitError(
+      `Export is limited to ${GROUP_REPORT_EXPORT_LIMIT.toLocaleString("en-MY")} transactions. Narrow the filters and try again.`,
+    );
+  }
+  return report;
 }
 
 type TrendInvoiceRow = {
@@ -312,6 +364,16 @@ type TrendInvoiceRow = {
   payments: Array<{ amount: unknown }>;
   tipAmount: unknown;
   total: unknown;
+};
+
+type CatalogRankingRow = {
+  businessId: string;
+  customerPackageId: string | null;
+  lineTotal: unknown;
+  name: string;
+  productId: string | null;
+  quantity: number;
+  serviceId: string | null;
 };
 
 type TrendPaymentRow = {
@@ -450,6 +512,71 @@ function emptyTrendPoint(businessDate: string): GroupReportTrendPoint {
     transactionCount: 0,
     averageTransactionValueCents: null,
   };
+}
+
+export function buildGroupCatalogRankings(
+  items: CatalogRankingRow[],
+  limit = 10,
+) {
+  const rankings = {
+    services: new Map<string, GroupReportCatalogRanking & { stores: Set<string> }>(),
+    products: new Map<string, GroupReportCatalogRanking & { stores: Set<string> }>(),
+    packages: new Map<string, GroupReportCatalogRanking & { stores: Set<string> }>(),
+  };
+
+  for (const item of items) {
+    const bucket = item.customerPackageId
+      ? rankings.packages
+      : item.productId
+        ? rankings.products
+        : item.serviceId
+          ? rankings.services
+          : null;
+    const name = item.name.trim();
+    if (!bucket || !name || item.quantity <= 0) continue;
+    const key = name.toLocaleLowerCase("en");
+    const existing = bucket.get(key) ?? {
+      name,
+      quantity: 0,
+      salesCents: 0,
+      storeCount: 0,
+      stores: new Set<string>(),
+    };
+    existing.quantity += item.quantity;
+    existing.salesCents += moneyToCents(item.lineTotal);
+    existing.stores.add(item.businessId);
+    existing.storeCount = existing.stores.size;
+    bucket.set(key, existing);
+  }
+
+  return {
+    services: finalizeCatalogRanking(rankings.services, limit),
+    products: finalizeCatalogRanking(rankings.products, limit),
+    packages: finalizeCatalogRanking(rankings.packages, limit),
+  };
+}
+
+function finalizeCatalogRanking(
+  ranking: Map<
+    string,
+    GroupReportCatalogRanking & { stores: Set<string> }
+  >,
+  limit: number,
+) {
+  return [...ranking.values()]
+    .sort(
+      (left, right) =>
+        right.salesCents - left.salesCents ||
+        right.quantity - left.quantity ||
+        left.name.localeCompare(right.name),
+    )
+    .slice(0, limit)
+    .map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      salesCents: item.salesCents,
+      storeCount: item.storeCount,
+    }));
 }
 
 export function parseGroupReportFilters(

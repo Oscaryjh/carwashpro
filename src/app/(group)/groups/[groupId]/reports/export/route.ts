@@ -1,0 +1,82 @@
+import {
+  AllStoresKpiRangeError,
+} from "@/lib/business-groups/all-stores-kpi";
+import {
+  buildGroupReportCsv,
+  buildGroupReportPdf,
+  buildGroupReportXlsx,
+  groupReportExportFileName,
+  type GroupReportExportFormat,
+} from "@/lib/business-groups/group-report-export";
+import {
+  getGroupReportExportData,
+  GroupReportsExportLimitError,
+  GroupReportsInputError,
+} from "@/lib/business-groups/group-reports";
+import { requireUser } from "@/lib/auth/session";
+
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ groupId: string }> },
+) {
+  const user = await requireUser();
+  if (!user.activeBusinessId || user.role === "PLATFORM_ADMIN") {
+    return new Response("Not found", { status: 404 });
+  }
+  const { groupId } = await params;
+  const search = new URL(request.url).searchParams;
+  const format = normalizeFormat(search.get("format"));
+  if (!format) return new Response("Select a valid export format.", { status: 400 });
+
+  try {
+    const report = await getGroupReportExportData({
+      userId: user.userId,
+      groupId,
+      activeBusinessId: user.activeBusinessId,
+      range: search.get("range") ?? undefined,
+      from: search.get("from") ?? undefined,
+      to: search.get("to") ?? undefined,
+      store: search.get("store") ?? undefined,
+      paymentMethod: search.get("paymentMethod") ?? undefined,
+      status: search.get("status") ?? undefined,
+    });
+    if (!report) return new Response("Not found", { status: 404 });
+
+    const body =
+      format === "csv"
+        ? buildGroupReportCsv(report)
+        : format === "xlsx"
+          ? buildGroupReportXlsx(report)
+          : buildGroupReportPdf(report);
+    const contentType =
+      format === "csv"
+        ? "text/csv; charset=utf-8"
+        : format === "xlsx"
+          ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          : "application/pdf";
+    return new Response(new Uint8Array(body), {
+      headers: {
+        "Cache-Control": "private, no-store",
+        "Content-Disposition": `attachment; filename="${groupReportExportFileName(report, format)}"`,
+        "Content-Length": String(body.length),
+        "Content-Type": contentType,
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof GroupReportsInputError ||
+      error instanceof AllStoresKpiRangeError
+    ) {
+      return new Response(error.message, { status: 400 });
+    }
+    if (error instanceof GroupReportsExportLimitError) {
+      return new Response(error.message, { status: 422 });
+    }
+    console.error("[group-report-export] Export failed.");
+    return new Response("Group report export is unavailable.", { status: 500 });
+  }
+}
+
+function normalizeFormat(value: string | null): GroupReportExportFormat | null {
+  return value === "csv" || value === "xlsx" || value === "pdf" ? value : null;
+}
