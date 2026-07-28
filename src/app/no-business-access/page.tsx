@@ -5,7 +5,7 @@ export default async function NoBusinessAccessPage() {
   const session = await getSession();
 
   return (
-    <main className="auth-shell">
+    <main className="auth-page">
       <section className="auth-panel">
         <h1>No business access</h1>
         <p>
@@ -13,10 +13,7 @@ export default async function NoBusinessAccessPage() {
           Contact your platform administrator if access should be restored.
         </p>
         <div className="form-actions">
-          <Link
-            className="secondary-button"
-            href={session ? "/logout" : "/login"}
-          >
+          <Link className="button-link" href={session ? "/logout" : "/login"}>
             {session ? "Sign out" : "Return to login"}
           </Link>
         </div>
