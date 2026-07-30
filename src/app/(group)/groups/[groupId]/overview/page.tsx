@@ -656,7 +656,6 @@ function DataConfidencePanel({
 
       <div className="group-confidence-detail-grid">
         <div className="group-confidence-table-wrap">
-          <table className="group-confidence-table">
           {!confidence.reconciliationApplicable ? (
             <p className="group-confidence-alert">
               Open or excluded branch-dates are outside the Closing audit
@@ -664,6 +663,7 @@ function DataConfidencePanel({
               snapshots.
             </p>
           ) : null}
+          <table className="group-confidence-table">
             <thead>
               <tr>
                 <th>Metric</th>
