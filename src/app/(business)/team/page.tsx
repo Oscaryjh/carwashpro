@@ -292,7 +292,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
             </span>
             <span>
               <small>Clocked out</small>
-              <strong>{attendance.filter((entry) => entry.status === "CLOSED").length}</strong>
+              <strong>{attendance.filter((entry) => entry.status === "COMPLETED").length}</strong>
             </span>
           </div>
           <div className="team-attendance-modal-list">

@@ -64,12 +64,12 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
   const dateFilter = params.datePreset === "all" || params.date === "all"
     ? "all"
     : params.date || getTodayValue();
-  const statusFilter = params.status === "CLOSED" ? "CLOSED" : params.status === "OPEN" ? "OPEN" : "ALL";
+  const statusFilter = params.status === "COMPLETED" ? "COMPLETED" : params.status === "OPEN" ? "OPEN" : "ALL";
   const dateBounds = dateFilter === "all" ? null : getDateBounds(dateFilter);
   const where = {
     businessId,
     ...(requestedBranchId ? { branchId: requestedBranchId } : { branchId: { in: branches.map((branch) => branch.id) } }),
-    ...(statusFilter === "ALL" ? {} : { status: statusFilter as "OPEN" | "CLOSED" }),
+    ...(statusFilter === "ALL" ? {} : { status: statusFilter as "OPEN" | "COMPLETED" }),
     ...(dateBounds ? { clockInAt: dateBounds } : {}),
   };
   const attendance = await prisma.employeeAttendance.findMany({
@@ -82,7 +82,7 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
     take: 200,
   });
   const openCount = attendance.filter((entry) => entry.status === "OPEN").length;
-  const closedCount = attendance.filter((entry) => entry.status === "CLOSED").length;
+  const completedCount = attendance.filter((entry) => entry.status === "COMPLETED").length;
   const totalHours = attendance.reduce((total, entry) => {
     const end = entry.clockOutAt ?? new Date();
     return total + Math.max(0, end.getTime() - entry.clockInAt.getTime());
@@ -102,7 +102,7 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
         <div className="staff-attendance-summary">
           <div className="stat-card"><span>Records</span><strong>{attendance.length}</strong></div>
           <div className="stat-card"><span>Currently clocked in</span><strong>{openCount}</strong></div>
-          <div className="stat-card"><span>Closed records</span><strong>{closedCount}</strong></div>
+          <div className="stat-card"><span>Completed records</span><strong>{completedCount}</strong></div>
           <div className="stat-card"><span>Total hours</span><strong>{totalHours.toFixed(1)}h</strong></div>
         </div>
 
@@ -132,7 +132,7 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
               <select name="status" defaultValue={statusFilter}>
                 <option value="ALL">All statuses</option>
                 <option value="OPEN">Open</option>
-                <option value="CLOSED">Closed</option>
+                <option value="COMPLETED">Completed</option>
               </select>
             </label>
             <button type="submit">Filter</button>

@@ -6,13 +6,13 @@ import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
+import { normalizeAttendancePhone } from "@/lib/attendance/phone";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import {
   assertStaffPermission,
   normalizeStaffPermissionsForIndustry,
 } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
-import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
 
 const createStaffSchema = z.object({
   name: z.string().trim().min(1, "Name is required."),
@@ -103,9 +103,7 @@ export async function createStaffAction(formData: FormData) {
 
     const passwordHash = loginEnabled ? await bcrypt.hash(input.password!, 12) : null;
 
-    const whatsappPhone = input.whatsappPhone
-      ? normalizeMalaysiaWhatsAppPhone(input.whatsappPhone)
-      : null;
+    const whatsappPhone = normalizeOptionalStaffPhone(input.whatsappPhone);
 
     await assertUniqueStaffPhone(businessId, whatsappPhone);
     const primaryBranchId = input.branchIds[0];
@@ -115,6 +113,7 @@ export async function createStaffAction(formData: FormData) {
         ? await syncEmployeeRegistration(tx, {
             businessId,
             name: input.name,
+            membershipStatus: "ACTIVE",
             phoneNormalized: whatsappPhone,
             branchIds: input.branchIds,
           })
@@ -242,9 +241,7 @@ export async function updateStaffAction(formData: FormData) {
       redirectWithTeamMessage("Set a password before enabling login.", "error");
     }
 
-    const whatsappPhone = input.whatsappPhone
-      ? normalizeMalaysiaWhatsAppPhone(input.whatsappPhone)
-      : null;
+    const whatsappPhone = normalizeOptionalStaffPhone(input.whatsappPhone);
     await assertUniqueStaffPhone(businessId, whatsappPhone, input.userId);
     const primaryBranchId = input.branchIds[0];
     const passwordHash = password ? await bcrypt.hash(password, 12) : null;
@@ -254,15 +251,21 @@ export async function updateStaffAction(formData: FormData) {
         ? await syncEmployeeRegistration(tx, {
             businessId,
             name: input.name,
+            membershipStatus:
+              input.status === "active" ? "ACTIVE" : "SUSPENDED",
             phoneNormalized: whatsappPhone,
             branchIds: input.branchIds,
           })
         : null;
 
-      if (!whatsappPhone && staff.employeeAccountId) {
-        await tx.employeeBusinessMembership.updateMany({
-          where: { businessId, employeeAccountId: staff.employeeAccountId },
-          data: { status: "INACTIVE" },
+      if (
+        staff.employeeAccountId &&
+        staff.employeeAccountId !== employeeAccount?.id
+      ) {
+        await transitionEmployeeMembership(tx, {
+          businessId,
+          employeeAccountId: staff.employeeAccountId,
+          status: "SUSPENDED",
         });
       }
 
@@ -466,6 +469,14 @@ export async function deleteStaffAction(formData: FormData) {
         },
         tx,
       );
+
+      if (staff.employeeAccountId) {
+        await transitionEmployeeMembership(tx, {
+          businessId,
+          employeeAccountId: staff.employeeAccountId,
+          status: "TERMINATED",
+        });
+      }
 
       await tx.user.delete({
         where: { id: staff.id },
@@ -742,7 +753,7 @@ async function assertUniqueStaffPhone(
     select: { whatsappPhone: true },
   });
 
-  if (staffUsers.some((staff) => normalizeMalaysiaWhatsAppPhone(staff.whatsappPhone ?? "") === phoneNormalized)) {
+  if (staffUsers.some((staff) => normalizeAttendancePhone(staff.whatsappPhone ?? "") === phoneNormalized)) {
     redirectWithTeamMessage("This phone number is already registered for another staff member.", "error");
   }
 }
@@ -751,20 +762,23 @@ async function syncEmployeeRegistration(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   input: {
     businessId: string;
+    branchIds: string[];
+    membershipStatus: "ACTIVE" | "SUSPENDED";
     name: string;
     phoneNormalized: string;
-    branchIds: string[];
   },
 ) {
+  const now = new Date();
   const employeeAccount = await tx.employeeAccount.upsert({
     where: { phoneNormalized: input.phoneNormalized },
     create: {
+      phoneNumber: input.phoneNormalized,
       phoneNormalized: input.phoneNormalized,
       name: input.name,
       status: "ACTIVE",
     },
     update: {
-      name: input.name,
+      phoneNumber: input.phoneNormalized,
       status: "ACTIVE",
     },
   });
@@ -777,23 +791,156 @@ async function syncEmployeeRegistration(
       },
     },
     create: {
+      attendanceEnabled: false,
       employeeAccountId: employeeAccount.id,
       businessId: input.businessId,
-      status: "ACTIVE",
+      employeeCode: buildStaffEmployeeCode(employeeAccount.id),
+      employmentType: "FULL_TIME",
+      fullName: input.name,
+      joinedAt: now,
+      phoneNumber: input.phoneNormalized,
+      phoneNumberNormalized: input.phoneNormalized,
+      status: input.membershipStatus,
+      terminatedAt: null,
     },
-    update: { status: "ACTIVE" },
+    update: {
+      fullName: input.name,
+      phoneNumber: input.phoneNormalized,
+      phoneNumberNormalized: input.phoneNormalized,
+      status: input.membershipStatus,
+      terminatedAt: null,
+      ...(input.membershipStatus === "SUSPENDED"
+        ? { attendanceEnabled: false }
+        : {}),
+    },
   });
 
-  await tx.employeeBranchAssignment.deleteMany({
-    where: { membershipId: membership.id, businessId: input.businessId },
-  });
-  await tx.employeeBranchAssignment.createMany({
-    data: input.branchIds.map((branchId) => ({
-      membershipId: membership.id,
+  const existingAssignments = await tx.employeeBranchAssignment.findMany({
+    where: {
       businessId: input.businessId,
-      branchId,
-    })),
+      membershipId: membership.id,
+    },
+    select: {
+      branchId: true,
+      status: true,
+    },
   });
+  const existingByBranchId = new Map(
+    existingAssignments.map((assignment) => [
+      assignment.branchId,
+      assignment,
+    ]),
+  );
+
+  await tx.employeeBranchAssignment.updateMany({
+    where: { membershipId: membership.id },
+    data: { isPrimary: false },
+  });
+
+  await tx.employeeBranchAssignment.updateMany({
+    where: {
+      membershipId: membership.id,
+      branchId: { notIn: input.branchIds },
+    },
+    data: {
+      canClockIn: false,
+      effectiveUntil: now,
+      isPrimary: false,
+      status: "INACTIVE",
+    },
+  });
+
+  for (const [index, branchId] of input.branchIds.entries()) {
+    const existing = existingByBranchId.get(branchId);
+
+    await tx.employeeBranchAssignment.upsert({
+      where: {
+        membershipId_branchId: {
+          membershipId: membership.id,
+          branchId,
+        },
+      },
+      create: {
+        branchId,
+        businessId: input.businessId,
+        canClockIn: input.membershipStatus === "ACTIVE",
+        effectiveFrom: now,
+        isPrimary: index === 0,
+        membershipId: membership.id,
+        status: "ACTIVE",
+      },
+      update: {
+        canClockIn: input.membershipStatus === "ACTIVE",
+        effectiveUntil: null,
+        isPrimary: index === 0,
+        status: "ACTIVE",
+        ...(existing?.status === "INACTIVE" ? { effectiveFrom: now } : {}),
+      },
+    });
+  }
 
   return employeeAccount;
+}
+
+async function transitionEmployeeMembership(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  input: {
+    businessId: string;
+    employeeAccountId: string;
+    status: "SUSPENDED" | "TERMINATED";
+  },
+) {
+  const membership = await tx.employeeBusinessMembership.findUnique({
+    where: {
+      employeeAccountId_businessId: {
+        businessId: input.businessId,
+        employeeAccountId: input.employeeAccountId,
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!membership) {
+    return;
+  }
+
+  const now = new Date();
+  await tx.employeeBusinessMembership.update({
+    where: { id: membership.id },
+    data: {
+      attendanceEnabled: false,
+      status: input.status,
+      terminatedAt: input.status === "TERMINATED" ? now : null,
+    },
+  });
+
+  await tx.employeeBranchAssignment.updateMany({
+    where: { membershipId: membership.id },
+    data:
+      input.status === "TERMINATED"
+        ? {
+            canClockIn: false,
+            effectiveUntil: now,
+            isPrimary: false,
+            status: "INACTIVE",
+          }
+        : { canClockIn: false },
+  });
+}
+
+function normalizeOptionalStaffPhone(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = normalizeAttendancePhone(value);
+  if (!normalized) {
+    throw new Error("Enter a valid employee phone number.");
+  }
+
+  return normalized;
+}
+
+function buildStaffEmployeeCode(employeeAccountId: string) {
+  return `STAFF-${employeeAccountId.replace(/-/g, "").toUpperCase()}`;
 }

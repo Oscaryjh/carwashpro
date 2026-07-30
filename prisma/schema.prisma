@@ -89,12 +89,74 @@ enum EmployeeAccountStatus {
 
 enum EmployeeMembershipStatus {
   ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum EmployeeEmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  DAILY
+  HOURLY
+}
+
+enum EmployeeBranchAssignmentStatus {
+  ACTIVE
   INACTIVE
 }
 
 enum EmployeeAttendanceStatus {
   OPEN
-  CLOSED
+  ON_BREAK
+  COMPLETED
+  INCOMPLETE
+  CANCELLED
+}
+
+enum AttendanceApprovalStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AttendancePunchType {
+  CLOCK_IN
+  BREAK_START
+  BREAK_END
+  CLOCK_OUT
+}
+
+enum AttendancePunchSource {
+  STAFF_PWA
+  ADMIN_MANUAL
+  SYSTEM
+}
+
+enum AttendanceGeofenceStatus {
+  INSIDE
+  OUTSIDE
+  GPS_INACCURATE
+  GPS_UNAVAILABLE
+  GEOFENCE_DISABLED
+}
+
+enum AttendanceExceptionType {
+  OUTSIDE_GEOFENCE
+  GPS_INACCURATE
+  GPS_UNAVAILABLE
+  FORGOT_CLOCK_IN
+  FORGOT_CLOCK_OUT
+  WRONG_BRANCH
+  OTHER
+}
+
+enum AttendanceExceptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 enum ServiceStatus {
@@ -420,6 +482,10 @@ model Business {
   employeeMemberships        EmployeeBusinessMembership[]
   employeeBranchAssignments  EmployeeBranchAssignment[]
   employeeAttendances        EmployeeAttendance[]
+  branchAttendanceSettings   BranchAttendanceSetting[]
+  attendancePunches          AttendancePunch[]
+  attendanceExceptions       AttendanceException[]
+  attendanceAdjustments      AttendanceAdjustment[]
   catalogDiscounts           CatalogDiscount[]
   staffRoleProfiles          StaffRoleProfile[]
   staffLevels                StaffLevel[]
@@ -471,6 +537,10 @@ model Branch {
   loyaltyTransactions       LoyaltyTransaction[]
   employeeBranchAssignments EmployeeBranchAssignment[]
   employeeAttendances       EmployeeAttendance[]
+  attendanceSetting         BranchAttendanceSetting?
+  attendancePunches         AttendancePunch[]
+  attendanceExceptions      AttendanceException[]
+  attendanceAdjustments     AttendanceAdjustment[]
   catalogDiscounts          CatalogDiscount[]
   dailyClosingSnapshots     DailyClosingSnapshot[]
   closingWhatsAppSetting    ClosingWhatsAppBranchSetting?
@@ -525,6 +595,8 @@ model User {
   closingWhatsAppSends     ClosingWhatsAppSendAttempt[] @relation("ClosingWhatsAppRequestedBy")
   businessGroupUsers       BusinessGroupUser[]
   businessGroupAuditEntries BusinessGroupAuditLog[]
+  reviewedAttendanceExceptions AttendanceException[] @relation("AttendanceExceptionReviewer")
+  attendanceAdjustments        AttendanceAdjustment[] @relation("AttendanceAdjustmentActor")
 
   @@index([businessId])
   @@index([branchId])
@@ -684,6 +756,7 @@ model StaffLevel {
 // duplicating the global phone identity.
 model EmployeeAccount {
   id              String                @id @default(uuid()) @db.Uuid
+  phoneNumber     String                @map("phone_number")
   phoneNormalized String                @unique @map("phone_normalized")
   name            String
   status          EmployeeAccountStatus @default(ACTIVE)
@@ -699,37 +772,57 @@ model EmployeeAccount {
 }
 
 model EmployeeBusinessMembership {
-  id                String                   @id @default(uuid()) @db.Uuid
-  employeeAccountId String                   @map("employee_account_id") @db.Uuid
-  businessId        String                   @map("business_id") @db.Uuid
-  status            EmployeeMembershipStatus @default(ACTIVE)
-  position          String?
-  createdAt         DateTime                 @default(now()) @map("created_at")
-  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  id                    String                   @id @default(uuid()) @db.Uuid
+  employeeAccountId     String                   @map("employee_account_id") @db.Uuid
+  businessId            String                   @map("business_id") @db.Uuid
+  employeeCode          String                   @map("employee_code")
+  fullName              String                   @map("full_name")
+  phoneNumber           String                   @map("phone_number")
+  phoneNumberNormalized String                   @map("phone_number_normalized")
+  employmentType        EmployeeEmploymentType   @default(FULL_TIME) @map("employment_type")
+  status                EmployeeMembershipStatus @default(ACTIVE)
+  attendanceEnabled     Boolean                  @default(false) @map("attendance_enabled")
+  joinedAt              DateTime                 @default(now()) @map("joined_at")
+  terminatedAt          DateTime?                @map("terminated_at")
+  position              String?
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
 
   employeeAccount   EmployeeAccount            @relation(fields: [employeeAccountId], references: [id], onDelete: Cascade)
   business          Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
   branchAssignments EmployeeBranchAssignment[]
   attendances       EmployeeAttendance[]
+  punches           AttendancePunch[]
+  exceptions        AttendanceException[]
+  adjustments       AttendanceAdjustment[]
 
   @@unique([employeeAccountId, businessId])
+  @@unique([businessId, employeeCode])
+  @@unique([businessId, phoneNumberNormalized])
   @@index([businessId, status])
   @@index([employeeAccountId, status])
   @@map("employee_business_memberships")
 }
 
 model EmployeeBranchAssignment {
-  id           String   @id @default(uuid()) @db.Uuid
-  membershipId String   @map("membership_id") @db.Uuid
-  businessId   String   @map("business_id") @db.Uuid
-  branchId     String   @map("branch_id") @db.Uuid
-  createdAt    DateTime @default(now()) @map("created_at")
+  id             String                         @id @default(uuid()) @db.Uuid
+  membershipId   String                         @map("membership_id") @db.Uuid
+  businessId     String                         @map("business_id") @db.Uuid
+  branchId       String                         @map("branch_id") @db.Uuid
+  isPrimary      Boolean                        @default(false) @map("is_primary")
+  canClockIn     Boolean                        @default(true) @map("can_clock_in")
+  effectiveFrom  DateTime                       @default(now()) @map("effective_from")
+  effectiveUntil DateTime?                      @map("effective_until")
+  status         EmployeeBranchAssignmentStatus @default(ACTIVE)
+  createdAt      DateTime                       @default(now()) @map("created_at")
+  updatedAt      DateTime                       @updatedAt @map("updated_at")
 
   membership EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
   business   Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
   branch     Branch                     @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@unique([membershipId, branchId])
+  @@index([membershipId, status, effectiveFrom, effectiveUntil], map: "employee_branch_assignments_membership_id_status_effective_idx")
   @@index([businessId, branchId])
   @@index([branchId])
   @@map("employee_branch_assignments")
@@ -741,9 +834,16 @@ model EmployeeAttendance {
   membershipId      String                   @map("membership_id") @db.Uuid
   businessId        String                   @map("business_id") @db.Uuid
   branchId          String                   @map("branch_id") @db.Uuid
+  workDate          DateTime                 @map("work_date") @db.Date
+  clockInPunchId    String?                  @unique @map("clock_in_punch_id") @db.Uuid
+  clockOutPunchId   String?                  @unique @map("clock_out_punch_id") @db.Uuid
   status            EmployeeAttendanceStatus @default(OPEN)
   clockInAt         DateTime                 @default(now()) @map("clock_in_at")
   clockOutAt        DateTime?                @map("clock_out_at")
+  totalBreakMinutes Int                      @default(0) @map("total_break_minutes")
+  totalWorkedMinutes Int                     @default(0) @map("total_worked_minutes")
+  requiresApproval  Boolean                  @default(false) @map("requires_approval")
+  approvalStatus    AttendanceApprovalStatus @default(NOT_REQUIRED) @map("approval_status")
   createdAt         DateTime                 @default(now()) @map("created_at")
   updatedAt         DateTime                 @updatedAt @map("updated_at")
 
@@ -751,11 +851,130 @@ model EmployeeAttendance {
   membership      EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
   business        Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
   branch          Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  punches         AttendancePunch[]          @relation("AttendanceSessionPunches")
+  clockInPunch    AttendancePunch?           @relation("AttendanceSessionClockIn", fields: [clockInPunchId], references: [id], onDelete: Restrict)
+  clockOutPunch   AttendancePunch?           @relation("AttendanceSessionClockOut", fields: [clockOutPunchId], references: [id], onDelete: Restrict)
+  exceptions      AttendanceException[]
+  adjustments     AttendanceAdjustment[]
 
+  @@index([businessId, branchId, workDate])
   @@index([businessId, branchId, clockInAt])
   @@index([employeeAccountId, status])
   @@index([membershipId, status])
   @@map("employee_attendance")
+}
+
+model BranchAttendanceSetting {
+  id                          String   @id @default(uuid()) @db.Uuid
+  businessId                  String   @map("business_id") @db.Uuid
+  branchId                    String   @unique @map("branch_id") @db.Uuid
+  latitude                    Decimal  @db.Decimal(9, 6)
+  longitude                   Decimal  @db.Decimal(10, 6)
+  geofenceRadiusMeters        Int      @default(100) @map("geofence_radius_meters")
+  minimumAccuracyMeters       Int      @default(80) @map("minimum_accuracy_meters")
+  requireGeofence             Boolean  @default(true) @map("require_geofence")
+  allowOutsideGeofenceRequest Boolean  @default(true) @map("allow_outside_geofence_request")
+  requirePhoto                Boolean  @default(false) @map("require_photo")
+  timezone                    String   @default("Asia/Kuching")
+  isEnabled                   Boolean  @default(false) @map("is_enabled")
+  createdAt                   DateTime @default(now()) @map("created_at")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, isEnabled])
+  @@map("branch_attendance_settings")
+}
+
+model AttendancePunch {
+  id                       String                   @id @default(uuid()) @db.Uuid
+  businessId               String                   @map("business_id") @db.Uuid
+  branchId                 String                   @map("branch_id") @db.Uuid
+  employeeId               String                   @map("employee_id") @db.Uuid
+  attendanceSessionId      String?                  @map("attendance_session_id") @db.Uuid
+  type                     AttendancePunchType
+  serverTimestamp          DateTime                 @default(now()) @map("server_timestamp")
+  deviceTimestamp          DateTime?                @map("device_timestamp")
+  latitude                 Decimal?                 @db.Decimal(9, 6)
+  longitude                Decimal?                 @db.Decimal(10, 6)
+  accuracyMeters           Decimal?                 @map("accuracy_meters") @db.Decimal(8, 2)
+  distanceFromBranchMeters Decimal?                 @map("distance_from_branch_meters") @db.Decimal(10, 2)
+  insideGeofence           Boolean                  @map("inside_geofence")
+  geofenceStatus           AttendanceGeofenceStatus @map("geofence_status")
+  source                   AttendancePunchSource
+  deviceId                 String?                  @map("device_id")
+  ipAddress                String?                  @map("ip_address")
+  createdAt                DateTime                 @default(now()) @map("created_at")
+
+  business           Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch             Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  employee           EmployeeBusinessMembership @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  attendanceSession  EmployeeAttendance?        @relation("AttendanceSessionPunches", fields: [attendanceSessionId], references: [id], onDelete: Restrict)
+  clockInForSession  EmployeeAttendance?        @relation("AttendanceSessionClockIn")
+  clockOutForSession EmployeeAttendance?        @relation("AttendanceSessionClockOut")
+  exceptions         AttendanceException[]
+
+  @@index([businessId, branchId, serverTimestamp])
+  @@index([employeeId, serverTimestamp])
+  @@index([attendanceSessionId, serverTimestamp])
+  @@map("attendance_punches")
+}
+
+model AttendanceException {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  attendancePunchId   String?                   @map("attendance_punch_id") @db.Uuid
+  attendanceSessionId String?                   @map("attendance_session_id") @db.Uuid
+  employeeId          String                    @map("employee_id") @db.Uuid
+  businessId          String                    @map("business_id") @db.Uuid
+  branchId            String                    @map("branch_id") @db.Uuid
+  type                AttendanceExceptionType
+  reason              String
+  status              AttendanceExceptionStatus @default(PENDING)
+  reviewedBy          String?                   @map("reviewed_by") @db.Uuid
+  reviewedAt          DateTime?                 @map("reviewed_at")
+  reviewNote          String?                   @map("review_note")
+  createdAt           DateTime                  @default(now()) @map("created_at")
+
+  punch             AttendancePunch?           @relation(fields: [attendancePunchId], references: [id], onDelete: Restrict)
+  attendanceSession EmployeeAttendance?        @relation(fields: [attendanceSessionId], references: [id], onDelete: Restrict)
+  employee          EmployeeBusinessMembership @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  business          Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch            Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  reviewer          User?                      @relation("AttendanceExceptionReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([businessId, branchId, status, createdAt], map: "attendance_exceptions_business_id_branch_id_status_created_idx")
+  @@index([employeeId, createdAt])
+  @@index([attendanceSessionId])
+  @@map("attendance_exceptions")
+}
+
+model AttendanceAdjustment {
+  id                   String    @id @default(uuid()) @db.Uuid
+  businessId           String    @map("business_id") @db.Uuid
+  branchId             String    @map("branch_id") @db.Uuid
+  attendanceSessionId  String    @map("attendance_session_id") @db.Uuid
+  employeeId           String    @map("employee_id") @db.Uuid
+  originalClockInAt    DateTime? @map("original_clock_in_at")
+  adjustedClockInAt    DateTime? @map("adjusted_clock_in_at")
+  originalClockOutAt   DateTime? @map("original_clock_out_at")
+  adjustedClockOutAt   DateTime? @map("adjusted_clock_out_at")
+  originalBreakMinutes Int?      @map("original_break_minutes")
+  adjustedBreakMinutes Int?      @map("adjusted_break_minutes")
+  reason               String
+  adjustedBy           String    @map("adjusted_by") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  attendanceSession EmployeeAttendance         @relation(fields: [attendanceSessionId], references: [id], onDelete: Restrict)
+  employee          EmployeeBusinessMembership @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  business          Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch            Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  actor             User                       @relation("AttendanceAdjustmentActor", fields: [adjustedBy], references: [id], onDelete: Restrict)
+
+  @@index([businessId, branchId, createdAt])
+  @@index([attendanceSessionId, createdAt])
+  @@index([employeeId, createdAt])
+  @@map("attendance_adjustments")
 }
 
 model Customer {
