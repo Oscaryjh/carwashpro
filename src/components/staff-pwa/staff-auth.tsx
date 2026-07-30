@@ -99,38 +99,76 @@ export function StaffLoginForm({ initialMessage = "" }: { initialMessage?: strin
   }
 
   return (
-    <section className="staff-auth-card">
-      <div className="staff-auth-heading">
-        <span className="staff-auth-icon" aria-hidden="true">✦</span>
-        <p className="staff-kicker">EMPLOYEE ACCESS</p>
-        <h1>Sign in to Attendance</h1>
-        <p>Use the mobile number registered by your HR administrator.</p>
+    <section className="staff-auth-card staff-login-card">
+      <aside className="staff-login-intro">
+        <div>
+          <span className="staff-login-symbol" aria-hidden="true">
+            <svg fill="none" viewBox="0 0 24 24">
+              <path d="M12 7v5l3 2" />
+              <circle cx="12" cy="12" r="8" />
+              <path d="m8.5 3.8 1-1.3h5l1 1.3" />
+            </svg>
+          </span>
+          <p className="staff-kicker">TETAMU STAFF</p>
+          <h2>Attendance made simple.</h2>
+          <p>Secure, accurate time records for every workday.</p>
+        </div>
+        <ul className="staff-login-features">
+          <li>
+            <span aria-hidden="true">01</span>
+            Location is checked only when you clock in or out.
+          </li>
+          <li>
+            <span aria-hidden="true">02</span>
+            Your account is protected with one-time verification.
+          </li>
+        </ul>
+        <small>Secure employee portal</small>
+      </aside>
+
+      <div className="staff-login-panel">
+        <div className="staff-auth-heading staff-login-heading">
+          <span className="staff-auth-icon" aria-hidden="true">
+            <svg fill="none" viewBox="0 0 24 24">
+              <path d="M7 11V8a5 5 0 0 1 10 0v3" />
+              <rect height="9" rx="2" width="14" x="5" y="11" />
+              <path d="M12 15v2" />
+            </svg>
+          </span>
+          <p className="staff-kicker">EMPLOYEE ACCESS</p>
+          <h1>Sign in to Attendance</h1>
+          <p>Enter the mobile number registered by your HR administrator.</p>
+        </div>
+        <form className="staff-form-stack" onSubmit={submit}>
+          <label>
+            Mobile number
+            <div className="staff-phone-input">
+              <span>MY</span>
+              <input
+                autoComplete="tel"
+                autoFocus
+                inputMode="tel"
+                onChange={(event) => setPhoneNumber(event.target.value)}
+                placeholder="012 345 6789"
+                required
+                value={phoneNumber}
+              />
+            </div>
+            <small className="staff-input-hint">
+              Malaysian local and +60 formats are accepted.
+            </small>
+          </label>
+          {message ? <div className="staff-alert error" role="alert">{message}</div> : null}
+          <button className="staff-primary-button" disabled={busy} type="submit">
+            <span>{busy ? "Requesting code…" : "Request verification code"}</span>
+            {!busy ? <b aria-hidden="true">→</b> : null}
+          </button>
+        </form>
+        <p className="staff-security-note">
+          <span aria-hidden="true">✓</span>
+          No self-registration. Contact your manager if your employee access is not enabled.
+        </p>
       </div>
-      <form className="staff-form-stack" onSubmit={submit}>
-        <label>
-          Mobile number
-          <div className="staff-phone-input">
-            <span>MY</span>
-            <input
-              autoComplete="tel"
-              autoFocus
-              inputMode="tel"
-              onChange={(event) => setPhoneNumber(event.target.value)}
-              placeholder="012 345 6789 or +60 12 345 6789"
-              required
-              value={phoneNumber}
-            />
-          </div>
-        </label>
-        {message ? <div className="staff-alert error" role="alert">{message}</div> : null}
-        <button className="staff-primary-button" disabled={busy} type="submit">
-          {busy ? "Requesting code…" : "Request verification code"}
-        </button>
-      </form>
-      <p className="staff-security-note">
-        There is no employee self-registration. If your details are not enabled,
-        contact your manager.
-      </p>
     </section>
   );
 }
