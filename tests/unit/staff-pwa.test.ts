@@ -105,6 +105,12 @@ test("Today prioritizes shift facts and shows explicit completion and approval s
   assert.doesNotMatch(todaySource, /<section className="staff-time-card">/);
 });
 
+test("Today offers an additional shift after a completed session", () => {
+  assert.match(todaySource, /Start another shift/);
+  assert.match(todaySource, /previous shift stays completed/);
+  assert.match(todaySource, /today\.completedSessionCount > 0/);
+});
+
 test("OTP UI never stores the entered OTP and supports paste plus resend timing", () => {
   assert.match(authSource, /onPaste=\{paste\}/);
   assert.match(authSource, /Resend in \$\{resendSeconds\}s/);

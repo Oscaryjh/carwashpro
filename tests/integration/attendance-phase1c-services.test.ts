@@ -152,8 +152,10 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
       now: new Date(base.getTime() + 8 * 60 * 60_000 + 60_000),
     });
     assert.equal(completedToday.status, "COMPLETED");
-    assert.deepEqual(completedToday.allowedActions, []);
+    assert.deepEqual(completedToday.allowedActions, ["CLOCK_IN"]);
     assert.equal(completedToday.currentWorkedMinutes, 450);
+    assert.equal(completedToday.sessionCount, 1);
+    assert.equal(completedToday.completedSessionCount, 1);
 
     await assertAttendanceError(
       performAttendancePunch({
@@ -250,6 +252,10 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
     assert.equal(today.status, "OPEN");
     assert.equal(today.currentSession?.requiresApproval, true);
     assert.deepEqual(today.allowedActions, ["BREAK_START", "CLOCK_OUT"]);
+    assert.equal(today.sessionCount, 2);
+    assert.equal(today.completedSessionCount, 1);
+    assert.equal(today.currentWorkedMinutes, 450);
+    assert.equal(today.totalCompletedBreakMinutes, 30);
     assert.deepEqual(Object.keys(today.employee).sort(), [
       "employeeCode",
       "fullName",

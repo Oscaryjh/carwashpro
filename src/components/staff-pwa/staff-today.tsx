@@ -272,6 +272,11 @@ export function StaffToday() {
     today.geofenceRequirements.requireGeofence &&
     (busy || Boolean(exceptionPrompt) || Boolean(error && gpsStatus));
 
+  const reviewStatus = today.pendingExceptions.length
+    ? "PENDING"
+    : today.currentSession?.requiresApproval
+      ? today.currentSession.approvalStatus
+      : null;
   return (
     <div className="staff-today-stack">
       <section className="staff-welcome-card">
@@ -292,7 +297,9 @@ export function StaffToday() {
             <h2>{attendanceHeadline(today)}</h2>
           </div>
           <span className={`staff-status-chip ${today.status?.toLowerCase() ?? "ready"}`}>
-            {attendanceStatusLabel(today.status)}
+            {today.sessionCount > 1
+              ? `Shift ${today.sessionCount} · ${attendanceStatusLabel(today.status)}`
+              : attendanceStatusLabel(today.status)}
           </span>
         </div>
         <div className="staff-metrics">
@@ -309,11 +316,11 @@ export function StaffToday() {
             }
           />
           <Metric
-            label="Break"
+            label="Break today"
             value={`${today.totalCompletedBreakMinutes} min`}
           />
           <Metric
-            label="Worked"
+            label="Worked today"
             value={formatMinutesAsHours(today.currentWorkedMinutes)}
           />
         </div>
@@ -393,32 +400,44 @@ export function StaffToday() {
 
         {!exceptionPrompt ? (
           <div className="staff-action-grid">
-            {today.allowedActions.map((action) => (
-              <button
-                className={
-                  action === "CLOCK_IN" || action === "CLOCK_OUT"
-                    ? "staff-primary-button"
-                    : "staff-secondary-button"
-                }
-                disabled={busy}
-                key={action}
-                onClick={() => setConfirmAction(action)}
-                type="button"
-              >
-                {busy ? "Working…" : attendanceActionLabel(action)}
-              </button>
-            ))}
-            {today.allowedActions.length === 0 ? (
+            {today.status === "COMPLETED" ? (
               <div className="staff-completed-message">
                 <span aria-hidden="true">✓</span>
-                <strong>
-                  {today.status === "COMPLETED"
-                    ? "Shift completed"
-                    : "No attendance actions available"}
-                </strong>
-                {today.status === "COMPLETED" ? (
-                  <Link href="/staff/history">View shift in History</Link>
-                ) : null}
+                <strong>Shift completed</strong>
+                <small>
+                  {today.completedSessionCount}{" "}
+                  {today.completedSessionCount === 1 ? "shift" : "shifts"} completed today
+                </small>
+                <Link href="/staff/history">View shifts in History</Link>
+              </div>
+            ) : null}
+            {today.allowedActions.map((action) => {
+              const isAdditionalShift =
+                action === "CLOCK_IN" &&
+                today.completedSessionCount > 0;
+              return (
+                <button
+                  className={
+                    action === "CLOCK_IN" || action === "CLOCK_OUT"
+                      ? "staff-primary-button"
+                      : "staff-secondary-button"
+                  }
+                  disabled={busy}
+                  key={action}
+                  onClick={() => setConfirmAction(action)}
+                  type="button"
+                >
+                  {busy
+                    ? "Working…"
+                    : isAdditionalShift
+                      ? "Start another shift"
+                      : attendanceActionLabel(action)}
+                </button>
+              );
+            })}
+            {today.allowedActions.length === 0 && today.status !== "COMPLETED" ? (
+              <div className="staff-completed-message">
+                <strong>No attendance actions available</strong>
               </div>
             ) : null}
           </div>
@@ -428,20 +447,20 @@ export function StaffToday() {
         ) : null}
       </section>
 
-      {today.currentSession?.requiresApproval ? (
+      {reviewStatus ? (
         <section
-          className={`staff-page-card staff-approval-card ${today.currentSession.approvalStatus.toLowerCase()}`}
+          className={`staff-page-card staff-approval-card ${reviewStatus.toLowerCase()}`}
         >
           <div className="staff-card-heading">
             <div>
               <p className="staff-kicker">ATTENDANCE REVIEW</p>
-              <h2>{approvalHeadline(today.currentSession.approvalStatus)}</h2>
+              <h2>{approvalHeadline(reviewStatus)}</h2>
             </div>
-            <span className={`staff-status-chip ${approvalTone(today.currentSession.approvalStatus)}`}>
-              {approvalLabel(today.currentSession.approvalStatus)}
+            <span className={`staff-status-chip ${approvalTone(reviewStatus)}`}>
+              {approvalLabel(reviewStatus)}
             </span>
           </div>
-          <p>{approvalDescription(today.currentSession.approvalStatus)}</p>
+          <p>{approvalDescription(reviewStatus)}</p>
           <Link className="staff-approval-history-link" href="/staff/history">
             View attendance history
           </Link>
@@ -457,8 +476,16 @@ export function StaffToday() {
             role="dialog"
           >
             <p className="staff-kicker">CONFIRM ACTION</p>
-            <h2 id="staff-confirm-title">{attendanceActionLabel(confirmAction)}</h2>
-            <p>{attendanceConfirmation(confirmAction)}</p>
+            <h2 id="staff-confirm-title">
+              {confirmAction === "CLOCK_IN" && today.completedSessionCount > 0
+                ? "Start another shift"
+                : attendanceActionLabel(confirmAction)}
+            </h2>
+            <p>
+              {confirmAction === "CLOCK_IN" && today.completedSessionCount > 0
+                ? "Your previous shift stays completed. A new attendance shift will start now."
+                : attendanceConfirmation(confirmAction)}
+            </p>
             <div className="staff-inline-actions">
               <button className="staff-primary-button" onClick={confirmAndPunch} type="button">
                 Confirm

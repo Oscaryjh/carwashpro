@@ -95,15 +95,17 @@ export async function getEmployeeAttendanceToday(args: {
     if (!principal.setting) {
       throw new AttendanceApiError("ATTENDANCE_DISABLED");
     }
-    const completedSession = activeSession
-      ? null
-      : await transaction.employeeAttendance.findFirst({
+    const workDate =
+      activeSession?.workDate ??
+      getAttendanceWorkDate(now, principal.setting.timezone);
+    const completedSessions =
+      await transaction.employeeAttendance.findMany({
           where: {
             employeeAccountId: args.auth.employeeAccountId,
             membershipId: args.auth.membershipId,
             businessId: args.auth.businessId,
             branchId: principal.branch.id,
-            workDate: getAttendanceWorkDate(now, principal.setting.timezone),
+            workDate,
             status: "COMPLETED",
           },
           orderBy: [{ clockOutAt: "desc" }, { createdAt: "desc" }],
@@ -153,7 +155,17 @@ export async function getEmployeeAttendanceToday(args: {
             },
           },
         });
+    const completedSession =
+      activeSession ? null : completedSessions[0] ?? null;
     const currentSession = activeSession ?? completedSession;
+    const completedWorkedMinutes = completedSessions.reduce(
+      (total, session) => total + session.totalWorkedMinutes,
+      0,
+    );
+    const completedBreakMinutes = completedSessions.reduce(
+      (total, session) => total + session.totalBreakMinutes,
+      0,
+    );
 
     const completedDurations = activeSession
       ? calculateAttendanceDurations({
@@ -177,13 +189,14 @@ export async function getEmployeeAttendanceToday(args: {
             activeSession.status === "ON_BREAK",
         })
       : null;
-    const status =
+    const activeStatus =
       activeSession?.status === "OPEN" ||
       activeSession?.status === "ON_BREAK"
         ? activeSession.status
-        : completedSession?.status === "COMPLETED"
-          ? "COMPLETED"
-          : null;
+        : null;
+    const status =
+      activeStatus ??
+      (completedSession?.status === "COMPLETED" ? "COMPLETED" : null);
 
     return {
       employee: {
@@ -199,6 +212,9 @@ export async function getEmployeeAttendanceToday(args: {
         name: principal.branch.name,
       },
       attendanceEnabled: principal.membership.attendanceEnabled,
+      sessionCount:
+        completedSessions.length + (activeSession ? 1 : 0),
+      completedSessionCount: completedSessions.length,
       currentSession: currentSession
         ? {
             id: currentSession.id,
@@ -218,13 +234,11 @@ export async function getEmployeeAttendanceToday(args: {
       breakStartedAt:
         completedDurations?.openBreakStartedAt?.toISOString() ?? null,
       totalCompletedBreakMinutes:
-        completedDurations?.totalBreakMinutes ??
-        completedSession?.totalBreakMinutes ??
-        0,
+        completedBreakMinutes +
+        (completedDurations?.totalBreakMinutes ?? 0),
       currentWorkedMinutes:
-        currentDurations?.totalWorkedMinutes ??
-        completedSession?.totalWorkedMinutes ??
-        0,
+        completedWorkedMinutes +
+        (currentDurations?.totalWorkedMinutes ?? 0),
       geofenceRequirements: {
         requireGeofence: principal.setting.requireGeofence,
         geofenceRadiusMeters:
@@ -236,15 +250,18 @@ export async function getEmployeeAttendanceToday(args: {
         requirePhoto: principal.setting.requirePhoto,
         timezone: principal.setting.timezone,
       },
-      allowedActions:
-        status === "COMPLETED" ? [] : getAllowedAttendanceActions(status),
-      pendingExceptions:
-        currentSession?.exceptions.map((exception) => ({
+      allowedActions: getAllowedAttendanceActions(activeStatus),
+      pendingExceptions: [
+        ...(activeSession ? [activeSession] : []),
+        ...completedSessions,
+      ].flatMap((session) =>
+        session.exceptions.map((exception) => ({
           id: exception.id,
           type: exception.type,
           status: exception.status,
           createdAt: exception.createdAt.toISOString(),
-        })) ?? [],
+        })),
+      ),
       serverTime: now.toISOString(),
       branchLocalTime: formatBranchLocalDateTime(
         now,

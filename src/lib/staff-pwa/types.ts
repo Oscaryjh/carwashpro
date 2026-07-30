@@ -69,6 +69,8 @@ export type AttendanceToday = {
     name: string;
   };
   attendanceEnabled: boolean;
+  sessionCount: number;
+  completedSessionCount: number;
   currentSession: {
     id: string;
     workDate: string;
