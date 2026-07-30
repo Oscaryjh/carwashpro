@@ -253,6 +253,12 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
       ])
     : null;
   const messageType = params.type === "error" ? "error" : "success";
+  const activeRoleOptions = roleProfiles
+    .filter((role) => role.active)
+    .map(({ id, name }) => ({ id, name }));
+  const activeStaffLevelOptions = staffLevels
+    .filter((level) => level.active)
+    .map(({ id, name }) => ({ id, name }));
 
   return (
     <>
@@ -298,9 +304,9 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
                 branchesAvailable={Boolean(branches.length)}
                 employeeOnlyMemberships={employeeOnlyMemberships}
                 query={query}
-                roleProfiles={roleProfiles.filter((role) => role.active)}
+                roleProfiles={activeRoleOptions}
                 staff={staff}
-                staffLevels={staffLevels.filter((level) => level.active)}
+                staffLevels={activeStaffLevelOptions}
               />
             ) : null}
             {section === "schedule" ? <ScheduleSection owners={owners} staff={staff} /> : null}
@@ -320,9 +326,9 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           action={createStaffAction}
           branches={branches}
           industryType={industryType}
-          roleProfiles={roleProfiles.filter((role) => role.active)}
+          roleProfiles={activeRoleOptions}
           services={services}
-          staffLevels={staffLevels.filter((level) => level.active)}
+          staffLevels={activeStaffLevelOptions}
         />
       ) : null}
       {params.modal === "edit" && editingStaff ? (
@@ -352,13 +358,13 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
               : null
           }
           industryType={industryType}
-          roleProfiles={roleProfiles.filter((role) => role.active)}
+          roleProfiles={activeRoleOptions}
           selectedServiceIds={editingStaff.serviceStaffAssignments.map(
             (assignment) => assignment.serviceId,
           )}
           services={services}
           staff={editingStaff}
-          staffLevels={staffLevels.filter((level) => level.active)}
+          staffLevels={activeStaffLevelOptions}
         />
       ) : null}
       {scheduleDetails && editingStaff ? (
