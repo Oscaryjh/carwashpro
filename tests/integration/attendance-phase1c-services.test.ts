@@ -31,7 +31,7 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
     const fixture = await createFixture(transaction);
     const database = transactionDatabase(transaction);
     const base = new Date();
-    base.setMilliseconds(0);
+    base.setUTCHours(1, 0, 0, 0);
 
     const clockInInput = punchInput(
       fixture.branchA.id,
@@ -145,6 +145,15 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
     assert.equal(clockOut.resultingStatus, "COMPLETED");
     assert.equal(clockOut.totalBreakMinutes, 30);
     assert.equal(clockOut.totalWorkedMinutes, 450);
+
+    const completedToday = await getEmployeeAttendanceToday({
+      auth: fixture.auth,
+      database,
+      now: new Date(base.getTime() + 8 * 60 * 60_000 + 60_000),
+    });
+    assert.equal(completedToday.status, "COMPLETED");
+    assert.deepEqual(completedToday.allowedActions, []);
+    assert.equal(completedToday.currentWorkedMinutes, 450);
 
     await assertAttendanceError(
       performAttendancePunch({

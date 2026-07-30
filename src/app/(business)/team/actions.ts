@@ -80,6 +80,7 @@ const deleteStaffSchema = z.object({
 });
 
 const linkTeamMemberSchema = z.object({
+  confirmLink: z.literal("confirmed"),
   membershipId: z.string().uuid(),
   userId: z.string().uuid(),
 });
@@ -279,6 +280,7 @@ export async function linkTeamMemberAction(formData: FormData) {
 
   try {
     const input = linkTeamMemberSchema.parse({
+      confirmLink: formData.get("confirmLink"),
       membershipId: formData.get("membershipId"),
       userId: formData.get("userId"),
     });

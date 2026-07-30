@@ -1,0 +1,438 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import {
+  type ClipboardEvent,
+  type FormEvent,
+  type KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  clearEmployeeAuthFlow,
+  getDeviceMetadata,
+  getOrCreateDeviceIdentifier,
+  maskPhoneForDisplay,
+  readEmployeeAuthFlow,
+  saveEmployeeAuthFlow,
+  StaffApiError,
+  staffApiFetch,
+} from "@/lib/staff-pwa/client";
+import type {
+  EmployeeAuthFlow,
+  EmployeeMembershipChoice,
+  EmployeeProfile,
+} from "@/lib/staff-pwa/types";
+
+type OtpRequestResponse = {
+  ok: true;
+  challengeId: string;
+  message: string;
+  expiresInSeconds: number;
+  resendAfterSeconds: number;
+};
+
+type OtpVerifyResponse =
+  | {
+      ok: true;
+      status: "AUTHENTICATED";
+      expiresAt: string;
+    }
+  | {
+      ok: true;
+      status: "MEMBERSHIP_SELECTION_REQUIRED";
+      selectionToken: string;
+      memberships: EmployeeMembershipChoice[];
+    };
+
+export function StaffLoginForm({ initialMessage = "" }: { initialMessage?: string }) {
+  const router = useRouter();
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [message, setMessage] = useState(initialMessage);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void staffApiFetch<{ ok: true; authenticated: true; profile: EmployeeProfile }>(
+      "/api/employee-auth/me",
+    )
+      .then(() => {
+        if (active) router.replace("/staff");
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [router]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const deviceIdentifier = getOrCreateDeviceIdentifier();
+      const result = await staffApiFetch<OtpRequestResponse>(
+        "/api/employee-auth/request-otp",
+        {
+          method: "POST",
+          body: JSON.stringify({ phoneNumber, deviceIdentifier }),
+        },
+      );
+      const now = Date.now();
+      saveEmployeeAuthFlow({
+        challengeId: result.challengeId,
+        deviceIdentifier,
+        expiresAt: now + result.expiresInSeconds * 1_000,
+        phoneNumber,
+        phoneMasked: maskPhoneForDisplay(phoneNumber),
+        resendAt: now + result.resendAfterSeconds * 1_000,
+      });
+      router.push("/staff/verify");
+    } catch (error) {
+      setMessage(publicAuthMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="staff-auth-card">
+      <div className="staff-auth-heading">
+        <span className="staff-auth-icon" aria-hidden="true">✦</span>
+        <p className="staff-kicker">EMPLOYEE ACCESS</p>
+        <h1>Sign in to Attendance</h1>
+        <p>Use the mobile number registered by your HR administrator.</p>
+      </div>
+      <form className="staff-form-stack" onSubmit={submit}>
+        <label>
+          Mobile number
+          <div className="staff-phone-input">
+            <span>MY</span>
+            <input
+              autoComplete="tel"
+              autoFocus
+              inputMode="tel"
+              onChange={(event) => setPhoneNumber(event.target.value)}
+              placeholder="012 345 6789 or +60 12 345 6789"
+              required
+              value={phoneNumber}
+            />
+          </div>
+        </label>
+        {message ? <div className="staff-alert error" role="alert">{message}</div> : null}
+        <button className="staff-primary-button" disabled={busy} type="submit">
+          {busy ? "Requesting code…" : "Request verification code"}
+        </button>
+      </form>
+      <p className="staff-security-note">
+        There is no employee self-registration. If your details are not enabled,
+        contact your manager.
+      </p>
+    </section>
+  );
+}
+
+export function StaffVerifyForm() {
+  const router = useRouter();
+  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const [flow, setFlow] = useState<EmployeeAuthFlow | null>(null);
+  const [digits, setDigits] = useState(["", "", "", "", "", ""]);
+  const [busy, setBusy] = useState(false);
+  const [failures, setFailures] = useState(0);
+  const [message, setMessage] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const stored = readEmployeeAuthFlow();
+    if (!stored) {
+      router.replace("/staff/login");
+      return;
+    }
+    setFlow(stored);
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [router]);
+
+  if (!flow) {
+    return <StaffLoading label="Loading secure verification…" />;
+  }
+  const activeFlow = flow;
+
+  const secondsRemaining = Math.max(0, Math.ceil((flow.expiresAt - now) / 1_000));
+  const resendSeconds = Math.max(0, Math.ceil((flow.resendAt - now) / 1_000));
+
+  function updateDigit(index: number, value: string) {
+    const nextValue = value.replace(/\D/g, "").slice(-1);
+    setDigits((current) => {
+      const next = [...current];
+      next[index] = nextValue;
+      return next;
+    });
+    if (nextValue && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  }
+
+  function keyDown(index: number, event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Backspace" && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  }
+
+  function paste(event: ClipboardEvent<HTMLDivElement>) {
+    const value = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!value) return;
+    event.preventDefault();
+    setDigits(Array.from({ length: 6 }, (_, index) => value[index] ?? ""));
+    inputRefs.current[Math.min(value.length, 6) - 1]?.focus();
+  }
+
+  async function verify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const otp = digits.join("");
+    if (otp.length !== 6 || busy || secondsRemaining === 0) {
+      setMessage(
+        secondsRemaining === 0
+          ? "This verification code has expired. Request a new code."
+          : "Enter the complete 6-digit verification code.",
+      );
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const result = await staffApiFetch<OtpVerifyResponse>(
+        "/api/employee-auth/verify-otp",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            challengeId: activeFlow.challengeId,
+            otp,
+            deviceIdentifier: activeFlow.deviceIdentifier,
+            ...getDeviceMetadata(),
+          }),
+        },
+      );
+      if (result.status === "MEMBERSHIP_SELECTION_REQUIRED") {
+        const nextFlow = {
+          ...activeFlow,
+          memberships: result.memberships,
+          selectionToken: result.selectionToken,
+        };
+        saveEmployeeAuthFlow(nextFlow);
+        router.replace("/staff/select-workplace");
+        return;
+      }
+      clearEmployeeAuthFlow();
+      router.replace("/staff/device?verified=1");
+    } catch (error) {
+      const nextFailures = failures + 1;
+      setFailures(nextFailures);
+      setDigits(["", "", "", "", "", ""]);
+      inputRefs.current[0]?.focus();
+      setMessage(
+        nextFailures >= 5
+          ? "Verification has been locked for your security. Request a new code or contact your manager."
+          : publicAuthMessage(error),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resend() {
+    if (resendSeconds > 0 || busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await staffApiFetch<OtpRequestResponse>(
+        "/api/employee-auth/request-otp",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            phoneNumber: activeFlow.phoneNumber,
+            deviceIdentifier: activeFlow.deviceIdentifier,
+          }),
+        },
+      );
+      const requestedAt = Date.now();
+      const nextFlow = {
+        ...activeFlow,
+        challengeId: result.challengeId,
+        expiresAt: requestedAt + result.expiresInSeconds * 1_000,
+        resendAt: requestedAt + result.resendAfterSeconds * 1_000,
+      };
+      saveEmployeeAuthFlow(nextFlow);
+      setFlow(nextFlow);
+      setNow(requestedAt);
+      setDigits(["", "", "", "", "", ""]);
+      setFailures(0);
+      setMessage(result.message);
+    } catch (error) {
+      setMessage(publicAuthMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="staff-auth-card">
+      <div className="staff-auth-heading">
+        <p className="staff-kicker">SECURE VERIFICATION</p>
+        <h1>Enter your 6-digit code</h1>
+        <p>We sent a code if {flow.phoneMasked} is registered and enabled.</p>
+      </div>
+      <form className="staff-form-stack" onSubmit={verify}>
+        <div
+          aria-label="Verification code"
+          className="staff-otp-inputs"
+          onPaste={paste}
+        >
+          {digits.map((digit, index) => (
+            <input
+              aria-label={`Digit ${index + 1}`}
+              autoComplete={index === 0 ? "one-time-code" : "off"}
+              inputMode="numeric"
+              key={index}
+              maxLength={1}
+              onChange={(event) => updateDigit(index, event.target.value)}
+              onKeyDown={(event) => keyDown(index, event)}
+              ref={(element) => {
+                inputRefs.current[index] = element;
+              }}
+              value={digit}
+            />
+          ))}
+        </div>
+        <div className="staff-code-timer">
+          <span>Code expires in</span>
+          <strong>{formatCountdown(secondsRemaining)}</strong>
+        </div>
+        {message ? <div className="staff-alert" role="alert">{message}</div> : null}
+        <button className="staff-primary-button" disabled={busy} type="submit">
+          {busy ? "Verifying…" : "Verify and continue"}
+        </button>
+        <button
+          className="staff-link-button"
+          disabled={busy || resendSeconds > 0}
+          onClick={resend}
+          type="button"
+        >
+          {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : "Resend code"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+export function StaffWorkplaceSelector() {
+  const router = useRouter();
+  const [flow, setFlow] = useState<EmployeeAuthFlow | null>(null);
+  const [busyId, setBusyId] = useState("");
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const stored = readEmployeeAuthFlow();
+    if (!stored?.selectionToken || !stored.memberships?.length) {
+      router.replace("/staff/login");
+      return;
+    }
+    setFlow(stored);
+  }, [router]);
+
+  if (!flow?.selectionToken || !flow.memberships) {
+    return <StaffLoading label="Loading workplaces…" />;
+  }
+
+  async function select(membership: EmployeeMembershipChoice) {
+    if (!flow?.selectionToken || busyId) return;
+    setBusyId(membership.membershipId);
+    setMessage("");
+    try {
+      await staffApiFetch<{ ok: true; status: "AUTHENTICATED"; expiresAt: string }>(
+        "/api/employee-auth/select-membership",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            selectionToken: flow.selectionToken,
+            membershipId: membership.membershipId,
+            deviceIdentifier: flow.deviceIdentifier,
+            ...getDeviceMetadata(),
+          }),
+        },
+      );
+      clearEmployeeAuthFlow();
+      router.replace("/staff/device?verified=1");
+    } catch (error) {
+      setMessage(publicAuthMessage(error));
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  return (
+    <section className="staff-auth-card staff-workplace-card">
+      <div className="staff-auth-heading">
+        <p className="staff-kicker">WORKPLACE</p>
+        <h1>Where are you working?</h1>
+        <p>Select the workplace for this Attendance session.</p>
+      </div>
+      <div className="staff-workplace-list">
+        {flow.memberships.map((membership) => (
+          <button
+            disabled={Boolean(busyId)}
+            key={membership.membershipId}
+            onClick={() => select(membership)}
+            type="button"
+          >
+            <span className="staff-workplace-mark" aria-hidden="true">T</span>
+            <span>
+              <strong>{membership.businessName}</strong>
+              <small>{membership.primaryBranchName} · {membership.employeeCode}</small>
+            </span>
+            <b>{busyId === membership.membershipId ? "…" : "›"}</b>
+          </button>
+        ))}
+      </div>
+      {message ? <div className="staff-alert error" role="alert">{message}</div> : null}
+    </section>
+  );
+}
+
+export function StaffLoading({ label }: { label: string }) {
+  return (
+    <div aria-live="polite" className="staff-loading-card">
+      <span className="staff-spinner" />
+      <p>{label}</p>
+    </div>
+  );
+}
+
+function publicAuthMessage(error: unknown) {
+  if (error instanceof StaffApiError) {
+    if (
+      ["EMPLOYEE_INACTIVE", "MEMBERSHIP_INACTIVE", "ATTENDANCE_DISABLED", "MEMBERSHIP_NOT_AVAILABLE"].includes(
+        error.code,
+      )
+    ) {
+      return "Your employee profile is not enabled. Please contact your administrator.";
+    }
+    if (error.code === "OTP_INVALID") {
+      return "The verification code is invalid or expired.";
+    }
+    if (error.code === "RATE_LIMITED") {
+      return "Too many attempts. Please wait before trying again.";
+    }
+    return error.message;
+  }
+  return "Unable to continue. Please try again.";
+}
+
+function formatCountdown(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}

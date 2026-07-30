@@ -122,6 +122,10 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           serviceStaffAssignments: { select: { id: true, serviceId: true } },
           employeeAccount: {
             include: {
+              devices: {
+                orderBy: { lastActiveAt: "desc" },
+                select: { status: true, lastActiveAt: true },
+              },
               memberships: {
                 where: {
                   ...membershipScopeWhere,
@@ -152,6 +156,14 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
               : currentAssignmentWhere,
             include: { branch: { select: { id: true, name: true } } },
             orderBy: [{ isPrimary: "desc" }, { branch: { name: "asc" } }],
+          },
+          employeeAccount: {
+            select: {
+              devices: {
+                orderBy: { lastActiveAt: "desc" },
+                select: { status: true, lastActiveAt: true },
+              },
+            },
           },
         },
         orderBy: [{ status: "asc" }, { fullName: "asc" }],
@@ -612,6 +624,7 @@ function PeopleSection({
       <div className="team-staff-list">
         {staff.map((member) => {
           const employment = employmentProfile(member);
+          const readiness = staffAttendanceReadiness(member, employment);
 
           return (
             <article className="team-staff-row" key={member.id}>
@@ -623,12 +636,12 @@ function PeopleSection({
                     <small>{member.whatsappPhone || member.email || "No contact"}</small>
                   </span>
                 </div>
-                <span className={employment?.status === "ACTIVE" ? "status" : "status status-neutral"}>
-                  {employment?.status
-                    ? capitalize(employment.status)
-                    : member.teamMemberLinkStatus === "REVIEW_REQUIRED"
-                      ? "Review required"
-                      : "Staff only"}
+                <span className={member.teamMemberLinkStatus === "LINKED" ? "status" : "status status-neutral"}>
+                  {member.teamMemberLinkStatus === "REVIEW_REQUIRED"
+                    ? "Review required"
+                    : member.teamMemberLinkStatus === "LINKED"
+                      ? "Linked"
+                      : "Unlinked"}
                 </span>
               </div>
               <div className="team-staff-facts">
@@ -639,13 +652,20 @@ function PeopleSection({
               <div className="team-member-feature-badges" aria-label={`${member.name} features`}>
                 <FeatureBadge enabled={Boolean(employment)} label="Employment" />
                 <FeatureBadge
-                  enabled={employment?.attendanceEnabled === true}
-                  label="Attendance"
+                  enabled={readiness.ready}
+                  label={readiness.ready ? "Attendance Ready" : "Attendance Not Ready"}
                 />
                 <FeatureBadge
                   enabled={member.status === "active" && member.appointmentBookable}
                   label="Services"
                 />
+                <span className="form-hint">
+                  {readiness.issues.length
+                    ? readiness.issues.join(" · ")
+                    : "Employee, primary branch and attendance access are ready"}
+                  {" · "}
+                  {readiness.deviceStatus}
+                </span>
                 <FeatureBadge
                   enabled={member.status === "active" && member.loginEnabled}
                   label="POS access"
@@ -679,14 +699,18 @@ function PeopleSection({
                       <option value="">Select by employee code</option>
                       {employeeOnlyMemberships.map((employee) => (
                         <option key={employee.id} value={employee.id}>
-                          {employee.employeeCode} - {employee.fullName}
+                          {employee.employeeCode} - {employee.fullName} - {maskPhoneLastFour(employee.phoneNumberNormalized)}
                         </option>
                       ))}
                     </select>
                   </label>
                   <span className="form-hint">
-                    Manual selection only. Names are never matched automatically.
+                    Manual selection only. Phone details are a reference and names are never matched automatically.
                   </span>
+                  <label className="form-hint">
+                    <input name="confirmLink" required type="checkbox" value="confirmed" />
+                    I confirm this Staff profile and employment profile belong to the same person.
+                  </label>
                   <button className="secondary-light-button" type="submit">Link</button>
                 </form>
               ) : (
@@ -728,9 +752,15 @@ function PeopleSection({
             </div>
             <div className="team-member-feature-badges" aria-label={`${employee.fullName} features`}>
               <FeatureBadge enabled label="Employment" />
-              <FeatureBadge enabled={employee.attendanceEnabled} label="Attendance" />
+              <FeatureBadge
+                enabled={employeeAttendanceReady(employee)}
+                label={employeeAttendanceReady(employee) ? "Attendance Ready" : "Attendance Not Ready"}
+              />
               <FeatureBadge enabled={false} label="Services" />
               <FeatureBadge enabled={false} label="POS access" />
+              <span className="form-hint">
+                {employeeDeviceStatus(employee.employeeAccount.devices)}
+              </span>
             </div>
             <Link
               aria-label={`View ${employee.fullName}`}
@@ -753,6 +783,63 @@ function PeopleSection({
       </div>
     </section>
   );
+}
+
+function staffAttendanceReadiness(
+  member: StaffRow,
+  employment: StaffRow["employeeBusinessMembership"],
+) {
+  const issues: string[] = [];
+  if (!employment) {
+    issues.push("Missing Employee Membership");
+  }
+  if (!(employment?.phoneNumberNormalized || member.whatsappPhone)) {
+    issues.push("Missing Phone");
+  }
+  const primaryAssignment = employment?.branchAssignments.find(
+    (assignment) => assignment.isPrimary && assignment.status === "ACTIVE",
+  );
+  if (!primaryAssignment) {
+    issues.push("Missing Primary Branch");
+  }
+  if (employment && !employment.attendanceEnabled) {
+    issues.push("Attendance Disabled");
+  }
+  if (employment && employment.status !== "ACTIVE") {
+    issues.push("Employment Inactive");
+  }
+
+  return {
+    ready: issues.length === 0,
+    issues,
+    deviceStatus: employeeDeviceStatus(member.employeeAccount?.devices ?? []),
+  };
+}
+
+function employeeAttendanceReady(employee: EmployeeOnlyRow) {
+  return Boolean(
+    employee.status === "ACTIVE" &&
+      employee.attendanceEnabled &&
+      employee.phoneNumberNormalized &&
+      employee.branchAssignments.some(
+        (assignment) => assignment.isPrimary && assignment.status === "ACTIVE",
+      ),
+  );
+}
+
+function employeeDeviceStatus(
+  devices: Array<{ status: string; lastActiveAt: Date }>,
+) {
+  const active = devices.filter((device) => device.status === "ACTIVE").length;
+  return active
+    ? `Device Status: ${active} active`
+    : devices.length
+      ? "Device Status: Revoked or replaced"
+      : "Device Status: Not verified";
+}
+
+function maskPhoneLastFour(value: string) {
+  return value.length >= 4 ? `•••• ${value.slice(-4)}` : "No phone";
 }
 
 function FeatureBadge({ enabled, label }: { enabled: boolean; label: string }) {
@@ -936,6 +1023,7 @@ type StaffRow = {
   employeeBusinessMembership: {
     id: string;
     attendanceEnabled: boolean;
+    phoneNumberNormalized: string;
     employeeCode: string;
     employmentType: string;
     joinedAt: Date;
@@ -944,6 +1032,7 @@ type StaffRow = {
       branchId: string;
       canClockIn: boolean;
       isPrimary: boolean;
+      status: string;
       branch: { id: string; name: string };
     }>;
   } | null;
@@ -960,6 +1049,7 @@ type StaffRow = {
   }>;
   serviceStaffAssignments: Array<{ id: string; serviceId: string }>;
   employeeAccount: {
+    devices: Array<{ status: string; lastActiveAt: Date }>;
     memberships: Array<{
       attendanceEnabled: boolean;
       employeeCode: string;
@@ -976,14 +1066,17 @@ type EmployeeOnlyRow = {
   id: string;
   attendanceEnabled: boolean;
   employeeCode: string;
+  phoneNumberNormalized: string;
   employmentType: string;
   fullName: string;
   status: string;
   branchAssignments: Array<{
     branchId: string;
     isPrimary: boolean;
+    status: string;
     branch: { id: string; name: string };
   }>;
+  employeeAccount: { devices: Array<{ status: string; lastActiveAt: Date }> };
 };
 type OwnerRow = { id: string; name: string; appointmentBookable: boolean };
 type RoleRow = { id: string; name: string; permissions: string[]; active: boolean; _count: { users: number } };

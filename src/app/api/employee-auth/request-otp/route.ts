@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { getEmployeeAuthConfig } from "@/lib/attendance/employee-auth/config";
 import {
   assertEmployeeAuthSameOrigin,
   getEmployeeAuthRequestContext,
@@ -27,12 +28,15 @@ export async function POST(request: Request) {
         dispatchDelivery: (task) => after(task),
       },
     );
+    const config = getEmployeeAuthConfig();
 
     return employeeAuthJson(
       {
         ok: true,
         challengeId: result.challengeId,
         message: result.message,
+        expiresInSeconds: config.otp.expiresInSeconds,
+        resendAfterSeconds: config.otp.resendCooldownSeconds,
       },
       { status: 202 },
     );

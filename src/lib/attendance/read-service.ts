@@ -95,6 +95,65 @@ export async function getEmployeeAttendanceToday(args: {
     if (!principal.setting) {
       throw new AttendanceApiError("ATTENDANCE_DISABLED");
     }
+    const completedSession = activeSession
+      ? null
+      : await transaction.employeeAttendance.findFirst({
+          where: {
+            employeeAccountId: args.auth.employeeAccountId,
+            membershipId: args.auth.membershipId,
+            businessId: args.auth.businessId,
+            branchId: principal.branch.id,
+            workDate: getAttendanceWorkDate(now, principal.setting.timezone),
+            status: "COMPLETED",
+          },
+          orderBy: [{ clockOutAt: "desc" }, { createdAt: "desc" }],
+          select: {
+            id: true,
+            branchId: true,
+            workDate: true,
+            status: true,
+            clockInAt: true,
+            clockOutAt: true,
+            totalBreakMinutes: true,
+            totalWorkedMinutes: true,
+            requiresApproval: true,
+            approvalStatus: true,
+            punches: {
+              where: {
+                type: {
+                  in: ["BREAK_START", "BREAK_END"],
+                },
+              },
+              orderBy: [
+                {
+                  serverTimestamp: "asc",
+                },
+                {
+                  createdAt: "asc",
+                },
+              ],
+              select: {
+                type: true,
+                serverTimestamp: true,
+              },
+            },
+            exceptions: {
+              where: {
+                status: "PENDING",
+              },
+              orderBy: {
+                createdAt: "asc",
+              },
+              select: {
+                id: true,
+                type: true,
+                status: true,
+                createdAt: true,
+              },
+            },
+          },
+        });
+    const currentSession = activeSession ?? completedSession;
 
     const completedDurations = activeSession
       ? calculateAttendanceDurations({
@@ -122,7 +181,9 @@ export async function getEmployeeAttendanceToday(args: {
       activeSession?.status === "OPEN" ||
       activeSession?.status === "ON_BREAK"
         ? activeSession.status
-        : null;
+        : completedSession?.status === "COMPLETED"
+          ? "COMPLETED"
+          : null;
 
     return {
       employee: {
@@ -138,28 +199,32 @@ export async function getEmployeeAttendanceToday(args: {
         name: principal.branch.name,
       },
       attendanceEnabled: principal.membership.attendanceEnabled,
-      currentSession: activeSession
+      currentSession: currentSession
         ? {
-            id: activeSession.id,
-            workDate: activeSession.workDate
+            id: currentSession.id,
+            workDate: currentSession.workDate
               .toISOString()
               .slice(0, 10),
-            status: activeSession.status,
-            clockInAt: activeSession.clockInAt.toISOString(),
+            status: currentSession.status,
+            clockInAt: currentSession.clockInAt.toISOString(),
             clockOutAt:
-              activeSession.clockOutAt?.toISOString() ?? null,
-            requiresApproval: activeSession.requiresApproval,
-            approvalStatus: activeSession.approvalStatus,
+              currentSession.clockOutAt?.toISOString() ?? null,
+            requiresApproval: currentSession.requiresApproval,
+            approvalStatus: currentSession.approvalStatus,
           }
         : null,
       status,
-      clockInAt: activeSession?.clockInAt.toISOString() ?? null,
+      clockInAt: currentSession?.clockInAt.toISOString() ?? null,
       breakStartedAt:
         completedDurations?.openBreakStartedAt?.toISOString() ?? null,
       totalCompletedBreakMinutes:
-        completedDurations?.totalBreakMinutes ?? 0,
+        completedDurations?.totalBreakMinutes ??
+        completedSession?.totalBreakMinutes ??
+        0,
       currentWorkedMinutes:
-        currentDurations?.totalWorkedMinutes ?? 0,
+        currentDurations?.totalWorkedMinutes ??
+        completedSession?.totalWorkedMinutes ??
+        0,
       geofenceRequirements: {
         requireGeofence: principal.setting.requireGeofence,
         geofenceRadiusMeters:
@@ -171,9 +236,10 @@ export async function getEmployeeAttendanceToday(args: {
         requirePhoto: principal.setting.requirePhoto,
         timezone: principal.setting.timezone,
       },
-      allowedActions: getAllowedAttendanceActions(status),
+      allowedActions:
+        status === "COMPLETED" ? [] : getAllowedAttendanceActions(status),
       pendingExceptions:
-        activeSession?.exceptions.map((exception) => ({
+        currentSession?.exceptions.map((exception) => ({
           id: exception.id,
           type: exception.type,
           status: exception.status,

@@ -38,6 +38,14 @@ export type EmployeeAuthProfile = Readonly<{
     canView: boolean;
     canPunch: boolean;
   }>;
+  device: Readonly<{
+    displayName: string | null;
+    platform: string | null;
+    browser: string | null;
+    firstVerifiedAt: string;
+    lastActiveAt: string;
+    status: "ACTIVE" | "REVOKED" | "REPLACED";
+  }>;
 }>;
 
 export type CreateEmployeeSessionRecordInput = Readonly<{
@@ -391,6 +399,12 @@ export async function getEmployeeAuthProfile(
         status: "ACTIVE",
       },
       select: {
+        displayName: true,
+        platform: true,
+        browser: true,
+        firstVerifiedAt: true,
+        lastActiveAt: true,
+        status: true,
         canView: true,
         canPunch: true,
       },
@@ -417,6 +431,14 @@ export async function getEmployeeAuthProfile(
     capabilities: {
       canView: device.canView,
       canPunch: device.canPunch,
+    },
+    device: {
+      displayName: device.displayName,
+      platform: device.platform,
+      browser: device.browser,
+      firstVerifiedAt: device.firstVerifiedAt.toISOString(),
+      lastActiveAt: device.lastActiveAt.toISOString(),
+      status: device.status,
     },
   };
 }
