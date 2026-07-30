@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -45,7 +46,7 @@ export function StaffToday() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [confirmAction, setConfirmAction] = useState<AttendanceAction | null>(null);
-  const [gpsStatus, setGpsStatus] = useState("Not checked");
+  const [gpsStatus, setGpsStatus] = useState("");
   const [pendingPunch, setPendingPunch] = useState<PendingPunch | null>(null);
   const [exceptionPrompt, setExceptionPrompt] = useState<PendingPunch | null>(null);
   const [exceptionReason, setExceptionReason] = useState("");
@@ -65,11 +66,7 @@ export function StaffToday() {
       if (!mounted.current) return;
       setProfile(profileResult.profile);
       setToday(todayResult.data);
-      setGpsStatus(
-        todayResult.data.geofenceRequirements.requireGeofence
-          ? "Location required when you punch"
-          : "Geofence Disabled",
-      );
+      if (!silent) setGpsStatus("");
     } catch (caught) {
       handleSessionOrError(caught, router, setError);
     } finally {
@@ -216,6 +213,7 @@ export function StaffToday() {
           ? "Punch submitted. Pending manager approval."
           : `${attendanceActionLabel(pending.action)} recorded at ${formatTime(
               result.data.serverTimestamp,
+              attendance.geofenceRequirements.timezone,
             )}.`,
       );
       await load(true);
@@ -269,31 +267,22 @@ export function StaffToday() {
     }
   }
 
+  const timeZone = today.geofenceRequirements.timezone;
+  const showLocationStatus =
+    today.geofenceRequirements.requireGeofence &&
+    (busy || Boolean(exceptionPrompt) || Boolean(error && gpsStatus));
+
   return (
     <div className="staff-today-stack">
       <section className="staff-welcome-card">
         <div>
-          <p className="staff-kicker">TODAY</p>
+          <p className="staff-kicker">{formatBranchDate(today.branchLocalTime)}</p>
           <h1>Hello, {today.employee.fullName.split(/\s+/)[0]}</h1>
-          <p>{today.business.name} · {today.branch.name}</p>
+          <p>{formatWorkplace(today.business.name, today.branch.name)}</p>
         </div>
         <span className={`staff-state-orb ${today.status?.toLowerCase() ?? "ready"}`}>
-          {today.status === "OPEN"
-            ? "Working"
-            : today.status === "ON_BREAK"
-              ? "On break"
-              : today.status === "COMPLETED"
-                ? "Complete"
-                : "Ready"}
+          {attendanceStatusLabel(today.status)}
         </span>
-      </section>
-
-      <section className="staff-time-card">
-        <div>
-          <small>Branch local time</small>
-          <strong>{today.branchLocalTime}</strong>
-        </div>
-        <span>Server {formatTime(today.serverTime)}</span>
       </section>
 
       <section className="staff-page-card">
@@ -302,10 +291,23 @@ export function StaffToday() {
             <p className="staff-kicker">ATTENDANCE</p>
             <h2>{attendanceHeadline(today)}</h2>
           </div>
-          <span className="staff-status-chip">{today.status ?? "NOT STARTED"}</span>
+          <span className={`staff-status-chip ${today.status?.toLowerCase() ?? "ready"}`}>
+            {attendanceStatusLabel(today.status)}
+          </span>
         </div>
         <div className="staff-metrics">
-          <Metric label="Clock in" value={today.clockInAt ? formatTime(today.clockInAt) : "—"} />
+          <Metric
+            label="Clock in"
+            value={today.clockInAt ? formatTime(today.clockInAt, timeZone) : "—"}
+          />
+          <Metric
+            label="Clock out"
+            value={
+              today.currentSession?.clockOutAt
+                ? formatTime(today.currentSession.clockOutAt, timeZone)
+                : "—"
+            }
+          />
           <Metric
             label="Break"
             value={`${today.totalCompletedBreakMinutes} min`}
@@ -314,22 +316,20 @@ export function StaffToday() {
             label="Worked"
             value={formatMinutesAsHours(today.currentWorkedMinutes)}
           />
-          <Metric
-            label="GPS"
-            value={today.geofenceRequirements.requireGeofence ? "Required" : "Off"}
-          />
         </div>
 
-        <div className="staff-gps-panel">
-          <span aria-hidden="true">⌖</span>
-          <div>
-            <strong>{gpsStatus}</strong>
-            <small>
-              Tetamu Attendance reads your current location only when you actively
-              punch. It does not continuously track your location.
-            </small>
+        {showLocationStatus ? (
+          <div className="staff-gps-panel">
+            <span aria-hidden="true">⌖</span>
+            <div>
+              <strong>{gpsStatus || "Checking work location..."}</strong>
+              <small>
+                Location is checked only for this attendance action. Tetamu does
+                not continuously track your location.
+              </small>
+            </div>
           </div>
-        </div>
+        ) : null}
 
         {error ? <div className="staff-alert error" role="alert">{error}</div> : null}
         {notice ? (
@@ -409,7 +409,17 @@ export function StaffToday() {
               </button>
             ))}
             {today.allowedActions.length === 0 ? (
-              <div className="staff-completed-message">Completed for today</div>
+              <div className="staff-completed-message">
+                <span aria-hidden="true">✓</span>
+                <strong>
+                  {today.status === "COMPLETED"
+                    ? "Shift completed"
+                    : "No attendance actions available"}
+                </strong>
+                {today.status === "COMPLETED" ? (
+                  <Link href="/staff/history">View shift in History</Link>
+                ) : null}
+              </div>
             ) : null}
           </div>
         ) : null}
@@ -418,13 +428,23 @@ export function StaffToday() {
         ) : null}
       </section>
 
-      {today.pendingExceptions.length ? (
-        <section className="staff-page-card">
+      {today.currentSession?.requiresApproval ? (
+        <section
+          className={`staff-page-card staff-approval-card ${today.currentSession.approvalStatus.toLowerCase()}`}
+        >
           <div className="staff-card-heading">
-            <h2>Pending approval</h2>
-            <span className="staff-status-chip warning">{today.pendingExceptions.length}</span>
+            <div>
+              <p className="staff-kicker">ATTENDANCE REVIEW</p>
+              <h2>{approvalHeadline(today.currentSession.approvalStatus)}</h2>
+            </div>
+            <span className={`staff-status-chip ${approvalTone(today.currentSession.approvalStatus)}`}>
+              {approvalLabel(today.currentSession.approvalStatus)}
+            </span>
           </div>
-          <p>Your manager has not reviewed the attendance exception yet.</p>
+          <p>{approvalDescription(today.currentSession.approvalStatus)}</p>
+          <Link className="staff-approval-history-link" href="/staff/history">
+            View attendance history
+          </Link>
         </section>
       ) : null}
 
@@ -468,10 +488,75 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function attendanceHeadline(today: AttendanceToday) {
-  if (today.status === "OPEN") return "You’re currently working";
+  if (today.status === "OPEN") return "You are currently working";
   if (today.status === "ON_BREAK") return "Your break is in progress";
-  if (today.status === "COMPLETED") return "Today’s work is complete";
+  if (today.status === "COMPLETED") return "You have clocked out for today";
   return "Ready to start your day";
+}
+
+function attendanceStatusLabel(status: AttendanceToday["status"]) {
+  if (status === "OPEN") return "Working";
+  if (status === "ON_BREAK") return "On break";
+  if (status === "COMPLETED") return "Shift done";
+  return "Ready";
+}
+
+function formatWorkplace(businessName: string, branchName: string) {
+  return businessName.trim().toLocaleLowerCase() ===
+    branchName.trim().toLocaleLowerCase()
+    ? branchName
+    : `${businessName} · ${branchName}`;
+}
+
+function formatBranchDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T/.exec(value);
+  if (!match) return "TODAY";
+  const [, year, month, day] = match;
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  if (!Number.isFinite(date.getTime())) return "TODAY";
+  return new Intl.DateTimeFormat("en-MY", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date).toUpperCase();
+}
+
+function approvalHeadline(
+  status: NonNullable<AttendanceToday["currentSession"]>["approvalStatus"],
+) {
+  if (status === "APPROVED") return "Attendance exception approved";
+  if (status === "REJECTED") return "Attendance exception rejected";
+  return "Manager approval pending";
+}
+
+function approvalLabel(
+  status: NonNullable<AttendanceToday["currentSession"]>["approvalStatus"],
+) {
+  if (status === "APPROVED") return "Approved";
+  if (status === "REJECTED") return "Rejected";
+  return "Pending";
+}
+
+function approvalTone(
+  status: NonNullable<AttendanceToday["currentSession"]>["approvalStatus"],
+) {
+  if (status === "APPROVED") return "approved";
+  if (status === "REJECTED") return "rejected";
+  return "warning";
+}
+
+function approvalDescription(
+  status: NonNullable<AttendanceToday["currentSession"]>["approvalStatus"],
+) {
+  if (status === "APPROVED") {
+    return "Your manager approved the attendance location exception.";
+  }
+  if (status === "REJECTED") {
+    return "Your manager rejected the attendance exception. Review History or contact your manager.";
+  }
+  return "Your shift is recorded, but a manager still needs to review the location exception.";
 }
 
 function attendanceEndpoint(action: AttendanceAction) {
@@ -562,10 +647,11 @@ function handleSessionOrError(
   );
 }
 
-function formatTime(value: string) {
+function formatTime(value: string, timeZone?: string) {
   return new Intl.DateTimeFormat("en-MY", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    timeZone,
   }).format(new Date(value));
 }

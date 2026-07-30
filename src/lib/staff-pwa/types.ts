@@ -76,7 +76,11 @@ export type AttendanceToday = {
     clockInAt: string;
     clockOutAt: string | null;
     requiresApproval: boolean;
-    approvalStatus: string;
+    approvalStatus:
+      | "NOT_REQUIRED"
+      | "PENDING"
+      | "APPROVED"
+      | "REJECTED";
   } | null;
   status: "OPEN" | "ON_BREAK" | "COMPLETED" | null;
   clockInAt: string | null;

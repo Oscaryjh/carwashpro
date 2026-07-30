@@ -95,6 +95,16 @@ test("Today renders actions only from the Today API and preserves one idempotenc
   assert.doesNotMatch(todaySource, /getAllowedAttendanceActions/);
 });
 
+test("Today prioritizes shift facts and shows explicit completion and approval states", () => {
+  assert.match(todaySource, /label="Clock out"/);
+  assert.match(todaySource, /Shift completed/);
+  assert.match(todaySource, /Manager approval pending/);
+  assert.match(todaySource, /formatBranchDate\(today\.branchLocalTime\)/);
+  assert.match(todaySource, /formatWorkplace\(today\.business\.name, today\.branch\.name\)/);
+  assert.doesNotMatch(todaySource, /label="GPS"/);
+  assert.doesNotMatch(todaySource, /<section className="staff-time-card">/);
+});
+
 test("OTP UI never stores the entered OTP and supports paste plus resend timing", () => {
   assert.match(authSource, /onPaste=\{paste\}/);
   assert.match(authSource, /Resend in \$\{resendSeconds\}s/);

@@ -709,15 +709,24 @@
 .staff-profile-hero > span {
   align-items: center;
   background: var(--staff-brand-soft);
-  border-radius: 50%;
+  border-radius: 999px;
   color: var(--staff-brand-dark);
-  display: flex;
+  display: inline-flex;
   flex: 0 0 auto;
   font-size: 11px;
   font-weight: 900;
-  height: 68px;
+  min-height: 36px;
   justify-content: center;
+  padding: 0 13px;
   text-align: center;
+}
+
+.staff-profile-hero > span {
+  border-radius: 50%;
+  display: flex;
+  height: 68px;
+  min-height: 68px;
+  padding: 0;
   width: 68px;
 }
 
@@ -732,8 +741,8 @@
 }
 
 .staff-state-orb.completed {
-  background: #e8edf5;
-  color: #435269;
+  background: #dcf5e8;
+  color: #176540;
 }
 
 .staff-time-card {
@@ -871,12 +880,38 @@
 }
 
 .staff-completed-message {
+  align-items: center;
   background: #edf5f3;
   border-radius: 15px;
   color: var(--staff-brand-dark);
-  font-weight: 900;
+  display: grid;
+  gap: 5px;
+  justify-items: center;
   padding: 18px;
   text-align: center;
+}
+
+.staff-completed-message > span {
+  align-items: center;
+  background: #d7f2eb;
+  border-radius: 50%;
+  display: inline-flex;
+  font-size: 18px;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.staff-completed-message strong {
+  font-size: 14px;
+}
+
+.staff-completed-message a {
+  color: var(--staff-brand-dark);
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .staff-exception-panel {
@@ -900,6 +935,59 @@
   display: grid;
   gap: 8px;
   grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.staff-approval-card {
+  border-width: 1px;
+  display: grid;
+  gap: 14px;
+}
+
+.staff-approval-card.pending {
+  background: #fffaf0;
+  border-color: #ead7a6;
+}
+
+.staff-approval-card.approved {
+  background: #f1fbf6;
+  border-color: #b9dfca;
+}
+
+.staff-approval-card.rejected {
+  background: #fff5f4;
+  border-color: #efc1bc;
+}
+
+.staff-approval-card > p {
+  color: var(--staff-muted);
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.staff-status-chip.approved {
+  background: #dcf5e8;
+  color: #176540;
+}
+
+.staff-status-chip.rejected {
+  background: #fee5e2;
+  color: #9d2f24;
+}
+
+.staff-approval-history-link {
+  align-items: center;
+  align-self: start;
+  border: 1px solid #bdd8d3;
+  border-radius: 12px;
+  color: var(--staff-brand-dark);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 13px;
+  width: fit-content;
 }
 
 .staff-confirm-backdrop {
@@ -1104,11 +1192,6 @@
   .staff-welcome-card {
     align-items: flex-start;
     padding: 20px;
-  }
-
-  .staff-state-orb {
-    height: 58px;
-    width: 58px;
   }
 
   .staff-history-filters {
