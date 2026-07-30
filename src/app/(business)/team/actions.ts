@@ -821,19 +821,20 @@ async function syncEmployeeRegistration(
       membershipId: membership.id,
     },
     select: {
+      id: true,
       branchId: true,
       status: true,
     },
   });
-  const existingByBranchId = new Map(
-    existingAssignments.map((assignment) => [
+  const activeByBranchId = new Map(
+    existingAssignments.filter((assignment) => assignment.status === "ACTIVE").map((assignment) => [
       assignment.branchId,
       assignment,
     ]),
   );
 
   await tx.employeeBranchAssignment.updateMany({
-    where: { membershipId: membership.id },
+    where: { membershipId: membership.id, status: "ACTIVE" },
     data: { isPrimary: false },
   });
 
@@ -841,6 +842,7 @@ async function syncEmployeeRegistration(
     where: {
       membershipId: membership.id,
       branchId: { notIn: input.branchIds },
+      status: "ACTIVE",
     },
     data: {
       canClockIn: false,
@@ -851,32 +853,30 @@ async function syncEmployeeRegistration(
   });
 
   for (const [index, branchId] of input.branchIds.entries()) {
-    const existing = existingByBranchId.get(branchId);
+    const existing = activeByBranchId.get(branchId);
 
-    await tx.employeeBranchAssignment.upsert({
-      where: {
-        membershipId_branchId: {
-          membershipId: membership.id,
-          branchId,
+    if (existing) {
+      await tx.employeeBranchAssignment.update({
+        where: { id: existing.id },
+        data: {
+          canClockIn: input.membershipStatus === "ACTIVE",
+          effectiveUntil: null,
+          isPrimary: index === 0,
         },
-      },
-      create: {
-        branchId,
-        businessId: input.businessId,
-        canClockIn: input.membershipStatus === "ACTIVE",
-        effectiveFrom: now,
-        isPrimary: index === 0,
-        membershipId: membership.id,
-        status: "ACTIVE",
-      },
-      update: {
-        canClockIn: input.membershipStatus === "ACTIVE",
-        effectiveUntil: null,
-        isPrimary: index === 0,
-        status: "ACTIVE",
-        ...(existing?.status === "INACTIVE" ? { effectiveFrom: now } : {}),
-      },
-    });
+      });
+    } else {
+      await tx.employeeBranchAssignment.create({
+        data: {
+          branchId,
+          businessId: input.businessId,
+          canClockIn: input.membershipStatus === "ACTIVE",
+          effectiveFrom: now,
+          isPrimary: index === 0,
+          membershipId: membership.id,
+          status: "ACTIVE",
+        },
+      });
+    }
   }
 
   return employeeAccount;
@@ -915,7 +915,7 @@ async function transitionEmployeeMembership(
   });
 
   await tx.employeeBranchAssignment.updateMany({
-    where: { membershipId: membership.id },
+    where: { membershipId: membership.id, status: "ACTIVE" },
     data:
       input.status === "TERMINATED"
         ? {

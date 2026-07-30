@@ -78,6 +78,46 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       ? [{ href: "/discounts", label: "Discounts", shortLabel: "Disc", icon: "reports" as const }]
       : []),
   ];
+  const teamChildren: NavItem[] = [
+    ...(isStoreUser && canSeeCapability("TEAM", "VIEW_TEAM_DIRECTORY")
+      ? [
+          {
+            href: "/team",
+            label: "Staff & Permissions",
+            shortLabel: "Staff",
+            icon: "team" as const,
+          },
+        ]
+      : []),
+    ...(isStoreUser &&
+    canSeeCapability(
+      "ATTENDANCE_EMPLOYEE_READ",
+      "VIEW_ATTENDANCE_EMPLOYEES",
+    )
+      ? [
+          {
+            href: "/team/employees",
+            label: "Employees",
+            shortLabel: "Emp",
+            icon: "team" as const,
+          },
+        ]
+      : []),
+    ...(isStoreUser &&
+    canSeeCapability(
+      "ATTENDANCE_SETTINGS_READ",
+      "VIEW_ATTENDANCE_SETTINGS",
+    )
+      ? [
+          {
+            href: "/team/attendance-settings",
+            label: "Attendance Settings",
+            shortLabel: "Attend",
+            icon: "settings" as const,
+          },
+        ]
+      : []),
+  ];
   const navItems = [
     ...(isPlatformAdmin
       ? [
@@ -177,14 +217,14 @@ export async function AppShell({ user, access, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser &&
-    canSeeCapability("TEAM", "VIEW_TEAM_DIRECTORY")
+    ...(teamChildren.length
       ? [
           {
             href: "/team",
             label: "Team",
             shortLabel: "Team",
             icon: "team" as const,
+            children: teamChildren,
           },
         ]
       : []),

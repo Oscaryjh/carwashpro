@@ -43,6 +43,14 @@ test("business return paths are restricted to safe internal route roots", () => 
     ),
     "/invoices/11111111-1111-4111-8111-111111111111",
   );
+  assert.equal(
+    safeBusinessReturnTo("/team/employees?status=ACTIVE", groupManagerContext),
+    "/team/employees",
+  );
+  assert.equal(
+    safeBusinessReturnTo("/team/attendance-settings", groupManagerContext),
+    "/team/attendance-settings",
+  );
   assert.notEqual(
     safeBusinessReturnTo("/invoices/not-a-uuid", groupManagerContext),
     "/invoices/not-a-uuid",

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   assertAttendancePhone,
+  maskAttendancePhone,
   normalizeAttendancePhone,
 } from "../../src/lib/attendance/phone";
 
@@ -57,4 +58,13 @@ test("assert helper returns canonical values and rejects invalid input", () => {
     () => assertAttendancePhone("not-a-phone"),
     /Enter a valid phone number/,
   );
+});
+
+test("masks canonical Malaysian and international numbers", () => {
+  assert.equal(
+    maskAttendancePhone("+60123456789"),
+    "+60 12-*** 6789",
+  );
+  assert.equal(maskAttendancePhone("+442071234567"), "+442-***** 4567");
+  assert.equal(maskAttendancePhone("not-a-phone"), null);
 });

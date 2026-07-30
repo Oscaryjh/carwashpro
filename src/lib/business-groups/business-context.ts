@@ -587,6 +587,8 @@ export function safeBusinessReturnTo(
     "/packages",
     "/products",
     "/team",
+    "/team/employees",
+    "/team/attendance-settings",
   ]);
   const ownerOnlyPaths = new Set([
     "/cashier",

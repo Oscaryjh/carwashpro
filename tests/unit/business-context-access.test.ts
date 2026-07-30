@@ -16,11 +16,17 @@ import {
   verifyBusinessContextToken,
 } from "../../src/lib/auth/business-context-token";
 
-test("group manager capability policy is centralized and read only", () => {
+test("group manager capability policy includes authorized attendance management", () => {
+  const attendanceManagementCapabilities = new Set([
+    "MODIFY_ATTENDANCE_EMPLOYEES",
+    "MODIFY_ATTENDANCE_SETTINGS",
+  ]);
+
   for (const capability of businessCapabilities) {
     assert.equal(
       canGroupManager(capability),
-      isReadCapability(capability),
+      isReadCapability(capability) ||
+        attendanceManagementCapabilities.has(capability),
       capability,
     );
     assert.equal(canGroupOwner(capability), true, capability);
@@ -37,6 +43,62 @@ test("direct staff capabilities continue to follow existing permissions", () => 
   assert.equal(
     canDirectStaff(["TEAM"], "MODIFY_BUSINESS_SETTINGS"),
     false,
+  );
+  assert.equal(
+    canDirectStaff(
+      ["ATTENDANCE_EMPLOYEE_READ"],
+      "VIEW_ATTENDANCE_EMPLOYEES",
+    ),
+    true,
+  );
+  assert.equal(
+    canDirectStaff(
+      ["ATTENDANCE_EMPLOYEE_READ"],
+      "MODIFY_ATTENDANCE_EMPLOYEES",
+    ),
+    false,
+  );
+  assert.equal(
+    canDirectStaff(
+      ["ATTENDANCE_EMPLOYEE_MANAGE"],
+      "VIEW_ATTENDANCE_EMPLOYEES",
+    ),
+    true,
+  );
+  assert.equal(
+    canDirectStaff(
+      ["ATTENDANCE_EMPLOYEE_MANAGE"],
+      "MODIFY_ATTENDANCE_EMPLOYEES",
+    ),
+    true,
+  );
+  assert.equal(
+    canDirectStaff(
+      ["ATTENDANCE_SETTINGS_READ"],
+      "VIEW_ATTENDANCE_SETTINGS",
+    ),
+    true,
+  );
+  assert.equal(
+    canDirectStaff(
+      ["ATTENDANCE_SETTINGS_READ"],
+      "MODIFY_ATTENDANCE_SETTINGS",
+    ),
+    false,
+  );
+  assert.equal(
+    canDirectStaff(
+      ["ATTENDANCE_SETTINGS_MANAGE"],
+      "VIEW_ATTENDANCE_SETTINGS",
+    ),
+    true,
+  );
+  assert.equal(
+    canDirectStaff(
+      ["ATTENDANCE_SETTINGS_MANAGE"],
+      "MODIFY_ATTENDANCE_SETTINGS",
+    ),
+    true,
   );
 });
 

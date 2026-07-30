@@ -1,0 +1,385 @@
+.page {
+  display: grid;
+  gap: 16px;
+}
+
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.notice {
+  display: grid;
+  gap: 3px;
+  padding: 13px 15px;
+  border: 1px solid #b9d9d4;
+  border-radius: 8px;
+  color: #155e57;
+  background: #effaf8;
+}
+
+.notice strong {
+  font-size: 13px;
+}
+
+.notice span {
+  color: #456b67;
+  font-size: 12px;
+}
+
+.branchGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.branchCard {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
+}
+
+.branchHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.branchHeading > div {
+  min-width: 0;
+}
+
+.branchHeading span:first-child {
+  color: var(--accent-strong);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.branchHeading h2 {
+  margin: 3px 0 0;
+  overflow: hidden;
+  font-size: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enabled,
+.disabled {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.enabled {
+  color: #0f6e5f;
+  background: #dff6ef;
+}
+
+.disabled {
+  color: #677386;
+  background: #eef1f5;
+}
+
+.branchCard dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.branchCard dl > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.branchCard dt {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.branchCard dd {
+  margin: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readOnly {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.section {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fff;
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sectionHeading p,
+.sectionHeading h2 {
+  margin: 0;
+}
+
+.sectionHeading p {
+  color: var(--accent-strong);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.sectionHeading h2 {
+  margin-top: 3px;
+  font-size: 18px;
+}
+
+.switchField,
+.toggleField {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.switchField > span,
+.toggleField > span {
+  display: grid;
+  gap: 2px;
+}
+
+.switchField small,
+.toggleField small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.switchField input,
+.toggleField input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.fieldGrid label {
+  display: grid;
+  gap: 6px;
+}
+
+.fieldGrid label > span {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.fieldGrid label > small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.checkGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.toggleField {
+  align-items: flex-start;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fafcfd;
+}
+
+.locationButton {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid #9ecfc9;
+  color: var(--accent-strong);
+  background: #fff;
+}
+
+.locationMessage {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.coordinatePreview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  color: #34504d;
+  background: #f1f7f6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.example {
+  display: grid;
+  gap: 5px;
+  padding: 13px 15px;
+  border-left: 3px solid var(--accent);
+  color: #36524f;
+  background: #f3f8f7;
+  font-size: 12px;
+}
+
+.example small {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 -4px 12px rgba(15, 23, 42, .05);
+}
+
+.actions button {
+  min-width: 220px;
+}
+
+.error,
+.success {
+  padding: 11px 13px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.error {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.success {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.loadingTitle,
+.loadingGrid > div {
+  border-radius: 8px;
+  background: linear-gradient(90deg, #edf1f5 25%, #f7f9fb 50%, #edf1f5 75%);
+  background-size: 200% 100%;
+  animation: loading 1.4s infinite linear;
+}
+
+.loadingTitle {
+  width: min(420px, 70%);
+  height: 54px;
+}
+
+.loadingGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.loadingGrid > div {
+  height: 260px;
+}
+
+.errorState {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 26px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff7f7;
+}
+
+.errorState h1,
+.errorState p {
+  margin: 0;
+}
+
+@keyframes loading {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 1050px) {
+  .branchGrid,
+  .fieldGrid,
+  .checkGrid,
+  .loadingGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .headerActions,
+  .sectionHeading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .branchGrid,
+  .fieldGrid,
+  .checkGrid,
+  .loadingGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .section {
+    padding: 15px;
+  }
+
+  .branchCard dl {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .actions button {
+    width: 100%;
+    min-width: 0;
+  }
+}

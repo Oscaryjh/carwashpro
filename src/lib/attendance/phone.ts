@@ -47,3 +47,29 @@ export function assertAttendancePhone(value: string) {
 
   return normalized;
 }
+
+export function maskAttendancePhone(value: string) {
+  const normalized = normalizeAttendancePhone(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const digits = normalized.slice(1);
+  if (digits.startsWith("60")) {
+    const subscriber = digits.slice(2);
+    const prefixLength = Math.min(2, Math.max(1, subscriber.length - 5));
+    const prefix = subscriber.slice(0, prefixLength);
+    const suffix = subscriber.slice(-4);
+    const hiddenLength = subscriber.length - prefix.length - suffix.length;
+
+    return `+60 ${prefix}-${"*".repeat(hiddenLength)} ${suffix}`;
+  }
+
+  const prefixLength = Math.min(3, Math.max(1, digits.length - 5));
+  const prefix = digits.slice(0, prefixLength);
+  const suffix = digits.slice(-4);
+  const hiddenLength = digits.length - prefix.length - suffix.length;
+
+  return `+${prefix}-${"*".repeat(hiddenLength)} ${suffix}`;
+}

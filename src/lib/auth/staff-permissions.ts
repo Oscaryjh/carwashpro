@@ -68,6 +68,26 @@ export const staffPermissions = [
     description: "Create staff accounts and manage staff permissions.",
   },
   {
+    key: "ATTENDANCE_EMPLOYEE_READ",
+    label: "View attendance employees",
+    description: "View employee profiles and branch attendance assignments.",
+  },
+  {
+    key: "ATTENDANCE_EMPLOYEE_MANAGE",
+    label: "Manage attendance employees",
+    description: "Create and update employee profiles and branch attendance assignments.",
+  },
+  {
+    key: "ATTENDANCE_SETTINGS_READ",
+    label: "View attendance settings",
+    description: "View branch attendance and geofence settings.",
+  },
+  {
+    key: "ATTENDANCE_SETTINGS_MANAGE",
+    label: "Manage attendance settings",
+    description: "Update branch attendance and geofence settings.",
+  },
+  {
     key: "DELETE_STAFF",
     label: "Delete staff",
     description: "Delete staff accounts that do not have cashier or payment history.",
@@ -131,12 +151,23 @@ const permissionSet = new Set<string>(
   staffPermissions.map((permission) => permission.key),
 );
 
+const impliedStaffPermissions: Partial<
+  Record<StaffPermission, readonly StaffPermission[]>
+> = {
+  ATTENDANCE_EMPLOYEE_MANAGE: ["ATTENDANCE_EMPLOYEE_READ"],
+  ATTENDANCE_SETTINGS_MANAGE: ["ATTENDANCE_SETTINGS_READ"],
+};
+
 export function normalizeStaffPermissions(values: unknown[]): StaffPermission[] {
   const unique = new Set<StaffPermission>();
 
   values.forEach((value) => {
     if (typeof value === "string" && permissionSet.has(value)) {
-      unique.add(value as StaffPermission);
+      const permission = value as StaffPermission;
+      impliedStaffPermissions[permission]?.forEach((impliedPermission) => {
+        unique.add(impliedPermission);
+      });
+      unique.add(permission);
     }
   });
 
@@ -193,6 +224,8 @@ const staffHomeRoutes: Array<[StaffPermission, string]> = [
   ["PRODUCTS", "/products"],
   ["DISCOUNTS", "/discounts"],
   ["TEAM", "/team"],
+  ["ATTENDANCE_EMPLOYEE_READ", "/team/employees"],
+  ["ATTENDANCE_SETTINGS_READ", "/team/attendance-settings"],
 ];
 
 export function getStaffHomePath(
@@ -263,6 +296,20 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
 
   if (pathname === "/whatsapp" || pathname.startsWith("/whatsapp/")) {
     return "WHATSAPP";
+  }
+
+  if (
+    pathname === "/team/employees" ||
+    pathname.startsWith("/team/employees/")
+  ) {
+    return "ATTENDANCE_EMPLOYEE_READ";
+  }
+
+  if (
+    pathname === "/team/attendance-settings" ||
+    pathname.startsWith("/team/attendance-settings/")
+  ) {
+    return "ATTENDANCE_SETTINGS_READ";
   }
 
   if (pathname === "/team" || pathname.startsWith("/team/")) {

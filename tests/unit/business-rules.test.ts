@@ -498,6 +498,14 @@ test("staff permissions are allow-list based and deduplicated", () => {
     hasStaffPermission({ role: "STAFF", permissions: ["REPORTS"] }, "ALL_BRANCHES"),
     false,
   );
+  assert.deepEqual(
+    normalizeStaffPermissions(["ATTENDANCE_EMPLOYEE_MANAGE"]),
+    ["ATTENDANCE_EMPLOYEE_READ", "ATTENDANCE_EMPLOYEE_MANAGE"],
+  );
+  assert.deepEqual(
+    normalizeStaffPermissions(["ATTENDANCE_SETTINGS_MANAGE"]),
+    ["ATTENDANCE_SETTINGS_READ", "ATTENDANCE_SETTINGS_MANAGE"],
+  );
 });
 
 test("new staff defaults are limited to daily cashier operations", () => {
@@ -582,6 +590,22 @@ test("management routes are restricted to the permissions that protect them", ()
   assert.equal(routePermission("/reports"), "REPORTS");
   assert.equal(routePermission("/team"), "TEAM");
   assert.equal(routePermission("/team/123"), "TEAM");
+  assert.equal(
+    routePermission("/team/employees"),
+    "ATTENDANCE_EMPLOYEE_READ",
+  );
+  assert.equal(
+    routePermission("/team/employees/employee-1"),
+    "ATTENDANCE_EMPLOYEE_READ",
+  );
+  assert.equal(
+    routePermission("/team/attendance-settings"),
+    "ATTENDANCE_SETTINGS_READ",
+  );
+  assert.equal(
+    routePermission("/team/attendance-settings/branch-1"),
+    "ATTENDANCE_SETTINGS_READ",
+  );
   assert.equal(routePermission("/business/settings"), "OWNER_ONLY");
   assert.equal(routePermission("/branches/123"), "OWNER_ONLY");
 });
@@ -593,6 +617,14 @@ test("staff without dashboard access are redirected to their first allowed modul
     "/appointments",
   );
   assert.equal(getStaffHomePath(["CRM"]), "/crm");
+  assert.equal(
+    getStaffHomePath(["ATTENDANCE_EMPLOYEE_READ"]),
+    "/team/employees",
+  );
+  assert.equal(
+    getStaffHomePath(["ATTENDANCE_SETTINGS_READ"]),
+    "/team/attendance-settings",
+  );
   assert.equal(getStaffHomePath([]), "/login");
 });
 

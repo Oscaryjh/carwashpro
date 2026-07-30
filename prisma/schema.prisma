@@ -821,7 +821,7 @@ model EmployeeBranchAssignment {
   business   Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
   branch     Branch                     @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
-  @@unique([membershipId, branchId])
+  @@index([membershipId, branchId])
   @@index([membershipId, status, effectiveFrom, effectiveUntil], map: "employee_branch_assignments_membership_id_status_effective_idx")
   @@index([businessId, branchId])
   @@index([branchId])
