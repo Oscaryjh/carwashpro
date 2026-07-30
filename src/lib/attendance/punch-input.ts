@@ -32,18 +32,21 @@ const optionalAccuracySchema = z
   .nullable()
   .optional();
 
+const deviceTimestampSchema = z.union([
+  z
+    .string()
+    .datetime({ offset: true })
+    .transform((value) => new Date(value)),
+  z.date(),
+]);
+
 export const attendancePunchInputSchema = z
   .object({
     branchId: z.string().uuid("Branch is invalid."),
     latitude: optionalLatitudeSchema,
     longitude: optionalLongitudeSchema,
     accuracyMeters: optionalAccuracySchema,
-    deviceTimestamp: z
-      .string()
-      .datetime({ offset: true })
-      .transform((value) => new Date(value))
-      .nullable()
-      .optional(),
+    deviceTimestamp: deviceTimestampSchema.nullable().optional(),
     deviceIdentifier: z
       .string()
       .trim()

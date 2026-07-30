@@ -33,6 +33,18 @@ test("punch input accepts valid evidence and never accepts client-derived scope 
   );
 });
 
+test("punch input can be safely parsed again after JSON timestamp normalization", () => {
+  const boundaryParsed = attendancePunchInputSchema.parse({
+    branchId: BRANCH_ID,
+    deviceTimestamp: "2026-07-30T12:00:00+08:00",
+    deviceIdentifier: "verified-device-123",
+    idempotencyKey: "clock-in:request-123",
+  });
+
+  const serviceParsed = attendancePunchInputSchema.parse(boundaryParsed);
+  assert.equal(serviceParsed.deviceTimestamp?.toISOString(), "2026-07-30T04:00:00.000Z");
+});
+
 test("punch input rejects invalid GPS and idempotency evidence", () => {
   for (const invalid of [
     { latitude: 91 },
