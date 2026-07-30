@@ -2,7 +2,6 @@ import Link from "next/link";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getOperationalBranches } from "@/lib/branches";
 import {
-  BUSINESS_TIME_ZONE,
   formatDateValue,
   isValidDateValue,
 } from "@/lib/business-time";
@@ -171,7 +170,7 @@ export default async function ClosingHistoryPage({
                         </td>
                         <td>{formatWhatsAppStatus(snapshot.closingWhatsAppSends)}</td>
                         <td>{snapshot.closedBy.name}</td>
-                        <td>{formatDateTime(snapshot.closedAt)}</td>
+                        <td>{formatDateTime(snapshot.closedAt, snapshot.timezone)}</td>
                         <td>
                           <Link
                             href={`/closing?branchId=${snapshot.branchId}&date=${dateValue}`}
@@ -281,13 +280,13 @@ function formatBusinessDate(dateValue: string) {
   });
 }
 
-function formatDateTime(value: Date) {
+function formatDateTime(value: Date, timeZone: string) {
   return value.toLocaleString("en-MY", {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     month: "short",
-    timeZone: BUSINESS_TIME_ZONE,
+    timeZone,
     year: "numeric",
   });
 }

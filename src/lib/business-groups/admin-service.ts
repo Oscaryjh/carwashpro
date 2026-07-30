@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 
 type GroupActor = Pick<AppSession, "userId">;
 
+type BusinessGroupRole = "GROUP_OWNER" | "GROUP_MANAGER";
+
 export class BusinessGroupConflictError extends Error {
   constructor(message: string) {
     super(message);
@@ -98,7 +100,7 @@ export async function grantBusinessGroupUser(
   input: {
     groupId: string;
     userId: string;
-    role: "GROUP_OWNER" | "GROUP_MANAGER";
+    role: BusinessGroupRole;
     businessIds: string[];
   },
   actor: GroupActor,
@@ -167,6 +169,229 @@ export async function grantBusinessGroupUser(
       },
       tx,
     );
+  });
+}
+
+export async function createBusinessGroupAccount(
+  input: {
+    groupId: string;
+    name: string;
+    email: string;
+    passwordHash: string;
+    role: BusinessGroupRole;
+    businessIds: string[];
+  },
+  actor: GroupActor,
+) {
+  return prisma.$transaction(async (tx) => {
+    const [group, existingUser, activeMembers] = await Promise.all([
+      tx.businessGroup.findFirst({
+        where: { id: input.groupId, status: "ACTIVE" },
+        select: { id: true, name: true },
+      }),
+      tx.user.findFirst({
+        where: { email: { equals: input.email, mode: "insensitive" } },
+        select: { id: true },
+      }),
+      tx.businessGroupMember.findMany({
+        where: { groupId: input.groupId, status: "ACTIVE" },
+        select: { businessId: true },
+      }),
+    ]);
+
+    if (!group) {
+      throw new BusinessGroupConflictError("Business group is not active.");
+    }
+    if (existingUser) {
+      throw new BusinessGroupConflictError(
+        "An account with this email already exists. Grant access to the existing user instead.",
+      );
+    }
+
+    const activeBusinessIds = new Set(activeMembers.map((member) => member.businessId));
+    const requestedBusinessIds =
+      input.role === "GROUP_OWNER" ? [] : Array.from(new Set(input.businessIds));
+    if (requestedBusinessIds.some((businessId) => !activeBusinessIds.has(businessId))) {
+      throw new BusinessGroupConflictError(
+        "A group manager can only be assigned active businesses in this group.",
+      );
+    }
+
+    const user = await tx.user.create({
+      data: {
+        businessId: null,
+        branchId: null,
+        name: input.name,
+        email: input.email,
+        passwordHash: input.passwordHash,
+        loginEnabled: true,
+        role: input.role === "GROUP_OWNER" ? "BUSINESS_OWNER" : "STAFF",
+        permissions: [],
+        status: "active",
+      },
+      select: { id: true, name: true, email: true, role: true },
+    });
+
+    const grant = await tx.businessGroupUser.create({
+      data: {
+        groupId: input.groupId,
+        userId: user.id,
+        role: input.role,
+        accessScope:
+          input.role === "GROUP_OWNER" ? "ALL_GROUP_BUSINESSES" : "SELECTED_BUSINESSES",
+        businessAccesses:
+          requestedBusinessIds.length > 0
+            ? { create: requestedBusinessIds.map((businessId) => ({ businessId })) }
+            : undefined,
+      },
+    });
+
+    await writeBusinessGroupAuditLog(
+      {
+        groupId: input.groupId,
+        actor,
+        action: "GROUP_USER_ACCOUNT_CREATED",
+        entityType: "User",
+        entityId: user.id,
+        summary: `Created group-only account for ${user.name}`,
+        after: {
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          identityRole: user.role,
+          businessId: null,
+        },
+      },
+      tx,
+    );
+    await writeBusinessGroupAuditLog(
+      {
+        groupId: input.groupId,
+        actor,
+        action: `${input.role}_GRANTED`,
+        entityType: "BusinessGroupUser",
+        entityId: grant.id,
+        summary: `Granted ${input.role} to ${user.name}`,
+        after: {
+          userId: user.id,
+          role: grant.role,
+          accessScope: grant.accessScope,
+          businessIds: requestedBusinessIds,
+        },
+      },
+      tx,
+    );
+
+    return { user, grant };
+  });
+}
+
+export async function updateBusinessGroupAccount(
+  input: {
+    groupId: string;
+    groupUserId: string;
+    name: string;
+    email: string;
+    passwordHash?: string;
+  },
+  actor: GroupActor,
+) {
+  return prisma.$transaction(async (tx) => {
+    const grant = await tx.businessGroupUser.findFirst({
+      where: {
+        id: input.groupUserId,
+        groupId: input.groupId,
+        status: "ACTIVE",
+        group: { status: "ACTIVE" },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            businessId: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+    if (!grant) {
+      throw new BusinessGroupConflictError("This active group account was not found.");
+    }
+    if (grant.user.businessId !== null) {
+      throw new BusinessGroupConflictError(
+        "Business user login details must be managed from that business.",
+      );
+    }
+
+    const existingUser = await tx.user.findFirst({
+      where: {
+        id: { not: grant.user.id },
+        email: { equals: input.email, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    if (existingUser) {
+      throw new BusinessGroupConflictError("An account with this email already exists.");
+    }
+
+    const profileChanged =
+      grant.user.name !== input.name ||
+      (grant.user.email ?? "").toLowerCase() !== input.email.toLowerCase();
+    if (!profileChanged && !input.passwordHash) {
+      throw new BusinessGroupConflictError("No account changes were provided.");
+    }
+
+    const updatedUser = await tx.user.update({
+      where: { id: grant.user.id },
+      data: {
+        name: input.name,
+        email: input.email,
+        ...(input.passwordHash ? { passwordHash: input.passwordHash } : {}),
+      },
+      select: { id: true, name: true, email: true },
+    });
+
+    if (profileChanged) {
+      await writeBusinessGroupAuditLog(
+        {
+          groupId: input.groupId,
+          actor,
+          action: "GROUP_USER_ACCOUNT_UPDATED",
+          entityType: "User",
+          entityId: updatedUser.id,
+          summary: `Updated group-only account ${updatedUser.name}`,
+          before: {
+            userId: grant.user.id,
+            name: grant.user.name,
+            email: grant.user.email,
+          },
+          after: {
+            userId: updatedUser.id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+          },
+        },
+        tx,
+      );
+    }
+
+    if (input.passwordHash) {
+      await writeBusinessGroupAuditLog(
+        {
+          groupId: input.groupId,
+          actor,
+          action: "GROUP_USER_PASSWORD_RESET",
+          entityType: "User",
+          entityId: updatedUser.id,
+          summary: `Reset password for group-only account ${updatedUser.name}`,
+          metadata: { passwordChanged: true },
+        },
+        tx,
+      );
+    }
+
+    return updatedUser;
   });
 }
 

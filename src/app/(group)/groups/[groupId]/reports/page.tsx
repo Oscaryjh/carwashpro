@@ -3,6 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { AppShellFrame } from "@/components/app-shell-frame";
 import { BusinessContextDrilldownButton } from "@/components/business-context-drilldown-button";
 import { BusinessContextSwitcher } from "@/components/business-context-switcher";
+import { GroupLogoUpload } from "@/components/group-logo-upload";
+import { GroupPageHero } from "@/components/group-page-hero";
+import { GroupStoreComparison } from "@/components/group-store-comparison";
 import { createBusinessContextToken } from "@/lib/auth/business-context-token";
 import { requireUser } from "@/lib/auth/session";
 import { getAvailableGroupReportingContexts } from "@/lib/business-groups/all-stores-access";
@@ -15,18 +18,15 @@ import {
   GROUP_REPORT_PAYMENT_METHODS,
   type GroupReportsResult,
 } from "@/lib/business-groups/group-reports";
+import {
+  buildGroupReportExportHref,
+  buildGroupReportsPageHref,
+  type GroupReportsSearchQuery,
+} from "@/lib/business-groups/group-reports-navigation";
 import { getBusinessGroupNavItems } from "@/lib/business-groups/navigation";
 import { formatDateValue } from "@/lib/business-time";
 
-type SearchQuery = {
-  range?: string;
-  from?: string;
-  to?: string;
-  store?: string;
-  paymentMethod?: string;
-  status?: string;
-  page?: string;
-};
+type SearchQuery = GroupReportsSearchQuery;
 
 export default async function GroupReportsPage({
   params,
@@ -81,6 +81,14 @@ export default async function GroupReportsPage({
   return (
     <AppShellFrame
       brandName={selectedGroup.groupName}
+      brandLogoControl={
+        <GroupLogoUpload
+          canEdit={selectedGroup.role === "GROUP_OWNER"}
+          currentLogoUrl={selectedGroup.groupLogoUrl}
+          groupId={selectedGroup.groupId}
+          groupName={selectedGroup.groupName}
+        />
+      }
       homeHref={`/groups/${groupId}/overview`}
       navItems={navItems}
       businessSwitcher={
@@ -95,22 +103,37 @@ export default async function GroupReportsPage({
         />
       }
     >
-      <div className="content group-reports-page">
-        <header className="page-header group-reports-header">
-          <div>
-            <p className="eyebrow">Business Group</p>
-            <h1>Group Reports</h1>
-            <p>
-              {selectedGroup.groupName} · {selectedGroup.businesses.length}{" "}
-              authorized stores · MYR
-            </p>
-          </div>
-          <Link className="secondary-button" href={`/groups/${groupId}/overview`}>
-            Overview
-          </Link>
-        </header>
+      <div className="content group-reports-page group-command-page">
+        <GroupPageHero
+          action={
+            <Link
+              className="secondary-button"
+              href={`/groups/${groupId}/overview`}
+            >
+              Back to overview
+              <span aria-hidden="true">→</span>
+            </Link>
+          }
+          description={
+            <>
+              Explore sales, store rankings and transaction detail across{" "}
+              <strong>{selectedGroup.groupName}</strong>.
+            </>
+          }
+          meta={[
+            `${selectedGroup.businesses.length} authorized stores`,
+            "Business-day reporting",
+            "CSV · Excel · PDF",
+          ]}
+          title="Group Reports"
+          variant="reports"
+        />
 
-        <ReportFilters groupId={groupId} query={query} stores={selectedGroup.businesses} />
+        <ReportFilters
+          groupId={groupId}
+          query={query}
+          stores={selectedGroup.reportingBusinesses ?? selectedGroup.businesses}
+        />
 
         {inputError ? (
           <section className="group-report-state" role="alert">
@@ -127,7 +150,10 @@ export default async function GroupReportsPage({
           </section>
         ) : report ? (
           <>
-            <section aria-labelledby="group-report-summary">
+            <section
+              aria-labelledby="group-report-summary"
+              className="group-command-section"
+            >
               <div className="section-header">
                 <div>
                   <h2 id="group-report-summary">Report summary</h2>
@@ -140,15 +166,38 @@ export default async function GroupReportsPage({
                   MYR · {report.filters.storeId ? "1 store" : `${report.authorizedBusinesses.length} stores`}
                 </span>
               </div>
+              <div
+                className={`group-report-source-note ${
+                  report.summaryDataSource === "DAILY_SUMMARY"
+                    ? "verified"
+                    : "fallback"
+                }`}
+              >
+                <strong>
+                  {report.summaryDataSource === "DAILY_SUMMARY"
+                    ? "Verified daily summaries"
+                    : "Live transaction fallback"}
+                </strong>
+                <span>{groupReportSourceDescription(report)}</span>
+              </div>
               <ExportLinks groupId={groupId} query={query} />
               <SummaryGrid summary={report.summary} />
             </section>
+
+            <GroupStoreComparison
+              compareStore={query.compareStore}
+              groupId={groupId}
+              report={report}
+            />
 
             <ReportAnalytics report={report} />
 
             <CatalogRankings report={report} />
 
-            <section aria-labelledby="group-transactions-heading">
+            <section
+              aria-labelledby="group-transactions-heading"
+              className="group-command-section"
+            >
               <div className="section-header">
                 <div>
                   <h2 id="group-transactions-heading">Transactions</h2>
@@ -173,7 +222,7 @@ export default async function GroupReportsPage({
                           <th>Tip</th>
                           <th>Package</th>
                           <th>Net invoice</th>
-                          <th>Collected</th>
+                          <th>Gross collected</th>
                           <th>Refund</th>
                           <th>Balance</th>
                           <th>Status</th>
@@ -246,17 +295,22 @@ function ExportLinks({
   query: SearchQuery;
 }) {
   return (
-    <nav className="group-report-export-actions" aria-label="Report exports">
-      {(["csv", "xlsx", "pdf"] as const).map((format) => (
-        <a
-          href={exportHref(groupId, query, format)}
-          key={format}
-          download
-        >
-          {format === "xlsx" ? "Excel" : format.toUpperCase()}
-        </a>
-      ))}
-    </nav>
+    <div className="group-report-export-group">
+      <nav className="group-report-export-actions" aria-label="Report exports">
+        {(["csv", "xlsx", "pdf"] as const).map((format) => (
+          <a
+            href={buildGroupReportExportHref(groupId, query, format)}
+            key={format}
+            download
+          >
+            {format === "xlsx" ? "Excel" : format.toUpperCase()}
+          </a>
+        ))}
+      </nav>
+      <small>
+        Exports contain the full filtered report, not only compared stores.
+      </small>
+    </div>
   );
 }
 
@@ -268,7 +322,10 @@ function CatalogRankings({ report }: { report: GroupReportsResult }) {
   ] as const;
 
   return (
-    <section aria-labelledby="group-catalog-ranking-heading">
+    <section
+      aria-labelledby="group-catalog-ranking-heading"
+      className="group-command-section"
+    >
       <div className="section-header">
         <div>
           <h2 id="group-catalog-ranking-heading">Catalog performance</h2>
@@ -382,7 +439,7 @@ function ReportAnalytics({ report }: { report: GroupReportsResult }) {
                 <th>Store</th>
                 <th>Gross</th>
                 <th>Net</th>
-                <th>Collected</th>
+                <th>Gross collections</th>
                 <th>Refunds</th>
                 <th>Transactions</th>
                 <th>Average</th>
@@ -446,10 +503,13 @@ function ReportFilters({
       <form method="get">
         <label>
           Period
-          <select defaultValue={query.range ?? "today"} name="range">
+          <select
+            defaultValue={query.range === "30days" ? "month" : query.range ?? "today"}
+            name="range"
+          >
             <option value="today">Today</option>
             <option value="7days">7 days</option>
-            <option value="30days">30 days</option>
+            <option value="month">This month</option>
             <option value="custom">Custom</option>
           </select>
         </label>
@@ -495,6 +555,14 @@ function ReportFilters({
           </select>
         </label>
         <input name="page" type="hidden" value="1" />
+        {queryValues(query.compareStore).map((value, index) => (
+          <input
+            key={`${value}-${index}`}
+            name="compareStore"
+            type="hidden"
+            value={value}
+          />
+        ))}
         <div className="group-report-filter-actions">
           <button type="submit">Apply filters</button>
           <Link href={`/groups/${groupId}/reports?range=today`}>Reset</Link>
@@ -508,7 +576,7 @@ function SummaryGrid({ summary }: { summary: AllStoresKpi }) {
   const values = [
     ["Gross sales", summary.grossSalesCents, true],
     ["Net sales", summary.netSalesCents, true],
-    ["Payments collected", summary.paymentsCollectedCents, true],
+    ["Gross collections", summary.paymentsCollectedCents, true],
     ["Refunds", summary.refundsCents, true],
     ["Transactions", summary.transactionCount, false],
     ["Average transaction", summary.averageTransactionValueCents, true],
@@ -516,7 +584,11 @@ function SummaryGrid({ summary }: { summary: AllStoresKpi }) {
   return (
     <div className="group-kpi-grid">
       {values.map(([label, value, money]) => (
-        <article className="group-kpi-card" key={label}>
+        <article
+          className="group-kpi-card"
+          data-metric={label.toLowerCase().replaceAll(" ", "-")}
+          key={label}
+        >
           <span>{label}</span>
           <strong>
             {value === null ? "—" : money ? formatMoney(value) : value}
@@ -543,14 +615,26 @@ function Pagination({
       </span>
       <div>
         {report.filters.page > 1 ? (
-          <Link href={reportHref(groupId, query, report.filters.page - 1)}>
+          <Link
+            href={buildGroupReportsPageHref(
+              groupId,
+              query,
+              report.filters.page - 1,
+            )}
+          >
             Previous
           </Link>
         ) : (
           <span aria-disabled="true">Previous</span>
         )}
         {report.filters.page < report.totalPages ? (
-          <Link href={reportHref(groupId, query, report.filters.page + 1)}>
+          <Link
+            href={buildGroupReportsPageHref(
+              groupId,
+              query,
+              report.filters.page + 1,
+            )}
+          >
             Next
           </Link>
         ) : (
@@ -561,24 +645,38 @@ function Pagination({
   );
 }
 
-function reportHref(groupId: string, query: SearchQuery, page: number) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (key !== "page" && value) params.set(key, value);
-  }
-  params.set("page", String(page));
-  return `/groups/${groupId}/reports?${params.toString()}`;
-}
-
 function rangeLabel(report: GroupReportsResult) {
   if (report.filters.range !== "custom") {
     return report.filters.range === "today"
       ? "Today"
       : report.filters.range === "7days"
         ? "Last 7 business days"
-        : "Last 30 business days";
+        : "Month to date";
   }
   return `${formatReportDate(report.filters.from!)} – ${formatReportDate(report.filters.to!)}`;
+}
+
+function groupReportSourceDescription(report: GroupReportsResult) {
+  if (report.summaryDataSource === "DAILY_SUMMARY") {
+    return "Summary, trend and store ranking use the versioned analytics layer. Catalog and transaction detail remain live drill-down data.";
+  }
+  const reason = report.analyticsFallbackReason;
+  if (reason === "UNSUPPORTED_FILTERS") {
+    return "Payment-method or invoice-status filters require live transaction data so filtered totals stay exact.";
+  }
+  if (reason === "MISSING_SUMMARIES") {
+    return "One or more store-days are not summarized yet. The report safely used live transactions.";
+  }
+  if (reason === "STALE_SUMMARIES") {
+    return "A source record changed after the latest summary. The report safely used live transactions.";
+  }
+  if (reason === "INVALID_SUMMARIES" || reason === "UNSAFE_MEMBERSHIP") {
+    return "Analytics validation did not pass for this scope. The report safely used live transactions.";
+  }
+  if (reason === "SHADOW_MODE") {
+    return "Analytics shadow mode is enabled; live transactions remain authoritative.";
+  }
+  return "Daily-summary reads are disabled. Summary, trend and store ranking use live transactions.";
 }
 
 function formatReportDate(value: string) {
@@ -589,17 +687,12 @@ function formatReportDate(value: string) {
   });
 }
 
-function exportHref(
-  groupId: string,
-  query: SearchQuery,
-  format: "csv" | "xlsx" | "pdf",
-) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (key !== "page" && value) params.set(key, value);
-  }
-  params.set("format", format);
-  return `/groups/${groupId}/reports/export?${params.toString()}`;
+function queryValues(value: unknown) {
+  if (typeof value === "string") return value ? [value] : [];
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is string => typeof item === "string" && item.length > 0,
+  );
 }
 
 function formatShortDate(value: string) {

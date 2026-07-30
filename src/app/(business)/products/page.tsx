@@ -114,7 +114,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 {products.map((product, index) => (
                   <tr key={product.id}>
                     <td className="table-number">{pageSkip + index + 1}</td>
-                    <td><Link href={`/products/${product.id}`}><strong>{product.name}</strong></Link>{product.productCategory?.name ?? product.category ? <div className="work-order-subtext">{product.productCategory?.name ?? product.category}</div> : null}</td>
+                    <td><Link href={`/products/${product.id}`}><strong>{product.name}</strong></Link></td>
                     <td>{product.sku ?? "-"}</td>
                     <td>RM{Number(product.price).toFixed(2)}</td>
                     <td>{product.stocks.reduce((total, stock) => total + stock.quantity, 0)}</td>

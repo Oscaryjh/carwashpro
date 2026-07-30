@@ -134,6 +134,35 @@ export function getBusinessDayRangeForBusiness(
   });
 }
 
+export function getCurrentBusinessDateValue(
+  now: Date,
+  timezone: string,
+  businessDayCutoffTime: string,
+) {
+  validateSettings({ timezone, businessDayCutoffTime });
+
+  const parts = new Map(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(now)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  const dateValue = `${parts.get("year")}-${parts.get("month")}-${parts.get("day")}`;
+  const timeValue = `${parts.get("hour")}:${parts.get("minute")}`;
+
+  return timeValue < businessDayCutoffTime
+    ? addDaysToDateValue(dateValue, -1)
+    : dateValue;
+}
+
 export function businessWallClockToUtc(
   dateValue: string,
   timeValue: string,

@@ -21,6 +21,8 @@ const report = {
     status: null,
     page: 1,
   },
+  summaryDataSource: "DAILY_SUMMARY",
+  analyticsFallbackReason: null,
   summary: {
     grossSalesCents: 12_000,
     netSalesCents: 11_000,
@@ -31,6 +33,7 @@ const report = {
   },
   trend: [],
   businessPerformance: [],
+  businessTrends: [],
   catalogRankings: { services: [], products: [], packages: [] },
   rows: [
     {

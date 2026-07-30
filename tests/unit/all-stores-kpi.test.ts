@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getBusinessDayRangeWithPrevious } from "../../src/lib/business-day";
 import {
+  buildBusinessPeriods,
   calculateAllStoresKpis,
   compareKpiValues,
   getAllStoresKpiReport,
   getCurrentBusinessDateValue,
+  isRangeFullyAuthorized,
   moneyToCents,
+  normalizeRange,
+  resolveAllStoresAnalyticsReadMode,
 } from "../../src/lib/business-groups/all-stores-kpi";
 
 const salonPeriods = getBusinessDayRangeWithPrevious({
@@ -196,6 +200,114 @@ test("current business date follows each timezone and cutoff including DST", () 
   );
 });
 
+test("calendar month ranges use each store cutoff and a calendar-aligned previous month", () => {
+  assert.equal(normalizeRange("month"), "month");
+  assert.equal(normalizeRange("30days"), "month");
+
+  const monthToDate = buildBusinessPeriods({
+    range: "month",
+    from: null,
+    to: null,
+    now: new Date("2026-07-30T12:00:00.000Z"),
+    timezone: "Asia/Kuching",
+    businessDayCutoffTime: "02:00",
+  });
+
+  assert.deepEqual(
+    {
+      from: monthToDate.current.fromDateValue,
+      to: monthToDate.current.toDateValue,
+      fromInstant: monthToDate.current.fromDate.toISOString(),
+      toInstant: monthToDate.current.toDateExclusive.toISOString(),
+    },
+    {
+      from: "2026-07-01",
+      to: "2026-07-30",
+      fromInstant: "2026-06-30T18:00:00.000Z",
+      toInstant: "2026-07-30T18:00:00.000Z",
+    },
+  );
+  assert.deepEqual(
+    {
+      from: monthToDate.previous.fromDateValue,
+      to: monthToDate.previous.toDateValue,
+    },
+    { from: "2026-06-01", to: "2026-06-30" },
+  );
+
+  const shortMonthEnd = buildBusinessPeriods({
+    range: "month",
+    from: null,
+    to: null,
+    now: new Date("2026-02-28T12:00:00.000Z"),
+    timezone: "UTC",
+    businessDayCutoffTime: "00:00",
+  });
+
+  assert.deepEqual(
+    {
+      from: shortMonthEnd.current.fromDateValue,
+      to: shortMonthEnd.current.toDateValue,
+      previousFrom: shortMonthEnd.previous.fromDateValue,
+      previousTo: shortMonthEnd.previous.toDateValue,
+    },
+    {
+      from: "2026-02-01",
+      to: "2026-02-28",
+      previousFrom: "2026-01-01",
+      previousTo: "2026-01-31",
+    },
+  );
+
+  const beforeFirstDayCutoff = buildBusinessPeriods({
+    range: "month",
+    from: null,
+    to: null,
+    now: new Date("2026-06-30T17:30:00.000Z"),
+    timezone: "Asia/Kuching",
+    businessDayCutoffTime: "02:00",
+  });
+
+  assert.deepEqual(
+    {
+      from: beforeFirstDayCutoff.current.fromDateValue,
+      to: beforeFirstDayCutoff.current.toDateValue,
+      previousFrom: beforeFirstDayCutoff.previous.fromDateValue,
+      previousTo: beforeFirstDayCutoff.previous.toDateValue,
+    },
+    {
+      from: "2026-06-01",
+      to: "2026-06-30",
+      previousFrom: "2026-05-01",
+      previousTo: "2026-05-31",
+    },
+  );
+
+  const leapMonthEnd = buildBusinessPeriods({
+    range: "month",
+    from: null,
+    to: null,
+    now: new Date("2028-02-29T12:00:00.000Z"),
+    timezone: "UTC",
+    businessDayCutoffTime: "00:00",
+  });
+
+  assert.deepEqual(
+    {
+      from: leapMonthEnd.current.fromDateValue,
+      to: leapMonthEnd.current.toDateValue,
+      previousFrom: leapMonthEnd.previous.fromDateValue,
+      previousTo: leapMonthEnd.previous.toDateValue,
+    },
+    {
+      from: "2028-02-01",
+      to: "2028-02-29",
+      previousFrom: "2028-01-01",
+      previousTo: "2028-01-31",
+    },
+  );
+});
+
 test("service resolves authorization before querying and never accepts client business lists", async () => {
   let resolverCalls = 0;
   let queryCalls = 0;
@@ -299,6 +411,7 @@ test("custom ranges reject invalid order and more than 31 days", async () => {
       },
     ],
   };
+
   const database = {} as never;
   const base = {
     userId: "user",
@@ -338,6 +451,109 @@ test("custom ranges reject invalid order and more than 31 days", async () => {
   assert.equal(boundary?.businesses[0]?.currentRange.dayCount, 31);
   assert.equal(boundary?.businesses[0]?.previousRange.dayCount, 31);
   assert.equal(queryCalls, 3);
+});
+
+test("primary analytics mode falls back to raw queries when summaries are missing", async () => {
+  let analyticsQueries = 0;
+  let rawQueries = 0;
+  const database = {
+    analyticsDailyStoreSummary: {
+      findMany: async () => (analyticsQueries += 1, []),
+    },
+    invoice: { findMany: async () => (rawQueries += 1, []) },
+    payment: { findMany: async () => (rawQueries += 1, []) },
+    paymentRefund: { findMany: async () => (rawQueries += 1, []) },
+  } as never;
+  const scope = {
+    groupId: "group",
+    groupName: "QA Group",
+    role: "GROUP_OWNER" as const,
+    canViewAllStores: true,
+    businesses: [
+      {
+        id: "business",
+        name: "Business",
+        industryType: "GENERAL_SERVICE" as const,
+        logoUrl: null,
+        timezone: "UTC",
+        businessDayCutoffTime: "00:00",
+        isCurrent: true,
+        membershipPeriods: [
+          {
+            joinedAt: new Date("2026-01-01T00:00:00.000Z"),
+            removedAt: null,
+          },
+        ],
+      },
+    ],
+  };
+
+  const report = await getAllStoresKpiReport(
+    {
+      userId: "user",
+      groupId: "group",
+      activeBusinessId: "business",
+      range: "custom",
+      from: "2026-07-01",
+      to: "2026-07-01",
+    },
+    database,
+    {
+      analyticsReadMode: "PRIMARY",
+      resolveScope: (async () => scope) as never,
+    },
+  );
+
+  assert.equal(analyticsQueries, 1);
+  assert.equal(rawQueries, 3);
+  assert.equal(report?.dataSource, "RAW");
+  assert.equal(report?.analyticsFallbackReason, "MISSING_SUMMARIES");
+});
+
+test("summary reads reject partial-day membership and mode defaults stay safe", () => {
+  const baseBusiness = {
+    id: "business",
+    name: "Business",
+    industryType: "GENERAL_SERVICE" as const,
+    logoUrl: null,
+    timezone: "UTC",
+    businessDayCutoffTime: "00:00",
+    isCurrent: true,
+  };
+  assert.equal(
+    isRangeFullyAuthorized(
+      {
+        ...baseBusiness,
+        membershipPeriods: [
+          {
+            joinedAt: new Date("2026-07-01T12:00:00.000Z"),
+            removedAt: null,
+          },
+        ],
+      },
+      new Date("2026-07-01T00:00:00.000Z"),
+      new Date("2026-07-02T00:00:00.000Z"),
+    ),
+    false,
+  );
+  assert.equal(
+    isRangeFullyAuthorized(
+      {
+        ...baseBusiness,
+        membershipPeriods: [
+          {
+            joinedAt: new Date("2026-06-01T00:00:00.000Z"),
+            removedAt: null,
+          },
+        ],
+      },
+      new Date("2026-07-01T00:00:00.000Z"),
+      new Date("2026-07-02T00:00:00.000Z"),
+    ),
+    true,
+  );
+  assert.equal(resolveAllStoresAnalyticsReadMode("PRIMARY"), "PRIMARY");
+  assert.equal(resolveAllStoresAnalyticsReadMode("OFF"), "OFF");
 });
 
 function invoice(id: string, total: string) {

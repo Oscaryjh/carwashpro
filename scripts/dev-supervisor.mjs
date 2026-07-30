@@ -19,15 +19,23 @@ const notificationWorkerScript = join(
   "scripts",
   "notification-queue-worker.ts",
 );
+const analyticsWorkerScript = join(
+  process.cwd(),
+  "scripts",
+  "analytics-refresh-worker.ts",
+);
 const whatsappConnectorDir = join(process.cwd(), "whatsapp-connector");
 const whatsappConnectorPackage = join(whatsappConnectorDir, "package.json");
 const binPath = join(process.cwd(), "node_modules", ".bin");
 const restartDelayMs = 1500;
+const localDevSessionSecret =
+  "tetamu-local-development-session-secret-v1";
 const notificationWorkerQueuedAfter = new Date().toISOString();
 
 let nextChild;
 let whatsappWorkerChild;
 let notificationWorkerChild;
+let analyticsWorkerChild;
 let whatsappConnectorChild;
 let ownsPostgres = false;
 let shuttingDown = false;
@@ -46,6 +54,7 @@ async function main() {
   startWhatsAppConnector();
   startWhatsAppWorker();
   startNotificationWorker();
+  startAnalyticsWorker();
   startNext();
 }
 
@@ -196,6 +205,49 @@ function startWhatsAppConnector() {
   });
 }
 
+function startAnalyticsWorker() {
+  if (!existsSync(analyticsWorkerScript)) {
+    console.warn(
+      "Analytics refresh worker not started because its script is missing.",
+    );
+    return;
+  }
+
+  analyticsWorkerChild = spawn(
+    process.execPath,
+    [
+      "--use-system-ca",
+      "--import",
+      "tsx",
+      analyticsWorkerScript,
+    ],
+    {
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      env: getChildEnv(),
+    },
+  );
+
+  analyticsWorkerChild.stdout?.on("data", (chunk) => {
+    writePrefixed("[analytics] ", chunk, process.stdout);
+  });
+
+  analyticsWorkerChild.stderr?.on("data", (chunk) => {
+    writePrefixed("[analytics] ", chunk, process.stderr);
+  });
+
+  analyticsWorkerChild.on("close", (code, signal) => {
+    if (shuttingDown) {
+      return;
+    }
+
+    console.warn(
+      `Analytics refresh worker stopped (code: ${code ?? "none"}, signal: ${signal ?? "none"}). Restarting...`,
+    );
+    setTimeout(startAnalyticsWorker, restartDelayMs);
+  });
+}
+
 async function shutdown() {
   if (shuttingDown) {
     return;
@@ -205,6 +257,7 @@ async function shutdown() {
   nextChild?.kill("SIGTERM");
   whatsappWorkerChild?.kill("SIGTERM");
   notificationWorkerChild?.kill("SIGTERM");
+  analyticsWorkerChild?.kill("SIGTERM");
   whatsappConnectorChild?.kill("SIGTERM");
   await stopOwnedPostgres(pg, ownsPostgres);
   process.exit(0);
@@ -238,6 +291,8 @@ function getChildEnv() {
     ...process.env,
     PATH: `${binPath}${delimiter}${process.env.PATH ?? ""}`,
     DATABASE_URL: process.env.DATABASE_URL ?? DATABASE_URL,
+    SESSION_SECRET:
+      process.env.SESSION_SECRET ?? localDevSessionSecret,
     NODE_OPTIONS: withNodeOption(process.env.NODE_OPTIONS, "--use-system-ca"),
     WS_NO_BUFFER_UTIL: process.env.WS_NO_BUFFER_UTIL ?? "1",
     WS_NO_UTF_8_VALIDATE: process.env.WS_NO_UTF_8_VALIDATE ?? "1",

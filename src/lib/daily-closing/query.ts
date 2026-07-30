@@ -44,14 +44,24 @@ export async function getDailyClosingReport(
   database: DailyClosingDatabase = prisma,
 ) {
   const now = input.now ?? new Date();
-  const range = getDailyClosingRange(now, input.dateValue);
+  const business = await database.business.findUniqueOrThrow({
+    where: { id: input.businessId },
+    select: {
+      businessDayCutoffTime: true,
+      name: true,
+      timezone: true,
+    },
+  });
+  const range = getDailyClosingRange(now, input.dateValue, {
+    businessDayCutoffTime: business.businessDayCutoffTime,
+    timezone: business.timezone,
+  });
   const branchScope = {
     branchId: input.branchId,
     businessId: input.businessId,
   };
 
   const [
-    business,
     branch,
     invoices,
     payments,
@@ -61,10 +71,6 @@ export async function getDailyClosingReport(
     packagePurchases,
     shifts,
   ] = await Promise.all([
-    database.business.findUniqueOrThrow({
-      where: { id: input.businessId },
-      select: { name: true },
-    }),
     database.branch.findFirstOrThrow({
       where: {
         id: input.branchId,
@@ -99,6 +105,7 @@ export async function getDailyClosingReport(
           select: { amount: true },
         },
         status: true,
+        tipAmount: true,
         total: true,
         workOrder: { select: { status: true } },
       },
@@ -234,6 +241,7 @@ export async function getDailyClosingReport(
         0,
       ),
       status: invoice.status as Exclude<InvoiceStatus, "VOID">,
+      tipCents: toCents(invoice.tipAmount),
       totalCents: toCents(invoice.total),
     })),
     packagePurchases: packagePurchases.map((purchase) => ({
@@ -277,7 +285,7 @@ export async function getDailyClosingReport(
     dateValue: range.dateValue,
     fromDate: range.fromDate,
     generatedAt: now,
-    generatedAtLabel: formatDailyClosingGeneratedAt(now),
+    generatedAtLabel: formatDailyClosingGeneratedAt(now, range.timeZone),
     industry,
     preview: buildDailyClosingWhatsAppPreview({
       branchName: branch.name,
@@ -288,6 +296,7 @@ export async function getDailyClosingReport(
     }),
     report,
     timeZone: range.timeZone,
+    businessDayCutoffTime: range.businessDayCutoffTime,
     toDateExclusive: range.toDateExclusive,
   };
 }

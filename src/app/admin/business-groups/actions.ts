@@ -1,5 +1,6 @@
 "use server";
 
+import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -9,12 +10,16 @@ import { writeBusinessGroupAuditLog } from "@/lib/business-groups/audit";
 import {
   addBusinessToGroup,
   businessGroupConflictState,
+  createBusinessGroupAccount,
   grantBusinessGroupUser,
   removeBusinessFromGroup,
   revokeBusinessGroupUser,
+  updateBusinessGroupAccount,
 } from "@/lib/business-groups/admin-service";
 import { prisma } from "@/lib/prisma";
 import {
+  businessGroupAccountSchema,
+  businessGroupAccountUpdateSchema,
   businessGroupMembershipSchema,
   businessGroupSchema,
   businessGroupUserSchema,
@@ -158,6 +163,51 @@ export async function grantBusinessGroupUserAction(
   return successState;
 }
 
+export async function createBusinessGroupAccountAction(
+  _previousState: BusinessGroupActionState,
+  formData: FormData,
+): Promise<BusinessGroupActionState> {
+  const actor = await requirePlatformAdmin();
+  const parsed = businessGroupAccountSchema.safeParse({
+    groupId: formData.get("groupId"),
+    name: formData.get("name"),
+    email: formData.get("email"),
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+    role: formData.get("role"),
+    businessIds: uniqueIds(formData.getAll("businessIds").map(String).filter(Boolean)),
+  });
+  if (!parsed.success) {
+    return validationError(parsed.error.issues[0]?.message ?? "Check the account details.");
+  }
+
+  const input = {
+    groupId: parsed.data.groupId,
+    name: parsed.data.name,
+    email: parsed.data.email,
+    role: parsed.data.role,
+    businessIds: parsed.data.businessIds,
+  };
+  const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+
+  try {
+    await createBusinessGroupAccount({ ...input, passwordHash }, actor);
+  } catch (error) {
+    const conflict = businessGroupConflictState(
+      error,
+      "An account with this email already exists. Grant access to the existing user instead.",
+    );
+    if (conflict) return conflict;
+    throw error;
+  }
+
+  revalidatePath(`/admin/business-groups/${input.groupId}`);
+  return {
+    status: "success",
+    message: "Group login account created. The user can now sign in with this email.",
+  };
+}
+
 export async function revokeBusinessGroupUserAction(
   _previousState: BusinessGroupActionState,
   formData: FormData,
@@ -176,6 +226,56 @@ export async function revokeBusinessGroupUserAction(
 
   revalidatePath(`/admin/business-groups/${groupId}`);
   return successState;
+}
+
+export async function updateBusinessGroupAccountAction(
+  _previousState: BusinessGroupActionState,
+  formData: FormData,
+): Promise<BusinessGroupActionState> {
+  const actor = await requirePlatformAdmin();
+  const parsed = businessGroupAccountUpdateSchema.safeParse({
+    groupId: formData.get("groupId"),
+    groupUserId: formData.get("groupUserId"),
+    name: formData.get("name"),
+    email: formData.get("email"),
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) {
+    return validationError(parsed.error.issues[0]?.message ?? "Check the account details.");
+  }
+
+  const passwordHash = parsed.data.password
+    ? await bcrypt.hash(parsed.data.password, 12)
+    : undefined;
+
+  try {
+    await updateBusinessGroupAccount(
+      {
+        groupId: parsed.data.groupId,
+        groupUserId: parsed.data.groupUserId,
+        name: parsed.data.name,
+        email: parsed.data.email,
+        passwordHash,
+      },
+      actor,
+    );
+  } catch (error) {
+    const conflict = businessGroupConflictState(
+      error,
+      "An account with this email already exists.",
+    );
+    if (conflict) return conflict;
+    throw error;
+  }
+
+  revalidatePath(`/admin/business-groups/${parsed.data.groupId}`);
+  return {
+    status: "success",
+    message: passwordHash
+      ? "Group login and password updated."
+      : "Group login updated.",
+  };
 }
 
 export async function deactivateBusinessGroupAction(formData: FormData) {

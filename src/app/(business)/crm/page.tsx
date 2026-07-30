@@ -293,22 +293,45 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       ])
     : [{ _sum: { paidAmount: null } }, 0, null];
   const totalPages = Math.max(1, Math.ceil(customerCount / CUSTOMERS_PER_PAGE));
+  const isEmptyDirectory = customerCount === 0 && !query;
 
   return (
     <section className="content crm-page crm-workspace-page">
       <div className="page-header crm-workspace-header">
         <div>
           <h1>CRM</h1>
-          <p>{customerCount} customers</p>
+          {!isEmptyDirectory ? <p>{customerCount} customers</p> : null}
         </div>
-        <CrmNewCustomerModal
-          action={createCustomerAction}
-          branches={branches}
-          isSalonBusiness={isSalonBusiness}
-        />
+        {!isEmptyDirectory ? (
+          <CrmNewCustomerModal
+            action={createCustomerAction}
+            branches={branches}
+            isSalonBusiness={isSalonBusiness}
+          />
+        ) : null}
       </div>
 
-      <div className="crm-workspace">
+      {isEmptyDirectory ? (
+        <div className="crm-workspace-empty">
+          <div className="crm-workspace-empty-mark" aria-hidden="true">
+            +
+          </div>
+          <div className="crm-workspace-empty-copy">
+            <h2>No customers yet</h2>
+            <p>
+              Create the first customer profile to keep visits, packages, invoices,
+              and notes together.
+            </p>
+          </div>
+          <CrmNewCustomerModal
+            action={createCustomerAction}
+            branches={branches}
+            isSalonBusiness={isSalonBusiness}
+            label="Create first customer"
+          />
+        </div>
+      ) : (
+        <div className="crm-workspace">
         <aside className="crm-customer-rail">
           <div className="crm-rail-heading">
             <div>
@@ -418,7 +441,8 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             </div>
           )}
         </main>
-      </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -1,23 +1,42 @@
 import type { Prisma } from "@prisma/client";
 import {
+  analyticsBusinessDateValue,
+  readAuthorizedDailyStoreSummaries,
+  type AnalyticsDailyRow,
+  type DailySummaryReadFailureReason,
+} from "@/lib/analytics/daily-summary-read";
+import {
   addDaysToDateValue,
   dateValueToUtcDate,
   isValidDateValue,
+  startOfBusinessMonth,
 } from "@/lib/business-time";
 import {
+  getCurrentBusinessDateValue,
+  getBusinessDayRange,
   getBusinessDayRangeWithPrevious,
-  isValidBusinessDayCutoffTime,
-  isValidIanaTimeZone,
   MAX_BUSINESS_DAY_RANGE_DAYS,
   type BusinessDayRange,
 } from "@/lib/business-day";
 import {
   resolveAuthorizedGroupReportingScope,
+  type AuthorizedGroupBusiness,
   type AuthorizedGroupReportingContext,
 } from "@/lib/business-groups/all-stores-access";
+import {
+  getReportingBusinesses,
+  intersectBusinessMemberships,
+  isEventWithinAuthorizedMembership,
+} from "@/lib/business-groups/historical-membership";
+import {
+  calculateFinancialMetrics,
+  type FinancialMetricInvoice,
+  type FinancialMetricPayment,
+  type FinancialMetricRefund,
+} from "@/lib/financial-metrics";
 import { prisma } from "@/lib/prisma";
 
-export type AllStoresRange = "today" | "7days" | "30days" | "custom";
+export type AllStoresRange = "today" | "7days" | "month" | "custom";
 
 export type AllStoresKpi = {
   grossSalesCents: number;
@@ -59,19 +78,33 @@ export type AllStoresKpiReport = {
   customFrom: string | null;
   customTo: string | null;
   authorizedBusinessCount: number;
+  dataSource: "DAILY_SUMMARY" | "RAW";
+  analyticsFallbackReason: AllStoresAnalyticsFallbackReason;
   current: AllStoresKpiWithComparisons;
   previous: AllStoresKpi;
   businesses: AllStoresBusinessKpi[];
 };
 
+export type AllStoresAnalyticsReadMode = "OFF" | "SHADOW" | "PRIMARY";
+export type AllStoresAnalyticsFallbackReason =
+  | "DISABLED"
+  | "SHADOW_MODE"
+  | "UNSAFE_MEMBERSHIP"
+  | "MISSING_SUMMARIES"
+  | "STALE_SUMMARIES"
+  | "INVALID_SUMMARIES"
+  | "UNSUPPORTED_FILTERS"
+  | null;
+
 type ReportingDatabase = Pick<
   Prisma.TransactionClient,
-  "invoice" | "payment" | "paymentRefund"
+  "analyticsDailyStoreSummary" | "invoice" | "payment" | "paymentRefund"
 >;
 
 type ResolveScope = typeof resolveAuthorizedGroupReportingScope;
 
 type AllStoresKpiDependencies = {
+  analyticsReadMode?: AllStoresAnalyticsReadMode;
   now?: Date;
   resolveScope?: ResolveScope;
 };
@@ -134,8 +167,9 @@ export async function getAllStoresKpiReport(
   const range = normalizeRange(input.range);
   const customRange = validateCustomRange(range, input.from, input.to);
   const now = dependencies.now ?? new Date();
+  const reportingBusinesses = getReportingBusinesses(scope);
   const periods = new Map(
-    scope.businesses.map((business) => [
+    reportingBusinesses.map((business) => [
       business.id,
       buildBusinessPeriods({
         range,
@@ -147,14 +181,51 @@ export async function getAllStoresKpiReport(
       }),
     ]),
   );
-  const completeRangeFilters = scope.businesses.map((business) => {
+  const completeRangeFilters = reportingBusinesses.flatMap((business) => {
     const period = periods.get(business.id)!;
-    return {
-      businessId: business.id,
-      gte: period.previous.fromDate,
-      lt: period.current.toDateExclusive,
-    };
+    return intersectBusinessMemberships(
+      business,
+      period.previous.fromDate,
+      period.current.toDateExclusive,
+    );
   });
+  const includedBusinessIds = new Set(
+    completeRangeFilters.map((item) => item.businessId),
+  );
+  const businesses = reportingBusinesses.filter((business) =>
+    includedBusinessIds.has(business.id),
+  );
+  const analyticsReadMode = resolveAllStoresAnalyticsReadMode(
+    dependencies.analyticsReadMode,
+  );
+  let analyticsFallbackReason: AllStoresAnalyticsFallbackReason =
+    analyticsReadMode === "OFF"
+      ? "DISABLED"
+      : analyticsReadMode === "SHADOW"
+        ? "SHADOW_MODE"
+        : null;
+
+  if (analyticsReadMode === "PRIMARY") {
+    const summaryResult = await tryLoadAllStoresKpisFromDailySummaries({
+      businesses,
+      periods,
+      database,
+    });
+    if (summaryResult.ok) {
+      return buildAllStoresKpiReport({
+        scope,
+        range,
+        customFrom: customRange?.from ?? null,
+        customTo: customRange?.to ?? null,
+        businesses,
+        periods,
+        reportByBusiness: summaryResult.reportByBusiness,
+        dataSource: "DAILY_SUMMARY",
+        analyticsFallbackReason: null,
+      });
+    }
+    analyticsFallbackReason = summaryResult.reason;
+  }
 
   const [invoices, payments, refunds] = await Promise.all([
     database.invoice.findMany({
@@ -229,34 +300,84 @@ export async function getAllStoresKpiReport(
       },
     }),
   ]);
+  const businessById = new Map(
+    businesses.map((business) => [business.id, business]),
+  );
 
   const reportByBusiness = calculateAllStoresKpis({
-    businessIds: scope.businesses.map((business) => business.id),
+    businessIds: businesses.map((business) => business.id),
     periods,
-    invoices: invoices as InvoiceRow[],
-    payments: payments as PaymentRow[],
-    refunds: refunds as RefundRow[],
+    invoices: (invoices as InvoiceRow[]).filter((invoice) => {
+      const business = businessById.get(invoice.businessId);
+      return Boolean(
+        business &&
+          isEventWithinAuthorizedMembership(business, invoice.issuedAt),
+      );
+    }),
+    payments: (payments as PaymentRow[]).filter((payment) => {
+      const business = businessById.get(payment.businessId);
+      return Boolean(
+        business &&
+          isEventWithinAuthorizedMembership(business, payment.paidAt),
+      );
+    }),
+    refunds: (refunds as RefundRow[]).filter((refund) => {
+      const business = businessById.get(refund.businessId);
+      return Boolean(
+        business &&
+          isEventWithinAuthorizedMembership(business, refund.refundedAt),
+      );
+    }),
   });
-  const totalCurrent = sumKpis(
-    [...reportByBusiness.values()].map((item) => item.current),
-  );
-  const totalPrevious = sumKpis(
-    [...reportByBusiness.values()].map((item) => item.previous),
-  );
-
-  return {
-    groupId: scope.groupId,
-    groupName: scope.groupName,
-    role: scope.role,
+  return buildAllStoresKpiReport({
+    scope,
     range,
     customFrom: customRange?.from ?? null,
     customTo: customRange?.to ?? null,
-    authorizedBusinessCount: scope.businesses.length,
+    businesses,
+    periods,
+    reportByBusiness,
+    dataSource: "RAW",
+    analyticsFallbackReason,
+  });
+}
+
+function buildAllStoresKpiReport(input: {
+  scope: AuthorizedGroupReportingContext;
+  range: AllStoresRange;
+  customFrom: string | null;
+  customTo: string | null;
+  businesses: AuthorizedGroupBusiness[];
+  periods: Map<string, PeriodPair>;
+  reportByBusiness: Map<
+    string,
+    { current: AllStoresKpi; previous: AllStoresKpi }
+  >;
+  dataSource: "DAILY_SUMMARY" | "RAW";
+  analyticsFallbackReason: AllStoresAnalyticsFallbackReason;
+}): AllStoresKpiReport {
+  const totalCurrent = sumKpis(
+    [...input.reportByBusiness.values()].map((item) => item.current),
+  );
+  const totalPrevious = sumKpis(
+    [...input.reportByBusiness.values()].map((item) => item.previous),
+  );
+
+  return {
+    groupId: input.scope.groupId,
+    groupName: input.scope.groupName,
+    role: input.scope.role,
+    range: input.range,
+    customFrom: input.customFrom,
+    customTo: input.customTo,
+    authorizedBusinessCount: input.businesses.length,
+    dataSource: input.dataSource,
+    analyticsFallbackReason: input.analyticsFallbackReason,
     current: withComparisons(totalCurrent, totalPrevious),
     previous: totalPrevious,
-    businesses: scope.businesses.map((business) => {
-      const period = periods.get(business.id)!;
-      const result = reportByBusiness.get(business.id)!;
+    businesses: input.businesses.map((business) => {
+      const period = input.periods.get(business.id)!;
+      const result = input.reportByBusiness.get(business.id)!;
       return {
         businessId: business.id,
         businessName: business.name,
@@ -273,6 +394,135 @@ export async function getAllStoresKpiReport(
   };
 }
 
+export function resolveAllStoresAnalyticsReadMode(
+  override?: AllStoresAnalyticsReadMode,
+): AllStoresAnalyticsReadMode {
+  if (override) return override;
+  const configured =
+    process.env.ANALYTICS_DAILY_SUMMARY_READ_MODE?.trim().toUpperCase();
+  if (
+    configured === "OFF" ||
+    configured === "SHADOW" ||
+    configured === "PRIMARY"
+  ) {
+    return configured;
+  }
+  return process.env.NODE_ENV === "development" ? "PRIMARY" : "OFF";
+}
+
+export { isRangeFullyAuthorized } from "@/lib/analytics/daily-summary-read";
+export type { AnalyticsDailyRow } from "@/lib/analytics/daily-summary-read";
+
+export async function tryLoadAllStoresKpisFromDailySummaries(input: {
+  businesses: AuthorizedGroupBusiness[];
+  periods: Map<string, PeriodPair>;
+  database: ReportingDatabase;
+}): Promise<
+  | {
+      ok: true;
+      reportByBusiness: Map<
+        string,
+        { current: AllStoresKpi; previous: AllStoresKpi }
+      >;
+      rows: AnalyticsDailyRow[];
+    }
+  | {
+      ok: false;
+      reason: Exclude<AllStoresAnalyticsFallbackReason, null | "DISABLED" | "SHADOW_MODE">;
+    }
+> {
+  const summaryRead = await readAuthorizedDailyStoreSummaries(
+    {
+      reads: input.businesses.map((business) => {
+        const period = input.periods.get(business.id)!;
+        return {
+          business,
+          windows: [
+            {
+              fromDateValue: period.previous.fromDateValue,
+              toDateValue: period.current.toDateValue,
+            },
+          ],
+        };
+      }),
+      requireMembershipHistory: false,
+    },
+    input.database,
+  );
+  if (!summaryRead.ok) {
+    return {
+      ok: false,
+      reason: mapDailySummaryReadFailure(summaryRead.reason),
+    };
+  }
+
+  const reportByBusiness = new Map<
+    string,
+    { current: AllStoresKpi; previous: AllStoresKpi }
+  >();
+  const rowsByBusiness = new Map<string, AnalyticsDailyRow[]>();
+  for (const row of summaryRead.rows) {
+    const rows = rowsByBusiness.get(row.businessId) ?? [];
+    rows.push(row);
+    rowsByBusiness.set(row.businessId, rows);
+  }
+  for (const business of input.businesses) {
+    const period = input.periods.get(business.id)!;
+    const currentRows: AnalyticsDailyRow[] = [];
+    const previousRows: AnalyticsDailyRow[] = [];
+    for (const row of rowsByBusiness.get(business.id) ?? []) {
+      const businessDate = analyticsBusinessDateValue(row);
+      if (
+        businessDate >= period.current.fromDateValue &&
+        businessDate <= period.current.toDateValue
+      ) {
+        currentRows.push(row);
+      } else if (
+        businessDate >= period.previous.fromDateValue &&
+        businessDate <= period.previous.toDateValue
+      ) {
+        previousRows.push(row);
+      }
+    }
+    reportByBusiness.set(business.id, {
+      current: sumKpis(currentRows.map(dailyRowToKpi)),
+      previous: sumKpis(previousRows.map(dailyRowToKpi)),
+    });
+  }
+  return {
+    ok: true,
+    reportByBusiness,
+    rows: summaryRead.rows,
+  };
+}
+
+function mapDailySummaryReadFailure(
+  reason: DailySummaryReadFailureReason,
+): Exclude<
+  AllStoresAnalyticsFallbackReason,
+  null | "DISABLED" | "SHADOW_MODE"
+> {
+  if (
+    reason === "UNSAFE_MEMBERSHIP" ||
+    reason === "MISSING_SUMMARIES" ||
+    reason === "STALE_SUMMARIES"
+  ) {
+    return reason;
+  }
+  return "INVALID_SUMMARIES";
+}
+
+export function dailyRowToKpi(row: AnalyticsDailyRow): AllStoresKpi {
+  return {
+    averageTransactionValueCents: row.averageTransactionValueCents,
+    grossSalesCents: row.grossSalesCents,
+    netSalesCents: row.netSalesCents,
+    paymentsCollectedCents: row.grossCollectionsCents,
+    refundsCents: row.refundsCents,
+    transactionCount: row.transactionCount,
+  };
+}
+
 export function calculateAllStoresKpis(input: {
   businessIds: string[];
   periods: Map<string, PeriodPair>;
@@ -280,59 +530,92 @@ export function calculateAllStoresKpis(input: {
   payments: PaymentRow[];
   refunds: RefundRow[];
 }) {
-  const results = new Map(
+  const sources = new Map(
     input.businessIds.map((businessId) => [
       businessId,
-      { current: emptyKpi(), previous: emptyKpi() },
+      {
+        current: emptyFinancialMetricSource(),
+        previous: emptyFinancialMetricSource(),
+      },
     ]),
   );
 
   for (const invoice of input.invoices) {
-    const result = results.get(invoice.businessId);
+    const source = sources.get(invoice.businessId);
     const period = input.periods.get(invoice.businessId);
     const bucket = period && getPeriodBucket(invoice.issuedAt, period);
-    if (!result || !bucket) continue;
+    if (!source || !bucket) continue;
 
     const packageRedemptionCents = invoice.payments.reduce(
       (total, payment) => total + moneyToCents(payment.amount),
       0,
     );
-    const invoiceDiscountCents =
-      moneyToCents(invoice.discountAmount) +
-      moneyToCents(invoice.loyaltyDiscountAmount);
-    const discountedSalesCents =
-      moneyToCents(invoice.total) -
-      moneyToCents(invoice.tipAmount) -
-      packageRedemptionCents;
-    result[bucket].grossSalesCents +=
-      discountedSalesCents + invoiceDiscountCents;
-    result[bucket].netSalesCents += discountedSalesCents;
-    result[bucket].transactionCount += 1;
+    source[bucket].invoices.push({
+      discountCents: moneyToCents(invoice.discountAmount),
+      loyaltyDiscountCents: moneyToCents(invoice.loyaltyDiscountAmount),
+      packageVoucherCents: packageRedemptionCents,
+      tipCents: moneyToCents(invoice.tipAmount),
+      totalCents: moneyToCents(invoice.total),
+    });
   }
 
   for (const payment of input.payments) {
-    const result = results.get(payment.businessId);
+    const source = sources.get(payment.businessId);
     const period = input.periods.get(payment.businessId);
     const bucket = period && getPeriodBucket(payment.paidAt, period);
-    if (!result || !bucket) continue;
-    result[bucket].paymentsCollectedCents += moneyToCents(payment.amount);
+    if (!source || !bucket) continue;
+    source[bucket].payments.push({
+      amountCents: moneyToCents(payment.amount),
+      isPackage: false,
+    });
   }
 
   for (const refund of input.refunds) {
-    const result = results.get(refund.businessId);
+    const source = sources.get(refund.businessId);
     const period = input.periods.get(refund.businessId);
     const bucket = period && getPeriodBucket(refund.refundedAt, period);
-    if (!result || !bucket) continue;
-    const refundCents = moneyToCents(refund.amount);
-    result[bucket].refundsCents += refundCents;
-    result[bucket].netSalesCents -= refundCents;
+    if (!source || !bucket) continue;
+    source[bucket].refunds.push({
+      amountCents: moneyToCents(refund.amount),
+      isPackage: false,
+    });
   }
 
-  for (const result of results.values()) {
-    finalizeAverage(result.current);
-    finalizeAverage(result.previous);
-  }
-  return results;
+  return new Map(
+    [...sources].map(([businessId, source]) => [
+      businessId,
+      {
+        current: toAllStoresKpi(source.current),
+        previous: toAllStoresKpi(source.previous),
+      },
+    ]),
+  );
+}
+
+type FinancialMetricSource = {
+  invoices: FinancialMetricInvoice[];
+  payments: FinancialMetricPayment[];
+  refunds: FinancialMetricRefund[];
+};
+
+function emptyFinancialMetricSource(): FinancialMetricSource {
+  return {
+    invoices: [],
+    payments: [],
+    refunds: [],
+  };
+}
+
+function toAllStoresKpi(source: FinancialMetricSource): AllStoresKpi {
+  const metrics = calculateFinancialMetrics(source);
+  return {
+    averageTransactionValueCents: metrics.averageTransactionValueCents,
+    grossSalesCents: metrics.grossSalesCents,
+    netSalesCents: metrics.netSalesCents,
+    paymentsCollectedCents: metrics.grossCollectionsCents,
+    refundsCents: metrics.refundsCents,
+    transactionCount: metrics.transactionCount,
+  };
 }
 
 export function compareKpiValues(
@@ -367,7 +650,8 @@ export function moneyToCents(value: unknown) {
 
 export function normalizeRange(value: string | undefined): AllStoresRange {
   if (!value || value === "today") return "today";
-  if (value === "7days" || value === "30days" || value === "custom") {
+  if (value === "30days") return "month";
+  if (value === "7days" || value === "month" || value === "custom") {
     return value;
   }
   throw new AllStoresKpiRangeError("Select a valid reporting range.");
@@ -409,6 +693,55 @@ export function buildBusinessPeriods(input: {
   timezone: string;
   businessDayCutoffTime: string;
 }) {
+  if (input.range === "month") {
+    const currentToDateValue = getCurrentBusinessDateValue(
+      input.now,
+      input.timezone,
+      input.businessDayCutoffTime,
+    );
+    const currentFromDateValue = startOfBusinessMonth(currentToDateValue);
+    const previousMonthEndDateValue = addDaysToDateValue(
+      currentFromDateValue,
+      -1,
+    );
+    const previousFromDateValue = startOfBusinessMonth(
+      previousMonthEndDateValue,
+    );
+    const currentIsMonthEnd =
+      startOfBusinessMonth(addDaysToDateValue(currentToDateValue, 1)) !==
+      currentFromDateValue;
+    const elapsedCalendarDays = Number.parseInt(
+      currentToDateValue.slice(8, 10),
+      10,
+    );
+    const previousSameDayDateValue = addDaysToDateValue(
+      previousFromDateValue,
+      elapsedCalendarDays - 1,
+    );
+    const previousToDateValue =
+      currentIsMonthEnd ||
+      previousSameDayDateValue > previousMonthEndDateValue
+        ? previousMonthEndDateValue
+        : previousSameDayDateValue;
+    const settings = {
+      timezone: input.timezone,
+      businessDayCutoffTime: input.businessDayCutoffTime,
+    };
+
+    return {
+      current: getBusinessDayRange({
+        ...settings,
+        fromDateValue: currentFromDateValue,
+        toDateValue: currentToDateValue,
+      }),
+      previous: getBusinessDayRange({
+        ...settings,
+        fromDateValue: previousFromDateValue,
+        toDateValue: previousToDateValue,
+      }),
+    };
+  }
+
   let fromDateValue: string;
   let toDateValue: string;
   if (input.range === "custom") {
@@ -432,37 +765,7 @@ export function buildBusinessPeriods(input: {
   });
 }
 
-export function getCurrentBusinessDateValue(
-  now: Date,
-  timezone: string,
-  businessDayCutoffTime: string,
-) {
-  if (!isValidIanaTimeZone(timezone)) {
-    throw new Error("Business timezone is invalid.");
-  }
-  if (!isValidBusinessDayCutoffTime(businessDayCutoffTime)) {
-    throw new Error("Business day cutoff time must use HH:mm.");
-  }
-  const parts = new Map(
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone: timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    })
-      .formatToParts(now)
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-  const dateValue = `${parts.get("year")}-${parts.get("month")}-${parts.get("day")}`;
-  const timeValue = `${parts.get("hour")}:${parts.get("minute")}`;
-  return timeValue < businessDayCutoffTime
-    ? addDaysToDateValue(dateValue, -1)
-    : dateValue;
-}
+export { getCurrentBusinessDateValue } from "@/lib/business-day";
 
 function getPeriodBucket(value: Date, periods: PeriodPair) {
   if (

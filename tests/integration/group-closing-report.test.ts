@@ -7,6 +7,7 @@ import {
   GroupClosingInputError,
 } from "../../src/lib/business-groups/group-closing-report";
 import type { DailyClosingReport } from "../../src/lib/daily-closing/types";
+import { getGroupDataConfidenceReport } from "../../src/lib/business-groups/group-data-confidence";
 
 const prisma = new PrismaClient();
 
@@ -25,9 +26,27 @@ test("Group Daily Closing reads frozen snapshots and enforces live group scope",
     ]);
     businessIds.push(salon.id, auto.id, outside.id);
     const [salonBranch, autoBranch, outsideBranch] = await Promise.all([
-      prisma.branch.create({ data: { businessId: salon.id, name: `Salon Branch ${suffix}` } }),
-      prisma.branch.create({ data: { businessId: auto.id, name: `Auto Branch ${suffix}` } }),
-      prisma.branch.create({ data: { businessId: outside.id, name: `Outside Branch ${suffix}` } }),
+      prisma.branch.create({
+        data: {
+          businessId: salon.id,
+          name: `Salon Branch ${suffix}`,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        },
+      }),
+      prisma.branch.create({
+        data: {
+          businessId: auto.id,
+          name: `Auto Branch ${suffix}`,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        },
+      }),
+      prisma.branch.create({
+        data: {
+          businessId: outside.id,
+          name: `Outside Branch ${suffix}`,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        },
+      }),
     ]);
     const [group, outsideGroup] = await Promise.all([
       prisma.businessGroup.create({
@@ -40,9 +59,9 @@ test("Group Daily Closing reads frozen snapshots and enforces live group scope",
     groupIds.push(group.id, outsideGroup.id);
     await prisma.businessGroupMember.createMany({
       data: [
-        { groupId: group.id, businessId: salon.id },
-        { groupId: group.id, businessId: auto.id },
-        { groupId: outsideGroup.id, businessId: outside.id },
+        { groupId: group.id, businessId: salon.id, joinedAt: new Date("2026-01-01T00:00:00.000Z") },
+        { groupId: group.id, businessId: auto.id, joinedAt: new Date("2026-01-01T00:00:00.000Z") },
+        { groupId: outsideGroup.id, businessId: outside.id, joinedAt: new Date("2026-01-01T00:00:00.000Z") },
       ],
     });
     const [owner, manager, directOwner] = await Promise.all([
@@ -136,6 +155,25 @@ test("Group Daily Closing reads frozen snapshots and enforces live group scope",
     );
     assert.equal(ownerReport?.rows.some((row) => row.businessId === outside.id), false);
     assert.equal(ownerReport?.rows.find((row) => row.id === salonSnapshot.id)?.financial?.netSalesCents, 10_000);
+    const confidence = await getGroupDataConfidenceReport({
+      userId: owner.id,
+      groupId: group.id,
+      activeBusinessId: salon.id,
+      range: "custom",
+      from: "2026-07-01",
+      to: "2026-07-01",
+    });
+    assert.equal(confidence?.closingCoveragePercent, 100);
+    assert.equal(confidence?.expectedClosingCount, 2);
+    assert.equal(confidence?.capturedClosingCount, 2);
+    assert.equal(confidence?.missingClosings.length, 0);
+    assert.equal(confidence?.invalidSnapshotCount, 0);
+    assert.equal(confidence?.definitionIssueCount, 2);
+    assert.equal(confidence?.status, "LEGACY_DEFINITION");
+    assert.equal(
+      confidence?.metrics.some((metric) => !metric.matches),
+      true,
+    );
     assert.equal(
       await prisma.businessGroupAuditLog.count({ where: { groupId: group.id } }),
       auditBefore,

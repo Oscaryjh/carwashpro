@@ -28,6 +28,14 @@ export type CashierCatalogResult = {
   total: number;
 };
 
+export type CashierCatalogAvailability = {
+  hasItems: boolean;
+  initialType: Exclude<CashierCatalogType, "all">;
+  packageCount: number;
+  productCount: number;
+  serviceCount: number;
+};
+
 type CashierCatalogInput = {
   branchId: string;
   businessId: string;
@@ -36,6 +44,37 @@ type CashierCatalogInput = {
   query?: string;
   type?: CashierCatalogType;
 };
+
+export async function getCashierCatalogAvailability({
+  branchId,
+  businessId,
+}: Pick<CashierCatalogInput, "branchId" | "businessId">): Promise<CashierCatalogAvailability> {
+  const [packageCount, productCount, serviceCount] = await Promise.all([
+    prisma.package.count({ where: buildPackageWhere(businessId, undefined, "") }),
+    prisma.product.count({ where: buildProductWhere(businessId, undefined, "") }),
+    prisma.service.count({ where: buildServiceWhere(businessId, branchId, undefined, "") }),
+  ]);
+
+  return resolveCashierCatalogAvailability({
+    packageCount,
+    productCount,
+    serviceCount,
+  });
+}
+
+export function resolveCashierCatalogAvailability({
+  packageCount,
+  productCount,
+  serviceCount,
+}: Omit<CashierCatalogAvailability, "hasItems" | "initialType">): CashierCatalogAvailability {
+  return {
+    hasItems: packageCount + productCount + serviceCount > 0,
+    initialType: serviceCount > 0 ? "service" : productCount > 0 ? "product" : "package",
+    packageCount,
+    productCount,
+    serviceCount,
+  };
+}
 
 export async function getCashierCatalog({
   branchId,

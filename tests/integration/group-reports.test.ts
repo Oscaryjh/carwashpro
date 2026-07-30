@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { PrismaClient } from "@prisma/client";
+import { refreshDailyStoreSummaries } from "../../src/lib/analytics/daily-store-summary";
 import {
   getGroupReports,
   GroupReportsInputError,
@@ -15,6 +16,7 @@ test("Group Reports enforces live scope, event filters, and database pagination"
   const businessIds: string[] = [];
   const groupIds: string[] = [];
   const userIds: string[] = [];
+  const analyticsRunIds: string[] = [];
 
   try {
     const [salon, auto, outside] = await Promise.all([
@@ -59,13 +61,13 @@ test("Group Reports enforces live scope, event filters, and database pagination"
     groupIds.push(group.id, outsideGroup.id);
     const memberships = await Promise.all([
       prisma.businessGroupMember.create({
-        data: { groupId: group.id, businessId: salon.id },
+        data: { groupId: group.id, businessId: salon.id, joinedAt: new Date("2026-01-01T00:00:00.000Z") },
       }),
       prisma.businessGroupMember.create({
-        data: { groupId: group.id, businessId: auto.id },
+        data: { groupId: group.id, businessId: auto.id, joinedAt: new Date("2026-01-01T00:00:00.000Z") },
       }),
       prisma.businessGroupMember.create({
-        data: { groupId: outsideGroup.id, businessId: outside.id },
+        data: { groupId: outsideGroup.id, businessId: outside.id, joinedAt: new Date("2026-01-01T00:00:00.000Z") },
       }),
     ]);
 
@@ -259,6 +261,47 @@ test("Group Reports enforces live scope, event filters, and database pagination"
       auditCountBefore,
     );
 
+    const analyticsRefresh = await refreshDailyStoreSummaries({
+      businessIds: [salon.id, auto.id],
+      fromDate: "2026-06-30",
+      toDate: "2026-07-01",
+      trigger: "BACKFILL",
+    });
+    analyticsRunIds.push(analyticsRefresh.runId);
+    const dailySummaryReport = await getGroupReports(
+      {
+        userId: owner.id,
+        groupId: group.id,
+        activeBusinessId: salon.id,
+        range: "custom",
+        from: "2026-07-01",
+        to: "2026-07-01",
+        page: "1",
+      },
+      prisma,
+      { analyticsReadMode: "PRIMARY" },
+    );
+    assert.equal(dailySummaryReport?.summaryDataSource, "DAILY_SUMMARY");
+    assert.equal(dailySummaryReport?.analyticsFallbackReason, null);
+    assert.deepEqual(dailySummaryReport?.summary, ownerPageOne?.summary);
+    assert.deepEqual(dailySummaryReport?.trend, ownerPageOne?.trend);
+    assert.deepEqual(
+      dailySummaryReport?.businessPerformance.map((item) => ({
+        businessId: item.businessId,
+        metrics: item.metrics,
+        rank: item.rank,
+      })),
+      ownerPageOne?.businessPerformance.map((item) => ({
+        businessId: item.businessId,
+        metrics: item.metrics,
+        rank: item.rank,
+      })),
+    );
+    assert.deepEqual(
+      dailySummaryReport?.businessTrends,
+      ownerPageOne?.businessTrends,
+    );
+
     const ownerPageTwo = await getGroupReports({
       userId: owner.id,
       groupId: group.id,
@@ -357,6 +400,16 @@ test("Group Reports enforces live scope, event filters, and database pagination"
       null,
     );
   } finally {
+    if (businessIds.length) {
+      await prisma.analyticsDailyStoreSummary.deleteMany({
+        where: { businessId: { in: businessIds } },
+      });
+    }
+    if (analyticsRunIds.length) {
+      await prisma.analyticsRefreshRun.deleteMany({
+        where: { id: { in: analyticsRunIds } },
+      });
+    }
     if (businessIds.length) {
       await prisma.paymentRefund.deleteMany({
         where: { businessId: { in: businessIds } },

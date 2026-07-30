@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import {
+  businessGroupAccountSchema,
+  businessGroupAccountUpdateSchema,
   businessGroupSchema,
   businessGroupUserSchema,
   uniqueIds,
@@ -44,6 +46,85 @@ test("group owners use all-business scope without selected businesses", () => {
 
 test("group business selection removes duplicate IDs before persistence", () => {
   assert.deepEqual(uniqueIds(["business-a", "business-b", "business-a"]), ["business-a", "business-b"]);
+});
+
+test("group-only owner account requires matching login credentials", () => {
+  const result = businessGroupAccountSchema.safeParse({
+    groupId: "0c5e9272-58dc-4c34-9665-1f5e88506772",
+    name: "Oscar Group Owner",
+    email: "OWNER@EXAMPLE.TEST",
+    password: "temporary-password",
+    confirmPassword: "temporary-password",
+    role: "GROUP_OWNER",
+    businessIds: [],
+  });
+
+  assert.equal(result.success, true);
+  if (result.success) assert.equal(result.data.email, "owner@example.test");
+});
+
+test("group-only account rejects mismatched passwords", () => {
+  const result = businessGroupAccountSchema.safeParse({
+    groupId: "0c5e9272-58dc-4c34-9665-1f5e88506772",
+    name: "Oscar Group Owner",
+    email: "owner@example.test",
+    password: "temporary-password",
+    confirmPassword: "different-password",
+    role: "GROUP_OWNER",
+    businessIds: [],
+  });
+
+  assert.equal(result.success, false);
+});
+
+test("group-only account update allows profile changes without resetting password", () => {
+  const result = businessGroupAccountUpdateSchema.safeParse({
+    groupId: "0c5e9272-58dc-4c34-9665-1f5e88506772",
+    groupUserId: "e381b9f4-f42b-4d38-b631-28ab253c55e7",
+    name: "Oscar Group Owner",
+    email: "OWNER@EXAMPLE.TEST",
+    password: "",
+    confirmPassword: "",
+  });
+
+  assert.equal(result.success, true);
+  if (result.success) assert.equal(result.data.email, "owner@example.test");
+});
+
+test("group-only account update validates an optional new password", () => {
+  const tooShort = businessGroupAccountUpdateSchema.safeParse({
+    groupId: "0c5e9272-58dc-4c34-9665-1f5e88506772",
+    groupUserId: "e381b9f4-f42b-4d38-b631-28ab253c55e7",
+    name: "Oscar Group Owner",
+    email: "owner@example.test",
+    password: "short",
+    confirmPassword: "short",
+  });
+  const mismatched = businessGroupAccountUpdateSchema.safeParse({
+    groupId: "0c5e9272-58dc-4c34-9665-1f5e88506772",
+    groupUserId: "e381b9f4-f42b-4d38-b631-28ab253c55e7",
+    name: "Oscar Group Owner",
+    email: "owner@example.test",
+    password: "new-password",
+    confirmPassword: "different-password",
+  });
+
+  assert.equal(tooShort.success, false);
+  assert.equal(mismatched.success, false);
+});
+
+test("group-only manager account requires selected businesses", () => {
+  const result = businessGroupAccountSchema.safeParse({
+    groupId: "0c5e9272-58dc-4c34-9665-1f5e88506772",
+    name: "Oscar Group Manager",
+    email: "manager@example.test",
+    password: "temporary-password",
+    confirmPassword: "temporary-password",
+    role: "GROUP_MANAGER",
+    businessIds: [],
+  });
+
+  assert.equal(result.success, false);
 });
 
 test("expected group conflicts become structured action errors", () => {

@@ -18,8 +18,10 @@ type CashierSalesPanelProps = {
   branchId: string;
   branches: CashierBranchOption[];
   catalogDiscounts: CatalogDiscountOption[];
+  hasCatalogItems: boolean;
   hasOpenShift: boolean;
   initialCatalog: CashierCatalogResult;
+  initialCatalogType: "package" | "product" | "service";
   initialSale?: CashierInitialSale | null;
   staffOptions: CashierStaffOption[];
   taxSettings: TaxDisplaySettings;
@@ -37,20 +39,22 @@ export function CashierSalesPanel({
   branchId,
   branches,
   catalogDiscounts,
+  hasCatalogItems,
   hasOpenShift,
   initialCatalog,
+  initialCatalogType,
   initialSale = null,
   staffOptions,
   taxSettings,
   loyaltySettings,
 }: CashierSalesPanelProps) {
-  if (!initialCatalog.total && !initialSale?.lines.length) {
+  if (!hasCatalogItems && !initialSale?.lines.length) {
     return (
       <div className="cashier-empty-state">
         <span aria-hidden="true" className="cashier-empty-icon">+</span>
         <div>
           <h3>No sale items yet</h3>
-          <p>Create an active product or package before starting a sale.</p>
+          <p>Create an active service, product, or package before starting a sale.</p>
           <div className="cashier-empty-actions">
             <Link className="button-link" href="/packages/new">Create package</Link>
             <Link className="button-link secondary" href="/products?type=create">Create product</Link>
@@ -69,6 +73,7 @@ export function CashierSalesPanel({
       catalogDiscounts={catalogDiscounts}
       hasOpenShift={hasOpenShift}
       initialCatalog={initialCatalog}
+      initialCatalogType={initialCatalogType}
       initialSale={initialSale}
       staffOptions={staffOptions}
       taxSettings={taxSettings}

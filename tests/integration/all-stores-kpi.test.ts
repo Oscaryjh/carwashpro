@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { PrismaClient } from "@prisma/client";
 import { getAllStoresKpiReport } from "../../src/lib/business-groups/all-stores-kpi";
+import { refreshDailyStoreSummaries } from "../../src/lib/analytics/daily-store-summary";
 
 const prisma = new PrismaClient();
 
@@ -12,6 +13,7 @@ test("All Stores KPI uses live scope, canonical business days, and isolated invo
   const businessIds: string[] = [];
   const userIds: string[] = [];
   const groupIds: string[] = [];
+  const analyticsRunIds: string[] = [];
 
   try {
     const [salon, auto, scopedThird, outside] = await Promise.all([
@@ -63,10 +65,10 @@ test("All Stores KPI uses live scope, canonical business days, and isolated invo
     groupIds.push(group.id, outsideGroup.id);
     await prisma.businessGroupMember.createMany({
       data: [
-        { groupId: group.id, businessId: salon.id },
-        { groupId: group.id, businessId: auto.id },
-        { groupId: group.id, businessId: scopedThird.id },
-        { groupId: outsideGroup.id, businessId: outside.id },
+        { groupId: group.id, businessId: salon.id, joinedAt: new Date("2026-01-01T00:00:00.000Z") },
+        { groupId: group.id, businessId: auto.id, joinedAt: new Date("2026-01-01T00:00:00.000Z") },
+        { groupId: group.id, businessId: scopedThird.id, joinedAt: new Date("2026-01-01T00:00:00.000Z") },
+        { groupId: outsideGroup.id, businessId: outside.id, joinedAt: new Date("2026-01-01T00:00:00.000Z") },
       ],
     });
 
@@ -210,6 +212,57 @@ test("All Stores KPI uses live scope, canonical business days, and isolated invo
     assert.equal(ownerReport?.current.transactionCount, 2);
     assert.equal(ownerReport?.current.averageTransactionValueCents, 13_250);
     assert.equal(ownerReport?.previous.netSalesCents, 5_000);
+    assert.equal(ownerReport?.dataSource, "RAW");
+
+    const analyticsRun = await refreshDailyStoreSummaries(
+      {
+        businessIds: [salon.id, auto.id, scopedThird.id],
+        fromDate: "2026-06-30",
+        toDate: "2026-07-01",
+        trigger: "BACKFILL",
+      },
+      prisma,
+    );
+    analyticsRunIds.push(analyticsRun.runId);
+    const summaryReport = await getAllStoresKpiReport(
+      {
+        userId: owner.id,
+        groupId: group.id,
+        activeBusinessId: salon.id,
+        range: "custom",
+        from: "2026-07-01",
+        to: "2026-07-01",
+      },
+      prisma,
+      { analyticsReadMode: "PRIMARY" },
+    );
+    assert.equal(summaryReport?.dataSource, "DAILY_SUMMARY");
+    assert.equal(summaryReport?.analyticsFallbackReason, null);
+    assert.deepEqual(summaryReport?.current, ownerReport?.current);
+    assert.deepEqual(summaryReport?.previous, ownerReport?.previous);
+
+    await prisma.payment.update({
+      where: { id: cashPayment.id },
+      data: { reference: "updated-after-summary" },
+    });
+    const staleFallbackReport = await getAllStoresKpiReport(
+      {
+        userId: owner.id,
+        groupId: group.id,
+        activeBusinessId: salon.id,
+        range: "custom",
+        from: "2026-07-01",
+        to: "2026-07-01",
+      },
+      prisma,
+      { analyticsReadMode: "PRIMARY" },
+    );
+    assert.equal(staleFallbackReport?.dataSource, "RAW");
+    assert.equal(
+      staleFallbackReport?.analyticsFallbackReason,
+      "STALE_SUMMARIES",
+    );
+    assert.deepEqual(staleFallbackReport?.current, ownerReport?.current);
     assert.equal(
       ownerReport?.businesses.some(
         (business) => business.businessId === outside.id,
@@ -262,6 +315,14 @@ test("All Stores KPI uses live scope, canonical business days, and isolated invo
 
     assert.ok(packagePayment.id);
   } finally {
+    if (businessIds.length) {
+      await prisma.analyticsDailyStoreSummary.deleteMany({
+        where: { businessId: { in: businessIds } },
+      });
+    }
+    await prisma.analyticsRefreshRun.deleteMany({
+      where: { id: { in: analyticsRunIds } },
+    });
     if (businessIds.length) {
       await prisma.paymentRefund.deleteMany({
         where: { businessId: { in: businessIds } },

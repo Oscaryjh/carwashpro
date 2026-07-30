@@ -13,7 +13,7 @@ export function buildGroupReportExportRows(report: GroupReportsResult) {
     ["Store filter", report.filters.storeId ?? "All authorized stores"],
     ["Gross sales", centsValue(summary.grossSalesCents)],
     ["Net sales", centsValue(summary.netSalesCents)],
-    ["Payments collected", centsValue(summary.paymentsCollectedCents)],
+    ["Gross collections", centsValue(summary.paymentsCollectedCents)],
     ["Refunds", centsValue(summary.refundsCents)],
     ["Transactions", summary.transactionCount],
     [
@@ -44,15 +44,56 @@ export function buildGroupReportExportRows(report: GroupReportsResult) {
 }
 
 export function buildGroupReportCsv(report: GroupReportsResult) {
-  const rows = buildGroupReportExportRows(report);
+  return buildTabularCsv(buildGroupReportExportRows(report));
+}
+
+export function buildGroupReportXlsx(report: GroupReportsResult) {
+  return buildTabularXlsx(buildGroupReportExportRows(report), "Group Report");
+}
+
+export function buildGroupReportPdf(report: GroupReportsResult) {
+  const summaryLines = [
+    `GROUP REPORT - ${report.groupName}`,
+    `Gross sales: ${money(report.summary.grossSalesCents)}`,
+    `Net sales: ${money(report.summary.netSalesCents)}`,
+    `Gross collections: ${money(report.summary.paymentsCollectedCents)}`,
+    `Refunds: ${money(report.summary.refundsCents)}`,
+    `Transactions: ${report.summary.transactionCount}`,
+    "",
+    "Invoice | Store | Business date | Net | Gross collected | Refund | Status",
+  ];
+  const transactionLines = report.rows.map(
+    (row) =>
+      `${row.invoiceNumber} | ${row.businessName} | ${row.businessDate} | ${money(row.netInvoiceAmountCents)} | ${money(row.paidAmountCents)} | ${money(row.refundAmountCents)} | ${row.invoiceStatus}`,
+  );
+  return buildTextPdf([...summaryLines, ...transactionLines]);
+}
+
+export function groupReportExportFileName(
+  report: GroupReportsResult,
+  extension: GroupReportExportFormat,
+) {
+  const safeGroup =
+    report.groupName.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-|-$/g, "") ||
+    "group";
+  return `${safeGroup.slice(0, 60)}-report.${extension}`;
+}
+
+export function buildTabularCsv(
+  rows: Array<Array<string | number>>,
+) {
   return Buffer.from(
     `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}`,
     "utf8",
   );
 }
 
-export function buildGroupReportXlsx(report: GroupReportsResult) {
-  const rows = buildGroupReportExportRows(report);
+export function buildTabularXlsx(
+  rows: Array<Array<string | number>>,
+  sheetName: string,
+) {
+  const safeSheetName =
+    sheetName.replace(/[\\/?*[\]:]/g, " ").trim().slice(0, 31) || "Report";
   const entries = [
     {
       name: "[Content_Types].xml",
@@ -78,7 +119,7 @@ export function buildGroupReportXlsx(report: GroupReportsResult) {
       content:
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
         '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-        '<sheets><sheet name="Group Report" sheetId="1" r:id="rId1"/></sheets>' +
+        `<sheets><sheet name="${xmlEscape(safeSheetName)}" sheetId="1" r:id="rId1"/></sheets>` +
         "</workbook>",
     },
     {
@@ -95,34 +136,6 @@ export function buildGroupReportXlsx(report: GroupReportsResult) {
     },
   ];
   return zipStored(entries);
-}
-
-export function buildGroupReportPdf(report: GroupReportsResult) {
-  const summaryLines = [
-    `GROUP REPORT - ${report.groupName}`,
-    `Gross sales: ${money(report.summary.grossSalesCents)}`,
-    `Net sales: ${money(report.summary.netSalesCents)}`,
-    `Payments collected: ${money(report.summary.paymentsCollectedCents)}`,
-    `Refunds: ${money(report.summary.refundsCents)}`,
-    `Transactions: ${report.summary.transactionCount}`,
-    "",
-    "Invoice | Store | Business date | Net | Collected | Refund | Status",
-  ];
-  const transactionLines = report.rows.map(
-    (row) =>
-      `${row.invoiceNumber} | ${row.businessName} | ${row.businessDate} | ${money(row.netInvoiceAmountCents)} | ${money(row.paidAmountCents)} | ${money(row.refundAmountCents)} | ${row.invoiceStatus}`,
-  );
-  return buildTextPdf([...summaryLines, ...transactionLines]);
-}
-
-export function groupReportExportFileName(
-  report: GroupReportsResult,
-  extension: GroupReportExportFormat,
-) {
-  const safeGroup =
-    report.groupName.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-|-$/g, "") ||
-    "group";
-  return `${safeGroup.slice(0, 60)}-report.${extension}`;
 }
 
 function invoiceExportRow(row: GroupReportInvoiceRow) {
@@ -247,7 +260,7 @@ function crc32(data: Buffer) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function buildTextPdf(lines: string[]) {
+export function buildTextPdf(lines: string[]) {
   const chunks = chunk(lines.flatMap((line) => wrap(line, 100)), 44);
   const objects: Buffer[] = [];
   const pageObjectNumbers = chunks.map((_, index) => 4 + index * 2);

@@ -29,6 +29,10 @@ import {
   calculateAppointmentDurationMinutes,
   getAppointmentSlotCount,
 } from "@/lib/appointments/scheduling";
+import {
+  getServicesForStaff,
+  reconcileServicesForStaff,
+} from "@/lib/appointments/staff-services";
 
 export type AppointmentCalendarItem = {
   id: string;
@@ -308,25 +312,31 @@ export function AppointmentCalendar({
     .filter((service): service is (typeof services)[number] => Boolean(service));
   const selectedProducts = countSelectedItems(selectedProductIds, products);
   const selectedPackages = countSelectedItems(selectedPackageIds, packages);
-  const newAppointmentStaffMembers = filterStaffForServices(
-    staffMembers,
-    selectedServiceIds,
-    services,
-  );
+  const newAppointmentStaffMembers = isSalonBusiness
+    ? staffMembers
+    : filterStaffForServices(staffMembers, selectedServiceIds, services);
   const editAppointmentStaffMembers = filterStaffForServices(
     staffMembers,
     editAppointmentServiceIds,
     services,
   );
-  const recentServices = getRecentServices(services, recentServiceIds, 5);
-  const serviceCategories = [RECENT_SERVICES_CATEGORY, ...getServiceCategories(services)];
+  const selectableServices = isSalonBusiness
+    ? getServicesForStaff(services, newAppointmentStaffId)
+    : services;
+  const recentServices = getRecentServices(selectableServices, recentServiceIds, 5);
+  const serviceCategories = [
+    RECENT_SERVICES_CATEGORY,
+    ...getServiceCategories(selectableServices),
+  ];
   const visibleServiceCategory = activeServiceCategory || serviceCategories[0] || "";
   const visibleServices =
     visibleServiceCategory === RECENT_SERVICES_CATEGORY
       ? recentServices
       : visibleServiceCategory
-        ? services.filter((service) => service.category === visibleServiceCategory)
-        : services;
+        ? selectableServices.filter(
+            (service) => service.category === visibleServiceCategory,
+          )
+        : selectableServices;
   const itemCategories = activeItemType === "product"
     ? getItemCategories(products)
     : activeItemType === "package"
@@ -1352,6 +1362,48 @@ export function AppointmentCalendar({
                   {selectedPackageIds.map((packageId, index) => (
                     <input key={`${packageId}-${index}`} name="packageIds" type="hidden" value={packageId} />
                   ))}
+                  <label>
+                    <span>
+                      {newAppointmentVisitType === "WALK_IN" ? "Staff required" : "Staff optional"}
+                    </span>
+                    <select
+                      name="assignedStaffId"
+                      onChange={(event) => {
+                        const nextStaffId = event.target.value;
+
+                        if (isSalonBusiness) {
+                          const { removedCount, retainedServiceIds } =
+                            reconcileServicesForStaff(
+                              selectedServiceIds,
+                              services,
+                              nextStaffId,
+                            );
+                          setSelectedServiceIds(retainedServiceIds);
+                          setNewAppointmentError(
+                            removedCount
+                              ? `${removedCount} unavailable ${
+                                  removedCount === 1 ? "service was" : "services were"
+                                } removed for this staff member.`
+                              : "",
+                          );
+                        }
+
+                        setNewAppointmentStaffId(nextStaffId);
+                      }}
+                      required={newAppointmentVisitType === "WALK_IN"}
+                      value={newAppointmentStaffId}
+                    >
+                      <option value="">
+                        {isSalonBusiness ? "Select staff" : "Unassigned"}
+                      </option>
+                      {newAppointmentStaffMembers.map((staff) => (
+                        <option key={staff.id} value={staff.id}>
+                          {staff.name}
+                          {staff.role === "BUSINESS_OWNER" ? " (Owner)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <div className="appointment-service-summary">
                     {selectedServices.map((service) => (
                       <div className="appointment-service-summary-item" key={service.id}>
@@ -1384,6 +1436,7 @@ export function AppointmentCalendar({
                     ))}
                     <button
                       className="appointment-service-trigger"
+                      disabled={isSalonBusiness && !newAppointmentStaffId}
                       onClick={() => {
                         setActiveServiceCategory(
                           selectedServices[0]?.category ?? RECENT_SERVICES_CATEGORY,
@@ -1394,28 +1447,13 @@ export function AppointmentCalendar({
                       type="button"
                     >
                       <span aria-hidden="true" className="appointment-service-icon">+</span>
-                      <strong>Add service, product or package</strong>
+                      <strong>
+                        {isSalonBusiness && !newAppointmentStaffId
+                          ? "Select staff before adding a service"
+                          : "Add service, product or package"}
+                      </strong>
                     </button>
                   </div>
-                  <label>
-                    <span>
-                      {newAppointmentVisitType === "WALK_IN" ? "Staff required" : "Staff optional"}
-                    </span>
-                    <select
-                      name="assignedStaffId"
-                      onChange={(event) => setNewAppointmentStaffId(event.target.value)}
-                      required={newAppointmentVisitType === "WALK_IN"}
-                      value={newAppointmentStaffId}
-                    >
-                      <option value="">Unassigned</option>
-                      {newAppointmentStaffMembers.map((staff) => (
-                        <option key={staff.id} value={staff.id}>
-                          {staff.name}
-                          {staff.role === "BUSINESS_OWNER" ? " (Owner)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                 </div>
 
                 <div className="appointment-create-actions">

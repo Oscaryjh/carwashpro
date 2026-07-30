@@ -30,6 +30,7 @@ export type DailyClosingInvoice = {
   loyaltyDiscountCents: number;
   packageVoucherCents: number;
   status: "UNPAID" | "PARTIAL" | "PAID" | "REFUNDED";
+  tipCents: number;
   totalCents: number;
 };
 

@@ -19,6 +19,7 @@ export type NavItem = {
 type AppShellFrameProps = {
   brandName: string;
   logoUrl?: string | null;
+  brandLogoControl?: ReactNode;
   homeHref: string;
   navItems: NavItem[];
   businessSwitcher?: ReactNode;
@@ -30,6 +31,7 @@ const SIDEBAR_STORAGE_KEY = "washflow-sidebar-collapsed";
 export function AppShellFrame({
   brandName,
   logoUrl,
+  brandLogoControl,
   homeHref,
   navItems,
   businessSwitcher,
@@ -114,17 +116,26 @@ export function AppShellFrame({
     <div className={`app-shell${isCollapsed ? " sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="brand-row">
-          <Link href={homeHref} className="brand" title={brandName}>
-            {logoUrl && logoUrl !== failedLogoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="" onError={() => setFailedLogoUrl(logoUrl)} />
-            ) : (
-              <span aria-hidden="true" className="brand-fallback">
-                {brandInitials(brandName)}
-              </span>
-            )}
-            <span className="brand-name">{brandName}</span>
-          </Link>
+          {brandLogoControl ? (
+            <div className="brand brand-with-control" title={brandName}>
+              {brandLogoControl}
+              <Link className="brand-name-link" href={homeHref}>
+                <span className="brand-name">{brandName}</span>
+              </Link>
+            </div>
+          ) : (
+            <Link href={homeHref} className="brand" title={brandName}>
+              {logoUrl && logoUrl !== failedLogoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt="" onError={() => setFailedLogoUrl(logoUrl)} />
+              ) : (
+                <span aria-hidden="true" className="brand-fallback">
+                  {brandInitials(brandName)}
+                </span>
+              )}
+              <span className="brand-name">{brandName}</span>
+            </Link>
+          )}
         </div>
         <nav>
           {navItems.map((item) => {

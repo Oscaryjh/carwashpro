@@ -58,6 +58,19 @@ enum DailyClosingStatus {
   CLOSED
 }
 
+enum AnalyticsRefreshStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum AnalyticsRefreshTrigger {
+  MANUAL
+  BACKFILL
+  LATE_EVENT
+  SCHEDULED
+}
+
 enum UserRole {
   PLATFORM_ADMIN
   BUSINESS_OWNER
@@ -410,6 +423,8 @@ model Business {
   catalogDiscounts           CatalogDiscount[]
   staffRoleProfiles          StaffRoleProfile[]
   staffLevels                StaffLevel[]
+  analyticsDailySummaries    AnalyticsDailyStoreSummary[]
+  analyticsPaymentSummaries  AnalyticsDailyPaymentMethodSummary[]
   dailyClosingSnapshots      DailyClosingSnapshot[]
   closingWhatsAppSetting        ClosingWhatsAppSetting?
   closingWhatsAppBranchSettings ClosingWhatsAppBranchSetting[]
@@ -525,6 +540,7 @@ model BusinessGroup {
   id        String              @id @default(uuid()) @db.Uuid
   name      String
   code      String              @unique
+  logoUrl   String?             @map("logo_url")
   status    BusinessGroupStatus @default(ACTIVE)
   createdAt DateTime            @default(now()) @map("created_at")
   updatedAt DateTime            @updatedAt @map("updated_at")
@@ -554,6 +570,7 @@ model BusinessGroupMember {
 
   @@index([groupId, status])
   @@index([businessId, status])
+  @@index([groupId, businessId, joinedAt, removedAt])
   @@map("business_group_members")
 }
 
@@ -1383,6 +1400,8 @@ model Payment {
   @@index([cashierId])
   @@index([shiftId])
   @@index([status])
+  @@index([businessId, paidAt, status, method], map: "payments_business_paid_status_method_idx")
+  @@index([businessId, updatedAt], map: "payments_business_updated_idx")
   @@index([paidAt])
   @@map("payments")
 }
@@ -1416,6 +1435,7 @@ model PaymentRefund {
   creditNote          CreditNote?
 
   @@index([businessId, refundedAt])
+  @@index([businessId, updatedAt], map: "payment_refunds_business_updated_idx")
   @@index([branchId])
   @@index([paymentId])
   @@index([workOrderId])
@@ -1619,6 +1639,106 @@ model DailyClosingSnapshot {
   @@map("daily_closing_snapshots")
 }
 
+
+model AnalyticsRefreshRun {
+  id                           String                  @id @default(uuid()) @db.Uuid
+  status                       AnalyticsRefreshStatus  @default(RUNNING)
+  trigger                      AnalyticsRefreshTrigger
+  requestedFromDate            DateTime                @map("requested_from_date") @db.Date
+  requestedToDate              DateTime                @map("requested_to_date") @db.Date
+  metricDefinitionVersion      Int                     @map("metric_definition_version")
+  businessDayDefinitionVersion Int                     @map("business_day_definition_version")
+  businessCount                Int                     @default(0) @map("business_count")
+  summaryCount                 Int                     @default(0) @map("summary_count")
+  sourceWatermark              DateTime?               @map("source_watermark")
+  startedAt                    DateTime                @default(now()) @map("started_at")
+  completedAt                  DateTime?               @map("completed_at")
+  errorMessage                 String?                 @map("error_message") @db.Text
+  createdAt                    DateTime                @default(now()) @map("created_at")
+  updatedAt                    DateTime                @updatedAt @map("updated_at")
+
+  summaries AnalyticsDailyStoreSummary[]
+
+  @@index([status, startedAt], map: "analytics_refresh_runs_status_started_idx")
+  @@index([trigger, startedAt], map: "analytics_refresh_runs_trigger_started_idx")
+  @@map("analytics_refresh_runs")
+}
+
+model AnalyticsRefreshCheckpoint {
+  key                  String   @id
+  processedThrough     DateTime @map("processed_through")
+  leaseOwner           String?  @map("lease_owner")
+  leaseExpiresAt       DateTime? @map("lease_expires_at")
+  lastSweepStartedAt   DateTime? @map("last_sweep_started_at")
+  lastSweepCompletedAt DateTime? @map("last_sweep_completed_at")
+  lastCoverageAt       DateTime? @map("last_coverage_at")
+  lastRunCount         Int      @default(0) @map("last_run_count")
+  lastErrorMessage     String?  @map("last_error_message") @db.Text
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@index([leaseExpiresAt], map: "analytics_refresh_checkpoints_lease_expires_idx")
+  @@map("analytics_refresh_checkpoints")
+}
+
+model AnalyticsDailyStoreSummary {
+  id                           String    @id @default(uuid()) @db.Uuid
+  businessId                   String    @map("business_id") @db.Uuid
+  refreshRunId                 String?   @map("refresh_run_id") @db.Uuid
+  businessDate                 DateTime  @map("business_date") @db.Date
+  timezone                     String
+  businessDayCutoffTime        String    @map("business_day_cutoff_time")
+  businessDayDefinitionVersion Int       @map("business_day_definition_version")
+  metricDefinitionVersion      Int       @map("metric_definition_version")
+  grossSalesCents              Int       @map("gross_sales_cents")
+  discountsCents               Int       @map("discounts_cents")
+  netSalesCents                Int       @map("net_sales_cents")
+  grossCollectionsCents        Int       @map("gross_collections_cents")
+  netCollectionsCents          Int       @map("net_collections_cents")
+  refundsCents                 Int       @map("refunds_cents")
+  outstandingCents             Int       @map("outstanding_cents")
+  tipsCents                    Int       @map("tips_cents")
+  packageVoucherCents          Int       @map("package_voucher_cents")
+  transactionCount             Int       @map("transaction_count")
+  averageTransactionValueCents Int?      @map("average_transaction_value_cents")
+  sourceFrom                   DateTime  @map("source_from")
+  sourceToExclusive            DateTime  @map("source_to_exclusive")
+  sourceWatermark              DateTime? @map("source_watermark")
+  computedAt                   DateTime  @map("computed_at")
+  createdAt                    DateTime  @default(now()) @map("created_at")
+  updatedAt                    DateTime  @updatedAt @map("updated_at")
+
+  business       Business                              @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  refreshRun     AnalyticsRefreshRun?                  @relation(fields: [refreshRunId], references: [id], onDelete: SetNull)
+  paymentMethods AnalyticsDailyPaymentMethodSummary[]
+
+  @@unique([businessId, businessDate, metricDefinitionVersion, businessDayDefinitionVersion], map: "analytics_daily_store_summary_version_key")
+  @@index([businessId, businessDate], map: "analytics_daily_store_summary_business_date_idx")
+  @@index([businessDate, metricDefinitionVersion, businessDayDefinitionVersion], map: "analytics_daily_store_summary_date_version_idx")
+  @@index([refreshRunId], map: "analytics_daily_store_summary_refresh_run_idx")
+  @@map("analytics_daily_store_summaries")
+}
+
+model AnalyticsDailyPaymentMethodSummary {
+  id                      String        @id @default(uuid()) @db.Uuid
+  dailySummaryId          String        @map("daily_summary_id") @db.Uuid
+  businessId              String        @map("business_id") @db.Uuid
+  businessDate            DateTime      @map("business_date") @db.Date
+  method                  PaymentMethod
+  metricDefinitionVersion Int           @map("metric_definition_version")
+  grossCollectionsCents   Int           @map("gross_collections_cents")
+  refundsCents            Int           @map("refunds_cents")
+  netCollectionsCents     Int           @map("net_collections_cents")
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @updatedAt @map("updated_at")
+
+  dailySummary AnalyticsDailyStoreSummary @relation(fields: [dailySummaryId], references: [id], onDelete: Cascade)
+  business     Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@unique([dailySummaryId, method], map: "analytics_daily_payment_method_key")
+  @@index([businessId, businessDate, method], map: "analytics_daily_payment_business_date_method_idx")
+  @@map("analytics_daily_payment_method_summaries")
+}
 model ClosingWhatsAppSetting {
   id                   String   @id @default(uuid()) @db.Uuid
   businessId           String   @unique @map("business_id") @db.Uuid
@@ -1762,6 +1882,8 @@ model Invoice {
 
   @@unique([businessId, invoiceNumber])
   @@index([businessId])
+  @@index([businessId, issuedAt, status], map: "invoices_business_issued_status_idx")
+  @@index([businessId, updatedAt], map: "invoices_business_updated_idx")
   @@index([branchId])
   @@index([customerId])
   @@index([appointmentId])

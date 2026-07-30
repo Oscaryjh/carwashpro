@@ -1,5 +1,4 @@
 import { formatDateValue } from "@/lib/business-time";
-import { DAILY_CLOSING_TIME_ZONE } from "./range";
 import type { DailyClosingIndustry, DailyClosingReport } from "./types";
 
 export function formatMoneyFromCents(cents: number) {
@@ -7,11 +6,11 @@ export function formatMoneyFromCents(cents: number) {
   return `${sign}RM${(Math.abs(cents) / 100).toFixed(2)}`;
 }
 
-export function formatDailyClosingGeneratedAt(value: Date) {
+export function formatDailyClosingGeneratedAt(value: Date, timeZone: string) {
   return new Intl.DateTimeFormat("en-MY", {
     dateStyle: "medium",
     timeStyle: "short",
-    timeZone: DAILY_CLOSING_TIME_ZONE,
+    timeZone,
   }).format(value);
 }
 
@@ -60,7 +59,7 @@ export function buildDailyClosingWhatsAppPreview(input: {
     `Discounts: -${formatMoneyFromCents(report.financial.discountsCents)}`,
     `Refunds: -${formatMoneyFromCents(report.financial.refundsCents)}`,
     `Net sales: ${formatMoneyFromCents(report.financial.netSalesCents)}`,
-    `Collected: ${formatMoneyFromCents(report.financial.collectedCents)}`,
+    `Net collections: ${formatMoneyFromCents(report.financial.collectedCents)}`,
     `Outstanding: ${formatMoneyFromCents(report.financial.outstandingCents)}`,
     "",
     "*Payment methods*",

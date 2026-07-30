@@ -190,10 +190,12 @@ test("uses five bounded queries and keeps payment/refund events in their own bus
       status: "PARTIAL",
     },
     database as never,
-    { resolveScope: async () => scope },
+    { analyticsReadMode: "PRIMARY", resolveScope: async () => scope },
   );
 
   assert.equal(calls.length, 5);
+  assert.equal(result?.summaryDataSource, "RAW");
+  assert.equal(result?.analyticsFallbackReason, "UNSUPPORTED_FILTERS");
   assert.equal(result?.summary.grossSalesCents, 10_500);
   assert.equal(result?.summary.netSalesCents, 8_500);
   assert.equal(result?.summary.paymentsCollectedCents, 5_000);
@@ -220,6 +222,20 @@ test("uses five bounded queries and keeps payment/refund events in their own bus
       { rank: 2, businessId: auto.id, netSalesCents: 0 },
     ],
   );
+  assert.deepEqual(
+    result?.businessTrends.map((item) => ({
+      businessId: item.businessId,
+      coverage: item.coverage,
+      points: item.points.map((point) => ({
+        businessDate: point.businessDate,
+        netSalesCents: point.netSalesCents,
+      })),
+    })),
+    [
+      { businessId: salon.id, coverage: "FULL", points: [{ businessDate: "2026-07-01", netSalesCents: 8_500 }] },
+      { businessId: auto.id, coverage: "FULL", points: [{ businessDate: "2026-07-01", netSalesCents: 0 }] },
+    ],
+  );
   assert.equal(result?.rows.length, 1);
   assert.equal(result?.rows[0].paidAmountCents, 5_000);
   assert.equal(result?.rows[0].refundAmountCents, 500);
@@ -239,6 +255,147 @@ test("uses five bounded queries and keeps payment/refund events in their own bus
   assert.equal(paged.take, 25);
   assert.equal(paged.skip, 0);
   assert.deepEqual(paged.orderBy, [{ issuedAt: "desc" }, { id: "desc" }]);
+});
+
+test("primary mode reads summary, trend, and store ranking from validated daily rows", async () => {
+  const computedAt = new Date("2026-07-03T00:00:00.000Z");
+  const dailyRows = [
+    dailyRow({
+      businessId: salon.id,
+      businessDate: "2026-06-30",
+      timezone: salon.timezone,
+      businessDayCutoffTime: salon.businessDayCutoffTime,
+      sourceFrom: "2026-06-29T18:00:00.000Z",
+      sourceToExclusive: "2026-06-30T18:00:00.000Z",
+      computedAt,
+    }),
+    dailyRow({
+      businessId: salon.id,
+      businessDate: "2026-07-01",
+      timezone: salon.timezone,
+      businessDayCutoffTime: salon.businessDayCutoffTime,
+      sourceFrom: "2026-06-30T18:00:00.000Z",
+      sourceToExclusive: "2026-07-01T18:00:00.000Z",
+      computedAt,
+      grossSalesCents: 10_000,
+      netSalesCents: 9_000,
+      grossCollectionsCents: 8_000,
+      refundsCents: 1_000,
+      transactionCount: 2,
+      averageTransactionValueCents: 4_500,
+    }),
+    dailyRow({
+      businessId: auto.id,
+      businessDate: "2026-06-30",
+      timezone: auto.timezone,
+      businessDayCutoffTime: auto.businessDayCutoffTime,
+      sourceFrom: "2026-06-29T19:00:00.000Z",
+      sourceToExclusive: "2026-06-30T19:00:00.000Z",
+      computedAt,
+    }),
+    dailyRow({
+      businessId: auto.id,
+      businessDate: "2026-07-01",
+      timezone: auto.timezone,
+      businessDayCutoffTime: auto.businessDayCutoffTime,
+      sourceFrom: "2026-06-30T19:00:00.000Z",
+      sourceToExclusive: "2026-07-01T19:00:00.000Z",
+      computedAt,
+      grossSalesCents: 5_000,
+      netSalesCents: 5_000,
+      grossCollectionsCents: 5_000,
+      transactionCount: 1,
+      averageTransactionValueCents: 5_000,
+    }),
+  ];
+  const invoiceSelects: Array<Record<string, unknown>> = [];
+  const database = {
+    analyticsDailyStoreSummary: {
+      findMany: async () => dailyRows,
+    },
+    invoice: {
+      findMany: async (args: { select: Record<string, unknown> }) => {
+        invoiceSelects.push(args.select);
+        return [];
+      },
+      count: async () => 0,
+    },
+    payment: {
+      findMany: async () => [],
+    },
+    paymentRefund: {
+      findMany: async () => [],
+    },
+  };
+
+  const result = await getGroupReports(
+    {
+      userId: "user",
+      groupId: scope.groupId,
+      activeBusinessId: salon.id,
+      range: "custom",
+      from: "2026-07-01",
+      to: "2026-07-01",
+    },
+    database as never,
+    {
+      analyticsReadMode: "PRIMARY",
+      resolveScope: async () => scope,
+    },
+  );
+
+  assert.equal(result?.summaryDataSource, "DAILY_SUMMARY");
+  assert.equal(result?.analyticsFallbackReason, null);
+  assert.deepEqual(result?.summary, {
+    grossSalesCents: 15_000,
+    netSalesCents: 14_000,
+    paymentsCollectedCents: 13_000,
+    refundsCents: 1_000,
+    transactionCount: 3,
+    averageTransactionValueCents: 4_667,
+  });
+  assert.deepEqual(result?.trend, [
+    {
+      businessDate: "2026-07-01",
+      grossSalesCents: 15_000,
+      netSalesCents: 14_000,
+      paymentsCollectedCents: 13_000,
+      refundsCents: 1_000,
+      transactionCount: 3,
+      averageTransactionValueCents: 4_667,
+    },
+  ]);
+  assert.deepEqual(
+    result?.businessPerformance.map((business) => ({
+      businessId: business.businessId,
+      rank: business.rank,
+      netSalesCents: business.metrics.netSalesCents,
+    })),
+    [
+      { businessId: salon.id, rank: 1, netSalesCents: 9_000 },
+      { businessId: auto.id, rank: 2, netSalesCents: 5_000 },
+    ],
+  );
+  assert.deepEqual(
+    result?.businessTrends.map((business) => ({
+      businessId: business.businessId,
+      coverage: business.coverage,
+      netSalesCents: business.points[0].netSalesCents,
+    })),
+    [
+      { businessId: salon.id, coverage: "FULL", netSalesCents: 9_000 },
+      { businessId: auto.id, coverage: "FULL", netSalesCents: 5_000 },
+    ],
+  );
+  assert.equal(
+    invoiceSelects.some(
+      (select) =>
+        "amount" in select &&
+        "businessId" in select &&
+        "paidAt" in select,
+    ),
+    false,
+  );
 });
 
 test("ranks service, product, and package lines by value with stable cross-store aggregation", () => {
@@ -448,3 +605,38 @@ test("returns null before any report query when authorization is unavailable", a
   assert.equal(result, null);
   assert.equal(queried, false);
 });
+
+function dailyRow(input: {
+  businessId: string;
+  businessDate: string;
+  timezone: string;
+  businessDayCutoffTime: string;
+  sourceFrom: string;
+  sourceToExclusive: string;
+  computedAt: Date;
+  grossSalesCents?: number;
+  netSalesCents?: number;
+  grossCollectionsCents?: number;
+  refundsCents?: number;
+  transactionCount?: number;
+  averageTransactionValueCents?: number | null;
+}) {
+  return {
+    businessId: input.businessId,
+    businessDate: new Date(`${input.businessDate}T00:00:00.000Z`),
+    timezone: input.timezone,
+    businessDayCutoffTime: input.businessDayCutoffTime,
+    businessDayDefinitionVersion: 1,
+    metricDefinitionVersion: 1,
+    sourceFrom: new Date(input.sourceFrom),
+    sourceToExclusive: new Date(input.sourceToExclusive),
+    computedAt: input.computedAt,
+    grossSalesCents: input.grossSalesCents ?? 0,
+    netSalesCents: input.netSalesCents ?? 0,
+    grossCollectionsCents: input.grossCollectionsCents ?? 0,
+    refundsCents: input.refundsCents ?? 0,
+    transactionCount: input.transactionCount ?? 0,
+    averageTransactionValueCents:
+      input.averageTransactionValueCents ?? null,
+  };
+}

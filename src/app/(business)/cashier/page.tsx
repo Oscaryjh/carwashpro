@@ -7,7 +7,10 @@ import type {
 } from "@/components/cashier-unified-sale-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
-import { getCashierCatalog, RECENT_CATALOG_CATEGORY } from "@/lib/cashier/catalog";
+import {
+  getCashierCatalog,
+  getCashierCatalogAvailability,
+} from "@/lib/cashier/catalog";
 import { prisma } from "@/lib/prisma";
 import { completeCashierSaleAction } from "@/app/(business)/cashier/actions";
 
@@ -129,13 +132,21 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
   const serviceCounts = countIds(serviceIds);
   const productCounts = countIds(requestedAppointment?.productIds ?? []);
   const packageCounts = countIds(requestedAppointment?.packageIds ?? []);
+  const catalogAvailability = cashierBranchId
+    ? await getCashierCatalogAvailability({ branchId: cashierBranchId, businessId })
+    : {
+        hasItems: false,
+        initialType: "service" as const,
+        packageCount: 0,
+        productCount: 0,
+        serviceCount: 0,
+      };
   const [initialCatalog, catalogDiscounts, appointmentServices, appointmentProducts, appointmentPackages, availableStaff] = await Promise.all([
     cashierBranchId
       ? getCashierCatalog({
           branchId: cashierBranchId,
           businessId,
-          category: RECENT_CATALOG_CATEGORY,
-          type: "service",
+          type: catalogAvailability.initialType,
         })
       : Promise.resolve({ categories: [], items: [], page: 1, pageCount: 1, pageSize: 8, total: 0 }),
     prisma.catalogDiscount.findMany({
@@ -302,8 +313,10 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
             maximumDiscount: discount.maximumDiscount == null ? null : Number(discount.maximumDiscount),
             allowLoyaltyStacking: discount.allowLoyaltyStacking,
           }))}
+          hasCatalogItems={catalogAvailability.hasItems}
           hasOpenShift={Boolean(openShift)}
           initialCatalog={initialCatalog}
+          initialCatalogType={catalogAvailability.initialType}
           initialSale={initialSale}
           staffOptions={staffOptions}
           taxSettings={{

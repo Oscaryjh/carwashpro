@@ -1,3 +1,4 @@
+import { calculateFinancialMetrics } from "@/lib/financial-metrics";
 import {
   DAILY_CLOSING_PAYMENT_METHODS,
   type DailyClosingPaymentMethod,
@@ -9,30 +10,33 @@ export function calculateDailyClosingReport(
   source: DailyClosingSourceData,
   fromDate: Date,
 ): DailyClosingReport {
-  const discountsCents = source.invoices.reduce(
-    (sum, invoice) => sum + invoice.discountCents + invoice.loyaltyDiscountCents,
-    0,
-  );
-  const recognizedInvoiceCents = source.invoices.reduce(
-    (sum, invoice) => sum + invoice.totalCents - invoice.packageVoucherCents,
-    0,
-  );
-  const grossSalesCents = recognizedInvoiceCents + discountsCents;
-  const refundsCents = source.refunds.reduce(
-    (sum, refund) => sum + (refund.method === "PACKAGE" ? 0 : refund.amountCents),
-    0,
-  );
-  const collectedCents =
-    source.payments.reduce(
-      (sum, payment) => sum + (payment.method === "PACKAGE" ? 0 : payment.amountCents),
-      0,
-    ) - refundsCents;
-  const outstandingCents = source.invoices.reduce(
-    (sum, invoice) =>
-      sum + (invoice.status === "UNPAID" || invoice.status === "PARTIAL" ? invoice.balanceCents : 0),
-    0,
-  );
-  const netSalesCents = grossSalesCents - discountsCents - refundsCents;
+  const financialMetrics = calculateFinancialMetrics({
+    invoices: source.invoices.map((invoice) => ({
+      balanceCents: invoice.balanceCents,
+      discountCents: invoice.discountCents,
+      loyaltyDiscountCents: invoice.loyaltyDiscountCents,
+      packageVoucherCents: invoice.packageVoucherCents,
+      status: invoice.status,
+      tipCents: invoice.tipCents,
+      totalCents: invoice.totalCents,
+    })),
+    payments: source.payments.map((payment) => ({
+      amountCents: payment.amountCents,
+      isPackage: payment.method === "PACKAGE",
+    })),
+    refunds: source.refunds.map((refund) => ({
+      amountCents: refund.amountCents,
+      isPackage: refund.method === "PACKAGE",
+    })),
+  });
+  const {
+    discountsCents,
+    grossSalesCents,
+    netSalesCents,
+    outstandingCents,
+    refundsCents,
+  } = financialMetrics;
+  const collectedCents = financialMetrics.netCollectionsCents;
 
   const invoiceCounts = {
     paid: source.invoices.filter((invoice) => invoice.status === "PAID").length,

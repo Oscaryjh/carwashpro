@@ -14,12 +14,20 @@ export type AuthorizedGroupBusiness = {
   timezone: string;
   businessDayCutoffTime: string;
   isCurrent: boolean;
+  membershipPeriods?: BusinessGroupMembershipPeriod[];
+};
+
+export type BusinessGroupMembershipPeriod = {
+  joinedAt: Date;
+  removedAt: Date | null;
 };
 
 export type AuthorizedGroupReportingContext = {
   groupId: string;
   groupName: string;
+  groupLogoUrl?: string | null;
   role: BusinessGroupUserRole;
+  reportingBusinesses?: AuthorizedGroupBusiness[];
   canViewAllStores: boolean;
   businesses: AuthorizedGroupBusiness[];
 };
@@ -79,16 +87,17 @@ export async function getAvailableGroupReportingContexts(
         select: {
           id: true,
           name: true,
+          logoUrl: true,
           members: {
-            where: {
-              status: "ACTIVE",
-              business: { status: "active" },
-            },
             orderBy: [
               { business: { name: "asc" } },
               { businessId: "asc" },
+              { joinedAt: "asc" },
             ],
             select: {
+              status: true,
+              joinedAt: true,
+              removedAt: true,
               business: {
                 select: {
                   id: true,
@@ -97,16 +106,14 @@ export async function getAvailableGroupReportingContexts(
                   logoUrl: true,
                   timezone: true,
                   businessDayCutoffTime: true,
+                  status: true,
                 },
               },
             },
           },
         },
       },
-      businessAccesses: {
-        where: { business: { status: "active" } },
-        select: { businessId: true },
-      },
+      businessAccesses: { select: { businessId: true } },
     },
   });
 
@@ -118,17 +125,45 @@ export async function getAvailableGroupReportingContexts(
     const scopedBusinessIds = new Set(
       grant.businessAccesses.map((access) => access.businessId),
     );
-    const businesses = grant.group.members
-      .filter(
-        (member) =>
-          grant.role === "GROUP_OWNER" ||
-          (grant.accessScope === "SELECTED_BUSINESSES" &&
-            scopedBusinessIds.has(member.business.id)),
-      )
-      .map((member) => ({
-        ...member.business,
+    const authorizedMembers = grant.group.members.filter(
+      (member) =>
+        grant.role === "GROUP_OWNER" ||
+        (grant.accessScope === "SELECTED_BUSINESSES" &&
+          scopedBusinessIds.has(member.business.id)),
+    );
+    const reportingByBusiness = new Map<string, AuthorizedGroupBusiness>();
+    for (const member of authorizedMembers) {
+      const existing = reportingByBusiness.get(member.business.id);
+      const membershipPeriods = existing?.membershipPeriods ?? [];
+      membershipPeriods.push({
+        joinedAt: member.joinedAt ?? new Date(0),
+        removedAt: member.removedAt ?? null,
+      });
+      reportingByBusiness.set(member.business.id, {
+        id: member.business.id,
+        name: member.business.name,
+        industryType: member.business.industryType,
+        logoUrl: member.business.logoUrl,
+        timezone: member.business.timezone,
+        businessDayCutoffTime: member.business.businessDayCutoffTime,
         isCurrent: member.business.id === currentBusinessId,
-      }));
+        membershipPeriods,
+      });
+    }
+
+    const currentBusinessIds = new Set(
+      authorizedMembers
+        .filter(
+          (member) =>
+            member.status !== "REMOVED" &&
+            member.business.status !== "inactive",
+        )
+        .map((member) => member.business.id),
+    );
+    const reportingBusinesses = [...reportingByBusiness.values()];
+    const businesses = reportingBusinesses.filter((business) =>
+      currentBusinessIds.has(business.id),
+    );
 
     if (!businesses.length) {
       return [];
@@ -138,9 +173,11 @@ export async function getAvailableGroupReportingContexts(
       {
         groupId: grant.group.id,
         groupName: grant.group.name,
+        groupLogoUrl: grant.group.logoUrl ?? null,
         role: grant.role,
         canViewAllStores: businesses.length >= 2,
         businesses,
+        reportingBusinesses,
       },
     ];
   });

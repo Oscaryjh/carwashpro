@@ -2,18 +2,17 @@ import Link from "next/link";
 import type { PaymentMethod, PaymentRecordStatus } from "@prisma/client";
 import { DailyClosingSnapshotPanel } from "@/components/daily-closing-snapshot-panel";
 import { getOperationalBranches } from "@/lib/branches";
+import { getCurrentBusinessDateValue } from "@/lib/business-day";
 import {
-  BUSINESS_TIME_ZONE,
   formatDateValue,
-  getBusinessTodayDateValue,
   isValidDateValue,
-  toBusinessDateValue,
 } from "@/lib/business-time";
 import { formatMoneyFromCents } from "@/lib/daily-closing/format";
 import { getDailyClosingReport } from "@/lib/daily-closing/query";
 import { getDailyClosingRange } from "@/lib/daily-closing/range";
 import {
   getExpectedCashCents,
+  getSnapshotBusinessDayCutoffTime,
   isDailyClosingSnapshotPayload,
   normalizeBusinessDate,
 } from "@/lib/daily-closing/snapshot";
@@ -53,7 +52,6 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
   const returnTo = normalizeCashierReturnTo(params.returnTo);
-  const todayDateValue = getBusinessTodayDateValue();
   const explicitDate =
     params.date && isValidDateValue(params.date) ? params.date : null;
   const requestedActivityPage = Math.max(
@@ -79,12 +77,28 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   }
 
   const businessId = context.businessId;
+  const businessTimeSettings = await prisma.business.findUniqueOrThrow({
+    where: { id: businessId },
+    select: {
+      businessDayCutoffTime: true,
+      timezone: true,
+    },
+  });
+  const todayDateValue = getCurrentBusinessDateValue(
+    new Date(),
+    businessTimeSettings.timezone,
+    businessTimeSettings.businessDayCutoffTime,
+  );
   const closingIndustry = isDailyClosingIndustry(context.industryType)
     ? context.industryType
     : null;
   const isOwner = context.user.role === "BUSINESS_OWNER";
   const branches = await getOperationalBranches(businessId, context.user);
-  const todayStart = getDailyClosingRange(undefined, todayDateValue).fromDate;
+  const todayStart = getDailyClosingRange(
+    undefined,
+    todayDateValue,
+    businessTimeSettings,
+  ).fromDate;
   const authorizedBranchIds = branches.map((branch) => branch.id);
   const shiftInclude = {
     branch: true,
@@ -127,8 +141,18 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const staleShiftForDate = staleOpenShifts[0] ?? null;
   const requestedDate =
     explicitDate ??
-    (staleShiftForDate ? toBusinessDateValue(staleShiftForDate.startedAt) : todayDateValue);
-  const todayRange = getDailyClosingRange(undefined, requestedDate);
+    (staleShiftForDate
+      ? getCurrentBusinessDateValue(
+          staleShiftForDate.startedAt,
+          businessTimeSettings.timezone,
+          businessTimeSettings.businessDayCutoffTime,
+        )
+      : todayDateValue);
+  const todayRange = getDailyClosingRange(
+    undefined,
+    requestedDate,
+    businessTimeSettings,
+  );
   const { dateValue, fromDate, toDateExclusive } = todayRange;
   const shifts = await prisma.cashierShift.findMany({
     where: {
@@ -182,7 +206,11 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
       })
     : null;
   const openShiftBusinessDate = openShift
-    ? toBusinessDateValue(openShift.startedAt)
+    ? getCurrentBusinessDateValue(
+        openShift.startedAt,
+        businessTimeSettings.timezone,
+        businessTimeSettings.businessDayCutoffTime,
+      )
     : null;
   const [otherOpenShiftCount, openShiftSnapshot] = openShift?.branchId
     ? await Promise.all([
@@ -219,6 +247,17 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
     isDailyClosingSnapshotPayload(existingSnapshot.reportDataJson)
       ? existingSnapshot.reportDataJson
       : null;
+  const displayTimeZone =
+    snapshotPayload?.timezone ?? businessTimeSettings.timezone;
+  const snapshotBusinessDayCutoffTime = snapshotPayload
+    ? getSnapshotBusinessDayCutoffTime(snapshotPayload)
+    : businessTimeSettings.businessDayCutoffTime;
+  const snapshotRange = snapshotPayload
+    ? getDailyClosingRange(undefined, snapshotPayload.businessDate, {
+        businessDayCutoffTime: snapshotBusinessDayCutoffTime,
+        timezone: snapshotPayload.timezone,
+      })
+    : todayRange;
   const dailyClosing = selectedBranch && closingIndustry
     ? snapshotPayload
       ? {
@@ -226,16 +265,18 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
           branchName: snapshotPayload.branch.name,
           businessName: snapshotPayload.business.name,
           dateValue: snapshotPayload.businessDate,
-          fromDate,
+          fromDate: snapshotRange.fromDate,
           generatedAt: new Date(snapshotPayload.generatedAt),
           generatedAtLabel: formatSnapshotDateTime(
             new Date(snapshotPayload.generatedAt),
+            displayTimeZone,
           ),
           industry: closingIndustry,
           preview: existingSnapshot?.whatsappText ?? "",
           report: snapshotPayload.report,
           timeZone: snapshotPayload.timezone,
-          toDateExclusive,
+          businessDayCutoffTime: snapshotBusinessDayCutoffTime,
+          toDateExclusive: snapshotRange.toDateExclusive,
         }
       : existingSnapshot
         ? null
@@ -289,7 +330,11 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
             </div>
             <div className="closing-stale-shift-list">
               {staleOpenShifts.map((shift) => {
-                const shiftDateValue = toBusinessDateValue(shift.startedAt);
+                const shiftDateValue = getCurrentBusinessDateValue(
+                  shift.startedAt,
+                  businessTimeSettings.timezone,
+                  businessTimeSettings.businessDayCutoffTime,
+                );
                 return (
                   <Link
                     className="secondary-link-button"
@@ -320,7 +365,10 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                 <div className="report-kpis compact-kpis closing-shift-kpis">
                   <Metric label="Cashier" value={openShift.cashier.name} />
                   <Metric label="Branch" value={openShift.branch?.name ?? "All branches"} />
-                  <Metric label="Started" value={formatDateTime(openShift.startedAt)} />
+                  <Metric
+                    label="Started"
+                    value={formatDateTime(openShift.startedAt, displayTimeZone)}
+                  />
                   <Metric label="Opening Float" value={money(openShift.openingFloat)} />
                   <Metric
                     label="Net Cash Sales"
@@ -379,11 +427,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                     </span>
                   </div>
                   <div className="form-actions closing-form-actions">
-                    <button type="submit">
-                      {willCompleteDailyClosing
-                        ? "End shift & complete daily closing"
-                        : "End shift"}
-                    </button>
+                    <button type="submit">End shift</button>
                   </div>
                 </form>
               </div>
@@ -509,6 +553,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                         snapshotPayload.cash.differenceCents,
                       closedAtLabel: formatSnapshotDateTime(
                         existingSnapshot.closedAt,
+                        displayTimeZone,
                       ),
                       closedByName:
                         existingSnapshot.closedBy.name ||
@@ -518,7 +563,10 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                       whatsappSends: existingSnapshot.closingWhatsAppSends.map(
                         (send) => ({
                           completedAtLabel: send.completedAt
-                            ? formatSnapshotDateTime(send.completedAt)
+                            ? formatSnapshotDateTime(
+                                send.completedAt,
+                                displayTimeZone,
+                              )
                             : null,
                           errorMessage: send.errorMessage,
                           id: send.id,
@@ -526,7 +574,10 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                           reason: send.reason,
                           recipientLabel: send.recipient?.label ?? send.phone,
                           recipientRole: send.recipient?.role ?? null,
-                          requestedAtLabel: formatSnapshotDateTime(send.requestedAt),
+                          requestedAtLabel: formatSnapshotDateTime(
+                            send.requestedAt,
+                            displayTimeZone,
+                          ),
                           requestedByName: send.requestedBy?.name ?? null,
                           sendType: send.sendType,
                           status: send.status,
@@ -595,8 +646,12 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                           <td>{shift.cashier.name}</td>
                           <td>{shift.branch?.name ?? "All branches"}</td>
                           <td>{formatStatus(shift.status)}</td>
-                          <td>{formatDateTime(shift.startedAt)}</td>
-                          <td>{shift.endedAt ? formatDateTime(shift.endedAt) : "-"}</td>
+                          <td>{formatDateTime(shift.startedAt, displayTimeZone)}</td>
+                          <td>
+                            {shift.endedAt
+                              ? formatDateTime(shift.endedAt, displayTimeZone)
+                              : "-"}
+                          </td>
                           <td>{money(summary.grossCollected)}</td>
                           <td>{money(summary.refunded)}</td>
                           <td>{money(summary.collected)}</td>
@@ -655,7 +710,9 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                   <tbody>
                     {visibleActivities.map((activity) => (
                       <tr key={activity.id}>
-                        <td>{formatTime(activity.occurredAt)}</td>
+                        <td>
+                          {formatTime(activity.occurredAt, displayTimeZone)}
+                        </td>
                         <td>{paymentMethodLabels[activity.method]}</td>
                         <td>
                           {activity.method === "PACKAGE"
@@ -936,21 +993,21 @@ function formatPaymentStatus(status: PaymentRecordStatus) {
   return status.toLowerCase();
 }
 
-function formatDateTime(value: Date) {
+function formatDateTime(value: Date, timeZone: string) {
   return value.toLocaleString("en-MY", {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     month: "short",
-    timeZone: BUSINESS_TIME_ZONE,
+    timeZone,
   });
 }
 
-function formatTime(value: Date) {
+function formatTime(value: Date, timeZone: string) {
   return value.toLocaleTimeString("en-MY", {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: BUSINESS_TIME_ZONE,
+    timeZone,
   });
 }
 
@@ -962,13 +1019,13 @@ function formatBusinessDate(dateValue: string) {
   });
 }
 
-function formatSnapshotDateTime(value: Date) {
+function formatSnapshotDateTime(value: Date, timeZone: string) {
   return value.toLocaleString("en-MY", {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     month: "short",
-    timeZone: BUSINESS_TIME_ZONE,
+    timeZone,
     year: "numeric",
   });
 }
@@ -1039,7 +1096,7 @@ function DailyClosingSummary({
             emphasis
           />
           <ClosingMetric
-            label="Collected"
+            label="Net collections"
             value={formatMoneyFromCents(report.financial.collectedCents)}
           />
           <ClosingMetric
@@ -1060,7 +1117,7 @@ function DailyClosingSummary({
         <div className="daily-closing-details-content">
       <div className="daily-closing-kpis">
         <ClosingMetric label="Gross sales" value={formatMoneyFromCents(report.financial.grossSalesCents)} />
-        <ClosingMetric label="Collected" value={formatMoneyFromCents(report.financial.collectedCents)} />
+        <ClosingMetric label="Net collections" value={formatMoneyFromCents(report.financial.collectedCents)} />
         <ClosingMetric label="Outstanding" value={formatMoneyFromCents(report.financial.outstandingCents)} />
         <ClosingMetric label="Discounts" value={formatMoneyFromCents(report.financial.discountsCents)} />
         <ClosingMetric label="Refunds" value={formatMoneyFromCents(report.financial.refundsCents)} />
@@ -1080,7 +1137,7 @@ function DailyClosingSummary({
               <thead>
                 <tr>
                   <th>Method</th>
-                  <th>Collected</th>
+                  <th>Gross collected</th>
                   <th>Refunded</th>
                   <th>Net</th>
                 </tr>

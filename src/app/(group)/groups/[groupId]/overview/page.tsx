@@ -1,8 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Suspense } from "react";
 import { AppShellFrame } from "@/components/app-shell-frame";
 import { BusinessContextDrilldownButton } from "@/components/business-context-drilldown-button";
 import { BusinessContextSwitcher } from "@/components/business-context-switcher";
+import { GroupLogoUpload } from "@/components/group-logo-upload";
+import {
+  GroupLongTermTrendFallback,
+  GroupLongTermTrendSection,
+} from "@/components/group-long-term-trend-section";
+import { GroupPageHero } from "@/components/group-page-hero";
 import { createBusinessContextToken } from "@/lib/auth/business-context-token";
 import { requireUser } from "@/lib/auth/session";
 import { getAvailableGroupReportingContexts } from "@/lib/business-groups/all-stores-access";
@@ -14,7 +21,16 @@ import {
   type AllStoresKpiWithComparisons,
 } from "@/lib/business-groups/all-stores-kpi";
 import { getAvailableBusinessContexts } from "@/lib/business-groups/business-context";
+import {
+  getGroupDataConfidenceReport,
+  type GroupDataConfidenceReport,
+} from "@/lib/business-groups/group-data-confidence";
+import { buildGroupStorePerformanceReportHref } from "@/lib/business-groups/group-report-navigation";
 import { getBusinessGroupNavItems } from "@/lib/business-groups/navigation";
+import {
+  hasGroupStoreActivity,
+  rankGroupStorePerformance,
+} from "@/lib/business-groups/group-store-performance";
 import { getBusinessIndustryLabel } from "@/lib/business-industry";
 import { formatDateValue } from "@/lib/business-time";
 
@@ -27,6 +43,7 @@ export default async function GroupOverviewPage({
     range?: string;
     from?: string;
     to?: string;
+    trend?: string;
   }>;
 }) {
   const user = await requireUser();
@@ -48,18 +65,60 @@ export default async function GroupOverviewPage({
     notFound();
   }
 
+  const now = new Date();
+  const resolveScope = async (
+    requestedUserId: string,
+    requestedGroupId: string,
+    requestedBusinessId: string | null,
+  ) =>
+    requestedUserId === user.userId &&
+    requestedGroupId === groupId &&
+    requestedBusinessId === user.activeBusinessId
+      ? selectedGroup
+      : null;
+
   let report = null;
   let rangeError: string | null = null;
   let queryFailed = false;
-  try {
-    report = await getAllStoresKpiReport({
-      userId: user.userId,
-      groupId,
-      activeBusinessId: user.activeBusinessId,
-      range: query.range,
-      from: query.from,
-      to: query.to,
+  const reportInput = {
+    userId: user.userId,
+    groupId,
+    activeBusinessId: user.activeBusinessId,
+    range: query.range,
+    from: query.from,
+    to: query.to,
+  };
+  const reportLoad = getAllStoresKpiReport(
+    reportInput,
+    undefined,
+    {
+      now,
+      resolveScope,
+    },
+  );
+  const confidenceLoad = getGroupDataConfidenceReport(
+    reportInput,
+    undefined,
+    {
+      kpiReport: reportLoad,
+      now,
+      resolveScope,
+    },
+  )
+    .then((confidence) => ({ confidence, failed: false }))
+    .catch((error: unknown) => {
+      if (!(error instanceof AllStoresKpiRangeError)) {
+        console.error(
+          "[group-data-confidence] Unable to reconcile group report.",
+        );
+      }
+      return {
+        confidence: null,
+        failed: true,
+      } satisfies DataConfidenceLoadResult;
     });
+  try {
+    report = await reportLoad;
   } catch (error) {
     if (error instanceof AllStoresKpiRangeError) {
       rangeError = error.message;
@@ -78,10 +137,24 @@ export default async function GroupOverviewPage({
     contextVersion: user.contextVersion,
   });
   const navItems = getBusinessGroupNavItems(selectedGroup.groupId);
+  const rankedStores = report
+    ? rankGroupStorePerformance(report.businesses)
+    : [];
+  const currentBusinessIds = new Set(
+    selectedGroup.businesses.map((business) => business.id),
+  );
 
   return (
     <AppShellFrame
       brandName={selectedGroup.groupName}
+      brandLogoControl={
+        <GroupLogoUpload
+          canEdit={selectedGroup.role === "GROUP_OWNER"}
+          currentLogoUrl={selectedGroup.groupLogoUrl}
+          groupId={selectedGroup.groupId}
+          groupName={selectedGroup.groupName}
+        />
+      }
       homeHref={`/groups/${selectedGroup.groupId}/overview`}
       navItems={navItems}
       businessSwitcher={
@@ -96,23 +169,33 @@ export default async function GroupOverviewPage({
         />
       }
     >
-      <div className="content group-overview-page">
-        <header className="page-header">
-          <div>
-            <p className="eyebrow">Business Group</p>
-            <h1>All Stores</h1>
-            <p>
-              {selectedGroup.groupName} · {selectedGroup.businesses.length}{" "}
-              active stores in your reporting scope
-            </p>
-          </div>
-          <Link
-            className="secondary-button"
-            href={`/groups/${groupId}/reports?range=today`}
-          >
-            Group reports
-          </Link>
-        </header>
+      <div className="content group-overview-page group-command-page">
+        <GroupPageHero
+          action={
+            <Link
+              className="secondary-button"
+              href={`/groups/${groupId}/reports?range=today`}
+            >
+              Explore group reports
+              <span aria-hidden="true">→</span>
+            </Link>
+          }
+          description={
+            <>
+              A live executive view of performance across every store in{" "}
+              <strong>{selectedGroup.groupName}</strong>.
+            </>
+          }
+          meta={[
+            `${selectedGroup.businesses.length} active stores`,
+            selectedGroup.role === "GROUP_OWNER"
+              ? "Group Owner"
+              : "Group Manager",
+            "MYR reporting",
+          ]}
+          title="All Stores"
+          variant="overview"
+        />
 
         <section className="group-overview-intro">
           <div>
@@ -140,7 +223,7 @@ export default async function GroupOverviewPage({
             {[
               ["today", "Today"],
               ["7days", "7 days"],
-              ["30days", "30 days"],
+              ["month", "This month"],
             ].map(([value, label]) => (
               <Link
                 aria-current={
@@ -148,7 +231,11 @@ export default async function GroupOverviewPage({
                     ? "page"
                     : undefined
                 }
-                href={`/groups/${groupId}/overview?range=${value}`}
+                href={buildOverviewRangeHref(
+                  groupId,
+                  value,
+                  query.trend,
+                )}
                 key={value}
               >
                 {label}
@@ -157,6 +244,11 @@ export default async function GroupOverviewPage({
           </nav>
           <form method="get">
             <input name="range" type="hidden" value="custom" />
+            <input
+              name="trend"
+              type="hidden"
+              value={query.trend ?? "month"}
+            />
             <label>
               From
               <input
@@ -191,7 +283,10 @@ export default async function GroupOverviewPage({
           </section>
         ) : report ? (
           <>
-            <section aria-labelledby="group-performance-heading">
+            <section
+              aria-labelledby="group-performance-heading"
+              className="group-command-section"
+            >
               <div className="section-header">
                 <div>
                   <h2 id="group-performance-heading">Group performance</h2>
@@ -201,7 +296,8 @@ export default async function GroupOverviewPage({
                       report.customFrom,
                       report.customTo,
                     )}
-                    {" · "}Previous period uses the same number of business days
+                    {" · "}
+                    {getComparisonPeriodLabel(report.range)}
                   </p>
                 </div>
                 <span className="group-report-currency">
@@ -211,61 +307,149 @@ export default async function GroupOverviewPage({
               <KpiGrid metrics={report.current} previous={report.previous} />
             </section>
 
-            <section aria-labelledby="store-performance-heading">
+            <Suspense
+              key={`group-long-term-trend:${query.trend ?? "month"}`}
+              fallback={<GroupLongTermTrendFallback />}
+            >
+              <GroupLongTermTrendSection
+                activeBusinessId={user.activeBusinessId}
+                authorizedScope={selectedGroup}
+                groupId={groupId}
+                preset={query.trend}
+                query={query}
+                userId={user.userId}
+              />
+            </Suspense>
+
+            <Suspense
+              key={`group-data-confidence:${report.range}:${report.customFrom ?? ""}:${report.customTo ?? ""}`}
+              fallback={<DataConfidenceFallback />}
+            >
+              <DataConfidenceSection
+                closingHref={buildClosingHref(
+                  groupId,
+                  report.range,
+                  report.customFrom,
+                  report.customTo,
+                )}
+                load={confidenceLoad}
+              />
+            </Suspense>
+
+            <section
+              aria-labelledby="store-performance-heading"
+              className="group-command-section"
+            >
               <div className="section-header">
                 <div>
-                  <h2 id="store-performance-heading">Store details</h2>
+                  <h2 id="store-performance-heading">
+                    Store performance ranking
+                  </h2>
                   <p>
-                    Results are limited to stores in your current reporting
-                    scope.
+                    Ranked by net sales for the selected period. Results are
+                    limited to your authorized reporting scope.
                   </p>
                 </div>
+                <span className="group-report-currency">
+                  {rankedStores.length} ranked stores
+                </span>
               </div>
-              <div className="group-store-performance-list">
-                {report.businesses.map((business) => (
-                  <article
-                    className="group-store-performance"
-                    key={business.businessId}
-                  >
-                    <header>
-                      <div className="group-store-identity">
-                        {business.logoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img alt="" src={business.logoUrl} />
-                        ) : (
-                          <span aria-hidden="true">
-                            {business.businessName.slice(0, 2).toUpperCase()}
-                          </span>
-                        )}
-                        <div>
-                          <h3>{business.businessName}</h3>
-                          <p>
-                            {getBusinessIndustryLabel(business.industryType)}
-                            {" · "}
-                            {formatBusinessRange(
-                              business.currentRange.fromDateValue,
-                              business.currentRange.toDateValue,
+              <ol className="group-store-performance-list">
+                {rankedStores.map(({ business, rank }) => {
+                  const storeReportHref =
+                    buildGroupStorePerformanceReportHref(
+                      groupId,
+                      business.businessId,
+                      report,
+                    );
+                  const periodLabel = formatBusinessRange(
+                    business.currentRange.fromDateValue,
+                    business.currentRange.toDateValue,
+                  );
+                  const hasActivity = hasGroupStoreActivity(business.current);
+                  const canOpenWorkspace = currentBusinessIds.has(
+                    business.businessId,
+                  );
+
+                  return (
+                    <li key={business.businessId}>
+                      <article
+                        className="group-store-performance"
+                        data-store-rank={rank}
+                      >
+                        <header>
+                          <div className="group-store-identity">
+                            {business.logoUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img alt="" src={business.logoUrl} />
+                            ) : (
+                              <span aria-hidden="true">
+                                {business.businessName
+                                  .slice(0, 2)
+                                  .toUpperCase()}
+                              </span>
                             )}
-                          </p>
-                          <small>
-                            {business.timezone} · cutoff{" "}
-                            {business.businessDayCutoffTime}
-                          </small>
-                        </div>
-                      </div>
-                      <BusinessContextDrilldownButton
-                        businessId={business.businessId}
-                        contextToken={contextToken}
-                      />
-                    </header>
-                    <KpiGrid
-                      compact
-                      metrics={business.current}
-                      previous={business.previous}
-                    />
-                  </article>
-                ))}
-              </div>
+                            <div>
+                              <span className="group-store-rank">
+                                #{rank} by net sales
+                              </span>
+                              <h3>{business.businessName}</h3>
+                              <p>
+                                {getBusinessIndustryLabel(
+                                  business.industryType,
+                                )}
+                                {" · "}
+                                {periodLabel}
+                              </p>
+                              <small>
+                                {business.timezone} · cutoff{" "}
+                                {business.businessDayCutoffTime}
+                              </small>
+                            </div>
+                          </div>
+                          <div className="group-store-card-actions">
+                            {!hasActivity ? (
+                              <span className="group-store-no-activity">
+                                No activity in this period
+                              </span>
+                            ) : null}
+                            {storeReportHref ? (
+                              <Link
+                                className="group-store-report-link"
+                                data-store-report={business.businessId}
+                                href={storeReportHref}
+                              >
+                                View report{" "}
+                                <span aria-hidden="true">→</span>
+                                <span className="sr-only">
+                                  {" "}
+                                  for {business.businessName}, {periodLabel}
+                                </span>
+                              </Link>
+                            ) : null}
+                            {canOpenWorkspace ? (
+                              <BusinessContextDrilldownButton
+                                businessId={business.businessId}
+                                contextToken={contextToken}
+                                label="Open store workspace"
+                              />
+                            ) : (
+                              <span className="group-store-history-note">
+                                Historical store · report only
+                              </span>
+                            )}
+                          </div>
+                        </header>
+                        <KpiGrid
+                          compact
+                          metrics={business.current}
+                          previous={business.previous}
+                        />
+                      </article>
+                    </li>
+                  );
+                })}
+              </ol>
             </section>
           </>
         ) : null}
@@ -284,7 +468,7 @@ const kpiDefinitions: Array<{
   { key: "netSalesCents", label: "Net sales", money: true },
   {
     key: "paymentsCollectedCents",
-    label: "Payments collected",
+    label: "Gross collections",
     money: true,
   },
   { key: "refundsCents", label: "Refunds", money: true },
@@ -295,6 +479,280 @@ const kpiDefinitions: Array<{
     money: true,
   },
 ];
+
+const confidenceStatusContent: Record<
+  GroupDataConfidenceReport["status"],
+  { label: string; message: string }
+> = {
+  MATCHED: {
+    label: "Reconciled",
+    message:
+      "Dashboard totals match every valid Daily Closing snapshot in this period.",
+  },
+  MISMATCH: {
+    label: "Amount mismatch",
+    message:
+      "All expected closings are present, but at least one frozen total differs from live analytics.",
+  },
+  INCOMPLETE: {
+    label: "Closing incomplete",
+    message:
+      "One or more active branches do not have a Daily Closing snapshot for this period.",
+  },
+  INVALID_SNAPSHOT: {
+    label: "Invalid snapshot",
+    message:
+      "At least one Closing snapshot cannot be validated, so reconciled totals are not trusted.",
+  },
+  LEGACY_DEFINITION: {
+    label: "Legacy definition",
+    message:
+      "Closing data uses an older metric or business-day definition and needs review.",
+  },
+  NOT_COMPARABLE: {
+    label: "Audit only",
+    message:
+      "Closing coverage is valid, but live totals include an open or excluded branch-date, so financial reconciliation is not claimed.",
+  },
+  NOT_APPLICABLE: {
+    label: "Not due",
+    message:
+      "No fully ended business days in this period require a Closing audit yet.",
+  },
+};
+
+type DataConfidenceLoadResult = {
+  confidence: GroupDataConfidenceReport | null;
+  failed: boolean;
+};
+
+async function DataConfidenceSection({
+  closingHref,
+  load,
+}: {
+  closingHref: string;
+  load: Promise<DataConfidenceLoadResult>;
+}) {
+  const { confidence, failed } = await load;
+  return (
+    <DataConfidencePanel
+      closingHref={closingHref}
+      confidence={confidence}
+      failed={failed}
+    />
+  );
+}
+
+function DataConfidenceFallback() {
+  return (
+    <section
+      aria-busy="true"
+      aria-labelledby="data-confidence-heading"
+      className="group-command-section group-confidence-panel is-loading"
+    >
+      <div className="section-header">
+        <div>
+          <h2 id="data-confidence-heading">Data confidence</h2>
+          <p>Checking Daily Closing snapshots against live analytics.</p>
+        </div>
+        <span className="group-confidence-badge">Checking</span>
+      </div>
+    </section>
+  );
+}
+
+function DataConfidencePanel({
+  confidence,
+  failed,
+  closingHref,
+}: {
+  confidence: GroupDataConfidenceReport | null;
+  failed: boolean;
+  closingHref: string;
+}) {
+  if (!confidence) {
+    return (
+      <section
+        aria-labelledby="data-confidence-heading"
+        className="group-command-section group-confidence-panel is-unavailable"
+      >
+        <div className="section-header">
+          <div>
+            <h2 id="data-confidence-heading">Data confidence</h2>
+            <p>
+              {failed
+                ? "Reconciliation is temporarily unavailable. Financial totals remain visible but are not marked as verified."
+                : "No reconciliation result is available for this period."}
+            </p>
+          </div>
+          <span className="group-confidence-badge">Not verified</span>
+        </div>
+      </section>
+    );
+  }
+
+  const status = confidenceStatusContent[confidence.status];
+  const issueCount =
+    confidence.missingClosings.length +
+    confidence.invalidSnapshotCount +
+    confidence.definitionIssueCount;
+  return (
+    <section
+      aria-labelledby="data-confidence-heading"
+      className={`group-command-section group-confidence-panel status-${confidence.status.toLowerCase()}`}
+      data-confidence-status={confidence.status}
+    >
+      <div className="section-header">
+        <div>
+          <h2 id="data-confidence-heading">Data confidence</h2>
+          <p>{status.message}</p>
+        </div>
+        <span className="group-confidence-badge">{status.label}</span>
+      </div>
+
+      <div className="group-confidence-summary">
+        <article>
+          <span>Closing coverage</span>
+          <strong>
+            {confidence.closingCoveragePercent === null
+              ? "N/A"
+              : `${confidence.closingCoveragePercent.toFixed(1)}%`}
+          </strong>
+          <small>
+            {confidence.expectedClosingCount
+              ? `${confidence.capturedClosingCount} of ${confidence.expectedClosingCount} required`
+              : "No ended business days due"}
+          </small>
+        </article>
+        <article>
+          <span>Metric agreement</span>
+          <strong>
+            {confidence.reconciliationApplicable
+              ? `${confidence.metrics.filter((metric) => metric.matches).length}/${confidence.metrics.length}`
+              : "N/A"}
+          </strong>
+          <small>
+            {confidence.reconciliationApplicable
+              ? "Exact cent-level checks"
+              : "Date set is not comparable"}
+          </small>
+        </article>
+        <article>
+          <span>Data issues</span>
+          <strong>{issueCount}</strong>
+          <small>
+            {confidence.invalidSnapshotCount} invalid ·{" "}
+            {confidence.definitionIssueCount} legacy
+          </small>
+        </article>
+        <article>
+          <span>Definition</span>
+          <strong>v{confidence.metricDefinitionVersion}</strong>
+          <small>
+            Checked {formatConfidenceTime(confidence.checkedAt)}
+          </small>
+        </article>
+      </div>
+
+      <div className="group-confidence-detail-grid">
+        <div className="group-confidence-table-wrap">
+          <table className="group-confidence-table">
+          {!confidence.reconciliationApplicable ? (
+            <p className="group-confidence-alert">
+              Open or excluded branch-dates are outside the Closing audit
+              denominator. Their live totals are shown but not compared with
+              snapshots.
+            </p>
+          ) : null}
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Dashboard</th>
+                <th>Closing</th>
+                <th>Difference</th>
+              </tr>
+            </thead>
+            <tbody>
+              {confidence.metrics.map((metric) => (
+                <tr
+                  data-matches={
+                    confidence.reconciliationApplicable
+                      ? metric.matches
+                      : undefined
+                  }
+                  key={metric.key}
+                >
+                  <th>{metric.label}</th>
+                  <td>{formatMoney(metric.analyticsCents)}</td>
+                  <td>{formatMoney(metric.closingCents)}</td>
+                  <td>
+                    {!confidence.reconciliationApplicable
+                      ? "Not compared"
+                      : metric.matches
+                      ? "Matched"
+                      : formatSignedMoney(metric.differenceCents)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <aside className="group-confidence-issues">
+          <h3>Closing controls</h3>
+          {confidence.missingClosings.length ? (
+            <>
+              <p>
+                {confidence.missingClosings.length} branch-date closing
+                {confidence.missingClosings.length === 1 ? " is" : "s are"}{" "}
+                missing.
+              </p>
+              <ul>
+                {confidence.missingClosings.slice(0, 6).map((closing) => (
+                  <li
+                    key={`${closing.businessId}:${closing.branchId}:${closing.businessDate}`}
+                  >
+                    <strong>{closing.businessName}</strong>
+                    <span>
+                      {closing.branchName} · {closing.businessDate}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p>Every currently expected branch-date Closing is present.</p>
+          )}
+          {confidence.invalidSnapshotCount ? (
+            <p className="group-confidence-alert">
+              {confidence.invalidSnapshotCount} snapshot
+              {confidence.invalidSnapshotCount === 1 ? "" : "s"} could not be
+              validated.
+            </p>
+          ) : null}
+          {confidence.definitionIssueCount ? (
+            <p className="group-confidence-alert">
+              {confidence.definitionIssueCount} snapshot
+              {confidence.definitionIssueCount === 1 ? "" : "s"} use legacy
+              definitions.
+            </p>
+          ) : null}
+          <Link href={closingHref}>Review Daily Closing →</Link>
+        </aside>
+      </div>
+
+      <details className="group-confidence-definition">
+        <summary>Metric and date definitions</summary>
+        <p>
+          Gross and net sales, refunds, and net collections are checked in
+          integer cents. Each store uses its own timezone and cutoff. Metric
+          definition v{confidence.metricDefinitionVersion}; business-day
+          definition v{confidence.businessDayDefinitionVersion}.
+        </p>
+      </details>
+    </section>
+  );
+}
 
 function KpiGrid({
   metrics,
@@ -312,7 +770,11 @@ function KpiGrid({
         const previousValue = previous[definition.key];
         const comparison = metrics.comparisons[definition.key];
         return (
-          <article className="group-kpi-card" key={definition.key}>
+          <article
+            className="group-kpi-card"
+            data-metric={definition.key}
+            key={definition.key}
+          >
             <span>{definition.label}</span>
             <strong>
               {value === null
@@ -369,6 +831,33 @@ function formatMoney(cents: number) {
   }).format(cents / 100);
 }
 
+function formatSignedMoney(cents: number) {
+  const prefix = cents > 0 ? "+" : "";
+  return `${prefix}${formatMoney(cents)}`;
+}
+
+function formatConfidenceTime(value: Date) {
+  return new Intl.DateTimeFormat("en-MY", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Kuching",
+  }).format(value);
+}
+
+function buildClosingHref(
+  groupId: string,
+  range: string,
+  from: string | null,
+  to: string | null,
+) {
+  const params = new URLSearchParams({ range });
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  return `/groups/${groupId}/closing?${params.toString()}`;
+}
+
 function formatBusinessRange(from: string, to: string) {
   if (from === to) {
     return formatDateValue(from, {
@@ -394,8 +883,28 @@ function getRangeLabel(
 ) {
   if (range === "today") return "Today by each store's business day";
   if (range === "7days") return "Last 7 business days";
-  if (range === "30days") return "Last 30 business days";
+  if (range === "month") {
+    return "Month to date by each store's local business calendar";
+  }
   return from && to
     ? formatBusinessRange(from, to)
     : "Custom business date range";
+}
+
+function getComparisonPeriodLabel(range: string) {
+  return range === "month"
+    ? "Compared with the same calendar progress in the previous month"
+    : "Previous period uses the same number of business days";
+}
+
+function buildOverviewRangeHref(
+  groupId: string,
+  range: string,
+  trend: string | undefined,
+) {
+  const params = new URLSearchParams({
+    range,
+    trend: trend ?? "month",
+  });
+  return `/groups/${groupId}/overview?${params.toString()}`;
 }

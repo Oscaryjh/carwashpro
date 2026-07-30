@@ -217,9 +217,6 @@ export default async function PackagesPage({ searchParams }: PackagesPageProps) 
                       <Link href={`/packages/${packagePlan.id}`}>
                         <strong>{packagePlan.name}</strong>
                       </Link>
-                      <div className="muted">
-                        {packagePlan.branch?.name ?? "All branches"}
-                      </div>
                     </td>
                     <td>RM{Number(packagePlan.price).toFixed(2)}</td>
                     <td>{packagePlan.totalUses}</td>

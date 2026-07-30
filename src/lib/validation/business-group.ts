@@ -35,6 +35,64 @@ export const businessGroupUserSchema = z
     }
   });
 
+export const businessGroupAccountSchema = z
+  .object({
+    groupId: z.string().uuid(),
+    name: z.string().trim().min(2, "Name must be at least 2 characters.").max(120),
+    email: z.string().trim().toLowerCase().email("Enter a valid email address.").max(254),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters.")
+      .max(72, "Password must be 72 characters or fewer."),
+    confirmPassword: z.string(),
+    role: z.enum(["GROUP_OWNER", "GROUP_MANAGER"]),
+    businessIds: z.array(z.string().uuid()).default([]),
+  })
+  .superRefine((value, context) => {
+    if (value.password !== value.confirmPassword) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["confirmPassword"],
+        message: "Passwords do not match.",
+      });
+    }
+
+    if (value.role === "GROUP_MANAGER" && value.businessIds.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["businessIds"],
+        message: "Select at least one group business for a group manager.",
+      });
+    }
+  });
+
+export const businessGroupAccountUpdateSchema = z
+  .object({
+    groupId: z.string().uuid(),
+    groupUserId: z.string().uuid(),
+    name: z.string().trim().min(2, "Name must be at least 2 characters.").max(120),
+    email: z.string().trim().toLowerCase().email("Enter a valid email address.").max(254),
+    password: z.string().max(72, "Password must be 72 characters or fewer.").default(""),
+    confirmPassword: z.string().default(""),
+  })
+  .superRefine((value, context) => {
+    if (value.password && value.password.length < 8) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["password"],
+        message: "Password must be at least 8 characters.",
+      });
+    }
+
+    if (value.password !== value.confirmPassword) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["confirmPassword"],
+        message: "Passwords do not match.",
+      });
+    }
+  });
+
 export function uniqueIds(values: Iterable<string>) {
   return Array.from(new Set(values));
 }

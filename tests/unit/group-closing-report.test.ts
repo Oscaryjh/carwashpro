@@ -100,7 +100,22 @@ test("summarizes frozen financial and cash values without inventing invalid data
 test("uses only authorized stores and rejects an unauthorized store filter", async () => {
   const calls: unknown[] = [];
   const database = {
+    branch: {
+      findMany: async () => [
+        {
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          businessId: salon.id,
+          name: "Main Branch",
+          status: "ACTIVE",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        },
+      ],
+    },
     dailyClosingSnapshot: {
+      count: async (args: unknown) => {
+        calls.push(args);
+        return 0;
+      },
       findMany: async (args: unknown) => {
         calls.push(args);
         return [];
@@ -126,10 +141,13 @@ test("uses only authorized stores and rejects an unauthorized store filter", asy
 
   assert.equal(result?.authorizedBusinesses.length, 2);
   assert.equal(result?.filters.storeId, salon.id);
-  assert.equal(calls.length, 1);
-  const where = (calls[0] as { where: { OR: Array<{ businessId: string }> } })
-    .where;
-  assert.deepEqual(where.OR.map((item) => item.businessId), [salon.id]);
+  assert.equal(calls.length, 3);
+  for (const call of calls) {
+    const where = (
+      call as { where: { OR: Array<{ businessId: string }> } }
+    ).where;
+    assert.deepEqual(where.OR.map((item) => item.businessId), [salon.id]);
+  }
 
   await assert.rejects(
     () =>
@@ -163,6 +181,10 @@ function closingRow(
     closedAt: new Date("2026-07-01T15:00:00.000Z"),
     closedByName: "QA Owner",
     reportVersion: 1,
+    generatedAt: new Date("2026-07-01T15:00:00.000Z"),
+    businessDayCutoffTime: "02:00",
+    businessDayDefinitionVersion: 1,
+    metricDefinitionVersion: 1,
     financial: null,
     whatsappStatus: "NOT_QUEUED",
     ...overrides,

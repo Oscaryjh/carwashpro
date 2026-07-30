@@ -7,22 +7,35 @@ import { z } from "zod";
 import {
   addDaysToDateValue,
 } from "@/lib/business-time";
+import { getBusinessDayRange } from "@/lib/business-day";
 import {
+  dailyRowToKpi,
+  resolveAllStoresAnalyticsReadMode,
   buildBusinessPeriods,
   calculateAllStoresKpis,
   getCurrentBusinessDateValue,
   moneyToCents,
   normalizeRange,
   sumKpis,
+  tryLoadAllStoresKpisFromDailySummaries,
   validateCustomRange,
+  type AllStoresAnalyticsFallbackReason,
+  type AllStoresAnalyticsReadMode,
   type AllStoresKpi,
   type AllStoresRange,
+  type AnalyticsDailyRow,
   type PeriodPair,
 } from "@/lib/business-groups/all-stores-kpi";
 import {
   resolveAuthorizedGroupReportingScope,
   type AuthorizedGroupReportingContext,
 } from "@/lib/business-groups/all-stores-access";
+import {
+  getReportingBusinesses,
+  intersectBusinessMemberships,
+  isEventWithinAuthorizedMembership,
+} from "@/lib/business-groups/historical-membership";
+import { calculateInvoiceFinancialMetrics } from "@/lib/financial-metrics";
 import { prisma } from "@/lib/prisma";
 
 export const GROUP_REPORT_PAGE_SIZE = 25;
@@ -83,12 +96,26 @@ export type GroupReportTrendPoint = AllStoresKpi & {
   businessDate: string;
 };
 
+export type GroupReportBusinessCoverage = "FULL" | "PARTIAL" | "NONE";
+
 export type GroupReportBusinessPerformance = {
   rank: number;
   businessId: string;
   businessName: string;
   industryType: AuthorizedGroupReportingContext["businesses"][number]["industryType"];
   metrics: AllStoresKpi;
+  coverage: GroupReportBusinessCoverage;
+};
+
+export type GroupReportBusinessTrendPoint = GroupReportTrendPoint & {
+  coverage: GroupReportBusinessCoverage;
+};
+
+export type GroupReportBusinessTrend = {
+  businessId: string;
+  businessName: string;
+  coverage: GroupReportBusinessCoverage;
+  points: GroupReportBusinessTrendPoint[];
 };
 
 export type GroupReportCatalogRanking = {
@@ -104,9 +131,12 @@ export type GroupReportsResult = {
   role: AuthorizedGroupReportingContext["role"];
   authorizedBusinesses: AuthorizedGroupReportingContext["businesses"];
   filters: GroupReportFilters;
+  summaryDataSource: "DAILY_SUMMARY" | "RAW";
+  analyticsFallbackReason: AllStoresAnalyticsFallbackReason;
   summary: AllStoresKpi;
   trend: GroupReportTrendPoint[];
   businessPerformance: GroupReportBusinessPerformance[];
+  businessTrends: GroupReportBusinessTrend[];
   catalogRankings: {
     services: GroupReportCatalogRanking[];
     products: GroupReportCatalogRanking[];
@@ -119,12 +149,13 @@ export type GroupReportsResult = {
 
 type GroupReportsDatabase = Pick<
   Prisma.TransactionClient,
-  "invoice" | "payment" | "paymentRefund"
+  "analyticsDailyStoreSummary" | "invoice" | "payment" | "paymentRefund"
 >;
 
 type ResolveScope = typeof resolveAuthorizedGroupReportingScope;
 
 type GroupReportsDependencies = {
+  analyticsReadMode?: AllStoresAnalyticsReadMode;
   now?: Date;
   pageSize?: number;
   resolveScope?: ResolveScope;
@@ -162,11 +193,13 @@ export async function getGroupReports(
   );
   if (!scope?.canViewAllStores) return null;
 
-  const filters = parseGroupReportFilters(input, scope);
+  const reportingBusinesses = getReportingBusinesses(scope);
+  const reportingScope = { ...scope, businesses: reportingBusinesses };
+  const filters = parseGroupReportFilters(input, reportingScope);
   const pageSize = dependencies.pageSize ?? GROUP_REPORT_PAGE_SIZE;
   const businesses = filters.storeId
-    ? scope.businesses.filter((business) => business.id === filters.storeId)
-    : scope.businesses;
+    ? reportingBusinesses.filter((business) => business.id === filters.storeId)
+    : reportingBusinesses;
   const now = dependencies.now ?? new Date();
   const periods = new Map(
     businesses.map((business) => [
@@ -181,13 +214,22 @@ export async function getGroupReports(
       }),
     ]),
   );
-  const currentRanges = businesses.map((business) => {
+  const coverageByBusiness = new Map(
+    businesses.map((business) => [
+      business.id,
+      getGroupReportBusinessCoverage(
+        business,
+        periods.get(business.id)!.current,
+      ),
+    ]),
+  );
+  const currentRanges = businesses.flatMap((business) => {
     const period = periods.get(business.id)!;
-    return {
-      businessId: business.id,
-      gte: period.current.fromDate,
-      lt: period.current.toDateExclusive,
-    };
+    return intersectBusinessMemberships(
+      business,
+      period.current.fromDate,
+      period.current.toDateExclusive,
+    );
   });
 
   const invoiceSummaryWhere = buildSummaryInvoiceWhere(
@@ -198,7 +240,128 @@ export async function getGroupReports(
   const refundWhere = buildRefundWhere(currentRanges, filters);
   const detailWhere = buildDetailInvoiceWhere(currentRanges, filters);
 
-  const [summaryInvoices, summaryPayments, summaryRefunds, totalRows, invoices] =
+  const analyticsReadMode = resolveAllStoresAnalyticsReadMode(
+    dependencies.analyticsReadMode,
+  );
+  const supportsDailySummary =
+    filters.paymentMethod === null && filters.status === null;
+  let summaryRead:
+    | Awaited<ReturnType<typeof tryLoadAllStoresKpisFromDailySummaries>>
+    | null = null;
+  let analyticsFallbackReason: AllStoresAnalyticsFallbackReason =
+    analyticsReadMode === "OFF"
+      ? "DISABLED"
+      : analyticsReadMode === "SHADOW"
+        ? "SHADOW_MODE"
+        : supportsDailySummary
+          ? null
+          : "UNSUPPORTED_FILTERS";
+  if (analyticsReadMode === "PRIMARY" && supportsDailySummary) {
+    summaryRead = await tryLoadAllStoresKpisFromDailySummaries({
+      businesses,
+      periods,
+      database,
+    });
+    if (!summaryRead.ok) analyticsFallbackReason = summaryRead.reason;
+  }
+
+  let calculated: Map<
+    string,
+    { current: AllStoresKpi; previous: AllStoresKpi }
+  >;
+  let businessTrends: GroupReportBusinessTrend[];
+  let summary: AllStoresKpi;
+  let trend: GroupReportTrendPoint[];
+  let catalogRankings: ReturnType<typeof buildGroupCatalogRankings>;
+  let totalRows: number;
+  let invoices: DetailInvoice[];
+  let summaryDataSource: "DAILY_SUMMARY" | "RAW";
+
+  if (summaryRead?.ok) {
+    const [catalogInvoices, detailCount, detailInvoices] = await Promise.all([
+      database.invoice.findMany({
+        where: invoiceSummaryWhere,
+        select: {
+          items: {
+            select: {
+              businessId: true,
+              customerPackageId: true,
+              lineTotal: true,
+              name: true,
+              productId: true,
+              quantity: true,
+              serviceId: true,
+            },
+          },
+        },
+      }),
+      database.invoice.count({ where: detailWhere }),
+      database.invoice.findMany({
+        where: detailWhere,
+        orderBy: [{ issuedAt: "desc" }, { id: "desc" }],
+        skip: (filters.page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          businessId: true,
+          invoiceNumber: true,
+          issuedAt: true,
+          total: true,
+          discountAmount: true,
+          loyaltyDiscountAmount: true,
+          tipAmount: true,
+          balance: true,
+          status: true,
+          customer: { select: { name: true } },
+          payments: {
+            where: { status: "ACTIVE" },
+            select: {
+              amount: true,
+              method: true,
+              paidAt: true,
+            },
+          },
+          refunds: {
+            select: {
+              amount: true,
+              method: true,
+              refundedAt: true,
+            },
+          },
+        },
+      }),
+    ]);
+    calculated = summaryRead.reportByBusiness;
+    summary = sumKpis(
+      businesses.map((business) => calculated.get(business.id)!.current),
+    );
+    trend = buildGroupReportTrendFromDailySummaries({
+      businesses,
+      periods,
+      rows: summaryRead.rows,
+    });
+    businessTrends = businesses.map((business) => ({
+      businessId: business.id,
+      businessName: business.name,
+      coverage: coverageByBusiness.get(business.id)!,
+      points: withBusinessTrendCoverage(
+        business,
+        buildGroupReportTrendFromDailySummaries({
+          businesses: [business],
+          periods,
+          rows: summaryRead.rows,
+        }),
+      ),
+    }));
+    catalogRankings = buildGroupCatalogRankings(
+      catalogInvoices.flatMap((invoice) => invoice.items),
+    );
+    totalRows = detailCount;
+    invoices = detailInvoices;
+    summaryDataSource = "DAILY_SUMMARY";
+    analyticsFallbackReason = null;
+  } else {
+    const [summaryInvoices, summaryPayments, summaryRefunds, detailCount, detailInvoices] =
     await Promise.all([
       database.invoice.findMany({
         where: invoiceSummaryWhere,
@@ -272,23 +435,46 @@ export async function getGroupReports(
       }),
     ]);
 
-  const calculated = calculateAllStoresKpis({
-    businessIds: businesses.map((business) => business.id),
-    periods,
-    invoices: summaryInvoices,
-    payments: summaryPayments,
-    refunds: summaryRefunds,
-  });
-  const summary = sumKpis(
-    businesses.map((business) => calculated.get(business.id)!.current),
-  );
-  const trend = buildGroupReportTrend({
-    businesses,
-    periods,
-    invoices: summaryInvoices,
-    payments: summaryPayments,
-    refunds: summaryRefunds,
-  });
+    calculated = calculateAllStoresKpis({
+      businessIds: businesses.map((business) => business.id),
+      periods,
+      invoices: summaryInvoices,
+      payments: summaryPayments,
+      refunds: summaryRefunds,
+    });
+    summary = sumKpis(
+      businesses.map((business) => calculated.get(business.id)!.current),
+    );
+    trend = buildGroupReportTrend({
+      businesses,
+      periods,
+      invoices: summaryInvoices,
+      payments: summaryPayments,
+      refunds: summaryRefunds,
+    });
+    businessTrends = businesses.map((business) => ({
+      businessId: business.id,
+      businessName: business.name,
+      coverage: coverageByBusiness.get(business.id)!,
+      points: withBusinessTrendCoverage(
+        business,
+        buildGroupReportTrend({
+          businesses: [business],
+          periods,
+          invoices: summaryInvoices,
+          payments: summaryPayments,
+          refunds: summaryRefunds,
+        }),
+      ),
+    }));
+    catalogRankings = buildGroupCatalogRankings(
+      summaryInvoices.flatMap((invoice) => invoice.items),
+    );
+    totalRows = detailCount;
+    invoices = detailInvoices;
+    summaryDataSource = "RAW";
+  }
+
   const businessPerformance = businesses
     .map((business) => ({
       rank: 0,
@@ -296,18 +482,17 @@ export async function getGroupReports(
       businessName: business.name,
       industryType: business.industryType,
       metrics: calculated.get(business.id)!.current,
+      coverage: coverageByBusiness.get(business.id)!,
     }))
     .sort(
       (left, right) =>
+        coveragePriority(left.coverage) - coveragePriority(right.coverage) ||
         right.metrics.netSalesCents - left.metrics.netSalesCents ||
         right.metrics.grossSalesCents - left.metrics.grossSalesCents ||
         left.businessName.localeCompare(right.businessName) ||
         left.businessId.localeCompare(right.businessId),
     )
     .map((business, index) => ({ ...business, rank: index + 1 }));
-  const catalogRankings = buildGroupCatalogRankings(
-    summaryInvoices.flatMap((invoice) => invoice.items),
-  );
   const businessById = new Map(
     businesses.map((business) => [business.id, business]),
   );
@@ -316,11 +501,14 @@ export async function getGroupReports(
     groupId: scope.groupId,
     groupName: scope.groupName,
     role: scope.role,
-    authorizedBusinesses: scope.businesses,
+    authorizedBusinesses: reportingBusinesses,
     filters,
+    summaryDataSource,
+    analyticsFallbackReason,
     summary,
     trend,
     businessPerformance,
+    businessTrends,
     catalogRankings,
     rows: invoices.map((invoice) =>
       toGroupReportInvoiceRow(
@@ -430,15 +618,15 @@ export function buildGroupReportTrend(input: {
       (sum, payment) => sum + moneyToCents(payment.amount),
       0,
     );
-    const discountCents =
-      moneyToCents(invoice.discountAmount) +
-      moneyToCents(invoice.loyaltyDiscountAmount);
-    const discountedSalesCents =
-      moneyToCents(invoice.total) -
-      moneyToCents(invoice.tipAmount) -
-      packageRedemptionCents;
-    point.grossSalesCents += discountedSalesCents + discountCents;
-    point.netSalesCents += discountedSalesCents;
+    const invoiceMetrics = calculateInvoiceFinancialMetrics({
+      discountCents: moneyToCents(invoice.discountAmount),
+      loyaltyDiscountCents: moneyToCents(invoice.loyaltyDiscountAmount),
+      packageVoucherCents: packageRedemptionCents,
+      tipCents: moneyToCents(invoice.tipAmount),
+      totalCents: moneyToCents(invoice.total),
+    });
+    point.grossSalesCents += invoiceMetrics.grossSalesCents;
+    point.netSalesCents += invoiceMetrics.recognizedSalesCents;
     point.transactionCount += 1;
   }
 
@@ -478,6 +666,55 @@ export function buildGroupReportTrend(input: {
   }));
 }
 
+export function buildGroupReportTrendFromDailySummaries(input: {
+  businesses: AuthorizedGroupReportingContext["businesses"];
+  periods: Map<string, PeriodPair>;
+  rows: AnalyticsDailyRow[];
+}): GroupReportTrendPoint[] {
+  const dateValues = new Set<string>();
+  for (const business of input.businesses) {
+    const range = input.periods.get(business.id)?.current;
+    if (!range) continue;
+    for (let index = 0; index < range.dayCount; index += 1) {
+      dateValues.add(addDaysToDateValue(range.fromDateValue, index));
+    }
+  }
+  const points = new Map(
+    [...dateValues]
+      .sort()
+      .map((businessDate) => [businessDate, emptyTrendPoint(businessDate)]),
+  );
+  const businessIds = new Set(input.businesses.map((business) => business.id));
+
+  for (const row of input.rows) {
+    if (!businessIds.has(row.businessId)) continue;
+    const period = input.periods.get(row.businessId)?.current;
+    const businessDate = row.businessDate.toISOString().slice(0, 10);
+    if (
+      !period ||
+      businessDate < period.fromDateValue ||
+      businessDate > period.toDateValue
+    ) {
+      continue;
+    }
+    const point = points.get(businessDate);
+    if (!point) continue;
+    const metrics = dailyRowToKpi(row);
+    point.grossSalesCents += metrics.grossSalesCents;
+    point.netSalesCents += metrics.netSalesCents;
+    point.paymentsCollectedCents += metrics.paymentsCollectedCents;
+    point.refundsCents += metrics.refundsCents;
+    point.transactionCount += metrics.transactionCount;
+  }
+
+  return [...points.values()].map((point) => ({
+    ...point,
+    averageTransactionValueCents: point.transactionCount
+      ? Math.round(point.netSalesCents / point.transactionCount)
+      : null,
+  }));
+}
+
 function addEventToTrend(
   points: Map<string, GroupReportTrendPoint>,
   businessById: Map<
@@ -500,6 +737,62 @@ function addEventToTrend(
     ),
   );
   if (point) apply(point);
+}
+
+export function getGroupReportBusinessCoverage(
+  business: AuthorizedGroupReportingContext["businesses"][number],
+  range: PeriodPair["current"],
+): GroupReportBusinessCoverage {
+  const intersections = intersectBusinessMemberships(
+    business,
+    range.fromDate,
+    range.toDateExclusive,
+  ).sort((left, right) => left.gte.getTime() - right.gte.getTime());
+  if (!intersections.length) return "NONE";
+
+  let coveredMilliseconds = 0;
+  let mergedFrom = intersections[0].gte.getTime();
+  let mergedTo = intersections[0].lt.getTime();
+  for (const intersection of intersections.slice(1)) {
+    const from = intersection.gte.getTime();
+    const to = intersection.lt.getTime();
+    if (from <= mergedTo) {
+      mergedTo = Math.max(mergedTo, to);
+      continue;
+    }
+    coveredMilliseconds += mergedTo - mergedFrom;
+    mergedFrom = from;
+    mergedTo = to;
+  }
+  coveredMilliseconds += mergedTo - mergedFrom;
+
+  const requestedMilliseconds =
+    range.toDateExclusive.getTime() - range.fromDate.getTime();
+  return coveredMilliseconds >= requestedMilliseconds ? "FULL" : "PARTIAL";
+}
+
+function coveragePriority(coverage: GroupReportBusinessCoverage) {
+  if (coverage === "FULL") return 0;
+  if (coverage === "PARTIAL") return 1;
+  return 2;
+}
+
+function withBusinessTrendCoverage(
+  business: AuthorizedGroupReportingContext["businesses"][number],
+  points: GroupReportTrendPoint[],
+): GroupReportBusinessTrendPoint[] {
+  return points.map((point) => {
+    const dayRange = getBusinessDayRange({
+      fromDateValue: point.businessDate,
+      toDateValue: point.businessDate,
+      timezone: business.timezone,
+      businessDayCutoffTime: business.businessDayCutoffTime,
+    });
+    return {
+      ...point,
+      coverage: getGroupReportBusinessCoverage(business, dayRange),
+    };
+  });
 }
 
 function emptyTrendPoint(businessDate: string): GroupReportTrendPoint {
@@ -814,22 +1107,27 @@ function toGroupReportInvoiceRow(
     (payment) =>
       payment.method !== "PACKAGE" &&
       (!paymentMethod || payment.method === paymentMethod) &&
+      isEventWithinAuthorizedMembership(business, payment.paidAt) &&
       inCurrentPeriod(payment.paidAt, periods),
   );
   const periodRefunds = invoice.refunds.filter(
     (refund) =>
       refund.method !== "PACKAGE" &&
       (!paymentMethod || refund.method === paymentMethod) &&
+      isEventWithinAuthorizedMembership(business, refund.refundedAt) &&
       inCurrentPeriod(refund.refundedAt, periods),
   );
-  const discountCents =
-    moneyToCents(invoice.discountAmount) +
-    moneyToCents(invoice.loyaltyDiscountAmount);
-  const netInvoiceAmountCents =
-    moneyToCents(invoice.total) -
-    moneyToCents(invoice.tipAmount) -
-    packageRedemptionCents;
-
+  const invoiceMetrics = calculateInvoiceFinancialMetrics({
+    balanceCents: moneyToCents(invoice.balance),
+    discountCents: moneyToCents(invoice.discountAmount),
+    loyaltyDiscountCents: moneyToCents(invoice.loyaltyDiscountAmount),
+    packageVoucherCents: packageRedemptionCents,
+    status: invoice.status,
+    tipCents: moneyToCents(invoice.tipAmount),
+    totalCents: moneyToCents(invoice.total),
+  });
+  const discountCents = invoiceMetrics.discountsCents;
+  const netInvoiceAmountCents = invoiceMetrics.recognizedSalesCents;
   return {
     id: invoice.id,
     invoiceNumber: invoice.invoiceNumber,
@@ -843,7 +1141,7 @@ function toGroupReportInvoiceRow(
     issuedAt: invoice.issuedAt,
     timezone: business.timezone,
     customerName: invoice.customer?.name ?? null,
-    grossAmountCents: netInvoiceAmountCents + discountCents,
+    grossAmountCents: invoiceMetrics.grossSalesCents,
     discountCents,
     tipCents: moneyToCents(invoice.tipAmount),
     packageRedemptionCents,

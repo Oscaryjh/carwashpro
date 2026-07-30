@@ -52,6 +52,7 @@ export function BusinessContextSwitcher({
     switchBusinessContextAction,
     initialBusinessContextActionState,
   );
+  const actionState = state ?? initialBusinessContextActionState;
   const showHomeContext =
     Boolean(homeBusiness) &&
     !groups.some((group) =>
@@ -102,8 +103,8 @@ export function BusinessContextSwitcher({
         </div>
         <input name="contextToken" type="hidden" value={contextToken} />
         <input name="returnTo" type="hidden" value={pathname ?? "/reports"} />
-        {state.status === "error" ? (
-          <p role="alert">{state.message}</p>
+        {actionState.status === "error" ? (
+          <p role="alert">{actionState.message}</p>
         ) : null}
       </form>
       {activeGroup?.canViewAllStores ? (

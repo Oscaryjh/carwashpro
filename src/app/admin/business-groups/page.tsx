@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { BusinessGroupCreateModal } from "@/components/business-group-create-modal";
 import { assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -24,29 +25,8 @@ export default async function BusinessGroupsPage() {
             <h1>Business groups</h1>
             <p>Organize independent businesses for future multi-store management and reporting.</p>
           </div>
+          <BusinessGroupCreateModal action={createBusinessGroupAction} />
         </div>
-
-        <section className="panel">
-          <div className="section-header">
-            <div>
-              <h2>Create group</h2>
-              <p className="muted">Businesses keep their own data and businessId after joining.</p>
-            </div>
-          </div>
-          <form action={createBusinessGroupAction} className="field-grid">
-            <label>
-              Group name
-              <input name="name" required maxLength={120} placeholder="e.g. Oscar Group" />
-            </label>
-            <label>
-              Group code
-              <input name="code" required maxLength={64} pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="e.g. oscar-group" />
-            </label>
-            <div className="form-actions field-grid-span-full">
-              <button type="submit">Create group</button>
-            </div>
-          </form>
-        </section>
 
         <section className="panel">
           <div className="section-header">

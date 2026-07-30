@@ -8,10 +8,9 @@ import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveOperationalBranchId } from "@/lib/branches";
+import { getCurrentBusinessDateValue } from "@/lib/business-day";
 import {
-  getBusinessTodayDateValue,
   isValidDateValue,
-  toBusinessDateValue,
 } from "@/lib/business-time";
 import { getDailyClosingReport } from "@/lib/daily-closing/query";
 import { getDailyClosingRange } from "@/lib/daily-closing/range";
@@ -88,7 +87,18 @@ export async function startShiftAction(formData: FormData) {
   );
 
   if (branchId) {
-    const businessDate = getBusinessTodayDateValue();
+    const businessTimeSettings = await prisma.business.findUniqueOrThrow({
+      where: { id: businessId },
+      select: {
+        businessDayCutoffTime: true,
+        timezone: true,
+      },
+    });
+    const businessDate = getCurrentBusinessDateValue(
+      new Date(),
+      businessTimeSettings.timezone,
+      businessTimeSettings.businessDayCutoffTime,
+    );
     const completedDailyClosing = await prisma.dailyClosingSnapshot.findUnique({
       where: {
         businessId_branchId_businessDate: {
@@ -333,7 +343,18 @@ export async function endShiftAction(formData: FormData) {
           return { dailyClosingCompleted: false };
         }
 
-        const businessDate = toBusinessDateValue(updated.startedAt);
+        const businessTimeSettings = await tx.business.findUniqueOrThrow({
+          where: { id: businessId },
+          select: {
+            businessDayCutoffTime: true,
+            timezone: true,
+          },
+        });
+        const businessDate = getCurrentBusinessDateValue(
+          updated.startedAt,
+          businessTimeSettings.timezone,
+          businessTimeSettings.businessDayCutoffTime,
+        );
         const normalizedBusinessDate = normalizeBusinessDate(businessDate);
         const existingSnapshot = await tx.dailyClosingSnapshot.findUnique({
           where: {
@@ -353,6 +374,7 @@ export async function endShiftAction(formData: FormData) {
         const { fromDate, toDateExclusive } = getDailyClosingRange(
           undefined,
           businessDate,
+          businessTimeSettings,
         );
         const closedShifts = await tx.cashierShift.findMany({
           where: {
@@ -447,7 +469,20 @@ export async function closeDailySnapshotAction(
     };
   }
 
-  if (parsed.data.businessDate > getBusinessTodayDateValue()) {
+  const businessTimeSettings = await prisma.business.findUniqueOrThrow({
+    where: { id: businessId },
+    select: {
+      businessDayCutoffTime: true,
+      timezone: true,
+    },
+  });
+  const currentBusinessDate = getCurrentBusinessDateValue(
+    new Date(),
+    businessTimeSettings.timezone,
+    businessTimeSettings.businessDayCutoffTime,
+  );
+
+  if (parsed.data.businessDate > currentBusinessDate) {
     return {
       message: "A future business date cannot be closed.",
       status: "error",
@@ -662,6 +697,7 @@ async function createDailyClosingSnapshotInTransaction({
     branch,
     business,
     businessDate,
+    businessDayCutoffTime: closingReport.businessDayCutoffTime,
     businessType: business.industryType,
     closedAt,
     closedBy: { id: user.userId, name: user.name },
@@ -669,6 +705,7 @@ async function createDailyClosingSnapshotInTransaction({
     expectedCashCents,
     generatedAt,
     report: closingReport.report,
+    timezone: closingReport.timeZone,
   });
   const whatsappText = buildFrozenDailyClosingWhatsAppText({
     baseText: closingReport.preview,

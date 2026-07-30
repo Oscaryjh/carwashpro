@@ -21,6 +21,7 @@ export function BusinessContextDrilldownButton({
     switchBusinessContextAction,
     initialState,
   );
+  const actionState = state ?? initialState;
 
   return (
     <form action={formAction} className="group-store-action">
@@ -30,7 +31,9 @@ export function BusinessContextDrilldownButton({
       <button disabled={pending} type="submit">
         {pending ? "Opening..." : label}
       </button>
-      {state.status === "error" ? <p role="alert">{state.message}</p> : null}
+      {actionState.status === "error" ? (
+        <p role="alert">{actionState.message}</p>
+      ) : null}
     </form>
   );
 }

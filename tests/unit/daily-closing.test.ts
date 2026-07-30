@@ -12,6 +12,7 @@ import {
   buildDailyClosingSnapshotPayload,
   buildFrozenDailyClosingWhatsAppText,
   getExpectedCashCents,
+  getSnapshotBusinessDayCutoffTime,
   isDailyClosingSnapshotPayload,
   normalizeBusinessDate,
 } from "../../src/lib/daily-closing/snapshot";
@@ -50,18 +51,20 @@ function createInvoice(
     loyaltyDiscountCents: 0,
     packageVoucherCents: 0,
     status: "PAID",
+    tipCents: 0,
     totalCents: 0,
     ...overrides,
   };
 }
 
-test("uses the Malaysia business date after UTC midnight crossover", () => {
+test("uses the store cutoff when local time is after midnight", () => {
   const range = getDailyClosingRange(new Date("2026-07-22T16:30:00.000Z"));
 
-  assert.equal(range.dateValue, "2026-07-23");
-  assert.equal(range.fromDate.toISOString(), "2026-07-22T16:00:00.000Z");
-  assert.equal(range.toDateExclusive.toISOString(), "2026-07-23T16:00:00.000Z");
+  assert.equal(range.dateValue, "2026-07-22");
+  assert.equal(range.fromDate.toISOString(), "2026-07-21T18:00:00.000Z");
+  assert.equal(range.toDateExclusive.toISOString(), "2026-07-22T18:00:00.000Z");
   assert.equal(range.timeZone, "Asia/Kuching");
+  assert.equal(range.businessDayCutoffTime, "02:00");
 });
 
 test("uses an explicit requested business date", () => {
@@ -71,17 +74,37 @@ test("uses an explicit requested business date", () => {
   );
 
   assert.equal(range.dateValue, "2026-07-20");
-  assert.equal(range.fromDate.toISOString(), "2026-07-19T16:00:00.000Z");
-  assert.equal(range.toDateExclusive.toISOString(), "2026-07-20T16:00:00.000Z");
+  assert.equal(range.fromDate.toISOString(), "2026-07-19T18:00:00.000Z");
+  assert.equal(range.toDateExclusive.toISOString(), "2026-07-20T18:00:00.000Z");
 });
 
-test("uses an inclusive start and exclusive next-midnight boundary", () => {
+test("uses an inclusive cutoff and exclusive next-cutoff boundary", () => {
   const range = getDailyClosingRange(
     new Date("2026-07-23T08:00:00.000Z"),
     "2026-07-23",
   );
 
   assert.equal(range.toDateExclusive.getTime() - range.fromDate.getTime(), 86_400_000);
+});
+
+test("uses each store timezone and preserves DST-safe cutoff boundaries", () => {
+  const range = getDailyClosingRange(
+    new Date("2026-03-08T06:30:00.000Z"),
+    "2026-03-08",
+    {
+      timezone: "America/New_York",
+      businessDayCutoffTime: "02:00",
+    },
+  );
+
+  assert.equal(range.dateValue, "2026-03-08");
+  assert.equal(range.fromDate.toISOString(), "2026-03-08T07:00:00.000Z");
+  assert.equal(
+    range.toDateExclusive.toISOString(),
+    "2026-03-09T06:00:00.000Z",
+  );
+  assert.equal(range.timeZone, "America/New_York");
+  assert.equal(range.businessDayCutoffTime, "02:00");
 });
 
 test("returns zero totals and a deterministic no-exception alert for an empty day", () => {
@@ -148,6 +171,23 @@ test("does not count package voucher value as cash sales", () => {
 
   assert.equal(report.financial.grossSalesCents, 0);
   assert.equal(report.financial.netSalesCents, 0);
+});
+
+test("does not count tips as gross or net sales", () => {
+  const report = calculateDailyClosingReport(
+    createSource({
+      invoices: [
+        createInvoice({
+          tipCents: 1_000,
+          totalCents: 11_000,
+        }),
+      ],
+    }),
+    BUSINESS_DAY_START,
+  );
+
+  assert.equal(report.financial.grossSalesCents, 10_000);
+  assert.equal(report.financial.netSalesCents, 10_000);
 });
 
 test("calculates collected cash from payments less monetary refunds", () => {
@@ -562,6 +602,7 @@ test("freezes report, cash reconciliation, closer, and timezone in one payload",
     branch: { id: "branch-1", name: "Kuching Branch" },
     business: { id: "business-1", name: "Tetamu Wellness" },
     businessDate: "2026-07-23",
+    businessDayCutoffTime: "02:00",
     businessType: "SALON_BEAUTY",
     closedAt: new Date("2026-07-23T10:05:00.000Z"),
     closedBy: { id: "user-1", name: "Oscar" },
@@ -569,12 +610,26 @@ test("freezes report, cash reconciliation, closer, and timezone in one payload",
     expectedCashCents: 10_000,
     generatedAt: new Date("2026-07-23T10:04:00.000Z"),
     report,
+    timezone: "Asia/Kuching",
   });
 
   assert.equal(payload.cash.differenceCents, -200);
   assert.equal(payload.timezone, "Asia/Kuching");
+  assert.equal(payload.businessDayCutoffTime, "02:00");
+  assert.equal(payload.businessDayDefinitionVersion, 1);
+  assert.equal(payload.metricDefinitionVersion, 1);
+  assert.equal(payload.version, 2);
   assert.equal(payload.report.paymentMethods[0]?.netCents, 10_000);
   assert.equal(isDailyClosingSnapshotPayload(payload), true);
+  const legacyPayload = {
+    ...payload,
+    businessDayCutoffTime: undefined,
+    businessDayDefinitionVersion: undefined,
+    metricDefinitionVersion: undefined,
+    version: 1,
+  };
+  assert.equal(isDailyClosingSnapshotPayload(legacyPayload), true);
+  assert.equal(getSnapshotBusinessDayCutoffTime(legacyPayload), "00:00");
   assert.equal(isDailyClosingSnapshotPayload({ version: 1 }), false);
 });
 
@@ -585,6 +640,7 @@ test("freezes the WhatsApp summary together with cash reconciliation", () => {
     branch: { id: "branch-1", name: "Kuching Branch" },
     business: { id: "business-1", name: "Tetamu Wellness" },
     businessDate: "2026-07-23",
+    businessDayCutoffTime: "02:00",
     businessType: "SALON_BEAUTY",
     closedAt: new Date("2026-07-23T10:05:00.000Z"),
     closedBy: { id: "user-1", name: "Oscar" },
@@ -592,6 +648,7 @@ test("freezes the WhatsApp summary together with cash reconciliation", () => {
     expectedCashCents: 10_000,
     generatedAt: new Date("2026-07-23T10:04:00.000Z"),
     report,
+    timezone: "Asia/Kuching",
   });
   const text = buildFrozenDailyClosingWhatsAppText({
     baseText: "*Daily Closing - Tetamu Wellness*",

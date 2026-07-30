@@ -65,6 +65,7 @@ type CashierUnifiedSaleFormProps = {
   catalogDiscounts: CatalogDiscountOption[];
   hasOpenShift: boolean;
   initialCatalog: CashierCatalogResult;
+  initialCatalogType: "package" | "product" | "service";
   initialSale?: CashierInitialSale | null;
   staffOptions: CashierStaffOption[];
   taxSettings: TaxDisplaySettings;
@@ -91,6 +92,7 @@ export function CashierUnifiedSaleForm({
   catalogDiscounts,
   hasOpenShift,
   initialCatalog,
+  initialCatalogType,
   initialSale = null,
   staffOptions,
   taxSettings,
@@ -98,8 +100,8 @@ export function CashierUnifiedSaleForm({
 }: CashierUnifiedSaleFormProps) {
   const router = useRouter();
   const [appointmentSale] = useState(initialSale);
-  const [catalogType, setCatalogType] = useState<CashierCatalogType>("service");
-  const [category, setCategory] = useState(RECENT_CATALOG_CATEGORY);
+  const [catalogType, setCatalogType] = useState<CashierCatalogType>(initialCatalogType);
+  const [category, setCategory] = useState("All categories");
   const [customer, setCustomer] = useState<PackageCustomerOption | null>(
     appointmentSale?.customer ?? null,
   );
@@ -535,7 +537,7 @@ export function CashierUnifiedSaleForm({
 
   function switchCatalog(nextType: CashierCatalogType) {
     setCatalogType(nextType);
-    setCategory(RECENT_CATALOG_CATEGORY);
+    setCategory("All categories");
     setCatalogPage(1);
   }
 
