@@ -2,6 +2,10 @@ import { AppointmentCustomerPicker } from "@/components/appointment-customer-pic
 import { AppointmentVehiclePicker } from "@/components/appointment-vehicle-picker";
 import { BackButton } from "@/components/back-button";
 import { BranchSelect } from "@/components/branch-select";
+import {
+  buildAppointmentStaffWhere,
+  NO_APPOINTMENT_BRANCH_ID,
+} from "@/lib/appointments/staff-branch-scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
 import {
@@ -29,12 +33,12 @@ export default async function NewAppointmentPage({
   const staffWhere =
     user.role === "BUSINESS_OWNER"
       ? { businessId, status: "active" as const, appointmentBookable: true }
-      : {
+      : buildAppointmentStaffWhere({
+          at: new Date(),
+          branchId: user.branchId ?? NO_APPOINTMENT_BRANCH_ID,
           businessId,
-          status: "active" as const,
-          appointmentBookable: true,
-          OR: [{ branchId: user.branchId }, { id: user.userId }],
-        };
+          includeUserId: user.userId,
+        });
   const [branches, appointmentSubjectCount, services, staffUsers] = await Promise.all([
     getOperationalBranches(businessId, user),
     isSalonBusiness

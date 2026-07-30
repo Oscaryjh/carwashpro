@@ -16,8 +16,21 @@ type StaffFormProps = {
   action: (formData: FormData) => Promise<void>;
   branches: StaffBranch[];
   staff?: User;
+  employeeProfile?: {
+    attendanceEnabled: boolean;
+    canClockInBranchIds: string[];
+    employeeCode: string;
+    employmentType: string;
+    joinedAt: string;
+    primaryBranchId: string;
+    status: "ACTIVE" | "SUSPENDED" | "TERMINATED";
+  } | null;
   assignedBranchIds?: string[];
   industryType?: string;
+  roleProfiles?: Array<{ id: string; name: string }>;
+  selectedServiceIds?: string[];
+  services?: Array<{ id: string; name: string }>;
+  staffLevels?: Array<{ id: string; name: string }>;
   submitLabel: string;
 };
 
@@ -27,41 +40,167 @@ export function StaffForm({
   action,
   branches,
   staff,
+  employeeProfile,
   assignedBranchIds = [],
   industryType,
+  roleProfiles = [],
+  selectedServiceIds = [],
+  services = [],
+  staffLevels = [],
   submitLabel,
 }: StaffFormProps) {
   const isEdit = Boolean(staff);
   const [accessType, setAccessType] = useState<AccessType>(
-    staff?.loginEnabled === false ? "NO_LOGIN" : "LOGIN",
+    staff
+      ? staff.loginEnabled ? "LOGIN" : "NO_LOGIN"
+      : "NO_LOGIN",
   );
   const selectedPermissions =
     staff?.permissions ??
     (accessType === "LOGIN" ? getDefaultStaffPermissionsForIndustry(industryType) : []);
-  const selectedBranchIds = new Set(
-    assignedBranchIds.length ? assignedBranchIds : staff?.branchId ? [staff.branchId] : [],
+  const [attendanceEnabled, setAttendanceEnabled] = useState(
+    employeeProfile?.attendanceEnabled ?? false,
   );
+  const [providesServices, setProvidesServices] = useState(
+    staff?.appointmentBookable ?? false,
+  );
+  const [selectedRoleProfileId, setSelectedRoleProfileId] = useState(
+    staff?.staffRoleProfileId ?? "",
+  );
+  const fallbackSingleBranchId = branches.length === 1 ? branches[0]?.id : undefined;
+  const initialSelectedBranchIds = assignedBranchIds.length
+    ? assignedBranchIds
+    : staff?.branchId
+      ? [staff.branchId]
+      : fallbackSingleBranchId
+        ? [fallbackSingleBranchId]
+        : [];
+  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>(
+    initialSelectedBranchIds,
+  );
+  const [primaryBranchId, setPrimaryBranchId] = useState(
+    employeeProfile?.primaryBranchId ?? initialSelectedBranchIds[0] ?? "",
+  );
+  const [canClockInBranchIds, setCanClockInBranchIds] = useState<string[]>(
+    employeeProfile?.canClockInBranchIds ?? initialSelectedBranchIds,
+  );
+  const [employmentStatus, setEmploymentStatus] = useState<
+    "ACTIVE" | "SUSPENDED" | "TERMINATED"
+  >(employeeProfile?.status ?? "ACTIVE");
+
+  function updateBranchSelection(branchId: string, checked: boolean) {
+    const nextBranchIds = checked
+      ? Array.from(new Set([...selectedBranchIds, branchId]))
+      : selectedBranchIds.filter((id) => id !== branchId);
+
+    setSelectedBranchIds(nextBranchIds);
+    if (!nextBranchIds.includes(primaryBranchId)) {
+      setPrimaryBranchId(nextBranchIds[0] ?? "");
+    }
+    setCanClockInBranchIds((current) =>
+      checked
+        ? Array.from(new Set([...current, branchId]))
+        : current.filter((id) => id !== branchId),
+    );
+  }
+
+  function updateEmploymentStatus(status: "ACTIVE" | "SUSPENDED" | "TERMINATED") {
+    setEmploymentStatus(status);
+    if (status === "TERMINATED") {
+      setAttendanceEnabled(false);
+      setProvidesServices(false);
+      setAccessType("NO_LOGIN");
+    }
+  }
 
   return (
     <form className="form" action={action}>
       {staff ? <input type="hidden" name="userId" value={staff.id} /> : null}
       <input name="accessType" type="hidden" value={accessType} />
+      <input
+        name="appointmentBookable"
+        type="hidden"
+        value={providesServices ? "on" : ""}
+      />
+      <input
+        name="staffRoleProfileId"
+        type="hidden"
+        value={selectedRoleProfileId}
+      />
       <fieldset className="team-fieldset" disabled={!branches.length}>
         <div className="field-grid">
           <label>
-            <span>Name</span>
+            <span>Full name</span>
             <input name="name" defaultValue={staff?.name ?? ""} required />
           </label>
           <label>
-            <span>Employee phone / WhatsApp optional</span>
+            <span>Phone number</span>
             <input
-              inputMode="numeric"
+              autoComplete="tel"
+              inputMode="tel"
               name="whatsappPhone"
-              placeholder="60123456789"
+              placeholder="+60 12-345 6789"
               defaultValue={staff?.whatsappPhone ?? ""}
+              required={!isEdit || Boolean(employeeProfile)}
+              type="tel"
             />
-            <small className="form-hint">Used to match this employee in the future staff app.</small>
+            <small className="form-hint">
+              Used for this person&apos;s employee identity and future attendance access.
+            </small>
           </label>
+          {!isEdit || employeeProfile ? (
+            <>
+              <label>
+                <span>Employee code</span>
+                <input
+                  autoComplete="off"
+                  defaultValue={employeeProfile?.employeeCode ?? ""}
+                  maxLength={50}
+                  name="employeeCode"
+                  placeholder="EMP-001"
+                  required
+                />
+              </label>
+              <label>
+                <span>Employment type</span>
+                <select
+                  defaultValue={employeeProfile?.employmentType ?? "FULL_TIME"}
+                  name="employmentType"
+                >
+                  <option value="FULL_TIME">Full time</option>
+                  <option value="PART_TIME">Part time</option>
+                  <option value="CONTRACT">Contract</option>
+                  <option value="DAILY">Daily</option>
+                  <option value="HOURLY">Hourly</option>
+                </select>
+              </label>
+              <label>
+                <span>Joined date</span>
+                <input
+                  defaultValue={employeeProfile?.joinedAt ?? ""}
+                  name="joinedAt"
+                  required
+                  type="date"
+                />
+              </label>
+              <label>
+                <span>Employment status</span>
+                <select
+                  name="status"
+                  onChange={(event) =>
+                    updateEmploymentStatus(
+                      event.target.value as "ACTIVE" | "SUSPENDED" | "TERMINATED",
+                    )
+                  }
+                  value={employmentStatus}
+                >
+                  <option value="ACTIVE">Active</option>
+                  <option value="SUSPENDED">Suspended</option>
+                  <option value="TERMINATED">Terminated</option>
+                </select>
+              </label>
+            </>
+          ) : null}
           <div className={`staff-branch-picker${branches.length === 1 ? " staff-branch-picker-single" : ""}`}>
             <div className="staff-branch-heading">
               <span>Work branches</span>
@@ -90,8 +229,11 @@ export function StaffForm({
                 branches.map((branch) => (
                   <label key={branch.id}>
                     <input
-                      defaultChecked={selectedBranchIds.has(branch.id)}
+                      checked={selectedBranchIds.includes(branch.id)}
                       name="branchIds"
+                      onChange={(event) =>
+                        updateBranchSelection(branch.id, event.target.checked)
+                      }
                       type="checkbox"
                       value={branch.id}
                     />
@@ -100,66 +242,232 @@ export function StaffForm({
                 ))
               )}
             </div>
+            <label>
+              <span>
+                {accessType === "LOGIN"
+                  ? "Primary branch / POS home branch"
+                  : "Primary branch"}
+              </span>
+              <select
+                name="primaryBranchId"
+                onChange={(event) => setPrimaryBranchId(event.target.value)}
+                required
+                value={primaryBranchId}
+              >
+                <option value="">Select a primary branch</option>
+                {branches
+                  .filter((branch) => selectedBranchIds.includes(branch.id))
+                  .map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
             {branches.length > 1 ? (
               <small className="form-hint">
                 Select every branch where this employee may work.
               </small>
             ) : null}
           </div>
-          {isEdit ? (
-            <label>
-              <span>Status</span>
-              <select name="status" defaultValue={staff?.status ?? "active"}>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </label>
-          ) : null}
         </div>
 
-        <label className="staff-appointment-setting">
-          <input
-            defaultChecked={staff?.appointmentBookable ?? true}
-            name="appointmentBookable"
-            type="checkbox"
-          />
-          <span>
-            <strong>Available for appointments</strong>
-            <small>Show this employee in the appointment calendar and staff selector.</small>
-          </span>
-        </label>
-
-        <div className="staff-access-mode">
-          <h3>System access</h3>
-          <div className="staff-access-options">
-            <label className={accessType === "LOGIN" ? "selected" : ""}>
-              <input
-                checked={accessType === "LOGIN"}
-                onChange={() => setAccessType("LOGIN")}
-                type="radio"
-              />
-              <span>
-                <strong>Login account</strong>
-                <small>Give this staff access to selected system features.</small>
-              </span>
-            </label>
-            <label className={accessType === "NO_LOGIN" ? "selected" : ""}>
-              <input
-                checked={accessType === "NO_LOGIN"}
-                onChange={() => setAccessType("NO_LOGIN")}
-                type="radio"
-              />
-              <span>
-                <strong>Staff record only</strong>
-                <small>For service or cleaning staff who do not need to log in.</small>
-              </span>
-            </label>
+        {employmentStatus === "TERMINATED" && (!isEdit || employeeProfile) ? (
+          <div className="warning">
+            Termination disables attendance, services, and POS access while preserving
+            historical records.
           </div>
-          <p className="form-hint">
-            Staff record only employees can still be assigned to appointments and kept in
-            branch records.
-          </p>
+        ) : null}
+
+        {attendanceEnabled && selectedBranchIds.length ? (
+          <fieldset className="service-staff-fieldset">
+            <legend>Branches allowed for clock in</legend>
+            <div className="service-staff-grid">
+              {branches
+                .filter((branch) => selectedBranchIds.includes(branch.id))
+                .map((branch) => (
+                  <label className="service-staff-option" key={branch.id}>
+                    <input
+                      checked={canClockInBranchIds.includes(branch.id)}
+                      name="canClockInBranchIds"
+                      onChange={(event) =>
+                        setCanClockInBranchIds((current) =>
+                          event.target.checked
+                            ? Array.from(new Set([...current, branch.id]))
+                            : current.filter((id) => id !== branch.id),
+                        )
+                      }
+                      type="checkbox"
+                      value={branch.id}
+                    />
+                    <span>
+                      <strong>{branch.name}</strong>
+                    </span>
+                  </label>
+                ))}
+            </div>
+          </fieldset>
+        ) : null}
+
+        <div className="team-member-feature-options">
+          <label className="staff-appointment-setting">
+            <input
+              checked={attendanceEnabled}
+              name="attendanceEnabled"
+              onChange={(event) => setAttendanceEnabled(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              <strong>Enable attendance</strong>
+              <small>Allow attendance access at the assigned branches.</small>
+            </span>
+          </label>
+          <label className="staff-appointment-setting">
+            <input
+              checked={providesServices}
+              name="providesServices"
+              onChange={(event) => setProvidesServices(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              <strong>Provides services / accepts appointments</strong>
+              <small>Show this person in service and appointment staff selectors.</small>
+            </span>
+          </label>
+          <label className="staff-appointment-setting">
+            <input
+              checked={accessType === "LOGIN"}
+              name="posAccess"
+              onChange={(event) =>
+                setAccessType(event.target.checked ? "LOGIN" : "NO_LOGIN")
+              }
+              type="checkbox"
+            />
+            <span>
+              <strong>Can access POS back office</strong>
+              <small>Enable email login and selected system permissions.</small>
+            </span>
+          </label>
         </div>
+
+        {providesServices ? (
+          <section className="staff-access-mode" aria-labelledby="service-profile-heading">
+            <h3 id="service-profile-heading">Service & appointment profile</h3>
+            <div className="field-grid">
+              <label>
+                <span>Role</span>
+                <select
+                  onChange={(event) => setSelectedRoleProfileId(event.target.value)}
+                  value={selectedRoleProfileId}
+                >
+                  <option value="">No service role</option>
+                  {roleProfiles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Level</span>
+                <select
+                  defaultValue={staff?.staffLevelId ?? ""}
+                  name="staffLevelId"
+                >
+                  <option value="">No level</option>
+                  {staffLevels.map((level) => (
+                    <option key={level.id} value={level.id}>
+                      {level.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <fieldset className="service-staff-fieldset">
+              <legend>Assigned services</legend>
+              {services.length ? (
+                <div className="service-staff-grid">
+                  {services.map((service) => (
+                    <label className="service-staff-option" key={service.id}>
+                      <input
+                        defaultChecked={selectedServiceIds.includes(service.id)}
+                        name="serviceIds"
+                        type="checkbox"
+                        value={service.id}
+                      />
+                      <span>
+                        <strong>{service.name}</strong>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="form-hint">No active services are available.</p>
+              )}
+            </fieldset>
+            <p className="form-hint">
+              Weekly availability and time off can be managed from Team &gt; Schedule
+              after saving.
+            </p>
+          </section>
+        ) : null}
+
+        {accessType === "LOGIN" ? (
+          <section
+            className="staff-access-mode"
+            aria-labelledby="pos-access-heading"
+          >
+            <h3 id="pos-access-heading">POS access</h3>
+            <p className="form-hint">
+              POS access is optional and remains separate from attendance and service
+              availability.
+            </p>
+            <div className="field-grid">
+              <label>
+                <span>Login Role</span>
+                <select
+                  onChange={(event) => setSelectedRoleProfileId(event.target.value)}
+                  value={selectedRoleProfileId}
+                >
+                  <option value="">No login role</option>
+                  {roleProfiles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <fieldset className="service-staff-fieldset">
+              <legend>Authorized Branches</legend>
+              <div className="service-staff-grid">
+                {branches.map((branch) => (
+                  <label className="service-staff-option" key={branch.id}>
+                    <input
+                      aria-label={`${branch.name} authorized for POS`}
+                      checked={selectedBranchIds.includes(branch.id)}
+                      disabled={branches.length === 1}
+                      onChange={(event) =>
+                        updateBranchSelection(branch.id, event.target.checked)
+                      }
+                      type="checkbox"
+                    />
+                    <span>
+                      <strong>{branch.name}</strong>
+                      {branch.id === primaryBranchId ? (
+                        <small>POS home branch</small>
+                      ) : null}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <small className="form-hint">
+                These are the same work-branch assignments shown above. The primary
+                branch is this person&apos;s POS home branch.
+              </small>
+            </fieldset>
+          </section>
+        ) : null}
 
         {accessType === "LOGIN" ? (
           <div className="field-grid staff-login-fields">
@@ -185,18 +493,15 @@ export function StaffForm({
           </div>
         ) : null}
 
-        {isEdit ? (
-          <p className="form-hint">
-            Set status to inactive to disable the staff record while keeping shift, payment,
-            and activity history.
-          </p>
-        ) : null}
         {accessType === "LOGIN" ? (
           <details className="staff-permission-override">
             <summary>
               <span>
-                <strong>Advanced permission override</strong>
-                <small>Use only when this employee needs access different from an assigned role.</small>
+                <strong>Permission Level</strong>
+                <small>
+                  Advanced permission override for access that differs from the selected
+                  login role.
+                </small>
               </span>
               <span className="staff-permission-override-action">Configure</span>
             </summary>
@@ -208,7 +513,10 @@ export function StaffForm({
         ) : (
           <div className="staff-record-access-note">
             <strong>No system permissions</strong>
-            <span>This employee remains available for appointments and staff records.</span>
+            <span>
+              This team member can still use attendance or provide services when those
+              options are enabled.
+            </span>
           </div>
         )}
       </fieldset>

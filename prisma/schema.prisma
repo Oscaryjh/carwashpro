@@ -93,6 +93,12 @@ enum EmployeeMembershipStatus {
   TERMINATED
 }
 
+enum TeamMemberLinkStatus {
+  LINKED
+  UNLINKED
+  REVIEW_REQUIRED
+}
+
 enum EmployeeEmploymentType {
   FULL_TIME
   PART_TIME
@@ -584,6 +590,10 @@ model User {
   loginEnabled        Boolean    @default(true) @map("login_enabled")
   appointmentBookable Boolean    @default(false) @map("appointment_bookable")
   employeeAccountId   String?    @map("employee_account_id") @db.Uuid
+  employeeBusinessMembershipId String? @unique @map("employee_business_membership_id") @db.Uuid
+  teamMemberLinkStatus TeamMemberLinkStatus @default(UNLINKED) @map("team_member_link_status")
+  teamMemberLinkReason String? @map("team_member_link_reason")
+  teamMemberLinkedAt DateTime? @map("team_member_linked_at")
   staffRoleProfileId  String?    @map("staff_role_profile_id") @db.Uuid
   staffLevelId        String?    @map("staff_level_id") @db.Uuid
   role                UserRole
@@ -609,6 +619,7 @@ model User {
   staffBreaks              StaffBreak[]
   staffTimeOff             StaffTimeOff[]
   employeeAccount          EmployeeAccount?         @relation("EmployeeAccountLegacyUsers", fields: [employeeAccountId], references: [id], onDelete: SetNull)
+  employeeBusinessMembership EmployeeBusinessMembership? @relation("EmployeeBusinessMembershipStaffUser", fields: [employeeBusinessMembershipId], references: [id], onDelete: Restrict)
   staffRoleProfile         StaffRoleProfile?        @relation(fields: [staffRoleProfileId], references: [id], onDelete: SetNull)
   staffLevel               StaffLevel?              @relation(fields: [staffLevelId], references: [id], onDelete: SetNull)
   closedDailySnapshots     DailyClosingSnapshot[]  @relation("DailyClosingClosedBy")
@@ -901,6 +912,7 @@ model EmployeeBusinessMembership {
   adjustments       AttendanceAdjustment[]
   employeeSessions  EmployeeSession[]
   idempotencyRequests AttendanceRequestIdempotency[]
+  staffUser         User?                      @relation("EmployeeBusinessMembershipStaffUser")
 
   @@unique([employeeAccountId, businessId])
   @@unique([businessId, employeeCode])

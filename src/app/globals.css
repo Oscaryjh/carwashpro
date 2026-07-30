@@ -21429,6 +21429,7 @@ button:disabled,
   display: grid;
   grid-template-areas:
     "summary facts edit"
+    "badges badges badges"
     "classification classification classification";
   grid-template-columns: minmax(190px, .8fr) minmax(330px, 1.4fr) auto;
   align-items: center;
@@ -21519,6 +21520,20 @@ button:disabled,
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.team-member-feature-options {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.team-member-feature-badges {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  grid-area: badges;
 }
 
 .team-staff-classification {
@@ -22180,6 +22195,7 @@ button:disabled,
     grid-template-areas:
       "summary"
       "facts"
+      "badges"
       "classification"
       "edit";
   }

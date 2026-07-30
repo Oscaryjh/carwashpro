@@ -24,6 +24,7 @@ import {
   resolveAppointmentDurationMinutes,
 } from "@/lib/appointments/scheduling-service";
 import { assertStaffAvailability } from "@/lib/appointments/staff-availability";
+import { buildAppointmentStaffWhere } from "@/lib/appointments/staff-branch-scope";
 import { awardLoyaltyPointsForPayment } from "@/lib/loyalty/service";
 import { prisma } from "@/lib/prisma";
 import { calculateTax } from "@/lib/tax/calculator";
@@ -277,13 +278,11 @@ async function createAppointment(formData: FormData): Promise<AppointmentMutatio
 
   if (assignedStaffId) {
     await prisma.user.findFirstOrThrow({
-      where: {
-        id: assignedStaffId,
+      where: buildAppointmentStaffWhere({
+        branchId: appointmentBranchId,
         businessId,
-        status: "active",
-        appointmentBookable: true,
-        ...(appointmentBranchId ? { OR: [{ branchId: appointmentBranchId }, { role: "BUSINESS_OWNER" }] } : {}),
-      },
+        staffId: assignedStaffId,
+      }),
       select: { id: true },
     });
   }
@@ -512,15 +511,11 @@ export async function rescheduleAppointmentAction(
 
   if (shouldUpdateStaff && assignedStaffId) {
     await prisma.user.findFirstOrThrow({
-      where: {
-        id: assignedStaffId,
+      where: buildAppointmentStaffWhere({
+        branchId: appointment.branchId,
         businessId,
-        status: "active",
-        appointmentBookable: true,
-        ...(appointment.branchId
-          ? { OR: [{ branchId: appointment.branchId }, { role: "BUSINESS_OWNER" }] }
-          : {}),
-      },
+        staffId: assignedStaffId,
+      }),
       select: { id: true },
     });
 
@@ -682,15 +677,11 @@ export async function updateAppointmentDetailsAction(
 
   if (assignedStaffId) {
     await prisma.user.findFirstOrThrow({
-      where: {
-        id: assignedStaffId,
+      where: buildAppointmentStaffWhere({
+        branchId: appointment.branchId,
         businessId,
-        status: "active",
-        appointmentBookable: true,
-        ...(appointment.branchId
-          ? { OR: [{ branchId: appointment.branchId }, { role: "BUSINESS_OWNER" }] }
-          : {}),
-      },
+        staffId: assignedStaffId,
+      }),
       select: { id: true },
     });
   }

@@ -3,12 +3,20 @@ import { CatalogFormModal } from "@/components/catalog-form-modal";
 import { PermissionChecklist } from "@/components/staff-form";
 import { StaffCreateModal, StaffEditModal } from "@/components/staff-create-modal";
 import { StaffAvailabilityForm } from "@/components/staff-availability-form";
+import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import {
+  buildCurrentPeopleAssignmentWhere,
+  buildPeopleMembershipScopeWhere,
+  buildPeopleStaffScopeWhere,
+  hasWholeBusinessPeopleScope,
+} from "@/lib/team/people-scope";
+import {
   createStaffAction,
+  linkTeamMemberAction,
   updateStaffAction,
   updateOwnerAppointmentAvailabilityAction,
 } from "./actions";
@@ -19,7 +27,7 @@ import {
 } from "./configuration-actions";
 
 const teamSections = [
-  { key: "staff", label: "Staff", description: "People & access" },
+  { key: "people", label: "People", description: "Employment & access" },
   { key: "schedule", label: "Schedule", description: "Hours & services" },
   { key: "attendance", label: "Attendance", description: "Clock records" },
   { key: "roles", label: "Roles & Permissions", description: "Access roles" },
@@ -51,16 +59,30 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const params = await searchParams;
   const section = teamSections.some((item) => item.key === params.section)
     ? (params.section as TeamSection)
-    : "staff";
+    : "people";
   const query = params.q?.trim() ?? "";
   const now = new Date();
   const attendanceModalOpen = params.modal === "attendance";
+  const scope = await resolveAttendanceScope(access);
+  const wholeBusinessScope = hasWholeBusinessPeopleScope(access);
+  const peopleScope = {
+    allowedBranchIds: scope.allowedBranchIds,
+    businessId,
+    now,
+    wholeBusinessScope,
+  };
+  const currentAssignmentWhere =
+    buildCurrentPeopleAssignmentWhere(peopleScope);
+  const staffScopeWhere = buildPeopleStaffScopeWhere(peopleScope);
+  const membershipScopeWhere =
+    buildPeopleMembershipScopeWhere(peopleScope);
+  const allowedBranchIds = new Set(scope.allowedBranchIds);
 
-  const [staff, owners, branches, roleProfiles, staffLevels, recentActivity, attendance] =
+  const [staff, employeeOnlyMemberships, owners, branches, roleProfiles, staffLevels, services, recentActivity, attendance] =
     await Promise.all([
       prisma.user.findMany({
         where: {
-          businessId,
+          ...staffScopeWhere,
           role: "STAFF",
           ...(query
             ? {
@@ -77,6 +99,18 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           branch: { select: { id: true, name: true } },
           staffRoleProfile: { select: { id: true, name: true } },
           staffLevel: { select: { id: true, name: true } },
+          employeeBusinessMembership: {
+            include: {
+              branchAssignments: {
+                ...(wholeBusinessScope
+                  ? {}
+                  : { where: currentAssignmentWhere }),
+                include: {
+                  branch: { select: { id: true, name: true } },
+                },
+              },
+            },
+          },
           staffAvailabilities: { where: { enabled: true }, select: { id: true } },
           staffBreaks: { where: { enabled: true }, select: { id: true } },
           staffTimeOff: {
@@ -85,13 +119,18 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
             orderBy: { startsAt: "asc" },
             take: 1,
           },
-          serviceStaffAssignments: { select: { id: true } },
+          serviceStaffAssignments: { select: { id: true, serviceId: true } },
           employeeAccount: {
             include: {
               memberships: {
-                where: { businessId },
+                where: {
+                  ...membershipScopeWhere,
+                },
                 include: {
                   branchAssignments: {
+                    ...(wholeBusinessScope
+                      ? {}
+                      : { where: currentAssignmentWhere }),
                     include: { branch: { select: { id: true, name: true } } },
                   },
                 },
@@ -101,12 +140,41 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         },
         orderBy: [{ status: "asc" }, { name: "asc" }],
       }),
+      prisma.employeeBusinessMembership.findMany({
+        where: {
+          ...membershipScopeWhere,
+          staffUser: null,
+        },
+        include: {
+          branchAssignments: {
+            where: wholeBusinessScope
+              ? { status: "ACTIVE" }
+              : currentAssignmentWhere,
+            include: { branch: { select: { id: true, name: true } } },
+            orderBy: [{ isPrimary: "desc" }, { branch: { name: "asc" } }],
+          },
+        },
+        orderBy: [{ status: "asc" }, { fullName: "asc" }],
+      }),
       prisma.user.findMany({
-        where: { businessId, role: "BUSINESS_OWNER", status: "active" },
+        where: {
+          businessId,
+          role: "BUSINESS_OWNER",
+          status: "active",
+          ...(wholeBusinessScope
+            ? {}
+            : { id: "00000000-0000-0000-0000-000000000000" }),
+        },
         orderBy: { createdAt: "asc" },
         select: { id: true, name: true, appointmentBookable: true },
       }),
-      getActiveBranches(businessId),
+      getActiveBranches(businessId).then((activeBranches) =>
+        wholeBusinessScope
+          ? activeBranches
+          : activeBranches.filter((branch) =>
+              allowedBranchIds.has(branch.id),
+            ),
+      ),
       prisma.staffRoleProfile.findMany({
         where: { businessId },
         include: { _count: { select: { users: true } } },
@@ -117,8 +185,19 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         include: { _count: { select: { users: true } } },
         orderBy: [{ active: "desc" }, { name: "asc" }],
       }),
+      prisma.service.findMany({
+        where: { businessId, status: "ACTIVE" },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
       prisma.auditLog.findMany({
-        where: { businessId, action: { startsWith: "STAFF_" } },
+        where: {
+          businessId,
+          action: { startsWith: "STAFF_" },
+          ...(wholeBusinessScope
+            ? {}
+            : { branchId: { in: [...scope.allowedBranchIds] } }),
+        },
         orderBy: { createdAt: "desc" },
         take: 10,
         select: {
@@ -130,7 +209,12 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         },
       }),
       prisma.employeeAttendance.findMany({
-        where: { businessId },
+        where: {
+          businessId,
+          ...(wholeBusinessScope
+            ? {}
+            : { branchId: { in: [...scope.allowedBranchIds] } }),
+        },
         include: {
           employeeAccount: { select: { name: true, phoneNormalized: true } },
           branch: { select: { name: true } },
@@ -176,10 +260,10 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         <div className="page-header team-page-header">
           <div>
             <h1>Team</h1>
-            <p>Staff, schedules, attendance, permissions, and commission levels.</p>
+            <p>People, employment, services, attendance, and access in one place.</p>
           </div>
-          <Link className="button-link" href="/team?section=staff&modal=create">
-            Create staff
+          <Link className="button-link" href="/team?section=people&modal=create">
+            Add team member
           </Link>
         </div>
 
@@ -209,9 +293,10 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           </nav>
 
           <div className="team-workspace-content">
-            {section === "staff" ? (
-              <StaffSection
+            {section === "people" ? (
+              <PeopleSection
                 branchesAvailable={Boolean(branches.length)}
+                employeeOnlyMemberships={employeeOnlyMemberships}
                 query={query}
                 roleProfiles={roleProfiles.filter((role) => role.active)}
                 staff={staff}
@@ -235,6 +320,9 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           action={createStaffAction}
           branches={branches}
           industryType={industryType}
+          roleProfiles={roleProfiles.filter((role) => role.active)}
+          services={services}
+          staffLevels={staffLevels.filter((level) => level.active)}
         />
       ) : null}
       {params.modal === "edit" && editingStaff ? (
@@ -242,8 +330,35 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           action={updateStaffAction}
           assignedBranchIds={assignedBranchIds(editingStaff)}
           branches={branches}
+          employeeProfile={
+            editingStaff.employeeBusinessMembership
+              ? {
+                  attendanceEnabled:
+                    editingStaff.employeeBusinessMembership.attendanceEnabled,
+                  employeeCode: editingStaff.employeeBusinessMembership.employeeCode,
+                  employmentType:
+                    editingStaff.employeeBusinessMembership.employmentType,
+                  joinedAt: formatDateInput(editingStaff.employeeBusinessMembership.joinedAt),
+                  primaryBranchId:
+                    editingStaff.employeeBusinessMembership.branchAssignments.find(
+                      (assignment) => assignment.isPrimary,
+                    )?.branchId ?? "",
+                  canClockInBranchIds:
+                    editingStaff.employeeBusinessMembership.branchAssignments
+                      .filter((assignment) => assignment.canClockIn)
+                      .map((assignment) => assignment.branchId),
+                  status: editingStaff.employeeBusinessMembership.status,
+                }
+              : null
+          }
           industryType={industryType}
+          roleProfiles={roleProfiles.filter((role) => role.active)}
+          selectedServiceIds={editingStaff.serviceStaffAssignments.map(
+            (assignment) => assignment.serviceId,
+          )}
+          services={services}
           staff={editingStaff}
+          staffLevels={staffLevels.filter((level) => level.active)}
         />
       ) : null}
       {scheduleDetails && editingStaff ? (
@@ -442,86 +557,203 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   );
 }
 
-function StaffSection({
+function PeopleSection({
   branchesAvailable,
+  employeeOnlyMemberships,
   query,
   roleProfiles,
   staff,
   staffLevels,
 }: {
   branchesAvailable: boolean;
+  employeeOnlyMemberships: EmployeeOnlyRow[];
   query: string;
   roleProfiles: Array<{ id: string; name: string }>;
   staff: StaffRow[];
   staffLevels: Array<{ id: string; name: string }>;
 }) {
+  const normalizedQuery = query.trim().toLocaleLowerCase("en");
+  const visibleEmployeeOnlyMemberships = normalizedQuery
+    ? employeeOnlyMemberships.filter((employee) =>
+        [
+          employee.fullName,
+          employee.employeeCode,
+          ...employee.branchAssignments.map((assignment) => assignment.branch.name),
+        ].some((value) => value.toLocaleLowerCase("en").includes(normalizedQuery)),
+      )
+    : employeeOnlyMemberships;
+  const peopleCount = staff.length + visibleEmployeeOnlyMemberships.length;
+
   return (
     <section className="team-section-panel">
       <div className="team-section-toolbar">
         <div>
-          <p className="eyebrow">STAFF</p>
-          <h2>All staff</h2>
+          <p className="eyebrow">PEOPLE</p>
+          <h2>All team members</h2>
         </div>
-        <span className="status">{staff.length} staff</span>
+        <span className="status">{peopleCount} people</span>
       </div>
       <form action="/team" className="team-workspace-search">
-        <input name="section" type="hidden" value="staff" />
-        <input defaultValue={query} name="q" placeholder="Search staff, phone, email, or branch" />
+        <input name="section" type="hidden" value="people" />
+        <input
+          defaultValue={query}
+          name="q"
+          placeholder="Search name, employee code, email, or branch"
+        />
         <button type="submit">Search</button>
-        {query ? <Link href="/team?section=staff">Clear</Link> : null}
+        {query ? <Link href="/team?section=people">Clear</Link> : null}
       </form>
       <div className="team-staff-list">
-        {staff.length ? staff.map((member) => (
-          <article className="team-staff-row" key={member.id}>
-            <div className="team-staff-summary">
-              <div className="team-staff-identity">
-                <span className="team-avatar">{initials(member.name)}</span>
-                <span>
-                  <strong>{member.name}</strong>
-                  <small>{member.whatsappPhone || member.email || "No contact"}</small>
+        {staff.map((member) => {
+          const employment = employmentProfile(member);
+
+          return (
+            <article className="team-staff-row" key={member.id}>
+              <div className="team-staff-summary">
+                <div className="team-staff-identity">
+                  <span className="team-avatar">{initials(member.name)}</span>
+                  <span>
+                    <strong>{member.name}</strong>
+                    <small>{member.whatsappPhone || member.email || "No contact"}</small>
+                  </span>
+                </div>
+                <span className={employment?.status === "ACTIVE" ? "status" : "status status-neutral"}>
+                  {employment?.status
+                    ? capitalize(employment.status)
+                    : member.teamMemberLinkStatus === "REVIEW_REQUIRED"
+                      ? "Review required"
+                      : "Staff only"}
                 </span>
               </div>
-              <span className={member.status === "active" ? "status" : "status status-neutral"}>
-                {capitalize(member.status)}
+              <div className="team-staff-facts">
+                <span><small>Branches</small>{branchNames(member)}</span>
+                <span><small>Employee code</small>{employment?.employeeCode ?? "Not linked"}</span>
+                <span><small>Services</small>{member.serviceStaffAssignments.length} assigned</span>
+              </div>
+              <div className="team-member-feature-badges" aria-label={`${member.name} features`}>
+                <FeatureBadge enabled={Boolean(employment)} label="Employment" />
+                <FeatureBadge
+                  enabled={employment?.attendanceEnabled === true}
+                  label="Attendance"
+                />
+                <FeatureBadge
+                  enabled={member.status === "active" && member.appointmentBookable}
+                  label="Services"
+                />
+                <FeatureBadge
+                  enabled={member.status === "active" && member.loginEnabled}
+                  label="POS access"
+                />
+              </div>
+              {employment ? (
+                <form action={assignStaffRoleAndLevelAction} className="team-staff-classification">
+                  <input name="userId" type="hidden" value={member.id} />
+                  <label>
+                    <span>Role</span>
+                    <select defaultValue={member.staffRoleProfileId ?? ""} name="staffRoleProfileId">
+                      <option value="">Advanced override (custom)</option>
+                      {roleProfiles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Level</span>
+                    <select defaultValue={member.staffLevelId ?? ""} name="staffLevelId">
+                      <option value="">No level</option>
+                      {staffLevels.map((level) => <option key={level.id} value={level.id}>{level.name}</option>)}
+                    </select>
+                  </label>
+                  <button className="secondary-light-button" type="submit">Apply</button>
+                </form>
+              ) : employeeOnlyMemberships.length ? (
+                <form action={linkTeamMemberAction} className="team-staff-classification">
+                  <input name="userId" type="hidden" value={member.id} />
+                  <label>
+                    <span>Link employment profile</span>
+                    <select name="membershipId" required>
+                      <option value="">Select by employee code</option>
+                      {employeeOnlyMemberships.map((employee) => (
+                        <option key={employee.id} value={employee.id}>
+                          {employee.employeeCode} - {employee.fullName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <span className="form-hint">
+                    Manual selection only. Names are never matched automatically.
+                  </span>
+                  <button className="secondary-light-button" type="submit">Link</button>
+                </form>
+              ) : (
+                <div className="team-staff-classification staff-record-access-note">
+                  No unlinked employment profile is available in this business.
+                </div>
+              )}
+              {employment ? (
+                <Link
+                  aria-label={`Edit ${member.name}`}
+                  className="secondary-light-button team-row-action"
+                  href={`/team?section=people&modal=edit&staffId=${member.id}`}
+                >
+                  <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
+                  <span>Edit</span>
+                </Link>
+              ) : null}
+            </article>
+          );
+        })}
+        {visibleEmployeeOnlyMemberships.map((employee) => (
+          <article className="team-staff-row" key={`employee-${employee.id}`}>
+            <div className="team-staff-summary">
+              <div className="team-staff-identity">
+                <span className="team-avatar">{initials(employee.fullName)}</span>
+                <span>
+                  <strong>{employee.fullName}</strong>
+                  <small>{employee.employeeCode} &middot; Employment profile only</small>
+                </span>
+              </div>
+              <span className={employee.status === "ACTIVE" ? "status" : "status status-neutral"}>
+                {capitalize(employee.status)}
               </span>
             </div>
             <div className="team-staff-facts">
-              <span><small>Branches</small>{branchNames(member)}</span>
-              <span><small>Access</small>{member.loginEnabled ? "Login enabled" : "Staff record only"}</span>
-              <span><small>Services</small>{member.serviceStaffAssignments.length} assigned</span>
+              <span><small>Branches</small>{employeeBranchNames(employee)}</span>
+              <span><small>Employment</small>{capitalize(employee.employmentType)}</span>
+              <span><small>Access</small>No service or POS profile</span>
             </div>
-            <form action={assignStaffRoleAndLevelAction} className="team-staff-classification">
-              <input name="userId" type="hidden" value={member.id} />
-              <label>
-                <span>Role</span>
-                <select defaultValue={member.staffRoleProfileId ?? ""} name="staffRoleProfileId">
-                  <option value="">Advanced override (custom)</option>
-                  {roleProfiles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-                </select>
-              </label>
-              <label>
-                <span>Level</span>
-                <select defaultValue={member.staffLevelId ?? ""} name="staffLevelId">
-                  <option value="">No level</option>
-                  {staffLevels.map((level) => <option key={level.id} value={level.id}>{level.name}</option>)}
-                </select>
-              </label>
-              <button className="secondary-light-button" type="submit">Apply</button>
-            </form>
+            <div className="team-member-feature-badges" aria-label={`${employee.fullName} features`}>
+              <FeatureBadge enabled label="Employment" />
+              <FeatureBadge enabled={employee.attendanceEnabled} label="Attendance" />
+              <FeatureBadge enabled={false} label="Services" />
+              <FeatureBadge enabled={false} label="POS access" />
+            </div>
             <Link
-              aria-label={`Edit ${member.name}`}
+              aria-label={`View ${employee.fullName}`}
               className="secondary-light-button team-row-action"
-              href={`/team?section=staff&modal=edit&staffId=${member.id}`}
+              href={`/team/employees/${employee.id}`}
             >
-              <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
-              <span>Edit</span>
+              View employment
             </Link>
           </article>
-        )) : (
-          <div className="empty-state">{query ? "No staff match this search." : branchesAvailable ? "No staff yet." : "Add an active branch first."}</div>
-        )}
+        ))}
+        {!peopleCount ? (
+          <div className="empty-state">
+            {query
+              ? "No team members match this search."
+              : branchesAvailable
+                ? "No team members yet."
+                : "Add an active branch first."}
+          </div>
+        ) : null}
       </div>
     </section>
+  );
+}
+
+function FeatureBadge({ enabled, label }: { enabled: boolean; label: string }) {
+  return (
+    <span className={enabled ? "status" : "status status-neutral"}>
+      {label}: {enabled ? "On" : "Off"}
+    </span>
   );
 }
 
@@ -688,10 +920,27 @@ type StaffRow = {
   name: string;
   email: string | null;
   whatsappPhone: string | null;
+  appointmentBookable: boolean;
   loginEnabled: boolean;
   status: string;
+  teamMemberLinkStatus: string;
+  branchId: string | null;
   staffRoleProfileId: string | null;
   staffLevelId: string | null;
+  employeeBusinessMembership: {
+    id: string;
+    attendanceEnabled: boolean;
+    employeeCode: string;
+    employmentType: string;
+    joinedAt: Date;
+    status: string;
+    branchAssignments: Array<{
+      branchId: string;
+      canClockIn: boolean;
+      isPrimary: boolean;
+      branch: { id: string; name: string };
+    }>;
+  } | null;
   branch: { id: string; name: string } | null;
   staffRoleProfile: { id: string; name: string } | null;
   staffLevel: { id: string; name: string } | null;
@@ -703,14 +952,32 @@ type StaffRow = {
     startsAt: Date;
     endsAt: Date;
   }>;
-  serviceStaffAssignments: Array<{ id: string }>;
+  serviceStaffAssignments: Array<{ id: string; serviceId: string }>;
   employeeAccount: {
     memberships: Array<{
+      attendanceEnabled: boolean;
+      employeeCode: string;
+      employmentType: string;
+      joinedAt: Date;
+      status: string;
       branchAssignments: Array<{
         branch: { id: string; name: string };
       }>;
     }>;
   } | null;
+};
+type EmployeeOnlyRow = {
+  id: string;
+  attendanceEnabled: boolean;
+  employeeCode: string;
+  employmentType: string;
+  fullName: string;
+  status: string;
+  branchAssignments: Array<{
+    branchId: string;
+    isPrimary: boolean;
+    branch: { id: string; name: string };
+  }>;
 };
 type OwnerRow = { id: string; name: string; appointmentBookable: boolean };
 type RoleRow = { id: string; name: string; permissions: string[]; active: boolean; _count: { users: number } };
@@ -723,20 +990,47 @@ type ActivityRow = { id: string; action: string; actorName: string | null; summa
 type AttendanceRow = { id: string; status: string; clockInAt: Date; clockOutAt: Date | null; employeeAccount: { name: string; phoneNormalized: string }; branch: { name: string } };
 
 function branchNames(member: StaffRow) {
-  const assigned = member.employeeAccount?.memberships
-    .flatMap((membership) => membership.branchAssignments.map((assignment) => assignment.branch.name)) ?? [];
+  const assigned =
+    member.employeeBusinessMembership?.branchAssignments.map(
+      (assignment) => assignment.branch.name,
+    ) ??
+    member.employeeAccount?.memberships.flatMap((membership) =>
+      membership.branchAssignments.map((assignment) => assignment.branch.name),
+    ) ??
+    [];
   const names = Array.from(new Set(assigned.length ? assigned : member.branch?.name ? [member.branch.name] : []));
   return names.length ? names.join(", ") : "No branch";
 }
 
-function assignedBranchIds(member: {
-  branchId: string | null;
-  employeeAccount: StaffRow["employeeAccount"];
-}) {
-  const assigned = member.employeeAccount?.memberships.flatMap((membership) =>
-    membership.branchAssignments.map((assignment) => assignment.branch.id),
-  ) ?? [];
+function assignedBranchIds(member: Pick<
+  StaffRow,
+  "branchId" | "employeeAccount" | "employeeBusinessMembership"
+>) {
+  const assigned =
+    member.employeeBusinessMembership?.branchAssignments.map(
+      (assignment) => assignment.branch.id,
+    ) ??
+    member.employeeAccount?.memberships.flatMap((membership) =>
+      membership.branchAssignments.map((assignment) => assignment.branch.id),
+    ) ??
+    [];
   return Array.from(new Set(assigned.length ? assigned : member.branchId ? [member.branchId] : []));
+}
+
+function employmentProfile(member: StaffRow) {
+  return member.employeeBusinessMembership;
+}
+
+function employeeBranchNames(employee: EmployeeOnlyRow) {
+  const names = employee.branchAssignments.map(
+    (assignment) =>
+      `${assignment.branch.name}${assignment.isPrimary ? " - Primary" : ""}`,
+  );
+  return names.length ? names.join(", ") : "No active branch";
+}
+
+function formatDateInput(value: Date) {
+  return value.toISOString().slice(0, 10);
 }
 
 function initials(name: string) {

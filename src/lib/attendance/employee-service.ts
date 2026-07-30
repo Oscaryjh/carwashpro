@@ -14,6 +14,7 @@ import {
   type WriteAuditLogInput,
 } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { synchronizeTeamMemberEmploymentState } from "@/lib/team/people-status";
 
 export type AttendanceServiceActor = NonNullable<
   WriteAuditLogInput["actor"]
@@ -55,104 +56,120 @@ export async function createAttendanceEmployee(
   args: CreateAttendanceEmployeeArgs,
   database: AttendanceServiceDatabase = prisma,
 ) {
-  return database.$transaction(async (transaction) => {
-    const validatedEmployee = await validateAttendanceEmployeeCreate(
-      bindTrustedBusinessId(args.input, args.businessId),
-      transaction,
-    );
-    assertAllowedBranches(
-      validatedEmployee.assignments,
-      args.allowedBranchIds,
-    );
+  return database.$transaction((transaction) =>
+    createAttendanceEmployeeInTransaction(args, transaction),
+  );
+}
 
-    const employeeAccount = await transaction.employeeAccount.upsert({
-      where: {
-        phoneNormalized: validatedEmployee.phoneNumber,
-      },
-      create: {
+export async function createAttendanceEmployeeInTransaction(
+  args: CreateAttendanceEmployeeArgs,
+  transaction: Prisma.TransactionClient,
+) {
+  const validatedEmployee = await validateAttendanceEmployeeCreate(
+    bindTrustedBusinessId(args.input, args.businessId),
+    transaction,
+  );
+  assertAllowedBranches(
+    validatedEmployee.assignments,
+    args.allowedBranchIds,
+  );
+
+  const employeeAccount = await transaction.employeeAccount.upsert({
+    where: {
+      phoneNormalized: validatedEmployee.phoneNumber,
+    },
+    create: {
+      phoneNumber: validatedEmployee.phoneNumber,
+      phoneNormalized: validatedEmployee.phoneNumber,
+      name: validatedEmployee.fullName,
+      status: "ACTIVE",
+    },
+    update: {
+      phoneNumber: validatedEmployee.phoneNumber,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  const membership =
+    await transaction.employeeBusinessMembership.create({
+      data: {
+        employeeAccountId: employeeAccount.id,
+        businessId: args.businessId,
+        employeeCode: validatedEmployee.employeeCode,
+        fullName: validatedEmployee.fullName,
         phoneNumber: validatedEmployee.phoneNumber,
-        phoneNormalized: validatedEmployee.phoneNumber,
-        name: validatedEmployee.fullName,
-        status: "ACTIVE",
-      },
-      update: {
-        phoneNumber: validatedEmployee.phoneNumber,
-      },
-      select: {
-        id: true,
+        phoneNumberNormalized: validatedEmployee.phoneNumber,
+        employmentType: validatedEmployee.employmentType,
+        status: validatedEmployee.status,
+        attendanceEnabled: validatedEmployee.attendanceEnabled,
+        joinedAt: validatedEmployee.joinedAt,
+        terminatedAt: validatedEmployee.terminatedAt,
+        position: validatedEmployee.position,
       },
     });
 
-    const membership =
-      await transaction.employeeBusinessMembership.create({
-        data: {
-          employeeAccountId: employeeAccount.id,
-          businessId: args.businessId,
-          employeeCode: validatedEmployee.employeeCode,
-          fullName: validatedEmployee.fullName,
-          phoneNumber: validatedEmployee.phoneNumber,
-          phoneNumberNormalized: validatedEmployee.phoneNumber,
-          employmentType: validatedEmployee.employmentType,
-          status: validatedEmployee.status,
-          attendanceEnabled: validatedEmployee.attendanceEnabled,
-          joinedAt: validatedEmployee.joinedAt,
-          terminatedAt: validatedEmployee.terminatedAt,
-          position: validatedEmployee.position,
-        },
-      });
-
-    for (const assignment of validatedEmployee.assignments) {
-      await transaction.employeeBranchAssignment.create({
-        data: {
-          membershipId: membership.id,
-          businessId: args.businessId,
-          branchId: assignment.branchId,
-          isPrimary: assignment.isPrimary,
-          canClockIn: assignment.canClockIn,
-          effectiveFrom:
-            assignment.effectiveFrom ?? validatedEmployee.joinedAt,
-          effectiveUntil: assignment.effectiveUntil,
-          status: assignment.status,
-        },
-      });
-    }
-
-    const created =
-      await transaction.employeeBusinessMembership.findUniqueOrThrow({
-        where: {
-          id: membership.id,
-        },
-        include: employeeServiceInclude,
-      });
-
-    await writeAuditLog(
-      {
+  for (const assignment of validatedEmployee.assignments) {
+    await transaction.employeeBranchAssignment.create({
+      data: {
+        membershipId: membership.id,
         businessId: args.businessId,
-        branchId: getAllowedAuditBranchId(
-          getPrimaryAttendanceBranchId(validatedEmployee),
-          args.allowedBranchIds,
-        ),
-        actor: args.actor,
-        request: args.request,
-        action: "EMPLOYEE_CREATED",
-        entityType: "EmployeeBusinessMembership",
-        entityId: created.id,
-        summary: `Employee ${created.employeeCode} created.`,
-        after: employeeAuditSnapshot(
-          created,
-          args.allowedBranchIds,
-        ),
+        branchId: assignment.branchId,
+        isPrimary: assignment.isPrimary,
+        canClockIn: assignment.canClockIn,
+        effectiveFrom:
+          assignment.effectiveFrom ?? validatedEmployee.joinedAt,
+        effectiveUntil: assignment.effectiveUntil,
+        status: assignment.status,
       },
-      transaction,
-    );
+    });
+  }
 
-    return created;
-  });
+  const created =
+    await transaction.employeeBusinessMembership.findUniqueOrThrow({
+      where: {
+        id: membership.id,
+      },
+      include: employeeServiceInclude,
+    });
+
+  await writeAuditLog(
+    {
+      businessId: args.businessId,
+      branchId: getAllowedAuditBranchId(
+        getPrimaryAttendanceBranchId(validatedEmployee),
+        args.allowedBranchIds,
+      ),
+      actor: args.actor,
+      request: args.request,
+      action: "EMPLOYEE_CREATED",
+      entityType: "EmployeeBusinessMembership",
+      entityId: created.id,
+      summary: `Employee ${created.employeeCode} created.`,
+      after: employeeAuditSnapshot(
+        created,
+        args.allowedBranchIds,
+      ),
+    },
+    transaction,
+  );
+
+  return created;
 }
 
 export async function updateAttendanceEmployee(
   args: UpdateAttendanceEmployeeArgs,
   database: AttendanceServiceDatabase = prisma,
+) {
+  return database.$transaction((transaction) =>
+    updateAttendanceEmployeeInTransaction(args, transaction),
+  );
+}
+
+export async function updateAttendanceEmployeeInTransaction(
+  args: UpdateAttendanceEmployeeArgs,
+  transaction: Prisma.TransactionClient,
 ) {
   const trustedInput = bindTrustedBusinessId(
     args.input,
@@ -172,8 +189,7 @@ export async function updateAttendanceEmployee(
       .parse(trustedInput["assignments"]);
   assertAllowedBranches(submittedAssignments, args.allowedBranchIds);
 
-  return database.$transaction(async (transaction) => {
-    const existing =
+  const existing =
       await transaction.employeeBusinessMembership.findFirst({
         where: {
           id: employeeId,
@@ -316,6 +332,26 @@ export async function updateAttendanceEmployee(
       now,
     });
 
+    const updatedBeforePeopleSynchronization =
+      await transaction.employeeBusinessMembership.findUniqueOrThrow({
+        where: {
+          id: existing.id,
+        },
+        include: employeeServiceInclude,
+      });
+    const peopleSynchronization = await synchronizeTeamMemberEmploymentState(
+      transaction,
+      {
+        businessId: args.businessId,
+        employeeAccountId:
+          updatedBeforePeopleSynchronization.employeeAccountId,
+        fullName: updatedBeforePeopleSynchronization.fullName,
+        membershipId: updatedBeforePeopleSynchronization.id,
+        phoneNumberNormalized:
+          updatedBeforePeopleSynchronization.phoneNumberNormalized,
+        status: updatedBeforePeopleSynchronization.status,
+      },
+    );
     const updated =
       await transaction.employeeBusinessMembership.findUniqueOrThrow({
         where: {
@@ -355,6 +391,7 @@ export async function updateAttendanceEmployee(
           assignmentsChanged:
             assignmentFingerprint(existing.branchAssignments) !==
             assignmentFingerprint(updated.branchAssignments),
+          peopleSynchronization,
         },
       },
       transaction,
@@ -503,8 +540,7 @@ export async function updateAttendanceEmployee(
       );
     }
 
-    return updated;
-  });
+  return updated;
 }
 
 type StoredAssignment = {

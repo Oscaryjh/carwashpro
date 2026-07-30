@@ -11,19 +11,25 @@ type StaffCreateModalProps = {
   action: (formData: FormData) => Promise<void>;
   branches: StaffBranch[];
   industryType?: string;
+  roleProfiles: Array<{ id: string; name: string }>;
+  services: Array<{ id: string; name: string }>;
+  staffLevels: Array<{ id: string; name: string }>;
 };
 
 export function StaffCreateModal({
   action,
   branches,
   industryType,
+  roleProfiles,
+  services,
+  staffLevels,
 }: StaffCreateModalProps) {
   return (
     <CatalogFormModal
-      ariaLabel="Create staff"
-      closePath="/team?section=staff"
-      eyebrow="TEAM"
-      title="Create staff"
+      ariaLabel="Add team member"
+      closePath="/team?section=people"
+      eyebrow="PEOPLE"
+      title="Add team member"
       wide
     >
       <div className="staff-create-modal-content">
@@ -37,7 +43,10 @@ export function StaffCreateModal({
           action={action}
           branches={branches}
           industryType={industryType}
-          submitLabel="Create staff"
+          roleProfiles={roleProfiles}
+          services={services}
+          staffLevels={staffLevels}
+          submitLabel="Add team member"
         />
       </div>
     </CatalogFormModal>
@@ -46,6 +55,16 @@ export function StaffCreateModal({
 
 type StaffEditModalProps = StaffCreateModalProps & {
   assignedBranchIds: string[];
+  employeeProfile?: {
+    attendanceEnabled: boolean;
+    canClockInBranchIds: string[];
+    employeeCode: string;
+    employmentType: string;
+    joinedAt: string;
+    primaryBranchId: string;
+    status: "ACTIVE" | "SUSPENDED" | "TERMINATED";
+  } | null;
+  selectedServiceIds?: string[];
   staff: User;
 };
 
@@ -53,16 +72,21 @@ export function StaffEditModal({
   action,
   assignedBranchIds,
   branches,
+  employeeProfile,
   industryType,
+  roleProfiles,
+  selectedServiceIds,
+  services,
   staff,
+  staffLevels,
 }: StaffEditModalProps) {
   return (
     <CatalogFormModal
       ariaLabel={`Edit ${staff.name}`}
-      closePath="/team?section=staff"
-      eyebrow="TEAM"
+      closePath="/team?section=people"
+      eyebrow="PEOPLE"
       modalClassName="staff-edit-modal"
-      title="Edit staff"
+      title="Edit team member"
       wide
     >
       <div className="staff-create-modal-content">
@@ -72,8 +96,15 @@ export function StaffEditModal({
             <strong>{staff.name}</strong>
             <small>{staff.whatsappPhone || staff.email || "No contact details"}</small>
           </div>
-          <em className={staff.status === "active" ? "status" : "status status-neutral"}>
-            {staff.status}
+          <em
+            className={
+              (employeeProfile?.status ?? staff.status) === "ACTIVE" ||
+              (employeeProfile?.status ?? staff.status) === "active"
+                ? "status"
+                : "status status-neutral"
+            }
+          >
+            {employeeProfile?.status ?? staff.status}
           </em>
         </div>
         {!branches.length ? (
@@ -83,8 +114,13 @@ export function StaffEditModal({
           action={action}
           assignedBranchIds={assignedBranchIds}
           branches={branches}
+          employeeProfile={employeeProfile}
           industryType={industryType}
+          roleProfiles={roleProfiles}
+          selectedServiceIds={selectedServiceIds}
+          services={services}
           staff={staff}
+          staffLevels={staffLevels}
           submitLabel="Save changes"
         />
       </div>

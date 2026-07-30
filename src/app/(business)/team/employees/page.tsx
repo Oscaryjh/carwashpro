@@ -252,8 +252,8 @@ export default async function EmployeesPage({
           </p>
         </div>
         {canManageEmployees ? (
-          <Link className={styles.primaryButton} href="/team/employees/new">
-            New employee
+          <Link className={styles.primaryButton} href="/team?section=people&modal=create">
+            Add team member
           </Link>
         ) : null}
       </header>
@@ -396,7 +396,7 @@ export default async function EmployeesPage({
                   const branchNames = employee.branchAssignments.map(
                     (assignment) =>
                       `${assignment.branch.name}${
-                        assignment.isPrimary ? " · Primary" : ""
+                        assignment.isPrimary ? " - Primary" : ""
                       }`,
                   );
                   const primaryAssignment = employee.branchAssignments.find(

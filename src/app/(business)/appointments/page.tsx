@@ -4,6 +4,10 @@ import {
   AppointmentCalendar,
   type AppointmentCalendarItem,
 } from "@/components/appointment-calendar";
+import {
+  buildAppointmentStaffWhere,
+  NO_APPOINTMENT_BRANCH_ID,
+} from "@/lib/appointments/staff-branch-scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { getOperationalBranches } from "@/lib/branches";
 import {
@@ -111,12 +115,12 @@ export default async function AppointmentsPage({
   const staffWhere =
     access.source === "GROUP_ACCESS" || user.role === "BUSINESS_OWNER"
       ? { businessId, status: "active" as const, appointmentBookable: true }
-      : {
+      : buildAppointmentStaffWhere({
+          at: new Date(),
+          branchId: user.branchId ?? NO_APPOINTMENT_BRANCH_ID,
           businessId,
-          status: "active" as const,
-          appointmentBookable: true,
-          OR: [{ branchId: user.branchId }, { id: user.userId }],
-        };
+          includeUserId: user.userId,
+        });
   const [
     appointments,
     totalCount,

@@ -79,26 +79,19 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       : []),
   ];
   const teamChildren: NavItem[] = [
-    ...(isStoreUser && canSeeCapability("TEAM", "VIEW_TEAM_DIRECTORY")
-      ? [
-          {
-            href: "/team",
-            label: "Staff & Permissions",
-            shortLabel: "Staff",
-            icon: "team" as const,
-          },
-        ]
-      : []),
     ...(isStoreUser &&
-    canSeeCapability(
-      "ATTENDANCE_EMPLOYEE_READ",
-      "VIEW_ATTENDANCE_EMPLOYEES",
-    )
+    (canSeeCapability("TEAM", "VIEW_TEAM_DIRECTORY") ||
+      canSeeCapability(
+        "ATTENDANCE_EMPLOYEE_READ",
+        "VIEW_ATTENDANCE_EMPLOYEES",
+      ))
       ? [
           {
-            href: "/team/employees",
-            label: "Employees",
-            shortLabel: "Emp",
+            href: canSeeCapability("TEAM", "VIEW_TEAM_DIRECTORY")
+              ? "/team"
+              : "/team/employees",
+            label: "People",
+            shortLabel: "People",
             icon: "team" as const,
           },
         ]

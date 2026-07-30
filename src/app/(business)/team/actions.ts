@@ -1,53 +1,86 @@
 "use server";
 
+import type { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
-import { normalizeAttendancePhone } from "@/lib/attendance/phone";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import {
   assertStaffPermission,
   normalizeStaffPermissionsForIndustry,
 } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
+import {
+  createTeamMember,
+  linkExistingStaffToEmployee,
+  updateTeamMember,
+} from "@/lib/team/people-service";
+import {
+  buildPeopleStaffScopeWhere,
+  hasWholeBusinessPeopleScope,
+  type PeopleScopeInput,
+} from "@/lib/team/people-scope";
+import { synchronizeTeamMemberEmploymentState } from "@/lib/team/people-status";
 
-const createStaffSchema = z.object({
-  name: z.string().trim().min(1, "Name is required."),
-  email: z.string().trim().email("Valid email is required.").toLowerCase().optional().or(z.literal("")),
+const employmentTypeSchema = z.enum([
+  "FULL_TIME",
+  "PART_TIME",
+  "CONTRACT",
+  "DAILY",
+  "HOURLY",
+]);
+const employmentStatusSchema = z.enum([
+  "ACTIVE",
+  "SUSPENDED",
+  "TERMINATED",
+]);
+const optionalUuidSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() ? value.trim() : null),
+  z.string().uuid().nullable(),
+);
+const teamMemberShape = {
+  attendanceEnabled: z.boolean(),
   branchIds: z.array(z.string().uuid()).min(1, "Select at least one active branch."),
-  whatsappPhone: z.string().trim().optional(),
+  canClockInBranchIds: z.array(z.string().uuid()),
+  email: z.string().trim().email("Valid email is required.").toLowerCase().optional().or(z.literal("")),
+  employeeCode: z.string().trim().min(1, "Employee code is required."),
+  employmentType: employmentTypeSchema,
+  joinedAt: z.string().trim().min(1, "Joined date is required."),
+  name: z.string().trim().min(1, "Name is required."),
   password: z.string().optional(),
-  accessType: z.enum(["LOGIN", "NO_LOGIN"]),
-  appointmentBookable: z.boolean(),
-}).superRefine((input, ctx) => {
-  if (input.accessType === "LOGIN" && !input.email) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["email"], message: "Login email is required." });
-  }
-  if (input.accessType === "LOGIN" && (!input.password || input.password.length < 8)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["password"], message: "Password must be at least 8 characters." });
-  }
+  posAccess: z.boolean(),
+  primaryBranchId: z.string().uuid("Select a primary branch."),
+  providesServices: z.boolean(),
+  serviceIds: z.array(z.string().uuid()),
+  staffLevelId: optionalUuidSchema,
+  staffRoleProfileId: optionalUuidSchema,
+  whatsappPhone: z.string().trim().min(1, "Phone number is required."),
+};
+
+const createStaffSchema = z.object(teamMemberShape).superRefine((input, context) => {
+  validateTeamMemberForm(input, context, true);
 });
 
-const updateStaffSchema = z.object({
-  userId: z.string().uuid(),
-  name: z.string().trim().min(1, "Name is required."),
-  email: z.string().trim().email("Valid email is required.").toLowerCase().optional().or(z.literal("")),
-  branchIds: z.array(z.string().uuid()).min(1, "Select at least one active branch."),
-  whatsappPhone: z.string().trim().optional(),
-  password: z.string().optional(),
-  status: z.enum(["active", "inactive"]),
-  accessType: z.enum(["LOGIN", "NO_LOGIN"]),
-  appointmentBookable: z.boolean(),
-}).superRefine((input, ctx) => {
-  if (input.accessType === "LOGIN" && !input.email) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["email"], message: "Login email is required." });
-  }
-});
+const updateStaffSchema = z
+  .object({
+    ...teamMemberShape,
+    status: employmentStatusSchema,
+    userId: z.string().uuid(),
+  })
+  .superRefine((input, context) => {
+    validateTeamMemberForm(input, context, false);
+  });
 
 const deleteStaffSchema = z.object({
+  userId: z.string().uuid(),
+});
+
+const linkTeamMemberSchema = z.object({
+  membershipId: z.string().uuid(),
   userId: z.string().uuid(),
 });
 
@@ -68,297 +101,259 @@ const staffTimeOffSchema = z.object({
 });
 
 export async function createStaffAction(formData: FormData) {
-  const { user, businessId, industryType } = await requireBusinessUser();
-  assertStaffPermission(user, "TEAM");
-  const auditRequest = await getAuditRequestContext();
+  const { access, user, businessId, industryType } =
+    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "TEAM");
+  }
 
   try {
-    const input = createStaffSchema.parse({
-      name: formData.get("name"),
-      email: String(formData.get("email") ?? ""),
-      branchIds: formData.getAll("branchIds").map(String),
-      whatsappPhone: formData.get("whatsappPhone"),
-      password: String(formData.get("password") ?? ""),
-      accessType: formData.get("accessType"),
-      appointmentBookable: formData.get("appointmentBookable") === "on",
-    });
-    const permissions = normalizeStaffPermissionsForIndustry(
-      formData.getAll("permissions"),
-      industryType,
-    );
-    const loginEnabled = input.accessType === "LOGIN";
-
-    const existingUser = input.email
-      ? await prisma.user.findUnique({
-          where: { email: input.email },
-          select: { id: true },
-        })
+    const input = parseTeamMemberForm(formData, false);
+    const scope = await resolveAttendanceScope(access);
+    const wholeBusinessScope = hasWholeBusinessPeopleScope(access);
+    const auditRequest = await getAuditRequestContext();
+    const permissions = input.posAccess
+      ? normalizeStaffPermissionsForIndustry(
+          formData.getAll("permissions"),
+          industryType,
+        )
+      : [];
+    const passwordHash = input.posAccess
+      ? await bcrypt.hash(input.password!, 12)
       : null;
 
-    if (existingUser) {
-      redirectWithTeamMessage("Email is already used by another user.", "error");
-    }
-
-    await assertActiveBranches(businessId, input.branchIds);
-
-    const passwordHash = loginEnabled ? await bcrypt.hash(input.password!, 12) : null;
-
-    const whatsappPhone = normalizeOptionalStaffPhone(input.whatsappPhone);
-
-    await assertUniqueStaffPhone(businessId, whatsappPhone);
-    const primaryBranchId = input.branchIds[0];
-
-    await prisma.$transaction(async (tx) => {
-      const employeeAccount = whatsappPhone
-        ? await syncEmployeeRegistration(tx, {
-            businessId,
-            name: input.name,
-            membershipStatus: "ACTIVE",
-            phoneNormalized: whatsappPhone,
-            branchIds: input.branchIds,
-          })
-        : null;
-      const created = await tx.user.create({
-        data: {
-          businessId,
-          branchId: primaryBranchId,
-          name: input.name,
-          email: input.email || null,
-          whatsappPhone,
-          employeeAccountId: employeeAccount?.id ?? null,
-          passwordHash,
-          loginEnabled,
-          appointmentBookable: input.appointmentBookable,
-          role: "STAFF",
-          status: "active",
-          permissions,
-        },
-      });
-
-      await writeAuditLog(
-        {
-          businessId,
-          branchId: primaryBranchId,
-          actor: user,
-          action: "STAFF_CREATED",
-          entityType: "User",
-          entityId: created.id,
-          summary: `Created staff ${created.name}`,
-          after: {
-            name: created.name,
-            email: created.email,
-            branchId: created.branchId,
-            branchIds: input.branchIds,
-            whatsappPhone: created.whatsappPhone,
-            loginEnabled: created.loginEnabled,
-            appointmentBookable: created.appointmentBookable,
-            status: created.status,
-            permissions: created.permissions,
-          },
-          request: auditRequest,
-        },
-        tx,
-      );
+    const created = await createTeamMember({
+      actor: user,
+      allowedBranchIds: scope.allowedBranchIds,
+      businessId,
+      features: {
+        appointmentBookable: input.providesServices,
+        email: input.posAccess ? input.email || null : null,
+        loginEnabled: input.posAccess,
+        passwordHash,
+        permissions,
+        serviceIds: input.providesServices ? input.serviceIds : [],
+        staffLevelId: input.providesServices ? input.staffLevelId : null,
+        staffRoleProfileId:
+          input.providesServices || input.posAccess
+            ? input.staffRoleProfileId
+            : null,
+      },
+      input: buildEmployeeInput(input, businessId, "ACTIVE"),
+      request: auditRequest,
+      wholeBusinessScope,
     });
 
-    revalidatePath("/team");
-    redirectWithTeamMessage("Staff created successfully.", "success");
+    revalidatePeoplePaths(created.membership.id);
+    redirectWithTeamMessage("Team member added successfully.", "success");
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
     }
 
-    redirectWithTeamMessage(getErrorMessage(error, "Unable to create staff."), "error");
+    redirectWithTeamMessage(
+      getErrorMessage(error, "Unable to add team member."),
+      "error",
+    );
   }
 }
 
 export async function updateStaffAction(formData: FormData) {
-  const { user, businessId, industryType } = await requireBusinessUser();
-  assertStaffPermission(user, "TEAM");
-  const auditRequest = await getAuditRequestContext();
+  const { access, user, businessId, industryType } =
+    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "TEAM");
+  }
 
   try {
-    const input = updateStaffSchema.parse({
-      userId: formData.get("userId"),
-      name: formData.get("name"),
-      email: String(formData.get("email") ?? ""),
-      branchIds: formData.getAll("branchIds").map(String),
-      whatsappPhone: formData.get("whatsappPhone"),
-      password: String(formData.get("password") ?? ""),
-      status: formData.get("status"),
-      accessType: formData.get("accessType"),
-      appointmentBookable: formData.get("appointmentBookable") === "on",
-    });
-    const permissions = normalizeStaffPermissionsForIndustry(
-      formData.getAll("permissions"),
-      industryType,
-    );
-    const loginEnabled = input.accessType === "LOGIN";
-
+    const input = parseTeamMemberForm(formData, true);
+    const scope = await resolveAttendanceScope(access);
+    const wholeBusinessScope = hasWholeBusinessPeopleScope(access);
     const staff = await prisma.user.findFirst({
       where: {
+        ...buildPeopleStaffScopeWhere({
+          allowedBranchIds: scope.allowedBranchIds,
+          businessId,
+          now: new Date(),
+          wholeBusinessScope,
+        }),
         id: input.userId,
-        businessId,
         role: "STAFF",
       },
       select: {
+        employeeBusinessMembership: {
+          select: {
+            id: true,
+            terminatedAt: true,
+            updatedAt: true,
+          },
+        },
         id: true,
-        branchId: true,
-        employeeAccountId: true,
-        name: true,
-        email: true,
-        whatsappPhone: true,
         loginEnabled: true,
-        appointmentBookable: true,
-        status: true,
-        permissions: true,
       },
     });
 
-    if (!staff) {
-      redirectWithTeamMessage("Staff user not found.", "error");
+    if (!staff?.employeeBusinessMembership) {
+      throw new Error(
+        "Link this legacy staff profile to an employee before unified editing.",
+      );
     }
-
-    const emailOwner = input.email
-      ? await prisma.user.findUnique({
-          where: { email: input.email },
-          select: { id: true },
-        })
-      : null;
-
-    if (emailOwner && emailOwner.id !== input.userId) {
-      redirectWithTeamMessage("Email is already used by another user.", "error");
-    }
-
-    await assertActiveBranches(businessId, input.branchIds);
 
     const password = input.password?.trim();
-
-    if (loginEnabled && password && password.length < 8) {
-      redirectWithTeamMessage("Password must be at least 8 characters.", "error");
-    }
-    if (loginEnabled && !password && !staff.loginEnabled) {
-      redirectWithTeamMessage("Set a password before enabling login.", "error");
+    if (input.posAccess && !password && !staff.loginEnabled) {
+      throw new Error("Set a temporary password before enabling POS access.");
     }
 
-    const whatsappPhone = normalizeOptionalStaffPhone(input.whatsappPhone);
-    await assertUniqueStaffPhone(businessId, whatsappPhone, input.userId);
-    const primaryBranchId = input.branchIds[0];
-    const passwordHash = password ? await bcrypt.hash(password, 12) : null;
-
-    await prisma.$transaction(async (tx) => {
-      const employeeAccount = whatsappPhone
-        ? await syncEmployeeRegistration(tx, {
-            businessId,
-            name: input.name,
-            membershipStatus:
-              input.status === "active" ? "ACTIVE" : "SUSPENDED",
-            phoneNormalized: whatsappPhone,
-            branchIds: input.branchIds,
-          })
+    const permissions = input.posAccess
+      ? normalizeStaffPermissionsForIndustry(
+          formData.getAll("permissions"),
+          industryType,
+        )
+      : [];
+    const passwordHash = password
+      ? await bcrypt.hash(password, 12)
+      : undefined;
+    const auditRequest = await getAuditRequestContext();
+    const terminatedAt =
+      input.status === "TERMINATED"
+        ? staff.employeeBusinessMembership.terminatedAt ?? new Date()
         : null;
-
-      if (
-        staff.employeeAccountId &&
-        staff.employeeAccountId !== employeeAccount?.id
-      ) {
-        await transitionEmployeeMembership(tx, {
-          businessId,
-          employeeAccountId: staff.employeeAccountId,
-          status: "SUSPENDED",
-        });
-      }
-
-      const updated = await tx.user.update({
-        where: { id: input.userId },
-        data: {
-          branchId: primaryBranchId,
-          name: input.name,
-          email: input.email || null,
-          whatsappPhone,
-          employeeAccountId: employeeAccount?.id ?? null,
-          loginEnabled,
-          appointmentBookable: input.appointmentBookable,
-          status: input.status,
-          permissions,
-          ...(passwordHash ? { passwordHash } : {}),
-        },
-      });
-
-      await writeAuditLog(
-        {
-          businessId,
-          branchId: updated.branchId,
-          actor: user,
-          action: "STAFF_UPDATED",
-          entityType: "User",
-          entityId: updated.id,
-          summary: `Updated staff ${updated.name}`,
-          before: staff,
-          after: {
-            name: updated.name,
-            email: updated.email,
-            branchId: updated.branchId,
-            branchIds: input.branchIds,
-            whatsappPhone: updated.whatsappPhone,
-            loginEnabled: updated.loginEnabled,
-            appointmentBookable: updated.appointmentBookable,
-            status: updated.status,
-            permissions: updated.permissions,
-          },
-          metadata: { passwordReset: Boolean(passwordHash) },
-          request: auditRequest,
-        },
-        tx,
-      );
+    const updated = await updateTeamMember({
+      actor: user,
+      allowedBranchIds: scope.allowedBranchIds,
+      businessId,
+      expectedUpdatedAt: staff.employeeBusinessMembership.updatedAt,
+      features: {
+        appointmentBookable:
+          input.status === "ACTIVE" && input.providesServices,
+        email:
+          input.status === "ACTIVE" && input.posAccess
+            ? input.email || null
+            : null,
+        loginEnabled: input.status === "ACTIVE" && input.posAccess,
+        ...(passwordHash ? { passwordHash } : {}),
+        permissions,
+        serviceIds:
+          input.status === "ACTIVE" && input.providesServices
+            ? input.serviceIds
+            : [],
+        staffLevelId:
+          input.status === "ACTIVE" && input.providesServices
+            ? input.staffLevelId
+            : null,
+        staffRoleProfileId:
+          input.status === "ACTIVE" &&
+          (input.providesServices || input.posAccess)
+            ? input.staffRoleProfileId
+            : null,
+      },
+      input: {
+        ...buildEmployeeInput(input, businessId, input.status, terminatedAt),
+        employeeId: staff.employeeBusinessMembership.id,
+      },
+      request: auditRequest,
+      userId: staff.id,
+      wholeBusinessScope: hasWholeBusinessPeopleScope(access),
     });
 
-    revalidatePath("/team");
-    redirectWithTeamMessage("Staff updated successfully.", "success");
+    revalidatePeoplePaths(updated.membership.id);
+    redirectWithTeamMessage("Team member updated successfully.", "success");
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
     }
 
-    redirectWithTeamMessage(getErrorMessage(error, "Unable to update staff."), "error");
+    redirectWithTeamMessage(
+      getErrorMessage(error, "Unable to update team member."),
+      "error",
+    );
   }
 }
 
-export async function updateOwnerAppointmentAvailabilityAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
-  assertStaffPermission(user, "TEAM");
-  const auditRequest = await getAuditRequestContext();
+export async function linkTeamMemberAction(formData: FormData) {
+  const { access, user, businessId } =
+    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "TEAM");
+  }
 
   try {
+    const input = linkTeamMemberSchema.parse({
+      membershipId: formData.get("membershipId"),
+      userId: formData.get("userId"),
+    });
+    const scope = await resolveAttendanceScope(access);
+    const auditRequest = await getAuditRequestContext();
+    await linkExistingStaffToEmployee({
+      actor: user,
+      allowedBranchIds: scope.allowedBranchIds,
+      businessId,
+      membershipId: input.membershipId,
+      request: auditRequest,
+      userId: input.userId,
+      wholeBusinessScope: hasWholeBusinessPeopleScope(access),
+    });
+
+    revalidatePeoplePaths(input.membershipId);
+    redirectWithTeamMessage(
+      "Staff and employee linked successfully.",
+      "success",
+    );
+  } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
+    redirectWithTeamMessage(
+      getErrorMessage(error, "Unable to link team member."),
+      "error",
+    );
+  }
+}
+
+export async function updateOwnerAppointmentAvailabilityAction(
+  formData: FormData,
+) {
+  const { access, user, businessId } =
+    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "TEAM");
+  }
+
+  try {
+    if (!hasWholeBusinessPeopleScope(access)) {
+      throw new Error(
+        "Owner appointment availability requires whole-business access.",
+      );
+    }
     const input = ownerAppointmentAvailabilitySchema.parse({
       userId: formData.get("userId"),
       appointmentBookable: formData.get("appointmentBookable"),
     });
+    const auditRequest = await getAuditRequestContext();
 
-    const owner = await prisma.user.findFirst({
-      where: {
-        id: input.userId,
-        businessId,
-        role: "BUSINESS_OWNER",
-      },
-      select: {
-        id: true,
-        branchId: true,
-        name: true,
-        appointmentBookable: true,
-      },
-    });
+    await prisma.$transaction(async (transaction) => {
+      const owner = await transaction.user.findFirst({
+        where: {
+          id: input.userId,
+          businessId,
+          role: "BUSINESS_OWNER",
+        },
+        select: {
+          id: true,
+          branchId: true,
+          name: true,
+          appointmentBookable: true,
+        },
+      });
+      if (!owner) {
+        throw new Error("Owner account not found.");
+      }
 
-    if (!owner) {
-      redirectWithTeamMessage("Owner account not found.", "error");
-    }
-
-    await prisma.$transaction(async (tx) => {
-      const updated = await tx.user.update({
+      const updated = await transaction.user.update({
         where: { id: owner.id },
         data: { appointmentBookable: input.appointmentBookable },
       });
-
       await writeAuditLog(
         {
           businessId,
@@ -367,12 +362,14 @@ export async function updateOwnerAppointmentAvailabilityAction(formData: FormDat
           action: "STAFF_UPDATED",
           entityType: "User",
           entityId: owner.id,
-          summary: `${input.appointmentBookable ? "Enabled" : "Disabled"} appointment availability for ${owner.name}`,
+          summary: `${
+            input.appointmentBookable ? "Enabled" : "Disabled"
+          } appointment availability for ${owner.name}`,
           before: { appointmentBookable: owner.appointmentBookable },
           after: { appointmentBookable: updated.appointmentBookable },
           request: auditRequest,
         },
-        tx,
+        transaction,
       );
     });
 
@@ -398,122 +395,177 @@ export async function updateOwnerAppointmentAvailabilityAction(formData: FormDat
 }
 
 export async function deleteStaffAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
-  assertStaffPermission(user, "TEAM");
-  assertStaffPermission(user, "DELETE_STAFF");
-  const auditRequest = await getAuditRequestContext();
+  const { access, user, businessId } =
+    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "TEAM");
+    assertStaffPermission(user, "DELETE_STAFF");
+  }
 
   try {
+    const scope = await resolveAttendanceScope(access);
+    const now = new Date();
     const input = deleteStaffSchema.parse({
       userId: formData.get("userId"),
     });
-
     if (input.userId === user.userId) {
-      redirectWithTeamMessage("You cannot delete your own account.", "error");
+      throw new Error("You cannot terminate your own account.");
     }
-
-    const staff = await prisma.user.findFirst({
-      where: {
-        id: input.userId,
-        businessId,
-        role: "STAFF",
-      },
-      include: {
-        _count: {
-          select: {
-            cashierPayments: true,
-            cashierShifts: true,
-            sentWhatsAppChatMessages: true,
-            sentWhatsAppMessages: true,
-          },
+    const auditRequest = await getAuditRequestContext();
+    const result = await prisma.$transaction(async (transaction) => {
+      const staff = await transaction.user.findFirst({
+        where: {
+          ...buildPeopleStaffScopeWhere({
+            allowedBranchIds: scope.allowedBranchIds,
+            businessId,
+            now,
+            wholeBusinessScope: hasWholeBusinessPeopleScope(access),
+          }),
+          id: input.userId,
+          role: "STAFF",
         },
-      },
-    });
-
-    if (!staff) {
-      redirectWithTeamMessage("Staff user not found.", "error");
-    }
-
-    const hasHistory =
-      staff._count.cashierPayments > 0 ||
-      staff._count.cashierShifts > 0 ||
-      staff._count.sentWhatsAppChatMessages > 0 ||
-      staff._count.sentWhatsAppMessages > 0;
-
-    if (hasHistory) {
-      redirectWithTeamMessage(
-        "Cannot delete this staff because it has shift, payment, or message history. Set it to inactive instead.",
-        "error",
-      );
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await writeAuditLog(
-        {
-          businessId,
-          branchId: staff.branchId,
-          actor: user,
-          action: "STAFF_DELETED",
-          entityType: "User",
-          entityId: staff.id,
-          summary: `Deleted staff ${staff.name}`,
-          before: {
-            name: staff.name,
-            email: staff.email,
-            branchId: staff.branchId,
-            whatsappPhone: staff.whatsappPhone,
-            status: staff.status,
-            permissions: staff.permissions,
-          },
-          request: auditRequest,
+        include: {
+          employeeBusinessMembership: true,
         },
-        tx,
-      );
+      });
+      if (!staff) {
+        throw new Error("Team member not found.");
+      }
 
-      if (staff.employeeAccountId) {
-        await transitionEmployeeMembership(tx, {
+      if (staff.employeeBusinessMembership) {
+        const membership =
+          await transaction.employeeBusinessMembership.update({
+            where: {
+              id: staff.employeeBusinessMembership.id,
+              businessId,
+            },
+            data: {
+              attendanceEnabled: false,
+              status: "TERMINATED",
+              terminatedAt:
+                staff.employeeBusinessMembership.terminatedAt ?? now,
+            },
+          });
+        await synchronizeTeamMemberEmploymentState(transaction, {
           businessId,
-          employeeAccountId: staff.employeeAccountId,
+          employeeAccountId: membership.employeeAccountId,
+          fullName: membership.fullName,
+          membershipId: membership.id,
+          phoneNumberNormalized: membership.phoneNumberNormalized,
           status: "TERMINATED",
+        });
+      } else {
+        await transaction.user.update({
+          where: { id: staff.id },
+          data: {
+            appointmentBookable: false,
+            loginEnabled: false,
+            status: "inactive",
+          },
         });
       }
 
-      await tx.user.delete({
-        where: { id: staff.id },
-      });
+      await writeAuditLog(
+        {
+          action: staff.employeeBusinessMembership
+            ? "TEAM_MEMBER_TERMINATED"
+            : "LEGACY_STAFF_DEACTIVATED",
+          actor: user,
+          after: {
+            appointmentBookable: false,
+            employmentStatus: staff.employeeBusinessMembership
+              ? "TERMINATED"
+              : null,
+            loginEnabled: false,
+            userStatus: "inactive",
+          },
+          before: {
+            appointmentBookable: staff.appointmentBookable,
+            employmentStatus:
+              staff.employeeBusinessMembership?.status ?? null,
+            loginEnabled: staff.loginEnabled,
+            userStatus: staff.status,
+          },
+          branchId: staff.branchId,
+          businessId,
+          entityId:
+            staff.employeeBusinessMembership?.id ?? staff.id,
+          entityType: staff.employeeBusinessMembership
+            ? "EmployeeBusinessMembership"
+            : "User",
+          request: auditRequest,
+          summary: staff.employeeBusinessMembership
+            ? `Terminated team member ${staff.name}.`
+            : `Deactivated legacy staff ${staff.name}.`,
+        },
+        transaction,
+      );
+
+      return {
+        membershipId: staff.employeeBusinessMembership?.id,
+        wasEmploymentProfile: Boolean(staff.employeeBusinessMembership),
+      };
     });
 
-    revalidatePath("/team");
-    redirectWithTeamMessage("Staff deleted successfully.", "success");
+    revalidatePeoplePaths(result.membershipId);
+    redirectWithTeamMessage(
+      result.wasEmploymentProfile
+        ? "Team member terminated. Historical records were retained."
+        : "Legacy staff profile deactivated. Historical records were retained.",
+      "success",
+    );
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
     }
 
-    redirectWithTeamMessage(getErrorMessage(error, "Unable to delete staff."), "error");
+    redirectWithTeamMessage(
+      getErrorMessage(error, "Unable to deactivate team member."),
+      "error",
+    );
   }
 }
 
 export async function saveStaffScheduleAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
-  assertStaffPermission(user, "TEAM");
+  const { access, user, businessId } =
+    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "TEAM");
+  }
 
   try {
     const input = staffScheduleSchema.parse({
       userId: formData.get("userId"),
     });
-    const staff = await findStaffForSchedule(businessId, input.userId);
+    const peopleScope = await resolvePeopleMutationScope(
+      access,
+      businessId,
+    );
     const days = Array.from({ length: 7 }, (_, dayOfWeek) => dayOfWeek);
+    const auditRequest = await getAuditRequestContext();
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (transaction) => {
+      const staff = await findStaffForSchedule(
+        transaction,
+        peopleScope,
+        input.userId,
+      );
       for (const dayOfWeek of days) {
         const enabled = formData.get(`enabled-${dayOfWeek}`) === "on";
-        const startTime = String(formData.get(`startTime-${dayOfWeek}`) ?? "").trim();
-        const endTime = String(formData.get(`endTime-${dayOfWeek}`) ?? "").trim();
-        const breakStart = String(formData.get(`breakStart-${dayOfWeek}`) ?? "").trim();
-        const breakEnd = String(formData.get(`breakEnd-${dayOfWeek}`) ?? "").trim();
+        const startTime = String(
+          formData.get(`startTime-${dayOfWeek}`) ?? "",
+        ).trim();
+        const endTime = String(
+          formData.get(`endTime-${dayOfWeek}`) ?? "",
+        ).trim();
+        const breakStart = String(
+          formData.get(`breakStart-${dayOfWeek}`) ?? "",
+        ).trim();
+        const breakEnd = String(
+          formData.get(`breakEnd-${dayOfWeek}`) ?? "",
+        ).trim();
 
-        await tx.staffAvailability.upsert({
+        await transaction.staffAvailability.upsert({
           where: {
             businessId_userId_dayOfWeek: {
               businessId,
@@ -521,16 +573,21 @@ export async function saveStaffScheduleAction(formData: FormData) {
               dayOfWeek,
             },
           },
-          create: { businessId, userId: input.userId, dayOfWeek, startTime, endTime, enabled },
+          create: {
+            businessId,
+            userId: input.userId,
+            dayOfWeek,
+            startTime,
+            endTime,
+            enabled,
+          },
           update: { startTime, endTime, enabled },
         });
-
-        await tx.staffBreak.deleteMany({
+        await transaction.staffBreak.deleteMany({
           where: { businessId, userId: input.userId, dayOfWeek },
         });
-
         if (breakStart && breakEnd) {
-          await tx.staffBreak.create({
+          await transaction.staffBreak.create({
             data: {
               businessId,
               userId: input.userId,
@@ -552,15 +609,20 @@ export async function saveStaffScheduleAction(formData: FormData) {
           entityType: "User",
           entityId: input.userId,
           summary: `Updated availability for ${staff.name}`,
-          request: await getAuditRequestContext(),
+          request: auditRequest,
         },
-        tx,
+        transaction,
       );
     });
 
     revalidatePath("/team");
     revalidatePath(`/team/${input.userId}`);
-    redirectWithScheduleMessage(formData, input.userId, "Staff availability saved.", "success");
+    redirectWithScheduleMessage(
+      formData,
+      input.userId,
+      "Staff availability saved.",
+      "success",
+    );
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
@@ -576,8 +638,11 @@ export async function saveStaffScheduleAction(formData: FormData) {
 }
 
 export async function addStaffTimeOffAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
-  assertStaffPermission(user, "TEAM");
+  const { access, user, businessId } =
+    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "TEAM");
+  }
 
   try {
     const input = staffTimeOffSchema.parse({
@@ -588,37 +653,58 @@ export async function addStaffTimeOffAction(formData: FormData) {
     });
     const startsAt = new Date(input.startsAt);
     const endsAt = new Date(input.endsAt);
-
-    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
+    if (
+      Number.isNaN(startsAt.getTime()) ||
+      Number.isNaN(endsAt.getTime()) ||
+      endsAt <= startsAt
+    ) {
       throw new Error("Leave end must be after leave start.");
     }
-
-    const staff = await findStaffForSchedule(businessId, input.userId);
-    await prisma.staffTimeOff.create({
-      data: {
-        businessId,
-        userId: input.userId,
-        startsAt,
-        endsAt,
-        reason: input.reason || null,
-      },
-    });
-
-    await writeAuditLog({
+    const peopleScope = await resolvePeopleMutationScope(
+      access,
       businessId,
-      branchId: staff.branchId,
-      actor: user,
-      action: "STAFF_TIME_OFF_ADDED",
-      entityType: "User",
-      entityId: input.userId,
-      summary: `Added time off for ${staff.name}`,
-      metadata: { startsAt, endsAt, reason: input.reason || null },
-      request: await getAuditRequestContext(),
+    );
+    const auditRequest = await getAuditRequestContext();
+
+    await prisma.$transaction(async (transaction) => {
+      const staff = await findStaffForSchedule(
+        transaction,
+        peopleScope,
+        input.userId,
+      );
+      await transaction.staffTimeOff.create({
+        data: {
+          businessId,
+          userId: input.userId,
+          startsAt,
+          endsAt,
+          reason: input.reason || null,
+        },
+      });
+      await writeAuditLog(
+        {
+          businessId,
+          branchId: staff.branchId,
+          actor: user,
+          action: "STAFF_TIME_OFF_ADDED",
+          entityType: "User",
+          entityId: input.userId,
+          summary: `Added time off for ${staff.name}`,
+          metadata: { startsAt, endsAt, reason: input.reason || null },
+          request: auditRequest,
+        },
+        transaction,
+      );
     });
 
     revalidatePath("/team");
     revalidatePath(`/team/${input.userId}`);
-    redirectWithScheduleMessage(formData, input.userId, "Staff leave added.", "success");
+    redirectWithScheduleMessage(
+      formData,
+      input.userId,
+      "Staff leave added.",
+      "success",
+    );
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
@@ -634,30 +720,52 @@ export async function addStaffTimeOffAction(formData: FormData) {
 }
 
 export async function deleteStaffTimeOffAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
-  assertStaffPermission(user, "TEAM");
+  const { access, user, businessId } =
+    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "TEAM");
+  }
 
   const timeOffId = String(formData.get("timeOffId") ?? "");
   const staffId = String(formData.get("userId") ?? "");
   try {
-    const staff = await findStaffForSchedule(businessId, staffId);
-    await prisma.staffTimeOff.deleteMany({
-      where: { id: timeOffId, businessId, userId: staffId },
-    });
-    await writeAuditLog({
+    const peopleScope = await resolvePeopleMutationScope(
+      access,
       businessId,
-      branchId: staff.branchId,
-      actor: user,
-      action: "STAFF_TIME_OFF_REMOVED",
-      entityType: "User",
-      entityId: staffId,
-      summary: `Removed time off for ${staff.name}`,
-      metadata: { timeOffId },
-      request: await getAuditRequestContext(),
+    );
+    const auditRequest = await getAuditRequestContext();
+    await prisma.$transaction(async (transaction) => {
+      const staff = await findStaffForSchedule(
+        transaction,
+        peopleScope,
+        staffId,
+      );
+      await transaction.staffTimeOff.deleteMany({
+        where: { id: timeOffId, businessId, userId: staffId },
+      });
+      await writeAuditLog(
+        {
+          businessId,
+          branchId: staff.branchId,
+          actor: user,
+          action: "STAFF_TIME_OFF_REMOVED",
+          entityType: "User",
+          entityId: staffId,
+          summary: `Removed time off for ${staff.name}`,
+          metadata: { timeOffId },
+          request: auditRequest,
+        },
+        transaction,
+      );
     });
     revalidatePath("/team");
     revalidatePath(`/team/${staffId}`);
-    redirectWithScheduleMessage(formData, staffId, "Staff leave removed.", "success");
+    redirectWithScheduleMessage(
+      formData,
+      staffId,
+      "Staff leave removed.",
+      "success",
+    );
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
@@ -671,13 +779,34 @@ export async function deleteStaffTimeOffAction(formData: FormData) {
   }
 }
 
-async function findStaffForSchedule(businessId: string, userId: string) {
-  const staff = await prisma.user.findFirst({
-    where: { id: userId, businessId, role: "STAFF" },
+async function resolvePeopleMutationScope(
+  access: Awaited<ReturnType<typeof requireBusinessUser>>["access"],
+  businessId: string,
+): Promise<PeopleScopeInput> {
+  const scope = await resolveAttendanceScope(access);
+  return {
+    allowedBranchIds: scope.allowedBranchIds,
+    businessId,
+    now: new Date(),
+    wholeBusinessScope: hasWholeBusinessPeopleScope(access),
+  };
+}
+
+async function findStaffForSchedule(
+  transaction: Prisma.TransactionClient,
+  peopleScope: PeopleScopeInput,
+  userId: string,
+) {
+  const staff = await transaction.user.findFirst({
+    where: {
+      ...buildPeopleStaffScopeWhere(peopleScope),
+      id: userId,
+      role: "STAFF",
+    },
     select: { id: true, name: true, branchId: true },
   });
   if (!staff) {
-    throw new Error("Staff user not found.");
+    throw new Error("Staff user not found in the authorized branch scope.");
   }
   return staff;
 }
@@ -719,228 +848,147 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-async function assertActiveBranches(businessId: string, branchIds: string[]) {
-  const activeBranches = await prisma.branch.findMany({
-    where: {
-      id: { in: branchIds },
-      businessId,
-      status: "ACTIVE",
-    },
-    select: { id: true },
-  });
-
-  if (activeBranches.length !== new Set(branchIds).size) {
-    redirectWithTeamMessage("Select only active branches for this staff.", "error");
-  }
-}
-
-async function assertUniqueStaffPhone(
-  businessId: string,
-  phoneNormalized: string | null,
-  excludedUserId?: string,
-) {
-  if (!phoneNormalized) {
-    return;
-  }
-
-  const staffUsers = await prisma.user.findMany({
-    where: {
-      businessId,
-      role: "STAFF",
-      whatsappPhone: { not: null },
-      ...(excludedUserId ? { id: { not: excludedUserId } } : {}),
-    },
-    select: { whatsappPhone: true },
-  });
-
-  if (staffUsers.some((staff) => normalizeAttendancePhone(staff.whatsappPhone ?? "") === phoneNormalized)) {
-    redirectWithTeamMessage("This phone number is already registered for another staff member.", "error");
-  }
-}
-
-async function syncEmployeeRegistration(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+function validateTeamMemberForm(
   input: {
-    businessId: string;
     branchIds: string[];
-    membershipStatus: "ACTIVE" | "SUSPENDED";
-    name: string;
-    phoneNormalized: string;
+    email?: string;
+    password?: string;
+    posAccess: boolean;
+    primaryBranchId: string;
   },
+  context: z.RefinementCtx,
+  creating: boolean,
 ) {
-  const now = new Date();
-  const employeeAccount = await tx.employeeAccount.upsert({
-    where: { phoneNormalized: input.phoneNormalized },
-    create: {
-      phoneNumber: input.phoneNormalized,
-      phoneNormalized: input.phoneNormalized,
-      name: input.name,
-      status: "ACTIVE",
-    },
-    update: {
-      phoneNumber: input.phoneNormalized,
-      status: "ACTIVE",
-    },
-  });
-
-  const membership = await tx.employeeBusinessMembership.upsert({
-    where: {
-      employeeAccountId_businessId: {
-        employeeAccountId: employeeAccount.id,
-        businessId: input.businessId,
-      },
-    },
-    create: {
-      attendanceEnabled: false,
-      employeeAccountId: employeeAccount.id,
-      businessId: input.businessId,
-      employeeCode: buildStaffEmployeeCode(employeeAccount.id),
-      employmentType: "FULL_TIME",
-      fullName: input.name,
-      joinedAt: now,
-      phoneNumber: input.phoneNormalized,
-      phoneNumberNormalized: input.phoneNormalized,
-      status: input.membershipStatus,
-      terminatedAt: null,
-    },
-    update: {
-      fullName: input.name,
-      phoneNumber: input.phoneNormalized,
-      phoneNumberNormalized: input.phoneNormalized,
-      status: input.membershipStatus,
-      terminatedAt: null,
-      ...(input.membershipStatus === "SUSPENDED"
-        ? { attendanceEnabled: false }
-        : {}),
-    },
-  });
-
-  const existingAssignments = await tx.employeeBranchAssignment.findMany({
-    where: {
-      businessId: input.businessId,
-      membershipId: membership.id,
-    },
-    select: {
-      id: true,
-      branchId: true,
-      status: true,
-    },
-  });
-  const activeByBranchId = new Map(
-    existingAssignments.filter((assignment) => assignment.status === "ACTIVE").map((assignment) => [
-      assignment.branchId,
-      assignment,
-    ]),
-  );
-
-  await tx.employeeBranchAssignment.updateMany({
-    where: { membershipId: membership.id, status: "ACTIVE" },
-    data: { isPrimary: false },
-  });
-
-  await tx.employeeBranchAssignment.updateMany({
-    where: {
-      membershipId: membership.id,
-      branchId: { notIn: input.branchIds },
-      status: "ACTIVE",
-    },
-    data: {
-      canClockIn: false,
-      effectiveUntil: now,
-      isPrimary: false,
-      status: "INACTIVE",
-    },
-  });
-
-  for (const [index, branchId] of input.branchIds.entries()) {
-    const existing = activeByBranchId.get(branchId);
-
-    if (existing) {
-      await tx.employeeBranchAssignment.update({
-        where: { id: existing.id },
-        data: {
-          canClockIn: input.membershipStatus === "ACTIVE",
-          effectiveUntil: null,
-          isPrimary: index === 0,
-        },
-      });
-    } else {
-      await tx.employeeBranchAssignment.create({
-        data: {
-          branchId,
-          businessId: input.businessId,
-          canClockIn: input.membershipStatus === "ACTIVE",
-          effectiveFrom: now,
-          isPrimary: index === 0,
-          membershipId: membership.id,
-          status: "ACTIVE",
-        },
-      });
-    }
+  if (!input.branchIds.includes(input.primaryBranchId)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Primary branch must be one of the selected work branches.",
+      path: ["primaryBranchId"],
+    });
   }
-
-  return employeeAccount;
+  if (input.posAccess && !input.email) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Login email is required when POS access is enabled.",
+      path: ["email"],
+    });
+  }
+  const password = input.password?.trim() ?? "";
+  if (input.posAccess && ((creating && !password) || (password && password.length < 8))) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Password must be at least 8 characters.",
+      path: ["password"],
+    });
+  }
 }
 
-async function transitionEmployeeMembership(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+function parseTeamMemberForm(formData: FormData, editing: false): z.infer<typeof createStaffSchema>;
+function parseTeamMemberForm(formData: FormData, editing: true): z.infer<typeof updateStaffSchema>;
+function parseTeamMemberForm(formData: FormData, editing: boolean) {
+  const values = {
+    attendanceEnabled: formData.get("attendanceEnabled") === "on",
+    branchIds: uniqueStrings(formData.getAll("branchIds")),
+    canClockInBranchIds: uniqueStrings(
+      formData.getAll("canClockInBranchIds"),
+    ),
+    email: String(formData.get("email") ?? ""),
+    employeeCode: formData.get("employeeCode"),
+    employmentType: formData.get("employmentType"),
+    joinedAt: formData.get("joinedAt"),
+    name: formData.get("name"),
+    password: String(formData.get("password") ?? ""),
+    posAccess:
+      formData.get("posAccess") === "on" ||
+      formData.get("accessType") === "LOGIN",
+    primaryBranchId: formData.get("primaryBranchId"),
+    providesServices:
+      formData.get("providesServices") === "on" ||
+      formData.get("appointmentBookable") === "on",
+    serviceIds: uniqueStrings(formData.getAll("serviceIds")),
+    staffLevelId: formData.get("staffLevelId"),
+    staffRoleProfileId: formData.get("staffRoleProfileId"),
+    whatsappPhone: formData.get("whatsappPhone"),
+    ...(editing
+      ? {
+          status: formData.get("status"),
+          userId: formData.get("userId"),
+        }
+      : {}),
+  };
+
+  return editing
+    ? updateStaffSchema.parse(values)
+    : createStaffSchema.parse(values);
+}
+
+function buildEmployeeInput(
   input: {
-    businessId: string;
-    employeeAccountId: string;
-    status: "SUSPENDED" | "TERMINATED";
+    attendanceEnabled: boolean;
+    branchIds: string[];
+    canClockInBranchIds: string[];
+    employeeCode: string;
+    employmentType:
+      | "FULL_TIME"
+      | "PART_TIME"
+      | "CONTRACT"
+      | "DAILY"
+      | "HOURLY";
+    joinedAt: string;
+    name: string;
+    primaryBranchId: string;
+    whatsappPhone: string;
   },
+  businessId: string,
+  status: "ACTIVE" | "SUSPENDED" | "TERMINATED",
+  terminatedAt: Date | null = null,
 ) {
-  const membership = await tx.employeeBusinessMembership.findUnique({
-    where: {
-      employeeAccountId_businessId: {
-        businessId: input.businessId,
-        employeeAccountId: input.employeeAccountId,
-      },
-    },
-    select: { id: true },
-  });
+  const canClockInBranchIds = new Set(input.canClockInBranchIds);
+  const attendanceEnabled =
+    status === "ACTIVE" && input.attendanceEnabled;
 
-  if (!membership) {
-    return;
-  }
-
-  const now = new Date();
-  await tx.employeeBusinessMembership.update({
-    where: { id: membership.id },
-    data: {
-      attendanceEnabled: false,
-      status: input.status,
-      terminatedAt: input.status === "TERMINATED" ? now : null,
-    },
-  });
-
-  await tx.employeeBranchAssignment.updateMany({
-    where: { membershipId: membership.id, status: "ACTIVE" },
-    data:
-      input.status === "TERMINATED"
-        ? {
-            canClockIn: false,
-            effectiveUntil: now,
-            isPrimary: false,
-            status: "INACTIVE",
-          }
-        : { canClockIn: false },
-  });
+  return {
+    assignments:
+      status === "TERMINATED"
+        ? []
+        : input.branchIds.map((branchId) => ({
+            branchId,
+            canClockIn:
+              attendanceEnabled && canClockInBranchIds.has(branchId),
+            effectiveUntil: null,
+            isPrimary: branchId === input.primaryBranchId,
+            status: "ACTIVE" as const,
+          })),
+    attendanceEnabled,
+    businessId,
+    employeeCode: input.employeeCode,
+    employmentType: input.employmentType,
+    fullName: input.name,
+    joinedAt: input.joinedAt,
+    phoneNumber: input.whatsappPhone,
+    position: null,
+    status,
+    terminatedAt,
+  };
 }
 
-function normalizeOptionalStaffPhone(value?: string) {
-  if (!value) {
-    return null;
-  }
-
-  const normalized = normalizeAttendancePhone(value);
-  if (!normalized) {
-    throw new Error("Enter a valid employee phone number.");
-  }
-
-  return normalized;
+function uniqueStrings(values: FormDataEntryValue[]) {
+  return Array.from(
+    new Set(
+      values
+        .map(String)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
-function buildStaffEmployeeCode(employeeAccountId: string) {
-  return `STAFF-${employeeAccountId.replace(/-/g, "").toUpperCase()}`;
+function revalidatePeoplePaths(membershipId?: string) {
+  revalidatePath("/team");
+  revalidatePath("/team/employees");
+  revalidatePath("/appointments");
+  revalidatePath("/services");
+  if (membershipId) {
+    revalidatePath(`/team/employees/${membershipId}`);
+  }
 }
