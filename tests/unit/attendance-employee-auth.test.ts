@@ -42,6 +42,11 @@ test("employee auth config is centralized and production mock fails closed", () 
   assert.equal(config.otp.locale, "ms-MY");
   assert.equal(config.session.cookieName, "tetamu_employee_session");
 
+  const fixedMockCodeConfig = testConfig({
+    EMPLOYEE_OTP_MOCK_CODE: "000000",
+  });
+  assert.equal(fixedMockCodeConfig.otp.mockCode, "000000");
+
   assert.throws(
     () =>
       getEmployeeAuthConfig({
@@ -62,6 +67,33 @@ test("employee auth config is centralized and production mock fails closed", () 
         EMPLOYEE_OTP_SEND_MODE: "mock",
       }),
     /EMPLOYEE_AUTH_SECRET/,
+  );
+
+  assert.throws(
+    () => testConfig({ EMPLOYEE_OTP_MOCK_CODE: "12345" }),
+    /exactly 6 digits/,
+  );
+
+  assert.throws(
+    () =>
+      getEmployeeAuthConfig({
+        NODE_ENV: "test",
+        EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+        EMPLOYEE_OTP_SEND_MODE: "provider",
+        EMPLOYEE_OTP_MOCK_CODE: "000000",
+      }),
+    /only in non-production mock mode/,
+  );
+
+  assert.throws(
+    () =>
+      getEmployeeAuthConfig({
+        NODE_ENV: "production",
+        EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+        EMPLOYEE_OTP_SEND_MODE: "provider",
+        EMPLOYEE_OTP_MOCK_CODE: "000000",
+      }),
+    /only in non-production mock mode/,
   );
 });
 

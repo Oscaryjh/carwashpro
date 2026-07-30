@@ -34,7 +34,9 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
   assertLocalDatabase();
   const baseTime = new Date(Date.now() - 3 * 60_000);
   const fixture = await createFixture();
-  const config = authConfig();
+  const config = authConfig({
+    EMPLOYEE_OTP_MOCK_CODE: "000000",
+  });
   let dynamicSessionToken: string | null = null;
 
   try {
@@ -335,6 +337,7 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
       config,
     });
     assert.equal(singleRequest.provider.sent.length, 1);
+    assert.equal(singleRequest.provider.sent[0].otp, "000000");
     assert.equal(singleRequest.provider.sent[0].purpose, "LOGIN");
     assert.equal(singleRequest.provider.sent[0].locale, "en-MY");
     const singleChallengeBeforeVerify =

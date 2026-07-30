@@ -21,6 +21,7 @@ export type EmployeeAuthConfig = Readonly<{
     sendMode: EmployeeOtpSendMode;
     locale: string;
     mockAccessKey: string | null;
+    mockCode: string | null;
   }>;
   session: Readonly<{
     cookieName: typeof EMPLOYEE_SESSION_COOKIE;
@@ -55,6 +56,12 @@ export function getEmployeeAuthConfig(
       "OTP mock mode is not available in production.",
     );
   }
+
+  const mockCode = readMockCode(
+    env.EMPLOYEE_OTP_MOCK_CODE,
+    environment,
+    sendMode,
+  );
 
   return {
     authSecret,
@@ -120,6 +127,7 @@ export function getEmployeeAuthConfig(
       sendMode,
       locale: readLocale(env.EMPLOYEE_OTP_LOCALE),
       mockAccessKey: env.EMPLOYEE_OTP_MOCK_ACCESS_KEY?.trim() || null,
+      mockCode,
     },
     session: {
       cookieName: EMPLOYEE_SESSION_COOKIE,
@@ -147,6 +155,34 @@ export function getEmployeeAuthConfig(
       secureCookie: environment === "production",
     },
   };
+}
+
+function readMockCode(
+  value: string | undefined,
+  environment: EmployeeAuthConfig["environment"],
+  sendMode: EmployeeOtpSendMode,
+) {
+  const code = value?.trim() ?? "";
+
+  if (!code) {
+    return null;
+  }
+
+  if (environment === "production" || sendMode !== "mock") {
+    throw new EmployeeAuthError(
+      "CONFIGURATION_ERROR",
+      "EMPLOYEE_OTP_MOCK_CODE is available only in non-production mock mode.",
+    );
+  }
+
+  if (!/^\d{6}$/.test(code)) {
+    throw new EmployeeAuthError(
+      "CONFIGURATION_ERROR",
+      "EMPLOYEE_OTP_MOCK_CODE must contain exactly 6 digits.",
+    );
+  }
+
+  return code;
 }
 
 function normalizeEnvironment(

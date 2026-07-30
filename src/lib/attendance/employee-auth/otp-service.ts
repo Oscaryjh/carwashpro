@@ -132,7 +132,7 @@ export async function requestEmployeeOtp(
     config.authSecret,
   );
   const challengeId = randomUUID();
-  const otp = createEmployeeOtp();
+  const otp = config.otp.mockCode ?? createEmployeeOtp();
   const expiresAt = new Date(
     now.getTime() + config.otp.expiresInSeconds * 1_000,
   );
