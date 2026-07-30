@@ -9,8 +9,14 @@
   background:
     radial-gradient(circle at 100% -10%, rgba(15, 158, 145, 0.18), transparent 32rem),
     linear-gradient(180deg, #f8fbfa 0%, #eef5f3 100%);
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
   color: var(--staff-ink);
+  height: 100dvh;
   min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding:
     env(safe-area-inset-top)
     max(16px, env(safe-area-inset-right))

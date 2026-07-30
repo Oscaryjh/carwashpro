@@ -29,6 +29,10 @@ const middlewareSource = readFileSync(
   new URL("../../src/middleware.ts", import.meta.url),
   "utf8",
 );
+const staffCssSource = readFileSync(
+  new URL("../../src/app/staff/staff.css", import.meta.url),
+  "utf8",
+);
 
 test("Staff PWA action labels and confirmation copy cover the API action set", () => {
   assert.equal(attendanceActionLabel("CLOCK_IN"), "Clock In");
@@ -118,4 +122,13 @@ test("POS middleware does not treat Staff PWA as a POS user route", () => {
   const matcher = middlewareSource.slice(middlewareSource.indexOf("matcher:"));
   assert.doesNotMatch(matcher, /"\/staff/);
   assert.match(matcher, /"\/team\/:path\*"/);
+});
+
+test("Staff PWA owns vertical scrolling when the POS body is locked", () => {
+  const shellRule = staffCssSource.match(/\.staff-pwa-shell\s*\{[\s\S]*?\}/)?.[0];
+  assert.ok(shellRule);
+  assert.match(shellRule, /height:\s*100dvh/);
+  assert.match(shellRule, /overflow-y:\s*auto/);
+  assert.match(shellRule, /overflow-x:\s*hidden/);
+  assert.match(shellRule, /-webkit-overflow-scrolling:\s*touch/);
 });
