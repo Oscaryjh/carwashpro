@@ -192,6 +192,30 @@ test("employee auth HTTP helper enforces same-origin, body limit, and Zod output
   );
   assert.equal(parsed.timestamp instanceof Date, true);
 
+  const lanOriginBehindNextDev = jsonRequest(
+    "http://localhost:3000/api/employee-auth/example",
+    {},
+    {
+      host: "192.168.1.21:3000",
+      origin: "http://192.168.1.21:3000",
+      "sec-fetch-site": "same-origin",
+    },
+  );
+  assert.doesNotThrow(() =>
+    assertEmployeeAuthSameOrigin(lanOriginBehindNextDev),
+  );
+
+  const mismatchedLanOrigin = jsonRequest(
+    "http://localhost:3000/api/employee-auth/example",
+    {},
+    {
+      host: "192.168.1.21:3000",
+      origin: "http://attacker.example",
+      "sec-fetch-site": "same-origin",
+    },
+  );
+  assert.throws(() => assertEmployeeAuthSameOrigin(mismatchedLanOrigin));
+
   const crossSite = jsonRequest(
     "http://localhost/api/employee-auth/example",
     {},

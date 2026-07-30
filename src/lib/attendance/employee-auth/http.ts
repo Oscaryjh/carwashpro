@@ -24,7 +24,11 @@ export function assertEmployeeAuthSameOrigin(request: Request) {
   let suppliedOrigin: string;
 
   try {
-    requestOrigin = new URL(request.url).origin;
+    const requestUrl = new URL(request.url);
+    const requestHost = request.headers.get("host")?.trim();
+    requestOrigin = requestHost
+      ? new URL(`${requestUrl.protocol}//${requestHost}`).origin
+      : requestUrl.origin;
     suppliedOrigin = new URL(origin).origin;
   } catch {
     throw new EmployeeAuthError("INVALID_REQUEST", "Invalid request origin.");
