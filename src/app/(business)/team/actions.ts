@@ -17,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import {
   createTeamMember,
   linkExistingStaffToEmployee,
+  updateLegacyStaffProfile,
   updateTeamMember,
 } from "@/lib/team/people-service";
 import {
@@ -70,6 +71,25 @@ const updateStaffSchema = z
     ...teamMemberShape,
     status: employmentStatusSchema,
     userId: z.string().uuid(),
+  })
+  .superRefine((input, context) => {
+    validateTeamMemberForm(input, context, false);
+  });
+
+const updateLegacyStaffSchema = z
+  .object({
+    branchIds: teamMemberShape.branchIds,
+    email: teamMemberShape.email,
+    name: teamMemberShape.name,
+    password: teamMemberShape.password,
+    posAccess: teamMemberShape.posAccess,
+    primaryBranchId: teamMemberShape.primaryBranchId,
+    providesServices: teamMemberShape.providesServices,
+    serviceIds: teamMemberShape.serviceIds,
+    staffLevelId: teamMemberShape.staffLevelId,
+    staffRoleProfileId: teamMemberShape.staffRoleProfileId,
+    userId: z.string().uuid(),
+    whatsappPhone: z.string().trim().max(32, "Phone number is too long."),
   })
   .superRefine((input, context) => {
     validateTeamMemberForm(input, context, false);
@@ -167,7 +187,7 @@ export async function updateStaffAction(formData: FormData) {
   }
 
   try {
-    const input = parseTeamMemberForm(formData, true);
+    const userId = z.string().uuid().parse(formData.get("userId"));
     const scope = await resolveAttendanceScope(access);
     const wholeBusinessScope = hasWholeBusinessPeopleScope(access);
     const staff = await prisma.user.findFirst({
@@ -178,7 +198,7 @@ export async function updateStaffAction(formData: FormData) {
           now: new Date(),
           wholeBusinessScope,
         }),
-        id: input.userId,
+        id: userId,
         role: "STAFF",
       },
       select: {
@@ -194,12 +214,57 @@ export async function updateStaffAction(formData: FormData) {
       },
     });
 
-    if (!staff?.employeeBusinessMembership) {
-      throw new Error(
-        "Link this legacy staff profile to an employee before unified editing.",
-      );
+    if (!staff) {
+      throw new Error("Staff user not found in the authorized branch scope.");
     }
 
+    if (!staff.employeeBusinessMembership) {
+      const input = parseLegacyStaffForm(formData);
+      const password = input.password?.trim();
+      if (input.posAccess && !password && !staff.loginEnabled) {
+        throw new Error("Set a temporary password before enabling POS access.");
+      }
+      const permissions = input.posAccess
+        ? normalizeStaffPermissionsForIndustry(
+            formData.getAll("permissions"),
+            industryType,
+          )
+        : [];
+      const passwordHash = password
+        ? await bcrypt.hash(password, 12)
+        : undefined;
+      const auditRequest = await getAuditRequestContext();
+
+      await updateLegacyStaffProfile({
+        actor: user,
+        allowedBranchIds: scope.allowedBranchIds,
+        branchId: input.primaryBranchId,
+        businessId,
+        features: {
+          appointmentBookable: input.providesServices,
+          email: input.posAccess ? input.email || null : null,
+          loginEnabled: input.posAccess,
+          ...(passwordHash ? { passwordHash } : {}),
+          permissions,
+          serviceIds: input.providesServices ? input.serviceIds : [],
+          staffLevelId: input.providesServices ? input.staffLevelId : null,
+          staffRoleProfileId:
+            input.providesServices || input.posAccess
+              ? input.staffRoleProfileId
+              : null,
+        },
+        name: input.name,
+        request: auditRequest,
+        userId: input.userId,
+        whatsappPhone: input.whatsappPhone || null,
+        wholeBusinessScope,
+      });
+
+      revalidatePeoplePaths();
+      redirectWithTeamMessage("Staff profile updated successfully.", "success");
+    }
+
+    const input = parseTeamMemberForm(formData, true);
     const password = input.password?.trim();
     if (input.posAccess && !password && !staff.loginEnabled) {
       throw new Error("Set a temporary password before enabling POS access.");
@@ -922,6 +987,27 @@ function parseTeamMemberForm(formData: FormData, editing: boolean) {
   return editing
     ? updateStaffSchema.parse(values)
     : createStaffSchema.parse(values);
+}
+
+function parseLegacyStaffForm(formData: FormData) {
+  return updateLegacyStaffSchema.parse({
+    branchIds: uniqueStrings(formData.getAll("branchIds")),
+    email: String(formData.get("email") ?? ""),
+    name: formData.get("name"),
+    password: String(formData.get("password") ?? ""),
+    posAccess:
+      formData.get("posAccess") === "on" ||
+      formData.get("accessType") === "LOGIN",
+    primaryBranchId: formData.get("primaryBranchId"),
+    providesServices:
+      formData.get("providesServices") === "on" ||
+      formData.get("appointmentBookable") === "on",
+    serviceIds: uniqueStrings(formData.getAll("serviceIds")),
+    staffLevelId: formData.get("staffLevelId"),
+    staffRoleProfileId: formData.get("staffRoleProfileId"),
+    userId: formData.get("userId"),
+    whatsappPhone: String(formData.get("whatsappPhone") ?? ""),
+  });
 }
 
 function buildEmployeeInput(

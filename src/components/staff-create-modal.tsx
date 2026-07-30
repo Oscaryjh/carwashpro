@@ -107,6 +107,18 @@ export function StaffEditModal({
             {employeeProfile?.status ?? staff.status}
           </em>
         </div>
+        {!employeeProfile ? (
+          <div className="staff-legacy-edit-banner">
+            <span aria-hidden="true">i</span>
+            <div>
+              <strong>Staff profile only</strong>
+              <small>
+                Basic details, services and POS access can be edited. Attendance
+                remains unavailable until an employment profile is linked.
+              </small>
+            </div>
+          </div>
+        ) : null}
         {!branches.length ? (
           <div className="warning">No active branch is available for staff assignment.</div>
         ) : null}

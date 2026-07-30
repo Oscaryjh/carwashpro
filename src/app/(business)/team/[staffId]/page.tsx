@@ -35,22 +35,11 @@ export default async function StaffDetailsPage({
       id: staffId,
       role: "STAFF",
     },
-    select: {
-      employeeBusinessMembershipId: true,
-      id: true,
-    },
+    select: { id: true },
   });
 
   if (!staff) {
     notFound();
-  }
-
-  if (!staff.employeeBusinessMembershipId) {
-    redirect(
-      `/team?section=people&type=error&message=${encodeURIComponent(
-        "Link this legacy staff profile to an employee before unified editing.",
-      )}`,
-    );
   }
 
   redirect(`/team?section=people&modal=edit&staffId=${staff.id}`);

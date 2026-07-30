@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import {
   createTeamMember,
   linkExistingStaffToEmployee,
+  updateLegacyStaffProfile,
   updateTeamMember,
   type TeamMemberFeatures,
 } from "../../src/lib/team/people-service";
@@ -166,6 +167,92 @@ test("People service unifies employee, attendance, service, and POS identities w
         role: "STAFF",
       },
     });
+    const editedLegacyStaff = await updateLegacyStaffProfile(
+      {
+        actor: actorFrom(fixture.actorA),
+        allowedBranchIds: [fixture.branchA1.id, fixture.branchA2.id],
+        branchId: fixture.branchA2.id,
+        businessId: fixture.businessA.id,
+        features: serviceFeatures(fixture),
+        name: "Edited legacy staff",
+        userId: legacyStaff.id,
+        whatsappPhone: localPhone(legacyPhone),
+        wholeBusinessScope: true,
+      },
+      prisma,
+    );
+    assert.equal(editedLegacyStaff.name, "Edited legacy staff");
+    assert.equal(editedLegacyStaff.branchId, fixture.branchA2.id);
+    assert.equal(editedLegacyStaff.appointmentBookable, true);
+    assert.equal(editedLegacyStaff.employeeBusinessMembershipId, null);
+    assert.deepEqual(
+      await assignedServiceIds(legacyStaff.id),
+      [fixture.serviceA1.id],
+    );
+    assert.ok(
+      await prisma.auditLog.findFirst({
+        where: {
+          action: "LEGACY_STAFF_UPDATED",
+          businessId: fixture.businessA.id,
+          entityId: legacyStaff.id,
+        },
+      }),
+      "editing an unlinked Staff profile must create an audit record",
+    );
+    await assert.rejects(
+      updateLegacyStaffProfile(
+        {
+          actor: actorFrom(fixture.actorA),
+          allowedBranchIds: [fixture.branchA1.id, fixture.branchA2.id],
+          branchId: fixture.branchB1.id,
+          businessId: fixture.businessA.id,
+          features: noFeatures(),
+          name: "Cross-business attempt",
+          userId: legacyStaff.id,
+          whatsappPhone: localPhone(legacyPhone),
+          wholeBusinessScope: true,
+        },
+        prisma,
+      ),
+      /active branch.*authorized branch scope/i,
+    );
+    assert.equal(
+      (
+        await prisma.user.findUniqueOrThrow({
+          where: { id: legacyStaff.id },
+          select: { branchId: true, name: true },
+        })
+      ).name,
+      "Edited legacy staff",
+      "a rejected branch change must not partially update the Staff profile",
+    );
+    await assert.rejects(
+      updateLegacyStaffProfile(
+        {
+          actor: actorFrom(fixture.actorA),
+          allowedBranchIds: [fixture.branchA2.id],
+          branchId: fixture.branchA1.id,
+          businessId: fixture.businessA.id,
+          features: noFeatures(),
+          name: "Unauthorized branch attempt",
+          userId: legacyStaff.id,
+          whatsappPhone: localPhone(legacyPhone),
+          wholeBusinessScope: false,
+        },
+        prisma,
+      ),
+      /authorized branch scope/i,
+    );
+    assert.equal(
+      (
+        await prisma.user.findUniqueOrThrow({
+          where: { id: legacyStaff.id },
+          select: { branchId: true },
+        })
+      ).branchId,
+      fixture.branchA2.id,
+    );
+
     const reusedLegacy = await createPerson({
       fixture,
       businessId: fixture.businessA.id,

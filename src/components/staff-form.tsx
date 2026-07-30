@@ -50,6 +50,7 @@ export function StaffForm({
   submitLabel,
 }: StaffFormProps) {
   const isEdit = Boolean(staff);
+  const isLegacyEdit = Boolean(staff && !employeeProfile);
   const [accessType, setAccessType] = useState<AccessType>(
     staff
       ? staff.loginEnabled ? "LOGIN" : "NO_LOGIN"
@@ -203,7 +204,7 @@ export function StaffForm({
           ) : null}
           <div className={`staff-branch-picker${branches.length === 1 ? " staff-branch-picker-single" : ""}`}>
             <div className="staff-branch-heading">
-              <span>Work branches</span>
+              <span>{isLegacyEdit ? "Branch" : "Work branches"}</span>
             </div>
             <div className="staff-branch-options">
               {branches.length === 1 ? (
@@ -231,10 +232,15 @@ export function StaffForm({
                     <input
                       checked={selectedBranchIds.includes(branch.id)}
                       name="branchIds"
-                      onChange={(event) =>
-                        updateBranchSelection(branch.id, event.target.checked)
-                      }
-                      type="checkbox"
+                      onChange={(event) => {
+                        if (isLegacyEdit) {
+                          setSelectedBranchIds([branch.id]);
+                          setPrimaryBranchId(branch.id);
+                          return;
+                        }
+                        updateBranchSelection(branch.id, event.target.checked);
+                      }}
+                      type={isLegacyEdit ? "radio" : "checkbox"}
                       value={branch.id}
                     />
                     <span>{branch.name}</span>
@@ -242,31 +248,47 @@ export function StaffForm({
                 ))
               )}
             </div>
-            <label>
-              <span>
-                {accessType === "LOGIN"
-                  ? "Primary branch / POS home branch"
-                  : "Primary branch"}
-              </span>
-              <select
-                name="primaryBranchId"
-                onChange={(event) => setPrimaryBranchId(event.target.value)}
-                required
-                value={primaryBranchId}
-              >
-                <option value="">Select a primary branch</option>
-                {branches
-                  .filter((branch) => selectedBranchIds.includes(branch.id))
-                  .map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
+            {isLegacyEdit ? (
+              <>
+                <input
+                  name="primaryBranchId"
+                  type="hidden"
+                  value={selectedBranchIds[0] ?? ""}
+                />
+                <small className="form-hint">
+                  Additional work branches become available after an employment
+                  profile is linked.
+                </small>
+              </>
+            ) : (
+              <label>
+                <span>
+                  {accessType === "LOGIN"
+                    ? "Primary branch / POS home branch"
+                    : "Primary branch"}
+                </span>
+                <select
+                  name="primaryBranchId"
+                  onChange={(event) => setPrimaryBranchId(event.target.value)}
+                  required
+                  value={primaryBranchId}
+                >
+                  <option value="">Select a primary branch</option>
+                  {branches
+                    .filter((branch) => selectedBranchIds.includes(branch.id))
+                    .map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )}
             {branches.length > 1 ? (
               <small className="form-hint">
-                Select every branch where this employee may work.
+                {isLegacyEdit
+                  ? "Choose the current branch for this Staff profile."
+                  : "Select every branch where this employee may work."}
               </small>
             ) : null}
           </div>
@@ -310,18 +332,30 @@ export function StaffForm({
         ) : null}
 
         <div className="team-member-feature-options">
-          <label className="staff-appointment-setting">
-            <input
-              checked={attendanceEnabled}
-              name="attendanceEnabled"
-              onChange={(event) => setAttendanceEnabled(event.target.checked)}
-              type="checkbox"
-            />
-            <span>
-              <strong>Enable attendance</strong>
-              <small>Allow attendance access at the assigned branches.</small>
-            </span>
-          </label>
+          {isLegacyEdit ? (
+            <div className="staff-legacy-attendance-note">
+              <span aria-hidden="true">i</span>
+              <span>
+                <strong>Attendance needs an employment profile</strong>
+                <small>
+                  Link this Staff record manually before enabling attendance.
+                </small>
+              </span>
+            </div>
+          ) : (
+            <label className="staff-appointment-setting">
+              <input
+                checked={attendanceEnabled}
+                name="attendanceEnabled"
+                onChange={(event) => setAttendanceEnabled(event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                <strong>Enable attendance</strong>
+                <small>Allow attendance access at the assigned branches.</small>
+              </span>
+            </label>
+          )}
           <label className="staff-appointment-setting">
             <input
               checked={providesServices}

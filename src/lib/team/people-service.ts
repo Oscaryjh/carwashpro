@@ -53,6 +53,21 @@ export type UpdateTeamMemberArgs = {
   wholeBusinessScope?: boolean;
 };
 
+export type UpdateLegacyStaffProfileArgs = {
+  actor: AttendanceServiceActor;
+  allowedBranchIds: readonly string[];
+  branchId: string;
+  businessId: string;
+  features: TeamMemberFeatures & {
+    passwordHash?: string | null;
+  };
+  name: string;
+  request?: AuditRequestContext;
+  userId: string;
+  whatsappPhone: string | null;
+  wholeBusinessScope?: boolean;
+};
+
 export async function createTeamMember(
   args: CreateTeamMemberArgs,
   database: PeopleServiceDatabase = prisma,
@@ -369,6 +384,148 @@ export async function updateTeamMember(
       membership,
       staffUser: updatedUser,
     };
+  });
+}
+
+export async function updateLegacyStaffProfile(
+  args: UpdateLegacyStaffProfileArgs,
+  database: PeopleServiceDatabase = prisma,
+) {
+  return database.$transaction(async (transaction) => {
+    const peopleScope = {
+      allowedBranchIds: args.allowedBranchIds,
+      businessId: args.businessId,
+      now: new Date(),
+      wholeBusinessScope: args.wholeBusinessScope === true,
+    };
+    const existingUser = await transaction.user.findFirst({
+      where: {
+        ...buildPeopleStaffScopeWhere(peopleScope),
+        id: args.userId,
+        role: "STAFF",
+      },
+      select: {
+        appointmentBookable: true,
+        branchId: true,
+        email: true,
+        employeeBusinessMembershipId: true,
+        id: true,
+        loginEnabled: true,
+        name: true,
+        permissions: true,
+        staffLevelId: true,
+        staffRoleProfileId: true,
+        status: true,
+        whatsappPhone: true,
+      },
+    });
+    if (!existingUser) {
+      throw new Error("Staff user not found in the authorized branch scope.");
+    }
+    if (existingUser.employeeBusinessMembershipId) {
+      throw new Error(
+        "This staff profile is now linked to an employee. Reload before editing.",
+      );
+    }
+
+    const targetBranch = await transaction.branch.findFirst({
+      where: {
+        businessId: args.businessId,
+        id: args.wholeBusinessScope
+          ? args.branchId
+          : { equals: args.branchId, in: Array.from(args.allowedBranchIds) },
+        status: "ACTIVE",
+      },
+      select: { id: true },
+    });
+    if (!targetBranch) {
+      throw new Error(
+        "Select an active branch within your authorized branch scope.",
+      );
+    }
+
+    if (args.features.email) {
+      const emailOwner = await transaction.user.findUnique({
+        where: { email: args.features.email },
+        select: { id: true },
+      });
+      if (emailOwner && emailOwner.id !== existingUser.id) {
+        throw new Error("Email is already used by another user.");
+      }
+    }
+
+    const staffConfiguration = await resolveStaffConfiguration(
+      transaction,
+      args.businessId,
+      args.features,
+    );
+    const updatedUser = await transaction.user.update({
+      where: { id: existingUser.id },
+      data: {
+        appointmentBookable: args.features.appointmentBookable,
+        branchId: targetBranch.id,
+        email: args.features.loginEnabled ? args.features.email : null,
+        loginEnabled: args.features.loginEnabled,
+        name: args.name,
+        passwordHash: args.features.loginEnabled
+          ? args.features.passwordHash === undefined
+            ? undefined
+            : args.features.passwordHash
+          : null,
+        permissions: args.features.loginEnabled
+          ? args.features.permissions
+          : [],
+        staffLevelId: args.features.appointmentBookable
+          ? staffConfiguration.staffLevelId
+          : null,
+        staffRoleProfileId:
+          args.features.appointmentBookable || args.features.loginEnabled
+            ? staffConfiguration.staffRoleProfileId
+            : null,
+        whatsappPhone: args.whatsappPhone,
+      },
+    });
+
+    await replaceServiceAssignments(transaction, {
+      businessId: args.businessId,
+      serviceIds: args.features.appointmentBookable
+        ? staffConfiguration.serviceIds
+        : [],
+      userId: updatedUser.id,
+    });
+
+    await writeAuditLog(
+      {
+        action: "LEGACY_STAFF_UPDATED",
+        actor: args.actor,
+        after: {
+          appointmentBookable: updatedUser.appointmentBookable,
+          branchId: updatedUser.branchId,
+          email: updatedUser.email,
+          loginEnabled: updatedUser.loginEnabled,
+          name: updatedUser.name,
+          permissions: updatedUser.permissions,
+          serviceIds: staffConfiguration.serviceIds,
+          staffLevelId: updatedUser.staffLevelId,
+          staffRoleProfileId: updatedUser.staffRoleProfileId,
+          whatsappPhone: updatedUser.whatsappPhone,
+        },
+        before: existingUser,
+        branchId: updatedUser.branchId,
+        businessId: args.businessId,
+        entityId: updatedUser.id,
+        entityType: "User",
+        metadata: {
+          passwordReset: args.features.passwordHash !== undefined,
+          remainedUnlinked: true,
+        },
+        request: args.request,
+        summary: `Updated unlinked staff profile ${updatedUser.name}.`,
+      },
+      transaction,
+    );
+
+    return updatedUser;
   });
 }
 

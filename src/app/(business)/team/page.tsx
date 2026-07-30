@@ -650,26 +650,37 @@ function PeopleSection({
                 <span><small>Services</small>{member.serviceStaffAssignments.length} assigned</span>
               </div>
               <div className="team-member-feature-badges" aria-label={`${member.name} features`}>
-                <FeatureBadge enabled={Boolean(employment)} label="Employment" />
+                <FeatureBadge
+                  enabled={Boolean(employment)}
+                  label={employment ? "Employment linked" : "Employment not linked"}
+                />
                 <FeatureBadge
                   enabled={readiness.ready}
-                  label={readiness.ready ? "Attendance Ready" : "Attendance Not Ready"}
+                  label={readiness.ready ? "Attendance ready" : "Attendance not ready"}
                 />
                 <FeatureBadge
                   enabled={member.status === "active" && member.appointmentBookable}
-                  label="Services"
+                  label={
+                    member.status === "active" && member.appointmentBookable
+                      ? "Services enabled"
+                      : "Services disabled"
+                  }
                 />
-                <span className="form-hint">
+                <FeatureBadge
+                  enabled={member.status === "active" && member.loginEnabled}
+                  label={
+                    member.status === "active" && member.loginEnabled
+                      ? "POS access enabled"
+                      : "POS access disabled"
+                  }
+                />
+                <span className="team-readiness-note">
                   {readiness.issues.length
                     ? readiness.issues.join(" · ")
                     : "Employee, primary branch and attendance access are ready"}
                   {" · "}
                   {readiness.deviceStatus}
                 </span>
-                <FeatureBadge
-                  enabled={member.status === "active" && member.loginEnabled}
-                  label="POS access"
-                />
               </div>
               {employment ? (
                 <form action={assignStaffRoleAndLevelAction} className="team-staff-classification">
@@ -714,20 +725,22 @@ function PeopleSection({
                   <button className="secondary-light-button" type="submit">Link</button>
                 </form>
               ) : (
-                <div className="team-staff-classification staff-record-access-note">
-                  No unlinked employment profile is available in this business.
+                <div className="team-staff-classification team-staff-link-note">
+                  <span aria-hidden="true">i</span>
+                  <span>
+                    <strong>Employment profile not linked</strong>
+                    <small>No available employment profile in this business.</small>
+                  </span>
                 </div>
               )}
-              {employment ? (
-                <Link
-                  aria-label={`Edit ${member.name}`}
-                  className="secondary-light-button team-row-action"
-                  href={`/team?section=people&modal=edit&staffId=${member.id}`}
-                >
-                  <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
-                  <span>Edit</span>
-                </Link>
-              ) : null}
+              <Link
+                aria-label={`Edit ${member.name}`}
+                className="secondary-light-button team-row-action"
+                href={`/team?section=people&modal=edit&staffId=${member.id}`}
+              >
+                <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
+                <span>Edit</span>
+              </Link>
             </article>
           );
         })}
@@ -751,14 +764,14 @@ function PeopleSection({
               <span><small>Access</small>No service or POS profile</span>
             </div>
             <div className="team-member-feature-badges" aria-label={`${employee.fullName} features`}>
-              <FeatureBadge enabled label="Employment" />
+              <FeatureBadge enabled label="Employment profile" />
               <FeatureBadge
                 enabled={employeeAttendanceReady(employee)}
-                label={employeeAttendanceReady(employee) ? "Attendance Ready" : "Attendance Not Ready"}
+                label={employeeAttendanceReady(employee) ? "Attendance ready" : "Attendance not ready"}
               />
-              <FeatureBadge enabled={false} label="Services" />
-              <FeatureBadge enabled={false} label="POS access" />
-              <span className="form-hint">
+              <FeatureBadge enabled={false} label="Services disabled" />
+              <FeatureBadge enabled={false} label="POS access disabled" />
+              <span className="team-readiness-note">
                 {employeeDeviceStatus(employee.employeeAccount.devices)}
               </span>
             </div>
@@ -844,8 +857,9 @@ function maskPhoneLastFour(value: string) {
 
 function FeatureBadge({ enabled, label }: { enabled: boolean; label: string }) {
   return (
-    <span className={enabled ? "status" : "status status-neutral"}>
-      {label}: {enabled ? "On" : "Off"}
+    <span className={`team-feature-chip ${enabled ? "is-on" : "is-off"}`}>
+      <span aria-hidden="true" />
+      {label}
     </span>
   );
 }

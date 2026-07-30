@@ -21393,8 +21393,11 @@ button:disabled,
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #dce9e7;
+  border-radius: 12px;
+  background: #f8fbfa;
 }
 
 .team-workspace-search input {
@@ -21425,6 +21428,11 @@ button:disabled,
   display: grid;
 }
 
+.team-staff-list {
+  gap: 12px;
+  padding-top: 12px;
+}
+
 .team-staff-row {
   display: grid;
   grid-template-areas:
@@ -21436,8 +21444,17 @@ button:disabled,
   column-gap: 18px;
   row-gap: 10px;
   min-height: 112px;
-  padding: 13px 2px;
-  border-bottom: 1px solid var(--border);
+  padding: 16px;
+  border: 1px solid #dce7e5;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(29, 78, 72, 0.045);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.team-staff-row:hover {
+  border-color: #b9d8d4;
+  box-shadow: 0 9px 24px rgba(29, 78, 72, 0.075);
 }
 
 .team-staff-summary {
@@ -21515,6 +21532,12 @@ button:disabled,
   font-size: 12px;
 }
 
+.team-staff-facts > span {
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #f7faf9;
+}
+
 .team-staff-facts small {
   color: var(--muted);
   font-size: 10px;
@@ -21534,6 +21557,44 @@ button:disabled,
   flex-wrap: wrap;
   gap: 0.5rem;
   grid-area: badges;
+}
+
+.team-feature-chip {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 27px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.team-feature-chip > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.team-feature-chip.is-on {
+  color: #08786f;
+  border-color: #cce8e4;
+  background: #edf9f7;
+}
+
+.team-feature-chip.is-off {
+  color: #687977;
+  border-color: #e1e8e7;
+  background: #f6f8f8;
+}
+
+.team-readiness-note {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .team-staff-classification {
@@ -21568,6 +21629,43 @@ button:disabled,
   justify-self: end;
 }
 
+.team-staff-link-note {
+  align-items: center;
+  grid-template-columns: 30px 1fr;
+  max-width: 420px;
+  padding: 8px 10px;
+  border: 1px dashed #c9dcda;
+  border-radius: 10px;
+  color: #536765;
+  background: #f8fbfa;
+}
+
+.team-staff-link-note > span:first-child {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--accent-strong);
+  background: #e3f3f0;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.team-staff-link-note > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.team-staff-link-note strong {
+  font-size: 11px;
+}
+
+.team-staff-link-note small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .team-row-action {
   display: inline-flex;
   min-height: 40px !important;
@@ -21582,6 +21680,7 @@ button:disabled,
   font-weight: 800;
   line-height: 1;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  text-decoration: none;
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
@@ -21600,6 +21699,58 @@ button:disabled,
   font-size: 16px;
   font-weight: 400;
   line-height: 1;
+}
+
+.staff-legacy-edit-banner,
+.staff-legacy-attendance-note {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #cde5e1;
+  border-radius: 11px;
+  color: #365d59;
+  background: #f0faf8;
+}
+
+.staff-legacy-edit-banner {
+  margin-bottom: 14px;
+}
+
+.staff-legacy-edit-banner > span,
+.staff-legacy-attendance-note > span:first-child {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.staff-legacy-edit-banner div,
+.staff-legacy-attendance-note > span:last-child {
+  display: grid;
+  gap: 3px;
+}
+
+.staff-legacy-edit-banner strong,
+.staff-legacy-attendance-note strong {
+  font-size: 12px;
+}
+
+.staff-legacy-edit-banner small,
+.staff-legacy-attendance-note small {
+  color: #607572;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.staff-legacy-attendance-note {
+  min-height: 72px;
 }
 
 .team-owner-availability {
@@ -22198,6 +22349,7 @@ button:disabled,
       "badges"
       "classification"
       "edit";
+    padding: 14px;
   }
 
   .team-staff-facts {
