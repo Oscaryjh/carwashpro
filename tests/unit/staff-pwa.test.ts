@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  createAttendanceIdempotencyKey,
+  createBrowserUuid,
   attendanceActionLabel,
   attendanceConfirmation,
   formatMinutesAsHours,
@@ -43,6 +45,35 @@ test("Staff PWA formats employee-safe status without exposing the full phone", (
   assert.equal(gpsStatusLabel("INSIDE"), "Inside Work Location");
   assert.equal(gpsStatusLabel("OUTSIDE"), "Outside Work Location");
   assert.equal(gpsStatusLabel("GEOFENCE_DISABLED"), "Geofence Disabled");
+});
+
+test("Staff PWA creates secure identifiers without requiring randomUUID", () => {
+  let nextByte = 0;
+  const insecureContextCrypto = {
+    getRandomValues<T extends ArrayBufferView | null>(array: T) {
+      if (!array) return array;
+      const bytes = new Uint8Array(
+        array.buffer,
+        array.byteOffset,
+        array.byteLength,
+      );
+      for (let index = 0; index < bytes.length; index += 1) {
+        bytes[index] = nextByte % 256;
+        nextByte += 1;
+      }
+      return array;
+    },
+  } as Pick<Crypto, "getRandomValues">;
+
+  const uuid = createBrowserUuid(insecureContextCrypto);
+  assert.match(
+    uuid,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+  assert.match(
+    createAttendanceIdempotencyKey("CLOCK_IN"),
+    /^staff-pwa:clock_in:[0-9a-f-]{36}$/,
+  );
 });
 
 test("revoked and expired employee sessions are routed back to Staff login", () => {
