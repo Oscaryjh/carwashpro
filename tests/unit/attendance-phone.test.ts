@@ -5,6 +5,7 @@ import {
   assertAttendancePhone,
   maskAttendancePhone,
   normalizeAttendancePhone,
+  normalizeAttendancePhoneLastFour,
 } from "../../src/lib/attendance/phone";
 
 test("normalizes equivalent Malaysian mobile formats to canonical E.164", () => {
@@ -67,4 +68,20 @@ test("masks canonical Malaysian and international numbers", () => {
   );
   assert.equal(maskAttendancePhone("+442071234567"), "+442-***** 4567");
   assert.equal(maskAttendancePhone("not-a-phone"), null);
+});
+
+test("accepts only an exact four-digit privacy-safe phone filter", () => {
+  assert.equal(normalizeAttendancePhoneLastFour("6789"), "6789");
+  assert.equal(normalizeAttendancePhoneLastFour(" 6789 "), "6789");
+
+  for (const value of [
+    "",
+    "123",
+    "12345",
+    "+60123456789",
+    "67 89",
+    "abcd",
+  ]) {
+    assert.equal(normalizeAttendancePhoneLastFour(value), null, value);
+  }
 });

@@ -51,6 +51,23 @@ test("sensitive key matching is normalized but does not hide session health", ()
   assert.equal(isSensitiveAuditKey("sessionStatus"), false);
 });
 
+test("attendance authentication secrets are always redacted from audit metadata", () => {
+  assert.deepEqual(
+    sanitizeAuditValue({
+      otp: "123456",
+      phoneNumberNormalized: "+60123456789",
+      deviceIdentifier: "raw-browser-identifier",
+      phoneMasked: "+60 12-*** 6789",
+    }),
+    {
+      otp: "[REDACTED]",
+      phoneNumberNormalized: "[REDACTED]",
+      deviceIdentifier: "[REDACTED]",
+      phoneMasked: "+60 12-*** 6789",
+    },
+  );
+});
+
 test("audit query scope cannot be replaced by filters", () => {
   const where = buildAuditLogWhere("business-a", {
     actorUserId: "staff-a",

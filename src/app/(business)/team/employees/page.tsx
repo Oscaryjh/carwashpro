@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import {
   maskAttendancePhone,
-  normalizeAttendancePhone,
+  normalizeAttendancePhoneLastFour,
 } from "@/lib/attendance/phone";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
@@ -47,9 +47,8 @@ export default async function EmployeesPage({
   const requestedPage = Math.max(1, Number(params.page) || 1);
   const q = params.q?.trim() ?? "";
   const code = params.code?.trim() ?? "";
-  const phone = params.phone?.trim() ?? "";
-  const phoneSearch =
-    normalizeAttendancePhone(phone) ?? phone.replace(/[^\d+]/g, "");
+  const phone =
+    normalizeAttendancePhoneLastFour(params.phone ?? "") ?? "";
   const branchId = params.branchId?.trim() ?? "";
   const employmentType = isEmploymentType(params.employmentType)
     ? params.employmentType
@@ -131,12 +130,6 @@ export default async function EmployeesPage({
       OR: [
         { fullName: { contains: q, mode: "insensitive" } },
         { employeeCode: { contains: q, mode: "insensitive" } },
-        {
-          phoneNumberNormalized: {
-            contains: q.replace(/[\s()-]/g, ""),
-            mode: "insensitive",
-          },
-        },
       ],
     });
   }
@@ -147,10 +140,10 @@ export default async function EmployeesPage({
     });
   }
 
-  if (phoneSearch) {
+  if (phone) {
     and.push({
       phoneNumberNormalized: {
-        contains: phoneSearch,
+        endsWith: phone,
         mode: "insensitive",
       },
     });
@@ -284,7 +277,7 @@ export default async function EmployeesPage({
             <input
               defaultValue={q}
               name="q"
-              placeholder="Name, employee code, or phone"
+              placeholder="Name or employee code"
             />
           </label>
           <label>
@@ -292,13 +285,16 @@ export default async function EmployeesPage({
             <input defaultValue={code} name="code" placeholder="EMP-001" />
           </label>
           <label>
-            Phone
+            Phone last 4 digits
             <input
               defaultValue={phone}
-              inputMode="tel"
+              inputMode="numeric"
+              maxLength={4}
               name="phone"
-              placeholder="+60..."
-              type="tel"
+              pattern="[0-9]{4}"
+              placeholder="6789"
+              title="Enter exactly the last 4 phone digits"
+              type="text"
             />
           </label>
           <label>

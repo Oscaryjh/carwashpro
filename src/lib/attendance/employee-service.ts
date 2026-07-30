@@ -701,6 +701,12 @@ async function resolveEmployeeAccountForUpdate(
     return existing.employeeAccountId;
   }
 
+  const hasIdentityHistory = await hasAttendanceIdentityHistory(
+    transaction,
+    existing.id,
+    existing.employeeAccountId,
+  );
+
   const targetAccount = await transaction.employeeAccount.findUnique({
     where: {
       phoneNormalized: employee.phoneNumber,
@@ -711,9 +717,7 @@ async function resolveEmployeeAccountForUpdate(
   });
 
   if (targetAccount) {
-    if (
-      await hasAttendanceIdentityHistory(transaction, existing.id)
-    ) {
+    if (hasIdentityHistory) {
       throw new Error(
         "Employee phone cannot be changed after Attendance identity history exists.",
       );
@@ -729,6 +733,12 @@ async function resolveEmployeeAccountForUpdate(
     });
 
   if (accountMembershipCount === 1) {
+    if (hasIdentityHistory) {
+      throw new Error(
+        "Employee phone cannot be changed after Attendance identity history exists.",
+      );
+    }
+
     await transaction.employeeAccount.update({
       where: {
         id: existing.employeeAccountId,
@@ -741,9 +751,7 @@ async function resolveEmployeeAccountForUpdate(
     return existing.employeeAccountId;
   }
 
-  if (
-    await hasAttendanceIdentityHistory(transaction, existing.id)
-  ) {
+  if (hasIdentityHistory) {
     throw new Error(
       "Employee phone cannot be changed after Attendance identity history exists.",
     );
@@ -766,9 +774,18 @@ async function resolveEmployeeAccountForUpdate(
 async function hasAttendanceIdentityHistory(
   transaction: Prisma.TransactionClient,
   membershipId: string,
+  employeeAccountId: string,
 ) {
-  const [sessions, punches, exceptions, adjustments] =
-    await Promise.all([
+  const [
+    attendanceSessions,
+    punches,
+    exceptions,
+    adjustments,
+    otpChallenges,
+    devices,
+    employeeSessions,
+    idempotencyRequests,
+  ] = await Promise.all([
       transaction.employeeAttendance.count({
         where: { membershipId },
       }),
@@ -781,13 +798,29 @@ async function hasAttendanceIdentityHistory(
       transaction.attendanceAdjustment.count({
         where: { employeeId: membershipId },
       }),
+      transaction.employeeOtpChallenge.count({
+        where: { employeeAccountId },
+      }),
+      transaction.employeeDevice.count({
+        where: { employeeAccountId },
+      }),
+      transaction.employeeSession.count({
+        where: { membershipId },
+      }),
+      transaction.attendanceRequestIdempotency.count({
+        where: { membershipId },
+      }),
     ]);
 
   return (
-    sessions > 0 ||
+    attendanceSessions > 0 ||
     punches > 0 ||
     exceptions > 0 ||
-    adjustments > 0
+    adjustments > 0 ||
+    otpChallenges > 0 ||
+    devices > 0 ||
+    employeeSessions > 0 ||
+    idempotencyRequests > 0
   );
 }
 

@@ -48,6 +48,12 @@ export function assertAttendancePhone(value: string) {
   return normalized;
 }
 
+export function normalizeAttendancePhoneLastFour(value: string) {
+  const trimmed = value.trim();
+
+  return /^\d{4}$/.test(trimmed) ? trimmed : null;
+}
+
 export function maskAttendancePhone(value: string) {
   const normalized = normalizeAttendancePhone(value);
 

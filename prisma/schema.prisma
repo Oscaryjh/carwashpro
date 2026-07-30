@@ -159,6 +159,22 @@ enum AttendanceExceptionStatus {
   CANCELLED
 }
 
+enum EmployeeOtpPurpose {
+  LOGIN
+  REGISTER_DEVICE
+}
+
+enum EmployeeDeviceStatus {
+  ACTIVE
+  REVOKED
+  REPLACED
+}
+
+enum AttendanceRequestStatus {
+  PROCESSING
+  COMPLETED
+}
+
 enum ServiceStatus {
   ACTIVE
   INACTIVE
@@ -486,6 +502,8 @@ model Business {
   attendancePunches          AttendancePunch[]
   attendanceExceptions       AttendanceException[]
   attendanceAdjustments      AttendanceAdjustment[]
+  employeeSessions           EmployeeSession[]
+  attendanceIdempotencyRequests AttendanceRequestIdempotency[]
   catalogDiscounts           CatalogDiscount[]
   staffRoleProfiles          StaffRoleProfile[]
   staffLevels                StaffLevel[]
@@ -541,6 +559,8 @@ model Branch {
   attendancePunches         AttendancePunch[]
   attendanceExceptions      AttendanceException[]
   attendanceAdjustments     AttendanceAdjustment[]
+  primaryEmployeeSessions   EmployeeSession[]                 @relation("EmployeeSessionPrimaryBranch")
+  attendanceIdempotencyRequests AttendanceRequestIdempotency[]
   catalogDiscounts          CatalogDiscount[]
   dailyClosingSnapshots     DailyClosingSnapshot[]
   closingWhatsAppSetting    ClosingWhatsAppBranchSetting?
@@ -766,9 +786,93 @@ model EmployeeAccount {
   legacyUsers User[]                       @relation("EmployeeAccountLegacyUsers")
   memberships EmployeeBusinessMembership[]
   attendances EmployeeAttendance[]
+  otpChallenges EmployeeOtpChallenge[]
+  devices       EmployeeDevice[]
+  sessions      EmployeeSession[]
 
   @@index([status])
   @@map("employee_accounts")
+}
+
+model EmployeeOtpChallenge {
+  id                    String             @id @default(uuid()) @db.Uuid
+  employeeAccountId     String?            @map("employee_account_id") @db.Uuid
+  phoneNumberNormalized String             @map("phone_number_normalized")
+  purpose               EmployeeOtpPurpose
+  otpHash               String             @map("otp_hash")
+  expiresAt             DateTime           @map("expires_at")
+  attempts              Int                @default(0)
+  maxAttempts           Int                @default(5) @map("max_attempts")
+  resendAvailableAt     DateTime           @map("resend_available_at")
+  verifiedAt            DateTime?          @map("verified_at")
+  invalidatedAt         DateTime?          @map("invalidated_at")
+  ipAddressHash         String?            @map("ip_address_hash")
+  deviceFingerprintHash String?            @map("device_fingerprint_hash")
+  createdAt             DateTime           @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("created_at")
+
+  employeeAccount EmployeeAccount? @relation(fields: [employeeAccountId], references: [id], onDelete: SetNull)
+
+  @@index([phoneNumberNormalized, purpose, createdAt], map: "employee_otp_challenges_phone_purpose_created_idx")
+  @@index([employeeAccountId, createdAt], map: "employee_otp_challenges_account_created_idx")
+  @@index([ipAddressHash, createdAt], map: "employee_otp_challenges_ip_created_idx")
+  @@index([deviceFingerprintHash, createdAt], map: "employee_otp_challenges_device_created_idx")
+  @@index([expiresAt], map: "employee_otp_challenges_expires_at_idx")
+  @@map("employee_otp_challenges")
+}
+
+model EmployeeDevice {
+  id                   String               @id @default(uuid()) @db.Uuid
+  employeeAccountId    String               @map("employee_account_id") @db.Uuid
+  deviceIdentifierHash String               @map("device_identifier_hash")
+  displayName          String?              @map("display_name")
+  platform             String?
+  browser              String?
+  firstVerifiedAt      DateTime             @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("first_verified_at")
+  lastActiveAt         DateTime             @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("last_active_at")
+  status               EmployeeDeviceStatus @default(ACTIVE)
+  canView              Boolean              @default(true) @map("can_view")
+  canPunch             Boolean              @default(true) @map("can_punch")
+  revokedAt            DateTime?            @map("revoked_at")
+  revokeReason         String?              @map("revoke_reason")
+  createdAt            DateTime             @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+
+  employeeAccount EmployeeAccount  @relation(fields: [employeeAccountId], references: [id], onDelete: Restrict)
+  sessions        EmployeeSession[]
+
+  @@unique([employeeAccountId, deviceIdentifierHash], map: "employee_devices_account_identifier_key")
+  @@index([employeeAccountId, status, lastActiveAt], map: "employee_devices_account_status_active_idx")
+  @@map("employee_devices")
+}
+
+model EmployeeSession {
+  id                String    @id @default(uuid()) @db.Uuid
+  employeeAccountId String    @map("employee_account_id") @db.Uuid
+  membershipId      String    @map("membership_id") @db.Uuid
+  businessId        String    @map("business_id") @db.Uuid
+  primaryBranchId   String    @map("primary_branch_id") @db.Uuid
+  employeeDeviceId  String?   @map("employee_device_id") @db.Uuid
+  refreshTokenHash  String    @unique @map("refresh_token_hash")
+  expiresAt         DateTime  @map("expires_at")
+  lastActiveAt      DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("last_active_at")
+  revokedAt         DateTime? @map("revoked_at")
+  revokeReason      String?   @map("revoke_reason")
+  ipAddressHash     String?   @map("ip_address_hash")
+  userAgent         String?   @map("user_agent")
+  createdAt         DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("created_at")
+
+  employeeAccount     EmployeeAccount            @relation(fields: [employeeAccountId], references: [id], onDelete: Restrict)
+  membership          EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  business            Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  primaryBranch       Branch                     @relation("EmployeeSessionPrimaryBranch", fields: [primaryBranchId], references: [id], onDelete: Restrict)
+  employeeDevice      EmployeeDevice?            @relation(fields: [employeeDeviceId], references: [id], onDelete: Restrict)
+  idempotencyRequests AttendanceRequestIdempotency[]
+
+  @@index([employeeAccountId, revokedAt, expiresAt], map: "employee_sessions_account_active_idx")
+  @@index([membershipId, revokedAt, expiresAt], map: "employee_sessions_membership_active_idx")
+  @@index([employeeDeviceId, revokedAt], map: "employee_sessions_device_active_idx")
+  @@index([businessId, primaryBranchId], map: "employee_sessions_business_branch_idx")
+  @@map("employee_sessions")
 }
 
 model EmployeeBusinessMembership {
@@ -795,6 +899,8 @@ model EmployeeBusinessMembership {
   punches           AttendancePunch[]
   exceptions        AttendanceException[]
   adjustments       AttendanceAdjustment[]
+  employeeSessions  EmployeeSession[]
+  idempotencyRequests AttendanceRequestIdempotency[]
 
   @@unique([employeeAccountId, businessId])
   @@unique([businessId, employeeCode])
@@ -856,6 +962,7 @@ model EmployeeAttendance {
   clockOutPunch   AttendancePunch?           @relation("AttendanceSessionClockOut", fields: [clockOutPunchId], references: [id], onDelete: Restrict)
   exceptions      AttendanceException[]
   adjustments     AttendanceAdjustment[]
+  idempotencyRequests AttendanceRequestIdempotency[]
 
   @@index([businessId, branchId, workDate])
   @@index([businessId, branchId, clockInAt])
@@ -914,11 +1021,41 @@ model AttendancePunch {
   clockInForSession  EmployeeAttendance?        @relation("AttendanceSessionClockIn")
   clockOutForSession EmployeeAttendance?        @relation("AttendanceSessionClockOut")
   exceptions         AttendanceException[]
+  idempotencyRequest AttendanceRequestIdempotency?
 
   @@index([businessId, branchId, serverTimestamp])
   @@index([employeeId, serverTimestamp])
   @@index([attendanceSessionId, serverTimestamp])
   @@map("attendance_punches")
+}
+
+model AttendanceRequestIdempotency {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  membershipId        String                  @map("membership_id") @db.Uuid
+  employeeSessionId   String                  @map("employee_session_id") @db.Uuid
+  businessId          String                  @map("business_id") @db.Uuid
+  branchId            String                  @map("branch_id") @db.Uuid
+  idempotencyKey      String                  @map("idempotency_key")
+  requestPayloadHash  String                  @map("request_payload_hash")
+  punchType           AttendancePunchType     @map("punch_type")
+  status              AttendanceRequestStatus @default(PROCESSING)
+  attendanceSessionId String?                 @map("attendance_session_id") @db.Uuid
+  attendancePunchId   String?                 @unique @map("attendance_punch_id") @db.Uuid
+  createdAt           DateTime                @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("created_at")
+  completedAt         DateTime?               @map("completed_at")
+
+  membership        EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  employeeSession   EmployeeSession            @relation(fields: [employeeSessionId], references: [id], onDelete: Restrict)
+  business          Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch            Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  attendanceSession EmployeeAttendance?        @relation(fields: [attendanceSessionId], references: [id], onDelete: Restrict)
+  attendancePunch   AttendancePunch?           @relation(fields: [attendancePunchId], references: [id], onDelete: Restrict)
+
+  @@unique([membershipId, idempotencyKey], map: "attendance_idempotency_membership_key")
+  @@index([employeeSessionId, createdAt], map: "attendance_idempotency_employee_session_created_idx")
+  @@index([businessId, branchId, createdAt], map: "attendance_idempotency_business_branch_created_idx")
+  @@index([attendanceSessionId, createdAt], map: "attendance_idempotency_attendance_session_created_idx")
+  @@map("attendance_request_idempotency")
 }
 
 model AttendanceException {

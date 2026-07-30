@@ -1,0 +1,512 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import test, { after } from "node:test";
+import type { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaClient as DatabaseClient } from "@prisma/client";
+import { AttendanceApiError } from "../../src/lib/attendance/api-error";
+import { hashEmployeeIdentifier } from "../../src/lib/attendance/employee-auth/crypto";
+import type { EmployeeAuthContext } from "../../src/lib/attendance/employee-auth/session";
+import { submitAttendanceException } from "../../src/lib/attendance/exception-service";
+import { performAttendancePunch } from "../../src/lib/attendance/punch-service";
+import {
+  getEmployeeAttendanceHistory,
+  getEmployeeAttendanceToday,
+} from "../../src/lib/attendance/read-service";
+
+process.env.EMPLOYEE_AUTH_SECRET =
+  process.env.EMPLOYEE_AUTH_SECRET ??
+  "attendance-phase1c-integration-secret-32-bytes";
+
+const prisma = new DatabaseClient();
+const rollbackSignal = new Error("ATTENDANCE_PHASE1C_TEST_ROLLBACK");
+
+after(async () => {
+  await prisma.$disconnect();
+});
+
+test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only reads", async () => {
+  assertLocalDatabase();
+
+  await withRollback(async (transaction) => {
+    const fixture = await createFixture(transaction);
+    const database = transactionDatabase(transaction);
+    const base = new Date();
+    base.setMilliseconds(0);
+
+    const clockInInput = punchInput(
+      fixture.branchA.id,
+      fixture.deviceIdentifier,
+      "clock-in:phase1c-001",
+    );
+    const clockIn = await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "CLOCK_IN",
+      input: clockInInput,
+      now: base,
+    });
+    assert.equal(clockIn.resultingStatus, "OPEN");
+    assert.equal(clockIn.replayed, false);
+
+    await transaction.branchAttendanceSetting.update({
+      where: {
+        branchId: fixture.branchA.id,
+      },
+      data: {
+        latitude: 20,
+        longitude: 20,
+      },
+    });
+    const replay = await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "CLOCK_IN",
+      input: clockInInput,
+      now: new Date(base.getTime() + 1_000),
+    });
+    assert.equal(replay.attendancePunchId, clockIn.attendancePunchId);
+    assert.equal(replay.replayed, true);
+    await transaction.branchAttendanceSetting.update({
+      where: {
+        branchId: fixture.branchA.id,
+      },
+      data: {
+        latitude: 1.5535,
+        longitude: 110.3593,
+      },
+    });
+
+    await assertAttendanceError(
+      performAttendancePunch({
+        database,
+        auth: fixture.auth,
+        type: "CLOCK_IN",
+        input: {
+          ...clockInInput,
+          accuracyMeters: 11,
+        },
+        now: new Date(base.getTime() + 2_000),
+      }),
+      "IDEMPOTENCY_CONFLICT",
+    );
+
+    const breakStart = await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "BREAK_START",
+      input: punchInput(
+        fixture.branchA.id,
+        fixture.deviceIdentifier,
+        "break-start:phase1c-001",
+      ),
+      now: new Date(base.getTime() + 60 * 60_000),
+    });
+    assert.equal(breakStart.resultingStatus, "ON_BREAK");
+
+    await assertAttendanceError(
+      performAttendancePunch({
+        database,
+        auth: fixture.auth,
+        type: "CLOCK_OUT",
+        input: punchInput(
+          fixture.branchA.id,
+          fixture.deviceIdentifier,
+          "clock-out:on-break-001",
+        ),
+        now: new Date(base.getTime() + 75 * 60_000),
+      }),
+      "INVALID_ATTENDANCE_STATE",
+    );
+
+    const breakEnd = await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "BREAK_END",
+      input: punchInput(
+        fixture.branchA.id,
+        fixture.deviceIdentifier,
+        "break-end:phase1c-001",
+      ),
+      now: new Date(base.getTime() + 90 * 60_000),
+    });
+    assert.equal(breakEnd.resultingStatus, "OPEN");
+
+    const clockOut = await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "CLOCK_OUT",
+      input: punchInput(
+        fixture.branchA.id,
+        fixture.deviceIdentifier,
+        "clock-out:phase1c-001",
+      ),
+      now: new Date(base.getTime() + 8 * 60 * 60_000),
+    });
+    assert.equal(clockOut.resultingStatus, "COMPLETED");
+    assert.equal(clockOut.totalBreakMinutes, 30);
+    assert.equal(clockOut.totalWorkedMinutes, 450);
+
+    await assertAttendanceError(
+      performAttendancePunch({
+        database,
+        auth: fixture.auth,
+        type: "CLOCK_IN",
+        input: punchInput(
+          fixture.branchB.id,
+          fixture.deviceIdentifier,
+          "clock-in:cross-business",
+        ),
+        now: new Date(base.getTime() + 9 * 60 * 60_000),
+      }),
+      "BRANCH_NOT_AUTHORIZED",
+    );
+
+    const outsideClockIn = await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "CLOCK_IN",
+      input: {
+        ...punchInput(
+          fixture.branchA.id,
+          fixture.deviceIdentifier,
+          "clock-in:outside-001",
+        ),
+        latitude: 1.5635,
+        exceptionReason: "Traffic control required parking outside.",
+      },
+      now: new Date(base.getTime() + 10 * 60 * 60_000),
+    });
+    assert.equal(outsideClockIn.geofenceStatus, "OUTSIDE");
+    assert.equal(outsideClockIn.requiresApproval, true);
+    assert.ok(outsideClockIn.exceptionId);
+
+    const duplicateException = await submitAttendanceException({
+      database,
+      auth: fixture.auth,
+      input: {
+        branchId: fixture.branchA.id,
+        attendanceSessionId: outsideClockIn.attendanceSessionId,
+        attendancePunchId: outsideClockIn.attendancePunchId,
+        type: "OUTSIDE_GEOFENCE",
+        reason: "Same pending request should not duplicate.",
+        deviceIdentifier: fixture.deviceIdentifier,
+      },
+      now: new Date(base.getTime() + 10 * 60 * 60_000 + 1_000),
+    });
+    assert.equal(duplicateException.duplicate, true);
+    assert.equal(duplicateException.id, outsideClockIn.exceptionId);
+
+    await transaction.branchAttendanceSetting.update({
+      where: {
+        branchId: fixture.branchA.id,
+      },
+      data: {
+        allowOutsideGeofenceRequest: false,
+      },
+    });
+    await assertAttendanceError(
+      submitAttendanceException({
+        database,
+        auth: fixture.auth,
+        input: {
+          branchId: fixture.branchA.id,
+          attendanceSessionId: outsideClockIn.attendanceSessionId,
+          attendancePunchId: outsideClockIn.attendancePunchId,
+          type: "OUTSIDE_GEOFENCE",
+          reason: "Current branch policy rejects GPS exceptions.",
+          deviceIdentifier: fixture.deviceIdentifier,
+        },
+      }),
+      "OUTSIDE_GEOFENCE",
+    );
+    const otherException = await submitAttendanceException({
+      database,
+      auth: fixture.auth,
+      input: {
+        branchId: fixture.branchA.id,
+        attendanceSessionId: outsideClockIn.attendanceSessionId,
+        type: "OTHER",
+        reason: "Non-GPS exception remains available.",
+        deviceIdentifier: fixture.deviceIdentifier,
+      },
+    });
+    assert.equal(otherException.status, "PENDING");
+
+    const today = await getEmployeeAttendanceToday({
+      database,
+      auth: fixture.auth,
+      now: new Date(base.getTime() + 10 * 60 * 60_000 + 2_000),
+    });
+    assert.equal(today.currentSession?.id, outsideClockIn.attendanceSessionId);
+    assert.equal(today.status, "OPEN");
+    assert.equal(today.currentSession?.requiresApproval, true);
+    assert.deepEqual(today.allowedActions, ["BREAK_START", "CLOCK_OUT"]);
+    assert.deepEqual(Object.keys(today.employee).sort(), [
+      "employeeCode",
+      "fullName",
+    ]);
+
+    const history = await getEmployeeAttendanceHistory({
+      database,
+      auth: fixture.auth,
+      input: {
+        page: 1,
+        pageSize: 25,
+      },
+      now: new Date(base.getTime() + 10 * 60 * 60_000 + 2_000),
+    });
+    assert.ok(history.items.length >= 2);
+    assert.ok(
+      history.items.every(
+        (item) => item.branch.id === fixture.branchA.id,
+      ),
+    );
+    assert.doesNotMatch(JSON.stringify(history), /phone/i);
+    assert.equal(
+      history.items.some(
+        (item) => item.id === fixture.otherEmployeeAttendanceId,
+      ),
+      false,
+    );
+
+    await assertAttendanceError(
+      getEmployeeAttendanceHistory({
+        database,
+        auth: fixture.auth,
+        input: {
+          branchId: fixture.branchB.id,
+        },
+      }),
+      "BRANCH_NOT_AUTHORIZED",
+    );
+
+    const punchCount = await transaction.attendancePunch.count({
+      where: {
+        employeeId: fixture.auth.membershipId,
+        businessId: fixture.auth.businessId,
+      },
+    });
+    assert.equal(punchCount, 5);
+  });
+});
+
+async function createFixture(transaction: Prisma.TransactionClient) {
+  const suffix = randomUUID().slice(0, 8);
+  const businessA = await transaction.business.create({
+    data: {
+      name: `Attendance C A ${suffix}`,
+      slug: `attendance-c-a-${suffix}`,
+      timezone: "Asia/Kuching",
+    },
+  });
+  const businessB = await transaction.business.create({
+    data: {
+      name: `Attendance C B ${suffix}`,
+      slug: `attendance-c-b-${suffix}`,
+    },
+  });
+  const branchA = await transaction.branch.create({
+    data: {
+      businessId: businessA.id,
+      name: `Attendance Branch A ${suffix}`,
+    },
+  });
+  const branchB = await transaction.branch.create({
+    data: {
+      businessId: businessB.id,
+      name: `Attendance Branch B ${suffix}`,
+    },
+  });
+  await transaction.branchAttendanceSetting.create({
+    data: {
+      businessId: businessA.id,
+      branchId: branchA.id,
+      latitude: 1.5535,
+      longitude: 110.3593,
+      geofenceRadiusMeters: 100,
+      minimumAccuracyMeters: 80,
+      requireGeofence: true,
+      allowOutsideGeofenceRequest: true,
+      requirePhoto: false,
+      timezone: "Asia/Kuching",
+      isEnabled: true,
+    },
+  });
+
+  const employeeAccount = await transaction.employeeAccount.create({
+    data: {
+      phoneNumber: `+601${Date.now().toString().slice(-8)}`,
+      phoneNormalized: `+601${Date.now().toString().slice(-8)}`,
+      name: "Phase 1C Employee",
+      status: "ACTIVE",
+    },
+  });
+  const membership =
+    await transaction.employeeBusinessMembership.create({
+      data: {
+        employeeAccountId: employeeAccount.id,
+        businessId: businessA.id,
+        employeeCode: `C-${suffix}`,
+        fullName: "Phase 1C Employee",
+        phoneNumber: employeeAccount.phoneNumber,
+        phoneNumberNormalized: employeeAccount.phoneNormalized,
+        employmentType: "FULL_TIME",
+        status: "ACTIVE",
+        attendanceEnabled: true,
+      },
+    });
+  await transaction.employeeBranchAssignment.create({
+    data: {
+      membershipId: membership.id,
+      businessId: businessA.id,
+      branchId: branchA.id,
+      isPrimary: true,
+      canClockIn: true,
+      effectiveFrom: new Date(Date.now() - 86_400_000),
+      status: "ACTIVE",
+    },
+  });
+
+  const deviceIdentifier = `phase1c-device-${randomUUID()}`;
+  const device = await transaction.employeeDevice.create({
+    data: {
+      employeeAccountId: employeeAccount.id,
+      deviceIdentifierHash: hashEmployeeIdentifier(
+        "device",
+        deviceIdentifier,
+      ),
+      status: "ACTIVE",
+      canView: true,
+      canPunch: true,
+    },
+  });
+  const employeeSession = await transaction.employeeSession.create({
+    data: {
+      employeeAccountId: employeeAccount.id,
+      membershipId: membership.id,
+      businessId: businessA.id,
+      primaryBranchId: branchA.id,
+      employeeDeviceId: device.id,
+      refreshTokenHash: randomUUID(),
+      expiresAt: new Date(Date.now() + 48 * 60 * 60_000),
+    },
+  });
+
+  const otherAccount = await transaction.employeeAccount.create({
+    data: {
+      phoneNumber: `+602${Date.now().toString().slice(-8)}`,
+      phoneNormalized: `+602${Date.now().toString().slice(-8)}`,
+      name: "Other Phase 1C Employee",
+      status: "ACTIVE",
+    },
+  });
+  const otherMembership =
+    await transaction.employeeBusinessMembership.create({
+      data: {
+        employeeAccountId: otherAccount.id,
+        businessId: businessA.id,
+        employeeCode: `OTHER-${suffix}`,
+        fullName: "Other Phase 1C Employee",
+        phoneNumber: otherAccount.phoneNumber,
+        phoneNumberNormalized: otherAccount.phoneNormalized,
+        status: "ACTIVE",
+        attendanceEnabled: false,
+      },
+    });
+  const otherEmployeeAttendance =
+    await transaction.employeeAttendance.create({
+      data: {
+        employeeAccountId: otherAccount.id,
+        membershipId: otherMembership.id,
+        businessId: businessA.id,
+        branchId: branchA.id,
+        workDate: new Date(),
+        status: "COMPLETED",
+        clockInAt: new Date(Date.now() - 60 * 60_000),
+        clockOutAt: new Date(),
+        totalWorkedMinutes: 60,
+      },
+    });
+
+  return {
+    businessA,
+    businessB,
+    branchA,
+    branchB,
+    deviceIdentifier,
+    auth: {
+      sessionId: employeeSession.id,
+      employeeAccountId: employeeAccount.id,
+      membershipId: membership.id,
+      businessId: businessA.id,
+      primaryBranchId: branchA.id,
+      deviceId: device.id,
+    } satisfies EmployeeAuthContext,
+    otherEmployeeAttendanceId: otherEmployeeAttendance.id,
+  };
+}
+
+function punchInput(
+  branchId: string,
+  deviceIdentifier: string,
+  idempotencyKey: string,
+) {
+  return {
+    branchId,
+    latitude: 1.5535,
+    longitude: 110.3593,
+    accuracyMeters: 10,
+    deviceIdentifier,
+    idempotencyKey,
+  };
+}
+
+function transactionDatabase(
+  transaction: Prisma.TransactionClient,
+): PrismaClient {
+  return {
+    auditLog: transaction.auditLog,
+    $transaction: async (
+      callback: (transaction: Prisma.TransactionClient) => unknown,
+    ) => callback(transaction),
+  } as unknown as PrismaClient;
+}
+
+async function assertAttendanceError(
+  promise: Promise<unknown>,
+  code: AttendanceApiError["code"],
+) {
+  await assert.rejects(
+    promise,
+    (error: unknown) =>
+      error instanceof AttendanceApiError && error.code === code,
+  );
+}
+
+async function withRollback(
+  callback: (transaction: Prisma.TransactionClient) => Promise<void>,
+) {
+  try {
+    await prisma.$transaction(async (transaction) => {
+      await callback(transaction);
+      throw rollbackSignal;
+    });
+  } catch (error) {
+    if (error !== rollbackSignal) {
+      throw error;
+    }
+  }
+}
+
+function assertLocalDatabase() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL is required for Attendance integration tests.");
+  }
+
+  const hostname = new URL(databaseUrl).hostname.toLowerCase();
+  assert.ok(
+    ["localhost", "127.0.0.1", "[::1]"].includes(hostname),
+    "Attendance integration tests must use a local database.",
+  );
+}

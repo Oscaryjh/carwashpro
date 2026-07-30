@@ -211,7 +211,7 @@ export function AttendanceSettingsForm({
             <small>The permitted clock-in area around the branch (20-1000 m).</small>
           </label>
           <label>
-            <span>Minimum GPS Accuracy (metres)</span>
+            <span>Maximum Accepted GPS Error (metres)</span>
             <input
               defaultValue={initialValues.minimumAccuracyMeters}
               max="500"
@@ -238,13 +238,13 @@ export function AttendanceSettingsForm({
         <div className={styles.checkGrid}>
           <ToggleField
             defaultChecked={initialValues.requireGeofence}
-            description="Future clock-ins must pass the configured location rules."
+            description="Employee clock-ins must pass the configured location rules."
             label="Require Geofence"
             name="requireGeofence"
           />
           <ToggleField
             defaultChecked={initialValues.allowOutsideGeofenceRequest}
-            description="Future staff may request review instead of silently bypassing the rule."
+            description="Employees may request review instead of silently bypassing the rule."
             label="Allow Outside Geofence Request"
             name="allowOutsideGeofenceRequest"
           />

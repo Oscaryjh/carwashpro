@@ -81,9 +81,9 @@ export async function writeAuditLog(
   return database.auditLog.create({ data });
 }
 
-export async function tryWriteAuditLog(input: WriteAuditLogInput) {
+export async function tryWriteAuditLog(input: WriteAuditLogInput, database: AuditDatabase = prisma) {
   try {
-    await writeAuditLog(input);
+    await writeAuditLog(input, database);
     return true;
   } catch (error) {
     console.error("[audit] Unable to write audit log", {

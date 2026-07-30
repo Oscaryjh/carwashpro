@@ -49,10 +49,10 @@ export default async function AttendanceSettingsPage() {
       </div>
 
       <div className={styles.notice}>
-        <strong>Phase 1B configuration only</strong>
+        <strong>Attendance API enforcement</strong>
         <span>
-          These settings do not create Clock In, Clock Out, OTP, distance
-          calculation, or an employee app.
+          Employee attendance APIs enforce these branch location rules. The
+          Staff PWA and attendance administration workflow are not included yet.
         </span>
       </div>
 

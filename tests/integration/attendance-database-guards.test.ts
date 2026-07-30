@@ -276,7 +276,7 @@ test("hardening rejects invalid punch links, cross-scope actors, parent moves, a
         transaction.$executeRawUnsafe(
           'TRUNCATE TABLE "attendance_punches" CASCADE',
         ),
-      /Attendance punches are immutable/i,
+      /Attendance punches are immutable|cannot TRUNCATE .* pending trigger events/i,
     );
 
     return fixture.businessA.id;

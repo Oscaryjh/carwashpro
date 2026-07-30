@@ -26,8 +26,8 @@ export const branchAttendanceSettingInputSchema = z.object({
   minimumAccuracyMeters: z.coerce
     .number()
     .int()
-    .min(10, "GPS accuracy must be at least 10 metres.")
-    .max(500, "GPS accuracy cannot exceed 500 metres.")
+    .min(10, "Maximum accepted GPS error must be at least 10 metres.")
+    .max(500, "Maximum accepted GPS error cannot exceed 500 metres.")
     .default(80),
   requireGeofence: z.boolean().default(true),
   allowOutsideGeofenceRequest: z.boolean().default(true),
