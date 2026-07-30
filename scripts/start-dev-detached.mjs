@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 if (process.platform !== "win32") {
@@ -11,6 +11,12 @@ const cwd = process.cwd();
 const scriptPath = join(process.env.TEMP ?? cwd, "washflow-dev-window.cmd");
 const nodePath = process.execPath;
 const nodeDir = nodePath.slice(0, nodePath.lastIndexOf("\\"));
+const localHttpsFiles = [
+  join(cwd, ".local-https", "tetamu-local-key.pem"),
+  join(cwd, ".local-https", "tetamu-local.pem"),
+  join(cwd, ".local-https", "tetamu-local-ca.crt"),
+];
+const localUrl = `${localHttpsFiles.every(existsSync) ? "https" : "http"}://localhost:3000`;
 
 writeFileSync(
   scriptPath,
@@ -24,7 +30,7 @@ writeFileSync(
     'set "WS_NO_UTF_8_VALIDATE=1"',
     "echo Starting WashFlow dev server...",
     `echo Project: ${cwd}`,
-    "echo URL: http://localhost:3000",
+    `echo URL: ${localUrl}`,
     "echo.",
     `"${nodePath}" scripts\\dev-supervisor.mjs`,
     "echo.",
@@ -41,4 +47,4 @@ const child = spawn("cmd.exe", ["/d", "/c", "start", "WashFlow Dev Server", "/mi
 
 child.unref();
 console.log("WashFlow dev server window started.");
-console.log("Local URL: http://localhost:3000");
+console.log(`Local URL: ${localUrl}`);

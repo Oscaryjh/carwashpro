@@ -11,6 +11,7 @@ output/
 tmp/
 .local-postgres
 .local-postgres.pid
+.local-https/
 .local-postgres-*.log
 .next-dev-*.log
 public/uploads/

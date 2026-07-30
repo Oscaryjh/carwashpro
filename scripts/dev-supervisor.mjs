@@ -13,6 +13,17 @@ import {
 
 const pg = createEmbeddedPostgres();
 const nextBin = join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
+const localHttpsKey = join(
+  process.cwd(),
+  ".local-https",
+  "tetamu-local-key.pem",
+);
+const localHttpsCertificate = join(
+  process.cwd(),
+  ".local-https",
+  "tetamu-local.pem",
+);
+const localHttpsCa = join(process.cwd(), ".local-https", "tetamu-local-ca.crt");
 const whatsappWorkerRunner = join(process.cwd(), "scripts", "run-whatsapp-worker.mjs");
 const notificationWorkerScript = join(
   process.cwd(),
@@ -47,7 +58,9 @@ async function main() {
   await waitForPostgres(pg, DATABASE_NAME);
 
   console.log("WashFlow dev supervisor started.");
-  console.log("Local URL: http://localhost:3000");
+  console.log(
+    `Local URL: ${hasLocalHttpsCertificate() ? "https" : "http"}://localhost:3000`,
+  );
   console.log("WhatsApp Connector: http://127.0.0.1:8787");
   console.log("Press Ctrl+C to stop.");
 
@@ -60,7 +73,7 @@ async function main() {
 
 function startNext() {
   cacheResetRequested = false;
-  nextChild = spawn(process.execPath, [nextBin, "dev"], {
+  nextChild = spawn(process.execPath, getNextDevArguments(), {
     stdio: ["inherit", "pipe", "pipe"],
     shell: false,
     env: getChildEnv(),
@@ -90,6 +103,28 @@ function startNext() {
     );
     setTimeout(startNext, restartDelayMs);
   });
+}
+
+function getNextDevArguments() {
+  const argumentsList = [nextBin, "dev"];
+
+  if (hasLocalHttpsCertificate()) {
+    argumentsList.push(
+      "--experimental-https",
+      "--experimental-https-key",
+      localHttpsKey,
+      "--experimental-https-cert",
+      localHttpsCertificate,
+      "--experimental-https-ca",
+      localHttpsCa,
+    );
+  }
+
+  return argumentsList;
+}
+
+function hasLocalHttpsCertificate() {
+  return [localHttpsKey, localHttpsCertificate, localHttpsCa].every(existsSync);
 }
 
 function startWhatsAppWorker() {
