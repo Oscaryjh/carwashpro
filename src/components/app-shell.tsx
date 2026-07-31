@@ -239,8 +239,8 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       ? [
           {
             href: "/team",
-            label: "Team",
-            shortLabel: "Team",
+            label: "HR & Payroll",
+            shortLabel: "HR",
             icon: "team" as const,
             children: teamChildren,
           },
