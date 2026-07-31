@@ -22964,3 +22964,41 @@ button:disabled,
     grid-template-columns: 1fr;
   }
 }
+
+.staff-branch-switch {
+  display: grid;
+  max-width: 320px;
+  gap: 5px;
+  margin-top: 12px;
+}
+
+.staff-branch-switch > span {
+  color: #657779;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.staff-branch-switch select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 38px 0 12px;
+  border: 1px solid #c9dddd;
+  border-radius: 10px;
+  color: #173637;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.staff-branch-switch select:disabled {
+  cursor: not-allowed;
+  opacity: .65;
+}
+
+.staff-branch-switch small {
+  color: #718184;
+  font-size: 10px;
+}

@@ -68,6 +68,10 @@ export type AttendanceToday = {
     id: string;
     name: string;
   };
+  availableBranches: Array<{
+    id: string;
+    name: string;
+  }>;
   attendanceEnabled: boolean;
   sessionCount: number;
   completedSessionCount: number;
@@ -94,7 +98,6 @@ export type AttendanceToday = {
     geofenceRadiusMeters: number;
     maximumAcceptedGpsErrorMeters: number;
     allowOutsideGeofenceRequest: boolean;
-    requirePhoto: boolean;
     timezone: string;
   };
   allowedActions: AttendanceAction[];
@@ -156,6 +159,10 @@ export type AttendanceHistoryItem = {
 };
 
 export type AttendanceHistory = {
+  availableBranches: Array<{
+    id: string;
+    name: string;
+  }>;
   items: AttendanceHistoryItem[];
   pagination: {
     page: number;

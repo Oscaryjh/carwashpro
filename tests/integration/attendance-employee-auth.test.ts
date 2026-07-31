@@ -403,6 +403,7 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
       membershipId: fixture.single.membershipId,
       businessId: fixture.businessA.id,
       primaryBranchId: fixture.branchA.id,
+      attendanceBranchId: fixture.branchA.id,
       deviceId: singleLogin.context.deviceId,
     });
     const safeProfile = await getEmployeeAuthProfile(

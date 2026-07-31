@@ -56,8 +56,8 @@ export async function submitAttendanceException(args: {
           principal.setting?.allowOutsideGeofenceRequest === true,
         );
 
-        const attendanceSession =
-          await transaction.employeeAttendance.findFirst({
+        const attendanceSession = input.attendanceSessionId
+          ? await transaction.employeeAttendance.findFirst({
             where: {
               id: input.attendanceSessionId,
               employeeAccountId: args.auth.employeeAccountId,
@@ -70,13 +70,17 @@ export async function submitAttendanceException(args: {
             },
             select: {
               id: true,
+              clockInAt: true,
+              clockOutAt: true,
+              status: true,
             },
-          });
-        if (!attendanceSession) {
+          })
+          : null;
+        if (input.attendanceSessionId && !attendanceSession) {
           throw new AttendanceApiError("INVALID_ATTENDANCE_STATE");
         }
 
-        const punch = input.attendancePunchId
+        const punch = input.attendancePunchId && attendanceSession
           ? await transaction.attendancePunch.findFirst({
               where: {
                 id: input.attendancePunchId,
@@ -94,6 +98,7 @@ export async function submitAttendanceException(args: {
         if (input.attendancePunchId && !punch) {
           throw new AttendanceApiError("INVALID_ATTENDANCE_STATE");
         }
+        validateCorrectionRequest(input, attendanceSession, now);
         validateExceptionEvidence(input, punch);
 
         const duplicate = await findPendingException(
@@ -109,25 +114,29 @@ export async function submitAttendanceException(args: {
         const exception = await transaction.attendanceException.create({
           data: {
             attendancePunchId: punch?.id ?? null,
-            attendanceSessionId: attendanceSession.id,
+            attendanceSessionId: attendanceSession?.id ?? null,
             employeeId: args.auth.membershipId,
             businessId: args.auth.businessId,
             branchId: input.branchId,
             type: input.type,
             reason: input.reason,
             status: "PENDING",
+            requestedClockInAt: input.requestedClockInAt ?? null,
+            requestedClockOutAt: input.requestedClockOutAt ?? null,
           },
           select: exceptionResultSelect,
         });
-        await transaction.employeeAttendance.update({
-          where: {
-            id: attendanceSession.id,
-          },
-          data: {
-            requiresApproval: true,
-            approvalStatus: "PENDING",
-          },
-        });
+        if (attendanceSession) {
+          await transaction.employeeAttendance.update({
+            where: {
+              id: attendanceSession.id,
+            },
+            data: {
+              requiresApproval: true,
+              approvalStatus: "PENDING",
+            },
+          });
+        }
         await writeAuditLog(
           {
             businessId: args.auth.businessId,
@@ -138,9 +147,11 @@ export async function submitAttendanceException(args: {
             summary: "Employee attendance exception submitted.",
             metadata: {
               membershipId: args.auth.membershipId,
-              attendanceSessionId: attendanceSession.id,
+              attendanceSessionId: attendanceSession?.id ?? null,
               attendancePunchId: punch?.id ?? null,
               exceptionType: input.type,
+              requestedClockInAt: input.requestedClockInAt?.toISOString() ?? null,
+              requestedClockOutAt: input.requestedClockOutAt?.toISOString() ?? null,
             },
           },
           transaction,
@@ -240,6 +251,8 @@ async function findPendingException(
       branchId: input.branchId,
       type: input.type,
       status: "PENDING",
+      requestedClockInAt: input.requestedClockInAt ?? null,
+      requestedClockOutAt: input.requestedClockOutAt ?? null,
     },
     orderBy: {
       createdAt: "asc",
@@ -270,7 +283,11 @@ function assertExceptionPolicyAllowed(
   input: AttendanceExceptionInput,
   allowOutsideGeofenceRequest: boolean,
 ) {
-  if (input.type === "OTHER" || allowOutsideGeofenceRequest) {
+  const isGpsException =
+    input.type === "OUTSIDE_GEOFENCE" ||
+    input.type === "GPS_INACCURATE" ||
+    input.type === "GPS_UNAVAILABLE";
+  if (!isGpsException || allowOutsideGeofenceRequest) {
     return;
   }
   const code =
@@ -283,6 +300,49 @@ function assertExceptionPolicyAllowed(
     code,
     "This branch does not allow GPS exception requests.",
   );
+}
+
+function validateCorrectionRequest(
+  input: AttendanceExceptionInput,
+  session: {
+    id: string;
+    clockInAt: Date;
+    clockOutAt: Date | null;
+    status: "OPEN" | "ON_BREAK" | "COMPLETED" | "INCOMPLETE" | "CANCELLED";
+  } | null,
+  now: Date,
+) {
+  const futureToleranceMilliseconds = 60_000;
+  const latestAllowed = new Date(
+    now.getTime() + futureToleranceMilliseconds,
+  );
+  if (
+    (input.requestedClockInAt &&
+      input.requestedClockInAt > latestAllowed) ||
+    (input.requestedClockOutAt &&
+      input.requestedClockOutAt > latestAllowed)
+  ) {
+    throw new AttendanceApiError(
+      "VALIDATION_ERROR",
+      "Requested Attendance times cannot be in the future.",
+    );
+  }
+  if (input.type !== "FORGOT_CLOCK_OUT") return;
+  if (!session || session.clockOutAt || session.status === "COMPLETED") {
+    throw new AttendanceApiError(
+      "INVALID_ATTENDANCE_STATE",
+      "This Attendance shift already has a clock-out record.",
+    );
+  }
+  if (
+    input.requestedClockOutAt &&
+    input.requestedClockOutAt <= session.clockInAt
+  ) {
+    throw new AttendanceApiError(
+      "VALIDATION_ERROR",
+      "Requested clock-out must be after clock-in.",
+    );
+  }
 }
 
 function validateExceptionEvidence(
@@ -302,7 +362,11 @@ function validateExceptionEvidence(
     GPS_INACCURATE: "GPS_INACCURATE",
     GPS_UNAVAILABLE: "GPS_UNAVAILABLE",
   } as const;
-  if (input.type === "OTHER") {
+  if (
+    input.type === "OTHER" ||
+    input.type === "FORGOT_CLOCK_IN" ||
+    input.type === "FORGOT_CLOCK_OUT"
+  ) {
     return;
   }
   if (!punch || punch.geofenceStatus !== expectedStatus[input.type]) {

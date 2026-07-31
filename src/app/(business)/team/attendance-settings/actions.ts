@@ -43,7 +43,6 @@ export async function saveBranchAttendanceSettingAction(
         requireGeofence: formData.get("requireGeofence") === "on",
         allowOutsideGeofenceRequest:
           formData.get("allowOutsideGeofenceRequest") === "on",
-        requirePhoto: formData.get("requirePhoto") === "on",
         timezone: formData.get("timezone"),
         isEnabled: formData.get("isEnabled") === "on",
       },

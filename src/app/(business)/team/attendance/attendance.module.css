@@ -487,3 +487,196 @@
     grid-column: auto;
   }
 }
+
+.notice {
+  padding: 12px 14px;
+  border: 1px solid;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.noticeSuccess {
+  border-color: #a9ddcf;
+  color: #0d6f61;
+  background: #ecfaf6;
+}
+
+.noticeError {
+  border-color: #f1b8b1;
+  color: #a3342a;
+  background: #fff2f0;
+}
+
+.reviewList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.reviewCard {
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid #dde7e9;
+  border-radius: 10px;
+  background: #fbfdfd;
+}
+
+.reviewCard p {
+  margin: 0;
+  color: #4b596d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.reviewSummary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reviewSummary > div {
+  display: grid;
+  gap: 3px;
+}
+
+.reviewSummary strong {
+  color: #172235;
+  font-size: 14px;
+}
+
+.reviewSummary small,
+.reviewFacts {
+  color: #6d7a8c;
+  font-size: 10px;
+}
+
+.reviewFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+}
+
+.reviewForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 9px;
+}
+
+.reviewForm label,
+.adjustmentForm label {
+  display: grid;
+  gap: 5px;
+}
+
+.reviewForm label > span,
+.adjustmentForm label > span {
+  color: #677488;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.reviewForm input,
+.adjustmentForm input {
+  min-height: 40px;
+  border: 1px solid #d5e0e5;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.reviewForm > div {
+  display: flex;
+  gap: 7px;
+}
+
+.reviewForm button,
+.adjustmentForm button {
+  min-height: 40px;
+  padding: 0 13px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.dangerButton {
+  border-color: #efb7b0 !important;
+  color: #a9382e !important;
+  background: #fff2f0 !important;
+}
+
+.adjustmentForm {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 1.5fr auto;
+  align-items: end;
+  gap: 11px;
+  padding: 16px;
+}
+
+.adjustmentReason {
+  min-width: 180px;
+}
+
+.adjustLink {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border: 1px solid #b9d9d4;
+  border-radius: 6px;
+  color: #0b7669;
+  background: #f2fbf9;
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+@media (max-width: 1050px) {
+  .reviewList {
+    grid-template-columns: 1fr;
+  }
+
+  .adjustmentForm {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .reviewList {
+    padding: 12px;
+  }
+
+  .reviewForm,
+  .adjustmentForm {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem 0 0;
+}
+
+.pagination a,
+.pagination span {
+  min-width: 6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  text-align: center;
+  font-weight: 700;
+}
+
+.pagination span[aria-disabled="true"] {
+  color: var(--muted);
+  opacity: 0.55;
+}

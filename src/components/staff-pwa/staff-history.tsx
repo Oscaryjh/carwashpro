@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   formatMinutesAsHours,
+  getOrCreateDeviceIdentifier,
   gpsStatusLabel,
   isEmployeeSessionError,
   StaffApiError,
@@ -26,6 +27,17 @@ export function StaffHistory() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correctionType, setCorrectionType] = useState<
+    "FORGOT_CLOCK_IN" | "FORGOT_CLOCK_OUT"
+  >("FORGOT_CLOCK_OUT");
+  const [correctionSessionId, setCorrectionSessionId] = useState("");
+  const [correctionBranchId, setCorrectionBranchId] = useState("");
+  const [requestedClockInAt, setRequestedClockInAt] = useState("");
+  const [requestedClockOutAt, setRequestedClockOutAt] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [correctionSubmitting, setCorrectionSubmitting] = useState(false);
+  const [correctionMessage, setCorrectionMessage] = useState("");
   const [knownBranches, setKnownBranches] = useState<Array<{ id: string; name: string }>>([]);
 
   const load = useCallback(async () => {
@@ -46,7 +58,12 @@ export function StaffHistory() {
       );
       setHistory(result.data);
       setKnownBranches((current) => {
-        const map = new Map(current.map((branch) => [branch.id, branch]));
+        const map = new Map(
+          [...current, ...result.data.availableBranches].map((branch) => [
+            branch.id,
+            branch,
+          ]),
+        );
         for (const item of result.data.items) {
           map.set(item.branch.id, item.branch);
         }
@@ -80,13 +97,188 @@ export function StaffHistory() {
     }
   }
 
+  async function submitCorrection(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCorrectionSubmitting(true);
+    setCorrectionMessage("");
+    setError("");
+    try {
+      const requestedClockIn = requestedClockInAt
+        ? new Date(requestedClockInAt)
+        : null;
+      const requestedClockOut = requestedClockOutAt
+        ? new Date(requestedClockOutAt)
+        : null;
+      const result = await staffApiFetch<{
+        ok: true;
+        data: { duplicate: boolean };
+      }>("/api/employee-attendance/exception", {
+        method: "POST",
+        body: JSON.stringify({
+          branchId: correctionBranchId,
+          attendanceSessionId:
+            correctionType === "FORGOT_CLOCK_OUT"
+              ? correctionSessionId
+              : null,
+          attendancePunchId: null,
+          type: correctionType,
+          requestedClockInAt:
+            correctionType === "FORGOT_CLOCK_IN" &&
+            requestedClockIn &&
+            Number.isFinite(requestedClockIn.getTime())
+              ? requestedClockIn.toISOString()
+              : null,
+          requestedClockOutAt:
+            requestedClockOut &&
+            Number.isFinite(requestedClockOut.getTime())
+              ? requestedClockOut.toISOString()
+              : null,
+          reason: correctionReason,
+          deviceIdentifier: getOrCreateDeviceIdentifier(),
+        }),
+      });
+      setCorrectionMessage(
+        result.data.duplicate
+          ? "This request is already pending."
+          : "Request submitted for manager review.",
+      );
+      setCorrectionReason("");
+      await load();
+    } catch (caught) {
+      if (
+        caught instanceof StaffApiError &&
+        isEmployeeSessionError(caught.code)
+      ) {
+        router.replace("/staff/login?reason=session-expired");
+        return;
+      }
+      setError(
+        caught instanceof StaffApiError
+          ? caught.message
+          : "Unable to submit the correction request.",
+      );
+    } finally {
+      setCorrectionSubmitting(false);
+    }
+  }
+
   return (
     <div className="staff-history-stack">
       <section className="staff-page-title">
         <p className="staff-kicker">MY ATTENDANCE</p>
         <h1>History</h1>
         <p>Only your own Attendance records are shown.</p>
+        <button
+          className="staff-secondary-button"
+          onClick={() => setCorrectionOpen((current) => !current)}
+          type="button"
+        >
+          {correctionOpen ? "Close request" : "Report a missing punch"}
+        </button>
       </section>
+
+      {correctionOpen ? (
+        <section className="staff-page-card">
+          <div className="staff-card-heading">
+            <div>
+              <p className="staff-kicker">ATTENDANCE CORRECTION</p>
+              <h2>Report a missing punch</h2>
+            </div>
+          </div>
+          <form className="staff-history-filters" onSubmit={submitCorrection}>
+            <label>
+              Missing action
+              <select
+                onChange={(event) =>
+                  setCorrectionType(
+                    event.target.value as
+                      | "FORGOT_CLOCK_IN"
+                      | "FORGOT_CLOCK_OUT",
+                  )
+                }
+                value={correctionType}
+              >
+                <option value="FORGOT_CLOCK_OUT">Forgot clock out</option>
+                <option value="FORGOT_CLOCK_IN">Forgot clock in</option>
+              </select>
+            </label>
+            <label>
+              Branch
+              <select
+                onChange={(event) => setCorrectionBranchId(event.target.value)}
+                required
+                value={correctionBranchId}
+              >
+                <option value="">Select branch</option>
+                {(history?.availableBranches ?? knownBranches).map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.name}</option>
+                ))}
+              </select>
+            </label>
+            {correctionType === "FORGOT_CLOCK_OUT" ? (
+              <label>
+                Attendance shift
+                <select
+                  onChange={(event) => setCorrectionSessionId(event.target.value)}
+                  required
+                  value={correctionSessionId}
+                >
+                  <option value="">Select shift</option>
+                  {(history?.items ?? [])
+                    .filter(
+                      (item) =>
+                        !item.clockOutAt &&
+                        item.status !== "COMPLETED" &&
+                        item.status !== "CANCELLED",
+                    )
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.workDate} / {item.branch.name} / {humanize(item.status)}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            ) : (
+              <label>
+                Requested clock in
+                <input
+                  onChange={(event) => setRequestedClockInAt(event.target.value)}
+                  required
+                  type="datetime-local"
+                  value={requestedClockInAt}
+                />
+              </label>
+            )}
+            <label>
+              Requested clock out
+              <input
+                onChange={(event) => setRequestedClockOutAt(event.target.value)}
+                required={correctionType === "FORGOT_CLOCK_OUT"}
+                type="datetime-local"
+                value={requestedClockOutAt}
+              />
+            </label>
+            <label>
+              Reason
+              <input
+                maxLength={500}
+                minLength={3}
+                onChange={(event) => setCorrectionReason(event.target.value)}
+                required
+                value={correctionReason}
+              />
+            </label>
+            <button
+              className="staff-primary-button"
+              disabled={correctionSubmitting}
+              type="submit"
+            >
+              {correctionSubmitting ? "Submitting…" : "Submit for review"}
+            </button>
+            {correctionMessage ? <small>{correctionMessage}</small> : null}
+          </form>
+        </section>
+      ) : null}
 
       <section className="staff-page-card">
         <form className="staff-history-filters" onSubmit={filter}>

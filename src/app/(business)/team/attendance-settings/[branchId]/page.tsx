@@ -77,7 +77,6 @@ export default async function AttendanceSettingsDetailPage({
           requireGeofence: setting?.requireGeofence ?? true,
           allowOutsideGeofenceRequest:
             setting?.allowOutsideGeofenceRequest ?? true,
-          requirePhoto: setting?.requirePhoto ?? false,
           timezone: setting?.timezone ?? business?.timezone ?? "Asia/Kuching",
           isEnabled: setting?.isEnabled ?? false,
         }}

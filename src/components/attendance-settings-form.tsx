@@ -16,7 +16,6 @@ type AttendanceSettingValues = {
   minimumAccuracyMeters: number;
   requireGeofence: boolean;
   allowOutsideGeofenceRequest: boolean;
-  requirePhoto: boolean;
   timezone: string;
   isEnabled: boolean;
 };
@@ -248,22 +247,15 @@ export function AttendanceSettingsForm({
             label="Allow Outside Geofence Request"
             name="allowOutsideGeofenceRequest"
           />
-          <ToggleField
-            defaultChecked={initialValues.requirePhoto}
-            description="Reserve the setting for the future staff Attendance flow."
-            label="Require Photo"
-            name="requirePhoto"
-          />
         </div>
 
         <div className={styles.example}>
-          <strong>How the settings will be used later</strong>
+          <strong>How the location check works</strong>
           <span>Branch radius: 100 m</span>
           <span>Employee GPS error: 35 m</span>
           <span>Result: the system may continue with the range check.</span>
           <small>
-            Phase 1B stores and validates these settings only. It does not
-            calculate distance or allow clock-in.
+            Attendance checks the employee location only when a punch action is submitted.
           </small>
         </div>
       </section>

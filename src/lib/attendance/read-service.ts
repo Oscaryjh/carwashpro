@@ -11,6 +11,7 @@ import {
   calculateAttendanceDurations,
   getAllowedAttendanceActions,
 } from "@/lib/attendance/state-machine";
+import { reconcileStaleEmployeeAttendance } from "@/lib/attendance/stale-session-service";
 import {
   formatBranchLocalDateTime,
   getAttendanceWorkDate,
@@ -24,6 +25,12 @@ export async function getEmployeeAttendanceToday(args: {
 }) {
   const database = args.database ?? prisma;
   const now = args.now ?? new Date();
+
+  await reconcileStaleEmployeeAttendance({
+    auth: args.auth,
+    database,
+    now,
+  });
 
   return database.$transaction(async (transaction) => {
     const activeSession =
@@ -83,7 +90,9 @@ export async function getEmployeeAttendanceToday(args: {
         },
       });
     const branchId =
-      activeSession?.branchId ?? args.auth.primaryBranchId;
+      activeSession?.branchId ??
+      args.auth.attendanceBranchId ??
+      args.auth.primaryBranchId;
     const principal = await loadEmployeeAttendancePrincipal({
       transaction,
       auth: args.auth,
@@ -197,6 +206,35 @@ export async function getEmployeeAttendanceToday(args: {
     const status =
       activeStatus ??
       (completedSession?.status === "COMPLETED" ? "COMPLETED" : null);
+    const availableBranches =
+      await transaction.employeeBranchAssignment.findMany({
+        where: {
+          membershipId: args.auth.membershipId,
+          businessId: args.auth.businessId,
+          status: "ACTIVE",
+          canClockIn: true,
+          effectiveFrom: { lte: now },
+          OR: [
+            { effectiveUntil: null },
+            { effectiveUntil: { gte: now } },
+          ],
+          branch: {
+            status: "ACTIVE",
+            attendanceSetting: {
+              is: {
+                businessId: args.auth.businessId,
+                isEnabled: true,
+              },
+            },
+          },
+        },
+        orderBy: [{ isPrimary: "desc" }, { branch: { name: "asc" } }],
+        select: {
+          branch: {
+            select: { id: true, name: true },
+          },
+        },
+      });
 
     return {
       employee: {
@@ -211,6 +249,7 @@ export async function getEmployeeAttendanceToday(args: {
         id: principal.branch.id,
         name: principal.branch.name,
       },
+      availableBranches: availableBranches.map((item) => item.branch),
       attendanceEnabled: principal.membership.attendanceEnabled,
       sessionCount:
         completedSessions.length + (activeSession ? 1 : 0),
@@ -247,7 +286,6 @@ export async function getEmployeeAttendanceToday(args: {
           principal.setting.minimumAccuracyMeters,
         allowOutsideGeofenceRequest:
           principal.setting.allowOutsideGeofenceRequest,
-        requirePhoto: principal.setting.requirePhoto,
         timezone: principal.setting.timezone,
       },
       allowedActions: getAllowedAttendanceActions(activeStatus),
@@ -286,7 +324,8 @@ export async function getEmployeeAttendanceHistory(args: {
       transaction,
       auth: args.auth,
       now,
-      branchId: args.auth.primaryBranchId,
+      branchId:
+        args.auth.attendanceBranchId ?? args.auth.primaryBranchId,
       requirePunch: false,
       requireBranchSetting: true,
     });
@@ -397,6 +436,30 @@ export async function getEmployeeAttendanceHistory(args: {
       }),
     ]);
 
+    const availableBranches =
+      await transaction.employeeBranchAssignment.findMany({
+        where: {
+          membershipId: args.auth.membershipId,
+          businessId: args.auth.businessId,
+          status: "ACTIVE",
+          canClockIn: true,
+          effectiveFrom: { lte: now },
+          OR: [
+            { effectiveUntil: null },
+            { effectiveUntil: { gte: now } },
+          ],
+        },
+        orderBy: [{ isPrimary: "desc" }, { branch: { name: "asc" } }],
+        select: {
+          branch: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
     return {
       items: sessions.map((session) => ({
         id: session.id,
@@ -421,6 +484,7 @@ export async function getEmployeeAttendanceHistory(args: {
         requiresApproval: session.requiresApproval,
         adjusted: session.adjustments.length > 0,
       })),
+      availableBranches: availableBranches.map((item) => item.branch),
       pagination: {
         page: input.page,
         pageSize: input.pageSize,

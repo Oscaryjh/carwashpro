@@ -90,7 +90,9 @@ export const attendanceExceptionInputSchema = z
     branchId: z.string().uuid("Branch is invalid."),
     attendanceSessionId: z
       .string()
-      .uuid("Attendance session is invalid."),
+      .uuid("Attendance session is invalid.")
+      .nullable()
+      .optional(),
     attendancePunchId: z
       .string()
       .uuid("Attendance punch is invalid.")
@@ -100,8 +102,12 @@ export const attendanceExceptionInputSchema = z
       "OUTSIDE_GEOFENCE",
       "GPS_INACCURATE",
       "GPS_UNAVAILABLE",
+      "FORGOT_CLOCK_IN",
+      "FORGOT_CLOCK_OUT",
       "OTHER",
     ]),
+    requestedClockInAt: deviceTimestampSchema.nullable().optional(),
+    requestedClockOutAt: deviceTimestampSchema.nullable().optional(),
     reason: z
       .string()
       .trim()
@@ -113,7 +119,50 @@ export const attendanceExceptionInputSchema = z
       .min(8, "Device identifier is too short.")
       .max(256, "Device identifier is too long."),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const gpsTypes = new Set([
+      "OUTSIDE_GEOFENCE",
+      "GPS_INACCURATE",
+      "GPS_UNAVAILABLE",
+    ]);
+    if (gpsTypes.has(value.type) && !value.attendanceSessionId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["attendanceSessionId"],
+        message: "Attendance session is required for a GPS exception.",
+      });
+    }
+    if (value.type === "FORGOT_CLOCK_IN" && !value.requestedClockInAt) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["requestedClockInAt"],
+        message: "Requested clock-in time is required.",
+      });
+    }
+    if (
+      value.type === "FORGOT_CLOCK_OUT" &&
+      (!value.attendanceSessionId || !value.requestedClockOutAt)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["requestedClockOutAt"],
+        message:
+          "Attendance session and requested clock-out time are required.",
+      });
+    }
+    if (
+      value.requestedClockInAt &&
+      value.requestedClockOutAt &&
+      value.requestedClockOutAt <= value.requestedClockInAt
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["requestedClockOutAt"],
+        message: "Requested clock-out must be after clock-in.",
+      });
+    }
+  });
 
 export type AttendanceExceptionInput = z.infer<
   typeof attendanceExceptionInputSchema

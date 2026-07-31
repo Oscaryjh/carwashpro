@@ -25,6 +25,7 @@ export async function loadEmployeeAttendancePrincipal(input: {
       membershipId: true,
       businessId: true,
       primaryBranchId: true,
+      attendanceBranchId: true,
       employeeDeviceId: true,
       expiresAt: true,
       revokedAt: true,
@@ -73,6 +74,8 @@ export async function loadEmployeeAttendancePrincipal(input: {
     session.membershipId !== input.auth.membershipId ||
     session.businessId !== input.auth.businessId ||
     session.primaryBranchId !== input.auth.primaryBranchId ||
+    (session.attendanceBranchId ?? session.primaryBranchId) !==
+      (input.auth.attendanceBranchId ?? input.auth.primaryBranchId) ||
     session.employeeDeviceId !== input.auth.deviceId
   ) {
     throw new AttendanceApiError("UNAUTHENTICATED");
@@ -166,7 +169,6 @@ export async function loadEmployeeAttendancePrincipal(input: {
             minimumAccuracyMeters: true,
             requireGeofence: true,
             allowOutsideGeofenceRequest: true,
-            requirePhoto: true,
             timezone: true,
             isEnabled: true,
           },

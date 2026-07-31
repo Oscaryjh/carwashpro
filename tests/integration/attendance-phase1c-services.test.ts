@@ -525,3 +525,222 @@ function assertLocalDatabase() {
     "Attendance integration tests must use a local database.",
   );
 }
+import { switchEmployeeAttendanceBranch } from "../../src/lib/attendance/branch-switch-service";
+import { reconcileStaleEmployeeAttendance } from "../../src/lib/attendance/stale-session-service";
+import { adjustAttendanceSession, reviewAttendanceException } from "../../src/lib/attendance/management-service";
+
+test("Attendance operations support branch switching, stale shifts, and missing-punch requests", async () => {
+  assertLocalDatabase();
+
+  await withRollback(async (transaction) => {
+    const fixture = await createFixture(transaction);
+    const database = transactionDatabase(transaction);
+    const now = new Date();
+    const branchA2 = await transaction.branch.create({
+      data: {
+        businessId: fixture.businessA.id,
+        name: `Attendance Branch A2 ${randomUUID().slice(0, 8)}`,
+      },
+    });
+    await transaction.branchAttendanceSetting.create({
+      data: {
+        businessId: fixture.businessA.id,
+        branchId: branchA2.id,
+        latitude: 1.5535,
+        longitude: 110.3593,
+        requirePhoto: false,
+        timezone: "Asia/Kuching",
+        isEnabled: true,
+      },
+    });
+    await transaction.employeeBranchAssignment.create({
+      data: {
+        membershipId: fixture.auth.membershipId,
+        businessId: fixture.businessA.id,
+        branchId: branchA2.id,
+        isPrimary: false,
+        canClockIn: true,
+        effectiveFrom: new Date(now.getTime() - 86_400_000),
+        status: "ACTIVE",
+      },
+    });
+
+    const switched = await switchEmployeeAttendanceBranch({
+      auth: fixture.auth,
+      input: { branchId: branchA2.id },
+      database,
+      now,
+    });
+    assert.equal(switched.branch.id, branchA2.id);
+    assert.equal(
+      (
+        await transaction.employeeSession.findUniqueOrThrow({
+          where: { id: fixture.auth.sessionId },
+        })
+      ).attendanceBranchId,
+      branchA2.id,
+    );
+
+    const branchAuth = {
+      ...fixture.auth,
+      primaryBranchId: fixture.auth.primaryBranchId,
+      attendanceBranchId: branchA2.id,
+    } satisfies EmployeeAuthContext;
+    const stale = await transaction.employeeAttendance.create({
+      data: {
+        employeeAccountId: branchAuth.employeeAccountId,
+        membershipId: branchAuth.membershipId,
+        businessId: branchAuth.businessId,
+        branchId: branchA2.id,
+        workDate: now,
+        status: "OPEN",
+        clockInAt: new Date(now.getTime() - 19 * 3_600_000),
+      },
+    });
+    const reconciled = await reconcileStaleEmployeeAttendance({
+      auth: branchAuth,
+      database,
+      now,
+      staleAfterHours: 18,
+    });
+    assert.equal(reconciled?.sessionId, stale.id);
+    const incomplete =
+      await transaction.employeeAttendance.findUniqueOrThrow({
+        where: { id: stale.id },
+      });
+    assert.equal(incomplete.status, "INCOMPLETE");
+    assert.equal(incomplete.approvalStatus, "PENDING");
+    assert.equal(incomplete.totalWorkedMinutes, 18 * 60);
+    assert.equal(
+      await transaction.attendanceException.count({
+        where: {
+          attendanceSessionId: stale.id,
+          type: "OTHER",
+          status: "PENDING",
+        },
+      }),
+      1,
+    );
+
+    const correction = await submitAttendanceException({
+      auth: branchAuth,
+      database,
+      now,
+      input: {
+        branchId: branchA2.id,
+        attendanceSessionId: stale.id,
+        attendancePunchId: null,
+        type: "FORGOT_CLOCK_OUT",
+        requestedClockOutAt: new Date(now.getTime() - 60 * 60_000),
+        reason: "I forgot to clock out after the late shift.",
+        deviceIdentifier: fixture.deviceIdentifier,
+      },
+    });
+    assert.equal(correction.status, "PENDING");
+
+    const manager = await transaction.user.create({
+      data: {
+        businessId: fixture.businessA.id,
+        branchId: branchA2.id,
+        name: "Attendance Manager",
+        email: `attendance-manager-${randomUUID()}@example.test`,
+        role: "BUSINESS_OWNER",
+      },
+    });
+    const managerContext = {
+      businessId: fixture.businessA.id,
+      allowedBranchIds: [fixture.branchA.id, branchA2.id],
+      wholeBusinessScope: true,
+      actor: {
+        userId: manager.id,
+        name: manager.name,
+        email: manager.email!,
+      },
+    } as const;
+    await reviewAttendanceException(
+      {
+        ...managerContext,
+        input: {
+          exceptionId: correction.id,
+          decision: "APPROVED",
+          reviewNote: "Verified with the branch manager.",
+        },
+      },
+      database,
+    );
+    const completed =
+      await transaction.employeeAttendance.findUniqueOrThrow({
+        where: { id: stale.id },
+      });
+    assert.equal(completed.status, "COMPLETED");
+    assert.ok(completed.clockOutPunchId);
+    assert.equal(
+      await transaction.attendancePunch.count({
+        where: {
+          attendanceSessionId: stale.id,
+          type: "CLOCK_OUT",
+          source: "ADMIN_MANUAL",
+        },
+      }),
+      1,
+    );
+
+    const localInput = (value: Date) => {
+      const parts = new Map(
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Kuching",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        })
+          .formatToParts(value)
+          .filter((part) => part.type !== "literal")
+          .map((part) => [part.type, part.value]),
+      );
+      return `${parts.get("year")}-${parts.get("month")}-${parts.get("day")}T${parts.get("hour")}:${parts.get("minute")}`;
+    };
+    const adjusted = await adjustAttendanceSession(
+      {
+        ...managerContext,
+        input: {
+          sessionId: stale.id,
+          adjustedClockInLocal: localInput(stale.clockInAt),
+          adjustedClockOutLocal: localInput(
+            new Date(now.getTime() - 60 * 60_000),
+          ),
+          adjustedBreakMinutes: 30,
+          reason: "Confirmed a thirty minute meal break.",
+          expectedUpdatedAt: completed.updatedAt.toISOString(),
+        },
+      },
+      database,
+    );
+    assert.equal(adjusted.totalBreakMinutes, 30);
+    assert.equal(adjusted.totalWorkedMinutes, 17 * 60 + 30);
+    assert.equal(
+      await transaction.attendanceAdjustment.count({
+        where: { attendanceSessionId: stale.id },
+      }),
+      2,
+    );
+
+    await assertAttendanceError(
+      submitAttendanceException({
+        auth: branchAuth,
+        database,
+        now,
+        input: {
+          branchId: branchA2.id,
+          type: "FORGOT_CLOCK_IN",
+          requestedClockInAt: new Date(now.getTime() + 3_600_000),
+          reason: "This future request must be rejected.",
+          deviceIdentifier: fixture.deviceIdentifier,
+        },
+      }),
+      "VALIDATION_ERROR",
+    );
+  });
+});

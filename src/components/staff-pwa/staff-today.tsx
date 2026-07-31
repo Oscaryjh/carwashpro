@@ -181,6 +181,39 @@ export function StaffToday() {
     }
   }
 
+  async function switchBranch(branchId: string) {
+    if (!today || branchId === today.branch.id || busy) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await staffApiFetch<{
+        ok: true;
+        data: { branch: { id: string; name: string } };
+      }>("/api/employee-attendance/switch-branch", {
+        method: "POST",
+        body: JSON.stringify({ branchId }),
+      });
+      setNotice("Attendance branch switched.");
+      await load(true);
+    } catch (caught) {
+      if (
+        caught instanceof StaffApiError &&
+        isEmployeeSessionError(caught.code)
+      ) {
+        router.replace("/staff/login?reason=session-expired");
+        return;
+      }
+      setError(
+        caught instanceof StaffApiError
+          ? caught.message
+          : "Unable to switch Attendance branch.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submitPunch(pending: PendingPunch, reason?: string) {
     const attendance = today;
     if (!attendance) {
@@ -284,6 +317,27 @@ export function StaffToday() {
           <p className="staff-kicker">{formatBranchDate(today.branchLocalTime)}</p>
           <h1>Hello, {today.employee.fullName.split(/\s+/)[0]}</h1>
           <p>{formatWorkplace(today.business.name, today.branch.name)}</p>
+          {today.availableBranches.length > 1 ? (
+            <label className="staff-branch-switch">
+              <span>Attendance branch</span>
+              <select
+                disabled={
+                  busy ||
+                  today.status === "OPEN" ||
+                  today.status === "ON_BREAK"
+                }
+                onChange={(event) => void switchBranch(event.target.value)}
+                value={today.branch.id}
+              >
+                {today.availableBranches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.name}</option>
+                ))}
+              </select>
+              {today.status === "OPEN" || today.status === "ON_BREAK" ? (
+                <small>Complete the active shift before switching.</small>
+              ) : null}
+            </label>
+          ) : null}
         </div>
         <span className={`staff-state-orb ${today.status?.toLowerCase() ?? "ready"}`}>
           {attendanceStatusLabel(today.status)}

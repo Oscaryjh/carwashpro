@@ -566,6 +566,7 @@ model Branch {
   attendanceExceptions      AttendanceException[]
   attendanceAdjustments     AttendanceAdjustment[]
   primaryEmployeeSessions   EmployeeSession[]                 @relation("EmployeeSessionPrimaryBranch")
+  attendanceEmployeeSessions EmployeeSession[]                @relation("EmployeeSessionAttendanceBranch")
   attendanceIdempotencyRequests AttendanceRequestIdempotency[]
   catalogDiscounts          CatalogDiscount[]
   dailyClosingSnapshots     DailyClosingSnapshot[]
@@ -862,6 +863,7 @@ model EmployeeSession {
   membershipId      String    @map("membership_id") @db.Uuid
   businessId        String    @map("business_id") @db.Uuid
   primaryBranchId   String    @map("primary_branch_id") @db.Uuid
+  attendanceBranchId String?  @map("attendance_branch_id") @db.Uuid
   employeeDeviceId  String?   @map("employee_device_id") @db.Uuid
   refreshTokenHash  String    @unique @map("refresh_token_hash")
   expiresAt         DateTime  @map("expires_at")
@@ -876,6 +878,7 @@ model EmployeeSession {
   membership          EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
   business            Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
   primaryBranch       Branch                     @relation("EmployeeSessionPrimaryBranch", fields: [primaryBranchId], references: [id], onDelete: Restrict)
+  attendanceBranch    Branch?                    @relation("EmployeeSessionAttendanceBranch", fields: [attendanceBranchId], references: [id], onDelete: Restrict)
   employeeDevice      EmployeeDevice?            @relation(fields: [employeeDeviceId], references: [id], onDelete: Restrict)
   idempotencyRequests AttendanceRequestIdempotency[]
 
@@ -883,6 +886,7 @@ model EmployeeSession {
   @@index([membershipId, revokedAt, expiresAt], map: "employee_sessions_membership_active_idx")
   @@index([employeeDeviceId, revokedAt], map: "employee_sessions_device_active_idx")
   @@index([businessId, primaryBranchId], map: "employee_sessions_business_branch_idx")
+  @@index([businessId, attendanceBranchId], map: "employee_sessions_business_attendance_branch_idx")
   @@map("employee_sessions")
 }
 
@@ -1080,6 +1084,8 @@ model AttendanceException {
   type                AttendanceExceptionType
   reason              String
   status              AttendanceExceptionStatus @default(PENDING)
+  requestedClockInAt  DateTime?                 @map("requested_clock_in_at")
+  requestedClockOutAt DateTime?                 @map("requested_clock_out_at")
   reviewedBy          String?                   @map("reviewed_by") @db.Uuid
   reviewedAt          DateTime?                 @map("reviewed_at")
   reviewNote          String?                   @map("review_note")

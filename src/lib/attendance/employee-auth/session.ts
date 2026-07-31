@@ -20,6 +20,7 @@ export type EmployeeAuthContext = Readonly<{
   membershipId: string;
   businessId: string;
   primaryBranchId: string;
+  attendanceBranchId?: string;
   deviceId: string;
 }>;
 
@@ -53,6 +54,7 @@ export type CreateEmployeeSessionRecordInput = Readonly<{
   membershipId: string;
   businessId: string;
   primaryBranchId: string;
+  attendanceBranchId?: string;
   deviceId: string;
   ipAddressHash?: string | null;
   userAgent?: string | null;
@@ -65,6 +67,7 @@ const employeeAuthSessionSelect = {
   membershipId: true,
   businessId: true,
   primaryBranchId: true,
+  attendanceBranchId: true,
   employeeDeviceId: true,
   expiresAt: true,
   lastActiveAt: true,
@@ -158,6 +161,7 @@ export async function createEmployeeSessionRecord(
       membershipId: input.membershipId,
       businessId: input.businessId,
       primaryBranchId: input.primaryBranchId,
+      attendanceBranchId: input.attendanceBranchId ?? input.primaryBranchId,
       employeeDeviceId: input.deviceId,
       refreshTokenHash,
       expiresAt,
@@ -171,6 +175,7 @@ export async function createEmployeeSessionRecord(
       membershipId: true,
       businessId: true,
       primaryBranchId: true,
+      attendanceBranchId: true,
       employeeDeviceId: true,
       expiresAt: true,
     },
@@ -192,6 +197,8 @@ export async function createEmployeeSessionRecord(
       membershipId: record.membershipId,
       businessId: record.businessId,
       primaryBranchId: record.primaryBranchId,
+      attendanceBranchId:
+        record.attendanceBranchId ?? record.primaryBranchId,
       deviceId: record.employeeDeviceId,
     } satisfies EmployeeAuthContext,
   };
@@ -299,6 +306,8 @@ export async function authenticateEmployeeSessionToken(
     membershipId: session.membershipId,
     businessId: session.businessId,
     primaryBranchId: session.primaryBranchId,
+    attendanceBranchId:
+      session.attendanceBranchId ?? session.primaryBranchId,
     deviceId: session.employeeDeviceId,
   };
 }
