@@ -42,6 +42,7 @@ test("branch-scoped Staff includes legacy branch Staff or linked current assignm
   const where = buildPeopleStaffScopeWhere(scoped);
 
   assert.equal(where.businessId, scoped.businessId);
+  assert.equal(where.status, "active");
   assert.deepEqual(where.AND, [
     {
       OR: [
@@ -78,5 +79,6 @@ test("whole-business People queries retain business isolation without branch fil
   });
   assert.deepEqual(buildPeopleStaffScopeWhere(whole), {
     businessId: scoped.businessId,
+    status: "active",
   });
 });

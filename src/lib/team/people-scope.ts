@@ -42,6 +42,7 @@ export function buildPeopleStaffScopeWhere(
 ): Prisma.UserWhereInput {
   return {
     businessId: scope.businessId,
+    status: "active",
     ...(scope.wholeBusinessScope
       ? {}
       : {
