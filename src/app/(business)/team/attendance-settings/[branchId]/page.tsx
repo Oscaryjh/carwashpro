@@ -49,15 +49,18 @@ export default async function AttendanceSettingsDetailPage({
   const setting = branch.attendanceSetting;
 
   return (
-    <section className={`content ${styles.page}`}>
-      <div className="page-header">
+    <section className={`content hr-module-page ${styles.page}`}>
+      <div className="page-header hr-module-header">
         <div>
+          <span className="hr-module-eyebrow">HR &amp; Payroll / Attendance Settings</span>
           <h1>{branch.name}</h1>
           <p>Attendance geofence and device-location acceptance settings.</p>
         </div>
-        <Link className="secondary-light-button" href="/team/attendance-settings">
-          Back to Attendance Settings
-        </Link>
+        <div className="hr-module-actions">
+          <Link className="secondary-light-button" href="/team/attendance-settings">
+            Back to Attendance Settings
+          </Link>
+        </div>
       </div>
 
       {query.message ? (

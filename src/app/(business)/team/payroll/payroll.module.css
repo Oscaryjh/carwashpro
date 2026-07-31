@@ -1,15 +1,15 @@
 .page {
   display: grid;
-  gap: 18px;
-  padding-bottom: 20px;
+  gap: 14px;
+  padding-bottom: 16px;
 }
 
 .pageHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 2px 2px 0;
+  gap: 20px;
+  padding: 0 2px;
 }
 
 .headerCopy {
@@ -20,8 +20,8 @@
 .eyebrow {
   margin: 0;
   color: #087f73;
-  font-size: 10px;
-  font-weight: 900;
+  font-size: 9px;
+  font-weight: 850;
   letter-spacing: .13em;
 }
 
@@ -34,8 +34,8 @@
 }
 
 .headerCopy h1 {
-  font-size: clamp(28px, 3vw, 36px);
-  line-height: 1.08;
+  font-size: 25px;
+  line-height: 1.15;
 }
 
 .headerCopy > p:last-child,
@@ -43,30 +43,30 @@
 .periodSummary > div > p:last-child {
   margin: 0;
   color: #6a788b;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .headerActions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 9px;
+  gap: 8px;
 }
 
 .headerActions a {
   display: inline-flex;
-  min-height: 40px;
+  min-height: 38px;
   align-items: center;
   justify-content: center;
-  padding: 0 14px;
+  padding: 0 13px;
   border: 1px solid #d5e1e5;
-  border-radius: 9px;
+  border-radius: 7px;
   color: #405064;
   background: #fff;
   box-shadow: 0 2px 7px rgba(15, 23, 42, .035);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 750;
   text-decoration: none;
   transition: border-color 140ms ease, color 140ms ease, transform 140ms ease;
 }
@@ -101,14 +101,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 18px 20px;
+  gap: 18px;
+  padding: 16px 18px;
   border: 1px solid #d9e5e8;
-  border-radius: 14px;
+  border-radius: 10px;
   background:
     radial-gradient(circle at 8% 0%, rgba(32, 164, 145, .11), transparent 27%),
     linear-gradient(135deg, #f7fcfb 0%, #fff 58%);
-  box-shadow: 0 5px 18px rgba(15, 23, 42, .045);
+  box-shadow: 0 3px 12px rgba(15, 23, 42, .04);
 }
 
 .periodSummary {
@@ -120,17 +120,17 @@
 
 .periodIcon {
   display: inline-flex;
-  width: 52px;
-  height: 52px;
-  flex: 0 0 52px;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
   align-items: center;
   justify-content: center;
   border: 1px solid #b9ded8;
-  border-radius: 13px;
+  border-radius: 10px;
   color: #087a6f;
   background: rgba(255, 255, 255, .82);
   box-shadow: 0 5px 15px rgba(15, 105, 94, .09);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -140,7 +140,7 @@
 }
 
 .periodSummary h2 {
-  font-size: 21px;
+  font-size: 18px;
 }
 
 .periodActions {
@@ -244,15 +244,15 @@
   position: relative;
   display: grid;
   min-width: 0;
-  min-height: 132px;
+  min-height: 120px;
   align-content: space-between;
   gap: 10px;
-  padding: 18px;
+  padding: 16px 17px;
   overflow: hidden;
   border: 1px solid #dfe7ec;
-  border-radius: 13px;
+  border-radius: 10px;
   background: #fff;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, .04);
+  box-shadow: 0 3px 12px rgba(15, 23, 42, .04);
 }
 
 .metricHeading {
@@ -281,7 +281,7 @@
 
 .metric strong {
   color: #172033;
-  font-size: clamp(25px, 2.4vw, 32px);
+  font-size: clamp(23px, 2vw, 27px);
   line-height: 1;
   letter-spacing: -.04em;
   font-variant-numeric: tabular-nums;
@@ -326,9 +326,9 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid #dfe7ec;
-  border-radius: 14px;
+  border-radius: 10px;
   background: #fff;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, .04);
+  box-shadow: 0 3px 12px rgba(15, 23, 42, .04);
 }
 
 .panelHeading {
@@ -336,7 +336,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-  padding: 18px 20px 16px;
+  padding: 16px 18px 14px;
   border-bottom: 1px solid #e6ecef;
 }
 
@@ -346,7 +346,7 @@
 }
 
 .panelHeading h2 {
-  font-size: 19px;
+  font-size: 18px;
 }
 
 .panelHeading > div > p:last-child {

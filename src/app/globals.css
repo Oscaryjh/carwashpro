@@ -21252,6 +21252,84 @@ button:disabled,
   }
 }
 
+/* Shared HR & Payroll page shell */
+.hr-module-page {
+  display: grid;
+  gap: 14px;
+}
+
+.hr-module-header {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 2px;
+}
+
+.hr-module-header > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.content > .hr-module-header h1,
+.hr-module-header h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 25px;
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -.025em;
+}
+
+.content > .hr-module-header p,
+.hr-module-header p {
+  display: block;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.hr-module-eyebrow {
+  margin: 0;
+  color: var(--accent-strong);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.hr-module-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.hr-module-actions a,
+.hr-module-actions button {
+  min-height: 38px;
+  padding-inline: 13px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+@media (max-width: 700px) {
+  .hr-module-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hr-module-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Team workspace */
 .team-workspace-page {
   display: grid;
@@ -21279,7 +21357,7 @@ button:disabled,
   min-height: calc(100dvh - 142px);
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
 }
 
@@ -21396,7 +21474,7 @@ button:disabled,
   margin-top: 12px;
   padding: 10px;
   border: 1px solid #dce9e7;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #f8fbfa;
 }
 

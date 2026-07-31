@@ -30,20 +30,21 @@ export default async function AttendanceSettingsPage() {
   ]);
 
   return (
-    <section className={`content ${styles.page}`}>
-      <div className="page-header">
+    <section className={`content hr-module-page ${styles.page}`}>
+      <div className="page-header hr-module-header">
         <div>
+          <span className="hr-module-eyebrow">HR &amp; Payroll</span>
           <h1>Attendance Settings</h1>
           <p>
             Configure secure branch geofence rules for {business?.name ?? "this business"}.
           </p>
         </div>
-        <div className={styles.headerActions}>
-          <Link className="secondary-light-button" href="/team/employees">
-            Employees
+        <div className={`hr-module-actions ${styles.headerActions}`}>
+          <Link className="secondary-light-button" href="/team?section=people">
+            People
           </Link>
-          <Link className="secondary-light-button" href="/team">
-            Staff & Permissions
+          <Link className="secondary-light-button" href="/team/attendance">
+            Attendance
           </Link>
         </div>
       </div>
@@ -52,7 +53,7 @@ export default async function AttendanceSettingsPage() {
         <strong>Attendance API enforcement</strong>
         <span>
           Employee attendance APIs enforce these branch location rules. The
-          Staff PWA and attendance administration workflow are not included yet.
+          Staff PWA and attendance administration use the same enforced rules.
         </span>
       </div>
 

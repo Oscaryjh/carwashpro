@@ -274,15 +274,18 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
 
   return (
     <>
-      <section className="content team-workspace-page">
-        <div className="page-header team-page-header">
+      <section className="content team-workspace-page hr-module-page">
+        <div className="page-header team-page-header hr-module-header">
           <div>
-            <h1>Team</h1>
+            <span className="hr-module-eyebrow">HR &amp; Payroll</span>
+            <h1>People</h1>
             <p>People, employment, services, attendance, and access in one place.</p>
           </div>
-          <Link className="button-link" href="/team?section=people&modal=create">
-            Add team member
-          </Link>
+          <div className="hr-module-actions">
+            <Link className="button-link" href="/team?section=people&modal=create">
+              Add team member
+            </Link>
+          </div>
         </div>
 
         {params.message ? <div className={messageType}>{params.message}</div> : null}

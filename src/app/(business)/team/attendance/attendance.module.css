@@ -1,11 +1,11 @@
 .page {
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 
 .pageHeader {
-  align-items: flex-start;
-  padding: 2px 2px 0;
+  align-items: center;
+  padding: 0 2px;
 }
 
 .headerCopy {
@@ -22,7 +22,8 @@
 
 .headerCopy h1 {
   margin: 0;
-  font-size: 26px;
+  font-size: 25px;
+  line-height: 1.15;
   letter-spacing: -.02em;
 }
 

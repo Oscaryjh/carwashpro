@@ -1,6 +1,6 @@
 .page {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .headerActions {

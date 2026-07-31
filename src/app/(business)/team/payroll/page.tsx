@@ -123,17 +123,17 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
         : "Not generated";
 
   return (
-    <main className={styles.page}>
-      <header className={styles.pageHeader}>
+    <main className={`content hr-module-page ${styles.page}`}>
+      <header className={`hr-module-header ${styles.pageHeader}`}>
         <div className={styles.headerCopy}>
-          <p className={styles.eyebrow}>TEAM / PAYROLL</p>
+          <p className={`hr-module-eyebrow ${styles.eyebrow}`}>HR &amp; PAYROLL</p>
           <h1>Monthly payroll</h1>
           <p>
             Review attendance, calculate earnings and lock a clean monthly pay
             run.
           </p>
         </div>
-        <nav className={styles.headerActions} aria-label="Payroll navigation">
+        <nav className={`hr-module-actions ${styles.headerActions}`} aria-label="Payroll navigation">
           <Link href="/team/attendance">View attendance</Link>
           <Link href="/team?section=people">Manage people</Link>
         </nav>

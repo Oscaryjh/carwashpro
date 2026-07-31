@@ -372,14 +372,14 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
   }
 
   return (
-    <section className={`content ${styles.page}`}>
-      <header className={`page-header ${styles.pageHeader}`}>
+    <section className={`content hr-module-page ${styles.page}`}>
+      <header className={`page-header hr-module-header ${styles.pageHeader}`}>
         <div className={styles.headerCopy}>
-          <span className={styles.eyebrow}>TEAM OPERATIONS</span>
+          <span className={`hr-module-eyebrow ${styles.eyebrow}`}>HR &amp; PAYROLL</span>
           <h1>Staff Attendance</h1>
           <p>See who is working now and review clock-in records across your branches.</p>
         </div>
-        <div className={styles.headerActions}>
+        <div className={`hr-module-actions ${styles.headerActions}`}>
           <Link className="secondary-light-button" href={`/team/attendance/export?${exportParams}`}>
             Export CSV
           </Link>
