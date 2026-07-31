@@ -115,6 +115,7 @@ export function calculatePayrollTotals(input: {
   epfEmployeeCents: number;
   socsoEmployeeCents: number;
   eisEmployeeCents: number;
+  lindung24EmployeeCents: number;
   pcbCents: number;
 }) {
   Object.entries(input).forEach(([label, value]) =>
@@ -130,6 +131,7 @@ export function calculatePayrollTotals(input: {
     input.epfEmployeeCents +
     input.socsoEmployeeCents +
     input.eisEmployeeCents +
+    input.lindung24EmployeeCents +
     input.pcbCents;
   return {
     grossPayCents,

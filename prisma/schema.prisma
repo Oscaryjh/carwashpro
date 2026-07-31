@@ -118,6 +118,24 @@ enum PayrollRunStatus {
   FINALIZED
 }
 
+enum EmployeeStatutoryNationality {
+  MALAYSIAN
+  PERMANENT_RESIDENT
+  NON_MALAYSIAN
+}
+
+enum EmployeeSocsoCategory {
+  FIRST
+  SECOND
+}
+
+enum PayrollStatutoryStatus {
+  NOT_CONFIGURED
+  AUTO_CALCULATED
+  REVIEW_REQUIRED
+  MANUAL_OVERRIDE
+}
+
 enum AttendanceBreakPolicy {
   MANUAL_PUNCH
   FLEXIBLE_CONFIRMATION
@@ -924,25 +942,35 @@ model EmployeeSession {
 }
 
 model EmployeeBusinessMembership {
-  id                      String                   @id @default(uuid()) @db.Uuid
-  employeeAccountId       String                   @map("employee_account_id") @db.Uuid
-  businessId              String                   @map("business_id") @db.Uuid
-  employeeCode            String                   @map("employee_code")
-  fullName                String                   @map("full_name")
-  phoneNumber             String                   @map("phone_number")
-  phoneNumberNormalized   String                   @map("phone_number_normalized")
-  employmentType          EmployeeEmploymentType   @default(FULL_TIME) @map("employment_type")
-  status                  EmployeeMembershipStatus @default(ACTIVE)
-  attendanceEnabled       Boolean                  @default(false) @map("attendance_enabled")
-  payBasis                EmployeePayBasis         @default(MONTHLY) @map("pay_basis")
-  baseSalary              Decimal?                 @map("base_salary") @db.Decimal(12, 2)
-  normalWorkMinutesPerDay Int?                     @map("normal_work_minutes_per_day")
-  targetBreakMinutes      Int?                     @map("target_break_minutes")
-  joinedAt                DateTime                 @default(now()) @map("joined_at")
-  terminatedAt            DateTime?                @map("terminated_at")
-  position                String?
-  createdAt               DateTime                 @default(now()) @map("created_at")
-  updatedAt               DateTime                 @updatedAt @map("updated_at")
+  id                        String                        @id @default(uuid()) @db.Uuid
+  employeeAccountId         String                        @map("employee_account_id") @db.Uuid
+  businessId                String                        @map("business_id") @db.Uuid
+  employeeCode              String                        @map("employee_code")
+  fullName                  String                        @map("full_name")
+  phoneNumber               String                        @map("phone_number")
+  phoneNumberNormalized     String                        @map("phone_number_normalized")
+  employmentType            EmployeeEmploymentType        @default(FULL_TIME) @map("employment_type")
+  status                    EmployeeMembershipStatus      @default(ACTIVE)
+  attendanceEnabled         Boolean                       @default(false) @map("attendance_enabled")
+  payBasis                  EmployeePayBasis              @default(MONTHLY) @map("pay_basis")
+  baseSalary                Decimal?                      @map("base_salary") @db.Decimal(12, 2)
+  normalWorkMinutesPerDay   Int?                          @map("normal_work_minutes_per_day")
+  targetBreakMinutes        Int?                          @map("target_break_minutes")
+  dateOfBirth               DateTime?                     @map("date_of_birth") @db.Date
+  statutoryNationality      EmployeeStatutoryNationality? @map("statutory_nationality")
+  epfEnabled                Boolean                       @default(false) @map("epf_enabled")
+  epfMemberBeforeAug1998    Boolean                       @default(false) @map("epf_member_before_aug_1998")
+  socsoEnabled              Boolean                       @default(false) @map("socso_enabled")
+  socsoCategory             EmployeeSocsoCategory?        @map("socso_category")
+  eisEnabled                Boolean                       @default(false) @map("eis_enabled")
+  eisPreviouslyContributed  Boolean                       @default(false) @map("eis_previously_contributed")
+  lindung24OptIn            Boolean                       @default(false) @map("lindung_24_opt_in")
+  statutoryProfileUpdatedAt DateTime?                     @map("statutory_profile_updated_at")
+  joinedAt                  DateTime                      @default(now()) @map("joined_at")
+  terminatedAt              DateTime?                     @map("terminated_at")
+  position                  String?
+  createdAt                 DateTime                      @default(now()) @map("created_at")
+  updatedAt                 DateTime                      @updatedAt @map("updated_at")
 
   employeeAccount     EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Cascade)
   business            Business                       @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -1277,38 +1305,45 @@ model PayrollRun {
 }
 
 model PayrollEntry {
-  id                          String           @id @default(uuid()) @db.Uuid
-  payrollRunId                String           @map("payroll_run_id") @db.Uuid
-  businessId                  String           @map("business_id") @db.Uuid
-  membershipId                String           @map("membership_id") @db.Uuid
-  employeeCodeSnapshot        String           @map("employee_code_snapshot")
-  fullNameSnapshot            String           @map("full_name_snapshot")
-  payBasisSnapshot            EmployeePayBasis @map("pay_basis_snapshot")
-  baseRateSnapshot            Decimal          @map("base_rate_snapshot") @db.Decimal(12, 2)
-  workingDaysSnapshot         Int              @map("working_days_snapshot")
-  normalWorkMinutesSnapshot   Int              @map("normal_work_minutes_snapshot")
-  attendanceDays              Int              @default(0) @map("attendance_days")
-  regularMinutes              Int              @default(0) @map("regular_minutes")
-  overtimeMinutes             Int              @default(0) @map("overtime_minutes")
-  publicHolidayMinutes        Int              @default(0) @map("public_holiday_minutes")
-  basicPay                    Decimal          @default(0) @map("basic_pay") @db.Decimal(12, 2)
-  overtimePay                 Decimal          @default(0) @map("overtime_pay") @db.Decimal(12, 2)
-  publicHolidayPay            Decimal          @default(0) @map("public_holiday_pay") @db.Decimal(12, 2)
-  allowances                  Decimal          @default(0) @db.Decimal(12, 2)
-  otherDeductions             Decimal          @default(0) @map("other_deductions") @db.Decimal(12, 2)
-  epfEmployee                 Decimal          @default(0) @map("epf_employee") @db.Decimal(12, 2)
-  socsoEmployee               Decimal          @default(0) @map("socso_employee") @db.Decimal(12, 2)
-  eisEmployee                 Decimal          @default(0) @map("eis_employee") @db.Decimal(12, 2)
-  pcb                         Decimal          @default(0) @db.Decimal(12, 2)
-  employerEpf                 Decimal          @default(0) @map("employer_epf") @db.Decimal(12, 2)
-  employerSocso               Decimal          @default(0) @map("employer_socso") @db.Decimal(12, 2)
-  employerEis                 Decimal          @default(0) @map("employer_eis") @db.Decimal(12, 2)
-  grossPay                    Decimal          @default(0) @map("gross_pay") @db.Decimal(12, 2)
-  netPay                      Decimal          @default(0) @map("net_pay") @db.Decimal(12, 2)
+  id                          String                 @id @default(uuid()) @db.Uuid
+  payrollRunId                String                 @map("payroll_run_id") @db.Uuid
+  businessId                  String                 @map("business_id") @db.Uuid
+  membershipId                String                 @map("membership_id") @db.Uuid
+  employeeCodeSnapshot        String                 @map("employee_code_snapshot")
+  fullNameSnapshot            String                 @map("full_name_snapshot")
+  payBasisSnapshot            EmployeePayBasis       @map("pay_basis_snapshot")
+  baseRateSnapshot            Decimal                @map("base_rate_snapshot") @db.Decimal(12, 2)
+  workingDaysSnapshot         Int                    @map("working_days_snapshot")
+  normalWorkMinutesSnapshot   Int                    @map("normal_work_minutes_snapshot")
+  attendanceDays              Int                    @default(0) @map("attendance_days")
+  regularMinutes              Int                    @default(0) @map("regular_minutes")
+  overtimeMinutes             Int                    @default(0) @map("overtime_minutes")
+  publicHolidayMinutes        Int                    @default(0) @map("public_holiday_minutes")
+  basicPay                    Decimal                @default(0) @map("basic_pay") @db.Decimal(12, 2)
+  overtimePay                 Decimal                @default(0) @map("overtime_pay") @db.Decimal(12, 2)
+  publicHolidayPay            Decimal                @default(0) @map("public_holiday_pay") @db.Decimal(12, 2)
+  allowances                  Decimal                @default(0) @db.Decimal(12, 2)
+  otherDeductions             Decimal                @default(0) @map("other_deductions") @db.Decimal(12, 2)
+  epfWageBase                 Decimal                @default(0) @map("epf_wage_base") @db.Decimal(12, 2)
+  perkesoWageBase             Decimal                @default(0) @map("perkeso_wage_base") @db.Decimal(12, 2)
+  epfEmployee                 Decimal                @default(0) @map("epf_employee") @db.Decimal(12, 2)
+  socsoEmployee               Decimal                @default(0) @map("socso_employee") @db.Decimal(12, 2)
+  eisEmployee                 Decimal                @default(0) @map("eis_employee") @db.Decimal(12, 2)
+  lindung24Employee           Decimal                @default(0) @map("lindung_24_employee") @db.Decimal(12, 2)
+  pcb                         Decimal                @default(0) @db.Decimal(12, 2)
+  employerEpf                 Decimal                @default(0) @map("employer_epf") @db.Decimal(12, 2)
+  employerSocso               Decimal                @default(0) @map("employer_socso") @db.Decimal(12, 2)
+  employerEis                 Decimal                @default(0) @map("employer_eis") @db.Decimal(12, 2)
+  grossPay                    Decimal                @default(0) @map("gross_pay") @db.Decimal(12, 2)
+  netPay                      Decimal                @default(0) @map("net_pay") @db.Decimal(12, 2)
+  statutoryStatus             PayrollStatutoryStatus @default(NOT_CONFIGURED) @map("statutory_status")
+  statutoryRuleVersion        String?                @map("statutory_rule_version")
+  statutoryCalculatedAt       DateTime?              @map("statutory_calculated_at")
+  statutoryWarning            String?                @map("statutory_warning")
   notes                       String?
-  attendanceUpdatedAtSnapshot DateTime?        @map("attendance_updated_at_snapshot")
-  createdAt                   DateTime         @default(now()) @map("created_at")
-  updatedAt                   DateTime         @updatedAt @map("updated_at")
+  attendanceUpdatedAtSnapshot DateTime?              @map("attendance_updated_at_snapshot")
+  createdAt                   DateTime               @default(now()) @map("created_at")
+  updatedAt                   DateTime               @updatedAt @map("updated_at")
 
   payrollRun PayrollRun                 @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
   business   Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)

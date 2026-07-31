@@ -13,6 +13,7 @@ import {
   deletePayrollHolidayAction,
   finalizePayrollRunAction,
   generatePayrollRunAction,
+  saveEmployeeStatutoryProfileAction,
   savePayrollSettingAction,
   updatePayrollEntryAction,
 } from "./actions";
@@ -60,7 +61,24 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
         },
       },
       include: {
-        entries: { orderBy: [{ fullNameSnapshot: "asc" }] },
+        entries: {
+          orderBy: [{ fullNameSnapshot: "asc" }],
+          include: {
+            membership: {
+              select: {
+                dateOfBirth: true,
+                statutoryNationality: true,
+                epfEnabled: true,
+                epfMemberBeforeAug1998: true,
+                socsoEnabled: true,
+                socsoCategory: true,
+                eisEnabled: true,
+                eisPreviouslyContributed: true,
+                lindung24OptIn: true,
+              },
+            },
+          },
+        },
       },
     }),
     prisma.payrollHoliday.findMany({
@@ -472,6 +490,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                   {entries.map((entry) => (
                     <PayrollEntryRows
                       editable={canManage && run.status === "DRAFT"}
+                      profileEditable={canManage}
                       entry={entry}
                       key={entry.id}
                       month={period.value}
@@ -510,11 +529,12 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
           !
         </span>
         <div>
-          <strong>Review statutory contributions before finalizing</strong>
+          <strong>Official statutory schedules, with a safe review gate</strong>
           <p>
-            Enter KWSP, SOCSO, EIS and PCB from the current official schedules
-            or portals. Flat percentage estimates are intentionally avoided
-            because official wage bands and employee profile data are required.
+            EPF, SOCSO and EIS are calculated from versioned official wage bands
+            after each employee profile is configured. PCB remains a manual
+            portal value because employee tax declarations and year-to-date data
+            are required.
           </p>
         </div>
       </section>
@@ -552,10 +572,12 @@ function PayrollEntryRows({
   entry,
   month,
   editable,
+  profileEditable,
 }: {
   entry: PayrollEntryRow;
   month: string;
   editable: boolean;
+  profileEditable: boolean;
 }) {
   return (
     <>
@@ -597,14 +619,86 @@ function PayrollEntryRows({
           <details>
             <summary>
               <span>Review pay details and statutory entries</span>
-              <small>{editable ? "Editable draft" : "Read only"}</small>
+              <small>{formatStatutoryStatus(entry.statutoryStatus)}</small>
             </summary>
+            <div className={styles.statutoryStatus}>
+              <span className={styles.badge}>
+                {formatStatutoryStatus(entry.statutoryStatus)}
+              </span>
+              <p>
+                {entry.statutoryWarning ??
+                  (entry.statutoryRuleVersion
+                    ? `Official rules: ${entry.statutoryRuleVersion}`
+                    : "Configure this employee before automatic statutory deductions are applied.")}
+              </p>
+            </div>
+            <form
+              action={saveEmployeeStatutoryProfileAction}
+              className={`${styles.entryForm} ${styles.profileForm}`}
+            >
+              <input name="membershipId" type="hidden" value={entry.membershipId} />
+              <input name="month" type="hidden" value={month} />
+              <fieldset className={styles.entrySection}>
+                <legend>Statutory employee profile</legend>
+                <div className={styles.profileGrid}>
+                  <label className={styles.formField}>
+                    <span>Date of birth</span>
+                    <input
+                      defaultValue={formatDateInput(entry.membership.dateOfBirth)}
+                      disabled={!profileEditable}
+                      name="dateOfBirth"
+                      type="date"
+                    />
+                  </label>
+                  <label className={styles.formField}>
+                    <span>Statutory nationality</span>
+                    <select
+                      defaultValue={entry.membership.statutoryNationality ?? ""}
+                      disabled={!profileEditable}
+                      name="statutoryNationality"
+                    >
+                      <option value="">Select classification</option>
+                      <option value="MALAYSIAN">Malaysian</option>
+                      <option value="PERMANENT_RESIDENT">Permanent resident</option>
+                      <option value="NON_MALAYSIAN">Non-Malaysian</option>
+                    </select>
+                  </label>
+                  <label className={styles.formField}>
+                    <span>SOCSO category</span>
+                    <select
+                      defaultValue={entry.membership.socsoCategory ?? ""}
+                      disabled={!profileEditable}
+                      name="socsoCategory"
+                    >
+                      <option value="">Select category</option>
+                      <option value="FIRST">First category</option>
+                      <option value="SECOND">Second category</option>
+                    </select>
+                  </label>
+                </div>
+                <div className={styles.optionGrid}>
+                  <StatutoryOption checked={entry.membership.epfEnabled} disabled={!profileEditable} label="Auto-calculate EPF" name="epfEnabled" />
+                  <StatutoryOption checked={entry.membership.socsoEnabled} disabled={!profileEditable} label="Auto-calculate SOCSO" name="socsoEnabled" />
+                  <StatutoryOption checked={entry.membership.eisEnabled} disabled={!profileEditable} label="Auto-calculate EIS" name="eisEnabled" />
+                  <StatutoryOption checked={entry.membership.epfMemberBeforeAug1998} disabled={!profileEditable} label="EPF member before Aug 1998" name="epfMemberBeforeAug1998" />
+                  <StatutoryOption checked={entry.membership.eisPreviouslyContributed} disabled={!profileEditable} label="EIS contributed before age 57" name="eisPreviouslyContributed" />
+                  <StatutoryOption checked={entry.membership.lindung24OptIn} disabled={!profileEditable} label="LINDUNG 24 Jam opt-in" name="lindung24OptIn" />
+                </div>
+              </fieldset>
+              {profileEditable ? (
+                <button className={styles.secondaryButton} type="submit">
+                  Save statutory profile
+                </button>
+              ) : null}
+            </form>
             <form
               action={updatePayrollEntryAction}
               className={styles.entryForm}
             >
               <input name="entryId" type="hidden" value={entry.id} />
               <input name="month" type="hidden" value={month} />
+              <input name="epfWageBase" type="hidden" value={Number(entry.epfWageBase).toFixed(2)} />
+              <input name="perkesoWageBase" type="hidden" value={Number(entry.perkesoWageBase).toFixed(2)} />
 
               <fieldset className={styles.entrySection}>
                 <legend>Calculated earnings</legend>
@@ -662,6 +756,12 @@ function PayrollEntryRows({
                     label="EIS employee"
                     name="eisEmployee"
                     value={entry.eisEmployee}
+                  />
+                  <MoneyField
+                    disabled={!editable}
+                    label="LINDUNG 24 Jam"
+                    name="lindung24Employee"
+                    value={entry.lindung24Employee}
                   />
                   <MoneyField
                     disabled={!editable}
@@ -782,6 +882,30 @@ function Field({
   );
 }
 
+function StatutoryOption({
+  checked,
+  disabled,
+  label,
+  name,
+}: {
+  checked: boolean;
+  disabled: boolean;
+  label: string;
+  name: string;
+}) {
+  return (
+    <label className={styles.optionCard}>
+      <input
+        defaultChecked={checked}
+        disabled={disabled}
+        name={name}
+        type="checkbox"
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
+
 function MoneyField({
   label,
   name,
@@ -847,6 +971,23 @@ function formatPayBasis(value: string) {
   return value.charAt(0) + value.slice(1).toLowerCase();
 }
 
+function formatStatutoryStatus(value: string) {
+  switch (value) {
+    case "AUTO_CALCULATED":
+      return "Auto-calculated";
+    case "REVIEW_REQUIRED":
+      return "Review required";
+    case "MANUAL_OVERRIDE":
+      return "Manual override";
+    default:
+      return "Not configured";
+  }
+}
+
+function formatDateInput(value: Date | null) {
+  return value?.toISOString().slice(0, 10) ?? "";
+}
+
 function getInitials(name: string) {
   return name
     .split(/\s+/)
@@ -858,6 +999,7 @@ function getInitials(name: string) {
 
 type PayrollEntryRow = {
   id: string;
+  membershipId: string;
   employeeCodeSnapshot: string;
   fullNameSnapshot: string;
   payBasisSnapshot: string;
@@ -871,14 +1013,31 @@ type PayrollEntryRow = {
   publicHolidayPay: unknown;
   allowances: unknown;
   otherDeductions: unknown;
+  epfWageBase: unknown;
+  perkesoWageBase: unknown;
   epfEmployee: unknown;
   socsoEmployee: unknown;
   eisEmployee: unknown;
+  lindung24Employee: unknown;
   pcb: unknown;
   employerEpf: unknown;
   employerSocso: unknown;
   employerEis: unknown;
   grossPay: unknown;
   netPay: unknown;
+  statutoryStatus: string;
+  statutoryRuleVersion: string | null;
+  statutoryWarning: string | null;
   notes: string | null;
+  membership: {
+    dateOfBirth: Date | null;
+    statutoryNationality: string | null;
+    epfEnabled: boolean;
+    epfMemberBeforeAug1998: boolean;
+    socsoEnabled: boolean;
+    socsoCategory: string | null;
+    eisEnabled: boolean;
+    eisPreviouslyContributed: boolean;
+    lindung24OptIn: boolean;
+  };
 };

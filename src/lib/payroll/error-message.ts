@@ -7,6 +7,10 @@ const PUBLIC_PAYROLL_ERROR_PREFIXES = [
   "The selected branch is outside your payroll scope.",
   "The public holiday was not found in your payroll scope.",
   "Enter a valid non-negative RM amount with up to 2 decimals.",
+  "Date of birth and statutory nationality are required",
+  "Select the employee's SOCSO contribution category.",
+  "Date of birth must be in the past.",
+  "The employee was not found in your payroll scope.",
 ] as const;
 
 const INTERNAL_ERROR_PATTERN =

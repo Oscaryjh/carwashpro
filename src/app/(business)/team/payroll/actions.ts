@@ -31,6 +31,13 @@ const holidaySchema = z.object({
   name: z.string().trim().min(2).max(120),
 });
 
+const statutoryProfileSchema = z.object({
+  membershipId: z.string().uuid(),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  statutoryNationality: z.enum(["MALAYSIAN", "PERMANENT_RESIDENT", "NON_MALAYSIAN"]).optional(),
+  socsoCategory: z.enum(["FIRST", "SECOND"]).optional(),
+});
+
 export async function savePayrollSettingAction(formData: FormData) {
   try {
     const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
@@ -177,6 +184,9 @@ export async function updatePayrollEntryAction(formData: FormData) {
       values: {
         allowances: formData.get("allowances"),
         otherDeductions: formData.get("otherDeductions"),
+        epfWageBase: formData.get("epfWageBase"),
+        perkesoWageBase: formData.get("perkesoWageBase"),
+        lindung24Employee: formData.get("lindung24Employee"),
         epfEmployee: formData.get("epfEmployee"),
         socsoEmployee: formData.get("socsoEmployee"),
         eisEmployee: formData.get("eisEmployee"),
@@ -190,6 +200,80 @@ export async function updatePayrollEntryAction(formData: FormData) {
     finish("success", "Payroll entry updated.", month);
   } catch (error) {
     handleActionError(error, month, "Unable to update payroll entry.");
+  }
+}
+
+export async function saveEmployeeStatutoryProfileAction(formData: FormData) {
+  const month = monthFrom(formData);
+  try {
+    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const input = statutoryProfileSchema.parse({
+      membershipId: formData.get("membershipId"),
+      dateOfBirth: optionalFormValue(formData, "dateOfBirth"),
+      statutoryNationality: optionalFormValue(formData, "statutoryNationality"),
+      socsoCategory: optionalFormValue(formData, "socsoCategory"),
+    });
+    const epfEnabled = formData.has("epfEnabled");
+    const socsoEnabled = formData.has("socsoEnabled");
+    const eisEnabled = formData.has("eisEnabled");
+    if (
+      (epfEnabled || socsoEnabled || eisEnabled) &&
+      (!input.dateOfBirth || !input.statutoryNationality)
+    ) {
+      throw new Error("Date of birth and statutory nationality are required when automatic contributions are enabled.");
+    }
+    if (socsoEnabled && !input.socsoCategory) {
+      throw new Error("Select the employee's SOCSO contribution category.");
+    }
+    const dateOfBirth = input.dateOfBirth
+      ? new Date(`${input.dateOfBirth}T00:00:00.000Z`)
+      : null;
+    if (dateOfBirth && dateOfBirth >= new Date()) {
+      throw new Error("Date of birth must be in the past.");
+    }
+    const request = await getAuditRequestContext();
+    await prisma.$transaction(async (transaction) => {
+      const before = await transaction.employeeBusinessMembership.findFirst({
+        where: { id: input.membershipId, businessId: context.businessId },
+        select: statutoryProfileSelect,
+      });
+      if (!before) {
+        throw new Error("The employee was not found in your payroll scope.");
+      }
+      const after = await transaction.employeeBusinessMembership.update({
+        where: { id: before.id },
+        data: {
+          dateOfBirth,
+          statutoryNationality: input.statutoryNationality ?? null,
+          epfEnabled,
+          epfMemberBeforeAug1998: formData.has("epfMemberBeforeAug1998"),
+          socsoEnabled,
+          socsoCategory: socsoEnabled ? input.socsoCategory : null,
+          eisEnabled,
+          eisPreviouslyContributed: formData.has("eisPreviouslyContributed"),
+          lindung24OptIn: socsoEnabled && formData.has("lindung24OptIn"),
+          statutoryProfileUpdatedAt: new Date(),
+        },
+        select: statutoryProfileSelect,
+      });
+      await writeAuditLog(
+        {
+          businessId: context.businessId,
+          actor: context.user,
+          request,
+          action: "EMPLOYEE_STATUTORY_PROFILE_UPDATED",
+          entityType: "EmployeeBusinessMembership",
+          entityId: after.id,
+          summary: "Employee statutory contribution profile updated.",
+          before: statutoryProfileAudit(before),
+          after: statutoryProfileAudit(after),
+        },
+        transaction,
+      );
+    });
+    finish("success", "Statutory profile saved. Regenerate the draft to apply official schedules.", month);
+  } catch (error) {
+    handleActionError(error, month, "Unable to save statutory profile.");
   }
 }
 
@@ -244,6 +328,41 @@ function settingAudit(setting: {
       setting.publicHolidayExtraMultiplier.toString(),
     stateCode: setting.stateCode,
   };
+}
+
+const statutoryProfileSelect = {
+  id: true,
+  dateOfBirth: true,
+  statutoryNationality: true,
+  epfEnabled: true,
+  epfMemberBeforeAug1998: true,
+  socsoEnabled: true,
+  socsoCategory: true,
+  eisEnabled: true,
+  eisPreviouslyContributed: true,
+  lindung24OptIn: true,
+} as const;
+
+function statutoryProfileAudit(profile: {
+  dateOfBirth: Date | null;
+  statutoryNationality: string | null;
+  epfEnabled: boolean;
+  epfMemberBeforeAug1998: boolean;
+  socsoEnabled: boolean;
+  socsoCategory: string | null;
+  eisEnabled: boolean;
+  eisPreviouslyContributed: boolean;
+  lindung24OptIn: boolean;
+}) {
+  return {
+    ...profile,
+    dateOfBirth: profile.dateOfBirth?.toISOString().slice(0, 10) ?? null,
+  };
+}
+
+function optionalFormValue(formData: FormData, key: string) {
+  const value = String(formData.get(key) ?? "").trim();
+  return value || undefined;
 }
 
 function monthFrom(formData: FormData) {

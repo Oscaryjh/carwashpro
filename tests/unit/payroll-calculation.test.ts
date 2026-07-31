@@ -82,6 +82,7 @@ test("manual statutory deductions are explicit and net pay never becomes negativ
       epfEmployeeCents: 22_000,
       socsoEmployeeCents: 1_000,
       eisEmployeeCents: 400,
+        lindung24EmployeeCents: 0,
       pcbCents: 3_000,
     }),
     {

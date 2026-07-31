@@ -54,3 +54,14 @@ test("Payroll notices do not expose database details", () => {
     "Payroll draft generated.",
   );
 });
+
+test("Statutory profile validation is safe to show to managers", () => {
+  const message = "Select the employee's SOCSO contribution category.";
+  assert.equal(
+    getPublicPayrollErrorMessage(
+      new Error(message),
+      "Unable to save statutory profile.",
+    ),
+    message,
+  );
+});

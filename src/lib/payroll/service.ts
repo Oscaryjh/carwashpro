@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { AppSession } from "@/lib/auth/session";
 import { writeAuditLog, type AuditRequestContext } from "@/lib/audit";
 import { calculatePayroll, calculatePayrollTotals } from "@/lib/payroll/calculation";
+import { calculateStatutoryContributions } from "@/lib/payroll/statutory";
 import { prisma } from "@/lib/prisma";
 
 export const DEFAULT_PAYROLL_SETTING = {
@@ -76,6 +77,15 @@ export async function generatePayrollRun(
           payBasis: true,
           baseSalary: true,
           normalWorkMinutesPerDay: true,
+          dateOfBirth: true,
+          statutoryNationality: true,
+          epfEnabled: true,
+          epfMemberBeforeAug1998: true,
+          socsoEnabled: true,
+          socsoCategory: true,
+          eisEnabled: true,
+          eisPreviouslyContributed: true,
+          lindung24OptIn: true,
         },
       }),
       transaction.employeeAttendance.findMany({
@@ -152,6 +162,36 @@ export async function generatePayrollRun(
         ),
         days,
       });
+      const epfWageCents = calculation.basicPayCents;
+      const perkesoWageCents = calculation.grossPayCents;
+      const statutory = calculateStatutoryContributions({
+        profile: {
+          dateOfBirth: membership.dateOfBirth,
+          statutoryNationality: membership.statutoryNationality,
+          epfEnabled: membership.epfEnabled,
+          epfMemberBeforeAug1998: membership.epfMemberBeforeAug1998,
+          socsoEnabled: membership.socsoEnabled,
+          socsoCategory: membership.socsoCategory,
+          eisEnabled: membership.eisEnabled,
+          eisPreviouslyContributed: membership.eisPreviouslyContributed,
+          lindung24OptIn: membership.lindung24OptIn,
+        },
+        payrollPeriodEnd: period.end,
+        epfWageCents,
+        perkesoWageCents,
+      });
+      const totals = calculatePayrollTotals({
+        basicPayCents: calculation.basicPayCents,
+        overtimePayCents: calculation.overtimePayCents,
+        publicHolidayPayCents: calculation.publicHolidayPayCents,
+        allowancesCents: 0,
+        otherDeductionsCents: 0,
+        epfEmployeeCents: statutory.epfEmployeeCents,
+        socsoEmployeeCents: statutory.socsoEmployeeCents,
+        eisEmployeeCents: statutory.eisEmployeeCents,
+        lindung24EmployeeCents: statutory.lindung24EmployeeCents,
+        pcbCents: 0,
+      });
       await transaction.payrollEntry.create({
         data: {
           payrollRunId: run.id,
@@ -176,8 +216,24 @@ export async function generatePayrollRun(
           publicHolidayPay: centsToMoney(
             calculation.publicHolidayPayCents,
           ),
-          grossPay: centsToMoney(calculation.grossPayCents),
-          netPay: centsToMoney(calculation.grossPayCents),
+          epfWageBase: centsToMoney(epfWageCents),
+          perkesoWageBase: centsToMoney(perkesoWageCents),
+          epfEmployee: centsToMoney(statutory.epfEmployeeCents),
+          employerEpf: centsToMoney(statutory.employerEpfCents),
+          socsoEmployee: centsToMoney(statutory.socsoEmployeeCents),
+          employerSocso: centsToMoney(statutory.employerSocsoCents),
+          eisEmployee: centsToMoney(statutory.eisEmployeeCents),
+          employerEis: centsToMoney(statutory.employerEisCents),
+          lindung24Employee: centsToMoney(
+            statutory.lindung24EmployeeCents,
+          ),
+          statutoryStatus: statutory.status,
+          statutoryRuleVersion: statutory.ruleVersion,
+          statutoryCalculatedAt:
+            statutory.status === "AUTO_CALCULATED" ? new Date() : null,
+          statutoryWarning: statutory.warnings.join(" ") || null,
+          grossPay: centsToMoney(totals.grossPayCents),
+          netPay: centsToMoney(totals.netPayCents),
           attendanceUpdatedAtSnapshot: latestUpdatedAt(memberSessions),
         },
       });
@@ -224,6 +280,7 @@ export async function updatePayrollEntry(
       epfEmployeeCents: values.epfEmployeeCents,
       socsoEmployeeCents: values.socsoEmployeeCents,
       eisEmployeeCents: values.eisEmployeeCents,
+      lindung24EmployeeCents: values.lindung24EmployeeCents,
       pcbCents: values.pcbCents,
     });
     const updated = await transaction.payrollEntry.update({
@@ -231,6 +288,9 @@ export async function updatePayrollEntry(
       data: {
         allowances: centsToMoney(values.allowancesCents),
         otherDeductions: centsToMoney(values.otherDeductionsCents),
+        epfWageBase: centsToMoney(values.epfWageBaseCents),
+        perkesoWageBase: centsToMoney(values.perkesoWageBaseCents),
+        lindung24Employee: centsToMoney(values.lindung24EmployeeCents),
         epfEmployee: centsToMoney(values.epfEmployeeCents),
         socsoEmployee: centsToMoney(values.socsoEmployeeCents),
         eisEmployee: centsToMoney(values.eisEmployeeCents),
@@ -240,6 +300,9 @@ export async function updatePayrollEntry(
         employerEis: centsToMoney(values.employerEisCents),
         grossPay: centsToMoney(totals.grossPayCents),
         netPay: centsToMoney(totals.netPayCents),
+        statutoryStatus: "MANUAL_OVERRIDE",
+        statutoryCalculatedAt: null,
+        statutoryWarning: "Statutory amounts were manually adjusted.",
         notes: values.notes || null,
       },
     });
@@ -300,6 +363,9 @@ export async function finalizePayrollRun(
 type PayrollEntryManualValues = {
   allowances: unknown;
   otherDeductions: unknown;
+  epfWageBase: unknown;
+  perkesoWageBase: unknown;
+  lindung24Employee: unknown;
   epfEmployee: unknown;
   socsoEmployee: unknown;
   eisEmployee: unknown;
@@ -314,6 +380,9 @@ function normalizeManualValues(input: PayrollEntryManualValues) {
   return {
     allowancesCents: parseMoneyInput(input.allowances),
     otherDeductionsCents: parseMoneyInput(input.otherDeductions),
+    epfWageBaseCents: parseMoneyInput(input.epfWageBase),
+    perkesoWageBaseCents: parseMoneyInput(input.perkesoWageBase),
+    lindung24EmployeeCents: parseMoneyInput(input.lindung24Employee),
     epfEmployeeCents: parseMoneyInput(input.epfEmployee),
     socsoEmployeeCents: parseMoneyInput(input.socsoEmployee),
     eisEmployeeCents: parseMoneyInput(input.eisEmployee),
@@ -377,6 +446,9 @@ function centsToMoney(cents: number) {
 function manualAuditSnapshot(entry: {
   allowances: unknown;
   otherDeductions: unknown;
+  epfWageBase: unknown;
+  perkesoWageBase: unknown;
+  lindung24Employee: unknown;
   epfEmployee: unknown;
   socsoEmployee: unknown;
   eisEmployee: unknown;
@@ -391,6 +463,9 @@ function manualAuditSnapshot(entry: {
   return {
     allowances: String(entry.allowances),
     otherDeductions: String(entry.otherDeductions),
+    epfWageBase: String(entry.epfWageBase),
+    perkesoWageBase: String(entry.perkesoWageBase),
+    lindung24Employee: String(entry.lindung24Employee),
     epfEmployee: String(entry.epfEmployee),
     socsoEmployee: String(entry.socsoEmployee),
     eisEmployee: String(entry.eisEmployee),
