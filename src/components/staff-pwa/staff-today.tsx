@@ -34,6 +34,8 @@ type PendingPunch = {
   idempotencyKey: string;
   gps: GpsEvidence;
   deviceTimestamp: string;
+  confirmedBreakMinutes?: number | null;
+  breakExceptionReason?: string | null;
 };
 
 export function StaffToday() {
@@ -48,6 +50,8 @@ export function StaffToday() {
   const [confirmAction, setConfirmAction] = useState<AttendanceAction | null>(null);
   const [gpsStatus, setGpsStatus] = useState("");
   const [pendingPunch, setPendingPunch] = useState<PendingPunch | null>(null);
+  const [confirmedBreakMinutes, setConfirmedBreakMinutes] = useState("60");
+  const [breakExceptionReason, setBreakExceptionReason] = useState("");
   const [exceptionPrompt, setExceptionPrompt] = useState<PendingPunch | null>(null);
   const [exceptionReason, setExceptionReason] = useState("");
 
@@ -92,13 +96,49 @@ export function StaffToday() {
         <button className="staff-primary-button" onClick={() => load()} type="button">
           Try again
         </button>
+
       </section>
     );
+  }
+
+  function openConfirmation(action: AttendanceAction) {
+    if (action === "CLOCK_OUT") {
+      setConfirmedBreakMinutes(
+        String(today?.workPolicy.expectedBreakMinutes ?? 60),
+      );
+      setBreakExceptionReason("");
+    }
+    setError("");
+    setConfirmAction(action);
   }
 
   async function confirmAndPunch() {
     const action = confirmAction;
     if (!action || !today || busy) return;
+    let breakMinutes: number | null = null;
+    let shortBreakReason: string | null = null;
+    if (
+      action === "CLOCK_OUT" &&
+      today.workPolicy.breakPolicy === "FLEXIBLE_CONFIRMATION"
+    ) {
+      breakMinutes = Number(confirmedBreakMinutes);
+      if (
+        !Number.isInteger(breakMinutes) ||
+        breakMinutes < 0 ||
+        breakMinutes > 1440
+      ) {
+        setError("Enter valid total break minutes between 0 and 1440.");
+        return;
+      }
+      if (breakMinutes < today.workPolicy.expectedBreakMinutes) {
+        shortBreakReason = breakExceptionReason.trim();
+        if (shortBreakReason.length < 3) {
+          setError("Explain why the break was shorter than the company policy.");
+          return;
+        }
+      }
+    }
+
     setConfirmAction(null);
     setBusy(true);
     setError("");
@@ -139,6 +179,8 @@ export function StaffToday() {
         idempotencyKey: createAttendanceIdempotencyKey(action),
         gps,
         deviceTimestamp: new Date().toISOString(),
+        confirmedBreakMinutes: breakMinutes,
+        breakExceptionReason: shortBreakReason,
       };
       setPendingPunch(pending);
       await submitPunch(pending);
@@ -234,6 +276,8 @@ export function StaffToday() {
             deviceIdentifier: getOrCreateDeviceIdentifier(),
             idempotencyKey: pending.idempotencyKey,
             exceptionReason: reason || null,
+            confirmedBreakMinutes: pending.confirmedBreakMinutes ?? null,
+            breakExceptionReason: pending.breakExceptionReason ?? null,
           }),
         },
       );
@@ -478,7 +522,7 @@ export function StaffToday() {
                   }
                   disabled={busy}
                   key={action}
-                  onClick={() => setConfirmAction(action)}
+                  onClick={() => openConfirmation(action)}
                   type="button"
                 >
                   {busy
@@ -540,6 +584,41 @@ export function StaffToday() {
                 ? "Your previous shift stays completed. A new attendance shift will start now."
                 : attendanceConfirmation(confirmAction)}
             </p>
+            {confirmAction === "CLOCK_OUT" &&
+            today.workPolicy.breakPolicy === "FLEXIBLE_CONFIRMATION" ? (
+              <div className="staff-break-confirmation">
+                <label>
+                  <span>Total break taken today (minutes)</span>
+                  <input
+                    inputMode="numeric"
+                    max="1440"
+                    min="0"
+                    onChange={(event) => setConfirmedBreakMinutes(event.target.value)}
+                    step="1"
+                    type="number"
+                    value={confirmedBreakMinutes}
+                  />
+                </label>
+                <small>
+                  Company policy: {today.workPolicy.expectedBreakMinutes} minutes.
+                  Appointment gaps are not counted automatically.
+                </small>
+                {Number(confirmedBreakMinutes) <
+                today.workPolicy.expectedBreakMinutes ? (
+                  <label>
+                    <span>Why was the break shorter?</span>
+                    <textarea
+                      maxLength={500}
+                      onChange={(event) => setBreakExceptionReason(event.target.value)}
+                      placeholder="Give the manager a short reason"
+                      rows={3}
+                      value={breakExceptionReason}
+                    />
+                    <small>This Clock Out will be sent for manager approval.</small>
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
             <div className="staff-inline-actions">
               <button className="staff-primary-button" onClick={confirmAndPunch} type="button">
                 Confirm

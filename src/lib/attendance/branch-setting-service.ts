@@ -77,6 +77,10 @@ export async function upsertBranchAttendanceSetting(
           allowOutsideGeofenceRequest:
             setting.allowOutsideGeofenceRequest,
           requirePhoto: setting.requirePhoto,
+          breakPolicy: setting.breakPolicy,
+          targetBreakMinutes: setting.targetBreakMinutes,
+          normalWorkMinutesPerDay: setting.normalWorkMinutesPerDay,
+          shiftSpanMinutes: setting.shiftSpanMinutes,
           timezone: setting.timezone,
           isEnabled: setting.isEnabled,
         },
@@ -89,6 +93,10 @@ export async function upsertBranchAttendanceSetting(
           allowOutsideGeofenceRequest:
             setting.allowOutsideGeofenceRequest,
           requirePhoto: setting.requirePhoto,
+          breakPolicy: setting.breakPolicy,
+          targetBreakMinutes: setting.targetBreakMinutes,
+          normalWorkMinutesPerDay: setting.normalWorkMinutesPerDay,
+          shiftSpanMinutes: setting.shiftSpanMinutes,
           timezone: setting.timezone,
           isEnabled: setting.isEnabled,
         },
@@ -151,6 +159,10 @@ type StoredBranchAttendanceSetting = {
   requireGeofence: boolean;
   allowOutsideGeofenceRequest: boolean;
   requirePhoto: boolean;
+  breakPolicy: "MANUAL_PUNCH" | "FLEXIBLE_CONFIRMATION" | "PAID_BREAK";
+  targetBreakMinutes: number;
+  normalWorkMinutesPerDay: number;
+  shiftSpanMinutes: number;
   timezone: string;
   isEnabled: boolean;
 };
@@ -167,6 +179,10 @@ function settingAuditSnapshot(
       setting.allowOutsideGeofenceRequest,
     requirePhoto: setting.requirePhoto,
     timezone: setting.timezone,
+    breakPolicy: setting.breakPolicy,
+    targetBreakMinutes: setting.targetBreakMinutes,
+    normalWorkMinutesPerDay: setting.normalWorkMinutesPerDay,
+    shiftSpanMinutes: setting.shiftSpanMinutes,
     isEnabled: setting.isEnabled,
   };
 }

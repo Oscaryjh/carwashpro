@@ -198,6 +198,13 @@ function buildEmployeeInput(
     employeeCode: String(formData.get("employeeCode") ?? ""),
     fullName: String(formData.get("fullName") ?? ""),
     phoneNumber: String(formData.get("phoneNumber") ?? ""),
+    payBasis: String(formData.get("payBasis") ?? "MONTHLY"),
+    baseSalary: optionalNumber(formData.get("baseSalary")),
+    normalWorkMinutesPerDay: optionalNumber(
+      formData.get("normalWorkMinutesPerDay"),
+    ),
+    targetBreakMinutes: optionalNumber(formData.get("targetBreakMinutes")),
+
     employmentType: String(formData.get("employmentType") ?? "FULL_TIME"),
     status,
     attendanceEnabled,
@@ -206,6 +213,11 @@ function buildEmployeeInput(
     position: null,
     assignments,
   };
+}
+
+function optionalNumber(value: FormDataEntryValue | null) {
+  const normalized = String(value ?? "").trim();
+  return normalized === "" ? null : Number(normalized);
 }
 
 function uniqueStrings(values: FormDataEntryValue[]) {

@@ -158,6 +158,10 @@ export async function performAttendancePunch(args: {
                 now,
                 ipAddress: args.ipAddress,
                 timezone: principal.setting.timezone,
+                breakPolicy: principal.setting.breakPolicy,
+                expectedBreakMinutes:
+                  principal.membership.targetBreakMinutes ??
+                  principal.setting.targetBreakMinutes,
                 evaluation,
               })
             : await createActiveSessionPunch({
@@ -198,6 +202,30 @@ export async function performAttendancePunch(args: {
             },
           });
         }
+        if (writeResult.breakException) {
+          const exception = await transaction.attendanceException.create({
+            data: {
+              attendancePunchId: writeResult.punch.id,
+              attendanceSessionId: writeResult.attendanceSession.id,
+              employeeId: args.auth.membershipId,
+              businessId: args.auth.businessId,
+              branchId: input.branchId,
+              type: writeResult.breakException.type,
+              reason: writeResult.breakException.reason,
+              status: "PENDING",
+            },
+            select: { id: true },
+          });
+          exceptionId ??= exception.id;
+          await transaction.employeeAttendance.update({
+            where: { id: writeResult.attendanceSession.id },
+            data: {
+              requiresApproval: true,
+              approvalStatus: "PENDING",
+            },
+          });
+        }
+
 
         await writeAuditLog(
           {
@@ -212,7 +240,8 @@ export async function performAttendancePunch(args: {
               attendanceSessionId: writeResult.attendanceSession.id,
               punchType: args.type,
               geofenceStatus: evaluation.geofenceStatus,
-              requiresApproval: gpsException !== null,
+              requiresApproval:
+                gpsException !== null || writeResult.breakException !== null,
             },
           },
           transaction,
@@ -231,7 +260,8 @@ export async function performAttendancePunch(args: {
                 membershipId: args.auth.membershipId,
                 attendanceSessionId: writeResult.attendanceSession.id,
                 attendancePunchId: writeResult.punch.id,
-                exceptionType: gpsException?.type,
+                exceptionType:
+                  gpsException?.type ?? writeResult.breakException?.type,
               },
             },
             transaction,
@@ -309,6 +339,8 @@ async function createClockIn(input: {
   now: Date;
   ipAddress?: string | null;
   timezone: string;
+  breakPolicy: "MANUAL_PUNCH" | "FLEXIBLE_CONFIRMATION" | "PAID_BREAK";
+  expectedBreakMinutes: number;
   evaluation: GeofenceEvaluation;
 }) {
   const attendanceSession = await input.transaction.employeeAttendance.create({
@@ -323,6 +355,9 @@ async function createClockIn(input: {
       totalBreakMinutes: 0,
       totalWorkedMinutes: 0,
       requiresApproval: false,
+      breakPolicySnapshot: input.breakPolicy,
+      expectedBreakMinutes: input.expectedBreakMinutes,
+      breakConfirmationMethod: "NOT_REQUIRED",
       approvalStatus: "NOT_REQUIRED",
     },
     select: attendanceSessionResultSelect,
@@ -344,6 +379,7 @@ async function createClockIn(input: {
   return {
     attendanceSession,
     punch,
+    breakException: null,
   };
 }
 
@@ -403,6 +439,8 @@ async function createActiveSessionPunch(input: {
   const updateData: Prisma.EmployeeAttendanceUncheckedUpdateManyInput = {
     status: resultingStatus,
   };
+  let breakException: { type: "MISSED_BREAK"; reason: string } | null = null;
+
 
   if (input.type === "BREAK_END") {
     const durations = calculateAttendanceDurations({
@@ -423,7 +461,11 @@ async function createActiveSessionPunch(input: {
   }
 
   if (input.type === "CLOCK_OUT") {
-    const durations = calculateAttendanceDurations({
+    const elapsedMinutes = Math.max(
+      0,
+      Math.floor((input.now.getTime() - existing.clockInAt.getTime()) / 60_000),
+    );
+    const manualDurations = calculateAttendanceDurations({
       clockInAt: existing.clockInAt,
       endAt: input.now,
       breakPunches: existing.punches.map((item) => ({
@@ -431,10 +473,62 @@ async function createActiveSessionPunch(input: {
         serverTimestamp: item.serverTimestamp,
       })),
     });
+
+    let totalBreakMinutes = manualDurations.totalBreakMinutes;
+    let totalWorkedMinutes = manualDurations.totalWorkedMinutes;
+    let confirmationMethod:
+      | "PUNCHES"
+      | "EMPLOYEE_CONFIRMATION"
+      | "PAID"
+      | "NOT_REQUIRED" = "PUNCHES";
+    let confirmedBreakMinutes: number | null = null;
+
+    if (existing.breakPolicySnapshot === "FLEXIBLE_CONFIRMATION") {
+      if (
+        input.input.confirmedBreakMinutes === null ||
+        input.input.confirmedBreakMinutes === undefined
+      ) {
+        throw new AttendanceApiError(
+          "INVALID_ATTENDANCE_STATE",
+          "Confirm your total break minutes before clocking out.",
+        );
+      }
+      if (input.input.confirmedBreakMinutes > elapsedMinutes) {
+        throw new AttendanceApiError(
+          "INVALID_ATTENDANCE_STATE",
+          "Break minutes cannot exceed the shift duration.",
+        );
+      }
+      confirmedBreakMinutes = input.input.confirmedBreakMinutes;
+      totalBreakMinutes = confirmedBreakMinutes;
+      totalWorkedMinutes = Math.max(0, elapsedMinutes - confirmedBreakMinutes);
+      confirmationMethod = "EMPLOYEE_CONFIRMATION";
+
+      if (confirmedBreakMinutes < existing.expectedBreakMinutes) {
+        const reason = input.input.breakExceptionReason?.trim();
+        if (!reason || reason.length < 3) {
+          throw new AttendanceApiError(
+            "INVALID_ATTENDANCE_STATE",
+            "Explain why the break was shorter than the company policy.",
+          );
+        }
+        breakException = { type: "MISSED_BREAK", reason };
+      }
+    } else if (existing.breakPolicySnapshot === "PAID_BREAK") {
+      totalBreakMinutes = 0;
+      totalWorkedMinutes = elapsedMinutes;
+      confirmedBreakMinutes = 0;
+      confirmationMethod = "PAID";
+    }
+
     updateData.clockOutPunchId = punch.id;
     updateData.clockOutAt = input.now;
-    updateData.totalBreakMinutes = durations.totalBreakMinutes;
-    updateData.totalWorkedMinutes = durations.totalWorkedMinutes;
+    updateData.totalBreakMinutes = totalBreakMinutes;
+    updateData.totalWorkedMinutes = totalWorkedMinutes;
+    updateData.confirmedBreakMinutes = confirmedBreakMinutes;
+    updateData.breakConfirmationMethod = confirmationMethod;
+    updateData.breakConfirmedAt =
+      existing.breakPolicySnapshot === "MANUAL_PUNCH" ? null : input.now;
   }
 
   const updated = await input.transaction.employeeAttendance.updateMany({
@@ -463,6 +557,7 @@ async function createActiveSessionPunch(input: {
   return {
     attendanceSession,
     punch,
+    breakException,
   };
 }
 
@@ -684,6 +779,10 @@ const attendanceSessionResultSelect = {
   workDate: true,
   status: true,
   clockInAt: true,
+  breakPolicySnapshot: true,
+  expectedBreakMinutes: true,
+  confirmedBreakMinutes: true,
+  breakConfirmationMethod: true,
   clockOutAt: true,
   totalBreakMinutes: true,
   totalWorkedMinutes: true,
@@ -773,6 +872,8 @@ function hashPunchPayload(
         longitude: input.longitude ?? null,
         accuracyMeters: input.accuracyMeters ?? null,
         deviceTimestamp: input.deviceTimestamp?.toISOString() ?? null,
+        confirmedBreakMinutes: input.confirmedBreakMinutes ?? null,
+        breakExceptionReason: input.breakExceptionReason ?? null,
         deviceIdentifierHash,
         exceptionReason: input.exceptionReason ?? null,
       }),

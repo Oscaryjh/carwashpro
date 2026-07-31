@@ -60,6 +60,14 @@ export const attendancePunchInputSchema = z
       .max(500, "Exception reason is too long.")
       .nullable()
       .optional(),
+    confirmedBreakMinutes: z
+      .number()
+      .int()
+      .min(0, "Break minutes cannot be negative.")
+      .max(1440, "Break minutes cannot exceed 1440.")
+      .nullable()
+      .optional(),
+    breakExceptionReason: z.string().trim().max(500).nullable().optional(),
   })
   .strict()
   .superRefine((value, context) => {

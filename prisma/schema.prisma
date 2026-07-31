@@ -106,6 +106,25 @@ enum EmployeeEmploymentType {
   DAILY
   HOURLY
 }
+enum EmployeePayBasis {
+  MONTHLY
+  DAILY
+  HOURLY
+}
+
+enum AttendanceBreakPolicy {
+  MANUAL_PUNCH
+  FLEXIBLE_CONFIRMATION
+  PAID_BREAK
+}
+
+enum AttendanceBreakConfirmationMethod {
+  PUNCHES
+  EMPLOYEE_CONFIRMATION
+  PAID
+  NOT_REQUIRED
+}
+
 
 enum EmployeeBranchAssignmentStatus {
   ACTIVE
@@ -156,6 +175,7 @@ enum AttendanceExceptionType {
   FORGOT_CLOCK_OUT
   WRONG_BRANCH
   OTHER
+  MISSED_BREAK
 }
 
 enum AttendanceExceptionStatus {
@@ -901,6 +921,10 @@ model EmployeeBusinessMembership {
   employmentType        EmployeeEmploymentType   @default(FULL_TIME) @map("employment_type")
   status                EmployeeMembershipStatus @default(ACTIVE)
   attendanceEnabled     Boolean                  @default(false) @map("attendance_enabled")
+  payBasis              EmployeePayBasis         @default(MONTHLY) @map("pay_basis")
+  baseSalary            Decimal?                 @map("base_salary") @db.Decimal(12, 2)
+  normalWorkMinutesPerDay Int?                   @map("normal_work_minutes_per_day")
+  targetBreakMinutes    Int?                     @map("target_break_minutes")
   joinedAt              DateTime                 @default(now()) @map("joined_at")
   terminatedAt          DateTime?                @map("terminated_at")
   position              String?
@@ -964,6 +988,11 @@ model EmployeeAttendance {
   clockOutAt        DateTime?                @map("clock_out_at")
   totalBreakMinutes Int                      @default(0) @map("total_break_minutes")
   totalWorkedMinutes Int                     @default(0) @map("total_worked_minutes")
+  breakPolicySnapshot AttendanceBreakPolicy  @default(MANUAL_PUNCH) @map("break_policy_snapshot")
+  expectedBreakMinutes Int                   @default(0) @map("expected_break_minutes")
+  confirmedBreakMinutes Int?                 @map("confirmed_break_minutes")
+  breakConfirmationMethod AttendanceBreakConfirmationMethod @default(NOT_REQUIRED) @map("break_confirmation_method")
+  breakConfirmedAt    DateTime?               @map("break_confirmed_at")
   requiresApproval  Boolean                  @default(false) @map("requires_approval")
   approvalStatus    AttendanceApprovalStatus @default(NOT_REQUIRED) @map("approval_status")
   createdAt         DateTime                 @default(now()) @map("created_at")
@@ -998,6 +1027,10 @@ model BranchAttendanceSetting {
   requireGeofence             Boolean  @default(true) @map("require_geofence")
   allowOutsideGeofenceRequest Boolean  @default(true) @map("allow_outside_geofence_request")
   requirePhoto                Boolean  @default(false) @map("require_photo")
+  breakPolicy                 AttendanceBreakPolicy @default(MANUAL_PUNCH) @map("break_policy")
+  targetBreakMinutes          Int      @default(60) @map("target_break_minutes")
+  normalWorkMinutesPerDay     Int      @default(480) @map("normal_work_minutes_per_day")
+  shiftSpanMinutes            Int      @default(540) @map("shift_span_minutes")
   timezone                    String   @default("Asia/Kuching")
   isEnabled                   Boolean  @default(false) @map("is_enabled")
   createdAt                   DateTime @default(now()) @map("created_at")

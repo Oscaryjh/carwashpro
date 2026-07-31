@@ -23,6 +23,8 @@ type AttendancePageProps = {
     datePreset?: string;
     status?: string;
     adjust?: string;
+    month?: string;
+    employeeId?: string;
     type?: string;
     message?: string;
     page?: string;
@@ -37,6 +39,21 @@ function getTodayValue() {
     day: "2-digit",
   }).format(new Date());
 }
+function getMonthRange(value?: string) {
+  const fallback = getTodayValue().slice(0, 7);
+  const month = /^\d{4}-\d{2}$/.test(value ?? "") ? value! : fallback;
+  const [year, monthNumber] = month.split("-").map(Number);
+  const from = new Date(Date.UTC(year, monthNumber - 1, 1));
+  const to = new Date(Date.UTC(year, monthNumber, 1));
+  if (
+    !Number.isFinite(from.getTime()) ||
+    from.toISOString().slice(0, 7) !== month
+  ) {
+    return getMonthRange(fallback);
+  }
+  return { month, from, to };
+}
+
 
 function getWorkDate(dateValue: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
@@ -194,6 +211,102 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
     orderBy: { createdAt: "asc" },
     take: 100,
   });
+  const monthRange = getMonthRange(params.month);
+  const summaryNow = new Date();
+  const monthlyMembers = await prisma.employeeBusinessMembership.findMany({
+    where: {
+      businessId,
+      status: { in: ["ACTIVE", "SUSPENDED"] },
+      branchAssignments: {
+        some: {
+          businessId,
+          branchId: { in: [...scope.allowedBranchIds] },
+          status: "ACTIVE",
+          effectiveFrom: { lte: summaryNow },
+          OR: [
+            { effectiveUntil: null },
+            { effectiveUntil: { gte: summaryNow } },
+          ],
+          ...(requestedBranchId ? { branchId: requestedBranchId } : {}),
+        },
+      },
+    },
+    orderBy: [{ fullName: "asc" }, { employeeCode: "asc" }],
+    select: {
+      id: true,
+      employeeCode: true,
+      fullName: true,
+    },
+  });
+  const selectedEmployeeId = monthlyMembers.some(
+    (member) => member.id === params.employeeId,
+  )
+    ? params.employeeId!
+    : "";
+  const visibleMonthlyMembers = selectedEmployeeId
+    ? monthlyMembers.filter((member) => member.id === selectedEmployeeId)
+    : monthlyMembers;
+  const monthlySessions = visibleMonthlyMembers.length
+    ? await prisma.employeeAttendance.findMany({
+        where: buildAttendanceSessionWhere<Prisma.EmployeeAttendanceWhereInput>(
+          scope,
+          {
+            membershipId: {
+              in: visibleMonthlyMembers.map((member) => member.id),
+            },
+            workDate: {
+              gte: monthRange.from,
+              lt: monthRange.to,
+            },
+            ...(requestedBranchId ? { branchId: requestedBranchId } : {}),
+          },
+        ),
+        select: {
+          membershipId: true,
+          workDate: true,
+          status: true,
+          totalBreakMinutes: true,
+          totalWorkedMinutes: true,
+          requiresApproval: true,
+          approvalStatus: true,
+        },
+      })
+    : [];
+  const monthlyAttendance = visibleMonthlyMembers.map((member) => {
+    const sessions = monthlySessions.filter(
+      (session) => session.membershipId === member.id,
+    );
+    const completedSessions = sessions.filter(
+      (session) => session.status === "COMPLETED",
+    );
+    const workedDays = new Set(
+      completedSessions.map((session) =>
+        session.workDate.toISOString().slice(0, 10),
+      ),
+    ).size;
+    return {
+      ...member,
+      workedDays,
+      completedShifts: completedSessions.length,
+      workedMinutes: completedSessions.reduce(
+        (total, session) => total + session.totalWorkedMinutes,
+        0,
+      ),
+      breakMinutes: completedSessions.reduce(
+        (total, session) => total + session.totalBreakMinutes,
+        0,
+      ),
+      incompleteCount: sessions.filter(
+        (session) => session.status === "INCOMPLETE",
+      ).length,
+      pendingCount: sessions.filter(
+        (session) =>
+          session.requiresApproval &&
+          session.approvalStatus === "PENDING",
+      ).length,
+    };
+  });
+
   const now = new Date();
   const rows = attendance.map((entry) => {
     let workedMinutes = entry.totalWorkedMinutes;
@@ -250,6 +363,8 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
   if (statusFilter !== "ALL") exportParams.set("status", statusFilter);
   function attendanceHref(targetPage = page, adjustId?: string) {
     const query = new URLSearchParams(exportParams);
+    query.set("month", monthRange.month);
+    if (selectedEmployeeId) query.set("employeeId", selectedEmployeeId);
     if (targetPage > 1) query.set("page", String(targetPage));
     if (adjustId) query.set("adjust", adjustId);
     const serialized = query.toString();
@@ -317,6 +432,101 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
           <small>Net worked time after breaks</small>
         </article>
       </div>
+      <section className={styles.recordsPanel}>
+        <div className={styles.panelHeading}>
+          <div>
+            <span className={styles.eyebrow}>MONTHLY SUMMARY</span>
+            <h2>Days worked and net hours</h2>
+            <p>
+              One worked day is counted once even when the employee completes
+              multiple shifts. Net hours already exclude unpaid breaks.
+            </p>
+          </div>
+          <span className={styles.resultCount}>
+            {monthlyAttendance.length} people
+          </span>
+        </div>
+
+        <form action="/team/attendance" className={styles.filters} method="get">
+          {requestedBranchId ? (
+            <input name="branchId" type="hidden" value={requestedBranchId} />
+          ) : null}
+          <label>
+            <span>Month</span>
+            <input
+              defaultValue={monthRange.month}
+              name="month"
+              required
+              type="month"
+            />
+          </label>
+          <label>
+            <span>Employee</span>
+            <select defaultValue={selectedEmployeeId} name="employeeId">
+              <option value="">All employees</option>
+              {monthlyMembers.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.fullName} ({member.employeeCode})
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className={styles.filterButton} type="submit">
+            View month
+          </button>
+        </form>
+
+        {monthlyAttendance.length ? (
+          <div className={styles.tableWrap}>
+            <table className={styles.attendanceTable}>
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Days worked</th>
+                  <th>Completed shifts</th>
+                  <th>Net hours</th>
+                  <th>Break</th>
+                  <th>Needs attention</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyAttendance.map((member) => (
+                  <tr key={member.id}>
+                    <td>
+                      <div className={styles.employee}>
+                        <span className={styles.avatar}>
+                          {getInitials(member.fullName)}
+                        </span>
+                        <span>
+                          <strong>{member.fullName}</strong>
+                          <small>{member.employeeCode}</small>
+                        </span>
+                      </div>
+                    </td>
+                    <td><strong>{member.workedDays}</strong></td>
+                    <td>{member.completedShifts}</td>
+                    <td><strong>{formatDuration(member.workedMinutes)}</strong></td>
+                    <td>{formatDuration(member.breakMinutes)}</td>
+                    <td>
+                      {member.pendingCount
+                        ? `${member.pendingCount} pending`
+                        : member.incompleteCount
+                          ? `${member.incompleteCount} incomplete`
+                          : "Clear"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className={styles.emptyState}>
+            <strong>No employees in this scope</strong>
+            <span>Adjust the employee or branch filter.</span>
+          </div>
+        )}
+      </section>
+
 
       <section className={styles.recordsPanel}>
         <div className={styles.panelHeading}>

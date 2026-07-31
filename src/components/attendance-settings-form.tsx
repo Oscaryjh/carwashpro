@@ -17,6 +17,10 @@ type AttendanceSettingValues = {
   requireGeofence: boolean;
   allowOutsideGeofenceRequest: boolean;
   timezone: string;
+  breakPolicy: "MANUAL_PUNCH" | "FLEXIBLE_CONFIRMATION" | "PAID_BREAK";
+  targetBreakMinutes: number;
+  normalWorkMinutesPerDay: number;
+  shiftSpanMinutes: number;
   isEnabled: boolean;
 };
 
@@ -260,12 +264,97 @@ export function AttendanceSettingsForm({
         </div>
       </section>
 
+      <WorkPolicyFields initialValues={initialValues} />
+
       <div className={styles.actions}>
         <button disabled={pending} type="submit">
           {pending ? "Saving..." : "Save Attendance Settings"}
         </button>
       </div>
     </form>
+  );
+}
+
+function WorkPolicyFields({
+  initialValues,
+}: {
+  initialValues: AttendanceSettingValues;
+}) {
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHeading}>
+        <div>
+          <p>WORK &amp; BREAK POLICY</p>
+          <h2>Paid time rules</h2>
+        </div>
+      </div>
+
+      <div className={styles.fieldGrid}>
+        <label>
+          <span>Break handling</span>
+          <select defaultValue={initialValues.breakPolicy} name="breakPolicy">
+            <option value="MANUAL_PUNCH">Manual Break Start / End</option>
+            <option value="FLEXIBLE_CONFIRMATION">
+              Flexible break ? confirm at Clock Out
+            </option>
+            <option value="PAID_BREAK">Paid break ? do not deduct</option>
+          </select>
+          <small>
+            Flexible confirmation suits appointment-based service teams.
+          </small>
+        </label>
+        <label>
+          <span>Expected break (minutes)</span>
+          <input
+            defaultValue={initialValues.targetBreakMinutes}
+            max="480"
+            min="0"
+            name="targetBreakMinutes"
+            required
+            step="1"
+            type="number"
+          />
+          <small>Normally 60 minutes for a 9-hour shift.</small>
+        </label>
+        <label>
+          <span>Normal paid work (minutes)</span>
+          <input
+            defaultValue={initialValues.normalWorkMinutesPerDay}
+            max="1440"
+            min="60"
+            name="normalWorkMinutesPerDay"
+            required
+            step="1"
+            type="number"
+          />
+          <small>480 minutes equals 8 paid working hours.</small>
+        </label>
+        <label>
+          <span>Normal shift span (minutes)</span>
+          <input
+            defaultValue={initialValues.shiftSpanMinutes}
+            max="1440"
+            min="60"
+            name="shiftSpanMinutes"
+            required
+            step="1"
+            type="number"
+          />
+          <small>540 minutes equals 9 hours including the break.</small>
+        </label>
+      </div>
+
+      <div className={styles.example}>
+        <strong>Recommended for service businesses</strong>
+        <span>Shift span: 9 hours</span>
+        <span>Expected break: 1 hour</span>
+        <span>Normal paid work: 8 hours</span>
+        <small>
+          Appointment gaps are never counted as breaks automatically. Staff confirm
+          their actual total break when clocking out.
+        </small>
+      </div>
+    </section>
   );
 }
 

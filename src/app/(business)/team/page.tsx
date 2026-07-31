@@ -360,6 +360,13 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
                   employeeCode: editingStaff.employeeBusinessMembership.employeeCode,
                   employmentType:
                     editingStaff.employeeBusinessMembership.employmentType,
+                  payBasis: editingStaff.employeeBusinessMembership.payBasis,
+                  baseSalary:
+                    editingStaff.employeeBusinessMembership.baseSalary?.toString() ?? null,
+                  normalWorkMinutesPerDay:
+                    editingStaff.employeeBusinessMembership.normalWorkMinutesPerDay,
+                  targetBreakMinutes:
+                    editingStaff.employeeBusinessMembership.targetBreakMinutes,
                   joinedAt: formatDateInput(editingStaff.employeeBusinessMembership.joinedAt),
                   primaryBranchId:
                     editingStaff.employeeBusinessMembership.branchAssignments.find(
@@ -1044,6 +1051,10 @@ type StaffRow = {
     phoneNumberNormalized: string;
     employeeCode: string;
     employmentType: string;
+    payBasis: "MONTHLY" | "DAILY" | "HOURLY";
+    baseSalary: { toString(): string } | null;
+    normalWorkMinutesPerDay: number | null;
+    targetBreakMinutes: number | null;
     joinedAt: Date;
     status: string;
     branchAssignments: Array<{

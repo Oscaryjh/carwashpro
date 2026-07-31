@@ -39,6 +39,12 @@ const employmentStatusSchema = z.enum([
   "SUSPENDED",
   "TERMINATED",
 ]);
+const payBasisSchema = z.enum(["MONTHLY", "DAILY", "HOURLY"]);
+const optionalNonnegativeNumberSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() ? value : null),
+  z.coerce.number().finite().min(0).nullable(),
+);
+
 const optionalUuidSchema = z.preprocess(
   (value) => (typeof value === "string" && value.trim() ? value.trim() : null),
   z.string().uuid().nullable(),
@@ -50,6 +56,10 @@ const teamMemberShape = {
   email: z.string().trim().email("Valid email is required.").toLowerCase().optional().or(z.literal("")),
   employeeCode: z.string().trim().min(1, "Employee code is required."),
   employmentType: employmentTypeSchema,
+  payBasis: payBasisSchema,
+  baseSalary: optionalNonnegativeNumberSchema,
+  normalWorkMinutesPerDay: optionalNonnegativeNumberSchema,
+  targetBreakMinutes: optionalNonnegativeNumberSchema,
   joinedAt: z.string().trim().min(1, "Joined date is required."),
   name: z.string().trim().min(1, "Name is required."),
   password: z.string().optional(),
@@ -963,6 +973,10 @@ function parseTeamMemberForm(formData: FormData, editing: boolean) {
     employeeCode: formData.get("employeeCode"),
     employmentType: formData.get("employmentType"),
     joinedAt: formData.get("joinedAt"),
+    payBasis: formData.get("payBasis"),
+    baseSalary: formData.get("baseSalary"),
+    normalWorkMinutesPerDay: formData.get("normalWorkMinutesPerDay"),
+    targetBreakMinutes: formData.get("targetBreakMinutes"),
     name: formData.get("name"),
     password: String(formData.get("password") ?? ""),
     posAccess:
@@ -1024,6 +1038,10 @@ function buildEmployeeInput(
       | "HOURLY";
     joinedAt: string;
     name: string;
+    payBasis: "MONTHLY" | "DAILY" | "HOURLY";
+    baseSalary: number | null;
+    normalWorkMinutesPerDay: number | null;
+    targetBreakMinutes: number | null;
     primaryBranchId: string;
     whatsappPhone: string;
   },
@@ -1053,6 +1071,10 @@ function buildEmployeeInput(
     employmentType: input.employmentType,
     fullName: input.name,
     joinedAt: input.joinedAt,
+    payBasis: input.payBasis,
+    baseSalary: input.baseSalary,
+    normalWorkMinutesPerDay: input.normalWorkMinutesPerDay,
+    targetBreakMinutes: input.targetBreakMinutes,
     phoneNumber: input.whatsappPhone,
     position: null,
     status,

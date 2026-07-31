@@ -1019,6 +1019,47 @@
   line-height: 1.55;
   margin: 10px 0 20px;
 }
+.staff-break-confirmation {
+  background: #f4faf9;
+  border: 1px solid #cde3df;
+  border-radius: 16px;
+  display: grid;
+  gap: 12px;
+  margin: 0 0 20px;
+  padding: 14px;
+}
+
+.staff-break-confirmation label {
+  display: grid;
+  gap: 7px;
+}
+
+.staff-break-confirmation label > span {
+  color: var(--staff-ink);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.staff-break-confirmation input,
+.staff-break-confirmation textarea {
+  background: #fff;
+  border: 1px solid #bfd7d3;
+  border-radius: 12px;
+  color: var(--staff-ink);
+  font: inherit;
+  padding: 12px;
+  width: 100%;
+}
+
+.staff-break-confirmation textarea {
+  resize: vertical;
+}
+
+.staff-break-confirmation small {
+  color: var(--staff-muted);
+  line-height: 1.45;
+}
+
 
 .staff-page-title {
   padding: 16px 4px 8px;

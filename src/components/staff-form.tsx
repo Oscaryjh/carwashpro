@@ -21,6 +21,10 @@ type StaffFormProps = {
     canClockInBranchIds: string[];
     employeeCode: string;
     employmentType: string;
+    payBasis: "MONTHLY" | "DAILY" | "HOURLY";
+    baseSalary: string | null;
+    normalWorkMinutesPerDay: number | null;
+    targetBreakMinutes: number | null;
     joinedAt: string;
     primaryBranchId: string;
     status: "ACTIVE" | "SUSPENDED" | "TERMINATED";
@@ -174,6 +178,56 @@ export function StaffForm({
                   <option value="DAILY">Daily</option>
                   <option value="HOURLY">Hourly</option>
                 </select>
+              </label>
+              <label>
+                <span>Pay basis</span>
+                <select
+                  defaultValue={employeeProfile?.payBasis ?? "MONTHLY"}
+                  name="payBasis"
+                >
+                  <option value="MONTHLY">Monthly salary</option>
+                  <option value="DAILY">Daily rate</option>
+                  <option value="HOURLY">Hourly rate</option>
+                </select>
+              </label>
+              <label>
+                <span>Base pay (RM)</span>
+                <input
+                  defaultValue={employeeProfile?.baseSalary ?? ""}
+                  inputMode="decimal"
+                  min="0"
+                  name="baseSalary"
+                  placeholder="2000.00"
+                  step="0.01"
+                  type="number"
+                />
+                <small className="form-hint">
+                  Payroll foundation only; statutory deductions are not calculated yet.
+                </small>
+              </label>
+              <label>
+                <span>Paid work minutes / day (optional)</span>
+                <input
+                  defaultValue={employeeProfile?.normalWorkMinutesPerDay ?? ""}
+                  max="1440"
+                  min="60"
+                  name="normalWorkMinutesPerDay"
+                  placeholder="Use branch policy"
+                  step="1"
+                  type="number"
+                />
+              </label>
+              <label>
+                <span>Expected break minutes (optional)</span>
+                <input
+                  defaultValue={employeeProfile?.targetBreakMinutes ?? ""}
+                  max="480"
+                  min="0"
+                  name="targetBreakMinutes"
+                  placeholder="Use branch policy"
+                  step="1"
+                  type="number"
+                />
               </label>
               <label>
                 <span>Joined date</span>

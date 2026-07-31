@@ -172,6 +172,65 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
       "BRANCH_NOT_AUTHORIZED",
     );
 
+    await transaction.branchAttendanceSetting.update({
+      where: { branchId: fixture.branchA.id },
+      data: {
+        breakPolicy: "FLEXIBLE_CONFIRMATION",
+        targetBreakMinutes: 10,
+      },
+    });
+    const flexibleClockIn = await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "CLOCK_IN",
+      input: punchInput(
+        fixture.branchA.id,
+        fixture.deviceIdentifier,
+        "clock-in:flexible-break-001",
+      ),
+      now: new Date(base.getTime() + 9 * 60 * 60_000),
+    });
+    const flexibleClockOut = await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "CLOCK_OUT",
+      input: {
+        ...punchInput(
+          fixture.branchA.id,
+          fixture.deviceIdentifier,
+          "clock-out:flexible-break-001",
+        ),
+        confirmedBreakMinutes: 5,
+        breakExceptionReason: "Appointments ran through the planned break.",
+      },
+      now: new Date(base.getTime() + 9 * 60 * 60_000 + 30 * 60_000),
+    });
+    assert.equal(flexibleClockOut.attendanceSessionId, flexibleClockIn.attendanceSessionId);
+    assert.equal(flexibleClockOut.totalBreakMinutes, 5);
+    assert.equal(flexibleClockOut.totalWorkedMinutes, 25);
+    assert.equal(flexibleClockOut.requiresApproval, true);
+    const missedBreakException = await transaction.attendanceException.findFirst({
+      where: {
+        attendanceSessionId: flexibleClockIn.attendanceSessionId,
+        type: "MISSED_BREAK",
+      },
+      select: {
+        reason: true,
+        status: true,
+      },
+    });
+    assert.deepEqual(missedBreakException, {
+      reason: "Appointments ran through the planned break.",
+      status: "PENDING",
+    });
+    await transaction.branchAttendanceSetting.update({
+      where: { branchId: fixture.branchA.id },
+      data: {
+        breakPolicy: "MANUAL_PUNCH",
+        targetBreakMinutes: 60,
+      },
+    });
+
     const outsideClockIn = await performAttendancePunch({
       database,
       auth: fixture.auth,
@@ -252,10 +311,10 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
     assert.equal(today.status, "OPEN");
     assert.equal(today.currentSession?.requiresApproval, true);
     assert.deepEqual(today.allowedActions, ["BREAK_START", "CLOCK_OUT"]);
-    assert.equal(today.sessionCount, 2);
-    assert.equal(today.completedSessionCount, 1);
-    assert.equal(today.currentWorkedMinutes, 450);
-    assert.equal(today.totalCompletedBreakMinutes, 30);
+    assert.equal(today.sessionCount, 3);
+    assert.equal(today.completedSessionCount, 2);
+    assert.equal(today.currentWorkedMinutes, 475);
+    assert.equal(today.totalCompletedBreakMinutes, 35);
     assert.deepEqual(Object.keys(today.employee).sort(), [
       "employeeCode",
       "fullName",
@@ -301,7 +360,7 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
         businessId: fixture.auth.businessId,
       },
     });
-    assert.equal(punchCount, 5);
+    assert.equal(punchCount, 7);
   });
 });
 

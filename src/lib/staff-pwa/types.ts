@@ -100,6 +100,14 @@ export type AttendanceToday = {
     allowOutsideGeofenceRequest: boolean;
     timezone: string;
   };
+  workPolicy: {
+    breakPolicy:
+      | "MANUAL_PUNCH"
+      | "FLEXIBLE_CONFIRMATION"
+      | "PAID_BREAK";
+    expectedBreakMinutes: number;
+    normalWorkMinutesPerDay: number;
+  };
   allowedActions: AttendanceAction[];
   pendingExceptions: Array<{
     id: string;

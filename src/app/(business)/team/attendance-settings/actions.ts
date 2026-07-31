@@ -43,6 +43,10 @@ export async function saveBranchAttendanceSettingAction(
         requireGeofence: formData.get("requireGeofence") === "on",
         allowOutsideGeofenceRequest:
           formData.get("allowOutsideGeofenceRequest") === "on",
+        breakPolicy: formData.get("breakPolicy"),
+        targetBreakMinutes: formData.get("targetBreakMinutes"),
+        normalWorkMinutesPerDay: formData.get("normalWorkMinutesPerDay"),
+        shiftSpanMinutes: formData.get("shiftSpanMinutes"),
         timezone: formData.get("timezone"),
         isEnabled: formData.get("isEnabled") === "on",
       },

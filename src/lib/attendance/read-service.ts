@@ -288,6 +288,15 @@ export async function getEmployeeAttendanceToday(args: {
           principal.setting.allowOutsideGeofenceRequest,
         timezone: principal.setting.timezone,
       },
+      workPolicy: {
+        breakPolicy: principal.setting.breakPolicy,
+        expectedBreakMinutes:
+          principal.membership.targetBreakMinutes ??
+          principal.setting.targetBreakMinutes,
+        normalWorkMinutesPerDay:
+          principal.membership.normalWorkMinutesPerDay ??
+          principal.setting.normalWorkMinutesPerDay,
+      },
       allowedActions: getAllowedAttendanceActions(activeStatus),
       pendingExceptions: [
         ...(activeSession ? [activeSession] : []),

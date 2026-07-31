@@ -9,6 +9,8 @@ const employeeEmploymentTypeSchema = z.enum([
   "DAILY",
   "HOURLY",
 ]);
+const employeePayBasisSchema = z.enum(["MONTHLY", "DAILY", "HOURLY"]);
+
 
 const employeeStatusSchema = z.enum([
   "ACTIVE",
@@ -55,6 +57,16 @@ const optionalTextSchema = z.preprocess(
   (value) => (typeof value === "string" && value.trim() ? value.trim() : null),
   z.string().max(100).nullable(),
 );
+const optionalMoneySchema = z.preprocess(
+  (value) => (value === "" || value === undefined || value === null ? null : value),
+  z.coerce.number().finite().min(0, "Base salary cannot be negative.").max(100000000).nullable(),
+);
+
+const optionalMinutesSchema = z.preprocess(
+  (value) => (value === "" || value === undefined || value === null ? null : value),
+  z.coerce.number().int().min(0).max(1440).nullable(),
+);
+
 
 export const attendanceEmployeeAssignmentSchema = z.object({
   branchId: z.string().uuid("Branch is invalid."),
@@ -74,6 +86,10 @@ const employeeInputShape = {
     .min(1, "Employee name is required.")
     .max(120, "Employee name cannot exceed 120 characters."),
   phoneNumber: employeePhoneSchema,
+  payBasis: employeePayBasisSchema.default("MONTHLY"),
+  baseSalary: optionalMoneySchema.default(null),
+  normalWorkMinutesPerDay: optionalMinutesSchema.default(null),
+  targetBreakMinutes: optionalMinutesSchema.default(null),
   employmentType: employeeEmploymentTypeSchema.default("FULL_TIME"),
   status: employeeStatusSchema.default("ACTIVE"),
   attendanceEnabled: z.boolean().default(false),

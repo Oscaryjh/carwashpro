@@ -32,12 +32,41 @@ export const branchAttendanceSettingInputSchema = z.object({
   requireGeofence: z.boolean().default(true),
   allowOutsideGeofenceRequest: z.boolean().default(true),
   requirePhoto: z.boolean().default(false),
+  breakPolicy: z
+    .enum(["MANUAL_PUNCH", "FLEXIBLE_CONFIRMATION", "PAID_BREAK"])
+    .default("MANUAL_PUNCH"),
+  targetBreakMinutes: z.coerce
+    .number()
+    .int()
+    .min(0, "Break minutes cannot be negative.")
+    .max(480, "Break minutes cannot exceed 480.")
+    .default(60),
+  normalWorkMinutesPerDay: z.coerce
+    .number()
+    .int()
+    .min(60, "Normal work time must be at least 60 minutes.")
+    .max(1440, "Normal work time cannot exceed 1440 minutes.")
+    .default(480),
+  shiftSpanMinutes: z.coerce
+    .number()
+    .int()
+    .min(60, "Shift span must be at least 60 minutes.")
+    .max(1440, "Shift span cannot exceed 1440 minutes.")
+    .default(540),
   timezone: z
     .string()
     .trim()
     .default(DEFAULT_BUSINESS_TIME_ZONE)
     .refine(isValidIanaTimeZone, "Enter a valid IANA timezone."),
   isEnabled: z.boolean().default(false),
+}).superRefine((value, context) => {
+  if (value.shiftSpanMinutes < value.normalWorkMinutesPerDay) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["shiftSpanMinutes"],
+      message: "Shift span cannot be shorter than paid work time.",
+    });
+  }
 });
 
 export type BranchAttendanceSettingInput = z.infer<

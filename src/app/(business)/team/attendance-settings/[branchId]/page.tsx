@@ -77,6 +77,10 @@ export default async function AttendanceSettingsDetailPage({
           requireGeofence: setting?.requireGeofence ?? true,
           allowOutsideGeofenceRequest:
             setting?.allowOutsideGeofenceRequest ?? true,
+          breakPolicy: setting?.breakPolicy ?? "MANUAL_PUNCH",
+          targetBreakMinutes: setting?.targetBreakMinutes ?? 60,
+          normalWorkMinutesPerDay: setting?.normalWorkMinutesPerDay ?? 480,
+          shiftSpanMinutes: setting?.shiftSpanMinutes ?? 540,
           timezone: setting?.timezone ?? business?.timezone ?? "Asia/Kuching",
           isEnabled: setting?.isEnabled ?? false,
         }}
