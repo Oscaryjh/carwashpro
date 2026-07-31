@@ -1,0 +1,405 @@
+import type { PrismaClient } from "@prisma/client";
+import type { AppSession } from "@/lib/auth/session";
+import { writeAuditLog, type AuditRequestContext } from "@/lib/audit";
+import { calculatePayroll, calculatePayrollTotals } from "@/lib/payroll/calculation";
+import { prisma } from "@/lib/prisma";
+
+export const DEFAULT_PAYROLL_SETTING = {
+  workingDaysPerMonth: 26,
+  normalWorkMinutesPerDay: 480,
+  breakMinutesPerDay: 60,
+  overtimeMultiplier: 1.5,
+  publicHolidayExtraMultiplier: 2,
+} as const;
+
+type PayrollActor = Pick<AppSession, "userId" | "name" | "email">;
+
+type PayrollContext = {
+  businessId: string;
+  actor: PayrollActor;
+  request?: AuditRequestContext;
+};
+
+export function parsePayrollMonth(value: string | undefined) {
+  const normalized = value?.trim() || new Date().toISOString().slice(0, 7);
+  const match = /^(\d{4})-(\d{2})$/.exec(normalized);
+  if (!match) throw new Error("Select a valid payroll month.");
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (year < 2020 || year > 2100 || month < 1 || month > 12) {
+    throw new Error("Select a valid payroll month.");
+  }
+  return {
+    value: normalized,
+    start: new Date(Date.UTC(year, month - 1, 1)),
+    end: new Date(Date.UTC(year, month, 1)),
+  };
+}
+
+export async function generatePayrollRun(
+  context: PayrollContext & { month: string },
+  database: PrismaClient = prisma,
+) {
+  const period = parsePayrollMonth(context.month);
+  return database.$transaction(async (transaction) => {
+    const setting =
+      (await transaction.payrollSetting.findUnique({
+        where: { businessId: context.businessId },
+      })) ?? DEFAULT_PAYROLL_SETTING;
+    const existing = await transaction.payrollRun.findUnique({
+      where: {
+        businessId_periodStart_periodEnd: {
+          businessId: context.businessId,
+          periodStart: period.start,
+          periodEnd: period.end,
+        },
+      },
+      select: { id: true, status: true },
+    });
+    if (existing?.status === "FINALIZED") {
+      throw new Error("This payroll month is finalized and cannot be regenerated.");
+    }
+
+    const [memberships, sessions, holidays] = await Promise.all([
+      transaction.employeeBusinessMembership.findMany({
+        where: {
+          businessId: context.businessId,
+          baseSalary: { not: null },
+          joinedAt: { lt: period.end },
+          OR: [{ terminatedAt: null }, { terminatedAt: { gte: period.start } }],
+        },
+        orderBy: [{ fullName: "asc" }, { employeeCode: "asc" }],
+        select: {
+          id: true,
+          employeeCode: true,
+          fullName: true,
+          payBasis: true,
+          baseSalary: true,
+          normalWorkMinutesPerDay: true,
+        },
+      }),
+      transaction.employeeAttendance.findMany({
+        where: {
+          businessId: context.businessId,
+          workDate: { gte: period.start, lt: period.end },
+          status: "COMPLETED",
+          approvalStatus: { in: ["NOT_REQUIRED", "APPROVED"] },
+        },
+        select: {
+          membershipId: true,
+          branchId: true,
+          workDate: true,
+          totalWorkedMinutes: true,
+          updatedAt: true,
+        },
+      }),
+      transaction.payrollHoliday.findMany({
+        where: {
+          businessId: context.businessId,
+          workDate: { gte: period.start, lt: period.end },
+        },
+        select: { branchId: true, workDate: true },
+      }),
+    ]);
+    const holidayKeys = new Set(
+      holidays.map((holiday) => `${holiday.branchId}:${dateKey(holiday.workDate)}`),
+    );
+    const run = existing
+      ? await transaction.payrollRun.update({
+          where: { id: existing.id },
+          data: {
+            workingDaysPerMonthSnapshot: setting.workingDaysPerMonth,
+            normalWorkMinutesPerDaySnapshot: setting.normalWorkMinutesPerDay,
+            breakMinutesPerDaySnapshot: setting.breakMinutesPerDay,
+            overtimeMultiplierSnapshot: setting.overtimeMultiplier,
+            publicHolidayExtraMultiplierSnapshot:
+              setting.publicHolidayExtraMultiplier,
+          },
+        })
+      : await transaction.payrollRun.create({
+          data: {
+            businessId: context.businessId,
+            periodStart: period.start,
+            periodEnd: period.end,
+            workingDaysPerMonthSnapshot: setting.workingDaysPerMonth,
+            normalWorkMinutesPerDaySnapshot: setting.normalWorkMinutesPerDay,
+            breakMinutesPerDaySnapshot: setting.breakMinutesPerDay,
+            overtimeMultiplierSnapshot: setting.overtimeMultiplier,
+            publicHolidayExtraMultiplierSnapshot:
+              setting.publicHolidayExtraMultiplier,
+            createdById: context.actor.userId,
+          },
+        });
+
+    await transaction.payrollEntry.deleteMany({
+      where: { businessId: context.businessId, payrollRunId: run.id },
+    });
+    for (const membership of memberships) {
+      const memberSessions = sessions.filter(
+        (session) => session.membershipId === membership.id,
+      );
+      const days = aggregateDays(memberSessions, holidayKeys);
+      const calculation = calculatePayroll({
+        payBasis: membership.payBasis,
+        baseRateCents: moneyToCents(membership.baseSalary),
+        workingDaysPerMonth: setting.workingDaysPerMonth,
+        normalWorkMinutesPerDay:
+          membership.normalWorkMinutesPerDay ??
+          setting.normalWorkMinutesPerDay,
+        overtimeMultiplier: Number(setting.overtimeMultiplier),
+        publicHolidayExtraMultiplier: Number(
+          setting.publicHolidayExtraMultiplier,
+        ),
+        days,
+      });
+      await transaction.payrollEntry.create({
+        data: {
+          payrollRunId: run.id,
+          businessId: context.businessId,
+          membershipId: membership.id,
+          employeeCodeSnapshot: membership.employeeCode,
+          fullNameSnapshot: membership.fullName,
+          payBasisSnapshot: membership.payBasis,
+          baseRateSnapshot: centsToMoney(
+            moneyToCents(membership.baseSalary),
+          ),
+          workingDaysSnapshot: setting.workingDaysPerMonth,
+          normalWorkMinutesSnapshot:
+            membership.normalWorkMinutesPerDay ??
+            setting.normalWorkMinutesPerDay,
+          attendanceDays: calculation.attendanceDays,
+          regularMinutes: calculation.regularMinutes,
+          overtimeMinutes: calculation.overtimeMinutes,
+          publicHolidayMinutes: calculation.publicHolidayMinutes,
+          basicPay: centsToMoney(calculation.basicPayCents),
+          overtimePay: centsToMoney(calculation.overtimePayCents),
+          publicHolidayPay: centsToMoney(
+            calculation.publicHolidayPayCents,
+          ),
+          grossPay: centsToMoney(calculation.grossPayCents),
+          netPay: centsToMoney(calculation.grossPayCents),
+          attendanceUpdatedAtSnapshot: latestUpdatedAt(memberSessions),
+        },
+      });
+    }
+    await writeAuditLog(
+      {
+        businessId: context.businessId,
+        actor: context.actor,
+        request: context.request,
+        action: existing ? "PAYROLL_RUN_REGENERATED" : "PAYROLL_RUN_CREATED",
+        entityType: "PayrollRun",
+        entityId: run.id,
+        summary: `${period.value} payroll draft generated for ${memberships.length} employees.`,
+        metadata: { month: period.value, employeeCount: memberships.length },
+      },
+      transaction,
+    );
+    return run;
+  }, { isolationLevel: "Serializable", maxWait: 5_000, timeout: 20_000 });
+}
+
+export async function updatePayrollEntry(
+  context: PayrollContext & {
+    entryId: string;
+    values: PayrollEntryManualValues;
+  },
+  database: PrismaClient = prisma,
+) {
+  return database.$transaction(async (transaction) => {
+    const entry = await transaction.payrollEntry.findFirst({
+      where: { id: context.entryId, businessId: context.businessId },
+      include: { payrollRun: { select: { status: true } } },
+    });
+    if (!entry || entry.payrollRun.status !== "DRAFT") {
+      throw new Error("The editable payroll entry was not found.");
+    }
+    const values = normalizeManualValues(context.values);
+    const totals = calculatePayrollTotals({
+      basicPayCents: moneyToCents(entry.basicPay),
+      overtimePayCents: moneyToCents(entry.overtimePay),
+      publicHolidayPayCents: moneyToCents(entry.publicHolidayPay),
+      allowancesCents: values.allowancesCents,
+      otherDeductionsCents: values.otherDeductionsCents,
+      epfEmployeeCents: values.epfEmployeeCents,
+      socsoEmployeeCents: values.socsoEmployeeCents,
+      eisEmployeeCents: values.eisEmployeeCents,
+      pcbCents: values.pcbCents,
+    });
+    const updated = await transaction.payrollEntry.update({
+      where: { id: entry.id },
+      data: {
+        allowances: centsToMoney(values.allowancesCents),
+        otherDeductions: centsToMoney(values.otherDeductionsCents),
+        epfEmployee: centsToMoney(values.epfEmployeeCents),
+        socsoEmployee: centsToMoney(values.socsoEmployeeCents),
+        eisEmployee: centsToMoney(values.eisEmployeeCents),
+        pcb: centsToMoney(values.pcbCents),
+        employerEpf: centsToMoney(values.employerEpfCents),
+        employerSocso: centsToMoney(values.employerSocsoCents),
+        employerEis: centsToMoney(values.employerEisCents),
+        grossPay: centsToMoney(totals.grossPayCents),
+        netPay: centsToMoney(totals.netPayCents),
+        notes: values.notes || null,
+      },
+    });
+    await writeAuditLog(
+      {
+        businessId: context.businessId,
+        actor: context.actor,
+        request: context.request,
+        action: "PAYROLL_ENTRY_UPDATED",
+        entityType: "PayrollEntry",
+        entityId: entry.id,
+        summary: `Payroll entry updated for ${entry.fullNameSnapshot}.`,
+        before: manualAuditSnapshot(entry),
+        after: manualAuditSnapshot(updated),
+      },
+      transaction,
+    );
+    return updated;
+  }, { isolationLevel: "Serializable" });
+}
+
+export async function finalizePayrollRun(
+  context: PayrollContext & { runId: string },
+  database: PrismaClient = prisma,
+) {
+  return database.$transaction(async (transaction) => {
+    const run = await transaction.payrollRun.findFirst({
+      where: { id: context.runId, businessId: context.businessId },
+      include: { _count: { select: { entries: true } } },
+    });
+    if (!run || run.status !== "DRAFT" || run._count.entries === 0) {
+      throw new Error("The payroll draft is empty or no longer editable.");
+    }
+    const finalized = await transaction.payrollRun.update({
+      where: { id: run.id },
+      data: {
+        status: "FINALIZED",
+        finalizedAt: new Date(),
+        finalizedById: context.actor.userId,
+      },
+    });
+    await writeAuditLog(
+      {
+        businessId: context.businessId,
+        actor: context.actor,
+        request: context.request,
+        action: "PAYROLL_RUN_FINALIZED",
+        entityType: "PayrollRun",
+        entityId: run.id,
+        summary: `Payroll run finalized with ${run._count.entries} entries.`,
+      },
+      transaction,
+    );
+    return finalized;
+  }, { isolationLevel: "Serializable" });
+}
+
+type PayrollEntryManualValues = {
+  allowances: unknown;
+  otherDeductions: unknown;
+  epfEmployee: unknown;
+  socsoEmployee: unknown;
+  eisEmployee: unknown;
+  pcb: unknown;
+  employerEpf: unknown;
+  employerSocso: unknown;
+  employerEis: unknown;
+  notes: unknown;
+};
+
+function normalizeManualValues(input: PayrollEntryManualValues) {
+  return {
+    allowancesCents: parseMoneyInput(input.allowances),
+    otherDeductionsCents: parseMoneyInput(input.otherDeductions),
+    epfEmployeeCents: parseMoneyInput(input.epfEmployee),
+    socsoEmployeeCents: parseMoneyInput(input.socsoEmployee),
+    eisEmployeeCents: parseMoneyInput(input.eisEmployee),
+    pcbCents: parseMoneyInput(input.pcb),
+    employerEpfCents: parseMoneyInput(input.employerEpf),
+    employerSocsoCents: parseMoneyInput(input.employerSocso),
+    employerEisCents: parseMoneyInput(input.employerEis),
+    notes: String(input.notes ?? "").trim().slice(0, 500),
+  };
+}
+
+export function parseMoneyInput(value: unknown) {
+  const text = String(value ?? "").trim() || "0";
+  if (!/^\d{1,10}(?:\.\d{1,2})?$/.test(text)) {
+    throw new Error("Enter a valid non-negative RM amount with up to 2 decimals.");
+  }
+  const [ringgit, sen = ""] = text.split(".");
+  return Number(ringgit) * 100 + Number(sen.padEnd(2, "0"));
+}
+
+function aggregateDays(
+  sessions: Array<{
+    branchId: string;
+    workDate: Date;
+    totalWorkedMinutes: number;
+  }>,
+  holidayKeys: Set<string>,
+) {
+  const days = new Map<string, { minutes: number; publicHoliday: boolean }>();
+  sessions.forEach((session) => {
+    const key = dateKey(session.workDate);
+    const current = days.get(key) ?? { minutes: 0, publicHoliday: false };
+    current.minutes += session.totalWorkedMinutes;
+    current.publicHoliday ||= holidayKeys.has(`${session.branchId}:${key}`);
+    days.set(key, current);
+  });
+  return [...days.values()];
+}
+
+function latestUpdatedAt(sessions: Array<{ updatedAt: Date }>) {
+  return sessions.reduce<Date | null>(
+    (latest, session) =>
+      !latest || session.updatedAt > latest ? session.updatedAt : latest,
+    null,
+  );
+}
+
+function dateKey(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function moneyToCents(value: { toString(): string } | number | null) {
+  if (value === null) return 0;
+  return Math.round(Number(value.toString()) * 100);
+}
+
+function centsToMoney(cents: number) {
+  return (cents / 100).toFixed(2);
+}
+
+function manualAuditSnapshot(entry: {
+  allowances: unknown;
+  otherDeductions: unknown;
+  epfEmployee: unknown;
+  socsoEmployee: unknown;
+  eisEmployee: unknown;
+  pcb: unknown;
+  employerEpf: unknown;
+  employerSocso: unknown;
+  employerEis: unknown;
+  grossPay: unknown;
+  netPay: unknown;
+  notes: string | null;
+}) {
+  return {
+    allowances: String(entry.allowances),
+    otherDeductions: String(entry.otherDeductions),
+    epfEmployee: String(entry.epfEmployee),
+    socsoEmployee: String(entry.socsoEmployee),
+    eisEmployee: String(entry.eisEmployee),
+    pcb: String(entry.pcb),
+    employerEpf: String(entry.employerEpf),
+    employerSocso: String(entry.employerSocso),
+    employerEis: String(entry.employerEis),
+    grossPay: String(entry.grossPay),
+    netPay: String(entry.netPay),
+    notes: entry.notes,
+  };
+}

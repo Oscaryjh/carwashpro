@@ -20,6 +20,7 @@ test("group manager capability policy includes authorized attendance management"
   const attendanceManagementCapabilities = new Set([
     "MODIFY_ATTENDANCE_EMPLOYEES",
     "MODIFY_ATTENDANCE_SETTINGS",
+    "MODIFY_PAYROLL",
   ]);
 
   for (const capability of businessCapabilities) {
@@ -98,6 +99,22 @@ test("direct staff capabilities continue to follow existing permissions", () => 
       ["ATTENDANCE_SETTINGS_MANAGE"],
       "MODIFY_ATTENDANCE_SETTINGS",
     ),
+    true,
+  );
+  assert.equal(
+    canDirectStaff(["PAYROLL_READ"], "VIEW_PAYROLL"),
+    true,
+  );
+  assert.equal(
+    canDirectStaff(["PAYROLL_READ"], "MODIFY_PAYROLL"),
+    false,
+  );
+  assert.equal(
+    canDirectStaff(["PAYROLL_MANAGE"], "VIEW_PAYROLL"),
+    true,
+  );
+  assert.equal(
+    canDirectStaff(["PAYROLL_MANAGE"], "MODIFY_PAYROLL"),
     true,
   );
 });

@@ -1,0 +1,155 @@
+export type PayrollPayBasis = "MONTHLY" | "DAILY" | "HOURLY";
+
+export type PayrollWorkDay = {
+  minutes: number;
+  publicHoliday: boolean;
+};
+
+export type PayrollCalculationInput = {
+  payBasis: PayrollPayBasis;
+  baseRateCents: number;
+  workingDaysPerMonth: number;
+  normalWorkMinutesPerDay: number;
+  overtimeMultiplier: number;
+  publicHolidayExtraMultiplier: number;
+  days: readonly PayrollWorkDay[];
+};
+
+export type PayrollCalculation = {
+  attendanceDays: number;
+  regularMinutes: number;
+  overtimeMinutes: number;
+  publicHolidayMinutes: number;
+  basicPayCents: number;
+  overtimePayCents: number;
+  publicHolidayPayCents: number;
+  grossPayCents: number;
+};
+
+export function calculatePayroll(
+  input: PayrollCalculationInput,
+): PayrollCalculation {
+  assertPositiveInteger(input.baseRateCents, "Base rate", true);
+  assertPositiveInteger(input.workingDaysPerMonth, "Working days");
+  assertPositiveInteger(input.normalWorkMinutesPerDay, "Normal work minutes");
+  assertMultiplier(input.overtimeMultiplier, "Overtime multiplier", 1);
+  assertMultiplier(
+    input.publicHolidayExtraMultiplier,
+    "Public holiday extra multiplier",
+    0,
+  );
+
+  const days = input.days.filter((day) => day.minutes > 0);
+  days.forEach((day) => assertPositiveInteger(day.minutes, "Worked minutes"));
+  const normalDays = days.filter((day) => !day.publicHoliday);
+  const holidayDays = days.filter((day) => day.publicHoliday);
+  const regularMinutes = normalDays.reduce(
+    (sum, day) => sum + Math.min(day.minutes, input.normalWorkMinutesPerDay),
+    0,
+  );
+  const overtimeMinutes = normalDays.reduce(
+    (sum, day) => sum + Math.max(0, day.minutes - input.normalWorkMinutesPerDay),
+    0,
+  );
+  const publicHolidayMinutes = holidayDays.reduce(
+    (sum, day) => sum + day.minutes,
+    0,
+  );
+  const ordinaryDailyRateCents =
+    input.payBasis === "MONTHLY"
+      ? input.baseRateCents / input.workingDaysPerMonth
+      : input.payBasis === "DAILY"
+        ? input.baseRateCents
+        : (input.baseRateCents * input.normalWorkMinutesPerDay) / 60;
+  const hourlyRateCents =
+    ordinaryDailyRateCents / (input.normalWorkMinutesPerDay / 60);
+
+  let basicPayCents: number;
+  let publicHolidayPayCents: number;
+  if (input.payBasis === "MONTHLY") {
+    basicPayCents = input.baseRateCents;
+    publicHolidayPayCents =
+      ordinaryDailyRateCents *
+      input.publicHolidayExtraMultiplier *
+      holidayDays.length;
+  } else if (input.payBasis === "DAILY") {
+    basicPayCents = input.baseRateCents * normalDays.length;
+    publicHolidayPayCents =
+      input.baseRateCents *
+      (1 + input.publicHolidayExtraMultiplier) *
+      holidayDays.length;
+  } else {
+    basicPayCents = (hourlyRateCents * regularMinutes) / 60;
+    publicHolidayPayCents =
+      (hourlyRateCents *
+        publicHolidayMinutes *
+        (1 + input.publicHolidayExtraMultiplier)) /
+      60;
+  }
+
+  const overtimePayCents =
+    (hourlyRateCents * overtimeMinutes * input.overtimeMultiplier) / 60;
+  const roundedBasicPay = roundCents(basicPayCents);
+  const roundedOvertimePay = roundCents(overtimePayCents);
+  const roundedPublicHolidayPay = roundCents(publicHolidayPayCents);
+
+  return {
+    attendanceDays: days.length,
+    regularMinutes,
+    overtimeMinutes,
+    publicHolidayMinutes,
+    basicPayCents: roundedBasicPay,
+    overtimePayCents: roundedOvertimePay,
+    publicHolidayPayCents: roundedPublicHolidayPay,
+    grossPayCents:
+      roundedBasicPay + roundedOvertimePay + roundedPublicHolidayPay,
+  };
+}
+
+export function calculatePayrollTotals(input: {
+  basicPayCents: number;
+  overtimePayCents: number;
+  publicHolidayPayCents: number;
+  allowancesCents: number;
+  otherDeductionsCents: number;
+  epfEmployeeCents: number;
+  socsoEmployeeCents: number;
+  eisEmployeeCents: number;
+  pcbCents: number;
+}) {
+  Object.entries(input).forEach(([label, value]) =>
+    assertPositiveInteger(value, label, true),
+  );
+  const grossPayCents =
+    input.basicPayCents +
+    input.overtimePayCents +
+    input.publicHolidayPayCents +
+    input.allowancesCents;
+  const deductionsCents =
+    input.otherDeductionsCents +
+    input.epfEmployeeCents +
+    input.socsoEmployeeCents +
+    input.eisEmployeeCents +
+    input.pcbCents;
+  return {
+    grossPayCents,
+    deductionsCents,
+    netPayCents: Math.max(0, grossPayCents - deductionsCents),
+  };
+}
+
+function assertPositiveInteger(value: number, label: string, allowZero = false) {
+  if (!Number.isSafeInteger(value) || value < (allowZero ? 0 : 1)) {
+    throw new Error(`${label} must be a safe non-negative amount.`);
+  }
+}
+
+function assertMultiplier(value: number, label: string, minimum: number) {
+  if (!Number.isFinite(value) || value < minimum || value > 10) {
+    throw new Error(`${label} is outside the supported range.`);
+  }
+}
+
+function roundCents(value: number) {
+  return Math.round(value);
+}

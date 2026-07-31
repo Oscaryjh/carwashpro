@@ -106,10 +106,16 @@ enum EmployeeEmploymentType {
   DAILY
   HOURLY
 }
+
 enum EmployeePayBasis {
   MONTHLY
   DAILY
   HOURLY
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  FINALIZED
 }
 
 enum AttendanceBreakPolicy {
@@ -124,7 +130,6 @@ enum AttendanceBreakConfirmationMethod {
   PAID
   NOT_REQUIRED
 }
-
 
 enum EmployeeBranchAssignmentStatus {
   ACTIVE
@@ -459,83 +464,87 @@ enum LoyaltyTransactionType {
 }
 
 model Business {
-  id                String           @id @default(uuid()) @db.Uuid
-  name              String
-  slug              String           @unique
-  industryType      BusinessIndustry @default(AUTO_DETAILING) @map("industry_type")
-  logoUrl           String?          @map("logo_url")
-  companyNo         String?          @map("company_no")
-  phone             String?
-  email             String?
-  address           String?
-  language          BusinessLanguage @default(EN)
-  timezone          String           @default("Asia/Kuching")
-  businessDayCutoffTime String        @default("02:00") @map("business_day_cutoff_time")
-  sstEnabled        Boolean          @default(false) @map("sst_enabled")
-  sstLabel          String           @default("SST") @map("sst_label")
-  sstRate           Decimal          @default(0) @map("sst_rate") @db.Decimal(5, 2)
-  sstRegistrationNo String?          @map("sst_registration_no")
-  status            BusinessStatus   @default(active)
-  createdAt         DateTime         @default(now()) @map("created_at")
-  updatedAt         DateTime         @updatedAt @map("updated_at")
+  id                    String           @id @default(uuid()) @db.Uuid
+  name                  String
+  slug                  String           @unique
+  industryType          BusinessIndustry @default(AUTO_DETAILING) @map("industry_type")
+  logoUrl               String?          @map("logo_url")
+  companyNo             String?          @map("company_no")
+  phone                 String?
+  email                 String?
+  address               String?
+  language              BusinessLanguage @default(EN)
+  timezone              String           @default("Asia/Kuching")
+  businessDayCutoffTime String           @default("02:00") @map("business_day_cutoff_time")
+  sstEnabled            Boolean          @default(false) @map("sst_enabled")
+  sstLabel              String           @default("SST") @map("sst_label")
+  sstRate               Decimal          @default(0) @map("sst_rate") @db.Decimal(5, 2)
+  sstRegistrationNo     String?          @map("sst_registration_no")
+  status                BusinessStatus   @default(active)
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
 
-  users                      User[]
-  customers                  Customer[]
-  vehicles                   Vehicle[]
-  serviceCategories          ServiceCategory[]
-  services                   Service[]
-  productCategories          ProductCategory[]
-  products                   Product[]
-  productStocks              ProductStock[]
-  packageCategories          PackageCategory[]
-  workOrders                 WorkOrder[]
-  workOrderItems             WorkOrderItem[]
-  invoiceItems               InvoiceItem[]
-  creditNoteItems            CreditNoteItem[]
-  payments                   Payment[]
-  paymentRefunds             PaymentRefund[]
-  creditNotes                CreditNote[]
-  cashierShifts              CashierShift[]
-  invoices                   Invoice[]
-  whatsappMessages           WhatsAppMessage[]
-  whatsappConnection         WhatsAppConnection?
-  whatsappConversations      WhatsAppConversation[]
-  whatsappChatMessages       WhatsAppChatMessage[]
-  whatsappContacts           WhatsAppContact[]
-  whatsappWorkerCommands     WhatsAppWorkerCommand[]
-  notificationQueues         NotificationQueue[]
-  packages                   Package[]
-  customerPackages           CustomerPackage[]
-  packageServiceBenefits     PackageServiceBenefit[]
-  customerPackageBalances    CustomerPackageServiceBalance[]
-  vehicleSizeOverrides       BusinessVehicleSizeOverride[]
-  branches                   Branch[]
-  vehicleOwnershipHistories  VehicleOwnershipHistory[]
-  appointments               Appointment[]
-  auditLogs                  AuditLog[]
-  loyaltyProgram             LoyaltyProgram?
-  customerMemberships        CustomerMembership[]
-  loyaltyTransactions        LoyaltyTransaction[]
-  serviceStaffAssignments    ServiceStaffAssignment[]
-  staffAvailabilities        StaffAvailability[]
-  staffBreaks                StaffBreak[]
-  staffTimeOff               StaffTimeOff[]
-  appointmentReminderSetting AppointmentReminderSetting?
-  employeeMemberships        EmployeeBusinessMembership[]
-  employeeBranchAssignments  EmployeeBranchAssignment[]
-  employeeAttendances        EmployeeAttendance[]
-  branchAttendanceSettings   BranchAttendanceSetting[]
-  attendancePunches          AttendancePunch[]
-  attendanceExceptions       AttendanceException[]
-  attendanceAdjustments      AttendanceAdjustment[]
-  employeeSessions           EmployeeSession[]
+  users                         User[]
+  customers                     Customer[]
+  vehicles                      Vehicle[]
+  serviceCategories             ServiceCategory[]
+  services                      Service[]
+  productCategories             ProductCategory[]
+  products                      Product[]
+  productStocks                 ProductStock[]
+  packageCategories             PackageCategory[]
+  workOrders                    WorkOrder[]
+  workOrderItems                WorkOrderItem[]
+  invoiceItems                  InvoiceItem[]
+  creditNoteItems               CreditNoteItem[]
+  payments                      Payment[]
+  paymentRefunds                PaymentRefund[]
+  creditNotes                   CreditNote[]
+  cashierShifts                 CashierShift[]
+  invoices                      Invoice[]
+  whatsappMessages              WhatsAppMessage[]
+  whatsappConnection            WhatsAppConnection?
+  whatsappConversations         WhatsAppConversation[]
+  whatsappChatMessages          WhatsAppChatMessage[]
+  whatsappContacts              WhatsAppContact[]
+  whatsappWorkerCommands        WhatsAppWorkerCommand[]
+  notificationQueues            NotificationQueue[]
+  packages                      Package[]
+  customerPackages              CustomerPackage[]
+  packageServiceBenefits        PackageServiceBenefit[]
+  customerPackageBalances       CustomerPackageServiceBalance[]
+  vehicleSizeOverrides          BusinessVehicleSizeOverride[]
+  branches                      Branch[]
+  vehicleOwnershipHistories     VehicleOwnershipHistory[]
+  appointments                  Appointment[]
+  auditLogs                     AuditLog[]
+  loyaltyProgram                LoyaltyProgram?
+  customerMemberships           CustomerMembership[]
+  loyaltyTransactions           LoyaltyTransaction[]
+  serviceStaffAssignments       ServiceStaffAssignment[]
+  staffAvailabilities           StaffAvailability[]
+  staffBreaks                   StaffBreak[]
+  staffTimeOff                  StaffTimeOff[]
+  appointmentReminderSetting    AppointmentReminderSetting?
+  employeeMemberships           EmployeeBusinessMembership[]
+  payrollSetting                PayrollSetting?
+  payrollHolidays               PayrollHoliday[]
+  payrollRuns                   PayrollRun[]
+  payrollEntries                PayrollEntry[]
+  employeeBranchAssignments     EmployeeBranchAssignment[]
+  employeeAttendances           EmployeeAttendance[]
+  branchAttendanceSettings      BranchAttendanceSetting[]
+  attendancePunches             AttendancePunch[]
+  attendanceExceptions          AttendanceException[]
+  attendanceAdjustments         AttendanceAdjustment[]
+  employeeSessions              EmployeeSession[]
   attendanceIdempotencyRequests AttendanceRequestIdempotency[]
-  catalogDiscounts           CatalogDiscount[]
-  staffRoleProfiles          StaffRoleProfile[]
-  staffLevels                StaffLevel[]
-  analyticsDailySummaries    AnalyticsDailyStoreSummary[]
-  analyticsPaymentSummaries  AnalyticsDailyPaymentMethodSummary[]
-  dailyClosingSnapshots      DailyClosingSnapshot[]
+  catalogDiscounts              CatalogDiscount[]
+  staffRoleProfiles             StaffRoleProfile[]
+  staffLevels                   StaffLevel[]
+  analyticsDailySummaries       AnalyticsDailyStoreSummary[]
+  analyticsPaymentSummaries     AnalyticsDailyPaymentMethodSummary[]
+  dailyClosingSnapshots         DailyClosingSnapshot[]
   closingWhatsAppSetting        ClosingWhatsAppSetting?
   closingWhatsAppBranchSettings ClosingWhatsAppBranchSetting[]
   closingWhatsAppRecipients     ClosingWhatsAppRecipient[]
@@ -559,40 +568,41 @@ model Branch {
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")
 
-  business                  Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  customers                 Customer[]
-  vehicles                  Vehicle[]
-  services                  Service[]
-  productStocks             ProductStock[]
-  packages                  Package[]
-  customerPackages          CustomerPackage[]
-  staffUsers                User[]
-  workOrders                WorkOrder[]
-  payments                  Payment[]
-  paymentRefunds            PaymentRefund[]
-  creditNotes               CreditNote[]
-  cashierShifts             CashierShift[]
-  invoices                  Invoice[]
-  whatsappMessages          WhatsAppMessage[]
-  notificationQueues        NotificationQueue[]
-  vehicleOwnershipHistories VehicleOwnershipHistory[]
-  appointments              Appointment[]
-  auditLogs                 AuditLog[]
-  loyaltyTransactions       LoyaltyTransaction[]
-  employeeBranchAssignments EmployeeBranchAssignment[]
-  employeeAttendances       EmployeeAttendance[]
-  attendanceSetting         BranchAttendanceSetting?
-  attendancePunches         AttendancePunch[]
-  attendanceExceptions      AttendanceException[]
-  attendanceAdjustments     AttendanceAdjustment[]
-  primaryEmployeeSessions   EmployeeSession[]                 @relation("EmployeeSessionPrimaryBranch")
-  attendanceEmployeeSessions EmployeeSession[]                @relation("EmployeeSessionAttendanceBranch")
+  business                      Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customers                     Customer[]
+  vehicles                      Vehicle[]
+  services                      Service[]
+  productStocks                 ProductStock[]
+  packages                      Package[]
+  customerPackages              CustomerPackage[]
+  staffUsers                    User[]
+  workOrders                    WorkOrder[]
+  payments                      Payment[]
+  paymentRefunds                PaymentRefund[]
+  creditNotes                   CreditNote[]
+  cashierShifts                 CashierShift[]
+  invoices                      Invoice[]
+  whatsappMessages              WhatsAppMessage[]
+  notificationQueues            NotificationQueue[]
+  vehicleOwnershipHistories     VehicleOwnershipHistory[]
+  appointments                  Appointment[]
+  auditLogs                     AuditLog[]
+  loyaltyTransactions           LoyaltyTransaction[]
+  employeeBranchAssignments     EmployeeBranchAssignment[]
+  payrollHolidays               PayrollHoliday[]
+  employeeAttendances           EmployeeAttendance[]
+  attendanceSetting             BranchAttendanceSetting?
+  attendancePunches             AttendancePunch[]
+  attendanceExceptions          AttendanceException[]
+  attendanceAdjustments         AttendanceAdjustment[]
+  primaryEmployeeSessions       EmployeeSession[]              @relation("EmployeeSessionPrimaryBranch")
+  attendanceEmployeeSessions    EmployeeSession[]              @relation("EmployeeSessionAttendanceBranch")
   attendanceIdempotencyRequests AttendanceRequestIdempotency[]
-  catalogDiscounts          CatalogDiscount[]
-  dailyClosingSnapshots     DailyClosingSnapshot[]
-  closingWhatsAppSetting    ClosingWhatsAppBranchSetting?
-  closingWhatsAppRecipients ClosingWhatsAppRecipient[]
-  closingWhatsAppSends      ClosingWhatsAppSendAttempt[]
+  catalogDiscounts              CatalogDiscount[]
+  dailyClosingSnapshots         DailyClosingSnapshot[]
+  closingWhatsAppSetting        ClosingWhatsAppBranchSetting?
+  closingWhatsAppRecipients     ClosingWhatsAppRecipient[]
+  closingWhatsAppSends          ClosingWhatsAppSendAttempt[]
 
   @@unique([businessId, name])
   @@index([businessId])
@@ -601,54 +611,57 @@ model Branch {
 }
 
 model User {
-  id                  String     @id @default(uuid()) @db.Uuid
-  businessId          String?    @map("business_id") @db.Uuid
-  branchId            String?    @map("branch_id") @db.Uuid
-  name                String
-  email               String?    @unique
-  whatsappPhone       String?    @map("whatsapp_phone")
-  passwordHash        String?    @map("password_hash")
-  loginEnabled        Boolean    @default(true) @map("login_enabled")
-  appointmentBookable Boolean    @default(false) @map("appointment_bookable")
-  employeeAccountId   String?    @map("employee_account_id") @db.Uuid
-  employeeBusinessMembershipId String? @unique @map("employee_business_membership_id") @db.Uuid
-  teamMemberLinkStatus TeamMemberLinkStatus @default(UNLINKED) @map("team_member_link_status")
-  teamMemberLinkReason String? @map("team_member_link_reason")
-  teamMemberLinkedAt DateTime? @map("team_member_linked_at")
-  staffRoleProfileId  String?    @map("staff_role_profile_id") @db.Uuid
-  staffLevelId        String?    @map("staff_level_id") @db.Uuid
-  role                UserRole
-  permissions         String[]   @default([])
-  status              UserStatus @default(active)
-  createdAt           DateTime   @default(now()) @map("created_at")
-  updatedAt           DateTime   @updatedAt @map("updated_at")
+  id                           String               @id @default(uuid()) @db.Uuid
+  businessId                   String?              @map("business_id") @db.Uuid
+  branchId                     String?              @map("branch_id") @db.Uuid
+  name                         String
+  email                        String?              @unique
+  whatsappPhone                String?              @map("whatsapp_phone")
+  passwordHash                 String?              @map("password_hash")
+  loginEnabled                 Boolean              @default(true) @map("login_enabled")
+  appointmentBookable          Boolean              @default(false) @map("appointment_bookable")
+  employeeAccountId            String?              @map("employee_account_id") @db.Uuid
+  employeeBusinessMembershipId String?              @unique @map("employee_business_membership_id") @db.Uuid
+  teamMemberLinkStatus         TeamMemberLinkStatus @default(UNLINKED) @map("team_member_link_status")
+  teamMemberLinkReason         String?              @map("team_member_link_reason")
+  teamMemberLinkedAt           DateTime?            @map("team_member_linked_at")
+  staffRoleProfileId           String?              @map("staff_role_profile_id") @db.Uuid
+  staffLevelId                 String?              @map("staff_level_id") @db.Uuid
+  role                         UserRole
+  permissions                  String[]             @default([])
+  status                       UserStatus           @default(active)
+  createdAt                    DateTime             @default(now()) @map("created_at")
+  updatedAt                    DateTime             @updatedAt @map("updated_at")
 
-  business                 Business?                @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch                   Branch?                  @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  cashierShifts            CashierShift[]           @relation("CashierShiftCashier")
-  cashierPayments          Payment[]                @relation("PaymentCashier")
-  processedPaymentRefunds  PaymentRefund[]          @relation("PaymentRefundProcessor")
-  createdCreditNotes       CreditNote[]             @relation("CreditNoteCreator")
-  sentWhatsAppMessages     WhatsAppMessage[]        @relation("WhatsAppMessageSender")
-  sentWhatsAppChatMessages WhatsAppChatMessage[]    @relation("WhatsAppChatMessageSender")
-  createdAppointments      Appointment[]            @relation("AppointmentCreatedBy")
-  assignedAppointments     Appointment[]            @relation("AppointmentAssignedStaff")
-  auditLogs                AuditLog[]               @relation("AuditLogActor")
-  loyaltyTransactions      LoyaltyTransaction[]     @relation("LoyaltyTransactionCreator")
-  serviceStaffAssignments  ServiceStaffAssignment[]
-  staffAvailabilities      StaffAvailability[]
-  staffBreaks              StaffBreak[]
-  staffTimeOff             StaffTimeOff[]
-  employeeAccount          EmployeeAccount?         @relation("EmployeeAccountLegacyUsers", fields: [employeeAccountId], references: [id], onDelete: SetNull)
-  employeeBusinessMembership EmployeeBusinessMembership? @relation("EmployeeBusinessMembershipStaffUser", fields: [employeeBusinessMembershipId], references: [id], onDelete: Restrict)
-  staffRoleProfile         StaffRoleProfile?        @relation(fields: [staffRoleProfileId], references: [id], onDelete: SetNull)
-  staffLevel               StaffLevel?              @relation(fields: [staffLevelId], references: [id], onDelete: SetNull)
-  closedDailySnapshots     DailyClosingSnapshot[]  @relation("DailyClosingClosedBy")
-  closingWhatsAppSends     ClosingWhatsAppSendAttempt[] @relation("ClosingWhatsAppRequestedBy")
-  businessGroupUsers       BusinessGroupUser[]
-  businessGroupAuditEntries BusinessGroupAuditLog[]
-  reviewedAttendanceExceptions AttendanceException[] @relation("AttendanceExceptionReviewer")
-  attendanceAdjustments        AttendanceAdjustment[] @relation("AttendanceAdjustmentActor")
+  business                     Business?                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch                       Branch?                      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  cashierShifts                CashierShift[]               @relation("CashierShiftCashier")
+  cashierPayments              Payment[]                    @relation("PaymentCashier")
+  processedPaymentRefunds      PaymentRefund[]              @relation("PaymentRefundProcessor")
+  createdCreditNotes           CreditNote[]                 @relation("CreditNoteCreator")
+  sentWhatsAppMessages         WhatsAppMessage[]            @relation("WhatsAppMessageSender")
+  sentWhatsAppChatMessages     WhatsAppChatMessage[]        @relation("WhatsAppChatMessageSender")
+  createdAppointments          Appointment[]                @relation("AppointmentCreatedBy")
+  assignedAppointments         Appointment[]                @relation("AppointmentAssignedStaff")
+  auditLogs                    AuditLog[]                   @relation("AuditLogActor")
+  loyaltyTransactions          LoyaltyTransaction[]         @relation("LoyaltyTransactionCreator")
+  serviceStaffAssignments      ServiceStaffAssignment[]
+  staffAvailabilities          StaffAvailability[]
+  staffBreaks                  StaffBreak[]
+  staffTimeOff                 StaffTimeOff[]
+  employeeAccount              EmployeeAccount?             @relation("EmployeeAccountLegacyUsers", fields: [employeeAccountId], references: [id], onDelete: SetNull)
+  employeeBusinessMembership   EmployeeBusinessMembership?  @relation("EmployeeBusinessMembershipStaffUser", fields: [employeeBusinessMembershipId], references: [id], onDelete: Restrict)
+  staffRoleProfile             StaffRoleProfile?            @relation(fields: [staffRoleProfileId], references: [id], onDelete: SetNull)
+  staffLevel                   StaffLevel?                  @relation(fields: [staffLevelId], references: [id], onDelete: SetNull)
+  closedDailySnapshots         DailyClosingSnapshot[]       @relation("DailyClosingClosedBy")
+  closingWhatsAppSends         ClosingWhatsAppSendAttempt[] @relation("ClosingWhatsAppRequestedBy")
+  businessGroupUsers           BusinessGroupUser[]
+  businessGroupAuditEntries    BusinessGroupAuditLog[]
+  reviewedAttendanceExceptions AttendanceException[]        @relation("AttendanceExceptionReviewer")
+  attendanceAdjustments        AttendanceAdjustment[]       @relation("AttendanceAdjustmentActor")
+
+  payrollRunsCreated   PayrollRun[] @relation("PayrollRunCreatedBy")
+  payrollRunsFinalized PayrollRun[] @relation("PayrollRunFinalizedBy")
 
   @@index([businessId])
   @@index([branchId])
@@ -680,14 +693,14 @@ model BusinessGroup {
 // Membership history is retained. A database partial unique index ensures a
 // business can have only one ACTIVE membership across all groups.
 model BusinessGroupMember {
-  id        String                    @id @default(uuid()) @db.Uuid
-  groupId   String                    @map("group_id") @db.Uuid
-  businessId String                   @map("business_id") @db.Uuid
-  status    BusinessGroupMemberStatus @default(ACTIVE)
-  joinedAt  DateTime                  @default(now()) @map("joined_at")
-  removedAt DateTime?                 @map("removed_at")
-  createdAt DateTime                  @default(now()) @map("created_at")
-  updatedAt DateTime                  @updatedAt @map("updated_at")
+  id         String                    @id @default(uuid()) @db.Uuid
+  groupId    String                    @map("group_id") @db.Uuid
+  businessId String                    @map("business_id") @db.Uuid
+  status     BusinessGroupMemberStatus @default(ACTIVE)
+  joinedAt   DateTime                  @default(now()) @map("joined_at")
+  removedAt  DateTime?                 @map("removed_at")
+  createdAt  DateTime                  @default(now()) @map("created_at")
+  updatedAt  DateTime                  @updatedAt @map("updated_at")
 
   group    BusinessGroup @relation(fields: [groupId], references: [id], onDelete: Restrict)
   business Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
@@ -712,8 +725,8 @@ model BusinessGroupUser {
   createdAt   DateTime                 @default(now()) @map("created_at")
   updatedAt   DateTime                 @updatedAt @map("updated_at")
 
-  group            BusinessGroup                      @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  user             User                               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  group            BusinessGroup                     @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  user             User                              @relation(fields: [userId], references: [id], onDelete: Restrict)
   businessAccesses BusinessGroupUserBusinessAccess[]
 
   @@index([groupId, status])
@@ -724,10 +737,10 @@ model BusinessGroupUser {
 // GROUP_MANAGER can be limited to selected businesses. GROUP_OWNER uses the
 // ALL_GROUP_BUSINESSES scope and does not need rows here.
 model BusinessGroupUserBusinessAccess {
-  id          String            @id @default(uuid()) @db.Uuid
-  groupUserId String            @map("group_user_id") @db.Uuid
-  businessId  String            @map("business_id") @db.Uuid
-  createdAt   DateTime          @default(now()) @map("created_at")
+  id          String   @id @default(uuid()) @db.Uuid
+  groupUserId String   @map("group_user_id") @db.Uuid
+  businessId  String   @map("business_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
 
   groupUser BusinessGroupUser @relation(fields: [groupUserId], references: [id], onDelete: Cascade)
   business  Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
@@ -815,9 +828,9 @@ model EmployeeAccount {
   createdAt       DateTime              @default(now()) @map("created_at")
   updatedAt       DateTime              @updatedAt @map("updated_at")
 
-  legacyUsers User[]                       @relation("EmployeeAccountLegacyUsers")
-  memberships EmployeeBusinessMembership[]
-  attendances EmployeeAttendance[]
+  legacyUsers   User[]                       @relation("EmployeeAccountLegacyUsers")
+  memberships   EmployeeBusinessMembership[]
+  attendances   EmployeeAttendance[]
   otpChallenges EmployeeOtpChallenge[]
   devices       EmployeeDevice[]
   sessions      EmployeeSession[]
@@ -869,7 +882,7 @@ model EmployeeDevice {
   createdAt            DateTime             @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("created_at")
   updatedAt            DateTime             @updatedAt @map("updated_at")
 
-  employeeAccount EmployeeAccount  @relation(fields: [employeeAccountId], references: [id], onDelete: Restrict)
+  employeeAccount EmployeeAccount   @relation(fields: [employeeAccountId], references: [id], onDelete: Restrict)
   sessions        EmployeeSession[]
 
   @@unique([employeeAccountId, deviceIdentifierHash], map: "employee_devices_account_identifier_key")
@@ -878,28 +891,28 @@ model EmployeeDevice {
 }
 
 model EmployeeSession {
-  id                String    @id @default(uuid()) @db.Uuid
-  employeeAccountId String    @map("employee_account_id") @db.Uuid
-  membershipId      String    @map("membership_id") @db.Uuid
-  businessId        String    @map("business_id") @db.Uuid
-  primaryBranchId   String    @map("primary_branch_id") @db.Uuid
-  attendanceBranchId String?  @map("attendance_branch_id") @db.Uuid
-  employeeDeviceId  String?   @map("employee_device_id") @db.Uuid
-  refreshTokenHash  String    @unique @map("refresh_token_hash")
-  expiresAt         DateTime  @map("expires_at")
-  lastActiveAt      DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("last_active_at")
-  revokedAt         DateTime? @map("revoked_at")
-  revokeReason      String?   @map("revoke_reason")
-  ipAddressHash     String?   @map("ip_address_hash")
-  userAgent         String?   @map("user_agent")
-  createdAt         DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("created_at")
+  id                 String    @id @default(uuid()) @db.Uuid
+  employeeAccountId  String    @map("employee_account_id") @db.Uuid
+  membershipId       String    @map("membership_id") @db.Uuid
+  businessId         String    @map("business_id") @db.Uuid
+  primaryBranchId    String    @map("primary_branch_id") @db.Uuid
+  attendanceBranchId String?   @map("attendance_branch_id") @db.Uuid
+  employeeDeviceId   String?   @map("employee_device_id") @db.Uuid
+  refreshTokenHash   String    @unique @map("refresh_token_hash")
+  expiresAt          DateTime  @map("expires_at")
+  lastActiveAt       DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("last_active_at")
+  revokedAt          DateTime? @map("revoked_at")
+  revokeReason       String?   @map("revoke_reason")
+  ipAddressHash      String?   @map("ip_address_hash")
+  userAgent          String?   @map("user_agent")
+  createdAt          DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("created_at")
 
-  employeeAccount     EmployeeAccount            @relation(fields: [employeeAccountId], references: [id], onDelete: Restrict)
-  membership          EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
-  business            Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  primaryBranch       Branch                     @relation("EmployeeSessionPrimaryBranch", fields: [primaryBranchId], references: [id], onDelete: Restrict)
-  attendanceBranch    Branch?                    @relation("EmployeeSessionAttendanceBranch", fields: [attendanceBranchId], references: [id], onDelete: Restrict)
-  employeeDevice      EmployeeDevice?            @relation(fields: [employeeDeviceId], references: [id], onDelete: Restrict)
+  employeeAccount     EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Restrict)
+  membership          EmployeeBusinessMembership     @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  business            Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  primaryBranch       Branch                         @relation("EmployeeSessionPrimaryBranch", fields: [primaryBranchId], references: [id], onDelete: Restrict)
+  attendanceBranch    Branch?                        @relation("EmployeeSessionAttendanceBranch", fields: [attendanceBranchId], references: [id], onDelete: Restrict)
+  employeeDevice      EmployeeDevice?                @relation(fields: [employeeDeviceId], references: [id], onDelete: Restrict)
   idempotencyRequests AttendanceRequestIdempotency[]
 
   @@index([employeeAccountId, revokedAt, expiresAt], map: "employee_sessions_account_active_idx")
@@ -911,36 +924,37 @@ model EmployeeSession {
 }
 
 model EmployeeBusinessMembership {
-  id                    String                   @id @default(uuid()) @db.Uuid
-  employeeAccountId     String                   @map("employee_account_id") @db.Uuid
-  businessId            String                   @map("business_id") @db.Uuid
-  employeeCode          String                   @map("employee_code")
-  fullName              String                   @map("full_name")
-  phoneNumber           String                   @map("phone_number")
-  phoneNumberNormalized String                   @map("phone_number_normalized")
-  employmentType        EmployeeEmploymentType   @default(FULL_TIME) @map("employment_type")
-  status                EmployeeMembershipStatus @default(ACTIVE)
-  attendanceEnabled     Boolean                  @default(false) @map("attendance_enabled")
-  payBasis              EmployeePayBasis         @default(MONTHLY) @map("pay_basis")
-  baseSalary            Decimal?                 @map("base_salary") @db.Decimal(12, 2)
-  normalWorkMinutesPerDay Int?                   @map("normal_work_minutes_per_day")
-  targetBreakMinutes    Int?                     @map("target_break_minutes")
-  joinedAt              DateTime                 @default(now()) @map("joined_at")
-  terminatedAt          DateTime?                @map("terminated_at")
-  position              String?
-  createdAt             DateTime                 @default(now()) @map("created_at")
-  updatedAt             DateTime                 @updatedAt @map("updated_at")
+  id                      String                   @id @default(uuid()) @db.Uuid
+  employeeAccountId       String                   @map("employee_account_id") @db.Uuid
+  businessId              String                   @map("business_id") @db.Uuid
+  employeeCode            String                   @map("employee_code")
+  fullName                String                   @map("full_name")
+  phoneNumber             String                   @map("phone_number")
+  phoneNumberNormalized   String                   @map("phone_number_normalized")
+  employmentType          EmployeeEmploymentType   @default(FULL_TIME) @map("employment_type")
+  status                  EmployeeMembershipStatus @default(ACTIVE)
+  attendanceEnabled       Boolean                  @default(false) @map("attendance_enabled")
+  payBasis                EmployeePayBasis         @default(MONTHLY) @map("pay_basis")
+  baseSalary              Decimal?                 @map("base_salary") @db.Decimal(12, 2)
+  normalWorkMinutesPerDay Int?                     @map("normal_work_minutes_per_day")
+  targetBreakMinutes      Int?                     @map("target_break_minutes")
+  joinedAt                DateTime                 @default(now()) @map("joined_at")
+  terminatedAt            DateTime?                @map("terminated_at")
+  position                String?
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
 
-  employeeAccount   EmployeeAccount            @relation(fields: [employeeAccountId], references: [id], onDelete: Cascade)
-  business          Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  branchAssignments EmployeeBranchAssignment[]
-  attendances       EmployeeAttendance[]
-  punches           AttendancePunch[]
-  exceptions        AttendanceException[]
-  adjustments       AttendanceAdjustment[]
-  employeeSessions  EmployeeSession[]
+  employeeAccount     EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Cascade)
+  business            Business                       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchAssignments   EmployeeBranchAssignment[]
+  attendances         EmployeeAttendance[]
+  punches             AttendancePunch[]
+  exceptions          AttendanceException[]
+  adjustments         AttendanceAdjustment[]
+  employeeSessions    EmployeeSession[]
+  payrollEntries      PayrollEntry[]
   idempotencyRequests AttendanceRequestIdempotency[]
-  staffUser         User?                      @relation("EmployeeBusinessMembershipStaffUser")
+  staffUser           User?                          @relation("EmployeeBusinessMembershipStaffUser")
 
   @@unique([employeeAccountId, businessId])
   @@unique([businessId, employeeCode])
@@ -975,38 +989,38 @@ model EmployeeBranchAssignment {
 }
 
 model EmployeeAttendance {
-  id                String                   @id @default(uuid()) @db.Uuid
-  employeeAccountId String                   @map("employee_account_id") @db.Uuid
-  membershipId      String                   @map("membership_id") @db.Uuid
-  businessId        String                   @map("business_id") @db.Uuid
-  branchId          String                   @map("branch_id") @db.Uuid
-  workDate          DateTime                 @map("work_date") @db.Date
-  clockInPunchId    String?                  @unique @map("clock_in_punch_id") @db.Uuid
-  clockOutPunchId   String?                  @unique @map("clock_out_punch_id") @db.Uuid
-  status            EmployeeAttendanceStatus @default(OPEN)
-  clockInAt         DateTime                 @default(now()) @map("clock_in_at")
-  clockOutAt        DateTime?                @map("clock_out_at")
-  totalBreakMinutes Int                      @default(0) @map("total_break_minutes")
-  totalWorkedMinutes Int                     @default(0) @map("total_worked_minutes")
-  breakPolicySnapshot AttendanceBreakPolicy  @default(MANUAL_PUNCH) @map("break_policy_snapshot")
-  expectedBreakMinutes Int                   @default(0) @map("expected_break_minutes")
-  confirmedBreakMinutes Int?                 @map("confirmed_break_minutes")
+  id                      String                            @id @default(uuid()) @db.Uuid
+  employeeAccountId       String                            @map("employee_account_id") @db.Uuid
+  membershipId            String                            @map("membership_id") @db.Uuid
+  businessId              String                            @map("business_id") @db.Uuid
+  branchId                String                            @map("branch_id") @db.Uuid
+  workDate                DateTime                          @map("work_date") @db.Date
+  clockInPunchId          String?                           @unique @map("clock_in_punch_id") @db.Uuid
+  clockOutPunchId         String?                           @unique @map("clock_out_punch_id") @db.Uuid
+  status                  EmployeeAttendanceStatus          @default(OPEN)
+  clockInAt               DateTime                          @default(now()) @map("clock_in_at")
+  clockOutAt              DateTime?                         @map("clock_out_at")
+  totalBreakMinutes       Int                               @default(0) @map("total_break_minutes")
+  totalWorkedMinutes      Int                               @default(0) @map("total_worked_minutes")
+  breakPolicySnapshot     AttendanceBreakPolicy             @default(MANUAL_PUNCH) @map("break_policy_snapshot")
+  expectedBreakMinutes    Int                               @default(0) @map("expected_break_minutes")
+  confirmedBreakMinutes   Int?                              @map("confirmed_break_minutes")
   breakConfirmationMethod AttendanceBreakConfirmationMethod @default(NOT_REQUIRED) @map("break_confirmation_method")
-  breakConfirmedAt    DateTime?               @map("break_confirmed_at")
-  requiresApproval  Boolean                  @default(false) @map("requires_approval")
-  approvalStatus    AttendanceApprovalStatus @default(NOT_REQUIRED) @map("approval_status")
-  createdAt         DateTime                 @default(now()) @map("created_at")
-  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  breakConfirmedAt        DateTime?                         @map("break_confirmed_at")
+  requiresApproval        Boolean                           @default(false) @map("requires_approval")
+  approvalStatus          AttendanceApprovalStatus          @default(NOT_REQUIRED) @map("approval_status")
+  createdAt               DateTime                          @default(now()) @map("created_at")
+  updatedAt               DateTime                          @updatedAt @map("updated_at")
 
-  employeeAccount EmployeeAccount            @relation(fields: [employeeAccountId], references: [id], onDelete: Restrict)
-  membership      EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
-  business        Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch          Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  punches         AttendancePunch[]          @relation("AttendanceSessionPunches")
-  clockInPunch    AttendancePunch?           @relation("AttendanceSessionClockIn", fields: [clockInPunchId], references: [id], onDelete: Restrict)
-  clockOutPunch   AttendancePunch?           @relation("AttendanceSessionClockOut", fields: [clockOutPunchId], references: [id], onDelete: Restrict)
-  exceptions      AttendanceException[]
-  adjustments     AttendanceAdjustment[]
+  employeeAccount     EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Restrict)
+  membership          EmployeeBusinessMembership     @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  business            Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch              Branch                         @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  punches             AttendancePunch[]              @relation("AttendanceSessionPunches")
+  clockInPunch        AttendancePunch?               @relation("AttendanceSessionClockIn", fields: [clockInPunchId], references: [id], onDelete: Restrict)
+  clockOutPunch       AttendancePunch?               @relation("AttendanceSessionClockOut", fields: [clockOutPunchId], references: [id], onDelete: Restrict)
+  exceptions          AttendanceException[]
+  adjustments         AttendanceAdjustment[]
   idempotencyRequests AttendanceRequestIdempotency[]
 
   @@index([businessId, branchId, workDate])
@@ -1017,24 +1031,24 @@ model EmployeeAttendance {
 }
 
 model BranchAttendanceSetting {
-  id                          String   @id @default(uuid()) @db.Uuid
-  businessId                  String   @map("business_id") @db.Uuid
-  branchId                    String   @unique @map("branch_id") @db.Uuid
-  latitude                    Decimal  @db.Decimal(9, 6)
-  longitude                   Decimal  @db.Decimal(10, 6)
-  geofenceRadiusMeters        Int      @default(100) @map("geofence_radius_meters")
-  minimumAccuracyMeters       Int      @default(80) @map("minimum_accuracy_meters")
-  requireGeofence             Boolean  @default(true) @map("require_geofence")
-  allowOutsideGeofenceRequest Boolean  @default(true) @map("allow_outside_geofence_request")
-  requirePhoto                Boolean  @default(false) @map("require_photo")
+  id                          String                @id @default(uuid()) @db.Uuid
+  businessId                  String                @map("business_id") @db.Uuid
+  branchId                    String                @unique @map("branch_id") @db.Uuid
+  latitude                    Decimal               @db.Decimal(9, 6)
+  longitude                   Decimal               @db.Decimal(10, 6)
+  geofenceRadiusMeters        Int                   @default(100) @map("geofence_radius_meters")
+  minimumAccuracyMeters       Int                   @default(80) @map("minimum_accuracy_meters")
+  requireGeofence             Boolean               @default(true) @map("require_geofence")
+  allowOutsideGeofenceRequest Boolean               @default(true) @map("allow_outside_geofence_request")
+  requirePhoto                Boolean               @default(false) @map("require_photo")
   breakPolicy                 AttendanceBreakPolicy @default(MANUAL_PUNCH) @map("break_policy")
-  targetBreakMinutes          Int      @default(60) @map("target_break_minutes")
-  normalWorkMinutesPerDay     Int      @default(480) @map("normal_work_minutes_per_day")
-  shiftSpanMinutes            Int      @default(540) @map("shift_span_minutes")
-  timezone                    String   @default("Asia/Kuching")
-  isEnabled                   Boolean  @default(false) @map("is_enabled")
-  createdAt                   DateTime @default(now()) @map("created_at")
-  updatedAt                   DateTime @updatedAt @map("updated_at")
+  targetBreakMinutes          Int                   @default(60) @map("target_break_minutes")
+  normalWorkMinutesPerDay     Int                   @default(480) @map("normal_work_minutes_per_day")
+  shiftSpanMinutes            Int                   @default(540) @map("shift_span_minutes")
+  timezone                    String                @default("Asia/Kuching")
+  isEnabled                   Boolean               @default(false) @map("is_enabled")
+  createdAt                   DateTime              @default(now()) @map("created_at")
+  updatedAt                   DateTime              @updatedAt @map("updated_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
   branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
@@ -1063,12 +1077,12 @@ model AttendancePunch {
   ipAddress                String?                  @map("ip_address")
   createdAt                DateTime                 @default(now()) @map("created_at")
 
-  business           Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch             Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  employee           EmployeeBusinessMembership @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  attendanceSession  EmployeeAttendance?        @relation("AttendanceSessionPunches", fields: [attendanceSessionId], references: [id], onDelete: Restrict)
-  clockInForSession  EmployeeAttendance?        @relation("AttendanceSessionClockIn")
-  clockOutForSession EmployeeAttendance?        @relation("AttendanceSessionClockOut")
+  business           Business                      @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch             Branch                        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  employee           EmployeeBusinessMembership    @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  attendanceSession  EmployeeAttendance?           @relation("AttendanceSessionPunches", fields: [attendanceSessionId], references: [id], onDelete: Restrict)
+  clockInForSession  EmployeeAttendance?           @relation("AttendanceSessionClockIn")
+  clockOutForSession EmployeeAttendance?           @relation("AttendanceSessionClockOut")
   exceptions         AttendanceException[]
   idempotencyRequest AttendanceRequestIdempotency?
 
@@ -1199,6 +1213,110 @@ model Customer {
   @@index([businessId])
   @@index([branchId])
   @@map("customers")
+}
+
+model PayrollSetting {
+  id                           String   @id @default(uuid()) @db.Uuid
+  businessId                   String   @unique @map("business_id") @db.Uuid
+  workingDaysPerMonth          Int      @default(26) @map("working_days_per_month")
+  normalWorkMinutesPerDay      Int      @default(480) @map("normal_work_minutes_per_day")
+  breakMinutesPerDay           Int      @default(60) @map("break_minutes_per_day")
+  overtimeMultiplier           Decimal  @default(1.50) @map("overtime_multiplier") @db.Decimal(5, 2)
+  publicHolidayExtraMultiplier Decimal  @default(2.00) @map("public_holiday_extra_multiplier") @db.Decimal(5, 2)
+  stateCode                    String?  @map("state_code")
+  createdAt                    DateTime @default(now()) @map("created_at")
+  updatedAt                    DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@map("payroll_settings")
+}
+
+model PayrollHoliday {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  branchId   String   @map("branch_id") @db.Uuid
+  workDate   DateTime @map("work_date") @db.Date
+  name       String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@unique([branchId, workDate])
+  @@index([businessId, workDate])
+  @@map("payroll_holidays")
+}
+
+model PayrollRun {
+  id                                   String           @id @default(uuid()) @db.Uuid
+  businessId                           String           @map("business_id") @db.Uuid
+  periodStart                          DateTime         @map("period_start") @db.Date
+  periodEnd                            DateTime         @map("period_end") @db.Date
+  status                               PayrollRunStatus @default(DRAFT)
+  workingDaysPerMonthSnapshot          Int              @map("working_days_per_month_snapshot")
+  normalWorkMinutesPerDaySnapshot      Int              @map("normal_work_minutes_per_day_snapshot")
+  breakMinutesPerDaySnapshot           Int              @map("break_minutes_per_day_snapshot")
+  overtimeMultiplierSnapshot           Decimal          @map("overtime_multiplier_snapshot") @db.Decimal(5, 2)
+  publicHolidayExtraMultiplierSnapshot Decimal          @map("public_holiday_extra_multiplier_snapshot") @db.Decimal(5, 2)
+  createdById                          String?          @map("created_by_id") @db.Uuid
+  finalizedById                        String?          @map("finalized_by_id") @db.Uuid
+  finalizedAt                          DateTime?        @map("finalized_at")
+  createdAt                            DateTime         @default(now()) @map("created_at")
+  updatedAt                            DateTime         @updatedAt @map("updated_at")
+
+  business    Business       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  createdBy   User?          @relation("PayrollRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  finalizedBy User?          @relation("PayrollRunFinalizedBy", fields: [finalizedById], references: [id], onDelete: SetNull)
+  entries     PayrollEntry[]
+
+  @@unique([businessId, periodStart, periodEnd])
+  @@index([businessId, status, periodStart])
+  @@map("payroll_runs")
+}
+
+model PayrollEntry {
+  id                          String           @id @default(uuid()) @db.Uuid
+  payrollRunId                String           @map("payroll_run_id") @db.Uuid
+  businessId                  String           @map("business_id") @db.Uuid
+  membershipId                String           @map("membership_id") @db.Uuid
+  employeeCodeSnapshot        String           @map("employee_code_snapshot")
+  fullNameSnapshot            String           @map("full_name_snapshot")
+  payBasisSnapshot            EmployeePayBasis @map("pay_basis_snapshot")
+  baseRateSnapshot            Decimal          @map("base_rate_snapshot") @db.Decimal(12, 2)
+  workingDaysSnapshot         Int              @map("working_days_snapshot")
+  normalWorkMinutesSnapshot   Int              @map("normal_work_minutes_snapshot")
+  attendanceDays              Int              @default(0) @map("attendance_days")
+  regularMinutes              Int              @default(0) @map("regular_minutes")
+  overtimeMinutes             Int              @default(0) @map("overtime_minutes")
+  publicHolidayMinutes        Int              @default(0) @map("public_holiday_minutes")
+  basicPay                    Decimal          @default(0) @map("basic_pay") @db.Decimal(12, 2)
+  overtimePay                 Decimal          @default(0) @map("overtime_pay") @db.Decimal(12, 2)
+  publicHolidayPay            Decimal          @default(0) @map("public_holiday_pay") @db.Decimal(12, 2)
+  allowances                  Decimal          @default(0) @db.Decimal(12, 2)
+  otherDeductions             Decimal          @default(0) @map("other_deductions") @db.Decimal(12, 2)
+  epfEmployee                 Decimal          @default(0) @map("epf_employee") @db.Decimal(12, 2)
+  socsoEmployee               Decimal          @default(0) @map("socso_employee") @db.Decimal(12, 2)
+  eisEmployee                 Decimal          @default(0) @map("eis_employee") @db.Decimal(12, 2)
+  pcb                         Decimal          @default(0) @db.Decimal(12, 2)
+  employerEpf                 Decimal          @default(0) @map("employer_epf") @db.Decimal(12, 2)
+  employerSocso               Decimal          @default(0) @map("employer_socso") @db.Decimal(12, 2)
+  employerEis                 Decimal          @default(0) @map("employer_eis") @db.Decimal(12, 2)
+  grossPay                    Decimal          @default(0) @map("gross_pay") @db.Decimal(12, 2)
+  netPay                      Decimal          @default(0) @map("net_pay") @db.Decimal(12, 2)
+  notes                       String?
+  attendanceUpdatedAtSnapshot DateTime?        @map("attendance_updated_at_snapshot")
+  createdAt                   DateTime         @default(now()) @map("created_at")
+  updatedAt                   DateTime         @updatedAt @map("updated_at")
+
+  payrollRun PayrollRun                 @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+  business   Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  membership EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+
+  @@unique([payrollRunId, membershipId])
+  @@index([businessId, membershipId])
+  @@map("payroll_entries")
 }
 
 model Vehicle {
@@ -2032,11 +2150,11 @@ model DailyClosingSnapshot {
   createdAt           DateTime           @default(now()) @map("created_at")
   updatedAt           DateTime           @updatedAt @map("updated_at")
 
-  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  closedBy User     @relation("DailyClosingClosedBy", fields: [closedByUserId], references: [id], onDelete: Restrict)
-  whatsappMessages WhatsAppMessage[]
-  notificationQueues NotificationQueue[]
+  business             Business                     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch               Branch                       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  closedBy             User                         @relation("DailyClosingClosedBy", fields: [closedByUserId], references: [id], onDelete: Restrict)
+  whatsappMessages     WhatsAppMessage[]
+  notificationQueues   NotificationQueue[]
   closingWhatsAppSends ClosingWhatsAppSendAttempt[]
 
   @@unique([businessId, branchId, businessDate])
@@ -2045,7 +2163,6 @@ model DailyClosingSnapshot {
   @@index([closedByUserId])
   @@map("daily_closing_snapshots")
 }
-
 
 model AnalyticsRefreshRun {
   id                           String                  @id @default(uuid()) @db.Uuid
@@ -2072,17 +2189,17 @@ model AnalyticsRefreshRun {
 }
 
 model AnalyticsRefreshCheckpoint {
-  key                  String   @id
-  processedThrough     DateTime @map("processed_through")
-  leaseOwner           String?  @map("lease_owner")
+  key                  String    @id
+  processedThrough     DateTime  @map("processed_through")
+  leaseOwner           String?   @map("lease_owner")
   leaseExpiresAt       DateTime? @map("lease_expires_at")
   lastSweepStartedAt   DateTime? @map("last_sweep_started_at")
   lastSweepCompletedAt DateTime? @map("last_sweep_completed_at")
   lastCoverageAt       DateTime? @map("last_coverage_at")
-  lastRunCount         Int      @default(0) @map("last_run_count")
-  lastErrorMessage     String?  @map("last_error_message") @db.Text
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
+  lastRunCount         Int       @default(0) @map("last_run_count")
+  lastErrorMessage     String?   @map("last_error_message") @db.Text
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   @@index([leaseExpiresAt], map: "analytics_refresh_checkpoints_lease_expires_idx")
   @@map("analytics_refresh_checkpoints")
@@ -2115,8 +2232,8 @@ model AnalyticsDailyStoreSummary {
   createdAt                    DateTime  @default(now()) @map("created_at")
   updatedAt                    DateTime  @updatedAt @map("updated_at")
 
-  business       Business                              @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  refreshRun     AnalyticsRefreshRun?                  @relation(fields: [refreshRunId], references: [id], onDelete: SetNull)
+  business       Business                             @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  refreshRun     AnalyticsRefreshRun?                 @relation(fields: [refreshRunId], references: [id], onDelete: SetNull)
   paymentMethods AnalyticsDailyPaymentMethodSummary[]
 
   @@unique([businessId, businessDate, metricDefinitionVersion, businessDayDefinitionVersion], map: "analytics_daily_store_summary_version_key")
@@ -2146,16 +2263,17 @@ model AnalyticsDailyPaymentMethodSummary {
   @@index([businessId, businessDate, method], map: "analytics_daily_payment_business_date_method_idx")
   @@map("analytics_daily_payment_method_summaries")
 }
+
 model ClosingWhatsAppSetting {
-  id                   String   @id @default(uuid()) @db.Uuid
-  businessId           String   @unique @map("business_id") @db.Uuid
-  enabled              Boolean  @default(false)
-  sendClosingReport    Boolean  @default(true) @map("send_closing_report")
-  sendUnclosedReminder Boolean  @default(true) @map("send_unclosed_reminder")
-  deadlineTime         String   @default("22:30") @map("deadline_time")
-  businessDayCutoffTime String  @default("02:00") @map("business_day_cutoff_time")
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
+  id                    String   @id @default(uuid()) @db.Uuid
+  businessId            String   @unique @map("business_id") @db.Uuid
+  enabled               Boolean  @default(false)
+  sendClosingReport     Boolean  @default(true) @map("send_closing_report")
+  sendUnclosedReminder  Boolean  @default(true) @map("send_unclosed_reminder")
+  deadlineTime          String   @default("22:30") @map("deadline_time")
+  businessDayCutoffTime String   @default("02:00") @map("business_day_cutoff_time")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
 
@@ -2163,13 +2281,13 @@ model ClosingWhatsAppSetting {
 }
 
 model ClosingWhatsAppBranchSetting {
-  id                        String   @id @default(uuid()) @db.Uuid
-  businessId                String   @map("business_id") @db.Uuid
-  branchId                  String   @unique @map("branch_id") @db.Uuid
-  useBusinessRecipients     Boolean  @default(true) @map("use_business_recipients")
-  deadlineTimeOverride      String?  @map("deadline_time_override")
-  createdAt                 DateTime @default(now()) @map("created_at")
-  updatedAt                 DateTime @updatedAt @map("updated_at")
+  id                    String   @id @default(uuid()) @db.Uuid
+  businessId            String   @map("business_id") @db.Uuid
+  branchId              String   @unique @map("branch_id") @db.Uuid
+  useBusinessRecipients Boolean  @default(true) @map("use_business_recipients")
+  deadlineTimeOverride  String?  @map("deadline_time_override")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
   branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
@@ -2180,22 +2298,22 @@ model ClosingWhatsAppBranchSetting {
 }
 
 model ClosingWhatsAppRecipient {
-  id              String                         @id @default(uuid()) @db.Uuid
-  businessId      String                         @map("business_id") @db.Uuid
-  branchId        String?                        @map("branch_id") @db.Uuid
-  scope           ClosingWhatsAppRecipientScope  @default(BUSINESS)
-  scopeKey        String                         @default("BUSINESS") @map("scope_key")
+  id              String                        @id @default(uuid()) @db.Uuid
+  businessId      String                        @map("business_id") @db.Uuid
+  branchId        String?                       @map("branch_id") @db.Uuid
+  scope           ClosingWhatsAppRecipientScope @default(BUSINESS)
+  scopeKey        String                        @default("BUSINESS") @map("scope_key")
   role            ClosingWhatsAppRecipientRole
   label           String
   phone           String
-  normalizedPhone String                         @map("normalized_phone")
-  isActive        Boolean                        @default(true) @map("is_active")
-  sortOrder       Int                            @default(0) @map("sort_order")
-  createdAt       DateTime                       @default(now()) @map("created_at")
-  updatedAt       DateTime                       @updatedAt @map("updated_at")
+  normalizedPhone String                        @map("normalized_phone")
+  isActive        Boolean                       @default(true) @map("is_active")
+  sortOrder       Int                           @default(0) @map("sort_order")
+  createdAt       DateTime                      @default(now()) @map("created_at")
+  updatedAt       DateTime                      @updatedAt @map("updated_at")
 
-  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch   Branch?  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  business Business                     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch   Branch?                      @relation(fields: [branchId], references: [id], onDelete: Restrict)
   sends    ClosingWhatsAppSendAttempt[]
 
   @@unique([businessId, scope, scopeKey, normalizedPhone], map: "closing_whatsapp_recipient_scope_phone_key")
@@ -2227,13 +2345,13 @@ model ClosingWhatsAppSendAttempt {
   createdAt              DateTime                   @default(now()) @map("created_at")
   updatedAt              DateTime                   @updatedAt @map("updated_at")
 
-  business             Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch               Branch?                    @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  dailyClosingSnapshot DailyClosingSnapshot?      @relation(fields: [dailyClosingSnapshotId], references: [id], onDelete: SetNull)
-  recipient            ClosingWhatsAppRecipient?  @relation(fields: [recipientId], references: [id], onDelete: SetNull)
-  queue                NotificationQueue?         @relation(fields: [queueId], references: [id], onDelete: SetNull)
-  messageLog           WhatsAppMessage?           @relation(fields: [messageLogId], references: [id], onDelete: SetNull)
-  requestedBy          User?                      @relation("ClosingWhatsAppRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  business             Business                  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch               Branch?                   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  dailyClosingSnapshot DailyClosingSnapshot?     @relation(fields: [dailyClosingSnapshotId], references: [id], onDelete: SetNull)
+  recipient            ClosingWhatsAppRecipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  queue                NotificationQueue?        @relation(fields: [queueId], references: [id], onDelete: SetNull)
+  messageLog           WhatsAppMessage?          @relation(fields: [messageLogId], references: [id], onDelete: SetNull)
+  requestedBy          User?                     @relation("ClosingWhatsAppRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
   @@index([branchId])
@@ -2329,45 +2447,45 @@ model InvoiceItem {
 }
 
 model WhatsAppMessage {
-  id                String                @id @default(uuid()) @db.Uuid
-  businessId        String                @map("business_id") @db.Uuid
-  branchId          String?               @map("branch_id") @db.Uuid
-  customerId        String?               @map("customer_id") @db.Uuid
-  vehicleId         String?               @map("vehicle_id") @db.Uuid
-  workOrderId       String?               @map("work_order_id") @db.Uuid
-  invoiceId         String?               @map("invoice_id") @db.Uuid
-  appointmentId     String?               @map("appointment_id") @db.Uuid
-  dailyClosingSnapshotId String?          @map("daily_closing_snapshot_id") @db.Uuid
-  sentByUserId      String?               @map("sent_by_user_id") @db.Uuid
-  phone             String
-  senderPhone       String?               @map("sender_phone")
-  recipientPhone    String?               @map("recipient_phone")
-  messageType       WhatsAppMessageType   @map("message_type")
-  messageBody       String                @map("message_body")
-  status            WhatsAppMessageStatus @default(DRAFT)
-  provider          String?
-  providerMessageId String?               @map("provider_message_id")
-  errorMessage      String?               @map("error_message")
-  queuedAt          DateTime?             @map("queued_at")
-  sentAt            DateTime?             @map("sent_at")
-  openedAt          DateTime?             @map("opened_at")
-  deliveredAt       DateTime?             @map("delivered_at")
-  readAt            DateTime?             @map("read_at")
-  failedAt          DateTime?             @map("failed_at")
-  createdAt         DateTime              @default(now()) @map("created_at")
-  updatedAt         DateTime              @updatedAt @map("updated_at")
+  id                     String                @id @default(uuid()) @db.Uuid
+  businessId             String                @map("business_id") @db.Uuid
+  branchId               String?               @map("branch_id") @db.Uuid
+  customerId             String?               @map("customer_id") @db.Uuid
+  vehicleId              String?               @map("vehicle_id") @db.Uuid
+  workOrderId            String?               @map("work_order_id") @db.Uuid
+  invoiceId              String?               @map("invoice_id") @db.Uuid
+  appointmentId          String?               @map("appointment_id") @db.Uuid
+  dailyClosingSnapshotId String?               @map("daily_closing_snapshot_id") @db.Uuid
+  sentByUserId           String?               @map("sent_by_user_id") @db.Uuid
+  phone                  String
+  senderPhone            String?               @map("sender_phone")
+  recipientPhone         String?               @map("recipient_phone")
+  messageType            WhatsAppMessageType   @map("message_type")
+  messageBody            String                @map("message_body")
+  status                 WhatsAppMessageStatus @default(DRAFT)
+  provider               String?
+  providerMessageId      String?               @map("provider_message_id")
+  errorMessage           String?               @map("error_message")
+  queuedAt               DateTime?             @map("queued_at")
+  sentAt                 DateTime?             @map("sent_at")
+  openedAt               DateTime?             @map("opened_at")
+  deliveredAt            DateTime?             @map("delivered_at")
+  readAt                 DateTime?             @map("read_at")
+  failedAt               DateTime?             @map("failed_at")
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
 
-  business    Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch      Branch?             @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  customer    Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  vehicle     Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  workOrder   WorkOrder?          @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
-  invoice     Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  appointment Appointment?        @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
-  dailyClosingSnapshot DailyClosingSnapshot? @relation(fields: [dailyClosingSnapshotId], references: [id], onDelete: SetNull)
-  queueItems  NotificationQueue[]
+  business             Business                     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch               Branch?                      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customer             Customer?                    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  vehicle              Vehicle?                     @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  workOrder            WorkOrder?                   @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  invoice              Invoice?                     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  appointment          Appointment?                 @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  dailyClosingSnapshot DailyClosingSnapshot?        @relation(fields: [dailyClosingSnapshotId], references: [id], onDelete: SetNull)
+  queueItems           NotificationQueue[]
   closingWhatsAppSends ClosingWhatsAppSendAttempt[]
-  sentByUser  User?               @relation("WhatsAppMessageSender", fields: [sentByUserId], references: [id], onDelete: SetNull)
+  sentByUser           User?                        @relation("WhatsAppMessageSender", fields: [sentByUserId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
   @@index([branchId])
@@ -2554,37 +2672,37 @@ model AuditLog {
 }
 
 model NotificationQueue {
-  id                String                    @id @default(uuid()) @db.Uuid
-  businessId        String                    @map("business_id") @db.Uuid
-  branchId          String?                   @map("branch_id") @db.Uuid
-  phone             String
-  message           String
-  messageType       String                    @map("message_type")
-  documentBase64    String?                   @map("document_base64")
-  documentMimeType  String?                   @map("document_mime_type")
-  documentFileName  String?                   @map("document_file_name")
-  priority          NotificationQueuePriority @default(NORMAL)
-  status            NotificationQueueStatus   @default(QUEUED)
-  retryCount        Int                       @default(0) @map("retry_count")
-  messageLogId      String?                   @map("message_log_id") @db.Uuid
-  appointmentId     String?                   @map("appointment_id") @db.Uuid
-  dailyClosingSnapshotId String?              @map("daily_closing_snapshot_id") @db.Uuid
-  dedupeKey         String?                   @unique @map("dedupe_key")
-  providerMessageId String?                   @map("provider_message_id")
-  errorMessage      String?                   @map("error_message")
-  createdAt         DateTime                  @default(now()) @map("created_at")
-  queuedAt          DateTime                  @default(now()) @map("queued_at")
-  nextAttemptAt     DateTime?                 @map("next_attempt_at")
-  sentAt            DateTime?                 @map("sent_at")
-  deliveredAt       DateTime?                 @map("delivered_at")
-  readAt            DateTime?                 @map("read_at")
-  failedAt          DateTime?                 @map("failed_at")
+  id                     String                    @id @default(uuid()) @db.Uuid
+  businessId             String                    @map("business_id") @db.Uuid
+  branchId               String?                   @map("branch_id") @db.Uuid
+  phone                  String
+  message                String
+  messageType            String                    @map("message_type")
+  documentBase64         String?                   @map("document_base64")
+  documentMimeType       String?                   @map("document_mime_type")
+  documentFileName       String?                   @map("document_file_name")
+  priority               NotificationQueuePriority @default(NORMAL)
+  status                 NotificationQueueStatus   @default(QUEUED)
+  retryCount             Int                       @default(0) @map("retry_count")
+  messageLogId           String?                   @map("message_log_id") @db.Uuid
+  appointmentId          String?                   @map("appointment_id") @db.Uuid
+  dailyClosingSnapshotId String?                   @map("daily_closing_snapshot_id") @db.Uuid
+  dedupeKey              String?                   @unique @map("dedupe_key")
+  providerMessageId      String?                   @map("provider_message_id")
+  errorMessage           String?                   @map("error_message")
+  createdAt              DateTime                  @default(now()) @map("created_at")
+  queuedAt               DateTime                  @default(now()) @map("queued_at")
+  nextAttemptAt          DateTime?                 @map("next_attempt_at")
+  sentAt                 DateTime?                 @map("sent_at")
+  deliveredAt            DateTime?                 @map("delivered_at")
+  readAt                 DateTime?                 @map("read_at")
+  failedAt               DateTime?                 @map("failed_at")
 
-  business    Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch      Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  messageLog  WhatsAppMessage? @relation(fields: [messageLogId], references: [id], onDelete: SetNull)
-  appointment Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
-  dailyClosingSnapshot DailyClosingSnapshot? @relation(fields: [dailyClosingSnapshotId], references: [id], onDelete: SetNull)
+  business             Business                     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch               Branch?                      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  messageLog           WhatsAppMessage?             @relation(fields: [messageLogId], references: [id], onDelete: SetNull)
+  appointment          Appointment?                 @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  dailyClosingSnapshot DailyClosingSnapshot?        @relation(fields: [dailyClosingSnapshotId], references: [id], onDelete: SetNull)
   closingWhatsAppSends ClosingWhatsAppSendAttempt[]
 
   @@index([businessId])

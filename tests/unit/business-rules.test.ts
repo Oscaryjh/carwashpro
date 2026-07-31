@@ -506,6 +506,10 @@ test("staff permissions are allow-list based and deduplicated", () => {
     normalizeStaffPermissions(["ATTENDANCE_SETTINGS_MANAGE"]),
     ["ATTENDANCE_SETTINGS_READ", "ATTENDANCE_SETTINGS_MANAGE"],
   );
+  assert.deepEqual(
+    normalizeStaffPermissions(["PAYROLL_MANAGE"]),
+    ["PAYROLL_READ", "PAYROLL_MANAGE"],
+  );
 });
 
 test("new staff defaults are limited to daily cashier operations", () => {
@@ -606,6 +610,14 @@ test("management routes are restricted to the permissions that protect them", ()
     routePermission("/team/attendance-settings/branch-1"),
     "ATTENDANCE_SETTINGS_READ",
   );
+  assert.equal(
+    routePermission("/team/payroll"),
+    "PAYROLL_READ",
+  );
+  assert.equal(
+    routePermission("/team/payroll/2026-07"),
+    "PAYROLL_READ",
+  );
   assert.equal(routePermission("/business/settings"), "OWNER_ONLY");
   assert.equal(routePermission("/branches/123"), "OWNER_ONLY");
 });
@@ -624,6 +636,10 @@ test("staff without dashboard access are redirected to their first allowed modul
   assert.equal(
     getStaffHomePath(["ATTENDANCE_SETTINGS_READ"]),
     "/team/attendance-settings",
+  );
+  assert.equal(
+    getStaffHomePath(["PAYROLL_READ"]),
+    "/team/payroll",
   );
   assert.equal(getStaffHomePath([]), "/login");
 });

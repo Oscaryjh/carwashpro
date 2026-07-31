@@ -238,7 +238,7 @@ export function StaffForm({
                   type="number"
                 />
                 <small className="form-hint">
-                  Payroll foundation only; statutory deductions are not calculated yet.
+                  Statutory amounts are reviewed and entered in each monthly Payroll run.
                 </small>
               </label>
               <label>

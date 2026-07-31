@@ -458,7 +458,7 @@ export function AttendanceEmployeeForm({
               type="number"
             />
             <small>
-              Payroll foundation only; statutory deductions are not calculated yet.
+              Statutory amounts are reviewed and entered in each monthly Payroll run.
             </small>
             <FieldErrors errors={state.fieldErrors?.baseSalary} />
           </label>

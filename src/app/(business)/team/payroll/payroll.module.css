@@ -1,0 +1,56 @@
+.page { display: grid; gap: 18px; }
+.header, .toolbar, .panelHeading, .runFooter { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.header h1, .panelHeading h2, .header p, .panelHeading p, .runFooter p { margin: 0; }
+.header > div:first-child, .panelHeading > div { display: grid; gap: 4px; }
+.header h1 { color: #172033; font-size: 27px; letter-spacing: -.025em; }
+.header p, .runFooter p { color: #68768a; font-size: 12px; }
+.eyebrow { color: #087f73; font-size: 9px; font-weight: 900; letter-spacing: .12em; }
+.headerActions { display: flex; gap: 8px; }
+.toolbar, .panel { border: 1px solid #dfe7ec; border-radius: 13px; background: #fff; box-shadow: 0 3px 14px rgba(15, 23, 42, .04); }
+.toolbar { align-items: flex-end; padding: 14px 16px; }
+.monthForm { display: flex; align-items: flex-end; gap: 10px; }
+.monthForm label, .settingsForm label, .holidayForm label, .entryForm label { display: grid; gap: 6px; }
+.monthForm span, .settingsForm span, .holidayForm span, .entryForm span { color: #647186; font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.monthForm input, .monthForm button, .toolbar > form > button { min-height: 42px; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.metric { display: grid; min-height: 120px; align-content: space-between; gap: 9px; padding: 17px; border: 1px solid #dfe7ec; border-radius: 12px; background: #fff; }
+.metric > span { color: #647186; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.metric strong { color: #172033; font-size: 25px; letter-spacing: -.03em; }
+.metric small { color: #7b8798; font-size: 9px; }
+.metricEmphasis { border-color: #a9d9d2; background: linear-gradient(145deg, #ecfaf7, #fff); }
+.panel { min-width: 0; overflow: hidden; }
+.panelHeading { align-items: center; padding: 17px 19px; border-bottom: 1px solid #e5ebef; }
+.panelHeading h2 { font-size: 18px; }
+.badge, .finalized { padding: 6px 10px; border-radius: 999px; color: #0b7166; background: #e5f6f2; font-size: 9px; font-weight: 900; }
+.finalized { color: #fff; background: #087f73; }
+.settingsForm { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: flex-end; gap: 12px; padding: 16px 19px 8px; }
+.settingsForm input, .holidayForm input, .holidayForm select, .entryForm input { width: 100%; min-height: 41px; border: 1px solid #d4dfe5; border-radius: 7px; background: #fff; }
+.settingsForm button { min-height: 41px; }
+.policyNote { margin: 4px 19px 16px; padding: 11px 13px; border-radius: 8px; color: #526272; background: #f2f8f7; font-size: 11px; }
+.holidayForm { display: grid; grid-template-columns: 1fr .8fr 1.5fr auto; align-items: flex-end; gap: 12px; padding: 15px 19px; }
+.holidayList { display: grid; padding: 0 19px 16px; }
+.holidayList > div { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 0; border-top: 1px solid #edf1f4; }
+.holidayList span, .table td > span { display: grid; gap: 3px; }
+.holidayList small, .table td small { display: block; color: #7a8798; font-size: 9px; }
+.empty { margin: 0; padding: 22px 19px; color: #738095; font-size: 12px; }
+.tableWrap { margin: 16px 16px 0; overflow-x: auto; border: 1px solid #e1e8ed; border-radius: 9px; }
+.table { width: 100%; min-width: 920px; border-collapse: collapse; }
+.table th { padding: 10px 12px; border-bottom: 1px solid #dfe7ec; color: #69778c; background: #f7f9fb; font-size: 8px; letter-spacing: .07em; text-align: left; text-transform: uppercase; }
+.table td { padding: 12px; border-bottom: 1px solid #edf1f4; color: #2d394b; font-size: 11px; vertical-align: top; }
+.detailRow td { padding: 0 12px 12px; background: #fbfdfd; }
+.detailRow summary { padding: 10px 0; color: #087f73; cursor: pointer; font-size: 10px; font-weight: 800; }
+.entryForm { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 12px; border: 1px solid #dce8e6; border-radius: 9px; background: #fff; }
+.entryForm input:disabled, .settingsForm input:disabled { color: #607080; background: #f3f6f7; }
+.notes { grid-column: span 3; }
+.entryForm button { align-self: end; min-height: 41px; }
+.runFooter { align-items: center; padding: 16px 19px; }
+.runFooter p { max-width: 680px; }
+.finalizeButton { background: #9f2f2f; }
+.complianceNote { padding: 16px 18px; border: 1px solid #e6d39b; border-radius: 12px; color: #6e5316; background: #fff9e9; }
+.complianceNote p { margin: 6px 0 0; font-size: 11px; line-height: 1.55; }
+.history { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 15px; border: 1px solid #dfe7ec; border-radius: 10px; background: #fff; }
+.history strong { margin-right: 4px; font-size: 11px; }
+.history a { padding: 6px 9px; border-radius: 999px; color: #5e6b7d; background: #f1f4f6; font-size: 9px; font-weight: 800; }
+.history .activeMonth { color: #fff; background: #087f73; }
+@media (max-width: 1000px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .settingsForm { grid-template-columns: repeat(2, minmax(0, 1fr)); } .entryForm { grid-template-columns: repeat(2, minmax(0, 1fr)); } .notes { grid-column: span 1; } }
+@media (max-width: 700px) { .header, .toolbar, .runFooter { align-items: stretch; flex-direction: column; } .headerActions, .monthForm { flex-wrap: wrap; } .metrics, .settingsForm, .holidayForm, .entryForm { grid-template-columns: 1fr; } .toolbar > form > button, .monthForm button { width: 100%; } .panelHeading { align-items: flex-start; } }

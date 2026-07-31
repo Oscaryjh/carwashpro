@@ -88,6 +88,16 @@ export const staffPermissions = [
     description: "Update branch attendance and geofence settings.",
   },
   {
+    key: "PAYROLL_READ",
+    label: "View payroll",
+    description: "View company payroll runs and employee pay details.",
+  },
+  {
+    key: "PAYROLL_MANAGE",
+    label: "Manage payroll",
+    description: "Generate, adjust and finalize company payroll runs.",
+  },
+  {
     key: "DELETE_STAFF",
     label: "Delete staff",
     description: "Delete staff accounts that do not have cashier or payment history.",
@@ -156,6 +166,7 @@ const impliedStaffPermissions: Partial<
 > = {
   ATTENDANCE_EMPLOYEE_MANAGE: ["ATTENDANCE_EMPLOYEE_READ"],
   ATTENDANCE_SETTINGS_MANAGE: ["ATTENDANCE_SETTINGS_READ"],
+  PAYROLL_MANAGE: ["PAYROLL_READ"],
 };
 
 export function normalizeStaffPermissions(values: unknown[]): StaffPermission[] {
@@ -226,6 +237,7 @@ const staffHomeRoutes: Array<[StaffPermission, string]> = [
   ["TEAM", "/team"],
   ["ATTENDANCE_EMPLOYEE_READ", "/team/employees"],
   ["ATTENDANCE_SETTINGS_READ", "/team/attendance-settings"],
+  ["PAYROLL_READ", "/team/payroll"],
 ];
 
 export function getStaffHomePath(
@@ -311,6 +323,13 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
   ) {
     return "ATTENDANCE_SETTINGS_READ";
   }
+  if (
+    pathname === "/team/payroll" ||
+    pathname.startsWith("/team/payroll/")
+  ) {
+    return "PAYROLL_READ";
+  }
+
 
   if (pathname === "/team" || pathname.startsWith("/team/")) {
     return "TEAM";

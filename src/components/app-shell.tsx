@@ -111,6 +111,17 @@ export async function AppShell({ user, access, children }: AppShellProps) {
         ]
       : []),
     ...(isStoreUser &&
+    canSeeCapability("PAYROLL_READ", "VIEW_PAYROLL")
+      ? [
+          {
+            href: "/team/payroll",
+            label: "Payroll",
+            shortLabel: "Pay",
+            icon: "reports" as const,
+          },
+        ]
+      : []),
+    ...(isStoreUser &&
     canSeeCapability(
       "ATTENDANCE_SETTINGS_READ",
       "VIEW_ATTENDANCE_SETTINGS",
