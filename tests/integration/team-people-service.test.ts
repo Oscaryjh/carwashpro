@@ -260,6 +260,11 @@ test("People service unifies employee, attendance, service, and POS identities w
       code: "PEOPLE-LEGACY-REUSE",
       phone: legacyPhone,
       features: noFeatures(),
+      legacyStaffUserId: legacyStaff.id,
+      baseSalary: 2000,
+      normalWorkMinutesPerDay: 480,
+      payBasis: "MONTHLY",
+      targetBreakMinutes: 60,
     });
     assert.equal(reusedLegacy.staffUser?.id, legacyStaff.id);
     assert.equal(
@@ -269,8 +274,16 @@ test("People service unifies employee, attendance, service, and POS identities w
         })
       ).employeeBusinessMembershipId,
       reusedLegacy.membership.id,
-      "exact unique legacy phone reuse must also work for an employee-only Add flow",
+      "explicit Edit upgrade must link the selected legacy Staff profile",
     );
+    assert.equal(
+      reusedLegacy.staffUser?.teamMemberLinkReason,
+      "EDIT_EMPLOYMENT_UPGRADE",
+    );
+    assert.equal(reusedLegacy.membership.baseSalary?.toString(), "2000");
+    assert.equal(reusedLegacy.membership.normalWorkMinutesPerDay, 480);
+    assert.equal(reusedLegacy.membership.payBasis, "MONTHLY");
+    assert.equal(reusedLegacy.membership.targetBreakMinutes, 60);
 
     const ambiguousPhone = nextPhone(phones);
     await prisma.user.createMany({
@@ -822,9 +835,14 @@ async function createPerson(input: {
   phone: string;
   features: TeamMemberFeatures & { passwordHash: string | null };
   attendanceEnabled?: boolean;
+  baseSalary?: number;
+  normalWorkMinutesPerDay?: number;
+  payBasis?: "MONTHLY" | "DAILY" | "HOURLY";
+  targetBreakMinutes?: number;
   canClockIn?: boolean;
   fullName?: string;
   status?: "ACTIVE" | "SUSPENDED";
+  legacyStaffUserId?: string;
 }) {
   const actor =
     input.businessId === input.fixture.businessA.id
@@ -858,6 +876,10 @@ async function createPerson(input: {
         employeeCode: input.code,
         employmentType: "FULL_TIME",
         fullName: input.fullName ?? `Employee ${input.code}`,
+        baseSalary: input.baseSalary,
+        normalWorkMinutesPerDay: input.normalWorkMinutesPerDay,
+        payBasis: input.payBasis,
+        targetBreakMinutes: input.targetBreakMinutes,
         joinedAt: new Date(Date.now() - 86_400_000),
         phoneNumber: input.phone,
         position: null,
@@ -865,6 +887,7 @@ async function createPerson(input: {
         terminatedAt: null,
       },
       wholeBusinessScope: true,
+      legacyStaffUserId: input.legacyStaffUserId,
     },
     prisma,
   );

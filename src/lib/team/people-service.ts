@@ -35,6 +35,7 @@ export type CreateTeamMemberArgs = {
     passwordHash: string | null;
   };
   input: unknown;
+  legacyStaffUserId?: string;
   request?: AuditRequestContext;
   wholeBusinessScope?: boolean;
 };
@@ -160,7 +161,6 @@ export async function createTeamMember(
         businessId: args.businessId,
         employeeBusinessMembershipId: null,
         role: "STAFF",
-        whatsappPhone: { not: null },
       },
       select: {
         branchId: true,
@@ -173,15 +173,30 @@ export async function createTeamMember(
         normalizeAttendancePhone(candidate.whatsappPhone ?? "") ===
         membership.phoneNumberNormalized,
     );
-    if (exactStaffMatches.length > 1) {
+    const requestedLegacyStaff = args.legacyStaffUserId
+      ? unlinkedStaff.find((candidate) => candidate.id === args.legacyStaffUserId)
+      : null;
+    if (args.legacyStaffUserId && !requestedLegacyStaff) {
+      throw new Error(
+        "The selected Staff profile is unavailable or already linked.",
+      );
+    }
+    const conflictingPhoneMatches = exactStaffMatches.filter(
+      (candidate) => candidate.id !== requestedLegacyStaff?.id,
+    );
+    if (
+      (!requestedLegacyStaff && exactStaffMatches.length > 1) ||
+      (requestedLegacyStaff && conflictingPhoneMatches.length > 0)
+    ) {
       throw new Error(
         "Multiple unlinked staff profiles use this phone. Manual review is required.",
       );
     }
+    const reusableStaff = requestedLegacyStaff ?? exactStaffMatches[0] ?? null;
     if (
-      exactStaffMatches[0]?.branchId &&
+      reusableStaff?.branchId &&
       !args.wholeBusinessScope &&
-      !args.allowedBranchIds.includes(exactStaffMatches[0].branchId)
+      !args.allowedBranchIds.includes(reusableStaff.branchId)
     ) {
       throw new Error(
         "The matching legacy staff profile is outside the authorized branch scope.",
@@ -191,7 +206,7 @@ export async function createTeamMember(
     const shouldHaveStaffUser =
       args.features.appointmentBookable ||
       args.features.loginEnabled ||
-      exactStaffMatches.length === 1;
+      Boolean(reusableStaff);
     if (shouldHaveStaffUser) {
       const staffData = {
         appointmentBookable: args.features.appointmentBookable,
@@ -210,17 +225,19 @@ export async function createTeamMember(
         staffLevelId: staffConfiguration.staffLevelId,
         staffRoleProfileId: staffConfiguration.staffRoleProfileId,
         status: "active" as const,
-        teamMemberLinkReason: exactStaffMatches[0]
-          ? "EXACT_PHONE_REUSE"
+        teamMemberLinkReason: reusableStaff
+          ? requestedLegacyStaff
+            ? "EDIT_EMPLOYMENT_UPGRADE"
+            : "EXACT_PHONE_REUSE"
           : "UNIFIED_CREATION",
         teamMemberLinkedAt: new Date(),
         teamMemberLinkStatus: "LINKED" as const,
         whatsappPhone: membership.phoneNumberNormalized,
       };
 
-      staffUser = exactStaffMatches[0]
+      staffUser = reusableStaff
         ? await transaction.user.update({
-            where: { id: exactStaffMatches[0].id },
+            where: { id: reusableStaff.id },
             data: staffData,
           })
         : await transaction.user.create({
@@ -249,7 +266,7 @@ export async function createTeamMember(
             staffLevelId: staffUser.staffLevelId,
             staffRoleProfileId: staffUser.staffRoleProfileId,
             userId: staffUser.id,
-            reusedExistingStaff: Boolean(exactStaffMatches[0]),
+            reusedExistingStaff: Boolean(reusableStaff),
           },
           branchId: primaryAssignment?.branchId ?? null,
           businessId: args.businessId,

@@ -105,6 +105,15 @@ const updateLegacyStaffSchema = z
     validateTeamMemberForm(input, context, false);
   });
 
+const upgradeLegacyStaffSchema = z
+  .object({
+    ...teamMemberShape,
+    userId: z.string().uuid(),
+  })
+  .superRefine((input, context) => {
+    validateTeamMemberForm(input, context, false);
+  });
+
 const deleteStaffSchema = z.object({
   userId: z.string().uuid(),
 });
@@ -221,6 +230,7 @@ export async function updateStaffAction(formData: FormData) {
         },
         id: true,
         loginEnabled: true,
+        passwordHash: true,
       },
     });
 
@@ -229,6 +239,54 @@ export async function updateStaffAction(formData: FormData) {
     }
 
     if (!staff.employeeBusinessMembership) {
+      if (formData.get("createEmploymentProfile") === "on") {
+        const input = parseLegacyStaffUpgradeForm(formData);
+        const password = input.password?.trim();
+        if (input.posAccess && !password && !staff.loginEnabled) {
+          throw new Error(
+            "Set a temporary password before enabling POS access.",
+          );
+        }
+        const permissions = input.posAccess
+          ? normalizeStaffPermissionsForIndustry(
+              formData.getAll("permissions"),
+              industryType,
+            )
+          : [];
+        const passwordHash = password
+          ? await bcrypt.hash(password, 12)
+          : staff.passwordHash;
+        const auditRequest = await getAuditRequestContext();
+        const created = await createTeamMember({
+          actor: user,
+          allowedBranchIds: scope.allowedBranchIds,
+          businessId,
+          features: {
+            appointmentBookable: input.providesServices,
+            email: input.posAccess ? input.email || null : null,
+            loginEnabled: input.posAccess,
+            passwordHash: input.posAccess ? passwordHash : null,
+            permissions,
+            serviceIds: input.providesServices ? input.serviceIds : [],
+            staffLevelId: input.providesServices ? input.staffLevelId : null,
+            staffRoleProfileId:
+              input.providesServices || input.posAccess
+                ? input.staffRoleProfileId
+                : null,
+          },
+          input: buildEmployeeInput(input, businessId, "ACTIVE"),
+          legacyStaffUserId: staff.id,
+          request: auditRequest,
+          wholeBusinessScope,
+        });
+
+        revalidatePeoplePaths(created.membership.id);
+        redirectWithTeamMessage(
+          "Employment profile created successfully.",
+          "success",
+        );
+      }
+
       const input = parseLegacyStaffForm(formData);
       const password = input.password?.trim();
       if (input.posAccess && !password && !staff.loginEnabled) {
@@ -1001,6 +1059,38 @@ function parseTeamMemberForm(formData: FormData, editing: boolean) {
   return editing
     ? updateStaffSchema.parse(values)
     : createStaffSchema.parse(values);
+}
+
+function parseLegacyStaffUpgradeForm(formData: FormData) {
+  return upgradeLegacyStaffSchema.parse({
+    attendanceEnabled: formData.get("attendanceEnabled") === "on",
+    branchIds: uniqueStrings(formData.getAll("branchIds")),
+    canClockInBranchIds: uniqueStrings(
+      formData.getAll("canClockInBranchIds"),
+    ),
+    email: String(formData.get("email") ?? ""),
+    employeeCode: formData.get("employeeCode"),
+    employmentType: formData.get("employmentType"),
+    joinedAt: formData.get("joinedAt"),
+    payBasis: formData.get("payBasis"),
+    baseSalary: formData.get("baseSalary"),
+    normalWorkMinutesPerDay: formData.get("normalWorkMinutesPerDay"),
+    targetBreakMinutes: formData.get("targetBreakMinutes"),
+    name: formData.get("name"),
+    password: String(formData.get("password") ?? ""),
+    posAccess:
+      formData.get("posAccess") === "on" ||
+      formData.get("accessType") === "LOGIN",
+    primaryBranchId: formData.get("primaryBranchId"),
+    providesServices:
+      formData.get("providesServices") === "on" ||
+      formData.get("appointmentBookable") === "on",
+    serviceIds: uniqueStrings(formData.getAll("serviceIds")),
+    staffLevelId: formData.get("staffLevelId"),
+    staffRoleProfileId: formData.get("staffRoleProfileId"),
+    userId: formData.get("userId"),
+    whatsappPhone: formData.get("whatsappPhone"),
+  });
 }
 
 function parseLegacyStaffForm(formData: FormData) {

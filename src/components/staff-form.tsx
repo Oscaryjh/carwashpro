@@ -55,6 +55,11 @@ export function StaffForm({
 }: StaffFormProps) {
   const isEdit = Boolean(staff);
   const isLegacyEdit = Boolean(staff && !employeeProfile);
+  const [createEmploymentProfile, setCreateEmploymentProfile] = useState(false);
+  const hasEmploymentForm =
+    !isEdit || Boolean(employeeProfile) || createEmploymentProfile;
+  const isLegacyOnlyEdit = isLegacyEdit && !createEmploymentProfile;
+
   const [accessType, setAccessType] = useState<AccessType>(
     staff
       ? staff.loginEnabled ? "LOGIN" : "NO_LOGIN"
@@ -132,6 +137,25 @@ export function StaffForm({
         type="hidden"
         value={selectedRoleProfileId}
       />
+      {isLegacyEdit ? (
+        <label className="staff-appointment-setting">
+          <input
+            checked={createEmploymentProfile}
+            name="createEmploymentProfile"
+            onChange={(event) =>
+              setCreateEmploymentProfile(event.target.checked)
+            }
+            type="checkbox"
+          />
+          <span>
+            <strong>Create employment profile</strong>
+            <small>
+              Add employee code, pay, work hours, breaks and Attendance access
+              to this existing Staff profile.
+            </small>
+          </span>
+        </label>
+      ) : null}
       <fieldset className="team-fieldset" disabled={!branches.length}>
         <div className="field-grid">
           <label>
@@ -146,14 +170,14 @@ export function StaffForm({
               name="whatsappPhone"
               placeholder="+60 12-345 6789"
               defaultValue={staff?.whatsappPhone ?? ""}
-              required={!isEdit || Boolean(employeeProfile)}
+              required={hasEmploymentForm}
               type="tel"
             />
             <small className="form-hint">
               Used for this person&apos;s employee identity and future attendance access.
             </small>
           </label>
-          {!isEdit || employeeProfile ? (
+          {hasEmploymentForm ? (
             <>
               <label>
                 <span>Employee code</span>
@@ -258,7 +282,7 @@ export function StaffForm({
           ) : null}
           <div className={`staff-branch-picker${branches.length === 1 ? " staff-branch-picker-single" : ""}`}>
             <div className="staff-branch-heading">
-              <span>{isLegacyEdit ? "Branch" : "Work branches"}</span>
+              <span>{isLegacyOnlyEdit ? "Branch" : "Work branches"}</span>
             </div>
             <div className="staff-branch-options">
               {branches.length === 1 ? (
@@ -287,14 +311,14 @@ export function StaffForm({
                       checked={selectedBranchIds.includes(branch.id)}
                       name="branchIds"
                       onChange={(event) => {
-                        if (isLegacyEdit) {
+                        if (isLegacyOnlyEdit) {
                           setSelectedBranchIds([branch.id]);
                           setPrimaryBranchId(branch.id);
                           return;
                         }
                         updateBranchSelection(branch.id, event.target.checked);
                       }}
-                      type={isLegacyEdit ? "radio" : "checkbox"}
+                      type={isLegacyOnlyEdit ? "radio" : "checkbox"}
                       value={branch.id}
                     />
                     <span>{branch.name}</span>
@@ -302,7 +326,7 @@ export function StaffForm({
                 ))
               )}
             </div>
-            {isLegacyEdit ? (
+            {isLegacyOnlyEdit ? (
               <>
                 <input
                   name="primaryBranchId"
@@ -340,7 +364,7 @@ export function StaffForm({
             )}
             {branches.length > 1 ? (
               <small className="form-hint">
-                {isLegacyEdit
+                {isLegacyOnlyEdit
                   ? "Choose the current branch for this Staff profile."
                   : "Select every branch where this employee may work."}
               </small>
@@ -386,13 +410,13 @@ export function StaffForm({
         ) : null}
 
         <div className="team-member-feature-options">
-          {isLegacyEdit ? (
+          {isLegacyOnlyEdit ? (
             <div className="staff-legacy-attendance-note">
               <span aria-hidden="true">i</span>
               <span>
                 <strong>Attendance needs an employment profile</strong>
                 <small>
-                  Link this Staff record manually before enabling attendance.
+                  Create or link an employment profile before enabling attendance.
                 </small>
               </span>
             </div>

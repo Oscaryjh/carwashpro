@@ -117,8 +117,8 @@ export function StaffEditModal({
             <div>
               <strong>Staff profile only</strong>
               <small>
-                Basic details, services and POS access can be edited. Attendance
-                remains unavailable until an employment profile is linked.
+                Enable Create employment profile below to add pay, standard work
+                hours, breaks and Attendance access to this Staff member.
               </small>
             </div>
           </div>
