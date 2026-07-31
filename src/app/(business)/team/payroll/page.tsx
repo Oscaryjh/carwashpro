@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { sanitizePayrollNotice } from "@/lib/payroll/error-message";
 import {
   DEFAULT_PAYROLL_SETTING,
   parsePayrollMonth,
@@ -29,6 +30,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
   const { access, businessId } = await requireBusinessUser("VIEW_PAYROLL");
   const scope = await resolveAttendanceScope(access);
   const params = await searchParams;
+  const noticeMessage = sanitizePayrollNotice(params.message, params.type);
   const period = parsePayrollMonth(params.month);
   const branches = await prisma.branch.findMany({
     where: { businessId, status: "ACTIVE" },
@@ -119,7 +121,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
         </nav>
       </header>
 
-      {params.message ? (
+      {noticeMessage ? (
         <div
           className={
             params.type === "error"
@@ -128,7 +130,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
           }
           role={params.type === "error" ? "alert" : "status"}
         >
-          {params.message}
+          {noticeMessage}
         </div>
       ) : null}
 

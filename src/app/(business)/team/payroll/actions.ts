@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
 import {
   finalizePayrollRun,
   generatePayrollRun,
@@ -258,8 +259,9 @@ function handleActionError(error: unknown, month: string, fallback: string): nev
   if (isRedirectError(error)) throw error;
   const message = error instanceof z.ZodError
     ? error.issues[0]?.message ?? fallback
-    : error instanceof Error
-      ? error.message
-      : fallback;
+    : getPublicPayrollErrorMessage(error, fallback);
+  if (message === fallback) {
+    console.error("[payroll-action] unexpected failure", error);
+  }
   finish("error", message, month);
 }
