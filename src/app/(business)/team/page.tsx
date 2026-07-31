@@ -386,7 +386,19 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
             (assignment) => assignment.serviceId,
           )}
           services={services}
-          staff={editingStaff}
+          staff={{
+            appointmentBookable: editingStaff.appointmentBookable,
+            branchId: editingStaff.branchId,
+            email: editingStaff.email,
+            id: editingStaff.id,
+            loginEnabled: editingStaff.loginEnabled,
+            name: editingStaff.name,
+            permissions: editingStaff.permissions,
+            staffLevelId: editingStaff.staffLevelId,
+            staffRoleProfileId: editingStaff.staffRoleProfileId,
+            status: editingStaff.status,
+            whatsappPhone: editingStaff.whatsappPhone,
+          }}
           staffLevels={activeStaffLevelOptions}
         />
       ) : null}

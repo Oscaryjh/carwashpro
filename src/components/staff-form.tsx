@@ -1,12 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import type { User } from "@prisma/client";
 import {
   getDefaultStaffPermissionsForIndustry,
   getStaffPermissionsForIndustry,
 } from "@/lib/auth/staff-permissions";
 
+export type StaffFormStaff = {
+  appointmentBookable: boolean;
+  branchId: string | null;
+  email: string | null;
+  id: string;
+  loginEnabled: boolean;
+  name: string;
+  permissions: string[];
+  staffLevelId: string | null;
+  staffRoleProfileId: string | null;
+  status: string;
+  whatsappPhone: string | null;
+};
 type StaffBranch = {
   id: string;
   name: string;
@@ -15,7 +27,7 @@ type StaffBranch = {
 type StaffFormProps = {
   action: (formData: FormData) => Promise<void>;
   branches: StaffBranch[];
-  staff?: User;
+  staff?: StaffFormStaff;
   employeeProfile?: {
     attendanceEnabled: boolean;
     canClockInBranchIds: string[];

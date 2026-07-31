@@ -1,6 +1,5 @@
 import { CatalogFormModal } from "@/components/catalog-form-modal";
-import { StaffForm } from "@/components/staff-form";
-import type { User } from "@prisma/client";
+import { StaffForm, type StaffFormStaff } from "@/components/staff-form";
 
 type StaffBranch = {
   id: string;
@@ -69,7 +68,7 @@ type StaffEditModalProps = StaffCreateModalProps & {
     status: "ACTIVE" | "SUSPENDED" | "TERMINATED";
   } | null;
   selectedServiceIds?: string[];
-  staff: User;
+  staff: StaffFormStaff;
 };
 
 export function StaffEditModal({
