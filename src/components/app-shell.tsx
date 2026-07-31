@@ -98,6 +98,20 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       : []),
     ...(isStoreUser &&
     canSeeCapability(
+      "ATTENDANCE_EMPLOYEE_READ",
+      "VIEW_ATTENDANCE_EMPLOYEES",
+    )
+      ? [
+          {
+            href: "/team/attendance",
+            label: "Attendance",
+            shortLabel: "Attend",
+            icon: "reports" as const,
+          },
+        ]
+      : []),
+    ...(isStoreUser &&
+    canSeeCapability(
       "ATTENDANCE_SETTINGS_READ",
       "VIEW_ATTENDANCE_SETTINGS",
     )

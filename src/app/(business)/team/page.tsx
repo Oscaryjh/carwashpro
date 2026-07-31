@@ -299,7 +299,11 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
             {teamSections.map((item) => (
               <Link
                 className={section === item.key ? "active" : ""}
-                href={`/team?section=${item.key}`}
+                href={
+                  item.key === "attendance"
+                    ? "/team/attendance"
+                    : `/team?section=${item.key}`
+                }
                 key={item.key}
               >
                 <span>
@@ -913,7 +917,7 @@ function AttendanceSection({ attendance }: { attendance: AttendanceRow[] }) {
     <section className="team-section-panel">
       <div className="team-section-toolbar">
         <div><p className="eyebrow">ATTENDANCE</p><h2>Recent clock activity</h2></div>
-        <Link className="button-link" href="/team?section=attendance&modal=attendance">View all</Link>
+        <Link className="button-link" href="/team/attendance">Open Attendance</Link>
       </div>
       <div className="team-activity-table" role="table">
         {attendance.length ? attendance.map((entry) => (
