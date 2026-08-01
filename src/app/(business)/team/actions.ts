@@ -25,6 +25,7 @@ import {
   hasWholeBusinessPeopleScope,
   type PeopleScopeInput,
 } from "@/lib/team/people-scope";
+import { assertCanGrantStaffPermissions } from "@/lib/team/permission-administration";
 import { synchronizeTeamMemberEmploymentState } from "@/lib/team/people-status";
 
 const employmentTypeSchema = z.enum([
@@ -159,6 +160,12 @@ export async function createStaffAction(formData: FormData) {
           industryType,
         )
       : [];
+    if (input.posAccess || input.staffRoleProfileId) {
+      const permissionContext = await requireBusinessUser(
+        "MANAGE_TEAM_PERMISSIONS",
+      );
+      assertCanGrantStaffPermissions(permissionContext.access, permissions);
+    }
     const passwordHash = input.posAccess
       ? await bcrypt.hash(input.password!, 12)
       : null;
@@ -230,9 +237,12 @@ export async function updateStaffAction(formData: FormData) {
             updatedAt: true,
           },
         },
+        email: true,
         id: true,
         loginEnabled: true,
         passwordHash: true,
+        permissions: true,
+        staffRoleProfileId: true,
       },
     });
 
@@ -255,6 +265,19 @@ export async function updateStaffAction(formData: FormData) {
               industryType,
             )
           : [];
+        await requireStaffAccessAdministrationIfChanged({
+          current: staff,
+          next: {
+            email: input.posAccess ? input.email || null : null,
+            loginEnabled: input.posAccess,
+            permissions,
+            staffRoleProfileId:
+              input.providesServices || input.posAccess
+                ? input.staffRoleProfileId
+                : null,
+          },
+          passwordChanged: Boolean(password),
+        });
         const passwordHash = password
           ? await bcrypt.hash(password, 12)
           : staff.passwordHash;
@@ -300,6 +323,19 @@ export async function updateStaffAction(formData: FormData) {
             industryType,
           )
         : [];
+      await requireStaffAccessAdministrationIfChanged({
+        current: staff,
+        next: {
+          email: input.posAccess ? input.email || null : null,
+          loginEnabled: input.posAccess,
+          permissions,
+          staffRoleProfileId:
+            input.providesServices || input.posAccess
+              ? input.staffRoleProfileId
+              : null,
+        },
+        passwordChanged: Boolean(password),
+      });
       const passwordHash = password
         ? await bcrypt.hash(password, 12)
         : undefined;
@@ -346,6 +382,21 @@ export async function updateStaffAction(formData: FormData) {
           industryType,
         )
       : [];
+    const nextLoginEnabled = input.status === "ACTIVE" && input.posAccess;
+    await requireStaffAccessAdministrationIfChanged({
+      current: staff,
+      next: {
+        email: nextLoginEnabled ? input.email || null : null,
+        loginEnabled: nextLoginEnabled,
+        permissions: nextLoginEnabled ? permissions : [],
+        staffRoleProfileId:
+          input.status === "ACTIVE" &&
+          (input.providesServices || input.posAccess)
+            ? input.staffRoleProfileId
+            : null,
+      },
+      passwordChanged: Boolean(password),
+    });
     const passwordHash = password
       ? await bcrypt.hash(password, 12)
       : undefined;
@@ -950,6 +1001,42 @@ async function findStaffForSchedule(
 
 function redirectWithTeamMessage(message: string, type: "success" | "error"): never {
   redirect(`/team?type=${type}&message=${encodeURIComponent(message)}`);
+}
+
+type StaffAccessSnapshot = {
+  email: string | null;
+  loginEnabled: boolean;
+  permissions: readonly string[];
+  staffRoleProfileId: string | null;
+};
+
+async function requireStaffAccessAdministrationIfChanged(input: {
+  current: StaffAccessSnapshot;
+  next: StaffAccessSnapshot;
+  passwordChanged: boolean;
+}) {
+  const changed =
+    input.passwordChanged ||
+    input.current.email !== input.next.email ||
+    input.current.loginEnabled !== input.next.loginEnabled ||
+    input.current.staffRoleProfileId !== input.next.staffRoleProfileId ||
+    !sameStringSet(input.current.permissions, input.next.permissions);
+
+  if (!changed) return;
+
+  const permissionContext = await requireBusinessUser(
+    "MANAGE_TEAM_PERMISSIONS",
+  );
+  assertCanGrantStaffPermissions(
+    permissionContext.access,
+    input.next.permissions,
+  );
+}
+
+function sameStringSet(left: readonly string[], right: readonly string[]) {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every((value) => rightSet.has(value));
 }
 
 function redirectWithStaffMessage(

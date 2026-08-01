@@ -3,11 +3,15 @@ import { StaffForm } from "@/components/staff-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { createStaffAction } from "../actions";
 
 export default async function NewStaffPage() {
-  const { user, businessId, industryType } = await requireBusinessUser();
-  assertStaffPermission(user, "TEAM");
+  const { access, user, businessId, industryType } =
+    await requireBusinessUser("EDIT_COMPENSATION");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "TEAM");
+  }
 
   const branches = await getActiveBranches(businessId);
 
@@ -36,6 +40,10 @@ export default async function NewStaffPage() {
           <StaffForm
             action={createStaffAction}
             branches={branches}
+            canManagePermissions={hasBusinessCapability(
+              access,
+              "MANAGE_TEAM_PERMISSIONS",
+            )}
             industryType={industryType}
             submitLabel="Create staff"
           />

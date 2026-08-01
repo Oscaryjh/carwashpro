@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { CatalogFormModal } from "@/components/catalog-form-modal";
 import { PermissionChecklist } from "@/components/staff-form";
 import { StaffCreateModal, StaffEditModal } from "@/components/staff-create-modal";
@@ -22,7 +23,8 @@ import {
   updateOwnerAppointmentAvailabilityAction,
 } from "./actions";
 import {
-  assignStaffRoleAndLevelAction,
+  assignStaffLevelAction,
+  assignStaffRoleAction,
   saveStaffLevelAction,
   saveStaffRoleProfileAction,
 } from "./configuration-actions";
@@ -58,11 +60,31 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   }
   const canViewCompensation = hasBusinessCapability(access, "VIEW_COMPENSATION");
   const canEditCompensation = hasBusinessCapability(access, "EDIT_COMPENSATION");
+  const canManageTeamPermissions = hasBusinessCapability(
+    access,
+    "MANAGE_TEAM_PERMISSIONS",
+  );
 
   const params = await searchParams;
-  const section = teamSections.some((item) => item.key === params.section)
+  const requestedSection = teamSections.some((item) => item.key === params.section)
     ? (params.section as TeamSection)
     : "people";
+  if (
+    (requestedSection === "roles" &&
+      !canManageTeamPermissions &&
+      !canEditCompensation) ||
+    (params.modal === "role" && !canManageTeamPermissions) ||
+    (params.modal === "level" && !canEditCompensation)
+  ) {
+    notFound();
+  }
+  const section = requestedSection;
+  const visibleTeamSections = teamSections.filter(
+    (item) =>
+      item.key !== "roles" ||
+      canManageTeamPermissions ||
+      canEditCompensation,
+  );
   const query = params.q?.trim() ?? "";
   const now = new Date();
   const attendanceModalOpen = params.modal === "attendance";
@@ -75,9 +97,15 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const employeeOnlyDataRequired = section === "people";
   const ownerDataRequired = section === "schedule";
   const roleDataRequired =
-    section === "people" ||
-    section === "roles" ||
-    ["create", "edit", "role", "level"].includes(params.modal ?? "");
+    canManageTeamPermissions &&
+    (section === "people" ||
+      section === "roles" ||
+      ["create", "edit", "role"].includes(params.modal ?? ""));
+  const staffLevelDataRequired =
+    canEditCompensation &&
+    (section === "people" ||
+      section === "roles" ||
+      ["create", "edit", "level"].includes(params.modal ?? ""));
   const serviceDataRequired =
     params.modal === "create" || params.modal === "edit";
   const activityDataRequired = section === "activity";
@@ -234,7 +262,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         include: { _count: { select: { users: true } } },
         orderBy: [{ active: "desc" }, { name: "asc" }],
       }) : Promise.resolve([]),
-      roleDataRequired ? prisma.staffLevel.findMany({
+      staffLevelDataRequired ? prisma.staffLevel.findMany({
         where: { businessId },
         include: { _count: { select: { users: true } } },
         orderBy: [{ active: "desc" }, { name: "asc" }],
@@ -292,8 +320,8 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const editingLevel = params.levelId
     ? staffLevels.find((level) => level.id === params.levelId)
     : undefined;
-  const roleModalOpen = params.modal === "role";
-  const levelModalOpen = params.modal === "level";
+  const roleModalOpen = params.modal === "role" && canManageTeamPermissions;
+  const levelModalOpen = params.modal === "level" && canEditCompensation;
   const editingStaff = params.staffId
     ? staff.find((member) => member.id === params.staffId)
     : undefined;
@@ -332,9 +360,11 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
             <p>People, employment, services, attendance, and access in one place.</p>
           </div>
           <div className="hr-module-actions">
-            <Link className="button-link" href="/team?section=people&modal=create">
-              Add team member
-            </Link>
+            {canEditCompensation ? (
+              <Link className="button-link" href="/team?section=people&modal=create">
+                Add team member
+              </Link>
+            ) : null}
           </div>
         </div>
 
@@ -349,7 +379,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
               <span>TEAM</span>
               <strong>Management</strong>
             </div>
-            {teamSections.map((item) => (
+            {visibleTeamSections.map((item) => (
               <Link
                 className={section === item.key ? "active" : ""}
                 href={
@@ -373,6 +403,8 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
                 branchesAvailable={Boolean(branches.length)}
                 employeeOnlyMemberships={employeeOnlyMemberships}
                 query={query}
+                canEditCompensation={canEditCompensation}
+                canManageTeamPermissions={canManageTeamPermissions}
                 roleProfiles={activeRoleOptions}
                 staff={staff}
                 staffLevels={activeStaffLevelOptions}
@@ -381,7 +413,12 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
             {section === "schedule" ? <ScheduleSection owners={owners} staff={staff} /> : null}
             {section === "attendance" ? <AttendanceSection attendance={attendance} /> : null}
             {section === "roles" ? (
-              <RolesSection roleProfiles={roleProfiles} staffLevels={staffLevels} />
+              <RolesSection
+                canEditCompensation={canEditCompensation}
+                canManageTeamPermissions={canManageTeamPermissions}
+                roleProfiles={roleProfiles}
+                staffLevels={staffLevels}
+              />
             ) : null}
             {section === "activity" ? (
               <ActivitySection activity={recentActivity} attendance={attendance} />
@@ -394,6 +431,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         <StaffCreateModal
           action={createStaffAction}
           branches={branches}
+          canManagePermissions={canManageTeamPermissions}
           industryType={industryType}
           roleProfiles={activeRoleOptions}
           services={services}
@@ -405,6 +443,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           action={updateStaffAction}
           assignedBranchIds={assignedBranchIds(editingStaff)}
           branches={branches}
+          canManagePermissions={canManageTeamPermissions}
           employeeProfile={
             editingStaff.employeeBusinessMembership
               ? {
@@ -653,6 +692,8 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
 
 function PeopleSection({
   branchesAvailable,
+  canEditCompensation,
+  canManageTeamPermissions,
   employeeOnlyMemberships,
   query,
   roleProfiles,
@@ -660,6 +701,8 @@ function PeopleSection({
   staffLevels,
 }: {
   branchesAvailable: boolean;
+  canEditCompensation: boolean;
+  canManageTeamPermissions: boolean;
   employeeOnlyMemberships: EmployeeOnlyRow[];
   query: string;
   roleProfiles: Array<{ id: string; name: string }>;
@@ -758,8 +801,8 @@ function PeopleSection({
                   {readiness.deviceStatus}
                 </span>
               </div>
-              {employment ? (
-                <form action={assignStaffRoleAndLevelAction} className="team-staff-classification">
+              {employment && canManageTeamPermissions ? (
+                <form action={assignStaffRoleAction} className="team-staff-classification">
                   <input name="userId" type="hidden" value={member.id} />
                   <label>
                     <span>Role</span>
@@ -768,6 +811,12 @@ function PeopleSection({
                       {roleProfiles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
                     </select>
                   </label>
+                  <button className="secondary-light-button" type="submit">Apply role</button>
+                </form>
+              ) : null}
+              {employment && canEditCompensation ? (
+                <form action={assignStaffLevelAction} className="team-staff-classification">
+                  <input name="userId" type="hidden" value={member.id} />
                   <label>
                     <span>Level</span>
                     <select defaultValue={member.staffLevelId ?? ""} name="staffLevelId">
@@ -775,9 +824,10 @@ function PeopleSection({
                       {staffLevels.map((level) => <option key={level.id} value={level.id}>{level.name}</option>)}
                     </select>
                   </label>
-                  <button className="secondary-light-button" type="submit">Apply</button>
+                  <button className="secondary-light-button" type="submit">Apply level</button>
                 </form>
-              ) : employeeOnlyMemberships.length ? (
+              ) : null}
+              {!employment && employeeOnlyMemberships.length ? (
                 <form action={linkTeamMemberAction} className="team-staff-classification">
                   <input name="userId" type="hidden" value={member.id} />
                   <label>
@@ -800,7 +850,7 @@ function PeopleSection({
                   </label>
                   <button className="secondary-light-button" type="submit">Link</button>
                 </form>
-              ) : (
+              ) : !employment ? (
                 <div className="team-staff-classification team-staff-link-note">
                   <span aria-hidden="true">i</span>
                   <span>
@@ -808,15 +858,17 @@ function PeopleSection({
                     <small>No available employment profile in this business.</small>
                   </span>
                 </div>
-              )}
-              <Link
-                aria-label={`Edit ${member.name}`}
-                className="secondary-light-button team-row-action"
-                href={`/team?section=people&modal=edit&staffId=${member.id}`}
-              >
-                <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
-                <span>Edit</span>
-              </Link>
+              ) : null}
+              {canEditCompensation ? (
+                <Link
+                  aria-label={`Edit ${member.name}`}
+                  className="secondary-light-button team-row-action"
+                  href={`/team?section=people&modal=edit&staffId=${member.id}`}
+                >
+                  <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
+                  <span>Edit</span>
+                </Link>
+              ) : null}
             </article>
           );
         })}
@@ -1005,42 +1057,60 @@ function AttendanceSection({ attendance }: { attendance: AttendanceRow[] }) {
   );
 }
 
-function RolesSection({ roleProfiles, staffLevels }: { roleProfiles: RoleRow[]; staffLevels: LevelRow[] }) {
+function RolesSection({
+  canEditCompensation,
+  canManageTeamPermissions,
+  roleProfiles,
+  staffLevels,
+}: {
+  canEditCompensation: boolean;
+  canManageTeamPermissions: boolean;
+  roleProfiles: RoleRow[];
+  staffLevels: LevelRow[];
+}) {
   return (
     <section className="team-section-panel team-roles-section">
-      <div className="team-section-toolbar"><div><p className="eyebrow">TEAM ACCESS</p><h2>Roles & Permissions</h2></div><Link className="button-link" href="/team?section=roles&modal=role">New role</Link></div>
-      <div className="team-config-list">
-        {roleProfiles.length ? roleProfiles.map((role) => (
-          <article key={role.id}>
-            <div><strong>{role.name}</strong><small>{role.permissions.length} permissions</small></div>
-            <span><strong>{role._count.users}</strong><small>staff</small></span>
-            <span className={role.active ? "status" : "status status-neutral"}>{role.active ? "Active" : "Inactive"}</span>
-            <Link className="secondary-light-button" href={`/team?section=roles&modal=role&roleId=${role.id}`}>Edit</Link>
-          </article>
-        )) : <div className="empty-state">No reusable roles yet.</div>}
-      </div>
+      {canManageTeamPermissions ? (
+        <>
+          <div className="team-section-toolbar"><div><p className="eyebrow">TEAM ACCESS</p><h2>Roles & Permissions</h2></div><Link className="button-link" href="/team?section=roles&modal=role">New role</Link></div>
+          <div className="team-config-list">
+            {roleProfiles.length ? roleProfiles.map((role) => (
+              <article key={role.id}>
+                <div><strong>{role.name}</strong><small>{role.permissions.length} permissions</small></div>
+                <span><strong>{role._count.users}</strong><small>staff</small></span>
+                <span className={role.active ? "status" : "status status-neutral"}>{role.active ? "Active" : "Inactive"}</span>
+                <Link className="secondary-light-button" href={`/team?section=roles&modal=role&roleId=${role.id}`}>Edit</Link>
+              </article>
+            )) : <div className="empty-state">No reusable roles yet.</div>}
+          </div>
+        </>
+      ) : null}
 
-      <div className="team-section-toolbar team-level-heading"><div><p className="eyebrow">STAFF LEVELS</p><h2>Commission presets</h2></div><Link className="button-link" href="/team?section=roles&modal=level">New level</Link></div>
-      <div className="team-level-list">
-        <div className="team-level-list-head"><span>Level</span><span>Service</span><span>Product</span><span>Package</span><span>Assigned</span><span>Actions</span></div>
-        {staffLevels.length ? staffLevels.map((level) => (
-          <article key={level.id}>
-            <span><strong>{level.name}</strong><small>{level.active ? "Active" : "Inactive"}</small></span>
-            <span>{commissionLabel(level.serviceFixedAmount, level.servicePercent)}</span>
-            <span>{commissionLabel(level.productFixedAmount, level.productPercent)}</span>
-            <span>{commissionLabel(level.packageFixedAmount, level.packagePercent)}</span>
-            <span>{level._count.users} staff</span>
-            <Link
-              aria-label={`Edit ${level.name} level`}
-              className="secondary-light-button team-row-action team-level-action"
-              href={`/team?section=roles&modal=level&levelId=${level.id}`}
-            >
-              <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
-              <span>Edit</span>
-            </Link>
-          </article>
-        )) : <div className="empty-state">No staff levels yet.</div>}
-      </div>
+      {canEditCompensation ? (
+        <>
+          <div className="team-section-toolbar team-level-heading"><div><p className="eyebrow">STAFF LEVELS</p><h2>Commission presets</h2></div><Link className="button-link" href="/team?section=roles&modal=level">New level</Link></div>
+          <div className="team-level-list">
+            <div className="team-level-list-head"><span>Level</span><span>Service</span><span>Product</span><span>Package</span><span>Assigned</span><span>Actions</span></div>
+            {staffLevels.length ? staffLevels.map((level) => (
+              <article key={level.id}>
+                <span><strong>{level.name}</strong><small>{level.active ? "Active" : "Inactive"}</small></span>
+                <span>{commissionLabel(level.serviceFixedAmount, level.servicePercent)}</span>
+                <span>{commissionLabel(level.productFixedAmount, level.productPercent)}</span>
+                <span>{commissionLabel(level.packageFixedAmount, level.packagePercent)}</span>
+                <span>{level._count.users} staff</span>
+                <Link
+                  aria-label={`Edit ${level.name} level`}
+                  className="secondary-light-button team-row-action team-level-action"
+                  href={`/team?section=roles&modal=level&levelId=${level.id}`}
+                >
+                  <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
+                  <span>Edit</span>
+                </Link>
+              </article>
+            )) : <div className="empty-state">No staff levels yet.</div>}
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }

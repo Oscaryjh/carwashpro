@@ -15,7 +15,7 @@ import {
   staffPermissions,
 } from "../../src/lib/auth/staff-permissions";
 
-const sensitiveCapabilities: BusinessCapability[] = [
+const sensitiveCapabilities = [
   "VIEW_COMPENSATION", "EDIT_COMPENSATION", "VIEW_PAYROLL_RUN",
   "CREATE_PAYROLL_RUN", "EDIT_PAYROLL_ENTRY", "SUBMIT_PAYROLL_REVIEW",
   "RETURN_PAYROLL_TO_DRAFT", "APPROVE_PAYROLL", "REOPEN_PAYROLL",
@@ -25,13 +25,14 @@ const sensitiveCapabilities: BusinessCapability[] = [
   "EDIT_STATUTORY_PROFILE", "VIEW_TAX_PROFILE", "EDIT_TAX_PROFILE",
   "VIEW_STATUTORY_SUBMISSION", "EXPORT_STATUTORY", "SUBMIT_STATUTORY",
   "RESOLVE_STATUTORY_SUBMISSION",
-];
+] as const satisfies readonly BusinessCapability[];
 
 test("group managers receive no payroll or compensation capability by default", () => {
   for (const capability of sensitiveCapabilities) {
     assert.equal(canGroupManager(capability), false, capability);
   }
   assert.equal(canGroupManager("VIEW_ATTENDANCE_EMPLOYEES"), true);
+  assert.equal(canGroupManager("MANAGE_TEAM_PERMISSIONS"), false);
 });
 
 test("group owners retain explicit owner-equivalent capability policy", () => {
@@ -97,6 +98,67 @@ test("all P0 capabilities are configurable, grouped and never selected by defaul
   assert.match(permissionUi, /defaultChecked=\{selected\.has\(permission\.key\)\}/);
   assert.match(roleAction, /formData\.getAll\("permissions"\)/);
   assert.match(roleAction, /data: \{ name: input\.name, permissions, active: input\.active \}/);
+});
+
+test("role administration cannot be reached through attendance management", async () => {
+  assert.equal(canDirectStaff(["TEAM"], "MANAGE_TEAM_PERMISSIONS"), false);
+  assert.equal(
+    canDirectStaff(
+      ["MANAGE_TEAM_PERMISSIONS"],
+      "MANAGE_TEAM_PERMISSIONS",
+    ),
+    true,
+  );
+  assert.equal(
+    defaultStaffPermissions.includes("MANAGE_TEAM_PERMISSIONS"),
+    false,
+  );
+
+  const root = process.cwd();
+  const configurationActions = await readFile(
+    path.join(root, "src/app/(business)/team/configuration-actions.ts"),
+    "utf8",
+  );
+  const teamActions = await readFile(
+    path.join(root, "src/app/(business)/team/actions.ts"),
+    "utf8",
+  );
+  const teamPage = await readFile(
+    path.join(root, "src/app/(business)/team/page.tsx"),
+    "utf8",
+  );
+  const permissionAdministration = await readFile(
+    path.join(root, "src/lib/team/permission-administration.ts"),
+    "utf8",
+  );
+
+  assert.match(
+    configurationActions,
+    /saveStaffRoleProfileAction[\s\S]*?requireBusinessUser\("MANAGE_TEAM_PERMISSIONS"\)/,
+  );
+  assert.match(
+    configurationActions,
+    /assignStaffRoleAction[\s\S]*?requireBusinessUser\("MANAGE_TEAM_PERMISSIONS"\)/,
+  );
+  assert.match(
+    configurationActions,
+    /saveStaffLevelAction[\s\S]*?requireBusinessUser\("EDIT_COMPENSATION"\)/,
+  );
+  assert.match(
+    configurationActions,
+    /assignStaffLevelAction[\s\S]*?requireBusinessUser\("EDIT_COMPENSATION"\)/,
+  );
+  assert.match(teamActions, /requireStaffAccessAdministrationIfChanged/);
+  assert.match(teamPage, /canManageTeamPermissions/);
+  assert.match(teamPage, /params\.modal === "role" && !canManageTeamPermissions/);
+  assert.match(
+    permissionAdministration,
+    /requestedPermissions\.some[\s\S]*?!actorPermissions\.has/,
+  );
+  assert.match(
+    permissionAdministration,
+    /access\.source === "GROUP_ACCESS" && access\.actorRole === "GROUP_OWNER"/,
+  );
 });
 
 test("deployed sensitive entry points use dedicated capabilities and immutable GET exports", async () => {

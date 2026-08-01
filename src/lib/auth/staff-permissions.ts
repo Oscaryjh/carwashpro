@@ -96,6 +96,12 @@ export const staffPermissions = [
     description: "Create staff accounts and manage staff permissions.",
   },
   {
+    key: "MANAGE_TEAM_PERMISSIONS",
+    label: "Manage roles & permissions",
+    description:
+      "Create roles and grant only permissions already held by the administrator.",
+  },
+  {
     key: "ATTENDANCE_EMPLOYEE_READ",
     label: "View attendance employees",
     description: "View employee profiles and branch attendance assignments.",

@@ -27,6 +27,7 @@ type StaffBranch = {
 type StaffFormProps = {
   action: (formData: FormData) => Promise<void>;
   branches: StaffBranch[];
+  canManagePermissions: boolean;
   staff?: StaffFormStaff;
   employeeProfile?: {
     attendanceEnabled: boolean;
@@ -55,6 +56,7 @@ type AccessType = "LOGIN" | "NO_LOGIN";
 export function StaffForm({
   action,
   branches,
+  canManagePermissions,
   staff,
   employeeProfile,
   assignedBranchIds = [],
@@ -149,6 +151,19 @@ export function StaffForm({
         type="hidden"
         value={selectedRoleProfileId}
       />
+      {!canManagePermissions
+        ? selectedPermissions.map((permission) => (
+            <input
+              key={permission}
+              name="permissions"
+              type="hidden"
+              value={permission}
+            />
+          ))
+        : null}
+      {!canManagePermissions && staff?.email ? (
+        <input name="email" type="hidden" value={staff.email} />
+      ) : null}
       {isLegacyEdit ? (
         <label className="staff-appointment-setting">
           <input
@@ -458,40 +473,49 @@ export function StaffForm({
               <small>Show this person in service and appointment staff selectors.</small>
             </span>
           </label>
-          <label className="staff-appointment-setting">
-            <input
-              checked={accessType === "LOGIN"}
-              name="posAccess"
-              onChange={(event) =>
-                setAccessType(event.target.checked ? "LOGIN" : "NO_LOGIN")
-              }
-              type="checkbox"
-            />
-            <span>
-              <strong>Can access POS back office</strong>
-              <small>Enable email login and selected system permissions.</small>
-            </span>
-          </label>
+          {canManagePermissions ? (
+            <label className="staff-appointment-setting">
+              <input
+                checked={accessType === "LOGIN"}
+                name="posAccess"
+                onChange={(event) =>
+                  setAccessType(event.target.checked ? "LOGIN" : "NO_LOGIN")
+                }
+                type="checkbox"
+              />
+              <span>
+                <strong>Can access POS back office</strong>
+                <small>Enable email login and selected system permissions.</small>
+              </span>
+            </label>
+          ) : (
+            <div className="staff-record-access-note">
+              <strong>POS access managed separately</strong>
+              <span>Only an authorized role administrator can change login access.</span>
+            </div>
+          )}
         </div>
 
         {providesServices ? (
           <section className="staff-access-mode" aria-labelledby="service-profile-heading">
             <h3 id="service-profile-heading">Service & appointment profile</h3>
             <div className="field-grid">
-              <label>
-                <span>Role</span>
-                <select
-                  onChange={(event) => setSelectedRoleProfileId(event.target.value)}
-                  value={selectedRoleProfileId}
-                >
-                  <option value="">No service role</option>
-                  {roleProfiles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {canManagePermissions ? (
+                <label>
+                  <span>Role</span>
+                  <select
+                    onChange={(event) => setSelectedRoleProfileId(event.target.value)}
+                    value={selectedRoleProfileId}
+                  >
+                    <option value="">No service role</option>
+                    {roleProfiles.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <label>
                 <span>Level</span>
                 <select
@@ -546,22 +570,24 @@ export function StaffForm({
               POS access is optional and remains separate from attendance and service
               availability.
             </p>
-            <div className="field-grid">
-              <label>
-                <span>Login Role</span>
-                <select
-                  onChange={(event) => setSelectedRoleProfileId(event.target.value)}
-                  value={selectedRoleProfileId}
-                >
-                  <option value="">No login role</option>
-                  {roleProfiles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            {canManagePermissions ? (
+              <div className="field-grid">
+                <label>
+                  <span>Login Role</span>
+                  <select
+                    onChange={(event) => setSelectedRoleProfileId(event.target.value)}
+                    value={selectedRoleProfileId}
+                  >
+                    <option value="">No login role</option>
+                    {roleProfiles.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ) : null}
             <fieldset className="service-staff-fieldset">
               <legend>Authorized Branches</legend>
               <div className="service-staff-grid">
@@ -593,7 +619,7 @@ export function StaffForm({
           </section>
         ) : null}
 
-        {accessType === "LOGIN" ? (
+        {accessType === "LOGIN" && canManagePermissions ? (
           <div className="field-grid staff-login-fields">
             <label>
               <span>Email / Login ID</span>
@@ -617,7 +643,7 @@ export function StaffForm({
           </div>
         ) : null}
 
-        {accessType === "LOGIN" ? (
+        {accessType === "LOGIN" && canManagePermissions ? (
           <details className="staff-permission-override">
             <summary>
               <span>
@@ -634,7 +660,7 @@ export function StaffForm({
               industryType={industryType}
             />
           </details>
-        ) : (
+        ) : accessType !== "LOGIN" ? (
           <div className="staff-record-access-note">
             <strong>No system permissions</strong>
             <span>
@@ -642,7 +668,7 @@ export function StaffForm({
               options are enabled.
             </span>
           </div>
-        )}
+        ) : null}
       </fieldset>
       <div className="form-actions">
         <button type="submit" disabled={!branches.length}>

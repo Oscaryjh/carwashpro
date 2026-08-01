@@ -18,6 +18,7 @@ import {
 test("group manager capability policy includes authorized attendance management", () => {
   assert.equal(canGroupManager("MODIFY_ATTENDANCE_EMPLOYEES"), true);
   assert.equal(canGroupManager("MODIFY_ATTENDANCE_SETTINGS"), true);
+  assert.equal(canGroupManager("MANAGE_TEAM_PERMISSIONS"), false);
   for (const capability of [
     "VIEW_PAYROLL", "MODIFY_PAYROLL", "VIEW_COMPENSATION",
     "VIEW_PAYROLL_RUN", "VIEW_BANK_ACCOUNT", "VIEW_PAYSLIP",
@@ -95,6 +96,17 @@ test("direct staff capabilities continue to follow existing permissions", () => 
     canDirectStaff(
       ["ATTENDANCE_SETTINGS_MANAGE"],
       "MODIFY_ATTENDANCE_SETTINGS",
+    ),
+    true,
+  );
+  assert.equal(
+    canDirectStaff(["TEAM"], "MANAGE_TEAM_PERMISSIONS"),
+    false,
+  );
+  assert.equal(
+    canDirectStaff(
+      ["MANAGE_TEAM_PERMISSIONS"],
+      "MANAGE_TEAM_PERMISSIONS",
     ),
     true,
   );

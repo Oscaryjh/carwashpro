@@ -7,11 +7,9 @@ import { z } from "zod";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import {
-  assertStaffPermission,
-  normalizeStaffPermissionsForIndustry,
-} from "@/lib/auth/staff-permissions";
+import { normalizeStaffPermissionsForIndustry } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
+import { assertCanGrantStaffPermissions } from "@/lib/team/permission-administration";
 import {
   buildPeopleStaffScopeWhere,
   hasWholeBusinessPeopleScope,
@@ -39,16 +37,19 @@ const staffLevelSchema = z.object({
   active: z.boolean(),
 });
 
-const staffAssignmentSchema = z.object({
+const staffRoleAssignmentSchema = z.object({
   userId: z.string().uuid(),
   staffRoleProfileId: optionalUuid,
+});
+
+const staffLevelAssignmentSchema = z.object({
+  userId: z.string().uuid(),
   staffLevelId: optionalUuid,
 });
 
 export async function saveStaffRoleProfileAction(formData: FormData) {
   const { access, user, businessId, industryType } =
-    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
-  if (access.source === "DIRECT_BUSINESS") assertStaffPermission(user, "TEAM");
+    await requireBusinessUser("MANAGE_TEAM_PERMISSIONS");
 
   try {
     if (!hasWholeBusinessPeopleScope(access)) {
@@ -63,6 +64,7 @@ export async function saveStaffRoleProfileAction(formData: FormData) {
       formData.getAll("permissions"),
       industryType,
     );
+    assertCanGrantStaffPermissions(access, permissions);
     const auditRequest = await getAuditRequestContext();
 
     await prisma.$transaction(async (tx) => {
@@ -123,8 +125,7 @@ export async function saveStaffRoleProfileAction(formData: FormData) {
 
 export async function saveStaffLevelAction(formData: FormData) {
   const { access, user, businessId } =
-    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
-  if (access.source === "DIRECT_BUSINESS") assertStaffPermission(user, "TEAM");
+    await requireBusinessUser("EDIT_COMPENSATION");
 
   try {
     if (!hasWholeBusinessPeopleScope(access)) {
@@ -190,16 +191,14 @@ export async function saveStaffLevelAction(formData: FormData) {
   }
 }
 
-export async function assignStaffRoleAndLevelAction(formData: FormData) {
+export async function assignStaffRoleAction(formData: FormData) {
   const { access, user, businessId } =
-    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
-  if (access.source === "DIRECT_BUSINESS") assertStaffPermission(user, "TEAM");
+    await requireBusinessUser("MANAGE_TEAM_PERMISSIONS");
 
   try {
-    const input = staffAssignmentSchema.parse({
+    const input = staffRoleAssignmentSchema.parse({
       userId: formData.get("userId"),
       staffRoleProfileId: String(formData.get("staffRoleProfileId") ?? ""),
-      staffLevelId: String(formData.get("staffLevelId") ?? ""),
     });
     const scope = await resolveAttendanceScope(access);
     const peopleScope = {
@@ -211,7 +210,7 @@ export async function assignStaffRoleAndLevelAction(formData: FormData) {
     const auditRequest = await getAuditRequestContext();
 
     await prisma.$transaction(async (tx) => {
-      const [staff, roleProfile, staffLevel] = await Promise.all([
+      const [staff, roleProfile] = await Promise.all([
         tx.user.findFirst({
           where: {
             ...buildPeopleStaffScopeWhere(peopleScope),
@@ -225,7 +224,6 @@ export async function assignStaffRoleAndLevelAction(formData: FormData) {
             loginEnabled: true,
             permissions: true,
             staffRoleProfileId: true,
-            staffLevelId: true,
           },
         }),
         input.staffRoleProfileId
@@ -233,22 +231,16 @@ export async function assignStaffRoleAndLevelAction(formData: FormData) {
               where: { id: input.staffRoleProfileId, businessId, active: true },
             })
           : null,
-        input.staffLevelId
-          ? tx.staffLevel.findFirst({
-              where: { id: input.staffLevelId, businessId, active: true },
-            })
-          : null,
       ]);
 
       if (!staff) throw new Error("Staff user not found in the authorized branch scope.");
       if (input.staffRoleProfileId && !roleProfile) throw new Error("Role profile is unavailable.");
-      if (input.staffLevelId && !staffLevel) throw new Error("Staff level is unavailable.");
+      assertCanGrantStaffPermissions(access, roleProfile?.permissions ?? []);
 
       const updated = await tx.user.update({
         where: { id: staff.id },
         data: {
           staffRoleProfileId: roleProfile?.id ?? null,
-          staffLevelId: staffLevel?.id ?? null,
           ...(roleProfile && staff.loginEnabled
             ? { permissions: roleProfile.permissions }
             : {}),
@@ -266,12 +258,10 @@ export async function assignStaffRoleAndLevelAction(formData: FormData) {
           summary: `Updated role and level for ${staff.name}`,
           before: {
             staffRoleProfileId: staff.staffRoleProfileId,
-            staffLevelId: staff.staffLevelId,
             permissions: staff.permissions,
           },
           after: {
             staffRoleProfileId: updated.staffRoleProfileId,
-            staffLevelId: updated.staffLevelId,
             permissions: updated.permissions,
           },
           request: auditRequest,
@@ -281,10 +271,83 @@ export async function assignStaffRoleAndLevelAction(formData: FormData) {
     });
 
     revalidatePath("/team");
-    redirectWithMessage("staff", "Staff role and level updated.", "success");
+    redirectWithMessage("staff", "Staff role updated.", "success");
   } catch (error) {
     if (isRedirectError(error)) throw error;
-    redirectWithMessage("staff", getActionError(error, "Unable to update staff."), "error");
+    redirectWithMessage("staff", getActionError(error, "Unable to update staff role."), "error");
+  }
+}
+
+export async function assignStaffLevelAction(formData: FormData) {
+  const { access, user, businessId } =
+    await requireBusinessUser("EDIT_COMPENSATION");
+
+  try {
+    const input = staffLevelAssignmentSchema.parse({
+      userId: formData.get("userId"),
+      staffLevelId: String(formData.get("staffLevelId") ?? ""),
+    });
+    const scope = await resolveAttendanceScope(access);
+    const peopleScope = {
+      allowedBranchIds: scope.allowedBranchIds,
+      businessId,
+      now: new Date(),
+      wholeBusinessScope: hasWholeBusinessPeopleScope(access),
+    };
+    const auditRequest = await getAuditRequestContext();
+
+    await prisma.$transaction(async (tx) => {
+      const [staff, staffLevel] = await Promise.all([
+        tx.user.findFirst({
+          where: {
+            ...buildPeopleStaffScopeWhere(peopleScope),
+            id: input.userId,
+            role: "STAFF",
+          },
+          select: {
+            id: true,
+            name: true,
+            branchId: true,
+            staffLevelId: true,
+          },
+        }),
+        input.staffLevelId
+          ? tx.staffLevel.findFirst({
+              where: { id: input.staffLevelId, businessId, active: true },
+            })
+          : null,
+      ]);
+
+      if (!staff) throw new Error("Staff user not found in the authorized branch scope.");
+      if (input.staffLevelId && !staffLevel) throw new Error("Staff level is unavailable.");
+
+      const updated = await tx.user.update({
+        where: { id: staff.id },
+        data: { staffLevelId: staffLevel?.id ?? null },
+      });
+
+      await writeAuditLog(
+        {
+          businessId,
+          branchId: staff.branchId,
+          actor: user,
+          action: "STAFF_LEVEL_ASSIGNED",
+          entityType: "User",
+          entityId: staff.id,
+          summary: `Updated level for ${staff.name}`,
+          before: { staffLevelId: staff.staffLevelId },
+          after: { staffLevelId: updated.staffLevelId },
+          request: auditRequest,
+        },
+        tx,
+      );
+    });
+
+    revalidatePath("/team");
+    redirectWithMessage("staff", "Staff level updated.", "success");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirectWithMessage("staff", getActionError(error, "Unable to update staff level."), "error");
   }
 }
 
