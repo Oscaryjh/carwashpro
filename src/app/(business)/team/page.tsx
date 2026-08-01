@@ -6,6 +6,7 @@ import { StaffAvailabilityForm } from "@/components/staff-availability-form";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import {
@@ -55,6 +56,8 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   if (access.source === "DIRECT_BUSINESS") {
     assertStaffPermission(user, "TEAM");
   }
+  const canViewCompensation = hasBusinessCapability(access, "VIEW_COMPENSATION");
+  const canEditCompensation = hasBusinessCapability(access, "EDIT_COMPENSATION");
 
   const params = await searchParams;
   const section = teamSections.some((item) => item.key === params.section)
@@ -117,7 +120,18 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           staffRoleProfile: { select: { id: true, name: true } },
           staffLevel: { select: { id: true, name: true } },
           employeeBusinessMembership: {
-            include: {
+            select: {
+              id: true,
+              attendanceEnabled: true,
+              phoneNumberNormalized: true,
+              employeeCode: true,
+              employmentType: true,
+              payBasis: canViewCompensation,
+              baseSalary: canViewCompensation,
+              normalWorkMinutesPerDay: true,
+              targetBreakMinutes: true,
+              joinedAt: true,
+              status: true,
               branchAssignments: {
                 ...(wholeBusinessScope
                   ? {}
@@ -170,7 +184,14 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           ...membershipScopeWhere,
           staffUser: null,
         },
-        include: {
+        select: {
+          id: true,
+          attendanceEnabled: true,
+          employeeCode: true,
+          phoneNumberNormalized: true,
+          employmentType: true,
+          fullName: true,
+          status: true,
           branchAssignments: {
             where: wholeBusinessScope
               ? { status: "ACTIVE" }
@@ -369,7 +390,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         </div>
       </section>
 
-      {params.modal === "create" ? (
+      {params.modal === "create" && canEditCompensation ? (
         <StaffCreateModal
           action={createStaffAction}
           branches={branches}
@@ -379,7 +400,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           staffLevels={activeStaffLevelOptions}
         />
       ) : null}
-      {params.modal === "edit" && editingStaff ? (
+      {params.modal === "edit" && editingStaff && canEditCompensation ? (
         <StaffEditModal
           action={updateStaffAction}
           assignedBranchIds={assignedBranchIds(editingStaff)}

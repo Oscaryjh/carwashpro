@@ -117,7 +117,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
         ]
       : []),
     ...(isStoreUser &&
-    canSeeCapability("PAYROLL_READ", "VIEW_PAYROLL")
+    canSeeCapability("VIEW_PAYROLL_RUN", "VIEW_PAYROLL_RUN")
       ? [
           {
             href: "/team/payroll",

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { sanitizePayrollNotice } from "@/lib/payroll/error-message";
 import {
   DEFAULT_PAYROLL_SETTING,
@@ -31,7 +32,7 @@ type PayrollPageProps = {
 };
 
 export default async function PayrollPage({ searchParams }: PayrollPageProps) {
-  const { access, businessId } = await requireBusinessUser("VIEW_PAYROLL");
+  const { access, businessId, user } = await requireBusinessUser("VIEW_PAYROLL_RUN");
   const scope = await resolveAttendanceScope(access);
   const params = await searchParams;
   const noticeMessage = sanitizePayrollNotice(params.message, params.type);
@@ -50,9 +51,15 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
     redirect("/team?type=error&message=Payroll%20requires%20all-branch%20access.");
   }
 
-  const canManage =
-    access.effectiveBusinessRole !== "STAFF" ||
-    access.permissions.includes("PAYROLL_MANAGE");
+  const canCreatePayroll = hasBusinessCapability(access, "CREATE_PAYROLL_RUN");
+  const canEditPayroll = hasBusinessCapability(access, "EDIT_PAYROLL_ENTRY");
+  const canEditStatutory = hasBusinessCapability(access, "EDIT_STATUTORY_PROFILE");
+  const canSubmitReview = hasBusinessCapability(access, "SUBMIT_PAYROLL_REVIEW");
+  const canReturnToDraft = hasBusinessCapability(access, "RETURN_PAYROLL_TO_DRAFT");
+  const canApprovePayroll = hasBusinessCapability(access, "APPROVE_PAYROLL");
+  const canReopenPayroll = hasBusinessCapability(access, "REOPEN_PAYROLL");
+  const canExportPayroll = hasBusinessCapability(access, "EXPORT_PAYROLL");
+  const canExportStatutory = hasBusinessCapability(access, "EXPORT_STATUTORY");
   const [storedSetting, run, holidays, recentRuns] = await Promise.all([
     prisma.payrollSetting.findUnique({ where: { businessId } }),
     prisma.payrollRun.findUnique({
@@ -187,7 +194,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
               View month
             </button>
           </form>
-          {canManage ? (
+          {canCreatePayroll ? (
             <form action={generatePayrollRunAction}>
               <input name="month" type="hidden" value={period.value} />
               <button className={styles.primaryButton} type="submit">
@@ -240,7 +247,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
           >
             <input name="month" type="hidden" value={period.value} />
             <Field
-              disabled={!canManage}
+              disabled={!canEditPayroll}
               hint="Default: 26 days"
               label="Working days / month"
               max="31"
@@ -249,7 +256,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
               value={setting.workingDaysPerMonth}
             />
             <Field
-              disabled={!canManage}
+              disabled={!canEditPayroll}
               hint={`${formatHours(setting.normalWorkMinutesPerDay)} paid hours`}
               label="Paid minutes / day"
               max="1440"
@@ -258,7 +265,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
               value={setting.normalWorkMinutesPerDay}
             />
             <Field
-              disabled={!canManage}
+              disabled={!canEditPayroll}
               hint="Unpaid break target"
               label="Break minutes"
               max="720"
@@ -267,7 +274,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
               value={setting.breakMinutesPerDay}
             />
             <Field
-              disabled={!canManage}
+              disabled={!canEditPayroll}
               hint="Normal working day"
               label="OT multiplier"
               max="10"
@@ -277,7 +284,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
               value={String(setting.overtimeMultiplier)}
             />
             <Field
-              disabled={!canManage}
+              disabled={!canEditPayroll}
               hint="Extra on top of ordinary pay"
               label="Public holiday extra"
               max="10"
@@ -292,13 +299,13 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                 defaultValue={
                   "stateCode" in setting ? setting.stateCode ?? "" : ""
                 }
-                disabled={!canManage}
+                disabled={!canEditPayroll}
                 name="stateCode"
                 placeholder="e.g. Sabah"
               />
               <small>Used to identify your holiday calendar</small>
             </label>
-            {canManage ? (
+            {canEditPayroll ? (
               <div className={styles.formActions}>
                 <button className={styles.primaryButton} type="submit">
                   Save payroll settings
@@ -329,7 +336,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
               {holidays.length} {holidays.length === 1 ? "day" : "days"}
             </span>
           </div>
-          {canManage ? (
+          {canEditPayroll ? (
             <form
               action={addPayrollHolidayAction}
               className={styles.holidayForm}
@@ -383,7 +390,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                     <strong>{holiday.name}</strong>
                     <small>{holiday.branch.name}</small>
                   </span>
-                  {canManage ? (
+                  {canEditPayroll ? (
                     <form action={deletePayrollHolidayAction}>
                       <input
                         name="holidayId"
@@ -444,17 +451,17 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
           </span>
         </div>
 
-        {run && entries.length ? (
+        {run && entries.length && (canExportPayroll || canExportStatutory) ? (
           <div className={styles.exportBar}>
             <div>
               <strong>Payroll documents</strong>
               <small>Download payroll and statutory contribution records.</small>
             </div>
             <div className={styles.downloadLinks}>
-              <Link href={`/team/payroll/export?month=${period.value}&kind=payroll&format=csv`}>Payroll CSV</Link>
-              <Link href={`/team/payroll/export?month=${period.value}&kind=payroll&format=xlsx`}>Payroll Excel</Link>
-              <Link href={`/team/payroll/export?month=${period.value}&kind=statutory&format=csv`}>Statutory CSV</Link>
-              <Link href={`/team/payroll/export?month=${period.value}&kind=statutory&format=xlsx`}>Statutory Excel</Link>
+              {canExportPayroll ? <><Link href={`/team/payroll/export?month=${period.value}&kind=payroll&format=csv`}>Payroll CSV</Link>
+              <Link href={`/team/payroll/export?month=${period.value}&kind=payroll&format=xlsx`}>Payroll Excel</Link></> : null}
+              {canExportStatutory ? <><Link href={`/team/payroll/export?month=${period.value}&kind=statutory&format=csv`}>Statutory CSV</Link>
+              <Link href={`/team/payroll/export?month=${period.value}&kind=statutory&format=xlsx`}>Statutory Excel</Link></> : null}
             </div>
           </div>
         ) : null}
@@ -471,7 +478,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                 the monthly draft.
               </p>
             </div>
-            {canManage ? (
+            {canCreatePayroll ? (
               <form action={generatePayrollRunAction}>
                 <input name="month" type="hidden" value={period.value} />
                 <button className={styles.primaryButton} type="submit">
@@ -512,8 +519,8 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                 <tbody>
                   {entries.map((entry) => (
                     <PayrollEntryRows
-                      editable={canManage && run.status === "DRAFT"}
-                      profileEditable={canManage}
+                      editable={canEditPayroll && run.status === "DRAFT"}
+                      profileEditable={canEditStatutory}
                       entry={entry}
                       key={entry.id}
                       month={period.value}
@@ -533,7 +540,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                   deductions.
                 </p>
               </div>
-              {canManage && run.status === "DRAFT" ? (
+              {canSubmitReview && run.status === "DRAFT" ? (
                 <form action={submitPayrollRunForReviewAction}>
                   <input name="month" type="hidden" value={period.value} />
                   <input name="runId" type="hidden" value={run.id} />
@@ -542,9 +549,9 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                   </button>
                 </form>
               ) : null}
-              {canManage && run.status === "REVIEW" ? (
+              {run.status === "REVIEW" ? (
                 <div className={styles.workflowActions}>
-                  <details>
+                  {canReturnToDraft ? <details>
                     <summary>Return to draft</summary>
                     <form action={returnPayrollRunToDraftAction} className={styles.reasonForm}>
                       <input name="month" type="hidden" value={period.value} />
@@ -555,17 +562,20 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                       </label>
                       <button className={styles.secondaryButton} type="submit">Return</button>
                     </form>
-                  </details>
+                  </details> : null}
+                  {canApprovePayroll && (run.submittedById !== user.userId || access.effectiveBusinessRole === "BUSINESS_OWNER") ? (
                   <form action={finalizePayrollRunAction}>
                     <input name="month" type="hidden" value={period.value} />
                     <input name="runId" type="hidden" value={run.id} />
+                    {run.submittedById === user.userId ? <input minLength={5} name="reason" placeholder="Emergency owner override reason" required /> : null}
                     <button className={styles.finalizeButton} type="submit">
                       Finalize and lock
                     </button>
                   </form>
+                  ) : null}
                 </div>
               ) : null}
-              {canManage && run.status === "FINALIZED" ? (
+              {canReopenPayroll && run.status === "FINALIZED" ? (
                 <details className={styles.reopenControl}>
                   <summary>Reopen for correction</summary>
                   <form action={reopenPayrollRunAction} className={styles.reasonForm}>

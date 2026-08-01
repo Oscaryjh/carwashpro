@@ -444,7 +444,11 @@ export async function returnPayrollRunToDraft(
 }
 
 export async function finalizePayrollRun(
-  context: PayrollContext & { runId: string },
+  context: PayrollContext & {
+    runId: string;
+    allowSelfApprovalOverride?: boolean;
+    overrideReason?: string;
+  },
   database: PrismaClient = prisma,
 ) {
   return database.$transaction(async (transaction) => {
@@ -454,6 +458,13 @@ export async function finalizePayrollRun(
     });
     if (!run) throw new Error("Payroll run not found.");
     payrollTransition(run.status, "FINALIZE");
+    const selfApproval = run.submittedById === context.actor.userId;
+    if (selfApproval && !context.allowSelfApprovalOverride) {
+      throw new Error("The payroll submitter cannot approve the same payroll run.");
+    }
+    if (selfApproval && (!context.overrideReason || context.overrideReason.trim().length < 5)) {
+      throw new Error("Business owner self-approval requires an override reason.");
+    }
     if (run._count.entries === 0) {
       throw new Error("An empty payroll run cannot be finalized.");
     }
@@ -470,10 +481,15 @@ export async function finalizePayrollRun(
         businessId: context.businessId,
         actor: context.actor,
         request: context.request,
-        action: "PAYROLL_RUN_FINALIZED",
+        action: selfApproval
+          ? "PAYROLL_RUN_FINALIZED_WITH_OWNER_OVERRIDE"
+          : "PAYROLL_RUN_FINALIZED",
         entityType: "PayrollRun",
         entityId: run.id,
         summary: `Payroll run finalized with ${run._count.entries} entries.`,
+        metadata: selfApproval
+          ? { ownerOverride: true, reason: context.overrideReason }
+          : { ownerOverride: false },
       },
       transaction,
     );

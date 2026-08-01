@@ -68,7 +68,6 @@ export async function updateAttendanceEmployeeAction(
       "MODIFY_ATTENDANCE_EMPLOYEES",
     );
     const scope = await resolveAttendanceScope(access);
-    const input = buildEmployeeInput(formData, businessId, true);
     const now = new Date();
     const employeeId = String(formData.get("employeeId") ?? "").trim();
     const existing = await prisma.employeeBusinessMembership.findFirst({
@@ -96,12 +95,23 @@ export async function updateAttendanceEmployeeAction(
               },
             }),
       },
-      select: { id: true, status: true },
+      select: {
+        id: true,
+        status: true,
+        payBasis: true,
+        baseSalary: true,
+      },
     });
 
     if (!existing) {
       throw new Error("Employee is outside your authorized scope.");
     }
+    const input = {
+      ...buildEmployeeInput(formData, businessId, true),
+      payBasis: existing.payBasis,
+      baseSalary:
+        existing.baseSalary === null ? null : Number(existing.baseSalary),
+    };
 
     if (
       existing.status === "TERMINATED" &&
@@ -198,8 +208,8 @@ function buildEmployeeInput(
     employeeCode: String(formData.get("employeeCode") ?? ""),
     fullName: String(formData.get("fullName") ?? ""),
     phoneNumber: String(formData.get("phoneNumber") ?? ""),
-    payBasis: String(formData.get("payBasis") ?? "MONTHLY"),
-    baseSalary: optionalNumber(formData.get("baseSalary")),
+    payBasis: "MONTHLY" as const,
+    baseSalary: null,
     normalWorkMinutesPerDay: optionalNumber(
       formData.get("normalWorkMinutesPerDay"),
     ),

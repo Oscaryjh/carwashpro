@@ -5,7 +5,6 @@ import {
   canDirectStaff,
   canGroupManager,
   canGroupOwner,
-  isReadCapability,
 } from "../../src/lib/business-groups/capabilities";
 import {
   normalizeSession,
@@ -17,19 +16,17 @@ import {
 } from "../../src/lib/auth/business-context-token";
 
 test("group manager capability policy includes authorized attendance management", () => {
-  const attendanceManagementCapabilities = new Set([
-    "MODIFY_ATTENDANCE_EMPLOYEES",
-    "MODIFY_ATTENDANCE_SETTINGS",
-    "MODIFY_PAYROLL",
-  ]);
-
+  assert.equal(canGroupManager("MODIFY_ATTENDANCE_EMPLOYEES"), true);
+  assert.equal(canGroupManager("MODIFY_ATTENDANCE_SETTINGS"), true);
+  for (const capability of [
+    "VIEW_PAYROLL", "MODIFY_PAYROLL", "VIEW_COMPENSATION",
+    "VIEW_PAYROLL_RUN", "VIEW_BANK_ACCOUNT", "VIEW_PAYSLIP",
+    "EXPORT_PAYROLL", "EXPORT_PAYMENT_FILE", "EXPORT_STATUTORY",
+    "APPROVE_PAYROLL", "REOPEN_PAYROLL",
+  ] as const) {
+    assert.equal(canGroupManager(capability), false, capability);
+  }
   for (const capability of businessCapabilities) {
-    assert.equal(
-      canGroupManager(capability),
-      isReadCapability(capability) ||
-        attendanceManagementCapabilities.has(capability),
-      capability,
-    );
     assert.equal(canGroupOwner(capability), true, capability);
   }
 });
@@ -111,6 +108,10 @@ test("direct staff capabilities continue to follow existing permissions", () => 
   );
   assert.equal(
     canDirectStaff(["PAYROLL_MANAGE"], "VIEW_PAYROLL"),
+    false,
+  );
+  assert.equal(
+    canDirectStaff(["PAYROLL_MANAGE"], "VIEW_PAYROLL_RUN"),
     true,
   );
   assert.equal(

@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import { prisma } from "@/lib/prisma";
 
 export async function requireWholeBusinessPayroll(
-  capability: "VIEW_PAYROLL" | "MODIFY_PAYROLL",
+  capability: BusinessCapability,
 ) {
   const context = await requireBusinessUser(capability);
   const [scope, activeBranchCount] = await Promise.all([

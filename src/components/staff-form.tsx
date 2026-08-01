@@ -667,6 +667,34 @@ export function PermissionChecklist({
   title?: string;
 }) {
   const selected = new Set(defaultPermissions);
+  const availablePermissions = getStaffPermissionsForIndustry(industryType)
+    .filter((permission) => permission.key !== "DASHBOARD");
+  const permissionGroups = [
+    {
+      key: "general",
+      title: "General access",
+      description: "Day-to-day operational and system access.",
+      permissions: availablePermissions.filter(
+        (permission) => classifyPermission(permission.key) === "general",
+      ),
+    },
+    {
+      key: "attendance",
+      title: "Attendance",
+      description: "Employee attendance records, assignments and settings.",
+      permissions: availablePermissions.filter(
+        (permission) => classifyPermission(permission.key) === "attendance",
+      ),
+    },
+    {
+      key: "payroll",
+      title: "Payroll & sensitive data",
+      description: "High-risk access. Grant only the capabilities required for this role.",
+      permissions: availablePermissions.filter(
+        (permission) => classifyPermission(permission.key) === "payroll",
+      ),
+    },
+  ].filter((group) => group.permissions.length > 0);
 
   return (
     <div className={`permission-section${disabled ? " disabled" : ""}`}>
@@ -675,25 +703,43 @@ export function PermissionChecklist({
       {disabled ? (
         <p className="form-hint">No permissions are needed for a staff record without login.</p>
       ) : null}
-      <div className="permission-grid">
-        {getStaffPermissionsForIndustry(industryType)
-          .filter((permission) => permission.key !== "DASHBOARD")
-          .map((permission) => (
-          <label className="permission-card" key={permission.key}>
-            <input
-              defaultChecked={selected.has(permission.key)}
-              disabled={disabled}
-              name="permissions"
-              type="checkbox"
-              value={permission.key}
-            />
-            <span>
-              <strong>{permission.label}</strong>
-              <small>{permission.description}</small>
-            </span>
-          </label>
-          ))}
-      </div>
+      {permissionGroups.map((group) => (
+        <section className="permission-group" key={group.key}>
+          <div className="permission-group-heading">
+            <h4>{group.title}</h4>
+            <p className="permission-section-description">{group.description}</p>
+          </div>
+          <div className="permission-grid">
+            {group.permissions.map((permission) => (
+              <label className="permission-card" key={permission.key}>
+                <input
+                  defaultChecked={selected.has(permission.key)}
+                  disabled={disabled}
+                  name="permissions"
+                  type="checkbox"
+                  value={permission.key}
+                />
+                <span>
+                  <strong>{permission.label}</strong>
+                  <small>{permission.description}</small>
+                </span>
+              </label>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
+}
+
+function classifyPermission(key: string) {
+  if (key.startsWith("ATTENDANCE_")) return "attendance";
+  if (
+    /(PAYROLL|COMPENSATION|PAYSLIP|BANK_ACCOUNT|PAYMENT|STATUTORY|TAX_PROFILE)/.test(
+      key,
+    )
+  ) {
+    return "payroll";
+  }
+  return "general";
 }

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { getAuditRequestContext, tryWriteAuditLog } from "@/lib/audit";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
 import { loadPayrollDocumentRun } from "@/lib/payroll/documents";
@@ -8,7 +9,6 @@ import {
 } from "@/lib/payroll/export";
 
 export async function GET(request: Request) {
-  const context = await requireWholeBusinessPayroll("VIEW_PAYROLL");
   const url = new URL(request.url);
   const month = url.searchParams.get("month") ?? "";
   const kind = url.searchParams.get("kind");
@@ -19,6 +19,9 @@ export async function GET(request: Request) {
   ) {
     return new Response("Select a valid payroll export.", { status: 400 });
   }
+  const context = await requireWholeBusinessPayroll(
+    kind === "payroll" ? "EXPORT_PAYROLL" : "EXPORT_STATUTORY",
+  );
   let run;
   try {
     run = await loadPayrollDocumentRun(context.businessId, month);
@@ -40,7 +43,12 @@ export async function GET(request: Request) {
     entityType: "PayrollRun",
     entityId: run.id,
     summary: `${kind} ${format.toUpperCase()} export downloaded.`,
-    metadata: { month, kind, format, status: run.status },
+    metadata: {
+      month, kind, format, status: run.status,
+      recordCount: run.entries.length,
+      byteLength: document.length,
+      checksumSha256: createHash("sha256").update(document).digest("hex"),
+    },
   });
   const fileName = payrollExportFileName(run, kind, format);
   return new Response(new Uint8Array(document), {

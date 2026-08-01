@@ -9,6 +9,10 @@ export type AuditJsonValue =
 const SENSITIVE_KEYS = new Set([
   "accesstoken",
   "apisecret",
+  "accountnumber",
+  "accountnumberciphertext",
+  "bankaccountnumber",
+  "bankaccountnumberciphertext",
   "authorization",
   "cookie",
   "credentials",
@@ -32,8 +36,26 @@ const SENSITIVE_KEYS = new Set([
   "refreshtoken",
   "sessioncookie",
   "sessiontoken",
-]);
+  "basesalary",
+  "salary",
+  "grosspay",
+  "netpay",
+  "identitynumber",
+  "icnumber",
+  "passportnumber",
+  "taxidentificationnumber",
+  "taxnumber",
+  "tin",
+  "epfnumber",
+  "employerepfnumber",
+  "socsonumber",
+  "eisnumber",
+  "employereisnumber",
+  "pcbnumber",
+  "statutoryidentitynumber",
+  "documentnumber",
 
+]);
 const MAX_DEPTH = 6;
 const MAX_ARRAY_ITEMS = 50;
 const MAX_STRING_LENGTH = 2_000;

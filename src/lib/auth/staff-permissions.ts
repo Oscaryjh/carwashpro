@@ -1,6 +1,34 @@
 import type { AppSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 
+const payrollCapabilityPermissions = [
+  ["VIEW_COMPENSATION", "View compensation"],
+  ["EDIT_COMPENSATION", "Edit compensation"],
+  ["VIEW_PAYROLL_RUN", "View payroll runs"],
+  ["CREATE_PAYROLL_RUN", "Generate payroll runs"],
+  ["EDIT_PAYROLL_ENTRY", "Edit payroll entries"],
+  ["SUBMIT_PAYROLL_REVIEW", "Submit payroll review"],
+  ["RETURN_PAYROLL_TO_DRAFT", "Return payroll to draft"],
+  ["APPROVE_PAYROLL", "Approve payroll"],
+  ["REOPEN_PAYROLL", "Reopen payroll"],
+  ["EXPORT_PAYROLL", "Export payroll"],
+  ["VIEW_PAYSLIP", "View employee payslips"],
+  ["PUBLISH_PAYSLIP", "Publish employee payslips"],
+  ["VIEW_BANK_ACCOUNT", "View employee bank profiles"],
+  ["EDIT_BANK_ACCOUNT", "Edit employee bank profiles"],
+  ["VIEW_PAYMENT_BATCH", "View payment batches"],
+  ["PROCESS_PAYMENT", "Process payroll payments"],
+  ["EXPORT_PAYMENT_FILE", "Export bank payment files"],
+  ["VIEW_STATUTORY_PROFILE", "View statutory profiles"],
+  ["EDIT_STATUTORY_PROFILE", "Edit statutory profiles"],
+  ["VIEW_TAX_PROFILE", "View tax profiles"],
+  ["EDIT_TAX_PROFILE", "Edit tax profiles"],
+  ["VIEW_STATUTORY_SUBMISSION", "View statutory submissions"],
+  ["EXPORT_STATUTORY", "Export statutory files"],
+  ["SUBMIT_STATUTORY", "Submit statutory filings"],
+  ["RESOLVE_STATUTORY_SUBMISSION", "Resolve statutory submissions"],
+] as const;
+
 export const staffPermissions = [
   {
     key: "DASHBOARD",
@@ -97,6 +125,12 @@ export const staffPermissions = [
     label: "Manage payroll",
     description: "Generate, adjust and finalize company payroll runs.",
   },
+  ...payrollCapabilityPermissions.map(([key, label]) => ({
+    key,
+    label,
+    description:
+      "Sensitive payroll capability. Grant only for the required business function.",
+  })),
   {
     key: "DELETE_STAFF",
     label: "Delete staff",
@@ -167,6 +201,31 @@ const impliedStaffPermissions: Partial<
   ATTENDANCE_EMPLOYEE_MANAGE: ["ATTENDANCE_EMPLOYEE_READ"],
   ATTENDANCE_SETTINGS_MANAGE: ["ATTENDANCE_SETTINGS_READ"],
   PAYROLL_MANAGE: ["PAYROLL_READ"],
+  EDIT_COMPENSATION: ["VIEW_COMPENSATION", "PAYROLL_READ"],
+  VIEW_COMPENSATION: ["PAYROLL_READ"],
+  VIEW_PAYROLL_RUN: ["PAYROLL_READ"],
+  CREATE_PAYROLL_RUN: ["VIEW_PAYROLL_RUN", "PAYROLL_READ"],
+  EDIT_PAYROLL_ENTRY: ["VIEW_PAYROLL_RUN", "PAYROLL_READ"],
+  SUBMIT_PAYROLL_REVIEW: ["VIEW_PAYROLL_RUN", "PAYROLL_READ"],
+  RETURN_PAYROLL_TO_DRAFT: ["VIEW_PAYROLL_RUN", "PAYROLL_READ"],
+  APPROVE_PAYROLL: ["VIEW_PAYROLL_RUN", "PAYROLL_READ"],
+  REOPEN_PAYROLL: ["VIEW_PAYROLL_RUN", "PAYROLL_READ"],
+  EXPORT_PAYROLL: ["VIEW_PAYROLL_RUN", "PAYROLL_READ"],
+  VIEW_PAYSLIP: ["PAYROLL_READ"],
+  PUBLISH_PAYSLIP: ["VIEW_PAYSLIP", "PAYROLL_READ"],
+  VIEW_BANK_ACCOUNT: ["PAYROLL_READ"],
+  EDIT_BANK_ACCOUNT: ["VIEW_BANK_ACCOUNT", "PAYROLL_READ"],
+  VIEW_PAYMENT_BATCH: ["PAYROLL_READ"],
+  PROCESS_PAYMENT: ["VIEW_PAYMENT_BATCH", "PAYROLL_READ"],
+  EXPORT_PAYMENT_FILE: ["VIEW_PAYMENT_BATCH", "PAYROLL_READ"],
+  VIEW_STATUTORY_PROFILE: ["PAYROLL_READ"],
+  EDIT_STATUTORY_PROFILE: ["VIEW_STATUTORY_PROFILE", "PAYROLL_READ"],
+  VIEW_TAX_PROFILE: ["PAYROLL_READ"],
+  EDIT_TAX_PROFILE: ["VIEW_TAX_PROFILE", "PAYROLL_READ"],
+  VIEW_STATUTORY_SUBMISSION: ["PAYROLL_READ"],
+  EXPORT_STATUTORY: ["VIEW_STATUTORY_SUBMISSION", "PAYROLL_READ"],
+  SUBMIT_STATUTORY: ["VIEW_STATUTORY_SUBMISSION", "PAYROLL_READ"],
+  RESOLVE_STATUTORY_SUBMISSION: ["VIEW_STATUTORY_SUBMISSION", "PAYROLL_READ"],
 };
 
 export function normalizeStaffPermissions(values: unknown[]): StaffPermission[] {

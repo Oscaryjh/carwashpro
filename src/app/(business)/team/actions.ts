@@ -143,6 +143,7 @@ const staffTimeOffSchema = z.object({
 export async function createStaffAction(formData: FormData) {
   const { access, user, businessId, industryType } =
     await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+  await requireBusinessUser("EDIT_COMPENSATION");
   if (access.source === "DIRECT_BUSINESS") {
     assertStaffPermission(user, "TEAM");
   }
@@ -201,6 +202,7 @@ export async function createStaffAction(formData: FormData) {
 export async function updateStaffAction(formData: FormData) {
   const { access, user, businessId, industryType } =
     await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+  await requireBusinessUser("EDIT_COMPENSATION");
   if (access.source === "DIRECT_BUSINESS") {
     assertStaffPermission(user, "TEAM");
   }

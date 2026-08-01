@@ -9,7 +9,7 @@ type PayslipRouteProps = {
 };
 
 export async function GET(_request: Request, { params }: PayslipRouteProps) {
-  const context = await requireWholeBusinessPayroll("VIEW_PAYROLL");
+  const context = await requireWholeBusinessPayroll("VIEW_PAYSLIP");
   const parsed = z.string().uuid().safeParse((await params).entryId);
   if (!parsed.success) {
     return new Response("Payslip not found.", { status: 404 });
@@ -19,6 +19,9 @@ export async function GET(_request: Request, { params }: PayslipRouteProps) {
     return new Response("Payslip not found.", { status: 404 });
   }
   const pdf = buildPayslipPdf(document.run, document.entry);
+  if (document.run.status !== "FINALIZED") {
+    return new Response("Payslip not found.", { status: 404 });
+  }
   await tryWriteAuditLog({
     businessId: context.businessId,
     actor: context.user,

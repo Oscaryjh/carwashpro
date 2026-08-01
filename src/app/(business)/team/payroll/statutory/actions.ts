@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
+import { STATUTORY_EXPORT_VERSION } from "@/lib/payroll/statutory-submission";
 import { prisma } from "@/lib/prisma";
 
 const optionalText = (max: number) => z.string().trim().max(max).optional();
@@ -35,11 +36,17 @@ const submissionSchema = z.object({
   submissionReference: optionalText(100),
   notes: optionalText(500),
 });
+const exportConfirmationSchema = z.object({
+  payrollRunId: z.string().uuid(),
+  provider: z.enum(["EPF", "PERKESO", "PCB"]),
+});
+
 
 export async function saveBusinessStatutoryProfileAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const context = await requireWholeBusinessPayroll("EDIT_STATUTORY_PROFILE");
+    await requireWholeBusinessPayroll("EDIT_TAX_PROFILE");
     const input = businessProfileSchema.parse({
       epfEmployerNumber: optionalValue(formData, "epfEmployerNumber"),
       perkesoEmployerCode: optionalValue(formData, "perkesoEmployerCode")?.toUpperCase(),
@@ -76,7 +83,8 @@ export async function saveBusinessStatutoryProfileAction(formData: FormData) {
 export async function saveEmployeeSubmissionProfileAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const context = await requireWholeBusinessPayroll("EDIT_STATUTORY_PROFILE");
+    await requireWholeBusinessPayroll("EDIT_TAX_PROFILE");
     const input = employeeProfileSchema.parse({
       membershipId: formData.get("membershipId"),
       statutoryIdentityType: optionalValue(formData, "statutoryIdentityType"),
@@ -124,10 +132,84 @@ export async function saveEmployeeSubmissionProfileAction(formData: FormData) {
   }
 }
 
+export async function markStatutoryFileExportedAction(formData: FormData) {
+  const month = monthFrom(formData);
+  try {
+    const context = await requireWholeBusinessPayroll("EXPORT_STATUTORY");
+    const input = exportConfirmationSchema.parse({
+      payrollRunId: formData.get("payrollRunId"),
+      provider: formData.get("provider"),
+    });
+    const request = await getAuditRequestContext();
+    await prisma.$transaction(async (transaction) => {
+      const run = await transaction.payrollRun.findFirst({
+        where: {
+          id: input.payrollRunId,
+          businessId: context.businessId,
+          status: "FINALIZED",
+        },
+        select: { id: true },
+      });
+      if (!run) throw new Error("Only finalized payroll can be marked as exported.");
+      const current = await transaction.payrollStatutorySubmission.findUnique({
+        where: {
+          payrollRunId_provider: {
+            payrollRunId: run.id,
+            provider: input.provider,
+          },
+        },
+      });
+      if (current?.status === "SUBMITTED" || current?.status === "ACCEPTED") {
+        throw new Error("Submitted statutory records cannot be reset by an export confirmation.");
+      }
+      const submission = await transaction.payrollStatutorySubmission.upsert({
+        where: {
+          payrollRunId_provider: {
+            payrollRunId: run.id,
+            provider: input.provider,
+          },
+        },
+        create: {
+          payrollRunId: run.id,
+          businessId: context.businessId,
+          provider: input.provider,
+          status: "EXPORTED",
+          exportVersion: STATUTORY_EXPORT_VERSION[input.provider],
+          exportedById: context.user.userId,
+        },
+        update: {
+          status: "EXPORTED",
+          exportVersion: STATUTORY_EXPORT_VERSION[input.provider],
+          exportedAt: new Date(),
+          exportedById: context.user.userId,
+          rejectionReason: null,
+        },
+      });
+      await writeAuditLog({
+        businessId: context.businessId,
+        actor: context.user,
+        request,
+        action: "PAYROLL_STATUTORY_EXPORT_CONFIRMED",
+        entityType: "PayrollStatutorySubmission",
+        entityId: submission.id,
+        summary: `${input.provider} statutory file export confirmed.`,
+        before: current ? { status: current.status } : null,
+        after: { status: submission.status, exportVersion: submission.exportVersion },
+      }, transaction);
+    });
+    finish("success", "Statutory export confirmed.", month);
+  } catch (error) {
+    handleError(error, month, "Unable to confirm statutory export.");
+  }
+}
+
 export async function updateStatutorySubmissionStatusAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const requestedStatus = String(formData.get("targetStatus") ?? "");
+    const context = await requireWholeBusinessPayroll(
+      requestedStatus === "SUBMITTED" ? "SUBMIT_STATUTORY" : "RESOLVE_STATUTORY_SUBMISSION",
+    );
     const input = submissionSchema.parse({
       submissionId: formData.get("submissionId"),
       targetStatus: formData.get("targetStatus"),

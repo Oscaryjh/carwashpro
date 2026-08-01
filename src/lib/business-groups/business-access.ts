@@ -64,6 +64,23 @@ export type ResolvedBusinessAccess =
       fallback: BusinessAccessFallback;
     };
 
+export function hasBusinessCapability(
+  access: ResolvedBusinessAccess,
+  capability: BusinessCapability,
+) {
+  if (!access.granted) return false;
+  if (access.source === "PLATFORM_ADMIN") return true;
+  if (access.source === "DIRECT_BUSINESS") {
+    return (
+      access.identityRole === "BUSINESS_OWNER" ||
+      canDirectStaff(access.permissions, capability)
+    );
+  }
+  return access.actorRole === "GROUP_OWNER"
+    ? canGroupOwner(capability)
+    : canGroupManager(capability);
+}
+
 type ResolveBusinessAccessInput = {
   userId: string;
   requestedBusinessId: string | null;

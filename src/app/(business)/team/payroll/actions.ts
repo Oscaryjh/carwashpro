@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
 import {
   finalizePayrollRun,
@@ -45,7 +46,7 @@ const workflowReasonSchema = z.string().trim().min(5).max(500);
 
 export async function savePayrollSettingAction(formData: FormData) {
   try {
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
     const input = settingSchema.parse({
       workingDaysPerMonth: formData.get("workingDaysPerMonth"),
       normalWorkMinutesPerDay: formData.get("normalWorkMinutesPerDay"),
@@ -89,7 +90,7 @@ export async function savePayrollSettingAction(formData: FormData) {
 
 export async function addPayrollHolidayAction(formData: FormData) {
   try {
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
     const input = holidaySchema.parse({
       branchId: formData.get("branchId"),
       workDate: formData.get("workDate"),
@@ -129,7 +130,7 @@ export async function addPayrollHolidayAction(formData: FormData) {
 
 export async function deletePayrollHolidayAction(formData: FormData) {
   try {
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
     const holidayId = z.string().uuid().parse(formData.get("holidayId"));
     const request = await getAuditRequestContext();
     await prisma.$transaction(async (transaction) => {
@@ -164,7 +165,7 @@ export async function generatePayrollRunAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
     parsePayrollMonth(month);
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const context = await requireWholeBusinessPayroll("CREATE_PAYROLL_RUN");
     await generatePayrollRun({
       businessId: context.businessId,
       actor: context.user,
@@ -180,7 +181,7 @@ export async function generatePayrollRunAction(formData: FormData) {
 export async function updatePayrollEntryAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
     await updatePayrollEntry({
       businessId: context.businessId,
       actor: context.user,
@@ -211,7 +212,7 @@ export async function updatePayrollEntryAction(formData: FormData) {
 export async function saveEmployeeStatutoryProfileAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const context = await requireWholeBusinessPayroll("EDIT_STATUTORY_PROFILE");
     const input = statutoryProfileSchema.parse({
       membershipId: formData.get("membershipId"),
       dateOfBirth: optionalFormValue(formData, "dateOfBirth"),
@@ -285,7 +286,7 @@ export async function saveEmployeeStatutoryProfileAction(formData: FormData) {
 export async function submitPayrollRunForReviewAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const context = await requireWholeBusinessPayroll("SUBMIT_PAYROLL_REVIEW");
     await submitPayrollRunForReview({
       businessId: context.businessId,
       actor: context.user,
@@ -301,7 +302,7 @@ export async function submitPayrollRunForReviewAction(formData: FormData) {
 export async function returnPayrollRunToDraftAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const context = await requireWholeBusinessPayroll("RETURN_PAYROLL_TO_DRAFT");
     await returnPayrollRunToDraft({
       businessId: context.businessId,
       actor: context.user,
@@ -318,12 +319,15 @@ export async function returnPayrollRunToDraftAction(formData: FormData) {
 export async function finalizePayrollRunAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const context = await requireWholeBusinessPayroll("APPROVE_PAYROLL");
     await finalizePayrollRun({
       businessId: context.businessId,
       actor: context.user,
       request: await getAuditRequestContext(),
       runId: z.string().uuid().parse(formData.get("runId")),
+      allowSelfApprovalOverride:
+        context.access.effectiveBusinessRole === "BUSINESS_OWNER",
+      overrideReason: optionalFormValue(formData, "reason"),
     });
     finish("success", "Payroll finalized and locked.", month);
   } catch (error) {
@@ -334,7 +338,7 @@ export async function finalizePayrollRunAction(formData: FormData) {
 export async function reopenPayrollRunAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
-    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    const context = await requireWholeBusinessPayroll("REOPEN_PAYROLL");
     await reopenPayrollRun({
       businessId: context.businessId,
       actor: context.user,
@@ -349,7 +353,7 @@ export async function reopenPayrollRunAction(formData: FormData) {
 }
 
 async function requireWholeBusinessPayroll(
-  capability: "VIEW_PAYROLL" | "MODIFY_PAYROLL",
+  capability: BusinessCapability,
 ) {
   const context = await requireBusinessUser(capability);
   const scope = await resolveAttendanceScope(context.access);

@@ -7,6 +7,7 @@ import {
 import styles from "../employee.module.css";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
 
 type AttendanceEmployeeDetailsPageProps = {
@@ -43,6 +44,8 @@ export default async function AttendanceEmployeeDetailsPage({
   const pageMessage = await searchParams;
   const now = new Date();
   const businessWide = canUseBusinessWideEmployeeScope(context.access);
+  const canViewPayrollProfile =
+    businessWide && hasBusinessCapability(context.access, "VIEW_COMPENSATION");
   const scopedAssignment = {
     businessId: scope.businessId,
     branchId: { in: [...scope.allowedBranchIds] },
@@ -85,8 +88,8 @@ export default async function AttendanceEmployeeDetailsPage({
         employeeCode: true,
         fullName: true,
         phoneNumber: true,
-        payBasis: true,
-        baseSalary: true,
+        payBasis: canViewPayrollProfile,
+        baseSalary: canViewPayrollProfile,
         normalWorkMinutesPerDay: true,
         targetBreakMinutes: true,
         employmentType: true,
@@ -187,8 +190,10 @@ export default async function AttendanceEmployeeDetailsPage({
     employeeCode: employee.employeeCode,
     fullName: employee.fullName,
     phoneNumber: employee.phoneNumber,
-    payBasis: employee.payBasis,
-    baseSalary: employee.baseSalary?.toString() ?? null,
+    payBasis: canViewPayrollProfile ? employee.payBasis : "MONTHLY",
+    baseSalary: canViewPayrollProfile
+      ? employee.baseSalary?.toString() ?? null
+      : null,
     normalWorkMinutesPerDay: employee.normalWorkMinutesPerDay,
     targetBreakMinutes: employee.targetBreakMinutes,
     employmentType: employee.employmentType,
