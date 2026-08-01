@@ -115,6 +115,7 @@ enum EmployeePayBasis {
 
 enum PayrollRunStatus {
   DRAFT
+  REVIEW
   FINALIZED
 }
 
@@ -134,6 +135,54 @@ enum PayrollStatutoryStatus {
   AUTO_CALCULATED
   REVIEW_REQUIRED
   MANUAL_OVERRIDE
+}
+
+enum EmployeeStatutoryIdentityType {
+  NEW_IC
+  OLD_IC
+  PASSPORT
+  OTHER
+}
+
+enum PayrollStatutoryProvider {
+  EPF
+  PERKESO
+  PCB
+}
+
+enum PayrollStatutorySubmissionStatus {
+  EXPORTED
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+}
+
+enum LeavePolicyCode {
+  ANNUAL
+  SICK
+  HOSPITALISATION
+  MATERNITY
+  PATERNITY
+  UNPAID
+  COMPASSIONATE
+  OTHER
+}
+
+enum LeavePayTreatment {
+  PAID
+  UNPAID
+}
+
+enum LeaveCountMode {
+  WEEKDAYS
+  CALENDAR_DAYS
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 enum AttendanceBreakPolicy {
@@ -549,6 +598,12 @@ model Business {
   payrollHolidays               PayrollHoliday[]
   payrollRuns                   PayrollRun[]
   payrollEntries                PayrollEntry[]
+  statutoryProfile              BusinessStatutoryProfile?
+  payrollStatutorySubmissions   PayrollStatutorySubmission[]
+  leavePolicies                 LeavePolicy[]
+  employeeLeaveBalances         EmployeeLeaveBalance[]
+  leaveRequests                 LeaveRequest[]
+  leaveRequestDays              LeaveRequestDay[]
   employeeBranchAssignments     EmployeeBranchAssignment[]
   employeeAttendances           EmployeeAttendance[]
   branchAttendanceSettings      BranchAttendanceSetting[]
@@ -616,6 +671,7 @@ model Branch {
   primaryEmployeeSessions       EmployeeSession[]              @relation("EmployeeSessionPrimaryBranch")
   attendanceEmployeeSessions    EmployeeSession[]              @relation("EmployeeSessionAttendanceBranch")
   attendanceIdempotencyRequests AttendanceRequestIdempotency[]
+  leaveRequests                 LeaveRequest[]
   catalogDiscounts              CatalogDiscount[]
   dailyClosingSnapshots         DailyClosingSnapshot[]
   closingWhatsAppSetting        ClosingWhatsAppBranchSetting?
@@ -677,8 +733,10 @@ model User {
   businessGroupAuditEntries    BusinessGroupAuditLog[]
   reviewedAttendanceExceptions AttendanceException[]        @relation("AttendanceExceptionReviewer")
   attendanceAdjustments        AttendanceAdjustment[]       @relation("AttendanceAdjustmentActor")
+  reviewedLeaveRequests        LeaveRequest[]               @relation("LeaveRequestReviewer")
 
   payrollRunsCreated   PayrollRun[] @relation("PayrollRunCreatedBy")
+  payrollRunsSubmitted PayrollRun[] @relation("PayrollRunSubmittedBy")
   payrollRunsFinalized PayrollRun[] @relation("PayrollRunFinalizedBy")
 
   @@index([businessId])
@@ -942,35 +1000,41 @@ model EmployeeSession {
 }
 
 model EmployeeBusinessMembership {
-  id                        String                        @id @default(uuid()) @db.Uuid
-  employeeAccountId         String                        @map("employee_account_id") @db.Uuid
-  businessId                String                        @map("business_id") @db.Uuid
-  employeeCode              String                        @map("employee_code")
-  fullName                  String                        @map("full_name")
-  phoneNumber               String                        @map("phone_number")
-  phoneNumberNormalized     String                        @map("phone_number_normalized")
-  employmentType            EmployeeEmploymentType        @default(FULL_TIME) @map("employment_type")
-  status                    EmployeeMembershipStatus      @default(ACTIVE)
-  attendanceEnabled         Boolean                       @default(false) @map("attendance_enabled")
-  payBasis                  EmployeePayBasis              @default(MONTHLY) @map("pay_basis")
-  baseSalary                Decimal?                      @map("base_salary") @db.Decimal(12, 2)
-  normalWorkMinutesPerDay   Int?                          @map("normal_work_minutes_per_day")
-  targetBreakMinutes        Int?                          @map("target_break_minutes")
-  dateOfBirth               DateTime?                     @map("date_of_birth") @db.Date
-  statutoryNationality      EmployeeStatutoryNationality? @map("statutory_nationality")
-  epfEnabled                Boolean                       @default(false) @map("epf_enabled")
-  epfMemberBeforeAug1998    Boolean                       @default(false) @map("epf_member_before_aug_1998")
-  socsoEnabled              Boolean                       @default(false) @map("socso_enabled")
-  socsoCategory             EmployeeSocsoCategory?        @map("socso_category")
-  eisEnabled                Boolean                       @default(false) @map("eis_enabled")
-  eisPreviouslyContributed  Boolean                       @default(false) @map("eis_previously_contributed")
-  lindung24OptIn            Boolean                       @default(false) @map("lindung_24_opt_in")
-  statutoryProfileUpdatedAt DateTime?                     @map("statutory_profile_updated_at")
-  joinedAt                  DateTime                      @default(now()) @map("joined_at")
-  terminatedAt              DateTime?                     @map("terminated_at")
+  id                        String                         @id @default(uuid()) @db.Uuid
+  employeeAccountId         String                         @map("employee_account_id") @db.Uuid
+  businessId                String                         @map("business_id") @db.Uuid
+  employeeCode              String                         @map("employee_code")
+  fullName                  String                         @map("full_name")
+  phoneNumber               String                         @map("phone_number")
+  phoneNumberNormalized     String                         @map("phone_number_normalized")
+  employmentType            EmployeeEmploymentType         @default(FULL_TIME) @map("employment_type")
+  status                    EmployeeMembershipStatus       @default(ACTIVE)
+  attendanceEnabled         Boolean                        @default(false) @map("attendance_enabled")
+  payBasis                  EmployeePayBasis               @default(MONTHLY) @map("pay_basis")
+  baseSalary                Decimal?                       @map("base_salary") @db.Decimal(12, 2)
+  normalWorkMinutesPerDay   Int?                           @map("normal_work_minutes_per_day")
+  targetBreakMinutes        Int?                           @map("target_break_minutes")
+  dateOfBirth               DateTime?                      @map("date_of_birth") @db.Date
+  statutoryNationality      EmployeeStatutoryNationality?  @map("statutory_nationality")
+  epfEnabled                Boolean                        @default(false) @map("epf_enabled")
+  epfMemberBeforeAug1998    Boolean                        @default(false) @map("epf_member_before_aug_1998")
+  socsoEnabled              Boolean                        @default(false) @map("socso_enabled")
+  socsoCategory             EmployeeSocsoCategory?         @map("socso_category")
+  eisEnabled                Boolean                        @default(false) @map("eis_enabled")
+  eisPreviouslyContributed  Boolean                        @default(false) @map("eis_previously_contributed")
+  lindung24OptIn            Boolean                        @default(false) @map("lindung_24_opt_in")
+  statutoryIdentityType     EmployeeStatutoryIdentityType? @map("statutory_identity_type")
+  statutoryIdentityNumber   String?                        @map("statutory_identity_number")
+  statutoryCountryCode      String?                        @map("statutory_country_code")
+  epfMemberNumber           String?                        @map("epf_member_number")
+  socsoMemberNumber         String?                        @map("socso_member_number")
+  taxIdentificationNumber   String?                        @map("tax_identification_number")
+  statutoryProfileUpdatedAt DateTime?                      @map("statutory_profile_updated_at")
+  joinedAt                  DateTime                       @default(now()) @map("joined_at")
+  terminatedAt              DateTime?                      @map("terminated_at")
   position                  String?
-  createdAt                 DateTime                      @default(now()) @map("created_at")
-  updatedAt                 DateTime                      @updatedAt @map("updated_at")
+  createdAt                 DateTime                       @default(now()) @map("created_at")
+  updatedAt                 DateTime                       @updatedAt @map("updated_at")
 
   employeeAccount     EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Cascade)
   business            Business                       @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -981,6 +1045,9 @@ model EmployeeBusinessMembership {
   adjustments         AttendanceAdjustment[]
   employeeSessions    EmployeeSession[]
   payrollEntries      PayrollEntry[]
+  leaveBalances       EmployeeLeaveBalance[]
+  leaveRequests       LeaveRequest[]
+  leaveRequestDays    LeaveRequestDay[]
   idempotencyRequests AttendanceRequestIdempotency[]
   staffUser           User?                          @relation("EmployeeBusinessMembershipStaffUser")
 
@@ -1289,15 +1356,19 @@ model PayrollRun {
   overtimeMultiplierSnapshot           Decimal          @map("overtime_multiplier_snapshot") @db.Decimal(5, 2)
   publicHolidayExtraMultiplierSnapshot Decimal          @map("public_holiday_extra_multiplier_snapshot") @db.Decimal(5, 2)
   createdById                          String?          @map("created_by_id") @db.Uuid
+  submittedById                        String?          @map("submitted_by_id") @db.Uuid
+  submittedAt                          DateTime?        @map("submitted_at")
   finalizedById                        String?          @map("finalized_by_id") @db.Uuid
   finalizedAt                          DateTime?        @map("finalized_at")
   createdAt                            DateTime         @default(now()) @map("created_at")
   updatedAt                            DateTime         @updatedAt @map("updated_at")
 
-  business    Business       @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  createdBy   User?          @relation("PayrollRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  finalizedBy User?          @relation("PayrollRunFinalizedBy", fields: [finalizedById], references: [id], onDelete: SetNull)
-  entries     PayrollEntry[]
+  business             Business                     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  createdBy            User?                        @relation("PayrollRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  submittedBy          User?                        @relation("PayrollRunSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  finalizedBy          User?                        @relation("PayrollRunFinalizedBy", fields: [finalizedById], references: [id], onDelete: SetNull)
+  entries              PayrollEntry[]
+  statutorySubmissions PayrollStatutorySubmission[]
 
   @@unique([businessId, periodStart, periodEnd])
   @@index([businessId, status, periodStart])
@@ -1319,7 +1390,11 @@ model PayrollEntry {
   regularMinutes              Int                    @default(0) @map("regular_minutes")
   overtimeMinutes             Int                    @default(0) @map("overtime_minutes")
   publicHolidayMinutes        Int                    @default(0) @map("public_holiday_minutes")
+  paidLeaveDays               Decimal                @default(0) @map("paid_leave_days") @db.Decimal(6, 2)
+  unpaidLeaveDays             Decimal                @default(0) @map("unpaid_leave_days") @db.Decimal(6, 2)
   basicPay                    Decimal                @default(0) @map("basic_pay") @db.Decimal(12, 2)
+  leavePay                    Decimal                @default(0) @map("leave_pay") @db.Decimal(12, 2)
+  unpaidLeaveDeduction        Decimal                @default(0) @map("unpaid_leave_deduction") @db.Decimal(12, 2)
   overtimePay                 Decimal                @default(0) @map("overtime_pay") @db.Decimal(12, 2)
   publicHolidayPay            Decimal                @default(0) @map("public_holiday_pay") @db.Decimal(12, 2)
   allowances                  Decimal                @default(0) @db.Decimal(12, 2)
@@ -1352,6 +1427,49 @@ model PayrollEntry {
   @@unique([payrollRunId, membershipId])
   @@index([businessId, membershipId])
   @@map("payroll_entries")
+}
+
+model BusinessStatutoryProfile {
+  id                        String   @id @default(uuid()) @db.Uuid
+  businessId                String   @unique @map("business_id") @db.Uuid
+  epfEmployerNumber         String?  @map("epf_employer_number")
+  perkesoEmployerCode       String?  @map("perkeso_employer_code")
+  perkesoRegistrationNumber String?  @map("perkeso_registration_number")
+  lhdnEmployerNumberHq      String?  @map("lhdn_employer_number_hq")
+  lhdnEmployerNumber        String?  @map("lhdn_employer_number")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@map("business_statutory_profiles")
+}
+
+model PayrollStatutorySubmission {
+  id                  String                           @id @default(uuid()) @db.Uuid
+  payrollRunId        String                           @map("payroll_run_id") @db.Uuid
+  businessId          String                           @map("business_id") @db.Uuid
+  provider            PayrollStatutoryProvider
+  status              PayrollStatutorySubmissionStatus @default(EXPORTED)
+  exportVersion       String                           @map("export_version")
+  exportedAt          DateTime                         @default(now()) @map("exported_at")
+  exportedById        String?                          @map("exported_by_id") @db.Uuid
+  submittedAt         DateTime?                        @map("submitted_at")
+  submittedById       String?                          @map("submitted_by_id") @db.Uuid
+  resolvedAt          DateTime?                        @map("resolved_at")
+  resolvedById        String?                          @map("resolved_by_id") @db.Uuid
+  submissionReference String?                          @map("submission_reference")
+  rejectionReason     String?                          @map("rejection_reason")
+  notes               String?
+  createdAt           DateTime                         @default(now()) @map("created_at")
+  updatedAt           DateTime                         @updatedAt @map("updated_at")
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+  business   Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@unique([payrollRunId, provider])
+  @@index([businessId, provider, status, createdAt])
+  @@map("payroll_statutory_submissions")
 }
 
 model Vehicle {
@@ -1593,20 +1711,125 @@ model StaffBreak {
 }
 
 model StaffTimeOff {
-  id         String   @id @default(uuid()) @db.Uuid
-  businessId String   @map("business_id") @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
-  startsAt   DateTime @map("starts_at")
-  endsAt     DateTime @map("ends_at")
-  reason     String?
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid()) @db.Uuid
+  businessId     String   @map("business_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  leaveRequestId String?  @unique @map("leave_request_id") @db.Uuid
+  startsAt       DateTime @map("starts_at")
+  endsAt         DateTime @map("ends_at")
+  reason         String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leaveRequest LeaveRequest? @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
 
   @@index([businessId, userId, startsAt])
   @@map("staff_time_off")
+}
+
+model LeavePolicy {
+  id                     String            @id @default(uuid()) @db.Uuid
+  businessId             String            @map("business_id") @db.Uuid
+  code                   LeavePolicyCode
+  name                   String
+  payTreatment           LeavePayTreatment @default(PAID) @map("pay_treatment")
+  countMode              LeaveCountMode    @default(WEEKDAYS) @map("count_mode")
+  balanceTracked         Boolean           @default(true) @map("balance_tracked")
+  defaultEntitlementDays Decimal?          @map("default_entitlement_days") @db.Decimal(6, 2)
+  underTwoYearsDays      Decimal?          @map("under_two_years_days") @db.Decimal(6, 2)
+  twoToFiveYearsDays     Decimal?          @map("two_to_five_years_days") @db.Decimal(6, 2)
+  fiveYearsPlusDays      Decimal?          @map("five_years_plus_days") @db.Decimal(6, 2)
+  requiresDocument       Boolean           @default(false) @map("requires_document")
+  allowNegativeBalance   Boolean           @default(false) @map("allow_negative_balance")
+  active                 Boolean           @default(true)
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+
+  business Business               @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  balances EmployeeLeaveBalance[]
+  requests LeaveRequest[]
+
+  @@unique([businessId, code])
+  @@index([businessId, active, name])
+  @@map("leave_policies")
+}
+
+model EmployeeLeaveBalance {
+  id                      String   @id @default(uuid()) @db.Uuid
+  businessId              String   @map("business_id") @db.Uuid
+  membershipId            String   @map("membership_id") @db.Uuid
+  policyId                String   @map("policy_id") @db.Uuid
+  year                    Int
+  entitlementOverrideDays Decimal? @map("entitlement_override_days") @db.Decimal(6, 2)
+  carriedForwardDays      Decimal  @default(0) @map("carried_forward_days") @db.Decimal(6, 2)
+  adjustmentDays          Decimal  @default(0) @map("adjustment_days") @db.Decimal(6, 2)
+  note                    String?
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  business   Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  membership EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  policy     LeavePolicy                @relation(fields: [policyId], references: [id], onDelete: Restrict)
+
+  @@unique([membershipId, policyId, year])
+  @@index([businessId, year, policyId])
+  @@map("employee_leave_balances")
+}
+
+model LeaveRequest {
+  id                   String             @id @default(uuid()) @db.Uuid
+  businessId           String             @map("business_id") @db.Uuid
+  membershipId         String             @map("membership_id") @db.Uuid
+  branchId             String             @map("branch_id") @db.Uuid
+  policyId             String             @map("policy_id") @db.Uuid
+  policyNameSnapshot   String             @map("policy_name_snapshot")
+  payTreatmentSnapshot LeavePayTreatment  @map("pay_treatment_snapshot")
+  startsOn             DateTime           @map("starts_on") @db.Date
+  endsOn               DateTime           @map("ends_on") @db.Date
+  requestedDays        Decimal            @map("requested_days") @db.Decimal(6, 2)
+  reason               String
+  documentReference    String?            @map("document_reference")
+  status               LeaveRequestStatus @default(PENDING)
+  reviewedById         String?            @map("reviewed_by_id") @db.Uuid
+  reviewedAt           DateTime?          @map("reviewed_at")
+  reviewNote           String?            @map("review_note")
+  cancelledAt          DateTime?          @map("cancelled_at")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  business     Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  membership   EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  branch       Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  policy       LeavePolicy                @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  reviewedBy   User?                      @relation("LeaveRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  days         LeaveRequestDay[]
+  staffTimeOff StaffTimeOff?
+
+  @@index([businessId, branchId, status, startsOn])
+  @@index([membershipId, status, startsOn])
+  @@index([policyId, status, startsOn])
+  @@map("leave_requests")
+}
+
+model LeaveRequestDay {
+  id             String   @id @default(uuid()) @db.Uuid
+  leaveRequestId String   @map("leave_request_id") @db.Uuid
+  businessId     String   @map("business_id") @db.Uuid
+  membershipId   String   @map("membership_id") @db.Uuid
+  leaveDate      DateTime @map("leave_date") @db.Date
+  dayFraction    Decimal  @default(1) @map("day_fraction") @db.Decimal(3, 2)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  leaveRequest LeaveRequest               @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+  business     Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  membership   EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+
+  @@unique([leaveRequestId, leaveDate])
+  @@index([businessId, leaveDate])
+  @@index([membershipId, leaveDate])
+  @@map("leave_request_days")
 }
 
 model Package {

@@ -355,6 +355,7 @@
 
 .badge,
 .draft,
+ .review,
 .finalized,
 .notGenerated {
   display: inline-flex;
@@ -378,6 +379,11 @@
   background: #fff2ce;
 }
 
+.review {
+  color: #285c8f;
+  background: #e8f2ff;
+}
+
 .finalized {
   color: #fff;
   background: #087f73;
@@ -389,6 +395,7 @@
 }
 
 .draft::before,
+.review::before,
 .finalized::before,
 .notGenerated::before {
   width: 6px;
@@ -1249,5 +1256,128 @@
 
   .entryForm {
     padding: 13px;
+  }
+}
+
+.exportBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 13px 18px;
+  border-top: 1px solid #e4eaee;
+  border-bottom: 1px solid #e4eaee;
+  background: #f8fbfb;
+}
+
+.exportBar > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.exportBar strong {
+  color: #243044;
+  font-size: 12px;
+}
+
+.exportBar small {
+  color: #748195;
+  font-size: 10px;
+}
+
+.downloadLinks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.downloadLinks a,
+.payslipLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #bfd8d4;
+  border-radius: 7px;
+  color: #08766b;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.downloadLinks a {
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.payslipLink {
+  width: fit-content;
+  margin-top: 5px;
+  padding: 4px 7px;
+}
+
+.workflowActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.workflowActions details,
+.reopenControl {
+  position: relative;
+}
+
+.workflowActions summary,
+.reopenControl > summary {
+  color: #516075;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.reasonForm {
+  display: grid;
+  min-width: 310px;
+  gap: 9px;
+  margin-top: 9px;
+  padding: 12px;
+  border: 1px solid #d8e1e6;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(31, 42, 59, .12);
+}
+
+.reasonForm label {
+  display: grid;
+  gap: 5px;
+  color: #58667a;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.reasonForm input {
+  min-height: 40px;
+  border: 1px solid #ced9df;
+  border-radius: 8px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .exportBar,
+  .runFooter,
+  .workflowActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .downloadLinks {
+    justify-content: flex-start;
+  }
+
+  .reasonForm {
+    min-width: 0;
   }
 }

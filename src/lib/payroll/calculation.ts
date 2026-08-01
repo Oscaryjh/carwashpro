@@ -13,6 +13,8 @@ export type PayrollCalculationInput = {
   overtimeMultiplier: number;
   publicHolidayExtraMultiplier: number;
   days: readonly PayrollWorkDay[];
+  paidLeaveDays?: number;
+  unpaidLeaveDays?: number;
 };
 
 export type PayrollCalculation = {
@@ -23,6 +25,10 @@ export type PayrollCalculation = {
   basicPayCents: number;
   overtimePayCents: number;
   publicHolidayPayCents: number;
+  paidLeaveDays: number;
+  unpaidLeaveDays: number;
+  leavePayCents: number;
+  unpaidLeaveDeductionCents: number;
   grossPayCents: number;
 };
 
@@ -38,6 +44,13 @@ export function calculatePayroll(
     "Public holiday extra multiplier",
     0,
   );
+  const paidLeaveDays = input.paidLeaveDays ?? 0;
+  const unpaidLeaveDays = input.unpaidLeaveDays ?? 0;
+  assertLeaveDays(paidLeaveDays, "Paid leave days");
+  assertLeaveDays(unpaidLeaveDays, "Unpaid leave days");
+  if (paidLeaveDays + unpaidLeaveDays > 366) {
+    throw new Error("Leave days are outside the supported range.");
+  }
 
   const days = input.days.filter((day) => day.minutes > 0);
   days.forEach((day) => assertPositiveInteger(day.minutes, "Worked minutes"));
@@ -66,20 +79,25 @@ export function calculatePayroll(
 
   let basicPayCents: number;
   let publicHolidayPayCents: number;
+  let leavePayCents = 0;
+  let unpaidLeaveDeductionCents = 0;
   if (input.payBasis === "MONTHLY") {
-    basicPayCents = input.baseRateCents;
+    unpaidLeaveDeductionCents = ordinaryDailyRateCents * unpaidLeaveDays;
+    basicPayCents = Math.max(0, input.baseRateCents - unpaidLeaveDeductionCents);
     publicHolidayPayCents =
       ordinaryDailyRateCents *
       input.publicHolidayExtraMultiplier *
       holidayDays.length;
   } else if (input.payBasis === "DAILY") {
     basicPayCents = input.baseRateCents * normalDays.length;
+    leavePayCents = input.baseRateCents * paidLeaveDays;
     publicHolidayPayCents =
       input.baseRateCents *
       (1 + input.publicHolidayExtraMultiplier) *
       holidayDays.length;
   } else {
     basicPayCents = (hourlyRateCents * regularMinutes) / 60;
+    leavePayCents = ordinaryDailyRateCents * paidLeaveDays;
     publicHolidayPayCents =
       (hourlyRateCents *
         publicHolidayMinutes *
@@ -92,6 +110,8 @@ export function calculatePayroll(
   const roundedBasicPay = roundCents(basicPayCents);
   const roundedOvertimePay = roundCents(overtimePayCents);
   const roundedPublicHolidayPay = roundCents(publicHolidayPayCents);
+  const roundedLeavePay = roundCents(leavePayCents);
+  const roundedUnpaidDeduction = roundCents(unpaidLeaveDeductionCents);
 
   return {
     attendanceDays: days.length,
@@ -101,8 +121,12 @@ export function calculatePayroll(
     basicPayCents: roundedBasicPay,
     overtimePayCents: roundedOvertimePay,
     publicHolidayPayCents: roundedPublicHolidayPay,
+    paidLeaveDays,
+    unpaidLeaveDays,
+    leavePayCents: roundedLeavePay,
+    unpaidLeaveDeductionCents: roundedUnpaidDeduction,
     grossPayCents:
-      roundedBasicPay + roundedOvertimePay + roundedPublicHolidayPay,
+      roundedBasicPay + roundedLeavePay + roundedOvertimePay + roundedPublicHolidayPay,
   };
 }
 
@@ -110,6 +134,7 @@ export function calculatePayrollTotals(input: {
   basicPayCents: number;
   overtimePayCents: number;
   publicHolidayPayCents: number;
+  leavePayCents?: number;
   allowancesCents: number;
   otherDeductionsCents: number;
   epfEmployeeCents: number;
@@ -118,11 +143,13 @@ export function calculatePayrollTotals(input: {
   lindung24EmployeeCents: number;
   pcbCents: number;
 }) {
-  Object.entries(input).forEach(([label, value]) =>
+  const normalized = { ...input, leavePayCents: input.leavePayCents ?? 0 };
+  Object.entries(normalized).forEach(([label, value]) =>
     assertPositiveInteger(value, label, true),
   );
   const grossPayCents =
     input.basicPayCents +
+    normalized.leavePayCents +
     input.overtimePayCents +
     input.publicHolidayPayCents +
     input.allowancesCents;
@@ -154,4 +181,10 @@ function assertMultiplier(value: number, label: string, minimum: number) {
 
 function roundCents(value: number) {
   return Math.round(value);
+}
+
+function assertLeaveDays(value: number, label: string) {
+  if (!Number.isFinite(value) || value < 0 || value > 366 || Math.round(value * 2) !== value * 2) {
+    throw new Error(`${label} must use whole-day or half-day increments.`);
+  }
 }

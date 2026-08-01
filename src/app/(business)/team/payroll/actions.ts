@@ -12,6 +12,9 @@ import {
   finalizePayrollRun,
   generatePayrollRun,
   parsePayrollMonth,
+  reopenPayrollRun,
+  returnPayrollRunToDraft,
+  submitPayrollRunForReview,
   updatePayrollEntry,
 } from "@/lib/payroll/service";
 import { prisma } from "@/lib/prisma";
@@ -37,6 +40,8 @@ const statutoryProfileSchema = z.object({
   statutoryNationality: z.enum(["MALAYSIAN", "PERMANENT_RESIDENT", "NON_MALAYSIAN"]).optional(),
   socsoCategory: z.enum(["FIRST", "SECOND"]).optional(),
 });
+
+const workflowReasonSchema = z.string().trim().min(5).max(500);
 
 export async function savePayrollSettingAction(formData: FormData) {
   try {
@@ -277,6 +282,39 @@ export async function saveEmployeeStatutoryProfileAction(formData: FormData) {
   }
 }
 
+export async function submitPayrollRunForReviewAction(formData: FormData) {
+  const month = monthFrom(formData);
+  try {
+    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    await submitPayrollRunForReview({
+      businessId: context.businessId,
+      actor: context.user,
+      request: await getAuditRequestContext(),
+      runId: z.string().uuid().parse(formData.get("runId")),
+    });
+    finish("success", "Payroll submitted for review.", month);
+  } catch (error) {
+    handleActionError(error, month, "Unable to submit payroll for review.");
+  }
+}
+
+export async function returnPayrollRunToDraftAction(formData: FormData) {
+  const month = monthFrom(formData);
+  try {
+    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    await returnPayrollRunToDraft({
+      businessId: context.businessId,
+      actor: context.user,
+      request: await getAuditRequestContext(),
+      runId: z.string().uuid().parse(formData.get("runId")),
+      reason: workflowReasonSchema.parse(formData.get("reason")),
+    });
+    finish("success", "Payroll returned to draft.", month);
+  } catch (error) {
+    handleActionError(error, month, "Unable to return payroll to draft.");
+  }
+}
+
 export async function finalizePayrollRunAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
@@ -290,6 +328,23 @@ export async function finalizePayrollRunAction(formData: FormData) {
     finish("success", "Payroll finalized and locked.", month);
   } catch (error) {
     handleActionError(error, month, "Unable to finalize payroll.");
+  }
+}
+
+export async function reopenPayrollRunAction(formData: FormData) {
+  const month = monthFrom(formData);
+  try {
+    const context = await requireWholeBusinessPayroll("MODIFY_PAYROLL");
+    await reopenPayrollRun({
+      businessId: context.businessId,
+      actor: context.user,
+      request: await getAuditRequestContext(),
+      runId: z.string().uuid().parse(formData.get("runId")),
+      reason: workflowReasonSchema.parse(formData.get("reason")),
+    });
+    finish("success", "Finalized payroll reopened as a draft.", month);
+  } catch (error) {
+    handleActionError(error, month, "Unable to reopen finalized payroll.");
   }
 }
 

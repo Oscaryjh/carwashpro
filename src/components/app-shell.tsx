@@ -108,6 +108,12 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             shortLabel: "Attend",
             icon: "reports" as const,
           },
+          {
+            href: "/team/leave",
+            label: "Leave",
+            shortLabel: "Leave",
+            icon: "team" as const,
+          },
         ]
       : []),
     ...(isStoreUser &&
@@ -117,6 +123,12 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             href: "/team/payroll",
             label: "Payroll",
             shortLabel: "Pay",
+            icon: "reports" as const,
+          },
+          {
+            href: "/team/payroll/statutory",
+            label: "Statutory",
+            shortLabel: "Stat",
             icon: "reports" as const,
           },
         ]

@@ -44,6 +44,13 @@ export function StaffPwaChrome({ children }: { children: React.ReactNode }) {
             History
           </Link>
           <Link
+            className={currentPath === "/staff/leave" ? "active" : ""}
+            href="/staff/leave"
+          >
+            <span aria-hidden="true">◇</span>
+            Leave
+          </Link>
+          <Link
             className={
               currentPath === "/staff/profile" || currentPath === "/staff/device"
                 ? "active"

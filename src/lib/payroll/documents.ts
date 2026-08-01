@@ -1,0 +1,104 @@
+import type { PayrollEntry } from "@prisma/client";
+import type {
+  PayrollDocumentEntry,
+  PayrollDocumentRun,
+} from "@/lib/payroll/export";
+import { parsePayrollMonth } from "@/lib/payroll/service";
+import { prisma } from "@/lib/prisma";
+
+const businessDocumentSelect = {
+  name: true,
+  companyNo: true,
+  address: true,
+  phone: true,
+  email: true,
+} as const;
+
+export async function loadPayrollDocumentRun(
+  businessId: string,
+  month: string,
+): Promise<PayrollDocumentRun | null> {
+  const period = parsePayrollMonth(month);
+  const run = await prisma.payrollRun.findUnique({
+    where: {
+      businessId_periodStart_periodEnd: {
+        businessId,
+        periodStart: period.start,
+        periodEnd: period.end,
+      },
+    },
+    include: {
+      business: { select: businessDocumentSelect },
+      entries: { orderBy: [{ fullNameSnapshot: "asc" }] },
+    },
+  });
+  if (!run) return null;
+  return {
+    id: run.id,
+    business: run.business,
+    periodStart: run.periodStart,
+    periodEnd: run.periodEnd,
+    status: run.status,
+    submittedAt: run.submittedAt,
+    finalizedAt: run.finalizedAt,
+    entries: run.entries.map(payrollDocumentEntry),
+  };
+}
+
+export async function loadPayrollPayslip(
+  businessId: string,
+  entryId: string,
+) {
+  const entry = await prisma.payrollEntry.findFirst({
+    where: { id: entryId, businessId },
+    include: {
+      payrollRun: {
+        include: { business: { select: businessDocumentSelect } },
+      },
+    },
+  });
+  if (!entry || entry.payrollRun.businessId !== businessId) return null;
+  return {
+    run: {
+      id: entry.payrollRun.id,
+      business: entry.payrollRun.business,
+      periodStart: entry.payrollRun.periodStart,
+      periodEnd: entry.payrollRun.periodEnd,
+      status: entry.payrollRun.status,
+      submittedAt: entry.payrollRun.submittedAt,
+      finalizedAt: entry.payrollRun.finalizedAt,
+    },
+    entry: payrollDocumentEntry(entry),
+  };
+}
+
+function payrollDocumentEntry(entry: PayrollEntry): PayrollDocumentEntry {
+  return {
+    id: entry.id,
+    employeeCode: entry.employeeCodeSnapshot,
+    fullName: entry.fullNameSnapshot,
+    payBasis: entry.payBasisSnapshot,
+    attendanceDays: entry.attendanceDays,
+    regularMinutes: entry.regularMinutes,
+    overtimeMinutes: entry.overtimeMinutes,
+    publicHolidayMinutes: entry.publicHolidayMinutes,
+    basicPay: Number(entry.basicPay),
+    overtimePay: Number(entry.overtimePay),
+    publicHolidayPay: Number(entry.publicHolidayPay),
+    allowances: Number(entry.allowances),
+    otherDeductions: Number(entry.otherDeductions),
+    epfEmployee: Number(entry.epfEmployee),
+    socsoEmployee: Number(entry.socsoEmployee),
+    eisEmployee: Number(entry.eisEmployee),
+    lindung24Employee: Number(entry.lindung24Employee),
+    pcb: Number(entry.pcb),
+    employerEpf: Number(entry.employerEpf),
+    employerSocso: Number(entry.employerSocso),
+    employerEis: Number(entry.employerEis),
+    grossPay: Number(entry.grossPay),
+    netPay: Number(entry.netPay),
+    statutoryStatus: entry.statutoryStatus,
+    statutoryRuleVersion: entry.statutoryRuleVersion,
+    notes: entry.notes,
+  };
+}

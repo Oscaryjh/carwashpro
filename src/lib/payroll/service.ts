@@ -3,6 +3,7 @@ import type { AppSession } from "@/lib/auth/session";
 import { writeAuditLog, type AuditRequestContext } from "@/lib/audit";
 import { calculatePayroll, calculatePayrollTotals } from "@/lib/payroll/calculation";
 import { calculateStatutoryContributions } from "@/lib/payroll/statutory";
+import { payrollTransition } from "@/lib/payroll/workflow";
 import { prisma } from "@/lib/prisma";
 
 export const DEFAULT_PAYROLL_SETTING = {
@@ -57,11 +58,13 @@ export async function generatePayrollRun(
       },
       select: { id: true, status: true },
     });
-    if (existing?.status === "FINALIZED") {
-      throw new Error("This payroll month is finalized and cannot be regenerated.");
+    if (existing && existing.status !== "DRAFT") {
+      throw new Error(
+        "Payroll awaiting review or already finalized cannot be regenerated.",
+      );
     }
 
-    const [memberships, sessions, holidays] = await Promise.all([
+    const [memberships, sessions, holidays, leaveDays] = await Promise.all([
       transaction.employeeBusinessMembership.findMany({
         where: {
           businessId: context.businessId,
@@ -110,6 +113,21 @@ export async function generatePayrollRun(
         },
         select: { branchId: true, workDate: true },
       }),
+      transaction.leaveRequestDay.findMany({
+        where: {
+          businessId: context.businessId,
+          leaveDate: { gte: period.start, lt: period.end },
+          leaveRequest: { status: "APPROVED" },
+        },
+        select: {
+          membershipId: true,
+          leaveDate: true,
+          dayFraction: true,
+          leaveRequest: {
+            select: { payTreatmentSnapshot: true },
+          },
+        },
+      }),
     ]);
     const holidayKeys = new Set(
       holidays.map((holiday) => `${holiday.branchId}:${dateKey(holiday.workDate)}`),
@@ -148,6 +166,16 @@ export async function generatePayrollRun(
       const memberSessions = sessions.filter(
         (session) => session.membershipId === membership.id,
       );
+      const workedDates = new Set(memberSessions.map((session) => dateKey(session.workDate)));
+      const memberLeave = leaveDays.filter(
+        (day) => day.membershipId === membership.id && !workedDates.has(dateKey(day.leaveDate)),
+      );
+      const paidLeaveDays = memberLeave
+        .filter((day) => day.leaveRequest.payTreatmentSnapshot === "PAID")
+        .reduce((sum, day) => sum + Number(day.dayFraction), 0);
+      const unpaidLeaveDays = memberLeave
+        .filter((day) => day.leaveRequest.payTreatmentSnapshot === "UNPAID")
+        .reduce((sum, day) => sum + Number(day.dayFraction), 0);
       const days = aggregateDays(memberSessions, holidayKeys);
       const calculation = calculatePayroll({
         payBasis: membership.payBasis,
@@ -161,8 +189,10 @@ export async function generatePayrollRun(
           setting.publicHolidayExtraMultiplier,
         ),
         days,
+        paidLeaveDays,
+        unpaidLeaveDays,
       });
-      const epfWageCents = calculation.basicPayCents;
+      const epfWageCents = calculation.basicPayCents + calculation.leavePayCents;
       const perkesoWageCents = calculation.grossPayCents;
       const statutory = calculateStatutoryContributions({
         profile: {
@@ -184,6 +214,7 @@ export async function generatePayrollRun(
         basicPayCents: calculation.basicPayCents,
         overtimePayCents: calculation.overtimePayCents,
         publicHolidayPayCents: calculation.publicHolidayPayCents,
+        leavePayCents: calculation.leavePayCents,
         allowancesCents: 0,
         otherDeductionsCents: 0,
         epfEmployeeCents: statutory.epfEmployeeCents,
@@ -211,7 +242,11 @@ export async function generatePayrollRun(
           regularMinutes: calculation.regularMinutes,
           overtimeMinutes: calculation.overtimeMinutes,
           publicHolidayMinutes: calculation.publicHolidayMinutes,
+          paidLeaveDays: calculation.paidLeaveDays,
+          unpaidLeaveDays: calculation.unpaidLeaveDays,
           basicPay: centsToMoney(calculation.basicPayCents),
+          leavePay: centsToMoney(calculation.leavePayCents),
+          unpaidLeaveDeduction: centsToMoney(calculation.unpaidLeaveDeductionCents),
           overtimePay: centsToMoney(calculation.overtimePayCents),
           publicHolidayPay: centsToMoney(
             calculation.publicHolidayPayCents,
@@ -324,6 +359,90 @@ export async function updatePayrollEntry(
   }, { isolationLevel: "Serializable" });
 }
 
+export async function submitPayrollRunForReview(
+  context: PayrollContext & { runId: string },
+  database: PrismaClient = prisma,
+) {
+  return database.$transaction(async (transaction) => {
+    const run = await transaction.payrollRun.findFirst({
+      where: { id: context.runId, businessId: context.businessId },
+      include: {
+        entries: { select: { statutoryStatus: true } },
+        _count: { select: { entries: true } },
+      },
+    });
+    if (!run) throw new Error("Payroll run not found.");
+    payrollTransition(run.status, "SUBMIT_FOR_REVIEW");
+    if (run._count.entries === 0) {
+      throw new Error("An empty payroll draft cannot be submitted for review.");
+    }
+    const reviewRequired = run.entries.filter(
+      (entry) => entry.statutoryStatus === "REVIEW_REQUIRED",
+    ).length;
+    if (reviewRequired) {
+      throw new Error(
+        `${reviewRequired} employee statutory record(s) still require review.`,
+      );
+    }
+    const submitted = await transaction.payrollRun.update({
+      where: { id: run.id },
+      data: {
+        status: "REVIEW",
+        submittedAt: new Date(),
+        submittedById: context.actor.userId,
+      },
+    });
+    await writeAuditLog(
+      {
+        businessId: context.businessId,
+        actor: context.actor,
+        request: context.request,
+        action: "PAYROLL_RUN_SUBMITTED_FOR_REVIEW",
+        entityType: "PayrollRun",
+        entityId: run.id,
+        summary: `Payroll run submitted for review with ${run._count.entries} entries.`,
+      },
+      transaction,
+    );
+    return submitted;
+  }, { isolationLevel: "Serializable" });
+}
+
+export async function returnPayrollRunToDraft(
+  context: PayrollContext & { runId: string; reason: string },
+  database: PrismaClient = prisma,
+) {
+  return database.$transaction(async (transaction) => {
+    const run = await transaction.payrollRun.findFirst({
+      where: { id: context.runId, businessId: context.businessId },
+    });
+    if (!run) throw new Error("Payroll run not found.");
+    payrollTransition(run.status, "RETURN_TO_DRAFT");
+    const draft = await transaction.payrollRun.update({
+      where: { id: run.id },
+      data: {
+        status: "DRAFT",
+        submittedAt: null,
+        submittedById: null,
+      },
+    });
+    await writeAuditLog(
+      {
+        businessId: context.businessId,
+        actor: context.actor,
+        request: context.request,
+        action: "PAYROLL_RUN_RETURNED_TO_DRAFT",
+        entityType: "PayrollRun",
+        entityId: run.id,
+        summary: "Payroll review returned to draft.",
+        metadata: { reason: context.reason },
+      },
+      transaction,
+    );
+    return draft;
+  }, { isolationLevel: "Serializable" });
+}
+
 export async function finalizePayrollRun(
   context: PayrollContext & { runId: string },
   database: PrismaClient = prisma,
@@ -333,8 +452,10 @@ export async function finalizePayrollRun(
       where: { id: context.runId, businessId: context.businessId },
       include: { _count: { select: { entries: true } } },
     });
-    if (!run || run.status !== "DRAFT" || run._count.entries === 0) {
-      throw new Error("The payroll draft is empty or no longer editable.");
+    if (!run) throw new Error("Payroll run not found.");
+    payrollTransition(run.status, "FINALIZE");
+    if (run._count.entries === 0) {
+      throw new Error("An empty payroll run cannot be finalized.");
     }
     const finalized = await transaction.payrollRun.update({
       where: { id: run.id },
@@ -357,6 +478,46 @@ export async function finalizePayrollRun(
       transaction,
     );
     return finalized;
+  }, { isolationLevel: "Serializable" });
+}
+
+export async function reopenPayrollRun(
+  context: PayrollContext & { runId: string; reason: string },
+  database: PrismaClient = prisma,
+) {
+  return database.$transaction(async (transaction) => {
+    const run = await transaction.payrollRun.findFirst({
+      where: { id: context.runId, businessId: context.businessId },
+    });
+    if (!run) throw new Error("Payroll run not found.");
+    payrollTransition(run.status, "REOPEN");
+    await transaction.$executeRaw`
+      SELECT set_config('tetamu.payroll_reopen', ${run.id}, TRUE)
+    `;
+    const reopened = await transaction.payrollRun.update({
+      where: { id: run.id },
+      data: {
+        status: "DRAFT",
+        submittedAt: null,
+        submittedById: null,
+        finalizedAt: null,
+        finalizedById: null,
+      },
+    });
+    await writeAuditLog(
+      {
+        businessId: context.businessId,
+        actor: context.actor,
+        request: context.request,
+        action: "PAYROLL_RUN_REOPENED",
+        entityType: "PayrollRun",
+        entityId: run.id,
+        summary: "Finalized payroll run reopened as a draft.",
+        metadata: { reason: context.reason },
+      },
+      transaction,
+    );
+    return reopened;
   }, { isolationLevel: "Serializable" });
 }
 

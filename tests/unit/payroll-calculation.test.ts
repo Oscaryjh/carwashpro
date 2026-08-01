@@ -28,6 +28,10 @@ test("monthly payroll uses the Malaysia ordinary-rate 26-day divisor", () => {
     basicPayCents: 260_000,
     overtimePayCents: 1_875,
     publicHolidayPayCents: 20_000,
+    paidLeaveDays: 0,
+    unpaidLeaveDays: 0,
+    leavePayCents: 0,
+    unpaidLeaveDeductionCents: 0,
     grossPayCents: 281_875,
   });
 });
@@ -49,6 +53,42 @@ test("daily payroll pays normal attendance days and a worked holiday separately"
   assert.equal(result.basicPayCents, 9_000);
   assert.equal(result.publicHolidayPayCents, 27_000);
   assert.equal(result.grossPayCents, 36_000);
+});
+
+test("monthly payroll deducts approved unpaid leave with the configured ordinary-day divisor", () => {
+  const result = calculatePayroll({
+    payBasis: "MONTHLY",
+    baseRateCents: 260_000,
+    workingDaysPerMonth: 26,
+    normalWorkMinutesPerDay: 480,
+    overtimeMultiplier: 1.5,
+    publicHolidayExtraMultiplier: 2,
+    days: [],
+    paidLeaveDays: 1,
+    unpaidLeaveDays: 1.5,
+  });
+
+  assert.equal(result.basicPayCents, 245_000);
+  assert.equal(result.unpaidLeaveDeductionCents, 15_000);
+  assert.equal(result.leavePayCents, 0);
+  assert.equal(result.grossPayCents, 245_000);
+});
+
+test("daily payroll pays approved paid leave without requiring an attendance punch", () => {
+  const result = calculatePayroll({
+    payBasis: "DAILY",
+    baseRateCents: 9_000,
+    workingDaysPerMonth: 26,
+    normalWorkMinutesPerDay: 480,
+    overtimeMultiplier: 1.5,
+    publicHolidayExtraMultiplier: 2,
+    days: [],
+    paidLeaveDays: 2,
+  });
+
+  assert.equal(result.basicPayCents, 0);
+  assert.equal(result.leavePayCents, 18_000);
+  assert.equal(result.grossPayCents, 18_000);
 });
 
 test("hourly payroll does not double count overtime or holiday minutes", () => {

@@ -13,8 +13,11 @@ import {
   deletePayrollHolidayAction,
   finalizePayrollRunAction,
   generatePayrollRunAction,
+  reopenPayrollRunAction,
+  returnPayrollRunToDraftAction,
   saveEmployeeStatutoryProfileAction,
   savePayrollSettingAction,
+  submitPayrollRunForReviewAction,
   updatePayrollEntryAction,
 } from "./actions";
 import styles from "./payroll.module.css";
@@ -118,6 +121,8 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
   const runStatus =
     run?.status === "FINALIZED"
       ? "Finalized"
+      : run?.status === "REVIEW"
+        ? "Awaiting review"
       : run?.status === "DRAFT"
         ? "Draft"
         : "Not generated";
@@ -134,6 +139,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
           </p>
         </div>
         <nav className={`hr-module-actions ${styles.headerActions}`} aria-label="Payroll navigation">
+          <Link href={`/team/payroll/statutory?month=${period.value}`}>Statutory submissions</Link>
           <Link href="/team/attendance">View attendance</Link>
           <Link href="/team?section=people">Manage people</Link>
         </nav>
@@ -427,6 +433,8 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
             className={
               run?.status === "FINALIZED"
                 ? styles.finalized
+                : run?.status === "REVIEW"
+                  ? styles.review
                 : run?.status === "DRAFT"
                   ? styles.draft
                   : styles.notGenerated
@@ -435,6 +443,21 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
             {runStatus}
           </span>
         </div>
+
+        {run && entries.length ? (
+          <div className={styles.exportBar}>
+            <div>
+              <strong>Payroll documents</strong>
+              <small>Download payroll and statutory contribution records.</small>
+            </div>
+            <div className={styles.downloadLinks}>
+              <Link href={`/team/payroll/export?month=${period.value}&kind=payroll&format=csv`}>Payroll CSV</Link>
+              <Link href={`/team/payroll/export?month=${period.value}&kind=payroll&format=xlsx`}>Payroll Excel</Link>
+              <Link href={`/team/payroll/export?month=${period.value}&kind=statutory&format=csv`}>Statutory CSV</Link>
+              <Link href={`/team/payroll/export?month=${period.value}&kind=statutory&format=xlsx`}>Statutory Excel</Link>
+            </div>
+          </div>
+        ) : null}
 
         {!run ? (
           <div className={styles.emptyRun}>
@@ -511,13 +534,50 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                 </p>
               </div>
               {canManage && run.status === "DRAFT" ? (
-                <form action={finalizePayrollRunAction}>
+                <form action={submitPayrollRunForReviewAction}>
                   <input name="month" type="hidden" value={period.value} />
                   <input name="runId" type="hidden" value={run.id} />
-                  <button className={styles.finalizeButton} type="submit">
-                    Finalize and lock
+                  <button className={styles.primaryButton} type="submit">
+                    Submit for review
                   </button>
                 </form>
+              ) : null}
+              {canManage && run.status === "REVIEW" ? (
+                <div className={styles.workflowActions}>
+                  <details>
+                    <summary>Return to draft</summary>
+                    <form action={returnPayrollRunToDraftAction} className={styles.reasonForm}>
+                      <input name="month" type="hidden" value={period.value} />
+                      <input name="runId" type="hidden" value={run.id} />
+                      <label>
+                        <span>Reason</span>
+                        <input minLength={5} name="reason" placeholder="Explain what needs correction" required />
+                      </label>
+                      <button className={styles.secondaryButton} type="submit">Return</button>
+                    </form>
+                  </details>
+                  <form action={finalizePayrollRunAction}>
+                    <input name="month" type="hidden" value={period.value} />
+                    <input name="runId" type="hidden" value={run.id} />
+                    <button className={styles.finalizeButton} type="submit">
+                      Finalize and lock
+                    </button>
+                  </form>
+                </div>
+              ) : null}
+              {canManage && run.status === "FINALIZED" ? (
+                <details className={styles.reopenControl}>
+                  <summary>Reopen for correction</summary>
+                  <form action={reopenPayrollRunAction} className={styles.reasonForm}>
+                    <input name="month" type="hidden" value={period.value} />
+                    <input name="runId" type="hidden" value={run.id} />
+                    <label>
+                      <span>Audit reason</span>
+                      <input minLength={5} name="reason" placeholder="Required reason for reopening" required />
+                    </label>
+                    <button className={styles.finalizeButton} type="submit">Reopen payroll</button>
+                  </form>
+                </details>
               ) : null}
             </div>
           </>
@@ -557,7 +617,13 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                   key={item.id}
                 >
                   {formatShortMonth(item.periodStart)}
-                  <small>{item.status === "FINALIZED" ? "Locked" : "Draft"}</small>
+                  <small>
+                    {item.status === "FINALIZED"
+                      ? "Locked"
+                      : item.status === "REVIEW"
+                        ? "Review"
+                        : "Draft"}
+                  </small>
                 </Link>
               );
             })}
@@ -590,6 +656,13 @@ function PayrollEntryRows({
             <span>
               <strong>{entry.fullNameSnapshot}</strong>
               <small>{entry.employeeCodeSnapshot}</small>
+              <Link
+                className={styles.payslipLink}
+                href={`/team/payroll/payslips/${entry.id}`}
+                target="_blank"
+              >
+                Payslip PDF
+              </Link>
             </span>
           </span>
         </td>
