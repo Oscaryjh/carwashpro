@@ -859,24 +859,26 @@ function PeopleSection({
                   </span>
                 </div>
               ) : null}
-              <Link
-                aria-label={`View ${member.name} profile`}
-                className="secondary-light-button team-row-action"
-                href={`/team/people/${member.id}`}
-              >
-                <span aria-hidden="true" className="team-row-action-icon">&#9673;</span>
-                <span>Profile</span>
-              </Link>
-              {canEditCompensation ? (
+              <div className="team-row-actions">
                 <Link
-                  aria-label={`Edit ${member.name}`}
+                  aria-label={`View ${member.name} profile`}
                   className="secondary-light-button team-row-action"
-                  href={`/team?section=people&modal=edit&staffId=${member.id}`}
+                  href={`/team/people/${member.id}`}
                 >
-                  <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
-                  <span>Edit</span>
+                  <span aria-hidden="true" className="team-row-action-icon">&#9673;</span>
+                  <span>Profile</span>
                 </Link>
-              ) : null}
+                {canEditCompensation ? (
+                  <Link
+                    aria-label={`Edit ${member.name}`}
+                    className="secondary-light-button team-row-action"
+                    href={`/team?section=people&modal=edit&staffId=${member.id}`}
+                  >
+                    <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
+                    <span>Edit</span>
+                  </Link>
+                ) : null}
+              </div>
             </article>
           );
         })}
@@ -911,13 +913,15 @@ function PeopleSection({
                 {employeeDeviceStatus(employee.employeeAccount.devices)}
               </span>
             </div>
-            <Link
-              aria-label={`View ${employee.fullName}`}
-              className="secondary-light-button team-row-action"
-              href={`/team/people/${employee.id}`}
-            >
-              View profile
-            </Link>
+            <div className="team-row-actions">
+              <Link
+                aria-label={`View ${employee.fullName}`}
+                className="secondary-light-button team-row-action"
+                href={`/team/people/${employee.id}`}
+              >
+                View profile
+              </Link>
+            </div>
           </article>
         ))}
         {!peopleCount ? (

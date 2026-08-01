@@ -21762,6 +21762,14 @@ button:disabled,
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
+.team-row-actions {
+  grid-area: edit;
+  display: flex;
+  align-self: center;
+  justify-self: end;
+  gap: 8px;
+}
+
 .team-row-action:hover {
   border-color: #78bbb3;
   background: #eef9f7;
@@ -22441,6 +22449,17 @@ button:disabled,
   .team-staff-classification button,
   .team-staff-row > .secondary-light-button {
     width: 100%;
+  }
+
+  .team-row-actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-self: stretch;
+  }
+
+  .team-row-actions > .secondary-light-button:only-child {
+    grid-column: 1 / -1;
   }
 
   .team-schedule-metrics {
