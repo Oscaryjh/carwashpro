@@ -42,5 +42,5 @@ export default async function StaffDetailsPage({
     notFound();
   }
 
-  redirect(`/team?section=people&modal=edit&staffId=${staff.id}`);
+  redirect(`/team/people/${staff.id}`);
 }

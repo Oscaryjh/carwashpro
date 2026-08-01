@@ -403,7 +403,7 @@ export default async function EmployeesPage({
                     (assignment) => assignment.isPrimary,
                   );
                   const employeeName = canManageEmployees ? (
-                    <Link href={`/team/employees/${employee.id}`}>
+                    <Link href={`/team/people/${employee.id}`}>
                       {employee.fullName}
                     </Link>
                   ) : (

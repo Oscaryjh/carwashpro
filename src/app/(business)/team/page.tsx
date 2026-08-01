@@ -859,6 +859,14 @@ function PeopleSection({
                   </span>
                 </div>
               ) : null}
+              <Link
+                aria-label={`View ${member.name} profile`}
+                className="secondary-light-button team-row-action"
+                href={`/team/people/${member.id}`}
+              >
+                <span aria-hidden="true" className="team-row-action-icon">&#9673;</span>
+                <span>Profile</span>
+              </Link>
               {canEditCompensation ? (
                 <Link
                   aria-label={`Edit ${member.name}`}
@@ -906,9 +914,9 @@ function PeopleSection({
             <Link
               aria-label={`View ${employee.fullName}`}
               className="secondary-light-button team-row-action"
-              href={`/team/employees/${employee.id}`}
+              href={`/team/people/${employee.id}`}
             >
-              View employment
+              View profile
             </Link>
           </article>
         ))}

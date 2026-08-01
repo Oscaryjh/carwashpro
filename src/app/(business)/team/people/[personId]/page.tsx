@@ -1,0 +1,128 @@
+import { notFound } from "next/navigation";
+import { z } from "zod";
+import {
+  EmployeeProfileShell,
+  type EmployeeProfileShellPerson,
+} from "@/components/employee-profile-shell";
+import { resolveAttendanceScope } from "@/lib/attendance/scope";
+import { requireBusinessUser } from "@/lib/auth/business-user";
+import { prisma } from "@/lib/prisma";
+import {
+  canViewEmployeeProfileTab,
+  getVisibleEmployeeProfileTabs,
+  isEmployeeProfileSection,
+} from "@/lib/team/employee-profile-tabs";
+import {
+  buildCurrentPeopleAssignmentWhere,
+  buildPeopleMembershipScopeWhere,
+  buildPeopleStaffScopeWhere,
+  hasWholeBusinessPeopleScope,
+} from "@/lib/team/people-scope";
+
+type EmployeeProfilePageProps = {
+  params: Promise<{ personId: string }>;
+  searchParams: Promise<{ section?: string }>;
+};
+
+export default async function EmployeeProfilePage({
+  params,
+  searchParams,
+}: EmployeeProfilePageProps) {
+  const context = await requireBusinessUser("VIEW_TEAM_DIRECTORY");
+  const scope = await resolveAttendanceScope(context.access);
+  const route = await params;
+  const query = await searchParams;
+  const personId = z.string().uuid().safeParse(route.personId);
+
+  if (!personId.success) {
+    notFound();
+  }
+
+  const activeSection = isEmployeeProfileSection(query.section)
+    ? query.section
+    : "overview";
+  const now = new Date();
+  const peopleScope = {
+    allowedBranchIds: scope.allowedBranchIds,
+    businessId: context.businessId,
+    now,
+    wholeBusinessScope: hasWholeBusinessPeopleScope(context.access),
+  };
+  const currentAssignmentWhere = buildCurrentPeopleAssignmentWhere(peopleScope);
+
+  const [membership, staff] = await Promise.all([
+    prisma.employeeBusinessMembership.findFirst({
+      where: {
+        ...buildPeopleMembershipScopeWhere(peopleScope),
+        OR: [
+          { id: personId.data },
+          { staffUser: { is: { id: personId.data } } },
+        ],
+      },
+      select: {
+        id: true,
+        employeeCode: true,
+        employmentType: true,
+        fullName: true,
+        status: true,
+        branchAssignments: {
+          where: currentAssignmentWhere,
+          orderBy: [{ isPrimary: "desc" }, { branch: { name: "asc" } }],
+          take: 1,
+          select: {
+            isPrimary: true,
+            branch: { select: { name: true } },
+          },
+        },
+      },
+    }),
+    prisma.user.findFirst({
+      where: {
+        ...buildPeopleStaffScopeWhere(peopleScope),
+        id: personId.data,
+        role: "STAFF",
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        branch: { select: { name: true } },
+      },
+    }),
+  ]);
+
+  if (!membership && !staff) {
+    notFound();
+  }
+
+  const person: EmployeeProfileShellPerson = membership
+    ? {
+        id: membership.id,
+        fullName: membership.fullName,
+        employeeCode: membership.employeeCode,
+        employmentType: membership.employmentType,
+        status: membership.status,
+        primaryBranchName:
+          membership.branchAssignments.find((assignment) => assignment.isPrimary)
+            ?.branch.name ?? membership.branchAssignments[0]?.branch.name ?? null,
+        linked: true,
+      }
+    : {
+        id: staff!.id,
+        fullName: staff!.name,
+        employeeCode: null,
+        employmentType: null,
+        status: staff!.status,
+        primaryBranchName: staff!.branch?.name ?? null,
+        linked: false,
+      };
+
+  return (
+    <EmployeeProfileShell
+      activeSection={activeSection}
+      authorized={canViewEmployeeProfileTab(context.access, activeSection)}
+      person={person}
+      visibleTabs={getVisibleEmployeeProfileTabs(context.access)}
+    />
+  );
+}

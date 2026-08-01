@@ -594,6 +594,7 @@ test("management routes are restricted to the permissions that protect them", ()
   assert.equal(routePermission("/reports"), "REPORTS");
   assert.equal(routePermission("/team"), "TEAM");
   assert.equal(routePermission("/team/123"), "TEAM");
+  assert.equal(routePermission("/team/people/employee-1"), "TEAM");
   assert.equal(
     routePermission("/team/employees"),
     "ATTENDANCE_EMPLOYEE_READ",
