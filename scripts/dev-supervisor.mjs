@@ -39,6 +39,7 @@ const whatsappConnectorDir = join(process.cwd(), "whatsapp-connector");
 const whatsappConnectorPackage = join(whatsappConnectorDir, "package.json");
 const binPath = join(process.cwd(), "node_modules", ".bin");
 const restartDelayMs = 1500;
+const minimumHealthyWorkerUptimeMs = 10_000;
 const localDevSessionSecret =
   "tetamu-local-development-session-secret-v1";
 const notificationWorkerQueuedAfter = new Date().toISOString();
@@ -64,9 +65,22 @@ async function main() {
   console.log("WhatsApp Connector: http://127.0.0.1:8787");
   console.log("Press Ctrl+C to stop.");
 
-  startWhatsAppConnector();
+  if (process.env.AUTH_INFO_PATH?.trim()) {
+    startWhatsAppConnector();
+  } else {
+    console.warn(
+      "WhatsApp Connector disabled for local development because AUTH_INFO_PATH is not configured.",
+    );
+  }
   startWhatsAppWorker();
-  startNotificationWorker();
+  const whatsappSendMode = process.env.WHATSAPP_SEND_MODE?.trim().toLowerCase();
+  if (whatsappSendMode === "mock" || whatsappSendMode === "live") {
+    startNotificationWorker();
+  } else {
+    console.warn(
+      "Notification queue worker disabled for local development because WHATSAPP_SEND_MODE is not mock or live.",
+    );
+  }
   startAnalyticsWorker();
   startNext();
 }
@@ -167,6 +181,7 @@ function startNotificationWorker() {
     return;
   }
 
+  const startedAt = Date.now();
   notificationWorkerChild = spawn(
     process.execPath,
     [
@@ -195,6 +210,13 @@ function startNotificationWorker() {
     if (shuttingDown) {
       return;
     }
+    if (Date.now() - startedAt < minimumHealthyWorkerUptimeMs) {
+      console.warn(
+        `Notification queue worker failed during startup (code: ${code ?? "none"}, signal: ${signal ?? "none"}). Automatic restart disabled until the dev server is restarted.`,
+      );
+      notificationWorkerChild = undefined;
+      return;
+    }
 
     console.warn(
       `Notification queue worker stopped (code: ${code ?? "none"}, signal: ${signal ?? "none"}). Restarting...`,
@@ -209,6 +231,7 @@ function startWhatsAppConnector() {
     return;
   }
 
+  const startedAt = Date.now();
   whatsappConnectorChild = spawn(
     process.execPath,
     ["--use-system-ca", "--import", "tsx", "src/server.ts"],
@@ -230,6 +253,13 @@ function startWhatsAppConnector() {
 
   whatsappConnectorChild.on("close", (code, signal) => {
     if (shuttingDown) {
+      return;
+    }
+    if (Date.now() - startedAt < minimumHealthyWorkerUptimeMs) {
+      console.warn(
+        `WhatsApp Connector failed during startup (code: ${code ?? "none"}, signal: ${signal ?? "none"}). Automatic restart disabled until the dev server is restarted.`,
+      );
+      whatsappConnectorChild = undefined;
       return;
     }
 

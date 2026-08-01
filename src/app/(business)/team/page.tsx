@@ -63,6 +63,23 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const query = params.q?.trim() ?? "";
   const now = new Date();
   const attendanceModalOpen = params.modal === "attendance";
+  const scheduleDataRequired =
+    section === "schedule" || params.modal === "schedule";
+  const staffDataRequired =
+    section === "people" ||
+    scheduleDataRequired ||
+    params.modal === "edit";
+  const employeeOnlyDataRequired = section === "people";
+  const ownerDataRequired = section === "schedule";
+  const roleDataRequired =
+    section === "people" ||
+    section === "roles" ||
+    ["create", "edit", "role", "level"].includes(params.modal ?? "");
+  const serviceDataRequired =
+    params.modal === "create" || params.modal === "edit";
+  const activityDataRequired = section === "activity";
+  const attendanceDataRequired =
+    section === "attendance" || activityDataRequired || attendanceModalOpen;
   const scope = await resolveAttendanceScope(access);
   const wholeBusinessScope = hasWholeBusinessPeopleScope(access);
   const peopleScope = {
@@ -78,9 +95,9 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
     buildPeopleMembershipScopeWhere(peopleScope);
   const allowedBranchIds = new Set(scope.allowedBranchIds);
 
-  const [staff, employeeOnlyMemberships, owners, branches, roleProfiles, staffLevels, services, recentActivity, attendance] =
+  const [staffData, employeeOnlyMemberships, owners, branches, roleProfiles, staffLevels, services, recentActivity, attendance] =
     await Promise.all([
-      prisma.user.findMany({
+      staffDataRequired ? prisma.user.findMany({
         where: {
           ...staffScopeWhere,
           role: "STAFF",
@@ -111,14 +128,18 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
               },
             },
           },
-          staffAvailabilities: { where: { enabled: true }, select: { id: true } },
-          staffBreaks: { where: { enabled: true }, select: { id: true } },
-          staffTimeOff: {
-            where: { endsAt: { gte: now } },
-            select: { id: true, startsAt: true, endsAt: true, reason: true },
-            orderBy: { startsAt: "asc" },
-            take: 1,
-          },
+          ...(scheduleDataRequired
+            ? {
+                staffAvailabilities: { where: { enabled: true }, select: { id: true } },
+                staffBreaks: { where: { enabled: true }, select: { id: true } },
+                staffTimeOff: {
+                  where: { endsAt: { gte: now } },
+                  select: { id: true, startsAt: true, endsAt: true, reason: true },
+                  orderBy: { startsAt: "asc" as const },
+                  take: 1,
+                },
+              }
+            : {}),
           serviceStaffAssignments: { select: { id: true, serviceId: true } },
           employeeAccount: {
             include: {
@@ -143,8 +164,8 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           },
         },
         orderBy: [{ status: "asc" }, { name: "asc" }],
-      }),
-      prisma.employeeBusinessMembership.findMany({
+      }) : Promise.resolve([]),
+      employeeOnlyDataRequired ? prisma.employeeBusinessMembership.findMany({
         where: {
           ...membershipScopeWhere,
           staffUser: null,
@@ -167,8 +188,8 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           },
         },
         orderBy: [{ status: "asc" }, { fullName: "asc" }],
-      }),
-      prisma.user.findMany({
+      }) : Promise.resolve([]),
+      ownerDataRequired ? prisma.user.findMany({
         where: {
           businessId,
           role: "BUSINESS_OWNER",
@@ -179,7 +200,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         },
         orderBy: { createdAt: "asc" },
         select: { id: true, name: true, appointmentBookable: true },
-      }),
+      }) : Promise.resolve([]),
       getActiveBranches(businessId).then((activeBranches) =>
         wholeBusinessScope
           ? activeBranches
@@ -187,22 +208,22 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
               allowedBranchIds.has(branch.id),
             ),
       ),
-      prisma.staffRoleProfile.findMany({
+      roleDataRequired ? prisma.staffRoleProfile.findMany({
         where: { businessId },
         include: { _count: { select: { users: true } } },
         orderBy: [{ active: "desc" }, { name: "asc" }],
-      }),
-      prisma.staffLevel.findMany({
+      }) : Promise.resolve([]),
+      roleDataRequired ? prisma.staffLevel.findMany({
         where: { businessId },
         include: { _count: { select: { users: true } } },
         orderBy: [{ active: "desc" }, { name: "asc" }],
-      }),
-      prisma.service.findMany({
+      }) : Promise.resolve([]),
+      serviceDataRequired ? prisma.service.findMany({
         where: { businessId, status: "ACTIVE" },
         orderBy: { name: "asc" },
         select: { id: true, name: true },
-      }),
-      prisma.auditLog.findMany({
+      }) : Promise.resolve([]),
+      activityDataRequired ? prisma.auditLog.findMany({
         where: {
           businessId,
           action: { startsWith: "STAFF_" },
@@ -219,8 +240,8 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           summary: true,
           createdAt: true,
         },
-      }),
-      prisma.employeeAttendance.findMany({
+      }) : Promise.resolve([]),
+      attendanceDataRequired ? prisma.employeeAttendance.findMany({
         where: {
           businessId,
           ...(wholeBusinessScope
@@ -233,8 +254,16 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         },
         orderBy: { clockInAt: "desc" },
         take: attendanceModalOpen ? 100 : 10,
-      }),
+      }) : Promise.resolve([]),
     ]);
+
+  const staff = staffData.map((member) => ({
+    ...member,
+    staffAvailabilities:
+      "staffAvailabilities" in member ? member.staffAvailabilities : [],
+    staffBreaks: "staffBreaks" in member ? member.staffBreaks : [],
+    staffTimeOff: "staffTimeOff" in member ? member.staffTimeOff : [],
+  })) as StaffRow[];
 
   const editingRole = params.roleId
     ? roleProfiles.find((role) => role.id === params.roleId)
@@ -1055,8 +1084,9 @@ type StaffRow = {
   whatsappPhone: string | null;
   appointmentBookable: boolean;
   loginEnabled: boolean;
-  status: string;
+  status: "active" | "inactive";
   teamMemberLinkStatus: string;
+  permissions: string[];
   branchId: string | null;
   staffRoleProfileId: string | null;
   staffLevelId: string | null;
@@ -1071,7 +1101,7 @@ type StaffRow = {
     normalWorkMinutesPerDay: number | null;
     targetBreakMinutes: number | null;
     joinedAt: Date;
-    status: string;
+    status: "ACTIVE" | "SUSPENDED" | "TERMINATED";
     branchAssignments: Array<{
       branchId: string;
       canClockIn: boolean;

@@ -129,7 +129,68 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
   });
   const pageSize = 25;
   const requestedPage = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
-  const totalRecords = await prisma.employeeAttendance.count({ where });
+  const monthRange = getMonthRange(params.month);
+  const summaryNow = new Date();
+  const supportingDataPromise = Promise.all([
+    prisma.attendanceException.findMany({
+      where: buildAttendanceExceptionWhere<Prisma.AttendanceExceptionWhereInput>(scope, {
+        status: "PENDING",
+        ...(requestedBranchId ? { branchId: requestedBranchId } : {}),
+      }),
+      include: {
+        employee: {
+          select: {
+            employeeCode: true,
+            fullName: true,
+          },
+        },
+        branch: {
+          select: {
+            name: true,
+            attendanceSetting: { select: { timezone: true } },
+          },
+        },
+        attendanceSession: {
+          select: {
+            id: true,
+            workDate: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+      take: 100,
+    }),
+    prisma.employeeBusinessMembership.findMany({
+      where: {
+        businessId,
+        status: { in: ["ACTIVE", "SUSPENDED"] },
+        branchAssignments: {
+          some: {
+            businessId,
+            branchId: { in: [...scope.allowedBranchIds] },
+            status: "ACTIVE",
+            effectiveFrom: { lte: summaryNow },
+            OR: [
+              { effectiveUntil: null },
+              { effectiveUntil: { gte: summaryNow } },
+            ],
+            ...(requestedBranchId ? { branchId: requestedBranchId } : {}),
+          },
+        },
+      },
+      orderBy: [{ fullName: "asc" }, { employeeCode: "asc" }],
+      select: {
+        id: true,
+        employeeCode: true,
+        fullName: true,
+      },
+    }),
+  ]);
+  const [totalRecords, [pendingExceptions, monthlyMembers]] = await Promise.all([
+    prisma.employeeAttendance.count({ where }),
+    supportingDataPromise,
+  ]);
   const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
   const page = Math.min(requestedPage, totalPages);
   const activeWhere: Prisma.EmployeeAttendanceWhereInput = {
@@ -138,8 +199,45 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
   const terminalWhere: Prisma.EmployeeAttendanceWhereInput = {
     AND: [where, { status: { notIn: ["OPEN", "ON_BREAK"] } }],
   };
-  const [attendance, activeAttendance, completedCount, terminalMinutes] =
-    await Promise.all([
+  const selectedEmployeeId = monthlyMembers.some(
+    (member) => member.id === params.employeeId,
+  )
+    ? params.employeeId!
+    : "";
+  const visibleMonthlyMembers = selectedEmployeeId
+    ? monthlyMembers.filter((member) => member.id === selectedEmployeeId)
+    : monthlyMembers;
+  const monthlySessionsPromise = visibleMonthlyMembers.length
+    ? prisma.employeeAttendance.findMany({
+        where: buildAttendanceSessionWhere<Prisma.EmployeeAttendanceWhereInput>(
+          scope,
+          {
+            membershipId: {
+              in: visibleMonthlyMembers.map((member) => member.id),
+            },
+            workDate: {
+              gte: monthRange.from,
+              lt: monthRange.to,
+            },
+            ...(requestedBranchId ? { branchId: requestedBranchId } : {}),
+          },
+        ),
+        select: {
+          membershipId: true,
+          workDate: true,
+          status: true,
+          totalBreakMinutes: true,
+          totalWorkedMinutes: true,
+          requiresApproval: true,
+          approvalStatus: true,
+        },
+      })
+    : Promise.resolve([]);
+  const [
+    [attendance, activeAttendance, completedCount, terminalMinutes],
+    monthlySessions,
+  ] = await Promise.all([
+    Promise.all([
       prisma.employeeAttendance.findMany({
         where,
         include: {
@@ -181,97 +279,9 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
         where: terminalWhere,
         _sum: { totalWorkedMinutes: true },
       }),
-    ]);
-  const pendingExceptions = await prisma.attendanceException.findMany({
-    where: buildAttendanceExceptionWhere<Prisma.AttendanceExceptionWhereInput>(scope, {
-      status: "PENDING",
-      ...(requestedBranchId ? { branchId: requestedBranchId } : {}),
-    }),
-    include: {
-      employee: {
-        select: {
-          employeeCode: true,
-          fullName: true,
-        },
-      },
-      branch: {
-        select: {
-          name: true,
-          attendanceSetting: { select: { timezone: true } },
-        },
-      },
-      attendanceSession: {
-        select: {
-          id: true,
-          workDate: true,
-          status: true,
-        },
-      },
-    },
-    orderBy: { createdAt: "asc" },
-    take: 100,
-  });
-  const monthRange = getMonthRange(params.month);
-  const summaryNow = new Date();
-  const monthlyMembers = await prisma.employeeBusinessMembership.findMany({
-    where: {
-      businessId,
-      status: { in: ["ACTIVE", "SUSPENDED"] },
-      branchAssignments: {
-        some: {
-          businessId,
-          branchId: { in: [...scope.allowedBranchIds] },
-          status: "ACTIVE",
-          effectiveFrom: { lte: summaryNow },
-          OR: [
-            { effectiveUntil: null },
-            { effectiveUntil: { gte: summaryNow } },
-          ],
-          ...(requestedBranchId ? { branchId: requestedBranchId } : {}),
-        },
-      },
-    },
-    orderBy: [{ fullName: "asc" }, { employeeCode: "asc" }],
-    select: {
-      id: true,
-      employeeCode: true,
-      fullName: true,
-    },
-  });
-  const selectedEmployeeId = monthlyMembers.some(
-    (member) => member.id === params.employeeId,
-  )
-    ? params.employeeId!
-    : "";
-  const visibleMonthlyMembers = selectedEmployeeId
-    ? monthlyMembers.filter((member) => member.id === selectedEmployeeId)
-    : monthlyMembers;
-  const monthlySessions = visibleMonthlyMembers.length
-    ? await prisma.employeeAttendance.findMany({
-        where: buildAttendanceSessionWhere<Prisma.EmployeeAttendanceWhereInput>(
-          scope,
-          {
-            membershipId: {
-              in: visibleMonthlyMembers.map((member) => member.id),
-            },
-            workDate: {
-              gte: monthRange.from,
-              lt: monthRange.to,
-            },
-            ...(requestedBranchId ? { branchId: requestedBranchId } : {}),
-          },
-        ),
-        select: {
-          membershipId: true,
-          workDate: true,
-          status: true,
-          totalBreakMinutes: true,
-          totalWorkedMinutes: true,
-          requiresApproval: true,
-          approvalStatus: true,
-        },
-      })
-    : [];
+    ]),
+    monthlySessionsPromise,
+  ]);
   const monthlyAttendance = visibleMonthlyMembers.map((member) => {
     const sessions = monthlySessions.filter(
       (session) => session.membershipId === member.id,
