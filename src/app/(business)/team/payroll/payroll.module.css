@@ -710,6 +710,20 @@
   font-size: 12px;
 }
 
+.employeeNameLink {
+  color: #1d293b;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.employeeNameLink:hover,
+.employeeNameLink:focus-visible {
+  color: #087f76;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .employee small,
 .baseRate {
   display: block;
@@ -927,6 +941,15 @@
   justify-content: space-between;
   gap: 18px;
   padding: 16px 18px;
+}
+
+.completionBoundary {
+  margin: 0;
+  border-top: 1px solid #e3eaec;
+  padding: 11px 18px 14px;
+  color: #647389;
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .runGuidance {
@@ -1304,6 +1327,15 @@
   font-size: 10px;
   font-weight: 800;
   text-decoration: none;
+}
+
+.payslipUnavailable {
+  display: block;
+  max-width: 190px;
+  margin-top: 4px;
+  color: #748197;
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .downloadLinks a {

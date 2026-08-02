@@ -12,6 +12,7 @@ import {
 import { calculateAttendanceDurations } from "@/lib/attendance/state-machine";
 import { formatBranchLocalDateTime } from "@/lib/attendance/work-date";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { getOperationalBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import styles from "./attendance.module.css";
@@ -97,9 +98,18 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
   );
   const scope = await resolveAttendanceScope(access);
   const params = await searchParams;
-  const canModify =
-    access.effectiveBusinessRole !== "STAFF" ||
-    access.permissions.includes("ATTENDANCE_EMPLOYEE_MANAGE");
+  const canModify = hasBusinessCapability(
+    access,
+    "MODIFY_ATTENDANCE_EMPLOYEES",
+  );
+  const canViewTeamDirectory = hasBusinessCapability(
+    access,
+    "VIEW_TEAM_DIRECTORY",
+  );
+  const canViewAttendanceSettings = hasBusinessCapability(
+    access,
+    "VIEW_ATTENDANCE_SETTINGS",
+  );
   const branches = (await getOperationalBranches(businessId, user)).filter(
     (branch) => scope.allowedBranchIds.includes(branch.id),
   );
@@ -393,12 +403,16 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
           <Link className="secondary-light-button" href={`/team/attendance/export?${exportParams}`}>
             Export CSV
           </Link>
-          <Link className="secondary-light-button" href="/team/attendance-settings">
-            Attendance settings
-          </Link>
-          <Link className="secondary-light-button" href="/team">
-            Back to team
-          </Link>
+          {canViewAttendanceSettings ? (
+            <Link className="secondary-light-button" href="/team/attendance-settings">
+              Attendance settings
+            </Link>
+          ) : null}
+          {canViewTeamDirectory ? (
+            <Link className="secondary-light-button" href="/team?section=people">
+              People
+            </Link>
+          ) : null}
         </div>
       </header>
 
@@ -508,7 +522,16 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
                           {getInitials(member.fullName)}
                         </span>
                         <span>
-                          <strong>{member.fullName}</strong>
+                          {canViewTeamDirectory ? (
+                            <Link
+                              className={styles.employeeLink}
+                              href={`/team/people/${member.id}`}
+                            >
+                              {member.fullName}
+                            </Link>
+                          ) : (
+                            <strong>{member.fullName}</strong>
+                          )}
                           <small>{member.employeeCode}</small>
                         </span>
                       </div>
@@ -557,7 +580,16 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
                 <article className={styles.reviewCard} key={exception.id}>
                   <div className={styles.reviewSummary}>
                     <div>
-                      <strong>{exception.employee.fullName}</strong>
+                      {canViewTeamDirectory ? (
+                        <Link
+                          className={styles.employeeLink}
+                          href={`/team/people/${exception.employeeId}`}
+                        >
+                          {exception.employee.fullName}
+                        </Link>
+                      ) : (
+                        <strong>{exception.employee.fullName}</strong>
+                      )}
                       <small>{exception.employee.employeeCode} / {exception.branch.name}</small>
                     </div>
                     <span className={styles.statusBadge}>{exception.type.replaceAll("_", " ")}</span>
@@ -731,7 +763,16 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
                             {getInitials(entry.employeeAccount.name)}
                           </span>
                           <span>
-                            <strong>{entry.employeeAccount.name}</strong>
+                            {canViewTeamDirectory ? (
+                              <Link
+                                className={styles.employeeLink}
+                                href={`/team/people/${entry.membershipId}`}
+                              >
+                                {entry.employeeAccount.name}
+                              </Link>
+                            ) : (
+                              <strong>{entry.employeeAccount.name}</strong>
+                            )}
                             <small>Team member</small>
                           </span>
                         </div>

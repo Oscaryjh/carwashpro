@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { getManagerLeaveDashboard } from "@/lib/leave/service";
 import { installLeavePresetAction, reviewLeaveRequestAction, updateLeaveBalanceAction } from "./actions";
 import styles from "./leave.module.css";
@@ -14,13 +15,19 @@ export default async function LeavePage({ searchParams }: Props) {
   const requestedYear = Number(params.year);
   const year = Number.isInteger(requestedYear) && requestedYear >= 2000 && requestedYear <= 2200 ? requestedYear : new Date().getUTCFullYear();
   const data = await getManagerLeaveDashboard({ businessId: scope.businessId, allowedBranchIds: scope.allowedBranchIds, year });
-  const canModify = access.effectiveBusinessRole === "BUSINESS_OWNER" || access.permissions.includes("MODIFY_ATTENDANCE_EMPLOYEES");
+  const canModify = hasBusinessCapability(access, "MODIFY_ATTENDANCE_EMPLOYEES");
+  const canViewTeamDirectory = hasBusinessCapability(access, "VIEW_TEAM_DIRECTORY");
+  const canViewPayroll = hasBusinessCapability(access, "VIEW_PAYROLL_RUN");
 
   return (
     <main className={styles.page}>
       <header className={styles.header}>
         <div><p className={styles.eyebrow}>HR &amp; Payroll / Leave</p><h1>Leave management</h1><p>Employee requests, manager approval and auditable balances in one place.</p></div>
-        <nav><Link href="/team?section=people">People</Link><Link href="/team/attendance">Attendance</Link><Link href="/team/payroll">Payroll</Link></nav>
+        <nav>
+          {canViewTeamDirectory ? <Link href="/team?section=people">People</Link> : null}
+          <Link href="/team/attendance">Attendance</Link>
+          {canViewPayroll ? <Link href="/team/payroll">Payroll</Link> : null}
+        </nav>
       </header>
 
       {params.message ? <div className={params.type === "error" ? styles.error : styles.success} role="status">{params.message}</div> : null}
@@ -46,9 +53,9 @@ export default async function LeavePage({ searchParams }: Props) {
             <article className={styles.request} key={request.id}>
               <div className={styles.requestMain}>
                 <div className={styles.avatar}>{request.employee.fullName.split(/\s+/).map((v) => v[0]).join("").slice(0, 2).toUpperCase()}</div>
-                <div><strong>{request.employee.fullName}</strong><span>{request.employee.employeeCode} · {request.branch.name}</span><p>{request.policyName} · {request.startsOn} — {request.endsOn} · {request.requestedDays} day(s)</p><small>{request.reason}</small></div>
+                <div>{canViewTeamDirectory ? <Link className={styles.employeeLink} href={`/team/people/${request.employee.id}`}>{request.employee.fullName}</Link> : <strong>{request.employee.fullName}</strong>}<span>{request.employee.employeeCode} · {request.branch.name}</span><p>{request.policyName} · {request.startsOn} — {request.endsOn} · {request.requestedDays} day(s)</p><small>{request.reason}</small></div>
               </div>
-              <div className={styles.requestSide}><span className={`${styles.badge} ${styles[request.status.toLowerCase()]}`}>{request.status}</span>{request.documentReference ? <a href={request.documentReference} rel="noreferrer" target="_blank">Supporting document</a> : null}</div>
+              <div className={styles.requestSide}><span className={`${styles.badge} ${styles[request.status.toLowerCase()]}`}>{request.status}</span>{request.documentReference ? isNavigableDocumentReference(request.documentReference) ? <a href={request.documentReference} rel="noreferrer" target="_blank">Supporting document</a> : <span className={styles.documentReference}>Document reference: {request.documentReference}</span> : null}</div>
               {canModify && request.status === "PENDING" ? (
                 <form action={reviewLeaveRequestAction} className={styles.reviewForm}>
                   <input type="hidden" name="requestId" value={request.id} />
@@ -86,4 +93,8 @@ export default async function LeavePage({ searchParams }: Props) {
       </div>
     </main>
   );
+}
+
+function isNavigableDocumentReference(value: string) {
+  return /^(https?:\/\/|\/)/i.test(value);
 }

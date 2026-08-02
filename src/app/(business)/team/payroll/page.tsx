@@ -60,6 +60,13 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
   const canReopenPayroll = hasBusinessCapability(access, "REOPEN_PAYROLL");
   const canExportPayroll = hasBusinessCapability(access, "EXPORT_PAYROLL");
   const canExportStatutory = hasBusinessCapability(access, "EXPORT_STATUTORY");
+  const canViewTeamDirectory = hasBusinessCapability(access, "VIEW_TEAM_DIRECTORY");
+  const canViewAttendance = hasBusinessCapability(access, "VIEW_ATTENDANCE_EMPLOYEES");
+  const canViewPayslip = hasBusinessCapability(access, "VIEW_PAYSLIP");
+  const canViewStatutory =
+    hasBusinessCapability(access, "VIEW_STATUTORY_SUBMISSION") &&
+    hasBusinessCapability(access, "VIEW_STATUTORY_PROFILE") &&
+    hasBusinessCapability(access, "VIEW_TAX_PROFILE");
   const [storedSetting, run, holidays, recentRuns] = await Promise.all([
     prisma.payrollSetting.findUnique({ where: { businessId } }),
     prisma.payrollRun.findUnique({
@@ -127,7 +134,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
   );
   const runStatus =
     run?.status === "FINALIZED"
-      ? "Finalized"
+      ? "Calculations locked"
       : run?.status === "REVIEW"
         ? "Awaiting review"
       : run?.status === "DRAFT"
@@ -146,9 +153,9 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
           </p>
         </div>
         <nav className={`hr-module-actions ${styles.headerActions}`} aria-label="Payroll navigation">
-          <Link href={`/team/payroll/statutory?month=${period.value}`}>Statutory submissions</Link>
-          <Link href="/team/attendance">View attendance</Link>
-          <Link href="/team?section=people">Manage people</Link>
+          {canViewStatutory ? <Link href={`/team/payroll/statutory?month=${period.value}`}>Statutory submissions</Link> : null}
+          {canViewAttendance ? <Link href="/team/attendance">View attendance</Link> : null}
+          {canViewTeamDirectory ? <Link href="/team?section=people">Manage people</Link> : null}
         </nav>
       </header>
 
@@ -521,6 +528,9 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                     <PayrollEntryRows
                       editable={canEditPayroll && run.status === "DRAFT"}
                       profileEditable={canEditStatutory}
+                      profileLinkEnabled={canViewTeamDirectory}
+                      payrollLocked={run.status === "FINALIZED"}
+                      payslipAvailable={canViewPayslip && run.status === "FINALIZED"}
                       entry={entry}
                       key={entry.id}
                       month={period.value}
@@ -569,7 +579,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                     <input name="runId" type="hidden" value={run.id} />
                     {run.submittedById === user.userId ? <input minLength={5} name="reason" placeholder="Emergency owner override reason" required /> : null}
                     <button className={styles.finalizeButton} type="submit">
-                      Finalize and lock
+                      Finalize and lock calculations
                     </button>
                   </form>
                   ) : null}
@@ -590,6 +600,10 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                 </details>
               ) : null}
             </div>
+            <p className={styles.completionBoundary}>
+              Finalizing locks payroll calculations only. Payment completion
+              and bank payment batches are not tracked in this release.
+            </p>
           </>
         )}
       </section>
@@ -649,11 +663,17 @@ function PayrollEntryRows({
   month,
   editable,
   profileEditable,
+  profileLinkEnabled,
+  payrollLocked,
+  payslipAvailable,
 }: {
   entry: PayrollEntryRow;
   month: string;
   editable: boolean;
   profileEditable: boolean;
+  profileLinkEnabled: boolean;
+  payrollLocked: boolean;
+  payslipAvailable: boolean;
 }) {
   return (
     <>
@@ -664,15 +684,30 @@ function PayrollEntryRows({
               {getInitials(entry.fullNameSnapshot)}
             </span>
             <span>
-              <strong>{entry.fullNameSnapshot}</strong>
+              {profileLinkEnabled ? (
+                <Link
+                  className={styles.employeeNameLink}
+                  href={`/team/people/${entry.membershipId}`}
+                >
+                  {entry.fullNameSnapshot}
+                </Link>
+              ) : (
+                <strong>{entry.fullNameSnapshot}</strong>
+              )}
               <small>{entry.employeeCodeSnapshot}</small>
-              <Link
-                className={styles.payslipLink}
-                href={`/team/payroll/payslips/${entry.id}`}
-                target="_blank"
-              >
-                Payslip PDF
-              </Link>
+              {payslipAvailable ? (
+                <Link
+                  className={styles.payslipLink}
+                  href={`/team/payroll/payslips/${entry.id}`}
+                  target="_blank"
+                >
+                  Payslip PDF
+                </Link>
+              ) : !payrollLocked ? (
+                <small className={styles.payslipUnavailable}>
+                  Payslip available after calculations are locked.
+                </small>
+              ) : null}
             </span>
           </span>
         </td>

@@ -125,6 +125,16 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             shortLabel: "Pay",
             icon: "reports" as const,
           },
+        ]
+      : []),
+    ...(isStoreUser &&
+    canSeeCapability(
+      "VIEW_STATUTORY_SUBMISSION",
+      "VIEW_STATUTORY_SUBMISSION",
+    ) &&
+    canSeeCapability("VIEW_STATUTORY_PROFILE", "VIEW_STATUTORY_PROFILE") &&
+    canSeeCapability("VIEW_TAX_PROFILE", "VIEW_TAX_PROFILE")
+      ? [
           {
             href: "/team/payroll/statutory",
             label: "Statutory",

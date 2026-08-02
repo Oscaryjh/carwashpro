@@ -61,6 +61,8 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
   const canExport = hasBusinessCapability(context.access, "EXPORT_STATUTORY");
   const canSubmit = hasBusinessCapability(context.access, "SUBMIT_STATUTORY");
   const canResolve = hasBusinessCapability(context.access, "RESOLVE_STATUTORY_SUBMISSION");
+  const canViewPayroll = hasBusinessCapability(context.access, "VIEW_PAYROLL_RUN");
+  const canViewTeamDirectory = hasBusinessCapability(context.access, "VIEW_TEAM_DIRECTORY");
 
   const validation = Object.fromEntries(providers.map((provider) => [
     provider.id,
@@ -81,8 +83,8 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
           <p>Validate, export and track Malaysia statutory contribution submissions from finalized payroll.</p>
         </div>
         <nav className="hr-module-actions" aria-label="Statutory navigation">
-          <Link href={`/team/payroll?month=${period.value}`}>Monthly payroll</Link>
-          <Link href="/team?section=people">People</Link>
+          {canViewPayroll ? <Link href={`/team/payroll?month=${period.value}`}>Monthly payroll</Link> : null}
+          {canViewTeamDirectory ? <Link href="/team?section=people">People</Link> : null}
         </nav>
       </header>
 
@@ -126,7 +128,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
               ) : <div className={styles.passMessage}>All required fields passed pre-export validation.</div>}
               {result.errors.length > 4 ? <small className={styles.moreIssues}>+ {result.errors.length - 4} more issues below in employee profiles</small> : null}
               <div className={styles.cardActions}>
-                {result.ready && canExport ? <Link className={styles.primaryButton} href={`/team/payroll/statutory/export?month=${period.value}&provider=${provider.id}`}>Download official file</Link> : <span className={styles.disabledButton}>{result.ready ? "No export access" : "Complete required fields"}</span>}
+                {canExport ? result.ready ? <Link className={styles.primaryButton} href={`/team/payroll/statutory/export?month=${period.value}&provider=${provider.id}`}>Download official file</Link> : <span className={styles.disabledButton}>Complete required fields</span> : null}
                 {result.ready && canExport && run ? <form action={markStatutoryFileExportedAction}><input name="month" type="hidden" value={period.value} /><input name="payrollRunId" type="hidden" value={run.id} /><input name="provider" type="hidden" value={provider.id} /><button className={styles.secondaryButton} type="submit">Confirm downloaded file</button></form> : null}
                 <small>{STATUTORY_EXPORT_VERSION[provider.id]}</small>
               </div>
@@ -162,7 +164,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
             const complete = Boolean(employee.statutoryIdentityType && employee.statutoryIdentityNumber);
             return (
               <details className={styles.employeeCard} key={employee.id}>
-                <summary><span className={styles.avatar}>{initials(employee.fullName)}</span><span><strong>{employee.fullName}</strong><small>{employee.employeeCode}</small></span><span className={complete ? styles.profileComplete : styles.profileIncomplete}>{complete ? "Identity added" : "Missing identity"}</span></summary>
+                <summary><span className={styles.avatar}>{initials(employee.fullName)}</span><span>{canViewTeamDirectory ? <Link className={styles.employeeNameLink} href={`/team/people/${employee.id}`}>{employee.fullName}</Link> : <strong>{employee.fullName}</strong>}<small>{employee.employeeCode}</small></span><span className={complete ? styles.profileComplete : styles.profileIncomplete}>{complete ? "Identity added" : "Missing identity"}</span></summary>
                 <form action={saveEmployeeSubmissionProfileAction} className={styles.employeeForm}>
                   <input name="membershipId" type="hidden" value={employee.id} />
                   <input name="month" type="hidden" value={period.value} />

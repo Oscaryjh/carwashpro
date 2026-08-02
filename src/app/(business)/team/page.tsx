@@ -64,6 +64,10 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
     access,
     "MANAGE_TEAM_PERMISSIONS",
   );
+  const canViewAttendance = hasBusinessCapability(
+    access,
+    "VIEW_ATTENDANCE_EMPLOYEES",
+  );
 
   const params = await searchParams;
   const requestedSection = teamSections.some((item) => item.key === params.section)
@@ -73,6 +77,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
     (requestedSection === "roles" &&
       !canManageTeamPermissions &&
       !canEditCompensation) ||
+    (requestedSection === "attendance" && !canViewAttendance) ||
     (params.modal === "role" && !canManageTeamPermissions) ||
     (params.modal === "level" && !canEditCompensation)
   ) {
@@ -81,9 +86,10 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const section = requestedSection;
   const visibleTeamSections = teamSections.filter(
     (item) =>
-      item.key !== "roles" ||
-      canManageTeamPermissions ||
-      canEditCompensation,
+      (item.key !== "attendance" || canViewAttendance) &&
+      (item.key !== "roles" ||
+        canManageTeamPermissions ||
+        canEditCompensation),
   );
   const query = params.q?.trim() ?? "";
   const now = new Date();
@@ -548,7 +554,12 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
               <article key={entry.id}>
                 <span className="team-avatar">{initials(entry.employeeAccount.name)}</span>
                 <span className="team-attendance-person">
-                  <strong>{entry.employeeAccount.name}</strong>
+                  <Link
+                    className="team-person-name-link"
+                    href={`/team/people/${entry.membershipId}`}
+                  >
+                    {entry.employeeAccount.name}
+                  </Link>
                   <small>{entry.branch.name} - {entry.employeeAccount.phoneNormalized}</small>
                 </span>
                 <span>
@@ -751,7 +762,12 @@ function PeopleSection({
                 <div className="team-staff-identity">
                   <span className="team-avatar">{initials(member.name)}</span>
                   <span>
-                    <strong>{member.name}</strong>
+                    <Link
+                      className="team-person-name-link"
+                      href={`/team/people/${member.id}`}
+                    >
+                      {member.name}
+                    </Link>
                     <small>{member.whatsappPhone || member.email || "No contact"}</small>
                   </span>
                 </div>
@@ -888,7 +904,12 @@ function PeopleSection({
               <div className="team-staff-identity">
                 <span className="team-avatar">{initials(employee.fullName)}</span>
                 <span>
-                  <strong>{employee.fullName}</strong>
+                  <Link
+                    className="team-person-name-link"
+                    href={`/team/people/${employee.id}`}
+                  >
+                    {employee.fullName}
+                  </Link>
                   <small>{employee.employeeCode} &middot; Employment profile only</small>
                 </span>
               </div>
@@ -1028,7 +1049,7 @@ function ScheduleSection({ owners, staff }: { owners: OwnerRow[]; staff: StaffRo
       <div className="team-schedule-list">
         {staff.map((member) => (
           <article key={member.id}>
-            <div className="team-staff-identity"><span className="team-avatar">{initials(member.name)}</span><span><strong>{member.name}</strong><small>{branchNames(member)}</small></span></div>
+            <div className="team-staff-identity"><span className="team-avatar">{initials(member.name)}</span><span><Link className="team-person-name-link" href={`/team/people/${member.id}`}>{member.name}</Link><small>{branchNames(member)}</small></span></div>
             <div className="team-schedule-metrics">
               <span><strong>{member.staffAvailabilities.length}</strong><small>work days</small></span>
               <span><strong>{member.staffBreaks.length}</strong><small>breaks</small></span>
@@ -1058,7 +1079,7 @@ function AttendanceSection({ attendance }: { attendance: AttendanceRow[] }) {
       <div className="team-activity-table" role="table">
         {attendance.length ? attendance.map((entry) => (
           <div className="team-activity-row" key={entry.id} role="row">
-            <span><strong>{entry.employeeAccount.name}</strong><small>{entry.branch.name}</small></span>
+            <span><Link className="team-person-name-link" href={`/team/people/${entry.membershipId}`}>{entry.employeeAccount.name}</Link><small>{entry.branch.name}</small></span>
             <span><small>Clock in</small>{formatDateTime(entry.clockInAt)}</span>
             <span><small>Clock out</small>{entry.clockOutAt ? formatDateTime(entry.clockOutAt) : "Still working"}</span>
             <span className={entry.status === "OPEN" ? "status" : "status status-neutral"}>{capitalize(entry.status)}</span>
@@ -1263,7 +1284,7 @@ type LevelRow = {
   productPercent: unknown; packageFixedAmount: unknown; packagePercent: unknown;
 };
 type ActivityRow = { id: string; action: string; actorName: string | null; summary: string; createdAt: Date };
-type AttendanceRow = { id: string; status: string; clockInAt: Date; clockOutAt: Date | null; employeeAccount: { name: string; phoneNormalized: string }; branch: { name: string } };
+type AttendanceRow = { id: string; membershipId: string; status: string; clockInAt: Date; clockOutAt: Date | null; employeeAccount: { name: string; phoneNormalized: string }; branch: { name: string } };
 
 function branchNames(member: StaffRow) {
   const assigned =

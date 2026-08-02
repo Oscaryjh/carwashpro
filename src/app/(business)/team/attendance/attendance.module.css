@@ -295,6 +295,20 @@
   font-size: 12px;
 }
 
+.employeeLink {
+  color: #172235;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.employeeLink:hover,
+.employeeLink:focus-visible {
+  color: #087f76;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .employee small {
   color: #8490a1;
   font-size: 9px;

@@ -21762,6 +21762,22 @@ button:disabled,
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
+.team-person-name-link {
+  overflow: hidden;
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-person-name-link:hover,
+.team-person-name-link:focus-visible {
+  color: #087f76;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .team-row-actions {
   grid-area: edit;
   display: flex;

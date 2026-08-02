@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
 import styles from "./attendance-settings.module.css";
 
@@ -9,10 +10,9 @@ export default async function AttendanceSettingsPage() {
     "VIEW_ATTENDANCE_SETTINGS",
   );
   const scope = await resolveAttendanceScope(access);
-  const canManage =
-    access.effectiveBusinessRole === "BUSINESS_OWNER" ||
-    access.effectiveBusinessRole === "GROUP_MANAGER_READ_ONLY" ||
-    access.permissions.includes("ATTENDANCE_SETTINGS_MANAGE");
+  const canManage = hasBusinessCapability(access, "MODIFY_ATTENDANCE_SETTINGS");
+  const canViewTeamDirectory = hasBusinessCapability(access, "VIEW_TEAM_DIRECTORY");
+  const canViewAttendance = hasBusinessCapability(access, "VIEW_ATTENDANCE_EMPLOYEES");
   const [business, branches] = await Promise.all([
     prisma.business.findUnique({
       where: { id: businessId },
@@ -40,12 +40,16 @@ export default async function AttendanceSettingsPage() {
           </p>
         </div>
         <div className={`hr-module-actions ${styles.headerActions}`}>
-          <Link className="secondary-light-button" href="/team?section=people">
-            People
-          </Link>
-          <Link className="secondary-light-button" href="/team/attendance">
-            Attendance
-          </Link>
+          {canViewTeamDirectory ? (
+            <Link className="secondary-light-button" href="/team?section=people">
+              People
+            </Link>
+          ) : null}
+          {canViewAttendance ? (
+            <Link className="secondary-light-button" href="/team/attendance">
+              Attendance
+            </Link>
+          ) : null}
         </div>
       </div>
 
