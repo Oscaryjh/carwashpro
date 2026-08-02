@@ -11,6 +11,7 @@ import {
 import { EmployeeProfileAttendance } from "@/components/employee-profile-attendance";
 import { EmployeeProfileLeave } from "@/components/employee-profile-leave";
 import { EmployeeProfilePersonal } from "@/components/employee-profile-personal";
+import { EmployeeProfilePayroll } from "@/components/employee-profile-payroll";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
@@ -32,6 +33,7 @@ import {
 } from "@/lib/team/employee-profile-read";
 import { loadEmployeeAttendanceSection } from "@/lib/team/employee-profile-attendance-read";
 import { loadEmployeeLeaveSection } from "@/lib/team/employee-profile-leave-read";
+import { loadEmployeeCompensationSection } from "@/lib/team/employee-profile-compensation-read";
 
 type EmployeeProfilePageProps = {
   params: Promise<{ personId: string }>;
@@ -190,6 +192,19 @@ export default async function EmployeeProfilePage({
       notFound();
     }
     sectionContent = <EmployeeProfileLeave data={leave} />;
+  }
+
+  if (membership && sectionAuthorized && activeSection === "payroll") {
+    const compensation = await loadEmployeeCompensationSection({
+      access: context.access,
+      allowedBranchIds: scope.allowedBranchIds,
+      businessId: context.businessId,
+      membershipId: membership.id,
+    });
+    if (compensation.status === "NOT_FOUND") {
+      notFound();
+    }
+    sectionContent = <EmployeeProfilePayroll result={compensation} />;
   }
 
   return (

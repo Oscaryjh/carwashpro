@@ -55,13 +55,13 @@ test("Phase 2 mobile profile navigation exposes all tabs without horizontal disc
   assert.match(styles, /overflow-wrap:\s*anywhere/);
 });
 
-test("future profile tabs use user-facing availability states", async () => {
+test("remaining future profile tabs use user-facing availability states", async () => {
   const shell = await readFile(
     path.join(root, "src/components/employee-profile-shell.tsx"),
     "utf8",
   );
 
-  assert.match(shell, /Payroll details are not available yet/);
+  assert.doesNotMatch(shell, /Payroll details are not available yet/);
   assert.match(shell, /Documents are not available yet/);
   assert.match(shell, /Activity is not available yet/);
   assert.doesNotMatch(shell, /shell is ready/);

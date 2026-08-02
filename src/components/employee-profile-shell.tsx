@@ -96,7 +96,7 @@ export function EmployeeProfileShell({
         <ProfileState
           eyebrow={activeTab?.label ?? "Employee profile"}
           title={sectionTitle(activeSection)}
-          description={sectionDescription(activeSection)}
+          description={sectionDescription()}
           tone="ready"
         />
       )}
@@ -129,17 +129,11 @@ function ProfileState({
   );
 }
 
-function sectionDescription(section: EmployeeProfileSection) {
-  if (section === "payroll") {
-    return "Salary, bank and statutory information will appear here in a later phase. No sensitive payroll data is loaded.";
-  }
+function sectionDescription() {
   return "This section is planned for a later phase. No section records are loaded yet.";
 }
 
 function sectionTitle(section: EmployeeProfileSection) {
-  if (section === "payroll") {
-    return "Payroll details are not available yet";
-  }
   if (section === "documents") {
     return "Documents are not available yet";
   }
