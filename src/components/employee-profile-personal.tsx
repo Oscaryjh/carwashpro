@@ -11,13 +11,13 @@ export function EmployeeProfilePersonal({ data }: { data: PersonalData }) {
       <section className={styles.sectionIntro}>
         <div>
           <p className={styles.eyebrow}>Personal</p>
-          <h2>Personal information</h2>
+          <h2>Personal details</h2>
           <p>
             Read-only basic and contact details already stored in the employee
             record. No additional sensitive fields are loaded.
           </p>
         </div>
-        <span className={styles.scopeBadge}>No editing in Phase 2B</span>
+        <span className={styles.scopeBadge}>Read only</span>
       </section>
 
       <div className={styles.profileGrid}>

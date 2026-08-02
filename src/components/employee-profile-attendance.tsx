@@ -12,13 +12,13 @@ export function EmployeeProfileAttendance({ data }: { data: AttendanceData }) {
       <section className={styles.sectionIntro}>
         <div>
           <p className={styles.eyebrow}>Attendance</p>
-          <h2>Attendance snapshot</h2>
+          <h2>Attendance</h2>
           <p>
             Read-only clock status, monthly attendance and policy targets from
             authorized branches. No sensitive or location evidence is included.
           </p>
         </div>
-        <span className={styles.scopeBadge}>No editing in Phase 2C</span>
+        <span className={styles.scopeBadge}>Read only</span>
       </section>
 
       <section aria-label="Attendance summary" className={styles.metricGrid}>

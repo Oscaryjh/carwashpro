@@ -12,13 +12,13 @@ export function EmployeeProfileLeave({ data }: { data: LeaveData }) {
       <section className={styles.sectionIntro}>
         <div>
           <p className={styles.eyebrow}>Leave</p>
-          <h2>Leave snapshot</h2>
+          <h2>Leave</h2>
           <p>
             Read-only balances and request status for the current leave year.
             Only authorized branch records are included.
           </p>
         </div>
-        <span className={styles.scopeBadge}>No editing in Phase 2D</span>
+        <span className={styles.scopeBadge}>Read only</span>
       </section>
 
       <section aria-label="Leave summary" className={styles.metricGrid}>

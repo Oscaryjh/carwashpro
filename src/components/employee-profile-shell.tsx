@@ -58,7 +58,8 @@ export function EmployeeProfileShell({
           </div>
         </div>
         <Link className={styles.backLink} href="/team?section=people">
-          Back to People
+          <span aria-hidden="true">←</span>
+          People
         </Link>
       </header>
 
@@ -93,8 +94,8 @@ export function EmployeeProfileShell({
         sectionContent
       ) : (
         <ProfileState
-          eyebrow={activeTab?.phase ?? "Future phase"}
-          title={`${activeTab?.label ?? "Profile"} shell is ready`}
+          eyebrow={activeTab?.label ?? "Employee profile"}
+          title={sectionTitle(activeSection)}
           description={sectionDescription(activeSection)}
           tone="ready"
         />
@@ -130,9 +131,22 @@ function ProfileState({
 
 function sectionDescription(section: EmployeeProfileSection) {
   if (section === "payroll") {
-    return "Salary, bank and statutory data will be loaded separately by capability in Phase 3. No sensitive payroll data is queried in this shell.";
+    return "Salary, bank and statutory information will appear here in a later phase. No sensitive payroll data is loaded.";
   }
-  return "This section is reserved for a later phase. No section records are queried yet.";
+  return "This section is planned for a later phase. No section records are loaded yet.";
+}
+
+function sectionTitle(section: EmployeeProfileSection) {
+  if (section === "payroll") {
+    return "Payroll details are not available yet";
+  }
+  if (section === "documents") {
+    return "Documents are not available yet";
+  }
+  if (section === "activity") {
+    return "Activity is not available yet";
+  }
+  return "Profile section is not available yet";
 }
 
 function getInitials(name: string) {

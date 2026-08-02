@@ -97,7 +97,7 @@ test("Phase 2D adds Leave after the earlier section loaders", async () => {
   assert.match(route, /activeSection === "attendance"/);
   assert.match(route, /activeSection === "leave"/);
   assert.doesNotMatch(route, /activeSection === "payroll"/);
-  assert.match(shell, /loaded separately by capability in Phase 3/);
+  assert.match(shell, /No sensitive payroll data is loaded/);
 });
 
 test("Phase 2A performs capability checks before section queries", async () => {

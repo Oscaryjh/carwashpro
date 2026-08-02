@@ -49,14 +49,14 @@ export function EmployeeProfileOverview({ data }: { data: OverviewData }) {
     <div className={styles.sectionContent}>
       <section className={styles.sectionIntro}>
         <div>
-          <p className={styles.eyebrow}>Employee overview</p>
-          <h2>Workforce snapshot</h2>
+          <p className={styles.eyebrow}>Overview</p>
+          <h2>Employee overview</h2>
           <p>
-            Read-only employment and operational details. Payroll readiness and
-            sensitive payroll records are not included.
+            Employment, branch access, attendance access and system connections
+            at a glance. Sensitive payroll records are not included.
           </p>
         </div>
-        <span className={styles.scopeBadge}>Authorized branches only</span>
+        <span className={styles.scopeBadge}>Read only</span>
       </section>
 
       <section aria-label="Employment snapshot" className={styles.metricGrid}>
@@ -162,13 +162,13 @@ export function EmployeeProfileEmployment({
       <section className={styles.sectionIntro}>
         <div>
           <p className={styles.eyebrow}>Employment</p>
-          <h2>Employment and branch assignments</h2>
+          <h2>Employment details</h2>
           <p>
             Read-only employment, branch, POS and service connections within
             your authorized business scope.
           </p>
         </div>
-        <span className={styles.scopeBadge}>No editing in Phase 2A</span>
+        <span className={styles.scopeBadge}>Read only</span>
       </section>
 
       <div className={styles.profileGrid}>

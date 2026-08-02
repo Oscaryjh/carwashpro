@@ -116,7 +116,7 @@ test("employee profile route provides all required Phase 1 states", async () => 
   );
   assert.match(shell, /Access denied/);
   assert.match(shell, /Employment profile is not linked/);
-  assert.match(shell, /No sensitive payroll data is queried/);
+  assert.match(shell, /No sensitive payroll data is loaded/);
 });
 
 function buildAccess(

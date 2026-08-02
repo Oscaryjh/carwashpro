@@ -112,6 +112,7 @@
   font-size: 11px;
   font-weight: 800;
   text-decoration: none;
+  gap: 6px;
 }
 
 .backLink:hover {
@@ -120,25 +121,25 @@
 }
 
 .tabs {
-  display: flex;
+  display: grid;
+  grid-auto-columns: minmax(max-content, 1fr);
+  grid-auto-flow: column;
   gap: 4px;
-  overflow-x: auto;
   padding: 0 16px;
   border: 1px solid var(--border, #dce3ea);
   border-top: 0;
   background: var(--surface, #fff);
-  scrollbar-width: thin;
 }
 
 .tabs a {
   position: relative;
   display: inline-flex;
   min-height: 50px;
-  flex: 0 0 auto;
   align-items: center;
+  justify-content: center;
   padding: 0 13px;
   color: var(--muted, #64748b);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   text-decoration: none;
 }
@@ -274,7 +275,7 @@
 .panelHeading div > p:not(.eyebrow) {
   margin-top: 6px;
   color: var(--muted, #64748b);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
@@ -285,7 +286,7 @@
   border-radius: 999px;
   background: #e7f5f3;
   color: #08786f;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 850;
   letter-spacing: 0.03em;
 }
@@ -305,7 +306,7 @@
 
 .metricGrid article {
   display: grid;
-  min-height: 118px;
+  min-height: 108px;
   align-content: center;
   gap: 7px;
   padding: 18px;
@@ -317,7 +318,7 @@
 .serviceList > span,
 .assignmentList small {
   color: var(--muted, #64748b);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .metricGrid article > span,
@@ -404,12 +405,12 @@
 .detailList strong,
 .assignmentList strong,
 .profileEmpty strong {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .checkList small {
   color: var(--muted, #64748b);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .detailList > div {
@@ -424,6 +425,7 @@
 .detailList strong {
   max-width: 65%;
   text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .inlineLink {
@@ -554,7 +556,7 @@
   display: grid;
   place-items: start;
   gap: 6px;
-  min-height: 140px;
+  min-height: 96px;
   align-content: center;
   padding: 18px 0;
 }
@@ -576,12 +578,48 @@
     padding: 18px;
   }
 
+  .identity {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+  }
+
+  .header h1 {
+    font-size: 26px;
+  }
+
   .backLink {
     width: 100%;
   }
 
   .tabs {
-    padding: 0 8px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-columns: auto;
+    grid-auto-flow: row;
+    gap: 4px;
+    padding: 8px;
+  }
+
+  .tabs a {
+    min-height: 40px;
+    justify-content: center;
+    padding: 0 4px;
+    border-radius: 7px;
+    font-size: 11px;
+  }
+
+  .tabs .activeTab {
+    background: #e7f5f3;
+  }
+
+  .tabs .activeTab::after {
+    right: 12px;
+    left: 12px;
   }
 
   .state {
@@ -592,11 +630,21 @@
   }
 
   .sectionContent {
-    padding: 16px;
+    gap: 12px;
+    padding: 14px;
   }
 
   .sectionIntro {
     flex-direction: column;
+    gap: 12px;
+  }
+
+  .sectionIntro h2 {
+    font-size: 21px;
+  }
+
+  .scopeBadge {
+    align-self: flex-start;
   }
 
   .metricGrid,
@@ -611,6 +659,14 @@
 
   .assignmentList .statusBadge {
     justify-self: start;
+  }
+
+  .profilePanel {
+    padding: 16px;
+  }
+
+  .detailList > div {
+    align-items: flex-start;
   }
 }
 
