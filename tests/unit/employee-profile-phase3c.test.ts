@@ -161,12 +161,19 @@ test("Phase 3C UI uses safe canonical links and contains no editing surface", as
   assert.match(loader, /VIEW_PAYMENT_BATCH/);
   assert.match(component, /View Payroll Runs/);
   assert.match(component, /Download PDF/);
-  assert.match(component, /Bank details are not available/);
+  assert.match(component, /Available for download/);
+  assert.match(component, /Bank Details/);
+  assert.match(component, /Not available in this release\./);
+  assert.match(
+    component,
+    /Employee bank account storage and salary payment files have not been implemented\./,
+  );
   assert.match(component, /Payment tracking is not available/);
   assert.match(component, /Finalized means calculations are locked/);
   assert.match(styles, /@media \(max-width: 760px\)/);
   assert.match(styles, /\.payrollActionGrid/);
   assert.doesNotMatch(component, /<form|<input|<button|Publish payslip|Process payment/);
+  assert.doesNotMatch(component, /Add Bank|Account number|Published|Delivered|Viewed|Sent/);
   assert.doesNotMatch(loader, /bankAccount|paymentBatch|grossPay|netPay|basicPay/);
 });
 

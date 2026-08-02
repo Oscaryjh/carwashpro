@@ -75,9 +75,9 @@ function PayrollNavigation({
         <PayslipCard state={result.payslip} />
         <UnavailableCard
           state={result.bankDetails}
-          eyebrow="Bank details"
-          title="Bank details are not available"
-          description="Tetamu POS does not currently store an employee bank account in this profile. No bank data was loaded."
+          eyebrow="Bank Details"
+          title="Not available in this release."
+          description="Employee bank account storage and salary payment files have not been implemented."
         />
         <UnavailableCard
           state={result.payment}
@@ -139,6 +139,7 @@ function PayslipCard({
       <div>
         <p className={styles.eyebrow}>Payslip PDF</p>
         <h4>{formatMonth(state.periodStart)} finalized payslip</h4>
+        <p>Available for download</p>
         <p>This administrator download does not mean the payslip was published to the employee.</p>
       </div>
       <a
