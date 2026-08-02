@@ -26,7 +26,7 @@ export default async function LeavePage({ searchParams }: Props) {
         <nav>
           {canViewTeamDirectory ? <Link href="/team?section=people">People</Link> : null}
           <Link href="/team/attendance">Attendance</Link>
-          {canViewPayroll ? <Link href="/team/payroll">Payroll</Link> : null}
+          {canViewPayroll ? <Link href="/team/payroll/workspace">Payroll</Link> : null}
         </nav>
       </header>
 

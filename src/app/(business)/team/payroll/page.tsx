@@ -153,6 +153,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
           </p>
         </div>
         <nav className={`hr-module-actions ${styles.headerActions}`} aria-label="Payroll navigation">
+          <Link href="/team/payroll/workspace">Payroll workspace</Link>
           {canViewStatutory ? <Link href={`/team/payroll/statutory?month=${period.value}`}>Statutory submissions</Link> : null}
           {canViewAttendance ? <Link href="/team/attendance">View attendance</Link> : null}
           {canViewTeamDirectory ? <Link href="/team?section=people">Manage people</Link> : null}

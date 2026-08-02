@@ -616,6 +616,10 @@ test("management routes are restricted to the permissions that protect them", ()
     "PAYROLL_READ",
   );
   assert.equal(
+    routePermission("/team/payroll/workspace"),
+    null,
+  );
+  assert.equal(
     routePermission("/team/payroll/2026-07"),
     "PAYROLL_READ",
   );
@@ -640,7 +644,7 @@ test("staff without dashboard access are redirected to their first allowed modul
   );
   assert.equal(
     getStaffHomePath(["PAYROLL_READ"]),
-    "/team/payroll",
+    "/team/payroll/workspace",
   );
   assert.equal(getStaffHomePath([]), "/login");
 });

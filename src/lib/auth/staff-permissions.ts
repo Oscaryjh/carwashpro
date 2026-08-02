@@ -302,7 +302,7 @@ const staffHomeRoutes: Array<[StaffPermission, string]> = [
   ["TEAM", "/team"],
   ["ATTENDANCE_EMPLOYEE_READ", "/team/employees"],
   ["ATTENDANCE_SETTINGS_READ", "/team/attendance-settings"],
-  ["PAYROLL_READ", "/team/payroll"],
+  ["PAYROLL_READ", "/team/payroll/workspace"],
 ];
 
 export function getStaffHomePath(
@@ -388,6 +388,13 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
   ) {
     return "ATTENDANCE_SETTINGS_READ";
   }
+  // The W1 workspace renders its own capability-aware denied state before any
+  // payroll query. Let authenticated users reach that boundary so a direct URL
+  // does not silently redirect them to an unrelated module.
+  if (pathname === "/team/payroll/workspace") {
+    return null;
+  }
+
   if (
     pathname === "/team/payroll" ||
     pathname.startsWith("/team/payroll/")

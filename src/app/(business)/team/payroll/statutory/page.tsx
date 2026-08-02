@@ -83,7 +83,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
           <p>Validate, export and track Malaysia statutory contribution submissions from finalized payroll.</p>
         </div>
         <nav className="hr-module-actions" aria-label="Statutory navigation">
-          {canViewPayroll ? <Link href={`/team/payroll?month=${period.value}`}>Monthly payroll</Link> : null}
+          {canViewPayroll ? <Link href="/team/payroll/workspace">Payroll workspace</Link> : null}
           {canViewTeamDirectory ? <Link href="/team?section=people">People</Link> : null}
         </nav>
       </header>

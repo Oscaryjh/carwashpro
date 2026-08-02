@@ -120,7 +120,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
     canSeeCapability("VIEW_PAYROLL_RUN", "VIEW_PAYROLL_RUN")
       ? [
           {
-            href: "/team/payroll",
+            href: "/team/payroll/workspace",
             label: "Payroll",
             shortLabel: "Pay",
             icon: "reports" as const,
