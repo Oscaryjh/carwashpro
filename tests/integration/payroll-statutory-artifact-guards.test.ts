@@ -92,6 +92,7 @@ test("immutable statutory artifact rejects database update and delete", async ()
   const correction = await createStatutoryCorrectionRevision({
     actor: null,
     businessId: business.id,
+    reason: "Portal correction required.",
     request: {},
     submissionId: submission.id,
   });
@@ -102,6 +103,7 @@ test("immutable statutory artifact rejects database update and delete", async ()
     createStatutoryCorrectionRevision({
       actor: null,
       businessId: business.id,
+      reason: "Duplicate correction request.",
       request: {},
       submissionId: submission.id,
     }),
@@ -157,6 +159,7 @@ test("immutable statutory artifact rejects database update and delete", async ()
   await assert.rejects(
     downloadOrCreateStatutoryArtifact({
       actor: null,
+      allowCreate: true,
       businessId: business.id,
       month: "2040-01",
       provider: "PERKESO",
@@ -252,6 +255,7 @@ test("subsequent statutory downloads return exact retained bytes without current
 
     const downloadInput = {
       actor: null,
+      allowCreate: true,
       businessId: business.id,
       month: "2041-02",
       provider: "EPF",

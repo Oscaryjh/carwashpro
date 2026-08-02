@@ -1,4 +1,5 @@
 import { getAuditRequestContext } from "@/lib/audit";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
 import {
   downloadOrCreateStatutoryArtifact,
@@ -9,13 +10,17 @@ import {
 } from "@/lib/payroll/statutory-submission";
 
 export async function GET(request: Request) {
-  const context = await requireWholeBusinessPayroll("EXPORT_STATUTORY");
+  const context = await requireWholeBusinessPayroll("VIEW_STATUTORY_SUBMISSION");
   const url = new URL(request.url);
   const month = url.searchParams.get("month") ?? "";
   const provider = parseProvider(url.searchParams.get("provider"));
+  const revision = parseRevision(url.searchParams.get("revision"));
   if (!provider) return new Response("Select a valid statutory provider.", { status: 400 });
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
     return new Response("Select a valid payroll month.", { status: 400 });
+  }
+  if (url.searchParams.has("revision") && revision === null) {
+    return new Response("Select a valid artifact revision.", { status: 400 });
   }
 
   let artifact;
@@ -26,6 +31,8 @@ export async function GET(request: Request) {
       month,
       provider,
       request: await getAuditRequestContext(),
+      revision: revision ?? undefined,
+      allowCreate: hasBusinessCapability(context.access, "EXPORT_STATUTORY"),
     });
   } catch (error) {
     if (error instanceof StatutoryArtifactError) {
@@ -43,6 +50,12 @@ export async function GET(request: Request) {
       "X-Statutory-Artifact-Revision": String(artifact.revision),
     },
   });
+}
+
+function parseRevision(value: string | null) {
+  if (value === null) return null;
+  const revision = Number(value);
+  return Number.isSafeInteger(revision) && revision > 0 ? revision : null;
 }
 
 function parseProvider(value: string | null): StatutorySubmissionProvider | null {

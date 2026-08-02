@@ -41,7 +41,10 @@ const submissionSchema = z.object({
   submissionReference: optionalText(100),
   notes: optionalText(500),
 });
-const correctionRevisionSchema = z.object({ submissionId: z.string().uuid() });
+const correctionRevisionSchema = z.object({
+  submissionId: z.string().uuid(),
+  reason: z.string().trim().min(5).max(500),
+});
 
 
 export async function saveBusinessStatutoryProfileAction(formData: FormData) {
@@ -140,10 +143,12 @@ export async function createStatutoryCorrectionRevisionAction(formData: FormData
     const context = await requireWholeBusinessPayroll("RESOLVE_STATUTORY_SUBMISSION");
     const input = correctionRevisionSchema.parse({
       submissionId: formData.get("submissionId"),
+      reason: formData.get("reason"),
     });
     await createStatutoryCorrectionRevision({
       actor: context.user,
       businessId: context.businessId,
+      reason: input.reason,
       request: await getAuditRequestContext(),
       submissionId: input.submissionId,
     });

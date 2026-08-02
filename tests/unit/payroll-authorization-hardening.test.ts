@@ -178,7 +178,8 @@ test("deployed sensitive entry points use dedicated capabilities and immutable s
   assert.match(statutoryActions, /createStatutoryCorrectionRevisionAction/);
   assert.match(statutoryActions, /"SUBMIT_STATUTORY"/);
   assert.match(statutoryActions, /"RESOLVE_STATUTORY_SUBMISSION"/);
-  assert.match(statutoryExport, /requireWholeBusinessPayroll\("EXPORT_STATUTORY"\)/);
+  assert.match(statutoryExport, /requireWholeBusinessPayroll\("VIEW_STATUTORY_SUBMISSION"\)/);
+  assert.match(statutoryExport, /hasBusinessCapability\(context\.access, "EXPORT_STATUTORY"\)/);
   assert.match(statutoryExport, /downloadOrCreateStatutoryArtifact/);
   assert.doesNotMatch(statutoryExport, /buildOfficialSubmissionFile|loadStatutorySubmissionData/);
   assert.match(statutoryArtifact, /payrollStatutoryExportArtifact\.create/);

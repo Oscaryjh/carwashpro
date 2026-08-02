@@ -117,6 +117,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
         {providers.map((provider) => {
           const result = validation[provider.id];
           const submission = submissionByProvider.get(provider.id);
+          const providerSubmissions = submissions.filter((item) => item.provider === provider.id);
           const artifactAvailable = Boolean(
             submission?.artifact && submission.integrityStatus === "VERIFIED",
           );
@@ -138,8 +139,8 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
               ) : <div className={styles.passMessage}>All required fields passed pre-export validation.</div>}
               {result.errors.length > 4 ? <small className={styles.moreIssues}>+ {result.errors.length - 4} more issues below in employee profiles</small> : null}
               <div className={styles.cardActions}>
-                {canExport && (artifactAvailable || (canCreateArtifact && result.ready)) ? (
-                  <Link className={styles.primaryButton} href={`/team/payroll/statutory/export?month=${period.value}&provider=${provider.id}`} prefetch={false}>
+                {artifactAvailable || (canExport && canCreateArtifact && result.ready) ? (
+                  <Link className={styles.primaryButton} href={`/team/payroll/statutory/export?month=${period.value}&provider=${provider.id}${artifactAvailable ? `&revision=${submission?.revision}` : ""}`} prefetch={false}>
                     {artifactAvailable ? "Download retained artifact" : "Create encrypted export"}
                   </Link>
                 ) : canExport ? (
@@ -149,7 +150,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
                 ) : null}
                 <small>{submission?.artifact?.exportVersion ?? STATUTORY_EXPORT_VERSION[provider.id]}</small>
               </div>
-              {submission ? <SubmissionWorkflow submission={submission} month={period.value} canSubmit={canSubmit} canResolve={canResolve} /> : null}
+              {submission ? <SubmissionWorkflow submission={submission} history={providerSubmissions} provider={provider.id} month={period.value} canSubmit={canSubmit} canResolve={canResolve} /> : null}
             </article>
           );
         })}
@@ -208,7 +209,9 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
   );
 }
 
-function SubmissionWorkflow({ submission, month, canSubmit, canResolve }: { submission: { id: string; revision: number; status: string; integrityStatus: string; exportedAt: Date | null; submittedAt: Date | null; resolvedAt: Date | null; submissionReference: string | null; rejectionReason: string | null; artifact: { id: string } | null }; month: string; canSubmit: boolean; canResolve: boolean }) {
+type SubmissionSummary = { id: string; revision: number; status: string; integrityStatus: string; exportedAt: Date | null; submittedAt: Date | null; resolvedAt: Date | null; submissionReference: string | null; rejectionReason: string | null; artifact: { id: string } | null };
+
+function SubmissionWorkflow({ submission, history, provider, month, canSubmit, canResolve }: { submission: SubmissionSummary; history: SubmissionSummary[]; provider: StatutorySubmissionProvider; month: string; canSubmit: boolean; canResolve: boolean }) {
   const verified = submission.integrityStatus === "VERIFIED" && Boolean(submission.artifact);
   return (
     <div className={styles.workflow}>
@@ -216,7 +219,7 @@ function SubmissionWorkflow({ submission, month, canSubmit, canResolve }: { subm
         <strong>{submission.integrityStatus === "LEGACY_UNVERIFIED" ? "Legacy unverified" : formatStatus(submission.status)}</strong>
         <small>Revision {submission.revision}{submission.exportedAt ? ` · Exported ${formatDate(submission.exportedAt)}` : " · Artifact pending"}{submission.submissionReference ? ` · Ref ${submission.submissionReference}` : ""}</small>
       </div>
-      {submission.integrityStatus === "LEGACY_UNVERIFIED" ? <p className={styles.rejection}>Exact historical file bytes were not retained. This record cannot be rebuilt or submitted through the artifact workflow.</p> : null}
+      {submission.integrityStatus === "LEGACY_UNVERIFIED" ? <p className={styles.rejection}>Historical file was not retained by this release. This legacy record cannot be rebuilt or represented as the original historical file.</p> : null}
       {submission.status === "DRAFT" ? <p>Download once to create and lock the encrypted correction artifact.</p> : null}
       {submission.rejectionReason ? <p className={styles.rejection}>Rejected: {submission.rejectionReason}</p> : null}
       {canSubmit && submission.status === "EXPORTED" && verified ? (
@@ -231,12 +234,23 @@ function SubmissionWorkflow({ submission, month, canSubmit, canResolve }: { subm
           <form action={updateStatutorySubmissionStatusAction}><input name="month" type="hidden" value={month} /><input name="submissionId" type="hidden" value={submission.id} /><input name="targetStatus" type="hidden" value="REJECTED" /><input minLength={5} name="notes" placeholder="Rejection reason" required /><button className={styles.rejectButton} type="submit">Mark rejected</button></form>
         </div>
       ) : null}
-      {canResolve && submission.status === "REJECTED" && verified ? (
+      {canResolve && (submission.status === "EXPORTED" || submission.status === "REJECTED") && verified ? (
         <form action={createStatutoryCorrectionRevisionAction} className={styles.statusForm}>
           <input name="month" type="hidden" value={month} />
           <input name="submissionId" type="hidden" value={submission.id} />
-          <button type="submit">Create correction revision</button>
+          <input minLength={5} maxLength={500} name="reason" placeholder="Revision reason" required />
+          <button type="submit">{submission.status === "REJECTED" ? "Create correction revision" : "Create new revision"}</button>
         </form>
+      ) : null}
+      {history.some((item) => item.artifact) ? (
+        <div className={styles.statusForm} aria-label="Retained artifact revisions">
+          <strong>Retained revisions</strong>
+          {history.filter((item) => item.artifact).map((item) => (
+            <Link key={item.id} href={`/team/payroll/statutory/export?month=${month}&provider=${provider}&revision=${item.revision}`} prefetch={false}>
+              Download revision {item.revision}
+            </Link>
+          ))}
+        </div>
       ) : null}
     </div>
   );

@@ -16,6 +16,7 @@ import {
   STATUTORY_EXPORT_VERSION,
   statutorySubmissionContentType,
   statutorySubmissionFileName,
+  validateStatutorySubmission,
   type StatutorySubmissionProvider,
 } from "@/lib/payroll/statutory-submission";
 import { parsePayrollMonth } from "@/lib/payroll/service";
@@ -30,6 +31,7 @@ export type StatutoryArtifactDownload = {
   contentType: string;
   fileName: string;
   provider: StatutorySubmissionProvider;
+  recordCount: number | null;
   revision: number;
   submissionId: string;
 };
@@ -37,7 +39,7 @@ export type StatutoryArtifactDownload = {
 export class StatutoryArtifactError extends Error {
   constructor(
     message: string,
-    readonly httpStatus: 409 | 500 | 503 = 409,
+    readonly httpStatus: 403 | 404 | 409 | 500 | 503 = 409,
   ) {
     super(message);
     this.name = "StatutoryArtifactError";
@@ -51,6 +53,8 @@ export async function downloadOrCreateStatutoryArtifact(
     month: string;
     provider: StatutorySubmissionProvider;
     request: AuditRequestContext;
+    revision?: number;
+    allowCreate?: boolean;
   },
   database: PrismaClient = prisma,
 ): Promise<StatutoryArtifactDownload> {
@@ -71,7 +75,10 @@ export async function downloadOrCreateStatutoryArtifact(
               id: true,
               status: true,
               statutorySubmissions: {
-                where: { provider: input.provider },
+                where: {
+                  provider: input.provider,
+                  ...(input.revision ? { revision: input.revision } : {}),
+                },
                 orderBy: { revision: "desc" },
                 take: 1,
                 include: { artifact: true },
@@ -79,6 +86,9 @@ export async function downloadOrCreateStatutoryArtifact(
             },
           });
           const latest = artifactIndex?.statutorySubmissions[0];
+          if (input.revision && !latest) {
+            throw new StatutoryArtifactError("The retained statutory artifact revision was not found.", 404);
+          }
           // The retained-artifact path intentionally does not load employee,
           // employer profile, payroll entry, or current statutory identity data.
           if (latest?.artifact) {
@@ -90,6 +100,9 @@ export async function downloadOrCreateStatutoryArtifact(
               submissionId: latest.id,
             }, transaction);
           }
+          if (input.revision) {
+            throw new StatutoryArtifactError("The requested statutory revision has no retained artifact.");
+          }
           if (latest?.integrityStatus === "LEGACY_UNVERIFIED") {
             throw new StatutoryArtifactError(
               "This legacy submission did not retain exact export bytes and cannot be regenerated. Create a controlled correction only if the submission was rejected.",
@@ -99,6 +112,12 @@ export async function downloadOrCreateStatutoryArtifact(
             throw new StatutoryArtifactError(
               "The statutory submission has no verified artifact and cannot be downloaded.",
               500,
+            );
+          }
+          if (!input.allowCreate) {
+            throw new StatutoryArtifactError(
+              "EXPORT_STATUTORY is required to create the first retained statutory artifact.",
+              403,
             );
           }
 
@@ -118,6 +137,11 @@ export async function downloadOrCreateStatutoryArtifact(
             data.profile,
             data.run,
           );
+          const recordCount = validateStatutorySubmission(
+            input.provider,
+            data.profile,
+            data.run,
+          ).eligibleEntries.length;
           const now = new Date();
           const submission = latest ?? await transaction.payrollStatutorySubmission.create({
             data: {
@@ -187,6 +211,7 @@ export async function downloadOrCreateStatutoryArtifact(
               checksumSha256: artifact.plaintextSha256,
               exportVersion: artifact.exportVersion,
               provider: artifact.provider,
+              recordCount,
               revision: artifact.revision,
             },
             metadata: {
@@ -212,6 +237,7 @@ export async function downloadOrCreateStatutoryArtifact(
             contentType: artifact.contentType,
             fileName: artifact.fileName,
             provider: artifact.provider,
+            recordCount,
             revision: artifact.revision,
             submissionId: submission.id,
           };
@@ -230,22 +256,23 @@ export async function createStatutoryCorrectionRevision(
   input: {
     actor: ArtifactActor;
     businessId: string;
+    reason: string;
     request: AuditRequestContext;
     submissionId: string;
   },
   database: PrismaClient = prisma,
 ) {
   return database.$transaction(async (transaction) => {
-    const rejected = await transaction.payrollStatutorySubmission.findFirst({
+    const source = await transaction.payrollStatutorySubmission.findFirst({
       where: {
         businessId: input.businessId,
         id: input.submissionId,
-        status: "REJECTED",
+        status: { in: ["EXPORTED", "REJECTED"] },
       },
       include: { artifact: { select: { id: true } } },
     });
-    if (!rejected) throw new StatutoryArtifactError("Rejected statutory submission was not found.");
-    if (!rejected.artifact || rejected.integrityStatus !== "VERIFIED") {
+    if (!source) throw new StatutoryArtifactError("Exported or rejected statutory submission was not found.");
+    if (!source.artifact || source.integrityStatus !== "VERIFIED") {
       throw new StatutoryArtifactError(
         "Legacy unverified submissions cannot create an artifact-backed correction revision.",
       );
@@ -253,13 +280,13 @@ export async function createStatutoryCorrectionRevision(
     const latest = await transaction.payrollStatutorySubmission.findFirstOrThrow({
       where: {
         businessId: input.businessId,
-        payrollRunId: rejected.payrollRunId,
-        provider: rejected.provider,
+        payrollRunId: source.payrollRunId,
+        provider: source.provider,
       },
       orderBy: { revision: "desc" },
       select: { id: true, revision: true },
     });
-    if (latest.id !== rejected.id) {
+    if (latest.id !== source.id) {
       throw new StatutoryArtifactError("A newer statutory correction revision already exists.");
     }
 
@@ -267,11 +294,11 @@ export async function createStatutoryCorrectionRevision(
       data: {
         businessId: input.businessId,
         integrityStatus: "PENDING_ARTIFACT",
-        payrollRunId: rejected.payrollRunId,
-        provider: rejected.provider,
-        revision: rejected.revision + 1,
+        payrollRunId: source.payrollRunId,
+        provider: source.provider,
+        revision: source.revision + 1,
         status: "DRAFT",
-        supersedesSubmissionId: rejected.id,
+        supersedesSubmissionId: source.id,
       },
     });
     await writeAuditLog({
@@ -282,11 +309,12 @@ export async function createStatutoryCorrectionRevision(
       entityType: "PayrollStatutorySubmission",
       entityId: correction.id,
       summary: `${correction.provider} statutory correction revision created.`,
-      before: { revision: rejected.revision, status: rejected.status },
+      before: { revision: source.revision, status: source.status },
       after: { revision: correction.revision, status: correction.status },
       metadata: {
         payrollRunId: correction.payrollRunId,
-        supersedesSubmissionId: rejected.id,
+        reason: input.reason,
+        supersedesSubmissionId: source.id,
       },
     }, transaction);
     return correction;
@@ -348,6 +376,7 @@ async function decryptAndAuditDownload(
     contentType: input.artifact.contentType,
     fileName: input.artifact.fileName,
     provider: input.artifact.provider,
+    recordCount: null,
     revision: input.artifact.revision,
     submissionId: input.submissionId,
   };

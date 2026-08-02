@@ -118,6 +118,8 @@ test("statutory GET creates or downloads artifacts and never regenerates in the 
     source("src/lib/payroll/service.ts"),
   ]);
   assert.match(route, /downloadOrCreateStatutoryArtifact/);
+  assert.match(route, /requireWholeBusinessPayroll\("VIEW_STATUTORY_SUBMISSION"\)/);
+  assert.match(route, /hasBusinessCapability\(context\.access, "EXPORT_STATUTORY"\)/);
   assert.doesNotMatch(route, /buildOfficialSubmissionFile|loadStatutorySubmissionData/);
   assert.match(service, /latest\?\.artifact[\s\S]*decryptAndAuditDownload/);
   assert.ok(
@@ -136,6 +138,10 @@ test("statutory GET creates or downloads artifacts and never regenerates in the 
     "artifact download links must not be prefetched because GET creates the first retained artifact",
   );
   assert.match(page, /Create correction revision/);
+  assert.match(page, /Create new revision/);
+  assert.match(page, /Download revision/);
+  assert.match(service, /status: \{ in: \["EXPORTED", "REJECTED"\] \}/);
+  assert.match(service, /recordCount/);
   assert.match(payrollService, /statutory export or correction record cannot be reopened directly/);
 });
 
