@@ -2,9 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { sanitizePayrollNotice } from "@/lib/payroll/error-message";
 import { resolvePayrollRunsReadAccess } from "@/lib/payroll/runs-access";
-import { loadPayrollRunDetail, parsePayrollPage } from "@/lib/payroll/runs";
+import { loadPayrollRunDetail, parsePayrollPage, payrollRunBrowsePath } from "@/lib/payroll/runs";
 import {
   finalizePayrollRunAction,
+  generatePayrollRunAction,
   reopenPayrollRunAction,
   returnPayrollRunToDraftAction,
   submitPayrollRunForReviewAction,
@@ -50,13 +51,19 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
 
   const legacyMonth = data.run.periodStart.toISOString().slice(0, 7);
   const returnPath = `/team/payroll/runs/${data.run.id}`;
+  const entryReturnPath = payrollRunBrowsePath(
+    data.run.id,
+    data.query,
+    data.page,
+  );
   const notice = sanitizePayrollNotice(queryParams.message, queryParams.type);
   const isSelfSubmitted = data.run.submittedById === access.userId;
   const canFinalize =
     access.workflow.canFinalize &&
     (!isSelfSubmitted || access.ownerSelfApproval);
   const hasAvailableAction =
-    (data.run.status === "DRAFT" && access.workflow.canSubmitReview) ||
+    (data.run.status === "DRAFT" &&
+      (access.workflow.canSubmitReview || access.actions.canCreate)) ||
     (data.run.status === "REVIEW" &&
       (access.workflow.canReturnToDraft || canFinalize)) ||
     (data.run.status === "FINALIZED" && access.workflow.canReopen);
@@ -113,6 +120,26 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                 <form action={submitPayrollRunForReviewAction}>
                   <WorkflowFields month={legacyMonth} runId={data.run.id} returnPath={returnPath} />
                   <button className={styles.primaryButton} type="submit">Confirm submission</button>
+                </form>
+              </div>
+            </details>
+          ) : null}
+
+          {data.run.status === "DRAFT" && access.actions.canCreate ? (
+            <details className={`${styles.actionDisclosure} ${styles.highRiskDisclosure}`}>
+              <summary className={styles.dangerAction}>Refresh draft</summary>
+              <div className={styles.actionConfirmation}>
+                <strong>This deletes and rebuilds every employee entry in this draft.</strong>
+                <p>
+                  The latest approved Attendance, Leave, Payroll Settings and Statutory Profile will be used.
+                  Manual allowances, deductions, EPF/SOCSO/EIS and employer overrides, PCB, LINDUNG 24 and payroll notes will be cleared.
+                </p>
+                <form action={generatePayrollRunAction}>
+                  <input name="month" type="hidden" value={legacyMonth} />
+                  <input name="runId" type="hidden" value={data.run.id} />
+                  <input name="returnPath" type="hidden" value={returnPath} />
+                  <input name="generationMode" type="hidden" value="REFRESH" />
+                  <button className={styles.dangerButton} type="submit">Confirm refresh and clear manual adjustments</button>
                 </form>
               </div>
             </details>
@@ -175,6 +202,23 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
         </div>
       </section>
 
+      {access.actions.canExportPayroll ? (
+        <section className={styles.snapshotPanel} aria-labelledby="payroll-documents-heading">
+          <div className={styles.entriesHeader}>
+            <div className={styles.sectionHeading}>
+              <h2 id="payroll-documents-heading">Payroll export</h2>
+              <p>
+                Download the current {data.run.status === "FINALIZED" ? "locked" : data.run.status.toLowerCase()} calculation snapshot. This does not mark payroll as paid.
+              </p>
+            </div>
+            <div className={styles.documentActions}>
+              <Link href={`/team/payroll/export?month=${legacyMonth}&kind=payroll&format=csv`}>Payroll CSV</Link>
+              <Link href={`/team/payroll/export?month=${legacyMonth}&kind=payroll&format=xlsx`}>Payroll Excel</Link>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <section className={styles.snapshotPanel} aria-labelledby="calculation-snapshot-heading">
         <div className={styles.sectionHeading}>
           <h2 id="calculation-snapshot-heading">Calculation snapshot</h2>
@@ -219,6 +263,10 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                     <th>Holiday</th>
                     <th>Gross</th>
                     <th>Net pay</th>
+                    {(access.actions.canEditEntry && data.run.status === "DRAFT") ||
+                    (access.actions.canViewPayslip && data.run.status === "FINALIZED") ? (
+                      <th><span className={styles.visuallyHidden}>Entry actions</span></th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -235,6 +283,30 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                       <td data-label="Holiday">{formatMinutes(entry.publicHolidayMinutes)}</td>
                       <td data-label="Gross">{formatMoney(entry.grossPay)}</td>
                       <td data-label="Net pay"><strong>{formatMoney(entry.netPay)}</strong></td>
+                      {(access.actions.canEditEntry && data.run.status === "DRAFT") ||
+                      (access.actions.canViewPayslip && data.run.status === "FINALIZED") ? (
+                        <td data-label="Actions">
+                          <div className={styles.entryActions}>
+                            {access.actions.canEditEntry && data.run.status === "DRAFT" ? (
+                              <Link
+                                className={styles.entryAction}
+                                href={entryEditorPath(data.run.id, entry.id, entryReturnPath)}
+                              >
+                                Edit entry
+                              </Link>
+                            ) : null}
+                            {access.actions.canViewPayslip && data.run.status === "FINALIZED" ? (
+                              <Link
+                                className={styles.entryAction}
+                                href={`/team/payroll/payslips/${entry.id}`}
+                                target="_blank"
+                              >
+                                Payslip PDF
+                              </Link>
+                            ) : null}
+                          </div>
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>
@@ -252,12 +324,16 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
       </section>
 
       <footer className={styles.readOnlyNote}>
-        <strong>Run workflow migrated</strong>
-        <span>Employee entry editing remains on the legacy monthly payroll page. No calculation logic changed in W2B.</span>
+        <strong>Payroll Run workspace</strong>
+        <span>Calculation workflow, draft entry adjustments, payroll exports and finalized payslips are managed here.</span>
         <small>Last updated {formatDate(data.run.updatedAt)}</small>
       </footer>
     </main>
   );
+}
+
+function entryEditorPath(runId: string, entryId: string, returnPath: string) {
+  return `/team/payroll/runs/${runId}/entries/${entryId}?returnPath=${encodeURIComponent(returnPath)}`;
 }
 
 function WorkflowFields({ month, runId, returnPath }: { month: string; runId: string; returnPath: string }) {

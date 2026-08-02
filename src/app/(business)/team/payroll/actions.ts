@@ -164,23 +164,70 @@ export async function deletePayrollHolidayAction(formData: FormData) {
 
 export async function generatePayrollRunAction(formData: FormData) {
   const month = monthFrom(formData);
+  const requestedReturnPath = payrollRunReturnPath(
+    formData.get("runId"),
+    formData.get("returnPath"),
+  );
   try {
-    parsePayrollMonth(month);
+    const period = parsePayrollMonth(month);
     const context = await requireWholeBusinessPayroll("CREATE_PAYROLL_RUN");
-    await generatePayrollRun({
+    const createOnly = formData.get("generationMode") === "CREATE_ONLY";
+    if (createOnly) {
+      const existing = await prisma.payrollRun.findUnique({
+        where: {
+          businessId_periodStart_periodEnd: {
+            businessId: context.businessId,
+            periodStart: period.start,
+            periodEnd: period.end,
+          },
+        },
+        select: { id: true },
+      });
+      if (existing) {
+        finish(
+          "success",
+          "Payroll run already exists. Opened the existing run.",
+          month,
+          `/team/payroll/runs/${existing.id}`,
+        );
+      }
+    }
+    const run = await generatePayrollRun({
       businessId: context.businessId,
       actor: context.user,
       request: await getAuditRequestContext(),
       month,
     });
-    finish("success", "Payroll draft generated from approved Attendance.", month);
+    const returnPath =
+      requestedReturnPath && formData.get("runId") === run.id
+        ? requestedReturnPath
+        : formData.get("returnToRun") === "true"
+          ? `/team/payroll/runs/${run.id}`
+          : null;
+    finish(
+      "success",
+      createOnly
+        ? "Payroll draft generated from approved Attendance."
+        : "Payroll draft refreshed from current approved Attendance and Leave.",
+      month,
+      returnPath,
+    );
   } catch (error) {
-    handleActionError(error, month, "Unable to generate payroll draft.");
+    handleActionError(
+      error,
+      month,
+      "Unable to generate payroll draft.",
+      requestedReturnPath,
+    );
   }
 }
 
 export async function updatePayrollEntryAction(formData: FormData) {
   const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(
+    formData.get("runId"),
+    formData.get("returnPath"),
+  );
   try {
     const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
     await updatePayrollEntry({
@@ -204,9 +251,9 @@ export async function updatePayrollEntryAction(formData: FormData) {
         notes: formData.get("notes"),
       },
     });
-    finish("success", "Payroll entry updated.", month);
+    finish("success", "Payroll entry updated.", month, returnPath);
   } catch (error) {
-    handleActionError(error, month, "Unable to update payroll entry.");
+    handleActionError(error, month, "Unable to update payroll entry.", returnPath);
   }
 }
 
@@ -441,7 +488,7 @@ function finish(
 ): never {
   revalidatePath("/team/payroll");
   revalidatePath("/team/payroll/runs");
-  if (returnPath) revalidatePath(returnPath);
+  if (returnPath) revalidatePath(returnPath.split("?", 1)[0]);
   const destination = returnPath ?? `/team/payroll?month=${encodeURIComponent(month)}`;
   const separator = destination.includes("?") ? "&" : "?";
   redirect(`${destination}${separator}type=${type}&message=${encodeURIComponent(message)}`);

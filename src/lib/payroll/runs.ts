@@ -237,10 +237,36 @@ export function payrollRunReturnPath(
   if (typeof runId !== "string" || typeof requestedPath !== "string") {
     return null;
   }
-  return requestedPath === `/team/payroll/runs/${runId}` &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId)
-    ? requestedPath
-    : null;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId)) {
+    return null;
+  }
+  const [path, rawSearch = ""] = requestedPath.split("?", 2);
+  if (path !== `/team/payroll/runs/${runId}`) return null;
+
+  const requested = new URLSearchParams(rawSearch);
+  if ([...requested.keys()].some((key) => key !== "q" && key !== "page")) {
+    return null;
+  }
+  const normalized = new URLSearchParams();
+  const query = normalizePayrollEntrySearch(requested.get("q") ?? undefined);
+  const page = parsePayrollPage(requested.get("page") ?? undefined);
+  if (query) normalized.set("q", query);
+  if (page > 1) normalized.set("page", String(page));
+  const search = normalized.toString();
+  return search ? `${path}?${search}` : path;
+}
+
+export function payrollRunBrowsePath(
+  runId: string,
+  query?: string,
+  page?: number,
+) {
+  const search = new URLSearchParams();
+  const normalizedQuery = normalizePayrollEntrySearch(query);
+  if (normalizedQuery) search.set("q", normalizedQuery);
+  if (page && page > 1) search.set("page", String(parsePayrollPage(String(page))));
+  const suffix = search.toString();
+  return `/team/payroll/runs/${runId}${suffix ? `?${suffix}` : ""}`;
 }
 
 function pageCount(total: number, size: number) {

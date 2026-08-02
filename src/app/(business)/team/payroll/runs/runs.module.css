@@ -8,7 +8,15 @@
 .headerActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .headerActions a, .rowActionCell a, .emptyState a, .inlineEmpty a, .statePanel a { color: #087d71; font-size: 11px; font-weight: 800; text-decoration: none; }
 .headerActions a { padding: 9px 11px; border: 1px solid #c9dcde; border-radius: 8px; background: #fff; }
-.introPanel, .detailHero, .snapshotPanel, .entriesPanel { border: 1px solid #d7e3e6; border-radius: 12px; background: #fff; box-shadow: 0 4px 16px rgba(15, 23, 42, .04); }
+.introPanel, .createPanel, .detailHero, .snapshotPanel, .entriesPanel, .editorPanel { border: 1px solid #d7e3e6; border-radius: 12px; background: #fff; box-shadow: 0 4px 16px rgba(15, 23, 42, .04); }
+.createPanel { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 18px 20px; }
+.createPanel > div { display: grid; gap: 5px; }
+.createPanel h2 { margin: 0; color: #172033; font-size: 17px; letter-spacing: -.02em; }
+.createPanel p { margin: 0; color: #68778a; font-size: 11px; line-height: 1.5; }
+.createForm { display: flex; align-items: flex-end; gap: 9px; }
+.createForm label, .moneyField, .notesField { display: grid; gap: 5px; }
+.createForm label span, .moneyField span, .notesField span { color: #536178; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.createForm input, .moneyField input, .notesField input { min-height: 39px; padding: 0 11px; border: 1px solid #c9d9dc; border-radius: 8px; color: #1d2a3d; background: #fff; font: inherit; font-size: 11px; }
 .introPanel { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 20px; background: radial-gradient(circle at 2% 0%, rgba(32, 164, 145, .11), transparent 31%), #fff; }
 .introPanel > div:first-child { display: grid; gap: 5px; }
 .introPanel h2 { font-size: 18px; }
@@ -100,6 +108,24 @@
 .noWorkflowAction { display: grid; gap: 4px; padding: 12px 13px; border: 1px dashed #cbdadd; border-radius: 9px; background: #f7faf9; }
 .noWorkflowAction strong { color: #536178; font-size: 10px; }
 .noWorkflowAction span { color: #788597; font-size: 10px; line-height: 1.45; }
+.documentActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.documentActions a, .entryAction { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 10px; border: 1px solid #b9d8d5; border-radius: 7px; color: #087d71; background: #fff; font-size: 10px; font-weight: 800; text-decoration: none; }
+.entryActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.editorPanel { display: grid; gap: 18px; padding: 20px; }
+.editorSummary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid #dfe7e9; border-radius: 9px; background: #dfe7e9; }
+.editorSummary div { display: grid; gap: 4px; padding: 12px; background: #f9fbfb; }
+.editorSummary span { color: #728095; font-size: 8px; font-weight: 850; text-transform: uppercase; }
+.editorSummary strong { color: #1d2a3d; font-size: 12px; }
+.editorForm { display: grid; gap: 18px; }
+.editorFieldset { display: grid; gap: 12px; margin: 0; padding: 15px; border: 1px solid #dce6e8; border-radius: 10px; }
+.editorFieldset legend { padding: 0 6px; color: #263449; font-size: 11px; font-weight: 850; }
+.editorGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
+.moneyInput { display: grid; grid-template-columns: auto 1fr; }
+.moneyInput > b { display: grid; min-width: 38px; place-items: center; border: 1px solid #c9d9dc; border-right: 0; border-radius: 8px 0 0 8px; color: #6d7a8d; background: #f4f7f7; font-size: 9px; }
+.moneyInput input { width: 100%; border-radius: 0 8px 8px 0; }
+.notesField input { width: 100%; }
+.editorFooter { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.editorFooter a { color: #087d71; font-size: 10px; font-weight: 800; text-decoration: none; }
 .skeleton { overflow: hidden; border-radius: 10px; background: linear-gradient(100deg, #edf2f3 20%, #f8fafb 40%, #edf2f3 60%); background-size: 200% 100%; animation: shimmer 1.25s infinite; }
 .skeletonHeader { width: 54%; height: 60px; }
 .skeletonIntro { height: 102px; }
@@ -114,6 +140,7 @@
   .workflowPanel { grid-template-columns: 1fr; }
   .entriesHeader { align-items: stretch; flex-direction: column; }
   .searchForm { width: 100%; }
+  .editorGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {
@@ -121,6 +148,8 @@
   .pageHeader { align-items: stretch; flex-direction: column; }
   .headerActions { justify-content: flex-start; }
   .introPanel { align-items: stretch; flex-direction: column; }
+  .createPanel { align-items: stretch; flex-direction: column; }
+  .createForm { align-items: stretch; }
   .totalMetric { padding: 12px 0 0; border-top: 1px solid #dce6e8; border-left: 0; text-align: left; }
   .snapshotGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .runTable thead { display: none; }
@@ -134,13 +163,14 @@
   .heroMetrics { grid-template-columns: 1fr; }
   .pagination { grid-template-columns: 84px 1fr 84px; }
   .readOnlyNote small { width: 100%; margin-left: 0; }
+  .editorSummary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 480px) {
   .pageHeader h1 { font-size: 22px; }
   .headerActions { display: grid; grid-template-columns: 1fr; }
   .headerActions a { justify-content: center; text-align: center; }
-  .introPanel, .detailHero, .snapshotPanel, .entriesPanel, .statePanel { padding: 15px; }
+  .introPanel, .createPanel, .detailHero, .snapshotPanel, .entriesPanel, .statePanel, .editorPanel { padding: 15px; }
   .workflowPanel { padding: 15px; }
   .snapshotGrid { grid-template-columns: 1fr; }
   .searchForm > div { grid-template-columns: 1fr; gap: 7px; }
@@ -148,4 +178,6 @@
   .runTable td, .entryTable td:first-child { grid-template-columns: minmax(88px, .42fr) 1fr; }
   .pagination { grid-template-columns: 1fr 1fr; }
   .pagination strong { grid-column: 1 / -1; grid-row: 1; }
+  .createForm, .editorFooter { align-items: stretch; flex-direction: column; }
+  .editorGrid, .editorSummary { grid-template-columns: 1fr; }
 }

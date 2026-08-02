@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { generatePayrollRunAction } from "../actions";
+import { sanitizePayrollNotice } from "@/lib/payroll/error-message";
 import { resolvePayrollRunsReadAccess } from "@/lib/payroll/runs-access";
 import { loadPayrollRunsList, parsePayrollPage } from "@/lib/payroll/runs";
 import {
@@ -14,7 +16,7 @@ import styles from "./runs.module.css";
 export const dynamic = "force-dynamic";
 
 type PayrollRunsPageProps = {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ message?: string; page?: string; type?: string }>;
 };
 
 export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageProps) {
@@ -25,16 +27,46 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
 
   const params = await searchParams;
   const data = await loadPayrollRunsList(access.businessId, parsePayrollPage(params.page));
+  const notice = sanitizePayrollNotice(params.message, params.type);
+  const currentMonth = new Date().toISOString().slice(0, 7);
 
   return (
     <main className={`content hr-module-page ${styles.page}`}>
       <PageHeader
         title="Payroll Runs"
-        description="Review monthly payroll calculations without changing their workflow state."
+        description="Create, review and continue monthly payroll calculation runs."
       >
         <Link href="/team/payroll/workspace">Payroll workspace</Link>
         <Link href="/team/payroll">Legacy monthly payroll</Link>
       </PageHeader>
+
+      {notice ? (
+        <div
+          className={`${styles.notice} ${params.type === "error" ? styles.noticeError : styles.noticeSuccess}`}
+          role={params.type === "error" ? "alert" : "status"}
+        >
+          {notice}
+        </div>
+      ) : null}
+
+      {access.actions.canCreate ? (
+        <section className={styles.createPanel} aria-labelledby="create-run-heading">
+          <div>
+            <p className={styles.eyebrow}>New calculation period</p>
+            <h2 id="create-run-heading">Create payroll draft</h2>
+            <p>Select a month. If it already exists, the existing run opens without refreshing its entries.</p>
+          </div>
+          <form action={generatePayrollRunAction} className={styles.createForm}>
+            <input name="generationMode" type="hidden" value="CREATE_ONLY" />
+            <input name="returnToRun" type="hidden" value="true" />
+            <label>
+              <span>Payroll month</span>
+              <input defaultValue={currentMonth} name="month" required type="month" />
+            </label>
+            <button className={styles.primaryButton} type="submit">Create draft</button>
+          </form>
+        </section>
+      ) : null}
 
       <section className={styles.introPanel} aria-labelledby="runs-heading">
         <div>
@@ -91,8 +123,7 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
           <span aria-hidden="true">—</span>
           <div>
             <h2>No payroll runs yet</h2>
-            <p>Monthly calculation runs will appear here after they are created on the existing payroll page.</p>
-            <Link href="/team/payroll">Open legacy monthly payroll</Link>
+            <p>{access.actions.canCreate ? "Select a month above to create the first calculation draft." : "Monthly calculation runs will appear here after an authorized payroll user creates one."}</p>
           </div>
         </section>
       )}

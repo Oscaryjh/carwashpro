@@ -32,6 +32,7 @@ test("W2A pagination and employee search inputs are bounded", () => {
 test("W2A routes own their denied state instead of middleware redirecting", () => {
   assert.equal(routePermission("/team/payroll/runs"), null);
   assert.equal(routePermission("/team/payroll/runs/00000000-0000-0000-0000-000000000000"), null);
+  assert.equal(routePermission("/team/payroll/runs/00000000-0000-0000-0000-000000000000/entries/00000000-0000-0000-0000-000000000000"), null);
   assert.equal(routePermission("/team/payroll"), "PAYROLL_READ");
   assert.equal(routePermission("/team/payroll/statutory"), "PAYROLL_READ");
 });
@@ -84,7 +85,7 @@ test("W2A loader is tenant-scoped and does not query Phase 3 or raw sensitive da
   }
 });
 
-test("W2A safe states remain while W2B migrates workflow actions only", async () => {
+test("W2C safe states remain while run actions use canonical routes", async () => {
   const files = await Promise.all([
     source("src/app/(business)/team/payroll/runs/page.tsx"),
     source("src/app/(business)/team/payroll/runs/[runId]/page.tsx"),
@@ -105,20 +106,15 @@ test("W2A safe states remain while W2B migrates workflow actions only", async ()
     assert.match(combined, new RegExp(migratedAction));
   }
 
-  for (const forbiddenAction of [
-    "generatePayrollRunAction",
-    "updatePayrollEntryAction",
-  ]) {
-    assert.doesNotMatch(combined, new RegExp(forbiddenAction));
-  }
+  assert.match(combined, /generatePayrollRunAction/);
 
   assert.match(combined, /No payroll runs yet/);
   assert.match(combined, /No matching employees/);
   assert.match(combined, /aria-busy="true"/);
   assert.match(combined, /Payroll Runs could not be loaded/);
   assert.match(combined, /Payroll run not found/);
-  assert.match(combined, /Run workflow migrated/);
-  assert.doesNotMatch(combined, /Publish payslip|Create payment batch|Generate payroll/);
+  assert.match(combined, /Payroll Run workspace/);
+  assert.doesNotMatch(combined, /Publish payslip|Create payment batch/);
 });
 
 test("W2B workflow actions retain granular capabilities and server-side scope", async () => {
@@ -153,9 +149,84 @@ test("W2B action return path cannot redirect outside the matching run", () => {
   const expected = `/team/payroll/runs/${runId}`;
 
   assert.equal(payrollRunReturnPath(runId, expected), expected);
+  assert.equal(
+    payrollRunReturnPath(runId, `${expected}?q=Oscar%20Staff&page=2`),
+    `${expected}?q=Oscar+Staff&page=2`,
+  );
   assert.equal(payrollRunReturnPath(runId, "/team/payroll/runs/other"), null);
   assert.equal(payrollRunReturnPath(runId, "https://example.com"), null);
+  assert.equal(payrollRunReturnPath(runId, `${expected}?redirect=https://example.com`), null);
   assert.equal(payrollRunReturnPath("not-a-uuid", "/team/payroll/runs/not-a-uuid"), null);
+});
+
+test("W2C migrates create and destructive refresh with granular capability checks", async () => {
+  const [access, actions, list, detail] = await Promise.all([
+    source("src/lib/payroll/runs-access.ts"),
+    source("src/app/(business)/team/payroll/actions.ts"),
+    source("src/app/(business)/team/payroll/runs/page.tsx"),
+    source("src/app/(business)/team/payroll/runs/[runId]/page.tsx"),
+  ]);
+
+  assert.match(access, /canCreate:[\s\S]*"CREATE_PAYROLL_RUN"/);
+  assert.match(actions, /generationMode"\) === "CREATE_ONLY"/);
+  assert.match(actions, /Payroll run already exists\. Opened the existing run\./);
+  assert.match(actions, /returnToRun/);
+  assert.match(list, /access\.actions\.canCreate/);
+  assert.match(list, /Create payroll draft/);
+  assert.match(detail, /access\.actions\.canCreate/);
+  assert.match(detail, /This deletes and rebuilds every employee entry/);
+  assert.match(detail, /Manual allowances, deductions, EPF\/SOCSO\/EIS/);
+  assert.match(detail, /Confirm refresh and clear manual adjustments/);
+});
+
+test("W2C entry editor is draft-only, tenant-scoped and separately authorized", async () => {
+  const [access, loader, editor, actions] = await Promise.all([
+    source("src/lib/payroll/runs-access.ts"),
+    source("src/lib/payroll/entry-editor.ts"),
+    source("src/app/(business)/team/payroll/runs/[runId]/entries/[entryId]/page.tsx"),
+    source("src/app/(business)/team/payroll/actions.ts"),
+  ]);
+
+  assert.match(access, /canEditEntry:[\s\S]*"EDIT_PAYROLL_ENTRY"/);
+  assert.match(loader, /id: entryId,[\s\S]*businessId,[\s\S]*payrollRunId: runId,[\s\S]*payrollRun: \{ status: "DRAFT" \}/);
+  assert.match(editor, /!access\.granted \|\| !access\.actions\.canEditEntry/);
+  assert.match(editor, /loadPayrollRunEntryEditor/);
+  assert.match(editor, /This changes only this Payroll Run snapshot/);
+  assert.doesNotMatch(editor, /bankAccount|baseSalary|statutoryNationality|dateOfBirth/i);
+  assert.match(actions, /updatePayrollEntryAction[\s\S]*requireWholeBusinessPayroll\("EDIT_PAYROLL_ENTRY"\)/);
+  assert.match(actions, /finish\("success", "Payroll entry updated\."[\s\S]*returnPath/);
+});
+
+test("W2C exposes payroll exports and finalized payslips only through their capabilities", async () => {
+  const [access, detail, exportRoute, payslipRoute] = await Promise.all([
+    source("src/lib/payroll/runs-access.ts"),
+    source("src/app/(business)/team/payroll/runs/[runId]/page.tsx"),
+    source("src/app/(business)/team/payroll/export/route.ts"),
+    source("src/app/(business)/team/payroll/payslips/[entryId]/route.ts"),
+  ]);
+
+  assert.match(access, /canExportPayroll:[\s\S]*"EXPORT_PAYROLL"/);
+  assert.match(access, /canViewPayslip:[\s\S]*"VIEW_PAYSLIP"/);
+  assert.match(detail, /access\.actions\.canExportPayroll/);
+  assert.match(detail, /kind=payroll&format=csv/);
+  assert.match(detail, /kind=payroll&format=xlsx/);
+  assert.match(detail, /access\.actions\.canViewPayslip && data\.run\.status === "FINALIZED"/);
+  assert.match(exportRoute, /requireWholeBusinessPayroll\([\s\S]*"EXPORT_PAYROLL"/);
+  assert.match(payslipRoute, /requireWholeBusinessPayroll\("VIEW_PAYSLIP"\)/);
+  assert.match(payslipRoute, /document\.run\.status !== "FINALIZED"/);
+});
+
+test("W2C legacy monthly payroll keeps settings and statutory profile but removes duplicate run actions", async () => {
+  const legacy = await source("src/app/(business)/team/payroll/page.tsx");
+
+  assert.match(legacy, /savePayrollSettingAction/);
+  assert.match(legacy, /addPayrollHolidayAction/);
+  assert.match(legacy, /saveEmployeeStatutoryProfileAction/);
+  assert.match(legacy, /Continue in Payroll Run/);
+  assert.doesNotMatch(legacy, /generatePayrollRunAction|updatePayrollEntryAction/);
+  assert.doesNotMatch(legacy, /submitPayrollRunForReviewAction|finalizePayrollRunAction|reopenPayrollRunAction/);
+  assert.doesNotMatch(legacy, /kind=payroll&format=/);
+  assert.doesNotMatch(legacy, /payslips\/\$\{entry\.id\}/);
 });
 
 test("W1 and legacy payroll retain compatible links into W2A", async () => {

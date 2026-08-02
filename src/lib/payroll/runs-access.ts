@@ -11,6 +11,12 @@ export type PayrollRunsReadAccess =
       businessId: string;
       userId: string;
       ownerSelfApproval: boolean;
+      actions: {
+        canCreate: boolean;
+        canEditEntry: boolean;
+        canExportPayroll: boolean;
+        canViewPayslip: boolean;
+      };
       workflow: {
         canSubmitReview: boolean;
         canReturnToDraft: boolean;
@@ -51,6 +57,24 @@ export async function resolvePayrollRunsReadAccess(): Promise<PayrollRunsReadAcc
         userId: context.user.userId,
         ownerSelfApproval:
           context.access.effectiveBusinessRole === "BUSINESS_OWNER",
+        actions: {
+          canCreate: hasBusinessCapability(
+            context.access,
+            "CREATE_PAYROLL_RUN",
+          ),
+          canEditEntry: hasBusinessCapability(
+            context.access,
+            "EDIT_PAYROLL_ENTRY",
+          ),
+          canExportPayroll: hasBusinessCapability(
+            context.access,
+            "EXPORT_PAYROLL",
+          ),
+          canViewPayslip: hasBusinessCapability(
+            context.access,
+            "VIEW_PAYSLIP",
+          ),
+        },
         workflow: {
           canSubmitReview: hasBusinessCapability(
             context.access,

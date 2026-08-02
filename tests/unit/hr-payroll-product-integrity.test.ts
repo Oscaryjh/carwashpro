@@ -64,16 +64,19 @@ test("employee names use the unified profile route when directory access exists"
 });
 
 test("Payroll truthfully distinguishes locked calculations from payment completion", async () => {
-  const payroll = await source("src/app/(business)/team/payroll/page.tsx");
+  const [payroll, payslip] = await Promise.all([
+    source("src/app/(business)/team/payroll/runs/[runId]/page.tsx"),
+    source("src/app/(business)/team/payroll/payslips/[entryId]/route.ts"),
+  ]);
 
   assert.match(payroll, /Calculations locked/);
-  assert.match(payroll, /Finalize and lock calculations/);
+  assert.match(payroll, /Finalize calculations/);
   assert.match(
     payroll,
-    /Payment completion[\s\S]*bank payment batches are not tracked in this release/,
+    /Finalized does not mean paid[\s\S]*Payments and statutory submissions remain separate/,
   );
-  assert.match(payroll, /payslipAvailable \?/);
-  assert.match(payroll, /Payslip available after calculations are locked/);
+  assert.match(payroll, /access\.actions\.canViewPayslip && data\.run\.status === "FINALIZED"/);
+  assert.match(payslip, /document\.run\.status !== "FINALIZED"/);
 });
 
 test("unavailable payroll modules are labelled honestly", async () => {
