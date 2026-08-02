@@ -76,6 +76,7 @@ test("W1 route is read-only, capability-aware and avoids Phase 3 data", async ()
   const capabilityCheck = page.indexOf('hasBusinessCapability(\n    context.access,\n    "VIEW_PAYROLL_RUN"');
   const dataLoad = page.indexOf("loadPayrollWorkspace(context.businessId)");
   assert.ok(capabilityCheck >= 0 && capabilityCheck < dataLoad);
+  assert.match(page, /identity\.activeBusinessId !== identity\.homeBusinessId[\s\S]*"VIEW_DASHBOARD"/);
   assert.match(page, /if \(!canViewPayroll\) \{[\s\S]*PayrollWorkspaceAccessDenied/);
   assert.match(page, /No payroll period, employee, calculation, payslip, payment or statutory[\s\S]*data was loaded/);
   assert.match(navigation, /href: "\/team\/payroll\/workspace"/);

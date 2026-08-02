@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireUser } from "@/lib/auth/session";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import {
   loadPayrollWorkspace,
@@ -18,7 +19,12 @@ import styles from "./workspace.module.css";
 export const dynamic = "force-dynamic";
 
 export default async function PayrollWorkspacePage() {
-  const context = await requireBusinessUser();
+  const identity = await requireUser();
+  const context = await requireBusinessUser(
+    identity.activeBusinessId !== identity.homeBusinessId
+      ? "VIEW_DASHBOARD"
+      : undefined,
+  );
   const canViewPayroll = hasBusinessCapability(
     context.access,
     "VIEW_PAYROLL_RUN",
