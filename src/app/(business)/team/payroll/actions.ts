@@ -5,6 +5,10 @@ import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
+import {
+  safeStatutoryContributionAuditSnapshot,
+  writeSensitiveAuditLog,
+} from "@/lib/audit/payroll-sensitive";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
@@ -310,7 +314,7 @@ export async function saveEmployeeStatutoryProfileAction(formData: FormData) {
         },
         select: statutoryProfileSelect,
       });
-      await writeAuditLog(
+      await writeSensitiveAuditLog(
         {
           businessId: context.businessId,
           actor: context.user,
@@ -319,8 +323,8 @@ export async function saveEmployeeStatutoryProfileAction(formData: FormData) {
           entityType: "EmployeeBusinessMembership",
           entityId: after.id,
           summary: "Employee statutory contribution profile updated.",
-          before: statutoryProfileAudit(before),
-          after: statutoryProfileAudit(after),
+          before: safeStatutoryContributionAuditSnapshot(before),
+          after: safeStatutoryContributionAuditSnapshot(after),
         },
         transaction,
       );
@@ -453,23 +457,6 @@ const statutoryProfileSelect = {
   eisPreviouslyContributed: true,
   lindung24OptIn: true,
 } as const;
-
-function statutoryProfileAudit(profile: {
-  dateOfBirth: Date | null;
-  statutoryNationality: string | null;
-  epfEnabled: boolean;
-  epfMemberBeforeAug1998: boolean;
-  socsoEnabled: boolean;
-  socsoCategory: string | null;
-  eisEnabled: boolean;
-  eisPreviouslyContributed: boolean;
-  lindung24OptIn: boolean;
-}) {
-  return {
-    ...profile,
-    dateOfBirth: profile.dateOfBirth?.toISOString().slice(0, 10) ?? null,
-  };
-}
 
 function optionalFormValue(formData: FormData, key: string) {
   const value = String(formData.get(key) ?? "").trim();

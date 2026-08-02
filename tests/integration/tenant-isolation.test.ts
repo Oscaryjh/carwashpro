@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
+import { writeSensitiveAuditLog } from "../../src/lib/audit/payroll-sensitive";
 import { buildAuditLogWhere } from "../../src/lib/audit/query";
 
 const prisma = new PrismaClient();
@@ -243,6 +244,58 @@ test("WhatsApp conversations, contacts, media, and message IDs stay isolated by 
       await prisma.business.deleteMany({ where: { id: { in: businessIds } } });
     }
 
+    await prisma.$disconnect();
+  }
+});
+
+test("a sensitive business mutation rolls back when its audit write fails", async () => {
+  assertLocalDatabase();
+
+  const suffix = randomUUID().slice(0, 8);
+  const originalName = `Audit atomicity ${suffix}`;
+  const business = await prisma.business.create({
+    data: { name: originalName, slug: `audit-atomicity-${suffix}` },
+  });
+
+  try {
+    await assert.rejects(
+      prisma.$transaction(async (transaction) => {
+        await transaction.business.update({
+          where: { id: business.id },
+          data: { name: "This update must roll back" },
+        });
+        await writeSensitiveAuditLog(
+          {
+            businessId: business.id,
+            actor: {
+              userId: randomUUID(),
+              name: "Missing audit actor",
+              email: "missing-audit-actor@example.test",
+            },
+            action: "SENSITIVE_WRITE_TEST",
+            entityType: "Business",
+            entityId: business.id,
+            summary: "Sensitive write atomicity test.",
+          },
+          transaction,
+        );
+      }),
+    );
+
+    const persisted = await prisma.business.findUniqueOrThrow({
+      where: { id: business.id },
+      select: { name: true },
+    });
+    assert.equal(persisted.name, originalName);
+    assert.equal(
+      await prisma.auditLog.count({
+        where: { businessId: business.id, action: "SENSITIVE_WRITE_TEST" },
+      }),
+      0,
+    );
+  } finally {
+    await prisma.auditLog.deleteMany({ where: { businessId: business.id } });
+    await prisma.business.delete({ where: { id: business.id } });
     await prisma.$disconnect();
   }
 });

@@ -37,24 +37,55 @@ const SENSITIVE_KEYS = new Set([
   "sessioncookie",
   "sessiontoken",
   "basesalary",
+  "baserate",
+  "baseratesnapshot",
   "salary",
+  "monthlysalary",
+  "dailyrate",
+  "hourlyrate",
+  "basicpay",
+  "leavepay",
+  "overtimepay",
+  "publicholidaypay",
+  "allowances",
+  "otherdeductions",
   "grosspay",
   "netpay",
+  "epfwagebase",
+  "perkesowagebase",
+  "epfemployee",
+  "employerepf",
+  "socsoemployee",
+  "employersocso",
+  "eisemployee",
+  "employereis",
+  "lindung24employee",
+  "pcb",
   "identitynumber",
   "icnumber",
+  "dateofbirth",
   "passportnumber",
   "taxidentificationnumber",
   "taxnumber",
   "tin",
   "epfnumber",
+  "epfmembernumber",
   "employerepfnumber",
   "socsonumber",
+  "socsomembernumber",
   "eisnumber",
   "employereisnumber",
   "pcbnumber",
   "statutoryidentitynumber",
   "documentnumber",
 
+]);
+const FREE_TEXT_KEYS = new Set([
+  "notes",
+  "overridereason",
+  "reason",
+  "rejectionreason",
+  "reviewnote",
 ]);
 const MAX_DEPTH = 6;
 const MAX_ARRAY_ITEMS = 50;
@@ -65,7 +96,32 @@ export function sanitizeAuditValue(value: unknown): AuditJsonValue | undefined {
 }
 
 export function isSensitiveAuditKey(key: string) {
-  return SENSITIVE_KEYS.has(key.replace(/[^a-z0-9]/gi, "").toLowerCase());
+  const normalized = normalizeKey(key);
+  if (normalized.endsWith("masked")) {
+    return false;
+  }
+
+  return (
+    SENSITIVE_KEYS.has(normalized) ||
+    normalized.endsWith("accountnumber") ||
+    normalized.endsWith("identitynumber") ||
+    normalized.endsWith("membernumber") ||
+    normalized.endsWith("passportnumber") ||
+    normalized.endsWith("taxidentificationnumber")
+  );
+}
+
+export function sanitizeAuditReason(value: string) {
+  return value
+    .trim()
+    .slice(0, 500)
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]")
+    .replace(/\bRM\s*\d[\d,.]*/gi, "RM [REDACTED_AMOUNT]")
+    .replace(/\b\d(?:[\s./-]?\d){5,}\b/g, "[REDACTED_NUMBER]")
+    .replace(
+      /\b(?=[A-Z0-9-]{8,}\b)(?=[A-Z0-9-]*[A-Z])(?=[A-Z0-9-]*\d)[A-Z0-9-]+\b/gi,
+      "[REDACTED_IDENTIFIER]",
+    );
 }
 
 function sanitize(
@@ -125,6 +181,14 @@ function sanitize(
         continue;
       }
 
+      if (
+        typeof item === "string" &&
+        FREE_TEXT_KEYS.has(normalizeKey(key))
+      ) {
+        output[key] = sanitizeAuditReason(item);
+        continue;
+      }
+
       const sanitized = sanitize(item, depth + 1, seen);
 
       if (sanitized !== undefined) {
@@ -137,4 +201,8 @@ function sanitize(
   }
 
   return String(value);
+}
+
+function normalizeKey(key: string) {
+  return key.replace(/[^a-z0-9]/gi, "").toLowerCase();
 }

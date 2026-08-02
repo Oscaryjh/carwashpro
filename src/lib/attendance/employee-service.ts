@@ -13,6 +13,11 @@ import {
   type AuditRequestContext,
   type WriteAuditLogInput,
 } from "@/lib/audit";
+import {
+  compensationAuditChangedFields,
+  safeCompensationAuditSnapshot,
+  writeSensitiveAuditLog,
+} from "@/lib/audit/payroll-sensitive";
 import { prisma } from "@/lib/prisma";
 import { synchronizeTeamMemberEmploymentState } from "@/lib/team/people-status";
 
@@ -138,7 +143,7 @@ export async function createAttendanceEmployeeInTransaction(
       include: employeeServiceInclude,
     });
 
-  await writeAuditLog(
+  await writeSensitiveAuditLog(
     {
       businessId: args.businessId,
       branchId: getAllowedAuditBranchId(
@@ -372,7 +377,7 @@ export async function updateAttendanceEmployeeInTransaction(
       args.allowedBranchIds,
     );
 
-    await writeAuditLog(
+    await writeSensitiveAuditLog(
       {
         businessId: args.businessId,
         branchId:
@@ -393,6 +398,10 @@ export async function updateAttendanceEmployeeInTransaction(
           statusChanged: existing.status !== updated.status,
           attendanceChanged:
             existing.attendanceEnabled !== updated.attendanceEnabled,
+          compensationChangedFields: compensationAuditChangedFields(
+            existing,
+            updated,
+          ),
           primaryBranchChanged:
             previousPrimaryBranchId !==
             getStoredPrimaryBranchId(updated.branchAssignments),
@@ -945,14 +954,16 @@ function employeeAuditSnapshot(
     fullName: employee.fullName,
     phoneMasked: maskAttendancePhone(employee.phoneNumberNormalized),
     employmentType: employee.employmentType,
-    payBasis: employee.payBasis,
-    baseSalary: employee.baseSalary?.toString() ?? null,
-    normalWorkMinutesPerDay: employee.normalWorkMinutesPerDay,
-    targetBreakMinutes: employee.targetBreakMinutes,
+    compensation: safeCompensationAuditSnapshot({
+      payBasis: employee.payBasis,
+      baseSalary: employee.baseSalary,
+      normalWorkMinutesPerDay: employee.normalWorkMinutesPerDay,
+      targetBreakMinutes: employee.targetBreakMinutes,
+    }),
     status: employee.status,
     attendanceEnabled: employee.attendanceEnabled,
-    joinedAt: employee.joinedAt,
-    terminatedAt: employee.terminatedAt,
+    joinedAt: employee.joinedAt.toISOString(),
+    terminatedAt: employee.terminatedAt?.toISOString() ?? null,
     position: employee.position,
     primaryBranchId: getStoredPrimaryBranchId(
       assignments,
@@ -961,8 +972,8 @@ function employeeAuditSnapshot(
       branchId: assignment.branchId,
       isPrimary: assignment.isPrimary,
       canClockIn: assignment.canClockIn,
-      effectiveFrom: assignment.effectiveFrom,
-      effectiveUntil: assignment.effectiveUntil,
+      effectiveFrom: assignment.effectiveFrom.toISOString(),
+      effectiveUntil: assignment.effectiveUntil?.toISOString() ?? null,
       status: assignment.status,
     })),
   };

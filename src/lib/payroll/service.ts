@@ -1,6 +1,10 @@
 import type { PrismaClient } from "@prisma/client";
 import type { AppSession } from "@/lib/auth/session";
 import { writeAuditLog, type AuditRequestContext } from "@/lib/audit";
+import {
+  safePayrollEntryManualAuditChange,
+  writeSensitiveAuditLog,
+} from "@/lib/audit/payroll-sensitive";
 import { calculatePayroll, calculatePayrollTotals } from "@/lib/payroll/calculation";
 import { calculateStatutoryContributions } from "@/lib/payroll/statutory";
 import { payrollTransition } from "@/lib/payroll/workflow";
@@ -341,7 +345,8 @@ export async function updatePayrollEntry(
         notes: values.notes || null,
       },
     });
-    await writeAuditLog(
+    const auditChange = safePayrollEntryManualAuditChange(entry, updated);
+    await writeSensitiveAuditLog(
       {
         businessId: context.businessId,
         actor: context.actor,
@@ -350,8 +355,9 @@ export async function updatePayrollEntry(
         entityType: "PayrollEntry",
         entityId: entry.id,
         summary: `Payroll entry updated for ${entry.fullNameSnapshot}.`,
-        before: manualAuditSnapshot(entry),
-        after: manualAuditSnapshot(updated),
+        before: auditChange.before,
+        after: auditChange.after,
+        metadata: { changedFields: auditChange.changedFields },
       },
       transaction,
     );
@@ -618,40 +624,4 @@ function moneyToCents(value: { toString(): string } | number | null) {
 
 function centsToMoney(cents: number) {
   return (cents / 100).toFixed(2);
-}
-
-function manualAuditSnapshot(entry: {
-  allowances: unknown;
-  otherDeductions: unknown;
-  epfWageBase: unknown;
-  perkesoWageBase: unknown;
-  lindung24Employee: unknown;
-  epfEmployee: unknown;
-  socsoEmployee: unknown;
-  eisEmployee: unknown;
-  pcb: unknown;
-  employerEpf: unknown;
-  employerSocso: unknown;
-  employerEis: unknown;
-  grossPay: unknown;
-  netPay: unknown;
-  notes: string | null;
-}) {
-  return {
-    allowances: String(entry.allowances),
-    otherDeductions: String(entry.otherDeductions),
-    epfWageBase: String(entry.epfWageBase),
-    perkesoWageBase: String(entry.perkesoWageBase),
-    lindung24Employee: String(entry.lindung24Employee),
-    epfEmployee: String(entry.epfEmployee),
-    socsoEmployee: String(entry.socsoEmployee),
-    eisEmployee: String(entry.eisEmployee),
-    pcb: String(entry.pcb),
-    employerEpf: String(entry.employerEpf),
-    employerSocso: String(entry.employerSocso),
-    employerEis: String(entry.employerEis),
-    grossPay: String(entry.grossPay),
-    netPay: String(entry.netPay),
-    notes: entry.notes,
-  };
 }

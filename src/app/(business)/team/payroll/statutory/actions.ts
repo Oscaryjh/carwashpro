@@ -5,6 +5,11 @@ import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
+import {
+  safeBusinessStatutoryAuditSnapshot,
+  safeEmployeeSubmissionIdentityAuditSnapshot,
+  writeSensitiveAuditLog,
+} from "@/lib/audit/payroll-sensitive";
 import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
 import { STATUTORY_EXPORT_VERSION } from "@/lib/payroll/statutory-submission";
@@ -62,7 +67,7 @@ export async function saveBusinessStatutoryProfileAction(formData: FormData) {
         create: { businessId: context.businessId, ...nullify(input) },
         update: nullify(input),
       });
-      await writeAuditLog({
+      await writeSensitiveAuditLog({
         businessId: context.businessId,
         actor: context.user,
         request,
@@ -70,8 +75,8 @@ export async function saveBusinessStatutoryProfileAction(formData: FormData) {
         entityType: "BusinessStatutoryProfile",
         entityId: after.id,
         summary: "Company statutory registration profile updated.",
-        before: before && profileAudit(before),
-        after: profileAudit(after),
+        before: before && safeBusinessStatutoryAuditSnapshot(before),
+        after: safeBusinessStatutoryAuditSnapshot(after),
       }, transaction);
     });
     finish("success", "Company statutory registration saved.", month);
@@ -114,7 +119,7 @@ export async function saveEmployeeSubmissionProfileAction(formData: FormData) {
         },
         select: employeeSelect,
       });
-      await writeAuditLog({
+      await writeSensitiveAuditLog({
         businessId: context.businessId,
         actor: context.user,
         request,
@@ -122,8 +127,8 @@ export async function saveEmployeeSubmissionProfileAction(formData: FormData) {
         entityType: "EmployeeBusinessMembership",
         entityId: after.id,
         summary: `Statutory submission identity updated for ${after.fullName}.`,
-        before: employeeAudit(before),
-        after: employeeAudit(after),
+        before: safeEmployeeSubmissionIdentityAuditSnapshot(before),
+        after: safeEmployeeSubmissionIdentityAuditSnapshot(after),
       }, transaction);
     });
     finish("success", "Employee statutory identity saved.", month);
@@ -285,28 +290,6 @@ const employeeSelect = {
   socsoMemberNumber: true,
   taxIdentificationNumber: true,
 } as const;
-
-function employeeAudit(value: Record<string, unknown>) {
-  return Object.fromEntries(
-    Object.entries(value).filter(([key]) => key !== "fullName"),
-  );
-}
-
-function profileAudit(value: {
-  epfEmployerNumber: string | null;
-  perkesoEmployerCode: string | null;
-  perkesoRegistrationNumber: string | null;
-  lhdnEmployerNumberHq: string | null;
-  lhdnEmployerNumber: string | null;
-}) {
-  return {
-    epfEmployerNumber: value.epfEmployerNumber,
-    perkesoEmployerCode: value.perkesoEmployerCode,
-    perkesoRegistrationNumber: value.perkesoRegistrationNumber,
-    lhdnEmployerNumberHq: value.lhdnEmployerNumberHq,
-    lhdnEmployerNumber: value.lhdnEmployerNumber,
-  };
-}
 
 function nullify<T extends Record<string, string | undefined>>(value: T) {
   return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, entry ?? null])) as { [K in keyof T]: string | null };
