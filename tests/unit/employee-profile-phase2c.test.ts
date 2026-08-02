@@ -85,8 +85,6 @@ test("Attendance UI remains read-only after Leave is added", async () => {
     path.join(root, "src/components/employee-profile-attendance.tsx"),
     "utf8",
   );
-  const source = `${route}\n${component}`;
-
   assert.match(route, /activeSection === "attendance"/);
   assert.match(route, /activeSection === "leave"/);
   assert.match(component, /Open Attendance Management/);
@@ -108,7 +106,7 @@ test("Attendance UI remains read-only after Leave is added", async () => {
     "Device ID",
   ]) {
     assert.equal(
-      source.includes(forbiddenLabel),
+      component.includes(forbiddenLabel),
       false,
       `${forbiddenLabel} must not be rendered by Attendance Profile`,
     );

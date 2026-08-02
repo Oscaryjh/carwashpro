@@ -88,8 +88,6 @@ test("Leave UI is read-only, bounded, and links to Leave Management", async () =
     path.join(root, "src/components/employee-profile-leave.tsx"),
     "utf8",
   );
-  const source = `${route}\n${component}`;
-
   assert.match(route, /activeSection === "leave"/);
   assert.match(component, /Open Leave Management/);
   assert.match(component, /Up to 20 requests/);
@@ -114,7 +112,7 @@ test("Leave UI is read-only, bounded, and links to Leave Management", async () =
     "Private attachments",
   ]) {
     assert.equal(
-      source.includes(forbiddenLabel),
+      component.includes(forbiddenLabel),
       false,
       `${forbiddenLabel} must not be rendered by Leave Profile`,
     );

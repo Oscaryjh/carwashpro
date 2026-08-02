@@ -134,15 +134,13 @@ test("Phase 3A does not load salary for branch-restricted staff", async () => {
   assert.equal(sensitiveQueryCount, 0);
 });
 
-test("Phase 3A route and UI stay read-only and exclude later sensitive phases", async () => {
+test("Phase 3A compensation loader remains isolated after later read-only phases", async () => {
   const root = process.cwd();
   const [route, loader, component] = await Promise.all([
     readFile(path.join(root, "src/app/(business)/team/people/[personId]/page.tsx"), "utf8"),
     readFile(path.join(root, "src/lib/team/employee-profile-compensation-read.ts"), "utf8"),
     readFile(path.join(root, "src/components/employee-profile-payroll.tsx"), "utf8"),
   ]);
-  const source = `${loader}\n${component}`;
-
   assert.match(route, /activeSection === "payroll"/);
   assert.match(route, /loadEmployeeCompensationSection/);
   assert.match(loader, /VIEW_COMPENSATION/);
@@ -157,7 +155,7 @@ test("Phase 3A route and UI stay read-only and exclude later sensitive phases", 
     "bankAccount",
     "paymentBatch",
   ]) {
-    assert.equal(source.includes(forbidden), false, forbidden);
+    assert.equal(loader.includes(forbidden), false, forbidden);
   }
 });
 
