@@ -46,89 +46,133 @@ export type WhatsAppHistorySyncInput = {
   messages?: HistoryMessageInput[];
 };
 
-export async function syncWhatsAppHistory(input: WhatsAppHistorySyncInput) {
+export const WHATSAPP_HISTORY_SYNC_BATCH_SIZE = 10;
+export const WHATSAPP_HISTORY_TRANSACTION_TIMEOUT_MS = 15_000;
+
+type HistoryTransactionRunner = <Result>(
+  operation: (transaction: Prisma.TransactionClient) => Promise<Result>,
+) => Promise<Result>;
+
+type WhatsAppHistorySyncOptions = {
+  runTransaction?: HistoryTransactionRunner;
+};
+
+export async function syncWhatsAppHistory(
+  input: WhatsAppHistorySyncInput,
+  options: WhatsAppHistorySyncOptions = {},
+) {
   const businessId = input.businessId;
   const instanceId = normalizeWhatsAppInstanceId(input.instanceId);
   const contacts = input.contacts ?? [];
   const chats = input.chats ?? [];
   const messages = input.messages ?? [];
+  const runTransaction = options.runTransaction ?? runHistoryTransaction;
 
-  return prisma.$transaction(async (tx) => {
-    let contactCount = 0;
-    let chatCount = 0;
-    let messageCount = 0;
-    let skippedContacts = 0;
-    let skippedChats = 0;
-    let skippedMessages = 0;
+  let contactCount = 0;
+  let chatCount = 0;
+  let messageCount = 0;
+  let skippedContacts = 0;
+  let skippedChats = 0;
+  let skippedMessages = 0;
 
-    for (const contact of contacts) {
-      const remoteJid = contact.id?.trim();
-      const phone = jidToPhone(remoteJid);
+  await processHistoryBatches(contacts, runTransaction, async (tx, contact) => {
+    const remoteJid = contact.id?.trim();
+    const phone = jidToPhone(remoteJid);
 
-      if (!phone) {
-        skippedContacts += 1;
-        continue;
-      }
+    if (!phone) {
+      skippedContacts += 1;
+      return;
+    }
 
-      await upsertContact(tx, {
-        businessId,
-        instanceId,
+    await upsertContact(tx, {
+      businessId,
+      instanceId,
+      phone,
+      remoteJid,
+      displayName:
+        contact.name?.trim() ||
+        contact.verifiedName?.trim() ||
+        contact.notify?.trim() ||
         phone,
-        remoteJid,
-        displayName:
-          contact.name?.trim() ||
-          contact.verifiedName?.trim() ||
-          contact.notify?.trim() ||
-          phone,
-        rawJson: contact.rawJson ?? contact,
-      });
-      contactCount += 1;
-    }
-
-    for (const chat of chats) {
-      const remoteJid = chat.id?.trim();
-      const phone = jidToPhone(remoteJid);
-
-      if (!phone) {
-        skippedChats += 1;
-        continue;
-      }
-
-      await upsertContact(tx, {
-        businessId,
-        instanceId,
-        phone,
-        remoteJid,
-        displayName: chat.name?.trim() || phone,
-        rawJson: chat.rawJson ?? chat,
-      });
-      chatCount += 1;
-    }
-
-    for (const message of messages) {
-      const result = await upsertHistoryMessage(tx, {
-        businessId,
-        instanceId,
-        message,
-      });
-
-      if (result) {
-        messageCount += 1;
-      } else {
-        skippedMessages += 1;
-      }
-    }
-
-    return {
-      contacts: contactCount,
-      chats: chatCount,
-      messages: messageCount,
-      skippedContacts,
-      skippedChats,
-      skippedMessages,
-      syncType: input.syncType ?? "unknown",
-    };
+      rawJson: contact.rawJson ?? contact,
+    });
+    contactCount += 1;
   });
+
+  await processHistoryBatches(chats, runTransaction, async (tx, chat) => {
+    const remoteJid = chat.id?.trim();
+    const phone = jidToPhone(remoteJid);
+
+    if (!phone) {
+      skippedChats += 1;
+      return;
+    }
+
+    await upsertContact(tx, {
+      businessId,
+      instanceId,
+      phone,
+      remoteJid,
+      displayName: chat.name?.trim() || phone,
+      rawJson: chat.rawJson ?? chat,
+    });
+    chatCount += 1;
+  });
+
+  await processHistoryBatches(messages, runTransaction, async (tx, message) => {
+    const result = await upsertHistoryMessage(tx, {
+      businessId,
+      instanceId,
+      message,
+    });
+
+    if (result) {
+      messageCount += 1;
+    } else {
+      skippedMessages += 1;
+    }
+  });
+
+  return {
+    contacts: contactCount,
+    chats: chatCount,
+    messages: messageCount,
+    skippedContacts,
+    skippedChats,
+    skippedMessages,
+    syncType: input.syncType ?? "unknown",
+  };
+}
+
+function runHistoryTransaction<Result>(
+  operation: (transaction: Prisma.TransactionClient) => Promise<Result>,
+) {
+  return prisma.$transaction(operation, {
+    timeout: WHATSAPP_HISTORY_TRANSACTION_TIMEOUT_MS,
+  });
+}
+
+async function processHistoryBatches<Item>(
+  items: Item[],
+  runTransaction: HistoryTransactionRunner,
+  processItem: (
+    transaction: Prisma.TransactionClient,
+    item: Item,
+  ) => Promise<void>,
+) {
+  for (
+    let offset = 0;
+    offset < items.length;
+    offset += WHATSAPP_HISTORY_SYNC_BATCH_SIZE
+  ) {
+    const batch = items.slice(offset, offset + WHATSAPP_HISTORY_SYNC_BATCH_SIZE);
+
+    await runTransaction(async (transaction) => {
+      for (const item of batch) {
+        await processItem(transaction, item);
+      }
+    });
+  }
 }
 
 async function upsertHistoryMessage(
