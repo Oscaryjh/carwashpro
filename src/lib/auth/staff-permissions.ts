@@ -388,10 +388,14 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
   ) {
     return "ATTENDANCE_SETTINGS_READ";
   }
-  // The W1 workspace renders its own capability-aware denied state before any
-  // payroll query. Let authenticated users reach that boundary so a direct URL
-  // does not silently redirect them to an unrelated module.
-  if (pathname === "/team/payroll/workspace") {
+  // These read-only payroll surfaces render their own capability-aware denied
+  // state before any payroll query. Let authenticated users reach that boundary
+  // so a direct URL does not silently redirect them to an unrelated module.
+  if (
+    pathname === "/team/payroll/workspace" ||
+    pathname === "/team/payroll/runs" ||
+    pathname.startsWith("/team/payroll/runs/")
+  ) {
     return null;
   }
 

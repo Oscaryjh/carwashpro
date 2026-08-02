@@ -118,7 +118,11 @@ export default async function PayrollWorkspacePage() {
           </div>
           <Link
             className={styles.primaryAction}
-            href={`/team/payroll?month=${data.currentMonth}`}
+            href={
+              data.currentRun
+                ? `/team/payroll/runs/${data.currentRun.id}`
+                : `/team/payroll?month=${data.currentMonth}`
+            }
           >
             {primaryActionLabel}
           </Link>
@@ -158,8 +162,8 @@ export default async function PayrollWorkspacePage() {
         <div className={styles.moduleGrid}>
           <ModuleCard
             current
-            description="The main monthly calculation workflow remains on the existing Payroll page."
-            href={`/team/payroll?month=${data.currentMonth}`}
+            description="Browse monthly payroll calculations and employee entries in a read-only workspace."
+            href="/team/payroll/runs"
             linkLabel="Open payroll runs"
             title="Payroll Runs"
           />
@@ -237,7 +241,7 @@ export default async function PayrollWorkspacePage() {
                     <td data-label="Employees">{run.employeeCount}</td>
                     <td data-label="Updated">{formatDate(run.updatedAt)}</td>
                     <td className={styles.rowActionCell}>
-                      <Link href={`/team/payroll?month=${run.month}`}>View run</Link>
+                      <Link href={`/team/payroll/runs/${run.id}`}>View run</Link>
                     </td>
                   </tr>
                 ))}
