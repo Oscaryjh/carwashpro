@@ -1,12 +1,10 @@
-import { createHash } from "node:crypto";
-import { getAuditRequestContext, tryWriteAuditLog } from "@/lib/audit";
+import { getAuditRequestContext } from "@/lib/audit";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
-import { loadStatutorySubmissionData } from "@/lib/payroll/statutory-data";
 import {
-  buildOfficialSubmissionFile,
-  STATUTORY_EXPORT_VERSION,
-  statutorySubmissionContentType,
-  statutorySubmissionFileName,
+  downloadOrCreateStatutoryArtifact,
+  StatutoryArtifactError,
+} from "@/lib/payroll/statutory-artifact";
+import {
   type StatutorySubmissionProvider,
 } from "@/lib/payroll/statutory-submission";
 
@@ -16,45 +14,33 @@ export async function GET(request: Request) {
   const month = url.searchParams.get("month") ?? "";
   const provider = parseProvider(url.searchParams.get("provider"));
   if (!provider) return new Response("Select a valid statutory provider.", { status: 400 });
-
-  let data;
-  try {
-    data = await loadStatutorySubmissionData(context.businessId, month);
-  } catch {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
     return new Response("Select a valid payroll month.", { status: 400 });
   }
-  if (!data.profile || !data.run) return new Response("Statutory submission is not ready.", { status: 409 });
 
-  let document: Buffer;
+  let artifact;
   try {
-    document = buildOfficialSubmissionFile(provider, data.profile, data.run);
+    artifact = await downloadOrCreateStatutoryArtifact({
+      actor: context.user,
+      businessId: context.businessId,
+      month,
+      provider,
+      request: await getAuditRequestContext(),
+    });
   } catch (error) {
-    return new Response(error instanceof Error ? error.message : "Statutory submission is not ready.", { status: 409 });
+    if (error instanceof StatutoryArtifactError) {
+      return new Response(error.message, { status: error.httpStatus });
+    }
+    return new Response("Unable to prepare the statutory artifact.", { status: 500 });
   }
 
-  await tryWriteAuditLog({
-    businessId: context.businessId,
-    actor: context.user,
-    request: await getAuditRequestContext(),
-    action: "PAYROLL_OFFICIAL_STATUTORY_FILE_DOWNLOADED",
-    entityType: "PayrollRun",
-    entityId: data.run.id,
-    summary: `${provider} official submission file downloaded.`,
-    metadata: {
-      month, provider, version: STATUTORY_EXPORT_VERSION[provider],
-      recordCount: data.run.entries.length,
-      payrollRunId: data.run.id, byteLength: document.length,
-      checksumSha256: createHash("sha256").update(document).digest("hex"),
-    },
-  });
-
-  const fileName = statutorySubmissionFileName(provider, data.profile, data.run);
-  return new Response(new Uint8Array(document), {
+  return new Response(new Uint8Array(artifact.body), {
     headers: {
       "Cache-Control": "private, no-store",
-      "Content-Disposition": `attachment; filename="${fileName}"`,
-      "Content-Length": String(document.length),
-      "Content-Type": statutorySubmissionContentType(provider),
+      "Content-Disposition": `attachment; filename="${artifact.fileName}"`,
+      "Content-Length": String(artifact.byteLength),
+      "Content-Type": artifact.contentType,
+      "X-Statutory-Artifact-Revision": String(artifact.revision),
     },
   });
 }

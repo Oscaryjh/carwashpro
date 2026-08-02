@@ -57,6 +57,7 @@ export type PayrollRunDetailData = {
     submittedById: string | null;
     submittedAt: Date | null;
     finalizedAt: Date | null;
+    hasStatutorySubmissions: boolean;
     createdAt: Date;
     updatedAt: Date;
   };
@@ -129,6 +130,7 @@ export async function loadPayrollRunDetail(
       submittedById: true,
       submittedAt: true,
       finalizedAt: true,
+      _count: { select: { statutorySubmissions: true } },
       createdAt: true,
       updatedAt: true,
     },
@@ -195,6 +197,7 @@ export async function loadPayrollRunDetail(
       submittedById: run.submittedById,
       submittedAt: run.submittedAt,
       finalizedAt: run.finalizedAt,
+      hasStatutorySubmissions: run._count.statutorySubmissions > 0,
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
     },

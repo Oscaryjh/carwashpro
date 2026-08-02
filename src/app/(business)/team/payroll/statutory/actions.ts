@@ -12,7 +12,7 @@ import {
 } from "@/lib/audit/payroll-sensitive";
 import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
-import { STATUTORY_EXPORT_VERSION } from "@/lib/payroll/statutory-submission";
+import { createStatutoryCorrectionRevision } from "@/lib/payroll/statutory-artifact";
 import { prisma } from "@/lib/prisma";
 
 const optionalText = (max: number) => z.string().trim().max(max).optional();
@@ -41,10 +41,7 @@ const submissionSchema = z.object({
   submissionReference: optionalText(100),
   notes: optionalText(500),
 });
-const exportConfirmationSchema = z.object({
-  payrollRunId: z.string().uuid(),
-  provider: z.enum(["EPF", "PERKESO", "PCB"]),
-});
+const correctionRevisionSchema = z.object({ submissionId: z.string().uuid() });
 
 
 export async function saveBusinessStatutoryProfileAction(formData: FormData) {
@@ -137,74 +134,22 @@ export async function saveEmployeeSubmissionProfileAction(formData: FormData) {
   }
 }
 
-export async function markStatutoryFileExportedAction(formData: FormData) {
+export async function createStatutoryCorrectionRevisionAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
-    const context = await requireWholeBusinessPayroll("EXPORT_STATUTORY");
-    const input = exportConfirmationSchema.parse({
-      payrollRunId: formData.get("payrollRunId"),
-      provider: formData.get("provider"),
+    const context = await requireWholeBusinessPayroll("RESOLVE_STATUTORY_SUBMISSION");
+    const input = correctionRevisionSchema.parse({
+      submissionId: formData.get("submissionId"),
     });
-    const request = await getAuditRequestContext();
-    await prisma.$transaction(async (transaction) => {
-      const run = await transaction.payrollRun.findFirst({
-        where: {
-          id: input.payrollRunId,
-          businessId: context.businessId,
-          status: "FINALIZED",
-        },
-        select: { id: true },
-      });
-      if (!run) throw new Error("Only finalized payroll can be marked as exported.");
-      const current = await transaction.payrollStatutorySubmission.findUnique({
-        where: {
-          payrollRunId_provider: {
-            payrollRunId: run.id,
-            provider: input.provider,
-          },
-        },
-      });
-      if (current?.status === "SUBMITTED" || current?.status === "ACCEPTED") {
-        throw new Error("Submitted statutory records cannot be reset by an export confirmation.");
-      }
-      const submission = await transaction.payrollStatutorySubmission.upsert({
-        where: {
-          payrollRunId_provider: {
-            payrollRunId: run.id,
-            provider: input.provider,
-          },
-        },
-        create: {
-          payrollRunId: run.id,
-          businessId: context.businessId,
-          provider: input.provider,
-          status: "EXPORTED",
-          exportVersion: STATUTORY_EXPORT_VERSION[input.provider],
-          exportedById: context.user.userId,
-        },
-        update: {
-          status: "EXPORTED",
-          exportVersion: STATUTORY_EXPORT_VERSION[input.provider],
-          exportedAt: new Date(),
-          exportedById: context.user.userId,
-          rejectionReason: null,
-        },
-      });
-      await writeAuditLog({
-        businessId: context.businessId,
-        actor: context.user,
-        request,
-        action: "PAYROLL_STATUTORY_EXPORT_CONFIRMED",
-        entityType: "PayrollStatutorySubmission",
-        entityId: submission.id,
-        summary: `${input.provider} statutory file export confirmed.`,
-        before: current ? { status: current.status } : null,
-        after: { status: submission.status, exportVersion: submission.exportVersion },
-      }, transaction);
+    await createStatutoryCorrectionRevision({
+      actor: context.user,
+      businessId: context.businessId,
+      request: await getAuditRequestContext(),
+      submissionId: input.submissionId,
     });
-    finish("success", "Statutory export confirmed.", month);
+    finish("success", "Statutory correction revision created.", month);
   } catch (error) {
-    handleError(error, month, "Unable to confirm statutory export.");
+    handleError(error, month, "Unable to create a statutory correction revision.");
   }
 }
 
@@ -225,10 +170,26 @@ export async function updateStatutorySubmissionStatusAction(formData: FormData) 
     await prisma.$transaction(async (transaction) => {
       const before = await transaction.payrollStatutorySubmission.findFirst({
         where: { id: input.submissionId, businessId: context.businessId },
-        include: { payrollRun: { select: { status: true } } },
+        include: {
+          artifact: { select: { id: true } },
+          payrollRun: { select: { status: true } },
+        },
       });
       if (!before) throw new Error("Statutory submission record was not found.");
       if (before.payrollRun.status !== "FINALIZED") throw new Error("Only finalized payroll can update statutory submissions.");
+      if (before.integrityStatus !== "VERIFIED" || !before.artifact) {
+        throw new Error("Only an artifact-backed statutory revision can advance submission status.");
+      }
+      const latest = await transaction.payrollStatutorySubmission.findFirstOrThrow({
+        where: {
+          businessId: context.businessId,
+          payrollRunId: before.payrollRunId,
+          provider: before.provider,
+        },
+        orderBy: { revision: "desc" },
+        select: { id: true },
+      });
+      if (latest.id !== before.id) throw new Error("Only the latest statutory revision can change status.");
       if (!validTransition(before.status, input.targetStatus)) throw new Error("This statutory submission status change is not allowed.");
       if (input.targetStatus === "REJECTED" && (!input.notes || input.notes.length < 5)) {
         throw new Error("Enter a rejection reason of at least 5 characters.");

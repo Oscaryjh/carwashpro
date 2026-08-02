@@ -151,10 +151,17 @@ enum PayrollStatutoryProvider {
 }
 
 enum PayrollStatutorySubmissionStatus {
+  DRAFT
   EXPORTED
   SUBMITTED
   ACCEPTED
   REJECTED
+}
+
+enum StatutoryArtifactIntegrityStatus {
+  PENDING_ARTIFACT
+  VERIFIED
+  LEGACY_UNVERIFIED
 }
 
 enum LeavePolicyCode {
@@ -600,6 +607,7 @@ model Business {
   payrollEntries                PayrollEntry[]
   statutoryProfile              BusinessStatutoryProfile?
   payrollStatutorySubmissions   PayrollStatutorySubmission[]
+  payrollStatutoryArtifacts     PayrollStatutoryExportArtifact[]
   leavePolicies                 LeavePolicy[]
   employeeLeaveBalances         EmployeeLeaveBalance[]
   leaveRequests                 LeaveRequest[]
@@ -1363,12 +1371,13 @@ model PayrollRun {
   createdAt                            DateTime         @default(now()) @map("created_at")
   updatedAt                            DateTime         @updatedAt @map("updated_at")
 
-  business             Business                     @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  createdBy            User?                        @relation("PayrollRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  submittedBy          User?                        @relation("PayrollRunSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
-  finalizedBy          User?                        @relation("PayrollRunFinalizedBy", fields: [finalizedById], references: [id], onDelete: SetNull)
+  business             Business                         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  createdBy            User?                            @relation("PayrollRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  submittedBy          User?                            @relation("PayrollRunSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  finalizedBy          User?                            @relation("PayrollRunFinalizedBy", fields: [finalizedById], references: [id], onDelete: SetNull)
   entries              PayrollEntry[]
   statutorySubmissions PayrollStatutorySubmission[]
+  statutoryArtifacts   PayrollStatutoryExportArtifact[]
 
   @@unique([businessId, periodStart, periodEnd])
   @@index([businessId, status, periodStart])
@@ -1446,30 +1455,66 @@ model BusinessStatutoryProfile {
 }
 
 model PayrollStatutorySubmission {
-  id                  String                           @id @default(uuid()) @db.Uuid
-  payrollRunId        String                           @map("payroll_run_id") @db.Uuid
-  businessId          String                           @map("business_id") @db.Uuid
-  provider            PayrollStatutoryProvider
-  status              PayrollStatutorySubmissionStatus @default(EXPORTED)
-  exportVersion       String                           @map("export_version")
-  exportedAt          DateTime                         @default(now()) @map("exported_at")
-  exportedById        String?                          @map("exported_by_id") @db.Uuid
-  submittedAt         DateTime?                        @map("submitted_at")
-  submittedById       String?                          @map("submitted_by_id") @db.Uuid
-  resolvedAt          DateTime?                        @map("resolved_at")
-  resolvedById        String?                          @map("resolved_by_id") @db.Uuid
-  submissionReference String?                          @map("submission_reference")
-  rejectionReason     String?                          @map("rejection_reason")
-  notes               String?
-  createdAt           DateTime                         @default(now()) @map("created_at")
-  updatedAt           DateTime                         @updatedAt @map("updated_at")
+  id                     String                           @id @default(uuid()) @db.Uuid
+  payrollRunId           String                           @map("payroll_run_id") @db.Uuid
+  businessId             String                           @map("business_id") @db.Uuid
+  provider               PayrollStatutoryProvider
+  revision               Int                              @default(1)
+  status                 PayrollStatutorySubmissionStatus @default(DRAFT)
+  integrityStatus        StatutoryArtifactIntegrityStatus @default(PENDING_ARTIFACT) @map("integrity_status")
+  exportVersion          String?                          @map("export_version")
+  exportedAt             DateTime?                        @map("exported_at")
+  exportedById           String?                          @map("exported_by_id") @db.Uuid
+  submittedAt            DateTime?                        @map("submitted_at")
+  submittedById          String?                          @map("submitted_by_id") @db.Uuid
+  resolvedAt             DateTime?                        @map("resolved_at")
+  resolvedById           String?                          @map("resolved_by_id") @db.Uuid
+  submissionReference    String?                          @map("submission_reference")
+  rejectionReason        String?                          @map("rejection_reason")
+  notes                  String?
+  supersedesSubmissionId String?                          @unique @map("supersedes_submission_id") @db.Uuid
+  createdAt              DateTime                         @default(now()) @map("created_at")
+  updatedAt              DateTime                         @updatedAt @map("updated_at")
 
-  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
-  business   Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  payrollRun PayrollRun                      @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+  business   Business                        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  artifact   PayrollStatutoryExportArtifact?
+  supersedes PayrollStatutorySubmission?     @relation("StatutorySubmissionRevision", fields: [supersedesSubmissionId], references: [id], onDelete: Restrict)
+  correction PayrollStatutorySubmission?     @relation("StatutorySubmissionRevision")
 
-  @@unique([payrollRunId, provider])
+  @@unique([payrollRunId, provider, revision])
   @@index([businessId, provider, status, createdAt])
   @@map("payroll_statutory_submissions")
+}
+
+model PayrollStatutoryExportArtifact {
+  id                   String                   @id @default(uuid()) @db.Uuid
+  submissionId         String                   @unique @map("submission_id") @db.Uuid
+  payrollRunId         String                   @map("payroll_run_id") @db.Uuid
+  businessId           String                   @map("business_id") @db.Uuid
+  provider             PayrollStatutoryProvider
+  revision             Int
+  exportVersion        String                   @map("export_version")
+  fileName             String                   @map("file_name")
+  contentType          String                   @map("content_type")
+  byteLength           Int                      @map("byte_length")
+  plaintextSha256      String                   @map("plaintext_sha256") @db.Char(64)
+  ciphertext           Bytes                    @db.ByteA
+  initializationVector Bytes                    @map("initialization_vector") @db.ByteA
+  authenticationTag    Bytes                    @map("authentication_tag") @db.ByteA
+  encryptionAlgorithm  String                   @default("AES-256-GCM") @map("encryption_algorithm")
+  encryptionKeyVersion String                   @map("encryption_key_version")
+  aadVersion           String                   @default("v1") @map("aad_version")
+  createdById          String?                  @map("created_by_id") @db.Uuid
+  createdAt            DateTime                 @default(now()) @map("created_at")
+
+  submission PayrollStatutorySubmission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+  payrollRun PayrollRun                 @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+  business   Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@unique([payrollRunId, provider, revision])
+  @@index([businessId, provider, createdAt])
+  @@map("payroll_statutory_export_artifacts")
 }
 
 model Vehicle {

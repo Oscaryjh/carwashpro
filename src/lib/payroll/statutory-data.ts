@@ -1,3 +1,4 @@
+import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parsePayrollMonth } from "@/lib/payroll/service";
 import type {
@@ -8,11 +9,12 @@ import type {
 export async function loadStatutorySubmissionData(
   businessId: string,
   month: string,
+  database: Pick<PrismaClient, "businessStatutoryProfile" | "payrollRun"> = prisma,
 ) {
   const period = parsePayrollMonth(month);
   const [storedProfile, storedRun] = await Promise.all([
-    prisma.businessStatutoryProfile.findUnique({ where: { businessId } }),
-    prisma.payrollRun.findUnique({
+    database.businessStatutoryProfile.findUnique({ where: { businessId } }),
+    database.payrollRun.findUnique({
       where: {
         businessId_periodStart_periodEnd: {
           businessId,
@@ -36,7 +38,10 @@ export async function loadStatutorySubmissionData(
             },
           },
         },
-        statutorySubmissions: { orderBy: { provider: "asc" } },
+        statutorySubmissions: {
+          orderBy: [{ provider: "asc" }, { revision: "desc" }],
+          include: { artifact: true },
+        },
       },
     }),
   ]);

@@ -106,9 +106,13 @@ export async function loadPayrollWorkspaceStatutoryStatuses(
 ) {
   const submissions = await database.payrollStatutorySubmission.findMany({
     where: { businessId, payrollRunId },
-    select: { status: true },
+    select: { integrityStatus: true, status: true },
   });
-  return submissions.map((submission) => submission.status);
+  return submissions.map((submission) =>
+    submission.integrityStatus === "LEGACY_UNVERIFIED"
+      ? "LEGACY_UNVERIFIED" as const
+      : submission.status,
+  );
 }
 
 export function payrollCalculationLabel(status?: PayrollRunStatus | null) {
@@ -154,11 +158,13 @@ export function payrollPayslipLabel(
 
 export function payrollStatutoryLabel(
   runStatus: PayrollRunStatus | null | undefined,
-  statuses: readonly PayrollStatutorySubmissionStatus[] | null,
+  statuses: readonly (PayrollStatutorySubmissionStatus | "LEGACY_UNVERIFIED")[] | null,
 ) {
   if (statuses === null) return "Restricted";
   if (runStatus !== "FINALIZED") return "Not available";
   if (!statuses.length) return "Not exported";
+  if (statuses.includes("LEGACY_UNVERIFIED")) return "Legacy unverified";
+  if (statuses.includes("DRAFT")) return "Correction pending";
   if (statuses.includes("REJECTED")) return "Rejected";
   if (statuses.every((status) => status === "ACCEPTED")) return "Accepted";
   if (statuses.some((status) => status === "SUBMITTED" || status === "ACCEPTED")) {

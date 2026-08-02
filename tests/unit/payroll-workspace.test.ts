@@ -57,6 +57,11 @@ test("Payslip and statutory states do not imply payment completion", () => {
   assert.equal(payrollStatutoryLabel("DRAFT", []), "Not available");
   assert.equal(payrollStatutoryLabel("FINALIZED", []), "Not exported");
   assert.equal(payrollStatutoryLabel("FINALIZED", ["EXPORTED"]), "Exported");
+  assert.equal(payrollStatutoryLabel("FINALIZED", ["DRAFT"]), "Correction pending");
+  assert.equal(
+    payrollStatutoryLabel("FINALIZED", ["LEGACY_UNVERIFIED"]),
+    "Legacy unverified",
+  );
   assert.equal(payrollStatutoryLabel("FINALIZED", ["SUBMITTED"]), "Submitted");
   assert.equal(payrollStatutoryLabel("FINALIZED", ["ACCEPTED"]), "Accepted");
   assert.equal(

@@ -61,12 +61,14 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
   const canFinalize =
     access.workflow.canFinalize &&
     (!isSelfSubmitted || access.ownerSelfApproval);
+  const canReopen =
+    access.workflow.canReopen && !data.run.hasStatutorySubmissions;
   const hasAvailableAction =
     (data.run.status === "DRAFT" &&
       (access.workflow.canSubmitReview || access.actions.canCreate)) ||
     (data.run.status === "REVIEW" &&
       (access.workflow.canReturnToDraft || canFinalize)) ||
-    (data.run.status === "FINALIZED" && access.workflow.canReopen);
+    (data.run.status === "FINALIZED" && canReopen);
 
   return (
     <main className={`content hr-module-page ${styles.page}`}>
@@ -177,7 +179,7 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
             </details>
           ) : null}
 
-          {data.run.status === "FINALIZED" && access.workflow.canReopen ? (
+          {data.run.status === "FINALIZED" && canReopen ? (
             <details className={`${styles.actionDisclosure} ${styles.highRiskDisclosure}`}>
               <summary className={styles.dangerAction}>Reopen for correction</summary>
               <form action={reopenPayrollRunAction} className={styles.actionConfirmation}>
@@ -193,7 +195,14 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
             </details>
           ) : null}
 
-          {!hasAvailableAction ? (
+          {data.run.status === "FINALIZED" && data.run.hasStatutorySubmissions ? (
+            <div className={styles.noWorkflowAction}>
+              <strong>Reopen unavailable</strong>
+              <span>A statutory export or correction record exists. Use the controlled statutory revision workflow instead.</span>
+            </div>
+          ) : null}
+
+          {!hasAvailableAction && !(data.run.status === "FINALIZED" && data.run.hasStatutorySubmissions) ? (
             <div className={styles.noWorkflowAction}>
               <strong>No action available</strong>
               <span>Your access or this run&apos;s current state does not allow a workflow change.</span>

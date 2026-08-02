@@ -159,12 +159,13 @@ test("role administration cannot be reached through attendance management", asyn
   );
 });
 
-test("deployed sensitive entry points use dedicated capabilities and immutable GET exports", async () => {
+test("deployed sensitive entry points use dedicated capabilities and immutable statutory artifacts", async () => {
   const root = process.cwd();
   const payrollActions = await readFile(path.join(root, "src/app/(business)/team/payroll/actions.ts"), "utf8");
   const attendanceActions = await readFile(path.join(root, "src/app/(business)/team/employees/actions.ts"), "utf8");
   const statutoryActions = await readFile(path.join(root, "src/app/(business)/team/payroll/statutory/actions.ts"), "utf8");
   const statutoryExport = await readFile(path.join(root, "src/app/(business)/team/payroll/statutory/export/route.ts"), "utf8");
+  const statutoryArtifact = await readFile(path.join(root, "src/lib/payroll/statutory-artifact.ts"), "utf8");
   const payslipRoute = await readFile(path.join(root, "src/app/(business)/team/payroll/payslips/[entryId]/route.ts"), "utf8");
   const payrollExport = await readFile(path.join(root, "src/app/(business)/team/payroll/export/route.ts"), "utf8");
 
@@ -174,16 +175,23 @@ test("deployed sensitive entry points use dedicated capabilities and immutable G
   assert.doesNotMatch(attendanceActions, /formData\.get\("payBasis"\)/);
   assert.match(attendanceActions, /baseSalary: null/);
   assert.match(attendanceActions, /baseSalary:\s*existing\.baseSalary/);
-  assert.match(statutoryActions, /markStatutoryFileExportedAction/);
+  assert.match(statutoryActions, /createStatutoryCorrectionRevisionAction/);
   assert.match(statutoryActions, /"SUBMIT_STATUTORY"/);
   assert.match(statutoryActions, /"RESOLVE_STATUTORY_SUBMISSION"/);
   assert.match(statutoryExport, /requireWholeBusinessPayroll\("EXPORT_STATUTORY"\)/);
-  assert.doesNotMatch(statutoryExport, /payrollStatutorySubmission\.(upsert|update|create)/);
+  assert.match(statutoryExport, /downloadOrCreateStatutoryArtifact/);
+  assert.doesNotMatch(statutoryExport, /buildOfficialSubmissionFile|loadStatutorySubmissionData/);
+  assert.match(statutoryArtifact, /payrollStatutoryExportArtifact\.create/);
+  assert.match(statutoryArtifact, /checksumSha256/);
+  assert.match(statutoryArtifact, /byteLength/);
+  assert.match(statutoryArtifact, /writeAuditLog/);
+  assert.doesNotMatch(statutoryArtifact, /tryWriteAuditLog/);
   assert.match(payslipRoute, /document\.run\.status !== "FINALIZED"/);
+  for (const exportSource of [payrollExport, statutoryArtifact]) {
+    assert.match(exportSource, /checksumSha256/);
+    assert.match(exportSource, /byteLength/);
+  }
   for (const exportRoute of [payrollExport, statutoryExport]) {
-    assert.match(exportRoute, /checksumSha256/);
-    assert.match(exportRoute, /byteLength/);
     assert.match(exportRoute, /private, no-store/);
   }
-  assert.match(statutoryExport, /recordCount: data\.run\.entries\.length/);
 });

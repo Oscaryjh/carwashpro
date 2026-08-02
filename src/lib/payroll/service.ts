@@ -513,6 +513,14 @@ export async function reopenPayrollRun(
     });
     if (!run) throw new Error("Payroll run not found.");
     payrollTransition(run.status, "REOPEN");
+    const statutorySubmissionCount = await transaction.payrollStatutorySubmission.count({
+      where: { businessId: context.businessId, payrollRunId: run.id },
+    });
+    if (statutorySubmissionCount > 0) {
+      throw new Error(
+        "Payroll with a statutory export or correction record cannot be reopened directly.",
+      );
+    }
     await transaction.$executeRaw`
       SELECT set_config('tetamu.payroll_reopen', ${run.id}, TRUE)
     `;

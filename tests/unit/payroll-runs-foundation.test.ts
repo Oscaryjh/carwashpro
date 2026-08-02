@@ -142,6 +142,21 @@ test("W2B workflow actions retain granular capabilities and server-side scope", 
   assert.match(detail, /access\.workflow\.canReopen/);
   assert.match(detail, /submittedById === access\.userId/);
   assert.match(detail, /Finalized does not mean paid/);
+  assert.match(detail, /!data\.run\.hasStatutorySubmissions/);
+  assert.match(detail, /Reopen unavailable[\s\S]*A statutory export or correction record exists/);
+  assert.match(actions, /reopenPayrollRunAction/);
+});
+
+test("Phase 4.0B blocks direct reopen after any statutory export or correction record", async () => {
+  const [service, loader] = await Promise.all([
+    source("src/lib/payroll/service.ts"),
+    source("src/lib/payroll/runs.ts"),
+  ]);
+
+  assert.match(service, /payrollStatutorySubmission\.count/);
+  assert.match(service, /statutory export or correction record cannot be reopened directly/);
+  assert.match(loader, /_count:[\s\S]*statutorySubmissions/);
+  assert.match(loader, /hasStatutorySubmissions: run\._count\.statutorySubmissions > 0/);
 });
 
 test("W2B action return path cannot redirect outside the matching run", () => {
