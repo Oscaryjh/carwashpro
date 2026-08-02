@@ -8,6 +8,7 @@ import {
   EmployeeProfileEmployment,
   EmployeeProfileOverview,
 } from "@/components/employee-profile-phase2a";
+import { EmployeeProfileAttendance } from "@/components/employee-profile-attendance";
 import { EmployeeProfilePersonal } from "@/components/employee-profile-personal";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
@@ -28,6 +29,7 @@ import {
   getEmployeeProfileOverview,
   getEmployeeProfilePersonal,
 } from "@/lib/team/employee-profile-read";
+import { loadEmployeeAttendanceSection } from "@/lib/team/employee-profile-attendance-read";
 
 type EmployeeProfilePageProps = {
   params: Promise<{ personId: string }>;
@@ -164,6 +166,17 @@ export default async function EmployeeProfilePage({
       notFound();
     }
     sectionContent = <EmployeeProfileEmployment data={employment} />;
+  }
+
+  if (membership && sectionAuthorized && activeSection === "attendance") {
+    const attendance = await loadEmployeeAttendanceSection({
+      ...peopleScope,
+      membershipId: membership.id,
+    });
+    if (!attendance) {
+      notFound();
+    }
+    sectionContent = <EmployeeProfileAttendance data={attendance} />;
   }
 
   return (

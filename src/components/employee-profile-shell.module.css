@@ -456,10 +456,32 @@
   color: #7a4c00;
 }
 
+.statusBadge[data-status="on_break"] {
+  background: #e5f3fa;
+  color: #17617a;
+}
+
+.statusBadge[data-status="incomplete"] {
+  background: #fff5dc;
+  color: #7a4c00;
+}
+
 .statusBadge[data-status="terminated"],
-.statusBadge[data-status="inactive"] {
+.statusBadge[data-status="inactive"],
+.statusBadge[data-status="cancelled"],
+.statusBadge[data-status="not_clocked_in"] {
   background: #edf1f4;
   color: #576677;
+}
+
+.policyNote {
+  margin: 14px 0 0;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: #f1f6f6;
+  color: var(--muted, #64748b);
+  font-size: 10px;
+  line-height: 1.55;
 }
 
 .serviceList {

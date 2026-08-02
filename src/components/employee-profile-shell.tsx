@@ -129,7 +129,7 @@ function ProfileState({
 }
 
 function sectionDescription(section: EmployeeProfileSection) {
-  if (["attendance", "leave"].includes(section)) {
+  if (section === "leave") {
     return "This section remains a read-only placeholder in Phase 2A. No section records are queried yet.";
   }
   if (section === "payroll") {

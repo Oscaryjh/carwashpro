@@ -80,7 +80,7 @@ test("Phase 2A query allowlists exclude payroll and sensitive profile fields", a
   }
 });
 
-test("Phase 2B adds only Personal after the Phase 2A section loaders", async () => {
+test("Phase 2C adds Attendance after the earlier section loaders", async () => {
   const root = process.cwd();
   const route = await readFile(
     path.join(root, "src/app/(business)/team/people/[personId]/page.tsx"),
@@ -94,7 +94,7 @@ test("Phase 2B adds only Personal after the Phase 2A section loaders", async () 
   assert.match(route, /activeSection === "overview"/);
   assert.match(route, /activeSection === "employment"/);
   assert.match(route, /activeSection === "personal"/);
-  assert.doesNotMatch(route, /activeSection === "attendance"/);
+  assert.match(route, /activeSection === "attendance"/);
   assert.doesNotMatch(route, /activeSection === "leave"/);
   assert.match(
     shell,

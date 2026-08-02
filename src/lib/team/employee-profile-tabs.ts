@@ -25,7 +25,7 @@ export const employeeProfileTabs = [
     key: "attendance",
     label: "Attendance",
     capabilities: ["VIEW_ATTENDANCE_EMPLOYEES"],
-    phase: "Phase 2",
+    phase: "Phase 2C",
   },
   {
     key: "leave",
