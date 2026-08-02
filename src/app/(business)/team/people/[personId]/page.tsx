@@ -8,6 +8,7 @@ import {
   EmployeeProfileEmployment,
   EmployeeProfileOverview,
 } from "@/components/employee-profile-phase2a";
+import { EmployeeProfilePersonal } from "@/components/employee-profile-personal";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +26,7 @@ import {
 import {
   getEmployeeProfileEmployment,
   getEmployeeProfileOverview,
+  getEmployeeProfilePersonal,
 } from "@/lib/team/employee-profile-read";
 
 type EmployeeProfilePageProps = {
@@ -140,6 +142,17 @@ export default async function EmployeeProfilePage({
       notFound();
     }
     sectionContent = <EmployeeProfileOverview data={overview} />;
+  }
+
+  if (membership && sectionAuthorized && activeSection === "personal") {
+    const personal = await getEmployeeProfilePersonal({
+      ...peopleScope,
+      membershipId: membership.id,
+    });
+    if (!personal) {
+      notFound();
+    }
+    sectionContent = <EmployeeProfilePersonal data={personal} />;
   }
 
   if (membership && sectionAuthorized && activeSection === "employment") {

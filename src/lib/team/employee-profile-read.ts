@@ -70,6 +70,30 @@ export async function getEmployeeProfileOverview(
   });
 }
 
+export async function getEmployeeProfilePersonal(
+  input: EmployeeProfileReadInput,
+  database: PrismaClient = prisma,
+) {
+  return database.employeeBusinessMembership.findFirst({
+    where: {
+      ...buildPeopleMembershipScopeWhere(input),
+      id: input.membershipId,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      phoneNumber: true,
+      dateOfBirth: true,
+      staffUser: {
+        select: {
+          id: true,
+          email: true,
+        },
+      },
+    },
+  });
+}
+
 export async function getEmployeeProfileEmployment(
   input: EmployeeProfileReadInput,
   database: PrismaClient = prisma,

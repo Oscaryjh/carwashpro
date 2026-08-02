@@ -13,7 +13,7 @@ export const employeeProfileTabs = [
     key: "personal",
     label: "Personal",
     capabilities: ["VIEW_TEAM_DIRECTORY"],
-    phase: "Phase 2",
+    phase: "Phase 2B",
   },
   {
     key: "employment",
