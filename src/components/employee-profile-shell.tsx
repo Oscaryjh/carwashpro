@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   employeeProfileTabs,
   type EmployeeProfileSection,
@@ -21,11 +22,13 @@ export function EmployeeProfileShell({
   activeSection,
   authorized,
   person,
+  sectionContent,
   visibleTabs,
 }: {
   activeSection: EmployeeProfileSection;
   authorized: boolean;
   person: EmployeeProfileShellPerson;
+  sectionContent?: ReactNode;
   visibleTabs: readonly VisibleTab[];
 }) {
   const activeTab = employeeProfileTabs.find(
@@ -86,6 +89,8 @@ export function EmployeeProfileShell({
           description="This team member can remain in People, but an Employee membership must be linked before profile sections can show employment data."
           tone="empty"
         />
+      ) : sectionContent ? (
+        sectionContent
       ) : (
         <ProfileState
           eyebrow={activeTab?.phase ?? "Future phase"}
@@ -124,8 +129,8 @@ function ProfileState({
 }
 
 function sectionDescription(section: EmployeeProfileSection) {
-  if (["overview", "personal", "employment", "attendance"].includes(section)) {
-    return "Read-only aggregated content will be connected in Phase 2. This shell does not query that section's records yet.";
+  if (["personal", "attendance", "leave"].includes(section)) {
+    return "This section remains a read-only placeholder in Phase 2A. No section records are queried yet.";
   }
   if (section === "payroll") {
     return "Salary, bank and statutory data will be loaded separately by capability in Phase 3. No sensitive payroll data is queried in this shell.";

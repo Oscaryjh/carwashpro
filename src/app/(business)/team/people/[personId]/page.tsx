@@ -4,6 +4,10 @@ import {
   EmployeeProfileShell,
   type EmployeeProfileShellPerson,
 } from "@/components/employee-profile-shell";
+import {
+  EmployeeProfileEmployment,
+  EmployeeProfileOverview,
+} from "@/components/employee-profile-phase2a";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
@@ -18,6 +22,10 @@ import {
   buildPeopleStaffScopeWhere,
   hasWholeBusinessPeopleScope,
 } from "@/lib/team/people-scope";
+import {
+  getEmployeeProfileEmployment,
+  getEmployeeProfileOverview,
+} from "@/lib/team/employee-profile-read";
 
 type EmployeeProfilePageProps = {
   params: Promise<{ personId: string }>;
@@ -117,11 +125,40 @@ export default async function EmployeeProfilePage({
         linked: false,
       };
 
+  let sectionContent = null;
+  const sectionAuthorized = canViewEmployeeProfileTab(
+    context.access,
+    activeSection,
+  );
+
+  if (membership && sectionAuthorized && activeSection === "overview") {
+    const overview = await getEmployeeProfileOverview({
+      ...peopleScope,
+      membershipId: membership.id,
+    });
+    if (!overview) {
+      notFound();
+    }
+    sectionContent = <EmployeeProfileOverview data={overview} />;
+  }
+
+  if (membership && sectionAuthorized && activeSection === "employment") {
+    const employment = await getEmployeeProfileEmployment({
+      ...peopleScope,
+      membershipId: membership.id,
+    });
+    if (!employment) {
+      notFound();
+    }
+    sectionContent = <EmployeeProfileEmployment data={employment} />;
+  }
+
   return (
     <EmployeeProfileShell
       activeSection={activeSection}
-      authorized={canViewEmployeeProfileTab(context.access, activeSection)}
+      authorized={sectionAuthorized}
       person={person}
+      sectionContent={sectionContent}
       visibleTabs={getVisibleEmployeeProfileTabs(context.access)}
     />
   );
