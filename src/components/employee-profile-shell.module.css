@@ -461,6 +461,17 @@
   color: #17617a;
 }
 
+.statusBadge[data-status="pending"] {
+  background: #fff5dc;
+  color: #7a4c00;
+}
+
+.statusBadge[data-status="unpaid"],
+.statusBadge[data-status="rejected"] {
+  background: #fff0ee;
+  color: #9a3b31;
+}
+
 .statusBadge[data-status="incomplete"] {
   background: #fff5dc;
   color: #7a4c00;

@@ -129,9 +129,6 @@ function ProfileState({
 }
 
 function sectionDescription(section: EmployeeProfileSection) {
-  if (section === "leave") {
-    return "This section remains a read-only placeholder in Phase 2A. No section records are queried yet.";
-  }
   if (section === "payroll") {
     return "Salary, bank and statutory data will be loaded separately by capability in Phase 3. No sensitive payroll data is queried in this shell.";
   }

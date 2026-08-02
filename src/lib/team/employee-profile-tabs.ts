@@ -31,7 +31,7 @@ export const employeeProfileTabs = [
     key: "leave",
     label: "Leave",
     capabilities: ["VIEW_ATTENDANCE_EMPLOYEES"],
-    phase: "Phase 2B",
+    phase: "Phase 2D",
   },
   {
     key: "payroll",

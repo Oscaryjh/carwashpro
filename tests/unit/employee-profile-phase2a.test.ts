@@ -80,7 +80,7 @@ test("Phase 2A query allowlists exclude payroll and sensitive profile fields", a
   }
 });
 
-test("Phase 2C adds Attendance after the earlier section loaders", async () => {
+test("Phase 2D adds Leave after the earlier section loaders", async () => {
   const root = process.cwd();
   const route = await readFile(
     path.join(root, "src/app/(business)/team/people/[personId]/page.tsx"),
@@ -95,11 +95,9 @@ test("Phase 2C adds Attendance after the earlier section loaders", async () => {
   assert.match(route, /activeSection === "employment"/);
   assert.match(route, /activeSection === "personal"/);
   assert.match(route, /activeSection === "attendance"/);
-  assert.doesNotMatch(route, /activeSection === "leave"/);
-  assert.match(
-    shell,
-    /This section remains a read-only placeholder in Phase 2A/,
-  );
+  assert.match(route, /activeSection === "leave"/);
+  assert.doesNotMatch(route, /activeSection === "payroll"/);
+  assert.match(shell, /loaded separately by capability in Phase 3/);
 });
 
 test("Phase 2A performs capability checks before section queries", async () => {

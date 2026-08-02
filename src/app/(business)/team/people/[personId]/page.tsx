@@ -9,6 +9,7 @@ import {
   EmployeeProfileOverview,
 } from "@/components/employee-profile-phase2a";
 import { EmployeeProfileAttendance } from "@/components/employee-profile-attendance";
+import { EmployeeProfileLeave } from "@/components/employee-profile-leave";
 import { EmployeeProfilePersonal } from "@/components/employee-profile-personal";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
@@ -30,6 +31,7 @@ import {
   getEmployeeProfilePersonal,
 } from "@/lib/team/employee-profile-read";
 import { loadEmployeeAttendanceSection } from "@/lib/team/employee-profile-attendance-read";
+import { loadEmployeeLeaveSection } from "@/lib/team/employee-profile-leave-read";
 
 type EmployeeProfilePageProps = {
   params: Promise<{ personId: string }>;
@@ -177,6 +179,17 @@ export default async function EmployeeProfilePage({
       notFound();
     }
     sectionContent = <EmployeeProfileAttendance data={attendance} />;
+  }
+
+  if (membership && sectionAuthorized && activeSection === "leave") {
+    const leave = await loadEmployeeLeaveSection({
+      ...peopleScope,
+      membershipId: membership.id,
+    });
+    if (!leave) {
+      notFound();
+    }
+    sectionContent = <EmployeeProfileLeave data={leave} />;
   }
 
   return (

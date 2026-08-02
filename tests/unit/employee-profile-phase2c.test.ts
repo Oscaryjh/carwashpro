@@ -75,7 +75,7 @@ test("Attendance loader returns formal status summaries without inferred labels"
   assert.equal(data.recentAttendance.length, 1);
 });
 
-test("Attendance UI is read-only, links to management, and leaves Leave unloaded", async () => {
+test("Attendance UI remains read-only after Leave is added", async () => {
   const root = process.cwd();
   const route = await readFile(
     path.join(root, "src/app/(business)/team/people/[personId]/page.tsx"),
@@ -88,7 +88,7 @@ test("Attendance UI is read-only, links to management, and leaves Leave unloaded
   const source = `${route}\n${component}`;
 
   assert.match(route, /activeSection === "attendance"/);
-  assert.doesNotMatch(route, /activeSection === "leave"/);
+  assert.match(route, /activeSection === "leave"/);
   assert.match(component, /Open Attendance Management/);
   assert.match(component, /Up to 10 records/);
   assert.doesNotMatch(component, /<form|<input|<button|action=/);

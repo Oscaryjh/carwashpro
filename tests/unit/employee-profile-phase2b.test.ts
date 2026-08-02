@@ -100,7 +100,7 @@ test("Personal implementation contains no prohibited sensitive field", async () 
   }
 });
 
-test("Personal remains read-only while Leave stays unloaded", async () => {
+test("Personal remains read-only as later read-only sections are added", async () => {
   const root = process.cwd();
   const route = await readFile(
     path.join(root, "src/app/(business)/team/people/[personId]/page.tsx"),
@@ -116,7 +116,7 @@ test("Personal remains read-only while Leave stays unloaded", async () => {
     /membership && sectionAuthorized && activeSection === "personal"/,
   );
   assert.match(route, /activeSection === "attendance"/);
-  assert.doesNotMatch(route, /activeSection === "leave"/);
+  assert.match(route, /activeSection === "leave"/);
   assert.doesNotMatch(component, /<form|<input|<button|action=/);
   assert.match(component, /Not available in this phase/);
   assert.match(component, /Not stored in the current employee record/);
