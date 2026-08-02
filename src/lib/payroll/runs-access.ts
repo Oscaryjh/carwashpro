@@ -6,7 +6,18 @@ import { prisma } from "@/lib/prisma";
 
 export type PayrollRunsReadAccess =
   | { granted: false; scopeRestricted: boolean }
-  | { granted: true; businessId: string };
+  | {
+      granted: true;
+      businessId: string;
+      userId: string;
+      ownerSelfApproval: boolean;
+      workflow: {
+        canSubmitReview: boolean;
+        canReturnToDraft: boolean;
+        canFinalize: boolean;
+        canReopen: boolean;
+      };
+    };
 
 export async function resolvePayrollRunsReadAccess(): Promise<PayrollRunsReadAccess> {
   const identity = await requireUser();
@@ -34,6 +45,24 @@ export async function resolvePayrollRunsReadAccess(): Promise<PayrollRunsReadAcc
     );
 
   return hasWholeBusinessScope
-    ? { granted: true, businessId: context.businessId }
+    ? {
+        granted: true,
+        businessId: context.businessId,
+        userId: context.user.userId,
+        ownerSelfApproval:
+          context.access.effectiveBusinessRole === "BUSINESS_OWNER",
+        workflow: {
+          canSubmitReview: hasBusinessCapability(
+            context.access,
+            "SUBMIT_PAYROLL_REVIEW",
+          ),
+          canReturnToDraft: hasBusinessCapability(
+            context.access,
+            "RETURN_PAYROLL_TO_DRAFT",
+          ),
+          canFinalize: hasBusinessCapability(context.access, "APPROVE_PAYROLL"),
+          canReopen: hasBusinessCapability(context.access, "REOPEN_PAYROLL"),
+        },
+      }
     : { granted: false, scopeRestricted: true };
 }

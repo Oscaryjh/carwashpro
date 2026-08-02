@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { sanitizePayrollNotice } from "@/lib/payroll/error-message";
 import { resolvePayrollRunsReadAccess } from "@/lib/payroll/runs-access";
 import { loadPayrollRunDetail, parsePayrollPage } from "@/lib/payroll/runs";
+import {
+  finalizePayrollRunAction,
+  reopenPayrollRunAction,
+  returnPayrollRunToDraftAction,
+  submitPayrollRunForReviewAction,
+} from "../../actions";
 import {
   formatDate,
   formatDateTime,
@@ -18,7 +25,12 @@ export const dynamic = "force-dynamic";
 
 type PayrollRunDetailPageProps = {
   params: Promise<{ runId: string }>;
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<{
+    message?: string;
+    page?: string;
+    q?: string;
+    type?: string;
+  }>;
 };
 
 export default async function PayrollRunDetailPage({ params, searchParams }: PayrollRunDetailPageProps) {
@@ -37,6 +49,17 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
   if (!data) notFound();
 
   const legacyMonth = data.run.periodStart.toISOString().slice(0, 7);
+  const returnPath = `/team/payroll/runs/${data.run.id}`;
+  const notice = sanitizePayrollNotice(queryParams.message, queryParams.type);
+  const isSelfSubmitted = data.run.submittedById === access.userId;
+  const canFinalize =
+    access.workflow.canFinalize &&
+    (!isSelfSubmitted || access.ownerSelfApproval);
+  const hasAvailableAction =
+    (data.run.status === "DRAFT" && access.workflow.canSubmitReview) ||
+    (data.run.status === "REVIEW" &&
+      (access.workflow.canReturnToDraft || canFinalize)) ||
+    (data.run.status === "FINALIZED" && access.workflow.canReopen);
 
   return (
     <main className={`content hr-module-page ${styles.page}`}>
@@ -47,6 +70,15 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
         <Link href="/team/payroll/runs">All payroll runs</Link>
         <Link href={`/team/payroll?month=${legacyMonth}`}>Open legacy monthly payroll</Link>
       </PageHeader>
+
+      {notice ? (
+        <div
+          className={`${styles.notice} ${queryParams.type === "error" ? styles.noticeError : styles.noticeSuccess}`}
+          role={queryParams.type === "error" ? "alert" : "status"}
+        >
+          {notice}
+        </div>
+      ) : null}
 
       <section className={styles.detailHero} aria-labelledby="run-summary-heading">
         <div className={styles.detailHeading}>
@@ -62,6 +94,85 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
           <div><dt>Gross payroll</dt><dd>{formatMoney(data.run.grossPayroll)}</dd></div>
           <div><dt>Net payroll</dt><dd>{formatMoney(data.run.netPayroll)}</dd></div>
         </dl>
+      </section>
+
+      <section className={styles.workflowPanel} aria-labelledby="workflow-heading">
+        <div className={styles.workflowIntro}>
+          <p className={styles.eyebrow}>Payroll workflow</p>
+          <h2 id="workflow-heading">{workflowTitle(data.run.status)}</h2>
+          <p>{workflowDescription(data.run.status)}</p>
+        </div>
+
+        <div className={styles.workflowControls}>
+          {data.run.status === "DRAFT" && access.workflow.canSubmitReview ? (
+            <details className={styles.actionDisclosure}>
+              <summary className={styles.primaryAction}>Submit for review</summary>
+              <div className={styles.actionConfirmation}>
+                <strong>Ready for an independent review?</strong>
+                <p>Submitting freezes draft editing until the run is returned for correction.</p>
+                <form action={submitPayrollRunForReviewAction}>
+                  <WorkflowFields month={legacyMonth} runId={data.run.id} returnPath={returnPath} />
+                  <button className={styles.primaryButton} type="submit">Confirm submission</button>
+                </form>
+              </div>
+            </details>
+          ) : null}
+
+          {data.run.status === "REVIEW" && access.workflow.canReturnToDraft ? (
+            <details className={styles.actionDisclosure}>
+              <summary className={styles.secondaryAction}>Return to draft</summary>
+              <form action={returnPayrollRunToDraftAction} className={styles.actionConfirmation}>
+                <WorkflowFields month={legacyMonth} runId={data.run.id} returnPath={returnPath} />
+                <label>
+                  <span>Correction reason</span>
+                  <textarea name="reason" minLength={5} maxLength={500} required placeholder="Explain what must be corrected" />
+                </label>
+                <button className={styles.secondaryButton} type="submit">Confirm return</button>
+              </form>
+            </details>
+          ) : null}
+
+          {data.run.status === "REVIEW" && canFinalize ? (
+            <details className={`${styles.actionDisclosure} ${styles.highRiskDisclosure}`}>
+              <summary className={styles.dangerAction}>Finalize calculations</summary>
+              <form action={finalizePayrollRunAction} className={styles.actionConfirmation}>
+                <WorkflowFields month={legacyMonth} runId={data.run.id} returnPath={returnPath} />
+                <strong>This locks the payroll calculations.</strong>
+                <p>Finalized does not mean paid. Payments and statutory submissions remain separate.</p>
+                {isSelfSubmitted ? (
+                  <label>
+                    <span>Owner override reason</span>
+                    <textarea name="reason" minLength={5} maxLength={500} required placeholder="Explain why self-approval is necessary" />
+                  </label>
+                ) : null}
+                <button className={styles.dangerButton} type="submit">Confirm finalization</button>
+              </form>
+            </details>
+          ) : null}
+
+          {data.run.status === "FINALIZED" && access.workflow.canReopen ? (
+            <details className={`${styles.actionDisclosure} ${styles.highRiskDisclosure}`}>
+              <summary className={styles.dangerAction}>Reopen for correction</summary>
+              <form action={reopenPayrollRunAction} className={styles.actionConfirmation}>
+                <WorkflowFields month={legacyMonth} runId={data.run.id} returnPath={returnPath} />
+                <strong>This returns the locked run to Draft.</strong>
+                <p>Use this only when finalized calculations require a documented correction.</p>
+                <label>
+                  <span>Audit reason</span>
+                  <textarea name="reason" minLength={5} maxLength={500} required placeholder="Explain why this run must be reopened" />
+                </label>
+                <button className={styles.dangerButton} type="submit">Confirm reopen</button>
+              </form>
+            </details>
+          ) : null}
+
+          {!hasAvailableAction ? (
+            <div className={styles.noWorkflowAction}>
+              <strong>No action available</strong>
+              <span>Your access or this run&apos;s current state does not allow a workflow change.</span>
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <section className={styles.snapshotPanel} aria-labelledby="calculation-snapshot-heading">
@@ -141,11 +252,21 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
       </section>
 
       <footer className={styles.readOnlyNote}>
-        <strong>Read-only foundation</strong>
-        <span>Workflow changes and employee entry editing remain on the legacy monthly payroll page during W2A.</span>
+        <strong>Run workflow migrated</strong>
+        <span>Employee entry editing remains on the legacy monthly payroll page. No calculation logic changed in W2B.</span>
         <small>Last updated {formatDate(data.run.updatedAt)}</small>
       </footer>
     </main>
+  );
+}
+
+function WorkflowFields({ month, runId, returnPath }: { month: string; runId: string; returnPath: string }) {
+  return (
+    <>
+      <input name="month" type="hidden" value={month} />
+      <input name="runId" type="hidden" value={runId} />
+      <input name="returnPath" type="hidden" value={returnPath} />
+    </>
   );
 }
 
@@ -162,9 +283,21 @@ function EntryPagination({ runId, query, page, totalPages }: { runId: string; qu
 }
 
 function statusDescription(status: "DRAFT" | "REVIEW" | "FINALIZED") {
-  if (status === "DRAFT") return "Calculations are still being prepared. No workflow action is available on this page.";
+  if (status === "DRAFT") return "Calculations are still being prepared and can be submitted for review when ready.";
   if (status === "REVIEW") return "Calculations are awaiting review. This does not mean employees have been paid.";
   return "Calculations are locked. Payment completion is not tracked by this status.";
+}
+
+function workflowTitle(status: "DRAFT" | "REVIEW" | "FINALIZED") {
+  if (status === "DRAFT") return "Prepare for review";
+  if (status === "REVIEW") return "Review calculations";
+  return "Calculations locked";
+}
+
+function workflowDescription(status: "DRAFT" | "REVIEW" | "FINALIZED") {
+  if (status === "DRAFT") return "Submit this draft only after the employee entries have been checked.";
+  if (status === "REVIEW") return "Return issues for correction or finalize the calculation after approval.";
+  return "Reopening is a controlled correction action and requires an audit reason.";
 }
 
 function formatPayBasis(value: string) {

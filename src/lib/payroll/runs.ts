@@ -54,6 +54,7 @@ export type PayrollRunDetailData = {
     employeeCount: number;
     grossPayroll: number;
     netPayroll: number;
+    submittedById: string | null;
     submittedAt: Date | null;
     finalizedAt: Date | null;
     createdAt: Date;
@@ -125,6 +126,7 @@ export async function loadPayrollRunDetail(
       workingDaysPerMonthSnapshot: true,
       normalWorkMinutesPerDaySnapshot: true,
       breakMinutesPerDaySnapshot: true,
+      submittedById: true,
       submittedAt: true,
       finalizedAt: true,
       createdAt: true,
@@ -190,6 +192,7 @@ export async function loadPayrollRunDetail(
       employeeCount: allTotals._count._all,
       grossPayroll: money(allTotals._sum.grossPay),
       netPayroll: money(allTotals._sum.netPay),
+      submittedById: run.submittedById,
       submittedAt: run.submittedAt,
       finalizedAt: run.finalizedAt,
       createdAt: run.createdAt,
@@ -225,6 +228,19 @@ export function parsePayrollPage(value?: string) {
 
 export function normalizePayrollEntrySearch(value?: string) {
   return (value ?? "").trim().replace(/\s+/g, " ").slice(0, PAYROLL_ENTRY_SEARCH_LIMIT);
+}
+
+export function payrollRunReturnPath(
+  runId: FormDataEntryValue | null,
+  requestedPath: FormDataEntryValue | null,
+) {
+  if (typeof runId !== "string" || typeof requestedPath !== "string") {
+    return null;
+  }
+  return requestedPath === `/team/payroll/runs/${runId}` &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId)
+    ? requestedPath
+    : null;
 }
 
 function pageCount(total: number, size: number) {

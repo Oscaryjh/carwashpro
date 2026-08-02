@@ -9,6 +9,7 @@ import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
+import { payrollRunReturnPath } from "@/lib/payroll/runs";
 import {
   finalizePayrollRun,
   generatePayrollRun,
@@ -285,6 +286,7 @@ export async function saveEmployeeStatutoryProfileAction(formData: FormData) {
 
 export async function submitPayrollRunForReviewAction(formData: FormData) {
   const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
     const context = await requireWholeBusinessPayroll("SUBMIT_PAYROLL_REVIEW");
     await submitPayrollRunForReview({
@@ -293,14 +295,15 @@ export async function submitPayrollRunForReviewAction(formData: FormData) {
       request: await getAuditRequestContext(),
       runId: z.string().uuid().parse(formData.get("runId")),
     });
-    finish("success", "Payroll submitted for review.", month);
+    finish("success", "Payroll submitted for review.", month, returnPath);
   } catch (error) {
-    handleActionError(error, month, "Unable to submit payroll for review.");
+    handleActionError(error, month, "Unable to submit payroll for review.", returnPath);
   }
 }
 
 export async function returnPayrollRunToDraftAction(formData: FormData) {
   const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
     const context = await requireWholeBusinessPayroll("RETURN_PAYROLL_TO_DRAFT");
     await returnPayrollRunToDraft({
@@ -310,14 +313,15 @@ export async function returnPayrollRunToDraftAction(formData: FormData) {
       runId: z.string().uuid().parse(formData.get("runId")),
       reason: workflowReasonSchema.parse(formData.get("reason")),
     });
-    finish("success", "Payroll returned to draft.", month);
+    finish("success", "Payroll returned to draft.", month, returnPath);
   } catch (error) {
-    handleActionError(error, month, "Unable to return payroll to draft.");
+    handleActionError(error, month, "Unable to return payroll to draft.", returnPath);
   }
 }
 
 export async function finalizePayrollRunAction(formData: FormData) {
   const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
     const context = await requireWholeBusinessPayroll("APPROVE_PAYROLL");
     await finalizePayrollRun({
@@ -329,14 +333,15 @@ export async function finalizePayrollRunAction(formData: FormData) {
         context.access.effectiveBusinessRole === "BUSINESS_OWNER",
       overrideReason: optionalFormValue(formData, "reason"),
     });
-    finish("success", "Payroll finalized and locked.", month);
+    finish("success", "Payroll finalized and locked.", month, returnPath);
   } catch (error) {
-    handleActionError(error, month, "Unable to finalize payroll.");
+    handleActionError(error, month, "Unable to finalize payroll.", returnPath);
   }
 }
 
 export async function reopenPayrollRunAction(formData: FormData) {
   const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
     const context = await requireWholeBusinessPayroll("REOPEN_PAYROLL");
     await reopenPayrollRun({
@@ -346,9 +351,9 @@ export async function reopenPayrollRunAction(formData: FormData) {
       runId: z.string().uuid().parse(formData.get("runId")),
       reason: workflowReasonSchema.parse(formData.get("reason")),
     });
-    finish("success", "Finalized payroll reopened as a draft.", month);
+    finish("success", "Finalized payroll reopened as a draft.", month, returnPath);
   } catch (error) {
-    handleActionError(error, month, "Unable to reopen finalized payroll.");
+    handleActionError(error, month, "Unable to reopen finalized payroll.", returnPath);
   }
 }
 
@@ -428,12 +433,26 @@ function monthFrom(formData: FormData) {
   return String(formData.get("month") ?? new Date().toISOString().slice(0, 7));
 }
 
-function finish(type: "success" | "error", message: string, month: string): never {
+function finish(
+  type: "success" | "error",
+  message: string,
+  month: string,
+  returnPath?: string | null,
+): never {
   revalidatePath("/team/payroll");
-  redirect(`/team/payroll?month=${encodeURIComponent(month)}&type=${type}&message=${encodeURIComponent(message)}`);
+  revalidatePath("/team/payroll/runs");
+  if (returnPath) revalidatePath(returnPath);
+  const destination = returnPath ?? `/team/payroll?month=${encodeURIComponent(month)}`;
+  const separator = destination.includes("?") ? "&" : "?";
+  redirect(`${destination}${separator}type=${type}&message=${encodeURIComponent(message)}`);
 }
 
-function handleActionError(error: unknown, month: string, fallback: string): never {
+function handleActionError(
+  error: unknown,
+  month: string,
+  fallback: string,
+  returnPath?: string | null,
+): never {
   if (isRedirectError(error)) throw error;
   const message = error instanceof z.ZodError
     ? error.issues[0]?.message ?? fallback
@@ -441,5 +460,5 @@ function handleActionError(error: unknown, month: string, fallback: string): nev
   if (message === fallback) {
     console.error("[payroll-action] unexpected failure", error);
   }
-  finish("error", message, month);
+  finish("error", message, month, returnPath);
 }

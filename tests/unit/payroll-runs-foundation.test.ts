@@ -6,6 +6,7 @@ import { routePermission } from "../../src/lib/auth/staff-permissions";
 import {
   normalizePayrollEntrySearch,
   parsePayrollPage,
+  payrollRunReturnPath,
   PAYROLL_ENTRIES_PAGE_SIZE,
   PAYROLL_RUNS_PAGE_SIZE,
 } from "../../src/lib/payroll/runs";
@@ -83,7 +84,7 @@ test("W2A loader is tenant-scoped and does not query Phase 3 or raw sensitive da
   }
 });
 
-test("W2A pages are read-only and expose complete safe states", async () => {
+test("W2A safe states remain while W2B migrates workflow actions only", async () => {
   const files = await Promise.all([
     source("src/app/(business)/team/payroll/runs/page.tsx"),
     source("src/app/(business)/team/payroll/runs/[runId]/page.tsx"),
@@ -95,12 +96,17 @@ test("W2A pages are read-only and expose complete safe states", async () => {
   ]);
   const combined = files.join("\n");
 
-  for (const forbiddenAction of [
-    "generatePayrollRunAction",
+  for (const migratedAction of [
     "submitPayrollRunForReviewAction",
     "returnPayrollRunToDraftAction",
     "finalizePayrollRunAction",
     "reopenPayrollRunAction",
+  ]) {
+    assert.match(combined, new RegExp(migratedAction));
+  }
+
+  for (const forbiddenAction of [
+    "generatePayrollRunAction",
     "updatePayrollEntryAction",
   ]) {
     assert.doesNotMatch(combined, new RegExp(forbiddenAction));
@@ -111,8 +117,45 @@ test("W2A pages are read-only and expose complete safe states", async () => {
   assert.match(combined, /aria-busy="true"/);
   assert.match(combined, /Payroll Runs could not be loaded/);
   assert.match(combined, /Payroll run not found/);
-  assert.match(combined, /Read-only foundation/);
-  assert.doesNotMatch(combined, /Publish payslip|Create payment batch|Approve payroll|Reopen payroll/);
+  assert.match(combined, /Run workflow migrated/);
+  assert.doesNotMatch(combined, /Publish payslip|Create payment batch|Generate payroll/);
+});
+
+test("W2B workflow actions retain granular capabilities and server-side scope", async () => {
+  const [access, actions, detail] = await Promise.all([
+    source("src/lib/payroll/runs-access.ts"),
+    source("src/app/(business)/team/payroll/actions.ts"),
+    source("src/app/(business)/team/payroll/runs/[runId]/page.tsx"),
+  ]);
+
+  for (const capability of [
+    "SUBMIT_PAYROLL_REVIEW",
+    "RETURN_PAYROLL_TO_DRAFT",
+    "APPROVE_PAYROLL",
+    "REOPEN_PAYROLL",
+  ]) {
+    assert.match(access, new RegExp(capability));
+    assert.match(actions, new RegExp(`requireWholeBusinessPayroll\\(\"${capability}\"\\)`));
+  }
+
+  assert.match(actions, /payrollRunReturnPath/);
+  assert.match(actions, /revalidatePath\("\/team\/payroll\/runs"\)/);
+  assert.match(detail, /access\.workflow\.canSubmitReview/);
+  assert.match(detail, /access\.workflow\.canReturnToDraft/);
+  assert.match(detail, /access\.workflow\.canFinalize/);
+  assert.match(detail, /access\.workflow\.canReopen/);
+  assert.match(detail, /submittedById === access\.userId/);
+  assert.match(detail, /Finalized does not mean paid/);
+});
+
+test("W2B action return path cannot redirect outside the matching run", () => {
+  const runId = "07bd7ea0-39ca-4f85-bd67-2298f6beab21";
+  const expected = `/team/payroll/runs/${runId}`;
+
+  assert.equal(payrollRunReturnPath(runId, expected), expected);
+  assert.equal(payrollRunReturnPath(runId, "/team/payroll/runs/other"), null);
+  assert.equal(payrollRunReturnPath(runId, "https://example.com"), null);
+  assert.equal(payrollRunReturnPath("not-a-uuid", "/team/payroll/runs/not-a-uuid"), null);
 });
 
 test("W1 and legacy payroll retain compatible links into W2A", async () => {

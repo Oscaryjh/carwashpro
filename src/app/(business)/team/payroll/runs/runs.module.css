@@ -70,6 +70,36 @@
 .readOnlyNote { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 12px 14px; border: 1px solid #d7e4e6; border-radius: 9px; color: #647286; background: #f7faf9; font-size: 10px; }
 .readOnlyNote strong { color: #087d71; }
 .readOnlyNote small { margin-left: auto; color: #7c8999; }
+.notice { padding: 11px 14px; border: 1px solid; border-radius: 9px; font-size: 11px; font-weight: 750; }
+.noticeSuccess { color: #086a5f; border-color: #a8dcd4; background: #edfaf7; }
+.noticeError { color: #9e3025; border-color: #efbcb4; background: #fff3f1; }
+.workflowPanel { display: grid; grid-template-columns: minmax(240px, .72fr) minmax(0, 1.28fr); gap: 22px; padding: 18px; border: 1px solid #d7e3e6; border-radius: 12px; background: #fff; box-shadow: 0 4px 16px rgba(15, 23, 42, .04); }
+.workflowIntro { display: grid; align-content: start; gap: 5px; }
+.workflowIntro h2 { margin: 0; color: #172033; font-size: 16px; letter-spacing: -.02em; }
+.workflowIntro > p:last-child { margin: 0; color: #68778a; font-size: 11px; line-height: 1.5; }
+.workflowControls { display: grid; align-content: start; gap: 9px; }
+.actionDisclosure { overflow: hidden; border: 1px solid #cbdcdf; border-radius: 9px; background: #fbfdfd; }
+.actionDisclosure summary { display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 0 13px; list-style: none; font-size: 11px; font-weight: 850; cursor: pointer; }
+.actionDisclosure summary::-webkit-details-marker { display: none; }
+.actionDisclosure summary::after { content: "+"; font-size: 16px; font-weight: 600; }
+.actionDisclosure[open] summary::after { content: "−"; }
+.primaryAction { color: #fff; background: #087d71; }
+.secondaryAction { color: #176b64; background: #eff8f6; }
+.dangerAction { color: #9a3429; background: #fff2ef; }
+.highRiskDisclosure { border-color: #edc5bd; }
+.actionConfirmation { display: grid; gap: 10px; padding: 13px; border-top: 1px solid #dce6e8; }
+.actionConfirmation strong { color: #243147; font-size: 11px; }
+.actionConfirmation p { margin: 0; color: #68778a; font-size: 10px; line-height: 1.5; }
+.actionConfirmation label { display: grid; gap: 5px; }
+.actionConfirmation label span { color: #536178; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.actionConfirmation textarea { min-height: 72px; resize: vertical; padding: 10px; border: 1px solid #c8d9dc; border-radius: 8px; color: #1d2a3d; background: #fff; font: inherit; font-size: 11px; }
+.primaryButton, .secondaryButton, .dangerButton { justify-self: start; min-height: 36px; padding: 0 13px; border: 1px solid; border-radius: 8px; font: inherit; font-size: 10px; font-weight: 850; cursor: pointer; }
+.primaryButton { color: #fff; border-color: #087d71; background: #087d71; }
+.secondaryButton { color: #087267; border-color: #add2ce; background: #fff; }
+.dangerButton { color: #fff; border-color: #a43b30; background: #a43b30; }
+.noWorkflowAction { display: grid; gap: 4px; padding: 12px 13px; border: 1px dashed #cbdadd; border-radius: 9px; background: #f7faf9; }
+.noWorkflowAction strong { color: #536178; font-size: 10px; }
+.noWorkflowAction span { color: #788597; font-size: 10px; line-height: 1.45; }
 .skeleton { overflow: hidden; border-radius: 10px; background: linear-gradient(100deg, #edf2f3 20%, #f8fafb 40%, #edf2f3 60%); background-size: 200% 100%; animation: shimmer 1.25s infinite; }
 .skeletonHeader { width: 54%; height: 60px; }
 .skeletonIntro { height: 102px; }
@@ -81,6 +111,7 @@
 
 @media (max-width: 960px) {
   .detailHero { grid-template-columns: 1fr; }
+  .workflowPanel { grid-template-columns: 1fr; }
   .entriesHeader { align-items: stretch; flex-direction: column; }
   .searchForm { width: 100%; }
 }
@@ -110,6 +141,7 @@
   .headerActions { display: grid; grid-template-columns: 1fr; }
   .headerActions a { justify-content: center; text-align: center; }
   .introPanel, .detailHero, .snapshotPanel, .entriesPanel, .statePanel { padding: 15px; }
+  .workflowPanel { padding: 15px; }
   .snapshotGrid { grid-template-columns: 1fr; }
   .searchForm > div { grid-template-columns: 1fr; gap: 7px; }
   .searchForm input, .searchForm button { border-radius: 8px; }
