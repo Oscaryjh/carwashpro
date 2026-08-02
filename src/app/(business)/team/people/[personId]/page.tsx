@@ -35,6 +35,7 @@ import { loadEmployeeAttendanceSection } from "@/lib/team/employee-profile-atten
 import { loadEmployeeLeaveSection } from "@/lib/team/employee-profile-leave-read";
 import { loadEmployeeCompensationSection } from "@/lib/team/employee-profile-compensation-read";
 import { loadEmployeeStatutoryProfileSection } from "@/lib/team/employee-profile-statutory-read";
+import { loadEmployeePayrollNavigationSection } from "@/lib/team/employee-profile-payroll-navigation-read";
 
 type EmployeeProfilePageProps = {
   params: Promise<{ personId: string }>;
@@ -202,9 +203,10 @@ export default async function EmployeeProfilePage({
       businessId: context.businessId,
       membershipId: membership.id,
     };
-    const [compensation, statutoryProfile] = await Promise.all([
+    const [compensation, statutoryProfile, payrollNavigation] = await Promise.all([
       loadEmployeeCompensationSection(payrollProfileInput),
       loadEmployeeStatutoryProfileSection(payrollProfileInput),
+      loadEmployeePayrollNavigationSection(payrollProfileInput),
     ]);
     if (
       compensation.status === "NOT_FOUND" ||
@@ -215,6 +217,7 @@ export default async function EmployeeProfilePage({
     sectionContent = (
       <EmployeeProfilePayroll
         compensation={compensation}
+        navigation={payrollNavigation}
         statutoryProfile={statutoryProfile}
       />
     );

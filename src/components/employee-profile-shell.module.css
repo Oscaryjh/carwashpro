@@ -344,6 +344,107 @@
   padding: 20px;
 }
 
+.payrollNavigation {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border, #dce3ea);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+
+.payrollNavigationHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e7edf1;
+}
+
+.payrollNavigationHeading h3,
+.payrollNavigationHeading p,
+.payrollActionCard h4,
+.payrollActionCard p {
+  margin: 0;
+}
+
+.payrollNavigationHeading h3 {
+  margin-top: 4px;
+  font-size: 17px;
+  letter-spacing: -0.015em;
+}
+
+.payrollNavigationHeading div > p:not(.eyebrow),
+.payrollActionCard div > p:not(.eyebrow) {
+  margin-top: 6px;
+  color: var(--muted, #64748b);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.payrollNavigationHeading > span,
+.truthfulState {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #eef3f5;
+  color: #536575;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.payrollActionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.payrollActionCard {
+  display: flex;
+  min-width: 0;
+  min-height: 150px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 17px;
+  border: 1px solid #e2e9ed;
+  border-radius: 9px;
+  background: #fbfcfd;
+}
+
+.payrollActionCard h4 {
+  margin-top: 4px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.payrollActionLink {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 7px;
+  background: var(--accent, #0c7e74);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.payrollActionLink:hover {
+  background: var(--accent-strong, #08786f);
+}
+
+.unavailableCard,
+.restrictedCard {
+  background: #f7f9fa;
+}
+
 .panelHeading {
   display: flex;
   align-items: flex-start;
@@ -663,6 +764,27 @@
 
   .profilePanel {
     padding: 16px;
+  }
+
+  .payrollNavigation {
+    padding: 16px;
+  }
+
+  .payrollNavigationHeading {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .payrollNavigationHeading > span {
+    align-self: flex-start;
+  }
+
+  .payrollActionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .payrollActionCard {
+    min-height: 0;
   }
 
   .detailList > div {

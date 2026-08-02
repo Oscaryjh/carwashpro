@@ -1,12 +1,16 @@
+import Link from "next/link";
 import type { EmployeeCompensationSectionResult } from "@/lib/team/employee-profile-compensation-read";
+import type { EmployeePayrollNavigationResult } from "@/lib/team/employee-profile-payroll-navigation-read";
 import type { EmployeeStatutoryProfileResult } from "@/lib/team/employee-profile-statutory-read";
 import styles from "./employee-profile-shell.module.css";
 
 export function EmployeeProfilePayroll({
   compensation,
+  navigation,
   statutoryProfile,
 }: {
   compensation: EmployeeCompensationSectionResult;
+  navigation: EmployeePayrollNavigationResult;
   statutoryProfile: EmployeeStatutoryProfileResult;
 }) {
   if (
@@ -23,8 +27,8 @@ export function EmployeeProfilePayroll({
           <p className={styles.eyebrow}>Payroll</p>
           <h2>Payroll profile</h2>
           <p>
-            Sensitive payroll profile information available to your role. Bank,
-            payment, payslip and Payroll Entry records are not loaded here.
+            Current long-term payroll setup and secure links available to your
+            role. Monthly calculation details remain in Payroll Runs.
           </p>
         </div>
         <span className={styles.scopeBadge}>Sensitive · Read only</span>
@@ -35,7 +39,157 @@ export function EmployeeProfilePayroll({
         <StatutoryPanel result={statutoryProfile.statutory} />
         <TaxPanel result={statutoryProfile.tax} />
       </div>
+      <PayrollNavigation result={navigation} />
     </div>
+  );
+}
+
+function PayrollNavigation({
+  result,
+}: {
+  result: EmployeePayrollNavigationResult;
+}) {
+  const states = [
+    result.payrollRuns.status,
+    result.payslip.status,
+    result.bankDetails.status,
+    result.payment.status,
+  ];
+  if (states.every((status) => status === "HIDDEN")) return null;
+
+  return (
+    <section className={styles.payrollNavigation} aria-labelledby="payroll-access-heading">
+      <div className={styles.payrollNavigationHeading}>
+        <div>
+          <p className={styles.eyebrow}>Payroll access</p>
+          <h3 id="payroll-access-heading">Monthly payroll and documents</h3>
+          <p>
+            Open authorized payroll workspaces without copying monthly records
+            into this employee profile.
+          </p>
+        </div>
+        <span>Capability aware</span>
+      </div>
+      <div className={styles.payrollActionGrid}>
+        <PayrollRunsCard state={result.payrollRuns} />
+        <PayslipCard state={result.payslip} />
+        <UnavailableCard
+          state={result.bankDetails}
+          eyebrow="Bank details"
+          title="Bank details are not available"
+          description="Tetamu POS does not currently store an employee bank account in this profile. No bank data was loaded."
+        />
+        <UnavailableCard
+          state={result.payment}
+          eyebrow="Payment"
+          title="Payment tracking is not available"
+          description="Finalized means calculations are locked; it does not mean this employee has been paid."
+        />
+      </div>
+    </section>
+  );
+}
+
+function PayrollRunsCard({
+  state,
+}: {
+  state: EmployeePayrollNavigationResult["payrollRuns"];
+}) {
+  if (state.status === "HIDDEN") return null;
+  if (state.status === "ACCESS_DENIED") {
+    return <NavigationRestricted title="Payroll Runs" />;
+  }
+  return (
+    <article className={styles.payrollActionCard}>
+      <div>
+        <p className={styles.eyebrow}>Payroll Runs</p>
+        <h4>Monthly calculations</h4>
+        <p>Review authorized payroll periods in the canonical Payroll Runs workspace.</p>
+      </div>
+      <Link className={styles.payrollActionLink} href={state.href}>
+        View Payroll Runs
+      </Link>
+    </article>
+  );
+}
+
+function PayslipCard({
+  state,
+}: {
+  state: EmployeePayrollNavigationResult["payslip"];
+}) {
+  if (state.status === "HIDDEN") return null;
+  if (state.status === "ACCESS_DENIED") {
+    return <NavigationRestricted title="Payslip PDF" />;
+  }
+  if (state.status === "EMPTY") {
+    return (
+      <article className={styles.payrollActionCard}>
+        <div>
+          <p className={styles.eyebrow}>Payslip PDF</p>
+          <h4>No finalized payslip available</h4>
+          <p>A PDF becomes available here only after a Payroll Run is finalized.</p>
+        </div>
+        <span className={styles.truthfulState}>Not available</span>
+      </article>
+    );
+  }
+  return (
+    <article className={styles.payrollActionCard}>
+      <div>
+        <p className={styles.eyebrow}>Payslip PDF</p>
+        <h4>{formatMonth(state.periodStart)} finalized payslip</h4>
+        <p>This administrator download does not mean the payslip was published to the employee.</p>
+      </div>
+      <a
+        className={styles.payrollActionLink}
+        href={state.href}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        Download PDF
+      </a>
+    </article>
+  );
+}
+
+function UnavailableCard({
+  description,
+  eyebrow,
+  state,
+  title,
+}: {
+  description: string;
+  eyebrow: string;
+  state: EmployeePayrollNavigationResult["bankDetails"];
+  title: string;
+}) {
+  if (state.status === "HIDDEN") return null;
+  if (state.status === "ACCESS_DENIED") {
+    return <NavigationRestricted title={eyebrow} />;
+  }
+  return (
+    <article className={`${styles.payrollActionCard} ${styles.unavailableCard}`}>
+      <div>
+        <p className={styles.eyebrow}>{eyebrow}</p>
+        <h4>{title}</h4>
+        <p>{description}</p>
+      </div>
+      <span className={styles.truthfulState}>Not available</span>
+    </article>
+  );
+}
+
+function NavigationRestricted({ title }: { title: string }) {
+  return (
+    <article className={`${styles.payrollActionCard} ${styles.restrictedCard}`}>
+      <div>
+        <p className={styles.eyebrow}>{title}</p>
+        <h4>All-branch access required</h4>
+        <p>No payroll record or document was loaded for this link.</p>
+      </div>
+      <span className={styles.truthfulState}>Restricted</span>
+    </article>
   );
 }
 
@@ -425,6 +579,14 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("en-MY", {
     day: "2-digit",
     month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kuala_Lumpur",
+  }).format(new Date(value));
+}
+
+function formatMonth(value: string) {
+  return new Intl.DateTimeFormat("en-MY", {
+    month: "long",
     year: "numeric",
     timeZone: "Asia/Kuala_Lumpur",
   }).format(new Date(value));
