@@ -59,11 +59,9 @@ test("legacy payroll manage cannot approve, reopen, export or submit statutory",
   }
 });
 
-test("payroll read is never promoted into a mutation capability", () => {
+test("payroll read is not promoted into granular payroll capabilities", () => {
   const permissions = ["PAYROLL_READ"];
-  assert.equal(canDirectStaff(permissions, "VIEW_PAYROLL_RUN"), true);
-  for (const capability of sensitiveCapabilities.filter((value) =>
-    value !== "VIEW_PAYROLL_RUN")) {
+  for (const capability of sensitiveCapabilities) {
     assert.equal(canDirectStaff(permissions, capability), false, capability);
   }
 });
