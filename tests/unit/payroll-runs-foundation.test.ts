@@ -155,6 +155,9 @@ test("Phase 4.0B blocks direct reopen after any statutory export or correction r
 
   assert.match(service, /payrollStatutorySubmission\.count/);
   assert.match(service, /statutory export or correction record cannot be reopened directly/);
+  assert.match(service, /PAYROLL_RUN_REOPEN_REJECTED/);
+  assert.match(service, /status: "FAILED"/);
+  assert.match(service, /immutableStatutoryRecord: true/);
   assert.match(loader, /_count:[\s\S]*statutorySubmissions/);
   assert.match(loader, /hasStatutorySubmissions: run\._count\.statutorySubmissions > 0/);
 });

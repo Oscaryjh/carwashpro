@@ -507,7 +507,7 @@ export async function reopenPayrollRun(
   context: PayrollContext & { runId: string; reason: string },
   database: PrismaClient = prisma,
 ) {
-  return database.$transaction(async (transaction) => {
+  const result = await database.$transaction(async (transaction) => {
     const run = await transaction.payrollRun.findFirst({
       where: { id: context.runId, businessId: context.businessId },
     });
@@ -517,9 +517,7 @@ export async function reopenPayrollRun(
       where: { businessId: context.businessId, payrollRunId: run.id },
     });
     if (statutorySubmissionCount > 0) {
-      throw new Error(
-        "Payroll with a statutory export or correction record cannot be reopened directly.",
-      );
+      return { blocked: true as const, run };
     }
     await transaction.$executeRaw`
       SELECT set_config('tetamu.payroll_reopen', ${run.id}, TRUE)
@@ -547,8 +545,30 @@ export async function reopenPayrollRun(
       },
       transaction,
     );
-    return reopened;
+    return { blocked: false as const, reopened };
   }, { isolationLevel: "Serializable" });
+
+  if (result.blocked) {
+    await writeAuditLog({
+      businessId: context.businessId,
+      actor: context.actor,
+      request: context.request,
+      action: "PAYROLL_RUN_REOPEN_REJECTED",
+      entityType: "PayrollRun",
+      entityId: result.run.id,
+      summary: "Payroll run reopen rejected because a statutory export or correction record exists.",
+      status: "FAILED",
+      metadata: {
+        immutableStatutoryRecord: true,
+        reason: context.reason,
+      },
+    }, database);
+    throw new Error(
+      "Payroll with a statutory export or correction record cannot be reopened directly.",
+    );
+  }
+
+  return result.reopened;
 }
 
 type PayrollEntryManualValues = {
