@@ -139,7 +139,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
               {result.errors.length > 4 ? <small className={styles.moreIssues}>+ {result.errors.length - 4} more issues below in employee profiles</small> : null}
               <div className={styles.cardActions}>
                 {canExport && (artifactAvailable || (canCreateArtifact && result.ready)) ? (
-                  <Link className={styles.primaryButton} href={`/team/payroll/statutory/export?month=${period.value}&provider=${provider.id}`}>
+                  <Link className={styles.primaryButton} href={`/team/payroll/statutory/export?month=${period.value}&provider=${provider.id}`} prefetch={false}>
                     {artifactAvailable ? "Download retained artifact" : "Create encrypted export"}
                   </Link>
                 ) : canExport ? (

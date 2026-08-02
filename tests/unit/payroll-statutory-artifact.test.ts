@@ -130,6 +130,11 @@ test("statutory GET creates or downloads artifacts and never regenerates in the 
   assert.match(service, /PAYROLL_OFFICIAL_STATUTORY_ARTIFACT_DOWNLOADED/);
   assert.match(service, /isolationLevel: "Serializable"/);
   assert.doesNotMatch(page, /Confirm downloaded file|markStatutoryFileExportedAction/);
+  assert.match(
+    page,
+    /statutory\/export[^>]+prefetch=\{false\}/,
+    "artifact download links must not be prefetched because GET creates the first retained artifact",
+  );
   assert.match(page, /Create correction revision/);
   assert.match(payrollService, /statutory export or correction record cannot be reopened directly/);
 });
