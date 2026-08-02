@@ -23,9 +23,8 @@ export function EmployeeProfilePayroll({
           <p className={styles.eyebrow}>Payroll</p>
           <h2>Payroll profile</h2>
           <p>
-            Current compensation, statutory participation and masked submission
-            identifiers. Bank, payment, payslip and Payroll Entry records are not
-            loaded here.
+            Sensitive payroll profile information available to your role. Bank,
+            payment, payslip and Payroll Entry records are not loaded here.
           </p>
         </div>
         <span className={styles.scopeBadge}>Sensitive · Read only</span>
@@ -46,6 +45,8 @@ function CompensationPanels({
   result: Exclude<EmployeeCompensationSectionResult, { status: "NOT_FOUND" }>;
 }) {
   if (result.status === "ACCESS_DENIED") {
+    if (result.reason === "CAPABILITY") return null;
+
     return (
       <RestrictedPanel
         eyebrow="Pay setup"
@@ -134,6 +135,8 @@ function StatutoryPanel({
   >["statutory"];
 }) {
   if (result.status === "ACCESS_DENIED") {
+    if (result.reason === "CAPABILITY") return null;
+
     return (
       <RestrictedPanel
         eyebrow="Statutory contributions"
@@ -152,7 +155,7 @@ function StatutoryPanel({
           <h3>Contribution profile</h3>
           <p>Current participation settings and masked membership identifiers.</p>
         </div>
-        <span>{data.profileUpdatedAt ? "Profile saved" : "Not configured"}</span>
+        <span>{statutorySetupStatus(data)}</span>
       </div>
       <div className={styles.detailList}>
         <PayrollDetail
@@ -165,11 +168,20 @@ function StatutoryPanel({
         />
         <PayrollDetail
           label="KWSP member number"
-          value={data.epfMemberNumberMasked ?? "Not configured"}
+          value={formatEnrollmentValue(
+            data.epfEnabled,
+            data.epfMemberNumberMasked,
+          )}
         />
         <PayrollDetail
           label="EPF member before Aug 1998"
-          value={data.epfMemberBeforeAug1998 ? "Yes" : "No"}
+          value={
+            data.epfEnabled
+              ? data.epfMemberBeforeAug1998
+                ? "Yes"
+                : "No"
+              : "Not applicable"
+          }
         />
         <PayrollDetail
           label="SOCSO"
@@ -177,11 +189,18 @@ function StatutoryPanel({
         />
         <PayrollDetail
           label="SOCSO category"
-          value={formatNullableEnum(data.socsoCategory)}
+          value={
+            data.socsoEnabled
+              ? formatNullableEnum(data.socsoCategory)
+              : "Not applicable"
+          }
         />
         <PayrollDetail
           label="SOCSO member number"
-          value={data.socsoMemberNumberMasked ?? "Not configured"}
+          value={formatEnrollmentValue(
+            data.socsoEnabled,
+            data.socsoMemberNumberMasked,
+          )}
         />
         <PayrollDetail
           label="EIS"
@@ -189,7 +208,13 @@ function StatutoryPanel({
         />
         <PayrollDetail
           label="Previously contributed to EIS"
-          value={data.eisPreviouslyContributed ? "Yes" : "No"}
+          value={
+            data.eisEnabled
+              ? data.eisPreviouslyContributed
+                ? "Yes"
+                : "No"
+              : "Not applicable"
+          }
         />
         <PayrollDetail
           label="LINDUNG 24"
@@ -213,6 +238,8 @@ function TaxPanel({
   >["tax"];
 }) {
   if (result.status === "ACCESS_DENIED") {
+    if (result.reason === "CAPABILITY") return null;
+
     return (
       <RestrictedPanel
         eyebrow="Tax & submission identity"
@@ -231,7 +258,7 @@ function TaxPanel({
           <h3>Submission identifiers</h3>
           <p>Masked identity values used for official payroll submissions.</p>
         </div>
-        <span>{data.profileUpdatedAt ? "Profile saved" : "Not configured"}</span>
+        <span>{taxSetupStatus(data)}</span>
       </div>
       <div className={styles.detailList}>
         <PayrollDetail
@@ -332,7 +359,53 @@ function formatMinutes(value: number) {
 }
 
 function formatParticipation(value: boolean) {
-  return value ? "Enabled" : "Not enabled";
+  return value ? "Enrolled" : "Not enrolled";
+}
+
+function formatEnrollmentValue(enabled: boolean, value: string | null) {
+  if (!enabled) return "Not applicable";
+  return value ?? "Not configured";
+}
+
+function statutorySetupStatus(data: {
+  eisEnabled: boolean;
+  epfEnabled: boolean;
+  epfMemberNumberMasked: string | null;
+  nationality: string | null;
+  profileUpdatedAt: string | null;
+  socsoCategory: string | null;
+  socsoEnabled: boolean;
+  socsoMemberNumberMasked: string | null;
+}) {
+  if (!data.profileUpdatedAt) return "Not configured";
+  if (!data.nationality) return "Incomplete";
+  if (data.epfEnabled && !data.epfMemberNumberMasked) return "Incomplete";
+  if (
+    data.socsoEnabled &&
+    (!data.socsoCategory || !data.socsoMemberNumberMasked)
+  ) {
+    return "Incomplete";
+  }
+  return "Complete";
+}
+
+function taxSetupStatus(data: {
+  countryCode: string | null;
+  identityNumberMasked: string | null;
+  identityType: string | null;
+  profileUpdatedAt: string | null;
+  tinMasked: string | null;
+}) {
+  if (!data.profileUpdatedAt) return "Not configured";
+  if (
+    !data.identityType ||
+    !data.identityNumberMasked ||
+    !data.countryCode ||
+    !data.tinMasked
+  ) {
+    return "Incomplete";
+  }
+  return "Complete";
 }
 
 function formatNullableEnum(value: string | null) {
