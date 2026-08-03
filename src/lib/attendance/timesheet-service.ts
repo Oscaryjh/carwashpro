@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import type { AttendanceServiceContext } from "@/lib/attendance/employee-service";
 import { writeAuditLog } from "@/lib/audit";
@@ -12,6 +12,39 @@ const transactionOptions = {
   maxWait: 5_000,
   timeout: 20_000,
 };
+
+const monthlyTimesheetSessionSelect = Prisma.validator<Prisma.EmployeeAttendanceSelect>()({
+  id: true,
+  businessId: true,
+  branchId: true,
+  membershipId: true,
+  workDate: true,
+  status: true,
+  updatedAt: true,
+  membership: {
+    select: { fullName: true, employeeCode: true },
+  },
+  resolutionCase: {
+    select: {
+      id: true,
+      status: true,
+      currentFinalResultId: true,
+      currentFinalResult: {
+        select: {
+          id: true,
+          version: true,
+          disposition: true,
+          workDate: true,
+          clockInAt: true,
+          clockOutAt: true,
+          totalBreakMinutes: true,
+          totalWorkedMinutes: true,
+          evidenceChecksum: true,
+        },
+      },
+    },
+  },
+});
 
 type TimesheetDatabase = Pick<
   PrismaClient,
@@ -81,38 +114,7 @@ export async function loadMonthlyAttendanceTimesheet(args: {
           lt: period.periodEndExclusive,
         },
       },
-      select: {
-        id: true,
-        businessId: true,
-        branchId: true,
-        membershipId: true,
-        workDate: true,
-        status: true,
-        updatedAt: true,
-        membership: {
-          select: { fullName: true, employeeCode: true },
-        },
-        resolutionCase: {
-          select: {
-            id: true,
-            status: true,
-            currentFinalResultId: true,
-            currentFinalResult: {
-              select: {
-                id: true,
-                version: true,
-                disposition: true,
-                workDate: true,
-                clockInAt: true,
-                clockOutAt: true,
-                totalBreakMinutes: true,
-                totalWorkedMinutes: true,
-                evidenceChecksum: true,
-              },
-            },
-          },
-        },
-      },
+      select: monthlyTimesheetSessionSelect,
       orderBy: [{ workDate: "asc" }, { id: "asc" }],
     }),
     database.attendanceMonthlyTimesheet.findUnique({
@@ -402,7 +404,9 @@ export async function beginMonthlyAttendanceTimesheetRevision(args: {
 function summarizeBranch(
   branchId: string,
   branchName: string,
-  sessions: Awaited<ReturnType<typeof loadMonthlyAttendanceTimesheetSessions>>,
+  sessions: Prisma.EmployeeAttendanceGetPayload<{
+    select: typeof monthlyTimesheetSessionSelect;
+  }>[],
 ) {
   const blockers = sessions.filter((session) =>
     !session.resolutionCase ||
@@ -458,41 +462,6 @@ function summarizeBranch(
     })),
     results,
   };
-}
-
-async function loadMonthlyAttendanceTimesheetSessions() {
-  return prisma.employeeAttendance.findMany({
-    select: {
-      id: true,
-      businessId: true,
-      branchId: true,
-      membershipId: true,
-      workDate: true,
-      status: true,
-      updatedAt: true,
-      membership: { select: { fullName: true, employeeCode: true } },
-      resolutionCase: {
-        select: {
-          id: true,
-          status: true,
-          currentFinalResultId: true,
-          currentFinalResult: {
-            select: {
-              id: true,
-              version: true,
-              disposition: true,
-              workDate: true,
-              clockInAt: true,
-              clockOutAt: true,
-              totalBreakMinutes: true,
-              totalWorkedMinutes: true,
-              evidenceChecksum: true,
-            },
-          },
-        },
-      },
-    },
-  });
 }
 
 function digest(value: unknown) {
