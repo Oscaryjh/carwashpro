@@ -18,6 +18,12 @@ import { synchronizeTeamMemberEmploymentState } from "@/lib/team/people-status";
 
 export type PeopleServiceDatabase = PrismaClient;
 
+const canonicalTransactionOptions = {
+  isolationLevel: "Serializable" as const,
+  maxWait: 5_000,
+  timeout: 20_000,
+};
+
 export type TeamMemberFeatures = {
   appointmentBookable: boolean;
   email: string | null;
@@ -76,7 +82,7 @@ export async function createTeamMember(
   args: CreateTeamMemberArgs,
   database: PeopleServiceDatabase = prisma,
 ) {
-  return database.$transaction(async (transaction) => {
+  return runCanonicalPeopleTransaction(database, async (transaction) => {
     const employeeInput = attendanceEmployeeCreateInputSchema.parse({
       ...(isRecord(args.input) ? args.input : {}),
       businessId: args.businessId,
@@ -305,7 +311,7 @@ export async function updateTeamMember(
   args: UpdateTeamMemberArgs,
   database: PeopleServiceDatabase = prisma,
 ) {
-  return database.$transaction(async (transaction) => {
+  return runCanonicalPeopleTransaction(database, async (transaction) => {
     const existingUser = await transaction.user.findFirst({
       where: {
         businessId: args.businessId,
@@ -761,6 +767,27 @@ async function replaceServiceAssignments(
       userId: input.userId,
     })),
   });
+}
+
+async function runCanonicalPeopleTransaction<T>(
+  database: PeopleServiceDatabase,
+  operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await database.$transaction(operation, canonicalTransactionOptions);
+    } catch (error) {
+      if (!isSerializableConflict(error) || attempt === 2) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("Canonical People transaction retry limit exceeded.");
+}
+
+function isSerializableConflict(error: unknown) {
+  return isRecord(error) && error.code === "P2034";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

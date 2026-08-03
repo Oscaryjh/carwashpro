@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
@@ -79,6 +80,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                 eisEnabled: true,
                 eisPreviouslyContributed: true,
                 lindung24OptIn: true,
+                statutoryProfileRevision: true,
               },
             },
           },
@@ -681,6 +683,8 @@ function PayrollEntryRows({
             >
               <input name="membershipId" type="hidden" value={entry.membershipId} />
               <input name="month" type="hidden" value={month} />
+              <input name="commandId" type="hidden" value={randomUUID()} />
+              <input name="expectedRevision" type="hidden" value={entry.membership.statutoryProfileRevision} />
               <fieldset className={styles.entrySection}>
                 <legend>Statutory employee profile</legend>
                 <div className={styles.profileGrid}>
@@ -688,7 +692,7 @@ function PayrollEntryRows({
                     <span>Date of birth</span>
                     <input
                       defaultValue={formatDateInput(entry.membership.dateOfBirth)}
-                      disabled={!profileEditable}
+                      disabled
                       name="dateOfBirth"
                       type="date"
                     />
@@ -1079,5 +1083,6 @@ type PayrollEntryRow = {
     eisEnabled: boolean;
     eisPreviouslyContributed: boolean;
     lindung24OptIn: boolean;
+    statutoryProfileRevision: number;
   };
 };

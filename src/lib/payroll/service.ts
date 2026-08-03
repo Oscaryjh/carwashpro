@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { AppSession } from "@/lib/auth/session";
 import { writeAuditLog, type AuditRequestContext } from "@/lib/audit";
 import {
@@ -48,7 +48,7 @@ export async function generatePayrollRun(
   database: PrismaClient = prisma,
 ) {
   const period = parsePayrollMonth(context.month);
-  return database.$transaction(async (transaction) => {
+  return runSerializablePayrollTransaction(database, async (transaction) => {
     const setting =
       (await transaction.payrollSetting.findUnique({
         where: { businessId: context.businessId },
@@ -315,7 +315,41 @@ export async function generatePayrollRun(
       transaction,
     );
     return run;
-  }, { isolationLevel: "Serializable", maxWait: 5_000, timeout: 20_000 });
+  });
+}
+
+async function runSerializablePayrollTransaction<T>(
+  database: PrismaClient,
+  operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+) {
+  const maxAttempts = 5;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      return await database.$transaction(operation, {
+        isolationLevel: "Serializable",
+        maxWait: 5_000,
+        timeout: 20_000,
+      });
+    } catch (error) {
+      if (!isSerializableConflict(error) || attempt === maxAttempts - 1) {
+        throw error;
+      }
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, 20 * 2 ** attempt),
+      );
+    }
+  }
+
+  throw new Error("Payroll transaction retry limit exceeded.");
+}
+
+function isSerializableConflict(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2034"
+  );
 }
 
 export async function updatePayrollEntry(

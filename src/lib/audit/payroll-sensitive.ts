@@ -184,7 +184,7 @@ function redactChangedFields(
   ) as AuditJsonValue;
 }
 
-function maskAuditIdentifier(value: string | null) {
+export function maskAuditIdentifier(value: string | null) {
   if (!value) return null;
   const compact = value.replace(/[^A-Za-z0-9]/g, "");
   if (!compact) return null;

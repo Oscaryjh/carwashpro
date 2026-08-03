@@ -7,11 +7,11 @@ import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import {
   safeBusinessStatutoryAuditSnapshot,
-  safeEmployeeSubmissionIdentityAuditSnapshot,
   writeSensitiveAuditLog,
 } from "@/lib/audit/payroll-sensitive";
 import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
+import { updateEmployeeTaxProfile } from "@/lib/payroll/employee-profile-write";
 import { createStatutoryCorrectionRevision } from "@/lib/payroll/statutory-artifact";
 import { prisma } from "@/lib/prisma";
 
@@ -26,6 +26,8 @@ const businessProfileSchema = z.object({
 });
 
 const employeeProfileSchema = z.object({
+  commandId: z.string().trim().min(1).max(128),
+  expectedRevision: z.coerce.number().int().min(0),
   membershipId: z.string().uuid(),
   statutoryIdentityType: z.enum(["NEW_IC", "OLD_IC", "PASSPORT", "OTHER"]).optional(),
   statutoryIdentityNumber: optionalText(30),
@@ -88,9 +90,10 @@ export async function saveBusinessStatutoryProfileAction(formData: FormData) {
 export async function saveEmployeeSubmissionProfileAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
-    const context = await requireWholeBusinessPayroll("EDIT_STATUTORY_PROFILE");
-    await requireWholeBusinessPayroll("EDIT_TAX_PROFILE");
+    const context = await requireWholeBusinessPayroll("EDIT_TAX_PROFILE");
     const input = employeeProfileSchema.parse({
+      commandId: formData.get("commandId"),
+      expectedRevision: formData.get("expectedRevision"),
       membershipId: formData.get("membershipId"),
       statutoryIdentityType: optionalValue(formData, "statutoryIdentityType"),
       statutoryIdentityNumber: optionalValue(formData, "statutoryIdentityNumber"),
@@ -100,36 +103,28 @@ export async function saveEmployeeSubmissionProfileAction(formData: FormData) {
       taxIdentificationNumber: digitsValue(formData, "taxIdentificationNumber"),
     });
     const request = await getAuditRequestContext();
-    await prisma.$transaction(async (transaction) => {
-      const before = await transaction.employeeBusinessMembership.findFirst({
-        where: { id: input.membershipId, businessId: context.businessId },
-        select: employeeSelect,
-      });
-      if (!before) throw new Error("The employee was not found in your payroll scope.");
-      const after = await transaction.employeeBusinessMembership.update({
-        where: { id: before.id },
-        data: {
-          statutoryIdentityType: input.statutoryIdentityType ?? null,
-          statutoryIdentityNumber: input.statutoryIdentityNumber ?? null,
-          statutoryCountryCode: input.statutoryCountryCode ?? null,
-          epfMemberNumber: input.epfMemberNumber ?? null,
-          socsoMemberNumber: input.socsoMemberNumber ?? null,
-          taxIdentificationNumber: input.taxIdentificationNumber ?? null,
-          statutoryProfileUpdatedAt: new Date(),
-        },
-        select: employeeSelect,
-      });
-      await writeSensitiveAuditLog({
-        businessId: context.businessId,
+    await updateEmployeeTaxProfile({
+      command: {
+        commandId: input.commandId,
+        epfMemberNumber: input.epfMemberNumber ?? null,
+        expectedRevision: input.expectedRevision,
+        membershipId: input.membershipId,
+        reasonNote: "Tax and submission identity updated through the statutory compatibility form.",
+        reasonType: "TAX_INFORMATION_UPDATE",
+        socsoMemberNumber: input.socsoMemberNumber ?? null,
+        statutoryCountryCode: input.statutoryCountryCode ?? null,
+        statutoryIdentityNumber: input.statutoryIdentityNumber ?? null,
+        statutoryIdentityType: input.statutoryIdentityType ?? null,
+        taxIdentificationNumber: input.taxIdentificationNumber ?? null,
+      },
+      context: {
+        access: context.access,
         actor: context.user,
+        allowedBranchIds: context.allowedBranchIds,
+        businessId: context.businessId,
+        caller: "STATUTORY_ACTION",
         request,
-        action: "EMPLOYEE_STATUTORY_IDENTITY_UPDATED",
-        entityType: "EmployeeBusinessMembership",
-        entityId: after.id,
-        summary: `Statutory submission identity updated for ${after.fullName}.`,
-        before: safeEmployeeSubmissionIdentityAuditSnapshot(before),
-        after: safeEmployeeSubmissionIdentityAuditSnapshot(after),
-      }, transaction);
+      },
     });
     finish("success", "Employee statutory identity saved.", month);
   } catch (error) {
@@ -245,17 +240,6 @@ function validTransition(current: string, target: string) {
   return (current === "EXPORTED" && target === "SUBMITTED") ||
     (current === "SUBMITTED" && (target === "ACCEPTED" || target === "REJECTED"));
 }
-
-const employeeSelect = {
-  id: true,
-  fullName: true,
-  statutoryIdentityType: true,
-  statutoryIdentityNumber: true,
-  statutoryCountryCode: true,
-  epfMemberNumber: true,
-  socsoMemberNumber: true,
-  taxIdentificationNumber: true,
-} as const;
 
 function nullify<T extends Record<string, string | undefined>>(value: T) {
   return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, entry ?? null])) as { [K in keyof T]: string | null };

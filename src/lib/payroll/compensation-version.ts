@@ -40,6 +40,8 @@ type CompensationWriteInput = {
   reasonType: EmployeeCompensationReasonType;
   request?: AuditRequestContext;
   source: EmployeeCompensationSource;
+  projectionMonth?: Date;
+  skipAudit?: boolean;
 };
 
 export function payrollMonthStart(value: Date) {
@@ -143,6 +145,7 @@ export async function writeEmployeeCompensationVersionInTransaction(
       input.businessId,
       input.membershipId,
       transaction,
+      input.projectionMonth,
     );
     return transaction.employeeCompensationVersion.findUniqueOrThrow({
       where: { id: existing.id },
@@ -189,9 +192,10 @@ export async function writeEmployeeCompensationVersionInTransaction(
     input.businessId,
     input.membershipId,
     transaction,
+    input.projectionMonth,
   );
 
-  await writeSensitiveAuditLog(
+  if (!input.skipAudit) await writeSensitiveAuditLog(
     {
       action: existing
         ? "EMPLOYEE_COMPENSATION_VERSION_SUPERSEDED"
@@ -229,9 +233,9 @@ export async function synchronizeMembershipCompensationProjection(
   businessId: string,
   membershipId: string,
   transaction: Prisma.TransactionClient,
-  now = new Date(),
+  asOfPayrollMonth = currentPayrollMonthStart(),
 ) {
-  const currentMonth = currentPayrollMonthStart(now);
+  const currentMonth = payrollMonthStart(asOfPayrollMonth);
   const applicable = await transaction.employeeCompensationVersion.findFirst({
     where: {
       businessId,
@@ -249,6 +253,7 @@ export async function synchronizeMembershipCompensationProjection(
 
   if (!applicable) return null;
 
+  await transaction.$executeRaw`SELECT set_config('tetamu.payroll_profile_command', 'on', true)`;
   await transaction.employeeBusinessMembership.update({
     where: { id: membershipId },
     data: {

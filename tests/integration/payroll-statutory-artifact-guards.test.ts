@@ -271,14 +271,17 @@ test("subsequent statutory downloads return exact retained bytes without current
     assert.match(first.body.toString(), /12345678/);
 
     // Make current employee and employer profiles unusable for a new EPF file.
-    await prisma.employeeBusinessMembership.update({
-      where: { id: membership.id },
-      data: {
-        epfMemberNumber: null,
-        fullName: "Changed Current Name",
-        statutoryIdentityNumber: null,
-        statutoryIdentityType: null,
-      },
+    await prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`SELECT set_config('tetamu.payroll_profile_command_maintenance', 'on', true)`;
+      await transaction.employeeBusinessMembership.update({
+        where: { id: membership.id },
+        data: {
+          epfMemberNumber: null,
+          fullName: "Changed Current Name",
+          statutoryIdentityNumber: null,
+          statutoryIdentityType: null,
+        },
+      });
     });
     await prisma.businessStatutoryProfile.update({
       where: { businessId: business.id },

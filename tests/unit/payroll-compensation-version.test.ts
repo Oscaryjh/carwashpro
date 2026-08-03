@@ -81,7 +81,7 @@ test("Phase 4.0C migration is additive and enforces immutable monthly versions",
   assert.doesNotMatch(sql, /UPDATE "payroll_runs"/);
 });
 
-test("legacy team compensation writes are routed through the version-aware transaction", () => {
+test("legacy team compensation writes are routed through canonical commands", () => {
   const employeeService = readFileSync(
     "src/lib/attendance/employee-service.ts",
     "utf8",
@@ -92,8 +92,9 @@ test("legacy team compensation writes are routed through the version-aware trans
   );
   assert.match(
     employeeService,
-    /writeEmployeeCompensationVersionInTransaction/,
+    /scheduleEmployeeCompensationChangeInTransaction/,
   );
+  assert.match(employeeService, /updateEmployeePayrollWorkTargetInTransaction/);
   assert.doesNotMatch(
     employeeService,
     /data:\s*\{[\s\S]{0,700}?payBasis:\s*employee\.payBasis[\s\S]{0,100}?baseSalary:\s*employee\.baseSalary/,

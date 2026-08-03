@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
@@ -54,6 +55,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
         epfMemberNumber: true,
         socsoMemberNumber: true,
         taxIdentificationNumber: true,
+        taxProfileRevision: true,
       },
     }),
   ]);
@@ -186,6 +188,8 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
                 <form action={saveEmployeeSubmissionProfileAction} className={styles.employeeForm}>
                   <input name="membershipId" type="hidden" value={employee.id} />
                   <input name="month" type="hidden" value={period.value} />
+                  <input name="commandId" type="hidden" value={randomUUID()} />
+                  <input name="expectedRevision" type="hidden" value={employee.taxProfileRevision} />
                   <label><span>Identity type</span><select defaultValue={employee.statutoryIdentityType ?? ""} disabled={!canEditProfile} name="statutoryIdentityType"><option value="">Select type</option><option value="NEW_IC">New IC / MyKad</option><option value="OLD_IC">Old IC</option><option value="PASSPORT">Passport</option><option value="OTHER">Other</option></select></label>
                   <Field defaultValue={sensitiveDisplay(employee.statutoryIdentityNumber, canEditProfile)} disabled={!canEditProfile} label="Identity number" name="statutoryIdentityNumber" placeholder="No spaces or dashes preferred" />
                   <Field defaultValue={employee.statutoryCountryCode ?? ""} disabled={!canEditProfile} label="LHDN country code" maxLength={2} name="statutoryCountryCode" placeholder="Passport only, e.g. MY" />

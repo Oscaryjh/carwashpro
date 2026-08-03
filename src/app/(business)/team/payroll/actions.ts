@@ -5,14 +5,11 @@ import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
-import {
-  safeStatutoryContributionAuditSnapshot,
-  writeSensitiveAuditLog,
-} from "@/lib/audit/payroll-sensitive";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
+import { updateEmployeeStatutoryProfile } from "@/lib/payroll/employee-profile-write";
 import { payrollRunReturnPath } from "@/lib/payroll/runs";
 import {
   finalizePayrollRun,
@@ -41,8 +38,9 @@ const holidaySchema = z.object({
 });
 
 const statutoryProfileSchema = z.object({
+  commandId: z.string().trim().min(1).max(128),
+  expectedRevision: z.coerce.number().int().min(0),
   membershipId: z.string().uuid(),
-  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   statutoryNationality: z.enum(["MALAYSIAN", "PERMANENT_RESIDENT", "NON_MALAYSIAN"]).optional(),
   socsoCategory: z.enum(["FIRST", "SECOND"]).optional(),
 });
@@ -266,8 +264,9 @@ export async function saveEmployeeStatutoryProfileAction(formData: FormData) {
   try {
     const context = await requireWholeBusinessPayroll("EDIT_STATUTORY_PROFILE");
     const input = statutoryProfileSchema.parse({
+      commandId: formData.get("commandId"),
+      expectedRevision: formData.get("expectedRevision"),
       membershipId: formData.get("membershipId"),
-      dateOfBirth: optionalFormValue(formData, "dateOfBirth"),
       statutoryNationality: optionalFormValue(formData, "statutoryNationality"),
       socsoCategory: optionalFormValue(formData, "socsoCategory"),
     });
@@ -276,58 +275,38 @@ export async function saveEmployeeStatutoryProfileAction(formData: FormData) {
     const eisEnabled = formData.has("eisEnabled");
     if (
       (epfEnabled || socsoEnabled || eisEnabled) &&
-      (!input.dateOfBirth || !input.statutoryNationality)
+      !input.statutoryNationality
     ) {
-      throw new Error("Date of birth and statutory nationality are required when automatic contributions are enabled.");
+      throw new Error("Statutory nationality is required when automatic contributions are enabled.");
     }
     if (socsoEnabled && !input.socsoCategory) {
       throw new Error("Select the employee's SOCSO contribution category.");
     }
-    const dateOfBirth = input.dateOfBirth
-      ? new Date(`${input.dateOfBirth}T00:00:00.000Z`)
-      : null;
-    if (dateOfBirth && dateOfBirth >= new Date()) {
-      throw new Error("Date of birth must be in the past.");
-    }
     const request = await getAuditRequestContext();
-    await prisma.$transaction(async (transaction) => {
-      const before = await transaction.employeeBusinessMembership.findFirst({
-        where: { id: input.membershipId, businessId: context.businessId },
-        select: statutoryProfileSelect,
-      });
-      if (!before) {
-        throw new Error("The employee was not found in your payroll scope.");
-      }
-      const after = await transaction.employeeBusinessMembership.update({
-        where: { id: before.id },
-        data: {
-          dateOfBirth,
-          statutoryNationality: input.statutoryNationality ?? null,
-          epfEnabled,
-          epfMemberBeforeAug1998: formData.has("epfMemberBeforeAug1998"),
-          socsoEnabled,
-          socsoCategory: socsoEnabled ? input.socsoCategory : null,
-          eisEnabled,
-          eisPreviouslyContributed: formData.has("eisPreviouslyContributed"),
-          lindung24OptIn: socsoEnabled && formData.has("lindung24OptIn"),
-          statutoryProfileUpdatedAt: new Date(),
-        },
-        select: statutoryProfileSelect,
-      });
-      await writeSensitiveAuditLog(
-        {
-          businessId: context.businessId,
-          actor: context.user,
-          request,
-          action: "EMPLOYEE_STATUTORY_PROFILE_UPDATED",
-          entityType: "EmployeeBusinessMembership",
-          entityId: after.id,
-          summary: "Employee statutory contribution profile updated.",
-          before: safeStatutoryContributionAuditSnapshot(before),
-          after: safeStatutoryContributionAuditSnapshot(after),
-        },
-        transaction,
-      );
+    await updateEmployeeStatutoryProfile({
+      command: {
+        commandId: input.commandId,
+        eisEnabled,
+        eisPreviouslyContributed: formData.has("eisPreviouslyContributed"),
+        epfEnabled,
+        epfMemberBeforeAug1998: formData.has("epfMemberBeforeAug1998"),
+        expectedRevision: input.expectedRevision,
+        lindung24OptIn: socsoEnabled && formData.has("lindung24OptIn"),
+        membershipId: input.membershipId,
+        reasonNote: "Statutory profile updated through the legacy payroll compatibility form.",
+        reasonType: "STATUTORY_CORRECTION",
+        socsoCategory: socsoEnabled ? input.socsoCategory ?? null : null,
+        socsoEnabled,
+        statutoryNationality: input.statutoryNationality ?? null,
+      },
+      context: {
+        access: context.access,
+        actor: context.user,
+        allowedBranchIds: context.allowedBranchIds,
+        businessId: context.businessId,
+        caller: "PAYROLL_ACTION",
+        request,
+      },
     });
     finish("success", "Statutory profile saved. Regenerate the draft to apply official schedules.", month);
   } catch (error) {
@@ -444,19 +423,6 @@ function settingAudit(setting: {
     stateCode: setting.stateCode,
   };
 }
-
-const statutoryProfileSelect = {
-  id: true,
-  dateOfBirth: true,
-  statutoryNationality: true,
-  epfEnabled: true,
-  epfMemberBeforeAug1998: true,
-  socsoEnabled: true,
-  socsoCategory: true,
-  eisEnabled: true,
-  eisPreviouslyContributed: true,
-  lindung24OptIn: true,
-} as const;
 
 function optionalFormValue(formData: FormData, key: string) {
   const value = String(formData.get(key) ?? "").trim();

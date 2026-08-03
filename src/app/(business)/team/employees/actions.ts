@@ -100,6 +100,8 @@ export async function updateAttendanceEmployeeAction(
         status: true,
         payBasis: true,
         baseSalary: true,
+        normalWorkMinutesPerDay: true,
+        targetBreakMinutes: true,
       },
     });
 
@@ -111,6 +113,8 @@ export async function updateAttendanceEmployeeAction(
       payBasis: existing.payBasis,
       baseSalary:
         existing.baseSalary === null ? null : Number(existing.baseSalary),
+      normalWorkMinutesPerDay: existing.normalWorkMinutesPerDay,
+      targetBreakMinutes: existing.targetBreakMinutes,
     };
 
     if (
@@ -210,10 +214,8 @@ function buildEmployeeInput(
     phoneNumber: String(formData.get("phoneNumber") ?? ""),
     payBasis: "MONTHLY" as const,
     baseSalary: null,
-    normalWorkMinutesPerDay: optionalNumber(
-      formData.get("normalWorkMinutesPerDay"),
-    ),
-    targetBreakMinutes: optionalNumber(formData.get("targetBreakMinutes")),
+    normalWorkMinutesPerDay: null,
+    targetBreakMinutes: null,
 
     employmentType: String(formData.get("employmentType") ?? "FULL_TIME"),
     status,
@@ -223,11 +225,6 @@ function buildEmployeeInput(
     position: null,
     assignments,
   };
-}
-
-function optionalNumber(value: FormDataEntryValue | null) {
-  const normalized = String(value ?? "").trim();
-  return normalized === "" ? null : Number(normalized);
 }
 
 function uniqueStrings(values: FormDataEntryValue[]) {

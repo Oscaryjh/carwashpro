@@ -316,9 +316,12 @@ test("payroll generate and refresh resolve compensation by run month", async () 
       ],
     );
 
-    await prisma.employeeBusinessMembership.update({
-      where: { id: fixture.membership.id },
-      data: { baseSalary: 9999 },
+    await prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`SELECT set_config('tetamu.payroll_profile_command_maintenance', 'on', true)`;
+      await transaction.employeeBusinessMembership.update({
+        where: { id: fixture.membership.id },
+        data: { baseSalary: 9999 },
+      });
     });
     await prisma.payrollEntry.update({
       where: { id: augustEntry.id },
@@ -608,6 +611,7 @@ async function cleanupFixture(fixture: Awaited<ReturnType<typeof createFixture>>
   ).map((item) => item.employeeAccountId);
   await prisma.$transaction(async (transaction) => {
     await transaction.$executeRaw`SELECT set_config('tetamu.compensation_version_maintenance', 'on', TRUE)`;
+    await transaction.$executeRaw`SELECT set_config('tetamu.payroll_profile_command_maintenance', 'on', TRUE)`;
     await transaction.payrollEntry.deleteMany({
       where: { businessId: fixture.business.id },
     });

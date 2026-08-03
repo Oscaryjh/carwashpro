@@ -1042,6 +1042,10 @@ async function cleanupFixture(
   });
   await prisma.$transaction(async (transaction) => {
     await transaction.$executeRaw`SELECT set_config('tetamu.compensation_version_maintenance', 'on', TRUE)`;
+    await transaction.$executeRaw`SELECT set_config('tetamu.payroll_profile_command_maintenance', 'on', TRUE)`;
+    await transaction.payrollProfileCommandRecord.deleteMany({
+      where: { businessId: { in: businessIds } },
+    });
     await transaction.employeeCompensationVersion.deleteMany({
       where: { businessId: { in: businessIds } },
     });

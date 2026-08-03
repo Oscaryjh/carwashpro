@@ -132,8 +132,18 @@ enum EmployeeCompensationReasonType {
   ROLE_CHANGE
   MARKET_ADJUSTMENT
   PAYROLL_POLICY_CHANGE
+  STATUTORY_CORRECTION
+  TAX_INFORMATION_UPDATE
+  EMPLOYEE_PROVIDED_CORRECTION
   DATA_MIGRATION
   OTHER
+}
+
+enum PayrollProfileCommandDomain {
+  COMPENSATION
+  WORK_TARGET
+  STATUTORY
+  TAX
 }
 
 enum PayrollRunStatus {
@@ -629,6 +639,7 @@ model Business {
   payrollRuns                   PayrollRun[]
   payrollEntries                PayrollEntry[]
   compensationVersions          EmployeeCompensationVersion[]
+  payrollProfileCommands        PayrollProfileCommandRecord[]
   statutoryProfile              BusinessStatutoryProfile?
   payrollStatutorySubmissions   PayrollStatutorySubmission[]
   payrollStatutoryArtifacts     PayrollStatutoryExportArtifact[]
@@ -772,6 +783,7 @@ model User {
   payrollRunsFinalized           PayrollRun[]                  @relation("PayrollRunFinalizedBy")
   compensationVersionsCreated    EmployeeCompensationVersion[] @relation("CompensationVersionCreatedBy")
   compensationVersionsSuperseded EmployeeCompensationVersion[] @relation("CompensationVersionSupersededBy")
+  payrollProfileCommands         PayrollProfileCommandRecord[] @relation("PayrollProfileCommandActor")
 
   @@index([businessId])
   @@index([branchId])
@@ -1064,27 +1076,32 @@ model EmployeeBusinessMembership {
   socsoMemberNumber         String?                        @map("socso_member_number")
   taxIdentificationNumber   String?                        @map("tax_identification_number")
   statutoryProfileUpdatedAt DateTime?                      @map("statutory_profile_updated_at")
+  compensationRevision      Int                            @default(0) @map("compensation_revision")
+  workTargetRevision        Int                            @default(0) @map("work_target_revision")
+  statutoryProfileRevision  Int                            @default(0) @map("statutory_profile_revision")
+  taxProfileRevision        Int                            @default(0) @map("tax_profile_revision")
   joinedAt                  DateTime                       @default(now()) @map("joined_at")
   terminatedAt              DateTime?                      @map("terminated_at")
   position                  String?
   createdAt                 DateTime                       @default(now()) @map("created_at")
   updatedAt                 DateTime                       @updatedAt @map("updated_at")
 
-  employeeAccount      EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Cascade)
-  business             Business                       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  branchAssignments    EmployeeBranchAssignment[]
-  attendances          EmployeeAttendance[]
-  punches              AttendancePunch[]
-  exceptions           AttendanceException[]
-  adjustments          AttendanceAdjustment[]
-  employeeSessions     EmployeeSession[]
-  payrollEntries       PayrollEntry[]
-  compensationVersions EmployeeCompensationVersion[]
-  leaveBalances        EmployeeLeaveBalance[]
-  leaveRequests        LeaveRequest[]
-  leaveRequestDays     LeaveRequestDay[]
-  idempotencyRequests  AttendanceRequestIdempotency[]
-  staffUser            User?                          @relation("EmployeeBusinessMembershipStaffUser")
+  employeeAccount        EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Cascade)
+  business               Business                       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchAssignments      EmployeeBranchAssignment[]
+  attendances            EmployeeAttendance[]
+  punches                AttendancePunch[]
+  exceptions             AttendanceException[]
+  adjustments            AttendanceAdjustment[]
+  employeeSessions       EmployeeSession[]
+  payrollEntries         PayrollEntry[]
+  compensationVersions   EmployeeCompensationVersion[]
+  payrollProfileCommands PayrollProfileCommandRecord[]
+  leaveBalances          EmployeeLeaveBalance[]
+  leaveRequests          LeaveRequest[]
+  leaveRequestDays       LeaveRequestDay[]
+  idempotencyRequests    AttendanceRequestIdempotency[]
+  staffUser              User?                          @relation("EmployeeBusinessMembershipStaffUser")
 
   @@unique([employeeAccountId, businessId])
   @@unique([businessId, employeeCode])
@@ -1126,6 +1143,26 @@ model EmployeeCompensationVersion {
   @@index([membershipId, status, effectiveFromMonth])
   @@index([supersedesVersionId])
   @@map("employee_compensation_versions")
+}
+
+model PayrollProfileCommandRecord {
+  id                 String                      @id @default(uuid()) @db.Uuid
+  businessId         String                      @map("business_id") @db.Uuid
+  actorUserId        String                      @map("actor_user_id") @db.Uuid
+  membershipId       String                      @map("membership_id") @db.Uuid
+  commandId          String                      @map("command_id") @db.VarChar(128)
+  commandFingerprint String                      @map("command_fingerprint") @db.VarChar(64)
+  domain             PayrollProfileCommandDomain
+  result             Json
+  createdAt          DateTime                    @default(now()) @map("created_at")
+
+  business   Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  actor      User                       @relation("PayrollProfileCommandActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  membership EmployeeBusinessMembership @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+
+  @@unique([businessId, actorUserId, commandId])
+  @@index([businessId, membershipId, domain, createdAt])
+  @@map("payroll_profile_command_records")
 }
 
 model EmployeeBranchAssignment {

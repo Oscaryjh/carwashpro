@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import {
@@ -20,10 +21,14 @@ import {
 } from "@/lib/audit/payroll-sensitive";
 import type { CompensationWriteAuthorization } from "@/lib/payroll/compensation-version";
 import {
-  currentPayrollMonthStart,
   payrollMonthStart,
-  writeEmployeeCompensationVersionInTransaction,
 } from "@/lib/payroll/compensation-version";
+import {
+  businessPayrollMonthStart,
+  scheduleEmployeeCompensationChangeInTransaction,
+  updateEmployeePayrollWorkTargetInTransaction,
+  type PayrollProfileWriteContext,
+} from "@/lib/payroll/employee-profile-write";
 import { prisma } from "@/lib/prisma";
 import { synchronizeTeamMemberEmploymentState } from "@/lib/team/people-status";
 
@@ -68,8 +73,9 @@ export async function createAttendanceEmployee(
   args: CreateAttendanceEmployeeArgs,
   database: AttendanceServiceDatabase = prisma,
 ) {
-  return database.$transaction((transaction) =>
-    createAttendanceEmployeeInTransaction(args, transaction),
+  return database.$transaction(
+    (transaction) => createAttendanceEmployeeInTransaction(args, transaction),
+    canonicalTransactionOptions,
   );
 }
 
@@ -124,10 +130,10 @@ export async function createAttendanceEmployeeInTransaction(
         employmentType: validatedEmployee.employmentType,
         status: validatedEmployee.status,
         attendanceEnabled: validatedEmployee.attendanceEnabled,
-        payBasis: validatedEmployee.payBasis,
-        baseSalary: validatedEmployee.baseSalary,
-        normalWorkMinutesPerDay: validatedEmployee.normalWorkMinutesPerDay,
-        targetBreakMinutes: validatedEmployee.targetBreakMinutes,
+        payBasis: "MONTHLY",
+        baseSalary: null,
+        normalWorkMinutesPerDay: null,
+        targetBreakMinutes: null,
         joinedAt: validatedEmployee.joinedAt,
         terminatedAt: validatedEmployee.terminatedAt,
         position: validatedEmployee.position,
@@ -151,24 +157,50 @@ export async function createAttendanceEmployeeInTransaction(
   }
 
   if (validatedEmployee.baseSalary !== null) {
-    const currentMonth = currentPayrollMonthStart();
+    const currentMonth = await businessPayrollMonthStart(
+      args.businessId,
+      transaction,
+    );
     const joinedMonth = payrollMonthStart(validatedEmployee.joinedAt);
-    await writeEmployeeCompensationVersionInTransaction(
+    await scheduleEmployeeCompensationChangeInTransaction(
       {
-        actor: args.actor,
-        authorization: args.compensationAuthorization!,
-        baseRate: validatedEmployee.baseSalary,
-        businessId: args.businessId,
-        effectiveFromMonth:
-          joinedMonth.getTime() > currentMonth.getTime()
-            ? joinedMonth
-            : currentMonth,
-        membershipId: membership.id,
-        payBasis: validatedEmployee.payBasis,
-        reasonNote: "Initial compensation setup through the unified team workflow.",
-        reasonType: "OTHER",
-        request: args.request,
-        source: "MANUAL",
+        command: {
+          baseRate: validatedEmployee.baseSalary,
+          commandId: randomUUID(),
+          effectiveFromMonth:
+            joinedMonth.getTime() > currentMonth.getTime()
+              ? joinedMonth
+              : currentMonth,
+          expectedRevision: 0,
+          membershipId: membership.id,
+          payBasis: validatedEmployee.payBasis,
+          reasonNote: "Initial compensation setup through the unified team workflow.",
+          reasonType: "OTHER",
+          source: "MANUAL",
+        },
+        context: canonicalPayrollProfileContext(args),
+      },
+      transaction,
+    );
+  }
+
+  if (
+    validatedEmployee.normalWorkMinutesPerDay !== null ||
+    validatedEmployee.targetBreakMinutes !== null
+  ) {
+    await updateEmployeePayrollWorkTargetInTransaction(
+      {
+        command: {
+          commandId: randomUUID(),
+          expectedRevision: 0,
+          membershipId: membership.id,
+          normalWorkMinutesPerDay:
+            validatedEmployee.normalWorkMinutesPerDay,
+          reasonNote: "Initial payroll work target setup through the unified team workflow.",
+          reasonType: "OTHER",
+          targetBreakMinutes: validatedEmployee.targetBreakMinutes,
+        },
+        context: canonicalPayrollProfileContext(args),
       },
       transaction,
     );
@@ -210,8 +242,9 @@ export async function updateAttendanceEmployee(
   args: UpdateAttendanceEmployeeArgs,
   database: AttendanceServiceDatabase = prisma,
 ) {
-  return database.$transaction((transaction) =>
-    updateAttendanceEmployeeInTransaction(args, transaction),
+  return database.$transaction(
+    (transaction) => updateAttendanceEmployeeInTransaction(args, transaction),
+    canonicalTransactionOptions,
   );
 }
 
@@ -295,9 +328,15 @@ export async function updateAttendanceEmployeeInTransaction(
     const compensationChanged =
       employee.payBasis !== existing.payBasis ||
       String(employee.baseSalary ?? "") !== String(existing.baseSalary ?? "");
-    if (compensationChanged && !args.compensationAuthorization) {
+    const workTargetChanged =
+      employee.normalWorkMinutesPerDay !== existing.normalWorkMinutesPerDay ||
+      employee.targetBreakMinutes !== existing.targetBreakMinutes;
+    if (
+      (compensationChanged || workTargetChanged) &&
+      !args.compensationAuthorization
+    ) {
       throw new Error(
-        "Compensation changes must use the authorized version-aware workflow.",
+        "Payroll profile changes must use the authorized canonical workflow.",
       );
     }
 
@@ -365,8 +404,6 @@ export async function updateAttendanceEmployeeInTransaction(
           employmentType: employee.employmentType,
           status: employee.status,
           attendanceEnabled: employee.attendanceEnabled,
-          normalWorkMinutesPerDay: employee.normalWorkMinutesPerDay,
-          targetBreakMinutes: employee.targetBreakMinutes,
           joinedAt: employee.joinedAt,
           terminatedAt: employee.terminatedAt,
           position: employee.position,
@@ -385,19 +422,41 @@ export async function updateAttendanceEmployeeInTransaction(
           "Removing an established base rate is not supported by the monthly compensation version model.",
         );
       }
-      await writeEmployeeCompensationVersionInTransaction(
+      await scheduleEmployeeCompensationChangeInTransaction(
         {
-          actor: args.actor,
-          authorization: args.compensationAuthorization!,
-          baseRate: employee.baseSalary,
-          businessId: args.businessId,
-          effectiveFromMonth: currentPayrollMonthStart(),
-          membershipId: existing.id,
-          payBasis: employee.payBasis,
-          reasonNote: "Compensation updated through the legacy team compatibility workflow.",
-          reasonType: "OTHER",
-          request: args.request,
-          source: "MANUAL",
+          command: {
+            baseRate: employee.baseSalary,
+            commandId: randomUUID(),
+            effectiveFromMonth: await businessPayrollMonthStart(
+              args.businessId,
+              transaction,
+            ),
+            expectedRevision: existing.compensationRevision,
+            membershipId: existing.id,
+            payBasis: employee.payBasis,
+            reasonNote: "Compensation updated through the legacy team compatibility workflow.",
+            reasonType: "OTHER",
+            source: "MANUAL",
+          },
+          context: canonicalPayrollProfileContext(args),
+        },
+        transaction,
+      );
+    }
+
+    if (workTargetChanged) {
+      await updateEmployeePayrollWorkTargetInTransaction(
+        {
+          command: {
+            commandId: randomUUID(),
+            expectedRevision: existing.workTargetRevision,
+            membershipId: existing.id,
+            normalWorkMinutesPerDay: employee.normalWorkMinutesPerDay,
+            reasonNote: "Payroll work target updated through the legacy team compatibility workflow.",
+            reasonType: "OTHER",
+            targetBreakMinutes: employee.targetBreakMinutes,
+          },
+          context: canonicalPayrollProfileContext(args),
         },
         transaction,
       );
@@ -628,6 +687,30 @@ export async function updateAttendanceEmployeeInTransaction(
 
   return updated;
 }
+
+function canonicalPayrollProfileContext(
+  args: AttendanceServiceContext,
+): PayrollProfileWriteContext {
+  if (!args.compensationAuthorization) {
+    throw new Error(
+      "Payroll profile changes require whole-business compensation authorization.",
+    );
+  }
+  return {
+    access: args.compensationAuthorization.access,
+    actor: args.actor,
+    allowedBranchIds: args.compensationAuthorization.allowedBranchIds,
+    businessId: args.businessId,
+    caller: "TEAM_ACTION",
+    request: args.request,
+  };
+}
+
+const canonicalTransactionOptions = {
+  isolationLevel: "Serializable" as const,
+  maxWait: 5_000,
+  timeout: 20_000,
+};
 
 type StoredAssignment = {
   id: string;
