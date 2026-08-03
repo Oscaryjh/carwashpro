@@ -18,6 +18,12 @@ import {
   safeCompensationAuditSnapshot,
   writeSensitiveAuditLog,
 } from "@/lib/audit/payroll-sensitive";
+import type { CompensationWriteAuthorization } from "@/lib/payroll/compensation-version";
+import {
+  currentPayrollMonthStart,
+  payrollMonthStart,
+  writeEmployeeCompensationVersionInTransaction,
+} from "@/lib/payroll/compensation-version";
 import { prisma } from "@/lib/prisma";
 import { synchronizeTeamMemberEmploymentState } from "@/lib/team/people-status";
 
@@ -31,6 +37,7 @@ export type AttendanceServiceContext = {
   actor: AttendanceServiceActor;
   request?: AuditRequestContext;
   wholeBusinessScope?: boolean;
+  compensationAuthorization?: CompensationWriteAuthorization;
 };
 
 export type AttendanceServiceDatabase = PrismaClient;
@@ -78,6 +85,14 @@ export async function createAttendanceEmployeeInTransaction(
     validatedEmployee.assignments,
     args.allowedBranchIds,
   );
+  if (
+    validatedEmployee.baseSalary !== null &&
+    !args.compensationAuthorization
+  ) {
+    throw new Error(
+      "Compensation setup must use the authorized version-aware workflow.",
+    );
+  }
 
   const employeeAccount = await transaction.employeeAccount.upsert({
     where: {
@@ -133,6 +148,30 @@ export async function createAttendanceEmployeeInTransaction(
         status: assignment.status,
       },
     });
+  }
+
+  if (validatedEmployee.baseSalary !== null) {
+    const currentMonth = currentPayrollMonthStart();
+    const joinedMonth = payrollMonthStart(validatedEmployee.joinedAt);
+    await writeEmployeeCompensationVersionInTransaction(
+      {
+        actor: args.actor,
+        authorization: args.compensationAuthorization!,
+        baseRate: validatedEmployee.baseSalary,
+        businessId: args.businessId,
+        effectiveFromMonth:
+          joinedMonth.getTime() > currentMonth.getTime()
+            ? joinedMonth
+            : currentMonth,
+        membershipId: membership.id,
+        payBasis: validatedEmployee.payBasis,
+        reasonNote: "Initial compensation setup through the unified team workflow.",
+        reasonType: "OTHER",
+        request: args.request,
+        source: "MANUAL",
+      },
+      transaction,
+    );
   }
 
   const created =
@@ -253,6 +292,14 @@ export async function updateAttendanceEmployeeInTransaction(
       },
       transaction,
     );
+    const compensationChanged =
+      employee.payBasis !== existing.payBasis ||
+      String(employee.baseSalary ?? "") !== String(existing.baseSalary ?? "");
+    if (compensationChanged && !args.compensationAuthorization) {
+      throw new Error(
+        "Compensation changes must use the authorized version-aware workflow.",
+      );
+    }
 
     const desiredBranchIds = new Set(
       submittedAssignments.map((assignment) => assignment.branchId),
@@ -318,8 +365,6 @@ export async function updateAttendanceEmployeeInTransaction(
           employmentType: employee.employmentType,
           status: employee.status,
           attendanceEnabled: employee.attendanceEnabled,
-          payBasis: employee.payBasis,
-          baseSalary: employee.baseSalary,
           normalWorkMinutesPerDay: employee.normalWorkMinutesPerDay,
           targetBreakMinutes: employee.targetBreakMinutes,
           joinedAt: employee.joinedAt,
@@ -331,6 +376,30 @@ export async function updateAttendanceEmployeeInTransaction(
     if (membershipUpdate.count === 0) {
       throw new Error(
         "Employee was changed by another user. Reload and try again.",
+      );
+    }
+
+    if (compensationChanged) {
+      if (employee.baseSalary === null) {
+        throw new Error(
+          "Removing an established base rate is not supported by the monthly compensation version model.",
+        );
+      }
+      await writeEmployeeCompensationVersionInTransaction(
+        {
+          actor: args.actor,
+          authorization: args.compensationAuthorization!,
+          baseRate: employee.baseSalary,
+          businessId: args.businessId,
+          effectiveFromMonth: currentPayrollMonthStart(),
+          membershipId: existing.id,
+          payBasis: employee.payBasis,
+          reasonNote: "Compensation updated through the legacy team compatibility workflow.",
+          reasonType: "OTHER",
+          request: args.request,
+          source: "MANUAL",
+        },
+        transaction,
       );
     }
 

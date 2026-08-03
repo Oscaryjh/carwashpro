@@ -188,6 +188,7 @@ export async function createStaffAction(formData: FormData) {
             : null,
       },
       input: buildEmployeeInput(input, businessId, "ACTIVE"),
+      compensationAccess: access,
       request: auditRequest,
       wholeBusinessScope,
     });
@@ -300,6 +301,7 @@ export async function updateStaffAction(formData: FormData) {
                 : null,
           },
           input: buildEmployeeInput(input, businessId, "ACTIVE"),
+          compensationAccess: access,
           legacyStaffUserId: staff.id,
           request: auditRequest,
           wholeBusinessScope,
@@ -438,6 +440,7 @@ export async function updateStaffAction(formData: FormData) {
         ...buildEmployeeInput(input, businessId, input.status, terminatedAt),
         employeeId: staff.employeeBusinessMembership.id,
       },
+      compensationAccess: access,
       request: auditRequest,
       userId: staff.id,
       wholeBusinessScope: hasWholeBusinessPeopleScope(access),

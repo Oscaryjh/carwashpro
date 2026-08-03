@@ -8,6 +8,7 @@ import {
 import { normalizeAttendancePhone } from "@/lib/attendance/phone";
 import type { AuditRequestContext } from "@/lib/audit";
 import { writeAuditLog } from "@/lib/audit";
+import type { ResolvedBusinessAccess } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
 import {
   buildPeopleMembershipScopeWhere,
@@ -38,6 +39,7 @@ export type CreateTeamMemberArgs = {
   legacyStaffUserId?: string;
   request?: AuditRequestContext;
   wholeBusinessScope?: boolean;
+  compensationAccess?: ResolvedBusinessAccess;
 };
 
 export type UpdateTeamMemberArgs = {
@@ -52,6 +54,7 @@ export type UpdateTeamMemberArgs = {
   request?: AuditRequestContext;
   userId: string;
   wholeBusinessScope?: boolean;
+  compensationAccess?: ResolvedBusinessAccess;
 };
 
 export type UpdateLegacyStaffProfileArgs = {
@@ -131,6 +134,12 @@ export async function createTeamMember(
             },
             request: args.request,
             wholeBusinessScope: args.wholeBusinessScope,
+            compensationAuthorization: args.compensationAccess
+              ? {
+                  access: args.compensationAccess,
+                  allowedBranchIds: args.allowedBranchIds,
+                }
+              : undefined,
           },
           transaction,
         )
@@ -142,6 +151,12 @@ export async function createTeamMember(
             input: employeeInput,
             request: args.request,
             wholeBusinessScope: args.wholeBusinessScope,
+            compensationAuthorization: args.compensationAccess
+              ? {
+                  access: args.compensationAccess,
+                  allowedBranchIds: args.allowedBranchIds,
+                }
+              : undefined,
           },
           transaction,
         );
@@ -318,6 +333,12 @@ export async function updateTeamMember(
         input: args.input,
         request: args.request,
         wholeBusinessScope: args.wholeBusinessScope,
+        compensationAuthorization: args.compensationAccess
+          ? {
+              access: args.compensationAccess,
+              allowedBranchIds: args.allowedBranchIds,
+            }
+          : undefined,
       },
       transaction,
     );

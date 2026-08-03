@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomInt, randomUUID } from "node:crypto";
 import test, { after } from "node:test";
 import { PrismaClient } from "@prisma/client";
+import type { ResolvedBusinessAccess } from "../../src/lib/business-groups/business-access";
 import {
   createTeamMember,
   linkExistingStaffToEmployee,
@@ -564,6 +565,7 @@ test("People service unifies employee, attendance, service, and POS identities w
         actor: actorFrom(fixture.actorA),
         allowedBranchIds: [fixture.branchA1.id, fixture.branchA2.id],
         businessId: fixture.businessA.id,
+        compensationAccess: businessOwnerAccess(fixture, fixture.businessA.id),
         expectedUpdatedAt: allFeaturesPerson.membership.updatedAt,
         features: allFeatures,
         input: employeeUpdateInput(
@@ -677,6 +679,7 @@ test("People service unifies employee, attendance, service, and POS identities w
         actor: actorFrom(fixture.actorA),
         allowedBranchIds: [fixture.branchA1.id, fixture.branchA2.id],
         businessId: fixture.businessA.id,
+        compensationAccess: businessOwnerAccess(fixture, fixture.businessA.id),
         expectedUpdatedAt: serviceOnly.membership.updatedAt,
         features: noFeatures(),
         input: employeeUpdateInput(
@@ -851,8 +854,12 @@ async function createPerson(input: {
   return createTeamMember(
     {
       actor: actorFrom(actor),
-      allowedBranchIds: [input.branchId],
+      allowedBranchIds:
+        input.businessId === input.fixture.businessA.id
+          ? [input.fixture.branchA1.id, input.fixture.branchA2.id]
+          : [input.fixture.branchB1.id],
       businessId: input.businessId,
+      compensationAccess: businessOwnerAccess(input.fixture, input.businessId),
       features: input.features,
       input: {
         assignments: [
@@ -1033,6 +1040,12 @@ async function cleanupFixture(
   await prisma.auditLog.deleteMany({
     where: { businessId: { in: businessIds } },
   });
+  await prisma.$transaction(async (transaction) => {
+    await transaction.$executeRaw`SELECT set_config('tetamu.compensation_version_maintenance', 'on', TRUE)`;
+    await transaction.employeeCompensationVersion.deleteMany({
+      where: { businessId: { in: businessIds } },
+    });
+  });
   await prisma.customer.deleteMany({
     where: { businessId: { in: businessIds } },
   });
@@ -1067,6 +1080,31 @@ async function cleanupFixture(
   await prisma.business.deleteMany({
     where: { id: { in: businessIds } },
   });
+}
+
+function businessOwnerAccess(
+  fixture: Awaited<ReturnType<typeof createFixture>>,
+  businessId: string,
+): ResolvedBusinessAccess {
+  const businessA = businessId === fixture.businessA.id;
+  const owner = businessA ? fixture.actorA : fixture.actorB;
+  const branch = businessA ? fixture.branchA1 : fixture.branchB1;
+  return {
+    actorRole: "BUSINESS_OWNER",
+    branchId: branch.id,
+    businessId,
+    capability: null,
+    effectiveBusinessRole: "BUSINESS_OWNER",
+    granted: true,
+    groupId: null,
+    groupUserId: null,
+    homeBusinessId: businessId,
+    identityRole: "BUSINESS_OWNER",
+    industryType: "AUTO_DETAILING",
+    permissions: [],
+    source: "DIRECT_BUSINESS",
+    userId: owner.id,
+  };
 }
 
 function assertLocalDatabase() {

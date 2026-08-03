@@ -6,6 +6,7 @@ import {
   writeSensitiveAuditLog,
 } from "@/lib/audit/payroll-sensitive";
 import { calculatePayroll, calculatePayrollTotals } from "@/lib/payroll/calculation";
+import { resolveEmployeeCompensationVersion } from "@/lib/payroll/compensation-version";
 import { calculateStatutoryContributions } from "@/lib/payroll/statutory";
 import { payrollTransition } from "@/lib/payroll/workflow";
 import { prisma } from "@/lib/prisma";
@@ -72,7 +73,6 @@ export async function generatePayrollRun(
       transaction.employeeBusinessMembership.findMany({
         where: {
           businessId: context.businessId,
-          baseSalary: { not: null },
           joinedAt: { lt: period.end },
           OR: [{ terminatedAt: null }, { terminatedAt: { gte: period.start } }],
         },
@@ -81,8 +81,6 @@ export async function generatePayrollRun(
           id: true,
           employeeCode: true,
           fullName: true,
-          payBasis: true,
-          baseSalary: true,
           normalWorkMinutesPerDay: true,
           dateOfBirth: true,
           statutoryNationality: true,
@@ -166,7 +164,27 @@ export async function generatePayrollRun(
     await transaction.payrollEntry.deleteMany({
       where: { businessId: context.businessId, payrollRunId: run.id },
     });
+    const appliedCompensations: Array<{
+      applicableMonth: string;
+      membershipId: string;
+      versionId: string;
+    }> = [];
     for (const membership of memberships) {
+      const compensation = await resolveEmployeeCompensationVersion(
+        {
+          businessId: context.businessId,
+          membershipId: membership.id,
+          payrollPeriodStart: period.start,
+        },
+        transaction,
+      );
+      appliedCompensations.push({
+        applicableMonth: compensation.effectiveFromMonth
+          .toISOString()
+          .slice(0, 7),
+        membershipId: membership.id,
+        versionId: compensation.versionId,
+      });
       const memberSessions = sessions.filter(
         (session) => session.membershipId === membership.id,
       );
@@ -182,8 +200,8 @@ export async function generatePayrollRun(
         .reduce((sum, day) => sum + Number(day.dayFraction), 0);
       const days = aggregateDays(memberSessions, holidayKeys);
       const calculation = calculatePayroll({
-        payBasis: membership.payBasis,
-        baseRateCents: moneyToCents(membership.baseSalary),
+        payBasis: compensation.payBasis,
+        baseRateCents: moneyToCents(compensation.baseRate),
         workingDaysPerMonth: setting.workingDaysPerMonth,
         normalWorkMinutesPerDay:
           membership.normalWorkMinutesPerDay ??
@@ -232,12 +250,14 @@ export async function generatePayrollRun(
           payrollRunId: run.id,
           businessId: context.businessId,
           membershipId: membership.id,
+          compensationVersionId: compensation.versionId,
+          compensationEffectiveFromMonthSnapshot:
+            compensation.effectiveFromMonth,
+          compensationSourceSnapshot: compensation.source,
           employeeCodeSnapshot: membership.employeeCode,
           fullNameSnapshot: membership.fullName,
-          payBasisSnapshot: membership.payBasis,
-          baseRateSnapshot: centsToMoney(
-            moneyToCents(membership.baseSalary),
-          ),
+          payBasisSnapshot: compensation.payBasis,
+          baseRateSnapshot: centsToMoney(moneyToCents(compensation.baseRate)),
           workingDaysSnapshot: setting.workingDaysPerMonth,
           normalWorkMinutesSnapshot:
             membership.normalWorkMinutesPerDay ??
@@ -286,7 +306,11 @@ export async function generatePayrollRun(
         entityType: "PayrollRun",
         entityId: run.id,
         summary: `${period.value} payroll draft generated for ${memberships.length} employees.`,
-        metadata: { month: period.value, employeeCount: memberships.length },
+        metadata: {
+          month: period.value,
+          employeeCount: memberships.length,
+          compensationVersions: appliedCompensations,
+        },
       },
       transaction,
     );
