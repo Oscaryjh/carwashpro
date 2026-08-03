@@ -29,6 +29,14 @@ const payrollCapabilityPermissions = [
   ["RESOLVE_STATUTORY_SUBMISSION", "Resolve statutory submissions"],
 ] as const;
 
+const claimCapabilityPermissions = [
+  ["VIEW_CLAIM", "View employee claims"],
+  ["REVIEW_CLAIM", "Review employee claims"],
+  ["VERIFY_CLAIM", "Verify employee claims as Finance"],
+  ["MANAGE_CLAIM_SETTINGS", "Manage claim categories and policy (not available yet)"],
+  ["LINK_CLAIM_TO_PAYROLL", "Schedule verified claims for payroll (not available yet)"],
+] as const;
+
 export const staffPermissions = [
   {
     key: "DASHBOARD",
@@ -121,6 +129,12 @@ export const staffPermissions = [
     label: "Manage attendance settings",
     description: "Update branch attendance and geofence settings.",
   },
+  ...claimCapabilityPermissions.map(([key, label]) => ({
+    key,
+    label,
+    description:
+      "Sensitive claim capability. Grant only for the required business function.",
+  })),
   {
     key: "PAYROLL_READ",
     label: "View payroll",
@@ -206,6 +220,10 @@ const impliedStaffPermissions: Partial<
 > = {
   ATTENDANCE_EMPLOYEE_MANAGE: ["ATTENDANCE_EMPLOYEE_READ"],
   ATTENDANCE_SETTINGS_MANAGE: ["ATTENDANCE_SETTINGS_READ"],
+  REVIEW_CLAIM: ["VIEW_CLAIM"],
+  VERIFY_CLAIM: ["VIEW_CLAIM"],
+  MANAGE_CLAIM_SETTINGS: ["VIEW_CLAIM"],
+  LINK_CLAIM_TO_PAYROLL: ["VIEW_CLAIM", "VIEW_PAYROLL_RUN", "PAYROLL_READ"],
   PAYROLL_MANAGE: ["PAYROLL_READ"],
   EDIT_COMPENSATION: ["VIEW_COMPENSATION", "PAYROLL_READ"],
   VIEW_COMPENSATION: ["PAYROLL_READ"],

@@ -15,6 +15,7 @@ tmp/
 .local-postgres-*.log
 .next-dev-*.log
 public/uploads/
+.claim-private-storage/
 .whatsapp-sessions/
 auth_info/
 logs/
