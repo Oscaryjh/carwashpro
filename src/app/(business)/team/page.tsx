@@ -58,7 +58,6 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   if (access.source === "DIRECT_BUSINESS") {
     assertStaffPermission(user, "TEAM");
   }
-  const canViewCompensation = hasBusinessCapability(access, "VIEW_COMPENSATION");
   const canEditCompensation = hasBusinessCapability(access, "EDIT_COMPENSATION");
   const canManageTeamPermissions = hasBusinessCapability(
     access,
@@ -160,10 +159,6 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
               phoneNumberNormalized: true,
               employeeCode: true,
               employmentType: true,
-              payBasis: canViewCompensation,
-              baseSalary: canViewCompensation,
-              normalWorkMinutesPerDay: true,
-              targetBreakMinutes: true,
               joinedAt: true,
               status: true,
               branchAssignments: {
@@ -453,18 +448,12 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           employeeProfile={
             editingStaff.employeeBusinessMembership
               ? {
+                  id: editingStaff.employeeBusinessMembership.id,
                   attendanceEnabled:
                     editingStaff.employeeBusinessMembership.attendanceEnabled,
                   employeeCode: editingStaff.employeeBusinessMembership.employeeCode,
                   employmentType:
                     editingStaff.employeeBusinessMembership.employmentType,
-                  payBasis: editingStaff.employeeBusinessMembership.payBasis,
-                  baseSalary:
-                    editingStaff.employeeBusinessMembership.baseSalary?.toString() ?? null,
-                  normalWorkMinutesPerDay:
-                    editingStaff.employeeBusinessMembership.normalWorkMinutesPerDay,
-                  targetBreakMinutes:
-                    editingStaff.employeeBusinessMembership.targetBreakMinutes,
                   joinedAt: formatDateInput(editingStaff.employeeBusinessMembership.joinedAt),
                   primaryBranchId:
                     editingStaff.employeeBusinessMembership.branchAssignments.find(
@@ -1220,10 +1209,6 @@ type StaffRow = {
     phoneNumberNormalized: string;
     employeeCode: string;
     employmentType: string;
-    payBasis: "MONTHLY" | "DAILY" | "HOURLY";
-    baseSalary: { toString(): string } | null;
-    normalWorkMinutesPerDay: number | null;
-    targetBreakMinutes: number | null;
     joinedAt: Date;
     status: "ACTIVE" | "SUSPENDED" | "TERMINATED";
     branchAssignments: Array<{

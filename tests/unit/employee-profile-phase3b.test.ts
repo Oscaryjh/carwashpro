@@ -187,14 +187,14 @@ test("Phase 3B route and UI are read-only and exclude unrelated payroll domains"
   assert.match(loader, /VIEW_TAX_PROFILE/);
   assert.match(component, /Statutory contributions/);
   assert.match(component, /Tax & submission identity/);
-  assert.match(component, /Sensitive · Read only/);
+  assert.match(component, /Sensitive payroll profile/);
   assert.match(component, /result\.reason === "CAPABILITY"\) return null/);
   assert.match(component, /statutorySetupStatus\(data\)/);
   assert.match(component, /taxSetupStatus\(data\)/);
   assert.match(component, /"Not enrolled"/);
   assert.match(component, /"Not applicable"/);
   assert.doesNotMatch(component, /Ready for submission/);
-  assert.doesNotMatch(component, /<form|<input|<button/);
+  assert.doesNotMatch(component, /Edit statutory|Edit tax|name="epf|name="socso|name="tin/);
   assert.doesNotMatch(
     loader,
     /bankAccount|paymentBatch|payrollEntry|payslip/i,

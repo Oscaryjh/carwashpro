@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   getDefaultStaffPermissionsForIndustry,
   getStaffPermissionsForIndustry,
@@ -30,14 +31,11 @@ type StaffFormProps = {
   canManagePermissions: boolean;
   staff?: StaffFormStaff;
   employeeProfile?: {
+    id: string;
     attendanceEnabled: boolean;
     canClockInBranchIds: string[];
     employeeCode: string;
     employmentType: string;
-    payBasis: "MONTHLY" | "DAILY" | "HOURLY";
-    baseSalary: string | null;
-    normalWorkMinutesPerDay: number | null;
-    targetBreakMinutes: number | null;
     joinedAt: string;
     primaryBranchId: string;
     status: "ACTIVE" | "SUSPENDED" | "TERMINATED";
@@ -230,56 +228,40 @@ export function StaffForm({
                   <option value="HOURLY">Hourly</option>
                 </select>
               </label>
-              <label>
-                <span>Pay basis</span>
-                <select
-                  defaultValue={employeeProfile?.payBasis ?? "MONTHLY"}
-                  name="payBasis"
-                >
-                  <option value="MONTHLY">Monthly salary</option>
-                  <option value="DAILY">Daily rate</option>
-                  <option value="HOURLY">Hourly rate</option>
-                </select>
-              </label>
-              <label>
-                <span>Base pay (RM)</span>
-                <input
-                  defaultValue={employeeProfile?.baseSalary ?? ""}
-                  inputMode="decimal"
-                  min="0"
-                  name="baseSalary"
-                  placeholder="2000.00"
-                  step="0.01"
-                  type="number"
-                />
-                <small className="form-hint">
-                  Statutory amounts are reviewed and entered in each monthly Payroll run.
-                </small>
-              </label>
-              <label>
-                <span>Paid work minutes / day (optional)</span>
-                <input
-                  defaultValue={employeeProfile?.normalWorkMinutesPerDay ?? ""}
-                  max="1440"
-                  min="60"
-                  name="normalWorkMinutesPerDay"
-                  placeholder="Use branch policy"
-                  step="1"
-                  type="number"
-                />
-              </label>
-              <label>
-                <span>Expected break minutes (optional)</span>
-                <input
-                  defaultValue={employeeProfile?.targetBreakMinutes ?? ""}
-                  max="480"
-                  min="0"
-                  name="targetBreakMinutes"
-                  placeholder="Use branch policy"
-                  step="1"
-                  type="number"
-                />
-              </label>
+              {!isEdit || createEmploymentProfile ? (
+                <>
+                  <label>
+                    <span>Pay basis</span>
+                    <select defaultValue="MONTHLY" name="payBasis">
+                      <option value="MONTHLY">Monthly salary</option>
+                      <option value="DAILY">Daily rate</option>
+                      <option value="HOURLY">Hourly rate</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Base pay (RM)</span>
+                    <input inputMode="decimal" min="0" name="baseSalary" placeholder="2000.00" step="0.01" type="number" />
+                  </label>
+                  <label>
+                    <span>Paid work minutes / day (optional)</span>
+                    <input max="1440" min="60" name="normalWorkMinutesPerDay" placeholder="Use branch policy" step="1" type="number" />
+                  </label>
+                  <label>
+                    <span>Expected break minutes (optional)</span>
+                    <input max="480" min="0" name="targetBreakMinutes" placeholder="Use branch policy" step="1" type="number" />
+                  </label>
+                </>
+              ) : employeeProfile ? (
+                <div className="staff-payroll-profile-link">
+                  <strong>Compensation and payroll work target</strong>
+                  <small>
+                    Sensitive payroll fields are maintained in the employee&apos;s Payroll Profile with an effective month, reason and audit record.
+                  </small>
+                  <Link href={`/team/people/${employeeProfile.id}?section=payroll`}>
+                    Open Payroll Profile
+                  </Link>
+                </div>
+              ) : null}
               <label>
                 <span>Joined date</span>
                 <input

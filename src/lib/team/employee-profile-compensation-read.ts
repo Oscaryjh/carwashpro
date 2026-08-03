@@ -23,8 +23,19 @@ export type EmployeeCompensationSectionResult =
       status: "READY";
       data: {
         id: string;
+        canEdit: boolean;
+        compensationRevision: number;
+        workTargetRevision: number;
+        currentPayrollMonth: string;
+        effectiveFromMonth: string | null;
+        affectedDrafts: number;
         payBasis: "MONTHLY" | "DAILY" | "HOURLY";
         baseRate: string | null;
+        nextScheduledCompensation: {
+          baseRate: string;
+          effectiveFromMonth: string;
+          payBasis: "MONTHLY" | "DAILY" | "HOURLY";
+        } | null;
         workingDaysPerMonth: number;
         normalWorkMinutesPerDay: number;
         normalWorkPolicySource:
@@ -62,7 +73,14 @@ export async function loadEmployeeCompensationSection(
     return { status: "ACCESS_DENIED", reason: "WHOLE_BUSINESS_SCOPE" };
   }
 
-  const [membership, payrollSetting] = await Promise.all([
+  const business = await database.business.findUnique({
+    where: { id: input.businessId },
+    select: { timezone: true },
+  });
+  if (!business) return { status: "NOT_FOUND" };
+  const currentMonth = payrollMonthInTimezone(business.timezone || "Asia/Kuching");
+
+  const [membership, payrollSetting, currentVersion, nextVersion, affectedDrafts] = await Promise.all([
     database.employeeBusinessMembership.findFirst({
       where: {
         businessId: input.businessId,
@@ -70,6 +88,8 @@ export async function loadEmployeeCompensationSection(
       },
       select: {
         id: true,
+        compensationRevision: true,
+        workTargetRevision: true,
         payBasis: true,
         baseSalary: true,
         normalWorkMinutesPerDay: true,
@@ -82,6 +102,33 @@ export async function loadEmployeeCompensationSection(
         workingDaysPerMonth: true,
         normalWorkMinutesPerDay: true,
         breakMinutesPerDay: true,
+      },
+    }),
+    database.employeeCompensationVersion.findFirst({
+      where: {
+        businessId: input.businessId,
+        membershipId: input.membershipId,
+        status: "ACTIVE",
+        effectiveFromMonth: { lte: currentMonth },
+      },
+      orderBy: [{ effectiveFromMonth: "desc" }, { createdAt: "desc" }],
+      select: { baseRate: true, effectiveFromMonth: true, payBasis: true },
+    }),
+    database.employeeCompensationVersion.findFirst({
+      where: {
+        businessId: input.businessId,
+        membershipId: input.membershipId,
+        status: "ACTIVE",
+        effectiveFromMonth: { gt: currentMonth },
+      },
+      orderBy: [{ effectiveFromMonth: "asc" }, { createdAt: "desc" }],
+      select: { baseRate: true, effectiveFromMonth: true, payBasis: true },
+    }),
+    database.payrollRun.count({
+      where: {
+        businessId: input.businessId,
+        status: "DRAFT",
+        entries: { some: { membershipId: input.membershipId } },
       },
     }),
   ]);
@@ -105,8 +152,23 @@ export async function loadEmployeeCompensationSection(
     status: "READY",
     data: {
       id: membership.id,
-      payBasis: membership.payBasis,
-      baseRate: membership.baseSalary?.toString() ?? null,
+      canEdit: hasBusinessCapability(input.access, "EDIT_COMPENSATION"),
+      compensationRevision: membership.compensationRevision,
+      workTargetRevision: membership.workTargetRevision,
+      currentPayrollMonth: formatMonth(currentMonth),
+      effectiveFromMonth: currentVersion
+        ? formatMonth(currentVersion.effectiveFromMonth)
+        : null,
+      affectedDrafts,
+      payBasis: currentVersion?.payBasis ?? membership.payBasis,
+      baseRate: currentVersion?.baseRate.toString() ?? membership.baseSalary?.toString() ?? null,
+      nextScheduledCompensation: nextVersion
+        ? {
+            baseRate: nextVersion.baseRate.toString(),
+            effectiveFromMonth: formatMonth(nextVersion.effectiveFromMonth),
+            payBasis: nextVersion.payBasis,
+          }
+        : null,
       workingDaysPerMonth:
         payrollSetting?.workingDaysPerMonth ??
         DEFAULT_PAYROLL_SETTING.workingDaysPerMonth,
@@ -122,4 +184,19 @@ export async function loadEmployeeCompensationSection(
       targetBreakPolicySource,
     },
   };
+}
+
+function payrollMonthInTimezone(timezone: string, now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    month: "2-digit",
+    timeZone: timezone,
+    year: "numeric",
+  }).formatToParts(now);
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  return new Date(Date.UTC(year, month - 1, 1));
+}
+
+function formatMonth(value: Date) {
+  return value.toISOString().slice(0, 7);
 }

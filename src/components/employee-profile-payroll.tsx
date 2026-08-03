@@ -1,4 +1,9 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
+import {
+  scheduleEmployeeCompensationChangeAction,
+  updateEmployeePayrollWorkTargetAction,
+} from "@/app/(business)/team/people/[personId]/payroll/actions";
 import type { EmployeeCompensationSectionResult } from "@/lib/team/employee-profile-compensation-read";
 import type { EmployeePayrollNavigationResult } from "@/lib/team/employee-profile-payroll-navigation-read";
 import type { EmployeeStatutoryProfileResult } from "@/lib/team/employee-profile-statutory-read";
@@ -7,10 +12,12 @@ import styles from "./employee-profile-shell.module.css";
 export function EmployeeProfilePayroll({
   compensation,
   navigation,
+  notice,
   statutoryProfile,
 }: {
   compensation: EmployeeCompensationSectionResult;
   navigation: EmployeePayrollNavigationResult;
+  notice: PayrollUpdateNoticeValue | null;
   statutoryProfile: EmployeeStatutoryProfileResult;
 }) {
   if (
@@ -31,8 +38,10 @@ export function EmployeeProfilePayroll({
             role. Monthly calculation details remain in Payroll Runs.
           </p>
         </div>
-        <span className={styles.scopeBadge}>Sensitive · Read only</span>
+        <span className={styles.scopeBadge}>Sensitive payroll profile</span>
       </section>
+
+      {notice ? <PayrollUpdateNotice notice={notice} /> : null}
 
       <div className={styles.profileGrid}>
         <CompensationPanels result={compensation} />
@@ -41,6 +50,45 @@ export function EmployeeProfilePayroll({
       </div>
       <PayrollNavigation result={navigation} />
     </div>
+  );
+}
+
+type PayrollUpdateNoticeValue = {
+  affectedDrafts: number | null;
+  effectiveMonth: string | null;
+  kind: "compensation" | "work-target";
+  message: string;
+  status: "error" | "success";
+};
+
+function PayrollUpdateNotice({ notice }: { notice: PayrollUpdateNoticeValue }) {
+  return (
+    <section
+      className={styles.payrollUpdateNotice}
+      data-status={notice.status}
+      role={notice.status === "error" ? "alert" : "status"}
+    >
+      <div>
+        <strong>{notice.status === "success" ? "Payroll profile saved" : "Update not saved"}</strong>
+        <p>{notice.message}</p>
+        {notice.status === "success" && notice.effectiveMonth ? (
+          <p>Effective payroll month: {formatMonthValue(notice.effectiveMonth)}.</p>
+        ) : null}
+        {notice.status === "success" && notice.affectedDrafts !== null ? (
+          <p>
+            {notice.affectedDrafts > 0
+              ? `${notice.affectedDrafts} existing Draft Payroll Run must be refreshed manually before it uses this change.`
+              : "No existing Draft Payroll Run is waiting for a manual refresh."}
+          </p>
+        ) : null}
+      </div>
+      {notice.status === "success" ? (
+        <div className={styles.payrollNoticeActions}>
+          <Link href="/team/payroll/workspace">Payroll Workspace</Link>
+          <Link href="/team/payroll/runs">Payroll Runs</Link>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -237,12 +285,31 @@ function CompensationPanels({
             value={formatMoney(data.baseRate)}
           />
           <PayrollDetail label="Currency" value="MYR" />
-          <PayrollDetail label="Effective date" value="Not tracked" />
+          <PayrollDetail
+            label="Effective payroll month"
+            value={
+              data.effectiveFromMonth
+                ? formatMonthValue(data.effectiveFromMonth)
+                : "Legacy current setup"
+            }
+          />
         </div>
+        {data.nextScheduledCompensation ? (
+          <div className={styles.scheduledChange}>
+            <strong>
+              Scheduled for {formatMonthValue(data.nextScheduledCompensation.effectiveFromMonth)}
+            </strong>
+            <span>
+              {formatEnum(data.nextScheduledCompensation.payBasis)} ·{" "}
+              {formatMoney(data.nextScheduledCompensation.baseRate)}
+            </span>
+          </div>
+        ) : null}
         <p className={styles.policyNote}>
-          This is the current setup, not salary history. Existing Payroll Runs
-          retain their own pay-basis and base-rate snapshots.
+          Changes are monthly-effective. Finalized and locked Payroll Runs retain
+          their original compensation snapshots. Existing Drafts are not refreshed automatically.
         </p>
+        {data.canEdit ? <CompensationEditForm data={data} /> : null}
       </section>
 
       <section className={styles.profilePanel}>
@@ -276,8 +343,155 @@ function CompensationPanels({
           Paid work target: {data.normalWorkPolicySource}. Expected break: {data.targetBreakPolicySource}.
           These targets do not classify attendance as overtime.
         </div>
+        {data.canEdit ? <WorkTargetEditForm data={data} /> : null}
       </section>
     </>
+  );
+}
+
+function CompensationEditForm({
+  data,
+}: {
+  data: Extract<EmployeeCompensationSectionResult, { status: "READY" }>["data"];
+}) {
+  return (
+    <details className={styles.payrollEditDisclosure}>
+      <summary>Edit compensation</summary>
+      <form action={scheduleEmployeeCompensationChangeAction} className={styles.payrollEditForm}>
+        <input name="commandId" type="hidden" value={randomUUID()} />
+        <input name="expectedRevision" type="hidden" value={data.compensationRevision} />
+        <input name="membershipId" type="hidden" value={data.id} />
+        <div className={styles.payrollFormGrid}>
+          <label>
+            <span>Effective payroll month</span>
+            <input
+              defaultValue={data.currentPayrollMonth}
+              min={data.currentPayrollMonth}
+              name="effectiveFromMonth"
+              required
+              type="month"
+            />
+          </label>
+          <label>
+            <span>Pay basis</span>
+            <select defaultValue={data.payBasis} name="payBasis">
+              <option value="MONTHLY">Monthly salary</option>
+              <option value="DAILY">Daily rate</option>
+              <option value="HOURLY">Hourly rate</option>
+            </select>
+          </label>
+          <label>
+            <span>Base rate (RM)</span>
+            <input
+              defaultValue={data.baseRate ?? ""}
+              inputMode="decimal"
+              min="0"
+              name="baseRate"
+              required
+              step="0.01"
+              type="number"
+            />
+          </label>
+          <ReasonFields />
+        </div>
+        <DraftImpactWarning count={data.affectedDrafts} />
+        <button type="submit">Save compensation change</button>
+      </form>
+    </details>
+  );
+}
+
+function WorkTargetEditForm({
+  data,
+}: {
+  data: Extract<EmployeeCompensationSectionResult, { status: "READY" }>["data"];
+}) {
+  return (
+    <details className={styles.payrollEditDisclosure}>
+      <summary>Edit payroll work target</summary>
+      <form action={updateEmployeePayrollWorkTargetAction} className={styles.payrollEditForm}>
+        <input name="commandId" type="hidden" value={randomUUID()} />
+        <input name="expectedRevision" type="hidden" value={data.workTargetRevision} />
+        <input name="membershipId" type="hidden" value={data.id} />
+        <div className={styles.payrollFormGrid}>
+          <label>
+            <span>Paid work minutes / day</span>
+            <input
+              defaultValue={data.normalWorkPolicySource === "Employee profile" ? data.normalWorkMinutesPerDay : ""}
+              max="1440"
+              min="1"
+              name="normalWorkMinutesPerDay"
+              placeholder="Use company fallback"
+              step="1"
+              type="number"
+            />
+          </label>
+          <label>
+            <span>Expected break minutes / day</span>
+            <input
+              defaultValue={data.targetBreakPolicySource === "Employee profile" ? data.targetBreakMinutes : ""}
+              max="1440"
+              min="1"
+              name="targetBreakMinutes"
+              placeholder="Use company fallback"
+              step="1"
+              type="number"
+            />
+          </label>
+          <ReasonFields />
+        </div>
+        <p className={styles.formHint}>
+          Leave an override blank to use the current company or system fallback.
+        </p>
+        <DraftImpactWarning count={data.affectedDrafts} />
+        <button type="submit">Save work target</button>
+      </form>
+    </details>
+  );
+}
+
+function ReasonFields() {
+  return (
+    <>
+      <label>
+        <span>Reason category</span>
+        <select defaultValue="PAYROLL_POLICY_CHANGE" name="reasonType">
+          <option value="ANNUAL_INCREMENT">Annual increment</option>
+          <option value="PROMOTION">Promotion</option>
+          <option value="ROLE_CHANGE">Role change</option>
+          <option value="MARKET_ADJUSTMENT">Market adjustment</option>
+          <option value="SALARY_CORRECTION">Salary correction</option>
+          <option value="PAYROLL_POLICY_CHANGE">Payroll policy change</option>
+          <option value="EMPLOYEE_PROVIDED_CORRECTION">Employee-provided correction</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </label>
+      <label className={styles.reasonField}>
+        <span>Change reason</span>
+        <textarea
+          maxLength={500}
+          minLength={5}
+          name="reasonNote"
+          placeholder="Explain why this payroll profile is changing"
+          required
+          rows={3}
+        />
+      </label>
+    </>
+  );
+}
+
+function DraftImpactWarning({ count }: { count: number }) {
+  return (
+    <div className={styles.draftImpactWarning}>
+      <strong>
+        {count ? `${count} Draft Payroll Run affected` : "No current Draft Payroll Run detected"}
+      </strong>
+      <span>
+        Saving does not recalculate an existing Draft. Refresh the Draft manually to use current
+        profile settings; refresh may clear manual payroll-entry adjustments.
+      </span>
+    </div>
   );
 }
 
@@ -591,4 +805,8 @@ function formatMonth(value: string) {
     year: "numeric",
     timeZone: "Asia/Kuala_Lumpur",
   }).format(new Date(value));
+}
+
+function formatMonthValue(value: string) {
+  return formatMonth(`${value}-01T00:00:00.000Z`);
 }

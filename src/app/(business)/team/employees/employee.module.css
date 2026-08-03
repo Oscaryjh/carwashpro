@@ -1081,3 +1081,23 @@
     animation: none;
   }
 }
+
+.payrollProfileNotice {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #b8ded8;
+  border-radius: 9px;
+  background: #f0faf8;
+  color: #365d59;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.payrollProfileNotice a {
+  width: fit-content;
+  color: #08786f;
+  font-weight: 850;
+  text-decoration: none;
+}

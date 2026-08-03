@@ -12,6 +12,12 @@ const membershipId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 test("Phase 3A loads only current compensation after capability and whole-business scope checks", async () => {
   const calls: Array<{ model: string; query: unknown }> = [];
   const database = {
+    business: {
+      findUnique(query: unknown) {
+        calls.push({ model: "business", query });
+        return Promise.resolve({ timezone: "Asia/Kuala_Lumpur" });
+      },
+    },
     branch: {
       count(query: unknown) {
         calls.push({ model: "branch", query });
@@ -23,6 +29,8 @@ test("Phase 3A loads only current compensation after capability and whole-busine
         calls.push({ model: "membership", query });
         return Promise.resolve({
           id: membershipId,
+          compensationRevision: 2,
+          workTargetRevision: 3,
           payBasis: "MONTHLY",
           baseSalary: { toString: () => "3200.00" },
           normalWorkMinutesPerDay: null,
@@ -38,6 +46,22 @@ test("Phase 3A loads only current compensation after capability and whole-busine
           normalWorkMinutesPerDay: 480,
           breakMinutesPerDay: 60,
         });
+      },
+    },
+    employeeCompensationVersion: {
+      findFirst(query: { where?: { effectiveFromMonth?: { lte?: Date } } }) {
+        calls.push({ model: "compensationVersion", query });
+        return Promise.resolve(query.where?.effectiveFromMonth?.lte ? {
+          baseRate: { toString: () => "3200.00" },
+          effectiveFromMonth: new Date("2026-08-01T00:00:00.000Z"),
+          payBasis: "MONTHLY",
+        } : null);
+      },
+    },
+    payrollRun: {
+      count(query: unknown) {
+        calls.push({ model: "payrollRun", query });
+        return Promise.resolve(1);
       },
     },
   } as unknown as PrismaClient;
@@ -59,6 +83,10 @@ test("Phase 3A loads only current compensation after capability and whole-busine
   assert.equal(result.data.normalWorkPolicySource, "Company payroll settings");
   assert.equal(result.data.targetBreakMinutes, 45);
   assert.equal(result.data.targetBreakPolicySource, "Employee profile");
+  assert.equal(result.data.compensationRevision, 2);
+  assert.equal(result.data.workTargetRevision, 3);
+  assert.equal(result.data.affectedDrafts, 1);
+  assert.equal(result.data.effectiveFromMonth, "2026-08");
 
   const membershipQuery = calls.find((call) => call.model === "membership");
   const serialized = JSON.stringify(membershipQuery?.query);
@@ -134,7 +162,7 @@ test("Phase 3A does not load salary for branch-restricted staff", async () => {
   assert.equal(sensitiveQueryCount, 0);
 });
 
-test("Phase 3A compensation loader remains isolated after later read-only phases", async () => {
+test("Phase 4A compensation UI uses canonical commands and keeps sensitive domains isolated", async () => {
   const root = process.cwd();
   const [route, loader, component] = await Promise.all([
     readFile(path.join(root, "src/app/(business)/team/people/[personId]/page.tsx"), "utf8"),
@@ -144,8 +172,13 @@ test("Phase 3A compensation loader remains isolated after later read-only phases
   assert.match(route, /activeSection === "payroll"/);
   assert.match(route, /loadEmployeeCompensationSection/);
   assert.match(loader, /VIEW_COMPENSATION/);
-  assert.match(component, /Sensitive · Read only/);
-  assert.doesNotMatch(component, /<form|<input|<button/);
+  assert.match(component, /Sensitive payroll profile/);
+  assert.match(component, /scheduleEmployeeCompensationChangeAction/);
+  assert.match(component, /updateEmployeePayrollWorkTargetAction/);
+  assert.match(component, /Effective payroll month/);
+  assert.match(component, /Change reason/);
+  assert.match(component, /Draft Payroll Run affected/);
+  assert.doesNotMatch(component, /prisma\./);
   for (const forbidden of [
     "statutoryNationality",
     "statutoryIdentityNumber",

@@ -39,7 +39,14 @@ import { loadEmployeePayrollNavigationSection } from "@/lib/team/employee-profil
 
 type EmployeeProfilePageProps = {
   params: Promise<{ personId: string }>;
-  searchParams: Promise<{ section?: string }>;
+  searchParams: Promise<{
+    affectedDrafts?: string;
+    effectiveMonth?: string;
+    payrollUpdate?: string;
+    payrollUpdateMessage?: string;
+    payrollUpdateStatus?: string;
+    section?: string;
+  }>;
 };
 
 export default async function EmployeeProfilePage({
@@ -218,6 +225,7 @@ export default async function EmployeeProfilePage({
       <EmployeeProfilePayroll
         compensation={compensation}
         navigation={payrollNavigation}
+        notice={parsePayrollUpdateNotice(query)}
         statutoryProfile={statutoryProfile}
       />
     );
@@ -232,4 +240,28 @@ export default async function EmployeeProfilePage({
       visibleTabs={getVisibleEmployeeProfileTabs(context.access)}
     />
   );
+}
+
+function parsePayrollUpdateNotice(query: {
+  affectedDrafts?: string;
+  effectiveMonth?: string;
+  payrollUpdate?: string;
+  payrollUpdateMessage?: string;
+  payrollUpdateStatus?: string;
+}) {
+  if (
+    (query.payrollUpdate !== "compensation" && query.payrollUpdate !== "work-target") ||
+    (query.payrollUpdateStatus !== "success" && query.payrollUpdateStatus !== "error")
+  ) return null;
+  const draftCount = z.coerce.number().int().min(0).max(999).safeParse(query.affectedDrafts);
+  const effectiveMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(query.effectiveMonth ?? "")
+    ? query.effectiveMonth!
+    : null;
+  return {
+    affectedDrafts: draftCount.success ? draftCount.data : null,
+    effectiveMonth,
+    kind: query.payrollUpdate,
+    message: (query.payrollUpdateMessage ?? "Payroll profile updated.").slice(0, 180),
+    status: query.payrollUpdateStatus,
+  } as const;
 }

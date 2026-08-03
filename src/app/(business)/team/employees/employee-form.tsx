@@ -8,6 +8,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import Link from "next/link";
 import {
   createAttendanceEmployeeAction,
   updateAttendanceEmployeeAction,
@@ -32,7 +33,6 @@ export type AttendanceEmployeeFormAssignment = {
 export type AttendanceEmployeeFormValues = {
   attendanceEnabled: boolean;
   assignments: AttendanceEmployeeFormAssignment[];
-  baseSalary: string | null;
   employeeCode: string;
   employeeId: string;
   employmentType:
@@ -43,12 +43,9 @@ export type AttendanceEmployeeFormValues = {
     | "HOURLY";
   fullName: string;
   joinedAt: string;
-  normalWorkMinutesPerDay: number | null;
-  payBasis: "MONTHLY" | "DAILY" | "HOURLY";
   phoneNumber: string;
   status: "ACTIVE" | "SUSPENDED" | "TERMINATED";
   terminatedAt: string;
-  targetBreakMinutes: number | null;
   updatedAt: string;
 };
 
@@ -433,63 +430,20 @@ export function AttendanceEmployeeForm({
           </label>
 
 
-          <label>
-            Pay basis
-            <select
-              defaultValue={employee?.payBasis ?? "MONTHLY"}
-              name="payBasis"
-            >
-              <option value="MONTHLY">Monthly salary</option>
-              <option value="DAILY">Daily rate</option>
-              <option value="HOURLY">Hourly rate</option>
-            </select>
-            <FieldErrors errors={state.fieldErrors?.payBasis} />
-          </label>
-
-          <label>
-            Base pay (RM)
-            <input
-              defaultValue={employee?.baseSalary ?? ""}
-              inputMode="decimal"
-              min="0"
-              name="baseSalary"
-              placeholder="2000.00"
-              step="0.01"
-              type="number"
-            />
-            <small>
-              Statutory amounts are reviewed and entered in each monthly Payroll run.
-            </small>
-            <FieldErrors errors={state.fieldErrors?.baseSalary} />
-          </label>
-
-          <label>
-            Paid work minutes / day
-            <input
-              defaultValue={employee?.normalWorkMinutesPerDay ?? ""}
-              max="1440"
-              min="60"
-              name="normalWorkMinutesPerDay"
-              placeholder="Use branch policy"
-              step="1"
-              type="number"
-            />
-            <FieldErrors errors={state.fieldErrors?.normalWorkMinutesPerDay} />
-          </label>
-
-          <label>
-            Expected break minutes
-            <input
-              defaultValue={employee?.targetBreakMinutes ?? ""}
-              max="480"
-              min="0"
-              name="targetBreakMinutes"
-              placeholder="Use branch policy"
-              step="1"
-              type="number"
-            />
-            <FieldErrors errors={state.fieldErrors?.targetBreakMinutes} />
-          </label>
+          <div className={styles.payrollProfileNotice}>
+            <strong>Compensation and payroll work target</strong>
+            <span>
+              These sensitive fields are maintained in Employee Payroll Profile with an
+              effective month, change reason and audit record.
+            </span>
+            {employee ? (
+              <Link href={`/team/people/${employee.employeeId}?section=payroll`}>
+                Open Payroll Profile
+              </Link>
+            ) : (
+              <small>Create the employee first, then complete the Payroll Profile.</small>
+            )}
+          </div>
 
           <label>
             Employment status

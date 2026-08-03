@@ -668,6 +668,145 @@
   line-height: 1.55;
 }
 
+.payrollUpdateNotice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 17px;
+  border: 1px solid #a9ded0;
+  border-radius: 10px;
+  background: #eefaf6;
+  color: #185c50;
+}
+
+.payrollUpdateNotice[data-status="error"] {
+  border-color: #efb8b1;
+  background: #fff2f0;
+  color: #8d332b;
+}
+
+.payrollUpdateNotice p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.payrollNoticeActions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.payrollNoticeActions a {
+  padding: 8px 10px;
+  border: 1px solid currentColor;
+  border-radius: 7px;
+  color: inherit;
+  font-size: 10px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.scheduledChange {
+  display: grid;
+  gap: 3px;
+  margin-top: 13px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: #eef5ff;
+  color: #2f577c;
+  font-size: 11px;
+}
+
+.payrollEditDisclosure {
+  margin-top: 14px;
+  border-top: 1px solid #e7edf1;
+}
+
+.payrollEditDisclosure summary {
+  padding: 14px 0 0;
+  color: var(--accent-strong, #08786f);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.payrollEditForm {
+  display: grid;
+  gap: 13px;
+  margin-top: 14px;
+  padding: 15px;
+  border-radius: 9px;
+  background: #f7fafb;
+}
+
+.payrollFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.payrollFormGrid label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.payrollFormGrid label > span {
+  color: #4f6070;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.payrollFormGrid input,
+.payrollFormGrid select,
+.payrollFormGrid textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #cad7de;
+  border-radius: 7px;
+  background: #fff;
+  color: #172231;
+  font: inherit;
+  font-size: 11px;
+}
+
+.reasonField {
+  grid-column: 1 / -1;
+}
+
+.formHint {
+  margin: 0;
+  color: var(--muted, #64748b);
+  font-size: 10px;
+}
+
+.draftImpactWarning {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border-left: 3px solid #d99722;
+  border-radius: 6px;
+  background: #fff8e8;
+  color: #6e4b11;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.payrollEditForm button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--accent, #0c7e74);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 850;
+}
+
 @media (max-width: 760px) {
   .page {
     padding: 16px 12px 32px;
@@ -787,8 +926,37 @@
     min-height: 0;
   }
 
+  .payrollUpdateNotice,
+  .payrollNoticeActions {
+    flex-direction: column;
+  }
+
+  .payrollNoticeActions {
+    width: 100%;
+  }
+
+  .payrollNoticeActions a {
+    width: 100%;
+    text-align: center;
+  }
+
+  .payrollFormGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reasonField {
+    grid-column: auto;
+  }
+
   .detailList > div {
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 360px) {
+  .tabs a {
+    font-size: 9px;
+    letter-spacing: -0.01em;
   }
 }
 

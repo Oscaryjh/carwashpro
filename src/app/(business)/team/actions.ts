@@ -77,9 +77,28 @@ const createStaffSchema = z.object(teamMemberShape).superRefine((input, context)
   validateTeamMemberForm(input, context, true);
 });
 
+const teamMemberUpdateShape = {
+  attendanceEnabled: teamMemberShape.attendanceEnabled,
+  branchIds: teamMemberShape.branchIds,
+  canClockInBranchIds: teamMemberShape.canClockInBranchIds,
+  email: teamMemberShape.email,
+  employeeCode: teamMemberShape.employeeCode,
+  employmentType: teamMemberShape.employmentType,
+  joinedAt: teamMemberShape.joinedAt,
+  name: teamMemberShape.name,
+  password: teamMemberShape.password,
+  posAccess: teamMemberShape.posAccess,
+  primaryBranchId: teamMemberShape.primaryBranchId,
+  providesServices: teamMemberShape.providesServices,
+  serviceIds: teamMemberShape.serviceIds,
+  staffLevelId: teamMemberShape.staffLevelId,
+  staffRoleProfileId: teamMemberShape.staffRoleProfileId,
+  whatsappPhone: teamMemberShape.whatsappPhone,
+};
+
 const updateStaffSchema = z
   .object({
-    ...teamMemberShape,
+    ...teamMemberUpdateShape,
     status: employmentStatusSchema,
     userId: z.string().uuid(),
   })
@@ -233,7 +252,11 @@ export async function updateStaffAction(formData: FormData) {
       select: {
         employeeBusinessMembership: {
           select: {
+            baseSalary: true,
             id: true,
+            normalWorkMinutesPerDay: true,
+            payBasis: true,
+            targetBreakMinutes: true,
             terminatedAt: true,
             updatedAt: true,
           },
@@ -437,7 +460,23 @@ export async function updateStaffAction(formData: FormData) {
             : null,
       },
       input: {
-        ...buildEmployeeInput(input, businessId, input.status, terminatedAt),
+        ...buildEmployeeInput(
+          {
+            ...input,
+            baseSalary:
+              staff.employeeBusinessMembership.baseSalary === null
+                ? null
+                : Number(staff.employeeBusinessMembership.baseSalary),
+            normalWorkMinutesPerDay:
+              staff.employeeBusinessMembership.normalWorkMinutesPerDay,
+            payBasis: staff.employeeBusinessMembership.payBasis,
+            targetBreakMinutes:
+              staff.employeeBusinessMembership.targetBreakMinutes,
+          },
+          businessId,
+          input.status,
+          terminatedAt,
+        ),
         employeeId: staff.employeeBusinessMembership.id,
       },
       compensationAccess: access,

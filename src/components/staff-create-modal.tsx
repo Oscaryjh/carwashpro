@@ -58,14 +58,11 @@ export function StaffCreateModal({
 type StaffEditModalProps = StaffCreateModalProps & {
   assignedBranchIds: string[];
   employeeProfile?: {
+    id: string;
     attendanceEnabled: boolean;
     canClockInBranchIds: string[];
     employeeCode: string;
     employmentType: string;
-    payBasis: "MONTHLY" | "DAILY" | "HOURLY";
-    baseSalary: string | null;
-    normalWorkMinutesPerDay: number | null;
-    targetBreakMinutes: number | null;
     joinedAt: string;
     primaryBranchId: string;
     status: "ACTIVE" | "SUSPENDED" | "TERMINATED";
