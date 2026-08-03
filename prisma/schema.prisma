@@ -297,6 +297,37 @@ enum AttendanceExceptionStatus {
   CANCELLED
 }
 
+enum AttendanceResolutionCaseStatus {
+  OPEN
+  UNDER_REVIEW
+  RETURNED_FOR_CORRECTION
+  RESOLVED
+  SUPERSEDED
+}
+
+enum AttendanceResolutionReason {
+  APPROVAL_PENDING
+  APPROVAL_REJECTED
+  INCOMPLETE_SESSION
+  CANCELLED_SESSION
+  MANAGER_ADJUSTMENT
+  LEGACY_COMPLETED
+  OTHER
+}
+
+enum AttendanceFinalResultDisposition {
+  INCLUDED
+  EXCLUDED
+}
+
+enum AttendanceFinalResultSource {
+  RAW_SESSION
+  APPROVED_EXCEPTION
+  MANAGER_ADJUSTMENT
+  LEGACY_BACKFILL
+  CORRECTION
+}
+
 enum EmployeeOtpPurpose {
   LOGIN
   REGISTER_DEVICE
@@ -653,6 +684,8 @@ model Business {
   attendancePunches             AttendancePunch[]
   attendanceExceptions          AttendanceException[]
   attendanceAdjustments         AttendanceAdjustment[]
+  attendanceResolutionCases     AttendanceResolutionCase[]
+  attendanceFinalResults        AttendanceFinalResult[]
   employeeSessions              EmployeeSession[]
   attendanceIdempotencyRequests AttendanceRequestIdempotency[]
   catalogDiscounts              CatalogDiscount[]
@@ -711,6 +744,8 @@ model Branch {
   attendancePunches             AttendancePunch[]
   attendanceExceptions          AttendanceException[]
   attendanceAdjustments         AttendanceAdjustment[]
+  attendanceResolutionCases     AttendanceResolutionCase[]
+  attendanceFinalResults        AttendanceFinalResult[]
   primaryEmployeeSessions       EmployeeSession[]              @relation("EmployeeSessionPrimaryBranch")
   attendanceEmployeeSessions    EmployeeSession[]              @relation("EmployeeSessionAttendanceBranch")
   attendanceIdempotencyRequests AttendanceRequestIdempotency[]
@@ -750,33 +785,36 @@ model User {
   createdAt                    DateTime             @default(now()) @map("created_at")
   updatedAt                    DateTime             @updatedAt @map("updated_at")
 
-  business                     Business?                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch                       Branch?                      @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  cashierShifts                CashierShift[]               @relation("CashierShiftCashier")
-  cashierPayments              Payment[]                    @relation("PaymentCashier")
-  processedPaymentRefunds      PaymentRefund[]              @relation("PaymentRefundProcessor")
-  createdCreditNotes           CreditNote[]                 @relation("CreditNoteCreator")
-  sentWhatsAppMessages         WhatsAppMessage[]            @relation("WhatsAppMessageSender")
-  sentWhatsAppChatMessages     WhatsAppChatMessage[]        @relation("WhatsAppChatMessageSender")
-  createdAppointments          Appointment[]                @relation("AppointmentCreatedBy")
-  assignedAppointments         Appointment[]                @relation("AppointmentAssignedStaff")
-  auditLogs                    AuditLog[]                   @relation("AuditLogActor")
-  loyaltyTransactions          LoyaltyTransaction[]         @relation("LoyaltyTransactionCreator")
-  serviceStaffAssignments      ServiceStaffAssignment[]
-  staffAvailabilities          StaffAvailability[]
-  staffBreaks                  StaffBreak[]
-  staffTimeOff                 StaffTimeOff[]
-  employeeAccount              EmployeeAccount?             @relation("EmployeeAccountLegacyUsers", fields: [employeeAccountId], references: [id], onDelete: SetNull)
-  employeeBusinessMembership   EmployeeBusinessMembership?  @relation("EmployeeBusinessMembershipStaffUser", fields: [employeeBusinessMembershipId], references: [id], onDelete: Restrict)
-  staffRoleProfile             StaffRoleProfile?            @relation(fields: [staffRoleProfileId], references: [id], onDelete: SetNull)
-  staffLevel                   StaffLevel?                  @relation(fields: [staffLevelId], references: [id], onDelete: SetNull)
-  closedDailySnapshots         DailyClosingSnapshot[]       @relation("DailyClosingClosedBy")
-  closingWhatsAppSends         ClosingWhatsAppSendAttempt[] @relation("ClosingWhatsAppRequestedBy")
-  businessGroupUsers           BusinessGroupUser[]
-  businessGroupAuditEntries    BusinessGroupAuditLog[]
-  reviewedAttendanceExceptions AttendanceException[]        @relation("AttendanceExceptionReviewer")
-  attendanceAdjustments        AttendanceAdjustment[]       @relation("AttendanceAdjustmentActor")
-  reviewedLeaveRequests        LeaveRequest[]               @relation("LeaveRequestReviewer")
+  business                          Business?                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch                            Branch?                      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  cashierShifts                     CashierShift[]               @relation("CashierShiftCashier")
+  cashierPayments                   Payment[]                    @relation("PaymentCashier")
+  processedPaymentRefunds           PaymentRefund[]              @relation("PaymentRefundProcessor")
+  createdCreditNotes                CreditNote[]                 @relation("CreditNoteCreator")
+  sentWhatsAppMessages              WhatsAppMessage[]            @relation("WhatsAppMessageSender")
+  sentWhatsAppChatMessages          WhatsAppChatMessage[]        @relation("WhatsAppChatMessageSender")
+  createdAppointments               Appointment[]                @relation("AppointmentCreatedBy")
+  assignedAppointments              Appointment[]                @relation("AppointmentAssignedStaff")
+  auditLogs                         AuditLog[]                   @relation("AuditLogActor")
+  loyaltyTransactions               LoyaltyTransaction[]         @relation("LoyaltyTransactionCreator")
+  serviceStaffAssignments           ServiceStaffAssignment[]
+  staffAvailabilities               StaffAvailability[]
+  staffBreaks                       StaffBreak[]
+  staffTimeOff                      StaffTimeOff[]
+  employeeAccount                   EmployeeAccount?             @relation("EmployeeAccountLegacyUsers", fields: [employeeAccountId], references: [id], onDelete: SetNull)
+  employeeBusinessMembership        EmployeeBusinessMembership?  @relation("EmployeeBusinessMembershipStaffUser", fields: [employeeBusinessMembershipId], references: [id], onDelete: Restrict)
+  staffRoleProfile                  StaffRoleProfile?            @relation(fields: [staffRoleProfileId], references: [id], onDelete: SetNull)
+  staffLevel                        StaffLevel?                  @relation(fields: [staffLevelId], references: [id], onDelete: SetNull)
+  closedDailySnapshots              DailyClosingSnapshot[]       @relation("DailyClosingClosedBy")
+  closingWhatsAppSends              ClosingWhatsAppSendAttempt[] @relation("ClosingWhatsAppRequestedBy")
+  businessGroupUsers                BusinessGroupUser[]
+  businessGroupAuditEntries         BusinessGroupAuditLog[]
+  reviewedAttendanceExceptions      AttendanceException[]        @relation("AttendanceExceptionReviewer")
+  attendanceAdjustments             AttendanceAdjustment[]       @relation("AttendanceAdjustmentActor")
+  attendanceResolutionCasesCreated  AttendanceResolutionCase[]   @relation("AttendanceResolutionCaseCreatedBy")
+  attendanceResolutionCasesResolved AttendanceResolutionCase[]   @relation("AttendanceResolutionCaseResolvedBy")
+  attendanceFinalResultsCreated     AttendanceFinalResult[]      @relation("AttendanceFinalResultCreatedBy")
+  reviewedLeaveRequests             LeaveRequest[]               @relation("LeaveRequestReviewer")
 
   payrollRunsCreated             PayrollRun[]                  @relation("PayrollRunCreatedBy")
   payrollRunsSubmitted           PayrollRun[]                  @relation("PayrollRunSubmittedBy")
@@ -1086,22 +1124,24 @@ model EmployeeBusinessMembership {
   createdAt                 DateTime                       @default(now()) @map("created_at")
   updatedAt                 DateTime                       @updatedAt @map("updated_at")
 
-  employeeAccount        EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Cascade)
-  business               Business                       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  branchAssignments      EmployeeBranchAssignment[]
-  attendances            EmployeeAttendance[]
-  punches                AttendancePunch[]
-  exceptions             AttendanceException[]
-  adjustments            AttendanceAdjustment[]
-  employeeSessions       EmployeeSession[]
-  payrollEntries         PayrollEntry[]
-  compensationVersions   EmployeeCompensationVersion[]
-  payrollProfileCommands PayrollProfileCommandRecord[]
-  leaveBalances          EmployeeLeaveBalance[]
-  leaveRequests          LeaveRequest[]
-  leaveRequestDays       LeaveRequestDay[]
-  idempotencyRequests    AttendanceRequestIdempotency[]
-  staffUser              User?                          @relation("EmployeeBusinessMembershipStaffUser")
+  employeeAccount           EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Cascade)
+  business                  Business                       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchAssignments         EmployeeBranchAssignment[]
+  attendances               EmployeeAttendance[]
+  punches                   AttendancePunch[]
+  exceptions                AttendanceException[]
+  adjustments               AttendanceAdjustment[]
+  attendanceResolutionCases AttendanceResolutionCase[]
+  attendanceFinalResults    AttendanceFinalResult[]
+  employeeSessions          EmployeeSession[]
+  payrollEntries            PayrollEntry[]
+  compensationVersions      EmployeeCompensationVersion[]
+  payrollProfileCommands    PayrollProfileCommandRecord[]
+  leaveBalances             EmployeeLeaveBalance[]
+  leaveRequests             LeaveRequest[]
+  leaveRequestDays          LeaveRequestDay[]
+  idempotencyRequests       AttendanceRequestIdempotency[]
+  staffUser                 User?                          @relation("EmployeeBusinessMembershipStaffUser")
 
   @@unique([employeeAccountId, businessId])
   @@unique([businessId, employeeCode])
@@ -1222,6 +1262,8 @@ model EmployeeAttendance {
   clockOutPunch       AttendancePunch?               @relation("AttendanceSessionClockOut", fields: [clockOutPunchId], references: [id], onDelete: Restrict)
   exceptions          AttendanceException[]
   adjustments         AttendanceAdjustment[]
+  resolutionCase      AttendanceResolutionCase?
+  finalResults        AttendanceFinalResult[]
   idempotencyRequests AttendanceRequestIdempotency[]
 
   @@index([businessId, branchId, workDate])
@@ -1378,6 +1420,81 @@ model AttendanceAdjustment {
   @@index([attendanceSessionId, createdAt])
   @@index([employeeId, createdAt])
   @@map("attendance_adjustments")
+}
+
+model AttendanceResolutionCase {
+  id                   String                         @id @default(uuid()) @db.Uuid
+  businessId           String                         @map("business_id") @db.Uuid
+  branchId             String                         @map("branch_id") @db.Uuid
+  attendanceSessionId  String                         @unique @map("attendance_session_id") @db.Uuid
+  employeeId           String                         @map("employee_id") @db.Uuid
+  status               AttendanceResolutionCaseStatus @default(OPEN)
+  openedReason         AttendanceResolutionReason     @map("opened_reason")
+  currentFinalResultId String?                        @unique @map("current_final_result_id") @db.Uuid
+  createdById          String?                        @map("created_by_id") @db.Uuid
+  resolvedById         String?                        @map("resolved_by_id") @db.Uuid
+  openedAt             DateTime                       @default(now()) @map("opened_at")
+  resolvedAt           DateTime?                      @map("resolved_at")
+  createdAt            DateTime                       @default(now()) @map("created_at")
+  updatedAt            DateTime                       @updatedAt @map("updated_at")
+
+  business           Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch             Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  attendanceSession  EmployeeAttendance         @relation(fields: [attendanceSessionId], references: [id], onDelete: Restrict)
+  employee           EmployeeBusinessMembership @relation(fields: [employeeId, businessId], references: [id, businessId], onDelete: Restrict)
+  createdBy          User?                      @relation("AttendanceResolutionCaseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  resolvedBy         User?                      @relation("AttendanceResolutionCaseResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  currentFinalResult AttendanceFinalResult?     @relation("CurrentAttendanceFinalResult", fields: [currentFinalResultId], references: [id], onDelete: Restrict)
+  finalResults       AttendanceFinalResult[]    @relation("AttendanceResolutionResults")
+
+  @@unique([id, businessId])
+  @@index([businessId, branchId, status, openedAt])
+  @@index([employeeId, status, openedAt])
+  @@map("attendance_resolution_cases")
+}
+
+model AttendanceFinalResult {
+  id                       String                           @id @default(uuid()) @db.Uuid
+  businessId               String                           @map("business_id") @db.Uuid
+  branchId                 String                           @map("branch_id") @db.Uuid
+  attendanceSessionId      String                           @map("attendance_session_id") @db.Uuid
+  resolutionCaseId         String                           @map("resolution_case_id") @db.Uuid
+  employeeId               String                           @map("employee_id") @db.Uuid
+  version                  Int
+  disposition              AttendanceFinalResultDisposition
+  source                   AttendanceFinalResultSource
+  workDate                 DateTime                         @map("work_date") @db.Date
+  clockInAt                DateTime?                        @map("clock_in_at")
+  clockOutAt               DateTime?                        @map("clock_out_at")
+  totalBreakMinutes        Int                              @map("total_break_minutes")
+  totalWorkedMinutes       Int                              @map("total_worked_minutes")
+  breakPolicySnapshot      AttendanceBreakPolicy            @map("break_policy_snapshot")
+  expectedBreakMinutes     Int                              @map("expected_break_minutes")
+  confirmedBreakMinutes    Int?                             @map("confirmed_break_minutes")
+  approvalStatusSnapshot   AttendanceApprovalStatus         @map("approval_status_snapshot")
+  sessionUpdatedAtSnapshot DateTime                         @map("session_updated_at_snapshot")
+  evidenceChecksum         String                           @map("evidence_checksum") @db.VarChar(64)
+  supersedesResultId       String?                          @map("supersedes_result_id") @db.Uuid
+  createdById              String?                          @map("created_by_id") @db.Uuid
+  createdAt                DateTime                         @default(now()) @map("created_at")
+
+  business          Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch            Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  attendanceSession EmployeeAttendance         @relation(fields: [attendanceSessionId], references: [id], onDelete: Restrict)
+  resolutionCase    AttendanceResolutionCase   @relation("AttendanceResolutionResults", fields: [resolutionCaseId], references: [id], onDelete: Restrict)
+  currentForCase    AttendanceResolutionCase?  @relation("CurrentAttendanceFinalResult")
+  employee          EmployeeBusinessMembership @relation(fields: [employeeId, businessId], references: [id, businessId], onDelete: Restrict)
+  createdBy         User?                      @relation("AttendanceFinalResultCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  supersedesResult  AttendanceFinalResult?     @relation("AttendanceFinalResultSupersession", fields: [supersedesResultId], references: [id], onDelete: Restrict)
+  supersededResults AttendanceFinalResult[]    @relation("AttendanceFinalResultSupersession")
+
+  @@unique([id, businessId])
+  @@unique([resolutionCaseId, version])
+  @@index([businessId, branchId, workDate])
+  @@index([employeeId, workDate])
+  @@index([attendanceSessionId, version])
+  @@index([supersedesResultId])
+  @@map("attendance_final_results")
 }
 
 model Customer {
