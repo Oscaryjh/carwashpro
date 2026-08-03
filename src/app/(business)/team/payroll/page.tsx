@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
@@ -13,7 +12,6 @@ import { prisma } from "@/lib/prisma";
 import {
   addPayrollHolidayAction,
   deletePayrollHolidayAction,
-  saveEmployeeStatutoryProfileAction,
   savePayrollSettingAction,
 } from "./actions";
 import styles from "./payroll.module.css";
@@ -47,7 +45,6 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
   }
 
   const canEditPayroll = hasBusinessCapability(access, "EDIT_PAYROLL_ENTRY");
-  const canEditStatutory = hasBusinessCapability(access, "EDIT_STATUTORY_PROFILE");
   const canExportStatutory = hasBusinessCapability(access, "EXPORT_STATUTORY");
   const canViewTeamDirectory = hasBusinessCapability(access, "VIEW_TEAM_DIRECTORY");
   const canViewAttendance = hasBusinessCapability(access, "VIEW_ATTENDANCE_EMPLOYEES");
@@ -68,22 +65,6 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
       include: {
         entries: {
           orderBy: [{ fullNameSnapshot: "asc" }],
-          include: {
-            membership: {
-              select: {
-                dateOfBirth: true,
-                statutoryNationality: true,
-                epfEnabled: true,
-                epfMemberBeforeAug1998: true,
-                socsoEnabled: true,
-                socsoCategory: true,
-                eisEnabled: true,
-                eisPreviouslyContributed: true,
-                lindung24OptIn: true,
-                statutoryProfileRevision: true,
-              },
-            },
-          },
         },
       },
     }),
@@ -512,11 +493,9 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
                           ? `/team/payroll/runs/${run.id}/entries/${entry.id}`
                           : null
                       }
-                      profileEditable={canEditStatutory}
                       profileLinkEnabled={canViewTeamDirectory}
                       entry={entry}
                       key={entry.id}
-                      month={period.value}
                     />
                   ))}
                 </tbody>
@@ -597,17 +576,13 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
 
 function PayrollEntryRows({
   entry,
-  month,
   editable,
   entryEditorHref,
-  profileEditable,
   profileLinkEnabled,
 }: {
   entry: PayrollEntryRow;
-  month: string;
   editable: boolean;
   entryEditorHref: string | null;
-  profileEditable: boolean;
   profileLinkEnabled: boolean;
 }) {
   return (
@@ -677,73 +652,24 @@ function PayrollEntryRows({
                     : "Configure this employee before automatic statutory deductions are applied.")}
               </p>
             </div>
-            <form
-              action={saveEmployeeStatutoryProfileAction}
-              className={`${styles.entryForm} ${styles.profileForm}`}
-            >
-              <input name="membershipId" type="hidden" value={entry.membershipId} />
-              <input name="month" type="hidden" value={month} />
-              <input name="commandId" type="hidden" value={randomUUID()} />
-              <input name="expectedRevision" type="hidden" value={entry.membership.statutoryProfileRevision} />
+            <div className={`${styles.entryForm} ${styles.profileForm}`}>
               <fieldset className={styles.entrySection}>
-                <legend>Statutory employee profile</legend>
-                <div className={styles.profileGrid}>
-                  <label className={styles.formField}>
-                    <span>Date of birth</span>
-                    <input
-                      defaultValue={formatDateInput(entry.membership.dateOfBirth)}
-                      disabled
-                      name="dateOfBirth"
-                      type="date"
-                    />
-                  </label>
-                  <label className={styles.formField}>
-                    <span>Statutory nationality</span>
-                    <select
-                      defaultValue={entry.membership.statutoryNationality ?? ""}
-                      disabled={!profileEditable}
-                      name="statutoryNationality"
-                    >
-                      <option value="">Select classification</option>
-                      <option value="MALAYSIAN">Malaysian</option>
-                      <option value="PERMANENT_RESIDENT">Permanent resident</option>
-                      <option value="NON_MALAYSIAN">Non-Malaysian</option>
-                    </select>
-                  </label>
-                  <label className={styles.formField}>
-                    <span>SOCSO category</span>
-                    <select
-                      defaultValue={entry.membership.socsoCategory ?? ""}
-                      disabled={!profileEditable}
-                      name="socsoCategory"
-                    >
-                      <option value="">Select category</option>
-                      <option value="FIRST">First category</option>
-                      <option value="SECOND">Second category</option>
-                    </select>
-                  </label>
-                </div>
-                <div className={styles.optionGrid}>
-                  <StatutoryOption checked={entry.membership.epfEnabled} disabled={!profileEditable} label="Auto-calculate EPF" name="epfEnabled" />
-                  <StatutoryOption checked={entry.membership.socsoEnabled} disabled={!profileEditable} label="Auto-calculate SOCSO" name="socsoEnabled" />
-                  <StatutoryOption checked={entry.membership.eisEnabled} disabled={!profileEditable} label="Auto-calculate EIS" name="eisEnabled" />
-                  <StatutoryOption checked={entry.membership.epfMemberBeforeAug1998} disabled={!profileEditable} label="EPF member before Aug 1998" name="epfMemberBeforeAug1998" />
-                  <StatutoryOption checked={entry.membership.eisPreviouslyContributed} disabled={!profileEditable} label="EIS contributed before age 57" name="eisPreviouslyContributed" />
-                  <StatutoryOption checked={entry.membership.lindung24OptIn} disabled={!profileEditable} label="LINDUNG 24 Jam opt-in" name="lindung24OptIn" />
-                </div>
+                <legend>Employee statutory profile</legend>
+                <p>
+                  Employee statutory profile is managed in Employee Profile.
+                  Historical Payroll Run values shown below remain unchanged.
+                </p>
+                {profileLinkEnabled ? (
+                  <Link
+                    className={styles.secondaryButton}
+                    href={`/team/people/${entry.membershipId}?section=payroll`}
+                  >
+                    Open employee payroll profile
+                  </Link>
+                ) : null}
               </fieldset>
-              {profileEditable ? (
-                <button className={styles.secondaryButton} type="submit">
-                  Save statutory profile
-                </button>
-              ) : null}
-            </form>
+            </div>
             <div className={styles.entryForm}>
-              <input name="entryId" type="hidden" value={entry.id} />
-              <input name="month" type="hidden" value={month} />
-              <input name="epfWageBase" type="hidden" value={Number(entry.epfWageBase).toFixed(2)} />
-              <input name="perkesoWageBase" type="hidden" value={Number(entry.perkesoWageBase).toFixed(2)} />
-
               <fieldset className={styles.entrySection}>
                 <legend>Calculated earnings</legend>
                 <div className={styles.entryGrid}>
@@ -926,30 +852,6 @@ function Field({
   );
 }
 
-function StatutoryOption({
-  checked,
-  disabled,
-  label,
-  name,
-}: {
-  checked: boolean;
-  disabled: boolean;
-  label: string;
-  name: string;
-}) {
-  return (
-    <label className={styles.optionCard}>
-      <input
-        defaultChecked={checked}
-        disabled={disabled}
-        name={name}
-        type="checkbox"
-      />
-      <span>{label}</span>
-    </label>
-  );
-}
-
 function MoneyField({
   label,
   name,
@@ -1028,10 +930,6 @@ function formatStatutoryStatus(value: string) {
   }
 }
 
-function formatDateInput(value: Date | null) {
-  return value?.toISOString().slice(0, 10) ?? "";
-}
-
 function getInitials(name: string) {
   return name
     .split(/\s+/)
@@ -1073,16 +971,4 @@ type PayrollEntryRow = {
   statutoryRuleVersion: string | null;
   statutoryWarning: string | null;
   notes: string | null;
-  membership: {
-    dateOfBirth: Date | null;
-    statutoryNationality: string | null;
-    epfEnabled: boolean;
-    epfMemberBeforeAug1998: boolean;
-    socsoEnabled: boolean;
-    socsoCategory: string | null;
-    eisEnabled: boolean;
-    eisPreviouslyContributed: boolean;
-    lindung24OptIn: boolean;
-    statutoryProfileRevision: number;
-  };
 };

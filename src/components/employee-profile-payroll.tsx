@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
+import { EmployeeProfileProtectedSubmit } from "@/components/employee-profile-protected-submit";
 import {
   scheduleEmployeeCompensationChangeAction,
+  updateEmployeeStatutoryProfileAction,
+  updateEmployeeTaxProfileAction,
   updateEmployeePayrollWorkTargetAction,
 } from "@/app/(business)/team/people/[personId]/payroll/actions";
 import type { EmployeeCompensationSectionResult } from "@/lib/team/employee-profile-compensation-read";
@@ -55,9 +58,15 @@ export function EmployeeProfilePayroll({
 
 type PayrollUpdateNoticeValue = {
   affectedDrafts: number | null;
+  artifactCount: number | null;
+  changedFields: string[];
   effectiveMonth: string | null;
-  kind: "compensation" | "work-target";
+  existingArtifactWarning: boolean;
+  finalizedCount: number | null;
+  kind: "compensation" | "statutory" | "tax" | "work-target";
   message: string;
+  newRevision: number | null;
+  reviewCount: number | null;
   status: "error" | "success";
 };
 
@@ -79,6 +88,24 @@ function PayrollUpdateNotice({ notice }: { notice: PayrollUpdateNoticeValue }) {
             {notice.affectedDrafts > 0
               ? `${notice.affectedDrafts} existing Draft Payroll Run must be refreshed manually before it uses this change.`
               : "No existing Draft Payroll Run is waiting for a manual refresh."}
+          </p>
+        ) : null}
+        {notice.status === "success" && notice.existingArtifactWarning ? (
+          <p>
+            Historical statutory artifacts remain immutable. This change only
+            applies when a future Draft is generated or refreshed.
+          </p>
+        ) : null}
+        {notice.status === "success" && notice.newRevision !== null ? (
+          <p>
+            Saved revision {notice.newRevision}. Changed fields: {notice.changedFields.length
+              ? notice.changedFields.map(formatChangedField).join(", ")
+              : "none"}.
+          </p>
+        ) : null}
+        {notice.status === "success" && notice.reviewCount !== null ? (
+          <p>
+            Existing runs remain unchanged: {notice.reviewCount} in Review, {notice.finalizedCount ?? 0} finalized, and {notice.artifactCount ?? 0} retained statutory artifacts.
           </p>
         ) : null}
       </div>
@@ -450,18 +477,24 @@ function WorkTargetEditForm({
   );
 }
 
-function ReasonFields() {
+function ReasonFields({
+  defaultReason = "PAYROLL_POLICY_CHANGE",
+}: {
+  defaultReason?: "PAYROLL_POLICY_CHANGE" | "STATUTORY_CORRECTION" | "TAX_INFORMATION_UPDATE";
+} = {}) {
   return (
     <>
       <label>
         <span>Reason category</span>
-        <select defaultValue="PAYROLL_POLICY_CHANGE" name="reasonType">
+        <select defaultValue={defaultReason} name="reasonType">
           <option value="ANNUAL_INCREMENT">Annual increment</option>
           <option value="PROMOTION">Promotion</option>
           <option value="ROLE_CHANGE">Role change</option>
           <option value="MARKET_ADJUSTMENT">Market adjustment</option>
           <option value="SALARY_CORRECTION">Salary correction</option>
           <option value="PAYROLL_POLICY_CHANGE">Payroll policy change</option>
+          <option value="STATUTORY_CORRECTION">Statutory correction</option>
+          <option value="TAX_INFORMATION_UPDATE">Tax information update</option>
           <option value="EMPLOYEE_PROVIDED_CORRECTION">Employee-provided correction</option>
           <option value="OTHER">Other</option>
         </select>
@@ -594,6 +627,7 @@ function StatutoryPanel({
         Identifiers remain masked in Employee Profile. Contribution amounts are
         calculated and reviewed in individual Payroll Runs.
       </p>
+      {data.canEdit ? <StatutoryEditForm data={data} /> : null}
     </section>
   );
 }
@@ -652,11 +686,226 @@ function TaxPanel({
         />
       </div>
       <p className={styles.policyNote}>
-        Full identity and tax numbers are not returned to this read-only profile.
-        Editing remains in the existing authorized payroll administration flow.
+        Full identity and tax numbers are never returned to this page. Enter a
+        replacement only when a value must change; leaving it blank preserves
+        the current protected value.
       </p>
+      {data.canEdit ? <TaxEditForm data={data} /> : null}
     </section>
   );
+}
+
+function StatutoryEditForm({
+  data,
+}: {
+  data: Extract<
+    Extract<EmployeeStatutoryProfileResult, { status: "READY" }>["statutory"],
+    { status: "READY" }
+  >["data"];
+}) {
+  return (
+    <details className={styles.payrollEditDisclosure}>
+      <summary>Edit statutory contributions</summary>
+      <form action={updateEmployeeStatutoryProfileAction} className={styles.payrollEditForm}>
+        <input name="commandId" type="hidden" value={randomUUID()} />
+        <input name="expectedRevision" type="hidden" value={data.expectedRevision} />
+        <input name="membershipId" type="hidden" value={data.membershipId} />
+        <div className={styles.payrollFormGrid}>
+          <label>
+            <span>Statutory nationality</span>
+            <select defaultValue={data.nationality ?? ""} name="statutoryNationality">
+              <option value="">Not configured</option>
+              <option value="MALAYSIAN">Malaysian</option>
+              <option value="PERMANENT_RESIDENT">Permanent resident</option>
+              <option value="NON_MALAYSIAN">Non-Malaysian</option>
+            </select>
+          </label>
+          <label>
+            <span>SOCSO category</span>
+            <select defaultValue={data.socsoCategory ?? ""} name="socsoCategory">
+              <option value="">Not configured</option>
+              <option value="FIRST">First category</option>
+              <option value="SECOND">Second category</option>
+            </select>
+          </label>
+          <div className={styles.payrollCheckGrid}>
+            <PayrollCheckbox defaultChecked={data.epfEnabled} label="EPF / KWSP enabled" name="epfEnabled" />
+            <PayrollCheckbox defaultChecked={data.epfMemberBeforeAug1998} label="EPF member before Aug 1998" name="epfMemberBeforeAug1998" />
+            <PayrollCheckbox defaultChecked={data.socsoEnabled} label="SOCSO enabled" name="socsoEnabled" />
+            <PayrollCheckbox defaultChecked={data.lindung24OptIn} label="LINDUNG 24 opted in" name="lindung24OptIn" />
+            <PayrollCheckbox defaultChecked={data.eisEnabled} label="EIS enabled" name="eisEnabled" />
+            <PayrollCheckbox defaultChecked={data.eisPreviouslyContributed} label="Previously contributed to EIS" name="eisPreviouslyContributed" />
+          </div>
+          <ReasonFields defaultReason="STATUTORY_CORRECTION" />
+        </div>
+        <PayrollProfileImpactPreview impact={data.impact} />
+        <ProtectedHistoryWarning />
+        <button type="submit">Save statutory contribution profile</button>
+      </form>
+    </details>
+  );
+}
+
+function TaxEditForm({
+  data,
+}: {
+  data: Extract<
+    Extract<EmployeeStatutoryProfileResult, { status: "READY" }>["tax"],
+    { status: "READY" }
+  >["data"];
+}) {
+  return (
+    <details className={styles.payrollEditDisclosure}>
+      <summary>Edit tax &amp; submission identity</summary>
+      <form action={updateEmployeeTaxProfileAction} className={styles.payrollEditForm}>
+        <input name="commandId" type="hidden" value={randomUUID()} />
+        <input name="expectedRevision" type="hidden" value={data.expectedRevision} />
+        <input name="membershipId" type="hidden" value={data.membershipId} />
+        <div className={styles.payrollFormGrid}>
+          <label>
+            <span>Identity type</span>
+            <select defaultValue={data.identityType ?? ""} name="statutoryIdentityType">
+              <option value="">Not configured</option>
+              <option value="NEW_IC">New IC</option>
+              <option value="OLD_IC">Old IC</option>
+              <option value="PASSPORT">Passport</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </label>
+          <ReplacementIdentifier
+            clearName="clearIdentity"
+            currentMasked={data.identityNumberMasked}
+            label="Replacement identity number"
+            name="statutoryIdentityNumber"
+          />
+          <label>
+            <span>LHDN country code</span>
+            <input
+              autoComplete="off"
+              defaultValue={data.countryCode ?? ""}
+              maxLength={2}
+              name="statutoryCountryCode"
+              placeholder="MY"
+            />
+          </label>
+          <ReplacementIdentifier
+            clearName="clearTaxIdentificationNumber"
+            currentMasked={data.tinMasked}
+            label="Replacement Tax Identification Number"
+            name="taxIdentificationNumber"
+          />
+          <ReplacementIdentifier
+            clearName="clearEpfMemberNumber"
+            currentMasked={null}
+            label="Replacement KWSP member number"
+            name="epfMemberNumber"
+          />
+          <ReplacementIdentifier
+            clearName="clearSocsoMemberNumber"
+            currentMasked={null}
+            label="Replacement SOCSO member number"
+            name="socsoMemberNumber"
+          />
+          <ReasonFields defaultReason="TAX_INFORMATION_UPDATE" />
+        </div>
+        <PayrollProfileImpactPreview impact={data.impact} />
+        <p className={styles.formHint}>
+          Replacement fields are deliberately blank. Full protected values are
+          not placed in HTML, hidden inputs, labels, or browser metadata.
+        </p>
+        <ProtectedHistoryWarning />
+        <EmployeeProfileProtectedSubmit>
+          Save tax &amp; submission identity
+        </EmployeeProfileProtectedSubmit>
+      </form>
+    </details>
+  );
+}
+
+function ReplacementIdentifier({
+  clearName,
+  currentMasked,
+  label,
+  name,
+}: {
+  clearName: string;
+  currentMasked: string | null;
+  label: string;
+  name: string;
+}) {
+  return (
+    <div className={styles.replacementField}>
+      <label>
+        <span>{label}</span>
+        <input
+          autoComplete="off"
+          maxLength={30}
+          name={name}
+          placeholder={currentMasked ? `Current ${currentMasked}` : "Leave blank to keep current"}
+        />
+      </label>
+      <label className={styles.payrollCheckbox}>
+        <input name={clearName} type="checkbox" />
+        <span>Clear current value</span>
+      </label>
+    </div>
+  );
+}
+
+function PayrollCheckbox({
+  defaultChecked,
+  label,
+  name,
+}: {
+  defaultChecked: boolean;
+  label: string;
+  name: string;
+}) {
+  return (
+    <label className={styles.payrollCheckbox}>
+      <input defaultChecked={defaultChecked} name={name} type="checkbox" />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+function ProtectedHistoryWarning() {
+  return (
+    <div className={styles.draftImpactWarning}>
+      <strong>Historical payroll and exported artifacts stay unchanged</strong>
+      <span>
+        This updates the employee&apos;s current profile only. Existing Draft
+        Payroll Runs must be refreshed manually before they use the change.
+      </span>
+    </div>
+  );
+}
+
+function PayrollProfileImpactPreview({
+  impact,
+}: {
+  impact: {
+    artifactCount: number;
+    draftCount: number;
+    finalizedCount: number;
+    reviewCount: number;
+  };
+}) {
+  return (
+    <div className={styles.draftImpactWarning}>
+      <strong>Current impact preview</strong>
+      <span>
+        {impact.draftCount} Draft, {impact.reviewCount} Review, {impact.finalizedCount} finalized Payroll Run, and {impact.artifactCount} retained statutory artifact.
+      </span>
+      <span>
+        Saving does not refresh or rewrite any of these records.
+      </span>
+    </div>
+  );
+}
+
+function formatChangedField(value: string) {
+  return value.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 }
 
 function RestrictedPanel({

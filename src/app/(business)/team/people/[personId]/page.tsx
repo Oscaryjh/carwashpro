@@ -41,10 +41,16 @@ type EmployeeProfilePageProps = {
   params: Promise<{ personId: string }>;
   searchParams: Promise<{
     affectedDrafts?: string;
+    artifactCount?: string;
+    artifactWarning?: string;
+    changedFields?: string;
     effectiveMonth?: string;
+    finalizedCount?: string;
+    newRevision?: string;
     payrollUpdate?: string;
     payrollUpdateMessage?: string;
     payrollUpdateStatus?: string;
+    reviewCount?: string;
     section?: string;
   }>;
 };
@@ -244,24 +250,55 @@ export default async function EmployeeProfilePage({
 
 function parsePayrollUpdateNotice(query: {
   affectedDrafts?: string;
+  artifactCount?: string;
+  artifactWarning?: string;
+  changedFields?: string;
   effectiveMonth?: string;
+  finalizedCount?: string;
+  newRevision?: string;
   payrollUpdate?: string;
   payrollUpdateMessage?: string;
   payrollUpdateStatus?: string;
+  reviewCount?: string;
 }) {
   if (
-    (query.payrollUpdate !== "compensation" && query.payrollUpdate !== "work-target") ||
+    !["compensation", "statutory", "tax", "work-target"].includes(
+      query.payrollUpdate ?? "",
+    ) ||
     (query.payrollUpdateStatus !== "success" && query.payrollUpdateStatus !== "error")
   ) return null;
   const draftCount = z.coerce.number().int().min(0).max(999).safeParse(query.affectedDrafts);
+  const artifactCount = safeNoticeCount(query.artifactCount);
+  const finalizedCount = safeNoticeCount(query.finalizedCount);
+  const reviewCount = safeNoticeCount(query.reviewCount);
+  const newRevision = z.coerce.number().int().min(0).max(999999).safeParse(query.newRevision);
+  const changedFields = (query.changedFields ?? "")
+    .split(",")
+    .filter((field) => /^[A-Za-z][A-Za-z0-9]{1,39}$/.test(field))
+    .slice(0, 12);
   const effectiveMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(query.effectiveMonth ?? "")
     ? query.effectiveMonth!
     : null;
   return {
     affectedDrafts: draftCount.success ? draftCount.data : null,
+    artifactCount,
+    changedFields,
+    existingArtifactWarning: query.artifactWarning === "true",
     effectiveMonth,
-    kind: query.payrollUpdate,
+    finalizedCount,
+    kind: query.payrollUpdate as
+      | "compensation"
+      | "statutory"
+      | "tax"
+      | "work-target",
     message: (query.payrollUpdateMessage ?? "Payroll profile updated.").slice(0, 180),
+    newRevision: newRevision.success ? newRevision.data : null,
+    reviewCount,
     status: query.payrollUpdateStatus,
   } as const;
+}
+
+function safeNoticeCount(value: string | undefined) {
+  const parsed = z.coerce.number().int().min(0).max(999).safeParse(value);
+  return parsed.success ? parsed.data : null;
 }

@@ -33,37 +33,33 @@ const identifier = z
 const taxCommandSchema = z
   .object({
     commandId: commandIdSchema,
-    epfMemberNumber: identifier,
+    epfMemberNumber: identifier.optional(),
     expectedRevision: expectedRevisionSchema,
     membershipId: z.string().uuid(),
-    socsoMemberNumber: identifier,
+    socsoMemberNumber: identifier.optional(),
     statutoryCountryCode: z
       .string()
       .trim()
       .regex(/^[A-Za-z]{2}$/, "Country code must contain two letters.")
-      .nullable(),
-    statutoryIdentityNumber: identifier,
+      .nullable()
+      .optional(),
+    statutoryIdentityNumber: identifier.optional(),
     statutoryIdentityType: z
       .enum(["NEW_IC", "OLD_IC", "PASSPORT", "OTHER"])
-      .nullable(),
-    taxIdentificationNumber: identifier,
+      .nullable()
+      .optional(),
+    taxIdentificationNumber: identifier.optional(),
   })
-  .and(reasonFieldsSchema)
-  .superRefine((value, context) => {
-    if (Boolean(value.statutoryIdentityType) !== Boolean(value.statutoryIdentityNumber)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Identity type and identity number must be supplied together.",
-        path: ["statutoryIdentityNumber"],
-      });
-    }
-  });
+  .and(reasonFieldsSchema);
 
 export type UpdateEmployeeTaxProfileCommand = z.input<typeof taxCommandSchema>;
 
 export type UpdateEmployeeTaxProfileResult = CanonicalCommandResult & {
   affectedDrafts: number;
+  artifactCount: number;
+  changedFields: string[];
   existingArtifactWarning: boolean;
+  finalizedCount: number;
   masked: {
     epfMemberNumber: string | null;
     socsoMemberNumber: string | null;
@@ -71,6 +67,7 @@ export type UpdateEmployeeTaxProfileResult = CanonicalCommandResult & {
     taxIdentificationNumber: string | null;
   };
   newRevision: number;
+  reviewCount: number;
 };
 
 export async function updateEmployeeTaxProfile(input: {
@@ -96,16 +93,29 @@ export async function updateEmployeeTaxProfileInTransaction(
 }
 
 function normalizeTaxCommand(input: UpdateEmployeeTaxProfileCommand) {
+  const countryCode = normalizeOptionalIdentifierUpdate(
+    input.statutoryCountryCode,
+  );
   const normalized = {
     ...input,
-    epfMemberNumber: normalizeOptionalIdentifier(input.epfMemberNumber),
-    socsoMemberNumber: normalizeOptionalIdentifier(input.socsoMemberNumber),
+    epfMemberNumber: normalizeOptionalIdentifierUpdate(input.epfMemberNumber),
+    socsoMemberNumber: normalizeOptionalIdentifierUpdate(input.socsoMemberNumber),
     statutoryCountryCode:
-      normalizeOptionalIdentifier(input.statutoryCountryCode)?.toUpperCase() ?? null,
-    statutoryIdentityNumber: normalizeOptionalIdentifier(input.statutoryIdentityNumber),
-    taxIdentificationNumber: normalizeOptionalIdentifier(input.taxIdentificationNumber),
+      countryCode === undefined ? undefined : countryCode?.toUpperCase() ?? null,
+    statutoryIdentityNumber: normalizeOptionalIdentifierUpdate(
+      input.statutoryIdentityNumber,
+    ),
+    taxIdentificationNumber: normalizeOptionalIdentifierUpdate(
+      input.taxIdentificationNumber,
+    ),
   };
   return parseCanonicalCommand(taxCommandSchema, normalized);
+}
+
+function normalizeOptionalIdentifierUpdate(
+  value: string | null | undefined,
+) {
+  return value === undefined ? undefined : normalizeOptionalIdentifier(value);
 }
 
 function buildExecution(
@@ -133,16 +143,51 @@ function buildExecution(
         membership.id,
         transaction,
       );
+      const desired = {
+        epfMemberNumber:
+          command.epfMemberNumber === undefined
+            ? membership.epfMemberNumber
+            : command.epfMemberNumber,
+        socsoMemberNumber:
+          command.socsoMemberNumber === undefined
+            ? membership.socsoMemberNumber
+            : command.socsoMemberNumber,
+        statutoryCountryCode:
+          command.statutoryCountryCode === undefined
+            ? membership.statutoryCountryCode
+            : command.statutoryCountryCode,
+        statutoryIdentityNumber:
+          command.statutoryIdentityNumber === undefined
+            ? membership.statutoryIdentityNumber
+            : command.statutoryIdentityNumber,
+        statutoryIdentityType:
+          command.statutoryIdentityType === undefined
+            ? membership.statutoryIdentityType
+            : command.statutoryIdentityType,
+        taxIdentificationNumber:
+          command.taxIdentificationNumber === undefined
+            ? membership.taxIdentificationNumber
+            : command.taxIdentificationNumber,
+      };
+      if (
+        Boolean(desired.statutoryIdentityType) !==
+        Boolean(desired.statutoryIdentityNumber)
+      ) {
+        throw new PayrollProfileWriteError(
+          "VALIDATION_ERROR",
+          "Identity type and identity number must be supplied together.",
+        );
+      }
       const after = await transaction.employeeBusinessMembership.update({
         where: { id: membership.id },
         data: {
-          epfMemberNumber: command.epfMemberNumber,
-          socsoMemberNumber: command.socsoMemberNumber,
-          statutoryCountryCode: command.statutoryCountryCode,
-          statutoryIdentityNumber: command.statutoryIdentityNumber,
-          statutoryIdentityType: command.statutoryIdentityType,
+          epfMemberNumber: desired.epfMemberNumber,
+          socsoMemberNumber: desired.socsoMemberNumber,
+          statutoryCountryCode: desired.statutoryCountryCode,
+          statutoryIdentityNumber: desired.statutoryIdentityNumber,
+          statutoryIdentityType: desired.statutoryIdentityType,
           statutoryProfileUpdatedAt: new Date(),
-          taxIdentificationNumber: command.taxIdentificationNumber,
+          taxIdentificationNumber: desired.taxIdentificationNumber,
           taxProfileRevision: { increment: 1 },
         },
         select: {
@@ -191,8 +236,11 @@ function buildExecution(
       );
       return {
         affectedDrafts: impact.draftCount,
+        artifactCount: impact.artifactCount,
+        changedFields,
         commandReplay: false,
         existingArtifactWarning: impact.artifactCount > 0,
+        finalizedCount: impact.finalizedCount,
         masked: {
           epfMemberNumber: maskAuditIdentifier(after.epfMemberNumber),
           socsoMemberNumber: maskAuditIdentifier(after.socsoMemberNumber),
@@ -200,6 +248,7 @@ function buildExecution(
           taxIdentificationNumber: maskAuditIdentifier(after.taxIdentificationNumber),
         },
         newRevision: after.taxProfileRevision,
+        reviewCount: impact.reviewCount,
         status: "SUCCESS",
       };
     },

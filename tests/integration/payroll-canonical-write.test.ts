@@ -286,6 +286,38 @@ test("canonical payroll profile commands are idempotent, scoped, concurrent and 
       }),
       enrollmentBefore,
     );
+    const replacementTin = "TIN11223344";
+    const partialTax = await updateEmployeeTaxProfile({
+      context,
+      command: {
+        commandId: randomUUID(),
+        expectedRevision: 1,
+        membershipId: fixture.membership.id,
+        reasonNote: "Replace only the employee tax number supplied by payroll administration.",
+        reasonType: "TAX_INFORMATION_UPDATE",
+        taxIdentificationNumber: replacementTin,
+      },
+    });
+    assert.equal(partialTax.newRevision, 2);
+    assert.deepEqual(
+      await prisma.employeeBusinessMembership.findUniqueOrThrow({
+        where: { id: fixture.membership.id },
+        select: {
+          epfMemberNumber: true,
+          socsoMemberNumber: true,
+          statutoryIdentityNumber: true,
+          statutoryIdentityType: true,
+          taxIdentificationNumber: true,
+        },
+      }),
+      {
+        epfMemberNumber: "EPF12345678",
+        socsoMemberNumber: "SOCSO123456",
+        statutoryIdentityNumber: fullIdentity,
+        statutoryIdentityType: "NEW_IC",
+        taxIdentificationNumber: replacementTin,
+      },
+    );
     await assert.rejects(
       updateEmployeeTaxProfile({
         context,
@@ -331,7 +363,7 @@ test("canonical payroll profile commands are idempotent, scoped, concurrent and 
         select: { after: true, before: true, metadata: true },
       }),
     );
-    assert.doesNotMatch(auditText, /2345\.67|2600|991122-12-3456|TIN99887766|EPF12345678|SOCSO123456|person@example\.test/);
+    assert.doesNotMatch(auditText, /2345\.67|2600|991122-12-3456|TIN99887766|TIN11223344|EPF12345678|SOCSO123456|person@example\.test/);
     assert.match(auditText, /REDACTED/);
 
     const rollbackCommandId = randomUUID();

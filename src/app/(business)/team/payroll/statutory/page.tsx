@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
@@ -13,7 +12,6 @@ import { prisma } from "@/lib/prisma";
 import {
   saveBusinessStatutoryProfileAction,
   createStatutoryCorrectionRevisionAction,
-  saveEmployeeSubmissionProfileAction,
   updateStatutorySubmissionStatusAction,
 } from "./actions";
 import styles from "./statutory.module.css";
@@ -51,15 +49,10 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
         fullName: true,
         statutoryIdentityType: true,
         statutoryIdentityNumber: true,
-        statutoryCountryCode: true,
-        epfMemberNumber: true,
-        socsoMemberNumber: true,
-        taxIdentificationNumber: true,
-        taxProfileRevision: true,
       },
     }),
   ]);
-  const canEditProfile = hasBusinessCapability(context.access, "EDIT_STATUTORY_PROFILE") && hasBusinessCapability(context.access, "EDIT_TAX_PROFILE");
+  const canEditCompanyProfile = hasBusinessCapability(context.access, "EDIT_STATUTORY_PROFILE") && hasBusinessCapability(context.access, "EDIT_TAX_PROFILE");
   const canExport = hasBusinessCapability(context.access, "EXPORT_STATUTORY");
   const canSubmit = hasBusinessCapability(context.access, "SUBMIT_STATUTORY");
   const canResolve = hasBusinessCapability(context.access, "RESOLVE_STATUTORY_SUBMISSION");
@@ -165,40 +158,40 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
         </div>
         <form action={saveBusinessStatutoryProfileAction} className={styles.companyForm}>
           <input name="month" type="hidden" value={period.value} />
-          <Field defaultValue={sensitiveDisplay(profile?.epfEmployerNumber, canEditProfile)} disabled={!canEditProfile} label="KWSP employer number" name="epfEmployerNumber" placeholder="Employer registration number" />
-          <Field defaultValue={sensitiveDisplay(profile?.perkesoEmployerCode, canEditProfile)} disabled={!canEditProfile} label="PERKESO employer code" maxLength={12} name="perkesoEmployerCode" placeholder="Exactly 12 letters/digits" />
-          <Field defaultValue={sensitiveDisplay(profile?.perkesoRegistrationNumber, canEditProfile)} disabled={!canEditProfile} label="MyCoID / SSM number" maxLength={20} name="perkesoRegistrationNumber" placeholder="Optional in ASSIST file" />
-          <Field defaultValue={sensitiveDisplay(profile?.lhdnEmployerNumberHq, canEditProfile)} disabled={!canEditProfile} inputMode="numeric" label="LHDN employer no. (HQ)" maxLength={10} name="lhdnEmployerNumberHq" placeholder="10 digits" />
-          <Field defaultValue={sensitiveDisplay(profile?.lhdnEmployerNumber, canEditProfile)} disabled={!canEditProfile} inputMode="numeric" label="LHDN employer number" maxLength={10} name="lhdnEmployerNumber" placeholder="10 digits" />
-          {canEditProfile ? <button className={styles.primaryButton} type="submit">Save company registration</button> : null}
+          <Field defaultValue={sensitiveDisplay(profile?.epfEmployerNumber, canEditCompanyProfile)} disabled={!canEditCompanyProfile} label="KWSP employer number" name="epfEmployerNumber" placeholder="Employer registration number" />
+          <Field defaultValue={sensitiveDisplay(profile?.perkesoEmployerCode, canEditCompanyProfile)} disabled={!canEditCompanyProfile} label="PERKESO employer code" maxLength={12} name="perkesoEmployerCode" placeholder="Exactly 12 letters/digits" />
+          <Field defaultValue={sensitiveDisplay(profile?.perkesoRegistrationNumber, canEditCompanyProfile)} disabled={!canEditCompanyProfile} label="MyCoID / SSM number" maxLength={20} name="perkesoRegistrationNumber" placeholder="Optional in ASSIST file" />
+          <Field defaultValue={sensitiveDisplay(profile?.lhdnEmployerNumberHq, canEditCompanyProfile)} disabled={!canEditCompanyProfile} inputMode="numeric" label="LHDN employer no. (HQ)" maxLength={10} name="lhdnEmployerNumberHq" placeholder="10 digits" />
+          <Field defaultValue={sensitiveDisplay(profile?.lhdnEmployerNumber, canEditCompanyProfile)} disabled={!canEditCompanyProfile} inputMode="numeric" label="LHDN employer number" maxLength={10} name="lhdnEmployerNumber" placeholder="10 digits" />
+          {canEditCompanyProfile ? <button className={styles.primaryButton} type="submit">Save company registration</button> : null}
         </form>
       </section>
 
       <section className={styles.panel}>
         <div className={styles.panelHeading}>
-          <div><span className={styles.kicker}>EMPLOYEE IDENTITIES</span><h2>Submission profiles</h2><p>These identifiers are business-scoped and used only for statutory validation and exports.</p></div>
+          <div><span className={styles.kicker}>EMPLOYEE IDENTITIES</span><h2>Submission profile validation</h2><p>Employee statutory and tax profiles are managed in Employee Profile. This page only validates monthly export readiness.</p></div>
           <span className={styles.safeBadge}>{employees.length} employees</span>
         </div>
         <div className={styles.employeeList}>
           {employees.map((employee) => {
             const complete = Boolean(employee.statutoryIdentityType && employee.statutoryIdentityNumber);
             return (
-              <details className={styles.employeeCard} key={employee.id}>
-                <summary><span className={styles.avatar}>{initials(employee.fullName)}</span><span>{canViewTeamDirectory ? <Link className={styles.employeeNameLink} href={`/team/people/${employee.id}`}>{employee.fullName}</Link> : <strong>{employee.fullName}</strong>}<small>{employee.employeeCode}</small></span><span className={complete ? styles.profileComplete : styles.profileIncomplete}>{complete ? "Identity added" : "Missing identity"}</span></summary>
-                <form action={saveEmployeeSubmissionProfileAction} className={styles.employeeForm}>
-                  <input name="membershipId" type="hidden" value={employee.id} />
-                  <input name="month" type="hidden" value={period.value} />
-                  <input name="commandId" type="hidden" value={randomUUID()} />
-                  <input name="expectedRevision" type="hidden" value={employee.taxProfileRevision} />
-                  <label><span>Identity type</span><select defaultValue={employee.statutoryIdentityType ?? ""} disabled={!canEditProfile} name="statutoryIdentityType"><option value="">Select type</option><option value="NEW_IC">New IC / MyKad</option><option value="OLD_IC">Old IC</option><option value="PASSPORT">Passport</option><option value="OTHER">Other</option></select></label>
-                  <Field defaultValue={sensitiveDisplay(employee.statutoryIdentityNumber, canEditProfile)} disabled={!canEditProfile} label="Identity number" name="statutoryIdentityNumber" placeholder="No spaces or dashes preferred" />
-                  <Field defaultValue={employee.statutoryCountryCode ?? ""} disabled={!canEditProfile} label="LHDN country code" maxLength={2} name="statutoryCountryCode" placeholder="Passport only, e.g. MY" />
-                  <Field defaultValue={sensitiveDisplay(employee.epfMemberNumber, canEditProfile)} disabled={!canEditProfile} label="KWSP member number" name="epfMemberNumber" placeholder="EPF member number" />
-                  <Field defaultValue={sensitiveDisplay(employee.socsoMemberNumber, canEditProfile)} disabled={!canEditProfile} label="SOCSO / foreign worker no." name="socsoMemberNumber" placeholder="Optional if IC is used" />
-                  <Field defaultValue={sensitiveDisplay(employee.taxIdentificationNumber, canEditProfile)} disabled={!canEditProfile} inputMode="numeric" label="Tax Identification Number" maxLength={11} name="taxIdentificationNumber" placeholder="11 digits" />
-                  {canEditProfile ? <button className={styles.secondaryButton} type="submit">Save employee profile</button> : null}
-                </form>
-              </details>
+              <article className={styles.employeeCard} key={employee.id}>
+                <div>
+                  <span className={styles.avatar}>{initials(employee.fullName)}</span>
+                  <span>
+                    {canViewTeamDirectory ? <Link className={styles.employeeNameLink} href={`/team/people/${employee.id}?section=payroll`}>{employee.fullName}</Link> : <strong>{employee.fullName}</strong>}
+                    <small>{employee.employeeCode}</small>
+                  </span>
+                  <span className={complete ? styles.profileComplete : styles.profileIncomplete}>{complete ? "Identity configured" : "Missing identity"}</span>
+                </div>
+                <p>
+                  {complete
+                    ? "Identity is available for monthly statutory validation."
+                    : "Open Employee Profile to complete the protected identity fields."}
+                </p>
+                {canViewTeamDirectory ? <Link className={styles.secondaryButton} href={`/team/people/${employee.id}?section=payroll`}>Open employee payroll profile</Link> : null}
+              </article>
             );
           })}
           {!employees.length ? <div className={styles.empty}>No active employment profiles are available.</div> : null}

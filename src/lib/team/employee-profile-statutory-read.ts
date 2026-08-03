@@ -15,11 +15,22 @@ type RestrictedSection = {
   reason: "CAPABILITY" | "WHOLE_BUSINESS_SCOPE";
 };
 
+type PayrollProfileImpact = {
+  artifactCount: number;
+  draftCount: number;
+  finalizedCount: number;
+  reviewCount: number;
+};
+
 type StatutorySection =
   | RestrictedSection
   | {
       status: "READY";
       data: {
+        canEdit: boolean;
+        expectedRevision: number;
+        impact: PayrollProfileImpact;
+        membershipId: string;
         nationality: "MALAYSIAN" | "PERMANENT_RESIDENT" | "NON_MALAYSIAN" | null;
         epfEnabled: boolean;
         epfMemberNumberMasked: string | null;
@@ -39,6 +50,10 @@ type TaxSection =
   | {
       status: "READY";
       data: {
+        canEdit: boolean;
+        expectedRevision: number;
+        impact: PayrollProfileImpact;
+        membershipId: string;
         identityType: "NEW_IC" | "OLD_IC" | "PASSPORT" | "OTHER" | null;
         identityNumberMasked: string | null;
         countryCode: string | null;
@@ -64,6 +79,11 @@ export async function loadEmployeeStatutoryProfileSection(
     "VIEW_STATUTORY_PROFILE",
   );
   const canViewTax = hasBusinessCapability(input.access, "VIEW_TAX_PROFILE");
+  const canEditStatutory = hasBusinessCapability(
+    input.access,
+    "EDIT_STATUTORY_PROFILE",
+  );
+  const canEditTax = hasBusinessCapability(input.access, "EDIT_TAX_PROFILE");
 
   if (!canViewStatutory && !canViewTax) {
     return {
@@ -96,11 +116,13 @@ export async function loadEmployeeStatutoryProfileSection(
     };
   }
 
-  const [statutoryProfile, taxProfile] = await Promise.all([
+  const [statutoryProfile, taxProfile, impactRuns] = await Promise.all([
     canViewStatutory
       ? database.employeeBusinessMembership.findFirst({
           where: { businessId: input.businessId, id: input.membershipId },
           select: {
+            id: true,
+            statutoryProfileRevision: true,
             statutoryNationality: true,
             epfEnabled: true,
             epfMemberBeforeAug1998: true,
@@ -119,6 +141,8 @@ export async function loadEmployeeStatutoryProfileSection(
       ? database.employeeBusinessMembership.findFirst({
           where: { businessId: input.businessId, id: input.membershipId },
           select: {
+            id: true,
+            taxProfileRevision: true,
             statutoryIdentityType: true,
             statutoryIdentityNumber: true,
             statutoryCountryCode: true,
@@ -127,11 +151,33 @@ export async function loadEmployeeStatutoryProfileSection(
           },
         })
       : null,
+    canEditStatutory || canEditTax
+      ? database.payrollRun.findMany({
+          where: {
+            businessId: input.businessId,
+            entries: { some: { membershipId: input.membershipId } },
+          },
+          select: {
+            status: true,
+            _count: { select: { statutoryArtifacts: true } },
+          },
+        })
+      : [],
   ]);
 
   if ((canViewStatutory && !statutoryProfile) || (canViewTax && !taxProfile)) {
     return { status: "NOT_FOUND" };
   }
+  const impact = impactRuns.reduce<PayrollProfileImpact>(
+    (result, run) => ({
+      artifactCount: result.artifactCount + run._count.statutoryArtifacts,
+      draftCount: result.draftCount + (run.status === "DRAFT" ? 1 : 0),
+      finalizedCount:
+        result.finalizedCount + (run.status === "FINALIZED" ? 1 : 0),
+      reviewCount: result.reviewCount + (run.status === "REVIEW" ? 1 : 0),
+    }),
+    { artifactCount: 0, draftCount: 0, finalizedCount: 0, reviewCount: 0 },
+  );
 
   return {
     status: "READY",
@@ -139,6 +185,10 @@ export async function loadEmployeeStatutoryProfileSection(
       ? {
           status: "READY",
           data: {
+            canEdit: canEditStatutory,
+            expectedRevision: statutoryProfile.statutoryProfileRevision,
+            impact,
+            membershipId: statutoryProfile.id,
             nationality: statutoryProfile.statutoryNationality,
             epfEnabled: statutoryProfile.epfEnabled,
             epfMemberNumberMasked: maskIdentifier(
@@ -163,6 +213,10 @@ export async function loadEmployeeStatutoryProfileSection(
       ? {
           status: "READY",
           data: {
+            canEdit: canEditTax,
+            expectedRevision: taxProfile.taxProfileRevision,
+            impact,
+            membershipId: taxProfile.id,
             identityType: taxProfile.statutoryIdentityType,
             identityNumberMasked: maskIdentifier(
               taxProfile.statutoryIdentityNumber,

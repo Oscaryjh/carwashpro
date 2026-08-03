@@ -20,6 +20,8 @@ test("Phase 3B statutory capability selects only contribution fields and masks i
       findFirst(query: unknown) {
         calls.push(query);
         return Promise.resolve({
+          id: membershipId,
+          statutoryProfileRevision: 2,
           statutoryNationality: "MALAYSIAN",
           epfEnabled: true,
           epfMemberBeforeAug1998: false,
@@ -50,6 +52,8 @@ test("Phase 3B statutory capability selects only contribution fields and masks i
   if (result.status !== "READY") return;
   assert.equal(result.statutory.status, "READY");
   if (result.statutory.status !== "READY") return;
+  assert.equal(result.statutory.data.canEdit, false);
+  assert.equal(result.statutory.data.expectedRevision, 2);
   assert.equal(result.statutory.data.epfMemberNumberMasked, "•••• 7890");
   assert.equal(result.statutory.data.socsoMemberNumberMasked, "•••• 7766");
   assert.deepEqual(result.tax, { status: "ACCESS_DENIED", reason: "CAPABILITY" });
@@ -71,6 +75,8 @@ test("Phase 3B tax capability selects only submission identity fields and masks 
       findFirst(query: unknown) {
         calls.push(query);
         return Promise.resolve({
+          id: membershipId,
+          taxProfileRevision: 3,
           statutoryIdentityType: "NEW_IC",
           statutoryIdentityNumber: "900101145555",
           statutoryCountryCode: "MY",
@@ -99,6 +105,8 @@ test("Phase 3B tax capability selects only submission identity fields and masks 
   });
   assert.equal(result.tax.status, "READY");
   if (result.tax.status !== "READY") return;
+  assert.equal(result.tax.data.canEdit, false);
+  assert.equal(result.tax.data.expectedRevision, 3);
   assert.equal(result.tax.data.identityNumberMasked, "•••• 5555");
   assert.equal(result.tax.data.tinMasked, "•••• 8901");
   assert.equal(JSON.stringify(result).includes("900101145555"), false);
@@ -173,7 +181,7 @@ test("Phase 3B masking never exposes short or formatted identifiers", () => {
   assert.equal(maskPayrollIdentifier("90-0101-14-5555"), "•••• 5555");
 });
 
-test("Phase 3B route and UI are read-only and exclude unrelated payroll domains", async () => {
+test("Phase 3B query isolation remains intact after controlled edit entry migration", async () => {
   const root = process.cwd();
   const [route, loader, component] = await Promise.all([
     readFile(path.join(root, "src/app/(business)/team/people/[personId]/page.tsx"), "utf8"),
@@ -191,10 +199,11 @@ test("Phase 3B route and UI are read-only and exclude unrelated payroll domains"
   assert.match(component, /result\.reason === "CAPABILITY"\) return null/);
   assert.match(component, /statutorySetupStatus\(data\)/);
   assert.match(component, /taxSetupStatus\(data\)/);
+  assert.match(component, /data\.canEdit \? <StatutoryEditForm/);
+  assert.match(component, /data\.canEdit \? <TaxEditForm/);
   assert.match(component, /"Not enrolled"/);
   assert.match(component, /"Not applicable"/);
   assert.doesNotMatch(component, /Ready for submission/);
-  assert.doesNotMatch(component, /Edit statutory|Edit tax|name="epf|name="socso|name="tin/);
   assert.doesNotMatch(
     loader,
     /bankAccount|paymentBatch|payrollEntry|payslip/i,

@@ -84,9 +84,12 @@ export type UpdateEmployeeStatutoryProfileCommand = z.input<
 
 export type UpdateEmployeeStatutoryProfileResult = CanonicalCommandResult & {
   affectedDrafts: number;
+  artifactCount: number;
   changedFields: string[];
   existingArtifactWarning: boolean;
+  finalizedCount: number;
   newRevision: number;
+  reviewCount: number;
 };
 
 export async function updateEmployeeStatutoryProfile(input: {
@@ -209,10 +212,13 @@ function buildExecution(
       );
       return {
         affectedDrafts: impact.draftCount,
+        artifactCount: impact.artifactCount,
         changedFields,
         commandReplay: false,
         existingArtifactWarning: impact.artifactCount > 0,
+        finalizedCount: impact.finalizedCount,
         newRevision: after.statutoryProfileRevision,
+        reviewCount: impact.reviewCount,
         status: "SUCCESS",
       };
     },
