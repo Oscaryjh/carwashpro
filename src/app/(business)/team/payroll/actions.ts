@@ -209,8 +209,8 @@ export async function generatePayrollRunAction(formData: FormData) {
     finish(
       "success",
       createOnly
-        ? "Payroll draft generated from approved Attendance."
-        : "Payroll draft refreshed from current approved Attendance and Leave.",
+        ? "Payroll draft generated from the current locked Attendance Timesheet."
+        : "Payroll draft refreshed from the current locked Attendance Timesheet and Leave.",
       month,
       returnPath,
     );

@@ -10,6 +10,7 @@ import {
   markAttendanceTimesheetBranchReady,
 } from "../../src/lib/attendance/timesheet-service";
 import { materializeAttendanceResolutionFoundationInTransaction, resolveAttendanceCaseInTransaction } from "../../src/lib/attendance/resolution-service";
+import { generatePayrollRun, submitPayrollRunForReview } from "../../src/lib/payroll/service";
 
 const prisma = new PrismaClient();
 const rollbackMessage = "ATTENDANCE_TIMESHEET_TEST_ROLLBACK";
@@ -29,6 +30,7 @@ test("A3 marks current branch evidence ready, locks immutable revision, and pres
     }
     const finalizedPayroll = await transaction.payrollRun.create({
       data: {
+        attendanceSource: "LEGACY_OPERATIONAL_SESSION",
         businessId: fixture.business.id,
         periodStart: new Date("2026-08-01T00:00:00.000Z"),
         periodEnd: new Date("2026-08-31T00:00:00.000Z"),
@@ -127,6 +129,61 @@ test("A3 invalidates stale Branch Ready and creates revision 2 without changing 
     assert.equal(secondLock.revision, 2);
     assert.deepEqual(await transaction.attendanceTimesheetRevisionEntry.findMany({ where: { revisionId: firstLock.revisionId } }), firstEntries);
     assert.equal((await transaction.attendanceTimesheetRevisionEntry.findFirstOrThrow({ where: { revisionId: secondLock.revisionId } })).totalWorkedMinutes, 510);
+
+    await transaction.employeeCompensationVersion.create({ data: {
+      baseRate: 2600,
+      businessId: fixture.business.id,
+      effectiveFromMonth: new Date("2026-08-01T00:00:00.000Z"),
+      membershipId: fixture.membership.id,
+      payBasis: "MONTHLY",
+      reasonType: "DATA_MIGRATION",
+      source: "LEGACY_BASELINE",
+    } });
+    const payrollRun = await generatePayrollRun({
+      actor: context.actor,
+      businessId: fixture.business.id,
+      month: "2026-08",
+    }, database);
+    assert.equal(payrollRun.attendanceSource, "LOCKED_TIMESHEET_REVISION");
+    assert.equal(payrollRun.attendanceTimesheetRevisionId, secondLock.revisionId);
+    const revisionTwoEntry = await transaction.payrollEntry.findFirstOrThrow({
+      where: { payrollRunId: payrollRun.id, membershipId: fixture.membership.id },
+    });
+    assert.equal(revisionTwoEntry.regularMinutes, 480);
+    assert.equal(revisionTwoEntry.overtimeMinutes, 30);
+
+    const currentCase = await transaction.attendanceResolutionCase.findUniqueOrThrow({
+      where: { id: caseRecord.id },
+    });
+    await resolveAttendanceCaseInTransaction(resolutionContext(fixture), {
+      resolutionCaseId: caseRecord.id,
+      disposition: "INCLUDED",
+      source: "CORRECTION",
+      expectedCurrentResultId: currentCase.currentFinalResultId,
+      resultOverride: {
+        clockInAt: session.clockInAt,
+        clockOutAt: new Date(session.clockOutAt!.getTime() + 60 * 60_000),
+        totalBreakMinutes: 60,
+        totalWorkedMinutes: 540,
+        confirmedBreakMinutes: 60,
+      },
+    }, transaction);
+    const revisionNeeded = await loadMonthlyAttendanceTimesheet({ businessId: fixture.business.id, allowedBranchIds: [fixture.branchA.id], month: "2026-08", database: transaction });
+    await beginMonthlyAttendanceTimesheetRevision({ context, month: "2026-08", reason: "Approved second correction.", expectedUpdatedAt: revisionNeeded.timesheet?.updatedAt.toISOString(), database });
+    await markAttendanceTimesheetBranchReady({ context, month: "2026-08", branchId: fixture.branchA.id, database });
+    const thirdReady = await loadMonthlyAttendanceTimesheet({ businessId: fixture.business.id, allowedBranchIds: [fixture.branchA.id], month: "2026-08", database: transaction });
+    const thirdLock = await lockMonthlyAttendanceTimesheet({ context, month: "2026-08", reason: "Locked second correction.", expectedUpdatedAt: thirdReady.timesheet?.updatedAt.toISOString(), database });
+    await assert.rejects(
+      submitPayrollRunForReview({ actor: context.actor, businessId: fixture.business.id, runId: payrollRun.id }, database),
+      /newer locked Timesheet revision|refresh/i,
+    );
+    const refreshed = await generatePayrollRun({ actor: context.actor, businessId: fixture.business.id, month: "2026-08" }, database);
+    assert.equal(refreshed.attendanceTimesheetRevisionId, thirdLock.revisionId);
+    const revisionThreeEntry = await transaction.payrollEntry.findFirstOrThrow({
+      where: { payrollRunId: payrollRun.id, membershipId: fixture.membership.id },
+    });
+    assert.equal(revisionThreeEntry.regularMinutes, 480);
+    assert.equal(revisionThreeEntry.overtimeMinutes, 60);
     return fixture.business.id;
   });
 });

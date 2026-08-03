@@ -1,7 +1,10 @@
 import type { PayrollRunStatus, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-type RunsDatabase = Pick<PrismaClient, "payrollRun" | "payrollEntry">;
+type RunsDatabase = Pick<
+  PrismaClient,
+  "attendanceMonthlyTimesheet" | "payrollRun" | "payrollEntry"
+>;
 
 export const PAYROLL_RUNS_PAGE_SIZE = 12;
 export const PAYROLL_ENTRIES_PAGE_SIZE = 20;
@@ -58,6 +61,14 @@ export type PayrollRunDetailData = {
     submittedAt: Date | null;
     finalizedAt: Date | null;
     hasStatutorySubmissions: boolean;
+    attendanceSource: "LEGACY_OPERATIONAL_SESSION" | "LOCKED_TIMESHEET_REVISION";
+    attendanceTimesheetRevision: number | null;
+    attendanceTimesheetLockedAt: Date | null;
+    attendanceProvenanceState:
+      | "CURRENT_LOCKED_REVISION"
+      | "REFRESH_REQUIRED"
+      | "LOCKED_HISTORICAL_SNAPSHOT"
+      | "LEGACY_FINALIZED";
     createdAt: Date;
     updatedAt: Date;
   };
@@ -130,12 +141,39 @@ export async function loadPayrollRunDetail(
       submittedById: true,
       submittedAt: true,
       finalizedAt: true,
+      attendanceSource: true,
+      attendanceTimesheetRevisionId: true,
+      attendanceTimesheetRevisionSnapshot: true,
+      attendanceTimesheetLockedAtSnapshot: true,
       _count: { select: { statutorySubmissions: true } },
       createdAt: true,
       updatedAt: true,
     },
   });
   if (!run) return null;
+
+  const currentTimesheet =
+    run.status === "FINALIZED"
+      ? null
+      : await database.attendanceMonthlyTimesheet.findUnique({
+          where: {
+            businessId_periodStart: {
+              businessId,
+              periodStart: run.periodStart,
+            },
+          },
+          select: { status: true, currentRevisionId: true },
+        });
+  const attendanceProvenanceState =
+    run.status === "FINALIZED"
+      ? run.attendanceSource === "LOCKED_TIMESHEET_REVISION"
+        ? ("LOCKED_HISTORICAL_SNAPSHOT" as const)
+        : ("LEGACY_FINALIZED" as const)
+      : run.attendanceSource === "LOCKED_TIMESHEET_REVISION" &&
+          currentTimesheet?.status === "LOCKED" &&
+          currentTimesheet.currentRevisionId === run.attendanceTimesheetRevisionId
+        ? ("CURRENT_LOCKED_REVISION" as const)
+        : ("REFRESH_REQUIRED" as const);
 
   const query = normalizePayrollEntrySearch(rawQuery);
   const entryWhere = {
@@ -198,6 +236,10 @@ export async function loadPayrollRunDetail(
       submittedAt: run.submittedAt,
       finalizedAt: run.finalizedAt,
       hasStatutorySubmissions: run._count.statutorySubmissions > 0,
+      attendanceSource: run.attendanceSource,
+      attendanceTimesheetRevision: run.attendanceTimesheetRevisionSnapshot,
+      attendanceTimesheetLockedAt: run.attendanceTimesheetLockedAtSnapshot,
+      attendanceProvenanceState,
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
     },

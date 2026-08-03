@@ -152,6 +152,11 @@ enum PayrollRunStatus {
   FINALIZED
 }
 
+enum PayrollAttendanceSource {
+  LEGACY_OPERATIONAL_SESSION
+  LOCKED_TIMESHEET_REVISION
+}
+
 enum EmployeeStatutoryNationality {
   MALAYSIAN
   PERMANENT_RESIDENT
@@ -1627,11 +1632,12 @@ model AttendanceTimesheetRevision {
   lockedById   String   @map("locked_by_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at")
 
-  timesheet  AttendanceMonthlyTimesheet         @relation("AttendanceTimesheetRevisions", fields: [timesheetId, businessId], references: [id, businessId], onDelete: Restrict)
-  currentFor AttendanceMonthlyTimesheet?        @relation("CurrentAttendanceTimesheetRevision")
-  business   Business                           @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  lockedBy   User                               @relation("AttendanceTimesheetRevisionLockedBy", fields: [lockedById], references: [id], onDelete: Restrict)
-  entries    AttendanceTimesheetRevisionEntry[]
+  timesheet   AttendanceMonthlyTimesheet         @relation("AttendanceTimesheetRevisions", fields: [timesheetId, businessId], references: [id, businessId], onDelete: Restrict)
+  currentFor  AttendanceMonthlyTimesheet?        @relation("CurrentAttendanceTimesheetRevision")
+  business    Business                           @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  lockedBy    User                               @relation("AttendanceTimesheetRevisionLockedBy", fields: [lockedById], references: [id], onDelete: Restrict)
+  entries     AttendanceTimesheetRevisionEntry[]
+  payrollRuns PayrollRun[]
 
   @@unique([timesheetId, revision])
   @@unique([id, businessId])
@@ -1742,33 +1748,40 @@ model PayrollHoliday {
 }
 
 model PayrollRun {
-  id                                   String           @id @default(uuid()) @db.Uuid
-  businessId                           String           @map("business_id") @db.Uuid
-  periodStart                          DateTime         @map("period_start") @db.Date
-  periodEnd                            DateTime         @map("period_end") @db.Date
-  status                               PayrollRunStatus @default(DRAFT)
-  workingDaysPerMonthSnapshot          Int              @map("working_days_per_month_snapshot")
-  normalWorkMinutesPerDaySnapshot      Int              @map("normal_work_minutes_per_day_snapshot")
-  breakMinutesPerDaySnapshot           Int              @map("break_minutes_per_day_snapshot")
-  overtimeMultiplierSnapshot           Decimal          @map("overtime_multiplier_snapshot") @db.Decimal(5, 2)
-  publicHolidayExtraMultiplierSnapshot Decimal          @map("public_holiday_extra_multiplier_snapshot") @db.Decimal(5, 2)
-  createdById                          String?          @map("created_by_id") @db.Uuid
-  submittedById                        String?          @map("submitted_by_id") @db.Uuid
-  submittedAt                          DateTime?        @map("submitted_at")
-  finalizedById                        String?          @map("finalized_by_id") @db.Uuid
-  finalizedAt                          DateTime?        @map("finalized_at")
-  createdAt                            DateTime         @default(now()) @map("created_at")
-  updatedAt                            DateTime         @updatedAt @map("updated_at")
+  id                                   String                  @id @default(uuid()) @db.Uuid
+  businessId                           String                  @map("business_id") @db.Uuid
+  periodStart                          DateTime                @map("period_start") @db.Date
+  periodEnd                            DateTime                @map("period_end") @db.Date
+  status                               PayrollRunStatus        @default(DRAFT)
+  attendanceSource                     PayrollAttendanceSource @map("attendance_source")
+  attendanceTimesheetRevisionId        String?                 @map("attendance_timesheet_revision_id") @db.Uuid
+  attendanceTimesheetRevisionSnapshot  Int?                    @map("attendance_timesheet_revision_snapshot")
+  attendanceTimesheetDigestSnapshot    String?                 @map("attendance_timesheet_digest_snapshot") @db.VarChar(64)
+  attendanceTimesheetLockedAtSnapshot  DateTime?               @map("attendance_timesheet_locked_at_snapshot")
+  workingDaysPerMonthSnapshot          Int                     @map("working_days_per_month_snapshot")
+  normalWorkMinutesPerDaySnapshot      Int                     @map("normal_work_minutes_per_day_snapshot")
+  breakMinutesPerDaySnapshot           Int                     @map("break_minutes_per_day_snapshot")
+  overtimeMultiplierSnapshot           Decimal                 @map("overtime_multiplier_snapshot") @db.Decimal(5, 2)
+  publicHolidayExtraMultiplierSnapshot Decimal                 @map("public_holiday_extra_multiplier_snapshot") @db.Decimal(5, 2)
+  createdById                          String?                 @map("created_by_id") @db.Uuid
+  submittedById                        String?                 @map("submitted_by_id") @db.Uuid
+  submittedAt                          DateTime?               @map("submitted_at")
+  finalizedById                        String?                 @map("finalized_by_id") @db.Uuid
+  finalizedAt                          DateTime?               @map("finalized_at")
+  createdAt                            DateTime                @default(now()) @map("created_at")
+  updatedAt                            DateTime                @updatedAt @map("updated_at")
 
-  business             Business                         @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  createdBy            User?                            @relation("PayrollRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  submittedBy          User?                            @relation("PayrollRunSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
-  finalizedBy          User?                            @relation("PayrollRunFinalizedBy", fields: [finalizedById], references: [id], onDelete: SetNull)
-  entries              PayrollEntry[]
-  statutorySubmissions PayrollStatutorySubmission[]
-  statutoryArtifacts   PayrollStatutoryExportArtifact[]
+  business                    Business                         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  createdBy                   User?                            @relation("PayrollRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  submittedBy                 User?                            @relation("PayrollRunSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  finalizedBy                 User?                            @relation("PayrollRunFinalizedBy", fields: [finalizedById], references: [id], onDelete: SetNull)
+  attendanceTimesheetRevision AttendanceTimesheetRevision?     @relation(fields: [attendanceTimesheetRevisionId, businessId], references: [id, businessId], onDelete: Restrict)
+  entries                     PayrollEntry[]
+  statutorySubmissions        PayrollStatutorySubmission[]
+  statutoryArtifacts          PayrollStatutoryExportArtifact[]
 
   @@unique([businessId, periodStart, periodEnd])
+  @@index([attendanceTimesheetRevisionId])
   @@index([businessId, status, periodStart])
   @@map("payroll_runs")
 }

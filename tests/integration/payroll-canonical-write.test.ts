@@ -563,6 +563,7 @@ async function createFixture() {
     const periodEnd = new Date(Date.UTC(2024, index + 1, 1));
     const run = await prisma.payrollRun.create({
       data: {
+        attendanceSource: "LEGACY_OPERATIONAL_SESSION",
         businessId: business.id,
         breakMinutesPerDaySnapshot: 60,
         normalWorkMinutesPerDaySnapshot: 480,

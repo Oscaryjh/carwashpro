@@ -58,14 +58,18 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
   );
   const notice = sanitizePayrollNotice(queryParams.message, queryParams.type);
   const isSelfSubmitted = data.run.submittedById === access.userId;
+  const attendanceRefreshRequired =
+    data.run.attendanceProvenanceState === "REFRESH_REQUIRED";
   const canFinalize =
     access.workflow.canFinalize &&
+    !attendanceRefreshRequired &&
     (!isSelfSubmitted || access.ownerSelfApproval);
   const canReopen =
     access.workflow.canReopen && !data.run.hasStatutorySubmissions;
   const hasAvailableAction =
     (data.run.status === "DRAFT" &&
-      (access.workflow.canSubmitReview || access.actions.canCreate)) ||
+      ((!attendanceRefreshRequired && access.workflow.canSubmitReview) ||
+        access.actions.canCreate)) ||
     (data.run.status === "REVIEW" &&
       (access.workflow.canReturnToDraft || canFinalize)) ||
     (data.run.status === "FINALIZED" && canReopen);
@@ -86,6 +90,13 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
           role={queryParams.type === "error" ? "alert" : "status"}
         >
           {notice}
+        </div>
+      ) : null}
+
+      {attendanceRefreshRequired ? (
+        <div className={`${styles.notice} ${styles.noticeError}`} role="alert">
+          This Payroll Run is not linked to the current locked Attendance Timesheet revision.
+          Refresh the Draft before submission. A Run in Review must first be returned to Draft.
         </div>
       ) : null}
 
@@ -113,7 +124,9 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
         </div>
 
         <div className={styles.workflowControls}>
-          {data.run.status === "DRAFT" && access.workflow.canSubmitReview ? (
+          {data.run.status === "DRAFT" &&
+          !attendanceRefreshRequired &&
+          access.workflow.canSubmitReview ? (
             <details className={styles.actionDisclosure}>
               <summary className={styles.primaryAction}>Submit for review</summary>
               <div className={styles.actionConfirmation}>
@@ -133,7 +146,7 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
               <div className={styles.actionConfirmation}>
                 <strong>This deletes and rebuilds every employee entry in this draft.</strong>
                 <p>
-                  The latest approved Attendance, Leave, Payroll Settings and Statutory Profile will be used.
+                  The current locked Attendance Timesheet revision, Leave, Payroll Settings and Statutory Profile will be used.
                   Manual allowances, deductions, EPF/SOCSO/EIS and employer overrides, PCB, LINDUNG 24 and payroll notes will be cleared.
                 </p>
                 <form action={generatePayrollRunAction}>
@@ -237,6 +250,18 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
           <div><dt>Working days / month</dt><dd>{data.run.workingDaysPerMonth}</dd></div>
           <div><dt>Paid work target / day</dt><dd>{formatMinutes(data.run.normalWorkMinutesPerDay)}</dd></div>
           <div><dt>Expected break / day</dt><dd>{formatMinutes(data.run.breakMinutesPerDay)}</dd></div>
+          <div>
+            <dt>Attendance source</dt>
+            <dd>{attendanceSourceLabel(data.run.attendanceProvenanceState)}</dd>
+          </div>
+          <div>
+            <dt>Timesheet revision</dt>
+            <dd>{data.run.attendanceTimesheetRevision ? `Revision ${data.run.attendanceTimesheetRevision}` : "Legacy payroll snapshot"}</dd>
+          </div>
+          <div>
+            <dt>Timesheet locked</dt>
+            <dd>{data.run.attendanceTimesheetLockedAt ? formatDateTime(data.run.attendanceTimesheetLockedAt) : "Not recorded for legacy payroll"}</dd>
+          </div>
           <div><dt>Created</dt><dd>{formatDateTime(data.run.createdAt)}</dd></div>
           <div><dt>Submitted</dt><dd>{data.run.submittedAt ? formatDateTime(data.run.submittedAt) : "Not submitted"}</dd></div>
           <div><dt>Locked</dt><dd>{data.run.finalizedAt ? formatDateTime(data.run.finalizedAt) : "Not locked"}</dd></div>
@@ -371,6 +396,19 @@ function statusDescription(status: "DRAFT" | "REVIEW" | "FINALIZED") {
   if (status === "DRAFT") return "Calculations are still being prepared and can be submitted for review when ready.";
   if (status === "REVIEW") return "Calculations are awaiting review. This does not mean employees have been paid.";
   return "Calculations are locked. Payment completion is not tracked by this status.";
+}
+
+function attendanceSourceLabel(
+  state:
+    | "CURRENT_LOCKED_REVISION"
+    | "REFRESH_REQUIRED"
+    | "LOCKED_HISTORICAL_SNAPSHOT"
+    | "LEGACY_FINALIZED",
+) {
+  if (state === "CURRENT_LOCKED_REVISION") return "Current locked Timesheet revision";
+  if (state === "REFRESH_REQUIRED") return "Refresh required before workflow can continue";
+  if (state === "LOCKED_HISTORICAL_SNAPSHOT") return "Locked Timesheet revision used at finalization";
+  return "Legacy finalized Attendance snapshot";
 }
 
 function workflowTitle(status: "DRAFT" | "REVIEW" | "FINALIZED") {

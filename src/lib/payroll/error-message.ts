@@ -2,6 +2,8 @@ const PUBLIC_PAYROLL_ERROR_PREFIXES = [
   "Select a valid payroll month.",
   "This payroll month is finalized and cannot be regenerated.",
   "Payroll awaiting review or already finalized cannot be regenerated.",
+  "Lock the monthly Attendance Timesheet before creating or refreshing Payroll.",
+  "Attendance has a newer locked Timesheet revision.",
   "The editable payroll entry was not found.",
   "The payroll draft is empty or no longer editable.",
   "Payroll run not found.",

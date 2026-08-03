@@ -174,7 +174,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
             <p>
               {run
                 ? `${entries.length} employee records in this ${runStatus.toLowerCase()} run.`
-                : "Choose a month, then generate a draft from approved attendance."}
+                : "Choose a month after its Attendance Timesheet is approved and locked."}
             </p>
           </div>
         </div>
@@ -426,7 +426,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
             <p className={styles.eyebrow}>PAYROLL RUN</p>
             <h2>{formatMonth(period.start)} payroll</h2>
             <p>
-              Review attendance-derived earnings and statutory entries before
+              Review locked-Timesheet earnings and statutory entries before
               finalizing.
             </p>
           </div>
@@ -466,7 +466,7 @@ export default async function PayrollPage({ searchParams }: PayrollPageProps) {
             <div>
               <strong>No payroll draft for {formatMonth(period.start)}</strong>
               <p>
-                Make sure attendance is completed and approved, then generate
+                Make sure the monthly Attendance Timesheet is locked, then generate
                 the monthly draft.
               </p>
             </div>

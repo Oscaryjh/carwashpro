@@ -8,6 +8,10 @@ import {
 import { calculatePayroll, calculatePayrollTotals } from "@/lib/payroll/calculation";
 import { resolveEmployeeCompensationVersion } from "@/lib/payroll/compensation-version";
 import { calculateStatutoryContributions } from "@/lib/payroll/statutory";
+import {
+  assertPayrollRunUsesCurrentLockedTimesheet,
+  resolveLockedPayrollTimesheet,
+} from "@/lib/payroll/timesheet-bridge";
 import { payrollTransition } from "@/lib/payroll/workflow";
 import { prisma } from "@/lib/prisma";
 
@@ -69,7 +73,12 @@ export async function generatePayrollRun(
       );
     }
 
-    const [memberships, sessions, holidays, leaveDays] = await Promise.all([
+    const timesheet = await resolveLockedPayrollTimesheet(
+      { businessId: context.businessId, periodStart: period.start },
+      transaction,
+    );
+
+    const [memberships, holidays, leaveDays] = await Promise.all([
       transaction.employeeBusinessMembership.findMany({
         where: {
           businessId: context.businessId,
@@ -91,21 +100,6 @@ export async function generatePayrollRun(
           eisEnabled: true,
           eisPreviouslyContributed: true,
           lindung24OptIn: true,
-        },
-      }),
-      transaction.employeeAttendance.findMany({
-        where: {
-          businessId: context.businessId,
-          workDate: { gte: period.start, lt: period.end },
-          status: "COMPLETED",
-          approvalStatus: { in: ["NOT_REQUIRED", "APPROVED"] },
-        },
-        select: {
-          membershipId: true,
-          branchId: true,
-          workDate: true,
-          totalWorkedMinutes: true,
-          updatedAt: true,
         },
       }),
       transaction.payrollHoliday.findMany({
@@ -131,6 +125,10 @@ export async function generatePayrollRun(
         },
       }),
     ]);
+    const sessions = timesheet.entries.map((entry) => ({
+      ...entry,
+      updatedAt: timesheet.lockedAt,
+    }));
     const holidayKeys = new Set(
       holidays.map((holiday) => `${holiday.branchId}:${dateKey(holiday.workDate)}`),
     );
@@ -138,6 +136,11 @@ export async function generatePayrollRun(
       ? await transaction.payrollRun.update({
           where: { id: existing.id },
           data: {
+            attendanceSource: "LOCKED_TIMESHEET_REVISION",
+            attendanceTimesheetRevisionId: timesheet.revisionId,
+            attendanceTimesheetRevisionSnapshot: timesheet.revision,
+            attendanceTimesheetDigestSnapshot: timesheet.sourceDigest,
+            attendanceTimesheetLockedAtSnapshot: timesheet.lockedAt,
             workingDaysPerMonthSnapshot: setting.workingDaysPerMonth,
             normalWorkMinutesPerDaySnapshot: setting.normalWorkMinutesPerDay,
             breakMinutesPerDaySnapshot: setting.breakMinutesPerDay,
@@ -151,6 +154,11 @@ export async function generatePayrollRun(
             businessId: context.businessId,
             periodStart: period.start,
             periodEnd: period.end,
+            attendanceSource: "LOCKED_TIMESHEET_REVISION",
+            attendanceTimesheetRevisionId: timesheet.revisionId,
+            attendanceTimesheetRevisionSnapshot: timesheet.revision,
+            attendanceTimesheetDigestSnapshot: timesheet.sourceDigest,
+            attendanceTimesheetLockedAtSnapshot: timesheet.lockedAt,
             workingDaysPerMonthSnapshot: setting.workingDaysPerMonth,
             normalWorkMinutesPerDaySnapshot: setting.normalWorkMinutesPerDay,
             breakMinutesPerDaySnapshot: setting.breakMinutesPerDay,
@@ -310,6 +318,11 @@ export async function generatePayrollRun(
           month: period.value,
           employeeCount: memberships.length,
           compensationVersions: appliedCompensations,
+          attendanceTimesheet: {
+            revisionId: timesheet.revisionId,
+            revision: timesheet.revision,
+            sourceDigest: timesheet.sourceDigest,
+          },
         },
       },
       transaction,
@@ -437,6 +450,10 @@ export async function submitPayrollRunForReview(
     });
     if (!run) throw new Error("Payroll run not found.");
     payrollTransition(run.status, "SUBMIT_FOR_REVIEW");
+    await assertPayrollRunUsesCurrentLockedTimesheet(
+      { businessId: context.businessId, run },
+      transaction,
+    );
     if (run._count.entries === 0) {
       throw new Error("An empty payroll draft cannot be submitted for review.");
     }
@@ -522,6 +539,10 @@ export async function finalizePayrollRun(
     });
     if (!run) throw new Error("Payroll run not found.");
     payrollTransition(run.status, "FINALIZE");
+    await assertPayrollRunUsesCurrentLockedTimesheet(
+      { businessId: context.businessId, run },
+      transaction,
+    );
     const selfApproval = run.submittedById === context.actor.userId;
     if (selfApproval && !context.allowSelfApprovalOverride) {
       throw new Error("The payroll submitter cannot approve the same payroll run.");

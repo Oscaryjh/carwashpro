@@ -254,12 +254,15 @@ test("payroll generate and refresh resolve compensation by run month", async () 
       membershipId: hourly.id,
       payBasis: "HOURLY",
     });
+    const augustTimesheet = await createLockedTimesheet(fixture, "2026-08");
+    const novemberTimesheet = await createLockedTimesheet(fixture, "2026-11");
 
     const augustRun = await generatePayrollRun({
       actor: actor(fixture),
       businessId: fixture.business.id,
       month: "2026-08",
     });
+    assert.equal(augustRun.attendanceTimesheetRevisionId, augustTimesheet.id);
     const augustEntry = await prisma.payrollEntry.findUniqueOrThrow({
       where: {
         payrollRunId_membershipId: {
@@ -357,6 +360,7 @@ test("payroll generate and refresh resolve compensation by run month", async () 
       businessId: fixture.business.id,
       month: "2026-11",
     });
+    assert.equal(novemberRun.attendanceTimesheetRevisionId, novemberTimesheet.id);
     const novemberEntry = await prisma.payrollEntry.findUniqueOrThrow({
       where: {
         payrollRunId_membershipId: {
@@ -436,7 +440,7 @@ test("payroll generate and refresh resolve compensation by run month", async () 
         businessId: fixture.business.id,
         month: "2026-07",
       }),
-      /No verified compensation version exists for this payroll period/,
+      /Lock the monthly Attendance Timesheet/i,
     );
     assert.equal(
       await prisma.payrollRun.count({
@@ -540,6 +544,32 @@ async function createFixture() {
   };
 }
 
+async function createLockedTimesheet(
+  fixture: Awaited<ReturnType<typeof createFixture>>,
+  month: string,
+) {
+  const periodStart = new Date(`${month}-01T00:00:00.000Z`);
+  const timesheet = await prisma.attendanceMonthlyTimesheet.create({
+    data: { businessId: fixture.business.id, periodStart },
+  });
+  const revision = await prisma.attendanceTimesheetRevision.create({
+    data: {
+      businessId: fixture.business.id,
+      lockedById: fixture.owner.id,
+      periodStart,
+      reason: "Payroll bridge integration fixture.",
+      revision: 1,
+      sourceDigest: "a".repeat(64),
+      timesheetId: timesheet.id,
+    },
+  });
+  await prisma.attendanceMonthlyTimesheet.update({
+    where: { id: timesheet.id },
+    data: { currentRevisionId: revision.id, status: "LOCKED" },
+  });
+  return revision;
+}
+
 function access(fixture: Awaited<ReturnType<typeof createFixture>>): ResolvedBusinessAccess {
   return {
     actorRole: "BUSINESS_OWNER",
@@ -612,10 +642,24 @@ async function cleanupFixture(fixture: Awaited<ReturnType<typeof createFixture>>
   await prisma.$transaction(async (transaction) => {
     await transaction.$executeRaw`SELECT set_config('tetamu.compensation_version_maintenance', 'on', TRUE)`;
     await transaction.$executeRaw`SELECT set_config('tetamu.payroll_profile_command_maintenance', 'on', TRUE)`;
+    await transaction.$executeRaw`SELECT set_config('tetamu.attendance_timesheet_test_maintenance', 'on', TRUE)`;
     await transaction.payrollEntry.deleteMany({
       where: { businessId: fixture.business.id },
     });
     await transaction.payrollRun.deleteMany({
+      where: { businessId: fixture.business.id },
+    });
+    await transaction.attendanceTimesheetRevisionEntry.deleteMany({
+      where: { businessId: fixture.business.id },
+    });
+    await transaction.attendanceMonthlyTimesheet.updateMany({
+      where: { businessId: fixture.business.id },
+      data: { currentRevisionId: null, status: "DRAFT" },
+    });
+    await transaction.attendanceTimesheetRevision.deleteMany({
+      where: { businessId: fixture.business.id },
+    });
+    await transaction.attendanceMonthlyTimesheet.deleteMany({
       where: { businessId: fixture.business.id },
     });
     await transaction.auditLog.deleteMany({

@@ -23,6 +23,7 @@ test("A1 Domain Service creates idempotent immutable results without changing fi
     const context = serviceContext(fixture);
     const finalizedPayroll = await transaction.payrollRun.create({
       data: {
+        attendanceSource: "LEGACY_OPERATIONAL_SESSION",
         businessId: fixture.business.id,
         periodStart: new Date("2026-07-01T00:00:00.000Z"),
         periodEnd: new Date("2026-07-31T00:00:00.000Z"),

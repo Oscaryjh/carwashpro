@@ -17,6 +17,7 @@ test("immutable statutory artifact rejects database update and delete", async ()
   });
   const payrollRun = await prisma.payrollRun.create({
     data: {
+      attendanceSource: "LEGACY_OPERATIONAL_SESSION",
       businessId: business.id,
       breakMinutesPerDaySnapshot: 60,
       normalWorkMinutesPerDaySnapshot: 480,
@@ -220,6 +221,7 @@ test("subsequent statutory downloads return exact retained bytes without current
     });
     const payrollRun = await prisma.payrollRun.create({
       data: {
+        attendanceSource: "LEGACY_OPERATIONAL_SESSION",
         businessId: business.id,
         breakMinutesPerDaySnapshot: 60,
         normalWorkMinutesPerDaySnapshot: 480,
