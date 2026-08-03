@@ -9,7 +9,6 @@ import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
-import { updateEmployeeStatutoryProfile } from "@/lib/payroll/employee-profile-write";
 import { payrollRunReturnPath } from "@/lib/payroll/runs";
 import {
   finalizePayrollRun,
@@ -37,17 +36,10 @@ const holidaySchema = z.object({
   name: z.string().trim().min(2).max(120),
 });
 
-const statutoryProfileSchema = z.object({
-  commandId: z.string().trim().min(1).max(128),
-  expectedRevision: z.coerce.number().int().min(0),
-  membershipId: z.string().uuid(),
-  statutoryNationality: z.enum(["MALAYSIAN", "PERMANENT_RESIDENT", "NON_MALAYSIAN"]).optional(),
-  socsoCategory: z.enum(["FIRST", "SECOND"]).optional(),
-});
-
 const workflowReasonSchema = z.string().trim().min(5).max(500);
 
 export async function savePayrollSettingAction(formData: FormData) {
+  const month = monthFrom(formData);
   try {
     const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
     const input = settingSchema.parse({
@@ -85,13 +77,19 @@ export async function savePayrollSettingAction(formData: FormData) {
         transaction,
       );
     });
-    finish("success", "Payroll settings saved.", monthFrom(formData));
+    finish("success", "Payroll settings saved.", month, settingsPath(month));
   } catch (error) {
-    handleActionError(error, monthFrom(formData), "Unable to save payroll settings.");
+    handleActionError(
+      error,
+      month,
+      "Unable to save payroll settings.",
+      settingsPath(month),
+    );
   }
 }
 
 export async function addPayrollHolidayAction(formData: FormData) {
+  const month = monthFrom(formData);
   try {
     const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
     const input = holidaySchema.parse({
@@ -125,13 +123,19 @@ export async function addPayrollHolidayAction(formData: FormData) {
         transaction,
       );
     });
-    finish("success", "Public holiday saved.", monthFrom(formData));
+    finish("success", "Public holiday saved.", month, settingsPath(month));
   } catch (error) {
-    handleActionError(error, monthFrom(formData), "Unable to save public holiday.");
+    handleActionError(
+      error,
+      month,
+      "Unable to save public holiday.",
+      settingsPath(month),
+    );
   }
 }
 
 export async function deletePayrollHolidayAction(formData: FormData) {
+  const month = monthFrom(formData);
   try {
     const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
     const holidayId = z.string().uuid().parse(formData.get("holidayId"));
@@ -158,9 +162,14 @@ export async function deletePayrollHolidayAction(formData: FormData) {
         transaction,
       );
     });
-    finish("success", "Public holiday removed.", monthFrom(formData));
+    finish("success", "Public holiday removed.", month, settingsPath(month));
   } catch (error) {
-    handleActionError(error, monthFrom(formData), "Unable to remove public holiday.");
+    handleActionError(
+      error,
+      month,
+      "Unable to remove public holiday.",
+      settingsPath(month),
+    );
   }
 }
 
@@ -256,61 +265,6 @@ export async function updatePayrollEntryAction(formData: FormData) {
     finish("success", "Payroll entry updated.", month, returnPath);
   } catch (error) {
     handleActionError(error, month, "Unable to update payroll entry.", returnPath);
-  }
-}
-
-export async function saveEmployeeStatutoryProfileAction(formData: FormData) {
-  const month = monthFrom(formData);
-  try {
-    const context = await requireWholeBusinessPayroll("EDIT_STATUTORY_PROFILE");
-    const input = statutoryProfileSchema.parse({
-      commandId: formData.get("commandId"),
-      expectedRevision: formData.get("expectedRevision"),
-      membershipId: formData.get("membershipId"),
-      statutoryNationality: optionalFormValue(formData, "statutoryNationality"),
-      socsoCategory: optionalFormValue(formData, "socsoCategory"),
-    });
-    const epfEnabled = formData.has("epfEnabled");
-    const socsoEnabled = formData.has("socsoEnabled");
-    const eisEnabled = formData.has("eisEnabled");
-    if (
-      (epfEnabled || socsoEnabled || eisEnabled) &&
-      !input.statutoryNationality
-    ) {
-      throw new Error("Statutory nationality is required when automatic contributions are enabled.");
-    }
-    if (socsoEnabled && !input.socsoCategory) {
-      throw new Error("Select the employee's SOCSO contribution category.");
-    }
-    const request = await getAuditRequestContext();
-    await updateEmployeeStatutoryProfile({
-      command: {
-        commandId: input.commandId,
-        eisEnabled,
-        eisPreviouslyContributed: formData.has("eisPreviouslyContributed"),
-        epfEnabled,
-        epfMemberBeforeAug1998: formData.has("epfMemberBeforeAug1998"),
-        expectedRevision: input.expectedRevision,
-        lindung24OptIn: socsoEnabled && formData.has("lindung24OptIn"),
-        membershipId: input.membershipId,
-        reasonNote: "Statutory profile updated through the legacy payroll compatibility form.",
-        reasonType: "STATUTORY_CORRECTION",
-        socsoCategory: socsoEnabled ? input.socsoCategory ?? null : null,
-        socsoEnabled,
-        statutoryNationality: input.statutoryNationality ?? null,
-      },
-      context: {
-        access: context.access,
-        actor: context.user,
-        allowedBranchIds: context.allowedBranchIds,
-        businessId: context.businessId,
-        caller: "PAYROLL_ACTION",
-        request,
-      },
-    });
-    finish("success", "Statutory profile saved. Regenerate the draft to apply official schedules.", month);
-  } catch (error) {
-    handleActionError(error, month, "Unable to save statutory profile.");
   }
 }
 
@@ -433,16 +387,21 @@ function monthFrom(formData: FormData) {
   return String(formData.get("month") ?? new Date().toISOString().slice(0, 7));
 }
 
+function settingsPath(month: string) {
+  return `/team/payroll/settings?month=${encodeURIComponent(month)}`;
+}
+
 function finish(
   type: "success" | "error",
   message: string,
   month: string,
   returnPath?: string | null,
 ): never {
-  revalidatePath("/team/payroll");
+  revalidatePath("/team/payroll/settings");
+  revalidatePath("/team/payroll/workspace");
   revalidatePath("/team/payroll/runs");
   if (returnPath) revalidatePath(returnPath.split("?", 1)[0]);
-  const destination = returnPath ?? `/team/payroll?month=${encodeURIComponent(month)}`;
+  const destination = returnPath ?? "/team/payroll/workspace";
   const separator = destination.includes("?") ? "&" : "?";
   redirect(`${destination}${separator}type=${type}&message=${encodeURIComponent(message)}`);
 }

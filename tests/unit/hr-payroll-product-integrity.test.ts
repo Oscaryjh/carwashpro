@@ -54,7 +54,7 @@ test("employee names use the unified profile route when directory access exists"
     source("src/app/(business)/team/page.tsx"),
     source("src/app/(business)/team/attendance/page.tsx"),
     source("src/app/(business)/team/leave/page.tsx"),
-    source("src/app/(business)/team/payroll/page.tsx"),
+    source("src/app/(business)/team/payroll/runs/[runId]/page.tsx"),
     source("src/app/(business)/team/payroll/statutory/page.tsx"),
   ]);
 

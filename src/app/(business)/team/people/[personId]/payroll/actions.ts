@@ -318,7 +318,6 @@ export async function updateEmployeeTaxProfileAction(formData: FormData) {
 
 function revalidatePayrollProfile(membershipId: string) {
   revalidatePath(`/team/people/${membershipId}`);
-  revalidatePath("/team/payroll");
   revalidatePath("/team/payroll/statutory");
   revalidatePath("/team/payroll/workspace");
   revalidatePath("/team/payroll/runs");

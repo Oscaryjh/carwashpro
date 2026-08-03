@@ -75,8 +75,8 @@ test("Phase 4B retires legacy employee statutory and tax editing surfaces", asyn
     readFile(path.join(root, "src/app/(business)/team/payroll/statutory/page.tsx"), "utf8"),
   ]);
 
-  assert.match(monthlyPayroll, /Employee statutory profile is managed in Employee Profile/);
-  assert.match(monthlyPayroll, /Open employee payroll profile/);
+  assert.match(monthlyPayroll, /Compatibility route/);
+  assert.match(monthlyPayroll, /`\/team\/payroll\/runs\/\$\{run\.id\}`/);
   assert.doesNotMatch(monthlyPayroll, /saveEmployeeStatutoryProfileAction/);
   assert.doesNotMatch(monthlyPayroll, /Save statutory profile/);
 

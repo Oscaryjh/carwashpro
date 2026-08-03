@@ -121,7 +121,7 @@ export default async function PayrollWorkspacePage() {
             href={
               data.currentRun
                 ? `/team/payroll/runs/${data.currentRun.id}`
-                : `/team/payroll?month=${data.currentMonth}`
+                : `/team/payroll/runs?month=${data.currentMonth}`
             }
           >
             {primaryActionLabel}
@@ -173,8 +173,8 @@ export default async function PayrollWorkspacePage() {
               description="Download PDFs from locked payroll calculations. Publishing is not included."
               href={
                 finalizedRun
-                  ? `/team/payroll?month=${finalizedRun.month}`
-                  : `/team/payroll?month=${data.currentMonth}`
+                  ? `/team/payroll/runs/${finalizedRun.id}`
+                  : `/team/payroll/runs?month=${data.currentMonth}`
               }
               linkLabel={finalizedRun ? "View available payslips" : "View payroll runs"}
               title="Payslip PDFs"
@@ -192,9 +192,9 @@ export default async function PayrollWorkspacePage() {
           {canEditPayroll ? (
             <ModuleCard
               current
-              description="Existing calculation settings remain on Monthly Payroll during W1."
-              href={`/team/payroll?month=${data.currentMonth}`}
-              linkLabel="Open existing settings"
+              description="Maintain business calculation policy and branch public holidays outside monthly runs."
+              href={`/team/payroll/settings?month=${data.currentMonth}`}
+              linkLabel="Open payroll settings"
               title="Payroll Settings"
             />
           ) : null}

@@ -81,7 +81,7 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
         description="Read-only calculation snapshot. Payslip, payment and statutory statuses remain separate."
       >
         <Link href="/team/payroll/runs">All payroll runs</Link>
-        <Link href={`/team/payroll?month=${legacyMonth}`}>Open legacy monthly payroll</Link>
+        <Link href={`/team/payroll/settings?month=${legacyMonth}`}>Payroll settings</Link>
       </PageHeader>
 
       {notice ? (

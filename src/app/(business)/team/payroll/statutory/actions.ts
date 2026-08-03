@@ -11,7 +11,6 @@ import {
 } from "@/lib/audit/payroll-sensitive";
 import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
-import { updateEmployeeTaxProfile } from "@/lib/payroll/employee-profile-write";
 import { createStatutoryCorrectionRevision } from "@/lib/payroll/statutory-artifact";
 import { prisma } from "@/lib/prisma";
 
@@ -23,18 +22,6 @@ const businessProfileSchema = z.object({
   perkesoRegistrationNumber: optionalText(20),
   lhdnEmployerNumberHq: optionalText(10),
   lhdnEmployerNumber: optionalText(10),
-});
-
-const employeeProfileSchema = z.object({
-  commandId: z.string().trim().min(1).max(128),
-  expectedRevision: z.coerce.number().int().min(0),
-  membershipId: z.string().uuid(),
-  statutoryIdentityType: z.enum(["NEW_IC", "OLD_IC", "PASSPORT", "OTHER"]).optional(),
-  statutoryIdentityNumber: optionalText(30),
-  statutoryCountryCode: optionalText(2),
-  epfMemberNumber: optionalText(30),
-  socsoMemberNumber: optionalText(30),
-  taxIdentificationNumber: optionalText(20),
 });
 
 const submissionSchema = z.object({
@@ -84,51 +71,6 @@ export async function saveBusinessStatutoryProfileAction(formData: FormData) {
     finish("success", "Company statutory registration saved.", month);
   } catch (error) {
     handleError(error, month, "Unable to save company statutory registration.");
-  }
-}
-
-export async function saveEmployeeSubmissionProfileAction(formData: FormData) {
-  const month = monthFrom(formData);
-  try {
-    const context = await requireWholeBusinessPayroll("EDIT_TAX_PROFILE");
-    const input = employeeProfileSchema.parse({
-      commandId: formData.get("commandId"),
-      expectedRevision: formData.get("expectedRevision"),
-      membershipId: formData.get("membershipId"),
-      statutoryIdentityType: optionalValue(formData, "statutoryIdentityType"),
-      statutoryIdentityNumber: optionalValue(formData, "statutoryIdentityNumber"),
-      statutoryCountryCode: optionalValue(formData, "statutoryCountryCode")?.toUpperCase(),
-      epfMemberNumber: optionalValue(formData, "epfMemberNumber"),
-      socsoMemberNumber: optionalValue(formData, "socsoMemberNumber"),
-      taxIdentificationNumber: digitsValue(formData, "taxIdentificationNumber"),
-    });
-    const request = await getAuditRequestContext();
-    await updateEmployeeTaxProfile({
-      command: {
-        commandId: input.commandId,
-        epfMemberNumber: input.epfMemberNumber ?? null,
-        expectedRevision: input.expectedRevision,
-        membershipId: input.membershipId,
-        reasonNote: "Tax and submission identity updated through the statutory compatibility form.",
-        reasonType: "TAX_INFORMATION_UPDATE",
-        socsoMemberNumber: input.socsoMemberNumber ?? null,
-        statutoryCountryCode: input.statutoryCountryCode ?? null,
-        statutoryIdentityNumber: input.statutoryIdentityNumber ?? null,
-        statutoryIdentityType: input.statutoryIdentityType ?? null,
-        taxIdentificationNumber: input.taxIdentificationNumber ?? null,
-      },
-      context: {
-        access: context.access,
-        actor: context.user,
-        allowedBranchIds: context.allowedBranchIds,
-        businessId: context.businessId,
-        caller: "STATUTORY_ACTION",
-        request,
-      },
-    });
-    finish("success", "Employee statutory identity saved.", month);
-  } catch (error) {
-    handleError(error, month, "Unable to save employee statutory identity.");
   }
 }
 

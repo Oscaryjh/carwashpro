@@ -234,20 +234,25 @@ test("W2C exposes payroll exports and finalized payslips only through their capa
   assert.match(payslipRoute, /document\.run\.status !== "FINALIZED"/);
 });
 
-test("W2C legacy monthly payroll keeps settings and statutory profile but removes duplicate run actions", async () => {
-  const legacy = await source("src/app/(business)/team/payroll/page.tsx");
+test("Phase 4C retires the legacy monthly page without removing settings", async () => {
+  const [legacy, settings] = await Promise.all([
+    source("src/app/(business)/team/payroll/page.tsx"),
+    source("src/app/(business)/team/payroll/settings/page.tsx"),
+  ]);
 
-  assert.match(legacy, /savePayrollSettingAction/);
-  assert.match(legacy, /addPayrollHolidayAction/);
-  assert.match(legacy, /saveEmployeeStatutoryProfileAction/);
-  assert.match(legacy, /Continue in Payroll Run/);
-  assert.doesNotMatch(legacy, /generatePayrollRunAction|updatePayrollEntryAction/);
-  assert.doesNotMatch(legacy, /submitPayrollRunForReviewAction|finalizePayrollRunAction|reopenPayrollRunAction/);
-  assert.doesNotMatch(legacy, /kind=payroll&format=/);
-  assert.doesNotMatch(legacy, /payslips\/\$\{entry\.id\}/);
+  assert.match(legacy, /Compatibility route/);
+  assert.match(legacy, /`\/team\/payroll\/runs\/\$\{run\.id\}`/);
+  assert.match(legacy, /\/team\/payroll\/workspace/);
+  assert.doesNotMatch(legacy, /payrollSetting|payrollHoliday|entries:/);
+
+  assert.match(settings, /savePayrollSettingAction/);
+  assert.match(settings, /addPayrollHolidayAction/);
+  assert.match(settings, /deletePayrollHolidayAction/);
+  assert.doesNotMatch(settings, /generatePayrollRunAction|updatePayrollEntryAction/);
+  assert.doesNotMatch(settings, /saveEmployeeStatutoryProfileAction/);
 });
 
-test("W1 and legacy payroll retain compatible links into W2A", async () => {
+test("Workspace and compatibility route lead to canonical Payroll Runs", async () => {
   const [workspace, legacy] = await Promise.all([
     source("src/app/(business)/team/payroll/workspace/page.tsx"),
     source("src/app/(business)/team/payroll/page.tsx"),
@@ -256,5 +261,5 @@ test("W1 and legacy payroll retain compatible links into W2A", async () => {
   assert.match(workspace, /href="\/team\/payroll\/runs"/);
   assert.match(workspace, /`\/team\/payroll\/runs\/\$\{data\.currentRun\.id\}`/);
   assert.match(workspace, /`\/team\/payroll\/runs\/\$\{run\.id\}`/);
-  assert.match(legacy, /href="\/team\/payroll\/runs"/);
+  assert.match(legacy, /`\/team\/payroll\/runs\/\$\{run\.id\}`/);
 });

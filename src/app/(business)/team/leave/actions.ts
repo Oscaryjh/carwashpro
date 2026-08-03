@@ -72,7 +72,8 @@ function revalidateLeavePaths() {
   revalidatePath("/team");
   revalidatePath("/team/leave");
   revalidatePath("/team/attendance");
-  revalidatePath("/team/payroll");
+  revalidatePath("/team/payroll/workspace");
+  revalidatePath("/team/payroll/runs");
 }
 
 function redirectWithMessage(type: "success" | "error", message: string): never {

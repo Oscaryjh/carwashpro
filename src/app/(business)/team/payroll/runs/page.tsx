@@ -16,7 +16,12 @@ import styles from "./runs.module.css";
 export const dynamic = "force-dynamic";
 
 type PayrollRunsPageProps = {
-  searchParams: Promise<{ message?: string; page?: string; type?: string }>;
+  searchParams: Promise<{
+    message?: string;
+    month?: string;
+    page?: string;
+    type?: string;
+  }>;
 };
 
 export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageProps) {
@@ -28,7 +33,9 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
   const params = await searchParams;
   const data = await loadPayrollRunsList(access.businessId, parsePayrollPage(params.page));
   const notice = sanitizePayrollNotice(params.message, params.type);
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonth = validMonth(params.month)
+    ? params.month
+    : new Date().toISOString().slice(0, 7);
 
   return (
     <main className={`content hr-module-page ${styles.page}`}>
@@ -37,7 +44,7 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
         description="Create, review and continue monthly payroll calculation runs."
       >
         <Link href="/team/payroll/workspace">Payroll workspace</Link>
-        <Link href="/team/payroll">Legacy monthly payroll</Link>
+        <Link href={`/team/payroll/settings?month=${currentMonth}`}>Payroll settings</Link>
       </PageHeader>
 
       {notice ? (
@@ -129,6 +136,10 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
       )}
     </main>
   );
+}
+
+function validMonth(value?: string): value is string {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value ?? "");
 }
 
 function Pagination({ basePath, page, totalPages }: { basePath: string; page: number; totalPages: number }) {

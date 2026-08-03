@@ -37,11 +37,14 @@ test("four domain commands remain separate and do not expose a mass-update servi
   assert.match(tax, /VIEW_TAX_PROFILE[\s\S]*EDIT_TAX_PROFILE/);
 });
 
-test("legacy runtime actions use canonical wrappers and attendance-only edit blocks payroll writes", () => {
+test("runtime actions use canonical commands and legacy payroll actions expose no profile writer", () => {
   const employeeService = read("src/lib/attendance/employee-service.ts");
   const employeeAction = read("src/app/(business)/team/employees/actions.ts");
   const payrollAction = read("src/app/(business)/team/payroll/actions.ts");
   const statutoryAction = read("src/app/(business)/team/payroll/statutory/actions.ts");
+  const profilePayrollAction = read(
+    "src/app/(business)/team/people/[personId]/payroll/actions.ts",
+  );
   assert.match(employeeService, /scheduleEmployeeCompensationChangeInTransaction/);
   assert.match(employeeService, /updateEmployeePayrollWorkTargetInTransaction/);
   assert.doesNotMatch(
@@ -50,9 +53,11 @@ test("legacy runtime actions use canonical wrappers and attendance-only edit blo
   );
   assert.match(employeeAction, /normalWorkMinutesPerDay:\s*existing\.normalWorkMinutesPerDay/);
   assert.match(employeeAction, /normalWorkMinutesPerDay:\s*null/);
-  assert.match(payrollAction, /updateEmployeeStatutoryProfile\(/);
+  assert.doesNotMatch(payrollAction, /updateEmployeeStatutoryProfile\(/);
   assert.doesNotMatch(payrollAction, /employeeBusinessMembership\.update\(/);
-  assert.match(statutoryAction, /updateEmployeeTaxProfile\(/);
+  assert.match(profilePayrollAction, /updateEmployeeStatutoryProfile\(/);
+  assert.match(profilePayrollAction, /updateEmployeeTaxProfile\(/);
+  assert.doesNotMatch(statutoryAction, /updateEmployeeTaxProfile\(/);
   assert.doesNotMatch(statutoryAction, /employeeBusinessMembership\.update\(/);
 });
 
