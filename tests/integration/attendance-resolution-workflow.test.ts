@@ -6,8 +6,10 @@ import type { AttendanceServiceContext } from "../../src/lib/attendance/employee
 import { materializeAttendanceResolutionFoundationInTransaction } from "../../src/lib/attendance/resolution-service";
 import {
   applyManagerAttendanceResolution,
+  cancelEmployeeAttendanceResolution,
   submitEmployeeAttendanceResolution,
 } from "../../src/lib/attendance/resolution-workflow-service";
+import { loadAttendanceResolutionQueue } from "../../src/lib/attendance/resolution-read-service";
 
 const prisma = new PrismaClient();
 const rollbackMessage = "ATTENDANCE_RESOLUTION_WORKFLOW_TEST_ROLLBACK";
@@ -104,6 +106,21 @@ test("A2 employee resubmit, manager return, and correction create an immutable w
       },
       database,
     });
+    const resubmittedCase =
+      await transaction.attendanceResolutionCase.findUniqueOrThrow({
+        where: { id: resolutionCase.id },
+      });
+    await assert.rejects(
+      cancelEmployeeAttendanceResolution({
+        auth: fixture.employeeAuth,
+        input: {
+          resolutionCaseId: resolutionCase.id,
+          expectedUpdatedAt: resubmittedCase.updatedAt.toISOString(),
+        },
+        database,
+      }),
+      /can no longer be cancelled/i,
+    );
     const beforeDecision =
       await transaction.attendanceResolutionCase.findUniqueOrThrow({
         where: { id: resolutionCase.id },
@@ -143,6 +160,101 @@ test("A2 employee resubmit, manager return, and correction create an immutable w
       1,
     );
 
+    const firstAdjustment =
+      await transaction.attendanceAdjustment.findFirstOrThrow({
+        where: { attendanceSessionId: session.id },
+      });
+    await expectDatabaseFailure(
+      transaction,
+      () =>
+        transaction.attendanceAdjustment.update({
+          where: { id: firstAdjustment.id },
+          data: { reason: "tampered" },
+        }),
+      /Attendance Adjustments are immutable/i,
+    );
+    await expectDatabaseFailure(
+      transaction,
+      () =>
+        transaction.attendanceAdjustment.delete({
+          where: { id: firstAdjustment.id },
+        }),
+      /Attendance Adjustments are immutable/i,
+    );
+    assert.deepEqual(
+      await transaction.attendanceAdjustment.findUniqueOrThrow({
+        where: { id: firstAdjustment.id },
+      }),
+      firstAdjustment,
+    );
+
+    const resolvedCase =
+      await transaction.attendanceResolutionCase.findUniqueOrThrow({
+        where: { id: resolutionCase.id },
+      });
+    const revised = await applyManagerAttendanceResolution({
+      context: managerContext(fixture),
+      input: {
+        resolutionCaseId: resolutionCase.id,
+        action: "APPLY_CORRECTION",
+        reason: "Manager confirmed a later departure after the first decision.",
+        correctedClockInLocal: "2026-08-02T09:00",
+        correctedClockOutLocal: "2026-08-02T18:30",
+        correctedBreakMinutes: 60,
+        expectedUpdatedAt: resolvedCase.updatedAt.toISOString(),
+        expectedCurrentResultId: finalResult.id,
+      },
+      database,
+    });
+    const revisedResult =
+      await transaction.attendanceFinalResult.findUniqueOrThrow({
+        where: { id: revised.finalResultId! },
+      });
+    assert.equal(revisedResult.version, 2);
+    assert.equal(revisedResult.supersedesResultId, finalResult.id);
+    assert.equal(revisedResult.totalWorkedMinutes, 510);
+    assert.equal(
+      (await transaction.attendanceResolutionCase.findUniqueOrThrow({
+        where: { id: resolutionCase.id },
+      })).currentFinalResultId,
+      revisedResult.id,
+    );
+    assert.deepEqual(
+      await transaction.attendanceFinalResult.findUniqueOrThrow({
+        where: { id: finalResult.id },
+      }),
+      finalResult,
+    );
+    await expectDatabaseFailure(
+      transaction,
+      () =>
+        transaction.attendanceFinalResult.update({
+          where: { id: finalResult.id },
+          data: { totalWorkedMinutes: 1 },
+        }),
+      /Final Attendance Results are immutable/i,
+    );
+    await expectDatabaseFailure(
+      transaction,
+      () =>
+        transaction.attendanceFinalResult.delete({
+          where: { id: finalResult.id },
+        }),
+      /Final Attendance Results are immutable/i,
+    );
+    assert.equal(
+      await transaction.attendanceAdjustment.count({
+        where: { attendanceSessionId: session.id },
+      }),
+      2,
+    );
+    assert.equal(
+      await transaction.attendanceResolutionEvent.count({
+        where: { resolutionCaseId: resolutionCase.id },
+      }),
+      5,
+    );
+
     const operationalSession =
       await transaction.employeeAttendance.findUniqueOrThrow({
         where: { id: session.id },
@@ -168,6 +280,177 @@ test("A2 employee resubmit, manager return, and correction create an immutable w
       /Attendance Resolution Events are immutable/i,
     );
 
+    return fixture.business.id;
+  });
+});
+
+test("A2.1 employee cancellation is append-only, owned, deadline-bound, and resubmittable", async () => {
+  await withRollback(async (transaction) => {
+    const fixture = await createFixture(transaction);
+    const session = await createSession(transaction, fixture, "INCOMPLETE");
+    const resolutionCase =
+      await materializeAttendanceResolutionFoundationInTransaction(
+        { ...managerContext(fixture), attendanceSessionId: session.id },
+        transaction,
+      );
+    const database = transactionDatabase(transaction);
+    await submitEmployeeAttendanceResolution({
+      auth: fixture.employeeAuth,
+      input: {
+        resolutionCaseId: resolutionCase.id,
+        reason: "I need to correct my first explanation.",
+      },
+      database,
+    });
+    const submittedCase =
+      await transaction.attendanceResolutionCase.findUniqueOrThrow({
+        where: { id: resolutionCase.id },
+      });
+    const sessionBefore =
+      await transaction.employeeAttendance.findUniqueOrThrow({
+        where: { id: session.id },
+      });
+    const cancelled = await cancelEmployeeAttendanceResolution({
+      auth: fixture.employeeAuth,
+      input: {
+        resolutionCaseId: resolutionCase.id,
+        expectedUpdatedAt: submittedCase.updatedAt.toISOString(),
+      },
+      now: new Date(),
+      database,
+    });
+    assert.equal(cancelled.status, "ACTION_REQUIRED");
+    const afterCancel =
+      await transaction.attendanceResolutionCase.findUniqueOrThrow({
+        where: { id: resolutionCase.id },
+        include: { events: { orderBy: { sequence: "asc" } } },
+      });
+    assert.equal(afterCancel.status, "OPEN");
+    assert.equal(afterCancel.currentFinalResultId, null);
+    assert.deepEqual(
+      afterCancel.events.map((event) => event.type),
+      ["EMPLOYEE_SUBMITTED", "EMPLOYEE_CANCELLED"],
+    );
+    assert.deepEqual(
+      await transaction.employeeAttendance.findUniqueOrThrow({
+        where: { id: session.id },
+      }),
+      sessionBefore,
+    );
+    assert.equal(
+      await transaction.attendanceFinalResult.count({
+        where: { resolutionCaseId: resolutionCase.id },
+      }),
+      0,
+    );
+    assert.equal(
+      await transaction.auditLog.count({
+        where: {
+          action: "ATTENDANCE_RESOLUTION_EMPLOYEE_CANCELLED",
+          entityId: resolutionCase.id,
+        },
+      }),
+      1,
+    );
+
+    const resubmitted = await submitEmployeeAttendanceResolution({
+      auth: fixture.employeeAuth,
+      input: {
+        resolutionCaseId: resolutionCase.id,
+        reason: "This is my corrected explanation.",
+      },
+      database,
+    });
+    assert.equal(resubmitted.status, "UNDER_REVIEW");
+    const afterResubmit =
+      await transaction.attendanceResolutionCase.findUniqueOrThrow({
+        where: { id: resolutionCase.id },
+      });
+    await assert.rejects(
+      cancelEmployeeAttendanceResolution({
+        auth: { ...fixture.employeeAuth, membershipId: randomUUID() },
+        input: {
+          resolutionCaseId: resolutionCase.id,
+          expectedUpdatedAt: afterResubmit.updatedAt.toISOString(),
+        },
+        database,
+      }),
+      /can no longer be cancelled/i,
+    );
+
+    const deadlineSession = await createSession(transaction, fixture, "INCOMPLETE");
+    const deadlineCase =
+      await materializeAttendanceResolutionFoundationInTransaction(
+        { ...managerContext(fixture), attendanceSessionId: deadlineSession.id },
+        transaction,
+      );
+    await submitEmployeeAttendanceResolution({
+      auth: fixture.employeeAuth,
+      input: {
+        resolutionCaseId: deadlineCase.id,
+        reason: "Deadline cancellation test.",
+      },
+      database,
+    });
+    const deadlineCurrent =
+      await transaction.attendanceResolutionCase.findUniqueOrThrow({
+        where: { id: deadlineCase.id },
+        include: { events: { orderBy: { sequence: "desc" }, take: 1 } },
+      });
+    await assert.rejects(
+      cancelEmployeeAttendanceResolution({
+        auth: fixture.employeeAuth,
+        input: {
+          resolutionCaseId: deadlineCase.id,
+          expectedUpdatedAt: deadlineCurrent.updatedAt.toISOString(),
+        },
+        now: new Date(
+          deadlineCurrent.events[0]!.createdAt.getTime() + 16 * 60_000,
+        ),
+        database,
+      }),
+      /can no longer be cancelled/i,
+    );
+
+    return fixture.business.id;
+  });
+});
+
+test("A2.1 resolution queue paginates 25 stable cases without duplicates or omissions", async () => {
+  await withRollback(async (transaction) => {
+    const fixture = await createFixture(transaction);
+    for (let index = 0; index < 25; index += 1) {
+      const session = await createSession(transaction, fixture, "INCOMPLETE");
+      await materializeAttendanceResolutionFoundationInTransaction(
+        { ...managerContext(fixture), attendanceSessionId: session.id },
+        transaction,
+      );
+    }
+    const base = {
+      scope: {
+        businessId: fixture.business.id,
+        allowedBranchIds: [fixture.branch.id],
+      },
+      pageSize: 20,
+      status: "ACTION_REQUIRED" as const,
+      branchId: fixture.branch.id,
+      employeeQuery: "Workflow Employee",
+      database: transaction as unknown as PrismaClient,
+    };
+    const first = await loadAttendanceResolutionQueue({ ...base, page: 1 });
+    const second = await loadAttendanceResolutionQueue({ ...base, page: 2 });
+    assert.equal(first.pagination.total, 25);
+    assert.equal(first.pagination.totalPages, 2);
+    assert.equal(first.items.length, 20);
+    assert.equal(second.items.length, 5);
+    const allIds = [...first.items, ...second.items].map((item) => item.id);
+    assert.equal(new Set(allIds).size, 25);
+    assert.equal(
+      await transaction.attendanceResolutionCase.count({
+        where: { id: { in: allIds } },
+      }),
+      25,
+    );
     return fixture.business.id;
   });
 });

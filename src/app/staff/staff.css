@@ -117,6 +117,28 @@
   grid-column: 1 / -1;
 }
 
+.staff-resolution-pending {
+  display: grid;
+  gap: 10px;
+}
+
+.staff-cancel-button {
+  background: transparent;
+  border: 1px solid #e3a7a0;
+  border-radius: 12px;
+  color: #9a3028;
+  font: inherit;
+  font-weight: 800;
+  min-height: 44px;
+  padding: 10px 14px;
+  width: 100%;
+}
+
+.staff-cancel-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 @media (max-width: 420px) {
   .staff-resolution-summary {
     align-items: stretch;

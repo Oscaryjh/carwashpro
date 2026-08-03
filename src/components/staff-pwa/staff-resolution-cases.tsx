@@ -121,6 +121,33 @@ function ResolutionCaseCard({
     }
   }
 
+  async function cancelPending() {
+    if (busy || !item.canCancel) return;
+    if (!window.confirm("Cancel this pending attendance request? You can submit a new response afterwards.")) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await staffApiFetch<{ ok: true }>("/api/employee-attendance/resolutions", {
+        method: "DELETE",
+        body: JSON.stringify({
+          resolutionCaseId: item.id,
+          expectedUpdatedAt: item.updatedAt,
+        }),
+      });
+      await onSubmitted();
+    } catch (caught) {
+      setError(
+        caught instanceof StaffApiError
+          ? caught.message
+          : "Unable to cancel the attendance request.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <article className="staff-resolution-item">
       <div className="staff-resolution-summary">
@@ -136,6 +163,12 @@ function ResolutionCaseCard({
         <div className="staff-alert warning">
           <strong>Manager returned this case</strong>
           <span>{item.latestEvent.reason}</span>
+        </div>
+      ) : null}
+      {item.latestEvent?.type === "EMPLOYEE_CANCELLED" ? (
+        <div className="staff-alert success">
+          <strong>Previous request cancelled</strong>
+          <span>Submit a new response when you are ready.</span>
         </div>
       ) : null}
       {needsResponse ? (
@@ -182,7 +215,20 @@ function ResolutionCaseCard({
           </button>
         </div>
       ) : (
-        <p className="staff-form-hint">Your response is waiting for manager review.</p>
+        <div className="staff-resolution-pending">
+          <p className="staff-form-hint">Your response is waiting for manager review.</p>
+          {item.canCancel ? (
+            <button
+              className="staff-cancel-button"
+              disabled={busy}
+              onClick={() => void cancelPending()}
+              type="button"
+            >
+              {busy ? "Cancelling..." : "Cancel pending request"}
+            </button>
+          ) : null}
+          {error ? <div className="staff-alert error" role="alert">{error}</div> : null}
+        </div>
       )}
     </article>
   );

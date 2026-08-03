@@ -28,7 +28,8 @@ const mockOtpStore = new Map<string, StoredMockOtp>();
 export class MockEmployeeOtpProvider implements EmployeeOtpProvider {
   constructor(private readonly config: EmployeeAuthConfig) {
     if (
-      config.environment === "production" ||
+      (config.environment === "production" &&
+        !config.otp.testingDeployment) ||
       config.otp.sendMode !== "mock"
     ) {
       throw new EmployeeAuthError(

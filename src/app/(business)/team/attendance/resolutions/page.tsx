@@ -129,6 +129,10 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
               (event) => event.type === "EMPLOYEE_SUBMITTED",
             );
             const canDecide = canModify && item.status === "UNDER_REVIEW";
+            const canRevise =
+              canModify && item.status === "RESOLVED" && Boolean(item.currentFinalResult);
+            const correctionBaseline =
+              item.currentFinalResult ?? item.attendanceSession;
             return (
               <article className={styles.caseCard} key={item.id}>
                 <div className={styles.caseHeader}>
@@ -142,9 +146,14 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
                     )}
                     <small>{item.employee.employeeCode} · {item.branch.name}</small>
                   </div>
-                  <span className={`${styles.status} ${styles[item.status.toLowerCase()]}`}>
-                    {formatStatus(item.status)}
-                  </span>
+                  <div className={styles.badges}>
+                    <span className={`${styles.payrollState} ${item.status === "RESOLVED" ? styles.complete : styles.blocked}`}>
+                      {item.status === "RESOLVED" ? "Resolution complete" : "Payroll blocked"}
+                    </span>
+                    <span className={`${styles.status} ${styles[item.status.toLowerCase()]}`}>
+                      {formatStatus(item.status)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className={styles.facts}>
@@ -191,42 +200,50 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
                   </details>
                 ) : null}
 
-                {canDecide ? (
+                {canDecide || canRevise ? (
                   <div className={styles.actions}>
-                    <form action={decideAttendanceResolutionAction} className={styles.decisionForm}>
-                      <CaseHiddenFields item={item} />
-                      <label>
-                        <span>Decision reason</span>
-                        <textarea maxLength={500} minLength={3} name="reason" required rows={2} />
-                      </label>
-                      <div className={styles.actionButtons}>
-                        <button name="action" type="submit" value="ACCEPT_AS_RECORDED">Accept as recorded</button>
-                        <button className={styles.secondary} name="action" type="submit" value="RETURN_TO_EMPLOYEE">Return to employee</button>
-                        <button className={styles.danger} name="action" type="submit" value="EXCLUDE">Exclude</button>
+                    {canDecide ? (
+                      <form action={decideAttendanceResolutionAction} className={styles.decisionForm}>
+                        <CaseHiddenFields item={item} />
+                        <label>
+                          <span>Decision reason</span>
+                          <textarea maxLength={500} minLength={3} name="reason" required rows={2} />
+                        </label>
+                        <div className={styles.actionButtons}>
+                          <button name="action" type="submit" value="ACCEPT_AS_RECORDED">Accept as recorded</button>
+                          <button className={styles.secondary} name="action" type="submit" value="RETURN_TO_EMPLOYEE">Return to employee</button>
+                          <button className={styles.danger} name="action" type="submit" value="EXCLUDE">Exclude</button>
+                        </div>
+                      </form>
+                    ) : (
+                      <div className={styles.resolvedState}>
+                        Final Attendance Result v{item.currentFinalResult?.version} is retained. A correction creates a new immutable version.
                       </div>
-                    </form>
+                    )}
                     <form action={decideAttendanceResolutionAction} className={styles.correctionForm}>
                       <CaseHiddenFields item={item} />
-                      <h3>Apply correction</h3>
+                      <h3>{canRevise ? "Create corrected result" : "Apply correction"}</h3>
                       <div className={styles.correctionFields}>
                         <label>
                           <span>Clock in ({timezone})</span>
-                          <input defaultValue={formatBranchLocalDateTime(item.attendanceSession.clockInAt, timezone).slice(0, 16)} name="correctedClockInLocal" required type="datetime-local" />
+                          <input defaultValue={correctionBaseline.clockInAt ? formatBranchLocalDateTime(correctionBaseline.clockInAt, timezone).slice(0, 16) : ""} name="correctedClockInLocal" required type="datetime-local" />
                         </label>
                         <label>
                           <span>Clock out</span>
-                          <input defaultValue={item.attendanceSession.clockOutAt ? formatBranchLocalDateTime(item.attendanceSession.clockOutAt, timezone).slice(0, 16) : ""} name="correctedClockOutLocal" required type="datetime-local" />
+                          <input defaultValue={correctionBaseline.clockOutAt ? formatBranchLocalDateTime(correctionBaseline.clockOutAt, timezone).slice(0, 16) : ""} name="correctedClockOutLocal" required type="datetime-local" />
                         </label>
                         <label>
                           <span>Break minutes</span>
-                          <input defaultValue={item.attendanceSession.totalBreakMinutes} min="0" name="correctedBreakMinutes" required type="number" />
+                          <input defaultValue={correctionBaseline.totalBreakMinutes} min="0" name="correctedBreakMinutes" required type="number" />
                         </label>
                         <label className={styles.correctionReason}>
                           <span>Correction reason</span>
                           <input maxLength={500} minLength={3} name="reason" required />
                         </label>
                       </div>
-                      <button name="action" type="submit" value="APPLY_CORRECTION">Apply correction and resolve</button>
+                      <button name="action" type="submit" value="APPLY_CORRECTION">
+                        {canRevise ? "Create correction version" : "Apply correction and resolve"}
+                      </button>
                     </form>
                   </div>
                 ) : item.status === "RESOLVED" ? (

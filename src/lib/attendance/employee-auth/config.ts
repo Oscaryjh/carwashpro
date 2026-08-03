@@ -19,6 +19,7 @@ export type EmployeeAuthConfig = Readonly<{
     deviceRequestsPerHour: number;
     providerRequestsPerHour: number;
     sendMode: EmployeeOtpSendMode;
+    testingDeployment: boolean;
     locale: string;
     mockAccessKey: string | null;
     mockCode: string | null;
@@ -36,6 +37,7 @@ export function getEmployeeAuthConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): EmployeeAuthConfig {
   const environment = normalizeEnvironment(env.NODE_ENV);
+  const testingDeployment = readTestingDeployment(env);
   const authSecret = env.EMPLOYEE_AUTH_SECRET?.trim() ?? "";
 
   if (Buffer.byteLength(authSecret, "utf8") < 32) {
@@ -48,9 +50,14 @@ export function getEmployeeAuthConfig(
   const sendMode = normalizeSendMode(
     env.EMPLOYEE_OTP_SEND_MODE,
     environment,
+    testingDeployment,
   );
 
-  if (environment === "production" && sendMode === "mock") {
+  if (
+    environment === "production" &&
+    sendMode === "mock" &&
+    !testingDeployment
+  ) {
     throw new EmployeeAuthError(
       "CONFIGURATION_ERROR",
       "OTP mock mode is not available in production.",
@@ -61,6 +68,7 @@ export function getEmployeeAuthConfig(
     env.EMPLOYEE_OTP_MOCK_CODE,
     environment,
     sendMode,
+    testingDeployment,
   );
 
   return {
@@ -125,6 +133,7 @@ export function getEmployeeAuthConfig(
         "EMPLOYEE_OTP_PROVIDER_HOURLY_LIMIT",
       ),
       sendMode,
+      testingDeployment,
       locale: readLocale(env.EMPLOYEE_OTP_LOCALE),
       mockAccessKey: env.EMPLOYEE_OTP_MOCK_ACCESS_KEY?.trim() || null,
       mockCode,
@@ -161,6 +170,7 @@ function readMockCode(
   value: string | undefined,
   environment: EmployeeAuthConfig["environment"],
   sendMode: EmployeeOtpSendMode,
+  testingDeployment: boolean,
 ) {
   const code = value?.trim() ?? "";
 
@@ -168,7 +178,10 @@ function readMockCode(
     return null;
   }
 
-  if (environment === "production" || sendMode !== "mock") {
+  if (
+    (environment === "production" && !testingDeployment) ||
+    sendMode !== "mock"
+  ) {
     throw new EmployeeAuthError(
       "CONFIGURATION_ERROR",
       "EMPLOYEE_OTP_MOCK_CODE is available only in non-production mock mode.",
@@ -198,11 +211,14 @@ function normalizeEnvironment(
 function normalizeSendMode(
   value: string | undefined,
   environment: EmployeeAuthConfig["environment"],
+  testingDeployment: boolean,
 ): EmployeeOtpSendMode {
   const normalized = value?.trim().toLowerCase();
 
   if (!normalized) {
-    return environment === "production" ? "provider" : "mock";
+    return environment === "production" && !testingDeployment
+      ? "provider"
+      : "mock";
   }
 
   if (normalized === "mock" || normalized === "provider") {
@@ -213,6 +229,24 @@ function normalizeSendMode(
     "CONFIGURATION_ERROR",
     "EMPLOYEE_OTP_SEND_MODE must be either mock or provider.",
   );
+}
+
+function readTestingDeployment(env: NodeJS.ProcessEnv) {
+  const enabled = env.EMPLOYEE_OTP_TESTING_ENABLED?.trim().toLowerCase();
+  if (!enabled) return false;
+  if (enabled !== "true") {
+    throw new EmployeeAuthError(
+      "CONFIGURATION_ERROR",
+      "EMPLOYEE_OTP_TESTING_ENABLED must be true when provided.",
+    );
+  }
+  if (env.RAILWAY_ENVIRONMENT_NAME?.trim().toLowerCase() !== "testing") {
+    throw new EmployeeAuthError(
+      "CONFIGURATION_ERROR",
+      "Testing OTP is restricted to the Railway testing environment.",
+    );
+  }
+  return true;
 }
 
 function readLocale(value: string | undefined) {

@@ -27,6 +27,13 @@ export const employeeResolutionSubmissionSchema = z.object({
   proposedBreakMinutes: z.coerce.number().int().min(0).max(1_440).nullable().optional(),
 });
 
+export const employeeResolutionCancellationSchema = z.object({
+  resolutionCaseId: z.string().uuid("Attendance Resolution Case is invalid."),
+  expectedUpdatedAt: z.string().datetime(),
+});
+
+export const ATTENDANCE_RESOLUTION_CANCEL_WINDOW_MINUTES = 15;
+
 const managerDecisionSchema = z.object({
   resolutionCaseId: z.string().uuid("Attendance Resolution Case is invalid."),
   action: z.enum([
@@ -56,6 +63,47 @@ const transactionOptions = {
 export type AttendanceManagerResolutionAction = z.infer<
   typeof managerDecisionSchema
 >["action"];
+
+type CancellationEvent = Readonly<{
+  type:
+    | "EMPLOYEE_SUBMITTED"
+    | "EMPLOYEE_CANCELLED"
+    | "MANAGER_ACCEPTED_AS_RECORDED"
+    | "MANAGER_APPLIED_CORRECTION"
+    | "MANAGER_RETURNED"
+    | "MANAGER_EXCLUDED";
+  createdAt: Date;
+}>;
+
+export function getEmployeeResolutionCancellationState(input: {
+  status: "OPEN" | "UNDER_REVIEW" | "RETURNED_FOR_CORRECTION" | "RESOLVED" | "SUPERSEDED";
+  currentFinalResultId: string | null;
+  events: readonly CancellationEvent[];
+  now?: Date;
+}) {
+  const latest = [...input.events].sort(
+    (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+  )[0];
+  const deadlineAt = latest?.type === "EMPLOYEE_SUBMITTED"
+    ? new Date(
+        latest.createdAt.getTime() +
+          ATTENDANCE_RESOLUTION_CANCEL_WINDOW_MINUTES * 60_000,
+      )
+    : null;
+  const canCancel = Boolean(
+    input.status === "UNDER_REVIEW" &&
+      !input.currentFinalResultId &&
+      latest?.type === "EMPLOYEE_SUBMITTED" &&
+      !input.events.some((event) => event.type === "MANAGER_RETURNED") &&
+      deadlineAt &&
+      deadlineAt.getTime() > (input.now ?? new Date()).getTime(),
+  );
+
+  return {
+    canCancel,
+    cancelDeadlineAt: canCancel ? deadlineAt : null,
+  };
+}
 
 export async function submitEmployeeAttendanceResolution(args: {
   auth: EmployeeAuthContext;
@@ -150,6 +198,103 @@ export async function submitEmployeeAttendanceResolution(args: {
   }, transactionOptions);
 }
 
+export async function cancelEmployeeAttendanceResolution(args: {
+  auth: EmployeeAuthContext;
+  input: unknown;
+  now?: Date;
+  database?: PrismaClient;
+}) {
+  const database = args.database ?? prisma;
+  const input = employeeResolutionCancellationSchema.parse(args.input);
+  const now = args.now ?? new Date();
+
+  return database.$transaction(async (transaction) => {
+    const resolutionCase = await transaction.attendanceResolutionCase.findFirst({
+      where: {
+        id: input.resolutionCaseId,
+        businessId: args.auth.businessId,
+        employeeId: args.auth.membershipId,
+        status: "UNDER_REVIEW",
+        currentFinalResultId: null,
+      },
+      include: {
+        events: {
+          select: { type: true, createdAt: true },
+        },
+      },
+    });
+    if (!resolutionCase) {
+      throw new AttendanceApiError(
+        "INVALID_ATTENDANCE_STATE",
+        "This attendance response can no longer be cancelled.",
+      );
+    }
+    if (resolutionCase.updatedAt.toISOString() !== input.expectedUpdatedAt) {
+      throw new AttendanceApiError(
+        "INVALID_ATTENDANCE_STATE",
+        "This attendance issue changed. Reload before cancelling.",
+      );
+    }
+
+    const cancellation = getEmployeeResolutionCancellationState({
+      status: resolutionCase.status,
+      currentFinalResultId: resolutionCase.currentFinalResultId,
+      events: resolutionCase.events,
+      now,
+    });
+    if (!cancellation.canCancel) {
+      throw new AttendanceApiError(
+        "INVALID_ATTENDANCE_STATE",
+        "This attendance response can no longer be cancelled.",
+      );
+    }
+
+    assertAttendanceResolutionTransition(resolutionCase.status, "OPEN");
+    const event = await createResolutionEvent(transaction, {
+      resolutionCase,
+      type: "EMPLOYEE_CANCELLED",
+      actorType: "EMPLOYEE",
+      actorUserId: null,
+      actorEmployeeSessionId: args.auth.sessionId,
+      reason: "Employee cancelled the pending attendance resolution request.",
+      proposedClockInAt: null,
+      proposedClockOutAt: null,
+      proposedBreakMinutes: null,
+      finalResultId: null,
+    });
+    await transaction.attendanceResolutionCase.update({
+      where: { id: resolutionCase.id },
+      data: {
+        status: "OPEN",
+        resolvedById: null,
+        resolvedAt: null,
+      },
+    });
+    await writeAuditLog(
+      {
+        businessId: resolutionCase.businessId,
+        branchId: resolutionCase.branchId,
+        action: "ATTENDANCE_RESOLUTION_EMPLOYEE_CANCELLED",
+        entityType: "AttendanceResolutionCase",
+        entityId: resolutionCase.id,
+        summary: "Employee cancelled a pending attendance resolution response.",
+        metadata: {
+          membershipId: resolutionCase.employeeId,
+          attendanceSessionId: resolutionCase.attendanceSessionId,
+          resolutionEventId: event.id,
+        },
+      },
+      transaction,
+    );
+
+    return {
+      resolutionCaseId: resolutionCase.id,
+      status: "ACTION_REQUIRED" as const,
+      cancelledAt: event.createdAt.toISOString(),
+    };
+  }, transactionOptions);
+}
+
 export async function applyManagerAttendanceResolution(args: {
   context: AttendanceServiceContext;
   input: unknown;
@@ -164,7 +309,10 @@ export async function applyManagerAttendanceResolution(args: {
         id: input.resolutionCaseId,
         businessId: args.context.businessId,
         branchId: { in: [...args.context.allowedBranchIds] },
-        status: "UNDER_REVIEW",
+        status:
+          input.action === "APPLY_CORRECTION"
+            ? { in: ["UNDER_REVIEW", "RESOLVED"] }
+            : "UNDER_REVIEW",
       },
       include: {
         attendanceSession: true,
@@ -257,17 +405,19 @@ export async function applyManagerAttendanceResolution(args: {
         totalWorkedMinutes: correction.workedMinutes,
         confirmedBreakMinutes: correction.breakMinutes,
       };
+      const adjustmentBaseline =
+        resolutionCase.currentFinalResult ?? resolutionCase.attendanceSession;
       await transaction.attendanceAdjustment.create({
         data: {
           businessId: resolutionCase.businessId,
           branchId: resolutionCase.branchId,
           attendanceSessionId: resolutionCase.attendanceSessionId,
           employeeId: resolutionCase.employeeId,
-          originalClockInAt: resolutionCase.attendanceSession.clockInAt,
+          originalClockInAt: adjustmentBaseline.clockInAt,
           adjustedClockInAt: correction.clockInAt,
-          originalClockOutAt: resolutionCase.attendanceSession.clockOutAt,
+          originalClockOutAt: adjustmentBaseline.clockOutAt,
           adjustedClockOutAt: correction.clockOutAt,
-          originalBreakMinutes: resolutionCase.attendanceSession.totalBreakMinutes,
+          originalBreakMinutes: adjustmentBaseline.totalBreakMinutes,
           adjustedBreakMinutes: correction.breakMinutes,
           reason: input.reason,
           adjustedBy: args.context.actor.userId,
@@ -383,6 +533,7 @@ async function createResolutionEvent(
     };
     type:
       | "EMPLOYEE_SUBMITTED"
+      | "EMPLOYEE_CANCELLED"
       | "MANAGER_ACCEPTED_AS_RECORDED"
       | "MANAGER_APPLIED_CORRECTION"
       | "MANAGER_RETURNED"

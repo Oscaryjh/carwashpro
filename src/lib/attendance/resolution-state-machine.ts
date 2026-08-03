@@ -33,7 +33,7 @@ const allowedTransitions: Readonly<
   Record<AttendanceResolutionCaseStatus, readonly AttendanceResolutionCaseStatus[]>
 > = {
   OPEN: ["UNDER_REVIEW", "RETURNED_FOR_CORRECTION", "RESOLVED"],
-  UNDER_REVIEW: ["RETURNED_FOR_CORRECTION", "RESOLVED"],
+  UNDER_REVIEW: ["OPEN", "RETURNED_FOR_CORRECTION", "RESOLVED"],
   RETURNED_FOR_CORRECTION: ["UNDER_REVIEW", "RESOLVED"],
   RESOLVED: ["RESOLVED", "SUPERSEDED"],
   SUPERSEDED: [],

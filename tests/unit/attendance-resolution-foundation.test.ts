@@ -83,6 +83,7 @@ test("Attendance resolution classification separates active, unresolved, include
 
 test("Attendance Resolution Case transitions do not reopen or overwrite resolved history", () => {
   assert.equal(canTransitionAttendanceResolutionCase("OPEN", "RESOLVED"), true);
+  assert.equal(canTransitionAttendanceResolutionCase("UNDER_REVIEW", "OPEN"), true);
   assert.equal(
     canTransitionAttendanceResolutionCase("RETURNED_FOR_CORRECTION", "UNDER_REVIEW"),
     true,

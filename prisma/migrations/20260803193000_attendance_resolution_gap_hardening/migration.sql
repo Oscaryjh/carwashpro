@@ -1,0 +1,2 @@
+ALTER TYPE "AttendanceResolutionEventType"
+  ADD VALUE IF NOT EXISTS 'EMPLOYEE_CANCELLED';

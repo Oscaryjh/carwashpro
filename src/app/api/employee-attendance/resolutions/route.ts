@@ -8,6 +8,8 @@ import {
 } from "@/lib/attendance/employee-auth/session";
 import { loadEmployeeAttendanceResolutionCases } from "@/lib/attendance/resolution-read-service";
 import {
+  cancelEmployeeAttendanceResolution,
+  employeeResolutionCancellationSchema,
   employeeResolutionSubmissionSchema,
   submitEmployeeAttendanceResolution,
 } from "@/lib/attendance/resolution-workflow-service";
@@ -38,6 +40,21 @@ export async function POST(request: Request) {
       employeeResolutionSubmissionSchema,
     );
     const data = await submitEmployeeAttendanceResolution({ auth, input });
+    return employeeAttendanceJson({ ok: true, data });
+  } catch (error) {
+    return employeeAttendanceErrorResponse(error);
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    assertEmployeeAuthSameOrigin(request);
+    const auth = await requireEmployeePunchAuthContext(request);
+    const input = await readEmployeeAuthJson(
+      request,
+      employeeResolutionCancellationSchema,
+    );
+    const data = await cancelEmployeeAttendanceResolution({ auth, input });
     return employeeAttendanceJson({ ok: true, data });
   } catch (error) {
     return employeeAttendanceErrorResponse(error);

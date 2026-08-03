@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
 import type { AttendanceScope } from "@/lib/attendance/scope";
+import { getEmployeeResolutionCancellationState } from "@/lib/attendance/resolution-workflow-service";
 import { prisma } from "@/lib/prisma";
 
 export async function loadEmployeeAttendanceResolutionCases(args: {
@@ -22,6 +23,7 @@ export async function loadEmployeeAttendanceResolutionCases(args: {
       openedReason: true,
       openedAt: true,
       updatedAt: true,
+      currentFinalResultId: true,
       attendanceSession: {
         select: {
           workDate: true,
@@ -38,7 +40,6 @@ export async function loadEmployeeAttendanceResolutionCases(args: {
       },
       events: {
         orderBy: { sequence: "desc" },
-        take: 1,
         select: {
           type: true,
           reason: true,
@@ -48,29 +49,38 @@ export async function loadEmployeeAttendanceResolutionCases(args: {
     },
   });
 
-  return cases.map((item) => ({
-    id: item.id,
-    status: item.status,
-    openedReason: item.openedReason,
-    openedAt: item.openedAt.toISOString(),
-    updatedAt: item.updatedAt.toISOString(),
-    workDate: item.attendanceSession.workDate.toISOString().slice(0, 10),
-    clockInAt: item.attendanceSession.clockInAt.toISOString(),
-    clockOutAt: item.attendanceSession.clockOutAt?.toISOString() ?? null,
-    totalBreakMinutes: item.attendanceSession.totalBreakMinutes,
-    branch: {
-      name: item.branch.name,
-      timezone:
-        item.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur",
-    },
-    latestEvent: item.events[0]
-      ? {
-          type: item.events[0].type,
-          reason: item.events[0].reason,
-          createdAt: item.events[0].createdAt.toISOString(),
-        }
-      : null,
-  }));
+  return cases.map((item) => {
+    const cancellation = getEmployeeResolutionCancellationState({
+      status: item.status,
+      currentFinalResultId: item.currentFinalResultId,
+      events: item.events,
+    });
+    return {
+      id: item.id,
+      status: item.status,
+      openedReason: item.openedReason,
+      openedAt: item.openedAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+      workDate: item.attendanceSession.workDate.toISOString().slice(0, 10),
+      clockInAt: item.attendanceSession.clockInAt.toISOString(),
+      clockOutAt: item.attendanceSession.clockOutAt?.toISOString() ?? null,
+      totalBreakMinutes: item.attendanceSession.totalBreakMinutes,
+      canCancel: cancellation.canCancel,
+      cancelDeadlineAt: cancellation.cancelDeadlineAt?.toISOString() ?? null,
+      branch: {
+        name: item.branch.name,
+        timezone:
+          item.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur",
+      },
+      latestEvent: item.events[0]
+        ? {
+            type: item.events[0].type,
+            reason: item.events[0].reason,
+            createdAt: item.events[0].createdAt.toISOString(),
+          }
+        : null,
+    };
+  });
 }
 
 export async function loadAttendanceResolutionQueue(args: {
@@ -128,6 +138,15 @@ export async function loadAttendanceResolutionQueue(args: {
       openedAt: true,
       updatedAt: true,
       currentFinalResultId: true,
+      currentFinalResult: {
+        select: {
+          disposition: true,
+          clockInAt: true,
+          clockOutAt: true,
+          totalBreakMinutes: true,
+          version: true,
+        },
+      },
       employee: {
         select: { id: true, fullName: true, employeeCode: true },
       },

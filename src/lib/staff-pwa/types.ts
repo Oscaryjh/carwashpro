@@ -151,6 +151,8 @@ export type AttendanceResolutionCase = {
   clockInAt: string;
   clockOutAt: string | null;
   totalBreakMinutes: number;
+  canCancel: boolean;
+  cancelDeadlineAt: string | null;
   branch: { name: string; timezone: string };
   latestEvent: {
     type: string;
