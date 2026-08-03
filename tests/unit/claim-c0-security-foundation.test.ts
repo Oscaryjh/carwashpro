@@ -1,4 +1,12 @@
 import assert from "node:assert/strict";
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  type GetObjectCommandOutput,
+  type HeadObjectCommandOutput,
+  type PutObjectCommandOutput,
+} from "@aws-sdk/client-s3";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -17,6 +25,8 @@ import {
   ClaimPrivateStorageIntegrityError,
   FileSystemClaimPrivateAttachmentStore,
   getClaimPrivateAttachmentStore,
+  S3ClaimPrivateAttachmentStore,
+  type ClaimS3CommandClient,
 } from "../../src/lib/claim/private-attachment-storage";
 import {
   canDirectStaff,
@@ -49,6 +59,7 @@ test("C0 records the approved Claim product boundary without claiming workflow s
   assert.equal(CLAIM_C0_BOUNDARY.domainWorkflowImplemented, false);
   assert.equal(CLAIM_C0_BOUNDARY.payrollBridgeImplemented, false);
   assert.equal(CLAIM_C0_BOUNDARY.malwareScannerImplemented, false);
+  assert.equal(CLAIM_C0_BOUNDARY.s3CompatiblePrivateStorageImplemented, true);
 });
 
 test("Claim capabilities are explicit, dependency-aware and unavailable to group managers", () => {
@@ -83,6 +94,8 @@ test("Claim private storage identifiers and URLs are redacted from Audit DTOs", 
       storageObjectKey: "private-object",
       signedUrl: "https://private.example/signed",
       attachmentUrl: "/private/attachment",
+      storageBucket: "private-claim-bucket",
+      storageEndpoint: "https://private-storage.example",
       originalFileName: "employee-private-receipt.pdf",
       receiptCount: 2,
     }),
@@ -91,6 +104,8 @@ test("Claim private storage identifiers and URLs are redacted from Audit DTOs", 
       storageObjectKey: "[REDACTED]",
       signedUrl: "[REDACTED]",
       attachmentUrl: "[REDACTED]",
+      storageBucket: "[REDACTED]",
+      storageEndpoint: "[REDACTED]",
       originalFileName: "[REDACTED]",
       receiptCount: 2,
     },
@@ -190,6 +205,13 @@ test("private filesystem storage has no URL and verifies bytes on server read", 
       }),
       minimalPng,
     );
+    assert.deepEqual(await store.getQuarantinedMetadata(saved.objectKey), {
+      objectKey: saved.objectKey,
+      byteLength: saved.byteLength,
+      checksumSha256: saved.checksumSha256,
+      mimeType: saved.mimeType,
+      disposition: "QUARANTINED",
+    });
     assert.deepEqual(
       await readFile(path.join(root, ...saved.objectKey.split("/"))),
       minimalPng,
@@ -205,6 +227,203 @@ test("private filesystem storage has no URL and verifies bytes on server read", 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("S3-compatible private storage uses conditional quarantine writes and verifies metadata", async () => {
+  const fake = createFakeS3Client();
+  const attachment = validateClaimAttachment({
+    bytes: minimalPng,
+    claimedMimeType: "image/png",
+    originalFileName: "receipt.png",
+  });
+  const store = new S3ClaimPrivateAttachmentStore(
+    validS3Configuration(),
+    {
+      client: fake.client,
+      now: () => new Date("2026-08-03T00:00:00.000Z"),
+      createId: () => "22222222-2222-4222-8222-222222222222",
+    },
+  );
+
+  const saved = await store.putQuarantined(attachment);
+  assert.equal(saved.publicUrl, null);
+  assert.equal(saved.signedUrl, null);
+  assert.equal(saved.disposition, "QUARANTINED");
+  assert.equal(fake.putCommands.length, 1);
+  assert.equal(fake.putCommands[0]?.input.IfNoneMatch, "*");
+  assert.equal(fake.putCommands[0]?.input.CacheControl, "private, no-store");
+  assert.equal(
+    fake.putCommands[0]?.input.Key,
+    "testing/claims/claim-receipts/2026/08/22222222-2222-4222-8222-222222222222.png",
+  );
+  assert.equal(fake.putCommands[0]?.input.Metadata?.disposition, "quarantined");
+  assert.deepEqual(
+    await store.readQuarantined({
+      objectKey: saved.objectKey,
+      expectedChecksumSha256: saved.checksumSha256,
+    }),
+    minimalPng,
+  );
+});
+
+test("S3-compatible reads fail closed on metadata, byte-length, and checksum tampering", async () => {
+  const fake = createFakeS3Client();
+  const attachment = validateClaimAttachment({
+    bytes: minimalPng,
+    claimedMimeType: "image/png",
+    originalFileName: "receipt.png",
+  });
+  const store = new S3ClaimPrivateAttachmentStore(validS3Configuration(), {
+    client: fake.client,
+    now: () => new Date("2026-08-03T00:00:00.000Z"),
+    createId: () => "33333333-3333-4333-8333-333333333333",
+  });
+  const saved = await store.putQuarantined(attachment);
+  const storageKey = `testing/claims/${saved.objectKey}`;
+  const object = fake.objects.get(storageKey);
+  assert.ok(object);
+
+  object.bytes = Buffer.concat([object.bytes, Buffer.from([0x00])]);
+  await assert.rejects(
+    store.readQuarantined({
+      objectKey: saved.objectKey,
+      expectedChecksumSha256: saved.checksumSha256,
+    }),
+    ClaimPrivateStorageIntegrityError,
+  );
+
+  object.bytes = Buffer.from(minimalPng);
+  object.metadata.checksumsha256 = "0".repeat(64);
+  await assert.rejects(
+    store.readQuarantined({
+      objectKey: saved.objectKey,
+      expectedChecksumSha256: saved.checksumSha256,
+    }),
+    ClaimPrivateStorageIntegrityError,
+  );
+});
+
+test("S3-compatible storage never overwrites an existing opaque object key", async () => {
+  const fake = createFakeS3Client();
+  const attachment = validateClaimAttachment({
+    bytes: minimalPng,
+    claimedMimeType: "image/png",
+    originalFileName: "receipt.png",
+  });
+  const store = new S3ClaimPrivateAttachmentStore(validS3Configuration(), {
+    client: fake.client,
+    now: () => new Date("2026-08-03T00:00:00.000Z"),
+    createId: () => "44444444-4444-4444-8444-444444444444",
+  });
+
+  await store.putQuarantined(attachment);
+  await assert.rejects(store.putQuarantined(attachment), /Precondition failed/);
+  assert.equal(fake.objects.size, 1);
+});
+
+test("S3-compatible configuration is explicit, HTTPS-only, and fail-closed", () => {
+  assert.throws(
+    () =>
+      getClaimPrivateAttachmentStore({
+        CLAIM_PRIVATE_STORAGE_PROVIDER: "s3",
+      }),
+    ClaimPrivateStorageConfigurationError,
+  );
+  assert.throws(
+    () =>
+      new S3ClaimPrivateAttachmentStore({
+        ...validS3Configuration(),
+        endpoint: "http://private-storage.example",
+      }),
+    ClaimPrivateStorageConfigurationError,
+  );
+  assert.throws(
+    () =>
+      new S3ClaimPrivateAttachmentStore({
+        ...validS3Configuration(),
+        objectPrefix: "../production",
+      }),
+    ClaimPrivateStorageConfigurationError,
+  );
+  assert.ok(
+    getClaimPrivateAttachmentStore({
+      CLAIM_PRIVATE_STORAGE_PROVIDER: "s3",
+      CLAIM_PRIVATE_STORAGE_S3_ENDPOINT:
+        "https://testing-account.r2.cloudflarestorage.com",
+      CLAIM_PRIVATE_STORAGE_S3_REGION: "auto",
+      CLAIM_PRIVATE_STORAGE_S3_BUCKET: "tetamu-claim-testing",
+      CLAIM_PRIVATE_STORAGE_S3_ACCESS_KEY_ID: "testing-access-key",
+      CLAIM_PRIVATE_STORAGE_S3_SECRET_ACCESS_KEY: "testing-secret-key",
+      CLAIM_PRIVATE_STORAGE_S3_PREFIX: "testing/claims",
+    }) instanceof S3ClaimPrivateAttachmentStore,
+  );
+});
+
+function validS3Configuration() {
+  return {
+    endpoint: "https://testing-account.r2.cloudflarestorage.com",
+    region: "auto",
+    bucket: "tetamu-claim-testing",
+    accessKeyId: "testing-access-key",
+    secretAccessKey: "testing-secret-key",
+    objectPrefix: "testing/claims",
+  };
+}
+
+function createFakeS3Client() {
+  type FakeObject = {
+    bytes: Buffer;
+    contentType: string;
+    metadata: Record<string, string>;
+  };
+  const objects = new Map<string, FakeObject>();
+  const putCommands: PutObjectCommand[] = [];
+
+  const client = {
+    async send(command: PutObjectCommand | HeadObjectCommand | GetObjectCommand) {
+      if (command instanceof PutObjectCommand) {
+        putCommands.push(command);
+        const key = String(command.input.Key);
+        if (command.input.IfNoneMatch === "*" && objects.has(key)) {
+          throw Object.assign(new Error("Precondition failed"), {
+            name: "PreconditionFailed",
+          });
+        }
+        const bytes = Buffer.from(command.input.Body as Uint8Array);
+        objects.set(key, {
+          bytes,
+          contentType: String(command.input.ContentType),
+          metadata: { ...(command.input.Metadata ?? {}) },
+        });
+        return { $metadata: { httpStatusCode: 200 } } as PutObjectCommandOutput;
+      }
+
+      const key = String(command.input.Key);
+      const object = objects.get(key);
+      if (!object) {
+        throw Object.assign(new Error("Not found"), { name: "NoSuchKey" });
+      }
+      if (command instanceof HeadObjectCommand) {
+        return {
+          $metadata: { httpStatusCode: 200 },
+          ContentLength: object.bytes.length,
+          ContentType: object.contentType,
+          Metadata: { ...object.metadata },
+        } as HeadObjectCommandOutput;
+      }
+      return {
+        $metadata: { httpStatusCode: 200 },
+        ContentLength: object.bytes.length,
+        ContentType: object.contentType,
+        Metadata: { ...object.metadata },
+        Body: {
+          transformToByteArray: async () => Uint8Array.from(object.bytes),
+        },
+      } as unknown as GetObjectCommandOutput;
+    },
+  } as unknown as ClaimS3CommandClient;
+
+  return { client, objects, putCommands };
+}
 
 test("private storage configuration rejects public roots and missing configuration", async () => {
   assert.throws(

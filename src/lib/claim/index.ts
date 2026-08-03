@@ -18,7 +18,10 @@ export {
   ClaimPrivateStorageConfigurationError,
   ClaimPrivateStorageIntegrityError,
   FileSystemClaimPrivateAttachmentStore,
+  S3ClaimPrivateAttachmentStore,
   getClaimPrivateAttachmentStore,
   type ClaimPrivateAttachmentStore,
+  type ClaimS3CommandClient,
+  type QuarantinedClaimAttachmentMetadata,
   type StoredPrivateClaimAttachment,
 } from "./private-attachment-storage";

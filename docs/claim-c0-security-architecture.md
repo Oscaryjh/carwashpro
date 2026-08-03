@@ -44,7 +44,7 @@ Business and Group Owners continue to receive owner-equivalent capability policy
 
 ## Private attachment boundary
 
-C0 provides a server-only filesystem adapter behind `ClaimPrivateAttachmentStore`.
+C0 provides a server-only storage interface behind `ClaimPrivateAttachmentStore`. C0.1 adds an S3-compatible quarantine adapter while retaining the filesystem adapter for explicitly private durable local volumes.
 
 - It requires explicit `CLAIM_PRIVATE_STORAGE_PROVIDER=filesystem` and an absolute `CLAIM_PRIVATE_STORAGE_ROOT`.
 - The root may not resolve inside `public`.
@@ -52,8 +52,8 @@ C0 provides a server-only filesystem adapter behind `ClaimPrivateAttachmentStore
 - Reads occur on the server and require an expected SHA-256 checksum.
 - Files enter `QUARANTINED` state only.
 - No runtime delete API is exposed.
-- A durable private Railway volume is required before enabling the filesystem provider in Testing.
-- Production object storage is not selected by C0. An S3-compatible private provider can implement the same interface later without changing Claim domain code.
+- Railway Testing must use its dedicated private S3-compatible bucket because its existing Web volume is mounted under the public uploads directory.
+- Production object storage is not selected or configured by C0/C0.1.
 
 ## Attachment security policy
 
@@ -77,8 +77,7 @@ C0 does not write `PayrollEntry`, `allowances`, Payslip or Payroll Runs. A later
 
 ## Remaining blockers before Claim submission UI
 
-1. Select and configure a durable private storage provider for Railway Testing.
-2. Integrate malware scanning or a quarantine release worker.
-3. Add privacy metadata sanitization/normalization for supported images and PDFs.
-4. Implement C1 Claim header/items, immutable revisions/events and tenant/scope domain services.
-5. Add authorized attachment download streaming; signed URLs remain optional and are not part of C0.
+1. Integrate malware scanning or a quarantine release worker.
+2. Add privacy metadata sanitization/normalization for supported images and PDFs.
+3. Implement C1 Claim header/items, immutable revisions/events and tenant/scope domain services.
+4. Add authorized attachment download streaming; signed URLs remain optional and are not part of C0/C0.1.

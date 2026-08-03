@@ -29,6 +29,7 @@
     "prisma:seed": "node scripts/with-embedded-postgres.mjs tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1101.0",
     "@prisma/client": "^6.10.1",
     "bcryptjs": "^3.0.2",
     "jose": "^5.9.6",

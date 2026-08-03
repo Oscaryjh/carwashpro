@@ -21,4 +21,5 @@ export const CLAIM_C0_BOUNDARY = Object.freeze({
   payrollBridgeImplemented: false,
   signedDownloadImplemented: false,
   malwareScannerImplemented: false,
+  s3CompatiblePrivateStorageImplemented: true,
 });
