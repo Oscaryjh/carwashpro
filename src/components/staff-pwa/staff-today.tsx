@@ -21,6 +21,7 @@ import type {
   EmployeeProfile,
 } from "@/lib/staff-pwa/types";
 import { StaffLoading } from "./staff-auth";
+import { StaffResolutionCases } from "./staff-resolution-cases";
 
 type GpsEvidence = {
   latitude: number | null;
@@ -544,6 +545,8 @@ export function StaffToday() {
           <p className="staff-form-hint">End the current break before clocking out.</p>
         ) : null}
       </section>
+
+      <StaffResolutionCases />
 
       {reviewStatus ? (
         <section

@@ -20,6 +20,13 @@ const managerPage = readFileSync(
   new URL("../../src/app/(business)/team/attendance/page.tsx", import.meta.url),
   "utf8",
 );
+const resolutionQueuePage = readFileSync(
+  new URL(
+    "../../src/app/(business)/team/attendance/resolutions/page.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
 const settingsForm = readFileSync(
   new URL("../../src/components/attendance-settings-form.tsx", import.meta.url),
   "utf8",
@@ -45,9 +52,13 @@ test("Attendance branch guard preserves established session scope guard ordering
   assert.match(guardOrderMigration, /COMMIT;\s*$/);
 });
 
-test("manager Attendance operations include review, adjustment, export, and pagination", () => {
-  assert.match(managerPage, /reviewAttendanceExceptionAction/);
-  assert.match(managerPage, /adjustAttendanceSessionAction/);
+test("manager Attendance operations use the Resolution Queue, export, and pagination", () => {
+  assert.match(managerPage, /Resolution queue/);
+  assert.match(resolutionQueuePage, /decideAttendanceResolutionAction/);
+  assert.match(resolutionQueuePage, /ACCEPT_AS_RECORDED/);
+  assert.match(resolutionQueuePage, /APPLY_CORRECTION/);
+  assert.match(resolutionQueuePage, /RETURN_TO_EMPLOYEE/);
+  assert.match(resolutionQueuePage, /EXCLUDE/);
   assert.match(managerPage, /Export CSV/);
   assert.match(managerPage, /const pageSize = 25/);
   assert.match(managerPage, /skip: \(page - 1\) \* pageSize/);

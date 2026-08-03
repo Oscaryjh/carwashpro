@@ -87,3 +87,41 @@ export function formatBranchLocalDateTime(
     parts.hour,
   )}:${pad(parts.minute)}:${pad(parts.second)}`;
 }
+
+export function parseBranchLocalDateTime(
+  value: string,
+  timeZone: string,
+): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match || !isValidIanaTimeZone(timeZone)) {
+    throw new AttendanceApiError(
+      "VALIDATION_ERROR",
+      "Enter a valid branch-local date and time.",
+    );
+  }
+
+  const [year, month, day, hour, minute] = match.slice(1).map(Number);
+  const localEpoch = Date.UTC(year, month - 1, day, hour, minute);
+  let result = new Date(localEpoch);
+  for (let iteration = 0; iteration < 3; iteration += 1) {
+    const parts = getBranchLocalDateParts(result, timeZone);
+    const zonedEpoch = Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
+      parts.second,
+    );
+    const offset = zonedEpoch - Math.floor(result.getTime() / 1000) * 1000;
+    result = new Date(localEpoch - offset);
+  }
+
+  if (formatBranchLocalDateTime(result, timeZone).slice(0, 16) !== value) {
+    throw new AttendanceApiError(
+      "VALIDATION_ERROR",
+      "The branch-local date and time does not exist.",
+    );
+  }
+  return result;
+}

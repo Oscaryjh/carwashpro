@@ -1,16 +1,10 @@
 import Link from "next/link";
 import type { EmployeeAttendanceStatus, Prisma } from "@prisma/client";
 import {
-  adjustAttendanceSessionAction,
-  reviewAttendanceExceptionAction,
-} from "./actions";
-import {
-  buildAttendanceExceptionWhere,
   buildAttendanceSessionWhere,
   resolveAttendanceScope,
 } from "@/lib/attendance/scope";
 import { calculateAttendanceDurations } from "@/lib/attendance/state-machine";
-import { formatBranchLocalDateTime } from "@/lib/attendance/work-date";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { getOperationalBranches } from "@/lib/branches";
@@ -23,7 +17,6 @@ type AttendancePageProps = {
     date?: string;
     datePreset?: string;
     status?: string;
-    adjust?: string;
     month?: string;
     employeeId?: string;
     type?: string;
@@ -141,37 +134,7 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
   const requestedPage = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
   const monthRange = getMonthRange(params.month);
   const summaryNow = new Date();
-  const supportingDataPromise = Promise.all([
-    prisma.attendanceException.findMany({
-      where: buildAttendanceExceptionWhere<Prisma.AttendanceExceptionWhereInput>(scope, {
-        status: "PENDING",
-        ...(requestedBranchId ? { branchId: requestedBranchId } : {}),
-      }),
-      include: {
-        employee: {
-          select: {
-            employeeCode: true,
-            fullName: true,
-          },
-        },
-        branch: {
-          select: {
-            name: true,
-            attendanceSetting: { select: { timezone: true } },
-          },
-        },
-        attendanceSession: {
-          select: {
-            id: true,
-            workDate: true,
-            status: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "asc" },
-      take: 100,
-    }),
-    prisma.employeeBusinessMembership.findMany({
+  const supportingDataPromise = prisma.employeeBusinessMembership.findMany({
       where: {
         businessId,
         status: { in: ["ACTIVE", "SUSPENDED"] },
@@ -195,9 +158,8 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
         employeeCode: true,
         fullName: true,
       },
-    }),
-  ]);
-  const [totalRecords, [pendingExceptions, monthlyMembers]] = await Promise.all([
+    });
+  const [totalRecords, monthlyMembers] = await Promise.all([
     prisma.employeeAttendance.count({ where }),
     supportingDataPromise,
   ]);
@@ -351,9 +313,6 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
     }
     return { ...entry, workedMinutes };
   });
-  const adjustingSession = params.adjust
-    ? rows.find((entry) => entry.id === params.adjust) ?? null
-    : null;
   const openCount = activeAttendance.length;
   const activeWorkedMinutes = activeAttendance.reduce((total, entry) => {
     try {
@@ -381,12 +340,11 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
   else exportParams.set("date", dateFilter);
   if (requestedBranchId) exportParams.set("branchId", requestedBranchId);
   if (statusFilter !== "ALL") exportParams.set("status", statusFilter);
-  function attendanceHref(targetPage = page, adjustId?: string) {
+  function attendanceHref(targetPage = page) {
     const query = new URLSearchParams(exportParams);
     query.set("month", monthRange.month);
     if (selectedEmployeeId) query.set("employeeId", selectedEmployeeId);
     if (targetPage > 1) query.set("page", String(targetPage));
-    if (adjustId) query.set("adjust", adjustId);
     const serialized = query.toString();
     return `/team/attendance${serialized ? `?${serialized}` : ""}`;
   }
@@ -400,6 +358,11 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
           <p>See who is working now and review clock-in records across your branches.</p>
         </div>
         <div className={`hr-module-actions ${styles.headerActions}`}>
+          {canModify ? (
+            <Link className="secondary-light-button" href="/team/attendance/resolutions">
+              Resolution queue
+            </Link>
+          ) : null}
           <Link className="secondary-light-button" href={`/team/attendance/export?${exportParams}`}>
             Export CSV
           </Link>
@@ -559,132 +522,6 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
           </div>
         )}
       </section>
-
-
-      <section className={styles.recordsPanel}>
-        <div className={styles.panelHeading}>
-          <div>
-            <span className={styles.eyebrow}>REVIEW QUEUE</span>
-            <h2>Pending Attendance exceptions</h2>
-            <p>Review GPS and missing-punch requests within your authorized branches.</p>
-          </div>
-          <span className={styles.resultCount}>{pendingExceptions.length} pending</span>
-        </div>
-        {pendingExceptions.length ? (
-          <div className={styles.reviewList}>
-            {pendingExceptions.map((exception) => {
-              const timeZone =
-                exception.branch.attendanceSetting?.timezone ??
-                "Asia/Kuala_Lumpur";
-              return (
-                <article className={styles.reviewCard} key={exception.id}>
-                  <div className={styles.reviewSummary}>
-                    <div>
-                      {canViewTeamDirectory ? (
-                        <Link
-                          className={styles.employeeLink}
-                          href={`/team/people/${exception.employeeId}`}
-                        >
-                          {exception.employee.fullName}
-                        </Link>
-                      ) : (
-                        <strong>{exception.employee.fullName}</strong>
-                      )}
-                      <small>{exception.employee.employeeCode} / {exception.branch.name}</small>
-                    </div>
-                    <span className={styles.statusBadge}>{exception.type.replaceAll("_", " ")}</span>
-                  </div>
-                  <p>{exception.reason}</p>
-                  <div className={styles.reviewFacts}>
-                    {exception.requestedClockInAt ? (
-                      <span>Requested in: <strong>{formatDateTime(exception.requestedClockInAt, timeZone)}</strong></span>
-                    ) : null}
-                    {exception.requestedClockOutAt ? (
-                      <span>Requested out: <strong>{formatDateTime(exception.requestedClockOutAt, timeZone)}</strong></span>
-                    ) : null}
-                    <span>Submitted: <strong>{formatDateTime(exception.createdAt, timeZone)}</strong></span>
-                  </div>
-                  {canModify ? (
-                    <form className={styles.reviewForm} action={reviewAttendanceExceptionAction}>
-                      <input name="exceptionId" type="hidden" value={exception.id} />
-                      <label>
-                        <span>Review note</span>
-                        <input maxLength={500} name="reviewNote" placeholder="Optional manager note" />
-                      </label>
-                      <div>
-                        <button name="decision" type="submit" value="APPROVED">Approve</button>
-                        <button className={styles.dangerButton} name="decision" type="submit" value="REJECTED">Reject</button>
-                      </div>
-                    </form>
-                  ) : (
-                    <small>Read-only access</small>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        ) : (
-          <div className={styles.emptyState}>
-            <strong>No pending Attendance exceptions</strong>
-            <span>GPS and missing-punch requests will appear here.</span>
-          </div>
-        )}
-      </section>
-
-      {adjustingSession && canModify ? (
-        <section className={styles.recordsPanel}>
-          <div className={styles.panelHeading}>
-            <div>
-              <span className={styles.eyebrow}>AUDITED CORRECTION</span>
-              <h2>Adjust {adjustingSession.employeeAccount.name}</h2>
-              <p>Original punches remain immutable. This creates a separate adjustment record.</p>
-            </div>
-            <Link href={attendanceHref()}>Cancel</Link>
-          </div>
-          <form className={styles.adjustmentForm} action={adjustAttendanceSessionAction}>
-            <input name="sessionId" type="hidden" value={adjustingSession.id} />
-            <input name="expectedUpdatedAt" type="hidden" value={adjustingSession.updatedAt.toISOString()} />
-            <label>
-              <span>Clock in ({adjustingSession.branch.name})</span>
-              <input
-                defaultValue={formatBranchLocalDateTime(
-                  adjustingSession.clockInAt,
-                  adjustingSession.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur",
-                ).slice(0, 16)}
-                name="adjustedClockInLocal"
-                required
-                type="datetime-local"
-              />
-            </label>
-            <label>
-              <span>Clock out</span>
-              <input
-                defaultValue={
-                  adjustingSession.clockOutAt
-                    ? formatBranchLocalDateTime(
-                        adjustingSession.clockOutAt,
-                        adjustingSession.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur",
-                      ).slice(0, 16)
-                    : ""
-                }
-                name="adjustedClockOutLocal"
-                required
-                type="datetime-local"
-              />
-            </label>
-            <label>
-              <span>Break minutes</span>
-              <input defaultValue={adjustingSession.totalBreakMinutes} min={0} name="adjustedBreakMinutes" required type="number" />
-            </label>
-            <label className={styles.adjustmentReason}>
-              <span>Reason</span>
-              <input maxLength={500} minLength={3} name="reason" required />
-            </label>
-            <button type="submit">Save audited adjustment</button>
-          </form>
-        </section>
-      ) : null}
-
       <section className={styles.recordsPanel}>
         <div className={styles.panelHeading}>
           <div>
@@ -813,9 +650,9 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
                         <small>{entry._count.exceptions} exceptions / {entry._count.adjustments} adjustments</small>
                       </td>
                       <td data-label="Actions">
-                        {canModify && entry.status !== "CANCELLED" ? (
-                          <Link className={styles.adjustLink} href={attendanceHref(page, entry.id)}>
-                            Adjust
+                        {canModify && !isOpen ? (
+                          <Link className={styles.adjustLink} href={`/team/attendance/resolutions?employee=${encodeURIComponent(entry.employeeAccount.name)}`}>
+                            Resolution queue
                           </Link>
                         ) : "—"}
                       </td>

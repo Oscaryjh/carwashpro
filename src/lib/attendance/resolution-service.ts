@@ -20,12 +20,26 @@ const resolveCaseInputSchema = z.object({
   resolutionCaseId: z.string().uuid("Attendance Resolution Case is invalid."),
   disposition: z.enum(["INCLUDED", "EXCLUDED"]),
   source: z.enum([
+    "RAW_SESSION",
     "APPROVED_EXCEPTION",
     "MANAGER_ADJUSTMENT",
     "CORRECTION",
   ]),
   expectedCurrentResultId: z.string().uuid().nullable().optional(),
+  resultOverride: z
+    .object({
+      clockInAt: z.date().nullable(),
+      clockOutAt: z.date().nullable(),
+      totalBreakMinutes: z.number().int().nonnegative(),
+      totalWorkedMinutes: z.number().int().nonnegative(),
+      confirmedBreakMinutes: z.number().int().nonnegative().nullable(),
+    })
+    .optional(),
 });
+
+export type ResolveAttendanceCaseInput = z.infer<
+  typeof resolveCaseInputSchema
+>;
 
 const transactionOptions = {
   isolationLevel: "Serializable" as const,
@@ -48,8 +62,17 @@ export class AttendanceResolutionError extends Error {
   }
 }
 
+type AttendanceResolutionMaterializationContext = Omit<
+  AttendanceServiceContext,
+  "actor"
+> & {
+  actor?: AttendanceServiceContext["actor"];
+};
+
 export async function materializeAttendanceResolutionFoundation(
-  args: AttendanceServiceContext & { attendanceSessionId: string },
+  args: AttendanceResolutionMaterializationContext & {
+    attendanceSessionId: string;
+  },
   database: PrismaClient = prisma,
 ) {
   return withSerializableRetry(database, async () =>
@@ -65,7 +88,9 @@ export async function materializeAttendanceResolutionFoundation(
 }
 
 export async function materializeAttendanceResolutionFoundationInTransaction(
-  args: AttendanceServiceContext & { attendanceSessionId: string },
+  args: AttendanceResolutionMaterializationContext & {
+    attendanceSessionId: string;
+  },
   transaction: Prisma.TransactionClient,
 ) {
   const session = await transaction.employeeAttendance.findFirst({
@@ -115,9 +140,11 @@ export async function materializeAttendanceResolutionFoundationInTransaction(
         employeeId: session.membershipId,
         status: classification.caseStatus,
         openedReason: classification.openedReason,
-        createdById: args.actor.userId,
+        createdById: args.actor?.userId ?? null,
         resolvedById:
-          classification.kind === "FINAL_RESULT" ? args.actor.userId : null,
+          classification.kind === "FINAL_RESULT"
+            ? args.actor?.userId ?? null
+            : null,
         resolvedAt: classification.kind === "FINAL_RESULT" ? new Date() : null,
       },
       include: { currentFinalResult: true },
@@ -136,7 +163,7 @@ export async function materializeAttendanceResolutionFoundationInTransaction(
     session,
     disposition: classification.disposition,
     source: classification.source,
-    createdById: args.actor.userId,
+    createdById: args.actor?.userId ?? null,
     supersedesResultId: null,
     version: 1,
   });
@@ -145,7 +172,7 @@ export async function materializeAttendanceResolutionFoundationInTransaction(
     data: {
       status: "RESOLVED",
       currentFinalResultId: result.id,
-      resolvedById: args.actor.userId,
+      resolvedById: args.actor?.userId ?? null,
       resolvedAt: new Date(),
     },
     include: { currentFinalResult: true },
@@ -191,7 +218,7 @@ export async function resolveAttendanceCase(
 
 export async function resolveAttendanceCaseInTransaction(
   args: AttendanceServiceContext,
-  input: z.infer<typeof resolveCaseInputSchema>,
+  input: ResolveAttendanceCaseInput,
   transaction: Prisma.TransactionClient,
 ) {
     const resolutionCase = await transaction.attendanceResolutionCase.findFirst({
@@ -252,6 +279,7 @@ export async function resolveAttendanceCaseInTransaction(
       createdById: args.actor.userId,
       supersedesResultId: resolutionCase.currentFinalResultId,
       version: nextVersion,
+      resultOverride: input.resultOverride,
     });
     const updatedCase = await transaction.attendanceResolutionCase.update({
       where: { id: resolutionCase.id },
@@ -314,16 +342,24 @@ async function createFinalResultVersion(
     createdById: string | null;
     supersedesResultId: string | null;
     version: number;
+    resultOverride?: ResolveAttendanceCaseInput["resultOverride"];
   },
 ) {
-  assertFinalAttendanceResultValues({
-    disposition: input.disposition,
+  const resultValues = input.resultOverride ?? {
     clockInAt: input.session.clockInAt,
     clockOutAt: input.session.clockOutAt,
     totalBreakMinutes: input.session.totalBreakMinutes,
     totalWorkedMinutes: input.session.totalWorkedMinutes,
-    expectedBreakMinutes: input.session.expectedBreakMinutes,
     confirmedBreakMinutes: input.session.confirmedBreakMinutes,
+  };
+  assertFinalAttendanceResultValues({
+    disposition: input.disposition,
+    clockInAt: resultValues.clockInAt,
+    clockOutAt: resultValues.clockOutAt,
+    totalBreakMinutes: resultValues.totalBreakMinutes,
+    totalWorkedMinutes: resultValues.totalWorkedMinutes,
+    expectedBreakMinutes: input.session.expectedBreakMinutes,
+    confirmedBreakMinutes: resultValues.confirmedBreakMinutes,
   });
 
   const evidenceChecksum = attendanceResultChecksum({
@@ -341,13 +377,13 @@ async function createFinalResultVersion(
       disposition: input.disposition,
       source: input.source,
       workDate: input.session.workDate,
-      clockInAt: input.session.clockInAt,
-      clockOutAt: input.session.clockOutAt,
-      totalBreakMinutes: input.session.totalBreakMinutes,
-      totalWorkedMinutes: input.session.totalWorkedMinutes,
+      clockInAt: resultValues.clockInAt,
+      clockOutAt: resultValues.clockOutAt,
+      totalBreakMinutes: resultValues.totalBreakMinutes,
+      totalWorkedMinutes: resultValues.totalWorkedMinutes,
       breakPolicySnapshot: input.session.breakPolicySnapshot,
       expectedBreakMinutes: input.session.expectedBreakMinutes,
-      confirmedBreakMinutes: input.session.confirmedBreakMinutes,
+      confirmedBreakMinutes: resultValues.confirmedBreakMinutes,
       approvalStatusSnapshot: input.session.approvalStatus,
       sessionUpdatedAtSnapshot: input.session.updatedAt,
       evidenceChecksum,
@@ -382,7 +418,15 @@ function attendanceResultChecksum(input: {
   source: AttendanceFinalResultSource;
   supersedesResultId: string | null;
   version: number;
+  resultOverride?: ResolveAttendanceCaseInput["resultOverride"];
 }) {
+  const resultValues = input.resultOverride ?? {
+    clockInAt: input.session.clockInAt,
+    clockOutAt: input.session.clockOutAt,
+    totalBreakMinutes: input.session.totalBreakMinutes,
+    totalWorkedMinutes: input.session.totalWorkedMinutes,
+    confirmedBreakMinutes: input.session.confirmedBreakMinutes,
+  };
   return createHash("sha256")
     .update(
       JSON.stringify([
@@ -392,13 +436,13 @@ function attendanceResultChecksum(input: {
         input.session.branchId,
         input.session.membershipId,
         input.session.workDate.toISOString(),
-        input.session.clockInAt.toISOString(),
-        input.session.clockOutAt?.toISOString() ?? null,
-        input.session.totalBreakMinutes,
-        input.session.totalWorkedMinutes,
+        resultValues.clockInAt?.toISOString() ?? null,
+        resultValues.clockOutAt?.toISOString() ?? null,
+        resultValues.totalBreakMinutes,
+        resultValues.totalWorkedMinutes,
         input.session.breakPolicySnapshot,
         input.session.expectedBreakMinutes,
-        input.session.confirmedBreakMinutes,
+        resultValues.confirmedBreakMinutes,
         input.session.approvalStatus,
         input.session.updatedAt.toISOString(),
         input.disposition,

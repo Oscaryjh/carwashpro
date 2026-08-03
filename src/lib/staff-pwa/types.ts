@@ -141,6 +141,24 @@ export type AttendancePunchResult = {
   replayed: boolean;
 };
 
+export type AttendanceResolutionCase = {
+  id: string;
+  status: "OPEN" | "UNDER_REVIEW" | "RETURNED_FOR_CORRECTION";
+  openedReason: string;
+  openedAt: string;
+  updatedAt: string;
+  workDate: string;
+  clockInAt: string;
+  clockOutAt: string | null;
+  totalBreakMinutes: number;
+  branch: { name: string; timezone: string };
+  latestEvent: {
+    type: string;
+    reason: string;
+    createdAt: string;
+  } | null;
+};
+
 export type AttendanceHistoryItem = {
   id: string;
   workDate: string;

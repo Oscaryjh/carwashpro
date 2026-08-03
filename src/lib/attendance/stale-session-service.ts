@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
 import { calculateAttendanceDurations } from "@/lib/attendance/state-machine";
+import { materializeAttendanceResolutionFoundationInTransaction } from "@/lib/attendance/resolution-service";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
@@ -117,6 +118,14 @@ export async function reconcileStaleEmployeeAttendance(args: {
           exceptionId: exception.id,
           staleAfterHours,
         },
+      },
+      transaction,
+    );
+    await materializeAttendanceResolutionFoundationInTransaction(
+      {
+        businessId: session.businessId,
+        allowedBranchIds: [session.branchId],
+        attendanceSessionId: session.id,
       },
       transaction,
     );

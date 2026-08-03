@@ -9,6 +9,7 @@ import {
   buildAttendanceSessionWhere,
 } from "@/lib/attendance/scope";
 import { getAttendanceWorkDate } from "@/lib/attendance/work-date";
+import { materializeAttendanceResolutionFoundationInTransaction } from "@/lib/attendance/resolution-service";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
@@ -80,12 +81,18 @@ export async function reviewAttendanceException(
               },
             },
           },
+          employee: {
+            select: { staffUser: { select: { id: true } } },
+          },
         },
       });
       if (!exception) {
         throw new Error(
           "The pending Attendance exception was not found in your branch scope.",
         );
+      }
+      if (exception.employee.staffUser?.id === args.actor.userId) {
+        throw new Error("A manager cannot review their own Attendance exception.");
       }
 
       let attendanceSessionId = exception.attendanceSessionId;
@@ -113,6 +120,25 @@ export async function reviewAttendanceException(
           transaction,
           attendanceSessionId,
         );
+        const sessionState = await transaction.employeeAttendance.findUnique({
+          where: { id: attendanceSessionId },
+          select: { status: true },
+        });
+        if (
+          sessionState &&
+          !["OPEN", "ON_BREAK"].includes(sessionState.status)
+        ) {
+          await materializeAttendanceResolutionFoundationInTransaction(
+            {
+              businessId: args.businessId,
+              allowedBranchIds: args.allowedBranchIds,
+              actor: args.actor,
+              request: args.request,
+              attendanceSessionId,
+            },
+            transaction,
+          );
+        }
       }
 
       await writeAuditLog(
@@ -181,12 +207,18 @@ export async function adjustAttendanceSession(
               },
             },
           },
+          membership: {
+            select: { staffUser: { select: { id: true } } },
+          },
         },
       });
       if (!session) {
         throw new Error(
           "The Attendance session was not found in your branch scope.",
         );
+      }
+      if (session.membership.staffUser?.id === args.actor.userId) {
+        throw new Error("A manager cannot adjust their own Attendance session.");
       }
       if (
         input.expectedUpdatedAt &&
@@ -285,6 +317,17 @@ export async function adjustAttendanceSession(
         transaction,
       );
 
+      await materializeAttendanceResolutionFoundationInTransaction(
+        {
+          businessId: args.businessId,
+          allowedBranchIds: args.allowedBranchIds,
+          actor: args.actor,
+          request: args.request,
+          attendanceSessionId: session.id,
+        },
+        transaction,
+      );
+
       return updated;
     },
     {
@@ -313,6 +356,11 @@ type ReviewableException = Prisma.AttendanceExceptionGetPayload<{
         attendanceSetting: {
           select: { timezone: true };
         };
+      };
+    };
+    employee: {
+      select: {
+        staffUser: { select: { id: true } };
       };
     };
   };

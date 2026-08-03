@@ -328,6 +328,19 @@ enum AttendanceFinalResultSource {
   CORRECTION
 }
 
+enum AttendanceResolutionEventType {
+  EMPLOYEE_SUBMITTED
+  MANAGER_ACCEPTED_AS_RECORDED
+  MANAGER_APPLIED_CORRECTION
+  MANAGER_RETURNED
+  MANAGER_EXCLUDED
+}
+
+enum AttendanceResolutionActorType {
+  EMPLOYEE
+  MANAGER
+}
+
 enum EmployeeOtpPurpose {
   LOGIN
   REGISTER_DEVICE
@@ -686,6 +699,7 @@ model Business {
   attendanceAdjustments         AttendanceAdjustment[]
   attendanceResolutionCases     AttendanceResolutionCase[]
   attendanceFinalResults        AttendanceFinalResult[]
+  attendanceResolutionEvents    AttendanceResolutionEvent[]
   employeeSessions              EmployeeSession[]
   attendanceIdempotencyRequests AttendanceRequestIdempotency[]
   catalogDiscounts              CatalogDiscount[]
@@ -746,6 +760,7 @@ model Branch {
   attendanceAdjustments         AttendanceAdjustment[]
   attendanceResolutionCases     AttendanceResolutionCase[]
   attendanceFinalResults        AttendanceFinalResult[]
+  attendanceResolutionEvents    AttendanceResolutionEvent[]
   primaryEmployeeSessions       EmployeeSession[]              @relation("EmployeeSessionPrimaryBranch")
   attendanceEmployeeSessions    EmployeeSession[]              @relation("EmployeeSessionAttendanceBranch")
   attendanceIdempotencyRequests AttendanceRequestIdempotency[]
@@ -814,6 +829,7 @@ model User {
   attendanceResolutionCasesCreated  AttendanceResolutionCase[]   @relation("AttendanceResolutionCaseCreatedBy")
   attendanceResolutionCasesResolved AttendanceResolutionCase[]   @relation("AttendanceResolutionCaseResolvedBy")
   attendanceFinalResultsCreated     AttendanceFinalResult[]      @relation("AttendanceFinalResultCreatedBy")
+  attendanceResolutionEvents        AttendanceResolutionEvent[]  @relation("AttendanceResolutionEventActorUser")
   reviewedLeaveRequests             LeaveRequest[]               @relation("LeaveRequestReviewer")
 
   payrollRunsCreated             PayrollRun[]                  @relation("PayrollRunCreatedBy")
@@ -1067,13 +1083,14 @@ model EmployeeSession {
   userAgent          String?   @map("user_agent")
   createdAt          DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')")) @map("created_at")
 
-  employeeAccount     EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Restrict)
-  membership          EmployeeBusinessMembership     @relation(fields: [membershipId], references: [id], onDelete: Restrict)
-  business            Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  primaryBranch       Branch                         @relation("EmployeeSessionPrimaryBranch", fields: [primaryBranchId], references: [id], onDelete: Restrict)
-  attendanceBranch    Branch?                        @relation("EmployeeSessionAttendanceBranch", fields: [attendanceBranchId], references: [id], onDelete: Restrict)
-  employeeDevice      EmployeeDevice?                @relation(fields: [employeeDeviceId], references: [id], onDelete: Restrict)
-  idempotencyRequests AttendanceRequestIdempotency[]
+  employeeAccount            EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Restrict)
+  membership                 EmployeeBusinessMembership     @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  business                   Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  primaryBranch              Branch                         @relation("EmployeeSessionPrimaryBranch", fields: [primaryBranchId], references: [id], onDelete: Restrict)
+  attendanceBranch           Branch?                        @relation("EmployeeSessionAttendanceBranch", fields: [attendanceBranchId], references: [id], onDelete: Restrict)
+  employeeDevice             EmployeeDevice?                @relation(fields: [employeeDeviceId], references: [id], onDelete: Restrict)
+  idempotencyRequests        AttendanceRequestIdempotency[]
+  attendanceResolutionEvents AttendanceResolutionEvent[]    @relation("AttendanceResolutionEventEmployeeSession")
 
   @@index([employeeAccountId, revokedAt, expiresAt], map: "employee_sessions_account_active_idx")
   @@index([membershipId, revokedAt, expiresAt], map: "employee_sessions_membership_active_idx")
@@ -1124,24 +1141,25 @@ model EmployeeBusinessMembership {
   createdAt                 DateTime                       @default(now()) @map("created_at")
   updatedAt                 DateTime                       @updatedAt @map("updated_at")
 
-  employeeAccount           EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Cascade)
-  business                  Business                       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  branchAssignments         EmployeeBranchAssignment[]
-  attendances               EmployeeAttendance[]
-  punches                   AttendancePunch[]
-  exceptions                AttendanceException[]
-  adjustments               AttendanceAdjustment[]
-  attendanceResolutionCases AttendanceResolutionCase[]
-  attendanceFinalResults    AttendanceFinalResult[]
-  employeeSessions          EmployeeSession[]
-  payrollEntries            PayrollEntry[]
-  compensationVersions      EmployeeCompensationVersion[]
-  payrollProfileCommands    PayrollProfileCommandRecord[]
-  leaveBalances             EmployeeLeaveBalance[]
-  leaveRequests             LeaveRequest[]
-  leaveRequestDays          LeaveRequestDay[]
-  idempotencyRequests       AttendanceRequestIdempotency[]
-  staffUser                 User?                          @relation("EmployeeBusinessMembershipStaffUser")
+  employeeAccount            EmployeeAccount                @relation(fields: [employeeAccountId], references: [id], onDelete: Cascade)
+  business                   Business                       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchAssignments          EmployeeBranchAssignment[]
+  attendances                EmployeeAttendance[]
+  punches                    AttendancePunch[]
+  exceptions                 AttendanceException[]
+  adjustments                AttendanceAdjustment[]
+  attendanceResolutionCases  AttendanceResolutionCase[]
+  attendanceFinalResults     AttendanceFinalResult[]
+  attendanceResolutionEvents AttendanceResolutionEvent[]
+  employeeSessions           EmployeeSession[]
+  payrollEntries             PayrollEntry[]
+  compensationVersions       EmployeeCompensationVersion[]
+  payrollProfileCommands     PayrollProfileCommandRecord[]
+  leaveBalances              EmployeeLeaveBalance[]
+  leaveRequests              LeaveRequest[]
+  leaveRequestDays           LeaveRequestDay[]
+  idempotencyRequests        AttendanceRequestIdempotency[]
+  staffUser                  User?                          @relation("EmployeeBusinessMembershipStaffUser")
 
   @@unique([employeeAccountId, businessId])
   @@unique([businessId, employeeCode])
@@ -1438,14 +1456,15 @@ model AttendanceResolutionCase {
   createdAt            DateTime                       @default(now()) @map("created_at")
   updatedAt            DateTime                       @updatedAt @map("updated_at")
 
-  business           Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch             Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  attendanceSession  EmployeeAttendance         @relation(fields: [attendanceSessionId], references: [id], onDelete: Restrict)
-  employee           EmployeeBusinessMembership @relation(fields: [employeeId, businessId], references: [id, businessId], onDelete: Restrict)
-  createdBy          User?                      @relation("AttendanceResolutionCaseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  resolvedBy         User?                      @relation("AttendanceResolutionCaseResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
-  currentFinalResult AttendanceFinalResult?     @relation("CurrentAttendanceFinalResult", fields: [currentFinalResultId], references: [id], onDelete: Restrict)
-  finalResults       AttendanceFinalResult[]    @relation("AttendanceResolutionResults")
+  business           Business                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch             Branch                      @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  attendanceSession  EmployeeAttendance          @relation(fields: [attendanceSessionId], references: [id], onDelete: Restrict)
+  employee           EmployeeBusinessMembership  @relation(fields: [employeeId, businessId], references: [id, businessId], onDelete: Restrict)
+  createdBy          User?                       @relation("AttendanceResolutionCaseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  resolvedBy         User?                       @relation("AttendanceResolutionCaseResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  currentFinalResult AttendanceFinalResult?      @relation("CurrentAttendanceFinalResult", fields: [currentFinalResultId], references: [id], onDelete: Restrict)
+  finalResults       AttendanceFinalResult[]     @relation("AttendanceResolutionResults")
+  events             AttendanceResolutionEvent[]
 
   @@unique([id, businessId])
   @@index([businessId, branchId, status, openedAt])
@@ -1487,6 +1506,7 @@ model AttendanceFinalResult {
   createdBy         User?                      @relation("AttendanceFinalResultCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   supersedesResult  AttendanceFinalResult?     @relation("AttendanceFinalResultSupersession", fields: [supersedesResultId], references: [id], onDelete: Restrict)
   supersededResults AttendanceFinalResult[]    @relation("AttendanceFinalResultSupersession")
+  resolutionEvent   AttendanceResolutionEvent?
 
   @@unique([id, businessId])
   @@unique([resolutionCaseId, version])
@@ -1495,6 +1515,39 @@ model AttendanceFinalResult {
   @@index([attendanceSessionId, version])
   @@index([supersedesResultId])
   @@map("attendance_final_results")
+}
+
+model AttendanceResolutionEvent {
+  id                     String                        @id @default(uuid()) @db.Uuid
+  businessId             String                        @map("business_id") @db.Uuid
+  branchId               String                        @map("branch_id") @db.Uuid
+  resolutionCaseId       String                        @map("resolution_case_id") @db.Uuid
+  employeeId             String                        @map("employee_id") @db.Uuid
+  sequence               Int
+  type                   AttendanceResolutionEventType
+  actorType              AttendanceResolutionActorType @map("actor_type")
+  actorUserId            String?                       @map("actor_user_id") @db.Uuid
+  actorEmployeeSessionId String?                       @map("actor_employee_session_id") @db.Uuid
+  reason                 String
+  proposedClockInAt      DateTime?                     @map("proposed_clock_in_at")
+  proposedClockOutAt     DateTime?                     @map("proposed_clock_out_at")
+  proposedBreakMinutes   Int?                          @map("proposed_break_minutes")
+  finalResultId          String?                       @unique @map("final_result_id") @db.Uuid
+  evidenceChecksum       String                        @map("evidence_checksum") @db.VarChar(64)
+  createdAt              DateTime                      @default(now()) @map("created_at")
+
+  business             Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch               Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  resolutionCase       AttendanceResolutionCase   @relation(fields: [resolutionCaseId], references: [id], onDelete: Restrict)
+  employee             EmployeeBusinessMembership @relation(fields: [employeeId, businessId], references: [id, businessId], onDelete: Restrict)
+  actorUser            User?                      @relation("AttendanceResolutionEventActorUser", fields: [actorUserId], references: [id], onDelete: Restrict)
+  actorEmployeeSession EmployeeSession?           @relation("AttendanceResolutionEventEmployeeSession", fields: [actorEmployeeSessionId], references: [id], onDelete: Restrict)
+  finalResult          AttendanceFinalResult?     @relation(fields: [finalResultId], references: [id], onDelete: Restrict)
+
+  @@unique([resolutionCaseId, sequence])
+  @@index([businessId, branchId, createdAt])
+  @@index([employeeId, createdAt])
+  @@map("attendance_resolution_events")
 }
 
 model Customer {

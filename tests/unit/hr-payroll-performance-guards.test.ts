@@ -56,10 +56,13 @@ test("People loads section-only data only when that section needs it", () => {
 });
 
 test("Attendance overlaps supporting, summary, and table queries", () => {
-  assert.match(attendancePageSource, /const supportingDataPromise = Promise\.all/);
   assert.match(
     attendancePageSource,
-    /const \[totalRecords, \[pendingExceptions, monthlyMembers\]\] = await Promise\.all/,
+    /const supportingDataPromise = prisma\.employeeBusinessMembership\.findMany/,
+  );
+  assert.match(
+    attendancePageSource,
+    /const \[totalRecords, monthlyMembers\] = await Promise\.all/,
   );
   assert.match(attendancePageSource, /monthlySessionsPromise/);
 });

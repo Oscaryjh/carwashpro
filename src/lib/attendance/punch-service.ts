@@ -26,6 +26,7 @@ import {
   getNextAttendanceStatus,
 } from "@/lib/attendance/state-machine";
 import { getAttendanceWorkDate } from "@/lib/attendance/work-date";
+import { materializeAttendanceResolutionFoundationInTransaction } from "@/lib/attendance/resolution-service";
 import {
   enforceAttendanceWriteRateLimit,
   type AttendanceWriteRateLimitConfig,
@@ -266,6 +267,24 @@ export async function performAttendancePunch(args: {
             },
             transaction,
           );
+        }
+
+        if (writeResult.attendanceSession.status === "COMPLETED") {
+          const resolutionCase =
+            await materializeAttendanceResolutionFoundationInTransaction(
+            {
+              businessId: args.auth.businessId,
+              allowedBranchIds: [input.branchId],
+              attendanceSessionId: writeResult.attendanceSession.id,
+            },
+            transaction,
+          );
+          if (exceptionId && resolutionCase.status === "OPEN") {
+            await transaction.attendanceResolutionCase.update({
+              where: { id: resolutionCase.id },
+              data: { status: "UNDER_REVIEW" },
+            });
+          }
         }
 
         await transaction.attendanceRequestIdempotency.update({
