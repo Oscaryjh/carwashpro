@@ -1,16 +1,17 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { randomUUID } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import path from "path";
 import { Prisma } from "@prisma/client";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { assertCanManageBusiness, assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import {
+  type BusinessLogoExtension,
+  writeRuntimeBusinessLogo,
+} from "@/lib/runtime-business-logo";
 import {
   adminResetUserPasswordSchema,
   adminUpdateUserEmailSchema,
@@ -19,12 +20,6 @@ import {
 } from "@/lib/validation/business";
 import { branchSchema } from "@/lib/validation/branches";
 
-const LOGO_UPLOAD_DIR = path.join(
-  process.cwd(),
-  "public",
-  "uploads",
-  "business-logos",
-);
 const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 const LOGO_EXTENSIONS = new Map([
   ["image/png", "png"],
@@ -480,13 +475,13 @@ async function saveBusinessLogo(fileEntry: FormDataEntryValue | null, businessId
     throw new Error("Logo must be a PNG, JPG, or WebP image.");
   }
 
-  await mkdir(LOGO_UPLOAD_DIR, { recursive: true });
+  const saved = await writeRuntimeBusinessLogo({
+    businessId,
+    bytes: Buffer.from(await fileEntry.arrayBuffer()),
+    extension: extension as BusinessLogoExtension,
+  });
 
-  const filename = `${businessId}-${randomUUID()}.${extension}`;
-  const filePath = path.join(LOGO_UPLOAD_DIR, filename);
-  await writeFile(filePath, Buffer.from(await fileEntry.arrayBuffer()));
-
-  return `/uploads/business-logos/${filename}`;
+  return saved.logoUrl;
 }
 
 export type AdminResetUserPasswordState = {
