@@ -157,6 +157,76 @@ enum PayrollAttendanceSource {
   LOCKED_TIMESHEET_REVISION
 }
 
+enum EmployeeBankAccountStatus {
+  ACTIVE
+  INACTIVE
+  SUPERSEDED
+  REJECTED
+}
+
+enum EmployeeBankVerificationStatus {
+  UNVERIFIED
+  MANUALLY_VERIFIED
+  REJECTED
+}
+
+enum PayrollPaymentBatchType {
+  ORIGINAL
+  CORRECTION
+}
+
+enum PayrollPaymentBatchStatus {
+  DRAFT
+  AWAITING_APPROVAL
+  APPROVED
+  INSTRUCTION_READY
+  CANCELLED
+  SUPERSEDED
+}
+
+enum PayrollPaymentInstructionStatus {
+  BLOCKED
+  READY
+  INCLUDED
+  EXCLUDED
+}
+
+enum PayrollPaymentBlockerCode {
+  MISSING_BANK_ACCOUNT
+  BANK_ACCOUNT_UNVERIFIED
+  BANK_ACCOUNT_INACTIVE
+  BANK_ACCOUNT_NOT_EFFECTIVE
+  NET_PAY_ZERO
+  NET_PAY_NEGATIVE
+  DUPLICATE_PAYMENT_ALLOCATION
+  BUSINESS_MISMATCH
+}
+
+enum PayrollPaymentCommandType {
+  CREATE_BANK_VERSION
+  VERIFY_BANK_VERSION
+  DEACTIVATE_BANK_VERSION
+  CREATE_BATCH
+  SUBMIT_BATCH
+  APPROVE_BATCH
+  CANCEL_BATCH
+  CREATE_CORRECTION_BATCH
+}
+
+enum PayrollPaymentEventAction {
+  BANK_VERSION_CREATED
+  BANK_VERSION_VERIFIED
+  BANK_VERSION_DEACTIVATED
+  BATCH_CREATED
+  BATCH_SUBMITTED_FOR_APPROVAL
+  BATCH_APPROVED
+  BATCH_CANCELLED
+  CORRECTION_BATCH_CREATED
+  INSTRUCTION_BLOCKED
+  INSTRUCTION_READY
+  INSTRUCTION_EXCLUDED
+}
+
 enum EmployeeStatutoryNationality {
   MALAYSIAN
   PERMANENT_RESIDENT
@@ -703,6 +773,12 @@ model Business {
   statutoryProfile              BusinessStatutoryProfile?
   payrollStatutorySubmissions   PayrollStatutorySubmission[]
   payrollStatutoryArtifacts     PayrollStatutoryExportArtifact[]
+  employeeBankAccountVersions   EmployeeBankAccountVersion[]
+  payrollPaymentBatches         PayrollPaymentBatch[]
+  payrollPaymentInstructions    PayrollPaymentInstruction[]
+  payrollPaymentCommands        PayrollPaymentCommandRecord[]
+  payrollPaymentEvents          PayrollPaymentEvent[]
+  payrollPaymentArtifacts       PayrollPaymentArtifact[]
   leavePolicies                 LeavePolicy[]
   employeeLeaveBalances         EmployeeLeaveBalance[]
   leaveRequests                 LeaveRequest[]
@@ -862,6 +938,16 @@ model User {
   compensationVersionsCreated    EmployeeCompensationVersion[] @relation("CompensationVersionCreatedBy")
   compensationVersionsSuperseded EmployeeCompensationVersion[] @relation("CompensationVersionSupersededBy")
   payrollProfileCommands         PayrollProfileCommandRecord[] @relation("PayrollProfileCommandActor")
+  bankAccountVersionsCreated     EmployeeBankAccountVersion[]  @relation("EmployeeBankVersionCreatedBy")
+  bankAccountVersionsVerified    EmployeeBankAccountVersion[]  @relation("EmployeeBankVersionVerifiedBy")
+  bankAccountVersionsSuperseded  EmployeeBankAccountVersion[]  @relation("EmployeeBankVersionSupersededBy")
+  paymentBatchesCreated          PayrollPaymentBatch[]         @relation("PayrollPaymentBatchCreatedBy")
+  paymentBatchesSubmitted        PayrollPaymentBatch[]         @relation("PayrollPaymentBatchSubmittedBy")
+  paymentBatchesApproved         PayrollPaymentBatch[]         @relation("PayrollPaymentBatchApprovedBy")
+  paymentBatchesCancelled        PayrollPaymentBatch[]         @relation("PayrollPaymentBatchCancelledBy")
+  payrollPaymentCommands         PayrollPaymentCommandRecord[] @relation("PayrollPaymentCommandActor")
+  payrollPaymentEvents           PayrollPaymentEvent[]         @relation("PayrollPaymentEventActor")
+  payrollPaymentArtifactsCreated PayrollPaymentArtifact[]      @relation("PayrollPaymentArtifactCreatedBy")
 
   @@index([businessId])
   @@index([branchId])
@@ -1180,6 +1266,8 @@ model EmployeeBusinessMembership {
   payrollEntries             PayrollEntry[]
   compensationVersions       EmployeeCompensationVersion[]
   payrollProfileCommands     PayrollProfileCommandRecord[]
+  bankAccountVersions        EmployeeBankAccountVersion[]
+  payrollPaymentInstructions PayrollPaymentInstruction[]
   leaveBalances              EmployeeLeaveBalance[]
   leaveRequests              LeaveRequest[]
   leaveRequestDays           LeaveRequestDay[]
@@ -1779,7 +1867,9 @@ model PayrollRun {
   entries                     PayrollEntry[]
   statutorySubmissions        PayrollStatutorySubmission[]
   statutoryArtifacts          PayrollStatutoryExportArtifact[]
+  paymentBatches              PayrollPaymentBatch[]
 
+  @@unique([id, businessId])
   @@unique([businessId, periodStart, periodEnd])
   @@index([attendanceTimesheetRevisionId])
   @@index([businessId, status, periodStart])
@@ -1838,11 +1928,215 @@ model PayrollEntry {
   business            Business                     @relation(fields: [businessId], references: [id], onDelete: Restrict)
   membership          EmployeeBusinessMembership   @relation(fields: [membershipId], references: [id], onDelete: Restrict)
   compensationVersion EmployeeCompensationVersion? @relation(fields: [compensationVersionId, businessId], references: [id, businessId], onDelete: Restrict)
+  paymentInstructions PayrollPaymentInstruction[]
 
+  @@unique([id, businessId])
   @@unique([payrollRunId, membershipId])
   @@index([businessId, membershipId])
   @@index([compensationVersionId])
   @@map("payroll_entries")
+}
+
+model EmployeeBankAccountVersion {
+  id                           String                         @id @default(uuid()) @db.Uuid
+  businessId                   String                         @map("business_id") @db.Uuid
+  employeeMembershipId         String                         @map("employee_membership_id") @db.Uuid
+  bankCode                     String                         @map("bank_code") @db.VarChar(32)
+  bankNameSnapshot             String                         @map("bank_name_snapshot") @db.VarChar(160)
+  accountHolderName            String                         @map("account_holder_name") @db.VarChar(160)
+  accountNumberCiphertext      Bytes                          @map("account_number_ciphertext") @db.ByteA
+  accountNumberIv              Bytes                          @map("account_number_iv") @db.ByteA
+  accountNumberAuthTag         Bytes                          @map("account_number_auth_tag") @db.ByteA
+  encryptionKeyVersion         String                         @map("encryption_key_version") @db.VarChar(40)
+  accountNumberLast4           String                         @map("account_number_last_4") @db.VarChar(4)
+  accountNumberFingerprintHmac String                         @map("account_number_fingerprint_hmac") @db.Char(64)
+  verificationStatus           EmployeeBankVerificationStatus @default(UNVERIFIED) @map("verification_status")
+  verificationMethod           String?                        @map("verification_method") @db.VarChar(64)
+  verifiedAt                   DateTime?                      @map("verified_at")
+  verifiedById                 String?                        @map("verified_by_id") @db.Uuid
+  effectiveFrom                DateTime                       @map("effective_from")
+  effectiveUntil               DateTime?                      @map("effective_until")
+  status                       EmployeeBankAccountStatus      @default(ACTIVE)
+  isPrimary                    Boolean                        @default(true) @map("is_primary")
+  revision                     Int                            @default(1)
+  supersedesVersionId          String?                        @unique @map("supersedes_version_id") @db.Uuid
+  supersededById               String?                        @map("superseded_by_id") @db.Uuid
+  createdById                  String                         @map("created_by_id") @db.Uuid
+  createdAt                    DateTime                       @default(now()) @map("created_at")
+  reasonType                   String                         @map("reason_type") @db.VarChar(64)
+  reasonSafe                   String?                        @map("reason_safe") @db.VarChar(500)
+
+  business            Business                     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  employeeMembership  EmployeeBusinessMembership   @relation(fields: [employeeMembershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  verifiedBy          User?                        @relation("EmployeeBankVersionVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+  supersededBy        User?                        @relation("EmployeeBankVersionSupersededBy", fields: [supersededById], references: [id], onDelete: SetNull)
+  createdBy           User                         @relation("EmployeeBankVersionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  supersedesVersion   EmployeeBankAccountVersion?  @relation("EmployeeBankVersionSupersession", fields: [supersedesVersionId], references: [id], onDelete: Restrict)
+  supersedingVersions EmployeeBankAccountVersion[] @relation("EmployeeBankVersionSupersession")
+  paymentInstructions PayrollPaymentInstruction[]
+  paymentEvents       PayrollPaymentEvent[]
+
+  @@unique([id, businessId])
+  @@index([businessId, employeeMembershipId, status, effectiveFrom])
+  @@index([accountNumberFingerprintHmac])
+  @@map("employee_bank_account_versions")
+}
+
+model PayrollPaymentBatch {
+  id                       String                    @id @default(uuid()) @db.Uuid
+  businessId               String                    @map("business_id") @db.Uuid
+  payrollRunId             String                    @map("payroll_run_id") @db.Uuid
+  batchNumber              String                    @map("batch_number") @db.VarChar(80)
+  revision                 Int                       @default(1)
+  batchType                PayrollPaymentBatchType   @default(ORIGINAL) @map("batch_type")
+  status                   PayrollPaymentBatchStatus @default(DRAFT)
+  currency                 String                    @default("MYR") @db.Char(3)
+  instructionCount         Int                       @default(0) @map("instruction_count")
+  readyCount               Int                       @default(0) @map("ready_count")
+  blockedCount             Int                       @default(0) @map("blocked_count")
+  excludedCount            Int                       @default(0) @map("excluded_count")
+  totalReadyAmount         Decimal                   @default(0) @map("total_ready_amount") @db.Decimal(14, 2)
+  payrollCalculationDigest String                    @map("payroll_calculation_digest") @db.Char(64)
+  createdById              String                    @map("created_by_id") @db.Uuid
+  submittedById            String?                   @map("submitted_by_id") @db.Uuid
+  approvedById             String?                   @map("approved_by_id") @db.Uuid
+  cancelledById            String?                   @map("cancelled_by_id") @db.Uuid
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  submittedAt              DateTime?                 @map("submitted_at")
+  approvedAt               DateTime?                 @map("approved_at")
+  cancelledAt              DateTime?                 @map("cancelled_at")
+  supersedesBatchId        String?                   @map("supersedes_batch_id") @db.Uuid
+  supersededById           String?                   @map("superseded_by_id") @db.Uuid
+  currentArtifactId        String?                   @map("current_artifact_id") @db.Uuid
+  reasonType               String                    @map("reason_type") @db.VarChar(64)
+  reasonSafe               String?                   @map("reason_safe") @db.VarChar(500)
+
+  business     Business                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  payrollRun   PayrollRun                  @relation(fields: [payrollRunId, businessId], references: [id, businessId], onDelete: Restrict)
+  createdBy    User                        @relation("PayrollPaymentBatchCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedBy  User?                       @relation("PayrollPaymentBatchSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  approvedBy   User?                       @relation("PayrollPaymentBatchApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  cancelledBy  User?                       @relation("PayrollPaymentBatchCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  instructions PayrollPaymentInstruction[]
+  events       PayrollPaymentEvent[]
+  artifacts    PayrollPaymentArtifact[]
+
+  @@unique([id, businessId])
+  @@unique([payrollRunId, revision])
+  @@unique([businessId, batchNumber])
+  @@index([businessId, status, createdAt])
+  @@index([supersedesBatchId])
+  @@map("payroll_payment_batches")
+}
+
+model PayrollPaymentInstruction {
+  id                              String                          @id @default(uuid()) @db.Uuid
+  businessId                      String                          @map("business_id") @db.Uuid
+  paymentBatchId                  String                          @map("payment_batch_id") @db.Uuid
+  payrollEntryId                  String                          @map("payroll_entry_id") @db.Uuid
+  employeeMembershipId            String                          @map("employee_membership_id") @db.Uuid
+  bankAccountVersionId            String?                         @map("bank_account_version_id") @db.Uuid
+  employeeNameSnapshot            String                          @map("employee_name_snapshot")
+  employeeCodeSnapshot            String                          @map("employee_code_snapshot")
+  bankCodeSnapshot                String?                         @map("bank_code_snapshot") @db.VarChar(32)
+  bankNameSnapshot                String?                         @map("bank_name_snapshot") @db.VarChar(160)
+  accountHolderNameSnapshot       String?                         @map("account_holder_name_snapshot") @db.VarChar(160)
+  accountNumberCiphertextSnapshot Bytes?                          @map("account_number_ciphertext_snapshot") @db.ByteA
+  accountNumberIvSnapshot         Bytes?                          @map("account_number_iv_snapshot") @db.ByteA
+  accountNumberAuthTagSnapshot    Bytes?                          @map("account_number_auth_tag_snapshot") @db.ByteA
+  encryptionKeyVersionSnapshot    String?                         @map("encryption_key_version_snapshot") @db.VarChar(40)
+  accountNumberLast4Snapshot      String?                         @map("account_number_last_4_snapshot") @db.VarChar(4)
+  accountFingerprintSnapshot      String?                         @map("account_fingerprint_snapshot") @db.Char(64)
+  netPaySnapshot                  Decimal                         @map("net_pay_snapshot") @db.Decimal(14, 2)
+  currency                        String                          @default("MYR") @db.Char(3)
+  reference                       String                          @db.VarChar(140)
+  status                          PayrollPaymentInstructionStatus
+  blockerCode                     PayrollPaymentBlockerCode?      @map("blocker_code")
+  createdAt                       DateTime                        @default(now()) @map("created_at")
+
+  business           Business                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  paymentBatch       PayrollPaymentBatch         @relation(fields: [paymentBatchId, businessId], references: [id, businessId], onDelete: Restrict)
+  payrollEntry       PayrollEntry                @relation(fields: [payrollEntryId, businessId], references: [id, businessId], onDelete: Restrict)
+  employeeMembership EmployeeBusinessMembership  @relation(fields: [employeeMembershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  bankAccountVersion EmployeeBankAccountVersion? @relation(fields: [bankAccountVersionId, businessId], references: [id, businessId], onDelete: Restrict)
+  events             PayrollPaymentEvent[]
+
+  @@unique([id, businessId])
+  @@unique([paymentBatchId, payrollEntryId])
+  @@index([businessId, employeeMembershipId])
+  @@index([bankAccountVersionId])
+  @@map("payroll_payment_instructions")
+}
+
+model PayrollPaymentCommandRecord {
+  id                 String                    @id @default(uuid()) @db.Uuid
+  businessId         String                    @map("business_id") @db.Uuid
+  actorId            String                    @map("actor_id") @db.Uuid
+  commandId          String                    @map("command_id") @db.VarChar(128)
+  commandType        PayrollPaymentCommandType @map("command_type")
+  requestFingerprint String                    @map("request_fingerprint") @db.Char(64)
+  resultSafe         Json                      @map("result_safe")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  actor    User     @relation("PayrollPaymentCommandActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, actorId, commandId])
+  @@index([businessId, commandType, createdAt])
+  @@map("payroll_payment_command_records")
+}
+
+model PayrollPaymentEvent {
+  id                   String                    @id @default(uuid()) @db.Uuid
+  businessId           String                    @map("business_id") @db.Uuid
+  batchId              String?                   @map("batch_id") @db.Uuid
+  instructionId        String?                   @map("instruction_id") @db.Uuid
+  bankAccountVersionId String?                   @map("bank_account_version_id") @db.Uuid
+  action               PayrollPaymentEventAction
+  actorId              String                    @map("actor_id") @db.Uuid
+  reasonType           String                    @map("reason_type") @db.VarChar(64)
+  reasonSafe           String?                   @map("reason_safe") @db.VarChar(500)
+  metadataSafe         Json?                     @map("metadata_safe")
+  createdAt            DateTime                  @default(now()) @map("created_at")
+
+  business           Business                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  batch              PayrollPaymentBatch?        @relation(fields: [batchId, businessId], references: [id, businessId], onDelete: Restrict)
+  instruction        PayrollPaymentInstruction?  @relation(fields: [instructionId, businessId], references: [id, businessId], onDelete: Restrict)
+  bankAccountVersion EmployeeBankAccountVersion? @relation(fields: [bankAccountVersionId, businessId], references: [id, businessId], onDelete: Restrict)
+  actor              User                        @relation("PayrollPaymentEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, createdAt])
+  @@index([batchId, createdAt])
+  @@index([bankAccountVersionId, createdAt])
+  @@map("payroll_payment_events")
+}
+
+model PayrollPaymentArtifact {
+  id                   String   @id @default(uuid()) @db.Uuid
+  businessId           String   @map("business_id") @db.Uuid
+  paymentBatchId       String   @map("payment_batch_id") @db.Uuid
+  providerKey          String   @map("provider_key") @db.VarChar(80)
+  formatVersion        String   @map("format_version") @db.VarChar(40)
+  revision             Int
+  ciphertext           Bytes    @db.ByteA
+  iv                   Bytes    @db.ByteA
+  authTag              Bytes    @map("auth_tag") @db.ByteA
+  encryptionKeyVersion String   @map("encryption_key_version") @db.VarChar(40)
+  sha256               String   @db.Char(64)
+  byteLength           Int      @map("byte_length")
+  recordCount          Int      @map("record_count")
+  filename             String
+  createdById          String   @map("created_by_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  business     Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  paymentBatch PayrollPaymentBatch @relation(fields: [paymentBatchId, businessId], references: [id, businessId], onDelete: Restrict)
+  createdBy    User                @relation("PayrollPaymentArtifactCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([id, businessId])
+  @@unique([paymentBatchId, providerKey, revision])
+  @@index([businessId, createdAt])
+  @@map("payroll_payment_artifacts")
 }
 
 model BusinessStatutoryProfile {

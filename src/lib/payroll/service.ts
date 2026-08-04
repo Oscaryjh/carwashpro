@@ -592,11 +592,35 @@ export async function reopenPayrollRun(
     });
     if (!run) throw new Error("Payroll run not found.");
     payrollTransition(run.status, "REOPEN");
+    const paymentBatch = await transaction.payrollPaymentBatch.findFirst({
+      where: {
+        businessId: context.businessId,
+        payrollRunId: run.id,
+        OR: [
+          { status: { in: ["DRAFT", "AWAITING_APPROVAL", "APPROVED", "INSTRUCTION_READY"] } },
+          { currentArtifactId: { not: null } },
+        ],
+      },
+      orderBy: { revision: "desc" },
+      select: { currentArtifactId: true, id: true, status: true },
+    });
+    if (paymentBatch) {
+      return {
+        blocked: true as const,
+        blockReason:
+          paymentBatch.status === "DRAFT" ||
+          paymentBatch.status === "AWAITING_APPROVAL"
+            ? ("ACTIVE_PAYMENT_BATCH" as const)
+            : ("APPROVED_PAYMENT_INSTRUCTION" as const),
+        paymentBatch,
+        run,
+      };
+    }
     const statutorySubmissionCount = await transaction.payrollStatutorySubmission.count({
       where: { businessId: context.businessId, payrollRunId: run.id },
     });
     if (statutorySubmissionCount > 0) {
-      return { blocked: true as const, run };
+      return { blocked: true as const, blockReason: "STATUTORY_RECORD" as const, run };
     }
     await transaction.$executeRaw`
       SELECT set_config('tetamu.payroll_reopen', ${run.id}, TRUE)
@@ -635,15 +659,28 @@ export async function reopenPayrollRun(
       action: "PAYROLL_RUN_REOPEN_REJECTED",
       entityType: "PayrollRun",
       entityId: result.run.id,
-      summary: "Payroll run reopen rejected because a statutory export or correction record exists.",
+      summary:
+        result.blockReason === "ACTIVE_PAYMENT_BATCH"
+          ? "Payroll run reopen rejected because an active payment batch exists."
+          : result.blockReason === "APPROVED_PAYMENT_INSTRUCTION"
+            ? "Payroll run reopen rejected because an approved payment instruction exists."
+            : "Payroll run reopen rejected because a statutory export or correction record exists.",
       status: "FAILED",
       metadata: {
-        immutableStatutoryRecord: true,
+        ...(result.blockReason === "STATUTORY_RECORD"
+          ? { immutableStatutoryRecord: true }
+          : { immutablePaymentRecord: true }),
+        paymentBatchId:
+          "paymentBatch" in result ? result.paymentBatch?.id : undefined,
         reason: context.reason,
       },
     }, database);
     throw new Error(
-      "Payroll with a statutory export or correction record cannot be reopened directly.",
+      result.blockReason === "ACTIVE_PAYMENT_BATCH"
+        ? "Cancel the active payroll payment batch before reopening this payroll."
+        : result.blockReason === "APPROVED_PAYMENT_INSTRUCTION"
+          ? "This payroll has an approved payment instruction and cannot be reopened through the standard workflow."
+          : "Payroll with a statutory export or correction record cannot be reopened directly.",
     );
   }
 
