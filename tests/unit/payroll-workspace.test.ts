@@ -107,13 +107,14 @@ test("W1 route is read-only, capability-aware and avoids Phase 3 data", async ()
   }
 });
 
-test("W1 exposes honest current, future and unavailable modules without fake payment actions", async () => {
+test("Workspace exposes the current P2 payment module without fake bank execution", async () => {
   const page = await source("src/app/(business)/team/payroll/workspace/page.tsx");
 
   assert.match(page, /title="Payroll Runs"/);
   assert.match(page, /state="Future"[\s\S]*title="Employee Payroll Setup"/);
-  assert.match(page, /state="Not available"[\s\S]*title="Payroll Payments"/);
-  assert.match(page, /No payment batch, bank export or paid-status workflow exists/);
+  assert.match(page, /canViewPayments/);
+  assert.match(page, /href="\/team\/payroll\/payments"[\s\S]*title="Payroll Payments"/);
+  assert.match(page, /Bank files and payment completion are not included/);
   assert.doesNotMatch(page, /Create payment batch/);
   assert.doesNotMatch(page, /Publish payslip/);
 });

@@ -224,6 +224,33 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
         </div>
       </section>
 
+      {data.run.status === "FINALIZED" && access.actions.canViewPaymentBatch ? (
+        <section className={styles.snapshotPanel} aria-labelledby="payment-readiness-heading">
+          <div className={styles.entriesHeader}>
+            <div className={styles.sectionHeading}>
+              <p className={styles.eyebrow}>Payroll payment</p>
+              <h2 id="payment-readiness-heading">Payment readiness</h2>
+              <p>
+                Check verified employee bank versions and net-pay blockers. Finalized does not mean paid.
+              </p>
+            </div>
+            <div className={styles.documentActions}>
+              <Link
+                href={
+                  access.actions.canCreatePaymentBatch
+                    ? `/team/payroll/payments/new?runId=${data.run.id}`
+                    : `/team/payroll/payments?runId=${data.run.id}`
+                }
+              >
+                {access.actions.canCreatePaymentBatch
+                  ? "Check readiness"
+                  : "View payment batches"}
+              </Link>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {access.actions.canExportPayroll ? (
         <section className={styles.snapshotPanel} aria-labelledby="payroll-documents-heading">
           <div className={styles.entriesHeader}>

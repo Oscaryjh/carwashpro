@@ -13,6 +13,20 @@ export type PaymentReadinessDto = {
   readyCount: number;
   runId: string;
   totalReadyAmount: string;
+  items: PaymentReadinessItemDto[];
+};
+
+export type PaymentReadinessItemDto = {
+  accountLast4: string | null;
+  bankName: string | null;
+  blockerCode: string | null;
+  employeeCode: string;
+  employeeMembershipId: string;
+  employeeName: string;
+  netPay: string;
+  payrollEntryId: string;
+  status: "BLOCKED" | "READY" | "EXCLUDED";
+  verificationStatus: string | null;
 };
 
 export type PaymentReadinessInstructionInput = {
@@ -70,6 +84,18 @@ export async function evaluatePayrollPaymentReadiness(
       readyCount: result.readyCount,
       runId: result.runId,
       totalReadyAmount: result.totalReadyAmount,
+      items: result.instructions.map((item) => ({
+        accountLast4: item.bankAccountVersion?.accountNumberLast4 ?? null,
+        bankName: item.bankAccountVersion?.bankNameSnapshot ?? null,
+        blockerCode: item.blockerCode,
+        employeeCode: item.employeeCode,
+        employeeMembershipId: item.employeeMembershipId,
+        employeeName: item.employeeName,
+        netPay: item.netPay.toString(),
+        payrollEntryId: item.payrollEntryId,
+        status: item.status,
+        verificationStatus: item.bankAccountVersion?.verificationStatus ?? null,
+      })),
     };
   });
 }
@@ -192,6 +218,7 @@ export async function evaluatePayrollPaymentReadinessInTransaction(
     entryCount: instructions.length,
     excludedCount: excluded.length,
     instructions,
+    items: [],
     paymentDate,
     readyCount: ready.length,
     runId: run.id,

@@ -79,12 +79,11 @@ test("Payroll truthfully distinguishes locked calculations from payment completi
   assert.match(payslip, /document\.run\.status !== "FINALIZED"/);
 });
 
-test("unavailable payroll modules are labelled honestly", async () => {
+test("current and unavailable payroll modules are labelled honestly", async () => {
   const permissions = await source("src/lib/auth/staff-permissions.ts");
 
   for (const capability of [
     "PUBLISH_PAYSLIP",
-    "VIEW_PAYMENT_BATCH",
     "PROCESS_PAYMENT",
     "EXPORT_PAYMENT_FILE",
   ]) {
@@ -93,6 +92,11 @@ test("unavailable payroll modules are labelled honestly", async () => {
       new RegExp(`\\["${capability}", "[^"]+\\(not available yet\\)"\\]`),
     );
   }
+
+  assert.match(
+    permissions,
+    /\["VIEW_PAYMENT_BATCH", "View payroll payment batches"\]/,
+  );
 
   for (const capability of [
     "VIEW_BANK_ACCOUNT",

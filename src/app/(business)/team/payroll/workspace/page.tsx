@@ -59,6 +59,10 @@ export default async function PayrollWorkspacePage() {
     context.access,
     "VIEW_PAYSLIP",
   );
+  const canViewPayments = hasBusinessCapability(
+    context.access,
+    "VIEW_PAYMENT_BATCH",
+  );
   const canViewStatutory =
     hasBusinessCapability(context.access, "VIEW_STATUTORY_SUBMISSION") &&
     hasBusinessCapability(context.access, "VIEW_STATUTORY_PROFILE") &&
@@ -149,7 +153,10 @@ export default async function PayrollWorkspacePage() {
       <section className={styles.statusGrid} aria-label="Independent payroll statuses">
         <StatusItem label="Calculation" value={calculationLabel} />
         <StatusItem label="Payslips" value={payslipLabel} />
-        <StatusItem label="Payment" value="Not available in this release" />
+        <StatusItem
+          label="Payment"
+          value={canViewPayments ? "Readiness & approval available" : "Access not granted"}
+        />
         <StatusItem label="Statutory" value={statutoryLabel} />
       </section>
 
@@ -203,11 +210,15 @@ export default async function PayrollWorkspacePage() {
             state="Future"
             title="Employee Payroll Setup"
           />
-          <ModuleCard
-            description="No payment batch, bank export or paid-status workflow exists in this release."
-            state="Not available"
-            title="Payroll Payments"
-          />
+          {canViewPayments ? (
+            <ModuleCard
+              current
+              description="Review finalized payroll readiness and manage draft payment approval. Bank files and payment completion are not included."
+              href="/team/payroll/payments"
+              linkLabel="Open payroll payments"
+              title="Payroll Payments"
+            />
+          ) : null}
         </div>
       </section>
 

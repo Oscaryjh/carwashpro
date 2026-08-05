@@ -15,6 +15,8 @@ export type PayrollRunsReadAccess =
         canCreate: boolean;
         canEditEntry: boolean;
         canExportPayroll: boolean;
+        canCreatePaymentBatch: boolean;
+        canViewPaymentBatch: boolean;
         canViewPayslip: boolean;
       };
       workflow: {
@@ -69,6 +71,14 @@ export async function resolvePayrollRunsReadAccess(): Promise<PayrollRunsReadAcc
           canExportPayroll: hasBusinessCapability(
             context.access,
             "EXPORT_PAYROLL",
+          ),
+          canCreatePaymentBatch: hasBusinessCapability(
+            context.access,
+            "CREATE_PAYMENT_BATCH",
+          ),
+          canViewPaymentBatch: hasBusinessCapability(
+            context.access,
+            "VIEW_PAYMENT_BATCH",
           ),
           canViewPayslip: hasBusinessCapability(
             context.access,
