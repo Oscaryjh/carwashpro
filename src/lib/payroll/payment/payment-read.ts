@@ -1,8 +1,31 @@
-import type { PayrollPaymentBatchStatus } from "@prisma/client";
+import type {
+  PayrollPaymentBatchStatus,
+  PayrollPaymentBlockerCode,
+  PayrollPaymentInstructionStatus,
+  Prisma,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 12;
 const INSTRUCTION_PAGE_SIZE = 20;
+
+export const paymentInstructionStatuses = [
+  "READY",
+  "BLOCKED",
+  "INCLUDED",
+  "EXCLUDED",
+] as const satisfies readonly PayrollPaymentInstructionStatus[];
+
+export const paymentInstructionBlockers = [
+  "MISSING_BANK_ACCOUNT",
+  "BANK_ACCOUNT_UNVERIFIED",
+  "BANK_ACCOUNT_INACTIVE",
+  "BANK_ACCOUNT_NOT_EFFECTIVE",
+  "NET_PAY_ZERO",
+  "NET_PAY_NEGATIVE",
+  "DUPLICATE_PAYMENT_ALLOCATION",
+  "BUSINESS_MISMATCH",
+] as const satisfies readonly PayrollPaymentBlockerCode[];
 
 export const paymentBatchStatuses = [
   "DRAFT",
@@ -21,6 +44,22 @@ export function parsePaymentPage(value: string | undefined) {
 export function parsePaymentStatus(value: string | undefined) {
   return paymentBatchStatuses.includes(value as PayrollPaymentBatchStatus)
     ? (value as PayrollPaymentBatchStatus)
+    : null;
+}
+
+export function parseInstructionSearch(value: string | undefined) {
+  return value?.trim().slice(0, 80) ?? "";
+}
+
+export function parseInstructionStatus(value: string | undefined) {
+  return paymentInstructionStatuses.includes(value as PayrollPaymentInstructionStatus)
+    ? (value as PayrollPaymentInstructionStatus)
+    : null;
+}
+
+export function parseInstructionBlocker(value: string | undefined) {
+  return paymentInstructionBlockers.includes(value as PayrollPaymentBlockerCode)
+    ? (value as PayrollPaymentBlockerCode)
     : null;
 }
 
@@ -93,6 +132,11 @@ export async function loadPaymentBatchDetail(
   batchId: string,
   page: number,
   includeAudit: boolean,
+  filters: {
+    blocker: PayrollPaymentBlockerCode | null;
+    query: string;
+    status: PayrollPaymentInstructionStatus | null;
+  } = { blocker: null, query: "", status: null },
 ) {
   const batch = await prisma.payrollPaymentBatch.findFirst({
     where: { businessId, id: batchId },
@@ -125,14 +169,27 @@ export async function loadPaymentBatchDetail(
   });
   if (!batch) return null;
 
-  const totalInstructions = await prisma.payrollPaymentInstruction.count({
-    where: { businessId, paymentBatchId: batchId },
-  });
+  const instructionWhere: Prisma.PayrollPaymentInstructionWhereInput = {
+    businessId,
+    paymentBatchId: batchId,
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.blocker ? { blockerCode: filters.blocker } : {}),
+    ...(filters.query
+      ? {
+          OR: [
+            { employeeNameSnapshot: { contains: filters.query, mode: "insensitive" } },
+            { employeeCodeSnapshot: { contains: filters.query, mode: "insensitive" } },
+            { reference: { contains: filters.query, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+  const totalInstructions = await prisma.payrollPaymentInstruction.count({ where: instructionWhere });
   const totalPages = Math.max(1, Math.ceil(totalInstructions / INSTRUCTION_PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const [instructions, events] = await Promise.all([
     prisma.payrollPaymentInstruction.findMany({
-      where: { businessId, paymentBatchId: batchId },
+      where: instructionWhere,
       orderBy: [{ employeeCodeSnapshot: "asc" }, { id: "asc" }],
       skip: (safePage - 1) * INSTRUCTION_PAGE_SIZE,
       take: INSTRUCTION_PAGE_SIZE,

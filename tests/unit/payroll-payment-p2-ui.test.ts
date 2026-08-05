@@ -54,10 +54,28 @@ test("Payment P2 query DTOs never select encrypted bank fields", async () => {
 });
 
 test("Payment P2 product language never claims bank execution or settlement", async () => {
-  const ui = [await source("page.tsx"), await source("new/page.tsx"), await source("[batchId]/page.tsx")].join("\n");
+  const ui = [await source("page.tsx"), await source("new/page.tsx"), await source("[batchId]/page.tsx"), await source("_components.tsx")].join("\n");
   assert.match(ui, /Finalized is not paid/);
   assert.match(ui, /does not create a bank file/);
+  assert.match(ui, /Approved for payment preparation only\./);
+  assert.doesNotMatch(ui, /Approved for instruction preparation/);
   assert.doesNotMatch(ui, /Mark Paid|Settled|Reconciled|Submit to bank|Download bank file/);
+});
+
+test("Payment P2.1 instruction detail supports safe search, filters, and stable pagination", async () => {
+  const [detail, read] = await Promise.all([
+    source("[batchId]/page.tsx"),
+    readFile(path.join(root, "src/lib/payroll/payment/payment-read.ts"), "utf8"),
+  ]);
+  assert.match(detail, /Employee name, code, or reference/);
+  assert.match(detail, /All statuses/);
+  assert.match(detail, /All findings/);
+  assert.match(detail, /filters=\{filters\}/);
+  assert.match(read, /employeeNameSnapshot: \{ contains: filters\.query, mode: "insensitive" \}/);
+  assert.match(read, /employeeCodeSnapshot: \{ contains: filters\.query, mode: "insensitive" \}/);
+  assert.match(read, /reference: \{ contains: filters\.query, mode: "insensitive" \}/);
+  assert.match(read, /orderBy: \[\{ employeeCodeSnapshot: "asc" \}, \{ id: "asc" \}\]/);
+  assert.match(read, /const INSTRUCTION_PAGE_SIZE = 20/);
 });
 
 test("Payment P2 has responsive, loading, denied, error and not-found states", async () => {

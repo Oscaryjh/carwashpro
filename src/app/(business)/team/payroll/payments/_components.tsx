@@ -17,7 +17,7 @@ export function PaymentStatusBadge({ status }: { status: string }) {
 export function paymentStatusLabel(status: string) {
   if (status === "DRAFT") return "Draft";
   if (status === "AWAITING_APPROVAL") return "Awaiting approval";
-  if (status === "APPROVED") return "Approved for instruction preparation";
+  if (status === "APPROVED") return "Approved for payment preparation only.";
   if (status === "INSTRUCTION_READY") return "Instruction prepared";
   if (status === "CANCELLED") return "Cancelled";
   if (status === "SUPERSEDED") return "Superseded";
