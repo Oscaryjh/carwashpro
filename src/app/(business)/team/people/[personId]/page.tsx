@@ -36,6 +36,7 @@ import { loadEmployeeLeaveSection } from "@/lib/team/employee-profile-leave-read
 import { loadEmployeeCompensationSection } from "@/lib/team/employee-profile-compensation-read";
 import { loadEmployeeStatutoryProfileSection } from "@/lib/team/employee-profile-statutory-read";
 import { loadEmployeePayrollNavigationSection } from "@/lib/team/employee-profile-payroll-navigation-read";
+import { loadEmployeeBankSection } from "@/lib/team/employee-profile-bank-read";
 
 type EmployeeProfilePageProps = {
   params: Promise<{ personId: string }>;
@@ -216,19 +217,22 @@ export default async function EmployeeProfilePage({
       businessId: context.businessId,
       membershipId: membership.id,
     };
-    const [compensation, statutoryProfile, payrollNavigation] = await Promise.all([
+    const [bank, compensation, statutoryProfile, payrollNavigation] = await Promise.all([
+      loadEmployeeBankSection(payrollProfileInput),
       loadEmployeeCompensationSection(payrollProfileInput),
       loadEmployeeStatutoryProfileSection(payrollProfileInput),
       loadEmployeePayrollNavigationSection(payrollProfileInput),
     ]);
     if (
       compensation.status === "NOT_FOUND" ||
+      bank.status === "NOT_FOUND" ||
       statutoryProfile.status === "NOT_FOUND"
     ) {
       notFound();
     }
     sectionContent = (
       <EmployeeProfilePayroll
+        bank={bank}
         compensation={compensation}
         navigation={payrollNavigation}
         notice={parsePayrollUpdateNotice(query)}
@@ -262,7 +266,7 @@ function parsePayrollUpdateNotice(query: {
   reviewCount?: string;
 }) {
   if (
-    !["compensation", "statutory", "tax", "work-target"].includes(
+    !["bank", "compensation", "statutory", "tax", "work-target"].includes(
       query.payrollUpdate ?? "",
     ) ||
     (query.payrollUpdateStatus !== "success" && query.payrollUpdateStatus !== "error")
@@ -288,6 +292,7 @@ function parsePayrollUpdateNotice(query: {
     finalizedCount,
     kind: query.payrollUpdate as
       | "compensation"
+      | "bank"
       | "statutory"
       | "tax"
       | "work-target",

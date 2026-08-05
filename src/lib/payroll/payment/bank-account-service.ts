@@ -64,19 +64,18 @@ export async function createEmployeeBankVersion(
         });
         if (!membership) throw new PayrollPaymentError("NOT_FOUND", "Employee membership was not found.");
 
-        const current = await transaction.employeeBankAccountVersion.findFirst({
+        const latest = await transaction.employeeBankAccountVersion.findFirst({
           where: {
             businessId: context.businessId,
             employeeMembershipId: command.membershipId,
             isPrimary: true,
-            status: "ACTIVE",
           },
           orderBy: [{ revision: "desc" }, { createdAt: "desc" }],
         });
-        if ((current?.revision ?? 0) !== command.expectedRevision) {
+        if ((latest?.revision ?? 0) !== command.expectedRevision) {
           throw new PayrollPaymentError("CONFLICT", "The bank account changed concurrently. Reload and try again.");
         }
-        if (current && effectiveFrom <= current.effectiveFrom) {
+        if (latest && effectiveFrom <= latest.effectiveFrom) {
           throw new PayrollPaymentError("VALIDATION_ERROR", "A replacement bank version must start after the current version.");
         }
 
@@ -88,9 +87,9 @@ export async function createEmployeeBankVersion(
         });
         const reasonSafe = safePaymentReason(command.reason);
 
-        if (current) {
+        if (latest?.status === "ACTIVE") {
           await transaction.employeeBankAccountVersion.update({
-            where: { id: current.id },
+            where: { id: latest.id },
             data: {
               effectiveUntil: effectiveFrom,
               status: "SUPERSEDED",
@@ -120,8 +119,8 @@ export async function createEmployeeBankVersion(
             isPrimary: true,
             reasonSafe,
             reasonType: command.reasonType,
-            revision: (current?.revision ?? 0) + 1,
-            supersedesVersionId: current?.id ?? null,
+            revision: (latest?.revision ?? 0) + 1,
+            supersedesVersionId: latest?.id ?? null,
           },
         });
         await transaction.payrollPaymentEvent.create({
@@ -187,7 +186,11 @@ export async function verifyEmployeeBankVersion(
           },
         });
         if (!version) throw new PayrollPaymentError("NOT_FOUND", "Bank account version was not found.");
-        if (version.revision !== command.expectedRevision || version.status !== "ACTIVE") {
+        if (
+          version.revision !== command.expectedRevision ||
+          version.status !== "ACTIVE" ||
+          version.verificationStatus !== "UNVERIFIED"
+        ) {
           throw new PayrollPaymentError("CONFLICT", "Only the current active bank version can be verified.");
         }
         const reasonSafe = safePaymentReason(command.reason);

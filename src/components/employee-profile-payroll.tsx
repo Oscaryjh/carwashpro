@@ -3,27 +3,33 @@ import Link from "next/link";
 import { EmployeeProfileProtectedSubmit } from "@/components/employee-profile-protected-submit";
 import {
   scheduleEmployeeCompensationChangeAction,
+  deactivateEmployeeBankVersionAction,
   updateEmployeeStatutoryProfileAction,
   updateEmployeeTaxProfileAction,
   updateEmployeePayrollWorkTargetAction,
+  verifyEmployeeBankVersionAction,
 } from "@/app/(business)/team/people/[personId]/payroll/actions";
+import type { EmployeeBankSectionResult } from "@/lib/team/employee-profile-bank-read";
 import type { EmployeeCompensationSectionResult } from "@/lib/team/employee-profile-compensation-read";
 import type { EmployeePayrollNavigationResult } from "@/lib/team/employee-profile-payroll-navigation-read";
 import type { EmployeeStatutoryProfileResult } from "@/lib/team/employee-profile-statutory-read";
 import styles from "./employee-profile-shell.module.css";
 
 export function EmployeeProfilePayroll({
+  bank,
   compensation,
   navigation,
   notice,
   statutoryProfile,
 }: {
+  bank: EmployeeBankSectionResult;
   compensation: EmployeeCompensationSectionResult;
   navigation: EmployeePayrollNavigationResult;
   notice: PayrollUpdateNoticeValue | null;
   statutoryProfile: EmployeeStatutoryProfileResult;
 }) {
   if (
+    bank.status === "NOT_FOUND" ||
     compensation.status === "NOT_FOUND" ||
     statutoryProfile.status === "NOT_FOUND"
   ) {
@@ -50,6 +56,7 @@ export function EmployeeProfilePayroll({
         <CompensationPanels result={compensation} />
         <StatutoryPanel result={statutoryProfile.statutory} />
         <TaxPanel result={statutoryProfile.tax} />
+        <BankPanel result={bank} />
       </div>
       <PayrollNavigation result={navigation} />
     </div>
@@ -63,7 +70,7 @@ type PayrollUpdateNoticeValue = {
   effectiveMonth: string | null;
   existingArtifactWarning: boolean;
   finalizedCount: number | null;
-  kind: "compensation" | "statutory" | "tax" | "work-target";
+  kind: "bank" | "compensation" | "statutory" | "tax" | "work-target";
   message: string;
   newRevision: number | null;
   reviewCount: number | null;
@@ -127,7 +134,6 @@ function PayrollNavigation({
   const states = [
     result.payrollRuns.status,
     result.payslip.status,
-    result.bankDetails.status,
     result.payment.status,
   ];
   if (states.every((status) => status === "HIDDEN")) return null;
@@ -148,12 +154,6 @@ function PayrollNavigation({
       <div className={styles.payrollActionGrid}>
         <PayrollRunsCard state={result.payrollRuns} />
         <PayslipCard state={result.payslip} />
-        <UnavailableCard
-          state={result.bankDetails}
-          eyebrow="Bank Details"
-          title="Not available in this release."
-          description="Employee bank account storage and salary payment files have not been implemented."
-        />
         <UnavailableCard
           state={result.payment}
           eyebrow="Payment"
@@ -237,7 +237,7 @@ function UnavailableCard({
 }: {
   description: string;
   eyebrow: string;
-  state: EmployeePayrollNavigationResult["bankDetails"];
+  state: EmployeePayrollNavigationResult["payment"];
   title: string;
 }) {
   if (state.status === "HIDDEN") return null;
@@ -901,6 +901,127 @@ function PayrollProfileImpactPreview({
         Saving does not refresh or rewrite any of these records.
       </span>
     </div>
+  );
+}
+
+function BankPanel({ result }: { result: EmployeeBankSectionResult }) {
+  if (result.status === "NOT_FOUND") return null;
+  if (result.status === "ACCESS_DENIED") {
+    if (result.reason === "CAPABILITY") return null;
+    return (
+      <RestrictedPanel
+        eyebrow="Bank details"
+        title="Salary bank account is restricted"
+        message="Viewing salary bank details requires all-branch payroll access. No bank record was loaded."
+      />
+    );
+  }
+
+  const { bank } = result.data;
+  const isActive = bank?.status === "ACTIVE";
+  return (
+    <section className={styles.profilePanel} data-bank-profile="safe">
+      <div className={styles.panelHeading}>
+        <div>
+          <p className={styles.eyebrow}>Bank details</p>
+          <h3>Salary bank account</h3>
+          <p>Current encrypted bank profile used by future payment batches.</p>
+        </div>
+        <span>{bank ? formatEnum(bank.status) : "Not configured"}</span>
+      </div>
+
+      {bank ? (
+        <div className={styles.detailList}>
+          <PayrollDetail label="Bank" value={bank.bankName} />
+          <PayrollDetail label="Holder name" value={bank.accountHolderName} />
+          <PayrollDetail label="Account number" value={`•••• ${bank.last4}`} />
+          <PayrollDetail
+            label="Verification"
+            value={formatEnum(bank.verificationStatus)}
+          />
+          <PayrollDetail label="Effective date" value={formatDate(bank.effectiveFrom)} />
+          <PayrollDetail label="Revision" value={String(bank.revision)} />
+          <PayrollDetail label="Status" value={formatEnum(bank.status)} />
+        </div>
+      ) : (
+        <div className={styles.profileEmpty}>
+          <strong>No salary bank account</strong>
+          <p>Add an encrypted bank account before preparing a future payroll payment batch.</p>
+        </div>
+      )}
+
+      <p className={styles.policyNote}>
+        Existing payment batches are not updated automatically. Full account
+        numbers, encryption metadata, and fingerprints are never returned to
+        this page.
+      </p>
+
+      {result.data.canEdit ? (
+        <Link
+          className={styles.inlineLink}
+          href={`/team/people/${result.data.membershipId}/payroll/bank/edit`}
+        >
+          {isActive ? "Replace salary bank account" : "Add salary bank account"}
+        </Link>
+      ) : null}
+
+      {isActive && result.data.canVerify && bank.verificationStatus === "UNVERIFIED" ? (
+        <details className={styles.payrollEditDisclosure}>
+          <summary>Verify bank details</summary>
+          <form action={verifyEmployeeBankVersionAction} className={styles.payrollEditForm}>
+            <input name="bankAccountVersionId" type="hidden" value={bank.id} />
+            <input name="commandId" type="hidden" value={randomUUID()} />
+            <input name="expectedRevision" type="hidden" value={bank.revision} />
+            <input name="membershipId" type="hidden" value={result.data.membershipId} />
+            <input name="reasonType" type="hidden" value="MANUAL_VERIFICATION" />
+            <label className={styles.reasonField}>
+              <span>Verification reason</span>
+              <textarea
+                maxLength={500}
+                minLength={5}
+                name="reason"
+                placeholder="Record how the salary bank details were checked"
+                required
+                rows={3}
+              />
+            </label>
+            <p className={styles.formHint}>
+              Manual verification records an internal review only. It is not bank confirmation.
+            </p>
+            <button type="submit">Mark as manually verified</button>
+          </form>
+        </details>
+      ) : null}
+
+      {isActive && result.data.canEdit ? (
+        <details className={styles.payrollEditDisclosure}>
+          <summary>Deactivate bank account</summary>
+          <form action={deactivateEmployeeBankVersionAction} className={styles.payrollEditForm}>
+            <input name="bankAccountVersionId" type="hidden" value={bank.id} />
+            <input name="commandId" type="hidden" value={randomUUID()} />
+            <input name="expectedRevision" type="hidden" value={bank.revision} />
+            <input name="membershipId" type="hidden" value={result.data.membershipId} />
+            <input name="reasonType" type="hidden" value="ACCOUNT_DEACTIVATED" />
+            <label className={styles.reasonField}>
+              <span>Deactivation reason</span>
+              <textarea
+                maxLength={500}
+                minLength={5}
+                name="reason"
+                placeholder="Explain why this salary bank account is being deactivated"
+                required
+                rows={3}
+              />
+            </label>
+            <div className={styles.draftImpactWarning}>
+              <strong>Historical payment instructions stay unchanged</strong>
+              <span>Deactivation does not delete this version or rewrite an existing batch.</span>
+            </div>
+            <button type="submit">Deactivate bank account</button>
+          </form>
+        </details>
+      ) : null}
+    </section>
   );
 }
 

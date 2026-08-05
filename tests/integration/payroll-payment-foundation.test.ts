@@ -92,6 +92,17 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
     reason: "Account ownership checked manually against the Testing fixture.",
     reasonType: "MANUAL_VERIFICATION",
   });
+  await assert.rejects(
+    verifyEmployeeBankVersion(owner, {
+      bankAccountVersionId: firstBank.bankAccountVersionId,
+      commandId: randomUUID(),
+      expectedRevision: 1,
+      membershipId: fixture.readyMembership.id,
+      reason: "A manually verified version must not be verified repeatedly.",
+      reasonType: "MANUAL_VERIFICATION",
+    }),
+    (error: unknown) => paymentError(error, "CONFLICT"),
+  );
 
   const futureBank = await createEmployeeBankVersion(owner, {
     accountHolderName: fixture.readyMembership.fullName,
@@ -345,6 +356,27 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
       })
     ).accountNumberLast4Snapshot,
     "9012",
+  );
+  const replacementAfterDeactivation = await createEmployeeBankVersion(owner, {
+    accountHolderName: fixture.readyMembership.fullName,
+    accountNumber: "1111-2222-3333",
+    bankCode: "RHB",
+    bankName: "RHB Bank",
+    commandId: randomUUID(),
+    effectiveFrom: new Date("2026-11-01T00:00:00.000Z"),
+    expectedRevision: futureBank.revision,
+    membershipId: fixture.readyMembership.id,
+    reason: "Create a new immutable version after the future account was deactivated.",
+    reasonType: "ACCOUNT_CHANGE",
+  });
+  assert.equal(replacementAfterDeactivation.revision, 3);
+  assert.equal(
+    (
+      await prisma.employeeBankAccountVersion.findUniqueOrThrow({
+        where: { id: replacementAfterDeactivation.bankAccountVersionId },
+      })
+    ).supersedesVersionId,
+    futureBank.bankAccountVersionId,
   );
   await assert.rejects(
     prisma.payrollPaymentArtifact.update({

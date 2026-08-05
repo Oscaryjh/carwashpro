@@ -95,7 +95,7 @@ test("Phase 3C does not query a payslip outside whole-business scope", async () 
   assert.equal(payrollEntryQueries, 0);
 });
 
-test("Phase 3C truthfully marks Bank and Payment as unavailable without querying either domain", async () => {
+test("Phase 3C truthfully keeps Payment unavailable without querying the domain", async () => {
   const database = {
     branch: { count: () => Promise.resolve(1) },
     payrollEntry: {
@@ -106,11 +106,10 @@ test("Phase 3C truthfully marks Bank and Payment as unavailable without querying
   } as unknown as PrismaClient;
 
   const result = await loadEmployeePayrollNavigationSection(
-    profileInput(["VIEW_BANK_ACCOUNT", "VIEW_PAYMENT_BATCH", "ALL_BRANCHES"]),
+    profileInput(["VIEW_PAYMENT_BATCH", "ALL_BRANCHES"]),
     database,
   );
 
-  assert.deepEqual(result.bankDetails, { status: "NOT_AVAILABLE" });
   assert.deepEqual(result.payment, { status: "NOT_AVAILABLE" });
   assert.deepEqual(result.payrollRuns, { status: "HIDDEN" });
   assert.deepEqual(result.payslip, { status: "HIDDEN" });
@@ -141,7 +140,7 @@ test("Phase 3C performs no navigation query without a matching capability", asyn
   assert.equal(queryCount, 0);
   assert.deepEqual(
     Object.values(result).map((state) => state.status),
-    ["HIDDEN", "HIDDEN", "HIDDEN", "HIDDEN"],
+    ["HIDDEN", "HIDDEN", "HIDDEN"],
   );
 });
 
@@ -157,23 +156,16 @@ test("Phase 3C navigation remains truthful after the scoped Phase 4A editing sur
   assert.match(route, /loadEmployeePayrollNavigationSection/);
   assert.match(loader, /VIEW_PAYROLL_RUN/);
   assert.match(loader, /VIEW_PAYSLIP/);
-  assert.match(loader, /VIEW_BANK_ACCOUNT/);
   assert.match(loader, /VIEW_PAYMENT_BATCH/);
   assert.match(component, /View Payroll Runs/);
   assert.match(component, /Download PDF/);
   assert.match(component, /Available for download/);
-  assert.match(component, /Bank Details/);
-  assert.match(component, /Not available in this release\./);
-  assert.match(
-    component,
-    /Employee bank account storage and salary payment files have not been implemented\./,
-  );
   assert.match(component, /Payment tracking is not available/);
   assert.match(component, /Finalized means calculations are locked/);
   assert.match(styles, /@media \(max-width: 760px\)/);
   assert.match(styles, /\.payrollActionGrid/);
   assert.doesNotMatch(component, /Publish payslip|Process payment/);
-  assert.doesNotMatch(component, /Add Bank|Account number|Published|Delivered|Viewed|Sent/);
+  assert.doesNotMatch(component, /Published|Delivered|Viewed|Sent/);
   assert.doesNotMatch(loader, /bankAccount|paymentBatch|grossPay|netPay|basicPay/);
 });
 

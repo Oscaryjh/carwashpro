@@ -84,13 +84,26 @@ test("unavailable payroll modules are labelled honestly", async () => {
 
   for (const capability of [
     "PUBLISH_PAYSLIP",
-    "VIEW_BANK_ACCOUNT",
-    "EDIT_BANK_ACCOUNT",
     "VIEW_PAYMENT_BATCH",
     "PROCESS_PAYMENT",
     "EXPORT_PAYMENT_FILE",
   ]) {
     assert.match(
+      permissions,
+      new RegExp(`\\["${capability}", "[^"]+\\(not available yet\\)"\\]`),
+    );
+  }
+
+  for (const capability of [
+    "VIEW_BANK_ACCOUNT",
+    "EDIT_BANK_ACCOUNT",
+    "VERIFY_BANK_ACCOUNT",
+  ]) {
+    assert.match(
+      permissions,
+      new RegExp(`\\["${capability}", "[^"]+"\\]`),
+    );
+    assert.doesNotMatch(
       permissions,
       new RegExp(`\\["${capability}", "[^"]+\\(not available yet\\)"\\]`),
     );

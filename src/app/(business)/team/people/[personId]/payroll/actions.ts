@@ -13,6 +13,13 @@ import {
   payrollProfileReasonTypeSchema,
 } from "@/lib/payroll/employee-profile-write/common";
 import { PayrollProfileWriteError } from "@/lib/payroll/employee-profile-write/types";
+import { findSalaryBank } from "@/lib/payroll/payment/bank-directory";
+import {
+  createEmployeeBankVersion,
+  deactivateEmployeeBankVersion,
+  verifyEmployeeBankVersion,
+} from "@/lib/payroll/payment/bank-account-service";
+import { PayrollPaymentError } from "@/lib/payroll/payment/types";
 import {
   updateEmployeePayrollWorkTarget,
 } from "@/lib/payroll/employee-profile-write/work-target";
@@ -90,6 +97,30 @@ const taxProfileSchema = z.object({
     .nullable(),
   taxIdentificationNumber: replacementIdentifier,
 }).and(reasonSchema);
+
+const bankVersionBaseSchema = z.object({
+  commandId: z.string().trim().min(1).max(128),
+  expectedRevision: z.coerce.number().int().min(0),
+  membershipId: z.string().uuid(),
+  reason: z.string().trim().min(5, "Enter a reason of at least 5 characters.").max(500),
+  reasonType: z.string().trim().min(1).max(64),
+});
+
+const createBankVersionSchema = bankVersionBaseSchema.extend({
+  accountHolderName: z.string().trim().min(1).max(160),
+  accountNumber: z
+    .string()
+    .trim()
+    .min(5, "Enter a valid bank account number.")
+    .max(48)
+    .regex(/^[A-Za-z0-9 -]+$/, "Enter a valid bank account number."),
+  bankCode: z.string().trim().min(1).max(32),
+  effectiveFrom: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-([012]\d|3[01])$/),
+});
+
+const existingBankVersionSchema = bankVersionBaseSchema.extend({
+  bankAccountVersionId: z.string().uuid(),
+});
 
 export async function scheduleEmployeeCompensationChangeAction(formData: FormData) {
   let membershipId = safeMembershipId(formData.get("membershipId"));
@@ -316,6 +347,99 @@ export async function updateEmployeeTaxProfileAction(formData: FormData) {
   }
 }
 
+export async function createEmployeeBankVersionAction(formData: FormData) {
+  let membershipId = safeMembershipId(formData.get("membershipId"));
+  try {
+    const input = createBankVersionSchema.parse(Object.fromEntries(formData));
+    membershipId = input.membershipId;
+    const bank = findSalaryBank(input.bankCode);
+    if (!bank) throw new PayrollPaymentError("VALIDATION_ERROR", "Select a supported bank.");
+    const context = await requireWholeBusinessPayroll("EDIT_BANK_ACCOUNT");
+    const result = await createEmployeeBankVersion(
+      paymentContext(context, await getAuditRequestContext()),
+      {
+        accountHolderName: input.accountHolderName,
+        accountNumber: input.accountNumber,
+        bankCode: bank.code,
+        bankName: bank.name,
+        commandId: input.commandId,
+        effectiveFrom: new Date(`${input.effectiveFrom}T00:00:00.000Z`),
+        expectedRevision: input.expectedRevision,
+        membershipId: input.membershipId,
+        reason: input.reason,
+        reasonType: input.reasonType,
+      },
+    );
+    revalidatePayrollProfile(membershipId);
+    redirect(profileNoticeUrl(membershipId, {
+      changedFields: ["bank", "holderName", "accountNumber", "effectiveDate"],
+      kind: "bank",
+      message: `Salary bank account ending ${result.last4} saved. Existing payment batches were not changed.`,
+      newRevision: result.revision,
+      status: "success",
+    }));
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirect(bankEditNoticeUrl(membershipId, publicWriteError(error)));
+  }
+}
+
+export async function verifyEmployeeBankVersionAction(formData: FormData) {
+  let membershipId = safeMembershipId(formData.get("membershipId"));
+  try {
+    const input = existingBankVersionSchema.parse(Object.fromEntries(formData));
+    membershipId = input.membershipId;
+    const context = await requireWholeBusinessPayroll("VERIFY_BANK_ACCOUNT");
+    const result = await verifyEmployeeBankVersion(
+      paymentContext(context, await getAuditRequestContext()),
+      input,
+    );
+    revalidatePayrollProfile(membershipId);
+    redirect(profileNoticeUrl(membershipId, {
+      changedFields: ["verificationStatus"],
+      kind: "bank",
+      message: "Salary bank account marked as manually verified. This is not confirmation from the bank.",
+      newRevision: result.revision,
+      status: "success",
+    }));
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirect(profileNoticeUrl(membershipId, {
+      kind: "bank",
+      message: publicWriteError(error),
+      status: "error",
+    }));
+  }
+}
+
+export async function deactivateEmployeeBankVersionAction(formData: FormData) {
+  let membershipId = safeMembershipId(formData.get("membershipId"));
+  try {
+    const input = existingBankVersionSchema.parse(Object.fromEntries(formData));
+    membershipId = input.membershipId;
+    const context = await requireWholeBusinessPayroll("EDIT_BANK_ACCOUNT");
+    const result = await deactivateEmployeeBankVersion(
+      paymentContext(context, await getAuditRequestContext()),
+      input,
+    );
+    revalidatePayrollProfile(membershipId);
+    redirect(profileNoticeUrl(membershipId, {
+      changedFields: ["status", "effectiveUntil"],
+      kind: "bank",
+      message: "Salary bank account deactivated. Historical versions and existing payment batches remain unchanged.",
+      newRevision: result.revision,
+      status: "success",
+    }));
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirect(profileNoticeUrl(membershipId, {
+      kind: "bank",
+      message: publicWriteError(error),
+      status: "error",
+    }));
+  }
+}
+
 function revalidatePayrollProfile(membershipId: string) {
   revalidatePath(`/team/people/${membershipId}`);
   revalidatePath("/team/payroll/statutory");
@@ -332,7 +456,7 @@ function profileNoticeUrl(
     effectiveMonth?: string;
     existingArtifactWarning?: boolean;
     finalizedCount?: number;
-    kind: "compensation" | "statutory" | "tax" | "work-target";
+    kind: "bank" | "compensation" | "statutory" | "tax" | "work-target";
     message: string;
     status: "error" | "success";
     newRevision?: number;
@@ -368,6 +492,27 @@ function profileNoticeUrl(
   return `/team/people/${membershipId}?${params.toString()}`;
 }
 
+function bankEditNoticeUrl(membershipId: string, message: string) {
+  const params = new URLSearchParams({
+    message: message.slice(0, 180),
+    type: "error",
+  });
+  return `/team/people/${membershipId}/payroll/bank/edit?${params.toString()}`;
+}
+
+function paymentContext(
+  context: Awaited<ReturnType<typeof requireWholeBusinessPayroll>>,
+  request: Awaited<ReturnType<typeof getAuditRequestContext>>,
+) {
+  return {
+    access: context.access,
+    actor: context.user,
+    allowedBranchIds: context.allowedBranchIds,
+    businessId: context.businessId,
+    request,
+  };
+}
+
 function publicWriteError(error: unknown) {
   if (error instanceof z.ZodError) {
     return error.issues[0]?.message ?? "Check the payroll profile fields and try again.";
@@ -378,6 +523,14 @@ function publicWriteError(error: unknown) {
     if (error.code === "NOT_FOUND") return "The employee payroll profile was not found.";
     if (error.code === "ACCESS_DENIED") return "You do not have access to edit this payroll profile.";
     if (error.code === "VALIDATION_ERROR") return error.message.slice(0, 180);
+  }
+  if (error instanceof PayrollPaymentError) {
+    if (error.code === "CONFLICT") return "This bank profile changed. Reload and try again.";
+    if (error.code === "DUPLICATE_COMMAND") return "This bank request was already submitted with different details.";
+    if (error.code === "NOT_FOUND") return "The employee bank profile was not found.";
+    if (error.code === "ACCESS_DENIED") return "You do not have access to maintain this bank profile.";
+    if (error.code === "VALIDATION_ERROR") return error.message.slice(0, 180);
+    if (error.code === "IMMUTABLE_HISTORY") return "Historical bank records cannot be changed.";
   }
   return "The payroll profile could not be updated. Refresh and try again.";
 }

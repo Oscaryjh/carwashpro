@@ -759,9 +759,22 @@
   font-weight: 800;
 }
 
+.payrollEditForm > label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.payrollEditForm > label > span {
+  color: #4f6070;
+  font-size: 10px;
+  font-weight: 800;
+}
+
 .payrollFormGrid input,
 .payrollFormGrid select,
-.payrollFormGrid textarea {
+.payrollFormGrid textarea,
+.payrollEditForm > label textarea {
   width: 100%;
   min-width: 0;
   padding: 9px 10px;

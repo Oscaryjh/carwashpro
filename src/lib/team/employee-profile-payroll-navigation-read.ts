@@ -18,18 +18,15 @@ type NavigationState =
   | RestrictedOrHiddenState
   | { status: "AVAILABLE"; href: string };
 
-type UnavailableState =
-  | RestrictedOrHiddenState
-  | { status: "NOT_AVAILABLE" };
-
 export type EmployeePayrollNavigationResult = {
   payrollRuns: NavigationState;
   payslip:
     | RestrictedOrHiddenState
     | { status: "EMPTY" }
     | { status: "AVAILABLE"; href: string; periodStart: string };
-  bankDetails: UnavailableState;
-  payment: UnavailableState;
+  payment:
+    | RestrictedOrHiddenState
+    | { status: "NOT_AVAILABLE" };
 };
 
 export async function loadEmployeePayrollNavigationSection(
@@ -38,13 +35,12 @@ export async function loadEmployeePayrollNavigationSection(
 ): Promise<EmployeePayrollNavigationResult> {
   const canViewRuns = hasBusinessCapability(input.access, "VIEW_PAYROLL_RUN");
   const canViewPayslip = hasBusinessCapability(input.access, "VIEW_PAYSLIP");
-  const canViewBank = hasBusinessCapability(input.access, "VIEW_BANK_ACCOUNT");
   const canViewPayment = hasBusinessCapability(
     input.access,
     "VIEW_PAYMENT_BATCH",
   );
 
-  if (!canViewRuns && !canViewPayslip && !canViewBank && !canViewPayment) {
+  if (!canViewRuns && !canViewPayslip && !canViewPayment) {
     return hiddenNavigation();
   }
 
@@ -67,7 +63,6 @@ export async function loadEmployeePayrollNavigationSection(
     return {
       payrollRuns: canViewRuns ? restricted : { status: "HIDDEN" },
       payslip: canViewPayslip ? restricted : { status: "HIDDEN" },
-      bankDetails: canViewBank ? restricted : { status: "HIDDEN" },
       payment: canViewPayment ? restricted : { status: "HIDDEN" },
     };
   }
@@ -101,9 +96,6 @@ export async function loadEmployeePayrollNavigationSection(
               latestFinalizedPayslip.payrollRun.periodStart.toISOString(),
           }
         : { status: "EMPTY" },
-    bankDetails: canViewBank
-      ? { status: "NOT_AVAILABLE" }
-      : { status: "HIDDEN" },
     payment: canViewPayment
       ? { status: "NOT_AVAILABLE" }
       : { status: "HIDDEN" },
@@ -114,7 +106,6 @@ function hiddenNavigation(): EmployeePayrollNavigationResult {
   return {
     payrollRuns: { status: "HIDDEN" },
     payslip: { status: "HIDDEN" },
-    bankDetails: { status: "HIDDEN" },
     payment: { status: "HIDDEN" },
   };
 }
