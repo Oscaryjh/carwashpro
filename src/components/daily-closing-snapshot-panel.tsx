@@ -9,6 +9,7 @@ import {
   type CloseDailySnapshotState,
 } from "@/app/(business)/closing/actions";
 import { formatMoneyFromCents } from "@/lib/daily-closing/format";
+import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
 
 const initialCloseDailySnapshotState: CloseDailySnapshotState = {
   message: "",
@@ -63,6 +64,7 @@ export function DailyClosingSnapshotPanel({
     closeDailySnapshotAction,
     initialCloseDailySnapshotState,
   );
+  const { operationId, rotateOperationId } = useFinancialOperationId("daily-closing");
   const actualCashCents = useMemo(() => {
     const value = Number(actualCash);
     return Number.isFinite(value) ? Math.round(value * 100) : 0;
@@ -71,9 +73,10 @@ export function DailyClosingSnapshotPanel({
 
   useEffect(() => {
     if (state.status !== "success") return;
+    rotateOperationId();
     setModalOpen(false);
     router.refresh();
-  }, [router, state.status]);
+  }, [rotateOperationId, router, state.status]);
 
   if (snapshot) {
     return (
@@ -230,6 +233,7 @@ export function DailyClosingSnapshotPanel({
               />
             </div>
             <form action={action}>
+              <input type="hidden" name="operationId" value={operationId} />
               <input type="hidden" name="branchId" value={branchId} />
               <input type="hidden" name="businessDate" value={businessDate} />
               <input type="hidden" name="actualCash" value={actualCash} />

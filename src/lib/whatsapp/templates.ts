@@ -38,6 +38,13 @@ export type WhatsAppTemplateVariables = Record<
   number | string | null | undefined
 >;
 
+export class WhatsAppTemplateValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WhatsAppTemplateValidationError";
+  }
+}
+
 export function renderWhatsAppTemplate(
   body: string,
   variables: WhatsAppTemplateVariables,
@@ -74,7 +81,38 @@ export async function renderManagedWhatsAppTemplate(
       ? savedTemplate.body
       : defaultTemplate?.body ?? "";
 
-  return renderWhatsAppTemplate(body, variables);
+  assertWhatsAppTemplateCanRender(body, variables);
+
+  const rendered = renderWhatsAppTemplate(body, variables).trim();
+  if (!rendered || /\{\{\s*[a-zA-Z0-9_]+\s*\}\}/.test(rendered)) {
+    throw new WhatsAppTemplateValidationError(
+      "WhatsApp template could not be rendered safely.",
+    );
+  }
+
+  return rendered;
+}
+
+export function assertWhatsAppTemplateCanRender(
+  body: string,
+  variables: WhatsAppTemplateVariables,
+) {
+  if (!body.trim()) {
+    throw new WhatsAppTemplateValidationError("WhatsApp template is empty.");
+  }
+
+  const missing = new Set<string>();
+  for (const match of body.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)) {
+    if (!Object.prototype.hasOwnProperty.call(variables, match[1])) {
+      missing.add(match[1]);
+    }
+  }
+
+  if (missing.size) {
+    throw new WhatsAppTemplateValidationError(
+      `WhatsApp template is missing required variables: ${[...missing].join(", ")}.`,
+    );
+  }
 }
 
 function renderDefaultTemplate(

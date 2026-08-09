@@ -1,5 +1,6 @@
 "use server";
 
+import { FinancialOperationType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
@@ -10,13 +11,16 @@ import {
   reverseLoyaltyPointsForRefund,
 } from "@/lib/loyalty/service";
 import { clearCustomerPackageServiceBalances } from "@/lib/packages/service-balances";
-import { prisma } from "@/lib/prisma";
 import { calculateCreditNoteAmounts } from "@/lib/tax/calculator";
 import {
   getRefundableCents,
   getRefundedPaymentState,
 } from "@/lib/refunds/rules";
 import { fromCents, toCents } from "@/lib/validation/pos";
+import {
+  financialOperationKeySchema,
+  runFinancialOperation,
+} from "@/lib/financial-idempotency";
 
 export type VoidInvoiceState = {
   status: "idle" | "success" | "error";
@@ -29,6 +33,7 @@ export type RefundPaymentState = {
 };
 
 const refundPaymentSchema = z.object({
+  operationId: financialOperationKeySchema,
   invoiceId: z.string().uuid("Invoice is required."),
   paymentId: z.string().uuid("Payment is required."),
   amount: z.coerce.number().positive("Refund amount must be more than 0."),
@@ -48,7 +53,7 @@ export async function refundPaymentAction(
   _previousState: RefundPaymentState,
   formData: FormData,
 ): Promise<RefundPaymentState> {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("PROCESS_REFUND");
   const auditRequest = await getAuditRequestContext();
 
   if (user.role !== "BUSINESS_OWNER") {
@@ -59,6 +64,7 @@ export async function refundPaymentAction(
   }
 
   const parsed = refundPaymentSchema.safeParse({
+    operationId: formData.get("operationId"),
     invoiceId: formData.get("invoiceId"),
     paymentId: formData.get("paymentId"),
     amount: formData.get("amount"),
@@ -96,8 +102,15 @@ export async function refundPaymentAction(
   }
 
   try {
-    const result = await prisma.$transaction(
-      async (tx) => {
+    const { operationId, ...financialPayload } = input;
+    const { result } = await runFinancialOperation({
+      actorUserId: user.userId,
+      branchId: null,
+      businessId,
+      operationKey: operationId,
+      operationType: FinancialOperationType.PAYMENT_REFUND,
+      payload: financialPayload,
+      execute: async (tx) => {
         const shift = await tx.cashierShift.findFirst({
           where: {
             businessId,
@@ -439,8 +452,7 @@ export async function refundPaymentAction(
           creditNoteNumber: creditNote.creditNoteNumber,
         };
       },
-      { isolationLevel: "Serializable" },
-    );
+    });
 
     revalidatePath("/closing");
     revalidatePath("/dashboard");
@@ -477,10 +489,20 @@ export async function voidInvoiceAction(
   _previousState: VoidInvoiceState,
   formData: FormData,
 ): Promise<VoidInvoiceState> {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("PROCESS_REFUND");
   const auditRequest = await getAuditRequestContext();
   const invoiceId = String(formData.get("invoiceId") ?? "");
   const voidReason = String(formData.get("voidReason") ?? "").trim();
+  const operationId = financialOperationKeySchema.safeParse(
+    formData.get("operationId"),
+  );
+
+  if (!operationId.success) {
+    return {
+      status: "error",
+      message: operationId.error.issues[0]?.message ?? "Invalid operation ID.",
+    };
+  }
 
   if (!voidReason) {
     return {
@@ -490,7 +512,14 @@ export async function voidInvoiceAction(
   }
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const { result } = await runFinancialOperation({
+      actorUserId: user.userId,
+      branchId: null,
+      businessId,
+      operationKey: operationId.data,
+      operationType: FinancialOperationType.INVOICE_VOID,
+      payload: { invoiceId, voidReason },
+      execute: async (tx) => {
       const invoice = await tx.invoice.findFirstOrThrow({
         where: {
           id: invoiceId,
@@ -685,6 +714,7 @@ export async function voidInvoiceAction(
         workOrderId: invoice.workOrderId,
         appointmentId: invoice.appointmentId,
       };
+      },
     });
 
     revalidatePath("/dashboard");

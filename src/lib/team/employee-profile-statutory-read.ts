@@ -41,6 +41,18 @@ type StatutorySection =
         eisEnabled: boolean;
         eisPreviouslyContributed: boolean;
         lindung24OptIn: boolean;
+        lindung24ExpectedRevision: number;
+        lindung24ParticipationHistory: Array<{
+          act4Covered: boolean;
+          effectiveFromMonth: string;
+          effectiveToMonth: string | null;
+          employerContext: "SINGLE_EMPLOYER" | "MULTIPLE_EMPLOYER";
+          officialSubmittedAt: string | null;
+          revision: number;
+          selectedEmployer: "CURRENT_BUSINESS" | "OTHER_EMPLOYER" | "PERKESO_SELECTION_PENDING";
+          sourceType: string;
+          status: "MANDATORY" | "DEFAULT_PARTICIPATING" | "VOLUNTARY_OPT_IN" | "VOLUNTARY_OPT_OUT";
+        }>;
         profileUpdatedAt: string | null;
       };
     };
@@ -116,7 +128,7 @@ export async function loadEmployeeStatutoryProfileSection(
     };
   }
 
-  const [statutoryProfile, taxProfile, impactRuns] = await Promise.all([
+  const [statutoryProfile, taxProfile, impactRuns, lindung24ParticipationHistory] = await Promise.all([
     canViewStatutory
       ? database.employeeBusinessMembership.findFirst({
           where: { businessId: input.businessId, id: input.membershipId },
@@ -163,6 +175,23 @@ export async function loadEmployeeStatutoryProfileSection(
           },
         })
       : [],
+    canViewStatutory
+      ? (database.employeeLindung24ParticipationVersion?.findMany({
+          where: { businessId: input.businessId, membershipId: input.membershipId },
+          orderBy: [{ effectiveFromMonth: "asc" }, { revision: "asc" }],
+          select: {
+            act4Covered: true,
+            effectiveFromMonth: true,
+            effectiveToMonth: true,
+            employerContext: true,
+            officialSubmittedAt: true,
+            revision: true,
+            selectedEmployer: true,
+            sourceType: true,
+            status: true,
+          },
+        }) ?? [])
+      : [],
   ]);
 
   if ((canViewStatutory && !statutoryProfile) || (canViewTax && !taxProfile)) {
@@ -204,6 +233,14 @@ export async function loadEmployeeStatutoryProfileSection(
             eisPreviouslyContributed:
               statutoryProfile.eisPreviouslyContributed,
             lindung24OptIn: statutoryProfile.lindung24OptIn,
+            lindung24ExpectedRevision:
+              lindung24ParticipationHistory.at(-1)?.revision ?? 0,
+            lindung24ParticipationHistory: lindung24ParticipationHistory.map((record) => ({
+              ...record,
+              effectiveFromMonth: record.effectiveFromMonth.toISOString(),
+              effectiveToMonth: record.effectiveToMonth?.toISOString() ?? null,
+              officialSubmittedAt: record.officialSubmittedAt?.toISOString() ?? null,
+            })),
             profileUpdatedAt:
               statutoryProfile.statutoryProfileUpdatedAt?.toISOString() ?? null,
           },
@@ -236,7 +273,9 @@ export function maskPayrollIdentifier(value: string | null) {
 }
 
 function maskIdentifier(value: string | null) {
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
   const compact = value.replace(/[^A-Za-z0-9]/g, "");
   if (!compact) return null;
   if (compact.length <= 4) return "••••";

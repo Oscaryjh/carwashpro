@@ -33,7 +33,9 @@ export default async function AppointmentDetailPage({
   params,
   searchParams,
 }: AppointmentDetailPageProps) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser(
+    "VIEW_APPOINTMENTS",
+  );
   const { appointmentId } = await params;
   const { legacy } = await searchParams;
   const appointment = await prisma.appointment.findFirst({

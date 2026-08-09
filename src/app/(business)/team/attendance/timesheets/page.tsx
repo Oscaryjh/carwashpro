@@ -5,6 +5,7 @@ import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
 import {
+  approveTimesheetAction,
   beginTimesheetRevisionAction,
   lockTimesheetAction,
   markTimesheetBranchReadyAction,
@@ -31,6 +32,7 @@ export default async function AttendanceTimesheetsPage({ searchParams }: Props) 
     scope.allowedBranchIds.length === activeBranchCount &&
     (access.effectiveBusinessRole !== "STAFF" || access.permissions.includes("ALL_BRANCHES"));
   const locked = data.timesheet?.status === "LOCKED";
+  const approved = data.timesheet?.status === "APPROVED";
   const changedAfterLock = Boolean(
     locked && data.timesheet?.currentRevision?.sourceDigest !== data.currentSourceDigest,
   );
@@ -58,7 +60,7 @@ export default async function AttendanceTimesheetsPage({ searchParams }: Props) 
         </form>
         <div className={styles.statusBlock}>
           <span>Monthly status</span>
-          <strong className={locked ? styles.locked : styles.draft}>{locked ? `Locked · Revision ${data.timesheet?.currentRevision?.revision}` : "Draft"}</strong>
+          <strong className={locked || approved ? styles.locked : styles.draft}>{locked ? `Locked · Revision ${data.timesheet?.currentRevision?.revision}` : approved ? `Approved · Approval ${data.timesheet?.approvalRevision}` : "Draft"}</strong>
         </div>
       </section>
 
@@ -77,12 +79,12 @@ export default async function AttendanceTimesheetsPage({ searchParams }: Props) 
             <p>This immutable snapshot is ready for future A4 Payroll Bridge work. Payroll calculation is not connected in A3.</p>
             {changedAfterLock ? <strong className={styles.changed}>Final Attendance Results changed after this lock. Start a controlled revision to include them.</strong> : <strong>No source changes detected after lock.</strong>}
           </div>
-          {canModify && wholeBusinessScope && changedAfterLock ? (
+          {canModify && wholeBusinessScope ? (
             <form action={beginTimesheetRevisionAction} className={styles.reasonForm}>
               <input name="month" type="hidden" value={month} />
               <input name="expectedUpdatedAt" type="hidden" value={data.timesheet?.updatedAt.toISOString()} />
               <label><span>Revision reason</span><textarea minLength={3} maxLength={500} name="reason" required rows={2} /></label>
-              <button type="submit">Start controlled revision</button>
+              <button type="submit">Reopen Timesheet</button>
             </form>
           ) : null}
         </section>
@@ -122,7 +124,7 @@ export default async function AttendanceTimesheetsPage({ searchParams }: Props) 
               ) : (
                 <p className={styles.clear}>All sessions have a current Final Attendance Result.</p>
               )}
-              {!locked && canModify && branch.readinessStatus !== "READY" && branch.blockerCount === 0 ? (
+              {!locked && !approved && canModify && branch.readinessStatus !== "READY" && branch.blockerCount === 0 ? (
                 <form action={markTimesheetBranchReadyAction}>
                   <input name="month" type="hidden" value={month} />
                   <input name="branchId" type="hidden" value={branch.branchId} />
@@ -135,21 +137,47 @@ export default async function AttendanceTimesheetsPage({ searchParams }: Props) 
         </div>
       </section>
 
-      {!locked ? (
+      {!locked && !approved ? (
         <section className={styles.approval}>
           <div>
             <span>Whole-business approval</span>
-            <h2>Lock the monthly Timesheet</h2>
-            <p>Creates a new immutable revision from the exact current Final Attendance Results. It does not generate or refresh Payroll.</p>
+            <h2>Approve the monthly Timesheet</h2>
+            <p>Records manager approval against the exact current Final Attendance Results. Approval does not lock or change Payroll.</p>
           </div>
-          {!wholeBusinessScope ? <div className={styles.scopeNotice}>Whole-business Attendance scope is required. Branch managers can prepare their branches but cannot lock the company month.</div> : canModify ? (
-            <form action={lockTimesheetAction} className={styles.reasonForm}>
+          {!wholeBusinessScope ? <div className={styles.scopeNotice}>Whole-business Attendance scope is required. Branch managers can prepare their branches but cannot approve the company month.</div> : canModify ? (
+            <form action={approveTimesheetAction} className={styles.reasonForm}>
               <input name="month" type="hidden" value={month} />
               {data.timesheet ? <input name="expectedUpdatedAt" type="hidden" value={data.timesheet.updatedAt.toISOString()} /> : null}
               <label><span>Approval reason</span><textarea minLength={3} maxLength={500} name="reason" required rows={2} /></label>
-              <button disabled={!data.allBranchesReady || data.totals.blockers > 0} type="submit">Approve and lock Timesheet</button>
+              <button disabled={!data.allBranchesReady || data.totals.blockers > 0} type="submit">Approve Timesheet</button>
             </form>
           ) : <div className={styles.scopeNotice}>You have read-only Attendance access.</div>}
+        </section>
+      ) : null}
+
+      {approved ? (
+        <section className={styles.approval}>
+          <div>
+            <span>Immutable snapshot boundary</span>
+            <h2>Lock approved Timesheet</h2>
+            <p>The approval digest must still match current Attendance evidence. Locking creates a new immutable revision and does not generate Payroll.</p>
+          </div>
+          {canModify && wholeBusinessScope ? (
+            <div>
+              <form action={lockTimesheetAction} className={styles.reasonForm}>
+                <input name="month" type="hidden" value={month} />
+                <input name="expectedUpdatedAt" type="hidden" value={data.timesheet?.updatedAt.toISOString()} />
+                <label><span>Lock reason</span><textarea minLength={3} maxLength={500} name="reason" required rows={2} /></label>
+                <button type="submit">Lock approved Timesheet</button>
+              </form>
+              <form action={beginTimesheetRevisionAction} className={styles.reasonForm}>
+                <input name="month" type="hidden" value={month} />
+                <input name="expectedUpdatedAt" type="hidden" value={data.timesheet?.updatedAt.toISOString()} />
+                <label><span>Reopen reason</span><textarea minLength={3} maxLength={500} name="reason" required rows={2} /></label>
+                <button type="submit">Reopen approval</button>
+              </form>
+            </div>
+          ) : <div className={styles.scopeNotice}>Whole-business modify permission is required to lock.</div>}
         </section>
       ) : null}
 

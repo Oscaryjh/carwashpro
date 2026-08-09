@@ -25,7 +25,7 @@ const EMPTY_BRANCH_ID = "00000000-0000-0000-0000-000000000000";
 export default async function ClosingHistoryPage({
   searchParams,
 }: ClosingHistoryPageProps) {
-  const context = await requireBusinessContext();
+  const context = await requireBusinessContext({ capability: "RUN_CLOSING" });
   assertStaffPermission(context.user, "CLOSING");
 
   if (!context.businessId) {

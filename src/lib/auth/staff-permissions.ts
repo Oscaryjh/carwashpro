@@ -13,7 +13,7 @@ const payrollCapabilityPermissions = [
   ["REOPEN_PAYROLL", "Reopen payroll"],
   ["EXPORT_PAYROLL", "Export payroll"],
   ["VIEW_PAYSLIP", "View employee payslips"],
-  ["PUBLISH_PAYSLIP", "Publish employee payslips (not available yet)"],
+  ["PUBLISH_PAYSLIP", "Publish finalized employee payslips"],
   ["VIEW_BANK_ACCOUNT", "View masked employee salary bank profiles"],
   ["EDIT_BANK_ACCOUNT", "Add, replace or deactivate employee salary bank profiles"],
   ["VERIFY_BANK_ACCOUNT", "Manually verify employee salary bank profiles"],

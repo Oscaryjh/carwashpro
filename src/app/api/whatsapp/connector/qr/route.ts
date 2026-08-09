@@ -6,7 +6,7 @@ import { getWhatsAppConnectorUrl } from "@/lib/whatsapp/connector-client";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const { businessId } = await requireBusinessUser();
+  const { businessId } = await requireBusinessUser("MANAGE_WHATSAPP");
   const url = new URL(`${getWhatsAppConnectorUrl()}/qr/image`);
   url.searchParams.set("businessId", businessId);
 

@@ -19,7 +19,7 @@ import {
 import { isDailyClosingIndustry } from "@/lib/daily-closing/types";
 import { prisma } from "@/lib/prisma";
 import { requireBusinessContext } from "@/lib/tenant";
-import { fromCents, toCents } from "@/lib/validation/pos";
+import { fromCents, sumMoneyAmounts, toCents } from "@/lib/validation/pos";
 import { endShiftAction, startShiftAction } from "./actions";
 
 type ClosingPageProps = {
@@ -47,7 +47,7 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
 };
 
 export default async function ClosingPage({ searchParams }: ClosingPageProps) {
-  const context = await requireBusinessContext();
+  const context = await requireBusinessContext({ capability: "RUN_CLOSING" });
   const params = await searchParams;
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
@@ -376,10 +376,10 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                   />
                   <Metric
                     label="Expected Cash"
-                    value={money(
-                      Number(openShift.openingFloat) +
-                        Number(currentShiftSummary?.cashAmount ?? 0),
-                    )}
+                    value={money(sumMoneyAmounts([
+                      openShift.openingFloat,
+                      currentShiftSummary?.cashAmount ?? 0,
+                    ]))}
                   />
                 </div>
                 <form action={endShiftAction} className="form closing-form closing-end-form">
@@ -639,7 +639,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                       const summary = summarizePayments(shift.payments, shift.refunds);
                       const expectedCash =
                         shift.expectedCash ??
-                        Number(shift.openingFloat) + summary.cashAmount;
+                        sumMoneyAmounts([shift.openingFloat, summary.cashAmount]);
 
                       return (
                         <tr key={shift.id}>

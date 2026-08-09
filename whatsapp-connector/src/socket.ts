@@ -942,8 +942,7 @@ function scheduleReconnect() {
 
     void startSocketInternal(true).catch((error: unknown) => {
       connectorState.status = "error";
-      connectorState.lastError =
-        error instanceof Error ? error.stack ?? error.message : String(error);
+      connectorState.lastError = "WhatsApp reconnect failed.";
       logger.error({ error }, "WhatsApp reconnect failed");
       scheduleReconnect();
     });
@@ -1117,13 +1116,9 @@ async function connectSocket(generation: number) {
         logger.info("QR expired");
       }
       connectorState.lastDisconnectedAt = new Date().toISOString();
-      connectorState.lastError =
-        update.lastDisconnect?.error instanceof Error
-          ? update.lastDisconnect.error.stack ??
-            update.lastDisconnect.error.message
-          : update.lastDisconnect?.error
-            ? String(update.lastDisconnect.error)
-            : undefined;
+      connectorState.lastError = update.lastDisconnect?.error
+        ? "WhatsApp connection closed unexpectedly."
+        : undefined;
       runtime.socket = null;
 
       logger.warn(

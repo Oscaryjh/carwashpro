@@ -1,5 +1,6 @@
 "use server";
 
+import { FinancialOperationType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
@@ -13,6 +14,7 @@ import { calculateTax } from "@/lib/tax/calculator";
 import { fromCents } from "@/lib/validation/pos";
 import { productSaleSchema, productSchema } from "@/lib/validation/products";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
+import { runFinancialOperation } from "@/lib/financial-idempotency";
 
 export type DeleteProductState = {
   status: "idle" | "success" | "error";
@@ -236,6 +238,7 @@ export async function sellProductAction(formData: FormData) {
   assertStaffPermission(user, "POS");
   const returnPath = formData.get("returnTo")?.toString() === "/cashier" ? "/cashier" : "/work-orders";
   const parsed = productSaleSchema.safeParse({
+    operationId: formData.get("operationId"),
     branchId: formData.get("branchId")?.toString() || "",
     customerId: formData.get("customerId")?.toString() || "",
     method: formData.get("method")?.toString(),
@@ -256,7 +259,15 @@ export async function sellProductAction(formData: FormData) {
     if (!branchId) {
       throw new Error("An active branch is required before selling a product.");
     }
-    const result = await prisma.$transaction(async (tx) => {
+    const { operationId, ...financialPayload } = input;
+    const { result } = await runFinancialOperation({
+      actorUserId: user.userId,
+      branchId,
+      businessId,
+      operationKey: operationId,
+      operationType: FinancialOperationType.CASHIER_CHECKOUT,
+      payload: { ...financialPayload, branchId },
+      execute: async (tx) => {
       const shift = await tx.cashierShift.findFirst({
         where: { businessId, cashierId: user.userId, status: "OPEN" },
         select: { id: true, branchId: true },
@@ -361,10 +372,13 @@ export async function sellProductAction(formData: FormData) {
       });
 
       for (const { stock, quantity } of stocks) {
-        await tx.productStock.update({
-          where: { id: stock.id },
+        const updated = await tx.productStock.updateMany({
+          where: { id: stock.id, quantity: { gte: quantity } },
           data: { quantity: { decrement: quantity } },
         });
+        if (updated.count !== 1) {
+          throw new Error(`Not enough stock for ${productById.get(stock.productId)?.name ?? "product"}.`);
+        }
       }
 
       if (customer) {
@@ -393,6 +407,7 @@ export async function sellProductAction(formData: FormData) {
       }, tx);
 
       return { customerId: customer?.id ?? null, invoiceId: invoice.id };
+      },
     });
 
     if (result.customerId) {

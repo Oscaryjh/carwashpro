@@ -13,7 +13,9 @@ const profileSchema = z.object({
 });
 
 export async function updateOwnerProfileAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUser(
+    "MODIFY_BUSINESS_SETTINGS",
+  );
   const auditRequest = await getAuditRequestContext();
   const input = profileSchema.parse({
     whatsappPhone: formData.get("whatsappPhone"),

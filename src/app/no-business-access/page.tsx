@@ -13,9 +13,13 @@ export default async function NoBusinessAccessPage() {
           Contact your platform administrator if access should be restored.
         </p>
         <div className="form-actions">
-          <Link className="button-link" href={session ? "/logout" : "/login"}>
-            {session ? "Sign out" : "Return to login"}
-          </Link>
+          {session ? (
+            <form action="/logout" method="post">
+              <button className="button-link" type="submit">Sign out</button>
+            </form>
+          ) : (
+            <Link className="button-link" href="/login">Return to login</Link>
+          )}
         </div>
       </section>
     </main>

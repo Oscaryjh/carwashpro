@@ -45,6 +45,7 @@ if (statusResult.body?.data?.status !== "connected") {
 
 console.log("POST /send");
 const sendResult = await requestJson("/send", {
+  requestId: `local-test-${Date.now()}`,
   method: "POST",
   headers: {
     "Content-Type": "application/json",

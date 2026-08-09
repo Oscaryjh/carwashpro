@@ -25,6 +25,7 @@ export type EmployeeCompensationSectionResult =
         id: string;
         canEdit: boolean;
         compensationRevision: number;
+        recurringPayRevision: number;
         workTargetRevision: number;
         currentPayrollMonth: string;
         effectiveFromMonth: string | null;
@@ -36,6 +37,28 @@ export type EmployeeCompensationSectionResult =
           effectiveFromMonth: string;
           payBasis: "MONTHLY" | "DAILY" | "HOURLY";
         } | null;
+        compensationHistory: Array<{
+          baseRate: string;
+          effectiveFromMonth: string;
+          payBasis: "MONTHLY" | "DAILY" | "HOURLY";
+          source: string;
+          reasonType: string;
+        }>;
+        recurringPayComponents: Array<{
+          amount: string | null;
+          code: string;
+          effectiveFromMonth: string;
+          id: string;
+          name: string;
+          nextChange: {
+            amount: string | null;
+            effectiveFromMonth: string;
+            name: string;
+            state: "ACTIVE" | "ENDED";
+          } | null;
+          state: "ACTIVE" | "ENDED" | "SCHEDULED";
+          type: "EARNING" | "DEDUCTION";
+        }>;
         workingDaysPerMonth: number;
         normalWorkMinutesPerDay: number;
         normalWorkPolicySource:
@@ -80,7 +103,7 @@ export async function loadEmployeeCompensationSection(
   if (!business) return { status: "NOT_FOUND" };
   const currentMonth = payrollMonthInTimezone(business.timezone || "Asia/Kuching");
 
-  const [membership, payrollSetting, currentVersion, nextVersion, affectedDrafts] = await Promise.all([
+  const [membership, payrollSetting, currentVersion, recurringComponents, nextVersion, affectedDrafts, compensationHistory] = await Promise.all([
     database.employeeBusinessMembership.findFirst({
       where: {
         businessId: input.businessId,
@@ -89,6 +112,7 @@ export async function loadEmployeeCompensationSection(
       select: {
         id: true,
         compensationRevision: true,
+        recurringPayRevision: true,
         workTargetRevision: true,
         payBasis: true,
         baseSalary: true,
@@ -114,6 +138,28 @@ export async function loadEmployeeCompensationSection(
       orderBy: [{ effectiveFromMonth: "desc" }, { createdAt: "desc" }],
       select: { baseRate: true, effectiveFromMonth: true, payBasis: true },
     }),
+    database.employeeRecurringPayComponent.findMany({
+      where: {
+        businessId: input.businessId,
+        membershipId: input.membershipId,
+      },
+      orderBy: [{ type: "asc" }, { code: "asc" }],
+      select: {
+        id: true,
+        code: true,
+        type: true,
+        versions: {
+          where: { status: "CURRENT" },
+          orderBy: [{ effectiveFromMonth: "asc" }, { revision: "asc" }],
+          select: {
+            amount: true,
+            effectiveFromMonth: true,
+            name: true,
+            state: true,
+          },
+        },
+      },
+    }),
     database.employeeCompensationVersion.findFirst({
       where: {
         businessId: input.businessId,
@@ -131,6 +177,24 @@ export async function loadEmployeeCompensationSection(
         entries: { some: { membershipId: input.membershipId } },
       },
     }),
+    typeof database.employeeCompensationVersion.findMany === "function"
+      ? database.employeeCompensationVersion.findMany({
+      where: {
+        businessId: input.businessId,
+        membershipId: input.membershipId,
+        effectiveFromMonth: { lt: currentMonth },
+      },
+      orderBy: [{ effectiveFromMonth: "desc" }, { createdAt: "desc" }],
+      take: 12,
+      select: {
+        baseRate: true,
+        effectiveFromMonth: true,
+        payBasis: true,
+        reasonType: true,
+        source: true,
+      },
+        })
+      : Promise.resolve([]),
   ]);
 
   if (!membership) {
@@ -154,6 +218,7 @@ export async function loadEmployeeCompensationSection(
       id: membership.id,
       canEdit: hasBusinessCapability(input.access, "EDIT_COMPENSATION"),
       compensationRevision: membership.compensationRevision,
+      recurringPayRevision: membership.recurringPayRevision,
       workTargetRevision: membership.workTargetRevision,
       currentPayrollMonth: formatMonth(currentMonth),
       effectiveFromMonth: currentVersion
@@ -169,6 +234,40 @@ export async function loadEmployeeCompensationSection(
             payBasis: nextVersion.payBasis,
           }
         : null,
+      compensationHistory: compensationHistory.map((version) => ({
+        baseRate: version.baseRate.toString(),
+        effectiveFromMonth: formatMonth(version.effectiveFromMonth),
+        payBasis: version.payBasis,
+        reasonType: version.reasonType,
+        source: version.source,
+      })),
+      recurringPayComponents: recurringComponents.flatMap((component) => {
+        const current = [...component.versions]
+          .reverse()
+          .find((version) => version.effectiveFromMonth <= currentMonth);
+        const next = component.versions.find(
+          (version) => version.effectiveFromMonth > currentMonth,
+        );
+        const displayed = current ?? next;
+        if (!displayed) return [];
+        return [{
+          amount: displayed.state === "ACTIVE" ? displayed.amount.toString() : null,
+          code: component.code,
+          effectiveFromMonth: formatMonth(displayed.effectiveFromMonth),
+          id: component.id,
+          name: displayed.name,
+          nextChange: current && next
+            ? {
+                amount: next.state === "ACTIVE" ? next.amount.toString() : null,
+                effectiveFromMonth: formatMonth(next.effectiveFromMonth),
+                name: next.name,
+                state: next.state,
+              }
+            : null,
+          state: current ? current.state : "SCHEDULED",
+          type: component.type,
+        }];
+      }),
       workingDaysPerMonth:
         payrollSetting?.workingDaysPerMonth ??
         DEFAULT_PAYROLL_SETTING.workingDaysPerMonth,

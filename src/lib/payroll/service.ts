@@ -5,15 +5,38 @@ import {
   safePayrollEntryManualAuditChange,
   writeSensitiveAuditLog,
 } from "@/lib/audit/payroll-sensitive";
-import { calculatePayroll, calculatePayrollTotals } from "@/lib/payroll/calculation";
+import {
+  assertSupportedPayrollProration,
+} from "@/lib/payroll/calculation";
+import {
+  buildAttendancePayrollComponents,
+  buildPayrollAttendanceInput,
+} from "@/lib/payroll/attendance-integration";
+import { buildSystemPayrollEntryComponents } from "@/lib/payroll/component-calculation";
+import { deriveAndPersistEntryAggregates } from "@/lib/payroll/component-service";
 import { resolveEmployeeCompensationVersion } from "@/lib/payroll/compensation-version";
-import { calculateStatutoryContributions } from "@/lib/payroll/statutory";
+import {
+  resolveRecurringPayForEmployees,
+} from "@/lib/payroll/recurring-pay";
+import { materializeStatutoryP2 } from "@/lib/payroll/statutory-p2";
 import {
   assertPayrollRunUsesCurrentLockedTimesheet,
   resolveLockedPayrollTimesheet,
 } from "@/lib/payroll/timesheet-bridge";
 import { payrollTransition } from "@/lib/payroll/workflow";
+import {
+  buildP4CComponentLines,
+  markP4CSourcesApplied,
+  resolveP4CSourcesForPayroll,
+} from "@/lib/payroll/variable-pay";
+import { parsePayrollMonth } from "@/lib/payroll/period";
+import {
+  assertPayrollReadinessCanProceed,
+  getPayrollPeriodReadiness,
+} from "@/lib/payroll/readiness";
 import { prisma } from "@/lib/prisma";
+
+export { parsePayrollMonth } from "@/lib/payroll/period";
 
 export const DEFAULT_PAYROLL_SETTING = {
   workingDaysPerMonth: 26,
@@ -30,22 +53,6 @@ type PayrollContext = {
   actor: PayrollActor;
   request?: AuditRequestContext;
 };
-
-export function parsePayrollMonth(value: string | undefined) {
-  const normalized = value?.trim() || new Date().toISOString().slice(0, 7);
-  const match = /^(\d{4})-(\d{2})$/.exec(normalized);
-  if (!match) throw new Error("Select a valid payroll month.");
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  if (year < 2020 || year > 2100 || month < 1 || month > 12) {
-    throw new Error("Select a valid payroll month.");
-  }
-  return {
-    value: normalized,
-    start: new Date(Date.UTC(year, month - 1, 1)),
-    end: new Date(Date.UTC(year, month, 1)),
-  };
-}
 
 export async function generatePayrollRun(
   context: PayrollContext & { month: string },
@@ -78,8 +85,7 @@ export async function generatePayrollRun(
       transaction,
     );
 
-    const [memberships, holidays, leaveDays] = await Promise.all([
-      transaction.employeeBusinessMembership.findMany({
+    const memberships = await transaction.employeeBusinessMembership.findMany({
         where: {
           businessId: context.businessId,
           joinedAt: { lt: period.end },
@@ -88,6 +94,8 @@ export async function generatePayrollRun(
         orderBy: [{ fullName: "asc" }, { employeeCode: "asc" }],
         select: {
           id: true,
+          joinedAt: true,
+          terminatedAt: true,
           employeeCode: true,
           fullName: true,
           normalWorkMinutesPerDay: true,
@@ -100,38 +108,11 @@ export async function generatePayrollRun(
           eisEnabled: true,
           eisPreviouslyContributed: true,
           lindung24OptIn: true,
+          statutoryProfileRevision: true,
+          taxProfileRevision: true,
+          taxIdentificationNumber: true,
         },
-      }),
-      transaction.payrollHoliday.findMany({
-        where: {
-          businessId: context.businessId,
-          workDate: { gte: period.start, lt: period.end },
-        },
-        select: { branchId: true, workDate: true },
-      }),
-      transaction.leaveRequestDay.findMany({
-        where: {
-          businessId: context.businessId,
-          leaveDate: { gte: period.start, lt: period.end },
-          leaveRequest: { status: "APPROVED" },
-        },
-        select: {
-          membershipId: true,
-          leaveDate: true,
-          dayFraction: true,
-          leaveRequest: {
-            select: { payTreatmentSnapshot: true },
-          },
-        },
-      }),
-    ]);
-    const sessions = timesheet.entries.map((entry) => ({
-      ...entry,
-      updatedAt: timesheet.lockedAt,
-    }));
-    const holidayKeys = new Set(
-      holidays.map((holiday) => `${holiday.branchId}:${dateKey(holiday.workDate)}`),
-    );
+      });
     const run = existing
       ? await transaction.payrollRun.update({
           where: { id: existing.id },
@@ -169,14 +150,73 @@ export async function generatePayrollRun(
           },
         });
 
-    await transaction.payrollEntry.deleteMany({
+    const previousEntries = await transaction.payrollEntry.findMany({
       where: { businessId: context.businessId, payrollRunId: run.id },
+      select: { id: true, membershipId: true },
     });
+    const eligibleMembershipIds = new Set(
+      memberships.map((membership) => membership.id),
+    );
+    await transaction.payrollEntry.deleteMany({
+      where: {
+        businessId: context.businessId,
+        payrollRunId: run.id,
+        membershipId: {
+          in: previousEntries
+            .filter((entry) => !eligibleMembershipIds.has(entry.membershipId))
+            .map((entry) => entry.membershipId),
+        },
+      },
+    });
+    const previousEntryByMembership = new Map(
+      previousEntries.map((entry) => [entry.membershipId, entry]),
+    );
     const appliedCompensations: Array<{
       applicableMonth: string;
       membershipId: string;
       versionId: string;
     }> = [];
+    const recurringPayByMembership = await resolveRecurringPayForEmployees(
+      {
+        businessId: context.businessId,
+        membershipIds: memberships.map((membership) => membership.id),
+        payrollPeriodStart: period.start,
+      },
+      transaction,
+    );
+    const p4cSources = await resolveP4CSourcesForPayroll(transaction, {
+      businessId: context.businessId,
+      runId: run.id,
+      periodStart: period.start,
+      membershipIds: memberships.map((membership) => membership.id),
+    });
+    const statutoryRules = await transaction.statutoryRuleSet.findMany({
+      where: {
+        status: "ACTIVE",
+        effectiveFrom: { lte: period.start },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gt: period.start } }],
+      },
+      include: { classifications: true },
+      orderBy: [{ scheme: "asc" }, { effectiveFrom: "desc" }],
+    });
+    const lindung24Participation = await transaction.employeeLindung24ParticipationVersion.findMany({
+      where: {
+        businessId: context.businessId,
+        membershipId: { in: memberships.map((membership) => membership.id) },
+      },
+      orderBy: [{ membershipId: "asc" }, { effectiveFromMonth: "asc" }, { revision: "asc" }],
+    });
+    const lindung24ParticipationByMembership = new Map<string, typeof lindung24Participation>();
+    for (const record of lindung24Participation) {
+      const records = lindung24ParticipationByMembership.get(record.membershipId) ?? [];
+      records.push(record);
+      lindung24ParticipationByMembership.set(record.membershipId, records);
+    }
+    let recurringPaySnapshotCount = 0;
+    let variablePayAppliedCount = 0;
+    let correctionAppliedCount = 0;
+    let attendanceSnapshotCount = 0;
+    let attendancePolicyBlockerCount = 0;
     for (const membership of memberships) {
       const compensation = await resolveEmployeeCompensationVersion(
         {
@@ -193,68 +233,54 @@ export async function generatePayrollRun(
         membershipId: membership.id,
         versionId: compensation.versionId,
       });
-      const memberSessions = sessions.filter(
-        (session) => session.membershipId === membership.id,
-      );
-      const workedDates = new Set(memberSessions.map((session) => dateKey(session.workDate)));
-      const memberLeave = leaveDays.filter(
-        (day) => day.membershipId === membership.id && !workedDates.has(dateKey(day.leaveDate)),
-      );
-      const paidLeaveDays = memberLeave
-        .filter((day) => day.leaveRequest.payTreatmentSnapshot === "PAID")
-        .reduce((sum, day) => sum + Number(day.dayFraction), 0);
-      const unpaidLeaveDays = memberLeave
-        .filter((day) => day.leaveRequest.payTreatmentSnapshot === "UNPAID")
-        .reduce((sum, day) => sum + Number(day.dayFraction), 0);
-      const days = aggregateDays(memberSessions, holidayKeys);
-      const calculation = calculatePayroll({
+      const attendance = buildPayrollAttendanceInput({
+        membershipId: membership.id,
         payBasis: compensation.payBasis,
-        baseRateCents: moneyToCents(compensation.baseRate),
-        workingDaysPerMonth: setting.workingDaysPerMonth,
-        normalWorkMinutesPerDay:
-          membership.normalWorkMinutesPerDay ??
-          setting.normalWorkMinutesPerDay,
-        overtimeMultiplier: Number(setting.overtimeMultiplier),
-        publicHolidayExtraMultiplier: Number(
-          setting.publicHolidayExtraMultiplier,
+        days: timesheet.p2Days.filter(
+          (day) => day.membershipId === membership.id,
         ),
-        days,
-        paidLeaveDays,
-        unpaidLeaveDays,
       });
-      const epfWageCents = calculation.basicPayCents + calculation.leavePayCents;
-      const perkesoWageCents = calculation.grossPayCents;
-      const statutory = calculateStatutoryContributions({
-        profile: {
-          dateOfBirth: membership.dateOfBirth,
-          statutoryNationality: membership.statutoryNationality,
-          epfEnabled: membership.epfEnabled,
-          epfMemberBeforeAug1998: membership.epfMemberBeforeAug1998,
-          socsoEnabled: membership.socsoEnabled,
-          socsoCategory: membership.socsoCategory,
-          eisEnabled: membership.eisEnabled,
-          eisPreviouslyContributed: membership.eisPreviouslyContributed,
-          lindung24OptIn: membership.lindung24OptIn,
-        },
-        payrollPeriodEnd: period.end,
-        epfWageCents,
-        perkesoWageCents,
+      assertSupportedPayrollProration({
+        payBasis: compensation.payBasis,
+        joinedAt: membership.joinedAt,
+        terminatedAt: membership.terminatedAt,
+        periodStart: period.start,
+        periodEnd: period.end,
       });
-      const totals = calculatePayrollTotals({
-        basicPayCents: calculation.basicPayCents,
-        overtimePayCents: calculation.overtimePayCents,
-        publicHolidayPayCents: calculation.publicHolidayPayCents,
-        leavePayCents: calculation.leavePayCents,
-        allowancesCents: 0,
-        otherDeductionsCents: 0,
-        epfEmployeeCents: statutory.epfEmployeeCents,
-        socsoEmployeeCents: statutory.socsoEmployeeCents,
-        eisEmployeeCents: statutory.eisEmployeeCents,
-        lindung24EmployeeCents: statutory.lindung24EmployeeCents,
-        pcbCents: 0,
+      const baseRateCents = moneyToCents(compensation.baseRate);
+      const previewAttendanceLines = buildAttendancePayrollComponents({
+        snapshotId: "00000000-0000-4000-8000-000000000000",
+        timesheetRevision: timesheet.revision,
+        periodStart: period.start,
+        payBasis: compensation.payBasis,
+        baseRateCents,
+        attendance,
       });
-      await transaction.payrollEntry.create({
-        data: {
+      const regularPayCents =
+        compensation.payBasis === "MONTHLY"
+          ? baseRateCents
+          : componentAmount(previewAttendanceLines, [
+              "REGULAR_DAILY_PAY",
+              "REGULAR_HOURLY_PAY",
+            ]);
+      const leavePayCents = componentAmount(previewAttendanceLines, [
+        "PAID_LEAVE_PAY",
+      ]);
+      const recurringPay = recurringPayByMembership.get(membership.id) ?? [];
+      const variablePay =
+        p4cSources.variablePayByMembership.get(membership.id) ?? [];
+      const corrections =
+        p4cSources.correctionsByMembership.get(membership.id) ?? [];
+      const previousEntry = previousEntryByMembership.get(membership.id);
+      if (previousEntry) {
+        await transaction.payrollEntryComponent.deleteMany({
+          where: { payrollEntryId: previousEntry.id, origin: "SYSTEM" },
+        });
+        await transaction.payrollEntryRecurringPaySnapshot.deleteMany({
+          where: { payrollEntryId: previousEntry.id },
+        });
+      }
+      const entryData = {
           payrollRunId: run.id,
           businessId: context.businessId,
           membershipId: membership.id,
@@ -265,45 +291,209 @@ export async function generatePayrollRun(
           employeeCodeSnapshot: membership.employeeCode,
           fullNameSnapshot: membership.fullName,
           payBasisSnapshot: compensation.payBasis,
-          baseRateSnapshot: centsToMoney(moneyToCents(compensation.baseRate)),
+          baseRateSnapshot: centsToMoney(baseRateCents),
           workingDaysSnapshot: setting.workingDaysPerMonth,
           normalWorkMinutesSnapshot:
             membership.normalWorkMinutesPerDay ??
             setting.normalWorkMinutesPerDay,
-          attendanceDays: calculation.attendanceDays,
-          regularMinutes: calculation.regularMinutes,
-          overtimeMinutes: calculation.overtimeMinutes,
-          publicHolidayMinutes: calculation.publicHolidayMinutes,
-          paidLeaveDays: calculation.paidLeaveDays,
-          unpaidLeaveDays: calculation.unpaidLeaveDays,
-          basicPay: centsToMoney(calculation.basicPayCents),
-          leavePay: centsToMoney(calculation.leavePayCents),
-          unpaidLeaveDeduction: centsToMoney(calculation.unpaidLeaveDeductionCents),
-          overtimePay: centsToMoney(calculation.overtimePayCents),
-          publicHolidayPay: centsToMoney(
-            calculation.publicHolidayPayCents,
-          ),
-          epfWageBase: centsToMoney(epfWageCents),
-          perkesoWageBase: centsToMoney(perkesoWageCents),
-          epfEmployee: centsToMoney(statutory.epfEmployeeCents),
-          employerEpf: centsToMoney(statutory.employerEpfCents),
-          socsoEmployee: centsToMoney(statutory.socsoEmployeeCents),
-          employerSocso: centsToMoney(statutory.employerSocsoCents),
-          eisEmployee: centsToMoney(statutory.eisEmployeeCents),
-          employerEis: centsToMoney(statutory.employerEisCents),
-          lindung24Employee: centsToMoney(
-            statutory.lindung24EmployeeCents,
-          ),
-          statutoryStatus: statutory.status,
-          statutoryRuleVersion: statutory.ruleVersion,
-          statutoryCalculatedAt:
-            statutory.status === "AUTO_CALCULATED" ? new Date() : null,
-          statutoryWarning: statutory.warnings.join(" ") || null,
-          grossPay: centsToMoney(totals.grossPayCents),
-          netPay: centsToMoney(totals.netPayCents),
-          attendanceUpdatedAtSnapshot: latestUpdatedAt(memberSessions),
+          attendanceDays: Math.floor(attendance.regularDayHundredths / 100),
+          regularMinutes: attendance.regularMinutes,
+          overtimeMinutes: attendance.approvedOvertimeMinutes,
+          publicHolidayMinutes: attendance.publicHolidayWorkedMinutes,
+          paidLeaveDays: hundredthsToDecimal(attendance.paidLeaveDayHundredths),
+          unpaidLeaveDays: hundredthsToDecimal(attendance.unpaidLeaveDayHundredths),
+          basicPay: centsToMoney(regularPayCents),
+          leavePay: centsToMoney(leavePayCents),
+          unpaidLeaveDeduction: "0.00",
+          overtimePay: "0.00",
+          publicHolidayPay: "0.00",
+          epfWageBase: "0.00",
+          perkesoWageBase: "0.00",
+          epfEmployee: "0.00",
+          employerEpf: "0.00",
+          socsoEmployee: "0.00",
+          employerSocso: "0.00",
+          eisEmployee: "0.00",
+          employerEis: "0.00",
+          lindung24Employee: "0.00",
+          pcb: "0.00",
+          statutoryStatus: "REVIEW_REQUIRED" as const,
+          statutoryRuleVersion: null,
+          statutoryCalculatedAt: null,
+          statutoryWarning: "Statutory P2 materialisation pending.",
+          attendanceUpdatedAtSnapshot: timesheet.lockedAt,
+        };
+      const entry = previousEntry
+        ? await transaction.payrollEntry.update({
+            where: { id: previousEntry.id },
+            data: entryData,
+          })
+        : await transaction.payrollEntry.create({ data: entryData });
+      const attendanceSnapshotData = {
+        businessId: context.businessId,
+        payrollRunId: run.id,
+        membershipId: membership.id,
+        timesheetId: timesheet.timesheetId,
+        timesheetRevisionId: timesheet.revisionId,
+        timesheetRevision: timesheet.revision,
+        timesheetSourceDigest: timesheet.sourceDigest,
+        timesheetLockedAt: timesheet.lockedAt,
+        periodStart: period.start,
+        periodEnd: period.end,
+        regularDays: hundredthsToDecimal(attendance.regularDayHundredths),
+        regularMinutes: attendance.regularMinutes,
+        paidLeaveDays: hundredthsToDecimal(attendance.paidLeaveDayHundredths),
+        unpaidLeaveDays: hundredthsToDecimal(attendance.unpaidLeaveDayHundredths),
+        unauthorizedAbsenceDays: hundredthsToDecimal(
+          attendance.unauthorizedAbsenceDayHundredths,
+        ),
+        authorizedAbsenceDays: hundredthsToDecimal(
+          attendance.authorizedAbsenceDayHundredths,
+        ),
+        restDayWorkedMinutes: attendance.restDayWorkedMinutes,
+        publicHolidayWorkedMinutes: attendance.publicHolidayWorkedMinutes,
+        approvedOvertimeMinutes: attendance.approvedOvertimeMinutes,
+        sourceDayCount: attendance.sourceDayCount,
+        legacyCompatibility: attendance.legacyCompatibility,
+        policyBlockers: attendance.policyBlockers,
+        sourceDigest: attendance.sourceDigest,
+        generatedAt: new Date(),
+      } satisfies Prisma.PayrollAttendanceInputSnapshotUncheckedUpdateInput;
+      const attendanceSnapshot = await transaction.payrollAttendanceInputSnapshot.upsert({
+        where: { payrollEntryId: entry.id },
+        create: {
+          ...attendanceSnapshotData,
+          payrollEntryId: entry.id,
+        },
+        update: attendanceSnapshotData,
+      });
+      attendanceSnapshotCount += 1;
+      attendancePolicyBlockerCount += attendance.policyBlockers.length;
+      if (recurringPay.length) {
+        await transaction.payrollEntryRecurringPaySnapshot.createMany({
+          data: recurringPay.map((component) => ({
+            amount: component.amount,
+            businessId: context.businessId,
+            code: component.code,
+            currency: component.currency,
+            effectiveFromMonth: component.effectiveFromMonth,
+            membershipId: membership.id,
+            name: component.name,
+            payrollEntryId: entry.id,
+            sourceComponentId: component.componentId,
+            sourceRevision: component.revision,
+            sourceVersionId: component.versionId,
+            type: component.type,
+          })),
+        });
+        recurringPaySnapshotCount += recurringPay.length;
+      }
+      const systemLines = buildSystemPayrollEntryComponents({
+        compensation: {
+          versionId: compensation.versionId,
+          effectiveFromMonth: compensation.effectiveFromMonth,
+          payBasis: compensation.payBasis,
+        },
+        amounts: {
+          basicPayCents:
+            compensation.payBasis === "MONTHLY" ? regularPayCents : 0,
+          leavePayCents: 0,
+          overtimePayCents: 0,
+          publicHolidayPayCents: 0,
+        },
+        recurring: recurringPay.map((component) => ({
+          componentId: component.componentId,
+          versionId: component.versionId,
+          revision: component.revision,
+          type: component.type,
+          code: component.code,
+          name: component.name,
+          amountCents: moneyToCents(component.amount),
+          effectiveFromMonth: component.effectiveFromMonth,
+        })),
+      });
+      const attendanceLines = buildAttendancePayrollComponents({
+        snapshotId: attendanceSnapshot.id,
+        timesheetRevision: timesheet.revision,
+        periodStart: period.start,
+        payBasis: compensation.payBasis,
+        baseRateCents,
+        attendance,
+      });
+      const p4cLines = buildP4CComponentLines({ variablePay, corrections });
+      const materializedLines = [...systemLines, ...attendanceLines, ...p4cLines];
+      if (materializedLines.length) {
+        await transaction.payrollEntryComponent.createMany({
+          data: materializedLines.map((line) => ({
+            businessId: context.businessId,
+            payrollRunId: run.id,
+            payrollEntryId: entry.id,
+            membershipId: membership.id,
+            lineKey: line.lineKey,
+            type: line.type,
+            code: line.code,
+            name: line.name,
+            amount: centsToMoney(line.amountCents),
+            currency: line.currency,
+            sourceType: line.sourceType,
+            sourceId: line.sourceId,
+            sourceVersionId: line.sourceVersionId,
+            sourceRevision: line.sourceRevision,
+            effectiveFromMonth: line.effectiveFromMonth,
+            calculationBasis: line.calculationBasis,
+            origin: line.origin,
+            sourceReason: line.sourceReason ?? null,
+            reason: line.reason,
+            sortOrder: line.sortOrder,
+            createdById: context.actor.userId,
+          })),
+        });
+      }
+      await markP4CSourcesApplied(transaction, {
+        entryId: entry.id,
+        variablePay,
+        corrections,
+        audit: {
+          businessId: context.businessId,
+          actor: context.actor,
+          request: context.request,
         },
       });
+      variablePayAppliedCount += variablePay.length;
+      correctionAppliedCount += corrections.length;
+      await materializeStatutoryP2(transaction, {
+        businessId: context.businessId,
+        payrollRunId: run.id,
+        payrollEntryId: entry.id,
+        membershipId: membership.id,
+        statutoryPeriod: period.start,
+        actorUserId: context.actor.userId,
+        preloadedRules: statutoryRules,
+        preloadedLindung24Participation:
+          lindung24ParticipationByMembership.get(membership.id) ?? [],
+        profile: {
+          dateOfBirth: membership.dateOfBirth,
+          statutoryNationality: membership.statutoryNationality,
+          epfEnabled: membership.epfEnabled,
+          epfMemberBeforeAug1998: membership.epfMemberBeforeAug1998,
+          socsoEnabled: membership.socsoEnabled,
+          socsoCategory: membership.socsoCategory,
+          eisEnabled: membership.eisEnabled,
+          eisPreviouslyContributed: membership.eisPreviouslyContributed,
+          lindung24OptIn: membership.lindung24OptIn,
+          statutoryProfileRevision: membership.statutoryProfileRevision,
+          taxProfileRevision: membership.taxProfileRevision,
+          taxIdentificationNumber: membership.taxIdentificationNumber,
+        },
+      });
+      const statutoryEntry = await transaction.payrollEntry.findUniqueOrThrow({
+        where: { id: entry.id },
+      });
+      await deriveAndPersistEntryAggregates(
+        transaction,
+        statutoryEntry,
+        statutoryEntry.calculationRevision,
+      );
     }
     await writeAuditLog(
       {
@@ -318,6 +508,11 @@ export async function generatePayrollRun(
           month: period.value,
           employeeCount: memberships.length,
           compensationVersions: appliedCompensations,
+          recurringPaySnapshotCount,
+          variablePayAppliedCount,
+          correctionAppliedCount,
+          attendanceSnapshotCount,
+          attendancePolicyBlockerCount,
           attendanceTimesheet: {
             revisionId: timesheet.revisionId,
             revision: timesheet.revision,
@@ -368,6 +563,7 @@ function isSerializableConflict(error: unknown) {
 export async function updatePayrollEntry(
   context: PayrollContext & {
     entryId: string;
+    expectedRevision: number;
     values: PayrollEntryManualValues;
   },
   database: PrismaClient = prisma,
@@ -380,41 +576,63 @@ export async function updatePayrollEntry(
     if (!entry || entry.payrollRun.status !== "DRAFT") {
       throw new Error("The editable payroll entry was not found.");
     }
+    if (entry.calculationRevision !== context.expectedRevision) {
+      throw new Error("Payroll entry changed after this page was loaded. Reload and try again.");
+    }
     const values = normalizeManualValues(context.values);
-    const totals = calculatePayrollTotals({
-      basicPayCents: moneyToCents(entry.basicPay),
-      overtimePayCents: moneyToCents(entry.overtimePay),
-      publicHolidayPayCents: moneyToCents(entry.publicHolidayPay),
-      allowancesCents: values.allowancesCents,
-      otherDeductionsCents: values.otherDeductionsCents,
-      epfEmployeeCents: values.epfEmployeeCents,
-      socsoEmployeeCents: values.socsoEmployeeCents,
-      eisEmployeeCents: values.eisEmployeeCents,
-      lindung24EmployeeCents: values.lindung24EmployeeCents,
-      pcbCents: values.pcbCents,
-    });
-    const updated = await transaction.payrollEntry.update({
-      where: { id: entry.id },
+    const currentStatutoryValues = [
+      moneyToCents(entry.epfWageBase),
+      moneyToCents(entry.perkesoWageBase),
+      moneyToCents(entry.lindung24Employee),
+      moneyToCents(entry.epfEmployee),
+      moneyToCents(entry.socsoEmployee),
+      moneyToCents(entry.eisEmployee),
+      moneyToCents(entry.pcb),
+      moneyToCents(entry.employerEpf),
+      moneyToCents(entry.employerSocso),
+      moneyToCents(entry.employerEis),
+    ];
+    const requestedStatutoryValues = [
+      values.epfWageBaseCents,
+      values.perkesoWageBaseCents,
+      values.lindung24EmployeeCents,
+      values.epfEmployeeCents,
+      values.socsoEmployeeCents,
+      values.eisEmployeeCents,
+      values.pcbCents,
+      values.employerEpfCents,
+      values.employerSocsoCents,
+      values.employerEisCents,
+    ];
+    if (requestedStatutoryValues.some((value, index) => value !== currentStatutoryValues[index])) {
+      throw new Error(
+        "Direct statutory amount overrides are disabled. Use a controlled statutory source workflow.",
+      );
+    }
+    const write = await transaction.payrollEntry.updateMany({
+      where: {
+        id: entry.id,
+        businessId: context.businessId,
+        calculationRevision: context.expectedRevision,
+        payrollRun: { status: "DRAFT" },
+      },
       data: {
-        allowances: centsToMoney(values.allowancesCents),
-        otherDeductions: centsToMoney(values.otherDeductionsCents),
-        epfWageBase: centsToMoney(values.epfWageBaseCents),
-        perkesoWageBase: centsToMoney(values.perkesoWageBaseCents),
-        lindung24Employee: centsToMoney(values.lindung24EmployeeCents),
-        epfEmployee: centsToMoney(values.epfEmployeeCents),
-        socsoEmployee: centsToMoney(values.socsoEmployeeCents),
-        eisEmployee: centsToMoney(values.eisEmployeeCents),
-        pcb: centsToMoney(values.pcbCents),
-        employerEpf: centsToMoney(values.employerEpfCents),
-        employerSocso: centsToMoney(values.employerSocsoCents),
-        employerEis: centsToMoney(values.employerEisCents),
-        grossPay: centsToMoney(totals.grossPayCents),
-        netPay: centsToMoney(totals.netPayCents),
-        statutoryStatus: "MANUAL_OVERRIDE",
-        statutoryCalculatedAt: null,
-        statutoryWarning: "Statutory amounts were manually adjusted.",
         notes: values.notes || null,
       },
+    });
+    if (write.count !== 1) {
+      throw new Error("Payroll entry changed after this page was loaded. Reload and try again.");
+    }
+    const statutoryUpdated = await transaction.payrollEntry.findUniqueOrThrow({
+      where: { id: entry.id },
+    });
+    await deriveAndPersistEntryAggregates(
+      transaction,
+      statutoryUpdated,
+      context.expectedRevision,
+    );
+    const updated = await transaction.payrollEntry.findUniqueOrThrow({
+      where: { id: entry.id },
     });
     const auditChange = safePayrollEntryManualAuditChange(entry, updated);
     await writeSensitiveAuditLog(
@@ -457,6 +675,15 @@ export async function submitPayrollRunForReview(
     if (run._count.entries === 0) {
       throw new Error("An empty payroll draft cannot be submitted for review.");
     }
+    const readiness = await getPayrollPeriodReadiness(
+      {
+        businessId: context.businessId,
+        month: run.periodStart.toISOString().slice(0, 7),
+        runId: run.id,
+      },
+      transaction,
+    );
+    assertPayrollReadinessCanProceed(readiness);
     const reviewRequired = run.entries.filter(
       (entry) => entry.statutoryStatus === "REVIEW_REQUIRED",
     ).length;
@@ -553,6 +780,15 @@ export async function finalizePayrollRun(
     if (run._count.entries === 0) {
       throw new Error("An empty payroll run cannot be finalized.");
     }
+    const readiness = await getPayrollPeriodReadiness(
+      {
+        businessId: context.businessId,
+        month: run.periodStart.toISOString().slice(0, 7),
+        runId: run.id,
+      },
+      transaction,
+    );
+    assertPayrollReadinessCanProceed(readiness);
     const finalized = await transaction.payrollRun.update({
       where: { id: run.id },
       data: {
@@ -622,6 +858,12 @@ export async function reopenPayrollRun(
     if (statutorySubmissionCount > 0) {
       return { blocked: true as const, blockReason: "STATUTORY_RECORD" as const, run };
     }
+    const publishedPayslipCount = await transaction.payrollPayslipPublication.count({
+      where: { businessId: context.businessId, payrollRunId: run.id },
+    });
+    if (publishedPayslipCount > 0) {
+      return { blocked: true as const, blockReason: "PUBLISHED_PAYSLIP" as const, run };
+    }
     await transaction.$executeRaw`
       SELECT set_config('tetamu.payroll_reopen', ${run.id}, TRUE)
     `;
@@ -664,12 +906,16 @@ export async function reopenPayrollRun(
           ? "Payroll run reopen rejected because an active payment batch exists."
           : result.blockReason === "APPROVED_PAYMENT_INSTRUCTION"
             ? "Payroll run reopen rejected because an approved payment instruction exists."
-            : "Payroll run reopen rejected because a statutory export or correction record exists.",
+            : result.blockReason === "PUBLISHED_PAYSLIP"
+              ? "Payroll run reopen rejected because published payslips exist."
+              : "Payroll run reopen rejected because a statutory export or correction record exists.",
       status: "FAILED",
       metadata: {
         ...(result.blockReason === "STATUTORY_RECORD"
           ? { immutableStatutoryRecord: true }
-          : { immutablePaymentRecord: true }),
+          : result.blockReason === "PUBLISHED_PAYSLIP"
+            ? { immutablePublishedPayslip: true }
+            : { immutablePaymentRecord: true }),
         paymentBatchId:
           "paymentBatch" in result ? result.paymentBatch?.id : undefined,
         reason: context.reason,
@@ -680,7 +926,9 @@ export async function reopenPayrollRun(
         ? "Cancel the active payroll payment batch before reopening this payroll."
         : result.blockReason === "APPROVED_PAYMENT_INSTRUCTION"
           ? "This payroll has an approved payment instruction and cannot be reopened through the standard workflow."
-          : "Payroll with a statutory export or correction record cannot be reopened directly.",
+          : result.blockReason === "PUBLISHED_PAYSLIP"
+            ? "Payroll with published payslips cannot be reopened. Published documents are immutable."
+            : "Payroll with a statutory export or correction record cannot be reopened directly.",
     );
   }
 
@@ -688,8 +936,6 @@ export async function reopenPayrollRun(
 }
 
 type PayrollEntryManualValues = {
-  allowances: unknown;
-  otherDeductions: unknown;
   epfWageBase: unknown;
   perkesoWageBase: unknown;
   lindung24Employee: unknown;
@@ -705,8 +951,6 @@ type PayrollEntryManualValues = {
 
 function normalizeManualValues(input: PayrollEntryManualValues) {
   return {
-    allowancesCents: parseMoneyInput(input.allowances),
-    otherDeductionsCents: parseMoneyInput(input.otherDeductions),
     epfWageBaseCents: parseMoneyInput(input.epfWageBase),
     perkesoWageBaseCents: parseMoneyInput(input.perkesoWageBase),
     lindung24EmployeeCents: parseMoneyInput(input.lindung24Employee),
@@ -730,35 +974,21 @@ export function parseMoneyInput(value: unknown) {
   return Number(ringgit) * 100 + Number(sen.padEnd(2, "0"));
 }
 
-function aggregateDays(
-  sessions: Array<{
-    branchId: string;
-    workDate: Date;
-    totalWorkedMinutes: number;
-  }>,
-  holidayKeys: Set<string>,
+function componentAmount(
+  lines: ReadonlyArray<{ code: string; amountCents: number }>,
+  codes: readonly string[],
 ) {
-  const days = new Map<string, { minutes: number; publicHoliday: boolean }>();
-  sessions.forEach((session) => {
-    const key = dateKey(session.workDate);
-    const current = days.get(key) ?? { minutes: 0, publicHoliday: false };
-    current.minutes += session.totalWorkedMinutes;
-    current.publicHoliday ||= holidayKeys.has(`${session.branchId}:${key}`);
-    days.set(key, current);
-  });
-  return [...days.values()];
-}
-
-function latestUpdatedAt(sessions: Array<{ updatedAt: Date }>) {
-  return sessions.reduce<Date | null>(
-    (latest, session) =>
-      !latest || session.updatedAt > latest ? session.updatedAt : latest,
-    null,
+  return lines.reduce(
+    (total, line) => total + (codes.includes(line.code) ? line.amountCents : 0),
+    0,
   );
 }
 
-function dateKey(value: Date) {
-  return value.toISOString().slice(0, 10);
+function hundredthsToDecimal(hundredths: number) {
+  if (!Number.isSafeInteger(hundredths) || hundredths < 0) {
+    throw new Error("Payroll attendance units are outside the supported range.");
+  }
+  return (hundredths / 100).toFixed(2);
 }
 
 function moneyToCents(value: { toString(): string } | number | null) {

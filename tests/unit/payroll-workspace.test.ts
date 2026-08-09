@@ -51,7 +51,8 @@ test("Payroll Workspace primary actions only navigate to existing payroll views"
 });
 
 test("Payslip and statutory states do not imply payment completion", () => {
-  assert.equal(payrollPayslipLabel("FINALIZED", true), "Available for download");
+  assert.equal(payrollPayslipLabel("FINALIZED", true), "Ready to publish");
+  assert.equal(payrollPayslipLabel("FINALIZED", true, 2, 3), "2 of 3 published");
   assert.equal(payrollPayslipLabel("DRAFT", true), "Not available");
   assert.equal(payrollPayslipLabel("FINALIZED", false), "Restricted");
   assert.equal(payrollStatutoryLabel("DRAFT", []), "Not available");
@@ -84,7 +85,7 @@ test("W1 route is read-only, capability-aware and avoids Phase 3 data", async ()
   assert.match(page, /identity\.activeBusinessId !== identity\.homeBusinessId[\s\S]*"VIEW_DASHBOARD"/);
   assert.match(page, /if \(!canViewPayroll\) \{[\s\S]*PayrollWorkspaceAccessDenied/);
   assert.match(page, /No payroll period, employee, calculation, payslip, payment or statutory[\s\S]*data was loaded/);
-  assert.match(navigation, /href: "\/team\/payroll\/workspace"/);
+  assert.match(navigation, /href: "\/team\/payroll"/);
 
   for (const forbiddenAction of [
     "generatePayrollRunAction",

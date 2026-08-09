@@ -1,7 +1,7 @@
 "use server";
 
-import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import {
@@ -10,11 +10,12 @@ import {
 } from "@/lib/auth/session";
 import type { AppSession, CreateSessionInput } from "@/lib/auth/session";
 import { getLoginDestination } from "@/lib/auth/login-destination";
+import { authenticatePasswordLogin } from "@/lib/auth/password-login";
+import { getAuthRequestContext } from "@/lib/auth/security";
 import {
   commitBusinessContextSwitch,
   getRecoveryBusinessContext,
 } from "@/lib/business-groups/business-context";
-import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validation/login";
 
 export type LoginState = {
@@ -34,33 +35,31 @@ export async function loginAction(
     return { error: "Please enter a valid email and password." };
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: parsed.data.email.toLowerCase() },
-    include: { business: true },
-  });
-
-  if (
-    !user ||
-    user.status !== "active" ||
-    !user.loginEnabled ||
-    !user.email ||
-    !user.passwordHash
-  ) {
-    return { error: "Invalid login details." };
+  const requestContext = getAuthRequestContext(await headers());
+  let authenticated: Awaited<ReturnType<typeof authenticatePasswordLogin>>;
+  try {
+    authenticated = await authenticatePasswordLogin({
+      email: parsed.data.email,
+      password: parsed.data.password,
+      request: requestContext,
+    });
+  } catch (error) {
+    console.error("[auth] Password login security check failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+    return { error: "Unable to sign in safely. Please try again later." };
   }
 
-  if (user.business && user.business.status !== "active") {
-    return { error: "This business is inactive." };
+  if (!authenticated.ok) {
+    return {
+      error:
+        authenticated.code === "RATE_LIMITED"
+          ? "Too many attempts. Try again later."
+          : "Invalid login details.",
+    };
   }
 
-  const isPasswordValid = await bcrypt.compare(
-    parsed.data.password,
-    user.passwordHash,
-  );
-
-  if (!isPasswordValid) {
-    return { error: "Invalid login details." };
-  }
+  const user = authenticated.user;
 
   if (user.businessId) {
     await writeAuditLog({
@@ -109,28 +108,25 @@ export async function loginAction(
     const recovery = await getRecoveryBusinessContext(recoverySession);
 
     if (!recovery.ok) {
-      await createSession(session);
+      await createSession(session, { request: requestContext });
       redirect("/no-business-access");
     }
 
-    const result = await commitBusinessContextSwitch(
-      {
-        session: recoverySession,
-        targetBusinessId: recovery.context.businessId,
-        source: "RECOVERY",
-      },
-      { writeSession: createSession },
-    );
+    const result = await commitBusinessContextSwitch({
+      session: recoverySession,
+      targetBusinessId: recovery.context.businessId,
+      source: "RECOVERY",
+    });
 
     if (!result.ok) {
-      await createSession(session);
+      await createSession(session, { request: requestContext });
       redirect("/no-business-access");
     }
 
     redirect(result.destination);
   }
 
-  await createSession(session);
+  await createSession(session, { request: requestContext });
 
   redirect(loginDestination);
 }

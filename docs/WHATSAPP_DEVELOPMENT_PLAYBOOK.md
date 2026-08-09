@@ -830,7 +830,7 @@ Connector 是独立进程。
 必须重启：
 
 ```cmd
-cd /d "C:\Users\oscar\Documents\Car wash CRM Pos\whatsapp-connector"
+cd /d "<repo-root>\whatsapp-connector"
 npm run dev
 ```
 

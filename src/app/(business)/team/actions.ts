@@ -9,6 +9,7 @@ import { z } from "zod";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { revokeUserSessions } from "@/lib/auth/session";
 import {
   assertStaffPermission,
   normalizeStaffPermissionsForIndustry,
@@ -330,6 +331,13 @@ export async function updateStaffAction(formData: FormData) {
           wholeBusinessScope,
         });
 
+        if (password) {
+          await revokeUserSessions(
+            staff.id,
+            "Password changed by an authorized team administrator.",
+          );
+        }
+
         revalidatePeoplePaths(created.membership.id);
         redirectWithTeamMessage(
           "Employment profile created successfully.",
@@ -390,6 +398,13 @@ export async function updateStaffAction(formData: FormData) {
         whatsappPhone: input.whatsappPhone || null,
         wholeBusinessScope,
       });
+
+      if (password) {
+        await revokeUserSessions(
+          input.userId,
+          "Password changed by an authorized team administrator.",
+        );
+      }
 
       revalidatePeoplePaths();
       redirectWithTeamMessage("Staff profile updated successfully.", "success");
@@ -484,6 +499,15 @@ export async function updateStaffAction(formData: FormData) {
       userId: staff.id,
       wholeBusinessScope: hasWholeBusinessPeopleScope(access),
     });
+
+    if (password || !nextLoginEnabled) {
+      await revokeUserSessions(
+        staff.id,
+        password
+          ? "Password changed by an authorized team administrator."
+          : "POS login access was disabled.",
+      );
+    }
 
     revalidatePeoplePaths(updated.membership.id);
     redirectWithTeamMessage("Team member updated successfully.", "success");

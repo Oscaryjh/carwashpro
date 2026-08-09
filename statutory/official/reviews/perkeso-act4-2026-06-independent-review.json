@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "perkeso-act4-2026-06-independent-review-v1",
+  "scheme": "SOCSO",
+  "artifactId": "perkeso-act4-lindung24-2026-06",
+  "artifactSha256": "e76b2a03740f6da4a305919c677d4935a05e9166502e5f06afe1030b7407caa1",
+  "datasetId": "perkeso-act4-lindung24-2026-06-v1",
+  "baselineDatasetDigest": "e9cd3fdd50b5851572e51a2c8f6a3c0ce3c17b383b20c463c107d99390c82700",
+  "certifiedDatasetDigest": "1e1b17a332e2b596b1efa85c075428c54b16d059730726e3f67cef710f334460",
+  "reviewMethod": "RENDERED_OFFICIAL_PDF_VISUAL_TABLE_REVIEW",
+  "reviewer": {
+    "id": "codex-agent-p2c-visual-review",
+    "type": "AI_ASSISTED_SECOND_PATH",
+    "independentFromExtraction": true
+  },
+  "reviewedAt": "2026-08-08T12:48:03Z",
+  "rowsChecked": {
+    "count": 65,
+    "ranges": [
+      { "from": "ACT4-01", "to": "ACT4-09", "sourcePages": [1] },
+      { "from": "ACT4-10", "to": "ACT4-18", "sourcePages": [2] },
+      { "from": "ACT4-19", "to": "ACT4-26", "sourcePages": [3] },
+      { "from": "ACT4-27", "to": "ACT4-34", "sourcePages": [4] },
+      { "from": "ACT4-35", "to": "ACT4-42", "sourcePages": [5] },
+      { "from": "ACT4-43", "to": "ACT4-50", "sourcePages": [6] },
+      { "from": "ACT4-51", "to": "ACT4-58", "sourcePages": [7] },
+      { "from": "ACT4-59", "to": "ACT4-65", "sourcePages": [8] }
+    ]
+  },
+  "mismatches": [],
+  "status": "PASS",
+  "notes": "All 65 rendered official schedule rows were visually compared against the normalized bounds and the SOCSO first/second-category contribution columns. The review did not reuse the text parser or its extraction logic.",
+  "reviewDigest": "57c10c6042fbd539e36279bafbd9f20eabb4d140a984eb1db052c287ee14209c"
+}

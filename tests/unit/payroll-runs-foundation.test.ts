@@ -114,7 +114,9 @@ test("W2C safe states remain while run actions use canonical routes", async () =
   assert.match(combined, /Payroll Runs could not be loaded/);
   assert.match(combined, /Payroll run not found/);
   assert.match(combined, /Payroll Run workspace/);
-  assert.doesNotMatch(combined, /Publish payslip|Create payment batch/);
+  assert.match(combined, /access\.actions\.canPublishPayslip/);
+  assert.match(combined, /Publish payslips/);
+  assert.doesNotMatch(combined, /Create payment batch/);
 });
 
 test("W2B workflow actions retain granular capabilities and server-side scope", async () => {
@@ -192,12 +194,12 @@ test("W2C migrates create and destructive refresh with granular capability check
   assert.match(list, /access\.actions\.canCreate/);
   assert.match(list, /Create payroll draft/);
   assert.match(detail, /access\.actions\.canCreate/);
-  assert.match(detail, /This deletes and rebuilds every employee entry/);
-  assert.match(detail, /Manual allowances, deductions, EPF\/SOCSO\/EIS/);
-  assert.match(detail, /Confirm refresh and clear manual adjustments/);
+  assert.match(detail, /regenerates system component lines/);
+  assert.match(detail, /manual earning and deduction lines and payroll notes are preserved/i);
+  assert.match(detail, /Confirm refresh and preserve manual adjustments/);
 });
 
-test("W2C entry editor is draft-only, tenant-scoped and separately authorized", async () => {
+test("P4D entry detail is tenant-scoped, state-locked and separately authorized", async () => {
   const [access, loader, editor, actions] = await Promise.all([
     source("src/lib/payroll/runs-access.ts"),
     source("src/lib/payroll/entry-editor.ts"),
@@ -206,12 +208,17 @@ test("W2C entry editor is draft-only, tenant-scoped and separately authorized", 
   ]);
 
   assert.match(access, /canEditEntry:[\s\S]*"EDIT_PAYROLL_ENTRY"/);
-  assert.match(loader, /id: entryId,[\s\S]*businessId,[\s\S]*payrollRunId: runId,[\s\S]*payrollRun: \{ status: "DRAFT" \}/);
-  assert.match(editor, /!access\.granted \|\| !access\.actions\.canEditEntry/);
+  assert.match(loader, /id: entryId,[\s\S]*businessId,[\s\S]*payrollRunId: runId/);
+  assert.match(editor, /!access\.granted[\s\S]*!access\.actions\.canViewComponents/);
   assert.match(editor, /loadPayrollRunEntryEditor/);
+  assert.match(editor, /data\.run\.status === "DRAFT"/);
+  assert.match(editor, /ReadOnlyPayrollEntry/);
+  assert.match(editor, /Review is locked for editing/);
+  assert.match(editor, /Finalized payroll is immutable/);
   assert.match(editor, /This changes only this Payroll Run snapshot/);
   assert.doesNotMatch(editor, /bankAccount|baseSalary|statutoryNationality|dateOfBirth/i);
-  assert.match(actions, /updatePayrollEntryAction[\s\S]*requireWholeBusinessPayroll\("EDIT_PAYROLL_ENTRY"\)/);
+  assert.match(actions, /updatePayrollEntryAction[\s\S]*requirePayrollComponentEdit/);
+  assert.match(actions, /requirePayrollComponentEdit[\s\S]*"VIEW_COMPENSATION"/);
   assert.match(actions, /finish\("success", "Payroll entry updated\."[\s\S]*returnPath/);
 });
 
@@ -242,7 +249,7 @@ test("Phase 4C retires the legacy monthly page without removing settings", async
 
   assert.match(legacy, /Compatibility route/);
   assert.match(legacy, /`\/team\/payroll\/runs\/\$\{run\.id\}`/);
-  assert.match(legacy, /\/team\/payroll\/workspace/);
+  assert.match(legacy, /PayrollWorkspacePage/);
   assert.doesNotMatch(legacy, /payrollSetting|payrollHoliday|entries:/);
 
   assert.match(settings, /savePayrollSettingAction/);

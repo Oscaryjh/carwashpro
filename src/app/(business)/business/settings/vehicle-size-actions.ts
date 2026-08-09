@@ -13,7 +13,9 @@ const schema = z.object({
 const normalize = (value: string) => value.trim().toLocaleLowerCase();
 
 export async function saveBusinessVehicleSizeOverrideAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { businessId } = await requireBusinessUser(
+    "MODIFY_BUSINESS_SETTINGS",
+  );
   const input = schema.parse({ brand: formData.get("brand"), model: formData.get("model"), size: formData.get("size") });
   await prisma.businessVehicleSizeOverride.upsert({
     where: { businessId_normalizedBrand_normalizedModel: { businessId, normalizedBrand: normalize(input.brand), normalizedModel: normalize(input.model) } },
@@ -24,7 +26,9 @@ export async function saveBusinessVehicleSizeOverrideAction(formData: FormData) 
 }
 
 export async function removeBusinessVehicleSizeOverrideAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { businessId } = await requireBusinessUser(
+    "MODIFY_BUSINESS_SETTINGS",
+  );
   const id = z.string().uuid().parse(formData.get("id"));
   await prisma.businessVehicleSizeOverride.deleteMany({ where: { id, businessId } });
   revalidatePath("/business/settings");

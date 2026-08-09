@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "phase": "STATUTORY_P2C",
+  "generatedOn": "2026-08-08",
+  "status": "PARTIAL",
+  "automaticActivation": false,
+  "schemes": [
+    {
+      "scheme": "EPF",
+      "artifact": "VERIFIED",
+      "dataset": "VERIFIED",
+      "independentReview": "PASS",
+      "golden": "VERIFIED",
+      "classification": "READY_FOR_HUMAN_SIGN_OFF",
+      "calculator": "VERIFIED",
+      "activation": "BLOCKED",
+      "finalStatus": "READY_FOR_HUMAN_SIGN_OFF",
+      "blockers": [
+        "Human EPF classification sign-off is required before any activation."
+      ]
+    },
+    {
+      "scheme": "SOCSO",
+      "artifact": "VERIFIED",
+      "dataset": "VERIFIED",
+      "independentReview": "PASS",
+      "golden": "VERIFIED",
+      "classification": "REVIEW_REQUIRED",
+      "calculator": "VERIFIED",
+      "activation": "BLOCKED",
+      "finalStatus": "PARTIAL",
+      "blockers": [
+        "Some component classifications remain UNKNOWN."
+      ]
+    },
+    {
+      "scheme": "EIS",
+      "artifact": "VERIFIED",
+      "dataset": "VERIFIED",
+      "independentReview": "PASS",
+      "golden": "VERIFIED",
+      "classification": "REVIEW_REQUIRED",
+      "calculator": "VERIFIED",
+      "activation": "BLOCKED",
+      "finalStatus": "PARTIAL",
+      "blockers": [
+        "Some component classifications remain UNKNOWN."
+      ]
+    },
+    {
+      "scheme": "LINDUNG24",
+      "artifact": "VERIFIED",
+      "dataset": "AMOUNT_SCHEDULE_VERIFIED",
+      "independentReview": "AMOUNT_REVIEW_PASS",
+      "golden": "REVIEW_REQUIRED",
+      "classification": "REVIEW_REQUIRED",
+      "calculator": "BLOCKED",
+      "activation": "BLOCKED",
+      "finalStatus": "PARTIAL",
+      "blockers": [
+        "Versioned participation and selected-employer evidence is not implemented.",
+        "July 2026 transition/refund reconciliation is not implemented.",
+        "All LINDUNG24 component classifications remain UNKNOWN."
+      ]
+    },
+    {
+      "scheme": "PCB",
+      "artifact": "SOURCE_DRIFT_DETECTED",
+      "dataset": "MISSING",
+      "independentReview": "OUT_OF_SCOPE",
+      "golden": "MISSING",
+      "classification": "REVIEW_REQUIRED",
+      "calculator": "OUT_OF_SCOPE",
+      "activation": "BLOCKED",
+      "finalStatus": "BLOCKED",
+      "blockers": [
+        "PCB remains on the P3A-P3F roadmap and is outside P2C calculation scope."
+      ]
+    }
+  ],
+  "readinessDigest": "0931e3031b39d1a96be71de2331fb8c63b9a15ea023ff5bf7a06cbe3f7a97a17"
+}

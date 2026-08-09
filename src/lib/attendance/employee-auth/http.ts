@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import { getAuthRequestContext } from "@/lib/auth/security";
 import { getEmployeeAuthConfig } from "./config";
 import { EmployeeAuthError } from "./errors";
 
@@ -90,17 +91,7 @@ export async function readEmployeeAuthJson<TSchema extends z.ZodTypeAny>(
 export function getEmployeeAuthRequestContext(
   request: Request,
 ): EmployeeAuthRequestContext {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  const ipAddress =
-    forwardedFor?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip")?.trim() ||
-    null;
-  const userAgent = request.headers.get("user-agent")?.trim() || null;
-
-  return {
-    ipAddress: ipAddress?.slice(0, 128) ?? null,
-    userAgent: userAgent?.slice(0, 512) ?? null,
-  };
+  return getAuthRequestContext(request.headers);
 }
 
 async function readLimitedBody(request: Request, maximumBytes: number) {

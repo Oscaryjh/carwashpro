@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "id": "perkeso-lindung24-2026-06-boundaries-review-v1",
+  "scheme": "LINDUNG24",
+  "ruleVersion": "PERKESO_LINDUNG24_PHASE1_2026_06",
+  "artifactId": "perkeso-act4-lindung24-2026-06",
+  "artifactSha256": "e76b2a03740f6da4a305919c677d4935a05e9166502e5f06afe1030b7407caa1",
+  "verificationStatus": "VERIFIED",
+  "fixtures": [
+    {
+      "id": "lindung24-act4-01",
+      "sourceReference": "official contribution schedule row 1",
+      "input": {
+        "wageCents": 3000,
+        "phase": 1
+      },
+      "expected": {
+        "employeeCents": 20,
+        "employerCents": 0,
+        "matchedRowKey": "ACT4-01"
+      }
+    },
+    {
+      "id": "lindung24-act4-02",
+      "sourceReference": "official contribution schedule row 2",
+      "input": {
+        "wageCents": 5000,
+        "phase": 1
+      },
+      "expected": {
+        "employeeCents": 30,
+        "employerCents": 0,
+        "matchedRowKey": "ACT4-02"
+      }
+    },
+    {
+      "id": "lindung24-act4-09",
+      "sourceReference": "official contribution schedule row 9",
+      "input": {
+        "wageCents": 50000,
+        "phase": 1
+      },
+      "expected": {
+        "employeeCents": 335,
+        "employerCents": 0,
+        "matchedRowKey": "ACT4-09"
+      }
+    },
+    {
+      "id": "lindung24-act4-10",
+      "sourceReference": "official contribution schedule row 10",
+      "input": {
+        "wageCents": 60000,
+        "phase": 1
+      },
+      "expected": {
+        "employeeCents": 415,
+        "employerCents": 0,
+        "matchedRowKey": "ACT4-10"
+      }
+    },
+    {
+      "id": "lindung24-act4-64",
+      "sourceReference": "official contribution schedule row 64",
+      "input": {
+        "wageCents": 600000,
+        "phase": 1
+      },
+      "expected": {
+        "employeeCents": 4465,
+        "employerCents": 0,
+        "matchedRowKey": "ACT4-64"
+      }
+    },
+    {
+      "id": "lindung24-act4-65",
+      "sourceReference": "official contribution schedule row 65",
+      "input": {
+        "wageCents": 600001,
+        "phase": 1
+      },
+      "expected": {
+        "employeeCents": 4465,
+        "employerCents": 0,
+        "matchedRowKey": "ACT4-65"
+      }
+    }
+  ],
+  "fixtureDigest": "71f7882669ed7c3be53b6b7497dd95f4ad440dbc48b314dea9c7630d5698db14"
+}

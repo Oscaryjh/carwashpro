@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { PACKAGE_PAYMENT_PREVIEW_EVENT } from "@/components/pos-payment-preview";
+import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
+import { FinancialSubmitButton } from "@/components/financial-submit-button";
 
 type PaymentFormProps = {
   action: (formData: FormData) => Promise<void>;
@@ -22,6 +24,7 @@ export function PaymentForm({
   const [method, setMethod] = useState("CASH");
   const [isPackageSelected, setIsPackageSelected] = useState(defaultPackageSelected);
   const isReferenceRequired = method !== "CASH";
+  const { operationId } = useFinancialOperationId("payment");
 
   useEffect(() => {
     function handlePackagePreview(event: Event) {
@@ -47,6 +50,7 @@ export function PaymentForm({
         .join(" ")}
     >
       <input type="hidden" name="workOrderId" value={workOrderId} />
+      <input type="hidden" name="operationId" value={operationId} />
       <div className={isPos ? "pos-payment-fields" : "field-grid"}>
         <label>
           <span>Payment amount</span>
@@ -110,13 +114,13 @@ export function PaymentForm({
         </label>
       </div>
       <div className="form-actions">
-        <button type="submit" disabled={isPackageSelected}>
+        <FinancialSubmitButton disabled={isPackageSelected} pendingLabel="Recording payment...">
           {isPackageSelected
             ? "Use Pay with package below"
             : isPos
               ? "Check out"
               : "Record payment"}
-        </button>
+        </FinancialSubmitButton>
       </div>
     </form>
   );

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { financialOperationKeySchema } from "@/lib/financial-idempotency";
 
 const quantitySchema = z.coerce
   .number()
@@ -8,6 +9,7 @@ const quantitySchema = z.coerce
 
 export const cashierSaleSchema = z
   .object({
+    operationId: financialOperationKeySchema,
     branchId: z.string().uuid("Branch is invalid.").optional().or(z.literal("")),
     appointmentId: z.string().uuid("Appointment is invalid.").optional().or(z.literal("")),
     assignedStaffId: z.string().uuid("Staff member is invalid.").optional().or(z.literal("")),

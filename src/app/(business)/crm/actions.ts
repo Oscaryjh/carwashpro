@@ -35,7 +35,7 @@ const customerNotesSchema = z.object({
 });
 
 export async function createCustomerAction(formData: FormData) {
-  const { businessId, user } = await requireCrmUser();
+  const { businessId, user } = await requireCrmUser("MODIFY_CRM");
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const whatsappConversationId = formData.get("whatsappConversationId")?.toString().trim();
   const input = customerSchema.parse({
@@ -210,7 +210,7 @@ export async function createCustomerAction(formData: FormData) {
 }
 
 export async function updateCustomerAction(formData: FormData) {
-  const { businessId } = await requireCrmUser();
+  const { businessId } = await requireCrmUser("MODIFY_CRM");
   const customerId = formData.get("customerId")?.toString();
 
   if (!customerId) {
@@ -279,7 +279,7 @@ export async function updateCustomerNotesAction(
   _previousState: UpdateCustomerNotesState,
   formData: FormData,
 ): Promise<UpdateCustomerNotesState> {
-  const { businessId } = await requireCrmUser();
+  const { businessId } = await requireCrmUser("MODIFY_CRM");
   const customerId = formData.get("customerId")?.toString().trim();
 
   if (!customerId) {
@@ -319,7 +319,7 @@ export async function updateCustomerNotesAction(
 }
 
 export async function updateCustomerProfileAction(formData: FormData) {
-  const { businessId } = await requireCrmUser();
+  const { businessId } = await requireCrmUser("MODIFY_CRM");
   const customerId = formData.get("customerId")?.toString();
 
   if (!customerId) {
@@ -328,7 +328,7 @@ export async function updateCustomerProfileAction(formData: FormData) {
 
   const branchId = await resolveBranchId(
     businessId,
-    formData.get("customerBranchId"),
+    formData.get("branchId"),
   );
   const input = customerSchema.parse({
     name: formData.get("name"),
@@ -490,7 +490,7 @@ export async function deleteCustomerAction(
   _previousState: DeleteCustomerState,
   formData: FormData,
 ): Promise<DeleteCustomerState> {
-  const { businessId, user } = await requireCrmUser();
+  const { businessId, user } = await requireCrmUser("MODIFY_CRM");
   assertStaffPermission(user, "DELETE_CUSTOMER");
   const customerId = formData.get("customerId")?.toString();
 
@@ -590,7 +590,7 @@ export async function deleteCustomerAction(
 }
 
 export async function createVehicleAction(formData: FormData) {
-  const { businessId } = await requireCrmUser();
+  const { businessId } = await requireCrmUser("MODIFY_CRM");
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const input = vehicleSchema.parse({
     customerId: formData.get("customerId"),
@@ -631,7 +631,7 @@ export async function createVehicleAction(formData: FormData) {
 }
 
 export async function updateVehicleAction(formData: FormData) {
-  const { businessId } = await requireCrmUser();
+  const { businessId } = await requireCrmUser("MODIFY_CRM");
   const vehicleId = formData.get("vehicleId")?.toString();
 
   if (!vehicleId) {

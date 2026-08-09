@@ -6,6 +6,7 @@ import {
   refundPaymentAction,
   type RefundPaymentState,
 } from "@/app/(business)/invoices/actions";
+import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
 
 type RefundPaymentFormProps = {
   invoiceId: string;
@@ -50,13 +51,15 @@ export function RefundPaymentForm({
     initialState,
   );
   const safeState = state ?? initialState;
+  const { operationId, rotateOperationId } = useFinancialOperationId("refund");
 
   useEffect(() => {
     if (safeState.status === "success") {
+      rotateOperationId();
       router.refresh();
       onSuccess?.();
     }
-  }, [onSuccess, router, safeState.status]);
+  }, [onSuccess, rotateOperationId, router, safeState.status]);
 
   return (
     <form
@@ -75,6 +78,7 @@ export function RefundPaymentForm({
     >
       <input type="hidden" name="invoiceId" value={invoiceId} />
       <input type="hidden" name="paymentId" value={paymentId} />
+      <input type="hidden" name="operationId" value={operationId} />
       {packageRefund ? (
         <input type="hidden" name="method" value="PACKAGE" />
       ) : null}

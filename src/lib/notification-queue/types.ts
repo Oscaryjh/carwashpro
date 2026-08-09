@@ -28,6 +28,7 @@ export type FindQueuedNotificationsInput = {
 };
 
 export type MarkNotificationSentInput = {
+  claimToken: string;
   id: string;
   providerMessageId: string;
 };
@@ -42,8 +43,11 @@ export type MarkNotificationDeliveryInput = {
 };
 
 export type MarkNotificationFailedInput = {
+  claimToken: string;
+  errorCategory: string;
   id: string;
   errorMessage: string;
+  retryable: boolean;
 };
 
 export type NotificationQueueState = NotificationQueueStatus;

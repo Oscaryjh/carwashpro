@@ -1,5 +1,6 @@
 "use server";
 
+import { FinancialOperationType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
@@ -37,6 +38,7 @@ import {
   sendReadyForPickupIfConnected,
   sendServiceConfirmationQueued,
 } from "@/lib/whatsapp/work-order-notifications";
+import { runFinancialOperation } from "@/lib/financial-idempotency";
 
 function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
@@ -111,7 +113,7 @@ async function redirectToWorkOrderFormError(
 }
 
 export async function createVehicleForWorkOrderAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("MODIFY_WORK_ORDERS");
   const branchId = await resolveOperationalBranchId(
     businessId,
     user,
@@ -260,7 +262,7 @@ export async function createVehicleForWorkOrderAction(formData: FormData) {
 }
 
 export async function createWorkOrderAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("MODIFY_WORK_ORDERS");
   const auditRequest = await getAuditRequestContext();
   const branchId = await resolveOperationalBranchId(
     businessId,
@@ -523,10 +525,11 @@ export async function createWorkOrderAction(formData: FormData) {
 }
 
 export async function purchasePackageFromCashierAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("MODIFY_WORK_ORDERS");
   const auditRequest = await getAuditRequestContext();
   const returnPath = packagePurchaseReturnPath(formData.get("returnTo"));
   const parsed = cashierPackagePurchaseSchema.safeParse({
+    operationId: formData.get("operationId"),
     branchId: formData.get("branchId")?.toString() ?? "",
     method: formData.get("method")?.toString(),
     packageIds: formData.getAll("packageId").map((value) => value.toString()),
@@ -552,7 +555,15 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
       input.branchId || null,
     );
 
-    const result = await prisma.$transaction(async (tx) => {
+    const { operationId, ...financialPayload } = input;
+    const { result } = await runFinancialOperation({
+      actorUserId: user.userId,
+      branchId,
+      businessId,
+      operationKey: operationId,
+      operationType: FinancialOperationType.PACKAGE_PURCHASE,
+      payload: { ...financialPayload, branchId },
+      execute: async (tx) => {
       const shift = await tx.cashierShift.findFirst({
         where: {
           businessId,
@@ -790,6 +801,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
         customerPackageIds: customerPackages.map((item) => item.id),
         invoiceId: invoice.id,
       };
+      },
     });
 
     await sendInvoiceIfConnected({
@@ -821,7 +833,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
 }
 
 export async function updateWorkOrderStatusAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("MODIFY_WORK_ORDERS");
   const auditRequest = await getAuditRequestContext();
   const input = updateWorkOrderStatusSchema.parse({
     workOrderId: formData.get("workOrderId"),
@@ -889,7 +901,7 @@ export async function updateWorkOrderStatusAction(formData: FormData) {
 }
 
 export async function updateWorkOrderContactAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("MODIFY_WORK_ORDERS");
   const auditRequest = await getAuditRequestContext();
   const workOrderId = formData.get("workOrderId")?.toString() ?? "";
   const parsedInput = updateWorkOrderContactSchema.safeParse({

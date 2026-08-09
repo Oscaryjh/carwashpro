@@ -507,6 +507,87 @@
   border: 0;
 }
 
+.readinessPanel {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid #dce5e8;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.readinessCounts {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.issueColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.issueList {
+  padding: 14px;
+  border: 1px solid #e0e7ea;
+  border-radius: 10px;
+  background: #f8fafb;
+}
+
+.issueList ul {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issueList li {
+  display: grid;
+  gap: 2px;
+  padding-top: 8px;
+  border-top: 1px solid #e0e7ea;
+}
+
+.issueList small,
+.preflightAction span {
+  color: #667584;
+}
+
+.readyState {
+  padding: 12px 14px;
+  border: 1px solid #b8ddd5;
+  border-radius: 9px;
+  color: #07695f;
+  background: #eef9f6;
+  font-weight: 750;
+}
+
+.preflightAction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e0e7ea;
+}
+
+.preflightAction > div {
+  display: grid;
+  gap: 4px;
+}
+
+.preflightAction a {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: #fff;
+  background: #087d71;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 @media (max-width: 980px) {
   .currentPanel {
     grid-template-columns: minmax(0, 1fr) minmax(220px, .65fr);
@@ -514,6 +595,10 @@
 
   .moduleGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .readinessCounts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -540,6 +625,10 @@
 
   .loadingGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .issueColumns {
+    grid-template-columns: 1fr;
   }
 
   .runTable,
@@ -605,8 +694,14 @@
   .statusGrid,
   .moduleGrid,
   .loadingGrid,
+  .readinessCounts,
   .runTable tr {
     grid-template-columns: 1fr;
+  }
+
+  .preflightAction {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .moduleCard {

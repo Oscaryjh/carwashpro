@@ -33,6 +33,11 @@ export type PayrollDocumentEntry = {
   statutoryStatus: string;
   statutoryRuleVersion: string | null;
   notes: string | null;
+  components?: Array<{
+    name: string;
+    type: "EARNING" | "DEDUCTION";
+    amount: number;
+  }>;
 };
 
 export type PayrollDocumentRun = {
@@ -85,6 +90,8 @@ export function buildPayslipPdf(
     entry.pcb;
   const employerContributions =
     entry.employerEpf + entry.employerSocso + entry.employerEis;
+  const componentEarnings = entry.components?.filter((component) => component.type === "EARNING") ?? [];
+  const componentDeductions = entry.components?.filter((component) => component.type === "DEDUCTION") ?? [];
   return buildTextPdf([
     run.business.name.toUpperCase(),
     run.business.companyNo ? `Company No: ${run.business.companyNo}` : "",
@@ -111,14 +118,20 @@ export function buildPayslipPdf(
     `Public holiday hours: ${formatMinutes(entry.publicHolidayMinutes)}`,
     "",
     "EARNINGS",
-    moneyLine("Basic pay", entry.basicPay),
-    moneyLine("Overtime pay", entry.overtimePay),
-    moneyLine("Public holiday pay", entry.publicHolidayPay),
-    moneyLine("Allowances", entry.allowances),
+    ...(componentEarnings.length
+      ? componentEarnings.map((component) => moneyLine(component.name, component.amount))
+      : [
+          moneyLine("Basic pay", entry.basicPay),
+          moneyLine("Overtime pay", entry.overtimePay),
+          moneyLine("Public holiday pay", entry.publicHolidayPay),
+          moneyLine("Allowances", entry.allowances),
+        ]),
     moneyLine("Gross pay", entry.grossPay),
     "",
     "EMPLOYEE DEDUCTIONS",
-    moneyLine("Other deductions", entry.otherDeductions),
+    ...(componentDeductions.length
+      ? componentDeductions.map((component) => moneyLine(component.name, component.amount))
+      : [moneyLine("Other deductions", entry.otherDeductions)]),
     moneyLine("EPF employee", entry.epfEmployee),
     moneyLine("SOCSO employee", entry.socsoEmployee),
     moneyLine("EIS employee", entry.eisEmployee),

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { logger } from "./logger.js";
 
 const defaultIncomingWebhookUrl =
@@ -51,32 +52,19 @@ export async function postIncomingMessageWebhook(
     process.env.WASHFLOW_WEBHOOK_URL?.trim() ??
     defaultIncomingWebhookUrl;
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json"
-  };
-  const secret = process.env.WHATSAPP_WEBHOOK_SECRET?.trim();
-
-  if (secret) {
-    headers["x-whatsapp-webhook-secret"] = secret;
-  }
-
-  const response = await fetch(webhookUrl, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload)
-  });
-  const responseText = await response.text();
-
-  if (!response.ok) {
-    throw new Error(
-      `Incoming webhook failed with HTTP ${response.status}: ${responseText}`
-    );
-  }
+  const response = await postWebhook(
+    webhookUrl,
+    payload,
+    buildWebhookEventId("incoming", [
+      payload.businessId,
+      payload.instanceId,
+      payload.messageId,
+    ]),
+  );
 
   logger.info(
     {
       messageId: payload.messageId,
-      from: payload.from,
       status: response.status
     },
     "Incoming WhatsApp message forwarded"
@@ -90,14 +78,21 @@ export async function postDeliveryReceiptWebhook(
     process.env.WASHFLOW_RECEIPT_WEBHOOK_URL?.trim() ??
     defaultReceiptWebhookUrl;
 
-  const response = await postWebhook(webhookUrl, payload);
+  const response = await postWebhook(
+    webhookUrl,
+    payload,
+    buildWebhookEventId("receipt", [
+      payload.businessId,
+      payload.instanceId ?? "default",
+      payload.messageId,
+      payload.status,
+    ]),
+  );
 
   logger.info(
     {
       messageId: payload.messageId,
-      remoteJid: payload.remoteJid,
       status: payload.status,
-      errorMessage: payload.errorMessage,
       httpStatus: response.status
     },
     "WhatsApp receipt forwarded"
@@ -108,7 +103,16 @@ export async function postHistorySyncWebhook(payload: HistorySyncWebhookPayload)
   const webhookUrl =
     process.env.WASHFLOW_HISTORY_WEBHOOK_URL?.trim() ??
     defaultHistoryWebhookUrl;
-  const response = await postWebhook(webhookUrl, payload);
+  const response = await postWebhook(
+    webhookUrl,
+    payload,
+    buildWebhookEventId("history", [
+      payload.businessId,
+      payload.instanceId,
+      payload.syncType ?? "unknown",
+      fingerprintPayload(payload),
+    ]),
+  );
 
   logger.info(
     {
@@ -123,9 +127,15 @@ export async function postHistorySyncWebhook(payload: HistorySyncWebhookPayload)
   );
 }
 
-async function postWebhook(webhookUrl: string, payload: unknown) {
+async function postWebhook(
+  webhookUrl: string,
+  payload: unknown,
+  eventId: string,
+) {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "x-whatsapp-event-id": eventId,
+    "x-whatsapp-event-timestamp": new Date().toISOString(),
   };
   const secret = process.env.WHATSAPP_WEBHOOK_SECRET?.trim();
 
@@ -147,4 +157,14 @@ async function postWebhook(webhookUrl: string, payload: unknown) {
   }
 
   return response;
+}
+
+function buildWebhookEventId(kind: string, identity: unknown[]) {
+  return `${kind}:${createHash("sha256")
+    .update(JSON.stringify(identity))
+    .digest("hex")}`;
+}
+
+function fingerprintPayload(payload: unknown) {
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }

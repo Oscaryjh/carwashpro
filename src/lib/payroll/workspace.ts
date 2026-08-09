@@ -151,9 +151,14 @@ export function payrollPrimaryActionLabel(
 export function payrollPayslipLabel(
   status: PayrollRunStatus | null | undefined,
   canViewPayslip: boolean,
+  publishedCount = 0,
+  employeeCount = 0,
 ) {
   if (!canViewPayslip) return "Restricted";
-  return status === "FINALIZED" ? "Available for download" : "Not available";
+  if (status !== "FINALIZED") return "Not available";
+  return publishedCount > 0
+    ? `${publishedCount} of ${employeeCount} published`
+    : "Ready to publish";
 }
 
 export function payrollStatutoryLabel(

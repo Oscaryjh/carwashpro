@@ -1,6 +1,6 @@
 "use server";
 
-import type { Payment } from "@prisma/client";
+import { FinancialOperationType, type Payment } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
@@ -21,11 +21,11 @@ import {
   awardLoyaltyPointsForPayment,
   redeemLoyaltyPointsForPayment,
 } from "@/lib/loyalty/service";
-import { prisma } from "@/lib/prisma";
 import { calculateTax } from "@/lib/tax/calculator";
 import { cashierSaleSchema } from "@/lib/validation/cashier";
 import { fromCents } from "@/lib/validation/pos";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
+import { runFinancialOperation } from "@/lib/financial-idempotency";
 
 export type CashierSaleInvoiceSummary = {
   id: string;
@@ -71,10 +71,13 @@ function mergeQuantities(ids: string[], quantities: number[]) {
 }
 
 export async function completeCashierSaleAction(formData: FormData): Promise<CashierSaleState> {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser(
+    "PROCESS_CASHIER_PAYMENT",
+  );
   assertStaffPermission(user, "POS");
 
   const parsed = cashierSaleSchema.safeParse({
+    operationId: formData.get("operationId"),
     branchId: formData.get("branchId")?.toString() || "",
     appointmentId: formData.get("appointmentId")?.toString() || "",
     assignedStaffId: formData.get("assignedStaffId")?.toString() || "",
@@ -117,7 +120,15 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       throw new Error("An active branch is required before completing a sale.");
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const { operationId, ...financialPayload } = input;
+    const { result } = await runFinancialOperation({
+      actorUserId: user.userId,
+      branchId,
+      businessId,
+      operationKey: operationId,
+      operationType: FinancialOperationType.CASHIER_CHECKOUT,
+      payload: { ...financialPayload, branchId },
+      execute: async (tx) => {
       const shift = await tx.cashierShift.findFirst({
         where: { businessId, cashierId: user.userId, status: "OPEN" },
         select: { id: true, branchId: true },
@@ -914,6 +925,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           cashPaidAmount: amountCents / 100,
         },
       };
+      },
     });
 
     if (result.customerId) {

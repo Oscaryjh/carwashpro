@@ -44,11 +44,25 @@ export function StaffPwaChrome({ children }: { children: React.ReactNode }) {
             History
           </Link>
           <Link
+            className={currentPath === "/staff/timesheet" ? "active" : ""}
+            href="/staff/timesheet"
+          >
+            <span aria-hidden="true">▤</span>
+            Timesheet
+          </Link>
+          <Link
             className={currentPath === "/staff/leave" ? "active" : ""}
             href="/staff/leave"
           >
             <span aria-hidden="true">◇</span>
             Leave
+          </Link>
+          <Link
+            className={currentPath.startsWith("/staff/payslips") ? "active" : ""}
+            href="/staff/payslips"
+          >
+            <span aria-hidden="true">▤</span>
+            Payslips
           </Link>
           <Link
             className={

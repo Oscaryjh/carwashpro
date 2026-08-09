@@ -28,7 +28,7 @@ type NewWorkOrderPageProps = {
 export default async function NewWorkOrderPage({
   searchParams,
 }: NewWorkOrderPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUser("VIEW_WORK_ORDERS");
   const { plate, customer, error } = await searchParams;
   const normalizedPlate = plate ? normalizePlateNumber(plate) : "";
   const customerQuery = (customer ?? "").trim();

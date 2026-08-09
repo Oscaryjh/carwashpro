@@ -1,0 +1,667 @@
+{
+  "schemaVersion": 1,
+  "id": "perkeso-act800-2024-10-review-v1",
+  "schemes": [
+    "EIS"
+  ],
+  "artifactId": "perkeso-act800-2024-10",
+  "artifactSha256": "3499fec4271b45ae3e3055b2071075f96f65dc451775ed23adf39f9deec5376a",
+  "parserName": "perkeso-act800-image-table",
+  "parserVersion": "1.0.0",
+  "extractionMode": "MANUALLY_TRANSCRIBED",
+  "verificationStatus": "VERIFIED",
+  "expectedRowCount": 65,
+  "rows": [
+    {
+      "key": "ACT800-01",
+      "lowerInclusiveCents": 0,
+      "upperInclusiveCents": 3000,
+      "contributions": {
+        "eisEmployerCents": 5,
+        "eisEmployeeCents": 5
+      },
+      "sourceReference": "official image table row 1"
+    },
+    {
+      "key": "ACT800-02",
+      "lowerInclusiveCents": 3001,
+      "upperInclusiveCents": 5000,
+      "contributions": {
+        "eisEmployerCents": 10,
+        "eisEmployeeCents": 10
+      },
+      "sourceReference": "official image table row 2"
+    },
+    {
+      "key": "ACT800-03",
+      "lowerInclusiveCents": 5001,
+      "upperInclusiveCents": 7000,
+      "contributions": {
+        "eisEmployerCents": 15,
+        "eisEmployeeCents": 15
+      },
+      "sourceReference": "official image table row 3"
+    },
+    {
+      "key": "ACT800-04",
+      "lowerInclusiveCents": 7001,
+      "upperInclusiveCents": 10000,
+      "contributions": {
+        "eisEmployerCents": 20,
+        "eisEmployeeCents": 20
+      },
+      "sourceReference": "official image table row 4"
+    },
+    {
+      "key": "ACT800-05",
+      "lowerInclusiveCents": 10001,
+      "upperInclusiveCents": 14000,
+      "contributions": {
+        "eisEmployerCents": 25,
+        "eisEmployeeCents": 25
+      },
+      "sourceReference": "official image table row 5"
+    },
+    {
+      "key": "ACT800-06",
+      "lowerInclusiveCents": 14001,
+      "upperInclusiveCents": 20000,
+      "contributions": {
+        "eisEmployerCents": 35,
+        "eisEmployeeCents": 35
+      },
+      "sourceReference": "official image table row 6"
+    },
+    {
+      "key": "ACT800-07",
+      "lowerInclusiveCents": 20001,
+      "upperInclusiveCents": 30000,
+      "contributions": {
+        "eisEmployerCents": 50,
+        "eisEmployeeCents": 50
+      },
+      "sourceReference": "official image table row 7"
+    },
+    {
+      "key": "ACT800-08",
+      "lowerInclusiveCents": 30001,
+      "upperInclusiveCents": 40000,
+      "contributions": {
+        "eisEmployerCents": 70,
+        "eisEmployeeCents": 70
+      },
+      "sourceReference": "official image table row 8"
+    },
+    {
+      "key": "ACT800-09",
+      "lowerInclusiveCents": 40001,
+      "upperInclusiveCents": 50000,
+      "contributions": {
+        "eisEmployerCents": 90,
+        "eisEmployeeCents": 90
+      },
+      "sourceReference": "official image table row 9"
+    },
+    {
+      "key": "ACT800-10",
+      "lowerInclusiveCents": 50001,
+      "upperInclusiveCents": 60000,
+      "contributions": {
+        "eisEmployerCents": 110,
+        "eisEmployeeCents": 110
+      },
+      "sourceReference": "official image table row 10"
+    },
+    {
+      "key": "ACT800-11",
+      "lowerInclusiveCents": 60001,
+      "upperInclusiveCents": 70000,
+      "contributions": {
+        "eisEmployerCents": 130,
+        "eisEmployeeCents": 130
+      },
+      "sourceReference": "official image table row 11"
+    },
+    {
+      "key": "ACT800-12",
+      "lowerInclusiveCents": 70001,
+      "upperInclusiveCents": 80000,
+      "contributions": {
+        "eisEmployerCents": 150,
+        "eisEmployeeCents": 150
+      },
+      "sourceReference": "official image table row 12"
+    },
+    {
+      "key": "ACT800-13",
+      "lowerInclusiveCents": 80001,
+      "upperInclusiveCents": 90000,
+      "contributions": {
+        "eisEmployerCents": 170,
+        "eisEmployeeCents": 170
+      },
+      "sourceReference": "official image table row 13"
+    },
+    {
+      "key": "ACT800-14",
+      "lowerInclusiveCents": 90001,
+      "upperInclusiveCents": 100000,
+      "contributions": {
+        "eisEmployerCents": 190,
+        "eisEmployeeCents": 190
+      },
+      "sourceReference": "official image table row 14"
+    },
+    {
+      "key": "ACT800-15",
+      "lowerInclusiveCents": 100001,
+      "upperInclusiveCents": 110000,
+      "contributions": {
+        "eisEmployerCents": 210,
+        "eisEmployeeCents": 210
+      },
+      "sourceReference": "official image table row 15"
+    },
+    {
+      "key": "ACT800-16",
+      "lowerInclusiveCents": 110001,
+      "upperInclusiveCents": 120000,
+      "contributions": {
+        "eisEmployerCents": 230,
+        "eisEmployeeCents": 230
+      },
+      "sourceReference": "official image table row 16"
+    },
+    {
+      "key": "ACT800-17",
+      "lowerInclusiveCents": 120001,
+      "upperInclusiveCents": 130000,
+      "contributions": {
+        "eisEmployerCents": 250,
+        "eisEmployeeCents": 250
+      },
+      "sourceReference": "official image table row 17"
+    },
+    {
+      "key": "ACT800-18",
+      "lowerInclusiveCents": 130001,
+      "upperInclusiveCents": 140000,
+      "contributions": {
+        "eisEmployerCents": 270,
+        "eisEmployeeCents": 270
+      },
+      "sourceReference": "official image table row 18"
+    },
+    {
+      "key": "ACT800-19",
+      "lowerInclusiveCents": 140001,
+      "upperInclusiveCents": 150000,
+      "contributions": {
+        "eisEmployerCents": 290,
+        "eisEmployeeCents": 290
+      },
+      "sourceReference": "official image table row 19"
+    },
+    {
+      "key": "ACT800-20",
+      "lowerInclusiveCents": 150001,
+      "upperInclusiveCents": 160000,
+      "contributions": {
+        "eisEmployerCents": 310,
+        "eisEmployeeCents": 310
+      },
+      "sourceReference": "official image table row 20"
+    },
+    {
+      "key": "ACT800-21",
+      "lowerInclusiveCents": 160001,
+      "upperInclusiveCents": 170000,
+      "contributions": {
+        "eisEmployerCents": 330,
+        "eisEmployeeCents": 330
+      },
+      "sourceReference": "official image table row 21"
+    },
+    {
+      "key": "ACT800-22",
+      "lowerInclusiveCents": 170001,
+      "upperInclusiveCents": 180000,
+      "contributions": {
+        "eisEmployerCents": 350,
+        "eisEmployeeCents": 350
+      },
+      "sourceReference": "official image table row 22"
+    },
+    {
+      "key": "ACT800-23",
+      "lowerInclusiveCents": 180001,
+      "upperInclusiveCents": 190000,
+      "contributions": {
+        "eisEmployerCents": 370,
+        "eisEmployeeCents": 370
+      },
+      "sourceReference": "official image table row 23"
+    },
+    {
+      "key": "ACT800-24",
+      "lowerInclusiveCents": 190001,
+      "upperInclusiveCents": 200000,
+      "contributions": {
+        "eisEmployerCents": 390,
+        "eisEmployeeCents": 390
+      },
+      "sourceReference": "official image table row 24"
+    },
+    {
+      "key": "ACT800-25",
+      "lowerInclusiveCents": 200001,
+      "upperInclusiveCents": 210000,
+      "contributions": {
+        "eisEmployerCents": 410,
+        "eisEmployeeCents": 410
+      },
+      "sourceReference": "official image table row 25"
+    },
+    {
+      "key": "ACT800-26",
+      "lowerInclusiveCents": 210001,
+      "upperInclusiveCents": 220000,
+      "contributions": {
+        "eisEmployerCents": 430,
+        "eisEmployeeCents": 430
+      },
+      "sourceReference": "official image table row 26"
+    },
+    {
+      "key": "ACT800-27",
+      "lowerInclusiveCents": 220001,
+      "upperInclusiveCents": 230000,
+      "contributions": {
+        "eisEmployerCents": 450,
+        "eisEmployeeCents": 450
+      },
+      "sourceReference": "official image table row 27"
+    },
+    {
+      "key": "ACT800-28",
+      "lowerInclusiveCents": 230001,
+      "upperInclusiveCents": 240000,
+      "contributions": {
+        "eisEmployerCents": 470,
+        "eisEmployeeCents": 470
+      },
+      "sourceReference": "official image table row 28"
+    },
+    {
+      "key": "ACT800-29",
+      "lowerInclusiveCents": 240001,
+      "upperInclusiveCents": 250000,
+      "contributions": {
+        "eisEmployerCents": 490,
+        "eisEmployeeCents": 490
+      },
+      "sourceReference": "official image table row 29"
+    },
+    {
+      "key": "ACT800-30",
+      "lowerInclusiveCents": 250001,
+      "upperInclusiveCents": 260000,
+      "contributions": {
+        "eisEmployerCents": 510,
+        "eisEmployeeCents": 510
+      },
+      "sourceReference": "official image table row 30"
+    },
+    {
+      "key": "ACT800-31",
+      "lowerInclusiveCents": 260001,
+      "upperInclusiveCents": 270000,
+      "contributions": {
+        "eisEmployerCents": 530,
+        "eisEmployeeCents": 530
+      },
+      "sourceReference": "official image table row 31"
+    },
+    {
+      "key": "ACT800-32",
+      "lowerInclusiveCents": 270001,
+      "upperInclusiveCents": 280000,
+      "contributions": {
+        "eisEmployerCents": 550,
+        "eisEmployeeCents": 550
+      },
+      "sourceReference": "official image table row 32"
+    },
+    {
+      "key": "ACT800-33",
+      "lowerInclusiveCents": 280001,
+      "upperInclusiveCents": 290000,
+      "contributions": {
+        "eisEmployerCents": 570,
+        "eisEmployeeCents": 570
+      },
+      "sourceReference": "official image table row 33"
+    },
+    {
+      "key": "ACT800-34",
+      "lowerInclusiveCents": 290001,
+      "upperInclusiveCents": 300000,
+      "contributions": {
+        "eisEmployerCents": 590,
+        "eisEmployeeCents": 590
+      },
+      "sourceReference": "official image table row 34"
+    },
+    {
+      "key": "ACT800-35",
+      "lowerInclusiveCents": 300001,
+      "upperInclusiveCents": 310000,
+      "contributions": {
+        "eisEmployerCents": 610,
+        "eisEmployeeCents": 610
+      },
+      "sourceReference": "official image table row 35"
+    },
+    {
+      "key": "ACT800-36",
+      "lowerInclusiveCents": 310001,
+      "upperInclusiveCents": 320000,
+      "contributions": {
+        "eisEmployerCents": 630,
+        "eisEmployeeCents": 630
+      },
+      "sourceReference": "official image table row 36"
+    },
+    {
+      "key": "ACT800-37",
+      "lowerInclusiveCents": 320001,
+      "upperInclusiveCents": 330000,
+      "contributions": {
+        "eisEmployerCents": 650,
+        "eisEmployeeCents": 650
+      },
+      "sourceReference": "official image table row 37"
+    },
+    {
+      "key": "ACT800-38",
+      "lowerInclusiveCents": 330001,
+      "upperInclusiveCents": 340000,
+      "contributions": {
+        "eisEmployerCents": 670,
+        "eisEmployeeCents": 670
+      },
+      "sourceReference": "official image table row 38"
+    },
+    {
+      "key": "ACT800-39",
+      "lowerInclusiveCents": 340001,
+      "upperInclusiveCents": 350000,
+      "contributions": {
+        "eisEmployerCents": 690,
+        "eisEmployeeCents": 690
+      },
+      "sourceReference": "official image table row 39"
+    },
+    {
+      "key": "ACT800-40",
+      "lowerInclusiveCents": 350001,
+      "upperInclusiveCents": 360000,
+      "contributions": {
+        "eisEmployerCents": 710,
+        "eisEmployeeCents": 710
+      },
+      "sourceReference": "official image table row 40"
+    },
+    {
+      "key": "ACT800-41",
+      "lowerInclusiveCents": 360001,
+      "upperInclusiveCents": 370000,
+      "contributions": {
+        "eisEmployerCents": 730,
+        "eisEmployeeCents": 730
+      },
+      "sourceReference": "official image table row 41"
+    },
+    {
+      "key": "ACT800-42",
+      "lowerInclusiveCents": 370001,
+      "upperInclusiveCents": 380000,
+      "contributions": {
+        "eisEmployerCents": 750,
+        "eisEmployeeCents": 750
+      },
+      "sourceReference": "official image table row 42"
+    },
+    {
+      "key": "ACT800-43",
+      "lowerInclusiveCents": 380001,
+      "upperInclusiveCents": 390000,
+      "contributions": {
+        "eisEmployerCents": 770,
+        "eisEmployeeCents": 770
+      },
+      "sourceReference": "official image table row 43"
+    },
+    {
+      "key": "ACT800-44",
+      "lowerInclusiveCents": 390001,
+      "upperInclusiveCents": 400000,
+      "contributions": {
+        "eisEmployerCents": 790,
+        "eisEmployeeCents": 790
+      },
+      "sourceReference": "official image table row 44"
+    },
+    {
+      "key": "ACT800-45",
+      "lowerInclusiveCents": 400001,
+      "upperInclusiveCents": 410000,
+      "contributions": {
+        "eisEmployerCents": 810,
+        "eisEmployeeCents": 810
+      },
+      "sourceReference": "official image table row 45"
+    },
+    {
+      "key": "ACT800-46",
+      "lowerInclusiveCents": 410001,
+      "upperInclusiveCents": 420000,
+      "contributions": {
+        "eisEmployerCents": 830,
+        "eisEmployeeCents": 830
+      },
+      "sourceReference": "official image table row 46"
+    },
+    {
+      "key": "ACT800-47",
+      "lowerInclusiveCents": 420001,
+      "upperInclusiveCents": 430000,
+      "contributions": {
+        "eisEmployerCents": 850,
+        "eisEmployeeCents": 850
+      },
+      "sourceReference": "official image table row 47"
+    },
+    {
+      "key": "ACT800-48",
+      "lowerInclusiveCents": 430001,
+      "upperInclusiveCents": 440000,
+      "contributions": {
+        "eisEmployerCents": 870,
+        "eisEmployeeCents": 870
+      },
+      "sourceReference": "official image table row 48"
+    },
+    {
+      "key": "ACT800-49",
+      "lowerInclusiveCents": 440001,
+      "upperInclusiveCents": 450000,
+      "contributions": {
+        "eisEmployerCents": 890,
+        "eisEmployeeCents": 890
+      },
+      "sourceReference": "official image table row 49"
+    },
+    {
+      "key": "ACT800-50",
+      "lowerInclusiveCents": 450001,
+      "upperInclusiveCents": 460000,
+      "contributions": {
+        "eisEmployerCents": 910,
+        "eisEmployeeCents": 910
+      },
+      "sourceReference": "official image table row 50"
+    },
+    {
+      "key": "ACT800-51",
+      "lowerInclusiveCents": 460001,
+      "upperInclusiveCents": 470000,
+      "contributions": {
+        "eisEmployerCents": 930,
+        "eisEmployeeCents": 930
+      },
+      "sourceReference": "official image table row 51"
+    },
+    {
+      "key": "ACT800-52",
+      "lowerInclusiveCents": 470001,
+      "upperInclusiveCents": 480000,
+      "contributions": {
+        "eisEmployerCents": 950,
+        "eisEmployeeCents": 950
+      },
+      "sourceReference": "official image table row 52"
+    },
+    {
+      "key": "ACT800-53",
+      "lowerInclusiveCents": 480001,
+      "upperInclusiveCents": 490000,
+      "contributions": {
+        "eisEmployerCents": 970,
+        "eisEmployeeCents": 970
+      },
+      "sourceReference": "official image table row 53"
+    },
+    {
+      "key": "ACT800-54",
+      "lowerInclusiveCents": 490001,
+      "upperInclusiveCents": 500000,
+      "contributions": {
+        "eisEmployerCents": 990,
+        "eisEmployeeCents": 990
+      },
+      "sourceReference": "official image table row 54"
+    },
+    {
+      "key": "ACT800-55",
+      "lowerInclusiveCents": 500001,
+      "upperInclusiveCents": 510000,
+      "contributions": {
+        "eisEmployerCents": 1010,
+        "eisEmployeeCents": 1010
+      },
+      "sourceReference": "official image table row 55"
+    },
+    {
+      "key": "ACT800-56",
+      "lowerInclusiveCents": 510001,
+      "upperInclusiveCents": 520000,
+      "contributions": {
+        "eisEmployerCents": 1030,
+        "eisEmployeeCents": 1030
+      },
+      "sourceReference": "official image table row 56"
+    },
+    {
+      "key": "ACT800-57",
+      "lowerInclusiveCents": 520001,
+      "upperInclusiveCents": 530000,
+      "contributions": {
+        "eisEmployerCents": 1050,
+        "eisEmployeeCents": 1050
+      },
+      "sourceReference": "official image table row 57"
+    },
+    {
+      "key": "ACT800-58",
+      "lowerInclusiveCents": 530001,
+      "upperInclusiveCents": 540000,
+      "contributions": {
+        "eisEmployerCents": 1070,
+        "eisEmployeeCents": 1070
+      },
+      "sourceReference": "official image table row 58"
+    },
+    {
+      "key": "ACT800-59",
+      "lowerInclusiveCents": 540001,
+      "upperInclusiveCents": 550000,
+      "contributions": {
+        "eisEmployerCents": 1090,
+        "eisEmployeeCents": 1090
+      },
+      "sourceReference": "official image table row 59"
+    },
+    {
+      "key": "ACT800-60",
+      "lowerInclusiveCents": 550001,
+      "upperInclusiveCents": 560000,
+      "contributions": {
+        "eisEmployerCents": 1110,
+        "eisEmployeeCents": 1110
+      },
+      "sourceReference": "official image table row 60"
+    },
+    {
+      "key": "ACT800-61",
+      "lowerInclusiveCents": 560001,
+      "upperInclusiveCents": 570000,
+      "contributions": {
+        "eisEmployerCents": 1130,
+        "eisEmployeeCents": 1130
+      },
+      "sourceReference": "official image table row 61"
+    },
+    {
+      "key": "ACT800-62",
+      "lowerInclusiveCents": 570001,
+      "upperInclusiveCents": 580000,
+      "contributions": {
+        "eisEmployerCents": 1150,
+        "eisEmployeeCents": 1150
+      },
+      "sourceReference": "official image table row 62"
+    },
+    {
+      "key": "ACT800-63",
+      "lowerInclusiveCents": 580001,
+      "upperInclusiveCents": 590000,
+      "contributions": {
+        "eisEmployerCents": 1170,
+        "eisEmployeeCents": 1170
+      },
+      "sourceReference": "official image table row 63"
+    },
+    {
+      "key": "ACT800-64",
+      "lowerInclusiveCents": 590001,
+      "upperInclusiveCents": 600000,
+      "contributions": {
+        "eisEmployerCents": 1190,
+        "eisEmployeeCents": 1190
+      },
+      "sourceReference": "official image table row 64"
+    },
+    {
+      "key": "ACT800-65",
+      "lowerInclusiveCents": 600001,
+      "upperInclusiveCents": null,
+      "contributions": {
+        "eisEmployerCents": 1190,
+        "eisEmployeeCents": 1190
+      },
+      "sourceReference": "official image table row 65"
+    }
+  ],
+  "datasetDigest": "ca14f3decb605af4df4c837f281666a6816699947d1658614bbd336f809ae08e"
+}

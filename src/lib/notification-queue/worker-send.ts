@@ -52,12 +52,19 @@ export class WhatsAppSendModeConfigError extends Error {
 export class ConnectorSendError extends Error {
   constructor(
     readonly status: number,
+    readonly code: string,
     message: string,
   ) {
     super(message);
     this.name = "ConnectorSendError";
   }
 }
+
+export type WhatsAppSendFailureClassification = Readonly<{
+  category: string;
+  retryable: boolean;
+  safeMessage: string;
+}>;
 
 export function resolveWhatsAppSendMode(
   env: WhatsAppWorkerEnv = process.env,
@@ -120,6 +127,78 @@ export function isConnectorNotConnected(error: unknown) {
   return error instanceof ConnectorSendError && error.status === 409;
 }
 
+export function classifyWhatsAppSendFailure(
+  error: unknown,
+): WhatsAppSendFailureClassification {
+  if (error instanceof WhatsAppSendModeConfigError) {
+    return {
+      category: "CONFIGURATION",
+      retryable: false,
+      safeMessage: error.message,
+    };
+  }
+
+  if (error instanceof ConnectorSendError) {
+    if (
+      error.status === 400 ||
+      error.status === 401 ||
+      error.status === 403 ||
+      error.status === 404 ||
+      error.status === 422 ||
+      error.code === "WHATSAPP_INVALID_RECIPIENT"
+    ) {
+      return {
+        category:
+          error.code === "WHATSAPP_INVALID_RECIPIENT"
+            ? "INVALID_RECIPIENT"
+            : error.status === 401 || error.status === 403
+              ? "CONNECTOR_AUTHORIZATION"
+              : "FINAL_CONNECTOR_REJECTION",
+        retryable: false,
+        safeMessage: error.message,
+      };
+    }
+
+    if (
+      error.status === 408 ||
+      error.status === 409 ||
+      error.status === 425 ||
+      error.status === 429 ||
+      error.status >= 500
+    ) {
+      return {
+        category:
+          error.status === 409
+            ? "CONNECTOR_UNAVAILABLE"
+            : error.status === 429
+              ? "CONNECTOR_RATE_LIMIT"
+              : "CONNECTOR_TRANSIENT",
+        retryable: true,
+        safeMessage: error.message,
+      };
+    }
+  }
+
+  if (
+    error instanceof TypeError ||
+    (error instanceof Error &&
+      (error.name === "AbortError" || error.name === "TimeoutError"))
+  ) {
+    return {
+      category: "NETWORK_TRANSIENT",
+      retryable: true,
+      safeMessage: "WhatsApp connector is temporarily unavailable.",
+    };
+  }
+
+  return {
+    category: "UNCLASSIFIED_FINAL",
+    retryable: false,
+    safeMessage:
+      error instanceof Error ? error.message : "WhatsApp send failed permanently.",
+  };
+}
+
 async function sendToConnector(
   input: QueueSendInput,
   options: {
@@ -135,6 +214,7 @@ async function sendToConnector(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "x-connector-request-id": input.queueId,
         ...(options.env.WHATSAPP_CONNECTOR_API_SECRET?.trim()
           ? {
               "x-connector-api-secret":
@@ -144,6 +224,7 @@ async function sendToConnector(
       },
       body: JSON.stringify({
         businessId: input.businessId,
+        requestId: input.queueId,
         phone: input.phone,
         message: input.message,
         ...(input.documentBase64 && isAudio
@@ -166,6 +247,7 @@ async function sendToConnector(
             }
           : {}),
       }),
+      signal: AbortSignal.timeout(60_000),
     },
   );
   const body = (await readJson(response)) as ConnectorSendResponse;
@@ -173,6 +255,7 @@ async function sendToConnector(
   if (!response.ok || !body?.ok) {
     throw new ConnectorSendError(
       response.status,
+      getConnectorErrorCode(body),
       getConnectorErrorMessage(body) || "WhatsApp connector send failed.",
     );
   }
@@ -184,6 +267,22 @@ async function sendToConnector(
   return {
     messageId: body.data.messageId,
   };
+}
+
+function getConnectorErrorCode(body: unknown) {
+  if (
+    body &&
+    typeof body === "object" &&
+    "error" in body &&
+    body.error &&
+    typeof body.error === "object" &&
+    "code" in body.error &&
+    typeof body.error.code === "string"
+  ) {
+    return body.error.code;
+  }
+
+  return "WHATSAPP_CONNECTOR_SEND_FAILED";
 }
 
 function getConnectorUrl(env: WhatsAppWorkerEnv) {

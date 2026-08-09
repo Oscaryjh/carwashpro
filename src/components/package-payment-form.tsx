@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { PACKAGE_PAYMENT_PREVIEW_EVENT } from "@/components/pos-payment-preview";
+import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
+import { FinancialSubmitButton } from "@/components/financial-submit-button";
 
 export type PackagePaymentOption = {
   id: string;
@@ -30,6 +32,7 @@ export function PackagePaymentForm({
 }: PackagePaymentFormProps) {
   const [internalSelectedPackageId, setInternalSelectedPackageId] = useState("");
   const currentSelectedPackageId = selectedPackageId ?? internalSelectedPackageId;
+  const { operationId } = useFinancialOperationId("package-redemption");
 
   useEffect(() => {
     window.dispatchEvent(
@@ -58,6 +61,7 @@ export function PackagePaymentForm({
   return (
     <form action={action} className={isPos ? "form pos-package-form" : "form"}>
       <input type="hidden" name="workOrderId" value={workOrderId} />
+      <input type="hidden" name="operationId" value={operationId} />
       <div className={isPos ? "pos-payment-fields" : "field-grid"}>
         <label>
           <span>Prepaid package</span>
@@ -78,9 +82,12 @@ export function PackagePaymentForm({
         </label>
       </div>
       <div className="form-actions">
-        <button type="submit" disabled={!currentSelectedPackageId}>
+        <FinancialSubmitButton
+          disabled={!currentSelectedPackageId}
+          pendingLabel="Redeeming package..."
+        >
           Pay with package
-        </button>
+        </FinancialSubmitButton>
       </div>
     </form>
   );

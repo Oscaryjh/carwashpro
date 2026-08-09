@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { financialOperationKeySchema } from "@/lib/financial-idempotency";
 
 export const packageSchema = z.object({
   name: z.string().trim().min(2, "Package name is required."),
@@ -47,6 +48,7 @@ export const purchasePackageSchema = z.object({
 
 export const cashierPackagePurchaseSchema = z
   .object({
+    operationId: financialOperationKeySchema,
     branchId: z.string().uuid("Branch is invalid.").optional().or(z.literal("")),
     method: z.enum(["CASH", "CARD", "DUITNOW", "EWALLET", "BANK_TRANSFER"]),
     packageIds: z
@@ -83,6 +85,7 @@ export const cashierPackagePurchaseSchema = z
   });
 
 export const usePackagePaymentSchema = z.object({
+  operationId: financialOperationKeySchema,
   workOrderId: z.string().uuid("Work order is required."),
   customerPackageId: z.string().uuid("Customer package is required."),
 });

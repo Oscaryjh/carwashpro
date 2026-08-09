@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import {
   getConnectorStatus,
   sendConnectorTextMessage,
@@ -12,6 +13,7 @@ export const runtime = "nodejs";
 const directSendSchema = z.object({
   phone: z.string().trim().min(1, "Phone is required."),
   message: z.string().trim().min(1, "Message is required."),
+  requestId: z.string().uuid().optional(),
 });
 
 const queuedSendSchema = z.object({
@@ -29,6 +31,7 @@ const queuedSendSchema = z.object({
 
 export async function POST(request: Request) {
   const { user, businessId } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP");
   const payload = await request.json().catch(() => null);
   const directParsed = directSendSchema.safeParse(payload);
 
@@ -49,13 +52,12 @@ export async function POST(request: Request) {
         route: "/api/whatsapp/send",
         businessId,
         userId: user.userId,
-        phone: directParsed.data.phone,
         messageLength: directParsed.data.message.length,
-        error: getErrorMessage(error),
+        errorCategory: error instanceof Error ? error.name : "UnknownError",
       });
 
       return NextResponse.json(
-        { message: getErrorMessage(error) || "Unable to send WhatsApp message." },
+        { message: "Unable to send WhatsApp message." },
         { status: 502 },
       );
     }
@@ -97,8 +99,13 @@ export async function POST(request: Request) {
       queued: true,
     });
   } catch (error) {
+    console.error("[whatsapp] Queue reply failed", {
+      errorCategory: error instanceof Error ? error.name : "UnknownError",
+      businessId,
+      userId: user.userId,
+    });
     return NextResponse.json(
-      { message: getErrorMessage(error) || "Unable to send WhatsApp message." },
+      { message: "Unable to send WhatsApp message." },
       { status: 502 },
     );
   }
@@ -120,20 +127,4 @@ function getConnectionRequiredMessage(
   }
 
   return "WhatsApp is disconnected.";
-}
-
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (typeof error === "string") {
-    return error;
-  }
-
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return "";
-  }
 }

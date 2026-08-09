@@ -96,7 +96,7 @@ export function VehicleSelectFields({
   const [brand, setBrand] = useState(initialBrand.choice);
   const [customBrand, setCustomBrand] = useState(initialBrand.custom);
   const listedBrand = brand === OTHER ? "" : brand;
-  const availableModels = MODEL_OPTIONS[listedBrand] ?? [];
+  const availableModels = useMemo(() => MODEL_OPTIONS[listedBrand] ?? [], [listedBrand]);
   const initialModel = initialChoice(defaultModel, availableModels);
   const initialColor = initialChoice(defaultColor, COLOR_OPTIONS.map((option) => option.label));
   const [model, setModel] = useState(initialModel.choice);
@@ -256,7 +256,19 @@ export function VehicleSelectFields({
                   ? COLOR_OPTIONS.find((item) => item.label === option)?.swatch
                   : undefined;
                 return (
-                  <button key={option} onClick={() => selectOption(option)} role="option" type="button">
+                  <button
+                    aria-selected={
+                      picker === "brand"
+                        ? brand === option
+                        : picker === "model"
+                          ? model === option
+                          : color === option
+                    }
+                    key={option}
+                    onClick={() => selectOption(option)}
+                    role="option"
+                    type="button"
+                  >
                     {swatch ? <em style={{ backgroundColor: swatch }} /> : null}
                     <span>{option === OTHER ? `Other / ${picker} not listed` : option}</span>
                   </button>

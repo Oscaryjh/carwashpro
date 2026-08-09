@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "hasil-pcb-2026-official-golden-v1",
+  "scheme": "PCB",
+  "ruleVersion": "HASIL_MTD_SPEC_2026",
+  "artifactId": "hasil-pcb-computerised-spec-2026",
+  "artifactSha256": "a1618051c858393d92d868c9975c183309d3d07e48f0e4f0cdef589f45f5800c",
+  "verificationStatus": "VERIFIED",
+  "fixtureDigest": "6e38d7f844b8b8e3671baf8776b77f3e49b7e94a361c00eddbb137ac6957c2e7",
+  "fixtures": [
+    {
+      "id": "SPEC-NORMAL-JANUARY",
+      "sourceReference": "HASiL Computerised MTD Specification 2026 PDF pp. 46-47 (worked example labelled January 2025)",
+      "input": {"taxYear":2026,"calculationMonth":1,"taxRegime":"RESIDENT_STANDARD","employeeCategory":"CATEGORY_3","individualDisabled":false,"spouseDisabled":false,"children":{"under18Full":3,"under18Half":0,"studying18PlusFull":0,"studying18PlusHalf":0,"diplomaOrDegreeFull":0,"diplomaOrDegreeHalf":0,"disabledFull":0,"disabledHalf":0,"disabledStudyingFull":0,"disabledStudyingHalf":0},"priorGrossRemunerationCents":0,"priorEpfCents":0,"priorPcbCents":0,"accumulatedAllowableDeductionsCents":0,"accumulatedZakatCents":0,"currentNormalRemunerationCents":550000,"currentNormalEpfCents":60500,"currentAdditionalRemunerationCents":0,"currentAdditionalEpfCents":0,"currentAllowableDeductionsCents":0,"currentZakatCents":0,"currentReligiousTravelLevyCents":0},
+      "expected": {"amountCents":11000,"normalProjectedEpfCents":30863,"normalChargeableIncomeCents":4700007}
+    },
+    {
+      "id": "SPEC-NORMAL-FEBRUARY-YTD",
+      "sourceReference": "HASiL Computerised MTD Specification 2026 PDF p. 47 (worked example labelled February 2025)",
+      "input": {"taxYear":2026,"calculationMonth":2,"taxRegime":"RESIDENT_STANDARD","employeeCategory":"CATEGORY_3","individualDisabled":false,"spouseDisabled":false,"children":{"under18Full":3,"under18Half":0,"studying18PlusFull":0,"studying18PlusHalf":0,"diplomaOrDegreeFull":0,"diplomaOrDegreeHalf":0,"disabledFull":0,"disabledHalf":0,"disabledStudyingFull":0,"disabledStudyingHalf":0},"priorGrossRemunerationCents":550000,"priorEpfCents":60500,"priorPcbCents":11000,"accumulatedAllowableDeductionsCents":0,"accumulatedZakatCents":0,"currentNormalRemunerationCents":550000,"currentNormalEpfCents":60500,"currentAdditionalRemunerationCents":0,"currentAdditionalEpfCents":0,"currentAllowableDeductionsCents":0,"currentZakatCents":0,"currentReligiousTravelLevyCents":0},
+      "expected": {"amountCents":11000,"normalProjectedEpfCents":27900,"normalChargeableIncomeCents":4700000}
+    },
+    {
+      "id": "SPEC-TP1-MARCH",
+      "sourceReference": "HASiL Computerised MTD Specification 2026 PDF p. 48 (worked example labelled March 2025)",
+      "input": {"taxYear":2026,"calculationMonth":3,"taxRegime":"RESIDENT_STANDARD","employeeCategory":"CATEGORY_3","individualDisabled":false,"spouseDisabled":false,"children":{"under18Full":3,"under18Half":0,"studying18PlusFull":0,"studying18PlusHalf":0,"diplomaOrDegreeFull":0,"diplomaOrDegreeHalf":0,"disabledFull":0,"disabledHalf":0,"disabledStudyingFull":0,"disabledStudyingHalf":0},"priorGrossRemunerationCents":1100000,"priorEpfCents":121000,"priorPcbCents":22000,"accumulatedAllowableDeductionsCents":0,"accumulatedZakatCents":0,"currentNormalRemunerationCents":550000,"currentNormalEpfCents":60500,"currentAdditionalRemunerationCents":0,"currentAdditionalEpfCents":0,"currentAllowableDeductionsCents":30000,"currentZakatCents":0,"currentReligiousTravelLevyCents":0},
+      "expected": {"amountCents":10820,"normalProjectedEpfCents":24277,"normalChargeableIncomeCents":4670007}
+    },
+    {
+      "id": "SPEC-ADDITIONAL-APRIL-BONUS",
+      "sourceReference": "HASiL Computerised MTD Specification 2026 PDF pp. 49-52 (worked example labelled April 2025)",
+      "input": {"taxYear":2026,"calculationMonth":4,"taxRegime":"RESIDENT_STANDARD","employeeCategory":"CATEGORY_3","individualDisabled":false,"spouseDisabled":false,"children":{"under18Full":3,"under18Half":0,"studying18PlusFull":0,"studying18PlusHalf":0,"diplomaOrDegreeFull":0,"diplomaOrDegreeHalf":0,"disabledFull":0,"disabledHalf":0,"disabledStudyingFull":0,"disabledStudyingHalf":0},"priorGrossRemunerationCents":1650000,"priorEpfCents":181500,"priorPcbCents":32820,"accumulatedAllowableDeductionsCents":30000,"accumulatedZakatCents":0,"currentNormalRemunerationCents":550000,"currentNormalEpfCents":60500,"currentAdditionalRemunerationCents":825000,"currentAdditionalEpfCents":90800,"currentAllowableDeductionsCents":30000,"currentZakatCents":0,"currentReligiousTravelLevyCents":0},
+      "expected": {"amountCents":83370,"normalMtdCents":10620,"additionalMtdCents":72750,"additionalChargeableIncomeCents":5465000}
+    },
+    {
+      "id": "HASIL-CALCULATOR-2026-JANUARY-NO-EPF",
+      "sourceReference": "HASiL PCB Calculator 2026, https://calcpcbplus.hasil.gov.my/HITS_CE/x2026, retrieved 2026-08-09; resident, January, married spouse working, three children, normal remuneration RM5,500.00, EPF RM0.00",
+      "input": {"taxYear":2026,"calculationMonth":1,"taxRegime":"RESIDENT_STANDARD","employeeCategory":"CATEGORY_3","individualDisabled":false,"spouseDisabled":false,"children":{"under18Full":3,"under18Half":0,"studying18PlusFull":0,"studying18PlusHalf":0,"diplomaOrDegreeFull":0,"diplomaOrDegreeHalf":0,"disabledFull":0,"disabledHalf":0,"disabledStudyingFull":0,"disabledStudyingHalf":0},"priorGrossRemunerationCents":0,"priorEpfCents":0,"priorPcbCents":0,"accumulatedAllowableDeductionsCents":0,"accumulatedZakatCents":0,"currentNormalRemunerationCents":550000,"currentNormalEpfCents":0,"currentAdditionalRemunerationCents":0,"currentAdditionalEpfCents":0,"currentAllowableDeductionsCents":0,"currentZakatCents":0,"currentReligiousTravelLevyCents":0},
+      "expected": {"amountCents":13420}
+    }
+  ]
+}

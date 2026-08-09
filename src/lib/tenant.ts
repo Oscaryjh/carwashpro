@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
+import { tryWriteAuthSecurityEvent } from "@/lib/auth/security";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import {
   resolveBusinessAccess,
@@ -24,10 +25,12 @@ export const getBusinessContext = cache(async function getBusinessContext(
   });
 
   if (!access.granted && canUseFallback(access)) {
+    await logAccessDenied(user, access);
     redirect("/business-context/recover");
   }
 
   if (!access.granted) {
+    await logAccessDenied(user, access);
     if (access.fallback.kind === "NO_ACCESS") {
       redirect("/no-business-access");
     }
@@ -84,6 +87,21 @@ export async function requireBusinessContext(
     access: context.access,
     contextVersion: context.contextVersion,
   };
+}
+
+async function logAccessDenied(
+  user: Awaited<ReturnType<typeof requireUser>>,
+  access: Extract<ResolvedBusinessAccess, { granted: false }>,
+) {
+  await tryWriteAuthSecurityEvent({
+    eventType: "PERMISSION_DENIED",
+    surface: "BUSINESS_AUTHORIZATION",
+    outcome: "DENIED",
+    userId: user.userId,
+    businessId: access.requestedBusinessId,
+    sessionId: user.sessionId ?? null,
+    reason: access.reason,
+  });
 }
 
 export function withBusinessScope<TWhere extends Record<string, unknown>>(

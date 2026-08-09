@@ -3,10 +3,12 @@ import { notFound } from "next/navigation";
 import { sanitizePayrollNotice } from "@/lib/payroll/error-message";
 import { resolvePayrollRunsReadAccess } from "@/lib/payroll/runs-access";
 import { loadPayrollRunDetail, parsePayrollPage, payrollRunBrowsePath } from "@/lib/payroll/runs";
+import { getPayrollPeriodReadiness } from "@/lib/payroll/readiness";
 import {
   finalizePayrollRunAction,
   generatePayrollRunAction,
   reopenPayrollRunAction,
+  publishPayrollPayslipsAction,
   returnPayrollRunToDraftAction,
   submitPayrollRunForReviewAction,
 } from "../../actions";
@@ -48,6 +50,14 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
     parsePayrollPage(queryParams.page),
   );
   if (!data) notFound();
+  const readiness = await getPayrollPeriodReadiness({
+    businessId: access.businessId,
+    month: data.run.periodStart.toISOString().slice(0, 7),
+    runId: data.run.id,
+  });
+  const readinessByMembership = new Map(
+    readiness.employees.map((employee) => [employee.membershipId, employee]),
+  );
 
   const legacyMonth = data.run.periodStart.toISOString().slice(0, 7);
   const returnPath = `/team/payroll/runs/${data.run.id}`;
@@ -62,13 +72,16 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
     data.run.attendanceProvenanceState === "REFRESH_REQUIRED";
   const canFinalize =
     access.workflow.canFinalize &&
+    readiness.canProceed &&
     !attendanceRefreshRequired &&
     (!isSelfSubmitted || access.ownerSelfApproval);
   const canReopen =
-    access.workflow.canReopen && !data.run.hasStatutorySubmissions;
+    access.workflow.canReopen &&
+    !data.run.hasStatutorySubmissions &&
+    data.run.publishedPayslipCount === 0;
   const hasAvailableAction =
     (data.run.status === "DRAFT" &&
-      ((!attendanceRefreshRequired && access.workflow.canSubmitReview) ||
+      ((!attendanceRefreshRequired && readiness.canProceed && access.workflow.canSubmitReview) ||
         access.actions.canCreate)) ||
     (data.run.status === "REVIEW" &&
       (access.workflow.canReturnToDraft || canFinalize)) ||
@@ -112,8 +125,42 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
         <dl className={styles.heroMetrics}>
           <div><dt>Employees</dt><dd>{data.run.employeeCount}</dd></div>
           <div><dt>Gross payroll</dt><dd>{formatMoney(data.run.grossPayroll)}</dd></div>
+          <div><dt>Total deductions</dt><dd>{formatMoney(data.run.totalDeductions)}</dd></div>
           <div><dt>Net payroll</dt><dd>{formatMoney(data.run.netPayroll)}</dd></div>
         </dl>
+      </section>
+
+      <section className={styles.snapshotPanel} aria-labelledby="run-readiness-heading">
+        <div className={styles.entriesHeader}>
+          <div className={styles.sectionHeading}>
+            <p className={styles.eyebrow}>Canonical readiness</p>
+            <h2 id="run-readiness-heading">{readiness.canProceed ? "Ready for workflow" : "Resolve blockers before review"}</h2>
+            <p>{readiness.readyCount} ready · {readiness.needsAttentionCount} need attention · {readiness.blockers.length} blockers · {readiness.warnings.length} warnings.</p>
+          </div>
+        </div>
+        {readiness.blockers.length ? (
+          <ul className={styles.issueSummary}>
+            {readiness.blockers.slice(0, 8).map((issue, index) => (
+              <li key={`${issue.code}-${issue.membershipId ?? "run"}-${index}`}>
+                <strong>Blocker · {issue.employeeName ?? "Payroll run"}</strong>
+                <span>{issue.message}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {readiness.warnings.length ? (
+          <details className={styles.actionDisclosure}>
+            <summary className={styles.secondaryAction}>View {readiness.warnings.length} non-blocking warnings</summary>
+            <ul className={styles.issueSummary}>
+              {readiness.warnings.slice(0, 12).map((issue, index) => (
+                <li key={`${issue.code}-${issue.membershipId ?? "run"}-${index}`}>
+                  <strong>Warning · {issue.employeeName ?? "Payroll run"}</strong>
+                  <span>{issue.message}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
       </section>
 
       <section className={styles.workflowPanel} aria-labelledby="workflow-heading">
@@ -126,6 +173,7 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
         <div className={styles.workflowControls}>
           {data.run.status === "DRAFT" &&
           !attendanceRefreshRequired &&
+          readiness.canProceed &&
           access.workflow.canSubmitReview ? (
             <details className={styles.actionDisclosure}>
               <summary className={styles.primaryAction}>Submit for review</summary>
@@ -144,17 +192,17 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
             <details className={`${styles.actionDisclosure} ${styles.highRiskDisclosure}`}>
               <summary className={styles.dangerAction}>Refresh draft</summary>
               <div className={styles.actionConfirmation}>
-                <strong>This deletes and rebuilds every employee entry in this draft.</strong>
+                <strong>This regenerates system component lines from frozen approved sources.</strong>
                 <p>
-                  The current locked Attendance Timesheet revision, Leave, Payroll Settings and Statutory Profile will be used.
-                  Manual allowances, deductions, EPF/SOCSO/EIS and employer overrides, PCB, LINDUNG 24 and payroll notes will be cleared.
+                  The current locked Attendance Timesheet revision, frozen compensation, approved Payroll inputs and Statutory Profile will be used. Payroll does not reread current Leave or raw punches.
+                  Audited manual earning and deduction lines and payroll notes are preserved. Existing statutory overrides are recalculated from the current profile.
                 </p>
                 <form action={generatePayrollRunAction}>
                   <input name="month" type="hidden" value={legacyMonth} />
                   <input name="runId" type="hidden" value={data.run.id} />
                   <input name="returnPath" type="hidden" value={returnPath} />
                   <input name="generationMode" type="hidden" value="REFRESH" />
-                  <button className={styles.dangerButton} type="submit">Confirm refresh and clear manual adjustments</button>
+                  <button className={styles.dangerButton} type="submit">Confirm refresh and preserve manual adjustments</button>
                 </form>
               </div>
             </details>
@@ -215,7 +263,14 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
             </div>
           ) : null}
 
-          {!hasAvailableAction && !(data.run.status === "FINALIZED" && data.run.hasStatutorySubmissions) ? (
+          {data.run.status === "FINALIZED" && data.run.publishedPayslipCount > 0 ? (
+            <div className={styles.noWorkflowAction}>
+              <strong>Reopen unavailable</strong>
+              <span>Published payslips are immutable historical documents.</span>
+            </div>
+          ) : null}
+
+          {!hasAvailableAction && !(data.run.status === "FINALIZED" && (data.run.hasStatutorySubmissions || data.run.publishedPayslipCount > 0)) ? (
             <div className={styles.noWorkflowAction}>
               <strong>No action available</strong>
               <span>Your access or this run&apos;s current state does not allow a workflow change.</span>
@@ -247,6 +302,29 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                   : "View payment batches"}
               </Link>
             </div>
+          </div>
+        </section>
+      ) : null}
+
+      {data.run.status === "FINALIZED" && (access.actions.canPublishPayslip || access.actions.canViewPayslip) ? (
+        <section className={styles.snapshotPanel} aria-labelledby="payslip-publication-heading">
+          <div className={styles.entriesHeader}>
+            <div className={styles.sectionHeading}>
+              <p className={styles.eyebrow}>Payslips</p>
+              <h2 id="payslip-publication-heading">{data.run.publishedPayslipCount} of {data.run.employeeCount} published</h2>
+              <p>Publishing freezes a PDF from this finalized payroll snapshot. Staff can access only their own published document.</p>
+            </div>
+            {access.actions.canPublishPayslip && data.run.publishedPayslipCount < data.run.employeeCount ? (
+              <details className={`${styles.actionDisclosure} ${styles.highRiskDisclosure}`}>
+                <summary className={styles.primaryAction}>Publish payslips</summary>
+                <form action={publishPayrollPayslipsAction} className={styles.actionConfirmation}>
+                  <WorkflowFields month={legacyMonth} runId={data.run.id} returnPath={returnPath} />
+                  <strong>Publish all remaining employee payslips?</strong>
+                  <p>Published documents are immutable and will prevent this payroll from being reopened.</p>
+                  <button className={styles.primaryButton} type="submit">Confirm publication</button>
+                </form>
+              </details>
+            ) : null}
           </div>
         </section>
       ) : null}
@@ -317,14 +395,15 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                 <thead>
                   <tr>
                     <th>Employee</th>
-                    <th>Pay basis</th>
-                    <th>Days</th>
-                    <th>Regular</th>
-                    <th>Additional time</th>
-                    <th>Holiday</th>
+                    <th>Basic</th>
+                    <th>Recurring</th>
+                    <th>Variable</th>
+                    <th>Adjustments</th>
                     <th>Gross</th>
+                    <th>Deductions</th>
                     <th>Net pay</th>
-                    {(access.actions.canEditEntry && data.run.status === "DRAFT") ||
+                    <th>Status / issues</th>
+                    {(access.actions.canViewComponents) ||
                     (access.actions.canViewPayslip && data.run.status === "FINALIZED") ? (
                       <th><span className={styles.visuallyHidden}>Entry actions</span></th>
                     ) : null}
@@ -337,23 +416,27 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                         <Link className={styles.employeeLink} href={`/team/people/${entry.membershipId}`}>{entry.fullName}</Link>
                         <small>{entry.employeeCode}</small>
                       </td>
-                      <td data-label="Pay basis">{formatPayBasis(entry.payBasis)}</td>
-                      <td data-label="Days">{entry.attendanceDays}</td>
-                      <td data-label="Regular">{formatMinutes(entry.regularMinutes)}</td>
-                      <td data-label="Additional time">{formatMinutes(entry.overtimeMinutes)}</td>
-                      <td data-label="Holiday">{formatMinutes(entry.publicHolidayMinutes)}</td>
+                      <td data-label="Basic">{formatMoney(entry.basicPay)}</td>
+                      <td data-label="Recurring">{formatSignedMoney(entry.recurringPay)}</td>
+                      <td data-label="Variable">{formatSignedMoney(entry.variablePay)}</td>
+                      <td data-label="Adjustments">{formatSignedMoney(entry.adjustments)}</td>
                       <td data-label="Gross">{formatMoney(entry.grossPay)}</td>
+                      <td data-label="Deductions">{formatMoney(entry.deductions)}</td>
                       <td data-label="Net pay"><strong>{formatMoney(entry.netPay)}</strong></td>
-                      {(access.actions.canEditEntry && data.run.status === "DRAFT") ||
+                      <td data-label="Status / issues">
+                        <strong>{readinessByMembership.get(entry.membershipId)?.status === "READY" ? "Ready" : "Needs attention"}</strong>
+                        <small>{readinessByMembership.get(entry.membershipId)?.issues.slice(0, 2).map((issue) => issue.message).join(" · ") || "No issues"}</small>
+                      </td>
+                      {(access.actions.canViewComponents) ||
                       (access.actions.canViewPayslip && data.run.status === "FINALIZED") ? (
                         <td data-label="Actions">
                           <div className={styles.entryActions}>
-                            {access.actions.canEditEntry && data.run.status === "DRAFT" ? (
+                            {access.actions.canViewComponents ? (
                               <Link
                                 className={styles.entryAction}
                                 href={entryEditorPath(data.run.id, entry.id, entryReturnPath)}
                               >
-                                Edit entry
+                                {access.actions.canEditEntry && data.run.status === "DRAFT" ? "Review / edit" : "View components"}
                               </Link>
                             ) : null}
                             {access.actions.canViewPayslip && data.run.status === "FINALIZED" ? (
@@ -362,7 +445,7 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                                 href={`/team/payroll/payslips/${entry.id}`}
                                 target="_blank"
                               >
-                                Payslip PDF
+                                {entry.payslipPublished ? "Published payslip PDF" : "Payslip preview PDF"}
                               </Link>
                             ) : null}
                           </div>
@@ -450,6 +533,7 @@ function workflowDescription(status: "DRAFT" | "REVIEW" | "FINALIZED") {
   return "Reopening is a controlled correction action and requires an audit reason.";
 }
 
-function formatPayBasis(value: string) {
-  return value.charAt(0) + value.slice(1).toLowerCase();
+function formatSignedMoney(value: number) {
+  if (value === 0) return "—";
+  return `${value > 0 ? "+" : "−"}${formatMoney(Math.abs(value))}`;
 }

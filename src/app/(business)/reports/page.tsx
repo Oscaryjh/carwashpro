@@ -841,12 +841,6 @@ async function getSalonReportData({
     ...appointmentWhere,
     status: { notIn: ["CANCELLED", "NO_SHOW"] },
   };
-  const salonRevenueLink = {
-    OR: [
-      { appointmentId: { not: null } },
-      { workOrderId: { not: null } },
-    ],
-  } satisfies Prisma.PaymentWhereInput;
   const salonInvoiceLink = {
     OR: [
       { appointmentId: { not: null } },
@@ -879,8 +873,8 @@ async function getSalonReportData({
       where: {
         businessId,
         ...branchFilter,
-        ...salonRevenueLink,
         status: "ACTIVE",
+        method: { not: "PACKAGE" },
         paidAt: { gte: fromDate, lt: toDateExclusive },
       },
       _sum: { amount: true },
@@ -889,7 +883,7 @@ async function getSalonReportData({
       where: {
         businessId,
         ...branchFilter,
-        payment: salonRevenueLink,
+        method: { not: "PACKAGE" },
         refundedAt: { gte: fromDate, lt: toDateExclusive },
       },
       _sum: { amount: true },

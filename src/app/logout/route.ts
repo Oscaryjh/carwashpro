@@ -1,18 +1,21 @@
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
 import { tryWriteAuditLog } from "@/lib/audit";
+import { assertSameOrigin } from "@/lib/auth/security";
 import { destroySession, getSession } from "@/lib/auth/session";
 
 export async function POST(request: NextRequest) {
+  try {
+    assertSameOrigin(request);
+  } catch {
+    return new Response("Cross-site request denied.", { status: 403 });
+  }
   await auditLogout(request);
-  await destroySession();
+  await destroySession({ reason: "User logged out." });
   redirect("/login");
 }
 
 export async function GET(request: NextRequest) {
-  await auditLogout(request);
-  await destroySession();
-
   const error = request.nextUrl.searchParams.get("error");
   const target = error ? `/login?error=${encodeURIComponent(error)}` : "/login";
 

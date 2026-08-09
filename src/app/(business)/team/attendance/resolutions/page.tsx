@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { decideAttendanceResolutionAction } from "./actions";
+import { decideAttendanceP2ResolutionAction, decideAttendanceResolutionAction } from "./actions";
 import { loadAttendanceResolutionQueue } from "@/lib/attendance/resolution-read-service";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { formatBranchLocalDateTime } from "@/lib/attendance/work-date";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { getOperationalBranches } from "@/lib/branches";
+import { prisma } from "@/lib/prisma";
 import styles from "./resolution.module.css";
 
 type PageProps = {
@@ -56,6 +57,27 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
     branchId,
     employeeQuery: params.employee,
   });
+  const p2Issues = await prisma.attendanceP2Exception.findMany({
+    where: {
+      businessId,
+      branchId: { in: branchId ? [branchId] : [...scope.allowedBranchIds] },
+      status: status === "RESOLVED" ? "RESOLVED" : { in: ["OPEN", "PENDING_EMPLOYEE", "PENDING_MANAGER"] },
+    },
+    orderBy: [{ workDate: "asc" }, { detectedAt: "asc" }],
+    take: 100,
+  });
+  const [p2Members, p2Corrections] = await Promise.all([
+    prisma.employeeBusinessMembership.findMany({
+      where: { businessId, id: { in: p2Issues.map((item) => item.membershipId) } },
+      select: { id: true, fullName: true, employeeCode: true },
+    }),
+    prisma.attendanceCorrectionRequest.findMany({
+      where: { businessId, exceptionId: { in: p2Issues.map((item) => item.id) }, status: "PENDING" },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+  const p2MemberById = new Map(p2Members.map((item) => [item.id, item]));
+  const p2CorrectionByIssue = new Map(p2Corrections.map((item) => [item.exceptionId, item]));
 
   function pageHref(page: number) {
     const query = new URLSearchParams();
@@ -120,6 +142,42 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
         </div>
         <span>{result.pagination.total} cases</span>
       </div>
+
+      {p2Issues.length ? (
+        <div className={styles.caseList}>
+          {p2Issues.map((issue) => {
+            const member = p2MemberById.get(issue.membershipId);
+            const correction = p2CorrectionByIssue.get(issue.id);
+            return (
+              <article className={styles.caseCard} key={issue.id}>
+                <div className={styles.caseHeader}>
+                  <div><strong>{member?.fullName ?? "Scoped employee"}</strong><small>{member?.employeeCode ?? ""} · {issue.workDate.toISOString().slice(0, 10)}</small></div>
+                  <div className={styles.badges}><span className={`${styles.payrollState} ${styles.blocked}`}>Timesheet blocked</span><span className={styles.status}>{formatStatus(issue.type)}</span></div>
+                </div>
+                <div className={styles.facts}>
+                  <Fact label="Expected" value={`${issue.expectedStartAt?.toISOString() ?? "No schedule evidence"} → ${issue.expectedEndAt?.toISOString() ?? "—"}`} />
+                  <Fact label="Recorded" value={`${issue.actualClockInAt?.toISOString() ?? "No clock-in"} → ${issue.actualClockOutAt?.toISOString() ?? "No clock-out"}`} />
+                  <Fact label="Variance" value={`${issue.exceptionMinutes} min`} />
+                  <Fact label="Evidence" value={issue.reasonCode} />
+                </div>
+                {correction ? <div className={styles.submission}><span>Employee correction request</span><p>{correction.reason}</p><small>Proposed: {correction.requestedClockInAt?.toISOString() ?? "—"} → {correction.requestedClockOutAt?.toISOString() ?? "—"}</small></div> : null}
+                {canModify && issue.status !== "RESOLVED" ? (
+                  <form action={decideAttendanceP2ResolutionAction} className={styles.decisionForm}>
+                    <input name="exceptionId" type="hidden" value={issue.id} />
+                    <input name="expectedRevision" type="hidden" value={issue.revision} />
+                    <label><span>Resolution</span><select name="resolutionType" required><option value="AUTHORIZED">Authorized</option><option value="UNAUTHORIZED">Unauthorized</option><option value="CORRECTED">Approve correction</option><option value="SCHEDULE_ERROR">Schedule error</option><option value="NOT_SCHEDULED">Not scheduled</option><option value="APPROVED_LEAVE">Use approved Leave record</option><option value="EXCLUDED">Exclude</option></select></label>
+                    <label><span>Corrected clock-in (optional)</span><input name="correctedClockInAt" type="datetime-local" /></label>
+                    <label><span>Corrected clock-out (optional)</span><input name="correctedClockOutAt" type="datetime-local" /></label>
+                    <label><span>Corrected break minutes</span><input min={0} name="correctedBreakMinutes" type="number" /></label>
+                    <label><span>Decision reason</span><textarea maxLength={500} minLength={3} name="reason" required rows={2} /></label>
+                    <button type="submit">Resolve exception</button>
+                  </form>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
 
       {result.items.length ? (
         <div className={styles.caseList}>

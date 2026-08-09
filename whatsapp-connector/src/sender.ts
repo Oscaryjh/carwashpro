@@ -18,6 +18,9 @@ import {
 
 import { getStatus, recordSuccessfulSend, startSocket } from "./socket.js";
 import { logger } from "./logger.js";
+import { buildStableProviderMessageId } from "./identity.js";
+
+export { buildStableProviderMessageId } from "./identity.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -32,8 +35,16 @@ export class WhatsAppNotConnectedError extends Error {
 export class WhatsAppSendFailedError extends Error {
   code = "WHATSAPP_SEND_FAILED";
 
-  constructor(message: string) {
-    super(message);
+  constructor() {
+    super("WhatsApp connector send failed.");
+  }
+}
+
+export class WhatsAppInvalidRecipientError extends Error {
+  code = "WHATSAPP_INVALID_RECIPIENT";
+
+  constructor() {
+    super("Recipient could not be verified on WhatsApp.");
   }
 }
 
@@ -50,6 +61,10 @@ export function normalizePhone(phone: string) {
     normalizedPhone = `60${normalizedPhone.slice(1)}`;
   } else if (!normalizedPhone.startsWith("60")) {
     normalizedPhone = `60${normalizedPhone}`;
+  }
+
+  if (!/^\d{8,15}$/.test(normalizedPhone)) {
+    throw new WhatsAppInvalidRecipientError();
   }
 
   return normalizedPhone;
@@ -246,7 +261,8 @@ export async function sendTextMessage(
   businessId: string,
   phone: string,
   message: string,
-  options: SendTextMessageOptions = {}
+  options: SendTextMessageOptions = {},
+  requestId?: string,
 ) {
   const trimmedMessage = message.trim();
 
@@ -266,7 +282,8 @@ export async function sendTextMessage(
     try {
       const result = await socket.sendMessage(
         recipientInput,
-        await buildMessageContent(trimmedMessage, options)
+        await buildMessageContent(trimmedMessage, options),
+        getStableSendOptions(businessId, requestId),
       );
       logger.info(
         {
@@ -287,9 +304,11 @@ export async function sendTextMessage(
         to: recipientInput
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to send WhatsApp message.";
-      throw new WhatsAppSendFailedError(errorMessage);
+      logger.warn(
+        { error, businessId, requestId },
+        "WhatsApp direct JID send failed"
+      );
+      throw new WhatsAppSendFailedError();
     }
   }
 
@@ -309,9 +328,7 @@ export async function sendTextMessage(
     );
 
     if (!recipient?.exists || !recipient.jid) {
-      throw new Error(
-        `Recipient ${normalizedPhone} could not be verified on WhatsApp.`
-      );
+      throw new WhatsAppInvalidRecipientError();
     }
 
     const recipientLid = getLookupLid(recipient);
@@ -331,7 +348,8 @@ export async function sendTextMessage(
 
     const result = await socket.sendMessage(
       whatsappJid,
-      await buildMessageContent(trimmedMessage, options)
+      await buildMessageContent(trimmedMessage, options),
+      getStableSendOptions(businessId, requestId),
     );
     logger.info(
       {
@@ -354,10 +372,21 @@ export async function sendTextMessage(
       to: whatsappJid
     };
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to send WhatsApp message.";
-    throw new WhatsAppSendFailedError(message);
+    if (error instanceof WhatsAppInvalidRecipientError) {
+      throw error;
+    }
+    logger.warn(
+      { error, businessId, requestId },
+      "WhatsApp recipient send failed"
+    );
+    throw new WhatsAppSendFailedError();
   }
+}
+
+function getStableSendOptions(businessId: string, requestId?: string) {
+  return requestId
+    ? { messageId: buildStableProviderMessageId(businessId, requestId) }
+    : undefined;
 }
 
 async function prepareWhatsAppVoiceAudio(

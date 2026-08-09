@@ -8,7 +8,12 @@ type ProductFormProps = {
   action: (formData: FormData) => Promise<void>;
   branches: BranchOption[];
   categories: Pick<ProductCategory, "id" | "name" | "status">[];
-  product?: Product & { stocks: Array<{ branchId: string; quantity: number; reorderLevel: number }> };
+  product?: Omit<Product, "price" | "costPrice" | "taxRate"> & {
+    price: number;
+    costPrice: number | null;
+    taxRate: number | null;
+    stocks: Array<{ branchId: string; quantity: number; reorderLevel: number }>;
+  };
   submitLabel: string;
   returnPath?: string;
 };

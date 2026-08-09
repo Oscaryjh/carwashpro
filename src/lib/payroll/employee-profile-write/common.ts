@@ -64,6 +64,7 @@ export const canonicalMembershipSelect = {
   id: true,
   businessId: true,
   compensationRevision: true,
+  recurringPayRevision: true,
   workTargetRevision: true,
   statutoryProfileRevision: true,
   taxProfileRevision: true,

@@ -5,6 +5,7 @@ import {
 } from "@/lib/business-groups/business-context";
 import {
   createSessionToken,
+  persistSessionContext,
   requireUser,
   SESSION_COOKIE,
   sessionCookieOptions,
@@ -27,9 +28,22 @@ export async function GET() {
       source: "RECOVERY",
     },
     {
-      writeSession: async (session) => {
-        const token = await createSessionToken(session);
-        response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
+      writeSession: async (session, transaction) => {
+        const stored = await persistSessionContext(session, {
+          database: transaction,
+        });
+        const token = await createSessionToken(session, {
+          absoluteExpiresAt: stored.absoluteExpiresAt,
+        });
+        const maxAge = Math.max(
+          0,
+          Math.ceil((stored.absoluteExpiresAt.getTime() - Date.now()) / 1_000),
+        );
+        response.cookies.set(
+          SESSION_COOKIE,
+          token,
+          sessionCookieOptions(maxAge),
+        );
       },
     },
   );

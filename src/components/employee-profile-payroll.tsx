@@ -3,7 +3,9 @@ import Link from "next/link";
 import { EmployeeProfileProtectedSubmit } from "@/components/employee-profile-protected-submit";
 import {
   scheduleEmployeeCompensationChangeAction,
+  scheduleEmployeeRecurringPayAction,
   deactivateEmployeeBankVersionAction,
+  recordEmployeeLindung24ParticipationAction,
   updateEmployeeStatutoryProfileAction,
   updateEmployeeTaxProfileAction,
   updateEmployeePayrollWorkTargetAction,
@@ -12,6 +14,7 @@ import {
 import type { EmployeeBankSectionResult } from "@/lib/team/employee-profile-bank-read";
 import type { EmployeeCompensationSectionResult } from "@/lib/team/employee-profile-compensation-read";
 import type { EmployeePayrollNavigationResult } from "@/lib/team/employee-profile-payroll-navigation-read";
+import type { EmployeePayrollSummaryResult } from "@/lib/team/employee-profile-payroll-summary-read";
 import type { EmployeeStatutoryProfileResult } from "@/lib/team/employee-profile-statutory-read";
 import styles from "./employee-profile-shell.module.css";
 
@@ -21,12 +24,14 @@ export function EmployeeProfilePayroll({
   navigation,
   notice,
   statutoryProfile,
+  summary,
 }: {
   bank: EmployeeBankSectionResult;
   compensation: EmployeeCompensationSectionResult;
   navigation: EmployeePayrollNavigationResult;
   notice: PayrollUpdateNoticeValue | null;
   statutoryProfile: EmployeeStatutoryProfileResult;
+  summary: EmployeePayrollSummaryResult;
 }) {
   if (
     bank.status === "NOT_FOUND" ||
@@ -58,8 +63,48 @@ export function EmployeeProfilePayroll({
         <TaxPanel result={statutoryProfile.tax} />
         <BankPanel result={bank} />
       </div>
+      <EmployeePayrollSummary result={summary} />
       <PayrollNavigation result={navigation} />
     </div>
+  );
+}
+
+function EmployeePayrollSummary({ result }: { result: EmployeePayrollSummaryResult }) {
+  if (result.status !== "READY") return null;
+  const latest = result.data.recentRuns[0];
+  return (
+    <section className={styles.payrollNavigation} aria-labelledby="employee-payroll-summary-heading">
+      <div className={styles.payrollNavigationHeading}>
+        <div>
+          <p className={styles.eyebrow}>Current payroll</p>
+          <h3 id="employee-payroll-summary-heading">{formatMonthValue(result.data.currentMonth)} · {formatEnum(result.data.readiness)}</h3>
+          <p>Readiness and recent immutable payroll snapshots. Run-level changes remain in Payroll Workspace.</p>
+        </div>
+        <span>{latest ? formatEnum(latest.status) : "No run"}</span>
+      </div>
+      {latest ? (
+        <div className={styles.detailList}>
+          <PayrollDetail label="Gross pay" value={formatMoney(String(latest.grossPay))} />
+          <PayrollDetail label="Net pay" value={formatMoney(String(latest.netPay))} />
+          <PayrollDetail label="Variable pay" value={formatMoney(String(latest.variablePay))} />
+          <PayrollDetail label="Corrections" value={formatMoney(String(latest.corrections))} />
+        </div>
+      ) : <p>No payroll run includes this employee yet.</p>}
+      {result.data.issues.length ? (
+        <div className={styles.detailList}>
+          {result.data.issues.slice(0, 5).map((issue, index) => (
+            <PayrollDetail key={`${issue.severity}-${index}`} label={formatEnum(issue.severity)} value={issue.message} />
+          ))}
+        </div>
+      ) : <p className={styles.policyNote}>No blockers or warnings for the current payroll period.</p>}
+      {result.data.recentRuns.length ? (
+        <div className={styles.payrollNoticeActions}>
+          {result.data.recentRuns.slice(0, 3).map((run) => (
+            <Link href={`/team/payroll/runs/${run.id}`} key={run.id}>{formatMonth(run.periodStart.toISOString())} · {formatEnum(run.status)}</Link>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -179,10 +224,10 @@ function PayrollRunsCard({
       <div>
         <p className={styles.eyebrow}>Payroll Runs</p>
         <h4>Monthly calculations</h4>
-        <p>Review authorized payroll periods in the canonical Payroll Runs workspace.</p>
+        <p>Open the canonical Payroll Workspace for readiness, current runs and history.</p>
       </div>
       <Link className={styles.payrollActionLink} href={state.href}>
-        View Payroll Runs
+        View Payroll Runs in Workspace
       </Link>
     </article>
   );
@@ -202,8 +247,8 @@ function PayslipCard({
       <article className={styles.payrollActionCard}>
         <div>
           <p className={styles.eyebrow}>Payslip PDF</p>
-          <h4>No finalized payslip available</h4>
-          <p>A PDF becomes available here only after a Payroll Run is finalized.</p>
+          <h4>No published payslip available</h4>
+          <p>A staff-visible PDF appears only after a finalized Payroll Run is explicitly published.</p>
         </div>
         <span className={styles.truthfulState}>Not available</span>
       </article>
@@ -213,9 +258,8 @@ function PayslipCard({
     <article className={styles.payrollActionCard}>
       <div>
         <p className={styles.eyebrow}>Payslip PDF</p>
-        <h4>{formatMonth(state.periodStart)} finalized payslip</h4>
-        <p>Available for download</p>
-        <p>This administrator download does not mean the payslip was published to the employee.</p>
+        <h4>{formatMonth(state.periodStart)} published payslip</h4>
+        <p>Available for download · frozen finalized snapshot · available to the employee</p>
       </div>
       <a
         className={styles.payrollActionLink}
@@ -332,12 +376,24 @@ function CompensationPanels({
             </span>
           </div>
         ) : null}
+        <div className={styles.detailList}>
+          <PayrollDetail label="Compensation history" value={data.compensationHistory.length ? `${data.compensationHistory.length} prior version${data.compensationHistory.length === 1 ? "" : "s"}` : "No prior versions"} />
+          {data.compensationHistory.slice(0, 6).map((version) => (
+            <PayrollDetail
+              key={`${version.effectiveFromMonth}-${version.baseRate}-${version.reasonType}`}
+              label={formatMonthValue(version.effectiveFromMonth)}
+              value={`${formatEnum(version.payBasis)} · ${formatMoney(version.baseRate)} · ${formatEnum(version.reasonType)}`}
+            />
+          ))}
+        </div>
         <p className={styles.policyNote}>
           Changes are monthly-effective. Finalized and locked Payroll Runs retain
           their original compensation snapshots. Existing Drafts are not refreshed automatically.
         </p>
         {data.canEdit ? <CompensationEditForm data={data} /> : null}
       </section>
+
+      <RecurringPayPanel data={data} />
 
       <section className={styles.profilePanel}>
         <div className={styles.panelHeading}>
@@ -374,6 +430,188 @@ function CompensationPanels({
       </section>
     </>
   );
+}
+
+function RecurringPayPanel({
+  data,
+}: {
+  data: Extract<EmployeeCompensationSectionResult, { status: "READY" }>["data"];
+}) {
+  const earnings = data.recurringPayComponents.filter(
+    (component) => component.type === "EARNING",
+  );
+  const deductions = data.recurringPayComponents.filter(
+    (component) => component.type === "DEDUCTION",
+  );
+  return (
+    <section className={styles.profilePanel}>
+      <div className={styles.panelHeading}>
+        <div>
+          <p className={styles.eyebrow}>Recurring pay</p>
+          <h3>Fixed earnings and deductions</h3>
+          <p>Monthly-effective fixed components copied into new Payroll Draft snapshots.</p>
+        </div>
+        <span>{data.recurringPayComponents.length ? "Configured" : "None"}</span>
+      </div>
+      <RecurringPayList components={earnings} title="Recurring earnings" />
+      <RecurringPayList components={deductions} title="Recurring deductions" />
+      <p className={styles.policyNote}>
+        Component codes are stable and history is append-only. EPF, SOCSO, EIS,
+        PCB and dynamic commission are not recurring pay components. Existing
+        Payroll Runs never change automatically.
+      </p>
+      {data.canEdit ? (
+        <>
+          <RecurringPayCreateForm data={data} />
+          {data.recurringPayComponents
+            .filter((component) => component.state !== "ENDED")
+            .map((component) => (
+              <RecurringPayChangeForm
+                component={component}
+                currentPayrollMonth={data.currentPayrollMonth}
+                expectedRevision={data.recurringPayRevision}
+                key={component.id}
+                membershipId={data.id}
+              />
+            ))}
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function RecurringPayList({
+  components,
+  title,
+}: {
+  components: Extract<EmployeeCompensationSectionResult, { status: "READY" }>["data"]["recurringPayComponents"];
+  title: string;
+}) {
+  return (
+    <div className={styles.detailList}>
+      <PayrollDetail
+        label={title}
+        value={components.length ? `${components.length} configured` : "None configured"}
+      />
+      {components.map((component) => (
+        <PayrollDetail
+          key={component.id}
+          label={`${component.name} (${component.code})`}
+          value={recurringPayDisplay(component)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function RecurringPayCreateForm({
+  data,
+}: {
+  data: Extract<EmployeeCompensationSectionResult, { status: "READY" }>["data"];
+}) {
+  return (
+    <details className={styles.payrollEditDisclosure}>
+      <summary>Add recurring component</summary>
+      <form action={scheduleEmployeeRecurringPayAction} className={styles.payrollEditForm}>
+        <input name="commandId" type="hidden" value={randomUUID()} />
+        <input name="componentId" type="hidden" value="" />
+        <input name="expectedRevision" type="hidden" value={data.recurringPayRevision} />
+        <input name="membershipId" type="hidden" value={data.id} />
+        <input name="operation" type="hidden" value="SET" />
+        <div className={styles.payrollFormGrid}>
+          <label>
+            <span>Type</span>
+            <select name="type">
+              <option value="EARNING">Fixed earning</option>
+              <option value="DEDUCTION">Fixed deduction</option>
+            </select>
+          </label>
+          <label>
+            <span>Stable code</span>
+            <input name="code" pattern="[A-Z][A-Z0-9_]{1,63}" placeholder="TRANSPORT_ALLOWANCE" required />
+          </label>
+          <label>
+            <span>Description</span>
+            <input maxLength={120} name="name" placeholder="Transport Allowance" required />
+          </label>
+          <label>
+            <span>Amount (RM / month)</span>
+            <input inputMode="decimal" min="0.01" name="amount" required step="0.01" type="number" />
+          </label>
+          <label>
+            <span>Effective payroll month</span>
+            <input defaultValue={data.currentPayrollMonth} min={data.currentPayrollMonth} name="effectiveFromMonth" required type="month" />
+          </label>
+          <ReasonFields />
+        </div>
+        <DraftImpactWarning count={data.affectedDrafts} />
+        <button type="submit">Add recurring component</button>
+      </form>
+    </details>
+  );
+}
+
+function RecurringPayChangeForm({
+  component,
+  currentPayrollMonth,
+  expectedRevision,
+  membershipId,
+}: {
+  component: Extract<EmployeeCompensationSectionResult, { status: "READY" }>["data"]["recurringPayComponents"][number];
+  currentPayrollMonth: string;
+  expectedRevision: number;
+  membershipId: string;
+}) {
+  return (
+    <details className={styles.payrollEditDisclosure}>
+      <summary>Change or end {component.name}</summary>
+      <form action={scheduleEmployeeRecurringPayAction} className={styles.payrollEditForm}>
+        <input name="commandId" type="hidden" value={randomUUID()} />
+        <input name="componentId" type="hidden" value={component.id} />
+        <input name="expectedRevision" type="hidden" value={expectedRevision} />
+        <input name="membershipId" type="hidden" value={membershipId} />
+        <input name="code" type="hidden" value={component.code} />
+        <input name="type" type="hidden" value={component.type} />
+        <div className={styles.payrollFormGrid}>
+          <label>
+            <span>Action</span>
+            <select name="operation">
+              <option value="SET">Schedule amount</option>
+              <option value="END">End component</option>
+            </select>
+          </label>
+          <label>
+            <span>Description</span>
+            <input defaultValue={component.name} maxLength={120} name="name" required />
+          </label>
+          <label>
+            <span>Amount (RM / month)</span>
+            <input defaultValue={component.amount ?? component.nextChange?.amount ?? "0.01"} inputMode="decimal" min="0.01" name="amount" required step="0.01" type="number" />
+          </label>
+          <label>
+            <span>Effective payroll month</span>
+            <input defaultValue={currentPayrollMonth} min={currentPayrollMonth} name="effectiveFromMonth" required type="month" />
+          </label>
+          <ReasonFields />
+        </div>
+        <button type="submit">Save recurring pay change</button>
+      </form>
+    </details>
+  );
+}
+
+function recurringPayDisplay(
+  component: Extract<EmployeeCompensationSectionResult, { status: "READY" }>["data"]["recurringPayComponents"][number],
+) {
+  const current = component.amount === null
+    ? component.state === "SCHEDULED" ? "Scheduled end" : "Ended"
+    : `${formatMoney(component.amount)} / month`;
+  const status = `${formatEnum(component.state)} from ${formatMonthValue(component.effectiveFromMonth)}`;
+  if (!component.nextChange) return `${current} · ${status}`;
+  const nextAmount = component.nextChange.amount === null
+    ? "ends"
+    : `changes to ${formatMoney(component.nextChange.amount)}`;
+  return `${current} · ${status} · ${nextAmount} ${formatMonthValue(component.nextChange.effectiveFromMonth)}`;
 }
 
 function CompensationEditForm({
@@ -620,14 +858,32 @@ function StatutoryPanel({
         />
         <PayrollDetail
           label="LINDUNG 24"
-          value={data.lindung24OptIn ? "Opted in" : "Not opted in"}
+          value={
+            data.lindung24ParticipationHistory.length
+              ? formatNullableEnum(
+                  data.lindung24ParticipationHistory[
+                    data.lindung24ParticipationHistory.length - 1
+                  ].status,
+                )
+              : data.lindung24OptIn
+                ? "Legacy flag - participation review required"
+                : "Participation evidence not recorded"
+          }
         />
+        {data.lindung24ParticipationHistory.map((record) => (
+          <PayrollDetail
+            key={`${record.effectiveFromMonth}:${record.status}`}
+            label={`LINDUNG 24 history (${formatDate(record.effectiveFromMonth)} - ${record.effectiveToMonth ? formatDate(record.effectiveToMonth) : "current"})`}
+            value={`${formatNullableEnum(record.status)}; ${formatNullableEnum(record.employerContext)}; selected employer: ${formatNullableEnum(record.selectedEmployer)}`}
+          />
+        ))}
       </div>
       <p className={styles.policyNote}>
         Identifiers remain masked in Employee Profile. Contribution amounts are
         calculated and reviewed in individual Payroll Runs.
       </p>
       {data.canEdit ? <StatutoryEditForm data={data} /> : null}
+      {data.canEdit ? <Lindung24ParticipationForm data={data} /> : null}
     </section>
   );
 }
@@ -710,6 +966,11 @@ function StatutoryEditForm({
         <input name="commandId" type="hidden" value={randomUUID()} />
         <input name="expectedRevision" type="hidden" value={data.expectedRevision} />
         <input name="membershipId" type="hidden" value={data.membershipId} />
+        <input
+          name="lindung24OptIn"
+          type="hidden"
+          value={data.lindung24OptIn ? "on" : "off"}
+        />
         <div className={styles.payrollFormGrid}>
           <label>
             <span>Statutory nationality</span>
@@ -732,7 +993,6 @@ function StatutoryEditForm({
             <PayrollCheckbox defaultChecked={data.epfEnabled} label="EPF / KWSP enabled" name="epfEnabled" />
             <PayrollCheckbox defaultChecked={data.epfMemberBeforeAug1998} label="EPF member before Aug 1998" name="epfMemberBeforeAug1998" />
             <PayrollCheckbox defaultChecked={data.socsoEnabled} label="SOCSO enabled" name="socsoEnabled" />
-            <PayrollCheckbox defaultChecked={data.lindung24OptIn} label="LINDUNG 24 opted in" name="lindung24OptIn" />
             <PayrollCheckbox defaultChecked={data.eisEnabled} label="EIS enabled" name="eisEnabled" />
             <PayrollCheckbox defaultChecked={data.eisPreviouslyContributed} label="Previously contributed to EIS" name="eisPreviouslyContributed" />
           </div>
@@ -741,6 +1001,90 @@ function StatutoryEditForm({
         <PayrollProfileImpactPreview impact={data.impact} />
         <ProtectedHistoryWarning />
         <button type="submit">Save statutory contribution profile</button>
+      </form>
+    </details>
+  );
+}
+
+function Lindung24ParticipationForm({
+  data,
+}: {
+  data: Extract<
+    Extract<EmployeeStatutoryProfileResult, { status: "READY" }>["statutory"],
+    { status: "READY" }
+  >["data"];
+}) {
+  return (
+    <details className={styles.payrollEditDisclosure}>
+      <summary>Record LINDUNG 24 participation evidence</summary>
+      <form action={recordEmployeeLindung24ParticipationAction} className={styles.payrollEditForm}>
+        <input name="expectedRevision" type="hidden" value={data.lindung24ExpectedRevision} />
+        <input name="membershipId" type="hidden" value={data.membershipId} />
+        <div className={styles.payrollFormGrid}>
+          <label>
+            <span>Participation state</span>
+            <select name="status" required>
+              <option value="MANDATORY">Mandatory</option>
+              <option value="DEFAULT_PARTICIPATING">Default participating</option>
+              <option value="VOLUNTARY_OPT_IN">Voluntary opt-in</option>
+              <option value="VOLUNTARY_OPT_OUT">Voluntary opt-out</option>
+            </select>
+          </label>
+          <label>
+            <span>Effective payroll month</span>
+            <input name="effectiveFromMonth" required type="month" />
+          </label>
+          <label>
+            <span>Act 4 coverage evidence</span>
+            <select name="act4Covered" required>
+              <option value="true">Covered</option>
+              <option value="false">Not covered</option>
+            </select>
+          </label>
+          <label>
+            <span>Employment context</span>
+            <select name="employerContext" required>
+              <option value="SINGLE_EMPLOYER">Single employer</option>
+              <option value="MULTIPLE_EMPLOYER">Multiple employers</option>
+            </select>
+          </label>
+          <label>
+            <span>Selected employer evidence</span>
+            <select name="selectedEmployer" required>
+              <option value="CURRENT_BUSINESS">Current business</option>
+              <option value="OTHER_EMPLOYER">Other employer</option>
+              <option value="PERKESO_SELECTION_PENDING">PERKESO selection pending</option>
+            </select>
+          </label>
+          <label>
+            <span>Evidence source</span>
+            <select name="sourceType" required>
+              <option value="OFFICIAL_TRANSITION">Official transition</option>
+              <option value="EMPLOYEE_OPT_IN">Employee opt-in</option>
+              <option value="EMPLOYEE_OPT_OUT">Employee opt-out</option>
+              <option value="PERKESO_EMPLOYER_SELECTION">PERKESO employer selection</option>
+              <option value="EMPLOYMENT_CHANGE">Employment change</option>
+              <option value="LEGACY_REVIEW">Legacy review (blocks payroll)</option>
+            </select>
+          </label>
+          <label>
+            <span>Official submission timestamp (ISO 8601 with timezone)</span>
+            <input name="officialSubmittedAt" placeholder="2026-07-13T09:30:00+08:00" type="text" />
+          </label>
+          <label>
+            <span>Official evidence reference</span>
+            <input name="sourceReference" required type="text" />
+          </label>
+          <label>
+            <span>Reason</span>
+            <textarea name="reason" required rows={3} />
+          </label>
+        </div>
+        <p className={styles.policyNote}>
+          This appends a dated revision. It cannot approve PERKESO status, infer another tenant,
+          or rewrite reviewed/finalized payroll.
+        </p>
+        <button type="submit">Record LINDUNG 24 evidence</button>
       </form>
     </details>
   );

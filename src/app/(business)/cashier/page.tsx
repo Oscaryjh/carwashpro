@@ -40,7 +40,9 @@ function formatSingaporeDate(date: Date) {
 }
 
 export default async function CashierPage({ searchParams }: CashierPageProps) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser(
+    "PROCESS_CASHIER_PAYMENT",
+  );
 
   if (industryType !== "SALON_BEAUTY") {
     redirect("/work-orders");

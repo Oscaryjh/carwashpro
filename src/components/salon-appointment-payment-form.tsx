@@ -16,6 +16,7 @@ import {
   formatCatalogDiscountValue,
   type CatalogDiscountOption,
 } from "@/lib/catalog-discounts";
+import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
 
 type SalonAppointmentPaymentFormProps = {
   appointmentId: string;
@@ -90,6 +91,7 @@ export function SalonAppointmentPaymentForm({
     initialPaymentState,
   );
   const safePaymentState = paymentState ?? initialPaymentState;
+  const { operationId, rotateOperationId } = useFinancialOperationId("salon-payment");
   const selectedCatalogDiscount = catalogDiscounts.find((item) => item.id === catalogDiscountId) ?? null;
   const catalogDiscountCents = selectedCatalogDiscount
     ? calculateCatalogDiscountCents({
@@ -156,10 +158,11 @@ export function SalonAppointmentPaymentForm({
 
   useEffect(() => {
     if (safePaymentState.status === "success" && safePaymentState.invoice) {
+      rotateOperationId();
       onCheckoutComplete(safePaymentState.invoice);
       router.refresh();
     }
-  }, [onCheckoutComplete, router, safePaymentState.invoice, safePaymentState.status]);
+  }, [onCheckoutComplete, rotateOperationId, router, safePaymentState.invoice, safePaymentState.status]);
 
   function validatePayment(event: FormEvent<HTMLFormElement>) {
     if (!checkoutReady) {
@@ -210,6 +213,7 @@ export function SalonAppointmentPaymentForm({
       onSubmit={validatePayment}
     >
       <input type="hidden" name="appointmentId" value={appointmentId} />
+      <input type="hidden" name="operationId" value={operationId} />
       <input type="hidden" name="catalogDiscountId" value={catalogDiscountId} />
       {selectedCustomerPackageIds.map((customerPackageId) => (
         <input

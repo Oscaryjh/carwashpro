@@ -326,15 +326,13 @@ test("payroll generate and refresh resolve compensation by run month", async () 
         data: { baseSalary: 9999 },
       });
     });
-    await prisma.payrollEntry.update({
-      where: { id: augustEntry.id },
-      data: {
-        allowances: 123,
-        notes: "This manual adjustment must be cleared by refresh.",
-        otherDeductions: 45,
-        pcb: 12,
-      },
-    });
+    await assert.rejects(
+      prisma.payrollEntry.update({
+        where: { id: augustEntry.id },
+        data: { allowances: 123, otherDeductions: 45 },
+      }),
+      /PAYROLL_COMPONENT_RECONCILIATION_FAILED/,
+    );
     await generatePayrollRun({
       actor: actor(fixture),
       businessId: fixture.business.id,
@@ -355,6 +353,10 @@ test("payroll generate and refresh resolve compensation by run month", async () 
     assert.equal(refreshedAugust.pcb.toString(), "0");
     assert.equal(refreshedAugust.notes, null);
 
+    await prisma.employeeBusinessMembership.updateMany({
+      where: { id: { in: [daily.id, hourly.id] } },
+      data: { terminatedAt: new Date("2026-08-31T00:00:00.000Z") },
+    });
     const novemberRun = await generatePayrollRun({
       actor: actor(fixture),
       businessId: fixture.business.id,
@@ -462,7 +464,17 @@ test("payroll generate and refresh resolve compensation by run month", async () 
     });
     const auditText = JSON.stringify(generationAudit.metadata);
     assert.match(auditText, new RegExp(august.id));
-    assert.doesNotMatch(auditText, /2600|2800|9999/);
+    const auditMetadata = generationAudit.metadata as {
+      compensationVersions?: Array<Record<string, unknown>>;
+    };
+    assert.ok(auditMetadata.compensationVersions?.length);
+    for (const version of auditMetadata.compensationVersions) {
+      assert.deepEqual(
+        Object.keys(version).sort(),
+        ["applicableMonth", "membershipId", "versionId"],
+      );
+    }
+    assert.doesNotMatch(auditText, /"(?:amount|baseRate|grossPay|netPay)"\s*:/);
   } finally {
     await cleanupFixture(fixture);
   }
@@ -509,6 +521,7 @@ async function createFixture() {
       payBasis: "MONTHLY",
       phoneNumber: account.phoneNumber,
       phoneNumberNormalized: account.phoneNormalized,
+      statutoryNationality: "MALAYSIAN",
     },
   });
   const otherAccount = await prisma.employeeAccount.create({
@@ -529,6 +542,23 @@ async function createFixture() {
       payBasis: "MONTHLY",
       phoneNumber: otherAccount.phoneNumber,
       phoneNumberNormalized: otherAccount.phoneNormalized,
+    },
+  });
+  await prisma.employeeLindung24ParticipationVersion.create({
+    data: {
+      act4Covered: false,
+      businessId: business.id,
+      effectiveFromMonth: new Date("2026-06-01T00:00:00.000Z"),
+      employerContext: "SINGLE_EMPLOYER",
+      membershipId: membership.id,
+      reason: "Integration fixture confirms the employee is outside Act 4 coverage.",
+      recordedById: owner.id,
+      revision: 1,
+      selectedEmployer: "CURRENT_BUSINESS",
+      sourceDigest: "f".repeat(64),
+      sourceReference: "INTEGRATION_FIXTURE_NOT_ACT4_COVERED",
+      sourceType: "OFFICIAL_TRANSITION",
+      status: "DEFAULT_PARTICIPATING",
     },
   });
   return {
@@ -640,6 +670,7 @@ async function cleanupFixture(fixture: Awaited<ReturnType<typeof createFixture>>
     })
   ).map((item) => item.employeeAccountId);
   await prisma.$transaction(async (transaction) => {
+    await transaction.$executeRawUnsafe("SET LOCAL session_replication_role = 'replica'");
     await transaction.$executeRaw`SELECT set_config('tetamu.compensation_version_maintenance', 'on', TRUE)`;
     await transaction.$executeRaw`SELECT set_config('tetamu.payroll_profile_command_maintenance', 'on', TRUE)`;
     await transaction.$executeRaw`SELECT set_config('tetamu.attendance_timesheet_test_maintenance', 'on', TRUE)`;

@@ -30,6 +30,7 @@ test("Phase 3A loads only current compensation after capability and whole-busine
         return Promise.resolve({
           id: membershipId,
           compensationRevision: 2,
+          recurringPayRevision: 4,
           workTargetRevision: 3,
           payBasis: "MONTHLY",
           baseSalary: { toString: () => "3200.00" },
@@ -58,6 +59,12 @@ test("Phase 3A loads only current compensation after capability and whole-busine
         } : null);
       },
     },
+    employeeRecurringPayComponent: {
+      findMany(query: unknown) {
+        calls.push({ model: "recurringPay", query });
+        return Promise.resolve([]);
+      },
+    },
     payrollRun: {
       count(query: unknown) {
         calls.push({ model: "payrollRun", query });
@@ -84,6 +91,8 @@ test("Phase 3A loads only current compensation after capability and whole-busine
   assert.equal(result.data.targetBreakMinutes, 45);
   assert.equal(result.data.targetBreakPolicySource, "Employee profile");
   assert.equal(result.data.compensationRevision, 2);
+  assert.equal(result.data.recurringPayRevision, 4);
+  assert.deepEqual(result.data.recurringPayComponents, []);
   assert.equal(result.data.workTargetRevision, 3);
   assert.equal(result.data.affectedDrafts, 1);
   assert.equal(result.data.effectiveFromMonth, "2026-08");
@@ -174,6 +183,7 @@ test("Phase 4A compensation UI uses canonical commands and keeps sensitive domai
   assert.match(loader, /VIEW_COMPENSATION/);
   assert.match(component, /Sensitive payroll profile/);
   assert.match(component, /scheduleEmployeeCompensationChangeAction/);
+  assert.match(component, /scheduleEmployeeRecurringPayAction/);
   assert.match(component, /updateEmployeePayrollWorkTargetAction/);
   assert.match(component, /Effective payroll month/);
   assert.match(component, /Change reason/);

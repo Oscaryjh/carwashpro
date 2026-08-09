@@ -18,7 +18,9 @@ type PosCheckoutPageProps = {
 };
 
 export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUser(
+    "PROCESS_CASHIER_PAYMENT",
+  );
   const { workOrderId } = await params;
   const workOrder = await prisma.workOrder.findFirst({
     where: {

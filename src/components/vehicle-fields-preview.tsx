@@ -226,6 +226,7 @@ export function VehicleFieldsPreview() {
                   <div className={styles.optionList} role="listbox">
                     {filteredBrands.map((item) => (
                       <button
+                        aria-selected={brand === item}
                         className={brand === item ? styles.optionSelected : styles.option}
                         key={item}
                         onClick={() => {
@@ -242,6 +243,7 @@ export function VehicleFieldsPreview() {
                       </button>
                     ))}
                     <button
+                      aria-selected={brand === OTHER}
                       className={brand === OTHER ? styles.optionSelected : styles.otherOption}
                       onClick={() => {
                         setBrand(OTHER);
@@ -306,6 +308,7 @@ export function VehicleFieldsPreview() {
                   <div className={styles.optionList} role="listbox">
                     {filteredModels.map((item) => (
                       <button
+                        aria-selected={model === item}
                         className={model === item ? styles.optionSelected : styles.option}
                         key={item}
                         onClick={() => {
@@ -321,6 +324,7 @@ export function VehicleFieldsPreview() {
                       </button>
                     ))}
                     <button
+                      aria-selected={model === OTHER}
                       className={model === OTHER ? styles.optionSelected : styles.otherOption}
                       onClick={() => {
                         setModel(OTHER);
@@ -388,6 +392,7 @@ export function VehicleFieldsPreview() {
                   <div className={styles.colorGrid} role="listbox">
                     {filteredColors.map((item) => (
                       <button
+                        aria-selected={color === item.name}
                         className={color === item.name ? styles.colorSelected : styles.colorOption}
                         key={item.name}
                         onClick={() => {
@@ -407,6 +412,7 @@ export function VehicleFieldsPreview() {
                       </button>
                     ))}
                     <button
+                      aria-selected={color === OTHER}
                       className={color === OTHER ? styles.colorSelected : styles.colorOption}
                       onClick={() => {
                         setColor(OTHER);

@@ -7,6 +7,7 @@ import { logger } from "./logger.js";
 import {
   sendTextMessage,
   validateWhatsAppRecipient,
+  WhatsAppInvalidRecipientError,
   WhatsAppNotConnectedError,
   WhatsAppSendFailedError
 } from "./sender.js";
@@ -21,8 +22,14 @@ import {
   startSocket
 } from "./socket.js";
 import type { ApiResponse, SendRequestBody } from "./types.js";
+import { ConnectorRequestReplayCache } from "./request-replay.js";
+import {
+  authorizeConnectorRequest,
+  validateConnectorRequestIdentity,
+} from "./security.js";
 
 const MAX_JSON_BODY_BYTES = 10 * 1024 * 1024;
+const sendRequestReplayCache = new ConnectorRequestReplayCache();
 
 function getPort() {
   const port = Number(process.env.PORT);
@@ -72,10 +79,16 @@ class HttpRequestError extends Error {
 }
 
 function assertConnectorAccess(request: http.IncomingMessage) {
-  const secret = process.env.CONNECTOR_API_SECRET?.trim();
+  const suppliedHeader = request.headers["x-connector-api-secret"];
+  const authorization = authorizeConnectorRequest(
+    typeof suppliedHeader === "string" ? suppliedHeader : undefined,
+    process.env.CONNECTOR_API_SECRET,
+  );
 
-  if (secret && request.headers["x-connector-api-secret"] !== secret) {
-    throw new HttpRequestError(401, "Connector API authentication failed.");
+  if (!authorization.ok) {
+    const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+    logger.warn({ path: pathname }, "Connector API authentication rejected");
+    throw new HttpRequestError(authorization.status, authorization.error);
   }
 }
 
@@ -145,6 +158,10 @@ function errorStatusCode(error: unknown) {
     return error.statusCode;
   }
 
+  if (error instanceof WhatsAppInvalidRecipientError) {
+    return 422;
+  }
+
   return error instanceof WhatsAppNotConnectedError ? 409 : 500;
 }
 
@@ -156,7 +173,18 @@ function serializeError(error: unknown) {
     };
   }
 
-  return error instanceof Error ? error.message : "Internal server error.";
+  if (error instanceof WhatsAppInvalidRecipientError) {
+    return {
+      code: error.code,
+      message: error.message,
+    };
+  }
+
+  if (error instanceof HttpRequestError) {
+    return error.message;
+  }
+
+  return "Internal server error.";
 }
 
 function validateSendRequestBody(body: SendRequestBody) {
@@ -451,23 +479,42 @@ async function handleRequest(
       });
       return;
     }
+    const sendBody = body;
+
+    const headerRequestId = request.headers["x-connector-request-id"];
+    const requestIdentity = validateConnectorRequestIdentity(
+      sendBody.requestId,
+      typeof headerRequestId === "string" ? headerRequestId : undefined,
+    );
+    if (!requestIdentity.ok) {
+      sendJson(response, 400, {
+        ok: false,
+        error: requestIdentity.error,
+      });
+      return;
+    }
+    const requestId = requestIdentity.requestId;
 
     try {
-      const result = await sendTextMessage(
-        businessId,
-        body.phone as string,
-        body.message as string,
-        {
-          audioBase64: body.audioBase64 as string | undefined,
-          audioMimeType: body.audioMimeType as string | undefined,
-          audioFileName: body.audioFileName as string | undefined,
-          imageBase64: body.imageBase64 as string | undefined,
-          imageMimeType: body.imageMimeType as string | undefined,
-          imageFileName: body.imageFileName as string | undefined,
-          documentBase64: body.documentBase64 as string | undefined,
-          documentMimeType: body.documentMimeType as string | undefined,
-          documentFileName: body.documentFileName as string | undefined
-        }
+      const result = await sendRequestReplayCache.execute(
+        `${businessId}:${requestId}`,
+        () => sendTextMessage(
+          businessId,
+          sendBody.phone as string,
+          sendBody.message as string,
+          {
+            audioBase64: sendBody.audioBase64 as string | undefined,
+            audioMimeType: sendBody.audioMimeType as string | undefined,
+            audioFileName: sendBody.audioFileName as string | undefined,
+            imageBase64: sendBody.imageBase64 as string | undefined,
+            imageMimeType: sendBody.imageMimeType as string | undefined,
+            imageFileName: sendBody.imageFileName as string | undefined,
+            documentBase64: sendBody.documentBase64 as string | undefined,
+            documentMimeType: sendBody.documentMimeType as string | undefined,
+            documentFileName: sendBody.documentFileName as string | undefined
+          },
+          requestId,
+        ),
       );
 
       sendJson(response, 200, {
@@ -486,6 +533,17 @@ async function handleRequest(
         return;
       }
 
+      if (error instanceof WhatsAppInvalidRecipientError) {
+        sendJson(response, 422, {
+          ok: false,
+          error: {
+            code: error.code,
+            message: error.message,
+          },
+        });
+        return;
+      }
+
       if (error instanceof WhatsAppSendFailedError) {
         sendJson(response, 500, {
           ok: false,
@@ -497,14 +555,12 @@ async function handleRequest(
         return;
       }
 
-      const message =
-        error instanceof Error ? error.message : "Failed to send WhatsApp message.";
       logger.error({ error }, "Failed to send WhatsApp message");
       sendJson(response, 500, {
         ok: false,
         error: {
           code: "WHATSAPP_SEND_FAILED",
-          message
+          message: "WhatsApp connector send failed."
         }
       });
     }
@@ -570,20 +626,13 @@ process.on("SIGTERM", () => {
   server.close(() => process.exit(0));
 });
 process.on("uncaughtException", (err) => {
-  console.error("[runtime:uncaughtException]", err);
   logger.error({ error: err }, "Runtime uncaughtException");
 });
 
 process.on("unhandledRejection", (err) => {
-  console.error("[runtime:unhandledRejection]", err);
   logger.error({ error: err }, "Runtime unhandledRejection");
 });
 
 process.on("beforeExit", (code) => {
-  console.log("[runtime:beforeExit]", code);
   logger.warn({ code }, "Runtime beforeExit");
-});
-
-process.on("exit", (code) => {
-  console.log("[runtime:exit]", code);
 });

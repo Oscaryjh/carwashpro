@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "version": "MALAYSIA_STATUTORY_CLASSIFICATION_2026_P2C_DRAFT_1",
+  "effectiveFrom": "2026-06-01",
+  "effectiveTo": null,
+  "immutableOnceActive": true,
+  "reviewedOn": "2026-08-08",
+  "status": "REVIEW_REQUIRED",
+  "sources": {
+    "EPF": "https://www.kwsp.gov.my/en/what-you-need-to-know-1",
+    "SOCSO_EIS": "https://www.perkeso.gov.my/en/contact-us/pejabat-perkeso-new/frequently-asked-question.html",
+    "LINDUNG24": "https://www.perkeso.gov.my/?Itemid=2019&id=990&option=com_content&view=article",
+    "PCB": "https://www.hasil.gov.my/media/arvlrzh5/spesifikasi-kaedah-pengiraan-berkomputer-pcb-2026.pdf"
+  },
+  "classifications": [
+    {
+      "component": "BASIC_SALARY",
+      "EPF": "INCLUDED",
+      "SOCSO": "INCLUDED",
+      "EIS": "INCLUDED",
+      "LINDUNG24": "UNKNOWN",
+      "PCB": "INCLUDED",
+      "notes": "Salary/wages are expressly listed by each authority."
+    },
+    {
+      "component": "RECURRING_ALLOWANCE",
+      "EPF": "UNKNOWN",
+      "SOCSO": "UNKNOWN",
+      "EIS": "UNKNOWN",
+      "LINDUNG24": "UNKNOWN",
+      "PCB": "UNKNOWN",
+      "notes": "A custom recurring code can represent liable allowance, travel reimbursement or another excluded payment. Code-specific review is required."
+    },
+    {
+      "component": "BONUS",
+      "EPF": "INCLUDED",
+      "SOCSO": "UNKNOWN",
+      "EIS": "UNKNOWN",
+      "LINDUNG24": "UNKNOWN",
+      "PCB": "ADDITIONAL_REMUNERATION",
+      "notes": "EPF and PCB are explicit. PERKESO classification remains review-required rather than inferred from the earning label."
+    },
+    {
+      "component": "COMMISSION",
+      "EPF": "INCLUDED",
+      "SOCSO": "INCLUDED",
+      "EIS": "INCLUDED",
+      "LINDUNG24": "UNKNOWN",
+      "PCB": "UNKNOWN",
+      "notes": "PCB treatment depends on whether commission is paid monthly or additionally."
+    },
+    {
+      "component": "INCENTIVE",
+      "EPF": "INCLUDED",
+      "SOCSO": "INCLUDED",
+      "EIS": "INCLUDED",
+      "LINDUNG24": "UNKNOWN",
+      "PCB": "ADDITIONAL_REMUNERATION",
+      "notes": "PCB 2026 identifies bonus/incentive as additional remuneration."
+    },
+    {
+      "component": "SALARY_ARREARS",
+      "EPF": "INCLUDED",
+      "SOCSO": "UNKNOWN",
+      "EIS": "UNKNOWN",
+      "LINDUNG24": "UNKNOWN",
+      "PCB": "ADDITIONAL_REMUNERATION",
+      "notes": "No PERKESO production mapping is asserted until the exact official basis is retained."
+    },
+    {
+      "component": "REGULAR_DAILY_PAY",
+      "EPF": "INCLUDED",
+      "SOCSO": "INCLUDED",
+      "EIS": "INCLUDED",
+      "LINDUNG24": "UNKNOWN",
+      "PCB": "INCLUDED",
+      "notes": "Daily-rated wages are within the official wage/remuneration descriptions."
+    },
+    {
+      "component": "REGULAR_HOURLY_PAY",
+      "EPF": "INCLUDED",
+      "SOCSO": "INCLUDED",
+      "EIS": "INCLUDED",
+      "LINDUNG24": "UNKNOWN",
+      "PCB": "INCLUDED",
+      "notes": "Hourly-rated wages are within the official wage/remuneration descriptions."
+    },
+    {
+      "component": "PAID_LEAVE_PAY",
+      "EPF": "INCLUDED",
+      "SOCSO": "INCLUDED",
+      "EIS": "INCLUDED",
+      "LINDUNG24": "UNKNOWN",
+      "PCB": "INCLUDED",
+      "notes": "Paid leave emoluments are expressly liable."
+    },
+    {
+      "component": "OVERTIME_PAY",
+      "EPF": "EXCLUDED",
+      "SOCSO": "INCLUDED",
+      "EIS": "INCLUDED",
+      "LINDUNG24": "UNKNOWN",
+      "PCB": "INCLUDED",
+      "notes": "KWSP expressly excludes overtime; PERKESO and PCB expressly include it."
+    },
+    {
+      "component": "REST_DAY_PAY",
+      "EPF": "UNKNOWN",
+      "SOCSO": "INCLUDED",
+      "EIS": "INCLUDED",
+      "LINDUNG24": "UNKNOWN",
+      "PCB": "INCLUDED",
+      "notes": "KWSP treats public-holiday/rest-day work as liable unless it is overtime; the future component must preserve that distinction."
+    },
+    {
+      "component": "PUBLIC_HOLIDAY_PAY",
+      "EPF": "UNKNOWN",
+      "SOCSO": "INCLUDED",
+      "EIS": "INCLUDED",
+      "LINDUNG24": "UNKNOWN",
+      "PCB": "INCLUDED",
+      "notes": "KWSP treatment depends on whether the payment is ordinary holiday wages or overtime."
+    }
+  ],
+  "classificationDigest": "1d0c5d9aec18b66dd15dce7959ac80f019909bd78f2a5002be06e345b40f8bc1"
+}

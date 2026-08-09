@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { PackagePaymentOption } from "@/components/package-payment-form";
 import { PaymentForm } from "@/components/payment-form";
+import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
+import { FinancialSubmitButton } from "@/components/financial-submit-button";
 import {
   PACKAGE_PAYMENT_PREVIEW_EVENT,
   PosAmountDuePreview,
@@ -37,6 +39,7 @@ export function PosPaymentPanel({
   );
   const isPackageSelected = Boolean(selectedPackageId);
   const hasPackages = customerPackages.length > 0;
+  const { operationId: packageOperationId } = useFinancialOperationId("package-redemption");
 
   useEffect(() => {
     window.dispatchEvent(
@@ -69,6 +72,7 @@ export function PosPaymentPanel({
           {hasPackages ? (
             <form action={usePackagePaymentAction} className="form pos-package-form">
               <input type="hidden" name="workOrderId" value={workOrderId} />
+              <input type="hidden" name="operationId" value={packageOperationId} />
               <input
                 type="hidden"
                 name="customerPackageId"
@@ -99,7 +103,9 @@ export function PosPaymentPanel({
               </div>
               {isPackageSelected ? (
                 <div className="form-actions">
-                  <button type="submit">Check out</button>
+                  <FinancialSubmitButton pendingLabel="Redeeming package...">
+                    Check out
+                  </FinancialSubmitButton>
                 </div>
               ) : null}
             </form>

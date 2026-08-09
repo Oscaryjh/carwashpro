@@ -48,10 +48,18 @@ export const customerSchema = z.object({
   phone: z
     .string()
     .trim()
-    .min(7, "Phone is required.")
-    .max(20, "Phone is too long.")
-    .regex(/^[0-9]+$/, "Phone can only contain numbers.")
-    .transform(normalizeCustomerPhone),
+    .min(1, "Phone is required.")
+    .regex(
+      /^[0-9+()\-\s]+$/,
+      "Phone can only contain numbers and common separators.",
+    )
+    .transform(normalizeCustomerPhone)
+    .pipe(
+      z
+        .string()
+        .min(7, "Phone is required.")
+        .max(20, "Phone is too long."),
+    ),
   email: z.string().trim().email("Enter a valid email.").optional().or(z.literal("")),
   dateOfBirth: z
     .string()

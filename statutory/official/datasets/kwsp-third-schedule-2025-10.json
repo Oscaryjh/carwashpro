@@ -1,0 +1,5658 @@
+{
+  "schemaVersion": 1,
+  "id": "kwsp-third-schedule-2025-10-normalized-v1",
+  "schemes": [
+    "EPF"
+  ],
+  "artifactId": "kwsp-third-schedule-2025-10",
+  "artifactSha256": "c4904e44f0cb15a251a59e4f34c11a1ededa0868b962b2ebd9b81270285358b1",
+  "parserName": "kwsp-third-schedule",
+  "parserVersion": "2.0.0",
+  "extractionMode": "TEXT_EXTRACTED",
+  "verificationStatus": "VERIFIED",
+  "expectedRowCount": 401,
+  "calculationMode": "TABLE_THEN_FORMULA",
+  "formulaAboveCents": 2000000,
+  "categoryRules": {
+    "PART_A": {
+      "table": true,
+      "employerBasisPointsAboveThreshold": 1200,
+      "employeeBasisPointsAboveThreshold": 1100
+    },
+    "PART_C": {
+      "table": true,
+      "employerBasisPointsAboveThreshold": 600,
+      "employeeBasisPointsAboveThreshold": 550
+    },
+    "PART_E": {
+      "table": true,
+      "employerBasisPointsAboveThreshold": 400,
+      "employeeBasisPointsAboveThreshold": 0
+    },
+    "PART_F": {
+      "table": false,
+      "employerBasisPoints": 200,
+      "employeeBasisPoints": 200
+    }
+  },
+  "rounding": "EACH_SHARE_CEIL_TO_NEXT_RINGGIT",
+  "effectiveFrom": "2025-10-01",
+  "effectiveTo": null,
+  "datasetDigest": "17c6787a8b28fb0e1b30f9c350a70491a0f882e833b7cf17a3d1251acc45a4b3",
+  "rows": [
+    {
+      "key": "EPF-001",
+      "lowerInclusiveCents": 1,
+      "upperInclusiveCents": 1000,
+      "contributions": {
+        "epfPartAEmployeeCents": 0,
+        "epfPartAEmployerCents": 0,
+        "epfPartCEmployeeCents": 0,
+        "epfPartCEmployerCents": 0,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 0
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 2; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-002",
+      "lowerInclusiveCents": 1001,
+      "upperInclusiveCents": 2000,
+      "contributions": {
+        "epfPartAEmployeeCents": 300,
+        "epfPartAEmployerCents": 300,
+        "epfPartCEmployeeCents": 200,
+        "epfPartCEmployerCents": 200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 2; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-003",
+      "lowerInclusiveCents": 2001,
+      "upperInclusiveCents": 4000,
+      "contributions": {
+        "epfPartAEmployeeCents": 500,
+        "epfPartAEmployerCents": 600,
+        "epfPartCEmployeeCents": 300,
+        "epfPartCEmployerCents": 300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 2; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-004",
+      "lowerInclusiveCents": 4001,
+      "upperInclusiveCents": 6000,
+      "contributions": {
+        "epfPartAEmployeeCents": 700,
+        "epfPartAEmployerCents": 800,
+        "epfPartCEmployeeCents": 400,
+        "epfPartCEmployerCents": 400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 2; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-005",
+      "lowerInclusiveCents": 6001,
+      "upperInclusiveCents": 8000,
+      "contributions": {
+        "epfPartAEmployeeCents": 900,
+        "epfPartAEmployerCents": 1100,
+        "epfPartCEmployeeCents": 500,
+        "epfPartCEmployerCents": 600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 2; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-006",
+      "lowerInclusiveCents": 8001,
+      "upperInclusiveCents": 10000,
+      "contributions": {
+        "epfPartAEmployeeCents": 1100,
+        "epfPartAEmployerCents": 1300,
+        "epfPartCEmployeeCents": 600,
+        "epfPartCEmployerCents": 700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 2; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-007",
+      "lowerInclusiveCents": 10001,
+      "upperInclusiveCents": 12000,
+      "contributions": {
+        "epfPartAEmployeeCents": 1400,
+        "epfPartAEmployerCents": 1600,
+        "epfPartCEmployeeCents": 700,
+        "epfPartCEmployerCents": 800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 2; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-008",
+      "lowerInclusiveCents": 12001,
+      "upperInclusiveCents": 14000,
+      "contributions": {
+        "epfPartAEmployeeCents": 1600,
+        "epfPartAEmployerCents": 1900,
+        "epfPartCEmployeeCents": 800,
+        "epfPartCEmployerCents": 1000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 2; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-009",
+      "lowerInclusiveCents": 14001,
+      "upperInclusiveCents": 16000,
+      "contributions": {
+        "epfPartAEmployeeCents": 1800,
+        "epfPartAEmployerCents": 2100,
+        "epfPartCEmployeeCents": 900,
+        "epfPartCEmployerCents": 1100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 2; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-010",
+      "lowerInclusiveCents": 16001,
+      "upperInclusiveCents": 18000,
+      "contributions": {
+        "epfPartAEmployeeCents": 2000,
+        "epfPartAEmployerCents": 2400,
+        "epfPartCEmployeeCents": 1000,
+        "epfPartCEmployerCents": 1200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 2; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-011",
+      "lowerInclusiveCents": 18001,
+      "upperInclusiveCents": 20000,
+      "contributions": {
+        "epfPartAEmployeeCents": 2200,
+        "epfPartAEmployerCents": 2600,
+        "epfPartCEmployeeCents": 1100,
+        "epfPartCEmployerCents": 1300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 2; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-012",
+      "lowerInclusiveCents": 20001,
+      "upperInclusiveCents": 22000,
+      "contributions": {
+        "epfPartAEmployeeCents": 2500,
+        "epfPartAEmployerCents": 2900,
+        "epfPartCEmployeeCents": 1300,
+        "epfPartCEmployerCents": 1500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 2; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-013",
+      "lowerInclusiveCents": 22001,
+      "upperInclusiveCents": 24000,
+      "contributions": {
+        "epfPartAEmployeeCents": 2700,
+        "epfPartAEmployerCents": 3200,
+        "epfPartCEmployeeCents": 1400,
+        "epfPartCEmployerCents": 1600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 1000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-014",
+      "lowerInclusiveCents": 24001,
+      "upperInclusiveCents": 26000,
+      "contributions": {
+        "epfPartAEmployeeCents": 2900,
+        "epfPartAEmployerCents": 3400,
+        "epfPartCEmployeeCents": 1500,
+        "epfPartCEmployerCents": 1700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 1100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 22; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-015",
+      "lowerInclusiveCents": 26001,
+      "upperInclusiveCents": 28000,
+      "contributions": {
+        "epfPartAEmployeeCents": 3100,
+        "epfPartAEmployerCents": 3700,
+        "epfPartCEmployeeCents": 1600,
+        "epfPartCEmployerCents": 1900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 1200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-016",
+      "lowerInclusiveCents": 28001,
+      "upperInclusiveCents": 30000,
+      "contributions": {
+        "epfPartAEmployeeCents": 3300,
+        "epfPartAEmployerCents": 3900,
+        "epfPartCEmployeeCents": 1700,
+        "epfPartCEmployerCents": 2000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 1200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-017",
+      "lowerInclusiveCents": 30001,
+      "upperInclusiveCents": 32000,
+      "contributions": {
+        "epfPartAEmployeeCents": 3600,
+        "epfPartAEmployerCents": 4200,
+        "epfPartCEmployeeCents": 1800,
+        "epfPartCEmployerCents": 2100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 1300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-018",
+      "lowerInclusiveCents": 32001,
+      "upperInclusiveCents": 34000,
+      "contributions": {
+        "epfPartAEmployeeCents": 3800,
+        "epfPartAEmployerCents": 4500,
+        "epfPartCEmployeeCents": 1900,
+        "epfPartCEmployerCents": 2300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 1400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-019",
+      "lowerInclusiveCents": 34001,
+      "upperInclusiveCents": 36000,
+      "contributions": {
+        "epfPartAEmployeeCents": 4000,
+        "epfPartAEmployerCents": 4700,
+        "epfPartCEmployeeCents": 2000,
+        "epfPartCEmployerCents": 2400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 1500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-020",
+      "lowerInclusiveCents": 36001,
+      "upperInclusiveCents": 38000,
+      "contributions": {
+        "epfPartAEmployeeCents": 4200,
+        "epfPartAEmployerCents": 5000,
+        "epfPartCEmployeeCents": 2100,
+        "epfPartCEmployerCents": 2500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 1600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-021",
+      "lowerInclusiveCents": 38001,
+      "upperInclusiveCents": 40000,
+      "contributions": {
+        "epfPartAEmployeeCents": 4400,
+        "epfPartAEmployerCents": 5200,
+        "epfPartCEmployeeCents": 2200,
+        "epfPartCEmployerCents": 2600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 1600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 39"
+    },
+    {
+      "key": "EPF-022",
+      "lowerInclusiveCents": 40001,
+      "upperInclusiveCents": 42000,
+      "contributions": {
+        "epfPartAEmployeeCents": 4700,
+        "epfPartAEmployerCents": 5500,
+        "epfPartCEmployeeCents": 2400,
+        "epfPartCEmployerCents": 2800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 1700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-023",
+      "lowerInclusiveCents": 42001,
+      "upperInclusiveCents": 44000,
+      "contributions": {
+        "epfPartAEmployeeCents": 4900,
+        "epfPartAEmployerCents": 5800,
+        "epfPartCEmployeeCents": 2500,
+        "epfPartCEmployerCents": 2900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 1800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-024",
+      "lowerInclusiveCents": 44001,
+      "upperInclusiveCents": 46000,
+      "contributions": {
+        "epfPartAEmployeeCents": 5100,
+        "epfPartAEmployerCents": 6000,
+        "epfPartCEmployeeCents": 2600,
+        "epfPartCEmployerCents": 3000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 1900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-025",
+      "lowerInclusiveCents": 46001,
+      "upperInclusiveCents": 48000,
+      "contributions": {
+        "epfPartAEmployeeCents": 5300,
+        "epfPartAEmployerCents": 6300,
+        "epfPartCEmployeeCents": 2700,
+        "epfPartCEmployerCents": 3200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-026",
+      "lowerInclusiveCents": 48001,
+      "upperInclusiveCents": 50000,
+      "contributions": {
+        "epfPartAEmployeeCents": 5500,
+        "epfPartAEmployerCents": 6500,
+        "epfPartCEmployeeCents": 2800,
+        "epfPartCEmployerCents": 3300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-027",
+      "lowerInclusiveCents": 50001,
+      "upperInclusiveCents": 52000,
+      "contributions": {
+        "epfPartAEmployeeCents": 5800,
+        "epfPartAEmployerCents": 6800,
+        "epfPartCEmployeeCents": 2900,
+        "epfPartCEmployerCents": 3400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-028",
+      "lowerInclusiveCents": 52001,
+      "upperInclusiveCents": 54000,
+      "contributions": {
+        "epfPartAEmployeeCents": 6000,
+        "epfPartAEmployerCents": 7100,
+        "epfPartCEmployeeCents": 3000,
+        "epfPartCEmployerCents": 3600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-029",
+      "lowerInclusiveCents": 54001,
+      "upperInclusiveCents": 56000,
+      "contributions": {
+        "epfPartAEmployeeCents": 6200,
+        "epfPartAEmployerCents": 7300,
+        "epfPartCEmployeeCents": 3100,
+        "epfPartCEmployerCents": 3700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-030",
+      "lowerInclusiveCents": 56001,
+      "upperInclusiveCents": 58000,
+      "contributions": {
+        "epfPartAEmployeeCents": 6400,
+        "epfPartAEmployerCents": 7600,
+        "epfPartCEmployeeCents": 3200,
+        "epfPartCEmployerCents": 3800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-031",
+      "lowerInclusiveCents": 58001,
+      "upperInclusiveCents": 60000,
+      "contributions": {
+        "epfPartAEmployeeCents": 6600,
+        "epfPartAEmployerCents": 7800,
+        "epfPartCEmployeeCents": 3300,
+        "epfPartCEmployerCents": 3900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-032",
+      "lowerInclusiveCents": 60001,
+      "upperInclusiveCents": 62000,
+      "contributions": {
+        "epfPartAEmployeeCents": 6900,
+        "epfPartAEmployerCents": 8100,
+        "epfPartCEmployeeCents": 3500,
+        "epfPartCEmployerCents": 4100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-033",
+      "lowerInclusiveCents": 62001,
+      "upperInclusiveCents": 64000,
+      "contributions": {
+        "epfPartAEmployeeCents": 7100,
+        "epfPartAEmployerCents": 8400,
+        "epfPartCEmployeeCents": 3600,
+        "epfPartCEmployerCents": 4200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-034",
+      "lowerInclusiveCents": 64001,
+      "upperInclusiveCents": 66000,
+      "contributions": {
+        "epfPartAEmployeeCents": 7300,
+        "epfPartAEmployerCents": 8600,
+        "epfPartCEmployeeCents": 3700,
+        "epfPartCEmployerCents": 4300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-035",
+      "lowerInclusiveCents": 66001,
+      "upperInclusiveCents": 68000,
+      "contributions": {
+        "epfPartAEmployeeCents": 7500,
+        "epfPartAEmployerCents": 8900,
+        "epfPartCEmployeeCents": 3800,
+        "epfPartCEmployerCents": 4500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 3; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-036",
+      "lowerInclusiveCents": 68001,
+      "upperInclusiveCents": 70000,
+      "contributions": {
+        "epfPartAEmployeeCents": 7700,
+        "epfPartAEmployerCents": 9100,
+        "epfPartCEmployeeCents": 3900,
+        "epfPartCEmployerCents": 4600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-037",
+      "lowerInclusiveCents": 70001,
+      "upperInclusiveCents": 72000,
+      "contributions": {
+        "epfPartAEmployeeCents": 8000,
+        "epfPartAEmployerCents": 9400,
+        "epfPartCEmployeeCents": 4000,
+        "epfPartCEmployerCents": 4700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 2900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-038",
+      "lowerInclusiveCents": 72001,
+      "upperInclusiveCents": 74000,
+      "contributions": {
+        "epfPartAEmployeeCents": 8200,
+        "epfPartAEmployerCents": 9700,
+        "epfPartCEmployeeCents": 4100,
+        "epfPartCEmployerCents": 4900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 3000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-039",
+      "lowerInclusiveCents": 74001,
+      "upperInclusiveCents": 76000,
+      "contributions": {
+        "epfPartAEmployeeCents": 8400,
+        "epfPartAEmployerCents": 9900,
+        "epfPartCEmployeeCents": 4200,
+        "epfPartCEmployerCents": 5000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 3100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-040",
+      "lowerInclusiveCents": 76001,
+      "upperInclusiveCents": 78000,
+      "contributions": {
+        "epfPartAEmployeeCents": 8600,
+        "epfPartAEmployerCents": 10200,
+        "epfPartCEmployeeCents": 4300,
+        "epfPartCEmployerCents": 5100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 3200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-041",
+      "lowerInclusiveCents": 78001,
+      "upperInclusiveCents": 80000,
+      "contributions": {
+        "epfPartAEmployeeCents": 8800,
+        "epfPartAEmployerCents": 10400,
+        "epfPartCEmployeeCents": 4400,
+        "epfPartCEmployerCents": 5200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 3200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-042",
+      "lowerInclusiveCents": 80001,
+      "upperInclusiveCents": 82000,
+      "contributions": {
+        "epfPartAEmployeeCents": 9100,
+        "epfPartAEmployerCents": 10700,
+        "epfPartCEmployeeCents": 4600,
+        "epfPartCEmployerCents": 5400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 3300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 23; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-043",
+      "lowerInclusiveCents": 82001,
+      "upperInclusiveCents": 84000,
+      "contributions": {
+        "epfPartAEmployeeCents": 9300,
+        "epfPartAEmployerCents": 11000,
+        "epfPartCEmployeeCents": 4700,
+        "epfPartCEmployerCents": 5500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 3400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-044",
+      "lowerInclusiveCents": 84001,
+      "upperInclusiveCents": 86000,
+      "contributions": {
+        "epfPartAEmployeeCents": 9500,
+        "epfPartAEmployerCents": 11200,
+        "epfPartCEmployeeCents": 4800,
+        "epfPartCEmployerCents": 5600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 3500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-045",
+      "lowerInclusiveCents": 86001,
+      "upperInclusiveCents": 88000,
+      "contributions": {
+        "epfPartAEmployeeCents": 9700,
+        "epfPartAEmployerCents": 11500,
+        "epfPartCEmployeeCents": 4900,
+        "epfPartCEmployerCents": 5800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 3600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-046",
+      "lowerInclusiveCents": 88001,
+      "upperInclusiveCents": 90000,
+      "contributions": {
+        "epfPartAEmployeeCents": 9900,
+        "epfPartAEmployerCents": 11700,
+        "epfPartCEmployeeCents": 5000,
+        "epfPartCEmployerCents": 5900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 3600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-047",
+      "lowerInclusiveCents": 90001,
+      "upperInclusiveCents": 92000,
+      "contributions": {
+        "epfPartAEmployeeCents": 10200,
+        "epfPartAEmployerCents": 12000,
+        "epfPartCEmployeeCents": 5100,
+        "epfPartCEmployerCents": 6000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 3700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-048",
+      "lowerInclusiveCents": 92001,
+      "upperInclusiveCents": 94000,
+      "contributions": {
+        "epfPartAEmployeeCents": 10400,
+        "epfPartAEmployerCents": 12300,
+        "epfPartCEmployeeCents": 5200,
+        "epfPartCEmployerCents": 6200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 3800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-049",
+      "lowerInclusiveCents": 94001,
+      "upperInclusiveCents": 96000,
+      "contributions": {
+        "epfPartAEmployeeCents": 10600,
+        "epfPartAEmployerCents": 12500,
+        "epfPartCEmployeeCents": 5300,
+        "epfPartCEmployerCents": 6300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 3900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 40"
+    },
+    {
+      "key": "EPF-050",
+      "lowerInclusiveCents": 96001,
+      "upperInclusiveCents": 98000,
+      "contributions": {
+        "epfPartAEmployeeCents": 10800,
+        "epfPartAEmployerCents": 12800,
+        "epfPartCEmployeeCents": 5400,
+        "epfPartCEmployerCents": 6400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-051",
+      "lowerInclusiveCents": 98001,
+      "upperInclusiveCents": 100000,
+      "contributions": {
+        "epfPartAEmployeeCents": 11000,
+        "epfPartAEmployerCents": 13000,
+        "epfPartCEmployeeCents": 5500,
+        "epfPartCEmployerCents": 6500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-052",
+      "lowerInclusiveCents": 100001,
+      "upperInclusiveCents": 102000,
+      "contributions": {
+        "epfPartAEmployeeCents": 11300,
+        "epfPartAEmployerCents": 13300,
+        "epfPartCEmployeeCents": 5700,
+        "epfPartCEmployerCents": 6700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-053",
+      "lowerInclusiveCents": 102001,
+      "upperInclusiveCents": 104000,
+      "contributions": {
+        "epfPartAEmployeeCents": 11500,
+        "epfPartAEmployerCents": 13600,
+        "epfPartCEmployeeCents": 5800,
+        "epfPartCEmployerCents": 6800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-054",
+      "lowerInclusiveCents": 104001,
+      "upperInclusiveCents": 106000,
+      "contributions": {
+        "epfPartAEmployeeCents": 11700,
+        "epfPartAEmployerCents": 13800,
+        "epfPartCEmployeeCents": 5900,
+        "epfPartCEmployerCents": 6900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-055",
+      "lowerInclusiveCents": 106001,
+      "upperInclusiveCents": 108000,
+      "contributions": {
+        "epfPartAEmployeeCents": 11900,
+        "epfPartAEmployerCents": 14100,
+        "epfPartCEmployeeCents": 6000,
+        "epfPartCEmployerCents": 7100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-056",
+      "lowerInclusiveCents": 108001,
+      "upperInclusiveCents": 110000,
+      "contributions": {
+        "epfPartAEmployeeCents": 12100,
+        "epfPartAEmployerCents": 14300,
+        "epfPartCEmployeeCents": 6100,
+        "epfPartCEmployerCents": 7200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-057",
+      "lowerInclusiveCents": 110001,
+      "upperInclusiveCents": 112000,
+      "contributions": {
+        "epfPartAEmployeeCents": 12400,
+        "epfPartAEmployerCents": 14600,
+        "epfPartCEmployeeCents": 6200,
+        "epfPartCEmployerCents": 7300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-058",
+      "lowerInclusiveCents": 112001,
+      "upperInclusiveCents": 114000,
+      "contributions": {
+        "epfPartAEmployeeCents": 12600,
+        "epfPartAEmployerCents": 14900,
+        "epfPartCEmployeeCents": 6300,
+        "epfPartCEmployerCents": 7500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 4; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-059",
+      "lowerInclusiveCents": 114001,
+      "upperInclusiveCents": 116000,
+      "contributions": {
+        "epfPartAEmployeeCents": 12800,
+        "epfPartAEmployerCents": 15100,
+        "epfPartCEmployeeCents": 6400,
+        "epfPartCEmployerCents": 7600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-060",
+      "lowerInclusiveCents": 116001,
+      "upperInclusiveCents": 118000,
+      "contributions": {
+        "epfPartAEmployeeCents": 13000,
+        "epfPartAEmployerCents": 15400,
+        "epfPartCEmployeeCents": 6500,
+        "epfPartCEmployerCents": 7700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-061",
+      "lowerInclusiveCents": 118001,
+      "upperInclusiveCents": 120000,
+      "contributions": {
+        "epfPartAEmployeeCents": 13200,
+        "epfPartAEmployerCents": 15600,
+        "epfPartCEmployeeCents": 6600,
+        "epfPartCEmployerCents": 7800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-062",
+      "lowerInclusiveCents": 120001,
+      "upperInclusiveCents": 122000,
+      "contributions": {
+        "epfPartAEmployeeCents": 13500,
+        "epfPartAEmployerCents": 15900,
+        "epfPartCEmployeeCents": 6800,
+        "epfPartCEmployerCents": 8000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 4900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-063",
+      "lowerInclusiveCents": 122001,
+      "upperInclusiveCents": 124000,
+      "contributions": {
+        "epfPartAEmployeeCents": 13700,
+        "epfPartAEmployerCents": 16200,
+        "epfPartCEmployeeCents": 6900,
+        "epfPartCEmployerCents": 8100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 5000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-064",
+      "lowerInclusiveCents": 124001,
+      "upperInclusiveCents": 126000,
+      "contributions": {
+        "epfPartAEmployeeCents": 13900,
+        "epfPartAEmployerCents": 16400,
+        "epfPartCEmployeeCents": 7000,
+        "epfPartCEmployerCents": 8200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 5100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-065",
+      "lowerInclusiveCents": 126001,
+      "upperInclusiveCents": 128000,
+      "contributions": {
+        "epfPartAEmployeeCents": 14100,
+        "epfPartAEmployerCents": 16700,
+        "epfPartCEmployeeCents": 7100,
+        "epfPartCEmployerCents": 8400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 5200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-066",
+      "lowerInclusiveCents": 128001,
+      "upperInclusiveCents": 130000,
+      "contributions": {
+        "epfPartAEmployeeCents": 14300,
+        "epfPartAEmployerCents": 16900,
+        "epfPartCEmployeeCents": 7200,
+        "epfPartCEmployerCents": 8500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 5200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-067",
+      "lowerInclusiveCents": 130001,
+      "upperInclusiveCents": 132000,
+      "contributions": {
+        "epfPartAEmployeeCents": 14600,
+        "epfPartAEmployerCents": 17200,
+        "epfPartCEmployeeCents": 7300,
+        "epfPartCEmployerCents": 8600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 5300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-068",
+      "lowerInclusiveCents": 132001,
+      "upperInclusiveCents": 134000,
+      "contributions": {
+        "epfPartAEmployeeCents": 14800,
+        "epfPartAEmployerCents": 17500,
+        "epfPartCEmployeeCents": 7400,
+        "epfPartCEmployerCents": 8800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 5400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-069",
+      "lowerInclusiveCents": 134001,
+      "upperInclusiveCents": 136000,
+      "contributions": {
+        "epfPartAEmployeeCents": 15000,
+        "epfPartAEmployerCents": 17700,
+        "epfPartCEmployeeCents": 7500,
+        "epfPartCEmployerCents": 8900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 5500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-070",
+      "lowerInclusiveCents": 136001,
+      "upperInclusiveCents": 138000,
+      "contributions": {
+        "epfPartAEmployeeCents": 15200,
+        "epfPartAEmployerCents": 18000,
+        "epfPartCEmployeeCents": 7600,
+        "epfPartCEmployerCents": 9000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 5600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 24; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-071",
+      "lowerInclusiveCents": 138001,
+      "upperInclusiveCents": 140000,
+      "contributions": {
+        "epfPartAEmployeeCents": 15400,
+        "epfPartAEmployerCents": 18200,
+        "epfPartCEmployeeCents": 7700,
+        "epfPartCEmployerCents": 9100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 5600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 25; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-072",
+      "lowerInclusiveCents": 140001,
+      "upperInclusiveCents": 142000,
+      "contributions": {
+        "epfPartAEmployeeCents": 15700,
+        "epfPartAEmployerCents": 18500,
+        "epfPartCEmployeeCents": 7900,
+        "epfPartCEmployerCents": 9300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 5700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 25; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-073",
+      "lowerInclusiveCents": 142001,
+      "upperInclusiveCents": 144000,
+      "contributions": {
+        "epfPartAEmployeeCents": 15900,
+        "epfPartAEmployerCents": 18800,
+        "epfPartCEmployeeCents": 8000,
+        "epfPartCEmployerCents": 9400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 5800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 25; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-074",
+      "lowerInclusiveCents": 144001,
+      "upperInclusiveCents": 146000,
+      "contributions": {
+        "epfPartAEmployeeCents": 16100,
+        "epfPartAEmployerCents": 19000,
+        "epfPartCEmployeeCents": 8100,
+        "epfPartCEmployerCents": 9500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 5900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 25; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-075",
+      "lowerInclusiveCents": 146001,
+      "upperInclusiveCents": 148000,
+      "contributions": {
+        "epfPartAEmployeeCents": 16300,
+        "epfPartAEmployerCents": 19300,
+        "epfPartCEmployeeCents": 8200,
+        "epfPartCEmployerCents": 9700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 25; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-076",
+      "lowerInclusiveCents": 148001,
+      "upperInclusiveCents": 150000,
+      "contributions": {
+        "epfPartAEmployeeCents": 16500,
+        "epfPartAEmployerCents": 19500,
+        "epfPartCEmployeeCents": 8300,
+        "epfPartCEmployerCents": 9800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 25; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-077",
+      "lowerInclusiveCents": 150001,
+      "upperInclusiveCents": 152000,
+      "contributions": {
+        "epfPartAEmployeeCents": 16800,
+        "epfPartAEmployerCents": 19800,
+        "epfPartCEmployeeCents": 8400,
+        "epfPartCEmployerCents": 9900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 25; Part E PDF p. 41"
+    },
+    {
+      "key": "EPF-078",
+      "lowerInclusiveCents": 152001,
+      "upperInclusiveCents": 154000,
+      "contributions": {
+        "epfPartAEmployeeCents": 17000,
+        "epfPartAEmployerCents": 20100,
+        "epfPartCEmployeeCents": 8500,
+        "epfPartCEmployerCents": 10100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-079",
+      "lowerInclusiveCents": 154001,
+      "upperInclusiveCents": 156000,
+      "contributions": {
+        "epfPartAEmployeeCents": 17200,
+        "epfPartAEmployerCents": 20300,
+        "epfPartCEmployeeCents": 8600,
+        "epfPartCEmployerCents": 10200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-080",
+      "lowerInclusiveCents": 156001,
+      "upperInclusiveCents": 158000,
+      "contributions": {
+        "epfPartAEmployeeCents": 17400,
+        "epfPartAEmployerCents": 20600,
+        "epfPartCEmployeeCents": 8700,
+        "epfPartCEmployerCents": 10300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-081",
+      "lowerInclusiveCents": 158001,
+      "upperInclusiveCents": 160000,
+      "contributions": {
+        "epfPartAEmployeeCents": 17600,
+        "epfPartAEmployerCents": 20800,
+        "epfPartCEmployeeCents": 8800,
+        "epfPartCEmployerCents": 10400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 5; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-082",
+      "lowerInclusiveCents": 160001,
+      "upperInclusiveCents": 162000,
+      "contributions": {
+        "epfPartAEmployeeCents": 17900,
+        "epfPartAEmployerCents": 21100,
+        "epfPartCEmployeeCents": 9000,
+        "epfPartCEmployerCents": 10600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-083",
+      "lowerInclusiveCents": 162001,
+      "upperInclusiveCents": 164000,
+      "contributions": {
+        "epfPartAEmployeeCents": 18100,
+        "epfPartAEmployerCents": 21400,
+        "epfPartCEmployeeCents": 9100,
+        "epfPartCEmployerCents": 10700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-084",
+      "lowerInclusiveCents": 164001,
+      "upperInclusiveCents": 166000,
+      "contributions": {
+        "epfPartAEmployeeCents": 18300,
+        "epfPartAEmployerCents": 21600,
+        "epfPartCEmployeeCents": 9200,
+        "epfPartCEmployerCents": 10800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-085",
+      "lowerInclusiveCents": 166001,
+      "upperInclusiveCents": 168000,
+      "contributions": {
+        "epfPartAEmployeeCents": 18500,
+        "epfPartAEmployerCents": 21900,
+        "epfPartCEmployeeCents": 9300,
+        "epfPartCEmployerCents": 11000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-086",
+      "lowerInclusiveCents": 168001,
+      "upperInclusiveCents": 170000,
+      "contributions": {
+        "epfPartAEmployeeCents": 18700,
+        "epfPartAEmployerCents": 22100,
+        "epfPartCEmployeeCents": 9400,
+        "epfPartCEmployerCents": 11100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-087",
+      "lowerInclusiveCents": 170001,
+      "upperInclusiveCents": 172000,
+      "contributions": {
+        "epfPartAEmployeeCents": 19000,
+        "epfPartAEmployerCents": 22400,
+        "epfPartCEmployeeCents": 9500,
+        "epfPartCEmployerCents": 11200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 6900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-088",
+      "lowerInclusiveCents": 172001,
+      "upperInclusiveCents": 174000,
+      "contributions": {
+        "epfPartAEmployeeCents": 19200,
+        "epfPartAEmployerCents": 22700,
+        "epfPartCEmployeeCents": 9600,
+        "epfPartCEmployerCents": 11400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 7000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-089",
+      "lowerInclusiveCents": 174001,
+      "upperInclusiveCents": 176000,
+      "contributions": {
+        "epfPartAEmployeeCents": 19400,
+        "epfPartAEmployerCents": 22900,
+        "epfPartCEmployeeCents": 9700,
+        "epfPartCEmployerCents": 11500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 7100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-090",
+      "lowerInclusiveCents": 176001,
+      "upperInclusiveCents": 178000,
+      "contributions": {
+        "epfPartAEmployeeCents": 19600,
+        "epfPartAEmployerCents": 23200,
+        "epfPartCEmployeeCents": 9800,
+        "epfPartCEmployerCents": 11600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 7200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-091",
+      "lowerInclusiveCents": 178001,
+      "upperInclusiveCents": 180000,
+      "contributions": {
+        "epfPartAEmployeeCents": 19800,
+        "epfPartAEmployerCents": 23400,
+        "epfPartCEmployeeCents": 9900,
+        "epfPartCEmployerCents": 11700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 7200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-092",
+      "lowerInclusiveCents": 180001,
+      "upperInclusiveCents": 182000,
+      "contributions": {
+        "epfPartAEmployeeCents": 20100,
+        "epfPartAEmployerCents": 23700,
+        "epfPartCEmployeeCents": 10100,
+        "epfPartCEmployerCents": 11900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 7300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-093",
+      "lowerInclusiveCents": 182001,
+      "upperInclusiveCents": 184000,
+      "contributions": {
+        "epfPartAEmployeeCents": 20300,
+        "epfPartAEmployerCents": 24000,
+        "epfPartCEmployeeCents": 10200,
+        "epfPartCEmployerCents": 12000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 7400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-094",
+      "lowerInclusiveCents": 184001,
+      "upperInclusiveCents": 186000,
+      "contributions": {
+        "epfPartAEmployeeCents": 20500,
+        "epfPartAEmployerCents": 24200,
+        "epfPartCEmployeeCents": 10300,
+        "epfPartCEmployerCents": 12100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 7500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-095",
+      "lowerInclusiveCents": 186001,
+      "upperInclusiveCents": 188000,
+      "contributions": {
+        "epfPartAEmployeeCents": 20700,
+        "epfPartAEmployerCents": 24500,
+        "epfPartCEmployeeCents": 10400,
+        "epfPartCEmployerCents": 12300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 7600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-096",
+      "lowerInclusiveCents": 188001,
+      "upperInclusiveCents": 190000,
+      "contributions": {
+        "epfPartAEmployeeCents": 20900,
+        "epfPartAEmployerCents": 24700,
+        "epfPartCEmployeeCents": 10500,
+        "epfPartCEmployerCents": 12400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 7600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-097",
+      "lowerInclusiveCents": 190001,
+      "upperInclusiveCents": 192000,
+      "contributions": {
+        "epfPartAEmployeeCents": 21200,
+        "epfPartAEmployerCents": 25000,
+        "epfPartCEmployeeCents": 10600,
+        "epfPartCEmployerCents": 12500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 7700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-098",
+      "lowerInclusiveCents": 192001,
+      "upperInclusiveCents": 194000,
+      "contributions": {
+        "epfPartAEmployeeCents": 21400,
+        "epfPartAEmployerCents": 25300,
+        "epfPartCEmployeeCents": 10700,
+        "epfPartCEmployerCents": 12700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 7800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 25; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-099",
+      "lowerInclusiveCents": 194001,
+      "upperInclusiveCents": 196000,
+      "contributions": {
+        "epfPartAEmployeeCents": 21600,
+        "epfPartAEmployerCents": 25500,
+        "epfPartCEmployeeCents": 10800,
+        "epfPartCEmployerCents": 12800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 7900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 26; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-100",
+      "lowerInclusiveCents": 196001,
+      "upperInclusiveCents": 198000,
+      "contributions": {
+        "epfPartAEmployeeCents": 21800,
+        "epfPartAEmployerCents": 25800,
+        "epfPartCEmployeeCents": 10900,
+        "epfPartCEmployerCents": 12900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 26; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-101",
+      "lowerInclusiveCents": 198001,
+      "upperInclusiveCents": 200000,
+      "contributions": {
+        "epfPartAEmployeeCents": 22000,
+        "epfPartAEmployerCents": 26000,
+        "epfPartCEmployeeCents": 11000,
+        "epfPartCEmployerCents": 13000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 26; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-102",
+      "lowerInclusiveCents": 200001,
+      "upperInclusiveCents": 202000,
+      "contributions": {
+        "epfPartAEmployeeCents": 22300,
+        "epfPartAEmployerCents": 26300,
+        "epfPartCEmployeeCents": 11200,
+        "epfPartCEmployerCents": 13200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 26; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-103",
+      "lowerInclusiveCents": 202001,
+      "upperInclusiveCents": 204000,
+      "contributions": {
+        "epfPartAEmployeeCents": 22500,
+        "epfPartAEmployerCents": 26600,
+        "epfPartCEmployeeCents": 11300,
+        "epfPartCEmployerCents": 13300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 26; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-104",
+      "lowerInclusiveCents": 204001,
+      "upperInclusiveCents": 206000,
+      "contributions": {
+        "epfPartAEmployeeCents": 22700,
+        "epfPartAEmployerCents": 26800,
+        "epfPartCEmployeeCents": 11400,
+        "epfPartCEmployerCents": 13400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 6; Part C PDF p. 26; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-105",
+      "lowerInclusiveCents": 206001,
+      "upperInclusiveCents": 208000,
+      "contributions": {
+        "epfPartAEmployeeCents": 22900,
+        "epfPartAEmployerCents": 27100,
+        "epfPartCEmployeeCents": 11500,
+        "epfPartCEmployerCents": 13600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 42"
+    },
+    {
+      "key": "EPF-106",
+      "lowerInclusiveCents": 208001,
+      "upperInclusiveCents": 210000,
+      "contributions": {
+        "epfPartAEmployeeCents": 23100,
+        "epfPartAEmployerCents": 27300,
+        "epfPartCEmployeeCents": 11600,
+        "epfPartCEmployerCents": 13700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-107",
+      "lowerInclusiveCents": 210001,
+      "upperInclusiveCents": 212000,
+      "contributions": {
+        "epfPartAEmployeeCents": 23400,
+        "epfPartAEmployerCents": 27600,
+        "epfPartCEmployeeCents": 11700,
+        "epfPartCEmployerCents": 13800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-108",
+      "lowerInclusiveCents": 212001,
+      "upperInclusiveCents": 214000,
+      "contributions": {
+        "epfPartAEmployeeCents": 23600,
+        "epfPartAEmployerCents": 27900,
+        "epfPartCEmployeeCents": 11800,
+        "epfPartCEmployerCents": 14000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-109",
+      "lowerInclusiveCents": 214001,
+      "upperInclusiveCents": 216000,
+      "contributions": {
+        "epfPartAEmployeeCents": 23800,
+        "epfPartAEmployerCents": 28100,
+        "epfPartCEmployeeCents": 11900,
+        "epfPartCEmployerCents": 14100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-110",
+      "lowerInclusiveCents": 216001,
+      "upperInclusiveCents": 218000,
+      "contributions": {
+        "epfPartAEmployeeCents": 24000,
+        "epfPartAEmployerCents": 28400,
+        "epfPartCEmployeeCents": 12000,
+        "epfPartCEmployerCents": 14200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-111",
+      "lowerInclusiveCents": 218001,
+      "upperInclusiveCents": 220000,
+      "contributions": {
+        "epfPartAEmployeeCents": 24200,
+        "epfPartAEmployerCents": 28600,
+        "epfPartCEmployeeCents": 12100,
+        "epfPartCEmployerCents": 14300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-112",
+      "lowerInclusiveCents": 220001,
+      "upperInclusiveCents": 222000,
+      "contributions": {
+        "epfPartAEmployeeCents": 24500,
+        "epfPartAEmployerCents": 28900,
+        "epfPartCEmployeeCents": 12300,
+        "epfPartCEmployerCents": 14500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 8900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-113",
+      "lowerInclusiveCents": 222001,
+      "upperInclusiveCents": 224000,
+      "contributions": {
+        "epfPartAEmployeeCents": 24700,
+        "epfPartAEmployerCents": 29200,
+        "epfPartCEmployeeCents": 12400,
+        "epfPartCEmployerCents": 14600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 9000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-114",
+      "lowerInclusiveCents": 224001,
+      "upperInclusiveCents": 226000,
+      "contributions": {
+        "epfPartAEmployeeCents": 24900,
+        "epfPartAEmployerCents": 29400,
+        "epfPartCEmployeeCents": 12500,
+        "epfPartCEmployerCents": 14700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 9100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-115",
+      "lowerInclusiveCents": 226001,
+      "upperInclusiveCents": 228000,
+      "contributions": {
+        "epfPartAEmployeeCents": 25100,
+        "epfPartAEmployerCents": 29700,
+        "epfPartCEmployeeCents": 12600,
+        "epfPartCEmployerCents": 14900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 9200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-116",
+      "lowerInclusiveCents": 228001,
+      "upperInclusiveCents": 230000,
+      "contributions": {
+        "epfPartAEmployeeCents": 25300,
+        "epfPartAEmployerCents": 29900,
+        "epfPartCEmployeeCents": 12700,
+        "epfPartCEmployerCents": 15000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 9200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-117",
+      "lowerInclusiveCents": 230001,
+      "upperInclusiveCents": 232000,
+      "contributions": {
+        "epfPartAEmployeeCents": 25600,
+        "epfPartAEmployerCents": 30200,
+        "epfPartCEmployeeCents": 12800,
+        "epfPartCEmployerCents": 15100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 9300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-118",
+      "lowerInclusiveCents": 232001,
+      "upperInclusiveCents": 234000,
+      "contributions": {
+        "epfPartAEmployeeCents": 25800,
+        "epfPartAEmployerCents": 30500,
+        "epfPartCEmployeeCents": 12900,
+        "epfPartCEmployerCents": 15300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 9400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-119",
+      "lowerInclusiveCents": 234001,
+      "upperInclusiveCents": 236000,
+      "contributions": {
+        "epfPartAEmployeeCents": 26000,
+        "epfPartAEmployerCents": 30700,
+        "epfPartCEmployeeCents": 13000,
+        "epfPartCEmployerCents": 15400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 9500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-120",
+      "lowerInclusiveCents": 236001,
+      "upperInclusiveCents": 238000,
+      "contributions": {
+        "epfPartAEmployeeCents": 26200,
+        "epfPartAEmployerCents": 31000,
+        "epfPartCEmployeeCents": 13100,
+        "epfPartCEmployerCents": 15500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 9600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-121",
+      "lowerInclusiveCents": 238001,
+      "upperInclusiveCents": 240000,
+      "contributions": {
+        "epfPartAEmployeeCents": 26400,
+        "epfPartAEmployerCents": 31200,
+        "epfPartCEmployeeCents": 13200,
+        "epfPartCEmployerCents": 15600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 9600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-122",
+      "lowerInclusiveCents": 240001,
+      "upperInclusiveCents": 242000,
+      "contributions": {
+        "epfPartAEmployeeCents": 26700,
+        "epfPartAEmployerCents": 31500,
+        "epfPartCEmployeeCents": 13400,
+        "epfPartCEmployerCents": 15800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 9700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-123",
+      "lowerInclusiveCents": 242001,
+      "upperInclusiveCents": 244000,
+      "contributions": {
+        "epfPartAEmployeeCents": 26900,
+        "epfPartAEmployerCents": 31800,
+        "epfPartCEmployeeCents": 13500,
+        "epfPartCEmployerCents": 15900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 9800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-124",
+      "lowerInclusiveCents": 244001,
+      "upperInclusiveCents": 246000,
+      "contributions": {
+        "epfPartAEmployeeCents": 27100,
+        "epfPartAEmployerCents": 32000,
+        "epfPartCEmployeeCents": 13600,
+        "epfPartCEmployerCents": 16000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 9900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-125",
+      "lowerInclusiveCents": 246001,
+      "upperInclusiveCents": 248000,
+      "contributions": {
+        "epfPartAEmployeeCents": 27300,
+        "epfPartAEmployerCents": 32300,
+        "epfPartCEmployeeCents": 13700,
+        "epfPartCEmployerCents": 16200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-126",
+      "lowerInclusiveCents": 248001,
+      "upperInclusiveCents": 250000,
+      "contributions": {
+        "epfPartAEmployeeCents": 27500,
+        "epfPartAEmployerCents": 32500,
+        "epfPartCEmployeeCents": 13800,
+        "epfPartCEmployerCents": 16300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 26; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-127",
+      "lowerInclusiveCents": 250001,
+      "upperInclusiveCents": 252000,
+      "contributions": {
+        "epfPartAEmployeeCents": 27800,
+        "epfPartAEmployerCents": 32800,
+        "epfPartCEmployeeCents": 13900,
+        "epfPartCEmployerCents": 16400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 7; Part C PDF p. 27; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-128",
+      "lowerInclusiveCents": 252001,
+      "upperInclusiveCents": 254000,
+      "contributions": {
+        "epfPartAEmployeeCents": 28000,
+        "epfPartAEmployerCents": 33100,
+        "epfPartCEmployeeCents": 14000,
+        "epfPartCEmployerCents": 16600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-129",
+      "lowerInclusiveCents": 254001,
+      "upperInclusiveCents": 256000,
+      "contributions": {
+        "epfPartAEmployeeCents": 28200,
+        "epfPartAEmployerCents": 33300,
+        "epfPartCEmployeeCents": 14100,
+        "epfPartCEmployerCents": 16700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-130",
+      "lowerInclusiveCents": 256001,
+      "upperInclusiveCents": 258000,
+      "contributions": {
+        "epfPartAEmployeeCents": 28400,
+        "epfPartAEmployerCents": 33600,
+        "epfPartCEmployeeCents": 14200,
+        "epfPartCEmployerCents": 16800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-131",
+      "lowerInclusiveCents": 258001,
+      "upperInclusiveCents": 260000,
+      "contributions": {
+        "epfPartAEmployeeCents": 28600,
+        "epfPartAEmployerCents": 33800,
+        "epfPartCEmployeeCents": 14300,
+        "epfPartCEmployerCents": 16900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-132",
+      "lowerInclusiveCents": 260001,
+      "upperInclusiveCents": 262000,
+      "contributions": {
+        "epfPartAEmployeeCents": 28900,
+        "epfPartAEmployerCents": 34100,
+        "epfPartCEmployeeCents": 14500,
+        "epfPartCEmployerCents": 17100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-133",
+      "lowerInclusiveCents": 262001,
+      "upperInclusiveCents": 264000,
+      "contributions": {
+        "epfPartAEmployeeCents": 29100,
+        "epfPartAEmployerCents": 34400,
+        "epfPartCEmployeeCents": 14600,
+        "epfPartCEmployerCents": 17200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 43"
+    },
+    {
+      "key": "EPF-134",
+      "lowerInclusiveCents": 264001,
+      "upperInclusiveCents": 266000,
+      "contributions": {
+        "epfPartAEmployeeCents": 29300,
+        "epfPartAEmployerCents": 34600,
+        "epfPartCEmployeeCents": 14700,
+        "epfPartCEmployerCents": 17300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-135",
+      "lowerInclusiveCents": 266001,
+      "upperInclusiveCents": 268000,
+      "contributions": {
+        "epfPartAEmployeeCents": 29500,
+        "epfPartAEmployerCents": 34900,
+        "epfPartCEmployeeCents": 14800,
+        "epfPartCEmployerCents": 17500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-136",
+      "lowerInclusiveCents": 268001,
+      "upperInclusiveCents": 270000,
+      "contributions": {
+        "epfPartAEmployeeCents": 29700,
+        "epfPartAEmployerCents": 35100,
+        "epfPartCEmployeeCents": 14900,
+        "epfPartCEmployerCents": 17600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-137",
+      "lowerInclusiveCents": 270001,
+      "upperInclusiveCents": 272000,
+      "contributions": {
+        "epfPartAEmployeeCents": 30000,
+        "epfPartAEmployerCents": 35400,
+        "epfPartCEmployeeCents": 15000,
+        "epfPartCEmployerCents": 17700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 10900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-138",
+      "lowerInclusiveCents": 272001,
+      "upperInclusiveCents": 274000,
+      "contributions": {
+        "epfPartAEmployeeCents": 30200,
+        "epfPartAEmployerCents": 35700,
+        "epfPartCEmployeeCents": 15100,
+        "epfPartCEmployerCents": 17900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 11000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-139",
+      "lowerInclusiveCents": 274001,
+      "upperInclusiveCents": 276000,
+      "contributions": {
+        "epfPartAEmployeeCents": 30400,
+        "epfPartAEmployerCents": 35900,
+        "epfPartCEmployeeCents": 15200,
+        "epfPartCEmployerCents": 18000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 11100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-140",
+      "lowerInclusiveCents": 276001,
+      "upperInclusiveCents": 278000,
+      "contributions": {
+        "epfPartAEmployeeCents": 30600,
+        "epfPartAEmployerCents": 36200,
+        "epfPartCEmployeeCents": 15300,
+        "epfPartCEmployerCents": 18100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 11200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-141",
+      "lowerInclusiveCents": 278001,
+      "upperInclusiveCents": 280000,
+      "contributions": {
+        "epfPartAEmployeeCents": 30800,
+        "epfPartAEmployerCents": 36400,
+        "epfPartCEmployeeCents": 15400,
+        "epfPartCEmployerCents": 18200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 11200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-142",
+      "lowerInclusiveCents": 280001,
+      "upperInclusiveCents": 282000,
+      "contributions": {
+        "epfPartAEmployeeCents": 31100,
+        "epfPartAEmployerCents": 36700,
+        "epfPartCEmployeeCents": 15600,
+        "epfPartCEmployerCents": 18400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 11300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-143",
+      "lowerInclusiveCents": 282001,
+      "upperInclusiveCents": 284000,
+      "contributions": {
+        "epfPartAEmployeeCents": 31300,
+        "epfPartAEmployerCents": 37000,
+        "epfPartCEmployeeCents": 15700,
+        "epfPartCEmployerCents": 18500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 11400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-144",
+      "lowerInclusiveCents": 284001,
+      "upperInclusiveCents": 286000,
+      "contributions": {
+        "epfPartAEmployeeCents": 31500,
+        "epfPartAEmployerCents": 37200,
+        "epfPartCEmployeeCents": 15800,
+        "epfPartCEmployerCents": 18600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 11500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-145",
+      "lowerInclusiveCents": 286001,
+      "upperInclusiveCents": 288000,
+      "contributions": {
+        "epfPartAEmployeeCents": 31700,
+        "epfPartAEmployerCents": 37500,
+        "epfPartCEmployeeCents": 15900,
+        "epfPartCEmployerCents": 18800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 11600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-146",
+      "lowerInclusiveCents": 288001,
+      "upperInclusiveCents": 290000,
+      "contributions": {
+        "epfPartAEmployeeCents": 31900,
+        "epfPartAEmployerCents": 37700,
+        "epfPartCEmployeeCents": 16000,
+        "epfPartCEmployerCents": 18900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 11600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-147",
+      "lowerInclusiveCents": 290001,
+      "upperInclusiveCents": 292000,
+      "contributions": {
+        "epfPartAEmployeeCents": 32200,
+        "epfPartAEmployerCents": 38000,
+        "epfPartCEmployeeCents": 16100,
+        "epfPartCEmployerCents": 19000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 11700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-148",
+      "lowerInclusiveCents": 292001,
+      "upperInclusiveCents": 294000,
+      "contributions": {
+        "epfPartAEmployeeCents": 32400,
+        "epfPartAEmployerCents": 38300,
+        "epfPartCEmployeeCents": 16200,
+        "epfPartCEmployerCents": 19200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 11800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-149",
+      "lowerInclusiveCents": 294001,
+      "upperInclusiveCents": 296000,
+      "contributions": {
+        "epfPartAEmployeeCents": 32600,
+        "epfPartAEmployerCents": 38500,
+        "epfPartCEmployeeCents": 16300,
+        "epfPartCEmployerCents": 19300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 11900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-150",
+      "lowerInclusiveCents": 296001,
+      "upperInclusiveCents": 298000,
+      "contributions": {
+        "epfPartAEmployeeCents": 32800,
+        "epfPartAEmployerCents": 38800,
+        "epfPartCEmployeeCents": 16400,
+        "epfPartCEmployerCents": 19400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 8; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-151",
+      "lowerInclusiveCents": 298001,
+      "upperInclusiveCents": 300000,
+      "contributions": {
+        "epfPartAEmployeeCents": 33000,
+        "epfPartAEmployerCents": 39000,
+        "epfPartCEmployeeCents": 16500,
+        "epfPartCEmployerCents": 19500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-152",
+      "lowerInclusiveCents": 300001,
+      "upperInclusiveCents": 302000,
+      "contributions": {
+        "epfPartAEmployeeCents": 33300,
+        "epfPartAEmployerCents": 39300,
+        "epfPartCEmployeeCents": 16700,
+        "epfPartCEmployerCents": 19700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-153",
+      "lowerInclusiveCents": 302001,
+      "upperInclusiveCents": 304000,
+      "contributions": {
+        "epfPartAEmployeeCents": 33500,
+        "epfPartAEmployerCents": 39600,
+        "epfPartCEmployeeCents": 16800,
+        "epfPartCEmployerCents": 19800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-154",
+      "lowerInclusiveCents": 304001,
+      "upperInclusiveCents": 306000,
+      "contributions": {
+        "epfPartAEmployeeCents": 33700,
+        "epfPartAEmployerCents": 39800,
+        "epfPartCEmployeeCents": 16900,
+        "epfPartCEmployerCents": 19900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 27; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-155",
+      "lowerInclusiveCents": 306001,
+      "upperInclusiveCents": 308000,
+      "contributions": {
+        "epfPartAEmployeeCents": 33900,
+        "epfPartAEmployerCents": 40100,
+        "epfPartCEmployeeCents": 17000,
+        "epfPartCEmployerCents": 20100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-156",
+      "lowerInclusiveCents": 308001,
+      "upperInclusiveCents": 310000,
+      "contributions": {
+        "epfPartAEmployeeCents": 34100,
+        "epfPartAEmployerCents": 40300,
+        "epfPartCEmployeeCents": 17100,
+        "epfPartCEmployerCents": 20200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-157",
+      "lowerInclusiveCents": 310001,
+      "upperInclusiveCents": 312000,
+      "contributions": {
+        "epfPartAEmployeeCents": 34400,
+        "epfPartAEmployerCents": 40600,
+        "epfPartCEmployeeCents": 17200,
+        "epfPartCEmployerCents": 20300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-158",
+      "lowerInclusiveCents": 312001,
+      "upperInclusiveCents": 314000,
+      "contributions": {
+        "epfPartAEmployeeCents": 34600,
+        "epfPartAEmployerCents": 40900,
+        "epfPartCEmployeeCents": 17300,
+        "epfPartCEmployerCents": 20500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-159",
+      "lowerInclusiveCents": 314001,
+      "upperInclusiveCents": 316000,
+      "contributions": {
+        "epfPartAEmployeeCents": 34800,
+        "epfPartAEmployerCents": 41100,
+        "epfPartCEmployeeCents": 17400,
+        "epfPartCEmployerCents": 20600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-160",
+      "lowerInclusiveCents": 316001,
+      "upperInclusiveCents": 318000,
+      "contributions": {
+        "epfPartAEmployeeCents": 35000,
+        "epfPartAEmployerCents": 41400,
+        "epfPartCEmployeeCents": 17500,
+        "epfPartCEmployerCents": 20700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-161",
+      "lowerInclusiveCents": 318001,
+      "upperInclusiveCents": 320000,
+      "contributions": {
+        "epfPartAEmployeeCents": 35200,
+        "epfPartAEmployerCents": 41600,
+        "epfPartCEmployeeCents": 17600,
+        "epfPartCEmployerCents": 20800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 44"
+    },
+    {
+      "key": "EPF-162",
+      "lowerInclusiveCents": 320001,
+      "upperInclusiveCents": 322000,
+      "contributions": {
+        "epfPartAEmployeeCents": 35500,
+        "epfPartAEmployerCents": 41900,
+        "epfPartCEmployeeCents": 17800,
+        "epfPartCEmployerCents": 21000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 12900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-163",
+      "lowerInclusiveCents": 322001,
+      "upperInclusiveCents": 324000,
+      "contributions": {
+        "epfPartAEmployeeCents": 35700,
+        "epfPartAEmployerCents": 42200,
+        "epfPartCEmployeeCents": 17900,
+        "epfPartCEmployerCents": 21100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 13000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-164",
+      "lowerInclusiveCents": 324001,
+      "upperInclusiveCents": 326000,
+      "contributions": {
+        "epfPartAEmployeeCents": 35900,
+        "epfPartAEmployerCents": 42400,
+        "epfPartCEmployeeCents": 18000,
+        "epfPartCEmployerCents": 21200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 13100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-165",
+      "lowerInclusiveCents": 326001,
+      "upperInclusiveCents": 328000,
+      "contributions": {
+        "epfPartAEmployeeCents": 36100,
+        "epfPartAEmployerCents": 42700,
+        "epfPartCEmployeeCents": 18100,
+        "epfPartCEmployerCents": 21400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 13200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-166",
+      "lowerInclusiveCents": 328001,
+      "upperInclusiveCents": 330000,
+      "contributions": {
+        "epfPartAEmployeeCents": 36300,
+        "epfPartAEmployerCents": 42900,
+        "epfPartCEmployeeCents": 18200,
+        "epfPartCEmployerCents": 21500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 13200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-167",
+      "lowerInclusiveCents": 330001,
+      "upperInclusiveCents": 332000,
+      "contributions": {
+        "epfPartAEmployeeCents": 36600,
+        "epfPartAEmployerCents": 43200,
+        "epfPartCEmployeeCents": 18300,
+        "epfPartCEmployerCents": 21600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 13300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-168",
+      "lowerInclusiveCents": 332001,
+      "upperInclusiveCents": 334000,
+      "contributions": {
+        "epfPartAEmployeeCents": 36800,
+        "epfPartAEmployerCents": 43500,
+        "epfPartCEmployeeCents": 18400,
+        "epfPartCEmployerCents": 21800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 13400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-169",
+      "lowerInclusiveCents": 334001,
+      "upperInclusiveCents": 336000,
+      "contributions": {
+        "epfPartAEmployeeCents": 37000,
+        "epfPartAEmployerCents": 43700,
+        "epfPartCEmployeeCents": 18500,
+        "epfPartCEmployerCents": 21900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 13500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-170",
+      "lowerInclusiveCents": 336001,
+      "upperInclusiveCents": 338000,
+      "contributions": {
+        "epfPartAEmployeeCents": 37200,
+        "epfPartAEmployerCents": 44000,
+        "epfPartCEmployeeCents": 18600,
+        "epfPartCEmployerCents": 22000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 13600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-171",
+      "lowerInclusiveCents": 338001,
+      "upperInclusiveCents": 340000,
+      "contributions": {
+        "epfPartAEmployeeCents": 37400,
+        "epfPartAEmployerCents": 44200,
+        "epfPartCEmployeeCents": 18700,
+        "epfPartCEmployerCents": 22100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 13600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-172",
+      "lowerInclusiveCents": 340001,
+      "upperInclusiveCents": 342000,
+      "contributions": {
+        "epfPartAEmployeeCents": 37700,
+        "epfPartAEmployerCents": 44500,
+        "epfPartCEmployeeCents": 18900,
+        "epfPartCEmployerCents": 22300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 13700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-173",
+      "lowerInclusiveCents": 342001,
+      "upperInclusiveCents": 344000,
+      "contributions": {
+        "epfPartAEmployeeCents": 37900,
+        "epfPartAEmployerCents": 44800,
+        "epfPartCEmployeeCents": 19000,
+        "epfPartCEmployerCents": 22400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 13800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 9; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-174",
+      "lowerInclusiveCents": 344001,
+      "upperInclusiveCents": 346000,
+      "contributions": {
+        "epfPartAEmployeeCents": 38100,
+        "epfPartAEmployerCents": 45000,
+        "epfPartCEmployeeCents": 19100,
+        "epfPartCEmployerCents": 22500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 13900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-175",
+      "lowerInclusiveCents": 346001,
+      "upperInclusiveCents": 348000,
+      "contributions": {
+        "epfPartAEmployeeCents": 38300,
+        "epfPartAEmployerCents": 45300,
+        "epfPartCEmployeeCents": 19200,
+        "epfPartCEmployerCents": 22700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-176",
+      "lowerInclusiveCents": 348001,
+      "upperInclusiveCents": 350000,
+      "contributions": {
+        "epfPartAEmployeeCents": 38500,
+        "epfPartAEmployerCents": 45500,
+        "epfPartCEmployeeCents": 19300,
+        "epfPartCEmployerCents": 22800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-177",
+      "lowerInclusiveCents": 350001,
+      "upperInclusiveCents": 352000,
+      "contributions": {
+        "epfPartAEmployeeCents": 38800,
+        "epfPartAEmployerCents": 45800,
+        "epfPartCEmployeeCents": 19400,
+        "epfPartCEmployerCents": 22900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-178",
+      "lowerInclusiveCents": 352001,
+      "upperInclusiveCents": 354000,
+      "contributions": {
+        "epfPartAEmployeeCents": 39000,
+        "epfPartAEmployerCents": 46100,
+        "epfPartCEmployeeCents": 19500,
+        "epfPartCEmployerCents": 23100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-179",
+      "lowerInclusiveCents": 354001,
+      "upperInclusiveCents": 356000,
+      "contributions": {
+        "epfPartAEmployeeCents": 39200,
+        "epfPartAEmployerCents": 46300,
+        "epfPartCEmployeeCents": 19600,
+        "epfPartCEmployerCents": 23200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-180",
+      "lowerInclusiveCents": 356001,
+      "upperInclusiveCents": 358000,
+      "contributions": {
+        "epfPartAEmployeeCents": 39400,
+        "epfPartAEmployerCents": 46600,
+        "epfPartCEmployeeCents": 19700,
+        "epfPartCEmployerCents": 23300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-181",
+      "lowerInclusiveCents": 358001,
+      "upperInclusiveCents": 360000,
+      "contributions": {
+        "epfPartAEmployeeCents": 39600,
+        "epfPartAEmployerCents": 46800,
+        "epfPartCEmployeeCents": 19800,
+        "epfPartCEmployerCents": 23400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-182",
+      "lowerInclusiveCents": 360001,
+      "upperInclusiveCents": 362000,
+      "contributions": {
+        "epfPartAEmployeeCents": 39900,
+        "epfPartAEmployerCents": 47100,
+        "epfPartCEmployeeCents": 20000,
+        "epfPartCEmployerCents": 23600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 28; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-183",
+      "lowerInclusiveCents": 362001,
+      "upperInclusiveCents": 364000,
+      "contributions": {
+        "epfPartAEmployeeCents": 40100,
+        "epfPartAEmployerCents": 47400,
+        "epfPartCEmployeeCents": 20100,
+        "epfPartCEmployerCents": 23700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-184",
+      "lowerInclusiveCents": 364001,
+      "upperInclusiveCents": 366000,
+      "contributions": {
+        "epfPartAEmployeeCents": 40300,
+        "epfPartAEmployerCents": 47600,
+        "epfPartCEmployeeCents": 20200,
+        "epfPartCEmployerCents": 23800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-185",
+      "lowerInclusiveCents": 366001,
+      "upperInclusiveCents": 368000,
+      "contributions": {
+        "epfPartAEmployeeCents": 40500,
+        "epfPartAEmployerCents": 47900,
+        "epfPartCEmployeeCents": 20300,
+        "epfPartCEmployerCents": 24000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-186",
+      "lowerInclusiveCents": 368001,
+      "upperInclusiveCents": 370000,
+      "contributions": {
+        "epfPartAEmployeeCents": 40700,
+        "epfPartAEmployerCents": 48100,
+        "epfPartCEmployeeCents": 20400,
+        "epfPartCEmployerCents": 24100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-187",
+      "lowerInclusiveCents": 370001,
+      "upperInclusiveCents": 372000,
+      "contributions": {
+        "epfPartAEmployeeCents": 41000,
+        "epfPartAEmployerCents": 48400,
+        "epfPartCEmployeeCents": 20500,
+        "epfPartCEmployerCents": 24200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 14900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-188",
+      "lowerInclusiveCents": 372001,
+      "upperInclusiveCents": 374000,
+      "contributions": {
+        "epfPartAEmployeeCents": 41200,
+        "epfPartAEmployerCents": 48700,
+        "epfPartCEmployeeCents": 20600,
+        "epfPartCEmployerCents": 24400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 15000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-189",
+      "lowerInclusiveCents": 374001,
+      "upperInclusiveCents": 376000,
+      "contributions": {
+        "epfPartAEmployeeCents": 41400,
+        "epfPartAEmployerCents": 48900,
+        "epfPartCEmployeeCents": 20700,
+        "epfPartCEmployerCents": 24500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 15100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 45"
+    },
+    {
+      "key": "EPF-190",
+      "lowerInclusiveCents": 376001,
+      "upperInclusiveCents": 378000,
+      "contributions": {
+        "epfPartAEmployeeCents": 41600,
+        "epfPartAEmployerCents": 49200,
+        "epfPartCEmployeeCents": 20800,
+        "epfPartCEmployerCents": 24600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 15200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-191",
+      "lowerInclusiveCents": 378001,
+      "upperInclusiveCents": 380000,
+      "contributions": {
+        "epfPartAEmployeeCents": 41800,
+        "epfPartAEmployerCents": 49400,
+        "epfPartCEmployeeCents": 20900,
+        "epfPartCEmployerCents": 24700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 15200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-192",
+      "lowerInclusiveCents": 380001,
+      "upperInclusiveCents": 382000,
+      "contributions": {
+        "epfPartAEmployeeCents": 42100,
+        "epfPartAEmployerCents": 49700,
+        "epfPartCEmployeeCents": 21100,
+        "epfPartCEmployerCents": 24900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 15300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-193",
+      "lowerInclusiveCents": 382001,
+      "upperInclusiveCents": 384000,
+      "contributions": {
+        "epfPartAEmployeeCents": 42300,
+        "epfPartAEmployerCents": 50000,
+        "epfPartCEmployeeCents": 21200,
+        "epfPartCEmployerCents": 25000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 15400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-194",
+      "lowerInclusiveCents": 384001,
+      "upperInclusiveCents": 386000,
+      "contributions": {
+        "epfPartAEmployeeCents": 42500,
+        "epfPartAEmployerCents": 50200,
+        "epfPartCEmployeeCents": 21300,
+        "epfPartCEmployerCents": 25100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 15500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-195",
+      "lowerInclusiveCents": 386001,
+      "upperInclusiveCents": 388000,
+      "contributions": {
+        "epfPartAEmployeeCents": 42700,
+        "epfPartAEmployerCents": 50500,
+        "epfPartCEmployeeCents": 21400,
+        "epfPartCEmployerCents": 25300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 15600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-196",
+      "lowerInclusiveCents": 388001,
+      "upperInclusiveCents": 390000,
+      "contributions": {
+        "epfPartAEmployeeCents": 42900,
+        "epfPartAEmployerCents": 50700,
+        "epfPartCEmployeeCents": 21500,
+        "epfPartCEmployerCents": 25400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 15600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 10; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-197",
+      "lowerInclusiveCents": 390001,
+      "upperInclusiveCents": 392000,
+      "contributions": {
+        "epfPartAEmployeeCents": 43200,
+        "epfPartAEmployerCents": 51000,
+        "epfPartCEmployeeCents": 21600,
+        "epfPartCEmployerCents": 25500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 15700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-198",
+      "lowerInclusiveCents": 392001,
+      "upperInclusiveCents": 394000,
+      "contributions": {
+        "epfPartAEmployeeCents": 43400,
+        "epfPartAEmployerCents": 51300,
+        "epfPartCEmployeeCents": 21700,
+        "epfPartCEmployerCents": 25700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 15800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-199",
+      "lowerInclusiveCents": 394001,
+      "upperInclusiveCents": 396000,
+      "contributions": {
+        "epfPartAEmployeeCents": 43600,
+        "epfPartAEmployerCents": 51500,
+        "epfPartCEmployeeCents": 21800,
+        "epfPartCEmployerCents": 25800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 15900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-200",
+      "lowerInclusiveCents": 396001,
+      "upperInclusiveCents": 398000,
+      "contributions": {
+        "epfPartAEmployeeCents": 43800,
+        "epfPartAEmployerCents": 51800,
+        "epfPartCEmployeeCents": 21900,
+        "epfPartCEmployerCents": 25900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-201",
+      "lowerInclusiveCents": 398001,
+      "upperInclusiveCents": 400000,
+      "contributions": {
+        "epfPartAEmployeeCents": 44000,
+        "epfPartAEmployerCents": 52000,
+        "epfPartCEmployeeCents": 22000,
+        "epfPartCEmployerCents": 26000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-202",
+      "lowerInclusiveCents": 400001,
+      "upperInclusiveCents": 402000,
+      "contributions": {
+        "epfPartAEmployeeCents": 44300,
+        "epfPartAEmployerCents": 52300,
+        "epfPartCEmployeeCents": 22200,
+        "epfPartCEmployerCents": 26200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-203",
+      "lowerInclusiveCents": 402001,
+      "upperInclusiveCents": 404000,
+      "contributions": {
+        "epfPartAEmployeeCents": 44500,
+        "epfPartAEmployerCents": 52600,
+        "epfPartCEmployeeCents": 22300,
+        "epfPartCEmployerCents": 26300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-204",
+      "lowerInclusiveCents": 404001,
+      "upperInclusiveCents": 406000,
+      "contributions": {
+        "epfPartAEmployeeCents": 44700,
+        "epfPartAEmployerCents": 52800,
+        "epfPartCEmployeeCents": 22400,
+        "epfPartCEmployerCents": 26400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-205",
+      "lowerInclusiveCents": 406001,
+      "upperInclusiveCents": 408000,
+      "contributions": {
+        "epfPartAEmployeeCents": 44900,
+        "epfPartAEmployerCents": 53100,
+        "epfPartCEmployeeCents": 22500,
+        "epfPartCEmployerCents": 26600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-206",
+      "lowerInclusiveCents": 408001,
+      "upperInclusiveCents": 410000,
+      "contributions": {
+        "epfPartAEmployeeCents": 45100,
+        "epfPartAEmployerCents": 53300,
+        "epfPartCEmployeeCents": 22600,
+        "epfPartCEmployerCents": 26700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-207",
+      "lowerInclusiveCents": 410001,
+      "upperInclusiveCents": 412000,
+      "contributions": {
+        "epfPartAEmployeeCents": 45400,
+        "epfPartAEmployerCents": 53600,
+        "epfPartCEmployeeCents": 22700,
+        "epfPartCEmployerCents": 26800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-208",
+      "lowerInclusiveCents": 412001,
+      "upperInclusiveCents": 414000,
+      "contributions": {
+        "epfPartAEmployeeCents": 45600,
+        "epfPartAEmployerCents": 53900,
+        "epfPartCEmployeeCents": 22800,
+        "epfPartCEmployerCents": 27000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-209",
+      "lowerInclusiveCents": 414001,
+      "upperInclusiveCents": 416000,
+      "contributions": {
+        "epfPartAEmployeeCents": 45800,
+        "epfPartAEmployerCents": 54100,
+        "epfPartCEmployeeCents": 22900,
+        "epfPartCEmployerCents": 27100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-210",
+      "lowerInclusiveCents": 416001,
+      "upperInclusiveCents": 418000,
+      "contributions": {
+        "epfPartAEmployeeCents": 46000,
+        "epfPartAEmployerCents": 54400,
+        "epfPartCEmployeeCents": 23000,
+        "epfPartCEmployerCents": 27200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 29; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-211",
+      "lowerInclusiveCents": 418001,
+      "upperInclusiveCents": 420000,
+      "contributions": {
+        "epfPartAEmployeeCents": 46200,
+        "epfPartAEmployerCents": 54600,
+        "epfPartCEmployeeCents": 23100,
+        "epfPartCEmployerCents": 27300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 30; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-212",
+      "lowerInclusiveCents": 420001,
+      "upperInclusiveCents": 422000,
+      "contributions": {
+        "epfPartAEmployeeCents": 46500,
+        "epfPartAEmployerCents": 54900,
+        "epfPartCEmployeeCents": 23300,
+        "epfPartCEmployerCents": 27500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 16900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 30; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-213",
+      "lowerInclusiveCents": 422001,
+      "upperInclusiveCents": 424000,
+      "contributions": {
+        "epfPartAEmployeeCents": 46700,
+        "epfPartAEmployerCents": 55200,
+        "epfPartCEmployeeCents": 23400,
+        "epfPartCEmployerCents": 27600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 17000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 30; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-214",
+      "lowerInclusiveCents": 424001,
+      "upperInclusiveCents": 426000,
+      "contributions": {
+        "epfPartAEmployeeCents": 46900,
+        "epfPartAEmployerCents": 55400,
+        "epfPartCEmployeeCents": 23500,
+        "epfPartCEmployerCents": 27700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 17100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 30; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-215",
+      "lowerInclusiveCents": 426001,
+      "upperInclusiveCents": 428000,
+      "contributions": {
+        "epfPartAEmployeeCents": 47100,
+        "epfPartAEmployerCents": 55700,
+        "epfPartCEmployeeCents": 23600,
+        "epfPartCEmployerCents": 27900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 17200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 30; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-216",
+      "lowerInclusiveCents": 428001,
+      "upperInclusiveCents": 430000,
+      "contributions": {
+        "epfPartAEmployeeCents": 47300,
+        "epfPartAEmployerCents": 55900,
+        "epfPartCEmployeeCents": 23700,
+        "epfPartCEmployerCents": 28000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 17200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 30; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-217",
+      "lowerInclusiveCents": 430001,
+      "upperInclusiveCents": 432000,
+      "contributions": {
+        "epfPartAEmployeeCents": 47600,
+        "epfPartAEmployerCents": 56200,
+        "epfPartCEmployeeCents": 23800,
+        "epfPartCEmployerCents": 28100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 17300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 30; Part E PDF p. 46"
+    },
+    {
+      "key": "EPF-218",
+      "lowerInclusiveCents": 432001,
+      "upperInclusiveCents": 434000,
+      "contributions": {
+        "epfPartAEmployeeCents": 47800,
+        "epfPartAEmployerCents": 56500,
+        "epfPartCEmployeeCents": 23900,
+        "epfPartCEmployerCents": 28300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 17400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-219",
+      "lowerInclusiveCents": 434001,
+      "upperInclusiveCents": 436000,
+      "contributions": {
+        "epfPartAEmployeeCents": 48000,
+        "epfPartAEmployerCents": 56700,
+        "epfPartCEmployeeCents": 24000,
+        "epfPartCEmployerCents": 28400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 17500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 11; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-220",
+      "lowerInclusiveCents": 436001,
+      "upperInclusiveCents": 438000,
+      "contributions": {
+        "epfPartAEmployeeCents": 48200,
+        "epfPartAEmployerCents": 57000,
+        "epfPartCEmployeeCents": 24100,
+        "epfPartCEmployerCents": 28500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 17600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-221",
+      "lowerInclusiveCents": 438001,
+      "upperInclusiveCents": 440000,
+      "contributions": {
+        "epfPartAEmployeeCents": 48400,
+        "epfPartAEmployerCents": 57200,
+        "epfPartCEmployeeCents": 24200,
+        "epfPartCEmployerCents": 28600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 17600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-222",
+      "lowerInclusiveCents": 440001,
+      "upperInclusiveCents": 442000,
+      "contributions": {
+        "epfPartAEmployeeCents": 48700,
+        "epfPartAEmployerCents": 57500,
+        "epfPartCEmployeeCents": 24400,
+        "epfPartCEmployerCents": 28800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 17700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-223",
+      "lowerInclusiveCents": 442001,
+      "upperInclusiveCents": 444000,
+      "contributions": {
+        "epfPartAEmployeeCents": 48900,
+        "epfPartAEmployerCents": 57800,
+        "epfPartCEmployeeCents": 24500,
+        "epfPartCEmployerCents": 28900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 17800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-224",
+      "lowerInclusiveCents": 444001,
+      "upperInclusiveCents": 446000,
+      "contributions": {
+        "epfPartAEmployeeCents": 49100,
+        "epfPartAEmployerCents": 58000,
+        "epfPartCEmployeeCents": 24600,
+        "epfPartCEmployerCents": 29000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 17900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-225",
+      "lowerInclusiveCents": 446001,
+      "upperInclusiveCents": 448000,
+      "contributions": {
+        "epfPartAEmployeeCents": 49300,
+        "epfPartAEmployerCents": 58300,
+        "epfPartCEmployeeCents": 24700,
+        "epfPartCEmployerCents": 29200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-226",
+      "lowerInclusiveCents": 448001,
+      "upperInclusiveCents": 450000,
+      "contributions": {
+        "epfPartAEmployeeCents": 49500,
+        "epfPartAEmployerCents": 58500,
+        "epfPartCEmployeeCents": 24800,
+        "epfPartCEmployerCents": 29300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-227",
+      "lowerInclusiveCents": 450001,
+      "upperInclusiveCents": 452000,
+      "contributions": {
+        "epfPartAEmployeeCents": 49800,
+        "epfPartAEmployerCents": 58800,
+        "epfPartCEmployeeCents": 24900,
+        "epfPartCEmployerCents": 29400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-228",
+      "lowerInclusiveCents": 452001,
+      "upperInclusiveCents": 454000,
+      "contributions": {
+        "epfPartAEmployeeCents": 50000,
+        "epfPartAEmployerCents": 59100,
+        "epfPartCEmployeeCents": 25000,
+        "epfPartCEmployerCents": 29600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-229",
+      "lowerInclusiveCents": 454001,
+      "upperInclusiveCents": 456000,
+      "contributions": {
+        "epfPartAEmployeeCents": 50200,
+        "epfPartAEmployerCents": 59300,
+        "epfPartCEmployeeCents": 25100,
+        "epfPartCEmployerCents": 29700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-230",
+      "lowerInclusiveCents": 456001,
+      "upperInclusiveCents": 458000,
+      "contributions": {
+        "epfPartAEmployeeCents": 50400,
+        "epfPartAEmployerCents": 59600,
+        "epfPartCEmployeeCents": 25200,
+        "epfPartCEmployerCents": 29800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-231",
+      "lowerInclusiveCents": 458001,
+      "upperInclusiveCents": 460000,
+      "contributions": {
+        "epfPartAEmployeeCents": 50600,
+        "epfPartAEmployerCents": 59800,
+        "epfPartCEmployeeCents": 25300,
+        "epfPartCEmployerCents": 29900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-232",
+      "lowerInclusiveCents": 460001,
+      "upperInclusiveCents": 462000,
+      "contributions": {
+        "epfPartAEmployeeCents": 50900,
+        "epfPartAEmployerCents": 60100,
+        "epfPartCEmployeeCents": 25500,
+        "epfPartCEmployerCents": 30100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-233",
+      "lowerInclusiveCents": 462001,
+      "upperInclusiveCents": 464000,
+      "contributions": {
+        "epfPartAEmployeeCents": 51100,
+        "epfPartAEmployerCents": 60400,
+        "epfPartCEmployeeCents": 25600,
+        "epfPartCEmployerCents": 30200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-234",
+      "lowerInclusiveCents": 464001,
+      "upperInclusiveCents": 466000,
+      "contributions": {
+        "epfPartAEmployeeCents": 51300,
+        "epfPartAEmployerCents": 60600,
+        "epfPartCEmployeeCents": 25700,
+        "epfPartCEmployerCents": 30300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-235",
+      "lowerInclusiveCents": 466001,
+      "upperInclusiveCents": 468000,
+      "contributions": {
+        "epfPartAEmployeeCents": 51500,
+        "epfPartAEmployerCents": 60900,
+        "epfPartCEmployeeCents": 25800,
+        "epfPartCEmployerCents": 30500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-236",
+      "lowerInclusiveCents": 468001,
+      "upperInclusiveCents": 470000,
+      "contributions": {
+        "epfPartAEmployeeCents": 51700,
+        "epfPartAEmployerCents": 61100,
+        "epfPartCEmployeeCents": 25900,
+        "epfPartCEmployerCents": 30600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-237",
+      "lowerInclusiveCents": 470001,
+      "upperInclusiveCents": 472000,
+      "contributions": {
+        "epfPartAEmployeeCents": 52000,
+        "epfPartAEmployerCents": 61400,
+        "epfPartCEmployeeCents": 26000,
+        "epfPartCEmployerCents": 30700,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 18900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-238",
+      "lowerInclusiveCents": 472001,
+      "upperInclusiveCents": 474000,
+      "contributions": {
+        "epfPartAEmployeeCents": 52200,
+        "epfPartAEmployerCents": 61700,
+        "epfPartCEmployeeCents": 26100,
+        "epfPartCEmployerCents": 30900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 19000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 30; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-239",
+      "lowerInclusiveCents": 474001,
+      "upperInclusiveCents": 476000,
+      "contributions": {
+        "epfPartAEmployeeCents": 52400,
+        "epfPartAEmployerCents": 61900,
+        "epfPartCEmployeeCents": 26200,
+        "epfPartCEmployerCents": 31000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 19100
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 31; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-240",
+      "lowerInclusiveCents": 476001,
+      "upperInclusiveCents": 478000,
+      "contributions": {
+        "epfPartAEmployeeCents": 52600,
+        "epfPartAEmployerCents": 62200,
+        "epfPartCEmployeeCents": 26300,
+        "epfPartCEmployerCents": 31100,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 19200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 31; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-241",
+      "lowerInclusiveCents": 478001,
+      "upperInclusiveCents": 480000,
+      "contributions": {
+        "epfPartAEmployeeCents": 52800,
+        "epfPartAEmployerCents": 62400,
+        "epfPartCEmployeeCents": 26400,
+        "epfPartCEmployerCents": 31200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 19200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 31; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-242",
+      "lowerInclusiveCents": 480001,
+      "upperInclusiveCents": 482000,
+      "contributions": {
+        "epfPartAEmployeeCents": 53100,
+        "epfPartAEmployerCents": 62700,
+        "epfPartCEmployeeCents": 26600,
+        "epfPartCEmployerCents": 31400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 19300
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 12; Part C PDF p. 31; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-243",
+      "lowerInclusiveCents": 482001,
+      "upperInclusiveCents": 484000,
+      "contributions": {
+        "epfPartAEmployeeCents": 53300,
+        "epfPartAEmployerCents": 63000,
+        "epfPartCEmployeeCents": 26700,
+        "epfPartCEmployerCents": 31500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 19400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 13; Part C PDF p. 31; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-244",
+      "lowerInclusiveCents": 484001,
+      "upperInclusiveCents": 486000,
+      "contributions": {
+        "epfPartAEmployeeCents": 53500,
+        "epfPartAEmployerCents": 63200,
+        "epfPartCEmployeeCents": 26800,
+        "epfPartCEmployerCents": 31600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 19500
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 13; Part C PDF p. 31; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-245",
+      "lowerInclusiveCents": 486001,
+      "upperInclusiveCents": 488000,
+      "contributions": {
+        "epfPartAEmployeeCents": 53700,
+        "epfPartAEmployerCents": 63500,
+        "epfPartCEmployeeCents": 26900,
+        "epfPartCEmployerCents": 31800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 19600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 13; Part C PDF p. 31; Part E PDF p. 47"
+    },
+    {
+      "key": "EPF-246",
+      "lowerInclusiveCents": 488001,
+      "upperInclusiveCents": 490000,
+      "contributions": {
+        "epfPartAEmployeeCents": 53900,
+        "epfPartAEmployerCents": 63700,
+        "epfPartCEmployeeCents": 27000,
+        "epfPartCEmployerCents": 31900,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 19600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 13; Part C PDF p. 31; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-247",
+      "lowerInclusiveCents": 490001,
+      "upperInclusiveCents": 492000,
+      "contributions": {
+        "epfPartAEmployeeCents": 54200,
+        "epfPartAEmployerCents": 64000,
+        "epfPartCEmployeeCents": 27100,
+        "epfPartCEmployerCents": 32000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 19700
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 13; Part C PDF p. 31; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-248",
+      "lowerInclusiveCents": 492001,
+      "upperInclusiveCents": 494000,
+      "contributions": {
+        "epfPartAEmployeeCents": 54400,
+        "epfPartAEmployerCents": 64300,
+        "epfPartCEmployeeCents": 27200,
+        "epfPartCEmployerCents": 32200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 19800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 13; Part C PDF p. 31; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-249",
+      "lowerInclusiveCents": 494001,
+      "upperInclusiveCents": 496000,
+      "contributions": {
+        "epfPartAEmployeeCents": 54600,
+        "epfPartAEmployerCents": 64500,
+        "epfPartCEmployeeCents": 27300,
+        "epfPartCEmployerCents": 32300,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 19900
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 13; Part C PDF p. 31; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-250",
+      "lowerInclusiveCents": 496001,
+      "upperInclusiveCents": 498000,
+      "contributions": {
+        "epfPartAEmployeeCents": 54800,
+        "epfPartAEmployerCents": 64800,
+        "epfPartCEmployeeCents": 27400,
+        "epfPartCEmployerCents": 32400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 20000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 13; Part C PDF p. 31; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-251",
+      "lowerInclusiveCents": 498001,
+      "upperInclusiveCents": 500000,
+      "contributions": {
+        "epfPartAEmployeeCents": 55000,
+        "epfPartAEmployerCents": 65000,
+        "epfPartCEmployeeCents": 27500,
+        "epfPartCEmployerCents": 32500,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 20000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 13; Part C PDF p. 31; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-252",
+      "lowerInclusiveCents": 500001,
+      "upperInclusiveCents": 510000,
+      "contributions": {
+        "epfPartAEmployeeCents": 56100,
+        "epfPartAEmployerCents": 61200,
+        "epfPartCEmployeeCents": 28100,
+        "epfPartCEmployerCents": 30600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 20400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 13; Part C PDF p. 31; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-253",
+      "lowerInclusiveCents": 510001,
+      "upperInclusiveCents": 520000,
+      "contributions": {
+        "epfPartAEmployeeCents": 57200,
+        "epfPartAEmployerCents": 62400,
+        "epfPartCEmployeeCents": 28600,
+        "epfPartCEmployerCents": 31200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 20800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-254",
+      "lowerInclusiveCents": 520001,
+      "upperInclusiveCents": 530000,
+      "contributions": {
+        "epfPartAEmployeeCents": 58300,
+        "epfPartAEmployerCents": 63600,
+        "epfPartCEmployeeCents": 29200,
+        "epfPartCEmployerCents": 31800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 21200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-255",
+      "lowerInclusiveCents": 530001,
+      "upperInclusiveCents": 540000,
+      "contributions": {
+        "epfPartAEmployeeCents": 59400,
+        "epfPartAEmployerCents": 64800,
+        "epfPartCEmployeeCents": 29700,
+        "epfPartCEmployerCents": 32400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 21600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-256",
+      "lowerInclusiveCents": 540001,
+      "upperInclusiveCents": 550000,
+      "contributions": {
+        "epfPartAEmployeeCents": 60500,
+        "epfPartAEmployerCents": 66000,
+        "epfPartCEmployeeCents": 30300,
+        "epfPartCEmployerCents": 33000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 22000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-257",
+      "lowerInclusiveCents": 550001,
+      "upperInclusiveCents": 560000,
+      "contributions": {
+        "epfPartAEmployeeCents": 61600,
+        "epfPartAEmployerCents": 67200,
+        "epfPartCEmployeeCents": 30800,
+        "epfPartCEmployerCents": 33600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 22400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-258",
+      "lowerInclusiveCents": 560001,
+      "upperInclusiveCents": 570000,
+      "contributions": {
+        "epfPartAEmployeeCents": 62700,
+        "epfPartAEmployerCents": 68400,
+        "epfPartCEmployeeCents": 31400,
+        "epfPartCEmployerCents": 34200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 22800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-259",
+      "lowerInclusiveCents": 570001,
+      "upperInclusiveCents": 580000,
+      "contributions": {
+        "epfPartAEmployeeCents": 63800,
+        "epfPartAEmployerCents": 69600,
+        "epfPartCEmployeeCents": 31900,
+        "epfPartCEmployerCents": 34800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 23200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-260",
+      "lowerInclusiveCents": 580001,
+      "upperInclusiveCents": 590000,
+      "contributions": {
+        "epfPartAEmployeeCents": 64900,
+        "epfPartAEmployerCents": 70800,
+        "epfPartCEmployeeCents": 32500,
+        "epfPartCEmployerCents": 35400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 23600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-261",
+      "lowerInclusiveCents": 590001,
+      "upperInclusiveCents": 600000,
+      "contributions": {
+        "epfPartAEmployeeCents": 66000,
+        "epfPartAEmployerCents": 72000,
+        "epfPartCEmployeeCents": 33000,
+        "epfPartCEmployerCents": 36000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 24000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-262",
+      "lowerInclusiveCents": 600001,
+      "upperInclusiveCents": 610000,
+      "contributions": {
+        "epfPartAEmployeeCents": 67100,
+        "epfPartAEmployerCents": 73200,
+        "epfPartCEmployeeCents": 33600,
+        "epfPartCEmployerCents": 36600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 24400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-263",
+      "lowerInclusiveCents": 610001,
+      "upperInclusiveCents": 620000,
+      "contributions": {
+        "epfPartAEmployeeCents": 68200,
+        "epfPartAEmployerCents": 74400,
+        "epfPartCEmployeeCents": 34100,
+        "epfPartCEmployerCents": 37200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 24800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-264",
+      "lowerInclusiveCents": 620001,
+      "upperInclusiveCents": 630000,
+      "contributions": {
+        "epfPartAEmployeeCents": 69300,
+        "epfPartAEmployerCents": 75600,
+        "epfPartCEmployeeCents": 34700,
+        "epfPartCEmployerCents": 37800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 25200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-265",
+      "lowerInclusiveCents": 630001,
+      "upperInclusiveCents": 640000,
+      "contributions": {
+        "epfPartAEmployeeCents": 70400,
+        "epfPartAEmployerCents": 76800,
+        "epfPartCEmployeeCents": 35200,
+        "epfPartCEmployerCents": 38400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 25600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-266",
+      "lowerInclusiveCents": 640001,
+      "upperInclusiveCents": 650000,
+      "contributions": {
+        "epfPartAEmployeeCents": 71500,
+        "epfPartAEmployerCents": 78000,
+        "epfPartCEmployeeCents": 35800,
+        "epfPartCEmployerCents": 39000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 26000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-267",
+      "lowerInclusiveCents": 650001,
+      "upperInclusiveCents": 660000,
+      "contributions": {
+        "epfPartAEmployeeCents": 72600,
+        "epfPartAEmployerCents": 79200,
+        "epfPartCEmployeeCents": 36300,
+        "epfPartCEmployerCents": 39600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 26400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-268",
+      "lowerInclusiveCents": 660001,
+      "upperInclusiveCents": 670000,
+      "contributions": {
+        "epfPartAEmployeeCents": 73700,
+        "epfPartAEmployerCents": 80400,
+        "epfPartCEmployeeCents": 36900,
+        "epfPartCEmployerCents": 40200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 26800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-269",
+      "lowerInclusiveCents": 670001,
+      "upperInclusiveCents": 680000,
+      "contributions": {
+        "epfPartAEmployeeCents": 74800,
+        "epfPartAEmployerCents": 81600,
+        "epfPartCEmployeeCents": 37400,
+        "epfPartCEmployerCents": 40800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 27200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-270",
+      "lowerInclusiveCents": 680001,
+      "upperInclusiveCents": 690000,
+      "contributions": {
+        "epfPartAEmployeeCents": 75900,
+        "epfPartAEmployerCents": 82800,
+        "epfPartCEmployeeCents": 38000,
+        "epfPartCEmployerCents": 41400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 27600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-271",
+      "lowerInclusiveCents": 690001,
+      "upperInclusiveCents": 700000,
+      "contributions": {
+        "epfPartAEmployeeCents": 77000,
+        "epfPartAEmployerCents": 84000,
+        "epfPartCEmployeeCents": 38500,
+        "epfPartCEmployerCents": 42000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 28000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-272",
+      "lowerInclusiveCents": 700001,
+      "upperInclusiveCents": 710000,
+      "contributions": {
+        "epfPartAEmployeeCents": 78100,
+        "epfPartAEmployerCents": 85200,
+        "epfPartCEmployeeCents": 39100,
+        "epfPartCEmployerCents": 42600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 28400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-273",
+      "lowerInclusiveCents": 710001,
+      "upperInclusiveCents": 720000,
+      "contributions": {
+        "epfPartAEmployeeCents": 79200,
+        "epfPartAEmployerCents": 86400,
+        "epfPartCEmployeeCents": 39600,
+        "epfPartCEmployerCents": 43200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 28800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 48"
+    },
+    {
+      "key": "EPF-274",
+      "lowerInclusiveCents": 720001,
+      "upperInclusiveCents": 730000,
+      "contributions": {
+        "epfPartAEmployeeCents": 80300,
+        "epfPartAEmployerCents": 87600,
+        "epfPartCEmployeeCents": 40200,
+        "epfPartCEmployerCents": 43800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 29200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-275",
+      "lowerInclusiveCents": 730001,
+      "upperInclusiveCents": 740000,
+      "contributions": {
+        "epfPartAEmployeeCents": 81400,
+        "epfPartAEmployerCents": 88800,
+        "epfPartCEmployeeCents": 40700,
+        "epfPartCEmployerCents": 44400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 29600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-276",
+      "lowerInclusiveCents": 740001,
+      "upperInclusiveCents": 750000,
+      "contributions": {
+        "epfPartAEmployeeCents": 82500,
+        "epfPartAEmployerCents": 90000,
+        "epfPartCEmployeeCents": 41300,
+        "epfPartCEmployerCents": 45000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 30000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 14; Part C PDF p. 32; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-277",
+      "lowerInclusiveCents": 750001,
+      "upperInclusiveCents": 760000,
+      "contributions": {
+        "epfPartAEmployeeCents": 83600,
+        "epfPartAEmployerCents": 91200,
+        "epfPartCEmployeeCents": 41800,
+        "epfPartCEmployerCents": 45600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 30400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 32; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-278",
+      "lowerInclusiveCents": 760001,
+      "upperInclusiveCents": 770000,
+      "contributions": {
+        "epfPartAEmployeeCents": 84700,
+        "epfPartAEmployerCents": 92400,
+        "epfPartCEmployeeCents": 42400,
+        "epfPartCEmployerCents": 46200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 30800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 32; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-279",
+      "lowerInclusiveCents": 770001,
+      "upperInclusiveCents": 780000,
+      "contributions": {
+        "epfPartAEmployeeCents": 85800,
+        "epfPartAEmployerCents": 93600,
+        "epfPartCEmployeeCents": 42900,
+        "epfPartCEmployerCents": 46800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 31200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 32; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-280",
+      "lowerInclusiveCents": 780001,
+      "upperInclusiveCents": 790000,
+      "contributions": {
+        "epfPartAEmployeeCents": 86900,
+        "epfPartAEmployerCents": 94800,
+        "epfPartCEmployeeCents": 43500,
+        "epfPartCEmployerCents": 47400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 31600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 32; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-281",
+      "lowerInclusiveCents": 790001,
+      "upperInclusiveCents": 800000,
+      "contributions": {
+        "epfPartAEmployeeCents": 88000,
+        "epfPartAEmployerCents": 96000,
+        "epfPartCEmployeeCents": 44000,
+        "epfPartCEmployerCents": 48000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 32000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-282",
+      "lowerInclusiveCents": 800001,
+      "upperInclusiveCents": 810000,
+      "contributions": {
+        "epfPartAEmployeeCents": 89100,
+        "epfPartAEmployerCents": 97200,
+        "epfPartCEmployeeCents": 44600,
+        "epfPartCEmployerCents": 48600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 32400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-283",
+      "lowerInclusiveCents": 810001,
+      "upperInclusiveCents": 820000,
+      "contributions": {
+        "epfPartAEmployeeCents": 90200,
+        "epfPartAEmployerCents": 98400,
+        "epfPartCEmployeeCents": 45100,
+        "epfPartCEmployerCents": 49200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 32800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-284",
+      "lowerInclusiveCents": 820001,
+      "upperInclusiveCents": 830000,
+      "contributions": {
+        "epfPartAEmployeeCents": 91300,
+        "epfPartAEmployerCents": 99600,
+        "epfPartCEmployeeCents": 45700,
+        "epfPartCEmployerCents": 49800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 33200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-285",
+      "lowerInclusiveCents": 830001,
+      "upperInclusiveCents": 840000,
+      "contributions": {
+        "epfPartAEmployeeCents": 92400,
+        "epfPartAEmployerCents": 100800,
+        "epfPartCEmployeeCents": 46200,
+        "epfPartCEmployerCents": 50400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 33600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-286",
+      "lowerInclusiveCents": 840001,
+      "upperInclusiveCents": 850000,
+      "contributions": {
+        "epfPartAEmployeeCents": 93500,
+        "epfPartAEmployerCents": 102000,
+        "epfPartCEmployeeCents": 46800,
+        "epfPartCEmployerCents": 51000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 34000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-287",
+      "lowerInclusiveCents": 850001,
+      "upperInclusiveCents": 860000,
+      "contributions": {
+        "epfPartAEmployeeCents": 94600,
+        "epfPartAEmployerCents": 103200,
+        "epfPartCEmployeeCents": 47300,
+        "epfPartCEmployerCents": 51600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 34400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-288",
+      "lowerInclusiveCents": 860001,
+      "upperInclusiveCents": 870000,
+      "contributions": {
+        "epfPartAEmployeeCents": 95700,
+        "epfPartAEmployerCents": 104400,
+        "epfPartCEmployeeCents": 47900,
+        "epfPartCEmployerCents": 52200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 34800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-289",
+      "lowerInclusiveCents": 870001,
+      "upperInclusiveCents": 880000,
+      "contributions": {
+        "epfPartAEmployeeCents": 96800,
+        "epfPartAEmployerCents": 105600,
+        "epfPartCEmployeeCents": 48400,
+        "epfPartCEmployerCents": 52800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 35200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-290",
+      "lowerInclusiveCents": 880001,
+      "upperInclusiveCents": 890000,
+      "contributions": {
+        "epfPartAEmployeeCents": 97900,
+        "epfPartAEmployerCents": 106800,
+        "epfPartCEmployeeCents": 49000,
+        "epfPartCEmployerCents": 53400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 35600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-291",
+      "lowerInclusiveCents": 890001,
+      "upperInclusiveCents": 900000,
+      "contributions": {
+        "epfPartAEmployeeCents": 99000,
+        "epfPartAEmployerCents": 108000,
+        "epfPartCEmployeeCents": 49500,
+        "epfPartCEmployerCents": 54000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 36000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-292",
+      "lowerInclusiveCents": 900001,
+      "upperInclusiveCents": 910000,
+      "contributions": {
+        "epfPartAEmployeeCents": 100100,
+        "epfPartAEmployerCents": 109200,
+        "epfPartCEmployeeCents": 50100,
+        "epfPartCEmployerCents": 54600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 36400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-293",
+      "lowerInclusiveCents": 910001,
+      "upperInclusiveCents": 920000,
+      "contributions": {
+        "epfPartAEmployeeCents": 101200,
+        "epfPartAEmployerCents": 110400,
+        "epfPartCEmployeeCents": 50600,
+        "epfPartCEmployerCents": 55200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 36800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-294",
+      "lowerInclusiveCents": 920001,
+      "upperInclusiveCents": 930000,
+      "contributions": {
+        "epfPartAEmployeeCents": 102300,
+        "epfPartAEmployerCents": 111600,
+        "epfPartCEmployeeCents": 51200,
+        "epfPartCEmployerCents": 55800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 37200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-295",
+      "lowerInclusiveCents": 930001,
+      "upperInclusiveCents": 940000,
+      "contributions": {
+        "epfPartAEmployeeCents": 103400,
+        "epfPartAEmployerCents": 112800,
+        "epfPartCEmployeeCents": 51700,
+        "epfPartCEmployerCents": 56400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 37600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-296",
+      "lowerInclusiveCents": 940001,
+      "upperInclusiveCents": 950000,
+      "contributions": {
+        "epfPartAEmployeeCents": 104500,
+        "epfPartAEmployerCents": 114000,
+        "epfPartCEmployeeCents": 52300,
+        "epfPartCEmployerCents": 57000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 38000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-297",
+      "lowerInclusiveCents": 950001,
+      "upperInclusiveCents": 960000,
+      "contributions": {
+        "epfPartAEmployeeCents": 105600,
+        "epfPartAEmployerCents": 115200,
+        "epfPartCEmployeeCents": 52800,
+        "epfPartCEmployerCents": 57600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 38400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-298",
+      "lowerInclusiveCents": 960001,
+      "upperInclusiveCents": 970000,
+      "contributions": {
+        "epfPartAEmployeeCents": 106700,
+        "epfPartAEmployerCents": 116400,
+        "epfPartCEmployeeCents": 53400,
+        "epfPartCEmployerCents": 58200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 38800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-299",
+      "lowerInclusiveCents": 970001,
+      "upperInclusiveCents": 980000,
+      "contributions": {
+        "epfPartAEmployeeCents": 107800,
+        "epfPartAEmployerCents": 117600,
+        "epfPartCEmployeeCents": 53900,
+        "epfPartCEmployerCents": 58800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 39200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-300",
+      "lowerInclusiveCents": 980001,
+      "upperInclusiveCents": 990000,
+      "contributions": {
+        "epfPartAEmployeeCents": 108900,
+        "epfPartAEmployerCents": 118800,
+        "epfPartCEmployeeCents": 54500,
+        "epfPartCEmployerCents": 59400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 39600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 15; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-301",
+      "lowerInclusiveCents": 990001,
+      "upperInclusiveCents": 1000000,
+      "contributions": {
+        "epfPartAEmployeeCents": 110000,
+        "epfPartAEmployerCents": 120000,
+        "epfPartCEmployeeCents": 55000,
+        "epfPartCEmployerCents": 60000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 40000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 33; Part E PDF p. 49"
+    },
+    {
+      "key": "EPF-302",
+      "lowerInclusiveCents": 1000001,
+      "upperInclusiveCents": 1010000,
+      "contributions": {
+        "epfPartAEmployeeCents": 111100,
+        "epfPartAEmployerCents": 121200,
+        "epfPartCEmployeeCents": 55600,
+        "epfPartCEmployerCents": 60600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 40400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 33; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-303",
+      "lowerInclusiveCents": 1010001,
+      "upperInclusiveCents": 1020000,
+      "contributions": {
+        "epfPartAEmployeeCents": 112200,
+        "epfPartAEmployerCents": 122400,
+        "epfPartCEmployeeCents": 56100,
+        "epfPartCEmployerCents": 61200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 40800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 33; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-304",
+      "lowerInclusiveCents": 1020001,
+      "upperInclusiveCents": 1030000,
+      "contributions": {
+        "epfPartAEmployeeCents": 113300,
+        "epfPartAEmployerCents": 123600,
+        "epfPartCEmployeeCents": 56700,
+        "epfPartCEmployerCents": 61800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 41200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 33; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-305",
+      "lowerInclusiveCents": 1030001,
+      "upperInclusiveCents": 1040000,
+      "contributions": {
+        "epfPartAEmployeeCents": 114400,
+        "epfPartAEmployerCents": 124800,
+        "epfPartCEmployeeCents": 57200,
+        "epfPartCEmployerCents": 62400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 41600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 33; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-306",
+      "lowerInclusiveCents": 1040001,
+      "upperInclusiveCents": 1050000,
+      "contributions": {
+        "epfPartAEmployeeCents": 115500,
+        "epfPartAEmployerCents": 126000,
+        "epfPartCEmployeeCents": 57800,
+        "epfPartCEmployerCents": 63000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 42000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 33; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-307",
+      "lowerInclusiveCents": 1050001,
+      "upperInclusiveCents": 1060000,
+      "contributions": {
+        "epfPartAEmployeeCents": 116600,
+        "epfPartAEmployerCents": 127200,
+        "epfPartCEmployeeCents": 58300,
+        "epfPartCEmployerCents": 63600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 42400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 33; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-308",
+      "lowerInclusiveCents": 1060001,
+      "upperInclusiveCents": 1070000,
+      "contributions": {
+        "epfPartAEmployeeCents": 117700,
+        "epfPartAEmployerCents": 128400,
+        "epfPartCEmployeeCents": 58900,
+        "epfPartCEmployerCents": 64200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 42800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 33; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-309",
+      "lowerInclusiveCents": 1070001,
+      "upperInclusiveCents": 1080000,
+      "contributions": {
+        "epfPartAEmployeeCents": 118800,
+        "epfPartAEmployerCents": 129600,
+        "epfPartCEmployeeCents": 59400,
+        "epfPartCEmployerCents": 64800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 43200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-310",
+      "lowerInclusiveCents": 1080001,
+      "upperInclusiveCents": 1090000,
+      "contributions": {
+        "epfPartAEmployeeCents": 119900,
+        "epfPartAEmployerCents": 130800,
+        "epfPartCEmployeeCents": 60000,
+        "epfPartCEmployerCents": 65400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 43600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-311",
+      "lowerInclusiveCents": 1090001,
+      "upperInclusiveCents": 1100000,
+      "contributions": {
+        "epfPartAEmployeeCents": 121000,
+        "epfPartAEmployerCents": 132000,
+        "epfPartCEmployeeCents": 60500,
+        "epfPartCEmployerCents": 66000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 44000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-312",
+      "lowerInclusiveCents": 1100001,
+      "upperInclusiveCents": 1110000,
+      "contributions": {
+        "epfPartAEmployeeCents": 122100,
+        "epfPartAEmployerCents": 133200,
+        "epfPartCEmployeeCents": 61100,
+        "epfPartCEmployerCents": 66600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 44400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-313",
+      "lowerInclusiveCents": 1110001,
+      "upperInclusiveCents": 1120000,
+      "contributions": {
+        "epfPartAEmployeeCents": 123200,
+        "epfPartAEmployerCents": 134400,
+        "epfPartCEmployeeCents": 61600,
+        "epfPartCEmployerCents": 67200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 44800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-314",
+      "lowerInclusiveCents": 1120001,
+      "upperInclusiveCents": 1130000,
+      "contributions": {
+        "epfPartAEmployeeCents": 124300,
+        "epfPartAEmployerCents": 135600,
+        "epfPartCEmployeeCents": 62200,
+        "epfPartCEmployerCents": 67800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 45200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-315",
+      "lowerInclusiveCents": 1130001,
+      "upperInclusiveCents": 1140000,
+      "contributions": {
+        "epfPartAEmployeeCents": 125400,
+        "epfPartAEmployerCents": 136800,
+        "epfPartCEmployeeCents": 62700,
+        "epfPartCEmployerCents": 68400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 45600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-316",
+      "lowerInclusiveCents": 1140001,
+      "upperInclusiveCents": 1150000,
+      "contributions": {
+        "epfPartAEmployeeCents": 126500,
+        "epfPartAEmployerCents": 138000,
+        "epfPartCEmployeeCents": 63300,
+        "epfPartCEmployerCents": 69000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 46000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-317",
+      "lowerInclusiveCents": 1150001,
+      "upperInclusiveCents": 1160000,
+      "contributions": {
+        "epfPartAEmployeeCents": 127600,
+        "epfPartAEmployerCents": 139200,
+        "epfPartCEmployeeCents": 63800,
+        "epfPartCEmployerCents": 69600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 46400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-318",
+      "lowerInclusiveCents": 1160001,
+      "upperInclusiveCents": 1170000,
+      "contributions": {
+        "epfPartAEmployeeCents": 128700,
+        "epfPartAEmployerCents": 140400,
+        "epfPartCEmployeeCents": 64400,
+        "epfPartCEmployerCents": 70200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 46800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-319",
+      "lowerInclusiveCents": 1170001,
+      "upperInclusiveCents": 1180000,
+      "contributions": {
+        "epfPartAEmployeeCents": 129800,
+        "epfPartAEmployerCents": 141600,
+        "epfPartCEmployeeCents": 64900,
+        "epfPartCEmployerCents": 70800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 47200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-320",
+      "lowerInclusiveCents": 1180001,
+      "upperInclusiveCents": 1190000,
+      "contributions": {
+        "epfPartAEmployeeCents": 130900,
+        "epfPartAEmployerCents": 142800,
+        "epfPartCEmployeeCents": 65500,
+        "epfPartCEmployerCents": 71400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 47600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-321",
+      "lowerInclusiveCents": 1190001,
+      "upperInclusiveCents": 1200000,
+      "contributions": {
+        "epfPartAEmployeeCents": 132000,
+        "epfPartAEmployerCents": 144000,
+        "epfPartCEmployeeCents": 66000,
+        "epfPartCEmployerCents": 72000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 48000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-322",
+      "lowerInclusiveCents": 1200001,
+      "upperInclusiveCents": 1210000,
+      "contributions": {
+        "epfPartAEmployeeCents": 133100,
+        "epfPartAEmployerCents": 145200,
+        "epfPartCEmployeeCents": 66600,
+        "epfPartCEmployerCents": 72600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 48400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-323",
+      "lowerInclusiveCents": 1210001,
+      "upperInclusiveCents": 1220000,
+      "contributions": {
+        "epfPartAEmployeeCents": 134200,
+        "epfPartAEmployerCents": 146400,
+        "epfPartCEmployeeCents": 67100,
+        "epfPartCEmployerCents": 73200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 48800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-324",
+      "lowerInclusiveCents": 1220001,
+      "upperInclusiveCents": 1230000,
+      "contributions": {
+        "epfPartAEmployeeCents": 135300,
+        "epfPartAEmployerCents": 147600,
+        "epfPartCEmployeeCents": 67700,
+        "epfPartCEmployerCents": 73800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 49200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 16; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-325",
+      "lowerInclusiveCents": 1230001,
+      "upperInclusiveCents": 1240000,
+      "contributions": {
+        "epfPartAEmployeeCents": 136400,
+        "epfPartAEmployerCents": 148800,
+        "epfPartCEmployeeCents": 68200,
+        "epfPartCEmployerCents": 74400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 49600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-326",
+      "lowerInclusiveCents": 1240001,
+      "upperInclusiveCents": 1250000,
+      "contributions": {
+        "epfPartAEmployeeCents": 137500,
+        "epfPartAEmployerCents": 150000,
+        "epfPartCEmployeeCents": 68800,
+        "epfPartCEmployerCents": 75000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 50000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-327",
+      "lowerInclusiveCents": 1250001,
+      "upperInclusiveCents": 1260000,
+      "contributions": {
+        "epfPartAEmployeeCents": 138600,
+        "epfPartAEmployerCents": 151200,
+        "epfPartCEmployeeCents": 69300,
+        "epfPartCEmployerCents": 75600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 50400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-328",
+      "lowerInclusiveCents": 1260001,
+      "upperInclusiveCents": 1270000,
+      "contributions": {
+        "epfPartAEmployeeCents": 139700,
+        "epfPartAEmployerCents": 152400,
+        "epfPartCEmployeeCents": 69900,
+        "epfPartCEmployerCents": 76200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 50800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-329",
+      "lowerInclusiveCents": 1270001,
+      "upperInclusiveCents": 1280000,
+      "contributions": {
+        "epfPartAEmployeeCents": 140800,
+        "epfPartAEmployerCents": 153600,
+        "epfPartCEmployeeCents": 70400,
+        "epfPartCEmployerCents": 76800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 51200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 34; Part E PDF p. 50"
+    },
+    {
+      "key": "EPF-330",
+      "lowerInclusiveCents": 1280001,
+      "upperInclusiveCents": 1290000,
+      "contributions": {
+        "epfPartAEmployeeCents": 141900,
+        "epfPartAEmployerCents": 154800,
+        "epfPartCEmployeeCents": 71000,
+        "epfPartCEmployerCents": 77400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 51600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 34; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-331",
+      "lowerInclusiveCents": 1290001,
+      "upperInclusiveCents": 1300000,
+      "contributions": {
+        "epfPartAEmployeeCents": 143000,
+        "epfPartAEmployerCents": 156000,
+        "epfPartCEmployeeCents": 71500,
+        "epfPartCEmployerCents": 78000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 52000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 34; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-332",
+      "lowerInclusiveCents": 1300001,
+      "upperInclusiveCents": 1310000,
+      "contributions": {
+        "epfPartAEmployeeCents": 144100,
+        "epfPartAEmployerCents": 157200,
+        "epfPartCEmployeeCents": 72100,
+        "epfPartCEmployerCents": 78600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 52400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 34; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-333",
+      "lowerInclusiveCents": 1310001,
+      "upperInclusiveCents": 1320000,
+      "contributions": {
+        "epfPartAEmployeeCents": 145200,
+        "epfPartAEmployerCents": 158400,
+        "epfPartCEmployeeCents": 72600,
+        "epfPartCEmployerCents": 79200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 52800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 34; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-334",
+      "lowerInclusiveCents": 1320001,
+      "upperInclusiveCents": 1330000,
+      "contributions": {
+        "epfPartAEmployeeCents": 146300,
+        "epfPartAEmployerCents": 159600,
+        "epfPartCEmployeeCents": 73200,
+        "epfPartCEmployerCents": 79800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 53200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 34; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-335",
+      "lowerInclusiveCents": 1330001,
+      "upperInclusiveCents": 1340000,
+      "contributions": {
+        "epfPartAEmployeeCents": 147400,
+        "epfPartAEmployerCents": 160800,
+        "epfPartCEmployeeCents": 73700,
+        "epfPartCEmployerCents": 80400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 53600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 34; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-336",
+      "lowerInclusiveCents": 1340001,
+      "upperInclusiveCents": 1350000,
+      "contributions": {
+        "epfPartAEmployeeCents": 148500,
+        "epfPartAEmployerCents": 162000,
+        "epfPartCEmployeeCents": 74300,
+        "epfPartCEmployerCents": 81000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 54000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 34; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-337",
+      "lowerInclusiveCents": 1350001,
+      "upperInclusiveCents": 1360000,
+      "contributions": {
+        "epfPartAEmployeeCents": 149600,
+        "epfPartAEmployerCents": 163200,
+        "epfPartCEmployeeCents": 74800,
+        "epfPartCEmployerCents": 81600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 54400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-338",
+      "lowerInclusiveCents": 1360001,
+      "upperInclusiveCents": 1370000,
+      "contributions": {
+        "epfPartAEmployeeCents": 150700,
+        "epfPartAEmployerCents": 164400,
+        "epfPartCEmployeeCents": 75400,
+        "epfPartCEmployerCents": 82200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 54800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-339",
+      "lowerInclusiveCents": 1370001,
+      "upperInclusiveCents": 1380000,
+      "contributions": {
+        "epfPartAEmployeeCents": 151800,
+        "epfPartAEmployerCents": 165600,
+        "epfPartCEmployeeCents": 75900,
+        "epfPartCEmployerCents": 82800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 55200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-340",
+      "lowerInclusiveCents": 1380001,
+      "upperInclusiveCents": 1390000,
+      "contributions": {
+        "epfPartAEmployeeCents": 152900,
+        "epfPartAEmployerCents": 166800,
+        "epfPartCEmployeeCents": 76500,
+        "epfPartCEmployerCents": 83400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 55600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-341",
+      "lowerInclusiveCents": 1390001,
+      "upperInclusiveCents": 1400000,
+      "contributions": {
+        "epfPartAEmployeeCents": 154000,
+        "epfPartAEmployerCents": 168000,
+        "epfPartCEmployeeCents": 77000,
+        "epfPartCEmployerCents": 84000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 56000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-342",
+      "lowerInclusiveCents": 1400001,
+      "upperInclusiveCents": 1410000,
+      "contributions": {
+        "epfPartAEmployeeCents": 155100,
+        "epfPartAEmployerCents": 169200,
+        "epfPartCEmployeeCents": 77600,
+        "epfPartCEmployerCents": 84600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 56400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-343",
+      "lowerInclusiveCents": 1410001,
+      "upperInclusiveCents": 1420000,
+      "contributions": {
+        "epfPartAEmployeeCents": 156200,
+        "epfPartAEmployerCents": 170400,
+        "epfPartCEmployeeCents": 78100,
+        "epfPartCEmployerCents": 85200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 56800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-344",
+      "lowerInclusiveCents": 1420001,
+      "upperInclusiveCents": 1430000,
+      "contributions": {
+        "epfPartAEmployeeCents": 157300,
+        "epfPartAEmployerCents": 171600,
+        "epfPartCEmployeeCents": 78700,
+        "epfPartCEmployerCents": 85800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 57200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-345",
+      "lowerInclusiveCents": 1430001,
+      "upperInclusiveCents": 1440000,
+      "contributions": {
+        "epfPartAEmployeeCents": 158400,
+        "epfPartAEmployerCents": 172800,
+        "epfPartCEmployeeCents": 79200,
+        "epfPartCEmployerCents": 86400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 57600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-346",
+      "lowerInclusiveCents": 1440001,
+      "upperInclusiveCents": 1450000,
+      "contributions": {
+        "epfPartAEmployeeCents": 159500,
+        "epfPartAEmployerCents": 174000,
+        "epfPartCEmployeeCents": 79800,
+        "epfPartCEmployerCents": 87000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 58000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-347",
+      "lowerInclusiveCents": 1450001,
+      "upperInclusiveCents": 1460000,
+      "contributions": {
+        "epfPartAEmployeeCents": 160600,
+        "epfPartAEmployerCents": 175200,
+        "epfPartCEmployeeCents": 80300,
+        "epfPartCEmployerCents": 87600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 58400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-348",
+      "lowerInclusiveCents": 1460001,
+      "upperInclusiveCents": 1470000,
+      "contributions": {
+        "epfPartAEmployeeCents": 161700,
+        "epfPartAEmployerCents": 176400,
+        "epfPartCEmployeeCents": 80900,
+        "epfPartCEmployerCents": 88200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 58800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 17; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-349",
+      "lowerInclusiveCents": 1470001,
+      "upperInclusiveCents": 1480000,
+      "contributions": {
+        "epfPartAEmployeeCents": 162800,
+        "epfPartAEmployerCents": 177600,
+        "epfPartCEmployeeCents": 81400,
+        "epfPartCEmployerCents": 88800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 59200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-350",
+      "lowerInclusiveCents": 1480001,
+      "upperInclusiveCents": 1490000,
+      "contributions": {
+        "epfPartAEmployeeCents": 163900,
+        "epfPartAEmployerCents": 178800,
+        "epfPartCEmployeeCents": 82000,
+        "epfPartCEmployerCents": 89400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 59600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-351",
+      "lowerInclusiveCents": 1490001,
+      "upperInclusiveCents": 1500000,
+      "contributions": {
+        "epfPartAEmployeeCents": 165000,
+        "epfPartAEmployerCents": 180000,
+        "epfPartCEmployeeCents": 82500,
+        "epfPartCEmployerCents": 90000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 60000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-352",
+      "lowerInclusiveCents": 1500001,
+      "upperInclusiveCents": 1510000,
+      "contributions": {
+        "epfPartAEmployeeCents": 166100,
+        "epfPartAEmployerCents": 181200,
+        "epfPartCEmployeeCents": 83100,
+        "epfPartCEmployerCents": 90600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 60400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-353",
+      "lowerInclusiveCents": 1510001,
+      "upperInclusiveCents": 1520000,
+      "contributions": {
+        "epfPartAEmployeeCents": 167200,
+        "epfPartAEmployerCents": 182400,
+        "epfPartCEmployeeCents": 83600,
+        "epfPartCEmployerCents": 91200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 60800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-354",
+      "lowerInclusiveCents": 1520001,
+      "upperInclusiveCents": 1530000,
+      "contributions": {
+        "epfPartAEmployeeCents": 168300,
+        "epfPartAEmployerCents": 183600,
+        "epfPartCEmployeeCents": 84200,
+        "epfPartCEmployerCents": 91800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 61200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-355",
+      "lowerInclusiveCents": 1530001,
+      "upperInclusiveCents": 1540000,
+      "contributions": {
+        "epfPartAEmployeeCents": 169400,
+        "epfPartAEmployerCents": 184800,
+        "epfPartCEmployeeCents": 84700,
+        "epfPartCEmployerCents": 92400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 61600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-356",
+      "lowerInclusiveCents": 1540001,
+      "upperInclusiveCents": 1550000,
+      "contributions": {
+        "epfPartAEmployeeCents": 170500,
+        "epfPartAEmployerCents": 186000,
+        "epfPartCEmployeeCents": 85300,
+        "epfPartCEmployerCents": 93000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 62000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-357",
+      "lowerInclusiveCents": 1550001,
+      "upperInclusiveCents": 1560000,
+      "contributions": {
+        "epfPartAEmployeeCents": 171600,
+        "epfPartAEmployerCents": 187200,
+        "epfPartCEmployeeCents": 85800,
+        "epfPartCEmployerCents": 93600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 62400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 51"
+    },
+    {
+      "key": "EPF-358",
+      "lowerInclusiveCents": 1560001,
+      "upperInclusiveCents": 1570000,
+      "contributions": {
+        "epfPartAEmployeeCents": 172700,
+        "epfPartAEmployerCents": 188400,
+        "epfPartCEmployeeCents": 86400,
+        "epfPartCEmployerCents": 94200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 62800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-359",
+      "lowerInclusiveCents": 1570001,
+      "upperInclusiveCents": 1580000,
+      "contributions": {
+        "epfPartAEmployeeCents": 173800,
+        "epfPartAEmployerCents": 189600,
+        "epfPartCEmployeeCents": 86900,
+        "epfPartCEmployerCents": 94800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 63200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-360",
+      "lowerInclusiveCents": 1580001,
+      "upperInclusiveCents": 1590000,
+      "contributions": {
+        "epfPartAEmployeeCents": 174900,
+        "epfPartAEmployerCents": 190800,
+        "epfPartCEmployeeCents": 87500,
+        "epfPartCEmployerCents": 95400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 63600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-361",
+      "lowerInclusiveCents": 1590001,
+      "upperInclusiveCents": 1600000,
+      "contributions": {
+        "epfPartAEmployeeCents": 176000,
+        "epfPartAEmployerCents": 192000,
+        "epfPartCEmployeeCents": 88000,
+        "epfPartCEmployerCents": 96000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 64000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-362",
+      "lowerInclusiveCents": 1600001,
+      "upperInclusiveCents": 1610000,
+      "contributions": {
+        "epfPartAEmployeeCents": 177100,
+        "epfPartAEmployerCents": 193200,
+        "epfPartCEmployeeCents": 88600,
+        "epfPartCEmployerCents": 96600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 64400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-363",
+      "lowerInclusiveCents": 1610001,
+      "upperInclusiveCents": 1620000,
+      "contributions": {
+        "epfPartAEmployeeCents": 178200,
+        "epfPartAEmployerCents": 194400,
+        "epfPartCEmployeeCents": 89100,
+        "epfPartCEmployerCents": 97200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 64800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-364",
+      "lowerInclusiveCents": 1620001,
+      "upperInclusiveCents": 1630000,
+      "contributions": {
+        "epfPartAEmployeeCents": 179300,
+        "epfPartAEmployerCents": 195600,
+        "epfPartCEmployeeCents": 89700,
+        "epfPartCEmployerCents": 97800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 65200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 35; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-365",
+      "lowerInclusiveCents": 1630001,
+      "upperInclusiveCents": 1640000,
+      "contributions": {
+        "epfPartAEmployeeCents": 180400,
+        "epfPartAEmployerCents": 196800,
+        "epfPartCEmployeeCents": 90200,
+        "epfPartCEmployerCents": 98400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 65600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-366",
+      "lowerInclusiveCents": 1640001,
+      "upperInclusiveCents": 1650000,
+      "contributions": {
+        "epfPartAEmployeeCents": 181500,
+        "epfPartAEmployerCents": 198000,
+        "epfPartCEmployeeCents": 90800,
+        "epfPartCEmployerCents": 99000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 66000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-367",
+      "lowerInclusiveCents": 1650001,
+      "upperInclusiveCents": 1660000,
+      "contributions": {
+        "epfPartAEmployeeCents": 182600,
+        "epfPartAEmployerCents": 199200,
+        "epfPartCEmployeeCents": 91300,
+        "epfPartCEmployerCents": 99600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 66400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-368",
+      "lowerInclusiveCents": 1660001,
+      "upperInclusiveCents": 1670000,
+      "contributions": {
+        "epfPartAEmployeeCents": 183700,
+        "epfPartAEmployerCents": 200400,
+        "epfPartCEmployeeCents": 91900,
+        "epfPartCEmployerCents": 100200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 66800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-369",
+      "lowerInclusiveCents": 1670001,
+      "upperInclusiveCents": 1680000,
+      "contributions": {
+        "epfPartAEmployeeCents": 184800,
+        "epfPartAEmployerCents": 201600,
+        "epfPartCEmployeeCents": 92400,
+        "epfPartCEmployerCents": 100800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 67200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-370",
+      "lowerInclusiveCents": 1680001,
+      "upperInclusiveCents": 1690000,
+      "contributions": {
+        "epfPartAEmployeeCents": 185900,
+        "epfPartAEmployerCents": 202800,
+        "epfPartCEmployeeCents": 93000,
+        "epfPartCEmployerCents": 101400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 67600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-371",
+      "lowerInclusiveCents": 1690001,
+      "upperInclusiveCents": 1700000,
+      "contributions": {
+        "epfPartAEmployeeCents": 187000,
+        "epfPartAEmployerCents": 204000,
+        "epfPartCEmployeeCents": 93500,
+        "epfPartCEmployerCents": 102000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 68000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-372",
+      "lowerInclusiveCents": 1700001,
+      "upperInclusiveCents": 1710000,
+      "contributions": {
+        "epfPartAEmployeeCents": 188100,
+        "epfPartAEmployerCents": 205200,
+        "epfPartCEmployeeCents": 94100,
+        "epfPartCEmployerCents": 102600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 68400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 18; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-373",
+      "lowerInclusiveCents": 1710001,
+      "upperInclusiveCents": 1720000,
+      "contributions": {
+        "epfPartAEmployeeCents": 189200,
+        "epfPartAEmployerCents": 206400,
+        "epfPartCEmployeeCents": 94600,
+        "epfPartCEmployerCents": 103200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 68800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-374",
+      "lowerInclusiveCents": 1720001,
+      "upperInclusiveCents": 1730000,
+      "contributions": {
+        "epfPartAEmployeeCents": 190300,
+        "epfPartAEmployerCents": 207600,
+        "epfPartCEmployeeCents": 95200,
+        "epfPartCEmployerCents": 103800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 69200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-375",
+      "lowerInclusiveCents": 1730001,
+      "upperInclusiveCents": 1740000,
+      "contributions": {
+        "epfPartAEmployeeCents": 191400,
+        "epfPartAEmployerCents": 208800,
+        "epfPartCEmployeeCents": 95700,
+        "epfPartCEmployerCents": 104400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 69600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-376",
+      "lowerInclusiveCents": 1740001,
+      "upperInclusiveCents": 1750000,
+      "contributions": {
+        "epfPartAEmployeeCents": 192500,
+        "epfPartAEmployerCents": 210000,
+        "epfPartCEmployeeCents": 96300,
+        "epfPartCEmployerCents": 105000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 70000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-377",
+      "lowerInclusiveCents": 1750001,
+      "upperInclusiveCents": 1760000,
+      "contributions": {
+        "epfPartAEmployeeCents": 193600,
+        "epfPartAEmployerCents": 211200,
+        "epfPartCEmployeeCents": 96800,
+        "epfPartCEmployerCents": 105600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 70400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-378",
+      "lowerInclusiveCents": 1760001,
+      "upperInclusiveCents": 1770000,
+      "contributions": {
+        "epfPartAEmployeeCents": 194700,
+        "epfPartAEmployerCents": 212400,
+        "epfPartCEmployeeCents": 97400,
+        "epfPartCEmployerCents": 106200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 70800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-379",
+      "lowerInclusiveCents": 1770001,
+      "upperInclusiveCents": 1780000,
+      "contributions": {
+        "epfPartAEmployeeCents": 195800,
+        "epfPartAEmployerCents": 213600,
+        "epfPartCEmployeeCents": 97900,
+        "epfPartCEmployerCents": 106800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 71200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-380",
+      "lowerInclusiveCents": 1780001,
+      "upperInclusiveCents": 1790000,
+      "contributions": {
+        "epfPartAEmployeeCents": 196900,
+        "epfPartAEmployerCents": 214800,
+        "epfPartCEmployeeCents": 98500,
+        "epfPartCEmployerCents": 107400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 71600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-381",
+      "lowerInclusiveCents": 1790001,
+      "upperInclusiveCents": 1800000,
+      "contributions": {
+        "epfPartAEmployeeCents": 198000,
+        "epfPartAEmployerCents": 216000,
+        "epfPartCEmployeeCents": 99000,
+        "epfPartCEmployerCents": 108000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 72000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-382",
+      "lowerInclusiveCents": 1800001,
+      "upperInclusiveCents": 1810000,
+      "contributions": {
+        "epfPartAEmployeeCents": 199100,
+        "epfPartAEmployerCents": 217200,
+        "epfPartCEmployeeCents": 99600,
+        "epfPartCEmployerCents": 108600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 72400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-383",
+      "lowerInclusiveCents": 1810001,
+      "upperInclusiveCents": 1820000,
+      "contributions": {
+        "epfPartAEmployeeCents": 200200,
+        "epfPartAEmployerCents": 218400,
+        "epfPartCEmployeeCents": 100100,
+        "epfPartCEmployerCents": 109200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 72800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-384",
+      "lowerInclusiveCents": 1820001,
+      "upperInclusiveCents": 1830000,
+      "contributions": {
+        "epfPartAEmployeeCents": 201300,
+        "epfPartAEmployerCents": 219600,
+        "epfPartCEmployeeCents": 100700,
+        "epfPartCEmployerCents": 109800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 73200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-385",
+      "lowerInclusiveCents": 1830001,
+      "upperInclusiveCents": 1840000,
+      "contributions": {
+        "epfPartAEmployeeCents": 202400,
+        "epfPartAEmployerCents": 220800,
+        "epfPartCEmployeeCents": 101200,
+        "epfPartCEmployerCents": 110400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 73600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 52"
+    },
+    {
+      "key": "EPF-386",
+      "lowerInclusiveCents": 1840001,
+      "upperInclusiveCents": 1850000,
+      "contributions": {
+        "epfPartAEmployeeCents": 203500,
+        "epfPartAEmployerCents": 222000,
+        "epfPartCEmployeeCents": 101800,
+        "epfPartCEmployerCents": 111000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 74000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-387",
+      "lowerInclusiveCents": 1850001,
+      "upperInclusiveCents": 1860000,
+      "contributions": {
+        "epfPartAEmployeeCents": 204600,
+        "epfPartAEmployerCents": 223200,
+        "epfPartCEmployeeCents": 102300,
+        "epfPartCEmployerCents": 111600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 74400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-388",
+      "lowerInclusiveCents": 1860001,
+      "upperInclusiveCents": 1870000,
+      "contributions": {
+        "epfPartAEmployeeCents": 205700,
+        "epfPartAEmployerCents": 224400,
+        "epfPartCEmployeeCents": 102900,
+        "epfPartCEmployerCents": 112200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 74800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-389",
+      "lowerInclusiveCents": 1870001,
+      "upperInclusiveCents": 1880000,
+      "contributions": {
+        "epfPartAEmployeeCents": 206800,
+        "epfPartAEmployerCents": 225600,
+        "epfPartCEmployeeCents": 103400,
+        "epfPartCEmployerCents": 112800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 75200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-390",
+      "lowerInclusiveCents": 1880001,
+      "upperInclusiveCents": 1890000,
+      "contributions": {
+        "epfPartAEmployeeCents": 207900,
+        "epfPartAEmployerCents": 226800,
+        "epfPartCEmployeeCents": 104000,
+        "epfPartCEmployerCents": 113400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 75600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-391",
+      "lowerInclusiveCents": 1890001,
+      "upperInclusiveCents": 1900000,
+      "contributions": {
+        "epfPartAEmployeeCents": 209000,
+        "epfPartAEmployerCents": 228000,
+        "epfPartCEmployeeCents": 104500,
+        "epfPartCEmployerCents": 114000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 76000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-392",
+      "lowerInclusiveCents": 1900001,
+      "upperInclusiveCents": 1910000,
+      "contributions": {
+        "epfPartAEmployeeCents": 210100,
+        "epfPartAEmployerCents": 229200,
+        "epfPartCEmployeeCents": 105100,
+        "epfPartCEmployerCents": 114600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 76400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 36; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-393",
+      "lowerInclusiveCents": 1910001,
+      "upperInclusiveCents": 1920000,
+      "contributions": {
+        "epfPartAEmployeeCents": 211200,
+        "epfPartAEmployerCents": 230400,
+        "epfPartCEmployeeCents": 105600,
+        "epfPartCEmployerCents": 115200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 76800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 37; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-394",
+      "lowerInclusiveCents": 1920001,
+      "upperInclusiveCents": 1930000,
+      "contributions": {
+        "epfPartAEmployeeCents": 212300,
+        "epfPartAEmployerCents": 231600,
+        "epfPartCEmployeeCents": 106200,
+        "epfPartCEmployerCents": 115800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 77200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 37; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-395",
+      "lowerInclusiveCents": 1930001,
+      "upperInclusiveCents": 1940000,
+      "contributions": {
+        "epfPartAEmployeeCents": 213400,
+        "epfPartAEmployerCents": 232800,
+        "epfPartCEmployeeCents": 106700,
+        "epfPartCEmployerCents": 116400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 77600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 37; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-396",
+      "lowerInclusiveCents": 1940001,
+      "upperInclusiveCents": 1950000,
+      "contributions": {
+        "epfPartAEmployeeCents": 214500,
+        "epfPartAEmployerCents": 234000,
+        "epfPartCEmployeeCents": 107300,
+        "epfPartCEmployerCents": 117000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 78000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 19; Part C PDF p. 37; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-397",
+      "lowerInclusiveCents": 1950001,
+      "upperInclusiveCents": 1960000,
+      "contributions": {
+        "epfPartAEmployeeCents": 215600,
+        "epfPartAEmployerCents": 235200,
+        "epfPartCEmployeeCents": 107800,
+        "epfPartCEmployerCents": 117600,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 78400
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 20; Part C PDF p. 37; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-398",
+      "lowerInclusiveCents": 1960001,
+      "upperInclusiveCents": 1970000,
+      "contributions": {
+        "epfPartAEmployeeCents": 216700,
+        "epfPartAEmployerCents": 236400,
+        "epfPartCEmployeeCents": 108400,
+        "epfPartCEmployerCents": 118200,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 78800
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 20; Part C PDF p. 37; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-399",
+      "lowerInclusiveCents": 1970001,
+      "upperInclusiveCents": 1980000,
+      "contributions": {
+        "epfPartAEmployeeCents": 217800,
+        "epfPartAEmployerCents": 237600,
+        "epfPartCEmployeeCents": 108900,
+        "epfPartCEmployerCents": 118800,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 79200
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 20; Part C PDF p. 37; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-400",
+      "lowerInclusiveCents": 1980001,
+      "upperInclusiveCents": 1990000,
+      "contributions": {
+        "epfPartAEmployeeCents": 218900,
+        "epfPartAEmployerCents": 238800,
+        "epfPartCEmployeeCents": 109500,
+        "epfPartCEmployerCents": 119400,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 79600
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 20; Part C PDF p. 37; Part E PDF p. 53"
+    },
+    {
+      "key": "EPF-401",
+      "lowerInclusiveCents": 1990001,
+      "upperInclusiveCents": 2000000,
+      "contributions": {
+        "epfPartAEmployeeCents": 220000,
+        "epfPartAEmployerCents": 240000,
+        "epfPartCEmployeeCents": 110000,
+        "epfPartCEmployerCents": 120000,
+        "epfPartEEmployeeCents": 0,
+        "epfPartEEmployerCents": 80000
+      },
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 20; Part C PDF p. 37; Part E PDF p. 53"
+    }
+  ]
+}

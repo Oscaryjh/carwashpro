@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "version": "MALAYSIA_STATUTORY_CLASSIFICATION_2026_SOCSO_EIS_TECHNICAL_REVIEW_1",
+  "previousRevision": "MALAYSIA_STATUTORY_CLASSIFICATION_2026_P2C_DRAFT_1",
+  "effectiveFrom": "2026-06-01",
+  "effectiveTo": null,
+  "immutableOnceActivated": true,
+  "status": "READY_FOR_PLATFORM_APPROVAL",
+  "approvalLevel": "AI_ASSISTED_TECHNICAL_EVIDENCE_REVIEW",
+  "platformApprovalStatus": "REQUIRED",
+  "reviewer": {
+    "id": "codex-agent-statutory-closure",
+    "type": "AI_ASSISTED_REVIEW",
+    "legalApproval": false,
+    "governmentCertification": false
+  },
+  "reviewedAt": "2026-08-08T13:24:01Z",
+  "reason": "Technical evidence review of every current production component family against the official Act 4 and Act 800 wage definitions. Unknown semantic categories remain fail-closed and require explicit platform classification approval before a real rule activation.",
+  "officialReferences": [
+    {
+      "id": "PERKESO_ACT4_WAGES_2_24",
+      "authority": "PERKESO",
+      "title": "Employees' Social Security Act 1969 [Act 4], section 2(24), wages",
+      "url": "https://perkeso.gov.my/images/imej/akta_dan_peraturan/Act%204-As%20at%201_Feb_2019.pdf",
+      "page": 13,
+      "sha256AtReview": "c2b96c7d29cc3cde3fcb77c036866ecfc724baab657193dc593f76b97953beb7"
+    },
+    {
+      "id": "PERKESO_ACT800_WAGES_2",
+      "authority": "PERKESO",
+      "title": "Employment Insurance System Act 2017 [Act 800], section 2, wages",
+      "url": "https://perkeso.gov.my/images/imej/akta_dan_peraturan/EMPLOYMENT_INSURANCE_SYSTEM_ACT_2017_Act_800.pdf",
+      "page": 9,
+      "sha256AtReview": "d1477fa725e489fde9904b530aaba354ae53c061ae97e5e18b648a9d03b058f2"
+    },
+    {
+      "id": "PERKESO_EMPLOYER_WAGE_GUIDANCE",
+      "authority": "PERKESO",
+      "title": "Employer Registration - Definition of Wages",
+      "url": "https://www.perkeso.gov.my/en/our-services/employer-employee/employer-registration.html"
+    },
+    {
+      "id": "PERKESO_FAQ_CONTRIBUTION_WAGES",
+      "authority": "PERKESO",
+      "title": "PERKESO FAQ - contribution wages",
+      "url": "https://www.perkeso.gov.my/en/contact-us/pejabat-perkeso-new/frequently-asked-question.html"
+    }
+  ],
+  "treatmentPolicy": {
+    "supportedSetActivation": true,
+    "unknownComponentBehavior": "STATUTORY_CLASSIFICATION_REQUIRED",
+    "unknownComponentsIgnored": false,
+    "taxableFlagInference": false,
+    "crossSchemeInference": false,
+    "deductionsReduceWageBase": false
+  },
+  "classifications": [
+    { "componentCode": "BASIC_SALARY", "description": "Monthly basic salary", "sourceDomain": "COMPENSATION", "sourceType": "BASIC_SALARY", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Salary is remuneration payable in money and is expressly listed by PERKESO." },
+    { "componentCode": "REGULAR_DAILY_PAY", "description": "Regular daily-rated pay", "sourceDomain": "ATTENDANCE", "sourceType": "ATTENDANCE", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "PERKESO expressly treats hourly, daily, weekly, piece and task-rated remuneration as wages." },
+    { "componentCode": "REGULAR_HOURLY_PAY", "description": "Regular hourly-rated pay", "sourceDomain": "ATTENDANCE", "sourceType": "ATTENDANCE", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "PERKESO expressly treats hourly remuneration as wages." },
+    { "componentCode": "PAID_LEAVE_PAY", "description": "Paid leave remuneration", "sourceDomain": "ATTENDANCE", "sourceType": "ATTENDANCE", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Both Acts expressly include payments in respect of leave and holidays." },
+    { "componentCode": "LEAVE_PAY", "description": "Legacy/future paid leave remuneration", "sourceDomain": "PAYROLL_CALCULATION", "sourceType": "PAYROLL_CALCULATION", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Metadata only while the current attendance path emits PAID_LEAVE_PAY." },
+    { "componentCode": "OVERTIME_PAY", "description": "Approved overtime pay", "sourceDomain": "PAYROLL_CALCULATION", "sourceType": "PAYROLL_CALCULATION", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Statutory classification is ready; the Payroll P5 overtime money-policy blocker remains unchanged." },
+    { "componentCode": "REST_DAY_PAY", "description": "Pay for work on a rest day", "sourceDomain": "PAYROLL_CALCULATION", "sourceType": "PAYROLL_CALCULATION", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Statutory classification metadata only; no rest-day rate engine is enabled." },
+    { "componentCode": "PUBLIC_HOLIDAY_PAY", "description": "Pay for work on a public holiday", "sourceDomain": "PAYROLL_CALCULATION", "sourceType": "PAYROLL_CALCULATION", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Statutory classification metadata only; no public-holiday rate engine is enabled." },
+    { "componentCode": "COMMISSION", "description": "Approved commission", "sourceDomain": "VARIABLE_PAY", "sourceType": "VARIABLE_PAY", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE", "PERKESO_FAQ_CONTRIBUTION_WAGES"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Commission and service charge are expressly listed by PERKESO; no commission engine is added." },
+    { "componentCode": "INCENTIVE", "description": "Approved incentive", "sourceDomain": "VARIABLE_PAY", "sourceType": "VARIABLE_PAY", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE", "PERKESO_FAQ_CONTRIBUTION_WAGES"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Incentive allowances are expressly listed by PERKESO." },
+    { "componentCode": "BONUS", "description": "Generic bonus", "sourceDomain": "VARIABLE_PAY", "sourceType": "VARIABLE_PAY", "componentType": "EARNING", "SOCSO": "UNKNOWN", "EIS": "UNKNOWN", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "BLOCKED_SEMANTIC_SUBTYPE_REQUIRED", "notes": "Both Acts exclude annual bonus, but the current generic BONUS code does not prove that the payment is annual or another kind of remuneration." },
+    { "componentCode": "ONE_OFF_EARNING", "description": "Generic one-off earning", "sourceDomain": "VARIABLE_PAY", "sourceType": "VARIABLE_PAY", "componentType": "EARNING", "SOCSO": "UNKNOWN", "EIS": "UNKNOWN", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "BLOCKED_SEMANTIC_SUBTYPE_REQUIRED", "notes": "The code does not distinguish remuneration from reimbursement, gratuity, annual bonus or special-expense repayment." },
+    { "componentCode": "ONE_OFF_DEDUCTION", "description": "Employee one-off deduction", "sourceDomain": "VARIABLE_PAY", "sourceType": "VARIABLE_PAY", "componentType": "DEDUCTION", "SOCSO": "EXCLUDED", "EIS": "EXCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "A deduction from amounts already earned is not remuneration payable and does not reduce the statutory wage base." },
+    { "componentCode": "ARREARS", "description": "Generic arrears payment", "sourceDomain": "VARIABLE_PAY", "sourceType": "VARIABLE_PAY", "componentType": "EARNING", "SOCSO": "UNKNOWN", "EIS": "UNKNOWN", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "BLOCKED_ORIGINAL_NATURE_REQUIRED", "notes": "Treatment must follow the original earning nature; the generic code does not retain enough statutory provenance." },
+    { "componentCode": "SALARY_ARREARS", "description": "Correction underpayment paid in current payroll", "sourceDomain": "CORRECTION", "sourceType": "CORRECTION", "componentType": "EARNING", "SOCSO": "UNKNOWN", "EIS": "UNKNOWN", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "BLOCKED_ORIGINAL_NATURE_REQUIRED", "notes": "The P4C delta records an underpayment but does not yet bind the correction to the original statutory component classification." },
+    { "componentCode": "RECOVERY", "description": "Employee repayment/recovery deduction", "sourceDomain": "VARIABLE_PAY", "sourceType": "VARIABLE_PAY", "componentType": "DEDUCTION", "SOCSO": "EXCLUDED", "EIS": "EXCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Recovery changes net cash but does not reduce remuneration already payable." },
+    { "componentCode": "PAYROLL_RECOVERY", "description": "Correction recovery deduction", "sourceDomain": "CORRECTION", "sourceType": "CORRECTION", "componentType": "DEDUCTION", "SOCSO": "EXCLUDED", "EIS": "EXCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Recovery changes net cash but does not reduce remuneration already payable." },
+    { "componentCode": "TRANSPORT_ALLOWANCE", "description": "Travelling/transport allowance", "sourceDomain": "RECURRING_PAY", "sourceType": "RECURRING_PAY", "componentType": "EARNING", "SOCSO": "EXCLUDED", "EIS": "EXCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Both Acts expressly exclude travelling allowance or the value of travelling concessions." },
+    { "componentCode": "MEAL_ALLOWANCE", "description": "Meal allowance", "sourceDomain": "RECURRING_PAY", "sourceType": "RECURRING_PAY", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Meal allowance is expressly listed by PERKESO as contribution wages." },
+    { "componentCode": "HOUSING_ALLOWANCE", "description": "Housing allowance", "sourceDomain": "RECURRING_PAY", "sourceType": "RECURRING_PAY", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Housing allowance is expressly listed by PERKESO as contribution wages." },
+    { "componentCode": "SHIFT_ALLOWANCE", "description": "Shift allowance", "sourceDomain": "RECURRING_PAY", "sourceType": "RECURRING_PAY", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Shift allowance is expressly listed by PERKESO as contribution wages." },
+    { "componentCode": "COST_OF_LIVING_ALLOWANCE", "description": "Cost-of-living allowance", "sourceDomain": "RECURRING_PAY", "sourceType": "RECURRING_PAY", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Cost-of-living allowance is expressly listed by PERKESO as contribution wages." },
+    { "componentCode": "ATTENDANCE_ALLOWANCE", "description": "Attendance incentive allowance", "sourceDomain": "RECURRING_PAY", "sourceType": "RECURRING_PAY", "componentType": "EARNING", "SOCSO": "INCLUDED", "EIS": "INCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2", "PERKESO_EMPLOYER_WAGE_GUIDANCE", "PERKESO_FAQ_CONTRIBUTION_WAGES"], "confidence": "MEDIUM", "reviewStatus": "READY_FOR_PLATFORM_CONFIRMATION", "notes": "Included only when the code represents an attendance incentive, not a reimbursement; platform approval must confirm this canonical meaning." },
+    { "componentCode": "PHONE_ALLOWANCE", "description": "Phone allowance or reimbursement", "sourceDomain": "RECURRING_PAY", "sourceType": "RECURRING_PAY", "componentType": "EARNING", "SOCSO": "UNKNOWN", "EIS": "UNKNOWN", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "BLOCKED_SEMANTIC_SUBTYPE_REQUIRED", "notes": "The current code does not distinguish fixed remuneration from reimbursement of special employment expenses." },
+    { "componentCode": "FIXED_ALLOWANCE", "description": "Generic fixed allowance", "sourceDomain": "RECURRING_PAY", "sourceType": "RECURRING_PAY", "componentType": "EARNING", "SOCSO": "UNKNOWN", "EIS": "UNKNOWN", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "BLOCKED_SEMANTIC_SUBTYPE_REQUIRED", "notes": "Fixed frequency alone does not establish statutory nature." },
+    { "componentCode": "RECURRING_ALLOWANCE", "description": "Generic/custom recurring earning", "sourceDomain": "RECURRING_PAY", "sourceType": "RECURRING_PAY", "componentType": "EARNING", "SOCSO": "UNKNOWN", "EIS": "UNKNOWN", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "BLOCKED_EXACT_CODE_REQUIRED", "notes": "No wildcard inclusion is permitted for custom recurring earnings." },
+    { "componentCode": "STAFF_LOAN", "description": "Staff-loan repayment deduction", "sourceDomain": "RECURRING_PAY", "sourceType": "RECURRING_PAY", "componentType": "DEDUCTION", "SOCSO": "EXCLUDED", "EIS": "EXCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Loan repayment affects net cash, not remuneration payable." },
+    { "componentCode": "UNIFORM_DEDUCTION", "description": "Uniform deduction", "sourceDomain": "RECURRING_PAY", "sourceType": "RECURRING_PAY", "componentType": "DEDUCTION", "SOCSO": "EXCLUDED", "EIS": "EXCLUDED", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "TECHNICAL_EVIDENCE_PASS", "notes": "Employee deduction affects net cash, not remuneration payable." },
+    { "componentCode": "MANUAL_ADJUSTMENT", "description": "Generic manual earning or deduction", "sourceDomain": "MANUAL_ADJUSTMENT", "sourceType": "MANUAL_ADJUSTMENT", "componentType": "EARNING_OR_DEDUCTION", "SOCSO": "UNKNOWN", "EIS": "UNKNOWN", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "BLOCKED_SEMANTIC_SUBTYPE_REQUIRED", "notes": "The single code cannot prove whether the line is liable remuneration, reimbursement, annual bonus, gratuity or a deduction." },
+    { "componentCode": "CUSTOM_UNKNOWN_EARNING", "description": "Unknown/custom earning sentinel", "sourceDomain": "ANY", "sourceType": null, "componentType": "EARNING", "SOCSO": "UNKNOWN", "EIS": "UNKNOWN", "officialBasis": ["PERKESO_ACT4_WAGES_2_24", "PERKESO_ACT800_WAGES_2"], "confidence": "HIGH", "reviewStatus": "BLOCKED_EXACT_CODE_REQUIRED", "notes": "Used to prove fail-closed behaviour; it is never ignored or defaulted." }
+  ],
+  "nonProductionObservedCodes": [
+    { "componentCode": "PAYMENT_FIXTURE", "reason": "Test-only historical fixture; never approved for production statutory calculation." }
+  ],
+  "classificationDigest": "23fa2469355c5bd8733451b0b6807c37ee3ef6bcccf74949deb733dc525c8566"
+}

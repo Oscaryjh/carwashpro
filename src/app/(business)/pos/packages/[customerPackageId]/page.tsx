@@ -16,7 +16,9 @@ type PackageCheckoutPageProps = {
 export default async function PackageCheckoutPage({
   params,
 }: PackageCheckoutPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUser(
+    "PROCESS_CASHIER_PAYMENT",
+  );
   const { customerPackageId } = await params;
   const customerPackage = await prisma.customerPackage.findFirst({
     where: {

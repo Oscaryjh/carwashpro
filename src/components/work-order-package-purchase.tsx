@@ -9,6 +9,8 @@ import { BranchSelect } from "@/components/branch-select";
 import { SaleTaxSummary } from "@/components/sale-tax-summary";
 import type { BranchOption } from "@/lib/branches";
 import { calculateTax, type TaxDisplaySettings } from "@/lib/tax/calculator";
+import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
+import { FinancialSubmitButton } from "@/components/financial-submit-button";
 
 export type WorkOrderPackageOption = {
   category?: string | null;
@@ -53,6 +55,7 @@ export function WorkOrderPackagePurchase({
   const [pickerLineIndex, setPickerLineIndex] = useState<number | null>(null);
   const [packageQuery, setPackageQuery] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const { operationId } = useFinancialOperationId("package-purchase");
   const totalPackages = useMemo(
     () => lines.reduce((sum, line) => sum + line.quantity, 0),
     [lines],
@@ -140,6 +143,7 @@ export function WorkOrderPackagePurchase({
 
   return (
     <form action={action} className="product-sale-form package-cart-form">
+      <input name="operationId" type="hidden" value={operationId} />
       <section className="product-sale-section">
         <h3>Customer account</h3>
         <p className="field-helper">
@@ -288,12 +292,12 @@ export function WorkOrderPackagePurchase({
         Payment activates every selected package immediately. No appointment or service order is created.
       </p>
       <div className="form-actions">
-        <button
+        <FinancialSubmitButton
           disabled={!selectedCustomer || !lines.length || lines.some((line) => !line.packageId)}
-          type="submit"
+          pendingLabel="Processing package sale..."
         >
           Pay {formatMoney(tax.total)}
-        </button>
+        </FinancialSubmitButton>
       </div>
 
       {pickerLineIndex != null ? (

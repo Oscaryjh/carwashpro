@@ -4,6 +4,7 @@ import test, { after } from "node:test";
 import { Prisma, PrismaClient } from "@prisma/client";
 import type { AttendanceTimesheetContext } from "../../src/lib/attendance/timesheet-service";
 import {
+  approveMonthlyAttendanceTimesheet,
   beginMonthlyAttendanceTimesheetRevision,
   loadMonthlyAttendanceTimesheet,
   lockMonthlyAttendanceTimesheet,
@@ -71,11 +72,13 @@ test("A3 marks current branch evidence ready, locks immutable revision, and pres
       }),
       /Whole-business Attendance scope/i,
     );
+    await approveMonthlyAttendanceTimesheet({ context, month: "2026-08", reason: "Owner approved resolved August attendance.", expectedUpdatedAt: ready.timesheet?.updatedAt.toISOString(), database });
+    const approved = await loadMonthlyAttendanceTimesheet({ businessId: fixture.business.id, allowedBranchIds: [fixture.branchA.id, fixture.branchB.id], month: "2026-08", database: transaction });
     const locked = await lockMonthlyAttendanceTimesheet({
       context,
       month: "2026-08",
       reason: "Owner approved resolved August attendance.",
-      expectedUpdatedAt: ready.timesheet?.updatedAt.toISOString(),
+      expectedUpdatedAt: approved.timesheet?.updatedAt.toISOString(),
       database,
     });
     assert.equal(locked.revision, 1);
@@ -101,7 +104,9 @@ test("A3 invalidates stale Branch Ready and creates revision 2 without changing 
     const context = timesheetContext(fixture, true, [fixture.branchA.id]);
     await markAttendanceTimesheetBranchReady({ context, month: "2026-08", branchId: fixture.branchA.id, database });
     const beforeLock = await loadMonthlyAttendanceTimesheet({ businessId: fixture.business.id, allowedBranchIds: [fixture.branchA.id], month: "2026-08", database: transaction });
-    const firstLock = await lockMonthlyAttendanceTimesheet({ context, month: "2026-08", reason: "Initial approved attendance.", expectedUpdatedAt: beforeLock.timesheet?.updatedAt.toISOString(), database });
+    await approveMonthlyAttendanceTimesheet({ context, month: "2026-08", reason: "Initial approved attendance.", expectedUpdatedAt: beforeLock.timesheet?.updatedAt.toISOString(), database });
+    const firstApproved = await loadMonthlyAttendanceTimesheet({ businessId: fixture.business.id, allowedBranchIds: [fixture.branchA.id], month: "2026-08", database: transaction });
+    const firstLock = await lockMonthlyAttendanceTimesheet({ context, month: "2026-08", reason: "Initial approved attendance.", expectedUpdatedAt: firstApproved.timesheet?.updatedAt.toISOString(), database });
     const firstEntries = await transaction.attendanceTimesheetRevisionEntry.findMany({ where: { revisionId: firstLock.revisionId } });
 
     await resolveAttendanceCaseInTransaction(resolutionContext(fixture), {
@@ -125,7 +130,9 @@ test("A3 invalidates stale Branch Ready and creates revision 2 without changing 
     assert.equal(draft.branches[0]?.readinessStatus, "NOT_READY");
     await markAttendanceTimesheetBranchReady({ context, month: "2026-08", branchId: fixture.branchA.id, database });
     const ready = await loadMonthlyAttendanceTimesheet({ businessId: fixture.business.id, allowedBranchIds: [fixture.branchA.id], month: "2026-08", database: transaction });
-    const secondLock = await lockMonthlyAttendanceTimesheet({ context, month: "2026-08", reason: "Approved corrected attendance revision.", expectedUpdatedAt: ready.timesheet?.updatedAt.toISOString(), database });
+    await approveMonthlyAttendanceTimesheet({ context, month: "2026-08", reason: "Approved corrected attendance revision.", expectedUpdatedAt: ready.timesheet?.updatedAt.toISOString(), database });
+    const secondApproved = await loadMonthlyAttendanceTimesheet({ businessId: fixture.business.id, allowedBranchIds: [fixture.branchA.id], month: "2026-08", database: transaction });
+    const secondLock = await lockMonthlyAttendanceTimesheet({ context, month: "2026-08", reason: "Approved corrected attendance revision.", expectedUpdatedAt: secondApproved.timesheet?.updatedAt.toISOString(), database });
     assert.equal(secondLock.revision, 2);
     assert.deepEqual(await transaction.attendanceTimesheetRevisionEntry.findMany({ where: { revisionId: firstLock.revisionId } }), firstEntries);
     assert.equal((await transaction.attendanceTimesheetRevisionEntry.findFirstOrThrow({ where: { revisionId: secondLock.revisionId } })).totalWorkedMinutes, 510);
@@ -149,8 +156,16 @@ test("A3 invalidates stale Branch Ready and creates revision 2 without changing 
     const revisionTwoEntry = await transaction.payrollEntry.findFirstOrThrow({
       where: { payrollRunId: payrollRun.id, membershipId: fixture.membership.id },
     });
-    assert.equal(revisionTwoEntry.regularMinutes, 480);
-    assert.equal(revisionTwoEntry.overtimeMinutes, 30);
+    assert.equal(revisionTwoEntry.regularMinutes, 0);
+    assert.equal(revisionTwoEntry.overtimeMinutes, 0);
+    assert.equal(
+      (
+        await transaction.payrollAttendanceInputSnapshot.findUniqueOrThrow({
+          where: { payrollEntryId: revisionTwoEntry.id },
+        })
+      ).legacyCompatibility,
+      true,
+    );
 
     const currentCase = await transaction.attendanceResolutionCase.findUniqueOrThrow({
       where: { id: caseRecord.id },
@@ -172,7 +187,9 @@ test("A3 invalidates stale Branch Ready and creates revision 2 without changing 
     await beginMonthlyAttendanceTimesheetRevision({ context, month: "2026-08", reason: "Approved second correction.", expectedUpdatedAt: revisionNeeded.timesheet?.updatedAt.toISOString(), database });
     await markAttendanceTimesheetBranchReady({ context, month: "2026-08", branchId: fixture.branchA.id, database });
     const thirdReady = await loadMonthlyAttendanceTimesheet({ businessId: fixture.business.id, allowedBranchIds: [fixture.branchA.id], month: "2026-08", database: transaction });
-    const thirdLock = await lockMonthlyAttendanceTimesheet({ context, month: "2026-08", reason: "Locked second correction.", expectedUpdatedAt: thirdReady.timesheet?.updatedAt.toISOString(), database });
+    await approveMonthlyAttendanceTimesheet({ context, month: "2026-08", reason: "Approved second correction.", expectedUpdatedAt: thirdReady.timesheet?.updatedAt.toISOString(), database });
+    const thirdApproved = await loadMonthlyAttendanceTimesheet({ businessId: fixture.business.id, allowedBranchIds: [fixture.branchA.id], month: "2026-08", database: transaction });
+    const thirdLock = await lockMonthlyAttendanceTimesheet({ context, month: "2026-08", reason: "Locked second correction.", expectedUpdatedAt: thirdApproved.timesheet?.updatedAt.toISOString(), database });
     await assert.rejects(
       submitPayrollRunForReview({ actor: context.actor, businessId: fixture.business.id, runId: payrollRun.id }, database),
       /newer locked Timesheet revision|refresh/i,
@@ -182,8 +199,8 @@ test("A3 invalidates stale Branch Ready and creates revision 2 without changing 
     const revisionThreeEntry = await transaction.payrollEntry.findFirstOrThrow({
       where: { payrollRunId: payrollRun.id, membershipId: fixture.membership.id },
     });
-    assert.equal(revisionThreeEntry.regularMinutes, 480);
-    assert.equal(revisionThreeEntry.overtimeMinutes, 60);
+    assert.equal(revisionThreeEntry.regularMinutes, 0);
+    assert.equal(revisionThreeEntry.overtimeMinutes, 0);
     return fixture.business.id;
   });
 });
@@ -242,7 +259,7 @@ async function createFixture(transaction: Prisma.TransactionClient) {
   const owner = await transaction.user.create({ data: { businessId: business.id, name: "Timesheet Owner", email: `timesheet-${token}@test.local`, role: "BUSINESS_OWNER" } });
   const phone = `+601${randomInt(10_000_000, 99_999_999)}`;
   const employeeAccount = await transaction.employeeAccount.create({ data: { phoneNumber: phone, phoneNormalized: phone, name: "Timesheet Employee" } });
-  const membership = await transaction.employeeBusinessMembership.create({ data: { employeeAccountId: employeeAccount.id, businessId: business.id, employeeCode: `TS-${token}`, fullName: "Timesheet Employee", phoneNumber: phone, phoneNumberNormalized: phone } });
+  const membership = await transaction.employeeBusinessMembership.create({ data: { employeeAccountId: employeeAccount.id, businessId: business.id, employeeCode: `TS-${token}`, fullName: "Timesheet Employee", joinedAt: new Date("2026-01-01T00:00:00.000Z"), phoneNumber: phone, phoneNumberNormalized: phone } });
   return { business, branchA, branchB, owner, employeeAccount, membership };
 }
 

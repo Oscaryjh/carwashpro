@@ -5,10 +5,14 @@ node_modules
 dist
 coverage
 *.log
+*.pem
+*.key
 *.tsbuildinfo
 .tmp/
 output/
 tmp/
+playwright-report/
+test-results/
 .local-postgres
 .local-postgres.pid
 .local-https/

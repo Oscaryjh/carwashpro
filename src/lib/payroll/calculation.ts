@@ -32,6 +32,27 @@ export type PayrollCalculation = {
   grossPayCents: number;
 };
 
+export const MID_PERIOD_PRORATION_NOT_READY = "MID_PERIOD_PRORATION_NOT_READY";
+
+export function assertSupportedPayrollProration(input: {
+  payBasis: PayrollPayBasis;
+  joinedAt: Date;
+  terminatedAt: Date | null;
+  periodStart: Date;
+  periodEnd: Date;
+}) {
+  if (input.payBasis !== "MONTHLY") return;
+  const finalPeriodDay = new Date(input.periodEnd.getTime() - 24 * 60 * 60 * 1000);
+  if (
+    input.joinedAt > input.periodStart ||
+    (input.terminatedAt !== null && input.terminatedAt < finalPeriodDay)
+  ) {
+    throw new Error(
+      `${MID_PERIOD_PRORATION_NOT_READY}: Monthly employees who join or terminate mid-period require an approved proration policy.`,
+    );
+  }
+}
+
 export function calculatePayroll(
   input: PayrollCalculationInput,
 ): PayrollCalculation {

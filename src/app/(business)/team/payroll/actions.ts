@@ -8,8 +8,15 @@ import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
+import {
+  addManualPayrollAdjustment,
+  editManualPayrollAdjustment,
+  removeManualPayrollAdjustment,
+} from "@/lib/payroll/component-service";
 import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
 import { payrollRunReturnPath } from "@/lib/payroll/runs";
+import { publishPayrollPayslips } from "@/lib/payroll/payslip-publication";
 import {
   finalizePayrollRun,
   generatePayrollRun,
@@ -19,6 +26,14 @@ import {
   submitPayrollRunForReview,
   updatePayrollEntry,
 } from "@/lib/payroll/service";
+import {
+  approvePayrollCorrection,
+  approvePayrollVariablePay,
+  cancelPayrollCorrection,
+  cancelPayrollVariablePay,
+  createPayrollCorrection,
+  createPayrollVariablePay,
+} from "@/lib/payroll/variable-pay";
 import { prisma } from "@/lib/prisma";
 
 const settingSchema = z.object({
@@ -240,15 +255,14 @@ export async function updatePayrollEntryAction(formData: FormData) {
     formData.get("returnPath"),
   );
   try {
-    const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
+    const context = await requirePayrollComponentEdit();
     await updatePayrollEntry({
       businessId: context.businessId,
       actor: context.user,
       request: await getAuditRequestContext(),
       entryId: z.string().uuid().parse(formData.get("entryId")),
+      expectedRevision: z.coerce.number().int().min(0).parse(formData.get("expectedRevision")),
       values: {
-        allowances: formData.get("allowances"),
-        otherDeductions: formData.get("otherDeductions"),
         epfWageBase: formData.get("epfWageBase"),
         perkesoWageBase: formData.get("perkesoWageBase"),
         lindung24Employee: formData.get("lindung24Employee"),
@@ -265,6 +279,176 @@ export async function updatePayrollEntryAction(formData: FormData) {
     finish("success", "Payroll entry updated.", month, returnPath);
   } catch (error) {
     handleActionError(error, month, "Unable to update payroll entry.", returnPath);
+  }
+}
+
+export async function addManualPayrollAdjustmentAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
+  try {
+    const context = await requirePayrollComponentEdit();
+    await addManualPayrollAdjustment({
+      businessId: context.businessId,
+      actor: context.user,
+      request: await getAuditRequestContext(),
+      entryId: z.string().uuid().parse(formData.get("entryId")),
+      expectedRevision: z.coerce.number().int().min(0).parse(formData.get("expectedRevision")),
+      type: z.enum(["EARNING", "DEDUCTION"]).parse(formData.get("type")),
+      category: z.enum(["ONE_OFF", "CORRECTION", "ARREARS", "RECOVERY", "BONUS", "OTHER"]).parse(formData.get("category")),
+      name: formData.get("description"),
+      amount: formData.get("amount"),
+      reason: formData.get("reason"),
+    });
+    finish("success", "Manual payroll adjustment added.", month, returnPath);
+  } catch (error) {
+    handleActionError(error, month, "Unable to add manual payroll adjustment.", returnPath);
+  }
+}
+
+export async function createPayrollVariablePayAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
+  try {
+    const context = await requirePayrollComponentEdit();
+    await createPayrollVariablePay(p4cEditContext(context, await getAuditRequestContext()), {
+      membershipId: z.string().uuid().parse(formData.get("membershipId")),
+      type: z.enum(["BONUS", "COMMISSION", "INCENTIVE", "ONE_OFF_EARNING", "ONE_OFF_DEDUCTION", "ARREARS", "RECOVERY"]).parse(formData.get("variableType")),
+      name: formData.get("description"),
+      amount: formData.get("amount"),
+      earnedPeriodStart: formData.get("earnedPeriodStart"),
+      earnedPeriodEnd: formData.get("earnedPeriodEnd"),
+      payrollPeriod: month,
+      origin: "MANUAL",
+      sourceReference: formData.get("sourceReference"),
+      reason: formData.get("reason"),
+    });
+    finish("success", "Variable pay draft created. A different approver must approve it before payroll refresh.", month, returnPath);
+  } catch (error) {
+    handleActionError(error, month, "Unable to create variable pay.", returnPath);
+  }
+}
+
+export async function approvePayrollVariablePayAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
+  try {
+    const context = await requireP4CApprove();
+    await approvePayrollVariablePay(p4cApproveContext(context, await getAuditRequestContext()), {
+      variablePayId: z.string().uuid().parse(formData.get("variablePayId")),
+      expectedRevision: z.coerce.number().int().positive().parse(formData.get("sourceRevision")),
+    });
+    finish("success", "Variable pay approved. Refresh the Draft payroll to apply it.", month, returnPath);
+  } catch (error) {
+    handleActionError(error, month, "Unable to approve variable pay.", returnPath);
+  }
+}
+
+export async function cancelPayrollVariablePayAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
+  try {
+    const context = await requirePayrollComponentEdit();
+    await cancelPayrollVariablePay(p4cEditContext(context, await getAuditRequestContext()), {
+      variablePayId: z.string().uuid().parse(formData.get("variablePayId")),
+      expectedRevision: z.coerce.number().int().positive().parse(formData.get("sourceRevision")),
+      reason: formData.get("cancellationReason"),
+    });
+    finish("success", "Variable pay cancelled.", month, returnPath);
+  } catch (error) {
+    handleActionError(error, month, "Unable to cancel variable pay.", returnPath);
+  }
+}
+
+export async function createPayrollCorrectionAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
+  try {
+    const context = await requirePayrollComponentEdit();
+    await createPayrollCorrection(p4cEditContext(context, await getAuditRequestContext()), {
+      originalPayrollEntryId: z.string().uuid().parse(formData.get("originalPayrollEntryId")),
+      applyToPeriod: month,
+      originalAmount: formData.get("originalAmount"),
+      correctedAmount: formData.get("correctedAmount"),
+      name: formData.get("description"),
+      sourceReference: formData.get("sourceReference"),
+      reason: formData.get("reason"),
+    });
+    finish("success", "Correction draft created. A different approver must approve it.", month, returnPath);
+  } catch (error) {
+    handleActionError(error, month, "Unable to create payroll correction.", returnPath);
+  }
+}
+
+export async function approvePayrollCorrectionAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
+  try {
+    const context = await requireP4CApprove();
+    await approvePayrollCorrection(p4cApproveContext(context, await getAuditRequestContext()), {
+      correctionId: z.string().uuid().parse(formData.get("correctionId")),
+      expectedRevision: z.coerce.number().int().positive().parse(formData.get("sourceRevision")),
+    });
+    finish("success", "Payroll correction approved. Refresh the Draft payroll to apply it.", month, returnPath);
+  } catch (error) {
+    handleActionError(error, month, "Unable to approve payroll correction.", returnPath);
+  }
+}
+
+export async function cancelPayrollCorrectionAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
+  try {
+    const context = await requirePayrollComponentEdit();
+    await cancelPayrollCorrection(p4cEditContext(context, await getAuditRequestContext()), {
+      correctionId: z.string().uuid().parse(formData.get("correctionId")),
+      expectedRevision: z.coerce.number().int().positive().parse(formData.get("sourceRevision")),
+      reason: formData.get("cancellationReason"),
+    });
+    finish("success", "Payroll correction cancelled.", month, returnPath);
+  } catch (error) {
+    handleActionError(error, month, "Unable to cancel payroll correction.", returnPath);
+  }
+}
+
+export async function editManualPayrollAdjustmentAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
+  try {
+    const context = await requirePayrollComponentEdit();
+    await editManualPayrollAdjustment({
+      businessId: context.businessId,
+      actor: context.user,
+      request: await getAuditRequestContext(),
+      entryId: z.string().uuid().parse(formData.get("entryId")),
+      componentId: z.string().uuid().parse(formData.get("componentId")),
+      expectedRevision: z.coerce.number().int().min(0).parse(formData.get("expectedRevision")),
+      name: formData.get("description"),
+      amount: formData.get("amount"),
+      reason: formData.get("reason"),
+    });
+    finish("success", "Manual payroll adjustment updated.", month, returnPath);
+  } catch (error) {
+    handleActionError(error, month, "Unable to update manual payroll adjustment.", returnPath);
+  }
+}
+
+export async function removeManualPayrollAdjustmentAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
+  try {
+    const context = await requirePayrollComponentEdit();
+    await removeManualPayrollAdjustment({
+      businessId: context.businessId,
+      actor: context.user,
+      request: await getAuditRequestContext(),
+      entryId: z.string().uuid().parse(formData.get("entryId")),
+      componentId: z.string().uuid().parse(formData.get("componentId")),
+      expectedRevision: z.coerce.number().int().min(0).parse(formData.get("expectedRevision")),
+      reason: formData.get("removalReason"),
+    });
+    finish("success", "Manual payroll adjustment removed.", month, returnPath);
+  } catch (error) {
+    handleActionError(error, month, "Unable to remove manual payroll adjustment.", returnPath);
   }
 }
 
@@ -341,6 +525,30 @@ export async function reopenPayrollRunAction(formData: FormData) {
   }
 }
 
+export async function publishPayrollPayslipsAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
+  try {
+    const context = await requireWholeBusinessPayroll("PUBLISH_PAYSLIP");
+    const result = await publishPayrollPayslips({
+      businessId: context.businessId,
+      actor: context.user,
+      request: await getAuditRequestContext(),
+      runId: z.string().uuid().parse(formData.get("runId")),
+    });
+    finish(
+      "success",
+      result.publishedCount
+        ? `${result.publishedCount} payslip(s) published from the frozen payroll snapshot.`
+        : "All payslips were already published.",
+      month,
+      returnPath,
+    );
+  } catch (error) {
+    handleActionError(error, month, "Unable to publish payslips.", returnPath);
+  }
+}
+
 async function requireWholeBusinessPayroll(
   capability: BusinessCapability,
 ) {
@@ -357,6 +565,30 @@ async function requireWholeBusinessPayroll(
     throw new Error("Payroll requires authorized access to every active branch.");
   }
   return { ...context, allowedBranchIds: [...scope.allowedBranchIds] };
+}
+
+async function requirePayrollComponentEdit() {
+  const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
+  if (!hasBusinessCapability(context.access, "VIEW_COMPENSATION")) {
+    throw new Error("Payroll component editing requires compensation access.");
+  }
+  return context;
+}
+
+async function requireP4CApprove() {
+  const context = await requireWholeBusinessPayroll("APPROVE_PAYROLL");
+  if (!hasBusinessCapability(context.access, "VIEW_COMPENSATION")) {
+    throw new Error("Variable pay and correction approval requires compensation access.");
+  }
+  return context;
+}
+
+function p4cEditContext(context: Awaited<ReturnType<typeof requirePayrollComponentEdit>>, request: Awaited<ReturnType<typeof getAuditRequestContext>>) {
+  return { businessId: context.businessId, actor: context.user, request, capabilities: ["VIEW_COMPENSATION", "EDIT_PAYROLL_ENTRY"] as const };
+}
+
+function p4cApproveContext(context: Awaited<ReturnType<typeof requireP4CApprove>>, request: Awaited<ReturnType<typeof getAuditRequestContext>>) {
+  return { businessId: context.businessId, actor: context.user, request, capabilities: ["VIEW_COMPENSATION", "APPROVE_PAYROLL"] as const };
 }
 
 function settingAudit(setting: {

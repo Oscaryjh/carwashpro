@@ -5,6 +5,7 @@ import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import {
+  approveMonthlyAttendanceTimesheet,
   beginMonthlyAttendanceTimesheetRevision,
   lockMonthlyAttendanceTimesheet,
   markAttendanceTimesheetBranchReady,
@@ -39,10 +40,27 @@ export async function lockTimesheetAction(formData: FormData) {
       reason: String(formData.get("reason") ?? ""),
       expectedUpdatedAt: String(formData.get("expectedUpdatedAt") ?? "") || undefined,
     });
-    refresh(month, "success", `Monthly Timesheet revision ${result.revision} approved and locked.`);
+    refresh(month, "success", `Approved monthly Timesheet locked as revision ${result.revision}.`);
   } catch (error) {
     if (isRedirectError(error)) throw error;
     refresh(month, "error", message(error, "Unable to lock this monthly Timesheet."));
+  }
+}
+
+export async function approveTimesheetAction(formData: FormData) {
+  const month = String(formData.get("month") ?? "");
+  try {
+    const context = await getTimesheetWriteContext();
+    const result = await approveMonthlyAttendanceTimesheet({
+      context,
+      month,
+      reason: String(formData.get("reason") ?? ""),
+      expectedUpdatedAt: String(formData.get("expectedUpdatedAt") ?? "") || undefined,
+    });
+    refresh(month, "success", `Monthly Timesheet approval ${result.approvalRevision} recorded. It is ready to lock.`);
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    refresh(month, "error", message(error, "Unable to approve this monthly Timesheet."));
   }
 }
 

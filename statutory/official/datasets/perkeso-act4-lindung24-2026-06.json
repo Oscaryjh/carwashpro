@@ -1,0 +1,798 @@
+{
+  "schemaVersion": 1,
+  "id": "perkeso-act4-lindung24-2026-06-v1",
+  "schemes": [
+    "SOCSO",
+    "LINDUNG24"
+  ],
+  "artifactId": "perkeso-act4-lindung24-2026-06",
+  "artifactSha256": "e76b2a03740f6da4a305919c677d4935a05e9166502e5f06afe1030b7407caa1",
+  "parserName": "perkeso-act4-skbbk-table",
+  "parserVersion": "1.0.0",
+  "extractionMode": "TEXT_EXTRACTED",
+  "verificationStatus": "VERIFIED",
+  "expectedRowCount": 65,
+  "rows": [
+    {
+      "key": "ACT4-01",
+      "lowerInclusiveCents": 0,
+      "upperInclusiveCents": 3000,
+      "contributions": {
+        "socsoEmployerFirstCents": 40,
+        "socsoEmployeeFirstCents": 10,
+        "lindung24EmployeeCents": 20,
+        "socsoEmployerSecondCents": 30
+      },
+      "sourceReference": "official contribution schedule row 1"
+    },
+    {
+      "key": "ACT4-02",
+      "lowerInclusiveCents": 3001,
+      "upperInclusiveCents": 5000,
+      "contributions": {
+        "socsoEmployerFirstCents": 70,
+        "socsoEmployeeFirstCents": 20,
+        "lindung24EmployeeCents": 30,
+        "socsoEmployerSecondCents": 50
+      },
+      "sourceReference": "official contribution schedule row 2"
+    },
+    {
+      "key": "ACT4-03",
+      "lowerInclusiveCents": 5001,
+      "upperInclusiveCents": 7000,
+      "contributions": {
+        "socsoEmployerFirstCents": 110,
+        "socsoEmployeeFirstCents": 30,
+        "lindung24EmployeeCents": 50,
+        "socsoEmployerSecondCents": 80
+      },
+      "sourceReference": "official contribution schedule row 3"
+    },
+    {
+      "key": "ACT4-04",
+      "lowerInclusiveCents": 7001,
+      "upperInclusiveCents": 10000,
+      "contributions": {
+        "socsoEmployerFirstCents": 150,
+        "socsoEmployeeFirstCents": 40,
+        "lindung24EmployeeCents": 65,
+        "socsoEmployerSecondCents": 110
+      },
+      "sourceReference": "official contribution schedule row 4"
+    },
+    {
+      "key": "ACT4-05",
+      "lowerInclusiveCents": 10001,
+      "upperInclusiveCents": 14000,
+      "contributions": {
+        "socsoEmployerFirstCents": 210,
+        "socsoEmployeeFirstCents": 60,
+        "lindung24EmployeeCents": 90,
+        "socsoEmployerSecondCents": 150
+      },
+      "sourceReference": "official contribution schedule row 5"
+    },
+    {
+      "key": "ACT4-06",
+      "lowerInclusiveCents": 14001,
+      "upperInclusiveCents": 20000,
+      "contributions": {
+        "socsoEmployerFirstCents": 295,
+        "socsoEmployeeFirstCents": 85,
+        "lindung24EmployeeCents": 125,
+        "socsoEmployerSecondCents": 210
+      },
+      "sourceReference": "official contribution schedule row 6"
+    },
+    {
+      "key": "ACT4-07",
+      "lowerInclusiveCents": 20001,
+      "upperInclusiveCents": 30000,
+      "contributions": {
+        "socsoEmployerFirstCents": 435,
+        "socsoEmployeeFirstCents": 125,
+        "lindung24EmployeeCents": 185,
+        "socsoEmployerSecondCents": 310
+      },
+      "sourceReference": "official contribution schedule row 7"
+    },
+    {
+      "key": "ACT4-08",
+      "lowerInclusiveCents": 30001,
+      "upperInclusiveCents": 40000,
+      "contributions": {
+        "socsoEmployerFirstCents": 615,
+        "socsoEmployeeFirstCents": 175,
+        "lindung24EmployeeCents": 265,
+        "socsoEmployerSecondCents": 440
+      },
+      "sourceReference": "official contribution schedule row 8"
+    },
+    {
+      "key": "ACT4-09",
+      "lowerInclusiveCents": 40001,
+      "upperInclusiveCents": 50000,
+      "contributions": {
+        "socsoEmployerFirstCents": 785,
+        "socsoEmployeeFirstCents": 225,
+        "lindung24EmployeeCents": 335,
+        "socsoEmployerSecondCents": 560
+      },
+      "sourceReference": "official contribution schedule row 9"
+    },
+    {
+      "key": "ACT4-10",
+      "lowerInclusiveCents": 50001,
+      "upperInclusiveCents": 60000,
+      "contributions": {
+        "socsoEmployerFirstCents": 965,
+        "socsoEmployeeFirstCents": 275,
+        "lindung24EmployeeCents": 415,
+        "socsoEmployerSecondCents": 690
+      },
+      "sourceReference": "official contribution schedule row 10"
+    },
+    {
+      "key": "ACT4-11",
+      "lowerInclusiveCents": 60001,
+      "upperInclusiveCents": 70000,
+      "contributions": {
+        "socsoEmployerFirstCents": 1135,
+        "socsoEmployeeFirstCents": 325,
+        "lindung24EmployeeCents": 485,
+        "socsoEmployerSecondCents": 810
+      },
+      "sourceReference": "official contribution schedule row 11"
+    },
+    {
+      "key": "ACT4-12",
+      "lowerInclusiveCents": 70001,
+      "upperInclusiveCents": 80000,
+      "contributions": {
+        "socsoEmployerFirstCents": 1315,
+        "socsoEmployeeFirstCents": 375,
+        "lindung24EmployeeCents": 565,
+        "socsoEmployerSecondCents": 940
+      },
+      "sourceReference": "official contribution schedule row 12"
+    },
+    {
+      "key": "ACT4-13",
+      "lowerInclusiveCents": 80001,
+      "upperInclusiveCents": 90000,
+      "contributions": {
+        "socsoEmployerFirstCents": 1485,
+        "socsoEmployeeFirstCents": 425,
+        "lindung24EmployeeCents": 635,
+        "socsoEmployerSecondCents": 1060
+      },
+      "sourceReference": "official contribution schedule row 13"
+    },
+    {
+      "key": "ACT4-14",
+      "lowerInclusiveCents": 90001,
+      "upperInclusiveCents": 100000,
+      "contributions": {
+        "socsoEmployerFirstCents": 1665,
+        "socsoEmployeeFirstCents": 475,
+        "lindung24EmployeeCents": 715,
+        "socsoEmployerSecondCents": 1190
+      },
+      "sourceReference": "official contribution schedule row 14"
+    },
+    {
+      "key": "ACT4-15",
+      "lowerInclusiveCents": 100001,
+      "upperInclusiveCents": 110000,
+      "contributions": {
+        "socsoEmployerFirstCents": 1835,
+        "socsoEmployeeFirstCents": 525,
+        "lindung24EmployeeCents": 785,
+        "socsoEmployerSecondCents": 1310
+      },
+      "sourceReference": "official contribution schedule row 15"
+    },
+    {
+      "key": "ACT4-16",
+      "lowerInclusiveCents": 110001,
+      "upperInclusiveCents": 120000,
+      "contributions": {
+        "socsoEmployerFirstCents": 2015,
+        "socsoEmployeeFirstCents": 575,
+        "lindung24EmployeeCents": 865,
+        "socsoEmployerSecondCents": 1440
+      },
+      "sourceReference": "official contribution schedule row 16"
+    },
+    {
+      "key": "ACT4-17",
+      "lowerInclusiveCents": 120001,
+      "upperInclusiveCents": 130000,
+      "contributions": {
+        "socsoEmployerFirstCents": 2185,
+        "socsoEmployeeFirstCents": 625,
+        "lindung24EmployeeCents": 935,
+        "socsoEmployerSecondCents": 1560
+      },
+      "sourceReference": "official contribution schedule row 17"
+    },
+    {
+      "key": "ACT4-18",
+      "lowerInclusiveCents": 130001,
+      "upperInclusiveCents": 140000,
+      "contributions": {
+        "socsoEmployerFirstCents": 2365,
+        "socsoEmployeeFirstCents": 675,
+        "lindung24EmployeeCents": 1015,
+        "socsoEmployerSecondCents": 1690
+      },
+      "sourceReference": "official contribution schedule row 18"
+    },
+    {
+      "key": "ACT4-19",
+      "lowerInclusiveCents": 140001,
+      "upperInclusiveCents": 150000,
+      "contributions": {
+        "socsoEmployerFirstCents": 2535,
+        "socsoEmployeeFirstCents": 725,
+        "lindung24EmployeeCents": 1085,
+        "socsoEmployerSecondCents": 1810
+      },
+      "sourceReference": "official contribution schedule row 19"
+    },
+    {
+      "key": "ACT4-20",
+      "lowerInclusiveCents": 150001,
+      "upperInclusiveCents": 160000,
+      "contributions": {
+        "socsoEmployerFirstCents": 2715,
+        "socsoEmployeeFirstCents": 775,
+        "lindung24EmployeeCents": 1165,
+        "socsoEmployerSecondCents": 1940
+      },
+      "sourceReference": "official contribution schedule row 20"
+    },
+    {
+      "key": "ACT4-21",
+      "lowerInclusiveCents": 160001,
+      "upperInclusiveCents": 170000,
+      "contributions": {
+        "socsoEmployerFirstCents": 2885,
+        "socsoEmployeeFirstCents": 825,
+        "lindung24EmployeeCents": 1235,
+        "socsoEmployerSecondCents": 2060
+      },
+      "sourceReference": "official contribution schedule row 21"
+    },
+    {
+      "key": "ACT4-22",
+      "lowerInclusiveCents": 170001,
+      "upperInclusiveCents": 180000,
+      "contributions": {
+        "socsoEmployerFirstCents": 3065,
+        "socsoEmployeeFirstCents": 875,
+        "lindung24EmployeeCents": 1315,
+        "socsoEmployerSecondCents": 2190
+      },
+      "sourceReference": "official contribution schedule row 22"
+    },
+    {
+      "key": "ACT4-23",
+      "lowerInclusiveCents": 180001,
+      "upperInclusiveCents": 190000,
+      "contributions": {
+        "socsoEmployerFirstCents": 3235,
+        "socsoEmployeeFirstCents": 925,
+        "lindung24EmployeeCents": 1385,
+        "socsoEmployerSecondCents": 2310
+      },
+      "sourceReference": "official contribution schedule row 23"
+    },
+    {
+      "key": "ACT4-24",
+      "lowerInclusiveCents": 190001,
+      "upperInclusiveCents": 200000,
+      "contributions": {
+        "socsoEmployerFirstCents": 3415,
+        "socsoEmployeeFirstCents": 975,
+        "lindung24EmployeeCents": 1465,
+        "socsoEmployerSecondCents": 2440
+      },
+      "sourceReference": "official contribution schedule row 24"
+    },
+    {
+      "key": "ACT4-25",
+      "lowerInclusiveCents": 200001,
+      "upperInclusiveCents": 210000,
+      "contributions": {
+        "socsoEmployerFirstCents": 3585,
+        "socsoEmployeeFirstCents": 1025,
+        "lindung24EmployeeCents": 1535,
+        "socsoEmployerSecondCents": 2560
+      },
+      "sourceReference": "official contribution schedule row 25"
+    },
+    {
+      "key": "ACT4-26",
+      "lowerInclusiveCents": 210001,
+      "upperInclusiveCents": 220000,
+      "contributions": {
+        "socsoEmployerFirstCents": 3765,
+        "socsoEmployeeFirstCents": 1075,
+        "lindung24EmployeeCents": 1615,
+        "socsoEmployerSecondCents": 2690
+      },
+      "sourceReference": "official contribution schedule row 26"
+    },
+    {
+      "key": "ACT4-27",
+      "lowerInclusiveCents": 220001,
+      "upperInclusiveCents": 230000,
+      "contributions": {
+        "socsoEmployerFirstCents": 3935,
+        "socsoEmployeeFirstCents": 1125,
+        "lindung24EmployeeCents": 1685,
+        "socsoEmployerSecondCents": 2810
+      },
+      "sourceReference": "official contribution schedule row 27"
+    },
+    {
+      "key": "ACT4-28",
+      "lowerInclusiveCents": 230001,
+      "upperInclusiveCents": 240000,
+      "contributions": {
+        "socsoEmployerFirstCents": 4115,
+        "socsoEmployeeFirstCents": 1175,
+        "lindung24EmployeeCents": 1765,
+        "socsoEmployerSecondCents": 2940
+      },
+      "sourceReference": "official contribution schedule row 28"
+    },
+    {
+      "key": "ACT4-29",
+      "lowerInclusiveCents": 240001,
+      "upperInclusiveCents": 250000,
+      "contributions": {
+        "socsoEmployerFirstCents": 4285,
+        "socsoEmployeeFirstCents": 1225,
+        "lindung24EmployeeCents": 1835,
+        "socsoEmployerSecondCents": 3060
+      },
+      "sourceReference": "official contribution schedule row 29"
+    },
+    {
+      "key": "ACT4-30",
+      "lowerInclusiveCents": 250001,
+      "upperInclusiveCents": 260000,
+      "contributions": {
+        "socsoEmployerFirstCents": 4465,
+        "socsoEmployeeFirstCents": 1275,
+        "lindung24EmployeeCents": 1915,
+        "socsoEmployerSecondCents": 3190
+      },
+      "sourceReference": "official contribution schedule row 30"
+    },
+    {
+      "key": "ACT4-31",
+      "lowerInclusiveCents": 260001,
+      "upperInclusiveCents": 270000,
+      "contributions": {
+        "socsoEmployerFirstCents": 4635,
+        "socsoEmployeeFirstCents": 1325,
+        "lindung24EmployeeCents": 1985,
+        "socsoEmployerSecondCents": 3310
+      },
+      "sourceReference": "official contribution schedule row 31"
+    },
+    {
+      "key": "ACT4-32",
+      "lowerInclusiveCents": 270001,
+      "upperInclusiveCents": 280000,
+      "contributions": {
+        "socsoEmployerFirstCents": 4815,
+        "socsoEmployeeFirstCents": 1375,
+        "lindung24EmployeeCents": 2065,
+        "socsoEmployerSecondCents": 3440
+      },
+      "sourceReference": "official contribution schedule row 32"
+    },
+    {
+      "key": "ACT4-33",
+      "lowerInclusiveCents": 280001,
+      "upperInclusiveCents": 290000,
+      "contributions": {
+        "socsoEmployerFirstCents": 4985,
+        "socsoEmployeeFirstCents": 1425,
+        "lindung24EmployeeCents": 2135,
+        "socsoEmployerSecondCents": 3560
+      },
+      "sourceReference": "official contribution schedule row 33"
+    },
+    {
+      "key": "ACT4-34",
+      "lowerInclusiveCents": 290001,
+      "upperInclusiveCents": 300000,
+      "contributions": {
+        "socsoEmployerFirstCents": 5165,
+        "socsoEmployeeFirstCents": 1475,
+        "lindung24EmployeeCents": 2215,
+        "socsoEmployerSecondCents": 3690
+      },
+      "sourceReference": "official contribution schedule row 34"
+    },
+    {
+      "key": "ACT4-35",
+      "lowerInclusiveCents": 300001,
+      "upperInclusiveCents": 310000,
+      "contributions": {
+        "socsoEmployerFirstCents": 5335,
+        "socsoEmployeeFirstCents": 1525,
+        "lindung24EmployeeCents": 2285,
+        "socsoEmployerSecondCents": 3810
+      },
+      "sourceReference": "official contribution schedule row 35"
+    },
+    {
+      "key": "ACT4-36",
+      "lowerInclusiveCents": 310001,
+      "upperInclusiveCents": 320000,
+      "contributions": {
+        "socsoEmployerFirstCents": 5515,
+        "socsoEmployeeFirstCents": 1575,
+        "lindung24EmployeeCents": 2365,
+        "socsoEmployerSecondCents": 3940
+      },
+      "sourceReference": "official contribution schedule row 36"
+    },
+    {
+      "key": "ACT4-37",
+      "lowerInclusiveCents": 320001,
+      "upperInclusiveCents": 330000,
+      "contributions": {
+        "socsoEmployerFirstCents": 5685,
+        "socsoEmployeeFirstCents": 1625,
+        "lindung24EmployeeCents": 2435,
+        "socsoEmployerSecondCents": 4060
+      },
+      "sourceReference": "official contribution schedule row 37"
+    },
+    {
+      "key": "ACT4-38",
+      "lowerInclusiveCents": 330001,
+      "upperInclusiveCents": 340000,
+      "contributions": {
+        "socsoEmployerFirstCents": 5865,
+        "socsoEmployeeFirstCents": 1675,
+        "lindung24EmployeeCents": 2515,
+        "socsoEmployerSecondCents": 4190
+      },
+      "sourceReference": "official contribution schedule row 38"
+    },
+    {
+      "key": "ACT4-39",
+      "lowerInclusiveCents": 340001,
+      "upperInclusiveCents": 350000,
+      "contributions": {
+        "socsoEmployerFirstCents": 6035,
+        "socsoEmployeeFirstCents": 1725,
+        "lindung24EmployeeCents": 2585,
+        "socsoEmployerSecondCents": 4310
+      },
+      "sourceReference": "official contribution schedule row 39"
+    },
+    {
+      "key": "ACT4-40",
+      "lowerInclusiveCents": 350001,
+      "upperInclusiveCents": 360000,
+      "contributions": {
+        "socsoEmployerFirstCents": 6215,
+        "socsoEmployeeFirstCents": 1775,
+        "lindung24EmployeeCents": 2665,
+        "socsoEmployerSecondCents": 4440
+      },
+      "sourceReference": "official contribution schedule row 40"
+    },
+    {
+      "key": "ACT4-41",
+      "lowerInclusiveCents": 360001,
+      "upperInclusiveCents": 370000,
+      "contributions": {
+        "socsoEmployerFirstCents": 6385,
+        "socsoEmployeeFirstCents": 1825,
+        "lindung24EmployeeCents": 2735,
+        "socsoEmployerSecondCents": 4560
+      },
+      "sourceReference": "official contribution schedule row 41"
+    },
+    {
+      "key": "ACT4-42",
+      "lowerInclusiveCents": 370001,
+      "upperInclusiveCents": 380000,
+      "contributions": {
+        "socsoEmployerFirstCents": 6565,
+        "socsoEmployeeFirstCents": 1875,
+        "lindung24EmployeeCents": 2815,
+        "socsoEmployerSecondCents": 4690
+      },
+      "sourceReference": "official contribution schedule row 42"
+    },
+    {
+      "key": "ACT4-43",
+      "lowerInclusiveCents": 380001,
+      "upperInclusiveCents": 390000,
+      "contributions": {
+        "socsoEmployerFirstCents": 6735,
+        "socsoEmployeeFirstCents": 1925,
+        "lindung24EmployeeCents": 2885,
+        "socsoEmployerSecondCents": 4810
+      },
+      "sourceReference": "official contribution schedule row 43"
+    },
+    {
+      "key": "ACT4-44",
+      "lowerInclusiveCents": 390001,
+      "upperInclusiveCents": 400000,
+      "contributions": {
+        "socsoEmployerFirstCents": 6915,
+        "socsoEmployeeFirstCents": 1975,
+        "lindung24EmployeeCents": 2965,
+        "socsoEmployerSecondCents": 4940
+      },
+      "sourceReference": "official contribution schedule row 44"
+    },
+    {
+      "key": "ACT4-45",
+      "lowerInclusiveCents": 400001,
+      "upperInclusiveCents": 410000,
+      "contributions": {
+        "socsoEmployerFirstCents": 7085,
+        "socsoEmployeeFirstCents": 2025,
+        "lindung24EmployeeCents": 3035,
+        "socsoEmployerSecondCents": 5060
+      },
+      "sourceReference": "official contribution schedule row 45"
+    },
+    {
+      "key": "ACT4-46",
+      "lowerInclusiveCents": 410001,
+      "upperInclusiveCents": 420000,
+      "contributions": {
+        "socsoEmployerFirstCents": 7265,
+        "socsoEmployeeFirstCents": 2075,
+        "lindung24EmployeeCents": 3115,
+        "socsoEmployerSecondCents": 5190
+      },
+      "sourceReference": "official contribution schedule row 46"
+    },
+    {
+      "key": "ACT4-47",
+      "lowerInclusiveCents": 420001,
+      "upperInclusiveCents": 430000,
+      "contributions": {
+        "socsoEmployerFirstCents": 7435,
+        "socsoEmployeeFirstCents": 2125,
+        "lindung24EmployeeCents": 3185,
+        "socsoEmployerSecondCents": 5310
+      },
+      "sourceReference": "official contribution schedule row 47"
+    },
+    {
+      "key": "ACT4-48",
+      "lowerInclusiveCents": 430001,
+      "upperInclusiveCents": 440000,
+      "contributions": {
+        "socsoEmployerFirstCents": 7615,
+        "socsoEmployeeFirstCents": 2175,
+        "lindung24EmployeeCents": 3265,
+        "socsoEmployerSecondCents": 5440
+      },
+      "sourceReference": "official contribution schedule row 48"
+    },
+    {
+      "key": "ACT4-49",
+      "lowerInclusiveCents": 440001,
+      "upperInclusiveCents": 450000,
+      "contributions": {
+        "socsoEmployerFirstCents": 7785,
+        "socsoEmployeeFirstCents": 2225,
+        "lindung24EmployeeCents": 3335,
+        "socsoEmployerSecondCents": 5560
+      },
+      "sourceReference": "official contribution schedule row 49"
+    },
+    {
+      "key": "ACT4-50",
+      "lowerInclusiveCents": 450001,
+      "upperInclusiveCents": 460000,
+      "contributions": {
+        "socsoEmployerFirstCents": 7965,
+        "socsoEmployeeFirstCents": 2275,
+        "lindung24EmployeeCents": 3415,
+        "socsoEmployerSecondCents": 5690
+      },
+      "sourceReference": "official contribution schedule row 50"
+    },
+    {
+      "key": "ACT4-51",
+      "lowerInclusiveCents": 460001,
+      "upperInclusiveCents": 470000,
+      "contributions": {
+        "socsoEmployerFirstCents": 8135,
+        "socsoEmployeeFirstCents": 2325,
+        "lindung24EmployeeCents": 3485,
+        "socsoEmployerSecondCents": 5810
+      },
+      "sourceReference": "official contribution schedule row 51"
+    },
+    {
+      "key": "ACT4-52",
+      "lowerInclusiveCents": 470001,
+      "upperInclusiveCents": 480000,
+      "contributions": {
+        "socsoEmployerFirstCents": 8315,
+        "socsoEmployeeFirstCents": 2375,
+        "lindung24EmployeeCents": 3565,
+        "socsoEmployerSecondCents": 5940
+      },
+      "sourceReference": "official contribution schedule row 52"
+    },
+    {
+      "key": "ACT4-53",
+      "lowerInclusiveCents": 480001,
+      "upperInclusiveCents": 490000,
+      "contributions": {
+        "socsoEmployerFirstCents": 8485,
+        "socsoEmployeeFirstCents": 2425,
+        "lindung24EmployeeCents": 3635,
+        "socsoEmployerSecondCents": 6060
+      },
+      "sourceReference": "official contribution schedule row 53"
+    },
+    {
+      "key": "ACT4-54",
+      "lowerInclusiveCents": 490001,
+      "upperInclusiveCents": 500000,
+      "contributions": {
+        "socsoEmployerFirstCents": 8665,
+        "socsoEmployeeFirstCents": 2475,
+        "lindung24EmployeeCents": 3715,
+        "socsoEmployerSecondCents": 6190
+      },
+      "sourceReference": "official contribution schedule row 54"
+    },
+    {
+      "key": "ACT4-55",
+      "lowerInclusiveCents": 500001,
+      "upperInclusiveCents": 510000,
+      "contributions": {
+        "socsoEmployerFirstCents": 8835,
+        "socsoEmployeeFirstCents": 2525,
+        "lindung24EmployeeCents": 3785,
+        "socsoEmployerSecondCents": 6310
+      },
+      "sourceReference": "official contribution schedule row 55"
+    },
+    {
+      "key": "ACT4-56",
+      "lowerInclusiveCents": 510001,
+      "upperInclusiveCents": 520000,
+      "contributions": {
+        "socsoEmployerFirstCents": 9015,
+        "socsoEmployeeFirstCents": 2575,
+        "lindung24EmployeeCents": 3865,
+        "socsoEmployerSecondCents": 6440
+      },
+      "sourceReference": "official contribution schedule row 56"
+    },
+    {
+      "key": "ACT4-57",
+      "lowerInclusiveCents": 520001,
+      "upperInclusiveCents": 530000,
+      "contributions": {
+        "socsoEmployerFirstCents": 9185,
+        "socsoEmployeeFirstCents": 2625,
+        "lindung24EmployeeCents": 3935,
+        "socsoEmployerSecondCents": 6560
+      },
+      "sourceReference": "official contribution schedule row 57"
+    },
+    {
+      "key": "ACT4-58",
+      "lowerInclusiveCents": 530001,
+      "upperInclusiveCents": 540000,
+      "contributions": {
+        "socsoEmployerFirstCents": 9365,
+        "socsoEmployeeFirstCents": 2675,
+        "lindung24EmployeeCents": 4015,
+        "socsoEmployerSecondCents": 6690
+      },
+      "sourceReference": "official contribution schedule row 58"
+    },
+    {
+      "key": "ACT4-59",
+      "lowerInclusiveCents": 540001,
+      "upperInclusiveCents": 550000,
+      "contributions": {
+        "socsoEmployerFirstCents": 9535,
+        "socsoEmployeeFirstCents": 2725,
+        "lindung24EmployeeCents": 4085,
+        "socsoEmployerSecondCents": 6810
+      },
+      "sourceReference": "official contribution schedule row 59"
+    },
+    {
+      "key": "ACT4-60",
+      "lowerInclusiveCents": 550001,
+      "upperInclusiveCents": 560000,
+      "contributions": {
+        "socsoEmployerFirstCents": 9715,
+        "socsoEmployeeFirstCents": 2775,
+        "lindung24EmployeeCents": 4165,
+        "socsoEmployerSecondCents": 6940
+      },
+      "sourceReference": "official contribution schedule row 60"
+    },
+    {
+      "key": "ACT4-61",
+      "lowerInclusiveCents": 560001,
+      "upperInclusiveCents": 570000,
+      "contributions": {
+        "socsoEmployerFirstCents": 9885,
+        "socsoEmployeeFirstCents": 2825,
+        "lindung24EmployeeCents": 4235,
+        "socsoEmployerSecondCents": 7060
+      },
+      "sourceReference": "official contribution schedule row 61"
+    },
+    {
+      "key": "ACT4-62",
+      "lowerInclusiveCents": 570001,
+      "upperInclusiveCents": 580000,
+      "contributions": {
+        "socsoEmployerFirstCents": 10065,
+        "socsoEmployeeFirstCents": 2875,
+        "lindung24EmployeeCents": 4315,
+        "socsoEmployerSecondCents": 7190
+      },
+      "sourceReference": "official contribution schedule row 62"
+    },
+    {
+      "key": "ACT4-63",
+      "lowerInclusiveCents": 580001,
+      "upperInclusiveCents": 590000,
+      "contributions": {
+        "socsoEmployerFirstCents": 10235,
+        "socsoEmployeeFirstCents": 2925,
+        "lindung24EmployeeCents": 4385,
+        "socsoEmployerSecondCents": 7310
+      },
+      "sourceReference": "official contribution schedule row 63"
+    },
+    {
+      "key": "ACT4-64",
+      "lowerInclusiveCents": 590001,
+      "upperInclusiveCents": 600000,
+      "contributions": {
+        "socsoEmployerFirstCents": 10415,
+        "socsoEmployeeFirstCents": 2975,
+        "lindung24EmployeeCents": 4465,
+        "socsoEmployerSecondCents": 7440
+      },
+      "sourceReference": "official contribution schedule row 64"
+    },
+    {
+      "key": "ACT4-65",
+      "lowerInclusiveCents": 600001,
+      "upperInclusiveCents": null,
+      "contributions": {
+        "socsoEmployerFirstCents": 10415,
+        "socsoEmployeeFirstCents": 2975,
+        "lindung24EmployeeCents": 4465,
+        "socsoEmployerSecondCents": 7440
+      },
+      "sourceReference": "official contribution schedule row 65"
+    }
+  ],
+  "datasetDigest": "1e1b17a332e2b596b1efa85c075428c54b16d059730726e3f67cef710f334460"
+}

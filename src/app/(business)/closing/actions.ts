@@ -1,6 +1,10 @@
 "use server";
 
-import { ClosingWhatsAppSendTrigger, Prisma } from "@prisma/client";
+import {
+  ClosingWhatsAppSendTrigger,
+  FinancialOperationType,
+  Prisma,
+} from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -26,6 +30,10 @@ import {
 } from "@/lib/closing-whatsapp/queue";
 import { prisma } from "@/lib/prisma";
 import { fromCents, toCents } from "@/lib/validation/pos";
+import {
+  financialOperationKeySchema,
+  runFinancialOperation,
+} from "@/lib/financial-idempotency";
 
 const startShiftSchema = z.object({
   branchId: z.string().optional(),
@@ -40,6 +48,7 @@ const endShiftSchema = z.object({
 });
 
 const closeDailySnapshotSchema = z.object({
+  operationId: financialOperationKeySchema,
   actualCash: z.coerce
     .number()
     .finite()
@@ -72,7 +81,7 @@ export type CloseDailySnapshotState = {
 };
 
 export async function startShiftAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("RUN_CLOSING");
   const auditRequest = await getAuditRequestContext();
   const input = startShiftSchema.parse({
     branchId: formData.get("branchId")?.toString(),
@@ -202,7 +211,7 @@ function withStatusMessage(
 }
 
 export async function endShiftAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("RUN_CLOSING");
   assertStaffPermission(user, "CLOSING");
   const auditRequest = await getAuditRequestContext();
   const input = endShiftSchema.parse({
@@ -445,10 +454,11 @@ export async function closeDailySnapshotAction(
   _previousState: CloseDailySnapshotState,
   formData: FormData,
 ): Promise<CloseDailySnapshotState> {
-  const { businessId, industryType, user } = await requireBusinessUser();
+  const { businessId, industryType, user } = await requireBusinessUser("RUN_CLOSING");
   assertStaffPermission(user, "CLOSING");
 
   const parsed = closeDailySnapshotSchema.safeParse({
+    operationId: formData.get("operationId"),
     actualCash: formData.get("actualCash"),
     branchId: formData.get("branchId"),
     businessDate: formData.get("businessDate"),
@@ -503,8 +513,15 @@ export async function closeDailySnapshotAction(
   const auditRequest = await getAuditRequestContext();
 
   try {
-    const snapshot = await prisma.$transaction(
-      async (tx) => {
+    const { operationId, ...financialPayload } = parsed.data;
+    const { result } = await runFinancialOperation({
+      actorUserId: user.userId,
+      branchId,
+      businessId,
+      operationKey: operationId,
+      operationType: FinancialOperationType.DAILY_CLOSING,
+      payload: { ...financialPayload, branchId },
+      execute: async (tx) => {
         const existing = await tx.dailyClosingSnapshot.findUnique({
           where: {
             businessId_branchId_businessDate: {
@@ -520,7 +537,7 @@ export async function closeDailySnapshotAction(
           throw new DailyClosingAlreadyExistsError(existing.id);
         }
 
-        return createDailyClosingSnapshotInTransaction({
+        const snapshot = await createDailyClosingSnapshotInTransaction({
           actualCashCents: Math.round(parsed.data.actualCash * 100),
           auditRequest,
           branchId,
@@ -530,16 +547,16 @@ export async function closeDailySnapshotAction(
           tx,
           user,
         });
+        return { snapshotId: snapshot.id };
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
+    });
 
     revalidatePath("/closing");
     revalidatePath("/closing/history");
 
     return {
       message: "Daily closing confirmed and frozen.",
-      snapshotId: snapshot.id,
+      snapshotId: result.snapshotId,
       status: "success",
     };
   } catch (error) {
@@ -563,7 +580,7 @@ export async function closeDailySnapshotAction(
 }
 
 export async function manualClosingWhatsAppSendAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("RUN_CLOSING");
   assertStaffPermission(user, "CLOSING");
 
   const input = manualClosingWhatsAppSendSchema.parse({

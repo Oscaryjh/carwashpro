@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { AttendanceServiceContext } from "@/lib/attendance/employee-service";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { getAttendancePeriodReadiness } from "@/lib/attendance/p2-service";
 
 const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const reasonSchema = z.string().trim().min(3).max(500);
@@ -53,6 +54,10 @@ type TimesheetDatabase = Pick<
   | "attendanceMonthlyTimesheet"
   | "attendanceTimesheetBranchReadiness"
   | "attendanceTimesheetRevision"
+  | "attendanceP2Exception"
+  | "attendanceCorrectionRequest"
+  | "attendanceP2FinalResult"
+  | "attendanceTimesheetP2DaySnapshot"
 >;
 
 export type AttendanceTimesheetContext = AttendanceServiceContext & {
@@ -68,6 +73,8 @@ export class AttendanceTimesheetError extends Error {
       | "TIMESHEET_LOCKED"
       | "TIMESHEET_NOT_LOCKED"
       | "NO_SOURCE_CHANGE"
+      | "TIMESHEET_NOT_APPROVED"
+      | "APPROVAL_STALE"
       | "WHOLE_BUSINESS_REQUIRED"
       | "CONCURRENT_CHANGE",
     message: string,
@@ -95,7 +102,7 @@ export async function loadMonthlyAttendanceTimesheet(args: {
 }) {
   const database = args.database ?? prisma;
   const period = parseAttendanceTimesheetMonth(args.month);
-  const [branches, sessions, timesheet] = await Promise.all([
+  const [branches, sessions, timesheet, p2Readiness, p2FinalRows] = await Promise.all([
     database.branch.findMany({
       where: {
         businessId: args.businessId,
@@ -150,14 +157,39 @@ export async function loadMonthlyAttendanceTimesheet(args: {
         },
       },
     }),
+    getAttendancePeriodReadiness({
+      businessId: args.businessId,
+      allowedBranchIds: args.allowedBranchIds,
+      periodStart: period.periodStart,
+      periodEndExclusive: period.periodEndExclusive,
+      database,
+    }),
+    database.attendanceP2FinalResult.findMany({
+      where: {
+        businessId: args.businessId,
+        branchId: { in: [...args.allowedBranchIds] },
+        workDate: { gte: period.periodStart, lt: period.periodEndExclusive },
+      },
+      orderBy: [{ membershipId: "asc" }, { workDate: "asc" }, { version: "desc" }],
+    }),
   ]);
+
+  const latestP2Results = [...new Map(
+    p2FinalRows.map((item) => [`${item.membershipId}:${item.workDate.toISOString().slice(0, 10)}`, item]),
+  ).values()];
 
   const readinessByBranch = new Map(
     timesheet?.branchReadiness.map((item) => [item.branchId, item]) ?? [],
   );
   const branchStates = branches.map((branch) => {
     const branchSessions = sessions.filter((session) => session.branchId === branch.id);
-    const state = summarizeBranch(branch.id, branch.name, branchSessions);
+    const state = summarizeBranch(
+      branch.id,
+      branch.name,
+      branchSessions,
+      p2Readiness.blockers.filter((item) => item.branchId === branch.id),
+      latestP2Results.filter((item) => item.branchId === branch.id),
+    );
     const persisted = readinessByBranch.get(branch.id);
     const ready = Boolean(
       persisted?.status === "READY" &&
@@ -188,12 +220,65 @@ export async function loadMonthlyAttendanceTimesheet(args: {
       readyBranches: branchStates.filter((branch) => branch.readinessStatus === "READY").length,
       totalBranches: branchStates.length,
       workedMinutes: branchStates.reduce((sum, branch) => sum + branch.workedMinutes, 0),
+      warnings: p2Readiness.warningCount,
+      p2FinalDays: latestP2Results.length,
     },
     currentSourceDigest,
     allBranchesReady:
       branchStates.length > 0 &&
       branchStates.every((branch) => branch.readinessStatus === "READY"),
   };
+}
+
+export async function approveMonthlyAttendanceTimesheet(args: {
+  context: AttendanceTimesheetContext;
+  month: string;
+  reason: string;
+  expectedUpdatedAt?: string;
+  database?: PrismaClient;
+}) {
+  const database = args.database ?? prisma;
+  const reason = reasonSchema.parse(args.reason);
+  assertWholeBusiness(args.context);
+  return database.$transaction(async (transaction) => {
+    const snapshot = await loadMonthlyAttendanceTimesheet({
+      businessId: args.context.businessId,
+      allowedBranchIds: args.context.allowedBranchIds,
+      month: args.month,
+      database: transaction,
+    });
+    if (!snapshot.timesheet || snapshot.timesheet.status !== "DRAFT") {
+      throw new AttendanceTimesheetError("TIMESHEET_LOCKED", "Only a draft monthly Timesheet can be approved.");
+    }
+    if (args.expectedUpdatedAt && snapshot.timesheet.updatedAt.toISOString() !== args.expectedUpdatedAt) {
+      throw new AttendanceTimesheetError("CONCURRENT_CHANGE", "The Timesheet changed. Reload before approving it.");
+    }
+    if (snapshot.totals.blockers > 0 || !snapshot.allBranchesReady) {
+      throw new AttendanceTimesheetError("NOT_ALL_BRANCHES_READY", "All active branches must be blocker-free and ready before approval.");
+    }
+    const approved = await transaction.attendanceMonthlyTimesheet.update({
+      where: { id: snapshot.timesheet.id },
+      data: {
+        status: "APPROVED",
+        approvalRevision: { increment: 1 },
+        approvalSourceDigest: snapshot.currentSourceDigest,
+        approvalReason: reason,
+        approvedAt: new Date(),
+        approvedById: args.context.actor.userId,
+      },
+    });
+    await writeAuditLog({
+      businessId: args.context.businessId,
+      actor: args.context.actor,
+      request: args.context.request,
+      action: "ATTENDANCE_TIMESHEET_APPROVED",
+      entityType: "AttendanceMonthlyTimesheet",
+      entityId: approved.id,
+      summary: "Monthly Attendance Timesheet was approved independently from locking.",
+      metadata: { month: args.month, approvalRevision: approved.approvalRevision, sourceDigest: snapshot.currentSourceDigest, reason },
+    }, transaction);
+    return { timesheetId: approved.id, approvalRevision: approved.approvalRevision };
+  }, transactionOptions);
 }
 
 export async function markAttendanceTimesheetBranchReady(args: {
@@ -214,7 +299,7 @@ export async function markAttendanceTimesheetBranchReady(args: {
     if (!branch) {
       throw new AttendanceTimesheetError("BRANCH_NOT_FOUND", "Branch is outside the authorized Attendance scope.");
     }
-    if (snapshot.timesheet?.status === "LOCKED") {
+    if (snapshot.timesheet?.status === "LOCKED" || snapshot.timesheet?.status === "APPROVED") {
       throw new AttendanceTimesheetError("TIMESHEET_LOCKED", "Start a controlled revision before changing a locked Timesheet.");
     }
     if (branch.blockerCount > 0) {
@@ -291,11 +376,17 @@ export async function lockMonthlyAttendanceTimesheet(args: {
     if (snapshot.timesheet.status === "LOCKED") {
       throw new AttendanceTimesheetError("TIMESHEET_LOCKED", "This monthly Timesheet is already locked.");
     }
+    if (snapshot.timesheet.status !== "APPROVED" || !snapshot.timesheet.approvalSourceDigest) {
+      throw new AttendanceTimesheetError("TIMESHEET_NOT_APPROVED", "Approve the blocker-free monthly Timesheet before locking it.");
+    }
     if (args.expectedUpdatedAt && snapshot.timesheet.updatedAt.toISOString() !== args.expectedUpdatedAt) {
       throw new AttendanceTimesheetError("CONCURRENT_CHANGE", "The Timesheet changed. Reload before locking it.");
     }
     if (snapshot.totals.blockers > 0 || !snapshot.allBranchesReady) {
       throw new AttendanceTimesheetError("NOT_ALL_BRANCHES_READY", "All active branches must be blocker-free and ready using the latest Final Attendance Results.");
+    }
+    if (snapshot.timesheet.approvalSourceDigest !== snapshot.currentSourceDigest) {
+      throw new AttendanceTimesheetError("APPROVAL_STALE", "Attendance evidence changed after approval. Reopen and approve again before locking.");
     }
     const latestRevision = await transaction.attendanceTimesheetRevision.findFirst({
       where: { timesheetId: snapshot.timesheet.id },
@@ -334,6 +425,30 @@ export async function lockMonthlyAttendanceTimesheet(args: {
         })),
       });
     }
+    const p2Entries = snapshot.branches.flatMap((branch) => branch.p2Results);
+    if (p2Entries.length) {
+      await transaction.attendanceTimesheetP2DaySnapshot.createMany({
+        data: p2Entries.map((entry) => ({
+          revisionId: revision.id,
+          businessId: args.context.businessId,
+          branchId: entry.branchId,
+          membershipId: entry.membershipId,
+          workDate: entry.workDate,
+          finalResultId: entry.id,
+          finalResultVersion: entry.version,
+          outcome: entry.outcome,
+          expectedDayKindSnapshot: entry.expectedDayKindSnapshot,
+          leaveDayFractionSnapshot: entry.leaveDayFractionSnapshot,
+          expectedStartAt: entry.expectedStartAt,
+          expectedEndAt: entry.expectedEndAt,
+          actualClockInAt: entry.actualClockInAt,
+          actualClockOutAt: entry.actualClockOutAt,
+          totalBreakMinutes: entry.totalBreakMinutes,
+          totalWorkedMinutes: entry.totalWorkedMinutes,
+          sourceDigest: entry.sourceDigest,
+        })),
+      });
+    }
     await transaction.attendanceMonthlyTimesheet.update({
       where: { id: snapshot.timesheet.id },
       data: { status: "LOCKED", currentRevisionId: revision.id, revisionReason: null },
@@ -345,8 +460,8 @@ export async function lockMonthlyAttendanceTimesheet(args: {
       action: "ATTENDANCE_TIMESHEET_LOCKED",
       entityType: "AttendanceTimesheetRevision",
       entityId: revision.id,
-      summary: "Monthly Attendance Timesheet approved and locked as an immutable revision.",
-      after: { revision: revision.revision, month: args.month, entryCount: entries.length },
+      summary: "Approved monthly Attendance Timesheet was locked as an immutable revision.",
+      after: { revision: revision.revision, month: args.month, entryCount: entries.length, p2DayCount: p2Entries.length },
       metadata: { sourceDigest: snapshot.currentSourceDigest, reason },
     }, transaction);
     return { timesheetId: snapshot.timesheet.id, revisionId: revision.id, revision: revision.revision };
@@ -370,14 +485,11 @@ export async function beginMonthlyAttendanceTimesheetRevision(args: {
       month: args.month,
       database: transaction,
     });
-    if (!snapshot.timesheet || snapshot.timesheet.status !== "LOCKED" || !snapshot.timesheet.currentRevision) {
-      throw new AttendanceTimesheetError("TIMESHEET_NOT_LOCKED", "Only a locked Timesheet can start a revision.");
+    if (!snapshot.timesheet || snapshot.timesheet.status === "DRAFT") {
+      throw new AttendanceTimesheetError("TIMESHEET_NOT_LOCKED", "Only an approved or locked Timesheet can be reopened.");
     }
     if (args.expectedUpdatedAt && snapshot.timesheet.updatedAt.toISOString() !== args.expectedUpdatedAt) {
       throw new AttendanceTimesheetError("CONCURRENT_CHANGE", "The Timesheet changed. Reload before starting a revision.");
-    }
-    if (snapshot.currentSourceDigest === snapshot.timesheet.currentRevision.sourceDigest) {
-      throw new AttendanceTimesheetError("NO_SOURCE_CHANGE", "No Final Attendance Result has changed since the locked revision.");
     }
     await transaction.attendanceTimesheetBranchReadiness.updateMany({
       where: { timesheetId: snapshot.timesheet.id },
@@ -385,17 +497,25 @@ export async function beginMonthlyAttendanceTimesheetRevision(args: {
     });
     await transaction.attendanceMonthlyTimesheet.update({
       where: { id: snapshot.timesheet.id },
-      data: { status: "DRAFT", currentRevisionId: null, revisionReason: reason },
+      data: {
+        status: "DRAFT",
+        currentRevisionId: null,
+        revisionReason: reason,
+        approvalSourceDigest: null,
+        approvalReason: null,
+        approvedAt: null,
+        approvedById: null,
+      },
     });
     await writeAuditLog({
       businessId: args.context.businessId,
       actor: args.context.actor,
       request: args.context.request,
-      action: "ATTENDANCE_TIMESHEET_REVISION_STARTED",
+      action: "ATTENDANCE_TIMESHEET_REOPENED",
       entityType: "AttendanceMonthlyTimesheet",
       entityId: snapshot.timesheet.id,
-      summary: "A controlled Attendance Timesheet revision was started; prior locked revisions remain immutable.",
-      metadata: { month: args.month, priorRevision: snapshot.timesheet.currentRevision.revision, reason },
+      summary: "Attendance Timesheet was reopened; prior approvals and locked revisions remain auditable.",
+      metadata: { month: args.month, priorRevision: snapshot.timesheet.currentRevision?.revision ?? null, reason },
     }, transaction);
     return { timesheetId: snapshot.timesheet.id };
   }, transactionOptions);
@@ -407,6 +527,8 @@ function summarizeBranch(
   sessions: Prisma.EmployeeAttendanceGetPayload<{
     select: typeof monthlyTimesheetSessionSelect;
   }>[],
+  p2Blockers: Array<{ id: string; membershipId: string; workDate: Date; type: string; status: string }>,
+  p2Results: Prisma.AttendanceP2FinalResultGetPayload<Record<string, never>>[],
 ) {
   const blockers = sessions.filter((session) =>
     !session.resolutionCase ||
@@ -432,16 +554,20 @@ function summarizeBranch(
       finalResultChecksum: result.evidenceChecksum,
     }] : [];
   });
-  const sourceDigest = digest(sessions.map((session) => [
-    session.id,
-    session.status,
-    session.updatedAt.toISOString(),
-    session.resolutionCase?.id ?? null,
-    session.resolutionCase?.status ?? null,
-    session.resolutionCase?.currentFinalResult?.id ?? null,
-    session.resolutionCase?.currentFinalResult?.version ?? null,
-    session.resolutionCase?.currentFinalResult?.evidenceChecksum ?? null,
-  ]));
+  const sourceDigest = digest({
+    legacy: sessions.map((session) => [
+      session.id,
+      session.status,
+      session.updatedAt.toISOString(),
+      session.resolutionCase?.id ?? null,
+      session.resolutionCase?.status ?? null,
+      session.resolutionCase?.currentFinalResult?.id ?? null,
+      session.resolutionCase?.currentFinalResult?.version ?? null,
+      session.resolutionCase?.currentFinalResult?.evidenceChecksum ?? null,
+    ]),
+    p2Blockers: p2Blockers.map((item) => [item.id, item.type, item.status]),
+    p2Results: p2Results.map((item) => [item.id, item.version, item.outcome, item.sourceDigest, item.resolutionDigest]),
+  });
   return {
     branchId,
     branchName,
@@ -449,7 +575,7 @@ function summarizeBranch(
     sessionCount: sessions.length,
     includedCount: results.filter((result) => result.disposition === "INCLUDED").length,
     excludedCount: results.filter((result) => result.disposition === "EXCLUDED").length,
-    blockerCount: blockers.length,
+    blockerCount: blockers.length + p2Blockers.length,
     workedMinutes: results.filter((result) => result.disposition === "INCLUDED").reduce((sum, result) => sum + result.totalWorkedMinutes, 0),
     blockers: blockers.map((session) => ({
       attendanceSessionId: session.id,
@@ -460,7 +586,9 @@ function summarizeBranch(
       sessionStatus: session.status,
       resolutionStatus: session.resolutionCase?.status ?? null,
     })),
+    p2Blockers,
     results,
+    p2Results,
   };
 }
 

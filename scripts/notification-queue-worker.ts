@@ -5,11 +5,12 @@ import {
   markFailed,
   markSending,
   markSentToServer,
+  recoverExpiredSending,
 } from "../src/lib/notification-queue/repository";
 import { queueDueUnclosedClosingReminders } from "../src/lib/closing-whatsapp/scheduler";
 import {
   getWhatsAppSendModeRuntimeConfig,
-  isConnectorNotConnected,
+  classifyWhatsAppSendFailure,
   sendWhatsAppQueueItem,
 } from "../src/lib/notification-queue/worker-send";
 
@@ -69,6 +70,10 @@ function parseQueuedAfter(args: string[]) {
 
 async function processQueuedBatch() {
   await queueClosingReminderSweep();
+  const recovery = await recoverExpiredSending();
+  if (recovery.recovered || recovery.exhausted) {
+    console.warn("[notification-queue-worker] Recovered expired send leases", recovery);
+  }
   const queueItems = await findQueued({
     limit: batchSize,
     queuedAfter,
@@ -88,6 +93,9 @@ async function processQueuedBatch() {
     if (!sendingItem) {
       continue;
     }
+    if (!sendingItem.claimToken) {
+      throw new Error("Claimed WhatsApp queue item is missing its lease token.");
+    }
 
     try {
       const attachment = await getQueueDocumentAttachment(sendingItem.id);
@@ -102,6 +110,7 @@ async function processQueuedBatch() {
       });
 
       await markSentToServer({
+        claimToken: sendingItem.claimToken,
         id: sendingItem.id,
         providerMessageId: result.messageId,
       });
@@ -113,19 +122,21 @@ async function processQueuedBatch() {
         simulated: result.simulated,
       });
     } catch (error) {
-      const message = getErrorMessage(error);
+      const classification = classifyWhatsAppSendFailure(error);
       const failedQueueItem = await markFailed({
+        claimToken: sendingItem.claimToken,
+        errorCategory: classification.category,
         id: sendingItem.id,
-        errorMessage: isConnectorNotConnected(error)
-          ? "WHATSAPP_NOT_CONNECTED"
-          : message,
+        errorMessage: classification.safeMessage,
+        retryable: classification.retryable,
       });
       console.error("[notification-queue-worker] Send failed", {
+        errorCategory: classification.category,
         id: sendingItem.id,
         status: failedQueueItem.status,
         retryCount: failedQueueItem.retryCount,
         nextAttemptAt: failedQueueItem.nextAttemptAt,
-        errorMessage: message,
+        retryable: classification.retryable,
       });
     }
   }

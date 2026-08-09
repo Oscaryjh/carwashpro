@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { assertCanManageBusiness, assertRole } from "@/lib/auth/permissions";
-import { requireUser } from "@/lib/auth/session";
+import { requireUser, revokeUserSessions } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import {
   type BusinessLogoExtension,
@@ -535,6 +535,12 @@ export async function adminUpdateUserEmailAction(
         where: { id: targetUser.id },
         data: { email, loginEnabled: true },
       });
+
+      await revokeUserSessions(
+        targetUser.id,
+        "Password reset by platform administrator.",
+        tx,
+      );
 
       await writeAuditLog(
         {

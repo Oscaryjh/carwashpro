@@ -3,6 +3,7 @@ import { generatePayrollRunAction } from "../actions";
 import { sanitizePayrollNotice } from "@/lib/payroll/error-message";
 import { resolvePayrollRunsReadAccess } from "@/lib/payroll/runs-access";
 import { loadPayrollRunsList, parsePayrollPage } from "@/lib/payroll/runs";
+import { getPayrollPeriodReadiness } from "@/lib/payroll/readiness";
 import {
   formatDate,
   formatMoney,
@@ -36,6 +37,9 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
   const currentMonth = validMonth(params.month)
     ? params.month
     : new Date().toISOString().slice(0, 7);
+  const preflight = access.actions.canCreate
+    ? await getPayrollPeriodReadiness({ businessId: access.businessId, month: currentMonth })
+    : null;
 
   return (
     <main className={`content hr-module-page ${styles.page}`}>
@@ -62,6 +66,12 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
             <p className={styles.eyebrow}>New calculation period</p>
             <h2 id="create-run-heading">Create payroll draft</h2>
             <p>Select a month. If it already exists, the existing run opens without refreshing its entries.</p>
+            {preflight ? (
+              <p>
+                {preflight.employeeCount} eligible · {preflight.readyCount} ready · {preflight.blockers.length} blockers · {preflight.warnings.length} warnings.
+                Employees are included automatically from join and termination dates.
+              </p>
+            ) : null}
           </div>
           <form action={generatePayrollRunAction} className={styles.createForm}>
             <input name="generationMode" type="hidden" value="CREATE_ONLY" />
@@ -70,7 +80,9 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
               <span>Payroll month</span>
               <input defaultValue={currentMonth} name="month" required type="month" />
             </label>
-            <button className={styles.primaryButton} type="submit">Create draft</button>
+            <button className={styles.primaryButton} type="submit">
+              {preflight?.canProceed ? "Create or open draft" : "Open period and resolve blockers"}
+            </button>
           </form>
         </section>
       ) : null}
@@ -99,6 +111,7 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
                   <th>Gross payroll</th>
                   <th>Net payroll</th>
                   <th>Updated</th>
+                  <th>Finalized</th>
                   <th><span className={styles.visuallyHidden}>Action</span></th>
                 </tr>
               </thead>
@@ -111,6 +124,7 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
                     <td data-label="Gross payroll">{formatMoney(run.grossPayroll)}</td>
                     <td data-label="Net payroll"><strong>{formatMoney(run.netPayroll)}</strong></td>
                     <td data-label="Updated">{formatDate(run.updatedAt)}</td>
+                    <td data-label="Finalized">{run.finalizedAt ? formatDate(run.finalizedAt) : "—"}</td>
                     <td className={styles.rowActionCell}>
                       <Link href={`/team/payroll/runs/${run.id}`}>View run</Link>
                     </td>

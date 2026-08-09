@@ -20,6 +20,27 @@ export function normalizeMalaysiaWhatsAppPhone(phone: string) {
   return digits;
 }
 
+export function normalizeValidWhatsAppPhone(phone: string) {
+  const normalized = normalizeMalaysiaWhatsAppPhone(phone);
+  return /^\d{8,15}$/.test(normalized) ? normalized : null;
+}
+
+export function assertValidWhatsAppPhone(phone: string) {
+  const normalized = normalizeValidWhatsAppPhone(phone);
+  if (!normalized) {
+    throw new Error("Enter a valid WhatsApp phone number.");
+  }
+  return normalized;
+}
+
+export function normalizeWhatsAppQueueRecipient(value: string) {
+  const trimmed = value.trim();
+  if (/^[A-Za-z0-9._:-]{5,80}@(lid|s\.whatsapp\.net)$/.test(trimmed)) {
+    return trimmed;
+  }
+  return normalizeValidWhatsAppPhone(trimmed);
+}
+
 export function generateWhatsAppLink(recipientPhone: string, message: string) {
   const normalizedPhone = normalizeMalaysiaWhatsAppPhone(recipientPhone);
 

@@ -36,6 +36,7 @@ import { loadEmployeeLeaveSection } from "@/lib/team/employee-profile-leave-read
 import { loadEmployeeCompensationSection } from "@/lib/team/employee-profile-compensation-read";
 import { loadEmployeeStatutoryProfileSection } from "@/lib/team/employee-profile-statutory-read";
 import { loadEmployeePayrollNavigationSection } from "@/lib/team/employee-profile-payroll-navigation-read";
+import { loadEmployeePayrollSummary } from "@/lib/team/employee-profile-payroll-summary-read";
 import { loadEmployeeBankSection } from "@/lib/team/employee-profile-bank-read";
 
 type EmployeeProfilePageProps = {
@@ -217,11 +218,12 @@ export default async function EmployeeProfilePage({
       businessId: context.businessId,
       membershipId: membership.id,
     };
-    const [bank, compensation, statutoryProfile, payrollNavigation] = await Promise.all([
+    const [bank, compensation, statutoryProfile, payrollNavigation, payrollSummary] = await Promise.all([
       loadEmployeeBankSection(payrollProfileInput),
       loadEmployeeCompensationSection(payrollProfileInput),
       loadEmployeeStatutoryProfileSection(payrollProfileInput),
       loadEmployeePayrollNavigationSection(payrollProfileInput),
+      loadEmployeePayrollSummary(payrollProfileInput),
     ]);
     if (
       compensation.status === "NOT_FOUND" ||
@@ -235,6 +237,7 @@ export default async function EmployeeProfilePage({
         bank={bank}
         compensation={compensation}
         navigation={payrollNavigation}
+        summary={payrollSummary}
         notice={parsePayrollUpdateNotice(query)}
         statutoryProfile={statutoryProfile}
       />

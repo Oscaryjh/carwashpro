@@ -6,6 +6,7 @@ import {
   normalizeAttendancePhone,
 } from "@/lib/attendance/phone";
 import { prisma } from "@/lib/prisma";
+import { writeAuthSecurityEvent } from "@/lib/auth/security";
 import type { EmployeeAuthConfig } from "./config";
 import { getEmployeeAuthConfig } from "./config";
 import {
@@ -184,6 +185,26 @@ export async function requestEmployeeOtp(
     );
 
     if (!rateLimit.requestAllowed) {
+      const userAgentHash = input.request?.userAgent
+        ? hashEmployeeIdentifier(
+            "user-agent",
+            input.request.userAgent,
+            config.authSecret,
+          )
+        : null;
+      await writeAuthSecurityEvent(
+        {
+          eventType: "OTP_RATE_LIMITED",
+          surface: "EMPLOYEE_OTP_REQUEST",
+          outcome: "RATE_LIMITED",
+          identifierHash: phoneIdentifierHash,
+          ipAddressHash,
+          userAgentHash,
+          reason: rateLimit.reasons.join("+"),
+          createdAt: now,
+        },
+        transaction,
+      );
       return {
         created: false as const,
         identity: null,
@@ -325,6 +346,16 @@ export async function verifyEmployeeOtp(
     input.deviceIdentifier,
     config.authSecret,
   );
+  const verificationIpHash = input.request?.ipAddress
+    ? hashEmployeeIdentifier("ip", input.request.ipAddress, config.authSecret)
+    : null;
+  const verificationUserAgentHash = input.request?.userAgent
+    ? hashEmployeeIdentifier(
+        "user-agent",
+        input.request.userAgent,
+        config.authSecret,
+      )
+    : null;
   const verification = await database.$transaction(async (transaction) => {
     await transaction.$queryRaw(
       Prisma.sql`
@@ -422,6 +453,19 @@ export async function verifyEmployeeOtp(
         }
       }
 
+      await writeAuthSecurityEvent(
+        {
+          eventType: "OTP_FAILED",
+          surface: "EMPLOYEE_OTP_VERIFY",
+          outcome: "FAILURE",
+          ipAddressHash: verificationIpHash,
+          userAgentHash: verificationUserAgentHash,
+          userId: record?.employeeAccountId ?? null,
+          reason: terminalFailure ?? "INVALID_OTP",
+          createdAt: now,
+        },
+        transaction,
+      );
       return { ok: false as const };
     }
 
@@ -437,6 +481,19 @@ export async function verifyEmployeeOtp(
     });
 
     if (verified.count !== 1) {
+      await writeAuthSecurityEvent(
+        {
+          eventType: "OTP_FAILED",
+          surface: "EMPLOYEE_OTP_VERIFY",
+          outcome: "FAILURE",
+          ipAddressHash: verificationIpHash,
+          userAgentHash: verificationUserAgentHash,
+          userId: record.employeeAccountId,
+          reason: "CONCURRENT_REPLAY",
+          createdAt: now,
+        },
+        transaction,
+      );
       return { ok: false as const };
     }
 
@@ -445,6 +502,19 @@ export async function verifyEmployeeOtp(
     if (!employeeAccountId) {
       return { ok: false as const };
     }
+
+    await writeAuthSecurityEvent(
+      {
+        eventType: "OTP_VERIFIED",
+        surface: "EMPLOYEE_OTP_VERIFY",
+        outcome: "SUCCESS",
+        ipAddressHash: verificationIpHash,
+        userAgentHash: verificationUserAgentHash,
+        userId: employeeAccountId,
+        createdAt: now,
+      },
+      transaction,
+    );
 
     return {
       ok: true as const,

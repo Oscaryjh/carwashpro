@@ -312,11 +312,16 @@ export async function sendConnectorTextMessage(input: {
   businessId: string;
   phone: string;
   message: string;
+  requestId?: string;
 }) {
+  const requestId = input.requestId ?? randomUUID();
   const response = await fetch(`${getWhatsAppConnectorUrl()}/send`, {
     method: "POST",
-    headers: getConnectorHeaders(true),
-    body: JSON.stringify(input),
+    headers: {
+      ...getConnectorHeaders(true),
+      "x-connector-request-id": requestId,
+    },
+    body: JSON.stringify({ ...input, requestId }),
     cache: "no-store",
   });
   const body = (await readJson(response)) as ConnectorSendResponse;
@@ -505,3 +510,4 @@ function getConnectorErrorMessage(body: unknown) {
 
   return "";
 }
+import { randomUUID } from "node:crypto";

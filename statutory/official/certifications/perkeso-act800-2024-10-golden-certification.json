@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "perkeso-act800-2024-10-golden-certification-v1",
+  "fixtureSetId": "perkeso-act800-2024-10-boundaries-review-v1",
+  "scheme": "EIS",
+  "effectiveFrom": "2024-10-01",
+  "effectiveTo": null,
+  "artifactId": "perkeso-act800-2024-10",
+  "artifactSha256": "3499fec4271b45ae3e3055b2071075f96f65dc451775ed23adf39f9deec5376a",
+  "datasetId": "perkeso-act800-2024-10-review-v1",
+  "datasetDigest": "ca14f3decb605af4df4c837f281666a6816699947d1658614bbd336f809ae08e",
+  "fixtureDigest": "1f021e40a3da7db41f16b2ad9a1e175f790b5b458d12e2e878994586fc7f7086",
+  "fixtureCount": 11,
+  "officialReferences": [
+    "https://www.perkeso.gov.my/images/dokumen/101024%20-%20Kadar%20Caruman%20Akta%20800.pdf#page=1",
+    "official image table rows 1, 2, 3, 9, 10, 34, 35, 64 and 65"
+  ],
+  "reviewStatus": "VERIFIED",
+  "reviewedBy": {
+    "id": "codex-agent-p2c-visual-review",
+    "type": "AI_ASSISTED_SECOND_PATH"
+  },
+  "reviewedAt": "2026-08-08T12:48:03Z",
+  "notes": "Expected employer, employee and total amounts are direct official image-table values. Fixtures cover the lowest positive wage, exact bounds, next-cent crossings, middle rows, ceiling, above ceiling and share equality.",
+  "certificationDigest": "fb8a33c405d865009b266dfee649d25dcb0002589b4bc16f380b79280329b117"
+}

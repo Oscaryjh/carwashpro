@@ -15,7 +15,9 @@ type BusinessSettingsPageProps = {
 export default async function BusinessSettingsPage({
   searchParams,
 }: BusinessSettingsPageProps) {
-  const context = await requireBusinessContext();
+  const context = await requireBusinessContext({
+    capability: "MODIFY_BUSINESS_SETTINGS",
+  });
   assertRole(context.user, ["BUSINESS_OWNER"]);
   await searchParams;
 

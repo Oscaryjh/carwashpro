@@ -63,6 +63,8 @@ export default async function WhatsAppQueuePage({
           messageType: true,
           status: true,
           retryCount: true,
+          attemptCount: true,
+          lastErrorCategory: true,
           providerMessageId: true,
           errorMessage: true,
           createdAt: true,
@@ -139,9 +141,10 @@ export default async function WhatsAppQueuePage({
                   <th>Phone</th>
                   <th>Message Type</th>
                   <th>Status</th>
-                  <th>Retry</th>
+                  <th>Attempts / retries</th>
                   <th>Provider Message ID</th>
                   <th>Error</th>
+                  <th>Error category</th>
                   <th>Created</th>
                   <th>Sent</th>
                   <th>Failed</th>
@@ -158,11 +161,12 @@ export default async function WhatsAppQueuePage({
                         {formatStatus(queue.status)}
                       </span>
                     </td>
-                    <td>{queue.retryCount}</td>
+                    <td>{queue.attemptCount} / {queue.retryCount}</td>
                     <td>{queue.providerMessageId ?? "-"}</td>
                     <td title={queue.errorMessage ?? undefined}>
                       {truncate(queue.errorMessage)}
                     </td>
+                    <td>{queue.lastErrorCategory ?? "-"}</td>
                     <td>{formatDate(queue.createdAt)}</td>
                     <td>{formatDate(queue.sentAt)}</td>
                     <td>{formatDate(queue.failedAt)}</td>

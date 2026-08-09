@@ -13,6 +13,7 @@ import {
   payrollPrimaryActionLabel,
   payrollStatutoryLabel,
 } from "@/lib/payroll/workspace";
+import { getPayrollPeriodReadiness } from "@/lib/payroll/readiness";
 import { prisma } from "@/lib/prisma";
 import styles from "./workspace.module.css";
 
@@ -55,6 +56,10 @@ export default async function PayrollWorkspacePage() {
     context.access,
     "EDIT_PAYROLL_ENTRY",
   );
+  const canCreatePayroll = hasBusinessCapability(
+    context.access,
+    "CREATE_PAYROLL_RUN",
+  );
   const canViewPayslip = hasBusinessCapability(
     context.access,
     "VIEW_PAYSLIP",
@@ -68,6 +73,11 @@ export default async function PayrollWorkspacePage() {
     hasBusinessCapability(context.access, "VIEW_STATUTORY_PROFILE") &&
     hasBusinessCapability(context.access, "VIEW_TAX_PROFILE");
   const data = await loadPayrollWorkspace(context.businessId);
+  const readiness = await getPayrollPeriodReadiness({
+    businessId: context.businessId,
+    month: data.currentMonth,
+    runId: data.currentRun?.id,
+  });
   const statutoryStatuses =
     canViewStatutory && data.currentRun?.status === "FINALIZED"
       ? await loadPayrollWorkspaceStatutoryStatuses(
@@ -77,6 +87,12 @@ export default async function PayrollWorkspacePage() {
       : canViewStatutory
         ? []
         : null;
+  const publishedPayslipCount =
+    canViewPayslip && data.currentRun?.status === "FINALIZED"
+      ? await prisma.payrollPayslipPublication.count({
+          where: { businessId: context.businessId, payrollRunId: data.currentRun.id },
+        })
+      : 0;
   const monthLabel = formatMonth(data.currentPeriodStart);
   const calculationLabel = payrollCalculationLabel(data.currentRun?.status);
   const primaryActionLabel = payrollPrimaryActionLabel(
@@ -87,6 +103,8 @@ export default async function PayrollWorkspacePage() {
   const payslipLabel = payrollPayslipLabel(
     data.currentRun?.status,
     canViewPayslip,
+    publishedPayslipCount,
+    data.currentRun?.employeeCount ?? 0,
   );
   const statutoryLabel = payrollStatutoryLabel(
     data.currentRun?.status,
@@ -160,6 +178,46 @@ export default async function PayrollWorkspacePage() {
         <StatusItem label="Statutory" value={statutoryLabel} />
       </section>
 
+      <section className={styles.readinessPanel} aria-labelledby="payroll-readiness-heading">
+        <div className={styles.sectionHeading}>
+          <p className={styles.eyebrow}>Payroll readiness</p>
+          <h2 id="payroll-readiness-heading">What needs attention</h2>
+          <p>
+            {readiness.employeeCount} eligible employees · {readiness.readyCount} ready · {readiness.needsAttentionCount} need attention.
+            Warnings do not block Review or Finalize.
+          </p>
+        </div>
+        <div className={styles.readinessCounts}>
+          <StatusItem label="Missing compensation" value={String(readiness.counts.MISSING_COMPENSATION)} />
+          <StatusItem label="Missing locked Timesheet" value={String(readiness.counts.MISSING_LOCKED_TIMESHEET)} />
+          <StatusItem label="Stale Attendance source" value={String(readiness.counts.STALE_ATTENDANCE_SOURCE)} />
+          <StatusItem label="Attendance pay policy missing" value={String(readiness.counts.ATTENDANCE_PAY_POLICY_NOT_READY)} />
+          <StatusItem label="Pending variable pay" value={String(readiness.counts.PENDING_VARIABLE_PAY)} />
+          <StatusItem label="Reconciliation errors" value={String(readiness.counts.RECONCILIATION_FAILED)} />
+          <StatusItem label="Missing bank account" value={String(readiness.counts.MISSING_BANK_ACCOUNT)} />
+          <StatusItem label="Statutory warnings" value={String(readiness.counts.STATUTORY_PROFILE_INCOMPLETE)} />
+        </div>
+        {readiness.blockers.length || readiness.warnings.length ? (
+          <div className={styles.issueColumns}>
+            <ReadinessIssues title="Blockers" issues={readiness.blockers} />
+            <ReadinessIssues title="Warnings" issues={readiness.warnings} />
+          </div>
+        ) : (
+          <div className={styles.readyState} role="status">
+            No blockers or warnings for this payroll period.
+          </div>
+        )}
+        {!data.currentRun && canCreatePayroll ? (
+          <div className={styles.preflightAction}>
+            <div>
+              <strong>{readiness.canProceed ? "Ready to create the payroll draft" : "Resolve blockers before creating payroll"}</strong>
+              <span>Eligible employees are included automatically from their join and termination dates.</span>
+            </div>
+            <Link href={`/team/payroll/runs?month=${data.currentMonth}`}>Review and create payroll</Link>
+          </div>
+        ) : null}
+      </section>
+
       <section aria-labelledby="payroll-modules-heading">
         <SectionHeading
           id="payroll-modules-heading"
@@ -177,7 +235,7 @@ export default async function PayrollWorkspacePage() {
           {canViewPayslip ? (
             <ModuleCard
               current
-              description="Download PDFs from locked payroll calculations. Publishing is not included."
+              description="Preview finalized PDFs and publish frozen payslips for staff self-service."
               href={
                 finalizedRun
                   ? `/team/payroll/runs/${finalizedRun.id}`
@@ -329,6 +387,30 @@ function StatusItem({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </article>
+  );
+}
+
+function ReadinessIssues({
+  issues,
+  title,
+}: {
+  issues: Awaited<ReturnType<typeof getPayrollPeriodReadiness>>["blockers"];
+  title: string;
+}) {
+  return (
+    <div className={styles.issueList}>
+      <strong>{title} · {issues.length}</strong>
+      {issues.length ? (
+        <ul>
+          {issues.slice(0, 6).map((issue, index) => (
+            <li key={`${issue.code}-${issue.membershipId ?? "run"}-${index}`}>
+              <span>{issue.employeeName ?? "Payroll run"}</span>
+              <small>{issue.message}</small>
+            </li>
+          ))}
+        </ul>
+      ) : <p>None</p>}
+    </div>
   );
 }
 

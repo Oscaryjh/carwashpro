@@ -17,7 +17,7 @@ test("Phase 4C consolidates payroll navigation on canonical destinations", async
     source("src/components/app-shell.tsx"),
   ]);
 
-  assert.match(shell, /href: "\/team\/payroll\/workspace"/);
+  assert.match(shell, /href: "\/team\/payroll"/);
   assert.match(workspace, /href="\/team\/payroll\/runs"/);
   assert.match(workspace, /`\/team\/payroll\/runs\/\$\{finalizedRun\.id\}`/);
   assert.match(workspace, /`\/team\/payroll\/settings\?month=\$\{data\.currentMonth\}`/);

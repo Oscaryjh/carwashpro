@@ -25,7 +25,19 @@ function formatMoney(value: unknown) {
   return `RM${Number(value ?? 0).toFixed(2)}`;
 }
 
-export async function sendInvoiceIfConnected({
+export async function sendInvoiceIfConnected(input: SendInvoiceInput) {
+  try {
+    await sendInvoiceNotification(input);
+  } catch (error) {
+    console.error("[invoice-notification] Financial result remains committed; invoice delivery was not queued.", {
+      businessId: input.businessId,
+      invoiceId: input.invoiceId,
+      error: error instanceof Error ? error.message : "Unknown invoice notification error",
+    });
+  }
+}
+
+async function sendInvoiceNotification({
   businessId,
   invoiceId,
   sentByUserId,
@@ -120,6 +132,7 @@ export async function sendInvoiceIfConnected({
   if (!invoice) {
     return;
   }
+  const dedupeKey = `INVOICE_SENT:${businessId}:${invoice.id}`;
 
   if (invoice.appointment) {
     const recipientPhone = normalizeMalaysiaWhatsAppPhone(
@@ -263,6 +276,7 @@ export async function sendInvoiceIfConnected({
         documentBase64: invoicePdf.toString("base64"),
         documentMimeType: "application/pdf",
         documentFileName: invoiceFileName,
+        dedupeKey,
       });
     } catch (error) {
       await prisma.whatsAppMessage.update({
@@ -417,6 +431,7 @@ export async function sendInvoiceIfConnected({
         documentBase64: invoicePdf.toString("base64"),
         documentMimeType: "application/pdf",
         documentFileName: invoiceFileName,
+        dedupeKey,
       });
     } catch (error) {
       await prisma.whatsAppMessage.update({
@@ -545,6 +560,7 @@ export async function sendInvoiceIfConnected({
         documentBase64: invoicePdf.toString("base64"),
         documentMimeType: "application/pdf",
         documentFileName: invoicePdfFileName(displayInvoiceNumber),
+        dedupeKey,
       });
     } catch (error) {
       await prisma.whatsAppMessage.update({
@@ -701,6 +717,7 @@ export async function sendInvoiceIfConnected({
       documentBase64: invoicePdf.toString("base64"),
       documentMimeType: "application/pdf",
       documentFileName: invoiceFileName,
+      dedupeKey,
     });
   } catch (error) {
     await prisma.whatsAppMessage.update({

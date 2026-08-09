@@ -66,14 +66,16 @@ export function AppointmentVehicleCardPreview() {
   const [customModel, setCustomModel] = useState("");
   const [customColor, setCustomColor] = useState("");
 
-  const modelOptions = brand && brand !== OTHER ? models[brand] ?? [] : [];
   const options = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (picker === "brand") return [...brands, OTHER].filter((item) => item.toLowerCase().includes(needle));
-    if (picker === "model") return [...modelOptions, OTHER].filter((item) => item.toLowerCase().includes(needle));
+    if (picker === "model") {
+      const modelOptions = brand && brand !== OTHER ? models[brand] ?? [] : [];
+      return [...modelOptions, OTHER].filter((item) => item.toLowerCase().includes(needle));
+    }
     if (picker === "color") return [...colors.map(([name]) => name), OTHER].filter((item) => item.toLowerCase().includes(needle));
     return [];
-  }, [modelOptions, picker, query]);
+  }, [brand, picker, query]);
 
   function openPicker(next: Exclude<Picker, null>) {
     if (next === "model" && !brand) return;

@@ -29,7 +29,10 @@ export async function loadPayrollDocumentRun(
     },
     include: {
       business: { select: businessDocumentSelect },
-      entries: { orderBy: [{ fullNameSnapshot: "asc" }] },
+      entries: {
+        orderBy: [{ fullNameSnapshot: "asc" }],
+        include: { components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] } },
+      },
     },
   });
   if (!run) return null;
@@ -52,6 +55,7 @@ export async function loadPayrollPayslip(
   const entry = await prisma.payrollEntry.findFirst({
     where: { id: entryId, businessId },
     include: {
+      components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] },
       payrollRun: {
         include: { business: { select: businessDocumentSelect } },
       },
@@ -72,7 +76,11 @@ export async function loadPayrollPayslip(
   };
 }
 
-function payrollDocumentEntry(entry: PayrollEntry): PayrollDocumentEntry {
+export function payrollDocumentEntry(
+  entry: PayrollEntry & {
+    components?: Array<{ amount: { toString(): string }; name: string; type: "EARNING" | "DEDUCTION" }>;
+  },
+): PayrollDocumentEntry {
   return {
     id: entry.id,
     employeeCode: entry.employeeCodeSnapshot,
@@ -100,5 +108,10 @@ function payrollDocumentEntry(entry: PayrollEntry): PayrollDocumentEntry {
     statutoryStatus: entry.statutoryStatus,
     statutoryRuleVersion: entry.statutoryRuleVersion,
     notes: entry.notes,
+    components: entry.components?.map((component) => ({
+      amount: Number(component.amount.toString()),
+      name: component.name,
+      type: component.type,
+    })),
   };
 }

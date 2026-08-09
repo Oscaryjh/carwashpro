@@ -2,7 +2,7 @@ import { NotificationQueuePriority } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
-import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
+import { normalizeValidWhatsAppPhone } from "@/lib/whatsappDeepLink";
 
 export const APPOINTMENT_REMINDER_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_APPOINTMENT_REMINDER_LEAD_TIME_MINUTES = 24 * 60;
@@ -138,7 +138,7 @@ export async function scheduleAppointmentReminder({
     appointment.contactType === "OTHER_PERSON"
       ? appointment.contactPhone
       : appointment.customer.phone;
-  const recipientPhone = normalizeMalaysiaWhatsAppPhone(rawRecipientPhone ?? "");
+  const recipientPhone = normalizeValidWhatsAppPhone(rawRecipientPhone ?? "");
 
   if (!recipientPhone) {
     await cancelAppointmentReminder({

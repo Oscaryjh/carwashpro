@@ -1,8 +1,9 @@
 import fs from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import {
+  type NotificationQueueStatus,
   type WhatsAppChatMessageStatus,
-  type WhatsAppMessageStatus,
   NotificationQueuePriority,
   Prisma,
 } from "@prisma/client";
@@ -19,6 +20,7 @@ import {
   getDefaultWhatsAppInstanceId,
 } from "@/lib/whatsapp/instance";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
+import { planWhatsAppStatusTransition } from "@/lib/whatsapp/status-state";
 import type {
   EnqueueNotificationInput,
   FindQueuedNotificationsInput,
@@ -29,48 +31,44 @@ import type {
 
 const DEFAULT_FIND_LIMIT = 10;
 const MAX_FIND_LIMIT = 100;
-const MAX_RETRY_COUNT = 5;
+export const WHATSAPP_MAX_SEND_ATTEMPTS = 5;
+export const WHATSAPP_SENDING_LEASE_MS = 2 * 60 * 1000;
 const RETRY_DELAYS_MS = [
   30 * 1000,
   60 * 1000,
   5 * 60 * 1000,
   15 * 60 * 1000,
 ] as const;
-const MESSAGE_LOG_NOT_READ_OR_FAILED: WhatsAppMessageStatus[] = [
-  "READ",
-  "FAILED",
-];
-const MESSAGE_LOG_NOT_READ_OR_DELIVERED: WhatsAppMessageStatus[] = [
-  "READ",
-  "DELIVERED",
-];
-const CHAT_NOT_READ_OR_FAILED: WhatsAppChatMessageStatus[] = [
-  "READ",
-  "FAILED",
-];
-const CHAT_NOT_READ_OR_DELIVERED: WhatsAppChatMessageStatus[] = [
-  "READ",
-  "DELIVERED",
-];
 
 export async function enqueue(input: EnqueueNotificationInput) {
-  const queueItem = await prisma.notificationQueue.create({
-    data: {
-      businessId: input.businessId,
-      branchId: input.branchId ?? null,
-      phone: input.phone,
-      message: input.message,
-      messageType: input.messageType,
-      messageLogId: input.messageLogId ?? null,
-      appointmentId: input.appointmentId ?? null,
-      dailyClosingSnapshotId: input.dailyClosingSnapshotId ?? null,
-      dedupeKey: input.dedupeKey ?? null,
-      priority: input.priority ?? NotificationQueuePriority.NORMAL,
-      queuedAt: input.queuedAt ?? new Date(),
-      nextAttemptAt: input.nextAttemptAt ?? null,
-      status: "QUEUED",
-    },
-  });
+  let queueItem;
+  try {
+    queueItem = await prisma.notificationQueue.create({
+      data: {
+        businessId: input.businessId,
+        branchId: input.branchId ?? null,
+        phone: input.phone,
+        message: input.message,
+        messageType: input.messageType,
+        messageLogId: input.messageLogId ?? null,
+        appointmentId: input.appointmentId ?? null,
+        dailyClosingSnapshotId: input.dailyClosingSnapshotId ?? null,
+        dedupeKey: input.dedupeKey ?? null,
+        priority: input.priority ?? NotificationQueuePriority.NORMAL,
+        queuedAt: input.queuedAt ?? new Date(),
+        nextAttemptAt: input.nextAttemptAt ?? null,
+        status: "QUEUED",
+      },
+    });
+  } catch (error) {
+    if (!(input.dedupeKey && isUniqueConstraintError(error))) throw error;
+
+    const existing = await prisma.notificationQueue.findUnique({
+      where: { dedupeKey: input.dedupeKey },
+    });
+    if (!existing || existing.businessId !== input.businessId) throw error;
+    return existing;
+  }
 
   if (input.documentBase64) {
     await prisma.$executeRaw`
@@ -84,6 +82,11 @@ export async function enqueue(input: EnqueueNotificationInput) {
   }
 
   return queueItem;
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError
+    && error.code === "P2002";
 }
 
 export async function findQueued(input: FindQueuedNotificationsInput = {}) {
@@ -111,25 +114,151 @@ export async function findQueued(input: FindQueuedNotificationsInput = {}) {
 }
 
 export async function markSending(id: string) {
-  const result = await prisma.notificationQueue.updateMany({
-    where: {
-      id,
-      status: "QUEUED",
-    },
-    data: {
-      status: "SENDING",
-      errorMessage: null,
-      nextAttemptAt: null,
-    },
-  });
+  const now = new Date();
+  const claimToken = randomUUID();
 
-  if (!result.count) {
-    return null;
-  }
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.notificationQueue.updateMany({
+      where: {
+        id,
+        status: "QUEUED",
+        attemptCount: { lt: WHATSAPP_MAX_SEND_ATTEMPTS },
+        OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
+      },
+      data: {
+        attemptCount: { increment: 1 },
+        claimToken,
+        errorMessage: null,
+        lastAttemptAt: now,
+        lastErrorCategory: null,
+        leaseExpiresAt: new Date(now.getTime() + WHATSAPP_SENDING_LEASE_MS),
+        nextAttemptAt: null,
+        status: "SENDING",
+      },
+    });
 
-  return prisma.notificationQueue.findUnique({
-    where: { id },
-  });
+    if (!result.count) {
+      return null;
+    }
+
+    const queueItem = await tx.notificationQueue.findUniqueOrThrow({
+      where: { id },
+    });
+    await tx.whatsAppSendAttempt.create({
+      data: {
+        attemptNumber: queueItem.attemptCount,
+        businessId: queueItem.businessId,
+        claimToken,
+        queueId: queueItem.id,
+        status: "STARTED",
+        startedAt: now,
+      },
+    });
+
+    return queueItem;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+export async function recoverExpiredSending(now = new Date()) {
+  return prisma.$transaction(async (tx) => {
+    const expired = await tx.notificationQueue.findMany({
+      where: {
+        status: "SENDING",
+        leaseExpiresAt: { lte: now },
+      },
+      select: {
+        attemptCount: true,
+        claimToken: true,
+        id: true,
+        messageLogId: true,
+      },
+    });
+
+    if (!expired.length) {
+      return { exhausted: 0, recovered: 0 };
+    }
+
+    const recoverableIds = expired
+      .filter((item) => item.attemptCount < WHATSAPP_MAX_SEND_ATTEMPTS)
+      .map((item) => item.id);
+    const exhausted = expired.filter(
+      (item) => item.attemptCount >= WHATSAPP_MAX_SEND_ATTEMPTS,
+    );
+    const exhaustedIds = exhausted.map((item) => item.id);
+
+    if (recoverableIds.length) {
+      await tx.notificationQueue.updateMany({
+        where: { id: { in: recoverableIds }, status: "SENDING" },
+        data: {
+          claimToken: null,
+          errorMessage: "WhatsApp worker lease expired; retry scheduled.",
+          lastErrorCategory: "WORKER_LEASE_EXPIRED",
+          leaseExpiresAt: null,
+          nextAttemptAt: now,
+          retryCount: { increment: 1 },
+          status: "QUEUED",
+        },
+      });
+    }
+
+    if (exhaustedIds.length) {
+      await tx.notificationQueue.updateMany({
+        where: { id: { in: exhaustedIds }, status: "SENDING" },
+        data: {
+          claimToken: null,
+          errorMessage: "WhatsApp send attempts exhausted after worker lease expiry.",
+          failedAt: now,
+          lastErrorCategory: "RETRY_EXHAUSTED",
+          leaseExpiresAt: null,
+          nextAttemptAt: null,
+          retryCount: { increment: 1 },
+          status: "FAILED",
+        },
+      });
+      const exhaustedMessageLogIds = exhausted
+        .map((item) => item.messageLogId)
+        .filter((id): id is string => Boolean(id));
+      if (exhaustedMessageLogIds.length) {
+        await tx.whatsAppMessage.updateMany({
+          where: { id: { in: exhaustedMessageLogIds } },
+          data: {
+            errorMessage: "WhatsApp send attempts exhausted.",
+            failedAt: now,
+            status: "FAILED",
+          },
+        });
+      }
+    }
+
+    await tx.whatsAppSendAttempt.updateMany({
+      where: {
+        queueId: { in: recoverableIds },
+        status: "STARTED",
+      },
+      data: {
+        completedAt: now,
+        errorCategory: "WORKER_LEASE_EXPIRED",
+        errorMessage: "Worker lease expired before completion.",
+        retryable: true,
+        status: "RETRY_SCHEDULED",
+      },
+    });
+    await tx.whatsAppSendAttempt.updateMany({
+      where: {
+        queueId: { in: exhaustedIds },
+        status: "STARTED",
+      },
+      data: {
+        completedAt: now,
+        errorCategory: "RETRY_EXHAUSTED",
+        errorMessage: "Worker lease expired and no attempts remain.",
+        retryable: false,
+        status: "FAILED_FINAL",
+      },
+    });
+
+    return { exhausted: exhaustedIds.length, recovered: recoverableIds.length };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 export async function getQueueDocumentAttachment(id: string) {
@@ -158,15 +287,42 @@ export async function getQueueDocumentAttachment(id: string) {
 
 export async function markSentToServer(input: MarkNotificationSentInput) {
   return prisma.$transaction(async (tx) => {
-    const queueItem = await tx.notificationQueue.update({
-      where: { id: input.id },
+    const updated = await tx.notificationQueue.updateMany({
+      where: {
+        claimToken: input.claimToken,
+        id: input.id,
+        status: "SENDING",
+      },
       data: {
+        claimToken: null,
         status: "SENT_TO_SERVER",
         providerMessageId: input.providerMessageId,
         sentAt: new Date(),
         errorMessage: null,
         failedAt: null,
+        lastErrorCategory: null,
+        leaseExpiresAt: null,
         nextAttemptAt: null,
+      },
+    });
+    if (!updated.count) {
+      return null;
+    }
+    const queueItem = await tx.notificationQueue.findUniqueOrThrow({
+      where: { id: input.id },
+    });
+
+    await tx.whatsAppSendAttempt.updateMany({
+      where: {
+        claimToken: input.claimToken,
+        queueId: input.id,
+        status: "STARTED",
+      },
+      data: {
+        completedAt: queueItem.sentAt,
+        providerMessageId: input.providerMessageId,
+        retryable: false,
+        status: "SENT_TO_SERVER",
       },
     });
 
@@ -193,35 +349,63 @@ export async function markDeliveryStatus(input: MarkNotificationDeliveryInput) {
         businessId: input.businessId,
         providerMessageId: input.providerMessageId,
       },
-      select: { id: true, messageLogId: true, status: true },
+      select: {
+        deliveredAt: true,
+        failedAt: true,
+        id: true,
+        messageLogId: true,
+        readAt: true,
+        status: true,
+      },
     });
 
     if (!queueItems.length) {
-      return { updated: 0 };
+      return {
+        ignoredDowngrades: 0,
+        ignoredDuplicates: 0,
+        matched: 0,
+        updated: 0,
+      };
     }
 
-    const queueIdsToUpdate = queueItems
-      .filter((queueItem) =>
-        shouldApplyDeliveryStatus(queueItem.status, input.status),
-      )
-      .map((queueItem) => queueItem.id);
+    let updated = 0;
+    let ignoredDowngrades = 0;
+    let ignoredDuplicates = 0;
+    for (const queueItem of queueItems) {
+      const plan = planWhatsAppStatusTransition({
+        currentStatus: queueItem.status,
+        deliveredAt: queueItem.deliveredAt,
+        failedAt: queueItem.failedAt,
+        nextStatus: input.status,
+        readAt: queueItem.readAt,
+      });
+      if (!plan.shouldMutate) {
+        if (plan.outcome === "IGNORED_DOWNGRADE") {
+          ignoredDowngrades += 1;
+        } else if (plan.outcome === "DUPLICATE") {
+          ignoredDuplicates += 1;
+        }
+        continue;
+      }
 
-    if (queueIdsToUpdate.length) {
-      await tx.notificationQueue.updateMany({
-        where: { id: { in: queueIdsToUpdate } },
-        data: getQueueDeliveryData(input.status, timestamp, errorMessage),
+      await tx.notificationQueue.update({
+        where: { id: queueItem.id },
+        data: getLifecycleMutation(plan, timestamp, errorMessage),
       });
-      await tx.closingWhatsAppSendAttempt.updateMany({
-        where: { queueId: { in: queueIdsToUpdate } },
-        data: {
-          completedAt:
-            input.status === "DELIVERED" || input.status === "READ"
-              ? timestamp
-              : null,
-          errorMessage: input.status === "FAILED" ? errorMessage : null,
-          status: input.status,
-        },
-      });
+      if (plan.stateChanged) {
+        await tx.closingWhatsAppSendAttempt.updateMany({
+          where: { queueId: queueItem.id },
+          data: {
+            completedAt:
+              input.status === "DELIVERED" || input.status === "READ"
+                ? timestamp
+                : undefined,
+            errorMessage: input.status === "FAILED" ? errorMessage : null,
+            status: plan.nextStatus as NotificationQueueStatus,
+          },
+        });
+      }
+      updated += 1;
     }
 
     const messageLogIds = queueItems
@@ -229,26 +413,62 @@ export async function markDeliveryStatus(input: MarkNotificationDeliveryInput) {
       .filter((messageLogId): messageLogId is string => Boolean(messageLogId));
 
     if (messageLogIds.length) {
-      await tx.whatsAppMessage.updateMany({
-        where: {
-          id: { in: messageLogIds },
-          status: getMessageLogStatusFilter(input.status),
+      const messageLogs = await tx.whatsAppMessage.findMany({
+        where: { businessId: input.businessId, id: { in: messageLogIds } },
+        select: {
+          deliveredAt: true,
+          failedAt: true,
+          id: true,
+          readAt: true,
+          status: true,
         },
-        data: getMessageLogDeliveryData(input.status, timestamp, errorMessage),
       });
+      for (const messageLog of messageLogs) {
+        const plan = planWhatsAppStatusTransition({
+          currentStatus: messageLog.status,
+          deliveredAt: messageLog.deliveredAt,
+          failedAt: messageLog.failedAt,
+          nextStatus: input.status,
+          readAt: messageLog.readAt,
+        });
+        if (!plan.shouldMutate) {
+          continue;
+        }
+        await tx.whatsAppMessage.update({
+          where: { id: messageLog.id },
+          data: getLifecycleMutation(plan, timestamp, errorMessage),
+        });
+      }
     }
 
-    await tx.whatsAppChatMessage.updateMany({
+    const chatMessages = await tx.whatsAppChatMessage.findMany({
       where: {
         businessId: input.businessId,
         externalMessageId: input.providerMessageId,
         ...(input.instanceId ? { instanceId: input.instanceId } : {}),
-        status: getChatMessageStatusFilter(input.status),
       },
-      data: getChatMessageDeliveryData(input.status),
+      select: { id: true, status: true },
     });
+    for (const chatMessage of chatMessages) {
+      const plan = planWhatsAppStatusTransition({
+        currentStatus: chatMessage.status,
+        nextStatus: input.status,
+      });
+      if (!plan.stateChanged) {
+        continue;
+      }
+      await tx.whatsAppChatMessage.update({
+        where: { id: chatMessage.id },
+        data: { status: plan.nextStatus as WhatsAppChatMessageStatus },
+      });
+    }
 
-    return { updated: queueIdsToUpdate.length };
+    return {
+      ignoredDowngrades,
+      ignoredDuplicates,
+      matched: queueItems.length,
+      updated,
+    };
   });
 }
 
@@ -256,17 +476,30 @@ export async function markFailed(input: MarkNotificationFailedInput) {
   return prisma.$transaction(async (tx) => {
     const currentQueueItem = await tx.notificationQueue.findUniqueOrThrow({
       where: { id: input.id },
-      select: { messageType: true, retryCount: true },
+      select: {
+        attemptCount: true,
+        claimToken: true,
+        messageType: true,
+        retryCount: true,
+        status: true,
+      },
     });
+    if (
+      currentQueueItem.status !== "SENDING" ||
+      currentQueueItem.claimToken !== input.claimToken
+    ) {
+      return tx.notificationQueue.findUniqueOrThrow({ where: { id: input.id } });
+    }
     const nextRetryCount = currentQueueItem.retryCount + 1;
-    const shouldRetry = shouldRetryQueueItem(
-      currentQueueItem.messageType,
-      nextRetryCount,
-    );
+    const shouldRetry =
+      input.retryable &&
+      currentQueueItem.attemptCount < WHATSAPP_MAX_SEND_ATTEMPTS &&
+      shouldRetryQueueItem(currentQueueItem.messageType, nextRetryCount);
 
     const queueItem = await tx.notificationQueue.update({
       where: { id: input.id },
       data: {
+        claimToken: null,
         status: shouldRetry ? "QUEUED" : "FAILED",
         retryCount: nextRetryCount,
         nextAttemptAt: shouldRetry
@@ -274,6 +507,23 @@ export async function markFailed(input: MarkNotificationFailedInput) {
           : null,
         failedAt: shouldRetry ? null : new Date(),
         errorMessage: input.errorMessage,
+        lastErrorCategory: input.errorCategory,
+        leaseExpiresAt: null,
+      },
+    });
+
+    await tx.whatsAppSendAttempt.updateMany({
+      where: {
+        claimToken: input.claimToken,
+        queueId: input.id,
+        status: "STARTED",
+      },
+      data: {
+        completedAt: new Date(),
+        errorCategory: input.errorCategory,
+        errorMessage: input.errorMessage,
+        retryable: shouldRetry,
+        status: shouldRetry ? "RETRY_SCHEDULED" : "FAILED_FINAL",
       },
     });
 
@@ -312,7 +562,7 @@ function shouldRetryQueueItem(messageType: string, retryCount: number) {
     return retryCount <= CLOSING_WHATSAPP_MAX_AUTO_RETRIES;
   }
 
-  return retryCount < MAX_RETRY_COUNT;
+  return retryCount < WHATSAPP_MAX_SEND_ATTEMPTS;
 }
 
 function isClosingWhatsAppMessageType(
@@ -558,133 +808,24 @@ async function syncMessageLogToInbox(
   });
 }
 
-function shouldApplyDeliveryStatus(
-  currentStatus: string,
-  nextStatus: MarkNotificationDeliveryInput["status"],
-) {
-  if (nextStatus === "FAILED") {
-    return !["FAILED", "DELIVERED", "READ"].includes(currentStatus);
-  }
-
-  return getDeliveryStatusRank(nextStatus) >= getDeliveryStatusRank(currentStatus);
-}
-
-function getDeliveryStatusRank(status: string) {
-  switch (status) {
-    case "FAILED":
-      return 0;
-    case "QUEUED":
-    case "SENDING":
-      return 1;
-    case "SENT":
-    case "SENT_TO_SERVER":
-    case "SENT_MANUALLY":
-    case "DRAFT":
-    case "OPENED":
-      return 2;
-    case "DELIVERED":
-      return 3;
-    case "READ":
-      return 4;
-    default:
-      return 1;
-  }
-}
-
-function getQueueDeliveryData(
-  status: MarkNotificationDeliveryInput["status"],
+function getLifecycleMutation(
+  plan: ReturnType<typeof planWhatsAppStatusTransition>,
   timestamp: Date,
   errorMessage: string,
 ) {
-  if (status === "FAILED") {
-    return {
-      status: "FAILED" as const,
-      failedAt: timestamp,
-      errorMessage,
-    };
-  }
-
-  if (status === "READ") {
-    return {
-      status: "READ" as const,
-      readAt: timestamp,
-      deliveredAt: timestamp,
-      errorMessage: null,
-    };
-  }
-
   return {
-    status: "DELIVERED" as const,
-    deliveredAt: timestamp,
-    errorMessage: null,
+    ...(plan.stateChanged
+      ? { status: plan.nextStatus as "DELIVERED" | "FAILED" | "READ" }
+      : {}),
+    ...(plan.setDeliveredAt ? { deliveredAt: timestamp } : {}),
+    ...(plan.setReadAt ? { readAt: timestamp } : {}),
+    ...(plan.setFailedAt ? { failedAt: timestamp } : {}),
+    ...(plan.nextStatus === "FAILED"
+      ? { errorMessage }
+      : plan.shouldMutate
+        ? { errorMessage: null }
+        : {}),
   };
-}
-
-function getMessageLogDeliveryData(
-  status: MarkNotificationDeliveryInput["status"],
-  timestamp: Date,
-  errorMessage: string,
-) {
-  if (status === "FAILED") {
-    return {
-      status: "FAILED" as const,
-      errorMessage,
-      failedAt: timestamp,
-    };
-  }
-
-  if (status === "READ") {
-    return {
-      status: "READ" as const,
-      readAt: timestamp,
-      deliveredAt: timestamp,
-      errorMessage: null,
-    };
-  }
-
-  return {
-    status: "DELIVERED" as const,
-    deliveredAt: timestamp,
-    errorMessage: null,
-  };
-}
-
-function getChatMessageDeliveryData(
-  status: MarkNotificationDeliveryInput["status"],
-) {
-  if (status === "FAILED") {
-    return { status: "FAILED" as const };
-  }
-
-  if (status === "READ") {
-    return { status: "READ" as const };
-  }
-
-  return { status: "DELIVERED" as const };
-}
-
-function getMessageLogStatusFilter(status: MarkNotificationDeliveryInput["status"]) {
-  if (status === "READ") {
-    return { not: "FAILED" as const };
-  }
-
-  if (status === "DELIVERED") {
-    return { notIn: MESSAGE_LOG_NOT_READ_OR_FAILED };
-  }
-
-  return { notIn: MESSAGE_LOG_NOT_READ_OR_DELIVERED };
-}
-
-function getChatMessageStatusFilter(status: MarkNotificationDeliveryInput["status"]) {
-  if (status === "READ") {
-    return { not: "FAILED" as const };
-  }
-
-  if (status === "DELIVERED") {
-    return { notIn: CHAT_NOT_READ_OR_FAILED };
-  }
-
-  return { notIn: CHAT_NOT_READ_OR_DELIVERED };
 }
 
 function resolveMessageLogInboxPhone(messageLog: {

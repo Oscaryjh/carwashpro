@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
+import { FinancialSubmitButton } from "@/components/financial-submit-button";
 
 type PackagePurchasePaymentFormProps = {
   action: (formData: FormData) => Promise<void>;
@@ -15,10 +17,12 @@ export function PackagePurchasePaymentForm({
 }: PackagePurchasePaymentFormProps) {
   const [method, setMethod] = useState("CASH");
   const isReferenceRequired = method !== "CASH";
+  const { operationId } = useFinancialOperationId("package-purchase");
 
   return (
     <form action={action} className="form">
       <input type="hidden" name="customerPackageId" value={customerPackageId} />
+      <input type="hidden" name="operationId" value={operationId} />
       <div className="field-grid">
         <label>
           <span>Payment amount</span>
@@ -52,7 +56,9 @@ export function PackagePurchasePaymentForm({
         </label>
       </div>
       <div className="form-actions">
-        <button type="submit">Pay and activate package</button>
+        <FinancialSubmitButton pendingLabel="Activating package...">
+          Pay and activate package
+        </FinancialSubmitButton>
       </div>
     </form>
   );

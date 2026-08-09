@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "version": "MALAYSIA_LINDUNG24_2026_SIGNOFF_CANDIDATE_1",
+  "effectiveFrom": "2026-06-01",
+  "effectiveTo": "2028-06-01",
+  "scheme": "LINDUNG24",
+  "status": "READY_FOR_HUMAN_SIGN_OFF",
+  "technicalReviewStatus": "TECHNICAL_REVIEW_COMPLETE",
+  "approvalStatus": "NOT_SIGNED_OFF",
+  "immutableRevision": true,
+  "reviewedOn": "2026-08-08",
+  "officialBasis": {
+    "artifactId": "perkeso-lindung24-faq-2026-06-v2.1",
+    "artifactSha256": "a7b212187d5a66934e9dc5f0369d1bf45ff97d81adeac1031600358957b87fab",
+    "reference": "FAQ v2.1 question 33, Act 4 section 2(24) wage definition"
+  },
+  "rule": "Include monetary remuneration payable under the contract of service, including leave, holiday, overtime and extra holiday work. Exclude employer statutory contributions, travelling allowance/concession, special employment expenses, gratuity/retirement payments, annual bonus and minister-prescribed exclusions.",
+  "classifications": [
+    { "componentCode": "BASIC_SALARY", "sourceType": "BASIC_SALARY", "treatment": "INCLUDED", "rationale": "Contractual salary is remuneration." },
+    { "componentCode": "REGULAR_DAILY_PAY", "sourceType": "ATTENDANCE", "treatment": "INCLUDED", "rationale": "Ordinary daily pay is remuneration." },
+    { "componentCode": "REGULAR_HOURLY_PAY", "sourceType": "ATTENDANCE", "treatment": "INCLUDED", "rationale": "Ordinary hourly pay is remuneration." },
+    { "componentCode": "PAID_LEAVE_PAY", "sourceType": "ATTENDANCE", "treatment": "INCLUDED", "rationale": "Leave-period remuneration is expressly within the wage definition." },
+    { "componentCode": "OVERTIME_PAY", "sourceType": "PAYROLL_CALCULATION", "treatment": "INCLUDED", "rationale": "Overtime remuneration is expressly within the wage definition." },
+    { "componentCode": "REST_DAY_PAY", "sourceType": "PAYROLL_CALCULATION", "treatment": "INCLUDED", "rationale": "Remuneration for work on a rest day is holiday or extra work remuneration." },
+    { "componentCode": "PUBLIC_HOLIDAY_PAY", "sourceType": "PAYROLL_CALCULATION", "treatment": "INCLUDED", "rationale": "Holiday and extra holiday work remuneration are expressly included." },
+    { "componentCode": "COMMISSION", "sourceType": "VARIABLE_PAY", "treatment": "INCLUDED", "rationale": "Commission paid for service is monetary remuneration and is not an express exclusion." },
+    { "componentCode": "INCENTIVE", "sourceType": "VARIABLE_PAY", "treatment": "INCLUDED", "rationale": "Employment incentive is monetary remuneration and is not an express exclusion." },
+    { "componentCode": "BONUS", "sourceType": "VARIABLE_PAY", "treatment": "UNKNOWN", "rationale": "Annual bonus is excluded, but the generic component does not prove annual versus non-annual character." },
+    { "componentCode": "SALARY_ARREARS", "sourceType": "CORRECTION", "treatment": "UNKNOWN", "rationale": "The source salary may be remuneration, but the canonical period and correction treatment require human classification." },
+    { "componentCode": "RECURRING_ALLOWANCE", "sourceType": "RECURRING_PAY", "treatment": "UNKNOWN", "rationale": "The generic code can represent remuneration, travelling allowance or expense reimbursement." }
+  ],
+  "unresolvedComponents": ["BONUS", "SALARY_ARREARS", "RECURRING_ALLOWANCE", "ONE_OFF_EARNING", "ARREARS", "TRANSPORT_ALLOWANCE", "PHONE_ALLOWANCE", "FIXED_ALLOWANCE", "MANUAL_ADJUSTMENT", "CUSTOM_UNKNOWN_EARNING"],
+  "unresolvedComponentCount": 10,
+  "classificationDigest": "1e46def37c60e320a56351b309a2be4e496e228175c87c14c9a2075378ff847a",
+  "activation": {
+    "allowed": false,
+    "blocker": "HUMAN_CLASSIFICATION_SIGN_OFF_REQUIRED",
+    "productionActivationPerformed": false
+  },
+  "approvalRecord": {
+    "approvedByActorId": null,
+    "approvedAt": null,
+    "approvalReason": null,
+    "approvalRecordDigest": null
+  },
+  "candidateDigest": "e3c2026436e991ea11a4f5d4152c723172e6dd8495e7dbe5397681ddc1f5b06b"
+}

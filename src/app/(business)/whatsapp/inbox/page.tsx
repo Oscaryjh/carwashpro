@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { WhatsAppInboxAutoRefresh } from "@/components/whatsapp-inbox-auto-refresh";
 import { WhatsAppCustomerPicker } from "@/components/whatsapp-customer-picker";
@@ -6,7 +6,10 @@ import { WhatsAppMessageAutoScroll } from "@/components/whatsapp-message-auto-sc
 import { WhatsAppReplyForm } from "@/components/whatsapp-reply-form";
 import { WhatsAppSessionRecovery } from "@/components/whatsapp-settings-session-recovery";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { hasStaffPermission } from "@/lib/auth/staff-permissions";
+import {
+  assertStaffPermission,
+  hasStaffPermission,
+} from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import {
   getConnectorStatus,
@@ -33,6 +36,7 @@ export default async function WhatsAppInboxPage({
   searchParams,
 }: WhatsAppInboxPageProps) {
   const { user, businessId, industryType } = await requireBusinessUser();
+  assertStaffPermission(user, "WHATSAPP");
   const isSalonBusiness = industryType === "SALON_BEAUTY";
   const canManageWhatsAppSession = hasStaffPermission(user, "WHATSAPP_SESSION");
   const params = await searchParams;

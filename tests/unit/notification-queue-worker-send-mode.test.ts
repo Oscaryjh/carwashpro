@@ -94,6 +94,12 @@ test("live mode is the only mode that calls the injected connector transport", a
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0]?.url, "https://connector.example.test/send");
+  const requestBody = JSON.parse(String(calls[0]?.init.body));
+  assert.equal(requestBody.requestId, sampleQueueItem.queueId);
+  assert.equal(
+    new Headers(calls[0]?.init.headers).get("x-connector-request-id"),
+    sampleQueueItem.queueId,
+  );
   assert.equal(result.connectorCallsEnabled, true);
   assert.equal(result.messageId, "live-message-123");
   assert.equal(result.mode, "live");

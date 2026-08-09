@@ -95,6 +95,7 @@ export async function sendServiceConfirmationQueued({
     await enqueueWhatsAppLogMessage({
       businessId,
       branchId: workOrder.branchId,
+      dedupeKey: `SERVICE_CONFIRMATION:${businessId}:${workOrder.id}`,
       message: messageBody,
       messageLogId: log.id,
       messageType: "SERVICE_CONFIRMATION",
@@ -182,6 +183,7 @@ export async function sendReadyForPickupIfConnected({
     await enqueueWhatsAppLogMessage({
       businessId,
       branchId: workOrder.branchId,
+      dedupeKey: `READY_FOR_PICKUP:${businessId}:${workOrder.id}`,
       message: messageBody,
       messageLogId: log.id,
       messageType: "READY_FOR_PICKUP",

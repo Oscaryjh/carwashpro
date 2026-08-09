@@ -7,4 +7,5 @@ export * from "./payment-batch-service";
 export * from "./payment-command";
 export * from "./payment-readiness";
 export * from "./payment-read";
+export * from "./providers";
 export * from "./types";

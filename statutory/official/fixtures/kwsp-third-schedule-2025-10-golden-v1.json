@@ -1,0 +1,285 @@
+{
+  "schemaVersion": 1,
+  "id": "kwsp-third-schedule-2025-10-golden-v1",
+  "scheme": "EPF",
+  "ruleVersion": "KWSP_THIRD_SCHEDULE_2025_10",
+  "artifactId": "kwsp-third-schedule-2025-10",
+  "artifactSha256": "c4904e44f0cb15a251a59e4f34c11a1ededa0868b962b2ebd9b81270285358b1",
+  "verificationStatus": "VERIFIED",
+  "fixtureDigest": "c087a139b15eed9eadcba55ad99c3131eb67230acb81712744ee9f4c99487860",
+  "fixtures": [
+    {
+      "id": "A-LOW-NIL",
+      "sourceReference": "KWSP Third Schedule PART A PDF p. 2",
+      "input": {
+        "wageCents": 1000,
+        "category": "PART_A"
+      },
+      "expected": {
+        "employeeCents": 0,
+        "employerCents": 0,
+        "matchedRowKey": "EPF-001"
+      }
+    },
+    {
+      "id": "A-FIRST-PAYABLE",
+      "sourceReference": "KWSP Third Schedule PART A PDF p. 2",
+      "input": {
+        "wageCents": 1001,
+        "category": "PART_A"
+      },
+      "expected": {
+        "employeeCents": 300,
+        "employerCents": 300,
+        "matchedRowKey": "EPF-002"
+      }
+    },
+    {
+      "id": "A-NORMAL-WAGE",
+      "sourceReference": "KWSP Third Schedule PART A PDF p. 5",
+      "input": {
+        "wageCents": 149999,
+        "category": "PART_A"
+      },
+      "expected": {
+        "employeeCents": 16500,
+        "employerCents": 19500,
+        "matchedRowKey": "EPF-076"
+      }
+    },
+    {
+      "id": "A-EMPLOYER-RATE-BOUNDARY",
+      "sourceReference": "KWSP Third Schedule PART A PDF p. 13",
+      "input": {
+        "wageCents": 500000,
+        "category": "PART_A"
+      },
+      "expected": {
+        "employeeCents": 55000,
+        "employerCents": 65000,
+        "matchedRowKey": "EPF-251"
+      }
+    },
+    {
+      "id": "A-JUST-ABOVE-EMPLOYER-RATE-BOUNDARY",
+      "sourceReference": "KWSP Third Schedule PART A PDF p. 13",
+      "input": {
+        "wageCents": 500001,
+        "category": "PART_A"
+      },
+      "expected": {
+        "employeeCents": 56100,
+        "employerCents": 61200,
+        "matchedRowKey": "EPF-252"
+      }
+    },
+    {
+      "id": "A-LAST-TABLE-BOUNDARY",
+      "sourceReference": "KWSP Third Schedule PART A PDF p. 20",
+      "input": {
+        "wageCents": 2000000,
+        "category": "PART_A"
+      },
+      "expected": {
+        "employeeCents": 220000,
+        "employerCents": 240000,
+        "matchedRowKey": "EPF-401"
+      }
+    },
+    {
+      "id": "A-FIRST-HIGH-WAGE",
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 20",
+      "input": {
+        "wageCents": 2000001,
+        "category": "PART_A"
+      },
+      "expected": {
+        "employeeCents": 220100,
+        "employerCents": 240100,
+        "matchedRowKey": "EPF-PART_A-FORMULA"
+      }
+    },
+    {
+      "id": "A-HIGH-WAGE-ROUNDING",
+      "sourceReference": "KWSP Third Schedule Part A PDF p. 20",
+      "input": {
+        "wageCents": 2500010,
+        "category": "PART_A"
+      },
+      "expected": {
+        "employeeCents": 275100,
+        "employerCents": 300100,
+        "matchedRowKey": "EPF-PART_A-FORMULA"
+      }
+    },
+    {
+      "id": "C-FIRST-PAYABLE",
+      "sourceReference": "KWSP Third Schedule PART C PDF p. 22",
+      "input": {
+        "wageCents": 1001,
+        "category": "PART_C"
+      },
+      "expected": {
+        "employeeCents": 200,
+        "employerCents": 200,
+        "matchedRowKey": "EPF-002"
+      }
+    },
+    {
+      "id": "C-EMPLOYER-RATE-BOUNDARY",
+      "sourceReference": "KWSP Third Schedule PART C PDF p. 31",
+      "input": {
+        "wageCents": 500000,
+        "category": "PART_C"
+      },
+      "expected": {
+        "employeeCents": 27500,
+        "employerCents": 32500,
+        "matchedRowKey": "EPF-251"
+      }
+    },
+    {
+      "id": "C-JUST-ABOVE-EMPLOYER-RATE-BOUNDARY",
+      "sourceReference": "KWSP Third Schedule PART C PDF p. 31",
+      "input": {
+        "wageCents": 500001,
+        "category": "PART_C"
+      },
+      "expected": {
+        "employeeCents": 28100,
+        "employerCents": 30600,
+        "matchedRowKey": "EPF-252"
+      }
+    },
+    {
+      "id": "C-LAST-TABLE-BOUNDARY",
+      "sourceReference": "KWSP Third Schedule PART C PDF p. 37",
+      "input": {
+        "wageCents": 2000000,
+        "category": "PART_C"
+      },
+      "expected": {
+        "employeeCents": 110000,
+        "employerCents": 120000,
+        "matchedRowKey": "EPF-401"
+      }
+    },
+    {
+      "id": "C-FIRST-HIGH-WAGE",
+      "sourceReference": "KWSP Third Schedule Part C PDF p. 37",
+      "input": {
+        "wageCents": 2000001,
+        "category": "PART_C"
+      },
+      "expected": {
+        "employeeCents": 110100,
+        "employerCents": 120100,
+        "matchedRowKey": "EPF-PART_C-FORMULA"
+      }
+    },
+    {
+      "id": "E-FIRST-PAYABLE",
+      "sourceReference": "KWSP Third Schedule PART E PDF p. 39",
+      "input": {
+        "wageCents": 1001,
+        "category": "PART_E"
+      },
+      "expected": {
+        "employeeCents": 0,
+        "employerCents": 100,
+        "matchedRowKey": "EPF-002"
+      }
+    },
+    {
+      "id": "E-RATE-BOUNDARY",
+      "sourceReference": "KWSP Third Schedule PART E PDF p. 48",
+      "input": {
+        "wageCents": 500000,
+        "category": "PART_E"
+      },
+      "expected": {
+        "employeeCents": 0,
+        "employerCents": 20000,
+        "matchedRowKey": "EPF-251"
+      }
+    },
+    {
+      "id": "E-JUST-ABOVE-RATE-BOUNDARY",
+      "sourceReference": "KWSP Third Schedule PART E PDF p. 48",
+      "input": {
+        "wageCents": 500001,
+        "category": "PART_E"
+      },
+      "expected": {
+        "employeeCents": 0,
+        "employerCents": 20400,
+        "matchedRowKey": "EPF-252"
+      }
+    },
+    {
+      "id": "E-LAST-TABLE-BOUNDARY",
+      "sourceReference": "KWSP Third Schedule PART E PDF p. 53",
+      "input": {
+        "wageCents": 2000000,
+        "category": "PART_E"
+      },
+      "expected": {
+        "employeeCents": 0,
+        "employerCents": 80000,
+        "matchedRowKey": "EPF-401"
+      }
+    },
+    {
+      "id": "E-FIRST-HIGH-WAGE",
+      "sourceReference": "KWSP Third Schedule Part E PDF p. 53",
+      "input": {
+        "wageCents": 2000001,
+        "category": "PART_E"
+      },
+      "expected": {
+        "employeeCents": 0,
+        "employerCents": 80100,
+        "matchedRowKey": "EPF-PART_E-FORMULA"
+      }
+    },
+    {
+      "id": "F-LOW-WAGE-ROUNDING",
+      "sourceReference": "KWSP Third Schedule Part F PDF p. 55",
+      "input": {
+        "wageCents": 1001,
+        "category": "PART_F"
+      },
+      "expected": {
+        "employeeCents": 100,
+        "employerCents": 100,
+        "matchedRowKey": "EPF-PART_F-FORMULA"
+      }
+    },
+    {
+      "id": "F-NORMAL-WAGE",
+      "sourceReference": "KWSP Third Schedule Part F PDF p. 55",
+      "input": {
+        "wageCents": 500000,
+        "category": "PART_F"
+      },
+      "expected": {
+        "employeeCents": 10000,
+        "employerCents": 10000,
+        "matchedRowKey": "EPF-PART_F-FORMULA"
+      }
+    },
+    {
+      "id": "F-HIGH-WAGE",
+      "sourceReference": "KWSP Third Schedule Part F PDF p. 55",
+      "input": {
+        "wageCents": 2000001,
+        "category": "PART_F"
+      },
+      "expected": {
+        "employeeCents": 40100,
+        "employerCents": 40100,
+        "matchedRowKey": "EPF-PART_F-FORMULA"
+      }
+    }
+  ]
+}

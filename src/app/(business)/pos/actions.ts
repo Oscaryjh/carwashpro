@@ -1,5 +1,6 @@
 "use server";
 
+import { FinancialOperationType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
@@ -18,18 +19,30 @@ import {
 } from "@/lib/validation/pos";
 import { usePackagePaymentSchema } from "@/lib/validation/packages";
 import { packageAllowsVehicle, vehicleSizeLabel } from "@/lib/vehicle-size";
+import { runFinancialOperation } from "@/lib/financial-idempotency";
 
 export async function recordPaymentAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser(
+    "PROCESS_CASHIER_PAYMENT",
+  );
   const auditRequest = await getAuditRequestContext();
   const input = paymentSchema.parse({
+    operationId: formData.get("operationId"),
     workOrderId: formData.get("workOrderId"),
     amount: formData.get("amount"),
     method: formData.get("method"),
     reference: formData.get("reference"),
   });
 
-  const result = await prisma.$transaction(async (tx) => {
+  const { operationId, ...financialPayload } = input;
+  const { result } = await runFinancialOperation({
+    actorUserId: user.userId,
+    branchId: null,
+    businessId,
+    operationKey: operationId,
+    operationType: FinancialOperationType.WORK_ORDER_PAYMENT,
+    payload: financialPayload,
+    execute: async (tx) => {
     const shift = await getOpenShift(tx, businessId, user.userId);
     const workOrder = await tx.workOrder.findFirstOrThrow({
       where: {
@@ -208,6 +221,7 @@ export async function recordPaymentAction(formData: FormData) {
       invoiceId: invoice.id,
       shouldSendInvoice: isPaid,
     };
+    },
   });
 
   revalidatePath("/pos");
@@ -233,14 +247,25 @@ export async function recordPaymentAction(formData: FormData) {
 }
 
 export async function usePackagePaymentAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser(
+    "PROCESS_CASHIER_PAYMENT",
+  );
   const auditRequest = await getAuditRequestContext();
   const input = usePackagePaymentSchema.parse({
+    operationId: formData.get("operationId"),
     workOrderId: formData.get("workOrderId"),
     customerPackageId: formData.get("customerPackageId"),
   });
 
-  const invoiceId = await prisma.$transaction(async (tx) => {
+  const { operationId, ...financialPayload } = input;
+  const { result: packageResult } = await runFinancialOperation({
+    actorUserId: user.userId,
+    branchId: null,
+    businessId,
+    operationKey: operationId,
+    operationType: FinancialOperationType.PACKAGE_REDEMPTION,
+    payload: financialPayload,
+    execute: async (tx) => {
     const shift = await getOpenShift(tx, businessId, user.userId);
     const workOrder = await tx.workOrder.findFirstOrThrow({
       where: {
@@ -455,8 +480,10 @@ export async function usePackagePaymentAction(formData: FormData) {
       tx,
     );
 
-    return invoice.id;
+    return { invoiceId: invoice.id };
+    },
   });
+  const { invoiceId } = packageResult;
 
   revalidatePath("/pos");
   revalidatePath(`/pos/${input.workOrderId}`);
@@ -478,16 +505,27 @@ export async function usePackagePaymentAction(formData: FormData) {
 }
 
 export async function recordPackagePurchasePaymentAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser(
+    "PROCESS_CASHIER_PAYMENT",
+  );
   const auditRequest = await getAuditRequestContext();
   const input = packagePurchasePaymentSchema.parse({
+    operationId: formData.get("operationId"),
     customerPackageId: formData.get("customerPackageId"),
     amount: formData.get("amount"),
     method: formData.get("method"),
     reference: formData.get("reference"),
   });
 
-  const result = await prisma.$transaction(async (tx) => {
+  const { operationId, ...financialPayload } = input;
+  const { result } = await runFinancialOperation({
+    actorUserId: user.userId,
+    branchId: null,
+    businessId,
+    operationKey: operationId,
+    operationType: FinancialOperationType.PACKAGE_PURCHASE,
+    payload: financialPayload,
+    execute: async (tx) => {
     const shift = await getOpenShift(tx, businessId, user.userId);
     const customerPackage = await tx.customerPackage.findFirstOrThrow({
       where: {
@@ -632,6 +670,7 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
       customerId: customerPackage.customer.id,
       invoiceId: invoice.id,
     };
+    },
   });
 
   revalidatePath("/pos");

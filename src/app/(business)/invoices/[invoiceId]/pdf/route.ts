@@ -19,7 +19,7 @@ type InvoicePdfRouteProps = {
 };
 
 export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
-  const { businessId } = await requireBusinessUser();
+  const { businessId } = await requireBusinessUser("VIEW_INVOICES");
   const { invoiceId } = await params;
   const isReceipt = new URL(request.url).searchParams.get("format") === "receipt";
   const buildPdfDocument = isReceipt ? buildInvoiceReceiptPdf : buildInvoicePdf;

@@ -358,6 +358,9 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
           <p>See who is working now and review clock-in records across your branches.</p>
         </div>
         <div className={`hr-module-actions ${styles.headerActions}`}>
+          <Link className="secondary-light-button" href="/team/attendance/p2">
+            P2 workspace
+          </Link>
           <Link className="secondary-light-button" href="/team/attendance/timesheets">
             Monthly timesheets
           </Link>

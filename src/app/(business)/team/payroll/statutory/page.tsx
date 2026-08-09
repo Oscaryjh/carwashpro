@@ -38,7 +38,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
   const params = await searchParams;
   const month = params.month ?? new Date().toISOString().slice(0, 7);
   const notice = sanitizePayrollNotice(params.message, params.type);
-  const [{ period, profile, run, submissions }, employees] = await Promise.all([
+  const [{ period, profile, run, statutoryTotals, submissions }, employees] = await Promise.all([
     loadStatutorySubmissionData(context.businessId, month),
     prisma.employeeBusinessMembership.findMany({
       where: { businessId: context.businessId, status: "ACTIVE" },
@@ -106,6 +106,10 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
         <Metric label="Providers ready" value={`${readyCount} / 3`} note="Official file validation" />
         <Metric label="Employee identities" value={`${configuredEmployees} / ${employees.length}`} note="Active employment profiles" />
         <Metric label="Payroll status" value={run ? formatStatus(run.status) : "Not generated"} note="Finalized is required" />
+        <Metric label="SOCSO employee" value={`RM ${statutoryTotals.socsoEmployee}`} note="Frozen payroll snapshots" />
+        <Metric label="SOCSO employer" value={`RM ${statutoryTotals.socsoEmployer}`} note="Excluded from employee net pay" />
+        <Metric label="EIS employee" value={`RM ${statutoryTotals.eisEmployee}`} note="Frozen payroll snapshots" />
+        <Metric label="EIS employer" value={`RM ${statutoryTotals.eisEmployer}`} note="Excluded from employee net pay" />
       </section>
 
       <section className={styles.providerGrid}>

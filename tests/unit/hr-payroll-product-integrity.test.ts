@@ -82,11 +82,11 @@ test("Payroll truthfully distinguishes locked calculations from payment completi
 test("current and unavailable payroll modules are labelled honestly", async () => {
   const permissions = await source("src/lib/auth/staff-permissions.ts");
 
-  for (const capability of [
-    "PUBLISH_PAYSLIP",
-    "PROCESS_PAYMENT",
-    "EXPORT_PAYMENT_FILE",
-  ]) {
+  assert.match(
+    permissions,
+    /\["PUBLISH_PAYSLIP", "Publish finalized employee payslips"\]/,
+  );
+  for (const capability of ["PROCESS_PAYMENT", "EXPORT_PAYMENT_FILE"]) {
     assert.match(
       permissions,
       new RegExp(`\\["${capability}", "[^"]+\\(not available yet\\)"\\]`),

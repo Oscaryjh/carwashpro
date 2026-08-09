@@ -92,6 +92,7 @@ export async function sendNewCustomerWelcomeIfConnected(
     await enqueueWhatsAppLogMessage({
       businessId: input.businessId,
       branchId: input.branchId ?? null,
+      dedupeKey: `NEW_CUSTOMER_WELCOME:${input.businessId}:${input.customerId}`,
       message: messageBody,
       messageLogId: log.id,
       messageType: "NEW_CUSTOMER_WELCOME",

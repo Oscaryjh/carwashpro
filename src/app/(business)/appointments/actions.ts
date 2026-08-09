@@ -1,6 +1,6 @@
 "use server";
 
-import type { Payment } from "@prisma/client";
+import { FinancialOperationType, type Payment } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
@@ -52,6 +52,7 @@ import {
 } from "@/lib/whatsapp/appointment-reminders";
 import { sendServiceConfirmationQueued } from "@/lib/whatsapp/work-order-notifications";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
+import { runFinancialOperation } from "@/lib/financial-idempotency";
 
 function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
@@ -148,7 +149,7 @@ async function cancelReminderSafely(input: {
 }
 
 async function createAppointment(formData: FormData): Promise<AppointmentMutationResult> {
-  const { businessId, industryType, user } = await requireBusinessUser();
+  const { businessId, industryType, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const parsedInput = createAppointmentSchema.safeParse({
     assignedStaffId: formData.get("assignedStaffId"),
     branchId: formData.get("branchId"),
@@ -402,7 +403,7 @@ export async function createAppointmentAction(formData: FormData): Promise<void>
 }
 
 export async function updateAppointmentStatusAction(formData: FormData) {
-  const { businessId, industryType, user } = await requireBusinessUser();
+  const { businessId, industryType, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const input = updateAppointmentStatusSchema.parse({
     appointmentId: formData.get("appointmentId"),
     status: formData.get("status"),
@@ -471,7 +472,7 @@ export async function updateAppointmentStatusAction(formData: FormData) {
 export async function rescheduleAppointmentAction(
   formData: FormData,
 ): Promise<AppointmentMutationResult> {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const input = rescheduleAppointmentSchema.parse({
     assignedStaffId: formData.get("assignedStaffId"),
     appointmentId: formData.get("appointmentId"),
@@ -587,7 +588,7 @@ export async function rescheduleAppointmentAction(
 export async function updateAppointmentDetailsAction(
   formData: FormData,
 ): Promise<AppointmentMutationResult> {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const input = updateAppointmentDetailsSchema.parse({
     appointmentId: formData.get("appointmentId"),
     assignedStaffId: formData.get("assignedStaffId"),
@@ -758,7 +759,7 @@ export async function updateAppointmentDetailsAction(
 }
 
 export async function addAppointmentServicesAction(formData: FormData) {
-  const { businessId, industryType, user } = await requireBusinessUser();
+  const { businessId, industryType, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const input = addAppointmentServicesSchema.parse({
     appointmentId: formData.get("appointmentId"),
     serviceIds: formData.getAll("serviceIds"),
@@ -875,7 +876,7 @@ export async function addAppointmentServicesAction(formData: FormData) {
 }
 
 export async function convertAppointmentToJobAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const input = convertAppointmentSchema.parse({
     appointmentId: formData.get("appointmentId"),
   });
@@ -1059,9 +1060,10 @@ export async function recordSalonAppointmentPaymentAction(
   _previousState: SalonAppointmentPaymentState,
   formData: FormData,
 ): Promise<SalonAppointmentPaymentState> {
-  const { businessId, industryType, user } = await requireBusinessUser();
+  const { businessId, industryType, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const auditRequest = await getAuditRequestContext();
   const parsed = salonAppointmentPaymentSchema.safeParse({
+    operationId: formData.get("operationId"),
     appointmentId: formData.get("appointmentId"),
     amount: formData.get("amount"),
     method: formData.get("method"),
@@ -1108,7 +1110,15 @@ export async function recordSalonAppointmentPaymentAction(
   };
 
   try {
-    result = await prisma.$transaction(async (tx) => {
+    const { operationId, ...financialPayload } = input;
+    ({ result } = await runFinancialOperation({
+    actorUserId: user.userId,
+    branchId: null,
+    businessId,
+    operationKey: operationId,
+    operationType: FinancialOperationType.SALON_APPOINTMENT_PAYMENT,
+    payload: financialPayload,
+    execute: async (tx) => {
     const businessSst = await tx.business.findUniqueOrThrow({
       where: { id: businessId },
       select: { sstEnabled: true, sstLabel: true, sstRate: true },
@@ -1756,7 +1766,8 @@ export async function recordSalonAppointmentPaymentAction(
         cashPaidAmount: paymentSummary.cashPaidAmount,
       },
     };
-    });
+    },
+    }));
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     return {

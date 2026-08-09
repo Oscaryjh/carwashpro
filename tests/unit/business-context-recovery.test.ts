@@ -55,6 +55,7 @@ test("recovery middleware accepts a group-only session without refreshing its st
   try {
     const token = await createSessionToken({
       userId: "group-user-1",
+      sessionId: "11111111-1111-4111-8111-111111111111",
       homeBusinessId: null,
       activeBusinessId: null,
       contextVersion: SESSION_CONTEXT_VERSION,
@@ -87,6 +88,7 @@ test("a recovery-rotated token carries the new context into the next middleware 
   try {
     const token = await createSessionToken({
       userId: "group-user-1",
+      sessionId: "22222222-2222-4222-8222-222222222222",
       homeBusinessId: null,
       activeBusinessId: "business-auto",
       contextVersion: 2,
@@ -113,7 +115,7 @@ test("a recovery-rotated token carries the new context into the next middleware 
     const response = await middleware(request);
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("location"), null);
-    assert.equal(response.cookies.getAll().length, 1);
+    assert.equal(response.cookies.getAll().length, 0);
   } finally {
     restoreSecret(previousSecret);
   }

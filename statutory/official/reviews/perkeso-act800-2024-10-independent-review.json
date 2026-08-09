@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "perkeso-act800-2024-10-independent-review-v1",
+  "scheme": "EIS",
+  "artifactId": "perkeso-act800-2024-10",
+  "artifactSha256": "3499fec4271b45ae3e3055b2071075f96f65dc451775ed23adf39f9deec5376a",
+  "datasetId": "perkeso-act800-2024-10-review-v1",
+  "baselineDatasetDigest": "9cf8bc62e7a0abe1b7dba14326725632fac5a687256af23333c3fe5fb25537ea",
+  "certifiedDatasetDigest": "ca14f3decb605af4df4c837f281666a6816699947d1658614bbd336f809ae08e",
+  "reviewMethod": "RENDERED_OFFICIAL_PDF_VISUAL_TABLE_REVIEW",
+  "reviewer": {
+    "id": "codex-agent-p2c-visual-review",
+    "type": "AI_ASSISTED_SECOND_PATH",
+    "independentFromExtraction": true
+  },
+  "reviewedAt": "2026-08-08T12:48:03Z",
+  "rowsChecked": {
+    "count": 65,
+    "ranges": [
+      { "from": "ACT800-01", "to": "ACT800-65", "sourcePages": [1] }
+    ]
+  },
+  "mismatches": [],
+  "status": "PASS",
+  "notes": "The image-only official table was rendered and every row was visually compared to transcription A, including ranges, equal employer/employee shares, totals, the RM6,000 ceiling and the above-ceiling row. No OCR or transcription-A generation logic was reused.",
+  "reviewDigest": "19c788ec2019853fa99a49e173f234f3a71be9732eee65f36bf042b2f271e565"
+}

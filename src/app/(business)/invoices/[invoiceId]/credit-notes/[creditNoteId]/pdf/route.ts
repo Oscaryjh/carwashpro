@@ -14,7 +14,7 @@ type CreditNotePdfRouteProps = {
 };
 
 export async function GET(_request: Request, { params }: CreditNotePdfRouteProps) {
-  const { businessId } = await requireBusinessUser();
+  const { businessId } = await requireBusinessUser("VIEW_INVOICES");
   const { invoiceId, creditNoteId } = await params;
   const creditNote = await prisma.creditNote.findFirst({
     where: { id: creditNoteId, invoiceId, businessId },

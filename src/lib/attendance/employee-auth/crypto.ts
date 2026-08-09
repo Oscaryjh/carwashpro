@@ -14,7 +14,8 @@ type EmployeeIdentifierKind =
   | "device"
   | "device-fingerprint"
   | "ip"
-  | "phone";
+  | "phone"
+  | "user-agent";
 
 export function createEmployeeOtp() {
   const maximum = 10 ** EMPLOYEE_OTP_DIGITS;

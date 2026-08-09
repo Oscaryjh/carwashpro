@@ -15,7 +15,7 @@ const RECOVERABLE_STATUSES = new Set<ConnectorStatus["status"]>([
 ]);
 
 export async function GET() {
-  const { businessId } = await requireBusinessUser();
+  const { businessId } = await requireBusinessUser("MANAGE_WHATSAPP");
   const status = await getConnectorStatus(businessId);
 
   return NextResponse.json({
@@ -25,7 +25,7 @@ export async function GET() {
 }
 
 export async function POST() {
-  const { businessId } = await requireBusinessUser();
+  const { businessId } = await requireBusinessUser("MANAGE_WHATSAPP");
 
   const before = await getConnectorStatus(businessId);
 

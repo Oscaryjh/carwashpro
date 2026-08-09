@@ -75,11 +75,30 @@ export async function loadStatutorySubmissionData(
       membership: entry.membership,
     })),
   };
+  const statutoryTotals = {
+    epfEmployee: sumMoney(storedRun?.entries.map((entry) => entry.epfEmployee) ?? []),
+    epfEmployer: sumMoney(storedRun?.entries.map((entry) => entry.employerEpf) ?? []),
+    socsoEmployee: sumMoney(storedRun?.entries.map((entry) => entry.socsoEmployee) ?? []),
+    socsoEmployer: sumMoney(storedRun?.entries.map((entry) => entry.employerSocso) ?? []),
+    eisEmployee: sumMoney(storedRun?.entries.map((entry) => entry.eisEmployee) ?? []),
+    eisEmployer: sumMoney(storedRun?.entries.map((entry) => entry.employerEis) ?? []),
+  };
 
   return {
     period,
     profile,
     run,
+    statutoryTotals,
     submissions: storedRun?.statutorySubmissions ?? [],
   };
+}
+
+function sumMoney(values: Array<{ toString(): string }>) {
+  const cents = values.reduce<number>((total, value) => {
+    const [whole, fraction = ""] = value.toString().split(".");
+    const amount = Number(whole) * 100 + Number(fraction.padEnd(2, "0").slice(0, 2));
+    if (!Number.isSafeInteger(amount)) throw new Error("Statutory total is outside the supported range.");
+    return total + amount;
+  }, 0);
+  return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
 }

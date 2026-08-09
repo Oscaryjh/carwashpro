@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "perkeso-lindung24-2026-06-golden-certification-v1",
+  "fixtureSetId": "perkeso-lindung24-2026-06-boundaries-review-v1",
+  "scheme": "LINDUNG24",
+  "effectiveFrom": "2026-06-01",
+  "effectiveTo": "2028-06-01",
+  "artifactId": "perkeso-lindung24-schedule-2026-06",
+  "artifactSha256": "e76b2a03740f6da4a305919c677d4935a05e9166502e5f06afe1030b7407caa1",
+  "datasetId": "perkeso-act4-lindung24-2026-06-v1",
+  "datasetDigest": "1e1b17a332e2b596b1efa85c075428c54b16d059730726e3f67cef710f334460",
+  "independentAmountReviewDigest": "0f5b274c3e8b6bd13688cd319d652ebfa9435d000bae2c69b568f3d10a9a5cfa",
+  "fixtureDigest": "71f7882669ed7c3be53b6b7497dd95f4ad440dbc48b314dea9c7630d5698db14",
+  "fixtureCount": 6,
+  "officialReferences": [
+    "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/NewContributionRateIncludingSKBBK.pdf#pages=1-8",
+    "Official schedule rows 1, 2, 9, 10, 64 and 65"
+  ],
+  "reviewStatus": "VERIFIED",
+  "reviewedBy": {
+    "id": "codex-agent-lindung24-visual-review",
+    "type": "AI_ASSISTED_SECOND_PATH",
+    "humanApproval": false
+  },
+  "reviewedAt": "2026-08-08T00:00:00Z",
+  "notes": "Direct schedule-row values verify low wage, normal wage, internal boundary, ceiling and above-ceiling employee amounts. Employer amount is zero. Participation is verified separately and is never inferred from this table.",
+  "certificationDigest": "f822ece0947a89f1f4d1b583b8453cdacd6a6099e370d0227873508d98d282e8"
+}

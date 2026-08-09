@@ -27,7 +27,9 @@ type NewAppointmentPageProps = {
 export default async function NewAppointmentPage({
   searchParams,
 }: NewAppointmentPageProps) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUser(
+    "VIEW_APPOINTMENTS",
+  );
   const isSalonBusiness = industryType === "SALON_BEAUTY";
   const params = await searchParams;
   const staffWhere =

@@ -14,10 +14,12 @@ export type PayrollRunsReadAccess =
       actions: {
         canCreate: boolean;
         canEditEntry: boolean;
+        canViewComponents: boolean;
         canExportPayroll: boolean;
         canCreatePaymentBatch: boolean;
         canViewPaymentBatch: boolean;
         canViewPayslip: boolean;
+        canPublishPayslip: boolean;
       };
       workflow: {
         canSubmitReview: boolean;
@@ -64,9 +66,12 @@ export async function resolvePayrollRunsReadAccess(): Promise<PayrollRunsReadAcc
             context.access,
             "CREATE_PAYROLL_RUN",
           ),
-          canEditEntry: hasBusinessCapability(
+          canEditEntry:
+            hasBusinessCapability(context.access, "EDIT_PAYROLL_ENTRY") &&
+            hasBusinessCapability(context.access, "VIEW_COMPENSATION"),
+          canViewComponents: hasBusinessCapability(
             context.access,
-            "EDIT_PAYROLL_ENTRY",
+            "VIEW_COMPENSATION",
           ),
           canExportPayroll: hasBusinessCapability(
             context.access,
@@ -83,6 +88,10 @@ export async function resolvePayrollRunsReadAccess(): Promise<PayrollRunsReadAcc
           canViewPayslip: hasBusinessCapability(
             context.access,
             "VIEW_PAYSLIP",
+          ),
+          canPublishPayslip: hasBusinessCapability(
+            context.access,
+            "PUBLISH_PAYSLIP",
           ),
         },
         workflow: {

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "id": "perkeso-lindung24-participation-source-register-v1",
+  "scheme": "LINDUNG24",
+  "authority": "PERKESO",
+  "reviewedOn": "2026-08-08",
+  "status": "TECHNICAL_REVIEW_COMPLETE",
+  "sources": [
+    {
+      "artifactId": "perkeso-lindung24-schedule-2026-06",
+      "officialDocument": "New Contribution Rate Including SKBBK",
+      "version": "PERKESO_LINDUNG24_PHASE1_2026_06",
+      "effectiveFrom": "2026-06-01",
+      "effectiveTo": "2028-06-01",
+      "retrievedDate": "2026-08-08",
+      "artifactSha256": "e76b2a03740f6da4a305919c677d4935a05e9166502e5f06afe1030b7407caa1",
+      "datasetDigest": "1e1b17a332e2b596b1efa85c075428c54b16d059730726e3f67cef710f334460",
+      "evidence": ["Contribution amount", "RM6,000 wage ceiling", "employee-only Phase 1 amount"]
+    },
+    {
+      "artifactId": "perkeso-lindung24-faq-2026-06-v2.1",
+      "officialDocument": "FAQ Perluasan Perlindungan Keselamatan Sosial di bawah LINDUNG 24 Jam",
+      "version": "FAQ_L24_JUN26_V2.1",
+      "effectiveFrom": "2026-07-08",
+      "effectiveTo": null,
+      "retrievedDate": "2026-08-08",
+      "artifactSha256": "a7b212187d5a66934e9dc5f0369d1bf45ff97d81adeac1031600358957b87fab",
+      "datasetDigest": null,
+      "evidence": [
+        "Eligibility and no age limit while employed",
+        "Foreign mandatory and local voluntary treatment",
+        "Default-in, opt-out, opt-in and once-in-always-in",
+        "June transition and refund boundary",
+        "One selected employer for multiple employment",
+        "Employee-only contribution and employer remittance",
+        "Act 4 section 2(24) wage definition"
+      ]
+    },
+    {
+      "artifactId": "perkeso-lindung24-employer-circular-3-2026",
+      "officialDocument": "Employer Circular No. 3 of 2026",
+      "version": "PERKESO_CIRCULAR_3_2026",
+      "effectiveFrom": "2026-06-01",
+      "effectiveTo": null,
+      "retrievedDate": "2026-08-08",
+      "artifactSha256": "26e594d31266f79af14d7b69c6a7185f9e03bdfce2590435ac5a64df092cb6ab",
+      "datasetDigest": null,
+      "evidence": ["Selected-employer process", "30-day employee selection", "PERKESO determination and notification"]
+    },
+    {
+      "artifactId": "perkeso-lindung24-participation-form-2026",
+      "officialDocument": "Participation, Existing Employer Update and Employer Selection Form",
+      "version": "PERKESO_LINDUNG24_PARTICIPATION_FORM_2026",
+      "effectiveFrom": "2026-06-01",
+      "effectiveTo": null,
+      "retrievedDate": "2026-08-08",
+      "artifactSha256": "67ba5f24eb9929f0a7c7aa626c30e224d0705766e6b3063bf10f4fcb83db121f",
+      "datasetDigest": null,
+      "evidence": ["Opt-out to opt-in", "Employer update", "Employer selection and change reasons"]
+    },
+    {
+      "artifactId": "perkeso-lindung24-opt-out-notice-v2.1",
+      "officialDocument": "LINDUNG24 Release of Liability Notice",
+      "version": "NPL24_JUN26_V2.1",
+      "effectiveFrom": "2026-07-08",
+      "effectiveTo": null,
+      "retrievedDate": "2026-08-08",
+      "artifactSha256": "95a1ae1549eeca7ee24a9d61fb154f420fad52fdd2d5ffe88766bd3a404d303e",
+      "datasetDigest": null,
+      "evidence": ["Employee voluntary non-participation declaration", "Exact submission date and time"]
+    }
+  ],
+  "eligibilityEvidence": "Employees covered by Act 4, including local, permanent/temporary resident and foreign employees; self-employed persons are outside this employer-payroll model.",
+  "participationEvidence": "June 2026 is mandatory. From 8 July 2026 foreign employees remain mandatory and local employees are voluntary with official default-in, opt-out and opt-in rules.",
+  "contributionEvidence": "The employee bears the full LINDUNG24 contribution. The employer deducts and remits it; employer contribution is zero.",
+  "transitionEvidence": "June contributions are mandatory and not refundable. Local transition opt-out operates from 13 July through 31 August 2026, with later new-hire handling requiring evidence before first deduction.",
+  "refundEvidence": "Eligible July-onward opt-out or non-selected-employer over-contributions are handled through an employer PERKESO refund request. Tetamu preserves the original payroll and records a separate refund event.",
+  "reviewDigest": "029983eb4003f161ee749244462d442637f79457fc6e86e764c31113564adaba"
+}

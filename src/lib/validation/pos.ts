@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { financialOperationKeySchema } from "@/lib/financial-idempotency";
 
 const paymentMethodSchema = z.enum(["CASH", "CARD", "DUITNOW", "EWALLET", "BANK_TRANSFER"]);
 
@@ -27,6 +28,7 @@ function requireReferenceForNonCash<T extends { method: string; reference?: stri
 
 export const paymentSchema = z
   .object({
+    operationId: financialOperationKeySchema,
     workOrderId: z.string().uuid("Work order is required."),
     amount: z.coerce.number().positive("Payment amount must be more than 0."),
     method: paymentMethodSchema,
@@ -36,6 +38,7 @@ export const paymentSchema = z
 
 export const packagePurchasePaymentSchema = z
   .object({
+    operationId: financialOperationKeySchema,
     customerPackageId: z.string().uuid("Customer package is required."),
     amount: z.coerce.number().positive("Payment amount must be more than 0."),
     method: paymentMethodSchema,
@@ -45,6 +48,7 @@ export const packagePurchasePaymentSchema = z
 
 export const salonAppointmentPaymentSchema = z
   .object({
+    operationId: financialOperationKeySchema,
     appointmentId: z.string().uuid("Appointment is required."),
     amount: optionalMoney,
     method: paymentMethodSchema,
@@ -100,4 +104,8 @@ export function toCents(value: unknown) {
 
 export function fromCents(value: number) {
   return (value / 100).toFixed(2);
+}
+
+export function sumMoneyAmounts(values: readonly unknown[]) {
+  return values.reduce<number>((total, value) => total + Number(value), 0);
 }

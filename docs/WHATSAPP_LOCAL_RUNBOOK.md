@@ -7,7 +7,7 @@ This guide explains how to run WashFlow locally with the database, Next.js app, 
 Open a PowerShell window in the project folder:
 
 ```powershell
-cd "C:\Users\oscar\Documents\Car wash CRM Pos"
+Set-Location "<repo-root>"
 npm.cmd run db:start
 ```
 
@@ -26,7 +26,7 @@ If the app shows `Can't reach database server at localhost:5432`, start this com
 Open a second PowerShell window:
 
 ```powershell
-cd "C:\Users\oscar\Documents\Car wash CRM Pos"
+Set-Location "<repo-root>"
 npm.cmd run dev
 ```
 
@@ -43,7 +43,7 @@ http://127.0.0.1:3000
 Open a third PowerShell window:
 
 ```powershell
-cd "C:\Users\oscar\Documents\Car wash CRM Pos"
+Set-Location "<repo-root>"
 npm.cmd run whatsapp:worker
 ```
 
@@ -130,7 +130,7 @@ Get-NetTCPConnection -LocalPort 5432 -State Listen
 Baileys stores the local WhatsApp session in:
 
 ```text
-C:\Users\oscar\Documents\Car wash CRM Pos\auth_info
+<repo-root>\auth_info
 ```
 
 If WhatsApp cannot reconnect or QR pairing behaves strangely, disconnect from WhatsApp settings first. Only clear `auth_info` when you intentionally want to reset the WhatsApp login session.

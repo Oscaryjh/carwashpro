@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "id": "kwsp-third-schedule-2025-10-independent-review",
+  "scheme": "EPF",
+  "artifactId": "kwsp-third-schedule-2025-10",
+  "artifactSha256": "c4904e44f0cb15a251a59e4f34c11a1ededa0868b962b2ebd9b81270285358b1",
+  "datasetId": "kwsp-third-schedule-2025-10-normalized-v1",
+  "baselineDatasetDigest": "17c6787a8b28fb0e1b30f9c350a70491a0f882e833b7cf17a3d1251acc45a4b3",
+  "certifiedDatasetDigest": "17c6787a8b28fb0e1b30f9c350a70491a0f882e833b7cf17a3d1251acc45a4b3",
+  "reviewMethod": "RENDERED_OFFICIAL_PDF_VISUAL_TABLE_REVIEW",
+  "reviewer": {
+    "id": "codex-epf-closure-second-path",
+    "type": "AI_ASSISTED_SECOND_PATH",
+    "independentFromExtraction": true
+  },
+  "reviewedAt": "2026-08-08T14:35:00.000Z",
+  "rowsChecked": {
+    "count": 1203,
+    "ranges": [
+      {
+        "from": "PART_A:0.01",
+        "to": "PART_A:20000.00",
+        "sourcePages": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20
+        ]
+      },
+      {
+        "from": "PART_C:0.01",
+        "to": "PART_C:20000.00",
+        "sourcePages": [
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37
+        ]
+      },
+      {
+        "from": "PART_E:0.01",
+        "to": "PART_E:20000.00",
+        "sourcePages": [
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53
+        ]
+      }
+    ]
+  },
+  "mismatches": [],
+  "status": "PASS",
+  "notes": "All 55 PDF pages were rendered. Every one of the 401 rows in Parts A, C and E was visually reviewed against the retained official artifact; Part F and all high-wage formula clauses were reviewed separately. This is AI-assisted technical review, not human, legal or government certification.",
+  "reviewDigest": "6d2edcf0deaa0af863715d33d95b1c6f252abb23d20624265e977e5c81bab541"
+}

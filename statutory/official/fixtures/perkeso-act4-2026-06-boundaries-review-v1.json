@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "id": "perkeso-act4-2026-06-boundaries-review-v1",
+  "scheme": "SOCSO",
+  "ruleVersion": "PERKESO_ACT4_SKBBK_2026_06",
+  "artifactId": "perkeso-act4-lindung24-2026-06",
+  "artifactSha256": "e76b2a03740f6da4a305919c677d4935a05e9166502e5f06afe1030b7407caa1",
+  "verificationStatus": "VERIFIED",
+  "fixtures": [
+    {
+      "id": "socso-act4-01-first",
+      "sourceReference": "official contribution schedule row 1",
+      "input": {
+        "wageCents": 3000,
+        "category": "FIRST"
+      },
+      "expected": {
+        "employeeCents": 10,
+        "employerCents": 40,
+        "matchedRowKey": "ACT4-01"
+      }
+    },
+    {
+      "id": "socso-act4-01-second",
+      "sourceReference": "official contribution schedule row 1",
+      "input": {
+        "wageCents": 3000,
+        "category": "SECOND"
+      },
+      "expected": {
+        "employeeCents": 0,
+        "employerCents": 30,
+        "matchedRowKey": "ACT4-01"
+      }
+    },
+    {
+      "id": "socso-act4-02-first",
+      "sourceReference": "official contribution schedule row 2",
+      "input": {
+        "wageCents": 5000,
+        "category": "FIRST"
+      },
+      "expected": {
+        "employeeCents": 20,
+        "employerCents": 70,
+        "matchedRowKey": "ACT4-02"
+      }
+    },
+    {
+      "id": "socso-act4-02-second",
+      "sourceReference": "official contribution schedule row 2",
+      "input": {
+        "wageCents": 5000,
+        "category": "SECOND"
+      },
+      "expected": {
+        "employeeCents": 0,
+        "employerCents": 50,
+        "matchedRowKey": "ACT4-02"
+      }
+    },
+    {
+      "id": "socso-act4-09-first",
+      "sourceReference": "official contribution schedule row 9",
+      "input": {
+        "wageCents": 50000,
+        "category": "FIRST"
+      },
+      "expected": {
+        "employeeCents": 225,
+        "employerCents": 785,
+        "matchedRowKey": "ACT4-09"
+      }
+    },
+    {
+      "id": "socso-act4-09-second",
+      "sourceReference": "official contribution schedule row 9",
+      "input": {
+        "wageCents": 50000,
+        "category": "SECOND"
+      },
+      "expected": {
+        "employeeCents": 0,
+        "employerCents": 560,
+        "matchedRowKey": "ACT4-09"
+      }
+    },
+    {
+      "id": "socso-act4-10-first",
+      "sourceReference": "official contribution schedule row 10",
+      "input": {
+        "wageCents": 60000,
+        "category": "FIRST"
+      },
+      "expected": {
+        "employeeCents": 275,
+        "employerCents": 965,
+        "matchedRowKey": "ACT4-10"
+      }
+    },
+    {
+      "id": "socso-act4-10-second",
+      "sourceReference": "official contribution schedule row 10",
+      "input": {
+        "wageCents": 60000,
+        "category": "SECOND"
+      },
+      "expected": {
+        "employeeCents": 0,
+        "employerCents": 690,
+        "matchedRowKey": "ACT4-10"
+      }
+    },
+    {
+      "id": "socso-act4-64-first",
+      "sourceReference": "official contribution schedule row 64",
+      "input": {
+        "wageCents": 600000,
+        "category": "FIRST"
+      },
+      "expected": {
+        "employeeCents": 2975,
+        "employerCents": 10415,
+        "matchedRowKey": "ACT4-64"
+      }
+    },
+    {
+      "id": "socso-act4-64-second",
+      "sourceReference": "official contribution schedule row 64",
+      "input": {
+        "wageCents": 600000,
+        "category": "SECOND"
+      },
+      "expected": {
+        "employeeCents": 0,
+        "employerCents": 7440,
+        "matchedRowKey": "ACT4-64"
+      }
+    },
+    {
+      "id": "socso-act4-65-first",
+      "sourceReference": "official contribution schedule row 65",
+      "input": {
+        "wageCents": 600001,
+        "category": "FIRST"
+      },
+      "expected": {
+        "employeeCents": 2975,
+        "employerCents": 10415,
+        "matchedRowKey": "ACT4-65"
+      }
+    },
+    {
+      "id": "socso-act4-65-second",
+      "sourceReference": "official contribution schedule row 65",
+      "input": {
+        "wageCents": 600001,
+        "category": "SECOND"
+      },
+      "expected": {
+        "employeeCents": 0,
+        "employerCents": 7440,
+        "matchedRowKey": "ACT4-65"
+      }
+    },
+    {
+      "id": "socso-act4-lowest-positive-first",
+      "sourceReference": "official contribution schedule row 1",
+      "input": { "wageCents": 1, "category": "FIRST" },
+      "expected": { "employeeCents": 10, "employerCents": 40, "matchedRowKey": "ACT4-01" }
+    },
+    {
+      "id": "socso-act4-lowest-positive-second",
+      "sourceReference": "official contribution schedule row 1",
+      "input": { "wageCents": 1, "category": "SECOND" },
+      "expected": { "employeeCents": 0, "employerCents": 30, "matchedRowKey": "ACT4-01" }
+    },
+    {
+      "id": "socso-act4-row-2-lower-first",
+      "sourceReference": "official contribution schedule row 2",
+      "input": { "wageCents": 3001, "category": "FIRST" },
+      "expected": { "employeeCents": 20, "employerCents": 70, "matchedRowKey": "ACT4-02" }
+    },
+    {
+      "id": "socso-act4-row-2-lower-second",
+      "sourceReference": "official contribution schedule row 2",
+      "input": { "wageCents": 3001, "category": "SECOND" },
+      "expected": { "employeeCents": 0, "employerCents": 50, "matchedRowKey": "ACT4-02" }
+    },
+    {
+      "id": "socso-act4-row-34-upper-first",
+      "sourceReference": "official contribution schedule row 34",
+      "input": { "wageCents": 300000, "category": "FIRST" },
+      "expected": { "employeeCents": 1475, "employerCents": 5165, "matchedRowKey": "ACT4-34" }
+    },
+    {
+      "id": "socso-act4-row-34-upper-second",
+      "sourceReference": "official contribution schedule row 34",
+      "input": { "wageCents": 300000, "category": "SECOND" },
+      "expected": { "employeeCents": 0, "employerCents": 3690, "matchedRowKey": "ACT4-34" }
+    },
+    {
+      "id": "socso-act4-row-35-lower-first",
+      "sourceReference": "official contribution schedule row 35",
+      "input": { "wageCents": 300001, "category": "FIRST" },
+      "expected": { "employeeCents": 1525, "employerCents": 5335, "matchedRowKey": "ACT4-35" }
+    },
+    {
+      "id": "socso-act4-row-35-lower-second",
+      "sourceReference": "official contribution schedule row 35",
+      "input": { "wageCents": 300001, "category": "SECOND" },
+      "expected": { "employeeCents": 0, "employerCents": 3810, "matchedRowKey": "ACT4-35" }
+    }
+  ],
+  "fixtureDigest": "d5108d72795b60067d2f1e1e408715f27c2b87f1290e79edccb3db561e5bfca5"
+}

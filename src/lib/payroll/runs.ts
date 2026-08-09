@@ -19,6 +19,7 @@ export type PayrollRunListItem = {
   grossPayroll: number;
   netPayroll: number;
   updatedAt: Date;
+  finalizedAt: Date | null;
 };
 
 export type PayrollRunsListData = {
@@ -42,7 +43,13 @@ export type PayrollRunEntryRow = {
   paidLeaveDays: number;
   unpaidLeaveDays: number;
   grossPay: number;
+  basicPay: number;
+  recurringPay: number;
+  variablePay: number;
+  adjustments: number;
+  deductions: number;
   netPay: number;
+  payslipPublished: boolean;
 };
 
 export type PayrollRunDetailData = {
@@ -56,11 +63,13 @@ export type PayrollRunDetailData = {
     breakMinutesPerDay: number;
     employeeCount: number;
     grossPayroll: number;
+    totalDeductions: number;
     netPayroll: number;
     submittedById: string | null;
     submittedAt: Date | null;
     finalizedAt: Date | null;
     hasStatutorySubmissions: boolean;
+    publishedPayslipCount: number;
     attendanceSource: "LEGACY_OPERATIONAL_SESSION" | "LOCKED_TIMESHEET_REVISION";
     attendanceTimesheetRevision: number | null;
     attendanceTimesheetLockedAt: Date | null;
@@ -99,6 +108,7 @@ export async function loadPayrollRunsList(
       periodEnd: true,
       status: true,
       updatedAt: true,
+      finalizedAt: true,
       entries: { select: { grossPay: true, netPay: true } },
     },
   });
@@ -113,6 +123,7 @@ export async function loadPayrollRunsList(
       grossPayroll: sumMoney(run.entries, "grossPay"),
       netPayroll: sumMoney(run.entries, "netPay"),
       updatedAt: run.updatedAt,
+      finalizedAt: run.finalizedAt,
     })),
     page,
     pageSize: PAYROLL_RUNS_PAGE_SIZE,
@@ -145,7 +156,7 @@ export async function loadPayrollRunDetail(
       attendanceTimesheetRevisionId: true,
       attendanceTimesheetRevisionSnapshot: true,
       attendanceTimesheetLockedAtSnapshot: true,
-      _count: { select: { statutorySubmissions: true } },
+      _count: { select: { statutorySubmissions: true, payslipPublications: true } },
       createdAt: true,
       updatedAt: true,
     },
@@ -217,6 +228,10 @@ export async function loadPayrollRunDetail(
       unpaidLeaveDays: true,
       grossPay: true,
       netPay: true,
+      components: {
+        select: { amount: true, origin: true, sourceType: true, type: true },
+      },
+      payslipPublication: { select: { id: true } },
     },
   });
 
@@ -231,11 +246,16 @@ export async function loadPayrollRunDetail(
       breakMinutesPerDay: run.breakMinutesPerDaySnapshot,
       employeeCount: allTotals._count._all,
       grossPayroll: money(allTotals._sum.grossPay),
+      totalDeductions: Math.max(
+        0,
+        money(allTotals._sum.grossPay) - money(allTotals._sum.netPay),
+      ),
       netPayroll: money(allTotals._sum.netPay),
       submittedById: run.submittedById,
       submittedAt: run.submittedAt,
       finalizedAt: run.finalizedAt,
       hasStatutorySubmissions: run._count.statutorySubmissions > 0,
+      publishedPayslipCount: run._count.payslipPublications,
       attendanceSource: run.attendanceSource,
       attendanceTimesheetRevision: run.attendanceTimesheetRevisionSnapshot,
       attendanceTimesheetLockedAt: run.attendanceTimesheetLockedAtSnapshot,
@@ -243,21 +263,35 @@ export async function loadPayrollRunDetail(
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
     },
-    entries: entries.map((entry) => ({
-      id: entry.id,
-      membershipId: entry.membershipId,
-      employeeCode: entry.employeeCodeSnapshot,
-      fullName: entry.fullNameSnapshot,
-      payBasis: entry.payBasisSnapshot,
-      attendanceDays: entry.attendanceDays,
-      regularMinutes: entry.regularMinutes,
-      overtimeMinutes: entry.overtimeMinutes,
-      publicHolidayMinutes: entry.publicHolidayMinutes,
-      paidLeaveDays: money(entry.paidLeaveDays),
-      unpaidLeaveDays: money(entry.unpaidLeaveDays),
-      grossPay: money(entry.grossPay),
-      netPay: money(entry.netPay),
-    })),
+    entries: entries.map((entry) => {
+      const signed = (sourceTypes: string[]) => entry.components.reduce(
+        (total, component) => sourceTypes.includes(component.sourceType)
+          ? total + (component.type === "EARNING" ? money(component.amount) : -money(component.amount))
+          : total,
+        0,
+      );
+      return {
+        id: entry.id,
+        membershipId: entry.membershipId,
+        employeeCode: entry.employeeCodeSnapshot,
+        fullName: entry.fullNameSnapshot,
+        payBasis: entry.payBasisSnapshot,
+        attendanceDays: entry.attendanceDays,
+        regularMinutes: entry.regularMinutes,
+        overtimeMinutes: entry.overtimeMinutes,
+        publicHolidayMinutes: entry.publicHolidayMinutes,
+        paidLeaveDays: money(entry.paidLeaveDays),
+        unpaidLeaveDays: money(entry.unpaidLeaveDays),
+        grossPay: money(entry.grossPay),
+        basicPay: signed(["BASIC_SALARY", "ATTENDANCE"]),
+        recurringPay: signed(["RECURRING_PAY"]),
+        variablePay: signed(["VARIABLE_PAY"]),
+        adjustments: signed(["MANUAL_ADJUSTMENT", "CORRECTION"]),
+        deductions: Math.max(0, money(entry.grossPay) - money(entry.netPay)),
+        netPay: money(entry.netPay),
+        payslipPublished: Boolean(entry.payslipPublication),
+      };
+    }),
     query,
     page,
     pageSize: PAYROLL_ENTRIES_PAGE_SIZE,

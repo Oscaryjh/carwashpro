@@ -7,6 +7,7 @@ import {
   voidInvoiceAction,
   type VoidInvoiceState,
 } from "@/app/(business)/invoices/actions";
+import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
 
 type VoidInvoiceFormProps = {
   invoiceId: string;
@@ -29,13 +30,15 @@ export function VoidInvoiceForm({
     voidInvoiceAction,
     initialState,
   );
+  const { operationId, rotateOperationId } = useFinancialOperationId("invoice-void");
 
   useEffect(() => {
     if (state.status === "success") {
+      rotateOperationId();
       router.refresh();
       onSuccess?.();
     }
-  }, [onSuccess, router, state.status]);
+  }, [onSuccess, rotateOperationId, router, state.status]);
 
   return (
     <form
@@ -52,6 +55,7 @@ export function VoidInvoiceForm({
       }}
     >
       <input type="hidden" name="invoiceId" value={invoiceId} />
+      <input type="hidden" name="operationId" value={operationId} />
       <label>
         <span>Void reason</span>
         <textarea

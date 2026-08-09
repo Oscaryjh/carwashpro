@@ -45,6 +45,7 @@ test("payment does not participate in the job status transition rules", () => {
 });
 
 test("cashier sale allows products and packages while services require an appointment", () => {
+  const operationId = "checkout:11111111-1111-4111-8111-111111111111";
   const productId = "11111111-1111-4111-8111-111111111111";
   const packageId = "22222222-2222-4222-8222-222222222222";
   const customerId = "33333333-3333-4333-8333-333333333333";
@@ -54,6 +55,7 @@ test("cashier sale allows products and packages while services require an appoin
 
   assert.equal(
     cashierSaleSchema.safeParse({
+      operationId,
       branchId: "",
       customerId: "",
       method: "CASH",
@@ -66,6 +68,7 @@ test("cashier sale allows products and packages while services require an appoin
   );
   assert.equal(
     cashierSaleSchema.safeParse({
+      operationId,
       branchId: "",
       customerId: "",
       method: "CASH",
@@ -78,6 +81,7 @@ test("cashier sale allows products and packages while services require an appoin
   );
   assert.equal(
     cashierSaleSchema.safeParse({
+      operationId,
       branchId: "",
       customerId,
       method: "DUITNOW",
@@ -91,6 +95,7 @@ test("cashier sale allows products and packages while services require an appoin
   );
   assert.equal(
     cashierSaleSchema.safeParse({
+      operationId,
       assignedStaffId: staffId,
       branchId: "",
       customerId: "",
@@ -106,6 +111,7 @@ test("cashier sale allows products and packages while services require an appoin
   );
   assert.equal(
     cashierSaleSchema.safeParse({
+      operationId,
       assignedStaffId: "",
       branchId: "",
       customerId,
@@ -121,6 +127,7 @@ test("cashier sale allows products and packages while services require an appoin
   );
   assert.equal(
     cashierSaleSchema.safeParse({
+      operationId,
       assignedStaffId: staffId,
       branchId: "",
       customerId,
@@ -136,6 +143,7 @@ test("cashier sale allows products and packages while services require an appoin
   );
   assert.equal(
     cashierSaleSchema.safeParse({
+      operationId,
       appointmentId,
       assignedStaffId: staffId,
       branchId: "",
@@ -158,6 +166,7 @@ test("cashier sale requires a customer before redeeming an existing package", ()
   const customerPackageBalanceId = "33333333-3333-4333-8333-333333333333";
   const staffId = "44444444-4444-4444-8444-444444444444";
   const baseSale = {
+    operationId: "checkout:22222222-2222-4222-8222-222222222222",
     appointmentId: "55555555-5555-4555-8555-555555555555",
     assignedStaffId: staffId,
     branchId: "",
@@ -246,6 +255,7 @@ test("cashier discounts require a reference and loyalty redemption requires a cu
   const productId = "11111111-1111-4111-8111-111111111111";
   const catalogDiscountId = "33333333-3333-4333-8333-333333333333";
   const baseSale = {
+    operationId: "checkout:33333333-3333-4333-8333-333333333333",
     branchId: "",
     customerId: "",
     method: "CASH" as const,
@@ -298,10 +308,12 @@ test("cashier discounts require a reference and loyalty redemption requires a cu
 
 test("salon appointment payments support partial payment and protect non-cash references", () => {
   const appointmentId = "11111111-1111-4111-8111-111111111111";
+  const operationId = "appointment-payment:11111111-1111-4111-8111-111111111111";
   const catalogDiscountId = "33333333-3333-4333-8333-333333333333";
 
   assert.equal(
     salonAppointmentPaymentSchema.safeParse({
+      operationId,
       appointmentId,
       amount: "25.50",
       method: "CASH",
@@ -310,6 +322,7 @@ test("salon appointment payments support partial payment and protect non-cash re
   );
   assert.equal(
     salonAppointmentPaymentSchema.safeParse({
+      operationId,
       appointmentId,
       amount: "25.50",
       method: "CASH",
@@ -319,6 +332,7 @@ test("salon appointment payments support partial payment and protect non-cash re
   );
   assert.equal(
     salonAppointmentPaymentSchema.safeParse({
+      operationId,
       appointmentId,
       amount: 25.5,
       method: "DUITNOW",
@@ -327,6 +341,7 @@ test("salon appointment payments support partial payment and protect non-cash re
   );
   assert.equal(
     salonAppointmentPaymentSchema.safeParse({
+      operationId,
       appointmentId,
       amount: 0,
       method: "CASH",
@@ -340,6 +355,7 @@ test("salon appointment payments support partial payment and protect non-cash re
   );
   assert.equal(
     salonAppointmentPaymentSchema.safeParse({
+      operationId,
       appointmentId,
       amount: 0,
       method: "CASH",
@@ -349,6 +365,7 @@ test("salon appointment payments support partial payment and protect non-cash re
   );
   assert.equal(
     salonAppointmentPaymentSchema.safeParse({
+      operationId,
       appointmentId,
       amount: 0,
       method: "CASH",
@@ -357,6 +374,7 @@ test("salon appointment payments support partial payment and protect non-cash re
   );
   assert.equal(
     salonAppointmentPaymentSchema.safeParse({
+      operationId,
       appointmentId,
       amount: 25,
       method: "CASH",
@@ -366,6 +384,7 @@ test("salon appointment payments support partial payment and protect non-cash re
   );
   assert.equal(
     salonAppointmentPaymentSchema.safeParse({
+      operationId,
       appointmentId,
       amount: 25,
       method: "CASH",
@@ -658,6 +677,7 @@ test("legacy work order numbers are shortened for display", () => {
 
 test("cashier package purchases bind to a customer account, not a vehicle", () => {
   const baseInput = {
+    operationId: "package-purchase:11111111-1111-4111-8111-111111111111",
     branchId: "00000000-0000-4000-8000-000000000001",
     customerId: "00000000-0000-4000-8000-000000000002",
     method: "CASH" as const,

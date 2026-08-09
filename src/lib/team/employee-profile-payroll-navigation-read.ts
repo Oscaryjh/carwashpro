@@ -73,6 +73,7 @@ export async function loadEmployeePayrollNavigationSection(
           businessId: input.businessId,
           membershipId: input.membershipId,
           payrollRun: { status: "FINALIZED" },
+          payslipPublication: { isNot: null },
         },
         orderBy: { payrollRun: { periodStart: "desc" } },
         select: {

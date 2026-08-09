@@ -672,21 +672,43 @@ async function createRun(
     },
   });
   for (const [membership, netPay] of entries) {
-    await prisma.payrollEntry.create({
-      data: {
-        baseRateSnapshot: "2000.00",
-        basicPay: netPay,
-        businessId,
-        employeeCodeSnapshot: membership.employeeCode,
-        fullNameSnapshot: membership.fullName,
-        grossPay: netPay,
-        membershipId: membership.id,
-        netPay,
-        normalWorkMinutesSnapshot: 480,
-        payBasisSnapshot: "MONTHLY",
-        payrollRunId: run.id,
-        workingDaysSnapshot: 26,
-      },
+    await prisma.$transaction(async (transaction) => {
+      const entry = await transaction.payrollEntry.create({
+        data: {
+          baseRateSnapshot: "2000.00",
+          basicPay: netPay,
+          businessId,
+          employeeCodeSnapshot: membership.employeeCode,
+          fullNameSnapshot: membership.fullName,
+          grossPay: netPay,
+          membershipId: membership.id,
+          netPay,
+          normalWorkMinutesSnapshot: 480,
+          payBasisSnapshot: "MONTHLY",
+          payrollRunId: run.id,
+          workingDaysSnapshot: 26,
+        },
+      });
+      if (Number(netPay) > 0) {
+        await transaction.payrollEntryComponent.create({
+          data: {
+            amount: netPay,
+            businessId,
+            calculationBasis: "PAYMENT_FOUNDATION_FIXTURE",
+            code: "PAYMENT_FIXTURE",
+            createdById: ownerId,
+            lineKey: "SYSTEM:PAYMENT_FIXTURE",
+            membershipId: membership.id,
+            name: "Payment Fixture Gross",
+            origin: "SYSTEM",
+            payrollEntryId: entry.id,
+            payrollRunId: run.id,
+            sortOrder: 10,
+            sourceType: "PAYROLL_CALCULATION",
+            type: "EARNING",
+          },
+        });
+      }
     });
   }
   if (!finalized) return run;

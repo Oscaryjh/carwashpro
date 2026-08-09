@@ -157,6 +157,19 @@ export function CashierUnifiedSaleForm({
     ? `/cashier?appointmentId=${encodeURIComponent(appointmentSale.appointmentId)}`
     : "/cashier";
   const shiftDraftKey = `cashier-shift-draft:${appointmentSale?.appointmentId ?? "direct"}`;
+  const operationStorageKey = `cashier-operation:${appointmentSale?.appointmentId ?? "direct"}`;
+  const [operationId, setOperationId] = useState("");
+
+  useEffect(() => {
+    const stored = window.sessionStorage.getItem(operationStorageKey);
+    if (stored) {
+      setOperationId(stored);
+      return;
+    }
+    const created = `checkout:${crypto.randomUUID()}`;
+    setOperationId(created);
+    window.sessionStorage.setItem(operationStorageKey, created);
+  }, [operationId, operationStorageKey]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
@@ -590,6 +603,8 @@ export function CashierUnifiedSaleForm({
     }
 
     setCompletedInvoice(result.invoice);
+    window.sessionStorage.removeItem(operationStorageKey);
+    setOperationId(`checkout:${crypto.randomUUID()}`);
     if (!appointmentSale) {
       setLines([]);
       setCustomer(null);
@@ -628,6 +643,7 @@ export function CashierUnifiedSaleForm({
         </div>
       ) : null}
       <form action={submitSale} className={`${styles.posShell} ${styles.formalShell}`}>
+      <input name="operationId" type="hidden" value={operationId} />
       <section aria-label="Sale catalog" className={styles.catalogPanel}>
         <header className={styles.panelHeader}>
           <div>

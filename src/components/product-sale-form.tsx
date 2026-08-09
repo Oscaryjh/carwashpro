@@ -6,6 +6,8 @@ import { ProductPicker } from "@/components/product-picker";
 import { SaleTaxSummary } from "@/components/sale-tax-summary";
 import type { BranchOption } from "@/lib/branches";
 import { calculateTax, type TaxDisplaySettings } from "@/lib/tax/calculator";
+import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
+import { FinancialSubmitButton } from "@/components/financial-submit-button";
 
 export type ProductSaleOption = {
   categoryId?: string | null;
@@ -49,6 +51,7 @@ export function ProductSaleForm({
   const [branchId, setBranchId] = useState(initialBranchId ?? branches[0]?.id ?? "");
   const [method, setMethod] = useState("CASH");
   const [openPickerIndex, setOpenPickerIndex] = useState<number | null>(null);
+  const { operationId } = useFinancialOperationId("product-sale");
   const totalItems = useMemo(() => lines.reduce((sum, line) => sum + line.quantity, 0), [lines]);
   const tax = useMemo(() => calculateTax({
     sstEnabled: taxSettings.enabled,
@@ -114,6 +117,7 @@ export function ProductSaleForm({
 
   return (
     <form action={action} className="product-sale-form">
+      <input name="operationId" type="hidden" value={operationId} />
       <div className="product-sale-section">
         <h3>Customer optional</h3>
         <p className="field-helper">Link the sale to a customer to send the receipt and earn loyalty points.</p>
@@ -208,7 +212,14 @@ export function ProductSaleForm({
         {method !== "CASH" ? <label><span>Reference</span><input name="reference" placeholder="Receipt or transaction reference" required /></label> : null}
       </div>
       <input name="returnTo" type="hidden" value={returnTo} />
-      <div className="form-actions"><button disabled={!lines.length || !branches.length || lines.some((line) => !line.productId || line.quantity > (products.find((product) => product.id === line.productId)?.stock.find((stock) => stock.branchId === branchId)?.quantity ?? 0))} type="submit">Pay RM{tax.total.toFixed(2)}</button></div>
+      <div className="form-actions">
+        <FinancialSubmitButton
+          disabled={!lines.length || !branches.length || lines.some((line) => !line.productId || line.quantity > (products.find((product) => product.id === line.productId)?.stock.find((stock) => stock.branchId === branchId)?.quantity ?? 0))}
+          pendingLabel="Processing sale..."
+        >
+          Pay RM{tax.total.toFixed(2)}
+        </FinancialSubmitButton>
+      </div>
     </form>
   );
 }

@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "id": "perkeso-act800-2024-10-boundaries-review-v1",
+  "scheme": "EIS",
+  "ruleVersion": "PERKESO_ACT800_2024_10",
+  "artifactId": "perkeso-act800-2024-10",
+  "artifactSha256": "3499fec4271b45ae3e3055b2071075f96f65dc451775ed23adf39f9deec5376a",
+  "verificationStatus": "VERIFIED",
+  "fixtures": [
+    {
+      "id": "eis-act800-01",
+      "sourceReference": "official image table row 1",
+      "input": {
+        "wageCents": 3000
+      },
+      "expected": {
+        "employeeCents": 5,
+        "employerCents": 5,
+        "matchedRowKey": "ACT800-01"
+      }
+    },
+    {
+      "id": "eis-act800-02",
+      "sourceReference": "official image table row 2",
+      "input": {
+        "wageCents": 5000
+      },
+      "expected": {
+        "employeeCents": 10,
+        "employerCents": 10,
+        "matchedRowKey": "ACT800-02"
+      }
+    },
+    {
+      "id": "eis-act800-09",
+      "sourceReference": "official image table row 9",
+      "input": {
+        "wageCents": 50000
+      },
+      "expected": {
+        "employeeCents": 90,
+        "employerCents": 90,
+        "matchedRowKey": "ACT800-09"
+      }
+    },
+    {
+      "id": "eis-act800-10",
+      "sourceReference": "official image table row 10",
+      "input": {
+        "wageCents": 60000
+      },
+      "expected": {
+        "employeeCents": 110,
+        "employerCents": 110,
+        "matchedRowKey": "ACT800-10"
+      }
+    },
+    {
+      "id": "eis-act800-64",
+      "sourceReference": "official image table row 64",
+      "input": {
+        "wageCents": 600000
+      },
+      "expected": {
+        "employeeCents": 1190,
+        "employerCents": 1190,
+        "matchedRowKey": "ACT800-64"
+      }
+    },
+    {
+      "id": "eis-act800-65",
+      "sourceReference": "official image table row 65",
+      "input": {
+        "wageCents": 600001
+      },
+      "expected": {
+        "employeeCents": 1190,
+        "employerCents": 1190,
+        "matchedRowKey": "ACT800-65"
+      }
+    },
+    {
+      "id": "eis-act800-lowest-positive",
+      "sourceReference": "official image table row 1",
+      "input": { "wageCents": 1 },
+      "expected": { "employeeCents": 5, "employerCents": 5, "matchedRowKey": "ACT800-01" }
+    },
+    {
+      "id": "eis-act800-row-2-lower",
+      "sourceReference": "official image table row 2",
+      "input": { "wageCents": 3001 },
+      "expected": { "employeeCents": 10, "employerCents": 10, "matchedRowKey": "ACT800-02" }
+    },
+    {
+      "id": "eis-act800-row-3-lower",
+      "sourceReference": "official image table row 3",
+      "input": { "wageCents": 5001 },
+      "expected": { "employeeCents": 15, "employerCents": 15, "matchedRowKey": "ACT800-03" }
+    },
+    {
+      "id": "eis-act800-row-34-upper",
+      "sourceReference": "official image table row 34",
+      "input": { "wageCents": 300000 },
+      "expected": { "employeeCents": 590, "employerCents": 590, "matchedRowKey": "ACT800-34" }
+    },
+    {
+      "id": "eis-act800-row-35-lower",
+      "sourceReference": "official image table row 35",
+      "input": { "wageCents": 300001 },
+      "expected": { "employeeCents": 610, "employerCents": 610, "matchedRowKey": "ACT800-35" }
+    }
+  ],
+  "fixtureDigest": "1f021e40a3da7db41f16b2ad9a1e175f790b5b458d12e2e878994586fc7f7086"
+}

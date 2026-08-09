@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "kwsp-third-schedule-2025-10-golden-certification",
+  "fixtureSetId": "kwsp-third-schedule-2025-10-golden-v1",
+  "scheme": "EPF",
+  "effectiveFrom": "2025-10-01",
+  "effectiveTo": null,
+  "artifactId": "kwsp-third-schedule-2025-10",
+  "artifactSha256": "c4904e44f0cb15a251a59e4f34c11a1ededa0868b962b2ebd9b81270285358b1",
+  "datasetId": "kwsp-third-schedule-2025-10-normalized-v1",
+  "datasetDigest": "17c6787a8b28fb0e1b30f9c350a70491a0f882e833b7cf17a3d1251acc45a4b3",
+  "fixtureDigest": "c087a139b15eed9eadcba55ad99c3131eb67230acb81712744ee9f4c99487860",
+  "fixtureCount": 21,
+  "officialReferences": [
+    "KWSP Third Schedule effective 1 October 2025, Parts A, C, E and F",
+    "KWSP official Third Schedule landing page last updated 26 May 2026"
+  ],
+  "reviewStatus": "VERIFIED",
+  "reviewedBy": {
+    "id": "codex-epf-closure-second-path",
+    "type": "AI_ASSISTED_SECOND_PATH"
+  },
+  "reviewedAt": "2026-08-08T14:35:00.000Z",
+  "notes": "Technical golden certification only. Human classification sign-off remains mandatory before activation.",
+  "certificationDigest": "313a5094a6ff36301668ecc26093ff329ae4a80d820194f6f3b87aa25061ef72"
+}

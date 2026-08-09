@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "perkeso-act4-2026-06-golden-certification-v1",
+  "fixtureSetId": "perkeso-act4-2026-06-boundaries-review-v1",
+  "scheme": "SOCSO",
+  "effectiveFrom": "2026-06-01",
+  "effectiveTo": null,
+  "artifactId": "perkeso-act4-lindung24-2026-06",
+  "artifactSha256": "e76b2a03740f6da4a305919c677d4935a05e9166502e5f06afe1030b7407caa1",
+  "datasetId": "perkeso-act4-lindung24-2026-06-v1",
+  "datasetDigest": "1e1b17a332e2b596b1efa85c075428c54b16d059730726e3f67cef710f334460",
+  "fixtureDigest": "d5108d72795b60067d2f1e1e408715f27c2b87f1290e79edccb3db561e5bfca5",
+  "fixtureCount": 20,
+  "officialReferences": [
+    "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/NewContributionRateIncludingSKBBK.pdf#pages=1-8",
+    "official contribution schedule rows 1, 2, 9, 10, 34, 35, 64 and 65"
+  ],
+  "reviewStatus": "VERIFIED",
+  "reviewedBy": {
+    "id": "codex-agent-p2c-visual-review",
+    "type": "AI_ASSISTED_SECOND_PATH"
+  },
+  "reviewedAt": "2026-08-08T12:48:03Z",
+  "notes": "Expected employee and employer amounts are direct official schedule-row values. Fixtures cover the lowest positive wage, exact bounds, next-cent crossings, middle rows, both categories, ceiling and above ceiling.",
+  "certificationDigest": "098b2f145516aaa3f0e21779dae3362ff1b480f5bf9a2f415c16e1b1a0c1d0ba"
+}

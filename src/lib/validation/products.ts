@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { financialOperationKeySchema } from "@/lib/financial-idempotency";
 
 const optionalMoney = z.preprocess(
   (value) => (value === "" || value == null ? undefined : value),
@@ -19,6 +20,7 @@ export const productSchema = z.object({
 
 export const productSaleSchema = z
   .object({
+    operationId: financialOperationKeySchema,
     branchId: z.string().uuid("Branch is invalid.").optional().or(z.literal("")),
     customerId: z.string().uuid("Customer is invalid.").optional().or(z.literal("")),
     method: z.enum(["CASH", "CARD", "DUITNOW", "EWALLET", "BANK_TRANSFER"]),

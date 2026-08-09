@@ -29,7 +29,7 @@ export default async function WorkOrderDetailsPage({
   params,
   searchParams,
 }: WorkOrderDetailsPageProps) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUser("VIEW_WORK_ORDERS");
   const { workOrderId } = await params;
   const { error, saved } = await searchParams;
   const workOrder = await prisma.workOrder.findFirst({

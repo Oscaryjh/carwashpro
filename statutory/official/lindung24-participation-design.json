@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "id": "lindung24-participation-design-2026-p2c-v1",
+  "status": "DESIGN_COMPLETE_IMPLEMENTATION_REQUIRED",
+  "activationStatus": "BLOCKED",
+  "decision": "A versioned participation model is required. EmployeeStatutoryProfileVersion.lindung24OptIn is not sufficient evidence for production calculation.",
+  "officialSources": [
+    {
+      "artifactId": "perkeso-lindung24-faq-2026-06-v2.1",
+      "artifactSha256": "a7b212187d5a66934e9dc5f0369d1bf45ff97d81adeac1031600358957b87fab",
+      "references": ["FAQ questions 3, 5-11, 14-16, 18-24 and page 16 item x"]
+    },
+    {
+      "url": "https://www.perkeso.gov.my/?Itemid=2019&id=990&option=com_content&view=article",
+      "references": ["Contribution Rate", "Type of Contribution", "Participation Status Update Form"]
+    }
+  ],
+  "confirmedTransitions": [
+    {
+      "period": "2026-06 payroll month",
+      "treatment": "MANDATORY_FOR_ALL_ELIGIBLE_EMPLOYEES",
+      "notes": "FAQ questions 9 and 10 state June 2026 contributions remain mandatory and non-refundable."
+    },
+    {
+      "period": "from 2026-07-08",
+      "treatment": "FOREIGN_MANDATORY_LOCAL_VOLUNTARY",
+      "notes": "FAQ question 3 states this category split. Local workers are default-in unless a valid opt-out is recorded."
+    },
+    {
+      "period": "through 2026-08-31",
+      "treatment": "LOCAL_OPT_OUT_WINDOW",
+      "notes": "FAQ questions 7 and 8 establish the deadline and once-in-always-in consequence."
+    }
+  ],
+  "requiredCanonicalModel": {
+    "name": "EmployeeLindung24ParticipationVersion",
+    "fields": [
+      "employeeMembershipId",
+      "participationStatus",
+      "employeeCategory",
+      "effectiveFrom",
+      "effectiveTo",
+      "selectedEmployerMembershipId",
+      "sourceType",
+      "sourceReference",
+      "reason",
+      "recordedById",
+      "recordedAt",
+      "revision",
+      "sourceDigest"
+    ],
+    "statuses": [
+      "MANDATORY",
+      "VOLUNTARY_OPT_IN",
+      "VOLUNTARY_OPT_OUT",
+      "NOT_ELIGIBLE",
+      "UNKNOWN"
+    ],
+    "rules": [
+      "Versions cannot overlap for the same employee membership.",
+      "UNKNOWN and missing evidence block calculation.",
+      "Foreign employees cannot be represented as voluntary opt-out.",
+      "An opt-in after opt-out takes effect at the official submission timestamp and is not silently reversed.",
+      "Only one selected employer may deduct for a worker with multiple employers.",
+      "Historical payroll snapshots retain the exact participation version and selected employer."
+    ]
+  },
+  "remainingBlockers": [
+    "No database-backed participation-version model exists.",
+    "No canonical selected-employer evidence exists for multi-employer workers.",
+    "July 2026 refund and payroll-period reconciliation has not been implemented.",
+    "Once-in-always-in enforcement and official submission timestamp ingestion are not implemented.",
+    "All LINDUNG24 component classifications remain UNKNOWN."
+  ],
+  "designDigest": "d6e335dc07bef54e6fc5f2513016ae16d828f59c86fe4baac959a4064cad31f3"
+}

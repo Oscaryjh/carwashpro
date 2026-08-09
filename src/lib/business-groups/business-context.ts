@@ -68,7 +68,13 @@ type ContextDatabase = Pick<
 >;
 
 type ContextTransaction = ContextDatabase &
-  Pick<Prisma.TransactionClient, "businessGroupAuditLog" | "$queryRaw">;
+  Pick<
+    Prisma.TransactionClient,
+    | "businessGroupAuditLog"
+    | "authSession"
+    | "authSecurityEvent"
+    | "$queryRaw"
+  >;
 
 type ContextRootDatabase = ContextDatabase & {
   $transaction<T>(
@@ -78,7 +84,10 @@ type ContextRootDatabase = ContextDatabase & {
 
 type CommitSwitchDependencies = {
   database?: ContextRootDatabase;
-  writeSession?: (session: CreateSessionInput) => Promise<void>;
+  writeSession?: (
+    session: CreateSessionInput,
+    transaction: ContextTransaction,
+  ) => Promise<void>;
 };
 
 export type CommitBusinessContextSwitchResult =
@@ -424,7 +433,10 @@ export async function commitBusinessContextSwitch(
   dependencies: CommitSwitchDependencies = {},
 ): Promise<CommitBusinessContextSwitchResult> {
   const database = dependencies.database ?? (prisma as ContextRootDatabase);
-  const writeSession = dependencies.writeSession ?? createSession;
+  const writeSession =
+    dependencies.writeSession ??
+    ((session: CreateSessionInput, transaction: ContextTransaction) =>
+      createSession(session, { database: transaction }));
   const initialAuthorization = await authorizeBusinessContextTarget(
     input.session.userId,
     input.targetBusinessId,
@@ -526,7 +538,7 @@ export async function commitBusinessContextSwitch(
 
     // The cookie write stays inside the transaction callback. If it throws,
     // Prisma rolls back the audit instead of recording a switch that failed.
-    await writeSession(nextSession);
+    await writeSession(nextSession, transaction);
 
     return {
       ok: true,

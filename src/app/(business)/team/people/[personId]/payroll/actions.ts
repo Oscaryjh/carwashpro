@@ -13,6 +13,7 @@ import {
   payrollProfileReasonTypeSchema,
 } from "@/lib/payroll/employee-profile-write/common";
 import { PayrollProfileWriteError } from "@/lib/payroll/employee-profile-write/types";
+import { scheduleRecurringPayComponent } from "@/lib/payroll/recurring-pay";
 import { findSalaryBank } from "@/lib/payroll/payment/bank-directory";
 import {
   createEmployeeBankVersion,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/payroll/employee-profile-write/work-target";
 import { updateEmployeeStatutoryProfile } from "@/lib/payroll/employee-profile-write/statutory";
 import { updateEmployeeTaxProfile } from "@/lib/payroll/employee-profile-write/tax";
+import { recordEmployeeLindung24Participation } from "@/lib/payroll/lindung24-participation-service";
 
 const reasonSchema = z.object({
   reasonNote: z.string().trim().min(5, "Enter a reason of at least 5 characters.").max(500),
@@ -38,6 +40,22 @@ const compensationSchema = z.object({
   expectedRevision: z.coerce.number().int().min(0),
   membershipId: z.string().uuid(),
   payBasis: z.enum(["MONTHLY", "DAILY", "HOURLY"]),
+}).and(reasonSchema);
+
+const recurringPaySchema = z.object({
+  amount: z.string().trim().regex(/^\d+(?:\.\d{1,2})?$/, "Enter a valid positive RM amount."),
+  code: z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9_]{1,63}$/, "Use an uppercase component code."),
+  commandId: z.string().trim().min(1).max(128),
+  componentId: z.preprocess(
+    (value) => typeof value === "string" && value.trim() === "" ? null : value,
+    z.string().uuid().nullable(),
+  ),
+  effectiveFromMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  expectedRevision: z.coerce.number().int().min(0),
+  membershipId: z.string().uuid(),
+  name: z.string().trim().min(1).max(120),
+  operation: z.enum(["SET", "END"]),
+  type: z.enum(["EARNING", "DEDUCTION"]),
 }).and(reasonSchema);
 
 const optionalMinutes = z.preprocess(
@@ -74,6 +92,30 @@ const statutoryProfileSchema = z.object({
     .enum(["MALAYSIAN", "PERMANENT_RESIDENT", "NON_MALAYSIAN"])
     .nullable(),
 }).and(reasonSchema);
+
+const lindung24ParticipationSchema = z.object({
+  act4Covered: z.enum(["true", "false"]).transform((value) => value === "true"),
+  effectiveFromMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  employerContext: z.enum(["SINGLE_EMPLOYER", "MULTIPLE_EMPLOYER"]),
+  expectedRevision: z.coerce.number().int().min(0),
+  membershipId: z.string().uuid(),
+  officialSubmittedAt: z.preprocess(
+    (value) => typeof value === "string" && value.trim() === "" ? null : value,
+    z.coerce.date().nullable(),
+  ),
+  reason: z.string().trim().min(5).max(500),
+  selectedEmployer: z.enum(["CURRENT_BUSINESS", "OTHER_EMPLOYER", "PERKESO_SELECTION_PENDING"]),
+  sourceReference: z.string().trim().min(5).max(500),
+  sourceType: z.enum([
+    "OFFICIAL_TRANSITION",
+    "EMPLOYEE_OPT_IN",
+    "EMPLOYEE_OPT_OUT",
+    "PERKESO_EMPLOYER_SELECTION",
+    "EMPLOYMENT_CHANGE",
+    "LEGACY_REVIEW",
+  ]),
+  status: z.enum(["MANDATORY", "DEFAULT_PARTICIPATING", "VOLUNTARY_OPT_IN", "VOLUNTARY_OPT_OUT"]),
+});
 
 const replacementIdentifier = z
   .string()
@@ -162,6 +204,46 @@ export async function scheduleEmployeeCompensationChangeAction(formData: FormDat
   }
 }
 
+export async function scheduleEmployeeRecurringPayAction(formData: FormData) {
+  let membershipId = safeMembershipId(formData.get("membershipId"));
+  try {
+    const input = recurringPaySchema.parse(Object.fromEntries(formData));
+    membershipId = input.membershipId;
+    const context = await requireWholeBusinessPayroll("EDIT_COMPENSATION");
+    const result = await scheduleRecurringPayComponent({
+      command: {
+        ...input,
+        effectiveFromMonth: new Date(`${input.effectiveFromMonth}-01T00:00:00.000Z`),
+        source: "MANUAL",
+      },
+      context: {
+        access: context.access,
+        actor: context.user,
+        allowedBranchIds: context.allowedBranchIds,
+        businessId: context.businessId,
+        caller: "EMPLOYEE_ACTION",
+        request: await getAuditRequestContext(),
+      },
+    });
+    revalidatePayrollProfile(membershipId);
+    redirect(profileNoticeUrl(membershipId, {
+      affectedDrafts: result.affectedDrafts,
+      effectiveMonth: result.effectiveFromMonth,
+      kind: "compensation",
+      message: result.message,
+      newRevision: result.newRevision,
+      status: "success",
+    }));
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirect(profileNoticeUrl(membershipId, {
+      kind: "compensation",
+      message: publicWriteError(error),
+      status: "error",
+    }));
+  }
+}
+
 export async function updateEmployeePayrollWorkTargetAction(formData: FormData) {
   let membershipId = safeMembershipId(formData.get("membershipId"));
   try {
@@ -229,7 +311,7 @@ export async function updateEmployeeStatutoryProfileAction(formData: FormData) {
         epfMemberBeforeAug1998:
           epfEnabled && formData.has("epfMemberBeforeAug1998"),
         lindung24OptIn:
-          socsoEnabled && formData.has("lindung24OptIn"),
+          socsoEnabled && formData.get("lindung24OptIn") === "on",
         socsoCategory: socsoEnabled ? input.socsoCategory : null,
         socsoEnabled,
       },
@@ -255,6 +337,55 @@ export async function updateEmployeeStatutoryProfileAction(formData: FormData) {
       status: "success",
       newRevision: result.newRevision,
       reviewCount: result.reviewCount,
+    }));
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirect(profileNoticeUrl(membershipId, {
+      kind: "statutory",
+      message: publicWriteError(error),
+      status: "error",
+    }));
+  }
+}
+
+export async function recordEmployeeLindung24ParticipationAction(formData: FormData) {
+  let membershipId = safeMembershipId(formData.get("membershipId"));
+  try {
+    const command = lindung24ParticipationSchema.parse({
+      act4Covered: formData.get("act4Covered"),
+      effectiveFromMonth: formData.get("effectiveFromMonth"),
+      employerContext: formData.get("employerContext"),
+      expectedRevision: formData.get("expectedRevision"),
+      membershipId: formData.get("membershipId"),
+      officialSubmittedAt: formData.get("officialSubmittedAt"),
+      reason: formData.get("reason"),
+      selectedEmployer: formData.get("selectedEmployer"),
+      sourceReference: formData.get("sourceReference"),
+      sourceType: formData.get("sourceType"),
+      status: formData.get("status"),
+    });
+    membershipId = command.membershipId;
+    const context = await requireWholeBusinessPayroll("EDIT_STATUTORY_PROFILE");
+    const result = await recordEmployeeLindung24Participation({
+      command: {
+        ...command,
+        effectiveFromMonth: new Date(`${command.effectiveFromMonth}-01T00:00:00.000Z`),
+      },
+      context: {
+        access: context.access,
+        actor: context.user,
+        allowedBranchIds: context.allowedBranchIds,
+        businessId: context.businessId,
+        caller: "STATUTORY_ACTION",
+        request: await getAuditRequestContext(),
+      },
+    });
+    revalidatePayrollProfile(membershipId);
+    redirect(profileNoticeUrl(membershipId, {
+      kind: "statutory",
+      message: "LINDUNG24 participation evidence recorded. Draft payroll must be recalculated explicitly.",
+      newRevision: result.revision,
+      status: "success",
     }));
   } catch (error) {
     if (isRedirectError(error)) throw error;
@@ -519,7 +650,7 @@ function publicWriteError(error: unknown) {
   }
   if (error instanceof PayrollProfileWriteError) {
     if (error.code === "CONFLICT") return "This payroll profile changed. Reload and try again.";
-    if (error.code === "IMMUTABLE_HISTORY") return "Backdated compensation changes are not supported.";
+    if (error.code === "IMMUTABLE_HISTORY") return "Backdated payroll profile changes are not supported.";
     if (error.code === "NOT_FOUND") return "The employee payroll profile was not found.";
     if (error.code === "ACCESS_DENIED") return "You do not have access to edit this payroll profile.";
     if (error.code === "VALIDATION_ERROR") return error.message.slice(0, 180);
