@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { ensureCustomerMembership } from "@/lib/loyalty/service";
 import { prisma } from "@/lib/prisma";
@@ -26,7 +26,7 @@ const adjustmentSchema = z.object({
 });
 
 export async function updateLoyaltySettingsAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("LOYALTY");
   assertOwner(user.role);
   const request = await getAuditRequestContext();
   const input = settingsSchema.parse({
@@ -86,7 +86,7 @@ export async function updateLoyaltySettingsAction(formData: FormData) {
 }
 
 export async function enrollCustomerMembershipAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("LOYALTY");
   assertStaffPermission(user, "LOYALTY");
   const customerId = customerSchema.parse(formData.get("customerId"));
   const request = await getAuditRequestContext();
@@ -133,7 +133,7 @@ export async function enrollCustomerMembershipAction(formData: FormData) {
 }
 
 export async function adjustLoyaltyPointsAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("LOYALTY");
   assertOwner(user.role);
   const request = await getAuditRequestContext();
   const input = adjustmentSchema.parse({

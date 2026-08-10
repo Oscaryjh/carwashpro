@@ -4,10 +4,10 @@ import { FinancialOperationType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveOperationalBranchId } from "@/lib/branches";
-import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
+import { nextInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { awardLoyaltyPointsForPayment } from "@/lib/loyalty/service";
 import { prisma } from "@/lib/prisma";
 import { calculateTax } from "@/lib/tax/calculator";
@@ -70,7 +70,7 @@ async function resolveStockRows(businessId: string, formData: FormData) {
 }
 
 export async function createProductAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PRODUCTS");
   const input = productSchema.parse(parseProductInput(formData));
   const category = await resolveProductCategory(businessId, input.categoryId, productFormReturnPath(formData));
@@ -106,7 +106,7 @@ export async function createProductAction(formData: FormData) {
 }
 
 export async function updateProductAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PRODUCTS");
   const productId = formData.get("productId")?.toString();
 
@@ -167,7 +167,7 @@ export async function updateProductAction(formData: FormData) {
 }
 
 export async function deactivateProductAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PRODUCTS");
   const productId = formData.get("productId")?.toString();
 
@@ -189,7 +189,7 @@ export async function deleteProductAction(
   _previousState: DeleteProductState,
   formData: FormData,
 ): Promise<DeleteProductState> {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PRODUCTS");
   const productId = formData.get("productId")?.toString();
 
@@ -234,7 +234,7 @@ async function resolveProductCategory(businessId: string, categoryId: string, re
 }
 
 export async function sellProductAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "POS");
   const returnPath = formData.get("returnTo")?.toString() === "/cashier" ? "/cashier" : "/work-orders";
   const parsed = productSaleSchema.safeParse({
@@ -333,7 +333,7 @@ export async function sellProductAction(formData: FormData) {
           businessId,
           branchId,
           customerId: customer?.id ?? null,
-          invoiceNumber: makeInvoiceNumber(),
+          invoiceNumber: await nextInvoiceNumber(tx, businessId),
           subtotal: fromCents(Math.round(tax.subtotal * 100)),
           taxableSubtotal: fromCents(Math.round(tax.taxableSubtotal * 100)),
           taxAmount: fromCents(Math.round(tax.tax * 100)),

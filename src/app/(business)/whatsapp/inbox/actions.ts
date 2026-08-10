@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import { getConnectorStatus } from "@/lib/whatsapp/connector-client";
@@ -34,7 +34,7 @@ const unlinkConversationCustomerSchema = z.object({
 });
 
 export async function recordWhatsAppReplyAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP");
   const parsed = sendMessageSchema.safeParse({
     conversationId: formData.get("conversationId"),
@@ -87,7 +87,7 @@ export async function recordWhatsAppReplyAction(formData: FormData) {
 }
 
 export async function openCrmCustomerWhatsAppAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP");
   const parsed = openCustomerChatSchema.safeParse({
     customerId: formData.get("customerId"),
@@ -176,7 +176,7 @@ export async function openCrmCustomerWhatsAppAction(formData: FormData) {
 }
 
 export async function linkWhatsAppConversationToCustomerAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP");
   const parsed = linkConversationToCustomerSchema.safeParse({
     conversationId: formData.get("conversationId"),
@@ -255,7 +255,7 @@ export async function linkWhatsAppConversationToCustomerAction(formData: FormDat
 }
 
 export async function unlinkWhatsAppConversationCustomerAction(formData: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP");
   const parsed = unlinkConversationCustomerSchema.safeParse({
     conversationId: formData.get("conversationId"),
@@ -308,7 +308,7 @@ export async function unlinkWhatsAppConversationCustomerAction(formData: FormDat
 }
 
 export async function syncCrmCustomersToWhatsAppAction(formData?: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP_SESSION");
   const returnTo = formData?.get("returnTo")?.toString();
   const customers = await prisma.customer.findMany({
@@ -374,7 +374,7 @@ export async function syncCrmCustomersToWhatsAppAction(formData?: FormData) {
 }
 
 export async function refreshWhatsAppInboxConnectionAction(formData?: FormData) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP");
   const conversationId = formData?.get("conversationId")?.toString();
   const basePath = conversationId

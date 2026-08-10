@@ -7,6 +7,7 @@ import {
   type CashierCatalogType,
 } from "@/lib/cashier/catalog";
 import { prisma } from "@/lib/prisma";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,14 @@ export async function GET(request: Request) {
     (session.role === "STAFF" && !hasStaffPermission(session, "POS"))
   ) {
     return NextResponse.json({ ok: false, error: "Cashier access is not allowed." }, { status: 403 });
+  }
+
+  const [posEnabled, salonEnabled] = await Promise.all([
+    isBusinessModuleEnabled(session.businessId, "POS"),
+    isBusinessModuleEnabled(session.businessId, "SALON"),
+  ]);
+  if (!posEnabled || !salonEnabled) {
+    return NextResponse.json({ ok: false, error: { code: "MODULE_NOT_ENABLED", message: "Cashier is not enabled for this business." } }, { status: 403 });
   }
 
   const business = await prisma.business.findUnique({

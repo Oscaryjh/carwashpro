@@ -63,12 +63,26 @@ test("Leave request database guard rejects a branch from another business", asyn
         data: { employeeAccountId: account.id, businessId: businessA.id, employeeCode: `LR-${token}`, fullName: "Leave Request Test", phoneNumber: account.phoneNormalized, phoneNumberNormalized: account.phoneNormalized, status: "ACTIVE" },
       });
       const policy = await tx.leavePolicy.create({ data: { businessId: businessA.id, code: "ANNUAL", name: "Annual" } });
+      const version = await tx.leavePolicyVersion.create({ data: {
+        businessId: businessA.id,
+        policyId: policy.id,
+        revision: 1,
+        effectiveFrom: new Date("2026-01-01T00:00:00Z"),
+        nameSnapshot: "Annual",
+        payTreatment: "PAID",
+        countMode: "WEEKDAYS",
+        balanceTracked: true,
+        origin: "BUSINESS_CUSTOM",
+        legalStatus: "COMPANY_POLICY_ONLY",
+        reason: "Tenant guard test.",
+      } });
       await tx.leaveRequest.create({
         data: {
           businessId: businessA.id,
           membershipId: membership.id,
           branchId: foreignBranch.id,
           policyId: policy.id,
+          policyVersionId: version.id,
           policyNameSnapshot: policy.name,
           payTreatmentSnapshot: "PAID",
           startsOn: new Date("2026-08-03T00:00:00Z"),

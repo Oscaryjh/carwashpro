@@ -33,6 +33,7 @@ import {
 } from "@/lib/business-groups/group-store-performance";
 import { getBusinessIndustryLabel } from "@/lib/business-industry";
 import { formatDateValue } from "@/lib/business-time";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 export default async function GroupOverviewPage({
   params,
@@ -63,6 +64,9 @@ export default async function GroupOverviewPage({
   const selectedGroup = groups.find((group) => group.groupId === groupId);
   if (!selectedGroup || !selectedGroup.canViewAllStores) {
     notFound();
+  }
+  if (!(await isBusinessModuleEnabled(user.activeBusinessId, "BUSINESS_GROUP"))) {
+    redirect("/module-not-enabled?module=BUSINESS_GROUP");
   }
 
   const now = new Date();

@@ -9,7 +9,7 @@ import {
   tryWriteAuditLog,
   writeAuditLog,
 } from "@/lib/audit";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { assertClosingWhatsAppPhone } from "@/lib/closing-whatsapp/phone";
 import { prisma } from "@/lib/prisma";
@@ -36,7 +36,7 @@ const closingAutomationSettingsSchema = z.object({
 const recipientRoles = ["OWNER", "BRANCH_MANAGER", "FINANCE"] as const;
 
 export async function saveAppointmentReminderSettingsAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP_SESSION");
   const auditRequest = await getAuditRequestContext();
   const input = appointmentReminderSettingsSchema.parse({
@@ -96,7 +96,7 @@ export async function saveAppointmentReminderSettingsAction(formData: FormData) 
 export async function saveClosingWhatsAppAutomationSettingsAction(
   formData: FormData,
 ) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP_SESSION");
   const auditRequest = await getAuditRequestContext();
   const input = closingAutomationSettingsSchema.parse({
@@ -250,7 +250,7 @@ export async function saveClosingWhatsAppAutomationSettingsAction(
 }
 
 export async function refreshWhatsAppConnectionAction() {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP_SESSION");
 
   try {
@@ -264,7 +264,7 @@ export async function refreshWhatsAppConnectionAction() {
 }
 
 export async function reconnectWhatsAppAction() {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP_SESSION");
 
   try {
@@ -288,7 +288,7 @@ export async function reconnectWhatsAppAction() {
 }
 
 export async function logoutWhatsAppAction() {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP_SESSION");
 
   try {

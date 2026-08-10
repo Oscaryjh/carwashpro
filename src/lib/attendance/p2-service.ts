@@ -157,7 +157,7 @@ export async function materializeAttendanceP2DayInTransaction(
         leaveDate: workDate,
         leaveRequest: { status: "APPROVED" },
       },
-      include: { leaveRequest: { select: { id: true, payTreatmentSnapshot: true } } },
+      include: { leaveRequest: { select: { id: true } } },
     }),
     transaction.attendanceCorrectionRequest.count({
       where: {
@@ -208,7 +208,7 @@ export async function materializeAttendanceP2DayInTransaction(
     leave: leaveDay ? {
       id: leaveDay.leaveRequest.id,
       status: "APPROVED",
-      payTreatment: leaveDay.leaveRequest.payTreatmentSnapshot,
+      payTreatment: leaveDay.payTreatmentSnapshot,
       emergency: false,
       dayFraction: Number(leaveDay.dayFraction),
     } : null,
@@ -363,9 +363,9 @@ export async function resolveAttendanceP2Exception(args: {
     validateResolution(issue.type, input.type);
     const leave = await transaction.leaveRequestDay.findFirst({
       where: { businessId: issue.businessId, membershipId: issue.membershipId, leaveDate: issue.workDate, leaveRequest: { status: "APPROVED" } },
-      include: { leaveRequest: { select: { id: true, payTreatmentSnapshot: true } } },
+      include: { leaveRequest: { select: { id: true } } },
     });
-    const outcome = resolutionOutcome(issue.type, input.type, leave?.leaveRequest.payTreatmentSnapshot ?? null);
+    const outcome = resolutionOutcome(issue.type, input.type, leave?.payTreatmentSnapshot ?? null);
     const resolution = await transaction.attendanceP2Resolution.create({ data: {
       businessId: issue.businessId,
       exceptionId: issue.id,

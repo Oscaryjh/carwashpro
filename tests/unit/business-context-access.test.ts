@@ -19,6 +19,10 @@ test("group manager capability policy includes authorized attendance management"
   assert.equal(canGroupManager("MODIFY_ATTENDANCE_EMPLOYEES"), true);
   assert.equal(canGroupManager("MODIFY_ATTENDANCE_SETTINGS"), true);
   assert.equal(canGroupManager("MANAGE_TEAM_PERMISSIONS"), false);
+  assert.equal(canGroupManager("VIEW_LEAVE"), true);
+  assert.equal(canGroupManager("APPROVE_LEAVE"), false);
+  assert.equal(canGroupManager("EDIT_LEAVE_POLICY"), false);
+  assert.equal(canGroupManager("ADJUST_LEAVE_BALANCE"), false);
   for (const capability of [
     "VIEW_PAYROLL", "MODIFY_PAYROLL", "VIEW_COMPENSATION",
     "VIEW_PAYROLL_RUN", "VIEW_BANK_ACCOUNT", "VIEW_PAYSLIP",
@@ -33,6 +37,11 @@ test("group manager capability policy includes authorized attendance management"
 });
 
 test("direct staff capabilities continue to follow existing permissions", () => {
+  assert.equal(canDirectStaff(["VIEW_LEAVE"], "VIEW_LEAVE"), true);
+  assert.equal(canDirectStaff(["VIEW_LEAVE"], "APPROVE_LEAVE"), false);
+  assert.equal(canDirectStaff(["APPROVE_LEAVE"], "VIEW_LEAVE"), true);
+  assert.equal(canDirectStaff(["APPROVE_LEAVE"], "APPROVE_LEAVE"), true);
+  assert.equal(canDirectStaff(["EDIT_LEAVE_POLICY"], "ADJUST_LEAVE_BALANCE"), false);
   assert.equal(canDirectStaff(["CRM"], "VIEW_CRM"), true);
   assert.equal(canDirectStaff(["CRM"], "VIEW_REPORTS"), false);
   assert.equal(

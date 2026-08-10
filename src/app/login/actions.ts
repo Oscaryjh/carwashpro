@@ -17,6 +17,7 @@ import {
   getRecoveryBusinessContext,
 } from "@/lib/business-groups/business-context";
 import { loginSchema } from "@/lib/validation/login";
+import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 
 export type LoginState = {
   error?: string;
@@ -94,11 +95,22 @@ export async function loginAction(
     status: user.status,
   };
 
-  const loginDestination = getLoginDestination({
+  let loginDestination = getLoginDestination({
     role: user.role,
     businessId: user.businessId,
     industryType: user.business?.industryType ?? null,
   });
+  if (user.businessId && user.role !== "PLATFORM_ADMIN") {
+    const moduleContext = await loadBusinessModuleContext(user.businessId);
+    const operationalHomeEnabled =
+      loginDestination === "/work-orders"
+        ? moduleContext.enabledModules.has("POS") &&
+          moduleContext.enabledModules.has("AUTO")
+        : loginDestination === "/cashier"
+          ? moduleContext.enabledModules.has("POS")
+          : true;
+    if (!operationalHomeEnabled) loginDestination = "/team";
+  }
 
   if (loginDestination === "/business-context/recover") {
     const recoverySession = {

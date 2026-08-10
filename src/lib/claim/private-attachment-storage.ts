@@ -2,13 +2,15 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
+  DeleteObjectCommand,
   S3Client,
   type GetObjectCommandOutput,
   type HeadObjectCommandOutput,
   type PutObjectCommandOutput,
+  type DeleteObjectCommandOutput,
 } from "@aws-sdk/client-s3";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   CLAIM_ATTACHMENT_ALLOWED_MIME_TYPES,
@@ -49,13 +51,15 @@ export interface ClaimPrivateAttachmentStore {
     objectKey: string;
     expectedChecksumSha256: string;
   }): Promise<Buffer>;
+  deleteQuarantined(objectKey: string): Promise<void>;
 }
 
-type ClaimS3Command = PutObjectCommand | HeadObjectCommand | GetObjectCommand;
+type ClaimS3Command = PutObjectCommand | HeadObjectCommand | GetObjectCommand | DeleteObjectCommand;
 type ClaimS3Response =
   | PutObjectCommandOutput
   | HeadObjectCommandOutput
-  | GetObjectCommandOutput;
+  | GetObjectCommandOutput
+  | DeleteObjectCommandOutput;
 
 export interface ClaimS3CommandClient {
   send(
@@ -129,6 +133,11 @@ export class FileSystemClaimPrivateAttachmentStore
     const bytes = await readFile(filePath);
     assertExpectedChecksum(bytes, input.expectedChecksumSha256);
     return bytes;
+  }
+
+  async deleteQuarantined(objectKey: string) {
+    const root = await this.resolveSafeRoot();
+    await unlink(resolveObjectPath(root, objectKey));
   }
 
   private async resolveSafeRoot() {
@@ -300,6 +309,13 @@ export class S3ClaimPrivateAttachmentStore
     return bytes;
   }
 
+  async deleteQuarantined(objectKey: string) {
+    await this.send(new DeleteObjectCommand({
+      Bucket: this.config.bucket,
+      Key: this.storageKey(objectKey),
+    }));
+  }
+
   private storageKey(objectKey: string) {
     assertValidObjectKey(objectKey);
     return `${this.config.objectPrefix}/${objectKey}`;
@@ -365,6 +381,12 @@ export function getClaimPrivateAttachmentStore(
         environment.CLAIM_PRIVATE_STORAGE_S3_FORCE_PATH_STYLE?.trim() ===
         "true",
     });
+  }
+
+  if (!provider && (environment.NODE_ENV === "development" || environment.NODE_ENV === "test")) {
+    return new FileSystemClaimPrivateAttachmentStore(
+      path.resolve(process.cwd(), ".runtime", "claim-private"),
+    );
   }
 
   throw new ClaimPrivateStorageConfigurationError(

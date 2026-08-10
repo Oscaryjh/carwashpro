@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
@@ -20,7 +20,7 @@ export type DeletePackageState = {
 };
 
 export async function createPackageAction(formData: FormData) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PACKAGES");
 
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
@@ -94,7 +94,7 @@ export async function createPackageAction(formData: FormData) {
 }
 
 export async function updatePackageAction(formData: FormData) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PACKAGES");
 
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
@@ -287,7 +287,7 @@ async function resolvePackageBenefits(
 }
 
 export async function deactivatePackageAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PACKAGES");
 
   const packageId = formData.get("packageId")?.toString();
@@ -315,7 +315,7 @@ export async function deletePackageAction(
   _previousState: DeletePackageState,
   formData: FormData,
 ): Promise<DeletePackageState> {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PACKAGES");
 
   const packageId = formData.get("packageId")?.toString();
@@ -365,7 +365,7 @@ export async function deletePackageAction(
 }
 
 export async function purchasePackageAction(formData: FormData) {
-  const { businessId } = await requireBusinessUser();
+  const { businessId } = await requireBusinessUserForModule("POS");
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
   const input = purchasePackageSchema.parse({
     customerId: formData.get("customerId"),

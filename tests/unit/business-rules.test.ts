@@ -27,6 +27,7 @@ import {
   buildInvoicePdf,
   buildInvoiceReceiptPdf,
 } from "../../src/lib/invoices/invoice-pdf";
+import { nextInvoiceNumber } from "../../src/lib/invoices/invoice-number";
 import { packageAllowsVehicle } from "../../src/lib/vehicle-size";
 import {
   canMoveAppointmentStatus,
@@ -429,9 +430,14 @@ test("salon invoices render without a vehicle or work order", () => {
   assert.ok(pdf.length > 500);
 });
 
-test("58mm invoice receipts use thermal paper width and support long item names", () => {
+test("invoice receipts use a simple 80mm no-logo layout and support long item names", () => {
   const pdf = buildInvoiceReceiptPdf({
-    company: { name: "Tetamu Beauty and Wellness" },
+    company: {
+      name: "Tetamu Beauty and Wellness",
+      logo: { data: Buffer.from("ignored-logo") },
+      companyNo: "202601234567",
+      sstRegistrationNo: "S10-1234-56789012",
+    },
     customer: { name: "OSCAR YONG", phone: "01112212259" },
     invoiceNumber: "INV-58MM-TEST",
     issuedAt: new Date("2026-07-20T10:00:00+08:00"),
@@ -448,6 +454,7 @@ test("58mm invoice receipts use thermal paper width and support long item names"
     status: "paid",
     subtotal: 240,
     taxAmount: 14.4,
+    taxableSubtotal: 240,
     taxLabel: "SST",
     taxRate: 6,
     total: 254.4,
@@ -460,8 +467,32 @@ test("58mm invoice receipts use thermal paper width and support long item names"
 
   const source = pdf.toString("latin1");
   assert.equal(pdf.subarray(0, 4).toString("ascii"), "%PDF");
-  assert.match(source, /\/MediaBox \[0 0 164\.41 /);
+  assert.match(source, /\/MediaBox \[0 0 226\.77 /);
+  assert.doesNotMatch(source, /\/Im1/);
+  assert.match(source, /Price \\\(MYR\\\)/);
+  assert.match(source, /Total \\\(MYR\\\)/);
+  assert.match(source, /Tax & Charges summary/);
+  assert.match(source, /Balance/);
   assert.ok(pdf.length > 500);
+});
+
+test("invoice numbers use the business atomic sequence", async () => {
+  let updateArgs: unknown;
+  const transaction = {
+    business: {
+      update: async (args: unknown) => {
+        updateArgs = args;
+        return { invoiceSequence: 1001 };
+      },
+    },
+  };
+
+  assert.equal(await nextInvoiceNumber(transaction as never, "business-1"), "1001");
+  assert.deepEqual(updateArgs, {
+    where: { id: "business-1" },
+    data: { invoiceSequence: { increment: 1 } },
+    select: { invoiceSequence: true },
+  });
 });
 
 test("invoice PDFs render package vouchers as deductions", () => {
@@ -486,7 +517,7 @@ test("invoice PDFs render package vouchers as deductions", () => {
   };
 
   assert.match(buildInvoicePdf(input).toString("latin1"), /-RM74\.20/);
-  assert.match(buildInvoiceReceiptPdf(input).toString("latin1"), /-RM74\.20/);
+  assert.match(buildInvoiceReceiptPdf(input).toString("latin1"), /-74\.20/);
 });
 
 test("staff permissions are allow-list based and deduplicated", () => {

@@ -3,7 +3,7 @@
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import { catalogDiscountSchema } from "@/lib/validation/catalog-discounts";
@@ -41,7 +41,7 @@ async function validateBranch(businessId: string, branchId?: string) {
 
 export async function createCatalogDiscountAction(formData: FormData) {
   try {
-    const { user, businessId } = await requireBusinessUser();
+    const { user, businessId } = await requireBusinessUserForModule("POS");
     assertStaffPermission(user, "DISCOUNTS");
     const input = readInput(formData);
     const branchId = await validateBranch(businessId, input.branchId);
@@ -78,7 +78,7 @@ export async function createCatalogDiscountAction(formData: FormData) {
 
 export async function updateCatalogDiscountAction(formData: FormData) {
   try {
-    const { user, businessId } = await requireBusinessUser();
+    const { user, businessId } = await requireBusinessUserForModule("POS");
     assertStaffPermission(user, "DISCOUNTS");
     const discountId = formData.get("discountId")?.toString();
     if (!discountId) throw new Error("Discount is required.");
@@ -113,7 +113,7 @@ export async function updateCatalogDiscountAction(formData: FormData) {
 
 export async function deleteCatalogDiscountAction(formData: FormData) {
   try {
-    const { user, businessId } = await requireBusinessUser();
+    const { user, businessId } = await requireBusinessUserForModule("POS");
     assertStaffPermission(user, "DISCOUNTS");
     const discountId = formData.get("discountId")?.toString();
     if (!discountId) throw new Error("Discount is required.");

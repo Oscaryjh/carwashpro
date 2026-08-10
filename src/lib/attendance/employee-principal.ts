@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { AttendanceApiError } from "@/lib/attendance/api-error";
 import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
+import { ModuleNotEnabledError, requireBusinessModule } from "@/lib/modules/entitlements";
 
 export type EmployeeAttendancePrincipal = Awaited<
   ReturnType<typeof loadEmployeeAttendancePrincipal>
@@ -101,6 +102,18 @@ export async function loadEmployeeAttendancePrincipal(input: {
     session.business.status !== "active"
   ) {
     throw new AttendanceApiError("EMPLOYEE_INACTIVE");
+  }
+
+  try {
+    await requireBusinessModule(session.businessId, "HR", {
+      now: input.now,
+      database: input.transaction,
+    });
+  } catch (error) {
+    if (error instanceof ModuleNotEnabledError) {
+      throw new AttendanceApiError("MODULE_NOT_ENABLED", "HR is not enabled for this business.");
+    }
+    throw error;
   }
 
   if (!session.membership.attendanceEnabled) {

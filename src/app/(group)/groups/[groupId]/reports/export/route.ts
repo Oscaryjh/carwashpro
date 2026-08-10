@@ -14,6 +14,8 @@ import {
   GroupReportsInputError,
 } from "@/lib/business-groups/group-reports";
 import { requireUser } from "@/lib/auth/session";
+import { getAvailableGroupReportingContexts } from "@/lib/business-groups/all-stores-access";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 export async function GET(
   request: Request,
@@ -24,6 +26,16 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
   const { groupId } = await params;
+  const groups = await getAvailableGroupReportingContexts(
+    user.userId,
+    user.activeBusinessId,
+  );
+  if (!groups.some((group) => group.groupId === groupId && group.canViewAllStores)) {
+    return new Response("Not found", { status: 404 });
+  }
+  if (!(await isBusinessModuleEnabled(user.activeBusinessId, "BUSINESS_GROUP"))) {
+    return Response.json({ code: "MODULE_NOT_ENABLED" }, { status: 403 });
+  }
   const search = new URL(request.url).searchParams;
   const format = normalizeFormat(search.get("format"));
   if (!format) return new Response("Select a valid export format.", { status: 400 });

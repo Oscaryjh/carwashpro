@@ -2,6 +2,8 @@ import { BusinessForm } from "@/components/business-form";
 import { assertRole } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 import { requireBusinessContext } from "@/lib/tenant";
+import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
+import { MODULE_REGISTRY, moduleKeys } from "@/lib/modules/registry";
 import { updateBusinessAction } from "@/app/admin/businesses/actions";
 import Link from "next/link";
 import { saveBusinessVehicleSizeOverrideAction, removeBusinessVehicleSizeOverrideAction } from "./vehicle-size-actions";
@@ -29,6 +31,7 @@ export default async function BusinessSettingsPage({
     where: { businessId: context.businessId },
     orderBy: [{ brand: "asc" }, { model: "asc" }],
   });
+  const moduleContext = await loadBusinessModuleContext(context.businessId);
 
   if (!business) {
     return (
@@ -57,6 +60,21 @@ export default async function BusinessSettingsPage({
           business={business}
           settingsLayout
         />
+        <div className="company-settings-sheet company-settings-secondary-section" id="modules">
+          <div className="company-settings-section-heading">
+            <div><span className="company-settings-eyebrow">Product access</span><h2>Modules</h2></div>
+            <p>Module entitlement is separate from user permission. Only an authorized platform administrator can change it.</p>
+          </div>
+          <div className="grid">
+            {moduleKeys.filter((key) => MODULE_REGISTRY[key].operational).map((key) => (
+              <div className="panel metric" key={key}>
+                <span>{MODULE_REGISTRY[key].label}</span>
+                <strong>{moduleContext.enabledModules.has(key) ? "Enabled" : "Not enabled"}</strong>
+                {MODULE_REGISTRY[key].dependencies.length ? <small>Requires {MODULE_REGISTRY[key].dependencies.join(", ")}</small> : null}
+              </div>
+            ))}
+          </div>
+        </div>
         {business.industryType === "AUTO_DETAILING" ? (
           <div className="company-settings-sheet company-settings-secondary-section" id="vehicle-rules">
             <div className="company-settings-section-heading">

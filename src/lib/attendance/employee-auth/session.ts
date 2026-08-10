@@ -139,6 +139,7 @@ type AuthenticateEmployeeSessionOptions = {
   config?: EmployeeAuthConfig;
   now?: Date;
   requirePunch?: boolean;
+  requireAttendance?: boolean;
 };
 
 export async function createEmployeeSessionRecord(
@@ -228,6 +229,7 @@ export async function authenticateEmployeeSessionToken(
     session,
     now,
     options.requirePunch === true,
+    options.requireAttendance !== false,
   );
 
   if (failure) {
@@ -351,6 +353,26 @@ export async function requireEmployeeAuthContext(
   }
 
   return authenticateEmployeeSessionToken(token, options);
+}
+
+export async function getEmployeeSelfServiceAuthContext(
+  request?: Request,
+  options: Omit<AuthenticateEmployeeSessionOptions, "requireAttendance"> = {},
+) {
+  return getEmployeeAuthContext(request, {
+    ...options,
+    requireAttendance: false,
+  });
+}
+
+export async function requireEmployeeSelfServiceAuthContext(
+  request?: Request,
+  options: Omit<AuthenticateEmployeeSessionOptions, "requireAttendance"> = {},
+) {
+  return requireEmployeeAuthContext(request, {
+    ...options,
+    requireAttendance: false,
+  });
 }
 
 export async function requireEmployeePunchAuthContext(
@@ -542,6 +564,7 @@ function validateEmployeeSession(
   session: EmployeeAuthSessionRecord,
   now: Date,
   requirePunch: boolean,
+  requireAttendance: boolean,
 ): EmployeeAuthError | null {
   if (session.revokedAt || session.expiresAt.getTime() <= now.getTime()) {
     return new EmployeeAuthError("SESSION_REVOKED");
@@ -563,7 +586,7 @@ function validateEmployeeSession(
     return new EmployeeAuthError("MEMBERSHIP_INACTIVE");
   }
 
-  if (!session.membership.attendanceEnabled) {
+  if (requireAttendance && !session.membership.attendanceEnabled) {
     return new EmployeeAuthError("ATTENDANCE_DISABLED");
   }
 
@@ -594,12 +617,11 @@ function validateEmployeeSession(
   if (
     session.primaryBranch.id !== session.primaryBranchId ||
     session.primaryBranch.businessId !== session.businessId ||
-    session.primaryBranch.status !== "ACTIVE"
-    || session.primaryBranch.attendanceSetting?.isEnabled !== true
-    || session.primaryBranch.attendanceSetting.businessId !==
-      session.businessId
-    || session.primaryBranch.attendanceSetting.branchId !==
-      session.primaryBranchId
+    session.primaryBranch.status !== "ACTIVE" ||
+    (requireAttendance &&
+      (session.primaryBranch.attendanceSetting?.isEnabled !== true ||
+        session.primaryBranch.attendanceSetting.businessId !== session.businessId ||
+        session.primaryBranch.attendanceSetting.branchId !== session.primaryBranchId))
   ) {
     return new EmployeeAuthError("PRIMARY_BRANCH_UNAVAILABLE");
   }
@@ -610,7 +632,7 @@ function validateEmployeeSession(
         assignment.branchId === session.primaryBranchId &&
         assignment.businessId === session.businessId &&
         assignment.isPrimary &&
-        assignment.canClockIn &&
+        (!requireAttendance || assignment.canClockIn) &&
         assignment.status === "ACTIVE" &&
         assignment.effectiveFrom.getTime() <= now.getTime() &&
         (assignment.effectiveUntil === null ||

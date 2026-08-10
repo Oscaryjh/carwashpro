@@ -11,6 +11,10 @@ export const businessCapabilities = [
   "VIEW_TEAM_DIRECTORY",
   "VIEW_ATTENDANCE_EMPLOYEES",
   "VIEW_ATTENDANCE_SETTINGS",
+  "VIEW_LEAVE",
+  "APPROVE_LEAVE",
+  "EDIT_LEAVE_POLICY",
+  "ADJUST_LEAVE_BALANCE",
   "VIEW_CLAIM",
   "REVIEW_CLAIM",
   "VERIFY_CLAIM",
@@ -79,6 +83,7 @@ const groupManagerCapabilities = new Set<BusinessCapability>([
   "VIEW_ATTENDANCE_SETTINGS",
   "MODIFY_ATTENDANCE_EMPLOYEES",
   "MODIFY_ATTENDANCE_SETTINGS",
+  "VIEW_LEAVE",
 ]);
 
 export function isReadCapability(capability: BusinessCapability) {
@@ -114,6 +119,10 @@ const directStaffPermissionMap: Record<BusinessCapability, readonly string[]> = 
     "ATTENDANCE_SETTINGS_READ",
     "ATTENDANCE_SETTINGS_MANAGE",
   ],
+  VIEW_LEAVE: ["VIEW_LEAVE", "APPROVE_LEAVE", "EDIT_LEAVE_POLICY", "ADJUST_LEAVE_BALANCE"],
+  APPROVE_LEAVE: ["APPROVE_LEAVE"],
+  EDIT_LEAVE_POLICY: ["EDIT_LEAVE_POLICY"],
+  ADJUST_LEAVE_BALANCE: ["ADJUST_LEAVE_BALANCE"],
   VIEW_CLAIM: ["VIEW_CLAIM"],
   REVIEW_CLAIM: ["REVIEW_CLAIM"],
   VERIFY_CLAIM: ["VERIFY_CLAIM"],

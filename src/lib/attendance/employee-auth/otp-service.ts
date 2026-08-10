@@ -100,6 +100,7 @@ type EmployeeAuthServiceDependencies = Readonly<{
   provider?: EmployeeOtpProvider;
   now?: Date;
   dispatchDelivery?: (task: EmployeeOtpDeliveryTask) => void;
+  requireAttendance?: boolean;
 }>;
 
 export async function requestEmployeeOtp(
@@ -159,6 +160,7 @@ export async function requestEmployeeOtp(
       phoneNumberNormalized,
       now,
       transaction,
+      dependencies.requireAttendance ?? true,
     );
     const deviceAccess = identity
       ? await resolveOtpDeviceAccess(
@@ -536,6 +538,7 @@ export async function verifyEmployeeOtp(
     challenge.employeeAccountId,
     now,
     database,
+    dependencies.requireAttendance ?? true,
   );
 
   if (!identity) {
@@ -577,7 +580,11 @@ export async function verifyEmployeeOtp(
       request: input.request,
       now,
     },
-    { database, config },
+    {
+      database,
+      config,
+      requireAttendance: dependencies.requireAttendance ?? true,
+    },
   );
 }
 
@@ -620,7 +627,11 @@ export async function selectEmployeeMembership(
       request: input.request,
       now,
     },
-    { database, config },
+    {
+      database,
+      config,
+      requireAttendance: dependencies.requireAttendance ?? true,
+    },
   );
 }
 
@@ -642,6 +653,7 @@ async function completeEmployeeLogin(
   dependencies: {
     database: PrismaClient;
     config: EmployeeAuthConfig;
+    requireAttendance: boolean;
   },
 ): Promise<Extract<EmployeeLoginResult, { status: "AUTHENTICATED" }>> {
   const deviceIdentifierHash = hashEmployeeIdentifier(
@@ -683,6 +695,7 @@ async function completeEmployeeLogin(
       input.membershipId,
       input.now,
       transaction,
+      dependencies.requireAttendance,
     );
 
     if (!membership) {

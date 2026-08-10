@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { StaffPwaChrome } from "@/components/staff-pwa/staff-pwa-chrome";
+import { getEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee-auth/session";
+import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import "./staff.css";
 
 export const metadata: Metadata = {
@@ -32,6 +34,10 @@ export const viewport: Viewport = {
   themeColor: "#087f76",
 };
 
-export default function StaffLayout({ children }: { children: ReactNode }) {
-  return <StaffPwaChrome>{children}</StaffPwaChrome>;
+export default async function StaffLayout({ children }: { children: ReactNode }) {
+  const auth = await getEmployeeSelfServiceAuthContext();
+  const modules = auth
+    ? [...(await loadBusinessModuleContext(auth.businessId)).enabledModules]
+    : ["CORE"];
+  return <StaffPwaChrome enabledModules={modules}>{children}</StaffPwaChrome>;
 }

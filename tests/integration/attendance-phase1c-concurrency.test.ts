@@ -343,6 +343,15 @@ async function createFixture(
         slug: `concurrency-${label}-${suffix}`,
       },
     });
+    await transaction.businessModuleEntitlement.create({
+      data: {
+        businessId: business.id,
+        moduleKey: "HR",
+        status: "ENABLED",
+        enabledFrom: new Date("2026-01-01T00:00:00.000Z"),
+        source: "SYSTEM",
+      },
+    });
     const branch = await transaction.branch.create({
       data: {
         businessId: business.id,

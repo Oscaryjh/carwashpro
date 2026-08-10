@@ -7,6 +7,7 @@ import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 type SendServiceConfirmationInput = {
   businessId: string;
@@ -29,6 +30,7 @@ export async function sendServiceConfirmationQueued({
   workOrderId,
   sentByUserId,
 }: SendServiceConfirmationInput) {
+  if (!(await isBusinessModuleEnabled(businessId, "WHATSAPP"))) return;
   const workOrder = await getWorkOrderForNotification(businessId, workOrderId);
 
   if (!workOrder) {
@@ -117,6 +119,7 @@ export async function sendReadyForPickupIfConnected({
   workOrderId,
   sentByUserId,
 }: SendReadyForPickupInput) {
+  if (!(await isBusinessModuleEnabled(businessId, "WHATSAPP"))) return;
   const workOrder = await getWorkOrderForNotification(businessId, workOrderId);
 
   if (!workOrder) {

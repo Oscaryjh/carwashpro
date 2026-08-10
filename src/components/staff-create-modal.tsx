@@ -8,6 +8,8 @@ type StaffBranch = {
 
 type StaffCreateModalProps = {
   action: (formData: FormData) => Promise<void>;
+  allowHrFields: boolean;
+  allowPayrollFields: boolean;
   branches: StaffBranch[];
   canManagePermissions: boolean;
   industryType?: string;
@@ -18,6 +20,8 @@ type StaffCreateModalProps = {
 
 export function StaffCreateModal({
   action,
+  allowHrFields,
+  allowPayrollFields,
   branches,
   canManagePermissions,
   industryType,
@@ -42,6 +46,8 @@ export function StaffCreateModal({
         ) : null}
         <StaffForm
           action={action}
+          allowHrFields={allowHrFields}
+          allowPayrollFields={allowPayrollFields}
           branches={branches}
           canManagePermissions={canManagePermissions}
           industryType={industryType}
@@ -73,6 +79,8 @@ type StaffEditModalProps = StaffCreateModalProps & {
 
 export function StaffEditModal({
   action,
+  allowHrFields,
+  allowPayrollFields,
   assignedBranchIds,
   branches,
   canManagePermissions,
@@ -128,6 +136,8 @@ export function StaffEditModal({
         ) : null}
         <StaffForm
           action={action}
+          allowHrFields={allowHrFields}
+          allowPayrollFields={allowPayrollFields}
           assignedBranchIds={assignedBranchIds}
           branches={branches}
           canManagePermissions={canManagePermissions}

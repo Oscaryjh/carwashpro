@@ -10,6 +10,7 @@ import {
 } from "@/components/employee-profile-phase2a";
 import { EmployeeProfileAttendance } from "@/components/employee-profile-attendance";
 import { EmployeeProfileLeave } from "@/components/employee-profile-leave";
+import { EmployeeProfileClaims } from "@/components/employee-profile-claims";
 import { EmployeeProfilePersonal } from "@/components/employee-profile-personal";
 import { EmployeeProfilePayroll } from "@/components/employee-profile-payroll";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
@@ -33,6 +34,7 @@ import {
 } from "@/lib/team/employee-profile-read";
 import { loadEmployeeAttendanceSection } from "@/lib/team/employee-profile-attendance-read";
 import { loadEmployeeLeaveSection } from "@/lib/team/employee-profile-leave-read";
+import { loadEmployeeClaimsSection } from "@/lib/team/employee-profile-claims-read";
 import { loadEmployeeCompensationSection } from "@/lib/team/employee-profile-compensation-read";
 import { loadEmployeeStatutoryProfileSection } from "@/lib/team/employee-profile-statutory-read";
 import { loadEmployeePayrollNavigationSection } from "@/lib/team/employee-profile-payroll-navigation-read";
@@ -74,6 +76,13 @@ export default async function EmployeeProfilePage({
   const activeSection = isEmployeeProfileSection(query.section)
     ? query.section
     : "overview";
+  const moduleAllowsSection =
+    !["employment", "attendance", "leave", "claims", "payroll"].includes(activeSection) ||
+    (activeSection === "payroll"
+      ? context.moduleContext.enabledModules.has("PAYROLL")
+      : activeSection === "claims"
+        ? context.moduleContext.enabledModules.has("CLAIMS")
+        : context.moduleContext.enabledModules.has("HR"));
   const now = new Date();
   const peopleScope = {
     allowedBranchIds: scope.allowedBranchIds,
@@ -154,7 +163,7 @@ export default async function EmployeeProfilePage({
   const sectionAuthorized = canViewEmployeeProfileTab(
     context.access,
     activeSection,
-  );
+  ) && moduleAllowsSection;
 
   if (membership && sectionAuthorized && activeSection === "overview") {
     const overview = await getEmployeeProfileOverview({
@@ -211,6 +220,15 @@ export default async function EmployeeProfilePage({
     sectionContent = <EmployeeProfileLeave data={leave} />;
   }
 
+  if (membership && sectionAuthorized && activeSection === "claims") {
+    const claims = await loadEmployeeClaimsSection({
+      businessId: context.businessId,
+      membershipId: membership.id,
+      allowedBranchIds: scope.allowedBranchIds,
+    });
+    sectionContent = <EmployeeProfileClaims data={claims} />;
+  }
+
   if (membership && sectionAuthorized && activeSection === "payroll") {
     const payrollProfileInput = {
       access: context.access,
@@ -250,7 +268,15 @@ export default async function EmployeeProfilePage({
       authorized={sectionAuthorized}
       person={person}
       sectionContent={sectionContent}
-      visibleTabs={getVisibleEmployeeProfileTabs(context.access)}
+      visibleTabs={getVisibleEmployeeProfileTabs(context.access).filter((tab) =>
+        tab.key === "payroll"
+          ? context.moduleContext.enabledModules.has("PAYROLL")
+          : tab.key === "claims"
+            ? context.moduleContext.enabledModules.has("CLAIMS")
+            : ["employment", "attendance", "leave"].includes(tab.key)
+            ? context.moduleContext.enabledModules.has("HR")
+            : true,
+      )}
     />
   );
 }

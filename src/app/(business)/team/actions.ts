@@ -163,14 +163,24 @@ const staffTimeOffSchema = z.object({
 
 export async function createStaffAction(formData: FormData) {
   const { access, user, businessId, industryType } =
-    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
-  await requireBusinessUser("EDIT_COMPENSATION");
+    await requireBusinessUser("MODIFY_TEAM");
   if (access.source === "DIRECT_BUSINESS") {
     assertStaffPermission(user, "TEAM");
   }
 
   try {
     const input = parseTeamMemberForm(formData, false);
+    if (input.attendanceEnabled) {
+      await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+    }
+    const writesPayrollProfile =
+      input.baseSalary !== null ||
+      input.normalWorkMinutesPerDay !== null ||
+      input.targetBreakMinutes !== null ||
+      input.staffLevelId !== null;
+    const compensationAccess = writesPayrollProfile
+      ? (await requireBusinessUser("EDIT_COMPENSATION")).access
+      : undefined;
     const scope = await resolveAttendanceScope(access);
     const wholeBusinessScope = hasWholeBusinessPeopleScope(access);
     const auditRequest = await getAuditRequestContext();
@@ -208,7 +218,7 @@ export async function createStaffAction(formData: FormData) {
             : null,
       },
       input: buildEmployeeInput(input, businessId, "ACTIVE"),
-      compensationAccess: access,
+      compensationAccess,
       request: auditRequest,
       wholeBusinessScope,
     });

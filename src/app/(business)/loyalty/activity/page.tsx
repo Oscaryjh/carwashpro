@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { LoyaltyTransactionType, Prisma } from "@prisma/client";
 import { LoyaltyTabs } from "@/components/loyalty-tabs";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -27,7 +27,7 @@ const activityRanges = ["today", "7days", "30days"] as const;
 type ActivityRange = (typeof activityRanges)[number];
 
 export default async function LoyaltyActivityPage({ searchParams }: LoyaltyActivityPageProps) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("LOYALTY");
   assertStaffPermission(user, "LOYALTY");
   const params = await searchParams;
   const query = params.q?.trim() ?? "";

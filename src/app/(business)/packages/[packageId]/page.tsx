@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { BackButton } from "@/components/back-button";
 import { DeletePackageForm } from "@/components/delete-package-form";
 import { PackageForm } from "@/components/package-form";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
@@ -17,7 +17,8 @@ type PackageDetailsPageProps = {
 export default async function PackageDetailsPage({
   params,
 }: PackageDetailsPageProps) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const { user, businessId, industryType } =
+    await requireBusinessUserForModule("POS");
   const isSalonBusiness = industryType === "SALON_BEAUTY";
   assertStaffPermission(user, "PACKAGES");
 

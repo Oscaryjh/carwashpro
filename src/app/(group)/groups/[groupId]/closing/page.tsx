@@ -22,6 +22,7 @@ import {
   type GroupClosingSearchQuery,
 } from "@/lib/business-groups/group-closing-navigation";
 import { getBusinessGroupNavItems } from "@/lib/business-groups/navigation";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 type SearchQuery = GroupClosingSearchQuery;
 
@@ -44,6 +45,9 @@ export default async function GroupClosingPage({
   ]);
   const selectedGroup = groups.find((group) => group.groupId === groupId);
   if (!selectedGroup?.canViewAllStores) notFound();
+  if (!(await isBusinessModuleEnabled(user.activeBusinessId, "BUSINESS_GROUP"))) {
+    redirect("/module-not-enabled?module=BUSINESS_GROUP");
+  }
 
   let report: GroupClosingReport | null = null;
   let inputError: string | null = null;

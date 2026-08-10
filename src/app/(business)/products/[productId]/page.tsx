@@ -2,14 +2,14 @@ import { notFound } from "next/navigation";
 import { BackButton } from "@/components/back-button";
 import { ProductForm } from "@/components/product-form";
 import { DeleteProductForm } from "@/components/delete-product-form";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { deactivateProductAction, updateProductAction } from "../actions";
 
 export default async function ProductDetailsPage({ params }: { params: Promise<{ productId: string }> }) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PRODUCTS");
   const { productId } = await params;
   const [product, branches, categories] = await Promise.all([

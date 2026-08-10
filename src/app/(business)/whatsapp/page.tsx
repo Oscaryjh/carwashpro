@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import {
   assertStaffPermission,
   hasStaffPermission,
@@ -13,7 +13,7 @@ import {
 } from "./actions";
 
 export default async function WhatsAppPage() {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP");
   const canManageWhatsAppSession = hasStaffPermission(user, "WHATSAPP_SESSION");
   const messages = await prisma.whatsAppMessage.findMany({

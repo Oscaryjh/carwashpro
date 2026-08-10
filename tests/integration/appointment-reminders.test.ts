@@ -31,6 +31,15 @@ test("appointment reminders are tenant scoped, deduplicated and rescheduled safe
       },
     });
     businessIds.push(businessA.id, businessB.id);
+    await prisma.businessModuleEntitlement.createMany({
+      data: [businessA.id, businessB.id].map((businessId) => ({
+        businessId,
+        moduleKey: "WHATSAPP",
+        status: "ENABLED",
+        enabledFrom: new Date("2026-01-01T00:00:00.000Z"),
+        source: "SYSTEM",
+      })),
+    });
 
     const owner = await prisma.user.create({
       data: {
@@ -164,9 +173,7 @@ test("appointment reminders are tenant scoped, deduplicated and rescheduled safe
       await prisma.user.deleteMany({
         where: { businessId: { in: businessIds } },
       });
-      await prisma.business.deleteMany({
-        where: { id: { in: businessIds } },
-      });
+      // Entitlement history intentionally keeps the synthetic businesses.
     }
 
     await prisma.$disconnect();

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { BackButton } from "@/components/back-button";
 import { WhatsAppSettingsAutoRefresh } from "@/components/whatsapp-settings-auto-refresh";
 import { WhatsAppSessionRecovery } from "@/components/whatsapp-settings-session-recovery";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import {
@@ -29,7 +29,7 @@ type WhatsAppSettingsPageProps = {
 export default async function WhatsAppSettingsPage({
   searchParams,
 }: WhatsAppSettingsPageProps) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP_SESSION");
   const params = await searchParams;
   const [

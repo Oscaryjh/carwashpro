@@ -1,9 +1,6 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { notFound } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import {
-  buildInvoicePdf,
   buildInvoiceReceiptPdf,
   invoicePdfFileName,
 } from "@/lib/invoices/invoice-pdf";
@@ -22,7 +19,7 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
   const { businessId } = await requireBusinessUser("VIEW_INVOICES");
   const { invoiceId } = await params;
   const isReceipt = new URL(request.url).searchParams.get("format") === "receipt";
-  const buildPdfDocument = isReceipt ? buildInvoiceReceiptPdf : buildInvoicePdf;
+  const buildPdfDocument = buildInvoiceReceiptPdf;
   const invoice = await prisma.invoice.findFirst({
     where: {
       businessId,
@@ -33,9 +30,9 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
         select: {
           address: true,
           companyNo: true,
-          logoUrl: true,
           name: true,
           phone: true,
+          sstRegistrationNo: true,
         },
       },
       workOrder: {
@@ -77,7 +74,6 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
   }
 
   if (invoice.appointment) {
-    const logo = await loadInvoiceLogo(invoice.business.logoUrl);
     const paymentSummary = getInvoicePaymentSummary(invoice.payments);
     const appointmentDate = invoice.appointment.scheduledAt.toLocaleDateString("en-MY");
     const appointmentTime = invoice.appointment.scheduledAt.toLocaleTimeString("en-MY", {
@@ -85,7 +81,7 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
       minute: "2-digit",
     });
     const pdf = buildPdfDocument({
-      company: { ...invoice.business, logo },
+      company: invoice.business,
       customer: {
         name: invoice.appointment.customer.name,
         phone: invoice.appointment.customer.phone,
@@ -101,6 +97,7 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
       loyaltyPointsRedeemed: invoice.loyaltyPointsRedeemed,
       depositAmount: invoice.depositAmount,
       taxAmount: invoice.taxAmount,
+      taxableSubtotal: invoice.taxableSubtotal,
       taxLabel: invoice.taxLabel,
       taxRate: invoice.taxRate,
       tipAmount: invoice.tipAmount,
@@ -130,9 +127,8 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
     const packageCount = packageItems.reduce((sum, item) => sum + item.quantity, 0);
     const packageName =
       packageItems.length === 1 ? packageItems[0].name : `${packageCount} packages`;
-    const logo = await loadInvoiceLogo(invoice.business.logoUrl);
     const pdf = buildPdfDocument({
-      company: { ...invoice.business, logo },
+      company: invoice.business,
       customer: {
         name: invoice.customer?.name ?? "Customer",
         phone: invoice.customer?.phone ?? "",
@@ -146,6 +142,7 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
       loyaltyPointsRedeemed: invoice.loyaltyPointsRedeemed,
       depositAmount: invoice.depositAmount,
       taxAmount: invoice.taxAmount,
+      taxableSubtotal: invoice.taxableSubtotal,
       taxLabel: invoice.taxLabel,
       taxRate: invoice.taxRate,
       tipAmount: invoice.tipAmount,
@@ -165,12 +162,8 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
 
   const displayInvoiceNumber = formatInvoiceNumber(invoice.invoiceNumber);
   const paymentSummary = getInvoicePaymentSummary(invoice.workOrder.payments);
-  const logo = await loadInvoiceLogo(invoice.business.logoUrl);
   const pdf = buildPdfDocument({
-    company: {
-      ...invoice.business,
-      logo,
-    },
+    company: invoice.business,
     customer: {
       name: invoice.workOrder.contactName || invoice.workOrder.customer.name,
       phone:
@@ -191,6 +184,7 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
     loyaltyPointsRedeemed: invoice.loyaltyPointsRedeemed,
     depositAmount: invoice.depositAmount,
     taxAmount: invoice.taxAmount,
+    taxableSubtotal: invoice.taxableSubtotal,
     taxLabel: invoice.taxLabel,
     taxRate: invoice.taxRate,
     tipAmount: invoice.tipAmount,
@@ -217,41 +211,5 @@ function pdfResponse(pdf: Buffer, fileName: string, inline = false) {
 
 function receiptFileName(invoiceNumber: string, receipt: boolean) {
   const fileName = invoicePdfFileName(invoiceNumber);
-  return receipt ? fileName.replace(/\.pdf$/i, "-58mm.pdf") : fileName;
-}
-
-async function loadInvoiceLogo(logoUrl?: string | null) {
-  if (!logoUrl?.startsWith("/uploads/")) {
-    return null;
-  }
-
-  const publicDir = path.join(process.cwd(), "public");
-  const logoPath = path.normalize(path.join(publicDir, logoUrl.replace(/^\/+/, "")));
-
-  if (!logoPath.startsWith(publicDir)) {
-    return null;
-  }
-
-  try {
-    return {
-      data: await readFile(logoPath),
-      mimeType: getLogoMimeType(logoPath),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function getLogoMimeType(filePath: string) {
-  const extension = path.extname(filePath).toLowerCase();
-
-  if (extension === ".png") {
-    return "image/png";
-  }
-
-  if (extension === ".jpg" || extension === ".jpeg") {
-    return "image/jpeg";
-  }
-
-  return null;
+  return receipt ? fileName.replace(/\.pdf$/i, "-receipt.pdf") : fileName;
 }

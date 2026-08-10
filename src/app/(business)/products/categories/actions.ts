@@ -4,7 +4,7 @@ import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -18,7 +18,7 @@ const updateCategorySchema = categorySchema.extend({
 });
 
 export async function createProductCategoryAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PRODUCTS");
   const returnPath = getCategoryReturnPath(formData);
 
@@ -48,7 +48,7 @@ export async function createProductCategoryAction(formData: FormData) {
 }
 
 export async function updateProductCategoryAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PRODUCTS");
   const returnPath = getCategoryReturnPath(formData);
 
@@ -96,7 +96,7 @@ export async function updateProductCategoryAction(formData: FormData) {
 }
 
 export async function deleteProductCategoryAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PRODUCTS");
   const returnPath = getCategoryReturnPath(formData);
   const categoryId = formData.get("categoryId")?.toString();

@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getEmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
 import { StaffP2CorrectionForm } from "@/components/staff-pwa/staff-p2-correction-form";
+import { requireEmployeeModulePage } from "@/lib/modules/employee-access";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "My timesheet" };
 export const dynamic = "force-dynamic";
 
 export default async function StaffTimesheetPage() {
-  const auth = await getEmployeeAuthContext();
-  if (!auth) redirect("/staff/login");
+  const auth = await requireEmployeeModulePage("HR");
   const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
   const [rows, exceptions] = await Promise.all([
     prisma.attendanceP2FinalResult.findMany({

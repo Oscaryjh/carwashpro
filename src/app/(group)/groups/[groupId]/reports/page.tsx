@@ -25,6 +25,7 @@ import {
 } from "@/lib/business-groups/group-reports-navigation";
 import { getBusinessGroupNavItems } from "@/lib/business-groups/navigation";
 import { formatDateValue } from "@/lib/business-time";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 type SearchQuery = GroupReportsSearchQuery;
 
@@ -47,6 +48,9 @@ export default async function GroupReportsPage({
   ]);
   const selectedGroup = groups.find((group) => group.groupId === groupId);
   if (!selectedGroup?.canViewAllStores) notFound();
+  if (!(await isBusinessModuleEnabled(user.activeBusinessId, "BUSINESS_GROUP"))) {
+    redirect("/module-not-enabled?module=BUSINESS_GROUP");
+  }
 
   let report: GroupReportsResult | null = null;
   let inputError: string | null = null;

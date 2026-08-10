@@ -31,7 +31,10 @@ export async function loadPayrollDocumentRun(
       business: { select: businessDocumentSelect },
       entries: {
         orderBy: [{ fullNameSnapshot: "asc" }],
-        include: { components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] } },
+        include: {
+          components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] },
+          claimReimbursementSnapshots: { where: { status: { in: ["READY", "SETTLED"] } }, orderBy: { createdAt: "asc" } },
+        },
       },
     },
   });
@@ -56,6 +59,7 @@ export async function loadPayrollPayslip(
     where: { id: entryId, businessId },
     include: {
       components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] },
+      claimReimbursementSnapshots: { where: { status: { in: ["READY", "SETTLED"] } }, orderBy: { createdAt: "asc" } },
       payrollRun: {
         include: { business: { select: businessDocumentSelect } },
       },
@@ -79,6 +83,7 @@ export async function loadPayrollPayslip(
 export function payrollDocumentEntry(
   entry: PayrollEntry & {
     components?: Array<{ amount: { toString(): string }; name: string; type: "EARNING" | "DEDUCTION" }>;
+    claimReimbursementSnapshots?: Array<{ amount: { toString(): string }; claimNumberSnapshot: string }>;
   },
 ): PayrollDocumentEntry {
   return {
@@ -105,6 +110,10 @@ export function payrollDocumentEntry(
     employerEis: Number(entry.employerEis),
     grossPay: Number(entry.grossPay),
     netPay: Number(entry.netPay),
+    claimReimbursements: entry.claimReimbursementSnapshots?.map((snapshot) => ({
+      claimNumber: snapshot.claimNumberSnapshot,
+      amount: Number(snapshot.amount.toString()),
+    })),
     statutoryStatus: entry.statutoryStatus,
     statutoryRuleVersion: entry.statutoryRuleVersion,
     notes: entry.notes,

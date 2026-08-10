@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { MembershipStatus, Prisma } from "@prisma/client";
 import { LoyaltyTabs } from "@/components/loyalty-tabs";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -17,7 +17,8 @@ const PAGE_SIZE = 20;
 const membershipStatuses: MembershipStatus[] = ["ACTIVE", "INACTIVE"];
 
 export default async function LoyaltyMembersPage({ searchParams }: LoyaltyMembersPageProps) {
-  const { businessId, user, industryType } = await requireBusinessUser();
+  const { businessId, user, industryType } =
+    await requireBusinessUserForModule("LOYALTY");
   const isSalonBusiness = industryType === "SALON_BEAUTY";
   assertStaffPermission(user, "LOYALTY");
   const params = await searchParams;

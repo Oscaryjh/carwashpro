@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 
 export default async function CatalogCategoriesPage() {
-  const { user } = await requireBusinessUser();
+  const { user } = await requireBusinessUserForModule("POS");
   const options = [
     { permission: "SERVICES" as const, href: "/services?modal=categories", title: "Service categories", description: "Organize bookable and checkout services." },
     { permission: "PACKAGES" as const, href: "/packages?modal=categories", title: "Package categories", description: "Group prepaid packages by purpose." },

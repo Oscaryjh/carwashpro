@@ -27,7 +27,6 @@ const eligibleAccountSelect = {
   memberships: {
     where: {
       status: "ACTIVE",
-      attendanceEnabled: true,
       business: {
         status: "active",
       },
@@ -37,6 +36,7 @@ const eligibleAccountSelect = {
       businessId: true,
       employeeCode: true,
       fullName: true,
+      attendanceEnabled: true,
       business: {
         select: {
           id: true,
@@ -81,26 +81,28 @@ export async function findEligibleEmployeeIdentityByPhone(
   phoneNumberNormalized: string,
   at: Date = new Date(),
   database: MembershipDatabase = prisma,
+  requireAttendance = true,
 ): Promise<EligibleEmployeeIdentity | null> {
   const account = await database.employeeAccount.findUnique({
     where: { phoneNormalized: phoneNumberNormalized },
     select: eligibleAccountSelect,
   });
 
-  return mapEligibleIdentity(account, at);
+  return mapEligibleIdentity(account, at, requireAttendance);
 }
 
 export async function findEligibleEmployeeIdentityById(
   employeeAccountId: string,
   at: Date = new Date(),
   database: MembershipDatabase = prisma,
+  requireAttendance = true,
 ): Promise<EligibleEmployeeIdentity | null> {
   const account = await database.employeeAccount.findUnique({
     where: { id: employeeAccountId },
     select: eligibleAccountSelect,
   });
 
-  return mapEligibleIdentity(account, at);
+  return mapEligibleIdentity(account, at, requireAttendance);
 }
 
 export async function resolveEligibleEmployeeMembership(
@@ -108,11 +110,13 @@ export async function resolveEligibleEmployeeMembership(
   membershipId: string,
   at: Date = new Date(),
   database: MembershipDatabase = prisma,
+  requireAttendance = true,
 ) {
   const identity = await findEligibleEmployeeIdentityById(
     employeeAccountId,
     at,
     database,
+    requireAttendance,
   );
 
   return (
@@ -125,6 +129,7 @@ export async function resolveEligibleEmployeeMembership(
 function mapEligibleIdentity(
   account: EligibleAccountRecord | null,
   at: Date,
+  requireAttendance: boolean,
 ): EligibleEmployeeIdentity | null {
   if (!account || account.status !== "ACTIVE") {
     return null;
@@ -141,14 +146,17 @@ function mapEligibleIdentity(
     const primaryAssignments = membership.branchAssignments.filter(
       (assignment) =>
         assignment.isPrimary &&
-        assignment.canClockIn &&
         assignment.status === "ACTIVE" &&
         assignment.branch.status === "ACTIVE" &&
         assignment.branch.businessId === membership.businessId &&
-        assignment.branch.attendanceSetting?.isEnabled === true &&
-        assignment.branch.attendanceSetting.businessId ===
-          membership.businessId &&
-        assignment.branch.attendanceSetting.branchId === assignment.branchId &&
+        (!requireAttendance ||
+          (membership.attendanceEnabled &&
+            assignment.canClockIn &&
+            assignment.branch.attendanceSetting?.isEnabled === true &&
+            assignment.branch.attendanceSetting.businessId ===
+              membership.businessId &&
+            assignment.branch.attendanceSetting.branchId ===
+              assignment.branchId)) &&
         assignment.effectiveFrom.getTime() <= at.getTime() &&
         (assignment.effectiveUntil === null ||
           assignment.effectiveUntil.getTime() >= at.getTime()),

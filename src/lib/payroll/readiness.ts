@@ -39,7 +39,8 @@ export type PayrollReadinessCode =
   | "STALE_LINDUNG24_PARTICIPATION"
   | "PENDING_VARIABLE_PAY"
   | "FUTURE_COMPENSATION_CHANGE"
-  | "APPROVED_INPUT_READY";
+  | "APPROVED_INPUT_READY"
+  | "CLAIM_STATUTORY_TREATMENT_NOT_READY";
 
 export type PayrollReadinessIssue = {
   code: PayrollReadinessCode;
@@ -251,6 +252,9 @@ export async function getPayrollPeriodReadiness(
                   lindung24EmployerSelectionSnapshot: true,
                 },
               },
+              claimReimbursementSnapshots: {
+                select: { status: true, blockerCode: true, claimNumberSnapshot: true },
+              },
             },
           })
         : Promise.resolve([]),
@@ -398,6 +402,15 @@ export async function getPayrollPeriodReadiness(
       add("BLOCKER", "RECONCILIATION_FAILED", "Stored totals do not reconcile with canonical component lines.");
     }
     if (entry) {
+      for (const snapshot of entry.claimReimbursementSnapshots) {
+        if (snapshot.status === "BLOCKED_STATUTORY") {
+          add(
+            "BLOCKER",
+            "CLAIM_STATUTORY_TREATMENT_NOT_READY",
+            `Claim ${snapshot.claimNumberSnapshot} reimbursement is blocked until its non-wage statutory treatment is verified.`,
+          );
+        }
+      }
       for (const snapshot of entry.statutorySnapshots) {
         if (
           snapshot.profileRevisionSnapshot !== membership.statutoryProfileRevision ||

@@ -1360,6 +1360,9 @@ async function exerciseRateLimits(
     EMPLOYEE_OTP_PROVIDER_HOURLY_LIMIT: "1",
   });
   const globalProvider = new CapturingEmployeeOtpProvider();
+  // Provider throttling is intentionally global. Move this assertion into an
+  // isolated hour so Local browser QA challenges cannot pollute the fixture.
+  const providerNow = plusSeconds(now, 2 * 60 * 60);
   await requestEmployeeOtp(
     {
       phoneNumber: fixture.single.phone,
@@ -1370,7 +1373,7 @@ async function exerciseRateLimits(
       database: prisma,
       config: providerLimited,
       provider: globalProvider,
-      now,
+      now: providerNow,
     },
   );
   await requestEmployeeOtp(
@@ -1383,7 +1386,7 @@ async function exerciseRateLimits(
       database: prisma,
       config: providerLimited,
       provider: globalProvider,
-      now: plusSeconds(now, 61),
+      now: plusSeconds(providerNow, 61),
     },
   );
   assert.equal(globalProvider.sent.length, 1);

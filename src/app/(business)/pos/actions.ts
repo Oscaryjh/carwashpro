@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
+import { nextInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { awardLoyaltyPointsForPayment } from "@/lib/loyalty/service";
 import { activateCustomerPackageServiceBalances } from "@/lib/packages/service-balances";
 import { prisma } from "@/lib/prisma";
@@ -111,7 +111,7 @@ export async function recordPaymentAction(formData: FormData) {
           businessId,
           branchId: workOrder.branchId,
           workOrderId: workOrder.id,
-          invoiceNumber: makeInvoiceNumber(),
+          invoiceNumber: await nextInvoiceNumber(tx, businessId),
           subtotal: workOrder.subtotal,
           taxableSubtotal: fromCents(toCents(tax?.taxableSubtotal)),
           taxAmount: fromCents(toCents(tax?.tax)),
@@ -372,7 +372,7 @@ export async function usePackagePaymentAction(formData: FormData) {
           businessId,
           branchId: workOrder.branchId,
           workOrderId: workOrder.id,
-          invoiceNumber: makeInvoiceNumber(),
+          invoiceNumber: await nextInvoiceNumber(tx, businessId),
           subtotal: workOrder.subtotal,
           taxableSubtotal: fromCents(toCents(tax?.taxableSubtotal)),
           taxAmount: fromCents(toCents(tax?.tax)),
@@ -579,7 +579,7 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
         branchId: customerPackage.branchId,
         customerId: customerPackage.customerId,
         customerPackageId: customerPackage.id,
-        invoiceNumber: makeInvoiceNumber(),
+        invoiceNumber: await nextInvoiceNumber(tx, businessId),
         subtotal: fromCents(toCents(packageTax.subtotal)),
         taxableSubtotal: fromCents(toCents(packageTax.taxableSubtotal)),
         taxAmount: fromCents(toCents(packageTax.tax)),

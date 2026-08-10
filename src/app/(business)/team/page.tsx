@@ -53,20 +53,22 @@ type TeamPageProps = {
 };
 
 export default async function TeamPage({ searchParams }: TeamPageProps) {
-  const { access, user, businessId, industryType } =
+  const { access, user, businessId, industryType, moduleContext } =
     await requireBusinessUser("VIEW_TEAM_DIRECTORY");
   if (access.source === "DIRECT_BUSINESS") {
     assertStaffPermission(user, "TEAM");
   }
-  const canEditCompensation = hasBusinessCapability(access, "EDIT_COMPENSATION");
+  const canEditCompensation =
+    moduleContext.enabledModules.has("PAYROLL") &&
+    hasBusinessCapability(access, "EDIT_COMPENSATION");
   const canManageTeamPermissions = hasBusinessCapability(
     access,
     "MANAGE_TEAM_PERMISSIONS",
   );
-  const canViewAttendance = hasBusinessCapability(
-    access,
-    "VIEW_ATTENDANCE_EMPLOYEES",
-  );
+  const canManageTeam = hasBusinessCapability(access, "MODIFY_TEAM");
+  const canViewAttendance =
+    moduleContext.enabledModules.has("HR") &&
+    hasBusinessCapability(access, "VIEW_ATTENDANCE_EMPLOYEES");
 
   const params = await searchParams;
   const requestedSection = teamSections.some((item) => item.key === params.section)
@@ -361,7 +363,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
             <p>People, employment, services, attendance, and access in one place.</p>
           </div>
           <div className="hr-module-actions">
-            {canEditCompensation ? (
+            {canManageTeam ? (
               <Link className="button-link" href="/team?section=people&modal=create">
                 Add team member
               </Link>
@@ -428,9 +430,11 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         </div>
       </section>
 
-      {params.modal === "create" && canEditCompensation ? (
+      {params.modal === "create" && canManageTeam ? (
         <StaffCreateModal
           action={createStaffAction}
+          allowHrFields={moduleContext.enabledModules.has("HR")}
+          allowPayrollFields={moduleContext.enabledModules.has("PAYROLL")}
           branches={branches}
           canManagePermissions={canManageTeamPermissions}
           industryType={industryType}
@@ -442,6 +446,8 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
       {params.modal === "edit" && editingStaff && canEditCompensation ? (
         <StaffEditModal
           action={updateStaffAction}
+          allowHrFields={moduleContext.enabledModules.has("HR")}
+          allowPayrollFields={moduleContext.enabledModules.has("PAYROLL")}
           assignedBranchIds={assignedBranchIds(editingStaff)}
           branches={branches}
           canManagePermissions={canManageTeamPermissions}

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import {
   getConnectorStatus,
@@ -30,7 +30,7 @@ const queuedSendSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP");
   const payload = await request.json().catch(() => null);
   const directParsed = directSendSchema.safeParse(payload);

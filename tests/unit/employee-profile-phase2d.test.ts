@@ -24,7 +24,7 @@ test("Leave loader keeps People and branch tenant scope with safe selects", asyn
   assert.match(serialized, /bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/);
   assert.match(serialized, /11111111-1111-4111-8111-111111111111/);
   assert.match(serialized, /effectiveFrom/);
-  assert.match(serialized, /effectiveUntil/);
+  assert.match(serialized, /effectiveTo/);
   assert.match(serialized, /"take":5/);
   assert.match(serialized, /"take":20/);
 
@@ -150,40 +150,53 @@ function createDatabase(
           {
             id: "55555555-5555-4555-8555-555555555555",
             code: "ANNUAL",
-            name: "Annual leave",
-            payTreatment: "PAID",
-            countMode: "WEEKDAYS",
-            balanceTracked: true,
-            defaultEntitlementDays: 8,
-            underTwoYearsDays: 8,
-            twoToFiveYearsDays: 12,
-            fiveYearsPlusDays: 16,
+            versions: [{
+              nameSnapshot: "Annual leave",
+              payTreatment: "PAID",
+              countMode: "WEEKDAYS",
+              balanceTracked: true,
+              defaultEntitlementDays: 8,
+              underTwoYearsDays: 8,
+              twoToFiveYearsDays: 12,
+              fiveYearsPlusDays: 16,
+            }],
           },
           {
             id: "66666666-6666-4666-8666-666666666666",
             code: "UNPAID",
-            name: "Unpaid leave",
-            payTreatment: "UNPAID",
-            countMode: "WEEKDAYS",
-            balanceTracked: false,
-            defaultEntitlementDays: null,
-            underTwoYearsDays: null,
-            twoToFiveYearsDays: null,
-            fiveYearsPlusDays: null,
+            versions: [{
+              nameSnapshot: "Unpaid leave",
+              payTreatment: "UNPAID",
+              countMode: "WEEKDAYS",
+              balanceTracked: false,
+              defaultEntitlementDays: null,
+              underTwoYearsDays: null,
+              twoToFiveYearsDays: null,
+              fiveYearsPlusDays: null,
+            }],
           },
         ]);
       },
     },
-    employeeLeaveBalance: {
+    employeeLeaveEntitlement: {
       findMany(query: Record<string, unknown>) {
-        captured.push({ kind: "balances", query });
+        captured.push({ kind: "entitlements", query });
         return Promise.resolve([
           {
             policyId: "55555555-5555-4555-8555-555555555555",
-            entitlementOverrideDays: 10,
-            carriedForwardDays: 2,
-            adjustmentDays: -1,
+            entitledUnits: 10,
           },
+        ]);
+      },
+    },
+    leaveBalanceLedgerEntry: {
+      groupBy(query: Record<string, unknown>) {
+        captured.push({ kind: "ledger", query });
+        return Promise.resolve([
+          { policyId: "55555555-5555-4555-8555-555555555555", eventType: "ENTITLEMENT_GRANT", _sum: { units: 10 } },
+          { policyId: "55555555-5555-4555-8555-555555555555", eventType: "CARRY_FORWARD", _sum: { units: 2 } },
+          { policyId: "55555555-5555-4555-8555-555555555555", eventType: "MANUAL_ADJUSTMENT", _sum: { units: -1 } },
+          { policyId: "55555555-5555-4555-8555-555555555555", eventType: "APPROVED_CONSUMPTION", _sum: { units: -2.5 } },
         ]);
       },
     },
@@ -191,14 +204,6 @@ function createDatabase(
       findMany(query: Record<string, unknown>) {
         requestCall += 1;
         captured.push({ kind: `requests-${requestCall}`, query });
-        if (requestCall === 1) {
-          return Promise.resolve([
-            {
-              policyId: "55555555-5555-4555-8555-555555555555",
-              days: [{ dayFraction: 1 }, { dayFraction: 1.5 }],
-            },
-          ]);
-        }
         if (query.take === 5) {
           return Promise.resolve([safeRequest]);
         }

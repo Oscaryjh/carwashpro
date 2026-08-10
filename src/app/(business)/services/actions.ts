@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveBranchId } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
@@ -14,7 +14,7 @@ export type DeleteServiceState = {
 };
 
 export async function createServiceAction(formData: FormData) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "SERVICES");
 
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
@@ -88,7 +88,7 @@ export async function createServiceAction(formData: FormData) {
 }
 
 export async function updateServiceAction(formData: FormData) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "SERVICES");
 
   const branchId = await resolveBranchId(businessId, formData.get("branchId"));
@@ -223,7 +223,7 @@ async function resolveServiceStaff(businessId: string, requestedIds: string[]) {
 }
 
 export async function deactivateServiceAction(formData: FormData) {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "SERVICES");
 
   const serviceId = formData.get("serviceId")?.toString();
@@ -253,7 +253,7 @@ export async function deleteServiceAction(
   _previousState: DeleteServiceState,
   formData: FormData,
 ): Promise<DeleteServiceState> {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "SERVICES");
 
   const serviceId = formData.get("serviceId")?.toString();

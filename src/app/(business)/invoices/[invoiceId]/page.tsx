@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackButton } from "@/components/back-button";
@@ -160,16 +159,10 @@ export default async function InvoiceDetailsPage({
               />
             </div>
             <div className="pos-receipt-company">
-              {invoice.business.logoUrl ? (
-                <Image src={invoice.business.logoUrl} alt="" width={72} height={72} />
-              ) : (
-                <div className="pos-receipt-logo-placeholder">
-                  {invoice.business.name.slice(0, 1)}
-                </div>
-              )}
               <div>
                 <strong>{invoice.business.name}</strong>
                 {invoice.business.companyNo ? <span>Company No. {invoice.business.companyNo}</span> : null}
+                {invoice.business.sstRegistrationNo ? <span>SST ID: {invoice.business.sstRegistrationNo}</span> : null}
                 {invoice.business.phone ? <span>WhatsApp No. {invoice.business.phone}</span> : null}
                 {invoice.business.address ? <span>{invoice.business.address}</span> : null}
               </div>
@@ -370,8 +363,7 @@ export default async function InvoiceDetailsPage({
               <p className="muted-text">WhatsApp invoice notification was queued after purchase.</p>
             </div>
             <div className="pos-receipt-company">
-              {invoice.business.logoUrl ? <Image src={invoice.business.logoUrl} alt="" width={72} height={72} /> : <div className="pos-receipt-logo-placeholder">{invoice.business.name.slice(0, 1)}</div>}
-              <div><strong>{invoice.business.name}</strong>{invoice.business.companyNo ? <span>Company No. {invoice.business.companyNo}</span> : null}{invoice.business.phone ? <span>WhatsApp No. {invoice.business.phone}</span> : null}{invoice.business.address ? <span>{invoice.business.address}</span> : null}</div>
+              <div><strong>{invoice.business.name}</strong>{invoice.business.companyNo ? <span>Company No. {invoice.business.companyNo}</span> : null}{invoice.business.sstRegistrationNo ? <span>SST ID: {invoice.business.sstRegistrationNo}</span> : null}{invoice.business.phone ? <span>WhatsApp No. {invoice.business.phone}</span> : null}{invoice.business.address ? <span>{invoice.business.address}</span> : null}</div>
             </div>
             <div className="pos-receipt-header">
               <div><span>Invoice No.</span><strong className="pos-receipt-number">{formatInvoiceNumber(invoice.invoiceNumber)}</strong><small>{invoice.issuedAt.toLocaleDateString("en-MY")}</small></div>
@@ -528,17 +520,13 @@ export default async function InvoiceDetailsPage({
             />
           </div>
           <div className="pos-receipt-company">
-            {invoice.business.logoUrl ? (
-              <Image src={invoice.business.logoUrl} alt="" width={72} height={72} />
-            ) : (
-              <div className="pos-receipt-logo-placeholder">
-                {invoice.business.name.slice(0, 1)}
-              </div>
-            )}
             <div>
               <strong>{invoice.business.name}</strong>
               {invoice.business.companyNo ? (
                 <span>Company No. {invoice.business.companyNo}</span>
+              ) : null}
+              {invoice.business.sstRegistrationNo ? (
+                <span>SST ID: {invoice.business.sstRegistrationNo}</span>
               ) : null}
               {invoice.business.phone ? (
                 <span>WhatsApp No. {invoice.business.phone}</span>

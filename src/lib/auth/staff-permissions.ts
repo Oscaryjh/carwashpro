@@ -135,6 +135,26 @@ export const staffPermissions = [
     label: "Manage attendance settings",
     description: "Update branch attendance and geofence settings.",
   },
+  {
+    key: "VIEW_LEAVE",
+    label: "View employee leave",
+    description: "View leave balances, applications and approval history within assigned branches.",
+  },
+  {
+    key: "APPROVE_LEAVE",
+    label: "Approve or reject leave",
+    description: "Approve, reject or cancel leave without changing its type or pay treatment.",
+  },
+  {
+    key: "EDIT_LEAVE_POLICY",
+    label: "Edit leave policy",
+    description: "Create effective-dated company leave policy revisions.",
+  },
+  {
+    key: "ADJUST_LEAVE_BALANCE",
+    label: "Adjust leave balance",
+    description: "Append a reasoned immutable leave balance adjustment.",
+  },
   ...claimCapabilityPermissions.map(([key, label]) => ({
     key,
     label,
@@ -226,6 +246,9 @@ const impliedStaffPermissions: Partial<
 > = {
   ATTENDANCE_EMPLOYEE_MANAGE: ["ATTENDANCE_EMPLOYEE_READ"],
   ATTENDANCE_SETTINGS_MANAGE: ["ATTENDANCE_SETTINGS_READ"],
+  APPROVE_LEAVE: ["VIEW_LEAVE"],
+  EDIT_LEAVE_POLICY: ["VIEW_LEAVE"],
+  ADJUST_LEAVE_BALANCE: ["VIEW_LEAVE"],
   REVIEW_CLAIM: ["VIEW_CLAIM"],
   VERIFY_CLAIM: ["VIEW_CLAIM"],
   MANAGE_CLAIM_SETTINGS: ["VIEW_CLAIM"],
@@ -333,6 +356,7 @@ const staffHomeRoutes: Array<[StaffPermission, string]> = [
   ["ATTENDANCE_EMPLOYEE_READ", "/team/employees"],
   ["ATTENDANCE_SETTINGS_READ", "/team/attendance-settings"],
   ["PAYROLL_READ", "/team/payroll/workspace"],
+  ["VIEW_CLAIM", "/team/claims"],
 ];
 
 export function getStaffHomePath(
@@ -417,6 +441,9 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
     pathname.startsWith("/team/attendance-settings/")
   ) {
     return "ATTENDANCE_SETTINGS_READ";
+  }
+  if (pathname === "/team/claims" || pathname.startsWith("/team/claims/")) {
+    return "VIEW_CLAIM";
   }
   // These read-only payroll surfaces render their own capability-aware denied
   // state before any payroll query. Let authenticated users reach that boundary

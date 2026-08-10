@@ -379,6 +379,15 @@ async function createFixture(transaction: Prisma.TransactionClient) {
       slug: `attendance-c-b-${suffix}`,
     },
   });
+  await transaction.businessModuleEntitlement.create({
+    data: {
+      businessId: businessA.id,
+      moduleKey: "HR",
+      status: "ENABLED",
+      enabledFrom: new Date("2026-01-01T00:00:00.000Z"),
+      source: "SYSTEM",
+    },
+  });
   const branchA = await transaction.branch.create({
     data: {
       businessId: businessA.id,

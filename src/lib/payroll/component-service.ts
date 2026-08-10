@@ -216,7 +216,10 @@ export async function getPayrollRunComponentReconciliationFailures(
 ) {
   const entries = await transaction.payrollEntry.findMany({
     where: { businessId: input.businessId, payrollRunId: input.runId },
-    include: { components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] } },
+    include: {
+      components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] },
+      claimReimbursementSnapshots: { where: { status: { in: ["READY", "SETTLED"] } }, select: { amount: true } },
+    },
   });
   const failures: string[] = [];
   for (const entry of entries) {
@@ -233,6 +236,7 @@ export async function getPayrollRunComponentReconciliationFailures(
           recurringDeductionsCents: moneyToCents(entry.recurringDeductionsSnapshot),
           netPayCents: moneyToCents(entry.netPay),
         },
+        entry.claimReimbursementSnapshots.reduce((sum, snapshot) => sum + moneyToCents(snapshot.amount), 0),
       );
     } catch {
       failures.push(entry.id);
@@ -250,9 +254,14 @@ export async function deriveAndPersistEntryAggregates(
     where: { businessId: entry.businessId, payrollEntryId: entry.id },
     orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }],
   });
+  const reimbursements = await transaction.payrollClaimReimbursementSnapshot.findMany({
+    where: { businessId: entry.businessId, payrollEntryId: entry.id, status: { in: ["READY", "SETTLED"] } },
+    select: { amount: true },
+  });
   const totals = calculatePayrollComponentAggregates(
     components.map(toDomainLine),
     statutoryFromEntry(entry),
+    reimbursements.reduce((sum, item) => sum + moneyToCents(item.amount), 0),
   );
   const result = await transaction.payrollEntry.updateMany({
     where: {

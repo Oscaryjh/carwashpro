@@ -48,7 +48,7 @@ test("C0 records the approved Claim product boundary without claiming workflow s
   );
   assert.equal(
     CLAIM_ARCHITECTURE_POLICY.payrollEligibility,
-    "CATEGORY_EXPLICIT_OPT_IN",
+    "VERIFIED_NON_WAGE_ONLY",
   );
   assert.deepEqual(CLAIM_ARCHITECTURE_POLICY.approvalStages, [
     "EMPLOYEE_SUBMIT",
@@ -56,8 +56,8 @@ test("C0 records the approved Claim product boundary without claiming workflow s
     "FINANCE_VERIFICATION",
   ]);
   assert.equal(CLAIM_ARCHITECTURE_POLICY.approvedMeansPaid, false);
-  assert.equal(CLAIM_C0_BOUNDARY.domainWorkflowImplemented, false);
-  assert.equal(CLAIM_C0_BOUNDARY.payrollBridgeImplemented, false);
+  assert.equal(CLAIM_C0_BOUNDARY.domainWorkflowImplemented, true);
+  assert.equal(CLAIM_C0_BOUNDARY.payrollBridgeImplemented, true);
   assert.equal(CLAIM_C0_BOUNDARY.malwareScannerImplemented, false);
   assert.equal(CLAIM_C0_BOUNDARY.s3CompatiblePrivateStorageImplemented, true);
 });

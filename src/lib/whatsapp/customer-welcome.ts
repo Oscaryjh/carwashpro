@@ -6,6 +6,7 @@ import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 type SendNewCustomerWelcomeInput = {
   businessId: string;
@@ -19,6 +20,7 @@ type SendNewCustomerWelcomeInput = {
 export async function sendNewCustomerWelcomeIfConnected(
   input: SendNewCustomerWelcomeInput,
 ) {
+  if (!(await isBusinessModuleEnabled(input.businessId, "WHATSAPP"))) return;
   const recipientPhone = normalizeMalaysiaWhatsAppPhone(input.customerPhone);
 
   if (!recipientPhone) {

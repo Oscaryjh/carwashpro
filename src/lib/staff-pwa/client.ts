@@ -30,7 +30,9 @@ export async function staffApiFetch<T>(
       cache: "no-store",
       credentials: "same-origin",
       headers: {
-        ...(init?.body ? { "content-type": "application/json" } : {}),
+        ...(init?.body && !(typeof FormData !== "undefined" && init.body instanceof FormData)
+          ? { "content-type": "application/json" }
+          : {}),
         ...init?.headers,
       },
     });

@@ -16,6 +16,8 @@ import {
 } from "@/lib/business-groups/capabilities";
 import { prisma } from "@/lib/prisma";
 import { getBusinessHomeHref } from "@/lib/business-industry";
+import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
+import type { ModuleKey } from "@/lib/modules/registry";
 
 type AppShellProps = {
   user: AppSession;
@@ -41,18 +43,28 @@ export async function AppShell({ user, access, children }: AppShellProps) {
   ) =>
     isBusinessOwner ||
     (isGroupManager ? canGroupManager(capability) : canSee(permission));
-  const business = user.businessId
-    ? await prisma.business.findUnique({
-        where: { id: user.businessId },
-        select: { name: true, logoUrl: true, industryType: true },
-      })
-    : null;
+  const [business, moduleContext] = user.businessId
+    ? await Promise.all([
+        prisma.business.findUnique({
+          where: { id: user.businessId },
+          select: { name: true, logoUrl: true, industryType: true },
+        }),
+        loadBusinessModuleContext(user.businessId),
+      ])
+    : [null, null];
+  const moduleEnabled = (moduleKey: ModuleKey) =>
+    moduleKey === "CORE" || Boolean(moduleContext?.enabledModules.has(moduleKey));
   const isSalonBusiness = business?.industryType === "SALON_BEAUTY";
+  const operationalIndustryEnabled = isSalonBusiness
+    ? moduleEnabled("SALON")
+    : moduleEnabled("AUTO");
   const homeHref = isPlatformAdmin
     ? "/admin/businesses"
-    : getBusinessHomeHref(business?.industryType ?? "AUTO_DETAILING");
+    : moduleEnabled("POS") && operationalIndustryEnabled
+      ? getBusinessHomeHref(business?.industryType ?? "AUTO_DETAILING")
+      : "/team";
   const whatsAppUnreadCount =
-    user.businessId && isStoreUser && canSee("WHATSAPP")
+    user.businessId && isStoreUser && moduleEnabled("WHATSAPP") && canSee("WHATSAPP")
       ? (
           await prisma.whatsAppConversation.aggregate({
             where: {
@@ -65,26 +77,26 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       : 0;
   const brandName = business?.name ?? "TETAMU POS";
   const catalogChildren: NavItem[] = [
-    ...(isStoreUser && canSeeCapability("SERVICES", "VIEW_CATALOG")
+    ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("SERVICES", "VIEW_CATALOG")
       ? [{ href: "/services", label: "Services", shortLabel: "Svc", icon: "services" as const }]
       : []),
-    ...(isStoreUser && canSeeCapability("PACKAGES", "VIEW_CATALOG")
+    ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("PACKAGES", "VIEW_CATALOG")
       ? [{ href: "/packages", label: "Packages", shortLabel: "Pkg", icon: "packages" as const }]
       : []),
-    ...(isStoreUser && canSeeCapability("PRODUCTS", "VIEW_INVENTORY")
+    ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("PRODUCTS", "VIEW_INVENTORY")
       ? [{ href: "/products", label: "Products", shortLabel: "Prod", icon: "services" as const }]
       : []),
-    ...(isStoreUser && canSeeCapability("DISCOUNTS", "VIEW_CATALOG")
+    ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("DISCOUNTS", "VIEW_CATALOG")
       ? [{ href: "/discounts", label: "Discounts", shortLabel: "Disc", icon: "reports" as const }]
       : []),
   ];
   const teamChildren: NavItem[] = [
     ...(isStoreUser &&
     (canSeeCapability("TEAM", "VIEW_TEAM_DIRECTORY") ||
-      canSeeCapability(
+      (moduleEnabled("HR") && canSeeCapability(
         "ATTENDANCE_EMPLOYEE_READ",
         "VIEW_ATTENDANCE_EMPLOYEES",
-      ))
+      )))
       ? [
           {
             href: canSeeCapability("TEAM", "VIEW_TEAM_DIRECTORY")
@@ -97,7 +109,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
         ]
       : []),
     ...(isStoreUser &&
-    canSeeCapability(
+    moduleEnabled("HR") && canSeeCapability(
       "ATTENDANCE_EMPLOYEE_READ",
       "VIEW_ATTENDANCE_EMPLOYEES",
     )
@@ -108,16 +120,16 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             shortLabel: "Attend",
             icon: "reports" as const,
           },
-          {
-            href: "/team/leave",
-            label: "Leave",
-            shortLabel: "Leave",
-            icon: "team" as const,
-          },
         ]
       : []),
+    ...(isStoreUser && moduleEnabled("HR") && canSeeCapability("VIEW_LEAVE", "VIEW_LEAVE")
+      ? [{ href: "/team/leave", label: "Leave", shortLabel: "Leave", icon: "team" as const }]
+      : []),
+    ...(isStoreUser && moduleEnabled("CLAIMS") && canSeeCapability("VIEW_CLAIM", "VIEW_CLAIM")
+      ? [{ href: "/team/claims", label: "Claims", shortLabel: "Claims", icon: "reports" as const }]
+      : []),
     ...(isStoreUser &&
-    canSeeCapability("VIEW_PAYROLL_RUN", "VIEW_PAYROLL_RUN")
+    moduleEnabled("PAYROLL") && canSeeCapability("VIEW_PAYROLL_RUN", "VIEW_PAYROLL_RUN")
       ? [
           {
             href: "/team/payroll",
@@ -128,7 +140,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
         ]
       : []),
     ...(isStoreUser &&
-    canSeeCapability(
+    moduleEnabled("STATUTORY") && canSeeCapability(
       "VIEW_STATUTORY_SUBMISSION",
       "VIEW_STATUTORY_SUBMISSION",
     ) &&
@@ -144,7 +156,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
         ]
       : []),
     ...(isStoreUser &&
-    canSeeCapability(
+    moduleEnabled("HR") && canSeeCapability(
       "ATTENDANCE_SETTINGS_READ",
       "VIEW_ATTENDANCE_SETTINGS",
     )
@@ -188,6 +200,8 @@ export async function AppShell({ user, access, children }: AppShellProps) {
         ]
       : []),
     ...(!isSalonBusiness &&
+    moduleEnabled("POS") &&
+    moduleEnabled("AUTO") &&
     isStoreUser &&
     canSeeCapability("JOBS", "VIEW_WORK_ORDERS")
       ? [
@@ -201,6 +215,8 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       : []),
     ...(isSalonBusiness &&
     isStoreUser &&
+    moduleEnabled("POS") &&
+    moduleEnabled("SALON") &&
     !isGroupManager &&
     canSee("POS")
       ? [
@@ -212,7 +228,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser &&
+    ...(isStoreUser && operationalIndustryEnabled &&
     canSeeCapability("APPOINTMENTS", "VIEW_APPOINTMENTS")
       ? [
           {
@@ -223,10 +239,10 @@ export async function AppShell({ user, access, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && canSeeCapability("CRM", "VIEW_CRM")
+    ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("CRM", "VIEW_CRM")
       ? [{ href: "/crm", label: "CRM", shortLabel: "CRM", icon: "crm" as const }]
       : []),
-    ...(isStoreUser && !isGroupManager && canSee("LOYALTY")
+    ...(isStoreUser && moduleEnabled("LOYALTY") && !isGroupManager && canSee("LOYALTY")
       ? [
           {
             href: "/loyalty",
@@ -236,7 +252,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && !isGroupManager && canSee("CLOSING")
+    ...(isStoreUser && moduleEnabled("POS") && !isGroupManager && canSee("CLOSING")
       ? [
           {
             href: "/closing",
@@ -246,7 +262,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(isStoreUser && !isGroupManager && canSee("WHATSAPP")
+    ...(isStoreUser && moduleEnabled("WHATSAPP") && !isGroupManager && canSee("WHATSAPP")
       ? [
           {
             href: "/whatsapp/inbox",
@@ -261,8 +277,8 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       ? [
           {
             href: "/team",
-            label: "HR & Payroll",
-            shortLabel: "HR",
+            label: "People & HR",
+            shortLabel: "People",
             icon: "team" as const,
             children: teamChildren,
           },
@@ -301,11 +317,11 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       : []),
   ];
   const businessContexts =
-    !isPlatformAdmin && user.businessId
+    !isPlatformAdmin && user.businessId && moduleEnabled("BUSINESS_GROUP")
       ? await getAvailableBusinessContexts(user.userId, user.businessId)
       : null;
   const groupReportingContexts =
-    !isPlatformAdmin
+    !isPlatformAdmin && moduleEnabled("BUSINESS_GROUP")
       ? await getAvailableGroupReportingContexts(
           user.userId,
           user.activeBusinessId,

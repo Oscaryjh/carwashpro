@@ -25,7 +25,7 @@ export async function POST(request: Request) {
         ...input,
         request: getEmployeeAuthRequestContext(request),
       },
-      { config },
+      { config, requireAttendance: false },
     );
     const response = employeeAuthJson({
       ok: true,

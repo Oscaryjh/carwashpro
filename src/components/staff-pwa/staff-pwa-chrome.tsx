@@ -11,10 +11,13 @@ const authRoutes = new Set([
   "/staff/select-workplace",
 ]);
 
-export function StaffPwaChrome({ children }: { children: React.ReactNode }) {
+export function StaffPwaChrome({ children, enabledModules }: { children: React.ReactNode; enabledModules: readonly string[] }) {
   const pathname = usePathname();
   const currentPath = pathname ?? "/staff";
   const showNavigation = !authRoutes.has(currentPath);
+  const hrEnabled = enabledModules.includes("HR");
+  const payrollEnabled = enabledModules.includes("PAYROLL");
+  const claimsEnabled = enabledModules.includes("CLAIMS");
 
   return (
     <div className="staff-pwa-shell">
@@ -32,38 +35,45 @@ export function StaffPwaChrome({ children }: { children: React.ReactNode }) {
       <main className="staff-pwa-main">{children}</main>
       {showNavigation ? (
         <nav aria-label="Staff navigation" className="staff-pwa-nav">
-          <Link className={currentPath === "/staff" ? "active" : ""} href="/staff">
+          {hrEnabled ? <Link className={currentPath === "/staff" ? "active" : ""} href="/staff">
             <span aria-hidden="true">⌂</span>
             Today
-          </Link>
-          <Link
+          </Link> : null}
+          {hrEnabled ? <Link
             className={currentPath === "/staff/history" ? "active" : ""}
             href="/staff/history"
           >
             <span aria-hidden="true">◷</span>
             History
-          </Link>
-          <Link
+          </Link> : null}
+          {claimsEnabled ? <Link
+            className={currentPath === "/staff/claims" ? "active" : ""}
+            href="/staff/claims"
+          >
+            <span aria-hidden="true">$</span>
+            Claims
+          </Link> : null}
+          {hrEnabled ? <Link
             className={currentPath === "/staff/timesheet" ? "active" : ""}
             href="/staff/timesheet"
           >
             <span aria-hidden="true">▤</span>
             Timesheet
-          </Link>
-          <Link
+          </Link> : null}
+          {hrEnabled ? <Link
             className={currentPath === "/staff/leave" ? "active" : ""}
             href="/staff/leave"
           >
             <span aria-hidden="true">◇</span>
             Leave
-          </Link>
-          <Link
+          </Link> : null}
+          {payrollEnabled ? <Link
             className={currentPath.startsWith("/staff/payslips") ? "active" : ""}
             href="/staff/payslips"
           >
             <span aria-hidden="true">▤</span>
             Payslips
-          </Link>
+          </Link> : null}
           <Link
             className={
               currentPath === "/staff/profile" || currentPath === "/staff/device"

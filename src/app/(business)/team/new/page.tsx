@@ -7,8 +7,8 @@ import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { createStaffAction } from "../actions";
 
 export default async function NewStaffPage() {
-  const { access, user, businessId, industryType } =
-    await requireBusinessUser("EDIT_COMPENSATION");
+  const { access, user, businessId, industryType, moduleContext } =
+    await requireBusinessUser("MODIFY_TEAM");
   if (access.source === "DIRECT_BUSINESS") {
     assertStaffPermission(user, "TEAM");
   }
@@ -39,6 +39,8 @@ export default async function NewStaffPage() {
           </div>
           <StaffForm
             action={createStaffAction}
+            allowHrFields={moduleContext.enabledModules.has("HR")}
+            allowPayrollFields={moduleContext.enabledModules.has("PAYROLL")}
             branches={branches}
             canManagePermissions={hasBusinessCapability(
               access,

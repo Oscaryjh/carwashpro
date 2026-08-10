@@ -1,4 +1,5 @@
 import { requireEmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
+import { requireEmployeeBusinessModule } from "@/lib/modules/employee-access";
 import { getEmployeeAttendanceHistory } from "@/lib/attendance/read-service";
 import {
   employeeAttendanceErrorResponse,
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const auth = await requireEmployeeAuthContext(request);
+    await requireEmployeeBusinessModule(auth, "HR");
     const searchParams = new URL(request.url).searchParams;
     const result = await getEmployeeAttendanceHistory({
       auth,

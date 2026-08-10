@@ -1,5 +1,6 @@
 import { NotificationQueuePriority } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
 import { normalizeValidWhatsAppPhone } from "@/lib/whatsappDeepLink";
@@ -51,6 +52,9 @@ export async function scheduleAppointmentReminder({
   sentByUserId,
   now = new Date(),
 }: ScheduleAppointmentReminderInput) {
+  if (!(await isBusinessModuleEnabled(businessId, "WHATSAPP", { now }))) {
+    return { status: "MODULE_NOT_ENABLED" as const };
+  }
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, businessId },
     include: {

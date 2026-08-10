@@ -30,6 +30,7 @@ export type PayrollDocumentEntry = {
   employerEis: number;
   grossPay: number;
   netPay: number;
+  claimReimbursements?: Array<{ claimNumber: string; amount: number }>;
   statutoryStatus: string;
   statutoryRuleVersion: string | null;
   notes: string | null;
@@ -139,6 +140,13 @@ export function buildPayslipPdf(
     moneyLine("PCB", entry.pcb),
     moneyLine("Total deductions", employeeDeductions),
     "",
+    ...(entry.claimReimbursements?.length
+      ? [
+          "REIMBURSEMENTS (NON-WAGE)",
+          ...entry.claimReimbursements.map((item) => moneyLine(`Claim ${item.claimNumber}`, item.amount)),
+          "",
+        ]
+      : []),
     moneyLine("NET PAY", entry.netPay),
     "",
     "EMPLOYER CONTRIBUTIONS",

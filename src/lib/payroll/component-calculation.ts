@@ -152,9 +152,11 @@ export function calculatePayrollComponentAggregates(
     lindung24EmployeeCents: number;
     pcbCents: number;
   },
+  reimbursementCents = 0,
 ): PayrollComponentAggregates {
   lines.forEach(assertLine);
   Object.values(statutory).forEach((value) => assertMoneyCents(value));
+  assertMoneyCents(reimbursementCents);
 
   const grossPayCents = sumLines(lines, (line) => line.type === "EARNING");
   const nonStatutoryDeductionsCents = sumLines(
@@ -189,7 +191,7 @@ export function calculatePayrollComponentAggregates(
     recurringDeductionsCents,
     netPayCents: Math.max(
       0,
-      grossPayCents - nonStatutoryDeductionsCents - statutoryDeductionsCents,
+      grossPayCents - nonStatutoryDeductionsCents - statutoryDeductionsCents + reimbursementCents,
     ),
   };
 }
@@ -198,8 +200,9 @@ export function reconcilePayrollEntryComponents(
   lines: readonly PayrollComponentLine[],
   statutory: Parameters<typeof calculatePayrollComponentAggregates>[1],
   stored: PayrollComponentAggregates,
+  reimbursementCents = 0,
 ) {
-  const calculated = calculatePayrollComponentAggregates(lines, statutory);
+  const calculated = calculatePayrollComponentAggregates(lines, statutory, reimbursementCents);
   const keys = Object.keys(calculated) as Array<keyof PayrollComponentAggregates>;
   if (keys.some((key) => calculated[key] !== stored[key])) {
     throw new Error(PAYROLL_COMPONENT_RECONCILIATION_FAILED);

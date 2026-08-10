@@ -11,7 +11,7 @@ import {
   formatCatalogDiscountValue,
   type CatalogDiscountOption,
 } from "@/lib/catalog-discounts";
-import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
+import { nextInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { getInvoicePaymentSummary } from "@/lib/invoices/payment-summary";
 import {
   activateCustomerPackageServiceBalances,
@@ -1457,7 +1457,7 @@ export async function recordSalonAppointmentPaymentAction(
           businessId,
           customerId: appointment.customerId,
           customerPackageId: customerPackageIdByLine.values().next().value ?? null,
-          invoiceNumber: makeInvoiceNumber(),
+          invoiceNumber: await nextInvoiceNumber(tx, businessId),
           subtotal: fromCents(subtotalCents),
           discountAmount: fromCents(discountCents),
           discountReason: catalogDiscount

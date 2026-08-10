@@ -1,13 +1,18 @@
-export function makeInvoiceNumber() {
-  const now = new Date();
-  const year = String(now.getFullYear()).slice(-2);
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const hour = String(now.getHours()).padStart(2, "0");
-  const minute = String(now.getMinutes()).padStart(2, "0");
-  const suffix = Math.random().toString(36).slice(2, 5).toUpperCase();
+import type { Prisma } from "@prisma/client";
 
-  return `INV-${year}${month}${day}-${hour}${minute}${suffix}`;
+type InvoiceNumberTransaction = Pick<Prisma.TransactionClient, "business">;
+
+export async function nextInvoiceNumber(
+  transaction: InvoiceNumberTransaction,
+  businessId: string,
+) {
+  const business = await transaction.business.update({
+    where: { id: businessId },
+    data: { invoiceSequence: { increment: 1 } },
+    select: { invoiceSequence: true },
+  });
+
+  return String(business.invoiceSequence);
 }
 
 export function formatInvoiceNumber(invoiceNumber: string | null | undefined) {

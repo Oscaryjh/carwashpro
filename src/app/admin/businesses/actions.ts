@@ -9,6 +9,10 @@ import { assertCanManageBusiness, assertRole } from "@/lib/auth/permissions";
 import { requireUser, revokeUserSessions } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import {
+  changeBusinessModuleEntitlement,
+  provisionDefaultBusinessModules,
+} from "@/lib/modules/service";
+import {
   type BusinessLogoExtension,
   writeRuntimeBusinessLogo,
 } from "@/lib/runtime-business-logo";
@@ -50,6 +54,36 @@ const CREATE_BUSINESS_FIELDS = [
 ] as const;
 
 type CreateBusinessField = (typeof CREATE_BUSINESS_FIELDS)[number];
+
+export async function changeBusinessModuleEntitlementAction(formData: FormData) {
+  const user = await requireUser();
+  assertRole(user, ["PLATFORM_ADMIN"]);
+  const businessId = String(formData.get("businessId") ?? "");
+  let type = "success";
+  let message = "Business module entitlement updated.";
+  try {
+    await changeBusinessModuleEntitlement({
+      actor: user,
+      request: await getAuditRequestContext(),
+      rawInput: {
+        businessId,
+        moduleKey: formData.get("moduleKey"),
+        status: formData.get("status"),
+        enabledFrom: formData.get("enabledFrom"),
+        enabledUntil: formData.get("enabledUntil"),
+        source: "MANUAL",
+        planCode: formData.get("planCode"),
+        reason: formData.get("reason"),
+        expectedRevision: formData.get("expectedRevision") || undefined,
+      },
+    });
+    revalidatePath(`/admin/businesses/${businessId}`);
+  } catch (error) {
+    type = "error";
+    message = error instanceof Error ? error.message : "Unable to update module entitlement.";
+  }
+  redirect(`/admin/businesses/${businessId}?type=${type}&message=${encodeURIComponent(message)}`);
+}
 
 export type CreateBusinessState = {
   status: "idle" | "error";
@@ -147,6 +181,13 @@ export async function createBusinessAction(
           role: "BUSINESS_OWNER",
           status: "active",
         },
+      });
+
+      await provisionDefaultBusinessModules({
+        transaction: tx,
+        businessId: newBusiness.id,
+        industryType: newBusiness.industryType,
+        actorUserId: user.userId,
       });
 
       if (newBusiness.industryType === "SALON_BEAUTY") {

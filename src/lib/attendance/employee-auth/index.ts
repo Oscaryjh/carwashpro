@@ -1,8 +1,10 @@
 export {
   authenticateEmployeeSessionToken,
   getEmployeeAuthContext,
+  getEmployeeSelfServiceAuthContext,
   getEmployeeAuthProfile,
   requireEmployeeAuthContext,
+  requireEmployeeSelfServiceAuthContext,
   requireEmployeePunchAuthContext,
   revokeEmployeeSessionToken,
   type EmployeeAuthContext,

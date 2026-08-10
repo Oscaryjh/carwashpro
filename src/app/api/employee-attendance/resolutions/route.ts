@@ -17,6 +17,7 @@ import {
   employeeAttendanceErrorResponse,
   employeeAttendanceJson,
 } from "@/lib/attendance/response";
+import { requireEmployeeBusinessModule } from "@/lib/modules/employee-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const auth = await requireEmployeeAuthContext(request);
+    await requireEmployeeBusinessModule(auth, "HR");
     const data = await loadEmployeeAttendanceResolutionCases({ auth });
     return employeeAttendanceJson({ ok: true, data });
   } catch (error) {

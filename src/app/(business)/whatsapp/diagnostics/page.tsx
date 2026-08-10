@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BackButton } from "@/components/back-button";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 import {
@@ -9,7 +9,7 @@ import {
 } from "@/lib/whatsapp/connector-client";
 
 export default async function WhatsAppDiagnosticsPage() {
-  const { user, businessId } = await requireBusinessUser();
+  const { user, businessId } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP_SESSION");
   const [connector, database] = await Promise.all([
     readConnectorDiagnostics(businessId),

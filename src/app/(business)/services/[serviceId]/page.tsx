@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { BackButton } from "@/components/back-button";
 import { DeleteServiceForm } from "@/components/delete-service-form";
 import { ServiceForm } from "@/components/service-form";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { getActiveBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
@@ -17,7 +17,8 @@ type ServiceDetailsPageProps = {
 export default async function ServiceDetailsPage({
   params,
 }: ServiceDetailsPageProps) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const { user, businessId, industryType } =
+    await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "SERVICES");
   const isSalonBusiness = industryType === "SALON_BEAUTY";
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LoyaltyTabs } from "@/components/loyalty-tabs";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -12,7 +12,7 @@ type LoyaltyPageProps = {
 };
 
 export default async function LoyaltyPage({ searchParams }: LoyaltyPageProps) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("LOYALTY");
   assertStaffPermission(user, "LOYALTY");
   const params = await searchParams;
 

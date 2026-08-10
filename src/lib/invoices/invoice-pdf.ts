@@ -15,6 +15,7 @@ export type InvoicePdfInput = {
     logo?: InvoicePdfLogo | null;
     name: string;
     phone?: string | null;
+    sstRegistrationNo?: string | null;
   };
   customer: {
     name: string;
@@ -33,6 +34,7 @@ export type InvoicePdfInput = {
   loyaltyPointsRedeemed?: number | null;
   depositAmount?: unknown;
   taxAmount?: unknown;
+  taxableSubtotal?: unknown;
   taxLabel?: string | null;
   taxRate?: unknown;
   tipAmount?: unknown;
@@ -73,8 +75,8 @@ type PreparedPdfImage = {
 const PAGE_WIDTH = 595;
 const PAGE_HEIGHT = 842;
 const LOGO_SIZE = 72;
-const RECEIPT_WIDTH = 164.41;
-const RECEIPT_MARGIN = 10;
+const RECEIPT_WIDTH = 226.77;
+const RECEIPT_MARGIN = 16;
 
 export function buildInvoicePdf(input: InvoicePdfInput) {
   const commands: string[] = [];
@@ -282,12 +284,12 @@ export function buildInvoicePdf(input: InvoicePdfInput) {
 }
 
 export function buildInvoiceReceiptPdf(input: InvoicePdfInput) {
-  const logoImage = preparePdfImage(input.company.logo ?? null);
-  const companyNameLines = wrapText(input.company.name, 24).slice(0, 2);
+  const companyNameLines = wrapText(input.company.name, 34).slice(0, 2);
   const companyDetailLines = [
-    input.company.companyNo ? `Company No. ${input.company.companyNo}` : null,
+    input.company.companyNo ? `Reg no: ${input.company.companyNo}` : null,
+    input.company.sstRegistrationNo ? `SST ID: ${input.company.sstRegistrationNo}` : null,
     input.company.phone ? `Tel ${input.company.phone}` : null,
-    ...(input.company.address ? wrapText(input.company.address, 34).slice(0, 3) : []),
+    ...(input.company.address ? wrapText(input.company.address, 44).slice(0, 4) : []),
   ].filter((value): value is string => Boolean(value));
   const reference = input.reference ?? {
     detail: input.vehicle
@@ -300,7 +302,7 @@ export function buildInvoiceReceiptPdf(input: InvoicePdfInput) {
   };
   const receiptItems = input.items.map((item) => ({
     ...item,
-    nameLines: wrapText(item.name, 28),
+    nameLines: wrapText(item.name, 31),
   }));
   const discountAmount = Number(input.discountAmount ?? 0);
   const loyaltyDiscountAmount = Number(input.loyaltyDiscountAmount ?? 0);
@@ -311,48 +313,43 @@ export function buildInvoiceReceiptPdf(input: InvoicePdfInput) {
   const balanceAmount = Number(input.balance ?? 0);
   const hasPackageVoucher = Number(input.packageVoucherAmount ?? 0) > 0;
   const summaryRows: Array<[string, string]> = [
-    ["Subtotal", formatMoney(input.subtotal)],
+    ["Subtotal", formatReceiptMoney(input.subtotal)],
     ...(manualDiscountAmount > 0
-      ? [["Discount", `-${formatMoney(manualDiscountAmount)}`] as [string, string]]
+      ? [["Discount", `-${formatReceiptMoney(manualDiscountAmount)}`] as [string, string]]
       : []),
     ...(loyaltyDiscountAmount > 0
       ? [[
           `Points (${input.loyaltyPointsRedeemed ?? 0})`,
-          `-${formatMoney(loyaltyDiscountAmount)}`,
+          `-${formatReceiptMoney(loyaltyDiscountAmount)}`,
         ] as [string, string]]
       : []),
-    ...(taxAmount > 0
-      ? [[formatTaxLabel(input.taxLabel, input.taxRate), formatMoney(taxAmount)] as [string, string]]
-      : []),
     ...(tipAmount > 0
-      ? [["Tip", formatMoney(tipAmount)] as [string, string]]
+      ? [["Tip", formatReceiptMoney(tipAmount)] as [string, string]]
       : []),
-    ["TOTAL", formatMoney(input.total)],
+    ["Total (MYR)", formatReceiptMoney(input.total)],
     ...(hasPackageVoucher
       ? [
-          ["Package voucher", `-${formatMoney(input.packageVoucherAmount)}`] as [string, string],
-          ["Cash paid", formatMoney(input.cashPaidAmount)] as [string, string],
+          ["Package voucher", `-${formatReceiptMoney(input.packageVoucherAmount)}`] as [string, string],
+          ["Cash paid", formatReceiptMoney(input.cashPaidAmount)] as [string, string],
         ]
-      : [["Paid", formatMoney(input.paidAmount)] as [string, string]]),
+      : [["Paid", formatReceiptMoney(input.paidAmount)] as [string, string]]),
     ...(depositAmount > 0 && !hasPackageVoucher
-      ? [["Deposit", formatMoney(depositAmount)] as [string, string]]
+      ? [["Deposit", formatReceiptMoney(depositAmount)] as [string, string]]
       : []),
-    ...(balanceAmount > 0
-      ? [["Balance", formatMoney(balanceAmount)] as [string, string]]
-      : []),
+    ["Balance", formatReceiptMoney(balanceAmount)],
   ];
   const itemHeight = receiptItems.reduce(
-    (height, item) => height + Math.max(1, item.nameLines.length) * 9 + 15,
+    (height, item) => height + Math.max(1, item.nameLines.length) * 11 + 4,
     0,
   );
   const pageHeight = Math.max(
-    280,
-    128 +
-      (logoImage ? 38 : 0) +
-      companyNameLines.length * 12 +
-      companyDetailLines.length * 9 +
+    330,
+    170 +
+      companyNameLines.length * 15 +
+      companyDetailLines.length * 11 +
       itemHeight +
-      summaryRows.length * 11,
+      summaryRows.length * 13 +
+      (taxAmount > 0 ? 48 : 0),
   );
   const commands: string[] = [];
   const rightX = RECEIPT_WIDTH - RECEIPT_MARGIN;
@@ -365,7 +362,7 @@ export function buildInvoiceReceiptPdf(input: InvoicePdfInput) {
     style: TextStyle = {},
   ) => {
     const font = style.font === "bold" ? "F2" : "F1";
-    const size = style.size ?? 7.5;
+    const size = style.size ?? 8.5;
     commands.push(
       `BT /${font} ${size} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${escapePdfText(
         value,
@@ -375,7 +372,7 @@ export function buildInvoiceReceiptPdf(input: InvoicePdfInput) {
   const estimatedWidth = (value: string, size: number) =>
     safePdfText(value).length * size * 0.52;
   const centeredText = (value: string, y: number, style: TextStyle = {}) => {
-    const size = style.size ?? 7.5;
+    const size = style.size ?? 8.5;
     text(
       value,
       Math.max(RECEIPT_MARGIN, (RECEIPT_WIDTH - estimatedWidth(value, size)) / 2),
@@ -384,17 +381,26 @@ export function buildInvoiceReceiptPdf(input: InvoicePdfInput) {
     );
   };
   const rightText = (value: string, y: number, style: TextStyle = {}) => {
-    const size = style.size ?? 7.5;
+    const size = style.size ?? 8.5;
     text(value, rightX - estimatedWidth(value, size), y, style);
+  };
+  const rightTextAt = (
+    value: string,
+    right: number,
+    y: number,
+    style: TextStyle = {},
+  ) => {
+    const size = style.size ?? 8.5;
+    text(value, right - estimatedWidth(value, size), y, style);
   };
   const divider = () => {
     cursor -= 4;
     commands.push(
-      `q 0.55 0.55 0.55 RG 0.45 w ${RECEIPT_MARGIN} ${cursor.toFixed(
+      `q 0 0 0 RG 0.7 w ${RECEIPT_MARGIN} ${cursor.toFixed(
         2,
       )} m ${rightX.toFixed(2)} ${cursor.toFixed(2)} l S Q`,
     );
-    cursor -= 7;
+    cursor -= 11;
   };
   const centeredLines = (lines: string[], size: number, bold = false) => {
     lines.forEach((lineValue) => {
@@ -406,82 +412,88 @@ export function buildInvoiceReceiptPdf(input: InvoicePdfInput) {
     });
   };
 
-  if (logoImage) {
-    const fitted = fitImage(logoImage, 32, 32);
-    const imageX = (RECEIPT_WIDTH - fitted.width) / 2;
-    const imageY = cursor - fitted.height;
-    commands.push(
-      `q ${fitted.width.toFixed(2)} 0 0 ${fitted.height.toFixed(2)} ${imageX.toFixed(
-        2,
-      )} ${imageY.toFixed(2)} cm /Im1 Do Q`,
-    );
-    cursor = imageY - 5;
-  }
-
-  centeredLines(companyNameLines, 10.5, true);
-  centeredLines(companyDetailLines, 6.5);
+  centeredLines(companyNameLines, 13, true);
+  centeredLines(companyDetailLines, 8);
   divider();
-  centeredText((input.documentTitle ?? "INVOICE").toUpperCase(), cursor, {
-    font: "bold",
-    size: 9,
+  text(`${input.numberLabel ?? "Invoice no"}: ${input.invoiceNumber}`, RECEIPT_MARGIN, cursor, {
+    size: 8.5,
   });
-  cursor -= 14;
-  text("Invoice", RECEIPT_MARGIN, cursor, { font: "bold", size: 6.5 });
-  rightText(input.invoiceNumber, cursor, { font: "bold", size: 6.5 });
-  cursor -= 10;
-  text("Date", RECEIPT_MARGIN, cursor, { size: 6.5 });
-  rightText(formatDateTime(input.issuedAt), cursor, { size: 6.5 });
-  cursor -= 10;
-  text(reference.label, RECEIPT_MARGIN, cursor, { size: 6.5 });
-  rightText(reference.value, cursor, { font: "bold", size: 6.5 });
-  cursor -= 10;
+  cursor -= 12;
+  text(`Date: ${formatDateTime(input.issuedAt)}`, RECEIPT_MARGIN, cursor, { size: 8.5 });
+  cursor -= 12;
+  text(`${reference.label}: ${reference.value}`, RECEIPT_MARGIN, cursor, {
+    font: "bold",
+    size: 8.5,
+  });
+  cursor -= 12;
   if (reference.detail) {
-    centeredLines(wrapText(reference.detail, 34), 6.5);
+    wrapText(reference.detail, 44).forEach((detailLine) => {
+      text(detailLine, RECEIPT_MARGIN, cursor, { size: 8 });
+      cursor -= 11;
+    });
   }
-  text("Customer", RECEIPT_MARGIN, cursor, { size: 6.5 });
-  rightText(input.customer.name || "Walk-in", cursor, { font: "bold", size: 6.5 });
-  cursor -= 10;
+  text(`Customer: ${input.customer.name || "Walk-in"}`, RECEIPT_MARGIN, cursor, { size: 8 });
+  cursor -= 11;
   if (input.customer.phone) {
-    text("Phone", RECEIPT_MARGIN, cursor, { size: 6.5 });
-    rightText(input.customer.phone, cursor, { size: 6.5 });
-    cursor -= 10;
+    text(`Phone: ${input.customer.phone}`, RECEIPT_MARGIN, cursor, { size: 8 });
+    cursor -= 11;
   }
+  divider();
+
+  text("Qty", RECEIPT_MARGIN, cursor, { font: "bold", size: 8.5 });
+  text("Item", RECEIPT_MARGIN + 25, cursor, { font: "bold", size: 8.5 });
+  rightText("Price (MYR)", cursor, { font: "bold", size: 8.5 });
+  cursor -= 5;
   divider();
 
   receiptItems.forEach((item) => {
-    item.nameLines.forEach((nameLine) => {
-      text(nameLine, RECEIPT_MARGIN, cursor, { font: "bold", size: 7.5 });
-      cursor -= 9;
+    item.nameLines.forEach((nameLine, index) => {
+      if (index === 0) {
+        text(String(item.quantity), RECEIPT_MARGIN, cursor, { size: 8.5 });
+        rightText(formatReceiptMoney(item.lineTotal), cursor, { size: 8.5 });
+      }
+      text(nameLine, RECEIPT_MARGIN + 25, cursor, { size: 8.5 });
+      cursor -= 11;
     });
-    text(`${item.quantity} x ${formatMoney(item.unitPrice)}`, RECEIPT_MARGIN, cursor, {
-      size: 6.5,
-    });
-    rightText(formatMoney(item.lineTotal), cursor, { font: "bold", size: 7 });
-    cursor -= 11;
+    cursor -= 2;
   });
   divider();
 
   summaryRows.forEach(([label, amount]) => {
-    const isEmphasis = label === "TOTAL" || label === "Balance";
+    const isEmphasis = label === "Total (MYR)" || label === "Balance";
+    if (isEmphasis) {
+      divider();
+    }
     text(label, RECEIPT_MARGIN, cursor, {
       font: isEmphasis ? "bold" : "regular",
-      size: isEmphasis ? 8.5 : 7,
+      size: isEmphasis ? 11 : 8.5,
     });
     rightText(amount, cursor, {
       font: "bold",
-      size: isEmphasis ? 8.5 : 7,
+      size: isEmphasis ? 11 : 8.5,
     });
-    cursor -= isEmphasis ? 13 : 10;
+    cursor -= isEmphasis ? 15 : 12;
   });
   divider();
-  centeredText(invoiceStatusLabel(input.status).toUpperCase(), cursor, {
-    font: "bold",
-    size: 7,
-  });
-  cursor -= 12;
-  centeredText("Thank you", cursor, { font: "bold", size: 8 });
+  if (taxAmount > 0) {
+    text("Tax & Charges summary", RECEIPT_MARGIN, cursor, { font: "bold", size: 8.5 });
+    rightTextAt("Taxable", rightX - 42, cursor, { font: "bold", size: 8.5 });
+    rightText("Amount", cursor, { font: "bold", size: 8.5 });
+    cursor -= 12;
+    text(formatTaxLabel(input.taxLabel, input.taxRate), RECEIPT_MARGIN, cursor, { size: 8.5 });
+    rightTextAt(
+      formatReceiptMoney(input.taxableSubtotal ?? Number(input.subtotal) - discountAmount),
+      rightX - 42,
+      cursor,
+      { size: 8.5 },
+    );
+    rightText(formatReceiptMoney(taxAmount), cursor, { size: 8.5 });
+    cursor -= 13;
+    divider();
+  }
+  centeredText("Thank you", cursor, { size: 8.5 });
 
-  return buildPdf(commands.join("\n"), logoImage, {
+  return buildPdf(commands.join("\n"), null, {
     width: RECEIPT_WIDTH,
     height: pageHeight,
   });
@@ -781,6 +793,10 @@ function composeOverWhite(channel: number, alpha: number) {
 
 function formatMoney(value: unknown) {
   return `RM${Number(value ?? 0).toFixed(2)}`;
+}
+
+function formatReceiptMoney(value: unknown) {
+  return Number(value ?? 0).toFixed(2);
 }
 
 function formatDate(value: Date) {

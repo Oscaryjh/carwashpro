@@ -27,6 +27,8 @@ type StaffBranch = {
 
 type StaffFormProps = {
   action: (formData: FormData) => Promise<void>;
+  allowHrFields?: boolean;
+  allowPayrollFields?: boolean;
   branches: StaffBranch[];
   canManagePermissions: boolean;
   staff?: StaffFormStaff;
@@ -53,6 +55,8 @@ type AccessType = "LOGIN" | "NO_LOGIN";
 
 export function StaffForm({
   action,
+  allowHrFields = true,
+  allowPayrollFields = true,
   branches,
   canManagePermissions,
   staff,
@@ -228,7 +232,7 @@ export function StaffForm({
                   <option value="HOURLY">Hourly</option>
                 </select>
               </label>
-              {!isEdit || createEmploymentProfile ? (
+              {(!isEdit || createEmploymentProfile) && allowPayrollFields ? (
                 <>
                   <label>
                     <span>Pay basis</span>
@@ -251,7 +255,7 @@ export function StaffForm({
                     <input max="480" min="0" name="targetBreakMinutes" placeholder="Use branch policy" step="1" type="number" />
                   </label>
                 </>
-              ) : employeeProfile ? (
+              ) : employeeProfile && allowPayrollFields ? (
                 <div className="staff-payroll-profile-link">
                   <strong>Compensation and payroll work target</strong>
                   <small>
@@ -261,7 +265,9 @@ export function StaffForm({
                     Open Payroll Profile
                   </Link>
                 </div>
-              ) : null}
+              ) : (
+                <input name="payBasis" type="hidden" value="MONTHLY" />
+              )}
               <label>
                 <span>Joined date</span>
                 <input
@@ -429,7 +435,7 @@ export function StaffForm({
                 </small>
               </span>
             </div>
-          ) : (
+          ) : allowHrFields ? (
             <label className="staff-appointment-setting">
               <input
                 checked={attendanceEnabled}
@@ -442,7 +448,7 @@ export function StaffForm({
                 <small>Allow attendance access at the assigned branches.</small>
               </span>
             </label>
-          )}
+          ) : null}
           <label className="staff-appointment-setting">
             <input
               checked={providesServices}

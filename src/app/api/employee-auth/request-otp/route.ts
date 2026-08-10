@@ -26,6 +26,7 @@ export async function POST(request: Request) {
       },
       {
         dispatchDelivery: (task) => after(task),
+        requireAttendance: false,
       },
     );
     const config = getEmployeeAuthConfig();

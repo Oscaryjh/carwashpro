@@ -20,10 +20,13 @@ export async function POST(request: Request) {
       verifyEmployeeOtpSchema,
       config.maxJsonBodyBytes,
     );
-    const result = await verifyEmployeeOtp({
-      ...input,
-      request: getEmployeeAuthRequestContext(request),
-    });
+    const result = await verifyEmployeeOtp(
+      {
+        ...input,
+        request: getEmployeeAuthRequestContext(request),
+      },
+      { config, requireAttendance: false },
+    );
 
     if (result.status === "MEMBERSHIP_SELECTION_REQUIRED") {
       return employeeAuthJson({

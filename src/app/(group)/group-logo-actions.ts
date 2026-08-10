@@ -11,6 +11,7 @@ import {
   readValidatedGroupLogo,
 } from "@/lib/business-groups/group-logo";
 import { prisma } from "@/lib/prisma";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 const GROUP_LOGO_UPLOAD_DIR = path.join(
   process.cwd(),
@@ -62,6 +63,13 @@ export async function updateGroupLogoAction(
       status: "error",
       message: "Only the group owner can change this logo.",
     };
+  }
+
+  if (
+    !user.activeBusinessId ||
+    !(await isBusinessModuleEnabled(user.activeBusinessId, "BUSINESS_GROUP"))
+  ) {
+    return { status: "error", message: "This module is not enabled." };
   }
 
   try {

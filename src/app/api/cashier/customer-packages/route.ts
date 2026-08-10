@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import { getOperationalBranches } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,10 @@ export async function GET(request: Request) {
     (session.role === "STAFF" && !hasStaffPermission(session, "POS"))
   ) {
     return NextResponse.json({ error: "Cashier access is not allowed." }, { status: 403 });
+  }
+
+  if (!(await isBusinessModuleEnabled(session.businessId, "POS"))) {
+    return NextResponse.json({ error: { code: "MODULE_NOT_ENABLED", message: "POS is not enabled for this business." } }, { status: 403 });
   }
 
   const url = new URL(request.url);

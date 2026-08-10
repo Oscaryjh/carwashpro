@@ -1,8 +1,24 @@
 import { redirect } from "next/navigation";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
+import { ModuleNotEnabledError, requireBusinessModules } from "@/lib/modules/entitlements";
+import { modulesForCapability, type ModuleKey } from "@/lib/modules/registry";
 import { requireBusinessContext } from "@/lib/tenant";
 
 export async function requireBusinessUser(capability?: BusinessCapability) {
+  return requireBusinessUserAccess(capability);
+}
+
+export async function requireBusinessUserForModule(
+  moduleKey: ModuleKey,
+  capability?: BusinessCapability,
+) {
+  return requireBusinessUserAccess(capability, [moduleKey]);
+}
+
+async function requireBusinessUserAccess(
+  capability?: BusinessCapability,
+  explicitModules: readonly ModuleKey[] = [],
+) {
   const context = await requireBusinessContext({ capability });
 
   if (context.access.source === "PLATFORM_ADMIN") {
@@ -17,5 +33,23 @@ export async function requireBusinessUser(capability?: BusinessCapability) {
     redirect("/dashboard");
   }
 
-  return context;
+  const requiredModules = [
+    ...new Set([
+      ...modulesForCapability(capability, context.industryType),
+      ...explicitModules,
+    ]),
+  ];
+  try {
+    const moduleContext = await requireBusinessModules(
+      context.businessId,
+      requiredModules,
+    );
+    return { ...context, moduleContext };
+  } catch (error) {
+    if (error instanceof ModuleNotEnabledError) {
+      redirect(`/module-not-enabled?module=${error.moduleKey}`);
+    }
+    throw error;
+  }
+
 }

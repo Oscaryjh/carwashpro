@@ -54,6 +54,34 @@ enum BusinessLanguage {
   ZH
 }
 
+enum BusinessModuleKey {
+  CORE
+  POS
+  SALON
+  AUTO
+  WHATSAPP
+  BUSINESS_GROUP
+  HR
+  PAYROLL
+  STATUTORY
+  CLAIMS
+  AI
+  LOYALTY
+}
+
+enum BusinessModuleEntitlementStatus {
+  ENABLED
+  DISABLED
+}
+
+enum BusinessModuleEntitlementSource {
+  SYSTEM
+  MANUAL
+  MIGRATION
+  PLAN
+  TRIAL
+}
+
 enum DailyClosingStatus {
   CLOSED
 }
@@ -462,6 +490,131 @@ enum LeaveRequestStatus {
   APPROVED
   REJECTED
   CANCELLED
+}
+
+enum LeavePolicyOrigin {
+  SYSTEM_LEGACY
+  BUSINESS_CUSTOM
+  VERIFIED_LEGAL
+}
+
+enum LeaveLegalStatus {
+  COMPANY_POLICY_ONLY
+  VERIFIED_LEGAL
+  LEGAL_RULE_NOT_READY
+  LEGACY_REVIEW_REQUIRED
+}
+
+enum LeavePolicyVersionStatus {
+  ACTIVE
+  SUPERSEDED
+}
+
+enum LeaveUnit {
+  FULL_DAY
+  HALF_DAY_AM
+  HALF_DAY_PM
+}
+
+enum LeaveLedgerEventType {
+  ENTITLEMENT
+  CARRY_FORWARD
+  MANUAL_ADJUSTMENT
+  APPROVED_CONSUMPTION
+  CANCELLATION_RESTORE
+  EXPIRY
+}
+
+enum LeaveApplicationEventType {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  WITHDRAWN
+  CANCELLED
+}
+
+enum ClaimStatus {
+  DRAFT
+  SUBMITTED
+  PARTIALLY_APPROVED
+  APPROVED
+  REJECTED
+  WITHDRAWN
+  CANCELLED
+}
+
+enum ClaimLineReviewStatus {
+  PENDING
+  APPROVED
+  PARTIALLY_APPROVED
+  REJECTED
+}
+
+enum ClaimPolicyRevisionStatus {
+  ACTIVE
+  SUPERSEDED
+}
+
+enum ClaimExpenseNature {
+  GENERAL
+  MILEAGE
+}
+
+enum ClaimStatutoryTreatmentStatus {
+  VERIFIED_NON_WAGE
+  REVIEW_REQUIRED
+}
+
+enum ClaimAttachmentMalwareStatus {
+  NOT_SCANNED
+  PENDING
+  CLEAN
+  INFECTED
+  ERROR
+}
+
+enum ClaimAttachmentPrivacyStatus {
+  NOT_CHECKED
+  DETECTED
+  SANITIZED
+  SAFE
+}
+
+enum ClaimReimbursementChannel {
+  OUTSIDE_PAYROLL
+  PAYROLL
+}
+
+enum ClaimReimbursementStatus {
+  AWAITING_CHANNEL
+  OUTSIDE_PAYROLL_PENDING
+  OUTSIDE_PAYROLL_PAID
+  PAYROLL_LINKED
+  PAYROLL_SETTLED
+  CANCELLED
+}
+
+enum ClaimPayrollBridgeStatus {
+  BLOCKED_STATUTORY
+  READY
+  SETTLED
+  CANCELLED
+}
+
+enum ClaimEventType {
+  DRAFT_CREATED
+  SUBMITTED
+  DUPLICATE_WARNING_RECORDED
+  APPROVED
+  PARTIALLY_APPROVED
+  REJECTED
+  WITHDRAWN
+  REIMBURSEMENT_CHANNEL_SELECTED
+  OUTSIDE_PAYROLL_PAID
+  PAYROLL_LINKED
+  PAYROLL_SETTLED
+  REIMBURSEMENT_CANCELLED
+  CLAIM_CANCELLED
 }
 
 enum AttendanceBreakPolicy {
@@ -965,6 +1118,8 @@ model Business {
   language              BusinessLanguage @default(EN)
   timezone              String           @default("Asia/Kuching")
   businessDayCutoffTime String           @default("02:00") @map("business_day_cutoff_time")
+  invoiceSequence       Int              @default(1000) @map("invoice_sequence")
+  claimSequence         Int              @default(1000) @map("claim_sequence")
   sstEnabled            Boolean          @default(false) @map("sst_enabled")
   sstLabel              String           @default("SST") @map("sst_label")
   sstRate               Decimal          @default(0) @map("sst_rate") @db.Decimal(5, 2)
@@ -1075,10 +1230,68 @@ model Business {
   businessGroupMemberships       BusinessGroupMember[]
   businessGroupAccessGrants      BusinessGroupUserBusinessAccess[]
   businessGroupAuditEntries      BusinessGroupAuditLog[]
+  moduleEntitlements             BusinessModuleEntitlement[]
+  claimCategories                ClaimCategory[]
+  claimPolicyRevisions           ClaimPolicyRevision[]
+  employeeClaims                 EmployeeClaim[]
+  claimLines                     ClaimLine[]
+  claimAttachments               ClaimAttachment[]
+  claimReimbursements            ClaimReimbursement[]
+  claimPayrollSnapshots          PayrollClaimReimbursementSnapshot[]
+  claimEvents                    ClaimEvent[]
 
   @@index([slug])
   @@index([industryType])
   @@map("businesses")
+}
+
+model BusinessModuleEntitlement {
+  id           String                          @id @default(uuid()) @db.Uuid
+  businessId   String                          @map("business_id") @db.Uuid
+  moduleKey    BusinessModuleKey               @map("module_key")
+  status       BusinessModuleEntitlementStatus
+  enabledFrom  DateTime                        @map("enabled_from")
+  enabledUntil DateTime?                       @map("enabled_until")
+  source       BusinessModuleEntitlementSource
+  planCode     String?                         @map("plan_code")
+  revision     Int                             @default(1)
+  createdById  String?                         @map("created_by_id") @db.Uuid
+  updatedById  String?                         @map("updated_by_id") @db.Uuid
+  createdAt    DateTime                        @default(now()) @map("created_at")
+  updatedAt    DateTime                        @updatedAt @map("updated_at")
+
+  business Business                         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  events   BusinessModuleEntitlementEvent[]
+
+  @@unique([businessId, moduleKey])
+  @@unique([id, businessId])
+  @@index([businessId, status, enabledFrom, enabledUntil])
+  @@map("business_module_entitlements")
+}
+
+model BusinessModuleEntitlementEvent {
+  id              String                           @id @default(uuid()) @db.Uuid
+  entitlementId   String                           @map("entitlement_id") @db.Uuid
+  businessId      String                           @map("business_id") @db.Uuid
+  moduleKey       BusinessModuleKey                @map("module_key")
+  revision        Int
+  oldStatus       BusinessModuleEntitlementStatus? @map("old_status")
+  newStatus       BusinessModuleEntitlementStatus  @map("new_status")
+  oldEnabledFrom  DateTime?                        @map("old_enabled_from")
+  newEnabledFrom  DateTime                         @map("new_enabled_from")
+  oldEnabledUntil DateTime?                        @map("old_enabled_until")
+  newEnabledUntil DateTime?                        @map("new_enabled_until")
+  source          BusinessModuleEntitlementSource
+  planCode        String?                          @map("plan_code")
+  reason          String
+  actorUserId     String?                          @map("actor_user_id") @db.Uuid
+  createdAt       DateTime                         @default(now()) @map("created_at")
+
+  entitlement BusinessModuleEntitlement @relation(fields: [entitlementId, businessId], references: [id, businessId], onDelete: Restrict)
+
+  @@unique([entitlementId, revision])
+  @@index([businessId, moduleKey, createdAt])
+  @@map("business_module_entitlement_events")
 }
 
 model Branch {
@@ -1133,6 +1346,7 @@ model Branch {
   closingWhatsAppRecipients     ClosingWhatsAppRecipient[]
   closingWhatsAppSends          ClosingWhatsAppSendAttempt[]
   financialOperations           FinancialOperation[]
+  employeeClaims                EmployeeClaim[]
 
   @@unique([businessId, name])
   @@unique([id, businessId])
@@ -1199,6 +1413,9 @@ model User {
   attendanceTimesheetRevisionsLocked AttendanceTimesheetRevision[]        @relation("AttendanceTimesheetRevisionLockedBy")
   reviewedLeaveRequests              LeaveRequest[]                       @relation("LeaveRequestReviewer")
   financialOperations                FinancialOperation[]                 @relation("FinancialOperationActor")
+  reviewedClaims                     EmployeeClaim[]                      @relation("ClaimReviewedBy")
+  claimReimbursementsSelected        ClaimReimbursement[]                 @relation("ClaimReimbursementSelectedBy")
+  claimReimbursementsPaid            ClaimReimbursement[]                 @relation("ClaimReimbursementPaidBy")
 
   payrollRunsCreated             PayrollRun[]                            @relation("PayrollRunCreatedBy")
   payrollRunsSubmitted           PayrollRun[]                            @relation("PayrollRunSubmittedBy")
@@ -1229,6 +1446,7 @@ model User {
   payrollPaymentCommands         PayrollPaymentCommandRecord[]           @relation("PayrollPaymentCommandActor")
   payrollPaymentEvents           PayrollPaymentEvent[]                   @relation("PayrollPaymentEventActor")
   payrollPaymentArtifactsCreated PayrollPaymentArtifact[]                @relation("PayrollPaymentArtifactCreatedBy")
+  claimPayrollSnapshotsCreated   PayrollClaimReimbursementSnapshot[]     @relation("ClaimPayrollSnapshotCreatedBy")
 
   @@index([businessId])
   @@index([branchId])
@@ -1609,6 +1827,10 @@ model EmployeeBusinessMembership {
   leaveRequests                  LeaveRequest[]
   leaveRequestDays               LeaveRequestDay[]
   idempotencyRequests            AttendanceRequestIdempotency[]
+  employeeClaims                 EmployeeClaim[]
+  claimAttachments               ClaimAttachment[]
+  claimReimbursements            ClaimReimbursement[]
+  claimPayrollSnapshots          PayrollClaimReimbursementSnapshot[]
   staffUser                      User?                                   @relation("EmployeeBusinessMembershipStaffUser")
 
   @@unique([employeeAccountId, businessId])
@@ -2423,11 +2645,11 @@ model PayrollRun {
   createdAt                            DateTime                @default(now()) @map("created_at")
   updatedAt                            DateTime                @updatedAt @map("updated_at")
 
-  business                    Business                         @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  createdBy                   User?                            @relation("PayrollRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  submittedBy                 User?                            @relation("PayrollRunSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
-  finalizedBy                 User?                            @relation("PayrollRunFinalizedBy", fields: [finalizedById], references: [id], onDelete: SetNull)
-  attendanceTimesheetRevision AttendanceTimesheetRevision?     @relation(fields: [attendanceTimesheetRevisionId, businessId], references: [id, businessId], onDelete: Restrict)
+  business                    Business                            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  createdBy                   User?                               @relation("PayrollRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  submittedBy                 User?                               @relation("PayrollRunSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  finalizedBy                 User?                               @relation("PayrollRunFinalizedBy", fields: [finalizedById], references: [id], onDelete: SetNull)
+  attendanceTimesheetRevision AttendanceTimesheetRevision?        @relation(fields: [attendanceTimesheetRevisionId, businessId], references: [id, businessId], onDelete: Restrict)
   entries                     PayrollEntry[]
   components                  PayrollEntryComponent[]
   statutorySubmissions        PayrollStatutorySubmission[]
@@ -2436,6 +2658,7 @@ model PayrollRun {
   payslipPublications         PayrollPayslipPublication[]
   attendanceInputSnapshots    PayrollAttendanceInputSnapshot[]
   statutorySnapshots          PayrollEntryStatutorySnapshot[]
+  claimReimbursementSnapshots PayrollClaimReimbursementSnapshot[]
 
   @@unique([id, businessId])
   @@unique([businessId, periodStart, periodEnd])
@@ -2495,19 +2718,20 @@ model PayrollEntry {
   createdAt                              DateTime                    @default(now()) @map("created_at")
   updatedAt                              DateTime                    @updatedAt @map("updated_at")
 
-  payrollRun              PayrollRun                         @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
-  business                Business                           @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  membership              EmployeeBusinessMembership         @relation(fields: [membershipId], references: [id], onDelete: Restrict)
-  compensationVersion     EmployeeCompensationVersion?       @relation(fields: [compensationVersionId, businessId], references: [id, businessId], onDelete: Restrict)
-  paymentInstructions     PayrollPaymentInstruction[]
-  recurringPaySnapshots   PayrollEntryRecurringPaySnapshot[]
-  components              PayrollEntryComponent[]
-  variablePayApplied      PayrollVariablePay[]
-  correctionsOriginal     PayrollCorrection[]                @relation("PayrollCorrectionOriginalEntry")
-  correctionsApplied      PayrollCorrection[]                @relation("PayrollCorrectionAppliedEntry")
-  payslipPublication      PayrollPayslipPublication?
-  attendanceInputSnapshot PayrollAttendanceInputSnapshot?
-  statutorySnapshots      PayrollEntryStatutorySnapshot[]
+  payrollRun                  PayrollRun                          @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+  business                    Business                            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  membership                  EmployeeBusinessMembership          @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  compensationVersion         EmployeeCompensationVersion?        @relation(fields: [compensationVersionId, businessId], references: [id, businessId], onDelete: Restrict)
+  paymentInstructions         PayrollPaymentInstruction[]
+  recurringPaySnapshots       PayrollEntryRecurringPaySnapshot[]
+  components                  PayrollEntryComponent[]
+  variablePayApplied          PayrollVariablePay[]
+  correctionsOriginal         PayrollCorrection[]                 @relation("PayrollCorrectionOriginalEntry")
+  correctionsApplied          PayrollCorrection[]                 @relation("PayrollCorrectionAppliedEntry")
+  payslipPublication          PayrollPayslipPublication?
+  attendanceInputSnapshot     PayrollAttendanceInputSnapshot?
+  statutorySnapshots          PayrollEntryStatutorySnapshot[]
+  claimReimbursementSnapshots PayrollClaimReimbursementSnapshot[]
 
   @@unique([id, businessId])
   @@unique([id, businessId, membershipId])
@@ -3503,6 +3727,253 @@ model StaffTimeOff {
   @@map("staff_time_off")
 }
 
+model ClaimCategory {
+  id          String             @id @default(uuid()) @db.Uuid
+  businessId  String             @map("business_id") @db.Uuid
+  code        String             @db.VarChar(40)
+  name        String             @db.VarChar(120)
+  description String?            @db.VarChar(500)
+  nature      ClaimExpenseNature @default(GENERAL)
+  active      Boolean            @default(true)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  business        Business              @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  policyRevisions ClaimPolicyRevision[]
+  claimLines      ClaimLine[]
+
+  @@unique([businessId, code])
+  @@unique([id, businessId])
+  @@index([businessId, active, name])
+  @@map("claim_categories")
+}
+
+model ClaimPolicyRevision {
+  id                       String                        @id @default(uuid()) @db.Uuid
+  businessId               String                        @map("business_id") @db.Uuid
+  categoryId               String                        @map("category_id") @db.Uuid
+  revision                 Int
+  status                   ClaimPolicyRevisionStatus     @default(ACTIVE)
+  effectiveFrom            DateTime                      @map("effective_from") @db.Date
+  effectiveTo              DateTime?                     @map("effective_to") @db.Date
+  nameSnapshot             String                        @map("name_snapshot") @db.VarChar(120)
+  natureSnapshot           ClaimExpenseNature            @map("nature_snapshot")
+  receiptRequired          Boolean                       @default(false) @map("receipt_required")
+  descriptionRequired      Boolean                       @default(true) @map("description_required")
+  maxLineAmount            Decimal?                      @map("max_line_amount") @db.Decimal(12, 2)
+  mileageRatePerKm         Decimal?                      @map("mileage_rate_per_km") @db.Decimal(8, 4)
+  statutoryTreatmentStatus ClaimStatutoryTreatmentStatus @default(REVIEW_REQUIRED) @map("statutory_treatment_status")
+  reason                   String                        @db.VarChar(500)
+  createdById              String?                       @map("created_by_id") @db.Uuid
+  createdAt                DateTime                      @default(now()) @map("created_at")
+
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  category ClaimCategory @relation(fields: [categoryId, businessId], references: [id, businessId], onDelete: Restrict)
+  lines    ClaimLine[]
+
+  @@unique([categoryId, revision])
+  @@unique([id, businessId])
+  @@index([businessId, categoryId, status, effectiveFrom])
+  @@map("claim_policy_revisions")
+}
+
+model EmployeeClaim {
+  id                   String      @id @default(uuid()) @db.Uuid
+  businessId           String      @map("business_id") @db.Uuid
+  membershipId         String      @map("membership_id") @db.Uuid
+  branchId             String      @map("branch_id") @db.Uuid
+  claimNumber          String      @map("claim_number") @db.VarChar(32)
+  clientRequestId      String      @map("client_request_id") @db.Uuid
+  purpose              String      @db.VarChar(500)
+  currency             String      @default("MYR") @db.Char(3)
+  status               ClaimStatus @default(DRAFT)
+  submittedTotal       Decimal     @default(0) @map("submitted_total") @db.Decimal(12, 2)
+  approvedTotal        Decimal     @default(0) @map("approved_total") @db.Decimal(12, 2)
+  duplicateWarning     Boolean     @default(false) @map("duplicate_warning")
+  duplicateWarningNote String?     @map("duplicate_warning_note") @db.VarChar(500)
+  revision             Int         @default(0)
+  submittedAt          DateTime?   @map("submitted_at")
+  reviewedById         String?     @map("reviewed_by_id") @db.Uuid
+  reviewedAt           DateTime?   @map("reviewed_at")
+  reviewReason         String?     @map("review_reason") @db.VarChar(500)
+  withdrawnAt          DateTime?   @map("withdrawn_at")
+  withdrawalReason     String?     @map("withdrawal_reason") @db.VarChar(500)
+  decisionDigest       String?     @map("decision_digest") @db.Char(64)
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  business         Business                            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  membership       EmployeeBusinessMembership          @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  branch           Branch                              @relation(fields: [branchId, businessId], references: [id, businessId], onDelete: Restrict)
+  reviewedBy       User?                               @relation("ClaimReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  lines            ClaimLine[]
+  attachments      ClaimAttachment[]
+  reimbursement    ClaimReimbursement?
+  payrollSnapshots PayrollClaimReimbursementSnapshot[]
+  events           ClaimEvent[]
+
+  @@unique([businessId, claimNumber])
+  @@unique([businessId, membershipId, clientRequestId])
+  @@unique([id, businessId])
+  @@unique([id, businessId, membershipId])
+  @@index([businessId, branchId, status, submittedAt])
+  @@index([businessId, membershipId, createdAt])
+  @@map("employee_claims")
+}
+
+model ClaimLine {
+  id                       String                        @id @default(uuid()) @db.Uuid
+  businessId               String                        @map("business_id") @db.Uuid
+  claimId                  String                        @map("claim_id") @db.Uuid
+  lineNumber               Int                           @map("line_number")
+  categoryId               String                        @map("category_id") @db.Uuid
+  policyRevisionId         String                        @map("policy_revision_id") @db.Uuid
+  categoryCodeSnapshot     String                        @map("category_code_snapshot") @db.VarChar(40)
+  categoryNameSnapshot     String                        @map("category_name_snapshot") @db.VarChar(120)
+  expenseNatureSnapshot    ClaimExpenseNature            @map("expense_nature_snapshot")
+  expenseDate              DateTime                      @map("expense_date") @db.Date
+  merchant                 String?                       @db.VarChar(160)
+  description              String                        @db.VarChar(500)
+  submittedAmount          Decimal                       @map("submitted_amount") @db.Decimal(12, 2)
+  approvedAmount           Decimal                       @default(0) @map("approved_amount") @db.Decimal(12, 2)
+  mileageKm                Decimal?                      @map("mileage_km") @db.Decimal(10, 2)
+  mileageRateSnapshot      Decimal?                      @map("mileage_rate_snapshot") @db.Decimal(8, 4)
+  receiptRequiredSnapshot  Boolean                       @default(false) @map("receipt_required_snapshot")
+  statutoryTreatmentStatus ClaimStatutoryTreatmentStatus @default(REVIEW_REQUIRED) @map("statutory_treatment_status")
+  reviewStatus             ClaimLineReviewStatus         @default(PENDING) @map("review_status")
+  reviewReason             String?                       @map("review_reason") @db.VarChar(500)
+  createdAt                DateTime                      @default(now()) @map("created_at")
+
+  business       Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  claim          EmployeeClaim       @relation(fields: [claimId, businessId], references: [id, businessId], onDelete: Restrict)
+  category       ClaimCategory       @relation(fields: [categoryId, businessId], references: [id, businessId], onDelete: Restrict)
+  policyRevision ClaimPolicyRevision @relation(fields: [policyRevisionId, businessId], references: [id, businessId], onDelete: Restrict)
+  attachments    ClaimAttachment[]
+
+  @@unique([claimId, lineNumber])
+  @@unique([id, businessId, claimId])
+  @@index([businessId, expenseDate, categoryId])
+  @@index([claimId, reviewStatus])
+  @@map("claim_lines")
+}
+
+model ClaimAttachment {
+  id                    String                       @id @default(uuid()) @db.Uuid
+  businessId            String                       @map("business_id") @db.Uuid
+  claimId               String                       @map("claim_id") @db.Uuid
+  lineId                String?                      @map("line_id") @db.Uuid
+  membershipId          String                       @map("membership_id") @db.Uuid
+  objectKey             String                       @unique @map("object_key") @db.VarChar(300)
+  sanitizedFileName     String                       @map("sanitized_file_name") @db.VarChar(120)
+  mimeType              String                       @map("mime_type") @db.VarChar(80)
+  byteLength            Int                          @map("byte_length")
+  checksumSha256        String                       @map("checksum_sha256") @db.Char(64)
+  malwareStatus         ClaimAttachmentMalwareStatus @default(NOT_SCANNED) @map("malware_status")
+  privacyMetadataStatus ClaimAttachmentPrivacyStatus @default(NOT_CHECKED) @map("privacy_metadata_status")
+  quarantineDisposition String                       @default("QUARANTINED") @map("quarantine_disposition") @db.VarChar(30)
+  createdAt             DateTime                     @default(now()) @map("created_at")
+
+  business   Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  claim      EmployeeClaim              @relation(fields: [claimId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Restrict)
+  line       ClaimLine?                 @relation(fields: [lineId, businessId, claimId], references: [id, businessId, claimId], onDelete: Restrict)
+  membership EmployeeBusinessMembership @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+
+  @@unique([id, businessId])
+  @@index([businessId, claimId])
+  @@index([businessId, membershipId])
+  @@map("claim_attachments")
+}
+
+model ClaimReimbursement {
+  id               String                     @id @default(uuid()) @db.Uuid
+  businessId       String                     @map("business_id") @db.Uuid
+  claimId          String                     @unique @map("claim_id") @db.Uuid
+  membershipId     String                     @map("membership_id") @db.Uuid
+  amount           Decimal                    @db.Decimal(12, 2)
+  currency         String                     @default("MYR") @db.Char(3)
+  channel          ClaimReimbursementChannel?
+  status           ClaimReimbursementStatus   @default(AWAITING_CHANNEL)
+  revision         Int                        @default(0)
+  operationKey        String?                 @unique @map("operation_key") @db.Uuid
+  paymentOperationKey String?                 @unique @map("payment_operation_key") @db.Uuid
+  selectedById     String?                    @map("selected_by_id") @db.Uuid
+  selectedAt       DateTime?                  @map("selected_at")
+  paidById         String?                    @map("paid_by_id") @db.Uuid
+  paidAt           DateTime?                  @map("paid_at")
+  paymentReference String?                    @map("payment_reference") @db.VarChar(120)
+  note             String?                    @db.VarChar(500)
+  createdAt        DateTime                   @default(now()) @map("created_at")
+  updatedAt        DateTime                   @updatedAt @map("updated_at")
+
+  business         Business                            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  claim            EmployeeClaim                       @relation(fields: [claimId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Restrict)
+  membership       EmployeeBusinessMembership          @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  selectedBy       User?                               @relation("ClaimReimbursementSelectedBy", fields: [selectedById], references: [id], onDelete: SetNull)
+  paidBy           User?                               @relation("ClaimReimbursementPaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+  payrollSnapshots PayrollClaimReimbursementSnapshot[]
+
+  @@unique([id, businessId, claimId])
+  @@unique([claimId, businessId, membershipId])
+  @@index([businessId, status, channel])
+  @@index([businessId, membershipId, createdAt])
+  @@map("claim_reimbursements")
+}
+
+model PayrollClaimReimbursementSnapshot {
+  id                       String                        @id @default(uuid()) @db.Uuid
+  businessId               String                        @map("business_id") @db.Uuid
+  reimbursementId          String                        @unique @map("reimbursement_id") @db.Uuid
+  claimId                  String                        @map("claim_id") @db.Uuid
+  membershipId             String                        @map("membership_id") @db.Uuid
+  payrollRunId             String                        @map("payroll_run_id") @db.Uuid
+  payrollEntryId           String                        @map("payroll_entry_id") @db.Uuid
+  claimNumberSnapshot      String                        @map("claim_number_snapshot") @db.VarChar(32)
+  approvedClaimRevision    Int                           @map("approved_claim_revision")
+  amount                   Decimal                       @db.Decimal(12, 2)
+  currency                 String                        @default("MYR") @db.Char(3)
+  statutoryTreatmentStatus ClaimStatutoryTreatmentStatus @map("statutory_treatment_status")
+  blockerCode              String?                       @map("blocker_code") @db.VarChar(100)
+  status                   ClaimPayrollBridgeStatus      @default(BLOCKED_STATUTORY)
+  sourceDigest             String                        @map("source_digest") @db.Char(64)
+  createdById              String                        @map("created_by_id") @db.Uuid
+  createdAt                DateTime                      @default(now()) @map("created_at")
+  settledAt                DateTime?                     @map("settled_at")
+
+  business      Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  reimbursement ClaimReimbursement         @relation(fields: [reimbursementId, businessId, claimId], references: [id, businessId, claimId], onDelete: Restrict)
+  claim         EmployeeClaim              @relation(fields: [claimId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Restrict)
+  membership    EmployeeBusinessMembership @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  payrollRun    PayrollRun                 @relation(fields: [payrollRunId, businessId], references: [id, businessId], onDelete: Restrict)
+  payrollEntry  PayrollEntry               @relation(fields: [payrollEntryId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Restrict)
+  createdBy     User                       @relation("ClaimPayrollSnapshotCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([id, businessId])
+  @@index([businessId, payrollRunId, payrollEntryId])
+  @@index([businessId, claimId])
+  @@map("payroll_claim_reimbursement_snapshots")
+}
+
+model ClaimEvent {
+  id                String         @id @default(uuid()) @db.Uuid
+  businessId        String         @map("business_id") @db.Uuid
+  claimId           String         @map("claim_id") @db.Uuid
+  claimRevision     Int            @map("claim_revision")
+  type              ClaimEventType
+  actorUserId       String?        @map("actor_user_id") @db.Uuid
+  actorMembershipId String?        @map("actor_membership_id") @db.Uuid
+  reason            String?        @db.VarChar(500)
+  metadata          Json?
+  sourceDigest      String         @map("source_digest") @db.Char(64)
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  claim    EmployeeClaim @relation(fields: [claimId, businessId], references: [id, businessId], onDelete: Restrict)
+
+  @@unique([claimId, claimRevision, type])
+  @@index([businessId, claimId, createdAt])
+  @@map("claim_events")
+}
+
 model LeavePolicy {
   id                     String            @id @default(uuid()) @db.Uuid
   businessId             String            @map("business_id") @db.Uuid
@@ -3518,16 +3989,53 @@ model LeavePolicy {
   requiresDocument       Boolean           @default(false) @map("requires_document")
   allowNegativeBalance   Boolean           @default(false) @map("allow_negative_balance")
   active                 Boolean           @default(true)
+  origin                 LeavePolicyOrigin @default(BUSINESS_CUSTOM)
+  legalStatus            LeaveLegalStatus  @default(LEGAL_RULE_NOT_READY) @map("legal_status")
   createdAt              DateTime          @default(now()) @map("created_at")
   updatedAt              DateTime          @updatedAt @map("updated_at")
 
   business Business               @relation(fields: [businessId], references: [id], onDelete: Restrict)
   balances EmployeeLeaveBalance[]
   requests LeaveRequest[]
+  versions LeavePolicyVersion[]
 
   @@unique([businessId, code])
   @@index([businessId, active, name])
   @@map("leave_policies")
+}
+
+model LeavePolicyVersion {
+  id                     String                   @id @default(uuid()) @db.Uuid
+  businessId             String                   @map("business_id") @db.Uuid
+  policyId               String                   @map("policy_id") @db.Uuid
+  revision               Int
+  status                 LeavePolicyVersionStatus @default(ACTIVE)
+  effectiveFrom          DateTime                 @map("effective_from") @db.Date
+  effectiveTo            DateTime?                @map("effective_to") @db.Date
+  nameSnapshot           String                   @map("name_snapshot")
+  payTreatment           LeavePayTreatment        @map("pay_treatment")
+  countMode              LeaveCountMode           @map("count_mode")
+  balanceTracked         Boolean                  @map("balance_tracked")
+  defaultEntitlementDays Decimal?                 @map("default_entitlement_days") @db.Decimal(6, 2)
+  underTwoYearsDays      Decimal?                 @map("under_two_years_days") @db.Decimal(6, 2)
+  twoToFiveYearsDays     Decimal?                 @map("two_to_five_years_days") @db.Decimal(6, 2)
+  fiveYearsPlusDays      Decimal?                 @map("five_years_plus_days") @db.Decimal(6, 2)
+  requiresDocument       Boolean                  @default(false) @map("requires_document")
+  allowNegativeBalance   Boolean                  @default(false) @map("allow_negative_balance")
+  origin                 LeavePolicyOrigin
+  legalStatus            LeaveLegalStatus         @map("legal_status")
+  sourceReference        String?                  @map("source_reference") @db.VarChar(500)
+  reason                 String                   @db.VarChar(500)
+  createdById            String?                  @map("created_by_id") @db.Uuid
+  createdAt              DateTime                 @default(now()) @map("created_at")
+
+  policy   LeavePolicy    @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  requests LeaveRequest[]
+
+  @@unique([policyId, revision])
+  @@unique([id, businessId])
+  @@index([businessId, policyId, status, effectiveFrom])
+  @@map("leave_policy_versions")
 }
 
 model EmployeeLeaveBalance {
@@ -3553,34 +4061,47 @@ model EmployeeLeaveBalance {
 }
 
 model LeaveRequest {
-  id                   String             @id @default(uuid()) @db.Uuid
-  businessId           String             @map("business_id") @db.Uuid
-  membershipId         String             @map("membership_id") @db.Uuid
-  branchId             String             @map("branch_id") @db.Uuid
-  policyId             String             @map("policy_id") @db.Uuid
-  policyNameSnapshot   String             @map("policy_name_snapshot")
-  payTreatmentSnapshot LeavePayTreatment  @map("pay_treatment_snapshot")
-  startsOn             DateTime           @map("starts_on") @db.Date
-  endsOn               DateTime           @map("ends_on") @db.Date
-  requestedDays        Decimal            @map("requested_days") @db.Decimal(6, 2)
-  reason               String
-  documentReference    String?            @map("document_reference")
-  status               LeaveRequestStatus @default(PENDING)
-  reviewedById         String?            @map("reviewed_by_id") @db.Uuid
-  reviewedAt           DateTime?          @map("reviewed_at")
-  reviewNote           String?            @map("review_note")
-  cancelledAt          DateTime?          @map("cancelled_at")
-  createdAt            DateTime           @default(now()) @map("created_at")
-  updatedAt            DateTime           @updatedAt @map("updated_at")
+  id                     String             @id @default(uuid()) @db.Uuid
+  businessId             String             @map("business_id") @db.Uuid
+  membershipId           String             @map("membership_id") @db.Uuid
+  branchId               String             @map("branch_id") @db.Uuid
+  policyId               String             @map("policy_id") @db.Uuid
+  policyVersionId        String             @map("policy_version_id") @db.Uuid
+  policyNameSnapshot     String             @map("policy_name_snapshot")
+  payTreatmentSnapshot   LeavePayTreatment  @map("pay_treatment_snapshot")
+  balanceTrackedSnapshot Boolean            @default(true) @map("balance_tracked_snapshot")
+  legalStatusSnapshot    LeaveLegalStatus   @default(LEGAL_RULE_NOT_READY) @map("legal_status_snapshot")
+  leaveUnit              LeaveUnit          @default(FULL_DAY) @map("leave_unit")
+  startsOn               DateTime           @map("starts_on") @db.Date
+  endsOn                 DateTime           @map("ends_on") @db.Date
+  requestedDays          Decimal            @map("requested_days") @db.Decimal(6, 2)
+  reason                 String
+  documentReference      String?            @map("document_reference")
+  status                 LeaveRequestStatus @default(PENDING)
+  revision               Int                @default(0)
+  clientRequestId        String             @default(uuid()) @map("client_request_id") @db.Uuid
+  reviewedById           String?            @map("reviewed_by_id") @db.Uuid
+  reviewedAt             DateTime?          @map("reviewed_at")
+  reviewNote             String?            @map("review_note")
+  cancelledAt            DateTime?          @map("cancelled_at")
+  cancelledById          String?            @map("cancelled_by_id") @db.Uuid
+  cancellationReason     String?            @map("cancellation_reason") @db.VarChar(500)
+  decisionDigest         String?            @map("decision_digest") @db.Char(64)
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
 
-  business     Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  membership   EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
-  branch       Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  policy       LeavePolicy                @relation(fields: [policyId], references: [id], onDelete: Restrict)
-  reviewedBy   User?                      @relation("LeaveRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  days         LeaveRequestDay[]
-  staffTimeOff StaffTimeOff?
+  business          Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  membership        EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  branch            Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  policy            LeavePolicy                @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  policyVersion     LeavePolicyVersion         @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
+  reviewedBy        User?                      @relation("LeaveRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  days              LeaveRequestDay[]
+  applicationEvents LeaveApplicationEvent[]
+  staffTimeOff      StaffTimeOff?
 
+  @@unique([businessId, membershipId, clientRequestId])
+  @@unique([id, businessId])
   @@index([businessId, branchId, status, startsOn])
   @@index([membershipId, status, startsOn])
   @@index([policyId, status, startsOn])
@@ -3588,13 +4109,19 @@ model LeaveRequest {
 }
 
 model LeaveRequestDay {
-  id             String   @id @default(uuid()) @db.Uuid
-  leaveRequestId String   @map("leave_request_id") @db.Uuid
-  businessId     String   @map("business_id") @db.Uuid
-  membershipId   String   @map("membership_id") @db.Uuid
-  leaveDate      DateTime @map("leave_date") @db.Date
-  dayFraction    Decimal  @default(1) @map("day_fraction") @db.Decimal(3, 2)
-  createdAt      DateTime @default(now()) @map("created_at")
+  id                      String                     @id @default(uuid()) @db.Uuid
+  leaveRequestId          String                     @map("leave_request_id") @db.Uuid
+  businessId              String                     @map("business_id") @db.Uuid
+  membershipId            String                     @map("membership_id") @db.Uuid
+  leaveDate               DateTime                   @map("leave_date") @db.Date
+  dayFraction             Decimal                    @default(1) @map("day_fraction") @db.Decimal(3, 2)
+  leaveUnit               LeaveUnit                  @default(FULL_DAY) @map("leave_unit")
+  expectedDayId           String?                    @map("expected_day_id") @db.Uuid
+  expectedDayKindSnapshot AttendanceExpectedDayKind? @map("expected_day_kind_snapshot")
+  policyVersionId         String                     @map("policy_version_id") @db.Uuid
+  payTreatmentSnapshot    LeavePayTreatment          @map("pay_treatment_snapshot")
+  balanceConsumptionUnits Decimal                    @map("balance_consumption_units") @db.Decimal(6, 2)
+  createdAt               DateTime                   @default(now()) @map("created_at")
 
   leaveRequest LeaveRequest               @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
   business     Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
@@ -3604,6 +4131,68 @@ model LeaveRequestDay {
   @@index([businessId, leaveDate])
   @@index([membershipId, leaveDate])
   @@map("leave_request_days")
+}
+
+model EmployeeLeaveEntitlement {
+  id              String   @id @default(uuid()) @db.Uuid
+  businessId      String   @map("business_id") @db.Uuid
+  membershipId    String   @map("membership_id") @db.Uuid
+  policyId        String   @map("policy_id") @db.Uuid
+  policyVersionId String   @map("policy_version_id") @db.Uuid
+  leaveYearStart  DateTime @map("leave_year_start") @db.Date
+  leaveYearEnd    DateTime @map("leave_year_end") @db.Date
+  entitledUnits   Decimal  @map("entitled_units") @db.Decimal(6, 2)
+  source          String   @db.VarChar(80)
+  sourceDigest    String   @map("source_digest") @db.Char(64)
+  createdById     String?  @map("created_by_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([businessId, membershipId, policyId, leaveYearStart])
+  @@unique([id, businessId])
+  @@index([businessId, membershipId, leaveYearStart])
+  @@map("employee_leave_entitlements")
+}
+
+model LeaveBalanceLedgerEntry {
+  id              String               @id @default(uuid()) @db.Uuid
+  businessId      String               @map("business_id") @db.Uuid
+  membershipId    String               @map("membership_id") @db.Uuid
+  policyId        String               @map("policy_id") @db.Uuid
+  policyVersionId String               @map("policy_version_id") @db.Uuid
+  leaveYearStart  DateTime             @map("leave_year_start") @db.Date
+  eventType       LeaveLedgerEventType @map("event_type")
+  units           Decimal              @db.Decimal(6, 2)
+  sourceKey       String               @unique @map("source_key") @db.VarChar(200)
+  leaveRequestId  String?              @map("leave_request_id") @db.Uuid
+  entitlementId   String?              @map("entitlement_id") @db.Uuid
+  reason          String               @db.VarChar(500)
+  actorUserId     String?              @map("actor_user_id") @db.Uuid
+  createdAt       DateTime             @default(now()) @map("created_at")
+
+  @@unique([id, businessId])
+  @@index([businessId, membershipId, policyId, leaveYearStart])
+  @@index([leaveRequestId, eventType])
+  @@map("leave_balance_ledger_entries")
+}
+
+model LeaveApplicationEvent {
+  id                String                    @id @default(uuid()) @db.Uuid
+  businessId        String                    @map("business_id") @db.Uuid
+  leaveRequestId    String                    @map("leave_request_id") @db.Uuid
+  revision          Int
+  eventType         LeaveApplicationEventType @map("event_type")
+  statusSnapshot    LeaveRequestStatus        @map("status_snapshot")
+  reason            String?                   @db.VarChar(500)
+  sourceKey         String                    @unique @map("source_key") @db.VarChar(200)
+  actorUserId       String?                   @map("actor_user_id") @db.Uuid
+  actorMembershipId String?                   @map("actor_membership_id") @db.Uuid
+  createdAt         DateTime                  @default(now()) @map("created_at")
+
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Restrict)
+
+  @@unique([leaveRequestId, revision])
+  @@index([businessId, leaveRequestId, createdAt])
+  @@map("leave_application_events")
 }
 
 model Package {
@@ -4808,21 +5397,21 @@ model WhatsAppSendAttempt {
 }
 
 model WhatsAppWebhookEvent {
-  id                    String    @id @default(uuid()) @db.Uuid
-  businessId            String    @map("business_id") @db.Uuid
-  instanceId            String    @default("default") @map("instance_id")
-  provider              String
-  eventKey              String    @map("event_key")
-  eventType             String    @map("event_type")
-  providerMessageId     String?   @map("provider_message_id")
-  payloadFingerprint    String    @map("payload_fingerprint")
-  providerOccurredAt    DateTime? @map("provider_occurred_at")
-  receivedAt            DateTime  @default(now()) @map("received_at")
-  lastReceivedAt        DateTime  @default(now()) @map("last_received_at")
-  expiresAt             DateTime  @map("expires_at")
-  duplicateCount        Int       @default(0) @map("duplicate_count")
-  effectApplied         Boolean   @default(false) @map("effect_applied")
-  outcome               String?
+  id                 String    @id @default(uuid()) @db.Uuid
+  businessId         String    @map("business_id") @db.Uuid
+  instanceId         String    @default("default") @map("instance_id")
+  provider           String
+  eventKey           String    @map("event_key")
+  eventType          String    @map("event_type")
+  providerMessageId  String?   @map("provider_message_id")
+  payloadFingerprint String    @map("payload_fingerprint")
+  providerOccurredAt DateTime? @map("provider_occurred_at")
+  receivedAt         DateTime  @default(now()) @map("received_at")
+  lastReceivedAt     DateTime  @default(now()) @map("last_received_at")
+  expiresAt          DateTime  @map("expires_at")
+  duplicateCount     Int       @default(0) @map("duplicate_count")
+  effectApplied      Boolean   @default(false) @map("effect_applied")
+  outcome            String?
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
 

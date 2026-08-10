@@ -26,7 +26,7 @@ import {
   updateWorkOrderStatusSchema,
 } from "@/lib/validation/work-orders";
 import { sendNewCustomerWelcomeIfConnected } from "@/lib/whatsapp/customer-welcome";
-import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
+import { nextInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { resolveVehicleSize } from "@/lib/vehicle-size";
 import { calculateTax } from "@/lib/tax/calculator";
 import {
@@ -688,7 +688,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
           branchId,
           customerId: customer.id,
           customerPackageId: primaryCustomerPackage.id,
-          invoiceNumber: makeInvoiceNumber(),
+          invoiceNumber: await nextInvoiceNumber(tx, businessId),
           subtotal: fromCents(Math.round(tax.subtotal * 100)),
           taxableSubtotal: fromCents(Math.round(tax.taxableSubtotal * 100)),
           taxAmount: fromCents(Math.round(tax.tax * 100)),

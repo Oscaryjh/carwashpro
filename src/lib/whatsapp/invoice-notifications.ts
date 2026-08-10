@@ -1,7 +1,5 @@
 "use server";
 
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { getDefaultWhatsAppInstanceId } from "@/lib/whatsapp/instance";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
@@ -9,11 +7,12 @@ import {
   formatInvoicePaymentStatus,
   getInvoicePaymentSummary,
 } from "@/lib/invoices/payment-summary";
-import { buildInvoicePdf, invoicePdfFileName } from "@/lib/invoices/invoice-pdf";
+import { buildInvoiceReceiptPdf, invoicePdfFileName } from "@/lib/invoices/invoice-pdf";
 import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 type SendInvoiceInput = {
   businessId: string;
@@ -26,6 +25,7 @@ function formatMoney(value: unknown) {
 }
 
 export async function sendInvoiceIfConnected(input: SendInvoiceInput) {
+  if (!(await isBusinessModuleEnabled(input.businessId, "WHATSAPP"))) return;
   try {
     await sendInvoiceNotification(input);
   } catch (error) {
@@ -52,9 +52,9 @@ async function sendInvoiceNotification({
         select: {
           address: true,
           companyNo: true,
-          logoUrl: true,
           name: true,
           phone: true,
+          sstRegistrationNo: true,
         },
       },
       workOrder: {
@@ -188,12 +188,8 @@ async function sendInvoiceNotification({
     }, businessId);
     const storedMessageBody =
       encodeWhatsAppStoredText(messageBody) ?? "Invoice has been paid.";
-    const invoiceLogo = await loadInvoiceLogo(invoice.business.logoUrl);
-    const invoicePdf = buildInvoicePdf({
-      company: {
-        ...invoice.business,
-        logo: invoiceLogo,
-      },
+    const invoicePdf = buildInvoiceReceiptPdf({
+      company: invoice.business,
       customer: {
         name: recipientName,
         phone: recipientPhone,
@@ -207,6 +203,7 @@ async function sendInvoiceNotification({
       discountAmount: invoice.discountAmount,
       depositAmount: invoice.depositAmount,
       taxAmount: invoice.taxAmount,
+      taxableSubtotal: invoice.taxableSubtotal,
       taxLabel: invoice.taxLabel,
       taxRate: invoice.taxRate,
       tipAmount: invoice.tipAmount,
@@ -344,12 +341,8 @@ async function sendInvoiceNotification({
     }, businessId);
     const storedMessageBody =
       encodeWhatsAppStoredText(messageBody) ?? "Package invoice has been paid.";
-    const invoiceLogo = await loadInvoiceLogo(invoice.business.logoUrl);
-    const invoicePdf = buildInvoicePdf({
-      company: {
-        ...invoice.business,
-        logo: invoiceLogo,
-      },
+    const invoicePdf = buildInvoiceReceiptPdf({
+      company: invoice.business,
       customer: {
         name: recipientName,
         phone: recipientPhone,
@@ -363,6 +356,7 @@ async function sendInvoiceNotification({
       discountAmount: invoice.discountAmount,
       depositAmount: invoice.depositAmount,
       taxAmount: invoice.taxAmount,
+      taxableSubtotal: invoice.taxableSubtotal,
       taxLabel: invoice.taxLabel,
       taxRate: invoice.taxRate,
       tipAmount: invoice.tipAmount,
@@ -484,9 +478,8 @@ async function sendInvoiceNotification({
     }, businessId);
     const storedMessageBody =
       encodeWhatsAppStoredText(messageBody) ?? "Your receipt has been issued.";
-    const invoiceLogo = await loadInvoiceLogo(invoice.business.logoUrl);
-    const invoicePdf = buildInvoicePdf({
-      company: { ...invoice.business, logo: invoiceLogo },
+    const invoicePdf = buildInvoiceReceiptPdf({
+      company: invoice.business,
       customer: { name: recipientName, phone: recipientPhone },
       invoiceNumber: displayInvoiceNumber,
       issuedAt: invoice.issuedAt,
@@ -497,6 +490,7 @@ async function sendInvoiceNotification({
       discountAmount: invoice.discountAmount,
       depositAmount: invoice.depositAmount,
       taxAmount: invoice.taxAmount,
+      taxableSubtotal: invoice.taxableSubtotal,
       taxLabel: invoice.taxLabel,
       taxRate: invoice.taxRate,
       tipAmount: invoice.tipAmount,
@@ -600,7 +594,6 @@ async function sendInvoiceNotification({
     .filter(Boolean)
     .join(" ");
   const displayInvoiceNumber = formatInvoiceNumber(invoice.invoiceNumber);
-  const invoiceLogo = await loadInvoiceLogo(invoice.business.logoUrl);
   const paymentSummary = getInvoicePaymentSummary(invoice.workOrder.payments);
   const paidAmountText = paymentSummary.hasPackageVoucher
     ? `${formatMoney(paymentSummary.cashPaidAmount)}\nPackage voucher: ${formatMoney(
@@ -631,11 +624,8 @@ async function sendInvoiceNotification({
   }, businessId);
   const storedMessageBody =
     encodeWhatsAppStoredText(messageBody) ?? "Invoice has been paid.";
-  const invoicePdf = buildInvoicePdf({
-    company: {
-      ...invoice.business,
-      logo: invoiceLogo,
-    },
+  const invoicePdf = buildInvoiceReceiptPdf({
+    company: invoice.business,
     customer: {
       name: recipientName,
       phone: recipientPhone,
@@ -649,6 +639,7 @@ async function sendInvoiceNotification({
     discountAmount: invoice.discountAmount,
     depositAmount: invoice.depositAmount,
     taxAmount: invoice.taxAmount,
+    taxableSubtotal: invoice.taxableSubtotal,
     taxLabel: invoice.taxLabel,
     taxRate: invoice.taxRate,
     tipAmount: invoice.tipAmount,
@@ -730,40 +721,4 @@ async function sendInvoiceNotification({
       },
     });
   }
-}
-
-async function loadInvoiceLogo(logoUrl?: string | null) {
-  if (!logoUrl?.startsWith("/uploads/")) {
-    return null;
-  }
-
-  const publicDir = path.join(process.cwd(), "public");
-  const logoPath = path.normalize(path.join(publicDir, logoUrl.replace(/^\/+/, "")));
-
-  if (!logoPath.startsWith(publicDir)) {
-    return null;
-  }
-
-  try {
-    return {
-      data: await readFile(logoPath),
-      mimeType: getLogoMimeType(logoPath),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function getLogoMimeType(filePath: string) {
-  const extension = path.extname(filePath).toLowerCase();
-
-  if (extension === ".png") {
-    return "image/png";
-  }
-
-  if (extension === ".jpg" || extension === ".jpeg") {
-    return "image/jpeg";
-  }
-
-  return null;
 }

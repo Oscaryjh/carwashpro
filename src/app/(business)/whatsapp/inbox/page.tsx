@@ -5,7 +5,7 @@ import { WhatsAppCustomerPicker } from "@/components/whatsapp-customer-picker";
 import { WhatsAppMessageAutoScroll } from "@/components/whatsapp-message-auto-scroll";
 import { WhatsAppReplyForm } from "@/components/whatsapp-reply-form";
 import { WhatsAppSessionRecovery } from "@/components/whatsapp-settings-session-recovery";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import {
   assertStaffPermission,
   hasStaffPermission,
@@ -21,6 +21,10 @@ import {
   normalizeWhatsAppInstanceId,
 } from "@/lib/whatsapp/instance";
 import { decodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
+import {
+  formatWhatsAppConversationTime,
+  formatWhatsAppMessageTime,
+} from "@/lib/whatsapp/display-time";
 import { refreshWhatsAppInboxConnectionAction } from "./actions";
 
 type WhatsAppInboxPageProps = {
@@ -35,7 +39,7 @@ type WhatsAppInboxPageProps = {
 export default async function WhatsAppInboxPage({
   searchParams,
 }: WhatsAppInboxPageProps) {
-  const { user, businessId, industryType } = await requireBusinessUser();
+  const { user, businessId, industryType } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP");
   const isSalonBusiness = industryType === "SALON_BEAUTY";
   const canManageWhatsAppSession = hasStaffPermission(user, "WHATSAPP_SESSION");
@@ -257,7 +261,7 @@ export default async function WhatsAppInboxPage({
                       <span className="whatsapp-conversation-top">
                         <strong>{formatConversationName(conversation)}</strong>
                         <time>
-                          {formatConversationTime(
+                          {formatWhatsAppConversationTime(
                             conversation.lastMessageAt ?? conversation.updatedAt,
                           )}
                         </time>
@@ -406,7 +410,7 @@ export default async function WhatsAppInboxPage({
                           <p>{decodeWhatsAppStoredText(chatMessage.body)}</p>
                         )}
                         <span className="whatsapp-message-meta">
-                          {formatChatMessageTime(chatMessage.createdAt)}
+                          {formatWhatsAppMessageTime(chatMessage.createdAt)}
                           {chatMessage.direction === "OUTBOUND" ? (
                             <>
                               {" "}
@@ -880,42 +884,4 @@ function getConversationAvatarText(conversation: {
   }
 
   return getAvatarText(name);
-}
-
-function formatConversationTime(date: Date) {
-  const now = new Date();
-
-  if (isSameDate(date, now)) {
-    return date.toLocaleTimeString("en-MY", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  }
-
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-
-  if (isSameDate(date, yesterday)) {
-    return "Yesterday";
-  }
-
-  return date.toLocaleDateString("en-MY", {
-    day: "numeric",
-    month: "short",
-  });
-}
-
-function formatChatMessageTime(date: Date) {
-  return date.toLocaleTimeString("en-MY", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function isSameDate(firstDate: Date, secondDate: Date) {
-  return (
-    firstDate.getFullYear() === secondDate.getFullYear() &&
-    firstDate.getMonth() === secondDate.getMonth() &&
-    firstDate.getDate() === secondDate.getDate()
-  );
 }

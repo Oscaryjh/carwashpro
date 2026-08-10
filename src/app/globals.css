@@ -3712,11 +3712,14 @@ a.dashboard-kpi-card:hover {
 }
 
 .invoice-detail-layout .pos-receipt-company {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
   gap: 14px;
   margin: 0;
   padding: 16px 18px;
   border-bottom: 1px solid var(--line);
   background: #ffffff;
+  text-align: center;
 }
 
 .invoice-detail-layout .pos-receipt-company img,

@@ -11,7 +11,7 @@ import {
   formatCatalogDiscountValue,
   type CatalogDiscountOption,
 } from "@/lib/catalog-discounts";
-import { makeInvoiceNumber } from "@/lib/invoices/invoice-number";
+import { nextInvoiceNumber } from "@/lib/invoices/invoice-number";
 import {
   activateCustomerPackageServiceBalances,
   createCustomerPackageServiceBalances,
@@ -624,7 +624,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           appointmentId: effectiveAppointmentId,
           customerId: customer?.id ?? null,
           customerPackageId: primaryCustomerPackage?.id ?? null,
-          invoiceNumber: makeInvoiceNumber(),
+          invoiceNumber: await nextInvoiceNumber(tx, businessId),
           subtotal: fromCents(Math.round(tax.subtotal * 100)),
           taxableSubtotal: fromCents(Math.round(tax.taxableSubtotal * 100)),
           taxAmount: fromCents(Math.round(tax.tax * 100)),

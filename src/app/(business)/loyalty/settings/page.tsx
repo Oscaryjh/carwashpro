@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { updateLoyaltySettingsAction } from "@/app/(business)/loyalty/actions";
 import { LoyaltyTabs } from "@/components/loyalty-tabs";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -15,7 +15,7 @@ type LoyaltySettingsPageProps = {
 export default async function LoyaltySettingsPage({
   searchParams,
 }: LoyaltySettingsPageProps) {
-  const { businessId, user } = await requireBusinessUser();
+  const { businessId, user } = await requireBusinessUserForModule("LOYALTY");
   assertStaffPermission(user, "LOYALTY");
 
   if (user.role !== "BUSINESS_OWNER") {
