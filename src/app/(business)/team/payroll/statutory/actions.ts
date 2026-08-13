@@ -1,10 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies, headers } from "next/headers";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
+import {
+  sensitiveActionCookieOptions,
+  SENSITIVE_ACTION_COOKIE,
+} from "@/lib/auth/sensitive-action-service";
+import {
+  assertServerActionSameOrigin,
+  getAuthRequestContext,
+} from "@/lib/auth/security";
+import { getSensitiveActionPolicy } from "@/lib/auth/sensitive-actions";
 import {
   safeBusinessStatutoryAuditSnapshot,
   writeSensitiveAuditLog,
@@ -12,6 +22,14 @@ import {
 import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
 import { createStatutoryCorrectionRevision } from "@/lib/payroll/statutory-artifact";
+import {
+  consumePayrollHighRiskAuthorization,
+  issuePayrollHighRiskAuthorization,
+  payrollMfaFactor,
+  payrollMfaPassword,
+  statutoryExportStepUpResourceId,
+} from "@/lib/payroll/high-risk-mfa";
+import { parsePayrollMonth } from "@/lib/payroll/service";
 import { prisma } from "@/lib/prisma";
 
 const optionalText = (max: number) => z.string().trim().max(max).optional();
@@ -33,6 +51,14 @@ const submissionSchema = z.object({
 const correctionRevisionSchema = z.object({
   submissionId: z.string().uuid(),
   reason: z.string().trim().min(5).max(500),
+});
+const exportAuthorizationSchema = z.object({
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  provider: z.enum(["EPF", "PERKESO", "PCB"]),
+  revision: z.preprocess(
+    (value) => value === "" || value === null ? undefined : value,
+    z.coerce.number().int().positive().optional(),
+  ),
 });
 
 
@@ -95,6 +121,68 @@ export async function createStatutoryCorrectionRevisionAction(formData: FormData
   }
 }
 
+export async function authorizeStatutoryExportAction(formData: FormData) {
+  const input = exportAuthorizationSchema.parse(Object.fromEntries(formData));
+  const context = await requireWholeBusinessPayroll("EXPORT_STATUTORY");
+  const period = parsePayrollMonth(input.month);
+  const run = await prisma.payrollRun.findUnique({
+    where: {
+      businessId_periodStart_periodEnd: {
+        businessId: context.businessId,
+        periodStart: period.start,
+        periodEnd: period.end,
+      },
+    },
+    select: { id: true, status: true },
+  });
+  if (!run || run.status !== "FINALIZED") {
+    throw new Error("Only finalized payroll can produce official submission files.");
+  }
+  if (input.revision) {
+    const retained = await prisma.payrollStatutorySubmission.count({
+      where: {
+        businessId: context.businessId,
+        payrollRunId: run.id,
+        provider: input.provider,
+        revision: input.revision,
+        artifact: { isNot: null },
+      },
+    });
+    if (retained !== 1) throw new Error("The retained statutory artifact revision was not found.");
+  }
+  const resourceId = statutoryExportStepUpResourceId(
+    input.month,
+    input.provider,
+    input.revision,
+  );
+  const requestHeaders = await headers();
+  assertServerActionSameOrigin(requestHeaders);
+  const stepUp = await issuePayrollHighRiskAuthorization({
+    access: context.access,
+    actionKey: "STATUTORY_EXPORT",
+    businessId: context.businessId,
+    enabledModules: context.moduleContext.enabledModules,
+    factor: payrollMfaFactor(formData),
+    password: payrollMfaPassword(formData),
+    request: getAuthRequestContext(requestHeaders),
+    resourceId,
+    user: context.user,
+  });
+  const policy = getSensitiveActionPolicy("STATUTORY_EXPORT");
+  const cookieStore = await cookies();
+  cookieStore.set(
+    SENSITIVE_ACTION_COOKIE,
+    stepUp.rawToken,
+    sensitiveActionCookieOptions(policy.ttlSeconds),
+  );
+  const query = new URLSearchParams({
+    month: input.month,
+    provider: input.provider,
+  });
+  if (input.revision) query.set("revision", String(input.revision));
+  redirect(`/team/payroll/statutory/export?${query.toString()}`);
+}
+
 export async function updateStatutorySubmissionStatusAction(formData: FormData) {
   const month = monthFrom(formData);
   try {
@@ -108,6 +196,47 @@ export async function updateStatutorySubmissionStatusAction(formData: FormData) 
       submissionReference: optionalValue(formData, "submissionReference"),
       notes: optionalValue(formData, "notes"),
     });
+    let stepUp: Awaited<ReturnType<typeof issuePayrollHighRiskAuthorization>> | undefined;
+    if (input.targetStatus === "SUBMITTED") {
+      const beforeStepUp = await prisma.payrollStatutorySubmission.findFirst({
+        where: { businessId: context.businessId, id: input.submissionId },
+        include: { artifact: { select: { id: true } }, payrollRun: { select: { status: true } } },
+      });
+      if (
+        !beforeStepUp ||
+        beforeStepUp.status !== "EXPORTED" ||
+        beforeStepUp.integrityStatus !== "VERIFIED" ||
+        !beforeStepUp.artifact ||
+        beforeStepUp.payrollRun.status !== "FINALIZED"
+      ) {
+        throw new Error("Only an artifact-backed statutory revision can advance submission status.");
+      }
+      const latest = await prisma.payrollStatutorySubmission.findFirst({
+        where: {
+          businessId: context.businessId,
+          payrollRunId: beforeStepUp.payrollRunId,
+          provider: beforeStepUp.provider,
+        },
+        orderBy: { revision: "desc" },
+        select: { id: true },
+      });
+      if (latest?.id !== beforeStepUp.id) {
+        throw new Error("Only the latest statutory revision can change status.");
+      }
+      const requestHeaders = await headers();
+      assertServerActionSameOrigin(requestHeaders);
+      stepUp = await issuePayrollHighRiskAuthorization({
+        access: context.access,
+        actionKey: "STATUTORY_SUBMIT",
+        businessId: context.businessId,
+        enabledModules: context.moduleContext.enabledModules,
+        factor: payrollMfaFactor(formData),
+        password: payrollMfaPassword(formData),
+        request: getAuthRequestContext(requestHeaders),
+        resourceId: input.submissionId,
+        user: context.user,
+      });
+    }
     const request = await getAuditRequestContext();
     await prisma.$transaction(async (transaction) => {
       const before = await transaction.payrollStatutorySubmission.findFirst({
@@ -139,6 +268,15 @@ export async function updateStatutorySubmissionStatusAction(formData: FormData) 
       if (input.targetStatus === "SUBMITTED" && !input.submissionReference) {
         throw new Error("Enter the portal submission reference.");
       }
+      const stepUpAudit = input.targetStatus === "SUBMITTED"
+        ? await consumePayrollHighRiskAuthorization({
+            actionKey: "STATUTORY_SUBMIT",
+            businessId: context.businessId,
+            resourceId: before.id,
+            stepUp,
+            userId: context.user.userId,
+          }, transaction)
+        : undefined;
       const now = new Date();
       const after = await transaction.payrollStatutorySubmission.update({
         where: { id: before.id },
@@ -169,7 +307,11 @@ export async function updateStatutorySubmissionStatusAction(formData: FormData) 
         summary: `${after.provider} submission marked ${after.status.toLowerCase()}.`,
         before: { status: before.status, submissionReference: before.submissionReference },
         after: { status: after.status, submissionReference: after.submissionReference },
-        metadata: { provider: after.provider, notes: input.notes ?? null },
+        metadata: {
+          provider: after.provider,
+          notes: input.notes ?? null,
+          ...stepUpAudit,
+        },
       }, transaction);
     });
     finish("success", "Statutory submission status updated.", month);

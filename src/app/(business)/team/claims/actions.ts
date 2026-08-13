@@ -8,6 +8,7 @@ import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { markClaimReimbursementPaidOutsidePayroll, selectClaimReimbursementChannel } from "@/lib/claim/reimbursement";
 import { cancelApprovedEmployeeClaim, createClaimCategoryRevision, installClaimCategoryStarters, reviewEmployeeClaim } from "@/lib/claim/service";
+import { trySynchronizeClaimExpense } from "@/lib/expense/source-integration";
 
 export async function installClaimStartersAction() {
   try {
@@ -57,11 +58,13 @@ export async function reviewClaimAction(formData: FormData) {
       const lineId = key.slice("approved:".length);
       return [{ lineId, approvedAmount: value, reason: formData.get(`reason:${lineId}`) || null }];
     });
+    const request = await getAuditRequestContext();
+    const claimId = String(formData.get("claimId") ?? "");
     await reviewEmployeeClaim({
       businessId,
       allowedBranchIds: [...scope.allowedBranchIds],
       actor: user,
-      request: await getAuditRequestContext(),
+      request,
       rawInput: {
         claimId: formData.get("claimId"),
         expectedRevision: formData.get("expectedRevision"),
@@ -69,7 +72,8 @@ export async function reviewClaimAction(formData: FormData) {
         lines,
       },
     });
-    done("success", "Claim decision recorded. Approval remains separate from payment.");
+    const sync = await trySynchronizeClaimExpense({ businessId, actor: user, claimId, request });
+    done("success", sync.status === "DEFERRED" ? "Claim decision recorded. Expense representation is queued for reconciliation." : "Claim decision recorded. Approval remains separate from payment.");
   } catch (error) {
     if (isRedirectError(error)) throw error;
     done("error", message(error, "Unable to review Claim."));
@@ -80,14 +84,17 @@ export async function cancelApprovedClaimAction(formData: FormData) {
   try {
     const { access, user, businessId } = await requireBusinessUser("REVIEW_CLAIM");
     const scope = await resolveAttendanceScope(access);
+    const request = await getAuditRequestContext();
+    const claimId = String(formData.get("claimId") ?? "");
     await cancelApprovedEmployeeClaim({
       businessId,
       allowedBranchIds: [...scope.allowedBranchIds],
       actor: user,
-      request: await getAuditRequestContext(),
+      request,
       rawInput: { claimId: formData.get("claimId"), expectedRevision: formData.get("expectedRevision"), reason: formData.get("reason") },
     });
-    done("success", "Approved Claim and unpaid reimbursement obligation cancelled with immutable history.");
+    const sync = await trySynchronizeClaimExpense({ businessId, actor: user, claimId, request });
+    done("success", sync.status === "DEFERRED" ? "Claim cancelled. Expense reversal is queued for reconciliation." : "Approved Claim and unpaid reimbursement obligation cancelled with immutable history.");
   } catch (error) {
     if (isRedirectError(error)) throw error;
     done("error", message(error, "Unable to cancel approved Claim."));
@@ -122,10 +129,11 @@ export async function selectClaimChannelAction(formData: FormData) {
 export async function markClaimPaidAction(formData: FormData) {
   try {
     const { user, businessId } = await requireBusinessUser("VERIFY_CLAIM");
-    await markClaimReimbursementPaidOutsidePayroll({
+    const request = await getAuditRequestContext();
+    const reimbursement = await markClaimReimbursementPaidOutsidePayroll({
       businessId,
       actor: user,
-      request: await getAuditRequestContext(),
+      request,
       rawInput: {
         reimbursementId: formData.get("reimbursementId"),
         expectedRevision: formData.get("expectedRevision"),
@@ -134,7 +142,8 @@ export async function markClaimPaidAction(formData: FormData) {
         note: formData.get("note") || null,
       },
     });
-    done("success", "Outside-Payroll reimbursement marked paid exactly once.");
+    const sync = await trySynchronizeClaimExpense({ businessId, actor: user, claimId: reimbursement.claimId, request });
+    done("success", sync.status === "DEFERRED" ? "Reimbursement marked paid. Expense payment state is queued for reconciliation." : "Outside-Payroll reimbursement marked paid exactly once.");
   } catch (error) {
     if (isRedirectError(error)) throw error;
     done("error", message(error, "Unable to mark reimbursement paid."));
@@ -143,8 +152,11 @@ export async function markClaimPaidAction(formData: FormData) {
 
 function done(type: "success" | "error", text: string): never {
   revalidatePath("/team/claims");
+  revalidatePath("/team/approvals");
   revalidatePath("/staff/claims");
   revalidatePath("/team/payroll");
+  revalidatePath("/expenses");
+  revalidatePath("/expenses/history");
   redirect(`/team/claims?type=${type}&message=${encodeURIComponent(text)}`);
 }
 

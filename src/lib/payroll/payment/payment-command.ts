@@ -8,6 +8,11 @@ import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import { prisma } from "@/lib/prisma";
 import {
+  consumePayrollHighRiskAuthorization,
+  type PayrollHighRiskAuditLink,
+} from "@/lib/payroll/high-risk-mfa";
+import type { SensitiveActionKey } from "@/lib/auth/sensitive-actions";
+import {
   PayrollPaymentError,
   type PayrollPaymentCommandResult,
   type PayrollPaymentContext,
@@ -18,7 +23,11 @@ type ExecutePaymentCommandInput<TResult extends PayrollPaymentCommandResult> = {
   command: Record<string, unknown> & { commandId: string };
   commandType: PayrollPaymentCommandType;
   context: PayrollPaymentContext;
-  run: (transaction: Prisma.TransactionClient) => Promise<TResult>;
+  highRisk?: { actionKey: SensitiveActionKey; resourceId: string };
+  run: (
+    transaction: Prisma.TransactionClient,
+    stepUpAudit?: PayrollHighRiskAuditLink,
+  ) => Promise<TResult>;
 };
 
 export async function executePayrollPaymentCommand<
@@ -67,7 +76,19 @@ export async function executePayrollPaymentCommand<
             };
           }
 
-          const result = await input.run(transaction);
+          const stepUpAudit = input.highRisk
+            ? await consumePayrollHighRiskAuthorization(
+                {
+                  actionKey: input.highRisk.actionKey,
+                  businessId: input.context.businessId,
+                  resourceId: input.highRisk.resourceId,
+                  stepUp: input.context.stepUp,
+                  userId: input.context.actor.userId,
+                },
+                transaction,
+              )
+            : undefined;
+          const result = await input.run(transaction, stepUpAudit);
           await transaction.payrollPaymentCommandRecord.create({
             data: {
               actorId: input.context.actor.userId,

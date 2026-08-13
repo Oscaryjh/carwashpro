@@ -11,8 +11,15 @@ import {
 import { EmployeeProfileAttendance } from "@/components/employee-profile-attendance";
 import { EmployeeProfileLeave } from "@/components/employee-profile-leave";
 import { EmployeeProfileClaims } from "@/components/employee-profile-claims";
-import { EmployeeProfilePersonal } from "@/components/employee-profile-personal";
-import { EmployeeProfilePayroll } from "@/components/employee-profile-payroll";
+import {
+  EmployeeProfileCoreStaffOverview,
+  EmployeeProfileCoreStaffPersonal,
+  EmployeeProfilePersonal,
+} from "@/components/employee-profile-personal";
+import {
+  EmployeeProfilePayroll,
+  EmployeeProfileStatutory,
+} from "@/components/employee-profile-payroll";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
@@ -76,13 +83,6 @@ export default async function EmployeeProfilePage({
   const activeSection = isEmployeeProfileSection(query.section)
     ? query.section
     : "overview";
-  const moduleAllowsSection =
-    !["employment", "attendance", "leave", "claims", "payroll"].includes(activeSection) ||
-    (activeSection === "payroll"
-      ? context.moduleContext.enabledModules.has("PAYROLL")
-      : activeSection === "claims"
-        ? context.moduleContext.enabledModules.has("CLAIMS")
-        : context.moduleContext.enabledModules.has("HR"));
   const now = new Date();
   const peopleScope = {
     allowedBranchIds: scope.allowedBranchIds,
@@ -104,7 +104,6 @@ export default async function EmployeeProfilePage({
       select: {
         id: true,
         employeeCode: true,
-        employmentType: true,
         fullName: true,
         status: true,
         branchAssignments: {
@@ -125,10 +124,16 @@ export default async function EmployeeProfilePage({
         role: "STAFF",
       },
       select: {
+        appointmentBookable: true,
+        email: true,
         id: true,
+        loginEnabled: true,
         name: true,
         status: true,
         branch: { select: { name: true } },
+        staffRoleProfile: { select: { name: true } },
+        whatsappPhone: true,
+        _count: { select: { serviceStaffAssignments: true } },
       },
     }),
   ]);
@@ -142,7 +147,7 @@ export default async function EmployeeProfilePage({
         id: membership.id,
         fullName: membership.fullName,
         employeeCode: membership.employeeCode,
-        employmentType: membership.employmentType,
+        employmentType: null,
         status: membership.status,
         primaryBranchName:
           membership.branchAssignments.find((assignment) => assignment.isPrimary)
@@ -163,7 +168,8 @@ export default async function EmployeeProfilePage({
   const sectionAuthorized = canViewEmployeeProfileTab(
     context.access,
     activeSection,
-  ) && moduleAllowsSection;
+    context.moduleContext.enabledModules,
+  );
 
   if (membership && sectionAuthorized && activeSection === "overview") {
     const overview = await getEmployeeProfileOverview({
@@ -176,6 +182,10 @@ export default async function EmployeeProfilePage({
     sectionContent = <EmployeeProfileOverview data={overview} />;
   }
 
+  if (!membership && staff && sectionAuthorized && activeSection === "overview") {
+    sectionContent = <EmployeeProfileCoreStaffOverview data={staff} />;
+  }
+
   if (membership && sectionAuthorized && activeSection === "personal") {
     const personal = await getEmployeeProfilePersonal({
       ...peopleScope,
@@ -185,6 +195,10 @@ export default async function EmployeeProfilePage({
       notFound();
     }
     sectionContent = <EmployeeProfilePersonal data={personal} />;
+  }
+
+  if (!membership && staff && sectionAuthorized && activeSection === "personal") {
+    sectionContent = <EmployeeProfileCoreStaffPersonal data={staff} />;
   }
 
   if (membership && sectionAuthorized && activeSection === "employment") {
@@ -236,17 +250,15 @@ export default async function EmployeeProfilePage({
       businessId: context.businessId,
       membershipId: membership.id,
     };
-    const [bank, compensation, statutoryProfile, payrollNavigation, payrollSummary] = await Promise.all([
+    const [bank, compensation, payrollNavigation, payrollSummary] = await Promise.all([
       loadEmployeeBankSection(payrollProfileInput),
       loadEmployeeCompensationSection(payrollProfileInput),
-      loadEmployeeStatutoryProfileSection(payrollProfileInput),
       loadEmployeePayrollNavigationSection(payrollProfileInput),
       loadEmployeePayrollSummary(payrollProfileInput),
     ]);
     if (
       compensation.status === "NOT_FOUND" ||
-      bank.status === "NOT_FOUND" ||
-      statutoryProfile.status === "NOT_FOUND"
+      bank.status === "NOT_FOUND"
     ) {
       notFound();
     }
@@ -256,6 +268,21 @@ export default async function EmployeeProfilePage({
         compensation={compensation}
         navigation={payrollNavigation}
         summary={payrollSummary}
+        notice={parsePayrollUpdateNotice(query)}
+      />
+    );
+  }
+
+  if (membership && sectionAuthorized && activeSection === "statutory") {
+    const statutoryProfile = await loadEmployeeStatutoryProfileSection({
+      access: context.access,
+      allowedBranchIds: scope.allowedBranchIds,
+      businessId: context.businessId,
+      membershipId: membership.id,
+    });
+    if (statutoryProfile.status === "NOT_FOUND") notFound();
+    sectionContent = (
+      <EmployeeProfileStatutory
         notice={parsePayrollUpdateNotice(query)}
         statutoryProfile={statutoryProfile}
       />
@@ -268,14 +295,10 @@ export default async function EmployeeProfilePage({
       authorized={sectionAuthorized}
       person={person}
       sectionContent={sectionContent}
-      visibleTabs={getVisibleEmployeeProfileTabs(context.access).filter((tab) =>
-        tab.key === "payroll"
-          ? context.moduleContext.enabledModules.has("PAYROLL")
-          : tab.key === "claims"
-            ? context.moduleContext.enabledModules.has("CLAIMS")
-            : ["employment", "attendance", "leave"].includes(tab.key)
-            ? context.moduleContext.enabledModules.has("HR")
-            : true,
+      profileLabel={context.moduleContext.enabledModules.has("HR") ? "People & HR" : "People"}
+      visibleTabs={getVisibleEmployeeProfileTabs(
+        context.access,
+        context.moduleContext.enabledModules,
       )}
     />
   );

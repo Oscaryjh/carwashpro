@@ -9,7 +9,9 @@ import {
   type StatutorySubmissionProvider,
 } from "@/lib/payroll/statutory-submission";
 import { prisma } from "@/lib/prisma";
+import { PayrollHighRiskMfaFields } from "@/components/payroll-high-risk-mfa-fields";
 import {
+  authorizeStatutoryExportAction,
   saveBusinessStatutoryProfileAction,
   createStatutoryCorrectionRevisionAction,
   updateStatutorySubmissionStatusAction,
@@ -139,9 +141,18 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
               {result.errors.length > 4 ? <small className={styles.moreIssues}>+ {result.errors.length - 4} more issues below in employee profiles</small> : null}
               <div className={styles.cardActions}>
                 {artifactAvailable || (canExport && canCreateArtifact && result.ready) ? (
-                  <Link className={styles.primaryButton} href={`/team/payroll/statutory/export?month=${period.value}&provider=${provider.id}${artifactAvailable ? `&revision=${submission?.revision}` : ""}`} prefetch={false}>
-                    {artifactAvailable ? "Download retained artifact" : "Create encrypted export"}
-                  </Link>
+                  <details>
+                    <summary className={styles.primaryButton}>
+                      {artifactAvailable ? "Download retained artifact" : "Create encrypted export"}
+                    </summary>
+                    <form action={authorizeStatutoryExportAction} className={styles.statusForm}>
+                      <input name="month" type="hidden" value={period.value} />
+                      <input name="provider" type="hidden" value={provider.id} />
+                      {artifactAvailable ? <input name="revision" type="hidden" value={submission?.revision} /> : null}
+                      <PayrollHighRiskMfaFields actionLabel={`${provider.name} statutory export`} />
+                      <button type="submit">Verify MFA and continue</button>
+                    </form>
+                  </details>
                 ) : canExport ? (
                   <span className={styles.disabledButton}>
                     {legacyUnavailable ? "Legacy bytes unavailable" : submission?.status === "REJECTED" ? "Create correction revision" : "Complete required fields"}
@@ -226,7 +237,9 @@ function SubmissionWorkflow({ submission, history, provider, month, canSubmit, c
       {canSubmit && submission.status === "EXPORTED" && verified ? (
         <form action={updateStatutorySubmissionStatusAction} className={styles.statusForm}>
           <input name="month" type="hidden" value={month} /><input name="submissionId" type="hidden" value={submission.id} /><input name="targetStatus" type="hidden" value="SUBMITTED" />
-          <input maxLength={100} name="submissionReference" placeholder="Portal reference" required /><button type="submit">Mark submitted</button>
+          <input maxLength={100} name="submissionReference" placeholder="Portal reference" required />
+          <PayrollHighRiskMfaFields actionLabel={`Mark ${provider} statutory artifact submitted`} />
+          <button type="submit">Mark submitted</button>
         </form>
       ) : null}
       {canResolve && submission.status === "SUBMITTED" ? (
@@ -247,9 +260,16 @@ function SubmissionWorkflow({ submission, history, provider, month, canSubmit, c
         <div className={styles.statusForm} aria-label="Retained artifact revisions">
           <strong>Retained revisions</strong>
           {history.filter((item) => item.artifact).map((item) => (
-            <Link key={item.id} href={`/team/payroll/statutory/export?month=${month}&provider=${provider}&revision=${item.revision}`} prefetch={false}>
-              Download revision {item.revision}
-            </Link>
+            <details key={item.id}>
+              <summary>Download revision {item.revision}</summary>
+              <form action={authorizeStatutoryExportAction}>
+                <input name="month" type="hidden" value={month} />
+                <input name="provider" type="hidden" value={provider} />
+                <input name="revision" type="hidden" value={item.revision} />
+                <PayrollHighRiskMfaFields actionLabel={`${provider} statutory export revision ${item.revision}`} />
+                <button type="submit">Verify MFA and download</button>
+              </form>
+            </details>
           ))}
         </div>
       ) : null}

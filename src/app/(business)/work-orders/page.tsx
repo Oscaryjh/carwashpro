@@ -46,7 +46,7 @@ const dateFilters = [
 export default async function WorkOrdersPage({
   searchParams,
 }: WorkOrdersPageProps) {
-  const { access, user, businessId, industryType } =
+  const { access, user, businessId, industryType, moduleContext } =
     await requireBusinessUser("VIEW_WORK_ORDERS");
 
   if (industryType === "SALON_BEAUTY") {
@@ -142,6 +142,7 @@ export default async function WorkOrdersPage({
     price: Number(product.price),
     taxable: product.taxable,
     taxRate: product.taxRate == null ? null : Number(product.taxRate),
+    trackInventory: moduleContext.enabledModules.has("INVENTORY") && product.trackInventory,
     stock: product.stocks.map((stock) => ({
       branchId: stock.branchId,
       quantity: stock.quantity,

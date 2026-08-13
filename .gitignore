@@ -9,6 +9,7 @@ coverage
 *.key
 *.tsbuildinfo
 .tmp/
+.runtime/
 output/
 tmp/
 playwright-report/

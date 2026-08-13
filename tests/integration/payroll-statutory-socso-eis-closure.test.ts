@@ -17,7 +17,11 @@ import {
   activateStatutoryRule,
   recordStatutoryCalculationVerification,
   retireStatutoryRule,
+  signOffStatutoryRule,
+  statutoryRuleEvidenceDigest,
+  type StatutoryHumanActor,
 } from "../../src/lib/payroll/statutory-activation-service";
+import { TRUE_MFA_CAPABILITY } from "../../src/lib/auth/sensitive-actions";
 import type {
   NormalizedContributionDataset,
   RuleActivationEvidence,
@@ -63,14 +67,47 @@ const eisFixtures = readJson<{ fixtureDigest: string; fixtures: unknown[] }>(
   "statutory/official/fixtures/perkeso-act800-2024-10-boundaries-review-v1.json",
 );
 
-test("controlled test activation drives real SOCSO/EIS payroll snapshots and reconciliation", async () => {
+test("controlled SOCSO/EIS fixtures require real scoped MFA and do not activate", async () => {
   const fixture = await createFixture();
-  const actor = { id: fixture.owner.id, role: "PLATFORM_ADMIN" };
+  const reviewerActor = humanActor(fixture.statutoryReviewer.id, "SIGN_OFF_STATUTORY_RULESET");
+  const activatorActor = humanActor(fixture.statutoryActivator.id, "ACTIVATE_STATUTORY_RULESET");
+  const actor = { id: fixture.statutoryActivator.id, role: "PLATFORM_ADMIN" };
   const activatedRuleIds: string[] = [];
   try {
+    if (TRUE_MFA_CAPABILITY.status === "READY") {
+      await assert.rejects(
+        createAndActivateRule({
+          reviewerActor,
+          activatorActor,
+          scheme: "SOCSO",
+          dataset: act4,
+          reviewDigest: socsoReview.reviewDigest,
+          fixtureDigest: socsoFixtures.fixtureDigest,
+          fixtureCount: socsoFixtures.fixtures.length,
+          calculatorTestDigest: "acd13f53032c299fee02ee5a9e9b11bae87d8ac5ce0a313fce05655ea79a53b3",
+        }),
+        /MFA_REQUIRED/,
+      );
+      await assert.rejects(
+        createAndActivateRule({
+          reviewerActor,
+          activatorActor,
+          scheme: "EIS",
+          dataset: act800,
+          reviewDigest: eisReview.reviewDigest,
+          fixtureDigest: eisFixtures.fixtureDigest,
+          fixtureCount: eisFixtures.fixtures.length,
+          calculatorTestDigest: "3dbed2c04746e0863d00473f8a281cee401cda574fb19d4882fa07c689742c9b",
+        }),
+        /MFA_REQUIRED/,
+      );
+      assert.deepEqual(activatedRuleIds, []);
+      return;
+    }
     activatedRuleIds.push(
       await createAndActivateRule({
-        actor,
+        reviewerActor,
+        activatorActor,
         scheme: "SOCSO",
         dataset: act4,
         reviewDigest: socsoReview.reviewDigest,
@@ -79,7 +116,8 @@ test("controlled test activation drives real SOCSO/EIS payroll snapshots and rec
         calculatorTestDigest: "acd13f53032c299fee02ee5a9e9b11bae87d8ac5ce0a313fce05655ea79a53b3",
       }),
       await createAndActivateRule({
-        actor,
+        reviewerActor,
+        activatorActor,
         scheme: "EIS",
         dataset: act800,
         reviewDigest: eisReview.reviewDigest,
@@ -299,12 +337,22 @@ test("controlled test activation drives real SOCSO/EIS payroll snapshots and rec
   }
 });
 
-test("controlled EPF fixture activation drives the real payroll path and retires cleanly", async () => {
+test("controlled EPF fixture requires real scoped MFA and does not activate", async () => {
   const fixture = await createFixture();
-  const actor = { id: fixture.owner.id, role: "PLATFORM_ADMIN" };
+  const reviewerActor = humanActor(fixture.statutoryReviewer.id, "SIGN_OFF_STATUTORY_RULESET");
+  const activatorActor = humanActor(fixture.statutoryActivator.id, "ACTIVATE_STATUTORY_RULESET");
+  const actor = { id: fixture.statutoryActivator.id, role: "PLATFORM_ADMIN" };
   let ruleSetId: string | null = null;
   try {
-    ruleSetId = await createAndActivateEpfRule({ actor });
+    if (TRUE_MFA_CAPABILITY.status === "READY") {
+      await assert.rejects(
+        createAndActivateEpfRule({ reviewerActor, activatorActor }),
+        /MFA_REQUIRED/,
+      );
+      assert.equal(ruleSetId, null);
+      return;
+    }
+    ruleSetId = await createAndActivateEpfRule({ reviewerActor, activatorActor });
     const cases: DryRunCase[] = [
       {
         key: "EPF_MONTHLY",
@@ -501,7 +549,8 @@ test("controlled EPF fixture activation drives the real payroll path and retires
 });
 
 async function createAndActivateEpfRule(input: {
-  actor: { id: string; role: string };
+  reviewerActor: StatutoryHumanActor;
+  activatorActor: StatutoryHumanActor;
 }) {
   const id = randomUUID();
   const version = `TEST_CLOSURE_EPF_${id.slice(0, 8)}`;
@@ -517,7 +566,7 @@ async function createAndActivateEpfRule(input: {
       sourceDocumentName: epfDataset.artifactId,
       ruleData: epfDataset as unknown as Prisma.InputJsonValue,
       classifications: {
-        create: epfCandidate.classifications.map((item) => ({
+        create: epfCandidate.classifications.filter((item) => item.EPF !== "UNKNOWN").map((item) => ({
           scheme: "EPF",
           componentCode: item.componentCode,
           sourceType: item.sourceType as PayrollEntryComponentSourceType,
@@ -538,10 +587,10 @@ async function createAndActivateEpfRule(input: {
     independentReviewStatus: "PASS",
     fixtureStatus: "VERIFIED",
     classificationStatus: "VERIFIED",
-    classificationApprovalStatus: "HUMAN_SIGNED_OFF",
-    classificationApprovalRecordDigest: "8".repeat(64),
-    classificationApprovedByActorId: input.actor.id,
-    classificationApprovedAt: "2098-12-01T00:00:00.000Z",
+    classificationApprovalStatus: "READY_FOR_HUMAN_SIGN_OFF",
+    classificationApprovalRecordDigest: null,
+    classificationApprovedByActorId: null,
+    classificationApprovedAt: null,
     calculatorStatus: "VERIFIED",
     boundaryTestStatus: "PASS",
     artifactSha256: epfDataset.artifactSha256,
@@ -560,24 +609,43 @@ async function createAndActivateEpfRule(input: {
   };
   await recordStatutoryCalculationVerification({
     ruleSetId: id,
-    actor: input.actor,
+    actor: input.reviewerActor,
     reason: "Test-only verified EPF closure evidence",
     evidence,
   });
+  await prisma.statutoryRuleSet.update({
+    where: { id },
+    data: {
+      humanReviewStatus: "COMPLETED",
+      humanClassificationDigest: evidence.classificationDigest,
+    },
+  });
+  const digestRule = await prisma.statutoryRuleSet.findUniqueOrThrow({ where: { id }, include: { classifications: true } });
+  const evidenceDigest = statutoryRuleEvidenceDigest(digestRule);
+  const signOff = await withBlockedRuleCleanup(id, () =>
+    signOffStatutoryRule({
+      ruleSetId: id,
+      actor: input.reviewerActor,
+      reason: "Dedicated QA reviewer approved isolated EPF fixture evidence",
+      expectedEvidenceDigest: evidenceDigest,
+    }),
+  );
   await activateStatutoryRule({
     ruleSetId: id,
-    actor: input.actor,
+    actor: input.activatorActor,
     reason: "Explicit isolated EPF integration-fixture activation dry run",
     expectedScheme: "EPF",
     expectedRuleVersion: version,
     expectedEffectiveFrom: effectiveFrom,
-    evidence,
+    expectedEvidenceDigest: evidenceDigest,
+    evidence: { ...evidence, classificationApprovalStatus: "HUMAN_SIGNED_OFF", classificationApprovalRecordDigest: evidenceDigest, classificationApprovedByActorId: input.reviewerActor.id, classificationApprovedAt: signOff.signOff.signedAt.toISOString(), unresolvedBlockers: [] },
   });
   return id;
 }
 
 async function createAndActivateRule(input: {
-  actor: { id: string; role: string };
+  reviewerActor: StatutoryHumanActor;
+  activatorActor: StatutoryHumanActor;
   scheme: "SOCSO" | "EIS";
   dataset: NormalizedContributionDataset;
   reviewDigest: string;
@@ -599,7 +667,7 @@ async function createAndActivateRule(input: {
       sourceDocumentName: input.dataset.artifactId,
       ruleData: input.dataset as unknown as Prisma.InputJsonValue,
       classifications: {
-        create: closure.classifications.map((item) => ({
+        create: closure.classifications.filter((item) => item[input.scheme] !== "UNKNOWN").map((item) => ({
           scheme: input.scheme,
           componentCode: item.componentCode,
           sourceType: item.sourceType as PayrollEntryComponentSourceType | null,
@@ -620,10 +688,10 @@ async function createAndActivateRule(input: {
     independentReviewStatus: "PASS",
     fixtureStatus: "VERIFIED",
     classificationStatus: "VERIFIED",
-    classificationApprovalStatus: "HUMAN_SIGNED_OFF",
-    classificationApprovalRecordDigest: "9".repeat(64),
-    classificationApprovedByActorId: input.actor.id,
-    classificationApprovedAt: "2098-12-01T00:00:00.000Z",
+    classificationApprovalStatus: "READY_FOR_HUMAN_SIGN_OFF",
+    classificationApprovalRecordDigest: null,
+    classificationApprovedByActorId: null,
+    classificationApprovedAt: null,
     calculatorStatus: "VERIFIED",
     boundaryTestStatus: "PASS",
     artifactSha256: input.dataset.artifactSha256,
@@ -642,20 +710,60 @@ async function createAndActivateRule(input: {
   };
   await recordStatutoryCalculationVerification({
     ruleSetId: id,
-    actor: input.actor,
+    actor: input.reviewerActor,
     reason: "Test-only verified SOCSO/EIS closure evidence",
     evidence,
   });
+  await prisma.statutoryRuleSet.update({
+    where: { id },
+    data: {
+      humanReviewStatus: "COMPLETED",
+      humanClassificationDigest: evidence.classificationDigest,
+    },
+  });
+  const digestRule = await prisma.statutoryRuleSet.findUniqueOrThrow({ where: { id }, include: { classifications: true } });
+  const evidenceDigest = statutoryRuleEvidenceDigest(digestRule);
+  const signOff = await withBlockedRuleCleanup(id, () =>
+    signOffStatutoryRule({
+      ruleSetId: id,
+      actor: input.reviewerActor,
+      reason: "Dedicated QA reviewer approved isolated SOCSO/EIS fixture evidence",
+      expectedEvidenceDigest: evidenceDigest,
+    }),
+  );
   await activateStatutoryRule({
     ruleSetId: id,
-    actor: input.actor,
+    actor: input.activatorActor,
     reason: "Explicit isolated integration-fixture activation dry run",
     expectedScheme: input.scheme,
     expectedRuleVersion: version,
     expectedEffectiveFrom: effectiveFrom,
-    evidence,
+    expectedEvidenceDigest: evidenceDigest,
+    evidence: { ...evidence, classificationApprovalStatus: "HUMAN_SIGNED_OFF", classificationApprovalRecordDigest: evidenceDigest, classificationApprovedByActorId: input.reviewerActor.id, classificationApprovedAt: signOff.signOff.signedAt.toISOString(), unresolvedBlockers: [] },
   });
   return id;
+}
+
+async function withBlockedRuleCleanup<T>(
+  ruleSetId: string,
+  operation: () => Promise<T>,
+) {
+  try {
+    return await operation();
+  } catch (error) {
+    await prisma.statutoryRuleSet.update({
+      where: { id: ruleSetId },
+      data: { authority: "TEST_ONLY", status: "RETIRED" },
+    });
+    await prisma.$transaction([
+      prisma.statutoryComponentReviewDecision.deleteMany({ where: { ruleSetId } }),
+      prisma.statutoryComponentClassification.deleteMany({ where: { ruleSetId } }),
+      prisma.statutoryRuleLifecycleAudit.deleteMany({ where: { ruleSetId } }),
+      prisma.statutoryRuleSetSignOff.deleteMany({ where: { ruleSetId } }),
+      prisma.statutoryRuleSet.deleteMany({ where: { id: ruleSetId } }),
+    ]);
+    throw error;
+  }
 }
 
 async function createFixture() {
@@ -682,6 +790,8 @@ async function createFixture() {
       role: "STAFF",
     },
   });
+  const statutoryReviewer = await prisma.user.create({ data: { email: `statutory-human-reviewer-${token}@test.local`, name: "Statutory Reviewer QA", role: "PLATFORM_ADMIN", permissions: ["SIGN_OFF_STATUTORY_RULESET"] } });
+  const statutoryActivator = await prisma.user.create({ data: { email: `statutory-human-activator-${token}@test.local`, name: "Statutory Activator QA", role: "PLATFORM_ADMIN", permissions: ["ACTIVATE_STATUTORY_RULESET"] } });
   const periodStart = new Date("2099-08-01T00:00:00.000Z");
   const periodEnd = new Date("2099-09-01T00:00:00.000Z");
   const timesheet = await prisma.attendanceMonthlyTimesheet.create({
@@ -720,7 +830,11 @@ async function createFixture() {
       createdById: owner.id,
     },
   });
-  return { business, branch, owner, approver, run, timesheet, timesheetRevision, token };
+  return { business, branch, owner, approver, statutoryReviewer, statutoryActivator, run, timesheet, timesheetRevision, token };
+}
+
+function humanActor(id: string, capability: "SIGN_OFF_STATUTORY_RULESET" | "ACTIVATE_STATUTORY_RULESET"): StatutoryHumanActor {
+  return { id, role: "PLATFORM_ADMIN", actorType: "HUMAN_USER", capabilities: [capability] };
 }
 
 async function createDryRunEntry(

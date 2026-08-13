@@ -17,6 +17,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import {
   createTeamMember,
+  createCoreStaff,
   linkExistingStaffToEmployee,
   updateLegacyStaffProfile,
   updateTeamMember,
@@ -26,7 +27,10 @@ import {
   hasWholeBusinessPeopleScope,
   type PeopleScopeInput,
 } from "@/lib/team/people-scope";
-import { assertCanGrantStaffPermissions } from "@/lib/team/permission-administration";
+import {
+  assertCanGrantStaffPermissions,
+  assertStaffPermissionsEntitled,
+} from "@/lib/team/permission-administration";
 import { synchronizeTeamMemberEmploymentState } from "@/lib/team/people-status";
 
 const employmentTypeSchema = z.enum([
@@ -126,6 +130,23 @@ const updateLegacyStaffSchema = z
     validateTeamMemberForm(input, context, false);
   });
 
+const createCoreStaffSchema = z
+  .object({
+    branchIds: teamMemberShape.branchIds,
+    email: teamMemberShape.email,
+    name: teamMemberShape.name,
+    password: teamMemberShape.password,
+    posAccess: teamMemberShape.posAccess,
+    primaryBranchId: teamMemberShape.primaryBranchId,
+    providesServices: teamMemberShape.providesServices,
+    serviceIds: teamMemberShape.serviceIds,
+    staffRoleProfileId: teamMemberShape.staffRoleProfileId,
+    whatsappPhone: z.string().trim().max(32, "Phone number is too long."),
+  })
+  .superRefine((input, context) => {
+    validateTeamMemberForm(input, context, true);
+  });
+
 const upgradeLegacyStaffSchema = z
   .object({
     ...teamMemberShape,
@@ -162,13 +183,57 @@ const staffTimeOffSchema = z.object({
 });
 
 export async function createStaffAction(formData: FormData) {
-  const { access, user, businessId, industryType } =
+  const { access, user, businessId, industryType, moduleContext } =
     await requireBusinessUser("MODIFY_TEAM");
   if (access.source === "DIRECT_BUSINESS") {
     assertStaffPermission(user, "TEAM");
   }
 
   try {
+    if (formData.get("peopleCoreOnly") === "on") {
+      const input = parseCoreStaffForm(formData);
+      const scope = await resolveAttendanceScope(access);
+      const permissions = input.posAccess
+        ? normalizeStaffPermissionsForIndustry(formData.getAll("permissions"), industryType)
+        : [];
+      assertStaffPermissionsEntitled(
+        permissions,
+        moduleContext.enabledModules,
+        industryType,
+      );
+      if (input.posAccess || input.staffRoleProfileId) {
+        const permissionContext = await requireBusinessUser("MANAGE_TEAM_PERMISSIONS");
+        assertCanGrantStaffPermissions(permissionContext.access, permissions);
+      }
+      const passwordHash = input.posAccess
+        ? await bcrypt.hash(input.password!, 12)
+        : null;
+      const created = await createCoreStaff({
+        actor: user,
+        allowedBranchIds: scope.allowedBranchIds,
+        branchId: input.primaryBranchId,
+        businessId,
+        features: {
+          appointmentBookable: input.providesServices,
+          email: input.posAccess ? input.email || null : null,
+          loginEnabled: input.posAccess,
+          passwordHash,
+          permissions,
+          serviceIds: input.providesServices ? input.serviceIds : [],
+          staffLevelId: null,
+          staffRoleProfileId:
+            input.providesServices || input.posAccess
+              ? input.staffRoleProfileId
+              : null,
+        },
+        name: input.name,
+        request: await getAuditRequestContext(),
+        whatsappPhone: input.whatsappPhone || null,
+        wholeBusinessScope: hasWholeBusinessPeopleScope(access),
+      });
+      revalidatePeoplePaths();
+      redirectWithTeamMessage(`Team member ${created.name} added successfully.`, "success");
+    }
     const input = parseTeamMemberForm(formData, false);
     if (input.attendanceEnabled) {
       await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
@@ -196,6 +261,11 @@ export async function createStaffAction(formData: FormData) {
       );
       assertCanGrantStaffPermissions(permissionContext.access, permissions);
     }
+    assertStaffPermissionsEntitled(
+      permissions,
+      moduleContext.enabledModules,
+      industryType,
+    );
     const passwordHash = input.posAccess
       ? await bcrypt.hash(input.password!, 12)
       : null;
@@ -238,9 +308,8 @@ export async function createStaffAction(formData: FormData) {
 }
 
 export async function updateStaffAction(formData: FormData) {
-  const { access, user, businessId, industryType } =
-    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
-  await requireBusinessUser("EDIT_COMPENSATION");
+  const { access, user, businessId, industryType, moduleContext } =
+    await requireBusinessUser("MODIFY_TEAM");
   if (access.source === "DIRECT_BUSINESS") {
     assertStaffPermission(user, "TEAM");
   }
@@ -249,6 +318,90 @@ export async function updateStaffAction(formData: FormData) {
     const userId = z.string().uuid().parse(formData.get("userId"));
     const scope = await resolveAttendanceScope(access);
     const wholeBusinessScope = hasWholeBusinessPeopleScope(access);
+    if (formData.get("peopleCoreOnly") === "on") {
+      const input = parseLegacyStaffForm(formData);
+      const current = await prisma.user.findFirst({
+        where: {
+          ...buildPeopleStaffScopeWhere({
+            allowedBranchIds: scope.allowedBranchIds,
+            businessId,
+            now: new Date(),
+            wholeBusinessScope,
+          }),
+          id: userId,
+          role: "STAFF",
+        },
+        select: {
+          email: true,
+          id: true,
+          loginEnabled: true,
+          passwordHash: true,
+          permissions: true,
+          staffRoleProfileId: true,
+        },
+      });
+      if (!current) throw new Error("Staff user not found in the authorized branch scope.");
+      const password = input.password?.trim();
+      if (input.posAccess && !password && !current.loginEnabled) {
+        throw new Error("Set a temporary password before enabling POS access.");
+      }
+      const permissions = input.posAccess
+        ? normalizeStaffPermissionsForIndustry(formData.getAll("permissions"), industryType)
+        : [];
+      assertStaffPermissionsEntitled(
+        permissions,
+        moduleContext.enabledModules,
+        industryType,
+      );
+      await requireStaffAccessAdministrationIfChanged({
+        current,
+        next: {
+          email: input.posAccess ? input.email || null : null,
+          loginEnabled: input.posAccess,
+          permissions,
+          staffRoleProfileId:
+            input.providesServices || input.posAccess
+              ? input.staffRoleProfileId
+              : null,
+        },
+        passwordChanged: Boolean(password),
+      });
+      const passwordHash = password ? await bcrypt.hash(password, 12) : undefined;
+      await updateLegacyStaffProfile({
+        actor: user,
+        allowedBranchIds: scope.allowedBranchIds,
+        branchId: input.primaryBranchId,
+        businessId,
+        features: {
+          appointmentBookable: input.providesServices,
+          email: input.posAccess ? input.email || null : null,
+          loginEnabled: input.posAccess,
+          ...(passwordHash ? { passwordHash } : {}),
+          permissions,
+          serviceIds: input.providesServices ? input.serviceIds : [],
+          staffLevelId: null,
+          staffRoleProfileId:
+            input.providesServices || input.posAccess
+              ? input.staffRoleProfileId
+              : null,
+        },
+        name: input.name,
+        request: await getAuditRequestContext(),
+        userId: input.userId,
+        whatsappPhone: input.whatsappPhone || null,
+        wholeBusinessScope,
+      });
+      if (password || !input.posAccess) {
+        await revokeUserSessions(
+          input.userId,
+          password ? "Password changed by an authorized team administrator." : "POS login access was disabled.",
+        );
+      }
+      revalidatePeoplePaths();
+      redirectWithTeamMessage("Staff profile updated successfully.", "success");
+    }
+    await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+    await requireBusinessUser("EDIT_COMPENSATION");
     const staff = await prisma.user.findFirst({
       where: {
         ...buildPeopleStaffScopeWhere({
@@ -1224,6 +1377,25 @@ function parseTeamMemberForm(formData: FormData, editing: boolean) {
   return editing
     ? updateStaffSchema.parse(values)
     : createStaffSchema.parse(values);
+}
+
+function parseCoreStaffForm(formData: FormData) {
+  return createCoreStaffSchema.parse({
+    branchIds: uniqueStrings(formData.getAll("branchIds")),
+    email: String(formData.get("email") ?? ""),
+    name: formData.get("name"),
+    password: String(formData.get("password") ?? ""),
+    posAccess:
+      formData.get("posAccess") === "on" ||
+      formData.get("accessType") === "LOGIN",
+    primaryBranchId: formData.get("primaryBranchId"),
+    providesServices:
+      formData.get("providesServices") === "on" ||
+      formData.get("appointmentBookable") === "on",
+    serviceIds: uniqueStrings(formData.getAll("serviceIds")),
+    staffRoleProfileId: formData.get("staffRoleProfileId"),
+    whatsappPhone: formData.get("whatsappPhone"),
+  });
 }
 
 function parseLegacyStaffUpgradeForm(formData: FormData) {

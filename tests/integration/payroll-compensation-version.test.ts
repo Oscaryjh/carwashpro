@@ -13,6 +13,7 @@ import {
   submitPayrollRunForReview,
 } from "../../src/lib/payroll/service";
 import { prisma } from "../../src/lib/prisma";
+import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 
 test("compensation versions enforce tenant, month, immutability and projection rules", async () => {
   const fixture = await createFixture();
@@ -391,12 +392,19 @@ test("payroll generate and refresh resolve compensation by run month", async () 
       }),
       /awaiting review or already finalized cannot be regenerated/i,
     );
+    const finalizeStepUp = await issueTestHighRiskStepUp(prisma, {
+      actionKey: "PAYROLL_FINALIZE",
+      businessId: fixture.business.id,
+      resourceId: novemberRun.id,
+      userId: actor(fixture).userId,
+    });
     await finalizePayrollRun({
       actor: actor(fixture),
       allowSelfApprovalOverride: true,
       businessId: fixture.business.id,
       overrideReason: "Integration owner override.",
       runId: novemberRun.id,
+      stepUp: finalizeStepUp.stepUp,
     });
     await assert.rejects(
       generatePayrollRun({
@@ -417,11 +425,18 @@ test("payroll generate and refresh resolve compensation by run month", async () 
         netPay: true,
       },
     });
+    const reopenStepUp = await issueTestHighRiskStepUp(prisma, {
+      actionKey: "PAYROLL_REOPEN",
+      businessId: fixture.business.id,
+      resourceId: novemberRun.id,
+      userId: actor(fixture).userId,
+    });
     await reopenPayrollRun({
       actor: actor(fixture),
       businessId: fixture.business.id,
       reason: "Integration reopen without recalculation.",
       runId: novemberRun.id,
+      stepUp: reopenStepUp.stepUp,
     });
     const afterReopen = await prisma.payrollEntry.findMany({
       where: { payrollRunId: novemberRun.id },

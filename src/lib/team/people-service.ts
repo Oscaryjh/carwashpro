@@ -48,6 +48,18 @@ export type CreateTeamMemberArgs = {
   compensationAccess?: ResolvedBusinessAccess;
 };
 
+export type CreateCoreStaffArgs = {
+  actor: AttendanceServiceActor;
+  allowedBranchIds: readonly string[];
+  branchId: string;
+  businessId: string;
+  features: TeamMemberFeatures & { passwordHash: string | null };
+  name: string;
+  request?: AuditRequestContext;
+  whatsappPhone: string | null;
+  wholeBusinessScope?: boolean;
+};
+
 export type UpdateTeamMemberArgs = {
   actor: AttendanceServiceActor;
   allowedBranchIds: readonly string[];
@@ -307,6 +319,91 @@ export async function createTeamMember(
   });
 }
 
+export async function createCoreStaff(
+  args: CreateCoreStaffArgs,
+  database: PeopleServiceDatabase = prisma,
+) {
+  return runCanonicalPeopleTransaction(database, async (transaction) => {
+    const targetBranch = await transaction.branch.findFirst({
+      where: {
+        businessId: args.businessId,
+        id: args.wholeBusinessScope
+          ? args.branchId
+          : { equals: args.branchId, in: Array.from(args.allowedBranchIds) },
+        status: "ACTIVE",
+      },
+      select: { id: true },
+    });
+    if (!targetBranch) {
+      throw new Error("Select an active branch within your authorized branch scope.");
+    }
+    if (args.features.email) {
+      const emailOwner = await transaction.user.findUnique({
+        where: { email: args.features.email },
+        select: { id: true },
+      });
+      if (emailOwner) throw new Error("Email is already used by another user.");
+    }
+
+    const staffConfiguration = await resolveStaffConfiguration(
+      transaction,
+      args.businessId,
+      args.features,
+    );
+    const staffUser = await transaction.user.create({
+      data: {
+        appointmentBookable: args.features.appointmentBookable,
+        branchId: targetBranch.id,
+        businessId: args.businessId,
+        email: args.features.loginEnabled ? args.features.email : null,
+        loginEnabled: args.features.loginEnabled,
+        name: args.name,
+        passwordHash: args.features.loginEnabled ? args.features.passwordHash : null,
+        permissions: args.features.loginEnabled ? args.features.permissions : [],
+        role: "STAFF",
+        staffLevelId: null,
+        staffRoleProfileId:
+          args.features.appointmentBookable || args.features.loginEnabled
+            ? staffConfiguration.staffRoleProfileId
+            : null,
+        status: "active",
+        teamMemberLinkStatus: "UNLINKED",
+        whatsappPhone: args.whatsappPhone,
+      },
+    });
+    await replaceServiceAssignments(transaction, {
+      businessId: args.businessId,
+      serviceIds: args.features.appointmentBookable
+        ? staffConfiguration.serviceIds
+        : [],
+      userId: staffUser.id,
+    });
+    await writeAuditLog(
+      {
+        action: "CORE_STAFF_CREATED",
+        actor: args.actor,
+        after: {
+          appointmentBookable: staffUser.appointmentBookable,
+          branchId: staffUser.branchId,
+          loginEnabled: staffUser.loginEnabled,
+          name: staffUser.name,
+          permissions: staffUser.permissions,
+          serviceIds: staffConfiguration.serviceIds,
+        },
+        branchId: staffUser.branchId,
+        businessId: args.businessId,
+        entityId: staffUser.id,
+        entityType: "User",
+        metadata: { hrProfileCreated: false },
+        request: args.request,
+        summary: `Created People Core staff profile ${staffUser.name}.`,
+      },
+      transaction,
+    );
+    return staffUser;
+  });
+}
+
 export async function updateTeamMember(
   args: UpdateTeamMemberArgs,
   database: PeopleServiceDatabase = prisma,
@@ -466,12 +563,6 @@ export async function updateLegacyStaffProfile(
     if (!existingUser) {
       throw new Error("Staff user not found in the authorized branch scope.");
     }
-    if (existingUser.employeeBusinessMembershipId) {
-      throw new Error(
-        "This staff profile is now linked to an employee. Reload before editing.",
-      );
-    }
-
     const targetBranch = await transaction.branch.findFirst({
       where: {
         businessId: args.businessId,
@@ -561,7 +652,7 @@ export async function updateLegacyStaffProfile(
         entityType: "User",
         metadata: {
           passwordReset: args.features.passwordHash !== undefined,
-          remainedUnlinked: true,
+          employmentProfilePreserved: Boolean(existingUser.employeeBusinessMembershipId),
         },
         request: args.request,
         summary: `Updated unlinked staff profile ${updatedUser.name}.`,

@@ -17,26 +17,24 @@ import type { EmployeePayrollNavigationResult } from "@/lib/team/employee-profil
 import type { EmployeePayrollSummaryResult } from "@/lib/team/employee-profile-payroll-summary-read";
 import type { EmployeeStatutoryProfileResult } from "@/lib/team/employee-profile-statutory-read";
 import styles from "./employee-profile-shell.module.css";
+import { PayrollHighRiskMfaFields } from "./payroll-high-risk-mfa-fields";
 
 export function EmployeeProfilePayroll({
   bank,
   compensation,
   navigation,
   notice,
-  statutoryProfile,
   summary,
 }: {
   bank: EmployeeBankSectionResult;
   compensation: EmployeeCompensationSectionResult;
   navigation: EmployeePayrollNavigationResult;
   notice: PayrollUpdateNoticeValue | null;
-  statutoryProfile: EmployeeStatutoryProfileResult;
   summary: EmployeePayrollSummaryResult;
 }) {
   if (
     bank.status === "NOT_FOUND" ||
-    compensation.status === "NOT_FOUND" ||
-    statutoryProfile.status === "NOT_FOUND"
+    compensation.status === "NOT_FOUND"
   ) {
     return null;
   }
@@ -59,12 +57,41 @@ export function EmployeeProfilePayroll({
 
       <div className={styles.profileGrid}>
         <CompensationPanels result={compensation} />
-        <StatutoryPanel result={statutoryProfile.statutory} />
-        <TaxPanel result={statutoryProfile.tax} />
         <BankPanel result={bank} />
       </div>
       <EmployeePayrollSummary result={summary} />
       <PayrollNavigation result={navigation} />
+    </div>
+  );
+}
+
+export function EmployeeProfileStatutory({
+  notice,
+  statutoryProfile,
+}: {
+  notice: PayrollUpdateNoticeValue | null;
+  statutoryProfile: EmployeeStatutoryProfileResult;
+}) {
+  if (statutoryProfile.status === "NOT_FOUND") return null;
+
+  return (
+    <div className={styles.sectionContent}>
+      <section className={styles.sectionIntro}>
+        <div>
+          <p className={styles.eyebrow}>Statutory</p>
+          <h2>Statutory profile</h2>
+          <p>
+            EPF, SOCSO, EIS, LINDUNG24 and tax profile data is isolated from
+            People Core and Payroll unless the Statutory module is entitled.
+          </p>
+        </div>
+        <span className={styles.scopeBadge}>Sensitive statutory profile</span>
+      </section>
+      {notice ? <PayrollUpdateNotice notice={notice} /> : null}
+      <div className={styles.profileGrid}>
+        <StatutoryPanel result={statutoryProfile.statutory} />
+        <TaxPanel result={statutoryProfile.tax} />
+      </div>
     </div>
   );
 }
@@ -1332,6 +1359,7 @@ function BankPanel({ result }: { result: EmployeeBankSectionResult }) {
             <p className={styles.formHint}>
               Manual verification records an internal review only. It is not bank confirmation.
             </p>
+            <PayrollHighRiskMfaFields actionLabel="Verify this employee bank account" />
             <button type="submit">Mark as manually verified</button>
           </form>
         </details>
@@ -1361,6 +1389,7 @@ function BankPanel({ result }: { result: EmployeeBankSectionResult }) {
               <strong>Historical payment instructions stay unchanged</strong>
               <span>Deactivation does not delete this version or rewrite an existing batch.</span>
             </div>
+            <PayrollHighRiskMfaFields actionLabel="Deactivate this employee bank account" />
             <button type="submit">Deactivate bank account</button>
           </form>
         </details>

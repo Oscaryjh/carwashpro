@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import test from "node:test";
 import type { UserRole } from "@prisma/client";
 import type { ResolvedBusinessAccess } from "../../src/lib/business-groups/business-access";
+import { SensitiveActionError } from "../../src/lib/auth/sensitive-action-service";
 import {
   approvePayrollPaymentBatch,
   cancelPayrollPaymentBatch,
@@ -20,6 +21,7 @@ import {
 } from "../../src/lib/payroll/payment";
 import { reopenPayrollRun } from "../../src/lib/payroll/service";
 import { prisma } from "../../src/lib/prisma";
+import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 
 Object.assign(process.env, { NODE_ENV: "test" });
 process.env.PAYROLL_PAYMENT_ACTIVE_KEY_VERSION = "integration-v1";
@@ -38,8 +40,94 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
     "APPROVE_PAYMENT_BATCH",
   ]);
 
+  const deniedCommand = {
+    accountHolderName: fixture.readyMembership.fullName,
+    accountNumber: "1010101010",
+    bankCode: "MAYBANK",
+    bankName: "Maybank",
+    effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
+    expectedRevision: 0,
+    membershipId: fixture.readyMembership.id,
+    reason: "High-risk MFA denial integration probe.",
+    reasonType: "INITIAL_SETUP",
+  } as const;
+  await assert.rejects(
+    createEmployeeBankVersion(owner, {
+      ...deniedCommand,
+      commandId: randomUUID(),
+    }),
+    (error: unknown) => sensitiveError(error, "STEP_UP_REQUIRED"),
+  );
+  const wrongAction = await issueTestHighRiskStepUp(prisma, {
+    actionKey: "PAYROLL_FINALIZE",
+    businessId: fixture.business.id,
+    resourceId: fixture.readyMembership.id,
+    userId: owner.actor.userId,
+  });
+  await assert.rejects(
+    createEmployeeBankVersion({ ...owner, stepUp: wrongAction.stepUp }, {
+      ...deniedCommand,
+      commandId: randomUUID(),
+    }),
+    (error: unknown) => sensitiveError(error, "STEP_UP_SCOPE_MISMATCH"),
+  );
+  const wrongResource = await issueTestHighRiskStepUp(prisma, {
+    actionKey: "BANK_ACCOUNT_EDIT",
+    businessId: fixture.business.id,
+    resourceId: fixture.missingMembership.id,
+    userId: owner.actor.userId,
+  });
+  await assert.rejects(
+    createEmployeeBankVersion({ ...owner, stepUp: wrongResource.stepUp }, {
+      ...deniedCommand,
+      commandId: randomUUID(),
+    }),
+    (error: unknown) => sensitiveError(error, "STEP_UP_SCOPE_MISMATCH"),
+  );
+  const wrongBusiness = await issueTestHighRiskStepUp(prisma, {
+    actionKey: "BANK_ACCOUNT_EDIT",
+    businessId: fixture.otherBusiness.id,
+    resourceId: fixture.readyMembership.id,
+    userId: owner.actor.userId,
+  });
+  await assert.rejects(
+    createEmployeeBankVersion({ ...owner, stepUp: wrongBusiness.stepUp }, {
+      ...deniedCommand,
+      commandId: randomUUID(),
+    }),
+    (error: unknown) => sensitiveError(error, "STEP_UP_SCOPE_MISMATCH"),
+  );
+  const revokedSession = await issueTestHighRiskStepUp(prisma, {
+    actionKey: "BANK_ACCOUNT_EDIT",
+    businessId: fixture.business.id,
+    resourceId: fixture.readyMembership.id,
+    userId: owner.actor.userId,
+  });
+  await prisma.authSession.update({
+    where: { id: revokedSession.stepUp.sessionId },
+    data: { revokedAt: new Date(), revokeReason: "HIGH_RISK_TEST" },
+  });
+  await assert.rejects(
+    createEmployeeBankVersion({ ...owner, stepUp: revokedSession.stepUp }, {
+      ...deniedCommand,
+      commandId: randomUUID(),
+    }),
+    (error: unknown) => sensitiveError(error, "STEP_UP_REQUIRED"),
+  );
+  assert.equal(
+    await prisma.employeeBankAccountVersion.count({
+      where: { businessId: fixture.business.id, employeeMembershipId: fixture.readyMembership.id },
+    }),
+    0,
+  );
+
   const firstCommandId = randomUUID();
-  const firstBank = await createEmployeeBankVersion(owner, {
+  const firstBankOwner = await authorizedPaymentContext(
+    owner,
+    "BANK_ACCOUNT_EDIT",
+    fixture.readyMembership.id,
+  );
+  const firstBank = await createEmployeeBankVersion(firstBankOwner, {
     accountHolderName: fixture.readyMembership.fullName,
     accountNumber: "1234-5678-9012",
     bankCode: "MAY-BANK",
@@ -53,8 +141,17 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
   });
   assert.equal(firstBank.commandReplay, false);
   assert.equal(firstBank.last4, "9012");
+  await assert.rejects(
+    createEmployeeBankVersion(firstBankOwner, {
+      ...deniedCommand,
+      commandId: randomUUID(),
+      effectiveFrom: new Date("2026-02-01T00:00:00.000Z"),
+      expectedRevision: 1,
+    }),
+    (error: unknown) => sensitiveError(error, "STEP_UP_ALREADY_CONSUMED"),
+  );
 
-  const replay = await createEmployeeBankVersion(owner, {
+  const replay = await createEmployeeBankVersion(firstBankOwner, {
     accountHolderName: fixture.readyMembership.fullName,
     accountNumber: "1234-5678-9012",
     bankCode: "MAY-BANK",
@@ -69,7 +166,7 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
   assert.equal(replay.commandReplay, true);
   assert.equal(replay.bankAccountVersionId, firstBank.bankAccountVersionId);
   await assert.rejects(
-    createEmployeeBankVersion(owner, {
+    createEmployeeBankVersion(firstBankOwner, {
       accountHolderName: fixture.readyMembership.fullName,
       accountNumber: "9999999999",
       bankCode: "MAYBANK",
@@ -84,7 +181,12 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
     (error: unknown) => paymentError(error, "DUPLICATE_COMMAND"),
   );
 
-  await verifyEmployeeBankVersion(owner, {
+  const verifyBankOwner = await authorizedPaymentContext(
+    owner,
+    "BANK_ACCOUNT_EDIT",
+    fixture.readyMembership.id,
+  );
+  await verifyEmployeeBankVersion(verifyBankOwner, {
     bankAccountVersionId: firstBank.bankAccountVersionId,
     commandId: randomUUID(),
     expectedRevision: 1,
@@ -93,18 +195,23 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
     reasonType: "MANUAL_VERIFICATION",
   });
   await assert.rejects(
-    verifyEmployeeBankVersion(owner, {
+    verifyEmployeeBankVersion(
+      await authorizedPaymentContext(owner, "BANK_ACCOUNT_EDIT", fixture.readyMembership.id),
+      {
       bankAccountVersionId: firstBank.bankAccountVersionId,
       commandId: randomUUID(),
       expectedRevision: 1,
       membershipId: fixture.readyMembership.id,
       reason: "A manually verified version must not be verified repeatedly.",
       reasonType: "MANUAL_VERIFICATION",
-    }),
+      },
+    ),
     (error: unknown) => paymentError(error, "CONFLICT"),
   );
 
-  const futureBank = await createEmployeeBankVersion(owner, {
+  const futureBank = await createEmployeeBankVersion(
+    await authorizedPaymentContext(owner, "BANK_ACCOUNT_EDIT", fixture.readyMembership.id),
+    {
     accountHolderName: fixture.readyMembership.fullName,
     accountNumber: "5555-6666-7777",
     bankCode: "CIMB",
@@ -115,7 +222,8 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
     membershipId: fixture.readyMembership.id,
     reason: "Future salary account becomes effective after the August payroll.",
     reasonType: "ACCOUNT_CHANGE",
-  });
+    },
+  );
   assert.equal(futureBank.revision, 2);
   const historical = await prisma.employeeBankAccountVersion.findUniqueOrThrow({
     where: { id: firstBank.bankAccountVersionId },
@@ -139,7 +247,11 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
 
   await assert.rejects(
     createEmployeeBankVersion(
-      { ...owner, allowedBranchIds: [fixture.branchA.id] },
+      await authorizedPaymentContext(
+        { ...owner, allowedBranchIds: [fixture.branchA.id] },
+        "BANK_ACCOUNT_EDIT",
+        fixture.missingMembership.id,
+      ),
       {
         accountHolderName: fixture.missingMembership.fullName,
         accountNumber: "888899990000",
@@ -156,7 +268,9 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
     (error: unknown) => paymentError(error, "ACCESS_DENIED"),
   );
   await assert.rejects(
-    createEmployeeBankVersion(owner, {
+    createEmployeeBankVersion(
+      await authorizedPaymentContext(owner, "BANK_ACCOUNT_EDIT", fixture.otherMembership.id),
+      {
       accountHolderName: fixture.otherMembership.fullName,
       accountNumber: "888899990000",
       bankCode: "HLB",
@@ -167,7 +281,8 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
       membershipId: fixture.otherMembership.id,
       reason: "Cross-business bank writes must be hidden as not found.",
       reasonType: "INITIAL_SETUP",
-    }),
+      },
+    ),
     (error: unknown) => paymentError(error, "NOT_FOUND"),
   );
 
@@ -301,12 +416,13 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
 
   const bytes = Buffer.from("P0 internal exact bytes\r\n", "utf8");
   const artifactResult = await createInternalTestPaymentArtifact(
-    owner,
+    await authorizedPaymentContext(owner, "PAYMENT_FILE_EXPORT", approved.paymentBatchId),
     {
       allowInternalTestArtifact: true,
       bytes,
       filename: "internal-p0.bin",
       paymentBatchId: approved.paymentBatchId,
+      reason: "Local integration verifies protected internal payment artifact export.",
       recordCount: 1,
     },
   );
@@ -332,14 +448,17 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
     ),
     bytes,
   );
-  const deactivated = await deactivateEmployeeBankVersion(owner, {
+  const deactivated = await deactivateEmployeeBankVersion(
+    await authorizedPaymentContext(owner, "BANK_ACCOUNT_EDIT", fixture.readyMembership.id),
+    {
     bankAccountVersionId: futureBank.bankAccountVersionId,
     commandId: randomUUID(),
     expectedRevision: futureBank.revision,
     membershipId: fixture.readyMembership.id,
     reason: "Deactivate the future account without altering retained instructions.",
     reasonType: "ACCOUNT_DEACTIVATED",
-  });
+    },
+  );
   assert.equal(deactivated.status, "SUCCESS");
   assert.equal(
     (
@@ -357,7 +476,9 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
     ).accountNumberLast4Snapshot,
     "9012",
   );
-  const replacementAfterDeactivation = await createEmployeeBankVersion(owner, {
+  const replacementAfterDeactivation = await createEmployeeBankVersion(
+    await authorizedPaymentContext(owner, "BANK_ACCOUNT_EDIT", fixture.readyMembership.id),
+    {
     accountHolderName: fixture.readyMembership.fullName,
     accountNumber: "1111-2222-3333",
     bankCode: "RHB",
@@ -368,7 +489,8 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
     membershipId: fixture.readyMembership.id,
     reason: "Create a new immutable version after the future account was deactivated.",
     reasonType: "ACCOUNT_CHANGE",
-  });
+    },
+  );
   assert.equal(replacementAfterDeactivation.revision, 3);
   assert.equal(
     (
@@ -378,6 +500,12 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
     ).supersedesVersionId,
     futureBank.bankAccountVersionId,
   );
+  const reopenStepUp = await issueTestHighRiskStepUp(prisma, {
+    actionKey: "PAYROLL_REOPEN",
+    businessId: fixture.business.id,
+    resourceId: fixture.readyRun.id,
+    userId: owner.actor.userId,
+  });
   await assert.rejects(
     prisma.payrollPaymentArtifact.update({
       where: { id: artifact.id },
@@ -395,6 +523,7 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
       businessId: fixture.business.id,
       reason: "Approved payment instructions must keep finalized payroll immutable.",
       runId: fixture.readyRun.id,
+      stepUp: reopenStepUp.stepUp,
     }),
     /approved payment instruction/i,
   );
@@ -473,7 +602,9 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
   `);
   try {
     await assert.rejects(
-      createEmployeeBankVersion(owner, {
+      createEmployeeBankVersion(
+        await authorizedPaymentContext(owner, "BANK_ACCOUNT_EDIT", rollbackMembership.id),
+        {
         accountHolderName: rollbackMembership.fullName,
         accountNumber: "777788889999",
         bankCode: "RHB",
@@ -484,7 +615,8 @@ test("Payment P0 bank, readiness, batch, artifact, guards and rollback are integ
         membershipId: rollbackMembership.id,
         reason: "Audit failure must roll back the entire sensitive bank command.",
         reasonType: "INITIAL_SETUP",
-      }),
+        },
+      ),
       /Payment audit failure probe/,
     );
     await assert.rejects(
@@ -619,6 +751,7 @@ async function createFixture() {
     business,
     draftRun,
     missingMembership,
+    otherBusiness,
     otherMembership,
     owner,
     readyMembership,
@@ -755,6 +888,24 @@ function paymentContext(
   };
 }
 
+async function authorizedPaymentContext(
+  context: PayrollPaymentContext,
+  actionKey: "BANK_ACCOUNT_EDIT" | "PAYMENT_FILE_EXPORT",
+  resourceId: string,
+): Promise<PayrollPaymentContext> {
+  const issued = await issueTestHighRiskStepUp(prisma, {
+    actionKey,
+    businessId: context.businessId,
+    resourceId,
+    userId: context.actor.userId,
+  });
+  return { ...context, stepUp: issued.stepUp };
+}
+
 function paymentError(error: unknown, code: string) {
   return error instanceof PayrollPaymentError && error.code === code;
+}
+
+function sensitiveError(error: unknown, code: SensitiveActionError["code"]) {
+  return error instanceof SensitiveActionError && error.code === code;
 }

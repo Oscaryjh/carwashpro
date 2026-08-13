@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { StaffLoginForm } from "@/components/staff-pwa/staff-auth";
+import { getEmployeeAuthConfig } from "@/lib/attendance/employee-auth/config";
 
 export const metadata: Metadata = {
   title: "Employee sign in",
@@ -20,5 +21,6 @@ export default async function StaffLoginPage({ searchParams }: StaffLoginPagePro
           ? "You have signed out securely."
           : "";
 
-  return <StaffLoginForm initialMessage={initialMessage} />;
+  const config = getEmployeeAuthConfig();
+  return <StaffLoginForm initialMessage={initialMessage} testingMode={config.otp.sendMode === "mock"} />;
 }

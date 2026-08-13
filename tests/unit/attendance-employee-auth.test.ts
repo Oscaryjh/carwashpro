@@ -59,22 +59,17 @@ test("employee auth config is centralized and production mock fails closed", () 
       error.code === "CONFIGURATION_ERROR",
   );
 
-  const railwayTestingConfig = getEmployeeAuthConfig({
-    NODE_ENV: "production",
-    RAILWAY_ENVIRONMENT_NAME: "testing",
-    EMPLOYEE_AUTH_SECRET: TEST_SECRET,
-    EMPLOYEE_OTP_TESTING_ENABLED: "true",
-    EMPLOYEE_OTP_SEND_MODE: "mock",
-    EMPLOYEE_OTP_MOCK_CODE: "000000",
-  });
-  assert.equal(railwayTestingConfig.environment, "production");
-  assert.equal(railwayTestingConfig.session.secureCookie, true);
-  assert.equal(railwayTestingConfig.otp.testingDeployment, true);
-  assert.equal(railwayTestingConfig.otp.mockCode, "000000");
-  assert.doesNotThrow(() => new MockEmployeeOtpProvider(railwayTestingConfig));
   assert.throws(
-    () => readMockEmployeeOtp("challenge", "key", railwayTestingConfig),
-    /disabled/i,
+    () =>
+      getEmployeeAuthConfig({
+        NODE_ENV: "production",
+        RAILWAY_ENVIRONMENT_NAME: "testing",
+        EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+        EMPLOYEE_OTP_TESTING_ENABLED: "true",
+        OTP_PROVIDER: "mock",
+        EMPLOYEE_OTP_MOCK_CODE: "000000",
+      }),
+    /mock mode is not available in production/i,
   );
 
   assert.throws(

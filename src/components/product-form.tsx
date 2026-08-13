@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import type { Product, ProductCategory } from "@prisma/client";
 import type { BranchOption } from "@/lib/branches";
 
@@ -16,9 +17,11 @@ type ProductFormProps = {
   };
   submitLabel: string;
   returnPath?: string;
+  inventoryEnabled: boolean;
 };
 
-export function ProductForm({ action, branches, categories, product, submitLabel, returnPath }: ProductFormProps) {
+export function ProductForm({ action, branches, categories, product, submitLabel, returnPath, inventoryEnabled }: ProductFormProps) {
+  const [trackInventory, setTrackInventory] = useState(product?.trackInventory ?? false);
   return (
     <form action={action} className="form">
       {product ? <input name="productId" type="hidden" value={product.id} /> : null}
@@ -104,9 +107,31 @@ export function ProductForm({ action, branches, categories, product, submitLabel
         <textarea defaultValue={product?.description ?? ""} name="description" rows={3} />
       </label>
 
-      <fieldset className="product-stock-fieldset">
-        <legend>Branch stock</legend>
-        <p className="field-helper">Set the quantity available at each active branch.</p>
+      {inventoryEnabled ? (
+        <label className="service-taxable-field">
+          <input
+            checked={trackInventory}
+            disabled={Boolean(product?.trackInventory)}
+            name="trackInventory"
+            onChange={(event) => setTrackInventory(event.target.checked)}
+            type="checkbox"
+          />
+          {product?.trackInventory ? <input name="trackInventory" type="hidden" value="on" /> : null}
+          <span className="service-taxable-indicator" aria-hidden="true">✓</span>
+          <span className="service-taxable-copy">
+            <strong>Track inventory</strong>
+            <small>Use the immutable branch stock ledger for this product.</small>
+          </span>
+        </label>
+      ) : null}
+
+      {inventoryEnabled && trackInventory ? <fieldset className="product-stock-fieldset">
+        <legend>{product?.trackInventory ? "Branch inventory" : "Opening balances"}</legend>
+        <p className="field-helper">
+          {product?.trackInventory
+            ? "Balances are read-only here. Use Inventory movements to change quantity."
+            : "These explicit quantities create immutable OPENING_BALANCE movements."}
+        </p>
         {branches.length ? (
           <div className="field-grid">
             {branches.map((branch) => {
@@ -114,8 +139,9 @@ export function ProductForm({ action, branches, categories, product, submitLabel
               return (
                 <label key={branch.id}>
                   <span>{branch.name} quantity</span>
-                  <input name={`stock_${branch.id}`} min="0" step="1" type="number" defaultValue={stock?.quantity ?? 0} />
-                  <input name={`reorder_${branch.id}`} type="hidden" value={stock?.reorderLevel ?? 0} />
+                  <input name={`stock_${branch.id}`} min="0" readOnly={Boolean(product?.trackInventory)} step="1" type="number" defaultValue={stock?.quantity ?? 0} />
+                  <span>{branch.name} reorder level</span>
+                  <input name={`reorder_${branch.id}`} min="0" step="1" type="number" defaultValue={stock?.reorderLevel ?? 0} />
                 </label>
               );
             })}
@@ -123,7 +149,7 @@ export function ProductForm({ action, branches, categories, product, submitLabel
         ) : (
           <p className="empty-state compact-empty-state">Create an active branch before adding stock.</p>
         )}
-      </fieldset>
+      </fieldset> : null}
 
       <div className="form-actions">
         <button type="submit">{submitLabel}</button>

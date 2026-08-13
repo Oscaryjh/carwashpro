@@ -42,6 +42,8 @@ const restartDelayMs = 1500;
 const minimumHealthyWorkerUptimeMs = 10_000;
 const localDevSessionSecret =
   "tetamu-local-development-session-secret-v1";
+const localDevEmployeeAuthSecret =
+  "tetamu-local-development-employee-auth-secret-v1";
 const notificationWorkerQueuedAfter = new Date().toISOString();
 
 let nextChild;
@@ -358,6 +360,12 @@ function getChildEnv() {
     DATABASE_URL: process.env.DATABASE_URL ?? DATABASE_URL,
     SESSION_SECRET:
       process.env.SESSION_SECRET ?? localDevSessionSecret,
+    EMPLOYEE_AUTH_SECRET:
+      process.env.EMPLOYEE_AUTH_SECRET ?? localDevEmployeeAuthSecret,
+    EMPLOYEE_OTP_SEND_MODE:
+      process.env.EMPLOYEE_OTP_SEND_MODE ?? "mock",
+    EMPLOYEE_OTP_MOCK_CODE:
+      process.env.EMPLOYEE_OTP_MOCK_CODE ?? "123456",
     NODE_OPTIONS: withNodeOption(process.env.NODE_OPTIONS, "--use-system-ca"),
     WS_NO_BUFFER_UTIL: process.env.WS_NO_BUFFER_UTIL ?? "1",
     WS_NO_UTF_8_VALIDATE: process.env.WS_NO_UTF_8_VALIDATE ?? "1",

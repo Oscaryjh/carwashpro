@@ -26,6 +26,7 @@ import { cashierSaleSchema } from "@/lib/validation/cashier";
 import { fromCents } from "@/lib/validation/pos";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
+import { recordSaleInventory } from "@/lib/inventory/service";
 
 export type CashierSaleInvoiceSummary = {
   id: string;
@@ -369,18 +370,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         }
         return { service, quantity };
       });
-      const stocks = await Promise.all(
-        productLines.map(async ({ product, quantity }) => {
-          const stock = await tx.productStock.findUnique({
-            where: { branchId_productId: { branchId, productId: product.id } },
-          });
-          if (!stock || stock.quantity < quantity) {
-            throw new Error(`Not enough stock for ${product.name}.`);
-          }
-          return { product, quantity, stock };
-        }),
-      );
-      const assignedStaff = serviceLines.length && input.assignedStaffId
+      const stocks = productLines;
+      const assignedStaff = input.assignedStaffId
         ? await tx.user.findFirst({
             where: {
               id: input.assignedStaffId,
@@ -408,6 +399,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             },
             select: {
               id: true,
+              employeeBusinessMembershipId: true,
               serviceStaffAssignments: {
                 where: { serviceId: { in: serviceLines.map(({ service }) => service.id) } },
                 select: { serviceId: true },
@@ -415,6 +407,10 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             },
           })
         : null;
+
+      if (input.assignedStaffId && !assignedStaff) {
+        throw new Error("The selected sale attribution staff member is not available.");
+      }
 
       if (serviceLines.length && !assignedStaff) {
         throw new Error("Select an available staff member for the service.");
@@ -644,6 +640,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               ...stocks.map(({ product, quantity }, index) => ({
                 businessId,
                 productId: product.id,
+                commissionMembershipId:
+                  assignedStaff?.employeeBusinessMembershipId ?? null,
                 name: product.name,
                 quantity,
                 unitPrice: product.price,
@@ -662,6 +660,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
                 businessId,
                 customerPackageId: customerPackages[index].id,
                 serviceId: packageDefinition.serviceId,
+                commissionMembershipId:
+                  assignedStaff?.employeeBusinessMembershipId ?? null,
                 name: packageDefinition.name,
                 quantity: 1,
                 unitPrice: packageDefinition.price,
@@ -681,6 +681,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               ...serviceLines.map(({ service, quantity }, index) => ({
                 businessId,
                 serviceId: service.id,
+                commissionMembershipId:
+                  assignedStaff?.employeeBusinessMembershipId ?? null,
                 customerPackageId:
                   redeemedPackageByServiceId.get(service.id)?.customerPackageId ?? null,
                 name: service.name,
@@ -702,6 +704,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             ],
           },
         },
+        include: { items: true },
       });
       const packagePayments: Payment[] = [];
       for (const balance of redeemedPackageBalances) {
@@ -782,15 +785,19 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         throw new Error("At least one payment is required.");
       }
 
-      for (const { stock, quantity } of stocks) {
-        const updated = await tx.productStock.updateMany({
-          where: { id: stock.id, quantity: { gte: quantity } },
-          data: { quantity: { decrement: quantity } },
-        });
-        if (updated.count !== 1) {
-          throw new Error(`Not enough stock for ${productById.get(stock.productId)?.name ?? "product"}.`);
-        }
-      }
+      await recordSaleInventory(tx, {
+        actorUserId: user.userId,
+        branchId,
+        businessId,
+        invoiceId: invoice.id,
+        lines: invoice.items
+          .filter((item): item is typeof item & { productId: string } => Boolean(item.productId))
+          .map((item) => ({
+            invoiceItemId: item.id,
+            productId: item.productId,
+            quantity: item.quantity,
+          })),
+      });
 
       await Promise.all(
         customerPackages.map(async (customerPackage, index) => {

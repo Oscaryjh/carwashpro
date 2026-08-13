@@ -235,6 +235,26 @@ export async function getEmployeeAttendanceToday(args: {
           },
         },
       });
+    const expectedAttendance =
+      await transaction.attendanceExpectedDay.findFirst({
+        where: {
+          businessId: args.auth.businessId,
+          branchId: principal.branch.id,
+          membershipId: args.auth.membershipId,
+          workDate,
+          status: "CURRENT",
+        },
+        orderBy: { revision: "desc" },
+        select: {
+          kind: true,
+          source: true,
+          expectedStartAt: true,
+          expectedEndAt: true,
+          graceMinutes: true,
+          timezoneSnapshot: true,
+          revision: true,
+        },
+      });
 
     return {
       employee: {
@@ -297,6 +317,19 @@ export async function getEmployeeAttendanceToday(args: {
           principal.membership.normalWorkMinutesPerDay ??
           principal.setting.normalWorkMinutesPerDay,
       },
+      expectedAttendance: expectedAttendance
+        ? {
+            kind: expectedAttendance.kind,
+            source: expectedAttendance.source,
+            expectedStartAt:
+              expectedAttendance.expectedStartAt?.toISOString() ?? null,
+            expectedEndAt:
+              expectedAttendance.expectedEndAt?.toISOString() ?? null,
+            graceMinutes: expectedAttendance.graceMinutes,
+            timezone: expectedAttendance.timezoneSnapshot,
+            revision: expectedAttendance.revision,
+          }
+        : null,
       allowedActions: getAllowedAttendanceActions(activeStatus),
       pendingExceptions: [
         ...(activeSession ? [activeSession] : []),

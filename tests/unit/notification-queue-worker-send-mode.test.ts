@@ -160,3 +160,18 @@ test("invalid send mode fails closed before any send attempt", async () => {
   );
   assert.equal(connectorCalls, 0);
 });
+
+test("production mock mode is forbidden before a queue item can be simulated", () => {
+  assert.throws(
+    () => resolveWhatsAppSendMode({ NODE_ENV: "production", WHATSAPP_SEND_MODE: "mock" }),
+    /forbidden in production/i,
+  );
+  assert.equal(
+    resolveWhatsAppSendMode({ NODE_ENV: "production", WHATSAPP_SEND_MODE: "live" }),
+    "live",
+  );
+  assert.equal(
+    resolveWhatsAppSendMode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "testing", WHATSAPP_SEND_MODE: "mock" }),
+    "mock",
+  );
+});

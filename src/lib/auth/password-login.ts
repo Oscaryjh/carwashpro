@@ -89,9 +89,9 @@ export async function authenticatePasswordLogin(
           user.passwordHash &&
           (!user.business || user.business.status === "active"),
       );
-      const passwordValid = await bcrypt.compare(
+      const passwordValid = await verifyPasswordHash(
         input.password,
-        usable && user?.passwordHash ? user.passwordHash : DUMMY_PASSWORD_HASH,
+        usable && user?.passwordHash ? user.passwordHash : null,
       );
 
       if (!usable || !user || !passwordValid) {
@@ -139,6 +139,13 @@ export async function authenticatePasswordLogin(
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
+}
+
+export function verifyPasswordHash(
+  password: string,
+  passwordHash: string | null | undefined,
+) {
+  return bcrypt.compare(password, passwordHash || DUMMY_PASSWORD_HASH);
 }
 
 function findPasswordLoginUser(

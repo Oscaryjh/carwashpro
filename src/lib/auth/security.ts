@@ -8,6 +8,17 @@ export const PASSWORD_LOGIN_WINDOW_MS = 15 * 60 * 1_000;
 export const PASSWORD_LOGIN_IDENTIFIER_LIMIT = 5;
 export const PASSWORD_LOGIN_IP_LIMIT = 25;
 export const PASSWORD_LOGIN_COMBINATION_LIMIT = 5;
+export const SENSITIVE_ACTION_STEP_UP_SURFACE = "SENSITIVE_ACTION_STEP_UP";
+export const SENSITIVE_ACTION_STEP_UP_WINDOW_MS = 15 * 60 * 1_000;
+export const SENSITIVE_ACTION_STEP_UP_SCOPE_LIMIT = 5;
+export const SENSITIVE_ACTION_STEP_UP_USER_LIMIT = 10;
+export const SENSITIVE_ACTION_STEP_UP_IP_LIMIT = 25;
+export const MFA_SECURITY_SURFACE = "MFA_SECURITY";
+export const MFA_VERIFY_WINDOW_MS = 15 * 60 * 1_000;
+export const MFA_VERIFY_SESSION_LIMIT = 5;
+export const MFA_VERIFY_CREDENTIAL_LIMIT = 5;
+export const MFA_VERIFY_USER_LIMIT = 10;
+export const MFA_VERIFY_IP_LIMIT = 25;
 
 export type AuthRequestContext = Readonly<{
   ipAddress: string | null;
@@ -79,6 +90,19 @@ export function assertSameOrigin(request: Request) {
     : requestUrl.origin;
 
   if (requestOrigin !== suppliedOrigin) {
+    throw new Error("AUTH_CROSS_SITE_REQUEST");
+  }
+}
+
+export function assertServerActionSameOrigin(requestHeaders: HeaderReader) {
+  const fetchSite = requestHeaders.get("sec-fetch-site")?.toLowerCase();
+  if (fetchSite === "cross-site") {
+    throw new Error("AUTH_CROSS_SITE_REQUEST");
+  }
+  const origin = requestHeaders.get("origin");
+  if (!origin) return;
+  const host = requestHeaders.get("host")?.trim().toLowerCase();
+  if (!host || new URL(origin).host.toLowerCase() !== host) {
     throw new Error("AUTH_CROSS_SITE_REQUEST");
   }
 }
@@ -230,6 +254,177 @@ export async function checkPasswordLoginRateLimit(
     allowed: reasons.length === 0,
     reasons,
   } as const;
+}
+
+export function sensitiveActionRateLimitHashes(input: {
+  userId: string;
+  sessionId: string;
+  actionKey: string;
+  resourceType: string;
+  resourceId: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+}) {
+  return {
+    identifierHash: hashAuthSecurityValue(
+      "step-up-scope",
+      `${input.userId}:${input.sessionId}:${input.actionKey}:${input.resourceType}:${input.resourceId}`,
+    ),
+    ipAddressHash: hashAuthSecurityValue("ip", input.ipAddress),
+    userAgentHash: hashAuthSecurityValue("user-agent", input.userAgent),
+  };
+}
+
+export async function acquireSensitiveActionRateLimitLocks(
+  input: {
+    userId: string;
+    identifierHash: string;
+    ipAddressHash: string | null;
+  },
+  transaction: AuthSecurityTransaction,
+) {
+  const keys = [
+    `step-up:user:${input.userId}`,
+    `step-up:scope:${input.identifierHash}`,
+    input.ipAddressHash ? `step-up:ip:${input.ipAddressHash}` : null,
+  ]
+    .filter((value): value is string => value !== null)
+    .sort();
+
+  for (const key of keys) {
+    await transaction.$queryRaw<Array<{ acquired: string }>>(
+      Prisma.sql`
+        SELECT pg_advisory_xact_lock(
+          hashtextextended(${key}, 0)
+        )::text AS acquired
+      `,
+    );
+  }
+}
+
+export async function checkSensitiveActionRateLimit(
+  input: {
+    userId: string;
+    identifierHash: string;
+    ipAddressHash: string | null;
+    now: Date;
+  },
+  database: AuthSecurityDatabase,
+) {
+  const since = new Date(
+    input.now.getTime() - SENSITIVE_ACTION_STEP_UP_WINDOW_MS,
+  );
+  const baseWhere = {
+    surface: SENSITIVE_ACTION_STEP_UP_SURFACE,
+    eventType: "STEP_UP_FAILED",
+    createdAt: { gte: since },
+  } satisfies Prisma.AuthSecurityEventWhereInput;
+  const [scopeFailures, userFailures, ipFailures] = await Promise.all([
+    database.authSecurityEvent.count({
+      where: { ...baseWhere, identifierHash: input.identifierHash },
+    }),
+    database.authSecurityEvent.count({
+      where: { ...baseWhere, userId: input.userId },
+    }),
+    input.ipAddressHash
+      ? database.authSecurityEvent.count({
+          where: { ...baseWhere, ipAddressHash: input.ipAddressHash },
+        })
+      : Promise.resolve(0),
+  ]);
+  const reasons = [
+    scopeFailures >= SENSITIVE_ACTION_STEP_UP_SCOPE_LIMIT ? "SCOPE" : null,
+    userFailures >= SENSITIVE_ACTION_STEP_UP_USER_LIMIT ? "USER" : null,
+    ipFailures >= SENSITIVE_ACTION_STEP_UP_IP_LIMIT ? "IP" : null,
+  ].filter((value): value is string => value !== null);
+  return { allowed: reasons.length === 0, reasons } as const;
+}
+
+export function mfaRateLimitHashes(input: {
+  userId: string;
+  sessionId: string;
+  credentialId?: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+}) {
+  return {
+    identifierHash: hashAuthSecurityValue(
+      "mfa-credential",
+      input.credentialId ?? `${input.userId}:${input.sessionId}`,
+    ),
+    ipAddressHash: hashAuthSecurityValue("ip", input.ipAddress),
+    userAgentHash: hashAuthSecurityValue("user-agent", input.userAgent),
+  };
+}
+
+export async function acquireMfaRateLimitLocks(
+  input: {
+    userId: string;
+    sessionId: string;
+    identifierHash: string;
+    ipAddressHash: string | null;
+  },
+  transaction: AuthSecurityTransaction,
+) {
+  const keys = [
+    `mfa:user:${input.userId}`,
+    `mfa:session:${input.sessionId}`,
+    `mfa:credential:${input.identifierHash}`,
+    input.ipAddressHash ? `mfa:ip:${input.ipAddressHash}` : null,
+  ]
+    .filter((value): value is string => value !== null)
+    .sort();
+  for (const key of keys) {
+    await transaction.$queryRaw(
+      Prisma.sql`
+        SELECT pg_advisory_xact_lock(
+          hashtextextended(${key}, 0)
+        )::text AS acquired
+      `,
+    );
+  }
+}
+
+export async function checkMfaRateLimit(
+  input: {
+    userId: string;
+    sessionId: string;
+    identifierHash: string;
+    ipAddressHash: string | null;
+    now: Date;
+  },
+  database: AuthSecurityDatabase,
+) {
+  const since = new Date(input.now.getTime() - MFA_VERIFY_WINDOW_MS);
+  const baseWhere = {
+    surface: MFA_SECURITY_SURFACE,
+    eventType: "MFA_VERIFICATION_FAILED",
+    createdAt: { gte: since },
+  } satisfies Prisma.AuthSecurityEventWhereInput;
+  const [sessionFailures, credentialFailures, userFailures, ipFailures] =
+    await Promise.all([
+      database.authSecurityEvent.count({
+        where: { ...baseWhere, sessionId: input.sessionId },
+      }),
+      database.authSecurityEvent.count({
+        where: { ...baseWhere, identifierHash: input.identifierHash },
+      }),
+      database.authSecurityEvent.count({
+        where: { ...baseWhere, userId: input.userId },
+      }),
+      input.ipAddressHash
+        ? database.authSecurityEvent.count({
+            where: { ...baseWhere, ipAddressHash: input.ipAddressHash },
+          })
+        : Promise.resolve(0),
+    ]);
+  const reasons = [
+    sessionFailures >= MFA_VERIFY_SESSION_LIMIT ? "SESSION" : null,
+    credentialFailures >= MFA_VERIFY_CREDENTIAL_LIMIT ? "CREDENTIAL" : null,
+    userFailures >= MFA_VERIFY_USER_LIMIT ? "USER" : null,
+    ipFailures >= MFA_VERIFY_IP_LIMIT ? "IP" : null,
+  ].filter((value): value is string => value !== null);
+  return { allowed: reasons.length === 0, reasons } as const;
 }
 
 function getAuthSecuritySecret() {

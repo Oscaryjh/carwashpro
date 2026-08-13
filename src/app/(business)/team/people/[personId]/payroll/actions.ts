@@ -1,10 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getAuditRequestContext } from "@/lib/audit";
+import {
+  assertServerActionSameOrigin,
+  getAuthRequestContext,
+} from "@/lib/auth/security";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
 import {
   scheduleEmployeeCompensationChange,
@@ -16,11 +21,19 @@ import { PayrollProfileWriteError } from "@/lib/payroll/employee-profile-write/t
 import { scheduleRecurringPayComponent } from "@/lib/payroll/recurring-pay";
 import { findSalaryBank } from "@/lib/payroll/payment/bank-directory";
 import {
+  assertEmployeeBankResource,
   createEmployeeBankVersion,
   deactivateEmployeeBankVersion,
   verifyEmployeeBankVersion,
 } from "@/lib/payroll/payment/bank-account-service";
 import { PayrollPaymentError } from "@/lib/payroll/payment/types";
+import {
+  issuePayrollHighRiskAuthorization,
+  payrollMfaFactor,
+  payrollMfaPassword,
+  type PayrollHighRiskStepUp,
+  publicPayrollMfaError,
+} from "@/lib/payroll/high-risk-mfa";
 import {
   updateEmployeePayrollWorkTarget,
 } from "@/lib/payroll/employee-profile-write/work-target";
@@ -486,8 +499,10 @@ export async function createEmployeeBankVersionAction(formData: FormData) {
     const bank = findSalaryBank(input.bankCode);
     if (!bank) throw new PayrollPaymentError("VALIDATION_ERROR", "Select a supported bank.");
     const context = await requireWholeBusinessPayroll("EDIT_BANK_ACCOUNT");
+    await assertEmployeeBankResource(context.businessId, input.membershipId);
+    const stepUp = await issueBankStepUp(context, formData, input.membershipId);
     const result = await createEmployeeBankVersion(
-      paymentContext(context, await getAuditRequestContext()),
+      paymentContext(context, await getAuditRequestContext(), stepUp),
       {
         accountHolderName: input.accountHolderName,
         accountNumber: input.accountNumber,
@@ -521,8 +536,10 @@ export async function verifyEmployeeBankVersionAction(formData: FormData) {
     const input = existingBankVersionSchema.parse(Object.fromEntries(formData));
     membershipId = input.membershipId;
     const context = await requireWholeBusinessPayroll("VERIFY_BANK_ACCOUNT");
+    await assertEmployeeBankResource(context.businessId, input.membershipId);
+    const stepUp = await issueBankStepUp(context, formData, input.membershipId);
     const result = await verifyEmployeeBankVersion(
-      paymentContext(context, await getAuditRequestContext()),
+      paymentContext(context, await getAuditRequestContext(), stepUp),
       input,
     );
     revalidatePayrollProfile(membershipId);
@@ -549,8 +566,10 @@ export async function deactivateEmployeeBankVersionAction(formData: FormData) {
     const input = existingBankVersionSchema.parse(Object.fromEntries(formData));
     membershipId = input.membershipId;
     const context = await requireWholeBusinessPayroll("EDIT_BANK_ACCOUNT");
+    await assertEmployeeBankResource(context.businessId, input.membershipId);
+    const stepUp = await issueBankStepUp(context, formData, input.membershipId);
     const result = await deactivateEmployeeBankVersion(
-      paymentContext(context, await getAuditRequestContext()),
+      paymentContext(context, await getAuditRequestContext(), stepUp),
       input,
     );
     revalidatePayrollProfile(membershipId);
@@ -634,6 +653,7 @@ function bankEditNoticeUrl(membershipId: string, message: string) {
 function paymentContext(
   context: Awaited<ReturnType<typeof requireWholeBusinessPayroll>>,
   request: Awaited<ReturnType<typeof getAuditRequestContext>>,
+  stepUp?: PayrollHighRiskStepUp,
 ) {
   return {
     access: context.access,
@@ -641,10 +661,33 @@ function paymentContext(
     allowedBranchIds: context.allowedBranchIds,
     businessId: context.businessId,
     request,
+    stepUp,
   };
 }
 
+async function issueBankStepUp(
+  context: Awaited<ReturnType<typeof requireWholeBusinessPayroll>>,
+  formData: FormData,
+  membershipId: string,
+) {
+  const requestHeaders = await headers();
+  assertServerActionSameOrigin(requestHeaders);
+  return issuePayrollHighRiskAuthorization({
+    access: context.access,
+    actionKey: "BANK_ACCOUNT_EDIT",
+    businessId: context.businessId,
+    enabledModules: context.moduleContext.enabledModules,
+    factor: payrollMfaFactor(formData),
+    password: payrollMfaPassword(formData),
+    request: getAuthRequestContext(requestHeaders),
+    resourceId: membershipId,
+    user: context.user,
+  });
+}
+
 function publicWriteError(error: unknown) {
+  const mfaMessage = publicPayrollMfaError(error);
+  if (mfaMessage) return mfaMessage;
   if (error instanceof z.ZodError) {
     return error.issues[0]?.message ?? "Check the payroll profile fields and try again.";
   }

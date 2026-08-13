@@ -12,6 +12,7 @@ import {
   getCashierCatalogAvailability,
 } from "@/lib/cashier/catalog";
 import { prisma } from "@/lib/prisma";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 import { completeCashierSaleAction } from "@/app/(business)/cashier/actions";
 
 type CashierPageProps = {
@@ -49,6 +50,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
   }
 
   const params = await searchParams;
+  const inventoryEnabled = await isBusinessModuleEnabled(businessId, "INVENTORY");
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
   const requestedAppointmentId = params.appointmentId?.trim() || null;
@@ -248,7 +250,9 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
       name: product.name,
       price: Number(product.price),
       quantity: productCounts.get(product.id) ?? 1,
-      stock: product.stocks[0]?.quantity ?? 0,
+      ...(inventoryEnabled && product.trackInventory
+        ? { stock: product.stocks[0]?.quantity ?? 0 }
+        : {}),
       taxable: product.taxable,
       taxRate: product.taxRate == null ? null : Number(product.taxRate),
       type: "product" as const,

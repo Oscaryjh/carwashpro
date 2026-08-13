@@ -64,6 +64,8 @@ export function getPublicPayrollErrorMessage(
   error: unknown,
   fallback: string,
 ) {
+  const mfaMessage = publicPayrollMfaError(error);
+  if (mfaMessage) return mfaMessage;
   if (!(error instanceof Error)) return fallback;
   return PUBLIC_PAYROLL_ERROR_PREFIXES.some((prefix) =>
     error.message.startsWith(prefix),
@@ -87,3 +89,4 @@ export function sanitizePayrollNotice(
 
   return value.slice(0, 180);
 }
+import { publicPayrollMfaError } from "@/lib/payroll/high-risk-mfa";

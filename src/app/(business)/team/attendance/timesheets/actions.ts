@@ -102,6 +102,7 @@ async function getTimesheetWriteContext() {
 
 function refresh(month: string, type: "success" | "error", notice: string): never {
   revalidatePath("/team/attendance/timesheets");
+  revalidatePath("/team/approvals");
   redirect(`/team/attendance/timesheets?month=${encodeURIComponent(month)}&type=${type}&message=${encodeURIComponent(notice)}`);
 }
 

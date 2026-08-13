@@ -53,6 +53,7 @@ import {
 import { sendServiceConfirmationQueued } from "@/lib/whatsapp/work-order-notifications";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
+import { recordSaleInventory } from "@/lib/inventory/service";
 
 function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
@@ -1500,6 +1501,16 @@ export async function recordSalonAppointmentPaymentAction(
         },
       });
 
+      await recordSaleInventory(tx, {
+        actorUserId: user.userId,
+        branchId: appointment.branchId,
+        businessId,
+        invoiceId: invoice.id,
+        lines: invoice.items
+          .filter((item): item is typeof item & { productId: string } => Boolean(item.productId))
+          .map((item) => ({ invoiceItemId: item.id, productId: item.productId, quantity: item.quantity })),
+      });
+
       for (const serviceBalance of customerPackages) {
         const nextServiceRemainingUses = serviceBalance.remainingUses - 1;
         const updatedBalance = await tx.customerPackageServiceBalance.updateMany({
@@ -1559,20 +1570,6 @@ export async function recordSalonAppointmentPaymentAction(
         data: { status: "USED_UP" },
       });
 
-      for (const line of saleLines.filter((item) => item.kind === "product")) {
-        const updated = await tx.productStock.updateMany({
-          where: {
-            branchId: appointment.branchId,
-            businessId,
-            productId: line.id,
-            quantity: { gte: line.quantity },
-          },
-          data: { quantity: { decrement: line.quantity } },
-        });
-        if (updated.count !== 1) {
-          throw new Error(`${line.name} does not have enough stock at this branch.`);
-        }
-      }
     }
 
     if (invoice.status === "VOID" || invoice.status === "REFUNDED") {

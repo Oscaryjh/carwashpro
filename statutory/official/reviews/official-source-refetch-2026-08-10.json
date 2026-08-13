@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "retrievedAt": "2026-08-10T06:56:36.7004206Z",
+  "environment": "LOCAL_TESTING_EVIDENCE_WORKFLOW",
+  "runtimeDependency": false,
+  "userAgent": "Tetamu-Statutory-Artifact-Verifier/1.0",
+  "requests": [
+    {
+      "manifestArtifactIds": ["kwsp-third-schedule-2025-10"],
+      "sourceUrl": "https://www.kwsp.gov.my/documents/d/guest/third_schedule_from_-1-october-2025",
+      "httpStatus": 200,
+      "contentType": "application/pdf",
+      "byteSize": 761109,
+      "sha256": "c4904e44f0cb15a251a59e4f34c11a1ededa0868b962b2ebd9b81270285358b1",
+      "manifestHashMatch": true
+    },
+    {
+      "manifestArtifactIds": ["perkeso-act4-lindung24-2026-06", "perkeso-lindung24-schedule-2026-06"],
+      "sourceUrl": "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/NewContributionRateIncludingSKBBK.pdf",
+      "httpStatus": 200,
+      "contentType": "application/pdf",
+      "byteSize": 219851,
+      "sha256": "e76b2a03740f6da4a305919c677d4935a05e9166502e5f06afe1030b7407caa1",
+      "manifestHashMatch": true
+    },
+    {
+      "manifestArtifactIds": ["perkeso-act800-2024-10"],
+      "sourceUrl": "https://www.perkeso.gov.my/images/dokumen/101024%20-%20Kadar%20Caruman%20Akta%20800.pdf",
+      "httpStatus": 200,
+      "contentType": "application/pdf",
+      "byteSize": 933164,
+      "sha256": "3499fec4271b45ae3e3055b2071075f96f65dc451775ed23adf39f9deec5376a",
+      "manifestHashMatch": true
+    },
+    {
+      "manifestArtifactIds": ["perkeso-lindung24-faq-2026-06-v2.1"],
+      "sourceUrl": "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/faq-2.1.pdf",
+      "httpStatus": 200,
+      "contentType": "application/pdf",
+      "byteSize": 284830,
+      "sha256": "a7b212187d5a66934e9dc5f0369d1bf45ff97d81adeac1031600358957b87fab",
+      "manifestHashMatch": true
+    },
+    {
+      "manifestArtifactIds": ["perkeso-lindung24-employer-circular-3-2026"],
+      "sourceUrl": "https://www.perkeso.gov.my/images/arahan/PEKELILING%20MAJIKAN%20BILANGAN%203_%202026_PELAKSANAAN%20SKIM%20LINDUNG%2024%20JAM%20DAN%20PEMILIHAN%20MAJIKAN%20BAGI%20MAKSUD%20PEMBAYARAN%20CARUMAN.pdf",
+      "httpStatus": 200,
+      "contentType": "application/pdf",
+      "byteSize": 504253,
+      "sha256": "26e594d31266f79af14d7b69c6a7185f9e03bdfce2590435ac5a64df092cb6ab",
+      "manifestHashMatch": true
+    },
+    {
+      "manifestArtifactIds": ["perkeso-lindung24-participation-form-2026"],
+      "sourceUrl": "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/penyertaan.pdf",
+      "httpStatus": 200,
+      "contentType": "application/pdf",
+      "byteSize": 835059,
+      "sha256": "67ba5f24eb9929f0a7c7aa626c30e224d0705766e6b3063bf10f4fcb83db121f",
+      "manifestHashMatch": true
+    },
+    {
+      "manifestArtifactIds": ["perkeso-lindung24-opt-out-notice-v2.1"],
+      "sourceUrl": "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/Notis%20Pelepasan%20Liabiliti%20LINDUNG%2024%20Jam_31Julai2026.pdf",
+      "httpStatus": 200,
+      "contentType": "application/pdf",
+      "byteSize": 759497,
+      "sha256": "95a1ae1549eeca7ee24a9d61fb154f420fad52fdd2d5ffe88766bd3a404d303e",
+      "manifestHashMatch": true
+    }
+  ],
+  "notes": "One bounded live re-fetch per unique official source. Retained artifacts remain the canonical review/runtime evidence; live availability is not a payroll dependency.",
+  "recordDigest": "753407e5a9be7bc81cb2c67d35a63912b21dd6bafae3b360cc29729b9360fd7a"
+}

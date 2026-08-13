@@ -1,29 +1,14 @@
 import type { Metadata } from "next";
 import { StaffP2CorrectionForm } from "@/components/staff-pwa/staff-p2-correction-form";
+import { getEmployeeTimesheetOverview } from "@/lib/attendance/employee-timesheet";
 import { requireEmployeeModulePage } from "@/lib/modules/employee-access";
-import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "My timesheet" };
 export const dynamic = "force-dynamic";
 
 export default async function StaffTimesheetPage() {
   const auth = await requireEmployeeModulePage("HR");
-  const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
-  const [rows, exceptions] = await Promise.all([
-    prisma.attendanceP2FinalResult.findMany({
-      where: { businessId: auth.businessId, membershipId: auth.membershipId, workDate: { gte: monthStart } },
-      orderBy: [{ workDate: "desc" }, { version: "desc" }],
-    }),
-    prisma.attendanceP2Exception.findMany({
-      where: {
-        businessId: auth.businessId,
-        membershipId: auth.membershipId,
-        status: { in: ["OPEN", "PENDING_EMPLOYEE", "PENDING_MANAGER"] },
-      },
-      orderBy: [{ workDate: "desc" }, { detectedAt: "desc" }],
-    }),
-  ]);
-  const latest = [...new Map(rows.map((row) => [row.workDate.toISOString().slice(0, 10), row])).values()];
+  const { latest, exceptions } = await getEmployeeTimesheetOverview(auth);
   return (
     <section className="staff-page-card" aria-labelledby="staff-timesheet-heading">
       <div className="staff-page-title">

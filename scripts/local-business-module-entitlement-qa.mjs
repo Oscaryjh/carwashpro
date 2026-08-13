@@ -23,6 +23,7 @@ const managedModules = [
   'HR',
   'PAYROLL',
   'STATUTORY',
+  'COMMISSION',
 ];
 const profiles = [
   {
@@ -47,7 +48,15 @@ const profiles = [
     name: 'QA MODULE FULL BUSINESS',
     email: 'module-full-owner@test.local',
     industryType: 'SALON_BEAUTY',
-    enabled: new Set(['POS', 'SALON', 'AUTO', 'WHATSAPP', 'HR', 'PAYROLL', 'STATUTORY']),
+    enabled: new Set(['POS', 'SALON', 'AUTO', 'WHATSAPP', 'HR', 'PAYROLL', 'STATUTORY', 'COMMISSION']),
+  },
+  {
+    key: 'COMMISSION_AUTO',
+    slug: 'qa-module-commission-auto',
+    name: 'QA MODULE COMMISSION AUTO',
+    email: 'module-commission-auto@test.local',
+    industryType: 'AUTO_DETAILING',
+    enabled: new Set(['POS', 'AUTO', 'HR', 'PAYROLL', 'COMMISSION']),
   },
 ];
 

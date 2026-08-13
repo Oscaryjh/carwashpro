@@ -15,6 +15,7 @@ import {
   submitPayrollRunForReview,
 } from "../../src/lib/payroll/service";
 import { prisma } from "../../src/lib/prisma";
+import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 
 test("P4A recurring pay resolves, snapshots and preserves finalized payroll history", async () => {
   const fixture = await createFixture();
@@ -116,12 +117,19 @@ test("P4A recurring pay resolves, snapshots and preserves finalized payroll hist
     businessId: fixture.business.id,
     runId: run.id,
   });
+  const finalizeStepUp = await issueTestHighRiskStepUp(prisma, {
+    actionKey: "PAYROLL_FINALIZE",
+    businessId: fixture.business.id,
+    resourceId: run.id,
+    userId: context.actor.userId,
+  });
   await finalizePayrollRun({
     actor: context.actor,
     allowSelfApprovalOverride: true,
     businessId: fixture.business.id,
     overrideReason: "P4A immutable snapshot integration test.",
     runId: run.id,
+    stepUp: finalizeStepUp.stepUp,
   });
 
   const correctionCommand = recurringCommand(fixture.membership.id, 4, {

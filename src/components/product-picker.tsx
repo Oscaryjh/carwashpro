@@ -121,7 +121,7 @@ export function ProductPicker({
                 return (
                   <button
                     className={product.id === selectedProductId ? "is-selected" : ""}
-                    disabled={stock <= 0}
+                    disabled={product.trackInventory && stock <= 0}
                     key={product.id}
                     onClick={() => chooseProduct(product.id)}
                     type="button"
@@ -129,7 +129,7 @@ export function ProductPicker({
                     <span aria-hidden="true" className="product-picker-product-icon">P</span>
                     <span className="product-picker-product-copy">
                       <strong>{product.name}</strong>
-                      <small>{product.sku || "No SKU"} - {stock} in stock</small>
+                      <small>{product.sku || "No SKU"} - {product.trackInventory ? `${stock} in stock` : "inventory not tracked"}</small>
                     </span>
                     <b>RM{product.price.toFixed(2)}</b>
                   </button>

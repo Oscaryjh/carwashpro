@@ -72,7 +72,7 @@ export async function staffApiFetch<T>(
 
 export function getOrCreateDeviceIdentifier() {
   const existing = window.localStorage.getItem(DEVICE_STORAGE_KEY);
-  if (existing && existing.length >= 16) {
+  if (existing && existing.length >= 16 && existing.length <= 256) {
     return existing;
   }
 

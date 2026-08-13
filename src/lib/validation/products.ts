@@ -15,6 +15,7 @@ export const productSchema = z.object({
   costPrice: optionalMoney,
   taxable: z.boolean().default(false),
   taxRate: optionalMoney,
+  trackInventory: z.boolean().default(false),
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
 });
 

@@ -24,23 +24,13 @@ export async function getEmployeeProfileOverview(
     select: {
       id: true,
       employeeCode: true,
-      employmentType: true,
       status: true,
-      position: true,
-      joinedAt: true,
-      attendanceEnabled: true,
-      business: {
-        select: {
-          timezone: true,
-        },
-      },
       branchAssignments: {
         where: currentAssignmentWhere,
         orderBy: [{ isPrimary: "desc" }, { branch: { name: "asc" } }],
         select: {
           id: true,
           isPrimary: true,
-          canClockIn: true,
           branch: {
             select: {
               id: true,
@@ -55,6 +45,9 @@ export async function getEmployeeProfileOverview(
           status: true,
           loginEnabled: true,
           appointmentBookable: true,
+          staffRoleProfile: {
+            select: { name: true },
+          },
           _count: {
             select: {
               serviceStaffAssignments: {
@@ -83,7 +76,6 @@ export async function getEmployeeProfilePersonal(
       id: true,
       fullName: true,
       phoneNumber: true,
-      dateOfBirth: true,
       staffUser: {
         select: {
           id: true,

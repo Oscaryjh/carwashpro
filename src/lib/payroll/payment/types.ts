@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { AuditRequestContext, WriteAuditLogInput } from "@/lib/audit";
 import type { ResolvedBusinessAccess } from "@/lib/business-groups/business-access";
+import type { PayrollHighRiskStepUp } from "@/lib/payroll/high-risk-mfa";
 
 export type PayrollPaymentActor = NonNullable<WriteAuditLogInput["actor"]>;
 
@@ -10,6 +11,7 @@ export type PayrollPaymentContext = {
   allowedBranchIds: readonly string[];
   businessId: string;
   request?: AuditRequestContext;
+  stepUp?: PayrollHighRiskStepUp;
 };
 
 export type PayrollPaymentCommandResult = Prisma.JsonObject & {

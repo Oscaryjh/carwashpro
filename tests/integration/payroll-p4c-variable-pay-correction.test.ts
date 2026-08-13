@@ -18,6 +18,7 @@ import {
   type P4CWriteContext,
 } from "../../src/lib/payroll/variable-pay";
 import { prisma } from "../../src/lib/prisma";
+import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 
 test("P4C freezes variable pay and applies correction deltas exactly once", async () => {
   const fixture = await createFixture();
@@ -28,11 +29,18 @@ test("P4C freezes variable pay and applies correction deltas exactly once", asyn
   const payrollContext = { businessId: fixture.business.id, actor: actor(fixture.owner) };
   const julyRun = await generatePayrollRun({ ...payrollContext, month: "2026-07" });
   await submitPayrollRunForReview({ ...payrollContext, runId: julyRun.id });
+  const finalizeStepUp = await issueTestHighRiskStepUp(prisma, {
+    actionKey: "PAYROLL_FINALIZE",
+    businessId: fixture.business.id,
+    resourceId: julyRun.id,
+    userId: fixture.owner.id,
+  });
   await finalizePayrollRun({
     ...payrollContext,
     runId: julyRun.id,
     allowSelfApprovalOverride: true,
     overrideReason: "Create immutable P4C correction baseline.",
+    stepUp: finalizeStepUp.stepUp,
   });
   const julyBefore = await loadEntry(julyRun.id);
   const julySnapshot = snapshot(julyBefore);

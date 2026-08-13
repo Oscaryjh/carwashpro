@@ -3,6 +3,7 @@ import { assertEmployeeAuthSameOrigin, readEmployeeAuthJson } from "@/lib/attend
 import { requireEmployeePunchAuthContext } from "@/lib/attendance/employee-auth/session";
 import { submitAttendanceCorrectionRequest } from "@/lib/attendance/p2-service";
 import { employeeAttendanceErrorResponse, employeeAttendanceJson } from "@/lib/attendance/response";
+import { requireEmployeeBusinessModule } from "@/lib/modules/employee-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
   try {
     assertEmployeeAuthSameOrigin(request);
     const auth = await requireEmployeePunchAuthContext(request);
+    await requireEmployeeBusinessModule(auth, "HR");
     const input = await readEmployeeAuthJson(request, inputSchema);
     const data = await submitAttendanceCorrectionRequest({ auth, ...input });
     return employeeAttendanceJson({ ok: true, data });

@@ -3,6 +3,8 @@ import { EmployeeAuthError } from "./errors";
 export const EMPLOYEE_SESSION_COOKIE = "tetamu_employee_session";
 export const EMPLOYEE_OTP_DIGITS = 6;
 
+export type EmployeeOtpProviderName = "mock" | "twilio_verify";
+export type EmployeeOtpChannel = "local" | "sms";
 export type EmployeeOtpSendMode = "mock" | "provider";
 
 export type EmployeeAuthConfig = Readonly<{
@@ -11,6 +13,8 @@ export type EmployeeAuthConfig = Readonly<{
   maxJsonBodyBytes: number;
   otp: Readonly<{
     digits: typeof EMPLOYEE_OTP_DIGITS;
+    provider: EmployeeOtpProviderName;
+    channel: EmployeeOtpChannel;
     expiresInSeconds: number;
     maxAttempts: number;
     resendCooldownSeconds: number;
@@ -18,11 +22,21 @@ export type EmployeeAuthConfig = Readonly<{
     ipRequestsPerHour: number;
     deviceRequestsPerHour: number;
     providerRequestsPerHour: number;
+    verifyPhoneAttemptsPerHour: number;
+    verifyIpAttemptsPerHour: number;
+    providerTimeoutMs: number;
     sendMode: EmployeeOtpSendMode;
     testingDeployment: boolean;
     locale: string;
     mockAccessKey: string | null;
     mockCode: string | null;
+    twilio: Readonly<{
+      accountSid: string | null;
+      verifyServiceSid: string | null;
+      apiKeySid: string | null;
+      apiKeySecret: string | null;
+      authToken: string | null;
+    }>;
   }>;
   session: Readonly<{
     cookieName: typeof EMPLOYEE_SESSION_COOKIE;
@@ -47,17 +61,15 @@ export function getEmployeeAuthConfig(
     );
   }
 
-  const sendMode = normalizeSendMode(
-    env.EMPLOYEE_OTP_SEND_MODE,
+  const provider = normalizeProvider(
+    env.OTP_PROVIDER ?? env.EMPLOYEE_OTP_SEND_MODE,
     environment,
-    testingDeployment,
   );
+  const channel = normalizeChannel(env.OTP_CHANNEL, provider);
+  const sendMode: EmployeeOtpSendMode =
+    provider === "mock" ? "mock" : "provider";
 
-  if (
-    environment === "production" &&
-    sendMode === "mock" &&
-    !testingDeployment
-  ) {
+  if (environment === "production" && provider === "mock") {
     throw new EmployeeAuthError(
       "CONFIGURATION_ERROR",
       "OTP mock mode is not available in production.",
@@ -68,8 +80,8 @@ export function getEmployeeAuthConfig(
     env.EMPLOYEE_OTP_MOCK_CODE,
     environment,
     sendMode,
-    testingDeployment,
   );
+  const twilio = readTwilioConfig(env, provider);
 
   return {
     authSecret,
@@ -83,6 +95,8 @@ export function getEmployeeAuthConfig(
     ),
     otp: {
       digits: EMPLOYEE_OTP_DIGITS,
+      provider,
+      channel,
       expiresInSeconds: readInteger(
         env.EMPLOYEE_OTP_EXPIRES_SECONDS,
         5 * 60,
@@ -132,11 +146,33 @@ export function getEmployeeAuthConfig(
         100_000,
         "EMPLOYEE_OTP_PROVIDER_HOURLY_LIMIT",
       ),
+      verifyPhoneAttemptsPerHour: readInteger(
+        env.STAFF_OTP_VERIFY_PHONE_HOURLY_LIMIT,
+        10,
+        1,
+        100,
+        "STAFF_OTP_VERIFY_PHONE_HOURLY_LIMIT",
+      ),
+      verifyIpAttemptsPerHour: readInteger(
+        env.STAFF_OTP_VERIFY_IP_HOURLY_LIMIT,
+        30,
+        1,
+        1_000,
+        "STAFF_OTP_VERIFY_IP_HOURLY_LIMIT",
+      ),
+      providerTimeoutMs: readInteger(
+        env.STAFF_OTP_PROVIDER_TIMEOUT_MS,
+        10_000,
+        1_000,
+        30_000,
+        "STAFF_OTP_PROVIDER_TIMEOUT_MS",
+      ),
       sendMode,
       testingDeployment,
       locale: readLocale(env.EMPLOYEE_OTP_LOCALE),
       mockAccessKey: env.EMPLOYEE_OTP_MOCK_ACCESS_KEY?.trim() || null,
       mockCode,
+      twilio,
     },
     session: {
       cookieName: EMPLOYEE_SESSION_COOKIE,
@@ -170,7 +206,6 @@ function readMockCode(
   value: string | undefined,
   environment: EmployeeAuthConfig["environment"],
   sendMode: EmployeeOtpSendMode,
-  testingDeployment: boolean,
 ) {
   const code = value?.trim() ?? "";
 
@@ -179,7 +214,7 @@ function readMockCode(
   }
 
   if (
-    (environment === "production" && !testingDeployment) ||
+    environment === "production" ||
     sendMode !== "mock"
   ) {
     throw new EmployeeAuthError(
@@ -208,27 +243,104 @@ function normalizeEnvironment(
   return "development";
 }
 
-function normalizeSendMode(
+function normalizeProvider(
   value: string | undefined,
   environment: EmployeeAuthConfig["environment"],
-  testingDeployment: boolean,
-): EmployeeOtpSendMode {
+): EmployeeOtpProviderName {
   const normalized = value?.trim().toLowerCase();
 
   if (!normalized) {
-    return environment === "production" && !testingDeployment
-      ? "provider"
+    return environment === "production"
+      ? "twilio_verify"
       : "mock";
   }
 
-  if (normalized === "mock" || normalized === "provider") {
-    return normalized;
+  if (normalized === "mock") {
+    return "mock";
+  }
+
+  if (normalized === "twilio_verify" || normalized === "provider") {
+    return "twilio_verify";
   }
 
   throw new EmployeeAuthError(
     "CONFIGURATION_ERROR",
-    "EMPLOYEE_OTP_SEND_MODE must be either mock or provider.",
+    "OTP_PROVIDER must be either mock or twilio_verify.",
   );
+}
+
+function normalizeChannel(
+  value: string | undefined,
+  provider: EmployeeOtpProviderName,
+): EmployeeOtpChannel {
+  const normalized = value?.trim().toLowerCase();
+  const fallback = provider === "mock" ? "local" : "sms";
+  const channel = normalized || fallback;
+
+  if (channel !== fallback) {
+    throw new EmployeeAuthError(
+      "CONFIGURATION_ERROR",
+      provider === "mock"
+        ? "OTP_CHANNEL must be local when OTP_PROVIDER=mock."
+        : "OTP_CHANNEL must be sms when OTP_PROVIDER=twilio_verify.",
+    );
+  }
+
+  return channel;
+}
+
+function readTwilioConfig(
+  env: NodeJS.ProcessEnv,
+  provider: EmployeeOtpProviderName,
+) {
+  const accountSid = env.TWILIO_ACCOUNT_SID?.trim() || null;
+  const verifyServiceSid = env.TWILIO_VERIFY_SERVICE_SID?.trim() || null;
+  const apiKeySid = env.TWILIO_API_KEY_SID?.trim() || null;
+  const apiKeySecret = env.TWILIO_API_KEY_SECRET?.trim() || null;
+  const authToken = env.TWILIO_AUTH_TOKEN?.trim() || null;
+
+  if (provider === "twilio_verify") {
+    if (!accountSid || !/^AC[0-9a-fA-F]{32}$/.test(accountSid)) {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "TWILIO_ACCOUNT_SID is required for Twilio Verify.",
+      );
+    }
+    if (!verifyServiceSid || !/^VA[0-9a-fA-F]{32}$/.test(verifyServiceSid)) {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "TWILIO_VERIFY_SERVICE_SID is required for Twilio Verify.",
+      );
+    }
+    const hasApiKey = Boolean(apiKeySid && apiKeySecret);
+    const hasAuthToken = Boolean(authToken);
+    if (!hasApiKey && !hasAuthToken) {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "Twilio Verify credentials are not configured.",
+      );
+    }
+    if ((apiKeySid && !apiKeySecret) || (!apiKeySid && apiKeySecret)) {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "TWILIO_API_KEY_SID and TWILIO_API_KEY_SECRET must be configured together.",
+      );
+    }
+    if (apiKeySid && !/^SK[0-9a-fA-F]{32}$/.test(apiKeySid)) {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "TWILIO_API_KEY_SID is invalid.",
+      );
+    }
+  }
+
+  return {
+    accountSid,
+    verifyServiceSid,
+    apiKeySid,
+    apiKeySecret,
+    authToken,
+  } as const;
 }
 
 function readTestingDeployment(env: NodeJS.ProcessEnv) {

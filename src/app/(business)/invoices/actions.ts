@@ -16,6 +16,8 @@ import {
   getRefundableCents,
   getRefundedPaymentState,
 } from "@/lib/refunds/rules";
+import { recordRefundInventory, recordVoidInventoryReversals } from "@/lib/inventory/service";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 import { fromCents, toCents } from "@/lib/validation/pos";
 import {
   financialOperationKeySchema,
@@ -63,6 +65,20 @@ export async function refundPaymentAction(
     };
   }
 
+  const refundStockLines = formData.getAll("refundItemId").flatMap((entry) => {
+    const invoiceItemId = entry.toString();
+    const quantity = Number(formData.get(`refundQuantity_${invoiceItemId}`) ?? 0);
+    if (!Number.isInteger(quantity) || quantity <= 0) return [];
+    const disposition = formData.get(`refundDisposition_${invoiceItemId}`) === "NO_RESTOCK"
+      ? "NO_RESTOCK" as const
+      : "RESTOCK" as const;
+    return [{
+      disposition,
+      invoiceItemId,
+      noRestockReason: formData.get(`refundNoRestockReason_${invoiceItemId}`)?.toString() || null,
+      quantity,
+    }];
+  });
   const parsed = refundPaymentSchema.safeParse({
     operationId: formData.get("operationId"),
     invoiceId: formData.get("invoiceId"),
@@ -109,7 +125,7 @@ export async function refundPaymentAction(
       businessId,
       operationKey: operationId,
       operationType: FinancialOperationType.PAYMENT_REFUND,
-      payload: financialPayload,
+      payload: { ...financialPayload, refundStockLines },
       execute: async (tx) => {
         const shift = await tx.cashierShift.findFirst({
           where: {
@@ -161,6 +177,11 @@ export async function refundPaymentAction(
         );
         if (invoice.status === "VOID") {
           throw new Error("A void invoice cannot be refunded.");
+        }
+        const inventoryEnabled = await isBusinessModuleEnabled(businessId, "INVENTORY", { database: tx });
+        const hasTrackedProducts = invoice.items.some((item) => item.inventoryTracked);
+        if (inventoryEnabled && hasTrackedProducts && refundStockLines.length === 0) {
+          throw new Error("Choose a refund quantity and RESTOCK or NO RESTOCK for the returned product.");
         }
 
         const payment = await tx.payment.findFirst({
@@ -216,10 +237,9 @@ export async function refundPaymentAction(
           );
         }
 
-        if (!invoice.workOrder && !invoice.appointmentId) {
-          if (!purchasedPackages.length) {
-            throw new Error("This invoice is not linked to a refundable package.");
-          }
+        const isStandalonePackagePurchase =
+          !invoice.workOrder && !invoice.appointmentId && purchasedPackages.length > 0;
+        if (isStandalonePackagePurchase) {
           if (amountCents !== refundableCents) {
             throw new Error("Package purchases must be refunded in full.");
           }
@@ -302,6 +322,18 @@ export async function refundPaymentAction(
             packageUsesRestored,
           },
         });
+
+        if (inventoryEnabled && refundStockLines.length > 0) {
+          const refundBranchId = payment.branchId ?? invoice.branchId;
+          if (!refundBranchId) throw new Error("Refund inventory branch is required.");
+          await recordRefundInventory(tx, {
+            actorUserId: user.userId,
+            branchId: refundBranchId,
+            businessId,
+            lines: refundStockLines,
+            paymentRefundId: refund.id,
+          });
+        }
 
         if (!invoice.workOrder && !invoice.appointmentId && purchasedPackages.length) {
           await tx.customerPackage.updateMany({
@@ -586,6 +618,13 @@ export async function voidInvoiceAction(
           "This invoice has refund records and can no longer be voided.",
         );
       }
+
+      await recordVoidInventoryReversals(tx, {
+        actorUserId: user.userId,
+        businessId,
+        invoiceId: invoice.id,
+        reason: `Invoice void: ${voidReason}`,
+      });
 
       for (const payment of activePayments) {
           if (

@@ -343,6 +343,9 @@ test("controlled activation requires explicit platform actor, reason and exact s
   const prepared = prepareControlledActivation({
     actorId: "actor",
     actorRole: "PLATFORM_ADMIN",
+    actorType: "HUMAN_USER",
+    actorCapabilities: ["ACTIVATE_STATUTORY_RULESET"],
+    reviewerActorId: "reviewer",
     reason: "Reviewed production activation",
     expectedScheme: "SOCSO",
     expectedRuleVersion: evidence.ruleVersion,
@@ -350,6 +353,34 @@ test("controlled activation requires explicit platform actor, reason and exact s
     evidence,
   });
   assert.match(prepared.evidenceDigest, /^[a-f0-9]{64}$/);
+  assert.throws(
+    () => prepareControlledActivation({
+      actorId: "reviewer",
+      actorRole: "PLATFORM_ADMIN",
+      actorType: "HUMAN_USER",
+      actorCapabilities: ["ACTIVATE_STATUTORY_RULESET"],
+      reviewerActorId: "reviewer",
+      reason: "Same reviewer cannot activate the reviewed revision",
+      expectedScheme: "SOCSO",
+      expectedRuleVersion: evidence.ruleVersion,
+      expectedEffectiveFrom: evidence.effectiveFrom,
+      evidence,
+    }),
+    /STATUTORY_REVIEWER_ACTIVATOR_SEPARATION_REQUIRED/,
+  );
+});
+
+test("human sign-off migration is additive, immutable and capability separated", () => {
+  const sql = readFileSync(
+    "prisma/migrations/20260810143000_statutory_human_signoff_activation/migration.sql",
+    "utf8",
+  );
+  assert.match(sql, /READY_FOR_HUMAN_SIGN_OFF/);
+  assert.match(sql, /HUMAN_SIGNED_OFF/);
+  assert.match(sql, /statutory_rule_set_sign_offs/);
+  assert.match(sql, /STATUTORY_SIGN_OFF_IMMUTABLE/);
+  assert.match(sql, /STATUTORY_SIGNED_ARTIFACT_IMMUTABLE/);
+  assert.doesNotMatch(sql, /DROP\s+(?:TABLE|COLUMN|TYPE)|TRUNCATE|DELETE\s+FROM/i);
 });
 
 test("P2C migration is additive and hardens activation provenance and audit", () => {

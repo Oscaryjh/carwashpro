@@ -30,8 +30,8 @@ type ProductsPageProps = {
 const CATALOG_PAGE_SIZE = 10;
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { access, user, businessId } =
-    await requireBusinessUser("VIEW_INVENTORY");
+  const { access, user, businessId, moduleContext } =
+    await requireBusinessUser("VIEW_CATALOG");
   if (access.source === "DIRECT_BUSINESS") {
     assertStaffPermission(user, "PRODUCTS");
   }
@@ -117,7 +117,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     <td><Link href={`/products/${product.id}`}><strong>{product.name}</strong></Link></td>
                     <td>{product.sku ?? "-"}</td>
                     <td>RM{Number(product.price).toFixed(2)}</td>
-                    <td>{product.stocks.reduce((total, stock) => total + stock.quantity, 0)}</td>
+                    <td>{product.trackInventory ? product.stocks.reduce((total, stock) => total + stock.quantity, 0) : "Not tracked"}</td>
                     <td><span className={`status ${product.status.toLowerCase()}`}>{product.status}</span></td>
                     <td>
                       <div className="catalog-table-actions">
@@ -151,6 +151,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           action={createProductAction}
           branches={branches}
           categories={categories.filter((category) => category.status === "ACTIVE")}
+          inventoryEnabled={moduleContext.enabledModules.has("INVENTORY")}
         />
       ) : null}
       {isCategoriesOpen ? (

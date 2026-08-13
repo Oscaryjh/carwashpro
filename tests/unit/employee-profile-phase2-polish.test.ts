@@ -25,9 +25,9 @@ test("Phase 2 profile sections use consistent daily-use headings and read-only l
     ),
   ]);
 
-  assert.match(overview, /<h2>Employee overview<\/h2>/);
+  assert.match(overview, /<h2>Team member overview<\/h2>/);
   assert.match(overview, /<h2>Employment details<\/h2>/);
-  assert.match(personal, /<h2>Personal details<\/h2>/);
+  assert.match(personal, /<h2>Contact details<\/h2>/);
   assert.match(attendance, /<h2>Attendance<\/h2>/);
   assert.match(leave, /<h2>Leave<\/h2>/);
 
@@ -39,7 +39,7 @@ test("Phase 2 profile sections use consistent daily-use headings and read-only l
     [overview, personal, attendance, leave]
       .map((source) => source.match(/>Read only<\/span>/g)?.length ?? 0)
       .reduce((total, count) => total + count, 0),
-    5,
+    6,
   );
 });
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { sanitizePayrollNotice } from "@/lib/payroll/error-message";
+import { PayrollHighRiskMfaFields } from "@/components/payroll-high-risk-mfa-fields";
 import { resolvePayrollRunsReadAccess } from "@/lib/payroll/runs-access";
 import { loadPayrollRunDetail, parsePayrollPage, payrollRunBrowsePath } from "@/lib/payroll/runs";
 import { getPayrollPeriodReadiness } from "@/lib/payroll/readiness";
@@ -229,6 +230,7 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                 <WorkflowFields month={legacyMonth} runId={data.run.id} returnPath={returnPath} />
                 <strong>This locks the payroll calculations.</strong>
                 <p>Finalized does not mean paid. Payments and statutory submissions remain separate.</p>
+                <PayrollHighRiskMfaFields actionLabel="Finalize this Payroll Run" />
                 {isSelfSubmitted ? (
                   <label>
                     <span>Owner override reason</span>
@@ -247,6 +249,7 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                 <WorkflowFields month={legacyMonth} runId={data.run.id} returnPath={returnPath} />
                 <strong>This returns the locked run to Draft.</strong>
                 <p>Use this only when finalized calculations require a documented correction.</p>
+                <PayrollHighRiskMfaFields actionLabel="Reopen this Payroll Run" />
                 <label>
                   <span>Audit reason</span>
                   <textarea name="reason" minLength={5} maxLength={500} required placeholder="Explain why this run must be reopened" />

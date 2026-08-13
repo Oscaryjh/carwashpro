@@ -16,6 +16,7 @@ import {
   STATUTORY_P2C_CALCULATOR_VERSION,
   calculateEpf,
   calculateEis,
+  calculateLindung24,
   calculateSocso,
   type EpfContributionCategory,
 } from "../src/lib/payroll/statutory-p2c";
@@ -43,6 +44,14 @@ const paths = {
     "statutory/official/certifications/perkeso-act800-2024-10-golden-certification.json",
   classification: "statutory/official/classification-review.json",
   lindung24Design: "statutory/official/lindung24-participation-design.json",
+  lindung24Fixtures:
+    "statutory/official/fixtures/perkeso-lindung24-2026-06-boundaries-review-v1.json",
+  lindung24Certification:
+    "statutory/official/certifications/perkeso-lindung24-2026-06-golden-certification-v1.json",
+  lindung24Classification:
+    "statutory/official/classifications/malaysia-lindung24-2026-signoff-candidate-v1.json",
+  lindung24SourceRegister:
+    "statutory/official/reviews/perkeso-lindung24-participation-source-register-v1.json",
 } as const;
 
 async function main() {
@@ -63,6 +72,10 @@ async function main() {
     act800Certification,
     classification,
     lindung24Design,
+    lindung24Fixtures,
+    lindung24Certification,
+    lindung24Classification,
+    lindung24SourceRegister,
   ] = await Promise.all([
     readJson<NormalizedContributionDataset>(paths.epfDataset),
     readJson<GoldenFixtureSet>(paths.epfFixtures),
@@ -80,6 +93,10 @@ async function main() {
     readJson<GoldenFixtureCertificationRecord>(paths.act800Certification),
     readJson<ClassificationReview>(paths.classification),
     readJson<Lindung24Design>(paths.lindung24Design),
+    readJson<GoldenFixtureSet>(paths.lindung24Fixtures),
+    readJson<GoldenFixtureCertificationRecord>(paths.lindung24Certification),
+    readJson<Lindung24Classification>(paths.lindung24Classification),
+    readJson<Lindung24SourceRegister>(paths.lindung24SourceRegister),
   ]);
 
   verifyDatasetChain(epf, epfReview, epfFixtures, epfCertification);
@@ -181,6 +198,37 @@ async function main() {
   );
   assert.equal(lindung24Design.activationStatus, "BLOCKED");
   assert.equal(lindung24Design.designDigest, digestWithout(lindung24Design, "designDigest"));
+  assert.equal(goldenFixtureDigest(lindung24Fixtures), lindung24Fixtures.fixtureDigest);
+  validateGoldenCertification(lindung24Certification, lindung24Fixtures);
+  assert.equal(lindung24Classification.status, "READY_FOR_HUMAN_SIGN_OFF");
+  assert.equal(lindung24Classification.approvalStatus, "NOT_SIGNED_OFF");
+  assert.equal(
+    lindung24Classification.classificationDigest,
+    canonicalDigest(lindung24Classification.classifications),
+  );
+  assert.equal(
+    lindung24Classification.candidateDigest,
+    digestWithout(lindung24Classification, "candidateDigest"),
+  );
+  assert.equal(
+    lindung24SourceRegister.reviewDigest,
+    digestWithout(lindung24SourceRegister, "reviewDigest"),
+  );
+  const lindung24Results = lindung24Fixtures.fixtures.map((fixture) => {
+    const result = calculateLindung24({
+      dataset: act4,
+      wageCents: (fixture.input as { wageCents: number }).wageCents,
+    });
+    assert.deepEqual(
+      {
+        employeeCents: result.employeeCents,
+        employerCents: result.employerCents,
+        matchedRowKey: result.matchedRowKey,
+      },
+      fixture.expected,
+    );
+    return result;
+  });
 
   console.log(
     `EPF DATASET_VERIFIED REVIEW_PASS GOLDEN_VERIFIED CALCULATOR_VERIFIED fixtures=${epfFixtures.fixtures.length} calculatorDigest=${canonicalDigest(epfResults)} classification=READY_FOR_HUMAN_SIGN_OFF`,
@@ -195,7 +243,7 @@ async function main() {
     `CLASSIFICATION REVIEW_REQUIRED ${classification.classificationDigest} calculator=${STATUTORY_P2C_CALCULATOR_VERSION}`,
   );
   console.log(
-    `LINDUNG24 AMOUNT_REVIEW_PASS participation=BLOCKED review=${lindung24AmountReview.reviewDigest} design=${lindung24Design.designDigest}`,
+    `LINDUNG24 DATASET_VERIFIED PARTICIPATION_TECHNICAL_REVIEW_COMPLETE GOLDEN_VERIFIED CALCULATOR_VERIFIED fixtures=${lindung24Fixtures.fixtures.length} calculatorDigest=${canonicalDigest(lindung24Results)} classification=READY_FOR_HUMAN_SIGN_OFF humanSignOff=NOT_EXECUTED`,
   );
 }
 
@@ -247,6 +295,19 @@ type ClassificationReview = {
 type Lindung24Design = {
   activationStatus: string;
   designDigest: string;
+};
+
+type Lindung24Classification = {
+  status: string;
+  approvalStatus: string;
+  classificationDigest: string;
+  candidateDigest: string;
+  classifications: unknown[];
+};
+
+type Lindung24SourceRegister = {
+  reviewDigest: string;
+  sources: unknown[];
 };
 
 type EpfClassificationCandidate = {

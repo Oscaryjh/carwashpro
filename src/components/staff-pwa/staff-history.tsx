@@ -166,7 +166,7 @@ export function StaffHistory() {
     <div className="staff-history-stack">
       <section className="staff-page-title">
         <p className="staff-kicker">MY ATTENDANCE</p>
-        <h1>History</h1>
+        <h1>My Attendance</h1>
         <p>Only your own Attendance records are shown.</p>
         <button
           className="staff-secondary-button"

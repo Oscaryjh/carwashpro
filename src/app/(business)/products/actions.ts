@@ -15,6 +15,9 @@ import { fromCents } from "@/lib/validation/pos";
 import { productSaleSchema, productSchema } from "@/lib/validation/products";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
+import { recordSaleInventory } from "@/lib/inventory/service";
+import { applyInventoryMovement } from "@/lib/inventory/service";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 export type DeleteProductState = {
   status: "idle" | "success" | "error";
@@ -51,6 +54,7 @@ function parseProductInput(formData: FormData) {
     costPrice: formData.get("costPrice"),
     taxable: formData.get("taxable") === "on",
     taxRate: formData.get("taxRate"),
+    trackInventory: formData.get("trackInventory") === "on",
     status: formData.get("status") || "ACTIVE",
   });
 }
@@ -75,8 +79,15 @@ export async function createProductAction(formData: FormData) {
   const input = productSchema.parse(parseProductInput(formData));
   const category = await resolveProductCategory(businessId, input.categoryId, productFormReturnPath(formData));
   const stocks = await resolveStockRows(businessId, formData);
+  const inventoryEnabled = await isBusinessModuleEnabled(businessId, "INVENTORY");
+  if (input.trackInventory && !inventoryEnabled) {
+    redirectProductFormMessage(productFormReturnPath(formData), "error", "Inventory is not enabled for this business.");
+  }
   const duplicate = await prisma.product.findFirst({
-    where: { businessId, name: input.name },
+    where: {
+      businessId,
+      OR: [{ name: input.name }, ...(input.sku ? [{ sku: input.sku }] : [])],
+    },
     select: { id: true },
   });
 
@@ -84,22 +95,50 @@ export async function createProductAction(formData: FormData) {
     redirectProductFormMessage(productFormReturnPath(formData), "error", "Product name already exists.");
   }
 
-  const product = await prisma.product.create({
-    data: {
-      businessId,
-      name: input.name,
-      sku: input.sku || null,
-      categoryId: category.id,
-      category: category.name,
-      description: input.description || null,
-      price: money(input.price) ?? "0.00",
-      costPrice: money(input.costPrice),
-      taxable: input.taxable,
-      taxRate: money(input.taxRate),
-      status: input.status,
-      stocks: { create: stocks.map((stock) => ({ businessId, ...stock })) },
-    },
-  });
+  const product = await prisma.$transaction(async (tx) => {
+    const created = await tx.product.create({
+      data: {
+        businessId,
+        name: input.name,
+        sku: input.sku || null,
+        categoryId: category.id,
+        category: category.name,
+        description: input.description || null,
+        price: money(input.price) ?? "0.00",
+        costPrice: money(input.costPrice),
+        taxable: input.taxable,
+        taxRate: money(input.taxRate),
+        trackInventory: input.trackInventory,
+        status: input.status,
+      },
+    });
+    await tx.productStock.createMany({
+      data: stocks.map((stock) => ({
+        businessId,
+        branchId: stock.branchId,
+        productId: created.id,
+        quantity: 0,
+        reorderLevel: stock.reorderLevel,
+      })),
+    });
+    if (input.trackInventory) {
+      for (const stock of stocks.filter((row) => row.quantity > 0)) {
+        await applyInventoryMovement(tx, {
+          actorUserId: user.userId,
+          branchId: stock.branchId,
+          businessId,
+          operationKey: `OPENING:${created.id}:${stock.branchId}`,
+          productId: created.id,
+          quantityDelta: stock.quantity,
+          reason: "Explicit opening balance at inventory tracking start",
+          sourceId: created.id,
+          sourceType: "PRODUCT_TRACKING",
+          type: "OPENING_BALANCE",
+        });
+      }
+    }
+    return created;
+  }, { isolationLevel: "Serializable" });
 
   revalidatePath("/products");
   redirect(`/products/${product.id}`);
@@ -117,9 +156,13 @@ export async function updateProductAction(formData: FormData) {
   const input = productSchema.parse(parseProductInput(formData));
   const category = await resolveProductCategory(businessId, input.categoryId, `/products/${productId}`);
   const stocks = await resolveStockRows(businessId, formData);
+  const inventoryEnabled = await isBusinessModuleEnabled(businessId, "INVENTORY");
+  if (input.trackInventory && !inventoryEnabled) {
+    redirectProductFormMessage(`/products/${productId}`, "error", "Inventory is not enabled for this business.");
+  }
   const product = await prisma.product.findFirst({
     where: { id: productId, businessId },
-    select: { id: true },
+    select: { id: true, trackInventory: true, _count: { select: { inventoryMovements: true } } },
   });
 
   if (!product) {
@@ -135,6 +178,10 @@ export async function updateProductAction(formData: FormData) {
     redirectProductFormMessage(`/products/${product.id}`, "error", "Product name already exists.");
   }
 
+  if (product.trackInventory && !input.trackInventory && product._count.inventoryMovements > 0) {
+    redirectProductFormMessage(`/products/${product.id}`, "error", "Inventory tracking cannot be disabled after ledger history exists. Deactivate the product instead.");
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.product.update({
       where: { id: product.id },
@@ -148,6 +195,7 @@ export async function updateProductAction(formData: FormData) {
         costPrice: money(input.costPrice),
         taxable: input.taxable,
         taxRate: money(input.taxRate),
+        trackInventory: input.trackInventory,
         status: input.status,
       },
     });
@@ -155,11 +203,38 @@ export async function updateProductAction(formData: FormData) {
     for (const stock of stocks) {
       await tx.productStock.upsert({
         where: { branchId_productId: { branchId: stock.branchId, productId: product.id } },
-        create: { businessId, productId: product.id, ...stock },
-        update: { quantity: stock.quantity, reorderLevel: stock.reorderLevel },
+        create: {
+          businessId,
+          productId: product.id,
+          branchId: stock.branchId,
+          quantity: 0,
+          reorderLevel: stock.reorderLevel,
+        },
+        update: {
+          reorderLevel: stock.reorderLevel,
+          ...(!product.trackInventory && input.trackInventory
+            ? { quantity: 0, revision: { increment: 1 } }
+            : {}),
+        },
       });
     }
-  });
+    if (!product.trackInventory && input.trackInventory) {
+      for (const stock of stocks.filter((row) => row.quantity > 0)) {
+        await applyInventoryMovement(tx, {
+          actorUserId: user.userId,
+          branchId: stock.branchId,
+          businessId,
+          operationKey: `OPENING:${product.id}:${stock.branchId}`,
+          productId: product.id,
+          quantityDelta: stock.quantity,
+          reason: "Explicit opening balance at inventory tracking start",
+          sourceId: product.id,
+          sourceType: "PRODUCT_TRACKING",
+          type: "OPENING_BALANCE",
+        });
+      }
+    }
+  }, { isolationLevel: "Serializable" });
 
   revalidatePath("/products");
   revalidatePath(`/products/${product.id}`);
@@ -199,22 +274,25 @@ export async function deleteProductAction(
 
   const product = await prisma.product.findFirst({
     where: { id: productId, businessId },
-    include: { _count: { select: { invoiceItems: true } } },
+    include: { _count: { select: { invoiceItems: true, inventoryMovements: true } } },
   });
 
   if (!product) {
     return { status: "error", message: "Product not found." };
   }
 
-  if (product._count.invoiceItems > 0) {
+  if (product._count.invoiceItems > 0 || product._count.inventoryMovements > 0) {
     return {
       status: "error",
       message:
-        "Cannot delete this product because it has existing invoice records. Set status to Inactive instead.",
+        "Cannot delete this product because it has invoice or inventory ledger history. Set status to Inactive instead.",
     };
   }
 
-  await prisma.product.delete({ where: { id: product.id } });
+  await prisma.$transaction([
+    prisma.productStock.deleteMany({ where: { businessId, productId: product.id } }),
+    prisma.product.delete({ where: { id: product.id } }),
+  ]);
   revalidatePath("/products");
   revalidatePath("/cashier");
   redirect("/products");
@@ -308,15 +386,7 @@ export async function sellProductAction(formData: FormData) {
         }
         return { product, quantity: input.quantities[index] };
       });
-      const stocks = await Promise.all(lines.map(async ({ product, quantity }) => {
-        const stock = await tx.productStock.findUnique({
-          where: { branchId_productId: { branchId, productId: product.id } },
-        });
-        if (!stock || stock.quantity < quantity) {
-          throw new Error(`Not enough stock for ${product.name}.`);
-        }
-        return { product, quantity, stock };
-      }));
+      const stocks = lines;
       const lineTotals = stocks.map(({ product, quantity }) => Number(product.price) * quantity);
       const tax = calculateTax({
         sstEnabled: business.sstEnabled,
@@ -357,6 +427,7 @@ export async function sellProductAction(formData: FormData) {
             })),
           },
         },
+        include: { items: true },
       });
       const payment = await tx.payment.create({
         data: {
@@ -371,15 +442,15 @@ export async function sellProductAction(formData: FormData) {
         },
       });
 
-      for (const { stock, quantity } of stocks) {
-        const updated = await tx.productStock.updateMany({
-          where: { id: stock.id, quantity: { gte: quantity } },
-          data: { quantity: { decrement: quantity } },
-        });
-        if (updated.count !== 1) {
-          throw new Error(`Not enough stock for ${productById.get(stock.productId)?.name ?? "product"}.`);
-        }
-      }
+      await recordSaleInventory(tx, {
+        actorUserId: user.userId,
+        branchId,
+        businessId,
+        invoiceId: invoice.id,
+        lines: invoice.items
+          .filter((item): item is typeof item & { productId: string } => Boolean(item.productId))
+          .map((item) => ({ invoiceItemId: item.id, productId: item.productId, quantity: item.quantity })),
+      });
 
       if (customer) {
         await awardLoyaltyPointsForPayment(tx, {

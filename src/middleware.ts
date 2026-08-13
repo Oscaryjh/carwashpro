@@ -83,8 +83,8 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    if (pathname === "/dashboard" || pathname === "/salon/dashboard") {
-      return NextResponse.redirect(new URL("/reports", request.url));
+    if (pathname === "/salon/dashboard") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
     if (industryType === "SALON_BEAUTY" && pathname.startsWith("/work-orders")) {
@@ -133,6 +133,7 @@ export const config = {
   matcher: [
     "/admin/:path*",
     "/appointments/:path*",
+    "/ai/:path*",
     "/branches/:path*",
     "/business/settings",
     "/business-context/:path*",

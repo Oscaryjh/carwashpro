@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type {
   getEmployeeProfileEmployment,
   getEmployeeProfileOverview,
@@ -15,12 +14,9 @@ type EmploymentData = NonNullable<
 export function EmployeeProfileOverview({ data }: { data: OverviewData }) {
   const primaryAssignment =
     data.branchAssignments.find((assignment) => assignment.isPrimary) ?? null;
-  const clockInBranches = data.branchAssignments.filter(
-    (assignment) => assignment.canClockIn,
-  );
-  const workforceChecks = [
+  const operationalChecks = [
     {
-      label: "Employment profile",
+      label: "People record",
       detail: `${data.employeeCode} is linked to this business`,
       ready: true,
     },
@@ -30,18 +26,18 @@ export function EmployeeProfileOverview({ data }: { data: OverviewData }) {
       ready: Boolean(primaryAssignment),
     },
     {
-      label: "Attendance access",
-      detail: data.attendanceEnabled
-        ? "Attendance is enabled"
-        : "Attendance is disabled",
-      ready: data.attendanceEnabled,
+      label: "System account",
+      detail: data.staffUser?.loginEnabled
+        ? "Back-office login is enabled"
+        : "No back-office login",
+      ready: Boolean(data.staffUser),
     },
     {
-      label: "Clock-in assignment",
-      detail: `${clockInBranches.length} authorized branch${
-        clockInBranches.length === 1 ? "" : "es"
-      }`,
-      ready: clockInBranches.length > 0,
+      label: "Operational assignment",
+      detail: data.staffUser?.appointmentBookable
+        ? "Available for service assignment"
+        : "Not assigned to services",
+      ready: Boolean(data.staffUser),
     },
   ];
 
@@ -50,29 +46,29 @@ export function EmployeeProfileOverview({ data }: { data: OverviewData }) {
       <section className={styles.sectionIntro}>
         <div>
           <p className={styles.eyebrow}>Overview</p>
-          <h2>Employee overview</h2>
+          <h2>Team member overview</h2>
           <p>
-            Employment, branch access, attendance access and system connections
-            at a glance. Sensitive payroll records are not included.
+            Branch, access and operational assignment at a glance. HR, payroll,
+            statutory and claims records are loaded only in entitled sections.
           </p>
         </div>
         <span className={styles.scopeBadge}>Read only</span>
       </section>
 
-      <section aria-label="Employment snapshot" className={styles.metricGrid}>
+      <section aria-label="People snapshot" className={styles.metricGrid}>
         <ProfileMetric
           label="Employee code"
           value={data.employeeCode}
-          note={formatEnum(data.employmentType)}
+          note="People identifier"
         />
         <ProfileMetric
-          label="Position"
-          value={data.position || "Not recorded"}
-          note="Employment title"
+          label="Role"
+          value={data.staffUser?.staffRoleProfile?.name ?? "Custom access"}
+          note="Operational access role"
         />
         <ProfileMetric
-          label="Joined"
-          value={formatDate(data.joinedAt, data.business.timezone)}
+          label="Account"
+          value={data.staffUser?.loginEnabled ? "Login enabled" : "No login"}
           note={formatEnum(data.status)}
         />
         <ProfileMetric
@@ -88,16 +84,16 @@ export function EmployeeProfileOverview({ data }: { data: OverviewData }) {
         <section className={styles.profilePanel}>
           <div className={styles.panelHeading}>
             <div>
-              <p className={styles.eyebrow}>Workforce setup</p>
+              <p className={styles.eyebrow}>People setup</p>
               <h3>Operational status</h3>
             </div>
             <span>
-              {workforceChecks.filter((check) => check.ready).length}/
-              {workforceChecks.length} ready
+              {operationalChecks.filter((check) => check.ready).length}/
+              {operationalChecks.length} ready
             </span>
           </div>
           <div className={styles.checkList}>
-            {workforceChecks.map((check) => (
+            {operationalChecks.map((check) => (
               <article data-ready={check.ready} key={check.label}>
                 <span aria-hidden="true">{check.ready ? "✓" : "!"}</span>
                 <div>
@@ -141,12 +137,6 @@ export function EmployeeProfileOverview({ data }: { data: OverviewData }) {
               )}
             />
           </div>
-          <Link
-            className={styles.inlineLink}
-            href={`/team/people/${data.id}?section=employment`}
-          >
-            View employment details
-          </Link>
         </section>
       </div>
     </div>

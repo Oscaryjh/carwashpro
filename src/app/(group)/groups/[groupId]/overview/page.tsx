@@ -34,6 +34,7 @@ import {
 import { getBusinessIndustryLabel } from "@/lib/business-industry";
 import { formatDateValue } from "@/lib/business-time";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
+import { getAuthorizedGroupPerformanceSpending } from "@/lib/business-performance/read-model";
 
 export default async function GroupOverviewPage({
   params,
@@ -144,6 +145,15 @@ export default async function GroupOverviewPage({
   const rankedStores = report
     ? rankGroupStorePerformance(report.businesses)
     : [];
+  const groupSpending = report
+    ? await getAuthorizedGroupPerformanceSpending({
+        businesses: report.businesses.map((business) => ({
+          businessId: business.businessId,
+          from: business.currentRange.fromDateValue,
+          to: business.currentRange.toDateValue,
+        })),
+      })
+    : null;
   const currentBusinessIds = new Set(
     selectedGroup.businesses.map((business) => business.id),
   );
@@ -455,6 +465,25 @@ export default async function GroupOverviewPage({
                 })}
               </ol>
             </section>
+            {groupSpending ? (
+              <section className="group-command-section" aria-labelledby="group-spending-heading">
+                <div className="section-header">
+                  <div>
+                    <h2 id="group-spending-heading">Recorded Business Spending</h2>
+                    <p>Canonical materialized Expense facts for authorized stores only. Outstanding AP is not added again.</p>
+                  </div>
+                  <span className="group-report-currency">
+                    {groupSpending.completeCoverage ? "Complete coverage" : "Partial coverage"}
+                  </span>
+                </div>
+                <div className="dashboard-kpis">
+                  <div className="dashboard-kpi-card"><span>Known Group Spending</span><strong>RM {groupSpending.knownTotal}</strong></div>
+                  <div className="dashboard-kpi-card"><span>Metric Coverage</span><strong>{groupSpending.completeCoverage ? "Included" : "Mixed modules"}</strong><small>Missing data is not treated as zero</small></div>
+                </div>
+                <div className="performance-table-wrap"><table><thead><tr><th>Business / Store</th><th>Recorded Spending</th><th>Coverage</th></tr></thead><tbody>{report.businesses.map((business) => { const spending = groupSpending.rows.find((row) => row.businessId === business.businessId); return <tr key={business.businessId}><td>{business.businessName}</td><td>{spending?.available ? `RM ${spending.recorded}` : "Not available"}</td><td>{spending?.available ? "Included" : "Expense module not enabled"}</td></tr>; })}</tbody></table></div>
+                <p className="performance-coverage-note">Group totals include only businesses in the current authorised reporting scope. This operational view is not accounting profit.</p>
+              </section>
+            ) : null}
           </>
         ) : null}
 

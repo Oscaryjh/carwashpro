@@ -15,6 +15,7 @@ import {
   submitPayrollRunForReview,
 } from "../../src/lib/payroll/service";
 import { prisma } from "../../src/lib/prisma";
+import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 
 test("P4B lines explain payroll, manual adjustments survive recalculation and remain idempotent", async () => {
   const fixture = await createFixture();
@@ -159,11 +160,18 @@ test("P4B lines explain payroll, manual adjustments survive recalculation and re
   );
 
   await submitPayrollRunForReview({ ...actorContext, runId: run.id });
+  const finalizeStepUp = await issueTestHighRiskStepUp(prisma, {
+    actionKey: "PAYROLL_FINALIZE",
+    businessId: actorContext.businessId,
+    resourceId: run.id,
+    userId: actorContext.actor.userId,
+  });
   await finalizePayrollRun({
     ...actorContext,
     runId: run.id,
     allowSelfApprovalOverride: true,
     overrideReason: "P4B immutable line integration test.",
+    stepUp: finalizeStepUp.stepUp,
   });
   const finalized = await loadEntry(run.id);
   const lockedManualLine = finalized.components.find(

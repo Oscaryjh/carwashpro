@@ -38,6 +38,7 @@ export async function decideAttendanceResolutionAction(formData: FormData) {
       },
     });
     revalidatePath("/team/attendance");
+    revalidatePath("/team/approvals");
     revalidatePath("/team/attendance/resolutions");
     redirectWithMessage(
       "success",
@@ -85,6 +86,7 @@ export async function decideAttendanceP2ResolutionAction(formData: FormData) {
       },
     });
     revalidatePath("/team/attendance");
+    revalidatePath("/team/approvals");
     revalidatePath("/team/attendance/resolutions");
     revalidatePath("/team/attendance/timesheets");
     redirectWithMessage("success", "Attendance P2 exception resolved.");

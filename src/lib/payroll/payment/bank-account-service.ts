@@ -56,8 +56,12 @@ export async function createEmployeeBankVersion(
       capability: "EDIT_BANK_ACCOUNT",
       command: { ...command, effectiveFrom: effectiveFrom.toISOString() },
       commandType: "CREATE_BANK_VERSION",
+      highRisk: {
+        actionKey: "BANK_ACCOUNT_EDIT",
+        resourceId: command.membershipId,
+      },
       context,
-      run: async (transaction) => {
+      run: async (transaction, stepUpAudit) => {
         const membership = await transaction.employeeBusinessMembership.findFirst({
           where: { businessId: context.businessId, id: command.membershipId },
           select: { id: true },
@@ -140,13 +144,16 @@ export async function createEmployeeBankVersion(
             context,
             entityId: created.id,
             entityType: "EmployeeBankAccountVersion",
-            metadata: safeBankAuditMetadata({
-              changedFields: ["bankCode", "accountHolderName", "accountNumber", "effectiveFrom"],
-              last4: created.accountNumberLast4,
-              reasonType: command.reasonType,
-              revision: created.revision,
-              verificationStatus: created.verificationStatus,
-            }),
+            metadata: {
+              ...safeBankAuditMetadata({
+                changedFields: ["bankCode", "accountHolderName", "accountNumber", "effectiveFrom"],
+                last4: created.accountNumberLast4,
+                reasonType: command.reasonType,
+                revision: created.revision,
+                verificationStatus: created.verificationStatus,
+              }),
+              ...stepUpAudit,
+            },
             summary: "Employee salary bank account version created.",
           },
           transaction,
@@ -176,8 +183,12 @@ export async function verifyEmployeeBankVersion(
       capability: "VERIFY_BANK_ACCOUNT",
       command,
       commandType: "VERIFY_BANK_VERSION",
+      highRisk: {
+        actionKey: "BANK_ACCOUNT_EDIT",
+        resourceId: command.membershipId,
+      },
       context,
-      run: async (transaction) => {
+      run: async (transaction, stepUpAudit) => {
         const version = await transaction.employeeBankAccountVersion.findFirst({
           where: {
             businessId: context.businessId,
@@ -220,13 +231,16 @@ export async function verifyEmployeeBankVersion(
             context,
             entityId: version.id,
             entityType: "EmployeeBankAccountVersion",
-            metadata: safeBankAuditMetadata({
-              changedFields: ["verificationStatus"],
-              last4: version.accountNumberLast4,
-              reasonType: command.reasonType,
-              revision: version.revision,
-              verificationStatus: updated.verificationStatus,
-            }),
+            metadata: {
+              ...safeBankAuditMetadata({
+                changedFields: ["verificationStatus"],
+                last4: version.accountNumberLast4,
+                reasonType: command.reasonType,
+                revision: version.revision,
+                verificationStatus: updated.verificationStatus,
+              }),
+              ...stepUpAudit,
+            },
             summary: "Employee salary bank account manually verified.",
           },
           transaction,
@@ -255,8 +269,12 @@ export async function deactivateEmployeeBankVersion(
       capability: "EDIT_BANK_ACCOUNT",
       command,
       commandType: "DEACTIVATE_BANK_VERSION",
+      highRisk: {
+        actionKey: "BANK_ACCOUNT_EDIT",
+        resourceId: command.membershipId,
+      },
       context,
-      run: async (transaction) => {
+      run: async (transaction, stepUpAudit) => {
         const version = await transaction.employeeBankAccountVersion.findFirst({
           where: {
             businessId: context.businessId,
@@ -295,13 +313,16 @@ export async function deactivateEmployeeBankVersion(
             context,
             entityId: version.id,
             entityType: "EmployeeBankAccountVersion",
-            metadata: safeBankAuditMetadata({
-              changedFields: ["status", "effectiveUntil"],
-              last4: version.accountNumberLast4,
-              reasonType: command.reasonType,
-              revision: version.revision,
-              verificationStatus: version.verificationStatus,
-            }),
+            metadata: {
+              ...safeBankAuditMetadata({
+                changedFields: ["status", "effectiveUntil"],
+                last4: version.accountNumberLast4,
+                reasonType: command.reasonType,
+                revision: version.revision,
+                verificationStatus: version.verificationStatus,
+              }),
+              ...stepUpAudit,
+            },
             summary: "Employee salary bank account deactivated.",
           },
           transaction,
@@ -342,6 +363,19 @@ export function toSafeEmployeeBankVersion(input: {
     status: input.status,
     verificationStatus: input.verificationStatus,
   };
+}
+
+export async function assertEmployeeBankResource(
+  businessId: string,
+  membershipId: string,
+  database: PrismaClient = prisma,
+) {
+  const exists = await database.employeeBusinessMembership.count({
+    where: { businessId, id: membershipId },
+  });
+  if (exists !== 1) {
+    throw new PayrollPaymentError("NOT_FOUND", "Employee membership was not found.");
+  }
 }
 
 function validateReason(reason: string, reasonType: string) {

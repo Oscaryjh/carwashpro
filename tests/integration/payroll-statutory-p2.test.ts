@@ -3,9 +3,9 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../../src/lib/prisma";
 import {
-  activateStatutoryRule,
   recordStatutoryCalculationVerification,
-  retireStatutoryRule,
+  signOffStatutoryRule,
+  statutoryRuleEvidenceDigest,
 } from "../../src/lib/payroll/statutory-activation-service";
 import type { RuleActivationEvidence } from "../../src/lib/payroll/statutory-artifact-pipeline";
 
@@ -167,15 +167,16 @@ test("verified statutory dataset status requires a digest and positive row count
   );
 });
 
-test("platform-only lifecycle service verifies, activates, audits and retires atomically", async () => {
+test("platform lifecycle verifies engineering but sign-off requires scoped MFA authorization", async () => {
   const id = randomUUID();
-  const actorId = randomUUID();
+  const reviewer = await prisma.user.create({ data: { name: "QA Statutory Reviewer", email: `statutory-reviewer-${id}@test.local`, role: "PLATFORM_ADMIN", permissions: ["SIGN_OFF_STATUTORY_RULESET"] } });
+  const activator = await prisma.user.create({ data: { name: "QA Statutory Activator", email: `statutory-activator-${id}@test.local`, role: "PLATFORM_ADMIN", permissions: ["ACTIVATE_STATUTORY_RULESET"] } });
   const version = `TEST_CONTROLLED_${id.slice(0, 8)}`;
-  const evidence = controlledEvidence(version);
+  const engineeringEvidence = controlledEvidence(version);
   await prisma.statutoryRuleSet.create({
     data: {
       id,
-      scheme: evidence.scheme,
+      scheme: engineeringEvidence.scheme,
       version,
       effectiveFrom: new Date("2195-01-01T00:00:00.000Z"),
       authority: "TEST_ONLY",
@@ -186,44 +187,47 @@ test("platform-only lifecycle service verifies, activates, audits and retires at
   try {
     const verified = await recordStatutoryCalculationVerification({
       ruleSetId: id,
-      actor: { id: actorId, role: "PLATFORM_ADMIN" },
+      actor: { id: reviewer.id, role: "PLATFORM_ADMIN" },
       reason: "Independent review and golden fixtures verified for test",
-      evidence,
+      evidence: engineeringEvidence,
     });
     assert.equal(verified.rule.readiness, "CALCULATION_VERIFIED");
-    assert.equal(verified.rule.status, "DRAFT");
+    assert.equal(verified.rule.status, "READY_FOR_HUMAN_SIGN_OFF");
 
-    await assert.rejects(
-      activateStatutoryRule({
-        ruleSetId: id,
-        actor: { id: actorId, role: "PLATFORM_ADMIN" },
-        reason: "Reject approval evidence changed after verification",
-        expectedScheme: evidence.scheme,
-        expectedRuleVersion: evidence.ruleVersion,
-        expectedEffectiveFrom: evidence.effectiveFrom,
-        evidence: { ...evidence, classificationApprovalRecordDigest: "8".repeat(64) },
-      }),
-      /UNVERIFIED_STATUTORY_RULE_CANNOT_ACTIVATE/,
-    );
-
-    const activated = await activateStatutoryRule({
-      ruleSetId: id,
-      actor: { id: actorId, role: "PLATFORM_ADMIN" },
-      reason: "Explicit test-only platform activation",
-      expectedScheme: evidence.scheme,
-      expectedRuleVersion: evidence.ruleVersion,
-      expectedEffectiveFrom: evidence.effectiveFrom,
-      evidence,
+    await prisma.statutoryRuleSet.update({
+      where: { id },
+      data: {
+        humanReviewStatus: "COMPLETED",
+        humanClassificationDigest: engineeringEvidence.classificationDigest,
+      },
     });
-    assert.equal(activated.rule.status, "ACTIVE");
-    assert.equal(activated.preview.scheme, "SOCSO");
 
-    const retired = await retireStatutoryRule({
+    const digestRule = await prisma.statutoryRuleSet.findUniqueOrThrow({ where: { id }, include: { classifications: true } });
+    const evidenceDigest = statutoryRuleEvidenceDigest(digestRule);
+
+    await assert.rejects(signOffStatutoryRule({
       ruleSetId: id,
-      actor: { id: actorId, role: "PLATFORM_ADMIN" },
-      reason: "Prospective test-only retirement without evidence deletion",
-    });
-    assert.equal(retired.rule.status, "RETIRED");
+      actor: { id: reviewer.id, role: "PLATFORM_ADMIN", actorType: "SYSTEM", capabilities: ["SIGN_OFF_STATUTORY_RULESET"] },
+      reason: "System identity must never count as human review",
+      expectedEvidenceDigest: evidenceDigest,
+    }), /STATUTORY_HUMAN_ACTOR_REQUIRED/);
+
+    await assert.rejects(signOffStatutoryRule({
+      ruleSetId: id,
+      actor: { id: activator.id, role: "PLATFORM_ADMIN", actorType: "HUMAN_USER", capabilities: [] },
+      reason: "User without the reviewer capability must be denied",
+      expectedEvidenceDigest: evidenceDigest,
+    }), /STATUTORY_CAPABILITY_REQUIRED:SIGN_OFF_STATUTORY_RULESET/);
+
+    await assert.rejects(signOffStatutoryRule({
+      ruleSetId: id,
+      actor: { id: reviewer.id, role: "PLATFORM_ADMIN", actorType: "HUMAN_USER", capabilities: ["SIGN_OFF_STATUTORY_RULESET"] },
+      reason: "Password-only or QA references cannot satisfy true MFA",
+      expectedEvidenceDigest: evidenceDigest,
+    }), /MFA_REQUIRED/);
+    const blocked = await prisma.statutoryRuleSet.findUniqueOrThrow({ where: { id } });
+    assert.equal(blocked.status, "READY_FOR_HUMAN_SIGN_OFF");
+    assert.equal(await prisma.statutoryRuleSetSignOff.count({ where: { ruleSetId: id } }), 0);
 
     const audits = await prisma.statutoryRuleLifecycleAudit.findMany({
       where: { ruleSetId: id },
@@ -231,12 +235,15 @@ test("platform-only lifecycle service verifies, activates, audits and retires at
     });
     assert.deepEqual(
       audits.map((audit) => audit.action),
-      ["CALCULATION_VERIFIED", "ACTIVATED", "RETIRED"],
+      ["CALCULATION_VERIFIED", "READY_FOR_REVIEW"],
     );
-    assert.ok(audits.every((audit) => audit.actorId === actorId && audit.reason.length >= 10));
+    assert.ok(audits.every((audit) => audit.reason.length >= 10));
   } finally {
+    await prisma.statutoryRuleSet.updateMany({ where: { id }, data: { status: "RETIRED" } });
     await prisma.statutoryRuleLifecycleAudit.deleteMany({ where: { ruleSetId: id } });
+    await prisma.statutoryRuleSetSignOff.deleteMany({ where: { ruleSetId: id } });
     await prisma.statutoryRuleSet.deleteMany({ where: { id } });
+    await prisma.user.deleteMany({ where: { id: { in: [reviewer.id, activator.id] } } });
   }
 });
 

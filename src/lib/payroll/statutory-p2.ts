@@ -10,6 +10,7 @@ import type {
 } from "@prisma/client";
 import { buildStatutoryDeductionComponents } from "./component-calculation";
 import type { NormalizedContributionDataset } from "./statutory-artifact-pipeline";
+import { effectiveClassificationTreatment } from "./statutory-classification-policy";
 import {
   calculateEpf,
   calculateEis,
@@ -65,6 +66,10 @@ export type MaterializedStatutoryRuleCandidate = StatutoryRuleCandidate & {
     sourceType: string | null;
     treatment: StatutoryComponentTreatment;
     rationale: string;
+    reviewDecisions?: Array<{
+      decision: "INCLUDED" | "EXCLUDED" | "KEEP_UNKNOWN";
+      decisionRevision: number;
+    }>;
   }>;
 };
 
@@ -96,6 +101,10 @@ export function resolveComponentTreatment(input: {
     sourceType: string | null;
     treatment: StatutoryComponentTreatment;
     rationale: string;
+    reviewDecisions?: ReadonlyArray<{
+      decision: "INCLUDED" | "EXCLUDED" | "KEEP_UNKNOWN";
+      decisionRevision: number;
+    }>;
   }>;
 }) {
   const exact = input.classifications.find(
@@ -107,7 +116,17 @@ export function resolveComponentTreatment(input: {
     (item) =>
       item.componentCode === input.componentCode && item.sourceType === null,
   );
-  return exact ?? generic ?? null;
+  const matched = exact ?? generic ?? null;
+  if (!matched) return null;
+  const latestDecision = [...(matched.reviewDecisions ?? [])]
+    .sort((left, right) => right.decisionRevision - left.decisionRevision)[0]?.decision ?? null;
+  return {
+    ...matched,
+    treatment: effectiveClassificationTreatment({
+      currentTreatment: matched.treatment,
+      latestDecision,
+    }),
+  };
 }
 
 type MaterializeDatabase = Pick<
@@ -291,7 +310,11 @@ export async function materializeStatutoryP2(
           effectiveFrom: { lte: input.statutoryPeriod },
           OR: [{ effectiveTo: null }, { effectiveTo: { gt: input.statutoryPeriod } }],
         },
-        include: { classifications: true },
+        include: {
+          classifications: {
+            include: { reviewDecisions: { orderBy: { decisionRevision: "asc" } } },
+          },
+        },
         orderBy: [{ scheme: "asc" }, { effectiveFrom: "desc" }],
       })
     : []);

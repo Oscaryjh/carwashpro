@@ -10,11 +10,8 @@ import { writeAuthSecurityEvent } from "@/lib/auth/security";
 import type { EmployeeAuthConfig } from "./config";
 import { getEmployeeAuthConfig } from "./config";
 import {
-  createEmployeeOtp,
   hashEmployeeIdentifier,
-  hashEmployeeOtp,
   safeEqual,
-  verifyEmployeeOtpHash,
 } from "./crypto";
 import {
   bindVerifiedEmployeeDevice,
@@ -32,7 +29,9 @@ import type { EmployeeOtpProvider } from "./provider";
 import { createEmployeeOtpProvider } from "./provider";
 import {
   acquireEmployeeOtpRateLimitLocks,
+  acquireEmployeeOtpVerifyRateLimitLocks,
   checkEmployeeOtpRateLimit,
+  checkEmployeeOtpVerifyRateLimit,
 } from "./rate-limit";
 import {
   createEmployeeMembershipSelectionToken,
@@ -92,14 +91,11 @@ export type EmployeeLoginResult =
       memberships: readonly EmployeeMembershipChoice[];
     }>;
 
-export type EmployeeOtpDeliveryTask = () => Promise<void>;
-
 type EmployeeAuthServiceDependencies = Readonly<{
   database?: PrismaClient;
   config?: EmployeeAuthConfig;
   provider?: EmployeeOtpProvider;
   now?: Date;
-  dispatchDelivery?: (task: EmployeeOtpDeliveryTask) => void;
   requireAttendance?: boolean;
 }>;
 
@@ -125,7 +121,11 @@ export async function requestEmployeeOtp(
   const phoneNumberNormalized = normalizeAttendancePhone(input.phoneNumber);
 
   if (!phoneNumberNormalized) {
-    return uniformOtpRequestResult(randomUUID());
+    return uniformOtpRequestResult(
+      randomUUID(),
+      config.otp.expiresInSeconds,
+      config.otp.resendCooldownSeconds,
+    );
   }
 
   const phoneIdentifierHash = hashEmployeeIdentifier(
@@ -134,17 +134,11 @@ export async function requestEmployeeOtp(
     config.authSecret,
   );
   const challengeId = randomUUID();
-  const otp = config.otp.mockCode ?? createEmployeeOtp();
   const expiresAt = new Date(
     now.getTime() + config.otp.expiresInSeconds * 1_000,
   );
   const resendAvailableAt = new Date(
     now.getTime() + config.otp.resendCooldownSeconds * 1_000,
-  );
-  const otpHash = hashEmployeeOtp(
-    challengeId,
-    otp,
-    config.authSecret,
   );
 
   const creation = await database.$transaction(async (transaction) => {
@@ -212,6 +206,7 @@ export async function requestEmployeeOtp(
         identity: null,
         purpose: deviceAccess.purpose,
         shouldDeliver: false,
+        cooldownChallenge: rateLimit.cooldownChallenge,
       };
     }
 
@@ -238,7 +233,9 @@ export async function requestEmployeeOtp(
           : null,
         phoneNumberNormalized,
         purpose: deviceAccess.purpose,
-        otpHash,
+        otpHash: null,
+        provider: config.otp.provider,
+        deliveryChannel: config.otp.channel,
         expiresAt,
         attempts: 0,
         maxAttempts: config.otp.maxAttempts,
@@ -247,93 +244,133 @@ export async function requestEmployeeOtp(
         deviceFingerprintHash,
       },
     });
+    await writeAuthSecurityEvent(
+      {
+        eventType: "STAFF_OTP_REQUESTED",
+        surface: "EMPLOYEE_OTP_REQUEST",
+        outcome: shouldDeliver ? "SUCCESS" : "DENIED",
+        identifierHash: phoneIdentifierHash,
+        ipAddressHash,
+        userId: shouldDeliver ? identity?.employeeAccountId ?? null : null,
+        createdAt: now,
+      },
+      transaction,
+    );
 
     return {
       created: true as const,
       identity,
       purpose: deviceAccess.purpose,
       shouldDeliver,
+      cooldownChallenge: null,
     };
   });
 
   if (!creation.created) {
-    return uniformOtpRequestResult(challengeId);
+    return creation.cooldownChallenge
+      ? uniformOtpRequestResult(
+          creation.cooldownChallenge.id,
+          secondsUntil(creation.cooldownChallenge.expiresAt, now),
+          secondsUntil(creation.cooldownChallenge.resendAvailableAt, now),
+        )
+      : uniformOtpRequestResult(
+          challengeId,
+          config.otp.expiresInSeconds,
+          config.otp.resendCooldownSeconds,
+        );
   }
 
   if (!creation.shouldDeliver || !creation.identity) {
-    return uniformOtpRequestResult(challengeId);
+    return uniformOtpRequestResult(
+      challengeId,
+      config.otp.expiresInSeconds,
+      config.otp.resendCooldownSeconds,
+    );
   }
 
   const deliveryIdentity = creation.identity;
-
-  const deliveryTask: EmployeeOtpDeliveryTask = async () => {
-    try {
-      const provider =
-        dependencies.provider ?? createEmployeeOtpProvider(config);
-      await provider.sendOtp({
-        challengeId,
-        phoneNumber: phoneNumberNormalized,
-        otp,
-        purpose: creation.purpose,
-        expiresAt,
-        locale: config.otp.locale,
-      });
-    } catch (error) {
-      const invalidated = await database.employeeOtpChallenge.updateMany({
-        where: {
-          id: challengeId,
-          invalidatedAt: null,
-        },
-        data: { invalidatedAt: now },
-      });
-      console.error("[employee-auth] OTP delivery failed", {
-        challengeId,
-        errorName: error instanceof Error ? error.name : "UnknownError",
-      });
-
-      if (invalidated.count === 1) {
-        await writeOtpAuditForBusinessIds(
-          deliveryIdentity.memberships.map(
-            (membership) => membership.businessId,
-          ),
-          deliveryIdentity.employeeAccountId,
-          challengeId,
-          "EMPLOYEE_OTP_FAILED",
-          "Employee login verification delivery failed",
-          { reason: "PROVIDER_DELIVERY_FAILED" },
-          input.request?.userAgent ?? null,
-          database,
-        );
-      }
-
-      return;
-    }
-
+  try {
+    const provider = dependencies.provider ?? createEmployeeOtpProvider(config);
+    const accepted = await provider.sendVerification({
+      challengeId,
+      phoneNumber: phoneNumberNormalized,
+      purpose: creation.purpose,
+      expiresAt,
+      locale: config.otp.locale,
+    });
+    const deliveryAcceptedAt = now;
+    await database.employeeOtpChallenge.updateMany({
+      where: {
+        id: challengeId,
+        invalidatedAt: null,
+        providerReference: null,
+      },
+      data: {
+        providerReference: accepted.providerReference,
+        deliveryAcceptedAt,
+      },
+    });
     await writeOtpAuditForBusinessIds(
-      deliveryIdentity.memberships.map(
-        (membership) => membership.businessId,
-      ),
+      deliveryIdentity.memberships.map((membership) => membership.businessId),
+      deliveryIdentity.employeeAccountId,
+      challengeId,
+      "STAFF_OTP_SEND_ACCEPTED",
+      "Staff login verification delivery accepted",
+      {
+        purpose: creation.purpose,
+        provider: provider.name,
+        channel: provider.channel,
+        phoneMasked: maskAttendancePhone(phoneNumberNormalized),
+      },
+      input.request?.userAgent ?? null,
+      database,
+    );
+    await writeOtpAuditForBusinessIds(
+      deliveryIdentity.memberships.map((membership) => membership.businessId),
       deliveryIdentity.employeeAccountId,
       challengeId,
       "EMPLOYEE_OTP_REQUESTED",
       "Employee login verification code requested",
       {
         purpose: creation.purpose,
+        provider: provider.name,
+        channel: provider.channel,
         phoneMasked: maskAttendancePhone(phoneNumberNormalized),
         deliveryAccepted: true,
       },
       input.request?.userAgent ?? null,
       database,
     );
-  };
-
-  if (dependencies.dispatchDelivery) {
-    dependencies.dispatchDelivery(deliveryTask);
-  } else {
-    await deliveryTask();
+  } catch (error) {
+    const failedAt = now;
+    const invalidated = await database.employeeOtpChallenge.updateMany({
+      where: { id: challengeId, invalidatedAt: null },
+      data: { invalidatedAt: failedAt },
+    });
+    console.error("[employee-auth] OTP delivery failed", {
+      challengeId,
+      provider: config.otp.provider,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+    if (invalidated.count === 1) {
+      await writeOtpAuditForBusinessIds(
+        deliveryIdentity.memberships.map((membership) => membership.businessId),
+        deliveryIdentity.employeeAccountId,
+        challengeId,
+        "STAFF_OTP_SEND_FAILED",
+        "Staff login verification delivery failed",
+        { provider: config.otp.provider, channel: config.otp.channel },
+        input.request?.userAgent ?? null,
+        database,
+      );
+    }
   }
 
-  return uniformOtpRequestResult(challengeId);
+  return uniformOtpRequestResult(
+    challengeId,
+    config.otp.expiresInSeconds,
+    config.otp.resendCooldownSeconds,
+  );
 }
 
 export async function verifyEmployeeOtp(
@@ -358,181 +395,270 @@ export async function verifyEmployeeOtp(
         config.authSecret,
       )
     : null;
+  const verificationAttemptId = randomUUID();
   const verification = await database.$transaction(async (transaction) => {
     await transaction.$queryRaw(
-      Prisma.sql`
-        SELECT id
-        FROM employee_otp_challenges
-        WHERE id::text = ${input.challengeId}
-        FOR UPDATE
-      `,
+      Prisma.sql`SELECT id FROM employee_otp_challenges WHERE id::text = ${input.challengeId} FOR UPDATE`,
     );
     const record = await transaction.employeeOtpChallenge.findUnique({
       where: { id: input.challengeId },
       select: {
         id: true,
         employeeAccountId: true,
+        phoneNumberNormalized: true,
         purpose: true,
-        otpHash: true,
+        provider: true,
+        providerReference: true,
+        deliveryAcceptedAt: true,
         expiresAt: true,
         attempts: true,
         maxAttempts: true,
         verifiedAt: true,
         invalidatedAt: true,
         deviceFingerprintHash: true,
+        verificationAttemptId: true,
+        verificationStartedAt: true,
       },
     });
+    const phoneIdentifierHash = record
+      ? hashEmployeeIdentifier(
+          "phone",
+          record.phoneNumberNormalized,
+          config.authSecret,
+        )
+      : hashEmployeeIdentifier("phone", input.challengeId, config.authSecret);
 
+    await acquireEmployeeOtpVerifyRateLimitLocks(
+      { phoneIdentifierHash, ipAddressHash: verificationIpHash },
+      transaction,
+    );
+    const rateLimit = await checkEmployeeOtpVerifyRateLimit(
+      { phoneIdentifierHash, ipAddressHash: verificationIpHash, now },
+      config,
+      transaction,
+    );
+    const staleClaimBefore = new Date(now.getTime() - 30_000);
     const usable =
+      rateLimit.allowed &&
       record !== null &&
       record.employeeAccountId !== null &&
-      (record.purpose === "LOGIN" ||
-        record.purpose === "REGISTER_DEVICE") &&
+      (record.purpose === "LOGIN" || record.purpose === "REGISTER_DEVICE") &&
+      record.provider === config.otp.provider &&
+      record.providerReference !== null &&
+      record.deliveryAcceptedAt !== null &&
       record.verifiedAt === null &&
       record.invalidatedAt === null &&
       record.expiresAt.getTime() > now.getTime() &&
       record.attempts < record.maxAttempts &&
       record.deviceFingerprintHash !== null &&
-      safeEqual(
-        record.deviceFingerprintHash,
-        deviceFingerprintHash,
-      );
-    const otpMatches = record
-      ? verifyEmployeeOtpHash(
-          record.id,
-          input.otp,
-          record.otpHash,
-          config.authSecret,
-        )
-      : verifyEmployeeOtpHash(
-          input.challengeId,
-          input.otp,
-          "0".repeat(64),
-          config.authSecret,
-        );
+      safeEqual(record.deviceFingerprintHash, deviceFingerprintHash) &&
+      (record.verificationAttemptId === null ||
+        (record.verificationStartedAt !== null &&
+          record.verificationStartedAt.getTime() <= staleClaimBefore.getTime()));
 
-    if (!usable || !record || !otpMatches) {
-      let terminalFailure: "EXPIRED" | "MAX_ATTEMPTS" | null = null;
+    if (!usable || !record || !record.employeeAccountId || !record.providerReference) {
+      const terminalFailure = record
+        ? record.expiresAt.getTime() <= now.getTime()
+          ? "EXPIRED"
+          : record.attempts >= record.maxAttempts
+            ? "MAX_ATTEMPTS"
+            : null
+        : null;
       if (
+        terminalFailure &&
         record &&
-        record.verifiedAt === null &&
-        record.invalidatedAt === null
+        record.invalidatedAt === null &&
+        record.verifiedAt === null
       ) {
-        const nextAttempts = record.attempts + 1;
-        terminalFailure =
-          record.expiresAt.getTime() <= now.getTime()
-            ? "EXPIRED"
-            : nextAttempts >= record.maxAttempts
-              ? "MAX_ATTEMPTS"
-              : null;
-        const attempted = await transaction.employeeOtpChallenge.updateMany({
+        await transaction.employeeOtpChallenge.updateMany({
           where: {
             id: record.id,
-            attempts: record.attempts,
-            verifiedAt: null,
             invalidatedAt: null,
+            verifiedAt: null,
           },
-          data: {
-            attempts: { increment: 1 },
-            ...(terminalFailure
-              ? { invalidatedAt: now }
-              : {}),
-          },
+          data: { invalidatedAt: now },
         });
-
-        if (
-          attempted.count === 1 &&
-          terminalFailure &&
-          record.employeeAccountId
-        ) {
-          await writeOtpFailureAudits(
-            record.employeeAccountId,
-            record.id,
-            terminalFailure,
-            input.request?.userAgent ?? null,
-            transaction,
-          );
-        }
       }
-
       await writeAuthSecurityEvent(
         {
-          eventType: "OTP_FAILED",
+          eventType: rateLimit.allowed ? "STAFF_OTP_VERIFY_FAILED" : "STAFF_OTP_VERIFY_RATE_LIMITED",
           surface: "EMPLOYEE_OTP_VERIFY",
-          outcome: "FAILURE",
+          outcome: rateLimit.allowed ? "FAILURE" : "RATE_LIMITED",
+          identifierHash: phoneIdentifierHash,
           ipAddressHash: verificationIpHash,
           userAgentHash: verificationUserAgentHash,
           userId: record?.employeeAccountId ?? null,
-          reason: terminalFailure ?? "INVALID_OTP",
+          reason: rateLimit.allowed
+            ? terminalFailure ?? "UNUSABLE_CHALLENGE"
+            : "VERIFY_RATE_LIMIT",
           createdAt: now,
         },
         transaction,
       );
-      return { ok: false as const };
+      return { ok: false as const, rateLimited: !rateLimit.allowed };
     }
 
-    const verified = await transaction.employeeOtpChallenge.updateMany({
+    const claimed = await transaction.employeeOtpChallenge.updateMany({
       where: {
         id: record.id,
-        attempts: record.attempts,
         verifiedAt: null,
         invalidatedAt: null,
         expiresAt: { gt: now },
+        OR: [
+          { verificationAttemptId: null },
+          { verificationStartedAt: { lte: staleClaimBefore } },
+        ],
       },
-      data: { verifiedAt: now },
+      data: { verificationAttemptId, verificationStartedAt: now },
     });
-
-    if (verified.count !== 1) {
-      await writeAuthSecurityEvent(
-        {
-          eventType: "OTP_FAILED",
-          surface: "EMPLOYEE_OTP_VERIFY",
-          outcome: "FAILURE",
-          ipAddressHash: verificationIpHash,
-          userAgentHash: verificationUserAgentHash,
-          userId: record.employeeAccountId,
-          reason: "CONCURRENT_REPLAY",
-          createdAt: now,
-        },
-        transaction,
-      );
-      return { ok: false as const };
+    if (claimed.count !== 1) {
+      return { ok: false as const, rateLimited: false };
     }
-
-    const employeeAccountId = record.employeeAccountId;
-
-    if (!employeeAccountId) {
-      return { ok: false as const };
-    }
-
-    await writeAuthSecurityEvent(
-      {
-        eventType: "OTP_VERIFIED",
-        surface: "EMPLOYEE_OTP_VERIFY",
-        outcome: "SUCCESS",
-        ipAddressHash: verificationIpHash,
-        userAgentHash: verificationUserAgentHash,
-        userId: employeeAccountId,
-        createdAt: now,
-      },
-      transaction,
-    );
-
     return {
       ok: true as const,
-      challenge: {
+      record: {
         id: record.id,
-        employeeAccountId,
-        deviceFingerprintHash,
+        employeeAccountId: record.employeeAccountId,
+        phoneNumberNormalized: record.phoneNumberNormalized,
+        providerReference: record.providerReference,
+        attempts: record.attempts,
+        maxAttempts: record.maxAttempts,
+        phoneIdentifierHash,
       },
     };
   });
 
   if (!verification.ok) {
-    throw new EmployeeAuthError("OTP_INVALID");
+    throw new EmployeeAuthError(verification.rateLimited ? "RATE_LIMITED" : "OTP_INVALID");
   }
 
-  const challenge = verification.challenge;
+  const provider = dependencies.provider ?? createEmployeeOtpProvider(config);
+  let providerCheck;
+  try {
+    providerCheck = await provider.checkVerification({
+      challengeId: verification.record.id,
+      phoneNumber: verification.record.phoneNumberNormalized,
+      providerReference: verification.record.providerReference,
+      code: input.otp,
+    });
+  } catch (error) {
+    await database.employeeOtpChallenge.updateMany({
+      where: {
+        id: verification.record.id,
+        verificationAttemptId,
+        verifiedAt: null,
+        invalidatedAt: null,
+      },
+      data: { verificationAttemptId: null, verificationStartedAt: null },
+    });
+    console.error("[employee-auth] OTP verification provider failed", {
+      challengeId: verification.record.id,
+      provider: provider.name,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+    throw new EmployeeAuthError("OTP_PROVIDER_UNAVAILABLE");
+  }
+
+  if (providerCheck.status !== "APPROVED") {
+    const terminalFailure = await database.$transaction(async (transaction) => {
+      const nextAttempts = verification.record.attempts + 1;
+      const terminal =
+        providerCheck.status === "EXPIRED"
+          ? "EXPIRED"
+          : providerCheck.status === "LOCKED" ||
+              nextAttempts >= verification.record.maxAttempts
+            ? "MAX_ATTEMPTS"
+            : null;
+      await transaction.employeeOtpChallenge.updateMany({
+        where: {
+          id: verification.record.id,
+          verificationAttemptId,
+          verifiedAt: null,
+          invalidatedAt: null,
+        },
+        data: {
+          attempts: { increment: 1 },
+          verificationAttemptId: null,
+          verificationStartedAt: null,
+          ...(terminal ? { invalidatedAt: now } : {}),
+        },
+      });
+      await writeAuthSecurityEvent(
+        {
+          eventType: "STAFF_OTP_VERIFY_FAILED",
+          surface: "EMPLOYEE_OTP_VERIFY",
+          outcome: "FAILURE",
+          identifierHash: verification.record.phoneIdentifierHash,
+          ipAddressHash: verificationIpHash,
+          userAgentHash: verificationUserAgentHash,
+          userId: verification.record.employeeAccountId,
+          reason: terminal ?? "INVALID_OTP",
+          createdAt: now,
+        },
+        transaction,
+      );
+      if (terminal) {
+        await writeOtpFailureAudits(
+          verification.record.employeeAccountId,
+          verification.record.id,
+          terminal,
+          input.request?.userAgent ?? null,
+          transaction,
+        );
+      }
+      return terminal;
+    });
+    throw new EmployeeAuthError(
+      terminalFailure === "EXPIRED"
+        ? "OTP_EXPIRED"
+        : terminalFailure === "MAX_ATTEMPTS"
+          ? "OTP_LOCKED"
+          : "OTP_INVALID",
+    );
+  }
+
+  const approved = await database.$transaction(async (transaction) => {
+    const updated = await transaction.employeeOtpChallenge.updateMany({
+      where: {
+        id: verification.record.id,
+        verificationAttemptId,
+        verifiedAt: null,
+        invalidatedAt: null,
+        expiresAt: { gt: now },
+      },
+      data: {
+        verifiedAt: now,
+        verificationAttemptId: null,
+        verificationStartedAt: null,
+      },
+    });
+    await writeAuthSecurityEvent(
+      {
+        eventType: updated.count === 1 ? "STAFF_OTP_VERIFY_SUCCEEDED" : "STAFF_OTP_VERIFY_FAILED",
+        surface: "EMPLOYEE_OTP_VERIFY",
+        outcome: updated.count === 1 ? "SUCCESS" : "FAILURE",
+        identifierHash: verification.record.phoneIdentifierHash,
+        ipAddressHash: verificationIpHash,
+        userAgentHash: verificationUserAgentHash,
+        userId: verification.record.employeeAccountId,
+        reason: updated.count === 1 ? undefined : "CONCURRENT_REPLAY",
+        createdAt: now,
+      },
+      transaction,
+    );
+    return updated.count === 1;
+  });
+  if (!approved) throw new EmployeeAuthError("OTP_INVALID");
+
+  const verificationResult = {
+    challenge: {
+      id: verification.record.id,
+      employeeAccountId: verification.record.employeeAccountId,
+      deviceFingerprintHash,
+    },
+  };
+
+  const challenge = verificationResult.challenge;
 
   const identity = await findEligibleEmployeeIdentityById(
     challenge.employeeAccountId,
@@ -548,6 +674,16 @@ export async function verifyEmployeeOtp(
         invalidatedAt: null,
       },
       data: { invalidatedAt: now },
+    });
+    await writeAuthSecurityEvent({
+      eventType: "STAFF_LOGIN_REJECTED",
+      surface: "EMPLOYEE_OTP_VERIFY",
+      outcome: "DENIED",
+      ipAddressHash: verificationIpHash,
+      userAgentHash: verificationUserAgentHash,
+      userId: challenge.employeeAccountId,
+      reason: "EMPLOYEE_INELIGIBLE_AT_VERIFY",
+      createdAt: now,
     });
     throw new EmployeeAuthError("OTP_INVALID");
   }
@@ -841,6 +977,20 @@ async function completeEmployeeLogin(
       transaction,
     );
 
+    await writeAuthSecurityEvent(
+      {
+        eventType: "STAFF_LOGIN_SUCCEEDED",
+        surface: "EMPLOYEE_OTP_VERIFY",
+        outcome: "SUCCESS",
+        ipAddressHash,
+        userId: membership.employeeAccountId,
+        businessId: membership.businessId,
+        sessionId: createdSession.context.sessionId,
+        createdAt: input.now,
+      },
+      transaction,
+    );
+
     return {
       status: "AUTHENTICATED",
       token: createdSession.token,
@@ -850,11 +1000,21 @@ async function completeEmployeeLogin(
   });
 }
 
-function uniformOtpRequestResult(challengeId: string) {
+function uniformOtpRequestResult(
+  challengeId: string,
+  expiresInSeconds: number,
+  resendAfterSeconds: number,
+) {
   return {
     challengeId,
     message: EMPLOYEE_OTP_REQUEST_MESSAGE,
+    expiresInSeconds,
+    resendAfterSeconds,
   };
+}
+
+function secondsUntil(value: Date, now: Date) {
+  return Math.max(0, Math.ceil((value.getTime() - now.getTime()) / 1_000));
 }
 
 async function resolveOtpDeviceAccess(

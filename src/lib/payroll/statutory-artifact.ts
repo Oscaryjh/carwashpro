@@ -20,6 +20,11 @@ import {
   type StatutorySubmissionProvider,
 } from "@/lib/payroll/statutory-submission";
 import { parsePayrollMonth } from "@/lib/payroll/service";
+import {
+  consumePayrollHighRiskAuthorization,
+  type PayrollHighRiskAuditLink,
+  type PayrollHighRiskStepUp,
+} from "@/lib/payroll/high-risk-mfa";
 
 type ArtifactActor = WriteAuditLogInput["actor"];
 
@@ -55,6 +60,8 @@ export async function downloadOrCreateStatutoryArtifact(
     request: AuditRequestContext;
     revision?: number;
     allowCreate?: boolean;
+    stepUp: PayrollHighRiskStepUp;
+    stepUpResourceId: string;
   },
   database: PrismaClient = prisma,
 ): Promise<StatutoryArtifactDownload> {
@@ -92,12 +99,23 @@ export async function downloadOrCreateStatutoryArtifact(
           // The retained-artifact path intentionally does not load employee,
           // employer profile, payroll entry, or current statutory identity data.
           if (latest?.artifact) {
+            const stepUpAudit = await consumePayrollHighRiskAuthorization(
+              {
+                actionKey: "STATUTORY_EXPORT",
+                businessId: input.businessId,
+                resourceId: input.stepUpResourceId,
+                stepUp: input.stepUp,
+                userId: input.actor?.userId ?? "",
+              },
+              transaction,
+            );
             return decryptAndAuditDownload({
               actor: input.actor,
               artifact: latest.artifact,
               businessId: input.businessId,
               request: input.request,
               submissionId: latest.id,
+              stepUpAudit,
             }, transaction);
           }
           if (input.revision) {
@@ -131,6 +149,16 @@ export async function downloadOrCreateStatutoryArtifact(
               "Only finalized payroll with a complete statutory profile can produce an official file.",
             );
           }
+          const stepUpAudit = await consumePayrollHighRiskAuthorization(
+            {
+              actionKey: "STATUTORY_EXPORT",
+              businessId: input.businessId,
+              resourceId: input.stepUpResourceId,
+              stepUp: input.stepUp,
+              userId: input.actor?.userId ?? "",
+            },
+            transaction,
+          );
 
           const document = buildOfficialSubmissionFile(
             input.provider,
@@ -219,6 +247,7 @@ export async function downloadOrCreateStatutoryArtifact(
               encryptionKeyVersion: artifact.encryptionKeyVersion,
               payrollRunId: artifact.payrollRunId,
               submissionId: artifact.submissionId,
+              ...stepUpAudit,
             },
           }, transaction);
           await writeDownloadAudit({
@@ -227,6 +256,7 @@ export async function downloadOrCreateStatutoryArtifact(
             businessId: input.businessId,
             request: input.request,
             submissionId: submission.id,
+            stepUpAudit,
           }, transaction);
 
           return {
@@ -338,6 +368,7 @@ async function decryptAndAuditDownload(
     businessId: string;
     request: AuditRequestContext;
     submissionId: string;
+    stepUpAudit: PayrollHighRiskAuditLink;
   },
   transaction: Prisma.TransactionClient,
 ): Promise<StatutoryArtifactDownload> {
@@ -389,6 +420,7 @@ async function writeDownloadAudit(
     businessId: string;
     request: AuditRequestContext;
     submissionId: string;
+    stepUpAudit: PayrollHighRiskAuditLink;
   },
   transaction: Prisma.TransactionClient,
 ) {
@@ -408,6 +440,7 @@ async function writeDownloadAudit(
       provider: input.artifact.provider,
       revision: input.artifact.revision,
       submissionId: input.submissionId,
+      ...input.stepUpAudit,
     },
   }, transaction);
 }

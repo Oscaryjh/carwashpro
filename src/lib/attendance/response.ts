@@ -66,6 +66,7 @@ function mapEmployeeAuthError(
     case "RATE_LIMITED":
       return new AttendanceApiError("RATE_LIMITED");
     case "CONFIGURATION_ERROR":
+    case "OTP_PROVIDER_UNAVAILABLE":
       return new AttendanceApiError(
         "INTERNAL_ERROR",
         "Employee attendance is temporarily unavailable.",
@@ -75,6 +76,8 @@ function mapEmployeeAuthError(
       );
     case "INVALID_REQUEST":
     case "OTP_INVALID":
+    case "OTP_EXPIRED":
+    case "OTP_LOCKED":
     case "MEMBERSHIP_SELECTION_REQUIRED":
       return new AttendanceApiError("VALIDATION_ERROR");
   }

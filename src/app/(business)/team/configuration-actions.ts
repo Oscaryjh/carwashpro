@@ -9,7 +9,10 @@ import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { normalizeStaffPermissionsForIndustry } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
-import { assertCanGrantStaffPermissions } from "@/lib/team/permission-administration";
+import {
+  assertCanGrantStaffPermissions,
+  assertStaffPermissionsEntitled,
+} from "@/lib/team/permission-administration";
 import {
   buildPeopleStaffScopeWhere,
   hasWholeBusinessPeopleScope,
@@ -48,7 +51,7 @@ const staffLevelAssignmentSchema = z.object({
 });
 
 export async function saveStaffRoleProfileAction(formData: FormData) {
-  const { access, user, businessId, industryType } =
+  const { access, user, businessId, industryType, moduleContext } =
     await requireBusinessUser("MANAGE_TEAM_PERMISSIONS");
 
   try {
@@ -65,6 +68,11 @@ export async function saveStaffRoleProfileAction(formData: FormData) {
       industryType,
     );
     assertCanGrantStaffPermissions(access, permissions);
+    assertStaffPermissionsEntitled(
+      permissions,
+      moduleContext.enabledModules,
+      industryType,
+    );
     const auditRequest = await getAuditRequestContext();
 
     await prisma.$transaction(async (tx) => {
@@ -192,7 +200,7 @@ export async function saveStaffLevelAction(formData: FormData) {
 }
 
 export async function assignStaffRoleAction(formData: FormData) {
-  const { access, user, businessId } =
+  const { access, user, businessId, industryType, moduleContext } =
     await requireBusinessUser("MANAGE_TEAM_PERMISSIONS");
 
   try {
@@ -236,6 +244,11 @@ export async function assignStaffRoleAction(formData: FormData) {
       if (!staff) throw new Error("Staff user not found in the authorized branch scope.");
       if (input.staffRoleProfileId && !roleProfile) throw new Error("Role profile is unavailable.");
       assertCanGrantStaffPermissions(access, roleProfile?.permissions ?? []);
+      assertStaffPermissionsEntitled(
+        roleProfile?.permissions ?? [],
+        moduleContext.enabledModules,
+        industryType,
+      );
 
       const updated = await tx.user.update({
         where: { id: staff.id },

@@ -1,12 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import {
+  assertServerActionSameOrigin,
+  getAuthRequestContext,
+} from "@/lib/auth/security";
+import type { SensitiveActionKey } from "@/lib/auth/sensitive-actions";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import {
@@ -15,6 +21,15 @@ import {
   removeManualPayrollAdjustment,
 } from "@/lib/payroll/component-service";
 import { getPublicPayrollErrorMessage } from "@/lib/payroll/error-message";
+import {
+  issuePayrollHighRiskAuthorization,
+  payrollMfaFactor,
+  payrollMfaPassword,
+} from "@/lib/payroll/high-risk-mfa";
+import {
+  assertPayrollReadinessCanProceed,
+  getPayrollPeriodReadiness,
+} from "@/lib/payroll/readiness";
 import { payrollRunReturnPath } from "@/lib/payroll/runs";
 import { publishPayrollPayslips } from "@/lib/payroll/payslip-publication";
 import {
@@ -26,6 +41,7 @@ import {
   submitPayrollRunForReview,
   updatePayrollEntry,
 } from "@/lib/payroll/service";
+import { assertPayrollRunUsesCurrentLockedTimesheet } from "@/lib/payroll/timesheet-bridge";
 import {
   approvePayrollCorrection,
   approvePayrollVariablePay,
@@ -35,6 +51,7 @@ import {
   createPayrollVariablePay,
 } from "@/lib/payroll/variable-pay";
 import { prisma } from "@/lib/prisma";
+import { trySynchronizePayrollExpense } from "@/lib/expense/source-integration";
 
 const settingSchema = z.object({
   workingDaysPerMonth: z.coerce.number().int().min(1).max(31),
@@ -492,16 +509,27 @@ export async function finalizePayrollRunAction(formData: FormData) {
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
     const context = await requireWholeBusinessPayroll("APPROVE_PAYROLL");
+    const runId = z.string().uuid().parse(formData.get("runId"));
+    await preflightPayrollFinalize(context.businessId, runId);
+    const stepUp = await issuePayrollStepUp(
+      context,
+      formData,
+      "PAYROLL_FINALIZE",
+      runId,
+    );
+    const request = await getAuditRequestContext();
     await finalizePayrollRun({
       businessId: context.businessId,
       actor: context.user,
-      request: await getAuditRequestContext(),
-      runId: z.string().uuid().parse(formData.get("runId")),
+      request,
+      runId,
+      stepUp,
       allowSelfApprovalOverride:
         context.access.effectiveBusinessRole === "BUSINESS_OWNER",
       overrideReason: optionalFormValue(formData, "reason"),
     });
-    finish("success", "Payroll finalized and locked.", month, returnPath);
+    const sync = await trySynchronizePayrollExpense({ businessId: context.businessId, actor: context.user, payrollRunId: runId, request });
+    finish("success", sync.status === "DEFERRED" ? "Payroll finalized and locked. Expense cost is queued for reconciliation." : "Payroll finalized and locked; business-wide Expense cost recorded.", month, returnPath);
   } catch (error) {
     handleActionError(error, month, "Unable to finalize payroll.", returnPath);
   }
@@ -512,14 +540,26 @@ export async function reopenPayrollRunAction(formData: FormData) {
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
     const context = await requireWholeBusinessPayroll("REOPEN_PAYROLL");
+    const runId = z.string().uuid().parse(formData.get("runId"));
+    const reason = workflowReasonSchema.parse(formData.get("reason"));
+    await preflightPayrollReopen(context.businessId, runId);
+    const stepUp = await issuePayrollStepUp(
+      context,
+      formData,
+      "PAYROLL_REOPEN",
+      runId,
+    );
+    const request = await getAuditRequestContext();
     await reopenPayrollRun({
       businessId: context.businessId,
       actor: context.user,
-      request: await getAuditRequestContext(),
-      runId: z.string().uuid().parse(formData.get("runId")),
-      reason: workflowReasonSchema.parse(formData.get("reason")),
+      request,
+      runId,
+      reason,
+      stepUp,
     });
-    finish("success", "Finalized payroll reopened as a draft.", month, returnPath);
+    const sync = await trySynchronizePayrollExpense({ businessId: context.businessId, actor: context.user, payrollRunId: runId, request });
+    finish("success", sync.status === "DEFERRED" ? "Finalized payroll reopened. Expense supersession is queued for reconciliation." : "Finalized payroll reopened; prior Expense cost is now void with history retained.", month, returnPath);
   } catch (error) {
     handleActionError(error, month, "Unable to reopen finalized payroll.", returnPath);
   }
@@ -583,6 +623,94 @@ async function requireP4CApprove() {
   return context;
 }
 
+async function issuePayrollStepUp(
+  context: Awaited<ReturnType<typeof requireWholeBusinessPayroll>>,
+  formData: FormData,
+  actionKey: SensitiveActionKey,
+  resourceId: string,
+) {
+  const requestHeaders = await headers();
+  assertServerActionSameOrigin(requestHeaders);
+  return issuePayrollHighRiskAuthorization({
+    access: context.access,
+    actionKey,
+    businessId: context.businessId,
+    enabledModules: context.moduleContext.enabledModules,
+    factor: payrollMfaFactor(formData),
+    password: payrollMfaPassword(formData),
+    request: getAuthRequestContext(requestHeaders),
+    resourceId,
+    user: context.user,
+  });
+}
+
+async function preflightPayrollFinalize(businessId: string, runId: string) {
+  const run = await prisma.payrollRun.findFirst({
+    where: { businessId, id: runId },
+    select: {
+      attendanceSource: true,
+      attendanceTimesheetDigestSnapshot: true,
+      attendanceTimesheetLockedAtSnapshot: true,
+      attendanceTimesheetRevisionId: true,
+      attendanceTimesheetRevisionSnapshot: true,
+      id: true,
+      periodStart: true,
+      status: true,
+      _count: { select: { entries: true } },
+    },
+  });
+  if (!run) throw new Error("Payroll run not found.");
+  if (run.status !== "REVIEW") {
+    throw new Error("Only payroll in Review can be finalized.");
+  }
+  await assertPayrollRunUsesCurrentLockedTimesheet({ businessId, run });
+  if (run._count.entries === 0) {
+    throw new Error("An empty payroll run cannot be finalized.");
+  }
+  const readiness = await getPayrollPeriodReadiness({
+    businessId,
+    month: run.periodStart.toISOString().slice(0, 7),
+    runId,
+  });
+  assertPayrollReadinessCanProceed(readiness);
+}
+
+async function preflightPayrollReopen(businessId: string, runId: string) {
+  const run = await prisma.payrollRun.findFirst({
+    where: { businessId, id: runId },
+    select: {
+      id: true,
+      status: true,
+      paymentBatches: {
+        where: {
+          OR: [
+            { status: { in: ["DRAFT", "AWAITING_APPROVAL", "APPROVED", "INSTRUCTION_READY"] } },
+            { currentArtifactId: { not: null } },
+          ],
+        },
+        take: 1,
+        select: { id: true },
+      },
+      _count: {
+        select: { payslipPublications: true, statutorySubmissions: true },
+      },
+    },
+  });
+  if (!run) throw new Error("Payroll run not found.");
+  if (run.status !== "FINALIZED") {
+    throw new Error("Only finalized payroll can be reopened.");
+  }
+  if (run.paymentBatches.length) {
+    throw new Error("Payroll with an active or approved payment instruction cannot be reopened.");
+  }
+  if (run._count.statutorySubmissions) {
+    throw new Error("Payroll with a statutory export or correction record cannot be reopened directly.");
+  }
+  if (run._count.payslipPublications) {
+    throw new Error("Payroll with published payslips cannot be reopened.");
+  }
+}
+
 function p4cEditContext(context: Awaited<ReturnType<typeof requirePayrollComponentEdit>>, request: Awaited<ReturnType<typeof getAuditRequestContext>>) {
   return { businessId: context.businessId, actor: context.user, request, capabilities: ["VIEW_COMPENSATION", "EDIT_PAYROLL_ENTRY"] as const };
 }
@@ -631,7 +759,10 @@ function finish(
 ): never {
   revalidatePath("/team/payroll/settings");
   revalidatePath("/team/payroll/workspace");
+  revalidatePath("/team/approvals");
   revalidatePath("/team/payroll/runs");
+  revalidatePath("/expenses");
+  revalidatePath("/expenses/history");
   if (returnPath) revalidatePath(returnPath.split("?", 1)[0]);
   const destination = returnPath ?? "/team/payroll/workspace";
   const separator = destination.includes("?") ? "&" : "?";

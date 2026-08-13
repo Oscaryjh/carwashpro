@@ -30,6 +30,7 @@ import {
   type PayrollProfileWriteContext,
 } from "@/lib/payroll/employee-profile-write";
 import { prisma } from "@/lib/prisma";
+import { assertCommercialEmployeeCapacity } from "@/lib/commercial/service";
 import { synchronizeTeamMemberEmploymentState } from "@/lib/team/people-status";
 
 export type AttendanceServiceActor = NonNullable<
@@ -83,6 +84,7 @@ export async function createAttendanceEmployeeInTransaction(
   args: CreateAttendanceEmployeeArgs,
   transaction: Prisma.TransactionClient,
 ) {
+  await assertCommercialEmployeeCapacity(args.businessId, transaction);
   const validatedEmployee = await validateAttendanceEmployeeCreate(
     bindTrustedBusinessId(args.input, args.businessId),
     transaction,
@@ -281,6 +283,10 @@ export async function updateAttendanceEmployeeInTransaction(
 
     if (!existing) {
       throw new Error("Employee was not found in the selected business.");
+    }
+
+    if (existing.status !== "ACTIVE" && trustedInput["status"] === "ACTIVE") {
+      await assertCommercialEmployeeCapacity(args.businessId, transaction);
     }
 
     const now = new Date();

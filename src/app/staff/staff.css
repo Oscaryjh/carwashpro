@@ -237,8 +237,7 @@
   border-radius: 22px;
   bottom: max(12px, env(safe-area-inset-bottom));
   box-shadow: 0 16px 44px rgba(25, 58, 56, 0.18);
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  display: flex;
   left: 50%;
   max-width: min(520px, calc(100vw - 24px));
   padding: 7px;
@@ -248,12 +247,17 @@
   z-index: 50;
 }
 
-.staff-pwa-nav a {
+.staff-pwa-nav a,
+.staff-pwa-nav > button {
   align-items: center;
+  background: transparent;
+  border: 0;
   border-radius: 16px;
   color: var(--staff-muted);
   display: flex;
+  flex: 1 1 0;
   flex-direction: column;
+  font-family: inherit;
   font-size: 11px;
   font-weight: 800;
   gap: 2px;
@@ -262,14 +266,231 @@
   text-decoration: none;
 }
 
-.staff-pwa-nav a span {
-  font-size: 21px;
+.staff-pwa-nav a span,
+.staff-pwa-nav > button span {
+  align-items: center;
+  background: #eef5f3;
+  border-radius: 9px;
+  display: inline-flex;
+  height: 25px;
+  justify-content: center;
   line-height: 1;
+  width: 25px;
 }
 
-.staff-pwa-nav a.active {
+.staff-nav-icon {
+  display: block;
+  height: 17px;
+  width: 17px;
+}
+
+.staff-pwa-nav a.active,
+.staff-pwa-nav > button.active {
   background: var(--staff-brand-soft);
   color: var(--staff-brand-dark);
+}
+
+.staff-more-backdrop {
+  align-items: flex-end;
+  background: rgba(10, 35, 33, 0.32);
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  padding: 16px 12px calc(92px + env(safe-area-inset-bottom));
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 45;
+}
+
+.staff-more-sheet {
+  background: #fff;
+  border: 1px solid var(--staff-line);
+  border-radius: 24px;
+  box-shadow: 0 22px 70px rgba(17, 47, 45, 0.25);
+  display: grid;
+  gap: 16px;
+  max-width: 520px;
+  padding: 18px;
+  width: 100%;
+}
+
+.staff-more-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.staff-more-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.staff-more-heading small {
+  color: var(--staff-brand);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.staff-more-heading strong {
+  font-size: 22px;
+}
+
+.staff-more-heading button {
+  background: var(--staff-brand-soft);
+  border: 0;
+  border-radius: 999px;
+  color: var(--staff-brand-dark);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+.staff-more-links {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.staff-more-links a {
+  align-items: center;
+  border: 1px solid var(--staff-line);
+  border-radius: 16px;
+  color: var(--staff-ink);
+  display: flex;
+  gap: 11px;
+  min-height: 58px;
+  padding: 11px 13px;
+  text-decoration: none;
+}
+
+.staff-more-links span {
+  align-items: center;
+  background: var(--staff-brand-soft);
+  border-radius: 10px;
+  color: var(--staff-brand-dark);
+  display: inline-flex;
+  flex: 0 0 34px;
+  height: 34px;
+  justify-content: center;
+}
+
+.staff-more-links .staff-nav-icon {
+  height: 19px;
+  width: 19px;
+}
+
+.staff-schedule-evidence,
+.staff-schedule-empty {
+  background: #f6faf9;
+  border: 1px solid var(--staff-line);
+  border-radius: 16px;
+  display: grid;
+  gap: 6px;
+  padding: 15px;
+}
+
+.staff-schedule-evidence span,
+.staff-schedule-empty span,
+.staff-schedule-evidence small {
+  color: var(--staff-muted);
+  line-height: 1.5;
+}
+
+.staff-schedule-evidence small {
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
+.staff-home-stack,
+.staff-home-overview {
+  display: grid;
+  gap: 18px;
+}
+
+.staff-home-section-heading {
+  align-items: flex-end;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.staff-home-section-heading > div {
+  display: grid;
+  gap: 4px;
+}
+
+.staff-home-section-heading h2,
+.staff-home-section-heading p {
+  margin: 0;
+}
+
+.staff-home-section-heading a,
+.staff-core-only-state a {
+  color: var(--staff-brand-dark);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.staff-home-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.staff-home-card {
+  background: var(--staff-card);
+  border: 1px solid var(--staff-line);
+  border-radius: 19px;
+  color: var(--staff-ink);
+  display: grid;
+  gap: 7px;
+  min-height: 155px;
+  padding: 16px;
+  text-decoration: none;
+}
+
+.staff-home-card small {
+  color: var(--staff-brand);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.staff-home-card > strong {
+  font-size: 20px;
+}
+
+.staff-home-card > span {
+  color: var(--staff-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.staff-home-card > b {
+  align-self: end;
+  color: var(--staff-brand-dark);
+  font-size: 12px;
+}
+
+.staff-home-card.unavailable {
+  background: #fff8e8;
+  border-color: #ecd8a7;
+}
+
+.staff-core-only-state {
+  display: grid;
+  gap: 9px;
+}
+
+.staff-core-only-state span {
+  color: var(--staff-muted);
+  line-height: 1.5;
 }
 
 .staff-pwa-offline {
@@ -1367,6 +1588,14 @@
   .staff-history-filters > small {
     grid-column: auto;
   }
+
+  .staff-more-links {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-home-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1446,5 +1675,94 @@
 
   .staff-payslip-list a {
     text-align: center;
+  }
+}
+
+.staff-roster-page,
+.staff-roster-list,
+.staff-roster-assignment,
+.staff-roster-empty,
+.staff-roster-today > div {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.staff-roster-today {
+  border-left: 4px solid var(--staff-brand);
+}
+
+.staff-roster-today > small,
+.staff-roster-assignment small,
+.staff-roster-empty small,
+.staff-roster-note {
+  color: var(--staff-muted);
+}
+
+.staff-roster-assignment span {
+  color: var(--staff-brand-dark);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.staff-roster-assignment em {
+  color: var(--staff-muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.staff-roster-nav {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto 1fr auto;
+  text-align: center;
+}
+
+.staff-roster-nav a {
+  background: #fff;
+  border: 1px solid var(--staff-line);
+  border-radius: 10px;
+  color: var(--staff-brand-dark);
+  padding: 10px;
+  text-decoration: none;
+}
+
+.staff-roster-day {
+  align-items: center;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 92px minmax(0, 1fr);
+}
+
+.staff-roster-date {
+  display: grid;
+  gap: 4px;
+}
+
+.staff-roster-note {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+@media (max-width: 430px) {
+  .staff-roster-page {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .staff-roster-nav {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .staff-roster-nav span {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .staff-roster-day {
+    grid-template-columns: 78px minmax(0, 1fr);
+    padding: 15px;
   }
 }

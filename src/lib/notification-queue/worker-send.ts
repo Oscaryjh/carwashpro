@@ -1,3 +1,5 @@
+import { isProductionRuntime } from "@/lib/release/environment";
+
 export type WhatsAppSendMode = "mock" | "live";
 
 export type QueueSendInput = {
@@ -70,6 +72,12 @@ export function resolveWhatsAppSendMode(
   env: WhatsAppWorkerEnv = process.env,
 ) {
   const value = env.WHATSAPP_SEND_MODE?.trim();
+
+  if (isProductionRuntime(env) && value === "mock") {
+    throw new WhatsAppSendModeConfigError(
+      'WHATSAPP_SEND_MODE="mock" is forbidden in production.',
+    );
+  }
 
   if (value === "mock" || value === "live") {
     return value;

@@ -73,9 +73,10 @@ test("employee profile shell queries only non-sensitive header data", async () =
   assert.match(profilePage, /buildPeopleMembershipScopeWhere/);
   assert.match(profilePage, /buildPeopleStaffScopeWhere/);
   assert.match(profilePage, /employeeCode: true/);
-  assert.match(profilePage, /employmentType: true/);
+  assert.doesNotMatch(profilePage, /employmentType: true/);
   assert.match(profilePage, /fullName: true/);
   assert.match(profilePage, /status: true/);
+  assert.match(profilePage, /EmployeeProfileCoreStaffOverview/);
 });
 
 test("People uses the canonical shell while legacy edit routes remain available", async () => {

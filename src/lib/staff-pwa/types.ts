@@ -108,6 +108,15 @@ export type AttendanceToday = {
     expectedBreakMinutes: number;
     normalWorkMinutesPerDay: number;
   };
+  expectedAttendance: {
+    kind: "WORKDAY" | "NOT_SCHEDULED" | "REST_DAY" | "PUBLIC_HOLIDAY";
+    source: string;
+    expectedStartAt: string | null;
+    expectedEndAt: string | null;
+    graceMinutes: number;
+    timezone: string;
+    revision: number;
+  } | null;
   allowedActions: AttendanceAction[];
   pendingExceptions: Array<{
     id: string;

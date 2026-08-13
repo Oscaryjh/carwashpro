@@ -68,6 +68,7 @@ export default async function InvoiceDetailsPage({
       items: {
         orderBy: { createdAt: "asc" },
         include: {
+          inventoryRefundLines: { select: { quantity: true } },
           customerPackage: {
             include: { package: true },
           },
@@ -107,6 +108,11 @@ export default async function InvoiceDetailsPage({
   const manualDiscountAmount = Math.max(
     0,
     Number(invoice.discountAmount) - loyaltyDiscountAmount,
+  );
+  const isStandalonePackagePurchase = Boolean(
+    !invoice.workOrder &&
+      !invoice.appointmentId &&
+      (invoice.customerPackage || invoice.items.some((item) => item.customerPackage)),
   );
   const appointmentRefunds = invoice.payments
     .flatMap((payment) =>
@@ -303,6 +309,7 @@ export default async function InvoiceDetailsPage({
                       paymentId={payment.id}
                       originalMethod={payment.method}
                       refundableAmount={refundableCents / 100}
+                      stockLines={invoice.items.filter((item) => item.inventoryTracked && item.productId).map((item) => ({ id: item.id, name: item.name, remainingQuantity: item.quantity - item.inventoryRefundLines.reduce((sum, line) => sum + line.quantity, 0) })).filter((item) => item.remainingQuantity > 0)}
                     />
                   </div>
                 ))}
@@ -367,7 +374,7 @@ export default async function InvoiceDetailsPage({
             </div>
             <div className="pos-receipt-header">
               <div><span>Invoice No.</span><strong className="pos-receipt-number">{formatInvoiceNumber(invoice.invoiceNumber)}</strong><small>{invoice.issuedAt.toLocaleDateString("en-MY")}</small></div>
-              <div><span>Package</span><strong>{packageName}</strong><small>Package purchase</small></div>
+              <div><span>{isStandalonePackagePurchase ? "Package" : "Sale"}</span><strong>{packageName}</strong><small>{isStandalonePackagePurchase ? "Package purchase" : "Direct sale"}</small></div>
               <span className={`payment-state ${invoice.status.toLowerCase()}`}>{formatStatus(invoice.status)}</span>
             </div>
             <div className="pos-customer-strip"><div><span>Customer</span><strong>{invoice.customer?.name ?? "-"}</strong></div><div><span>Phone</span><strong>{invoice.customer?.phone ?? "-"}</strong></div></div>
@@ -425,8 +432,8 @@ export default async function InvoiceDetailsPage({
             <div className="panel invoice-refund-panel">
               <div className="section-header">
                 <div>
-                  <h2>Refund package purchase</h2>
-                  <p className="muted">All packages in this invoice must be unused and refunded together.</p>
+                  <h2>{isStandalonePackagePurchase ? "Refund package purchase" : "Refund payment"}</h2>
+                  <p className="muted">{isStandalonePackagePurchase ? "All packages in this invoice must be unused and refunded together." : "Choose the refund amount and an explicit stock treatment for each returned tracked product."}</p>
                 </div>
                 <span className="status">Owner only</span>
               </div>
@@ -452,6 +459,7 @@ export default async function InvoiceDetailsPage({
                         paymentId={payment.id}
                         originalMethod={payment.method}
                         refundableAmount={refundableCents / 100}
+                        stockLines={invoice.items.filter((item) => item.inventoryTracked && item.productId).map((item) => ({ id: item.id, name: item.name, remainingQuantity: item.quantity - item.inventoryRefundLines.reduce((sum, line) => sum + line.quantity, 0) })).filter((item) => item.remainingQuantity > 0)}
                       />
                     </div>
                   ) : null;
@@ -753,6 +761,7 @@ export default async function InvoiceDetailsPage({
                     paymentId={payment.id}
                     originalMethod={payment.method}
                     refundableAmount={refundableCents / 100}
+                    stockLines={invoice.items.filter((item) => item.inventoryTracked && item.productId).map((item) => ({ id: item.id, name: item.name, remainingQuantity: item.quantity - item.inventoryRefundLines.reduce((sum, line) => sum + line.quantity, 0) })).filter((item) => item.remainingQuantity > 0)}
                   />
                 </div>
               ))}

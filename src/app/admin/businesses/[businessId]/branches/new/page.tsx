@@ -11,12 +11,14 @@ type NewAdminBranchPageProps = {
   params: Promise<{
     businessId: string;
   }>;
+  searchParams: Promise<{ type?: string; message?: string }>;
 };
 
-export default async function NewAdminBranchPage({ params }: NewAdminBranchPageProps) {
+export default async function NewAdminBranchPage({ params, searchParams }: NewAdminBranchPageProps) {
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
   const { businessId } = await params;
+  const query = await searchParams;
   const business = await prisma.business.findUnique({
     where: { id: businessId },
     select: { id: true, name: true },
@@ -38,6 +40,7 @@ export default async function NewAdminBranchPage({ params }: NewAdminBranchPageP
         </div>
 
         <div className="panel">
+          {query.message ? <p className={`form-message ${query.type === "error" ? "error" : "success"}`}>{query.message}</p> : null}
           <BranchForm
             action={createAdminBusinessBranchAction}
             businessId={business.id}

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   createAttendanceIdempotencyKey,
   createBrowserUuid,
+  getOrCreateDeviceIdentifier,
   attendanceActionLabel,
   attendanceConfirmation,
   formatMinutesAsHours,
@@ -12,6 +13,7 @@ import {
   maskPhoneForDisplay,
 } from "../../src/lib/staff-pwa/client";
 import { buildStaffManifest } from "../../src/lib/staff-pwa/manifest";
+import { buildStaffNavigation } from "../../src/lib/staff-pwa/navigation";
 
 const todaySource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-today.tsx", import.meta.url),
@@ -29,10 +31,30 @@ const middlewareSource = readFileSync(
   new URL("../../src/middleware.ts", import.meta.url),
   "utf8",
 );
+const moduleRouteSource = readFileSync(
+  new URL("../../src/app/api/employee-auth/modules/route.ts", import.meta.url),
+  "utf8",
+);
 const staffCssSource = readFileSync(
   new URL("../../src/app/staff/staff.css", import.meta.url),
   "utf8",
 );
+const homeSource = readFileSync(
+  new URL("../../src/lib/staff-pwa/home.ts", import.meta.url),
+  "utf8",
+);
+const attendanceMutationSources = [
+  "clock-in",
+  "clock-out",
+  "break-start",
+  "break-end",
+  "exception",
+  "p2-corrections",
+  "resolutions",
+].map((route) => readFileSync(
+  new URL(`../../src/app/api/employee-attendance/${route}/route.ts`, import.meta.url),
+  "utf8",
+));
 
 test("Staff PWA action labels and confirmation copy cover the API action set", () => {
   assert.equal(attendanceActionLabel("CLOCK_IN"), "Clock In");
@@ -80,6 +102,33 @@ test("Staff PWA creates secure identifiers without requiring randomUUID", () => 
   );
 });
 
+test("Staff PWA replaces a malformed persisted device identifier", () => {
+  const values = new Map<string, string>([["tetamu.staff.device", "x".repeat(257)]]);
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    },
+  });
+
+  try {
+    const identifier = getOrCreateDeviceIdentifier();
+    assert.ok(identifier.length >= 16 && identifier.length <= 256);
+    assert.notEqual(identifier, "x".repeat(257));
+    assert.equal(values.get("tetamu.staff.device"), identifier);
+  } finally {
+    if (originalWindow) {
+      Object.defineProperty(globalThis, "window", originalWindow);
+    } else {
+      Reflect.deleteProperty(globalThis, "window");
+    }
+  }
+});
+
 test("revoked and expired employee sessions are routed back to Staff login", () => {
   assert.equal(isEmployeeSessionError("SESSION_EXPIRED"), true);
   assert.equal(isEmployeeSessionError("SESSION_REVOKED"), true);
@@ -111,6 +160,13 @@ test("Today offers an additional shift after a completed session", () => {
   assert.match(todaySource, /today\.completedSessionCount > 0/);
 });
 
+test("Today shows only explicit expected-attendance evidence and never guesses an off day", () => {
+  assert.match(todaySource, /No published schedule available/);
+  assert.match(todaySource, /will not infer that this is an off day/);
+  assert.match(todaySource, /expectedAttendance\.kind/);
+  assert.doesNotMatch(todaySource, /!today\.expectedAttendance[^\n]*Off Day/i);
+});
+
 test("OTP UI never stores the entered OTP and supports paste plus resend timing", () => {
   assert.match(authSource, /onPaste=\{paste\}/);
   assert.match(authSource, /Resend in \$\{resendSeconds\}s/);
@@ -120,11 +176,48 @@ test("OTP UI never stores the entered OTP and supports paste plus resend timing"
 
 test("Staff manifest is installable and starts inside the isolated Staff scope", () => {
   const manifest = buildStaffManifest();
-  assert.equal(manifest.name, "Tetamu Attendance");
+  assert.equal(manifest.name, "Tetamu Staff App");
   assert.equal(manifest.start_url, "/staff");
   assert.equal(manifest.scope, "/staff");
   assert.equal(manifest.display, "standalone");
   assert.ok(manifest.icons?.some((icon) => icon.purpose === "maskable"));
+});
+
+test("Staff navigation follows module entitlement without overcrowding the mobile bar", () => {
+  const posOnly = buildStaffNavigation(["CORE", "POS", "SALON"]);
+  assert.deepEqual(posOnly.primary.map((item) => item.label), ["Home", "Profile"]);
+  assert.deepEqual(posOnly.more, []);
+
+  const hrOnly = buildStaffNavigation(["CORE", "HR"]);
+  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance", "Leave", "Profile"]);
+  assert.deepEqual(hrOnly.more.map((item) => item.label), ["My Schedule", "My Timesheets"]);
+
+  const full = buildStaffNavigation(["CORE", "HR", "CLAIMS", "COMMISSION", "PAYROLL"]);
+  assert.deepEqual(full.more.map((item) => item.label), ["My Schedule", "My Timesheets", "My Claims", "My Commission", "My Payslips"]);
+  assert.ok(full.primary.length + 1 <= 5, "primary navigation plus More must fit five mobile slots");
+});
+
+test("Staff navigation refreshes live employee module entitlement after login", () => {
+  assert.match(moduleRouteSource, /requireEmployeeSelfServiceAuthContext/);
+  assert.match(moduleRouteSource, /loadBusinessModuleContext\(auth\.businessId\)/);
+  assert.match(moduleRouteSource, /enabledModules: \[\.\.\.context\.enabledModules\]/);
+});
+
+test("Staff Home delegates summaries to canonical domain readers", () => {
+  assert.match(homeSource, /getEmployeeLeaveOverview/);
+  assert.match(homeSource, /getEmployeeClaimOverview/);
+  assert.match(homeSource, /getEmployeeCommissionStatements/);
+  assert.match(homeSource, /getEmployeeTimesheetOverview/);
+  assert.match(homeSource, /loadPublishedPayslipsForEmployee/);
+  assert.doesNotMatch(homeSource, /prisma\./);
+  assert.match(homeSource, /Temporarily unavailable/);
+  assert.match(homeSource, /showWelcome: !modules\.has\("HR"\)/);
+});
+
+test("every employee Attendance mutation rechecks the HR module server-side", () => {
+  for (const source of attendanceMutationSources) {
+    assert.match(source, /requireEmployeeBusinessModule\(auth, "HR"\)/);
+  }
 });
 
 test("Service worker never caches Attendance APIs or navigations", () => {

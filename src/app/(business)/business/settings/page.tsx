@@ -7,6 +7,9 @@ import { MODULE_REGISTRY, moduleKeys } from "@/lib/modules/registry";
 import { updateBusinessAction } from "@/app/admin/businesses/actions";
 import Link from "next/link";
 import { saveBusinessVehicleSizeOverrideAction, removeBusinessVehicleSizeOverrideAction } from "./vehicle-size-actions";
+import { formatCents } from "@/lib/commercial/money";
+import { getEffectiveCommercialConfiguration } from "@/lib/commercial/service";
+import { listSubscriptionInvoices } from "@/lib/commercial/billing-service";
 
 type BusinessSettingsPageProps = {
   searchParams: Promise<{
@@ -32,6 +35,8 @@ export default async function BusinessSettingsPage({
     orderBy: [{ brand: "asc" }, { model: "asc" }],
   });
   const moduleContext = await loadBusinessModuleContext(context.businessId);
+  const commercial = await getEffectiveCommercialConfiguration({ businessId: context.businessId });
+  const subscriptionInvoices = await listSubscriptionInvoices({ actor: context.user, businessId: context.businessId });
 
   if (!business) {
     return (
@@ -74,6 +79,11 @@ export default async function BusinessSettingsPage({
               </div>
             ))}
           </div>
+        </div>
+        <div className="company-settings-sheet company-settings-secondary-section" id="subscription">
+          <div className="company-settings-section-heading"><div><span className="company-settings-eyebrow">Commercial</span><h2>Current plan</h2></div><p>Read-only. Product entitlement and user permissions remain separate.</p></div>
+          {commercial.subscription && commercial.allowances ? <div className="grid"><div className="panel metric"><span>Plan</span><strong>{commercial.subscription.items.filter(item => item.status === "ACTIVE").map(item => item.planVersion.plan.displayName).join(" + ")}</strong></div><div className="panel metric"><span>Recurring price</span><strong>{formatCents(commercial.price?.effectiveRecurringPriceCents ?? null)}</strong></div><div className="panel metric"><span>Allowances</span><strong>{commercial.allowances.branches} branches · {commercial.allowances.employees} employees</strong></div><div className="panel metric"><span>Ask Tetamu</span><strong>{commercial.allowances.businessAi} / month</strong></div><div className="panel metric"><span>Next renewal</span><strong>{commercial.subscription.renewalDate.toLocaleDateString("en-MY")}</strong></div></div> : <div className="panel"><strong>Legacy / commercial review required</strong><p>Existing product access is preserved. Missing historical price is not treated as RM0 or a free plan.</p></div>}
+          <h3>Billing history</h3><p>Read-only. Subscription price is not proof of payment.</p>{subscriptionInvoices.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Invoice</th><th>Period</th><th>Status</th><th>Total</th><th>Outstanding</th></tr></thead><tbody>{subscriptionInvoices.map(invoice => <tr key={invoice.id}><td>{invoice.invoiceNumber}</td><td>{invoice.billingPeriodStart.toLocaleDateString("en-MY")}–{invoice.billingPeriodEnd.toLocaleDateString("en-MY")}</td><td>{invoice.status === "ISSUED" ? invoice.canonicalPaymentStatus : invoice.status}</td><td>{formatCents(invoice.totalAmountCents)}</td><td>{formatCents(invoice.canonicalOutstandingCents)}</td></tr>)}</tbody></table></div> : <p className="empty-state">No subscription invoices.</p>}
         </div>
         {business.industryType === "AUTO_DETAILING" ? (
           <div className="company-settings-sheet company-settings-secondary-section" id="vehicle-rules">

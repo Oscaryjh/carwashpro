@@ -156,6 +156,7 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
     assert.equal(completedToday.currentWorkedMinutes, 450);
     assert.equal(completedToday.sessionCount, 1);
     assert.equal(completedToday.completedSessionCount, 1);
+    assert.equal(completedToday.expectedAttendance, null);
 
     await assertAttendanceError(
       performAttendancePunch({
@@ -302,6 +303,21 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
     });
     assert.equal(otherException.status, "PENDING");
 
+    await transaction.attendanceExpectedDay.create({
+      data: {
+        businessId: fixture.businessA.id,
+        branchId: fixture.branchA.id,
+        membershipId: fixture.auth.membershipId,
+        workDate: new Date(`${outsideClockIn.workDate}T00:00:00.000Z`),
+        kind: "WORKDAY",
+        source: "MANUAL_EVIDENCE",
+        expectedStartAt: new Date(`${outsideClockIn.workDate}T01:00:00.000Z`),
+        expectedEndAt: new Date(`${outsideClockIn.workDate}T09:00:00.000Z`),
+        graceMinutes: 5,
+        timezoneSnapshot: "Asia/Kuching",
+        createdById: fixture.actorId,
+      },
+    });
     const today = await getEmployeeAttendanceToday({
       database,
       auth: fixture.auth,
@@ -315,6 +331,15 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
     assert.equal(today.completedSessionCount, 2);
     assert.equal(today.currentWorkedMinutes, 475);
     assert.equal(today.totalCompletedBreakMinutes, 35);
+    assert.deepEqual(today.expectedAttendance, {
+      kind: "WORKDAY",
+      source: "MANUAL_EVIDENCE",
+      expectedStartAt: `${outsideClockIn.workDate}T01:00:00.000Z`,
+      expectedEndAt: `${outsideClockIn.workDate}T09:00:00.000Z`,
+      graceMinutes: 5,
+      timezone: "Asia/Kuching",
+      revision: 1,
+    });
     assert.deepEqual(Object.keys(today.employee).sort(), [
       "employeeCode",
       "fullName",
@@ -398,6 +423,15 @@ async function createFixture(transaction: Prisma.TransactionClient) {
     data: {
       businessId: businessB.id,
       name: `Attendance Branch B ${suffix}`,
+    },
+  });
+  const actor = await transaction.user.create({
+    data: {
+      name: `Attendance Manager ${suffix}`,
+      email: `attendance-manager-${suffix}@test.local`,
+      role: "BUSINESS_OWNER",
+      status: "active",
+      businessId: businessA.id,
     },
   });
   await transaction.branchAttendanceSetting.create({
@@ -516,6 +550,7 @@ async function createFixture(transaction: Prisma.TransactionClient) {
     businessB,
     branchA,
     branchB,
+    actorId: actor.id,
     deviceIdentifier,
     auth: {
       sessionId: employeeSession.id,

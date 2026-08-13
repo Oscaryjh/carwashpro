@@ -425,6 +425,7 @@ export function lookupContributionRow(
 }
 
 export function assertRuleActivationReady(input: RuleActivationEvidence) {
+  assertRuleEngineeringReady(input);
   const humanSignOffReady =
     input.classificationApprovalStatus === "HUMAN_SIGNED_OFF" &&
     /^[a-f0-9]{64}$/.test(input.classificationApprovalRecordDigest ?? "") &&
@@ -439,11 +440,19 @@ export function assertRuleActivationReady(input: RuleActivationEvidence) {
     );
   }
   const ready =
+    input.classificationStatus === "VERIFIED" &&
+    input.unresolvedBlockers.length === 0;
+  if (!ready) throw new Error(STATUTORY_ARTIFACT_ERRORS.UNVERIFIED_ACTIVATION);
+}
+
+export function assertRuleEngineeringReady(input: RuleActivationEvidence) {
+  const ready =
     input.artifactStatus === "VERIFIED" &&
     input.datasetStatus === "VERIFIED" &&
     input.independentReviewStatus === "PASS" &&
     input.fixtureStatus === "VERIFIED" &&
-    input.classificationStatus === "VERIFIED" &&
+    (input.classificationStatus === "VERIFIED" ||
+      input.classificationStatus === "READY_FOR_HUMAN_SIGN_OFF") &&
     input.calculatorStatus === "VERIFIED" &&
     input.boundaryTestStatus === "PASS" &&
     /^[a-f0-9]{64}$/.test(input.artifactSha256 ?? "") &&
@@ -460,8 +469,7 @@ export function assertRuleActivationReady(input: RuleActivationEvidence) {
     input.goldenFixtureCount > 0 &&
     /^\d{4}-\d{2}-\d{2}$/.test(input.effectiveFrom) &&
     (!input.effectiveTo || /^\d{4}-\d{2}-\d{2}$/.test(input.effectiveTo)) &&
-    (!input.effectiveTo || input.effectiveFrom < input.effectiveTo) &&
-    input.unresolvedBlockers.length === 0;
+    (!input.effectiveTo || input.effectiveFrom < input.effectiveTo);
   if (!ready) throw new Error(STATUTORY_ARTIFACT_ERRORS.UNVERIFIED_ACTIVATION);
 }
 
@@ -487,14 +495,28 @@ export function buildActivationPreview(input: RuleActivationEvidence): Statutory
 export function prepareControlledActivation(input: {
   actorId: string;
   actorRole: string;
+  actorType?: string;
+  actorCapabilities?: readonly string[];
+  reviewerActorId?: string | null;
   reason: string;
   expectedScheme: OfficialStatutoryScheme;
   expectedRuleVersion: string;
   expectedEffectiveFrom: string;
   evidence: RuleActivationEvidence;
 }) {
-  if (input.actorRole !== "PLATFORM_ADMIN" || !input.actorId.trim()) {
+  if (
+    input.actorRole !== "PLATFORM_ADMIN" ||
+    !input.actorId.trim() ||
+    (input.actorType !== undefined && input.actorType !== "HUMAN_USER")
+  ) {
     throw new Error(STATUTORY_ARTIFACT_ERRORS.PLATFORM_ACTOR_REQUIRED);
+  }
+  if (
+    input.actorCapabilities !== undefined &&
+    !input.actorCapabilities.includes("ACTIVATE_STATUTORY_RULESET")
+  ) throw new Error("STATUTORY_CAPABILITY_REQUIRED:ACTIVATE_STATUTORY_RULESET");
+  if (input.reviewerActorId && input.reviewerActorId === input.actorId) {
+    throw new Error("STATUTORY_REVIEWER_ACTIVATOR_SEPARATION_REQUIRED");
   }
   const reason = input.reason.trim();
   if (reason.length < 10) {

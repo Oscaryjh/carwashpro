@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export function buildStaffManifest(): MetadataRoute.Manifest {
   return {
-    name: "Tetamu Attendance",
-    short_name: "Attendance",
-    description: "Secure employee attendance for Tetamu workplaces.",
+    name: "Tetamu Staff App",
+    short_name: "Tetamu Staff",
+    description: "Secure employee self-service for Tetamu workplaces.",
     id: "/staff",
     start_url: "/staff",
     scope: "/staff",
@@ -14,24 +14,9 @@ export function buildStaffManifest(): MetadataRoute.Manifest {
     orientation: "portrait-primary",
     categories: ["business", "productivity"],
     icons: [
-      {
-        src: "/pwa/icon-192.png",
-        sizes: "192x192",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: "/pwa/icon-512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: "/pwa/icon-maskable-512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "maskable",
-      },
+      { src: "/pwa/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/pwa/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/pwa/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }

@@ -213,7 +213,6 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
       data: { canClockIn: true },
     });
 
-    const providerFailureTasks: Array<() => Promise<void>> = [];
     const providerFailureResponse = await requestEmployeeOtp(
       {
         phoneNumber: fixture.single.phone,
@@ -224,22 +223,18 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
         database: prisma,
         config,
         provider: {
-          async sendOtp() {
+          name: "mock",
+          channel: "local",
+          async sendVerification() {
             throw new Error("simulated provider failure");
           },
-        },
-        dispatchDelivery(task) {
-          providerFailureTasks.push(task);
+          async checkVerification() {
+            return { status: "REJECTED" as const };
+          },
         },
         now: baseTime,
       },
     );
-    assert.equal(
-      providerFailureTasks.length,
-      1,
-      "provider failure delivery task must be dispatched",
-    );
-    await providerFailureTasks[0]!();
     assert.equal(
       providerFailureResponse.message,
       EMPLOYEE_OTP_REQUEST_MESSAGE,
@@ -247,7 +242,7 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
     );
     assert.deepEqual(
       Object.keys(providerFailureResponse).sort(),
-      ["challengeId", "message"],
+      ["challengeId", "expiresInSeconds", "message", "resendAfterSeconds"],
       "provider errors must not leak into the public result",
     );
     const providerFailureChallenge =
@@ -266,7 +261,6 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
     );
     await clearChallenges(fixture.single.phone);
 
-    const delayedDeliveryTasks: Array<() => Promise<void>> = [];
     let delayedProviderStarted = false;
     let markProviderStarted!: () => void;
     let releaseProvider!: () => void;
@@ -276,7 +270,7 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
     const providerRelease = new Promise<void>((resolve) => {
       releaseProvider = resolve;
     });
-    const delayedDeliveryResponse = await requestEmployeeOtp(
+    const delayedDeliveryPromise = requestEmployeeOtp(
       {
         phoneNumber: fixture.single.phone,
         deviceIdentifier: "single-primary-device-0001",
@@ -286,41 +280,33 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
         database: prisma,
         config,
         provider: {
-          async sendOtp() {
+          name: "mock",
+          channel: "local",
+          async sendVerification(input) {
             delayedProviderStarted = true;
             markProviderStarted();
             await providerRelease;
+            return {
+              status: "ACCEPTED" as const,
+              providerReference: `mock:${input.challengeId}`,
+            };
           },
-        },
-        dispatchDelivery(task) {
-          delayedDeliveryTasks.push(task);
+          async checkVerification() {
+            return { status: "REJECTED" as const };
+          },
         },
         now: baseTime,
       },
     );
-    assert.equal(
-      delayedDeliveryResponse.message,
-      EMPLOYEE_OTP_REQUEST_MESSAGE,
-    );
-    assert.equal(
-      delayedProviderStarted,
-      false,
-      "dispatcher path must return before a delayed provider starts",
-    );
-    assert.equal(
-      delayedDeliveryTasks.length,
-      1,
-      "delayed delivery task must be dispatched",
-    );
-    const delayedDeliveryPromise = delayedDeliveryTasks[0]!();
     await providerStarted;
     assert.equal(delayedProviderStarted, true);
     releaseProvider();
-    await delayedDeliveryPromise;
+    const delayedDeliveryResponse = await delayedDeliveryPromise;
+    assert.equal(delayedDeliveryResponse.message, EMPLOYEE_OTP_REQUEST_MESSAGE);
     assert.equal(
       await prisma.auditLog.count({
         where: {
-          action: "EMPLOYEE_OTP_REQUESTED",
+          action: "STAFF_OTP_SEND_ACCEPTED",
           entityId: delayedDeliveryResponse.challengeId,
         },
       }),
@@ -347,6 +333,10 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
     assert.equal(singleChallengeBeforeVerify.invalidatedAt, null);
     assert.equal(singleChallengeBeforeVerify.verifiedAt, null);
     assert.equal(singleChallengeBeforeVerify.attempts, 0);
+    assert.equal(singleChallengeBeforeVerify.otpHash, null);
+    assert.equal(singleChallengeBeforeVerify.provider, "mock");
+    assert.equal(singleChallengeBeforeVerify.deliveryChannel, "local");
+    assert.notEqual(singleChallengeBeforeVerify.providerReference, null);
     assert.equal(
       singleChallengeBeforeVerify.expiresAt.getTime() >
         singleChallengeBeforeVerify.createdAt.getTime(),
@@ -563,25 +553,23 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
       attemptsRequest.provider.sent[0].otp === "000000"
         ? "111111"
         : "000000";
-    await Promise.all(
-      Array.from({ length: 5 }, () =>
-        assert.rejects(
-          verifyEmployeeOtp(
-            {
-              challengeId: attemptsRequest.result.challengeId,
-              otp: wrongOtp,
-              deviceIdentifier: "single-primary-device-0001",
-            },
-            {
-              database: prisma,
-              config,
-              now: plusSeconds(baseTime, 1),
-            },
-          ),
-          isAuthError("OTP_INVALID"),
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await assert.rejects(
+        verifyEmployeeOtp(
+          {
+            challengeId: attemptsRequest.result.challengeId,
+            otp: wrongOtp,
+            deviceIdentifier: "single-primary-device-0001",
+          },
+          {
+            database: prisma,
+            config,
+            now: plusSeconds(baseTime, 1),
+          },
         ),
-      ),
-    );
+        isAuthError(attempt === 4 ? "OTP_LOCKED" : "OTP_INVALID"),
+      );
+    }
     const exhaustedChallenge =
       await prisma.employeeOtpChallenge.findUniqueOrThrow({
         where: { id: attemptsRequest.result.challengeId },
@@ -599,6 +587,7 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
       "terminal OTP failure audit must be emitted once",
     );
 
+    await exerciseVerifyRateLimit(fixture, plusSeconds(baseTime, 4 * 60 * 60));
     await exerciseRateLimits(fixture, baseTime);
 
     await clearChallenges(fixture.multi.phone);
@@ -1393,6 +1382,49 @@ async function exerciseRateLimits(
   await clearAllFixtureChallenges(fixture);
 }
 
+async function exerciseVerifyRateLimit(
+  fixture: Awaited<ReturnType<typeof createFixture>>,
+  now: Date,
+) {
+  await clearChallenges(fixture.rate.phone);
+  const config = authConfig({
+    STAFF_OTP_VERIFY_PHONE_HOURLY_LIMIT: "1",
+    STAFF_OTP_VERIFY_IP_HOURLY_LIMIT: "50",
+  });
+  const requested = await requestWithCapture({
+    phone: fixture.rate.phone,
+    deviceIdentifier: "verify-rate-device-0001",
+    ipAddress: "10.5.0.1",
+    now,
+    config,
+  });
+  const wrongOtp = requested.provider.sent[0].otp === "000000" ? "111111" : "000000";
+  await assert.rejects(
+    verifyEmployeeOtp(
+      {
+        challengeId: requested.result.challengeId,
+        otp: wrongOtp,
+        deviceIdentifier: "verify-rate-device-0001",
+        request: requestContext("10.5.0.1"),
+      },
+      { database: prisma, config, now: plusSeconds(now, 1) },
+    ),
+    isAuthError("OTP_INVALID"),
+  );
+  await assert.rejects(
+    verifyEmployeeOtp(
+      {
+        challengeId: requested.result.challengeId,
+        otp: wrongOtp,
+        deviceIdentifier: "verify-rate-device-0001",
+        request: requestContext("10.5.0.2"),
+      },
+      { database: prisma, config, now: plusSeconds(now, 2) },
+    ),
+    isAuthError("RATE_LIMITED"),
+  );
+}
+
 async function requestWithCapture(input: {
   phone: string;
   deviceIdentifier: string;
@@ -1695,6 +1727,8 @@ function authConfig(
     EMPLOYEE_OTP_IP_HOURLY_LIMIT: "50",
     EMPLOYEE_OTP_DEVICE_HOURLY_LIMIT: "50",
     EMPLOYEE_OTP_PROVIDER_HOURLY_LIMIT: "1000",
+    STAFF_OTP_VERIFY_PHONE_HOURLY_LIMIT: "100",
+    STAFF_OTP_VERIFY_IP_HOURLY_LIMIT: "100",
     ...overrides,
   });
 }

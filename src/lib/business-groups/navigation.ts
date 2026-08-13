@@ -20,5 +20,11 @@ export function getBusinessGroupNavItems(groupId: string): NavItem[] {
       shortLabel: "Closing",
       icon: "reports",
     },
+    {
+      href: `/groups/${groupId}/commercial`,
+      label: "Current Plan",
+      shortLabel: "Plan",
+      icon: "settings",
+    },
   ];
 }

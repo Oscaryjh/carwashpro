@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 export const CASHIER_CATALOG_PAGE_SIZE = 8;
 export const RECENT_CATALOG_CATEGORY = "Recently";
@@ -84,10 +85,11 @@ export async function getCashierCatalog({
   query = "",
   type = "all",
 }: CashierCatalogInput): Promise<CashierCatalogResult> {
+  const inventoryEnabled = await isBusinessModuleEnabled(businessId, "INVENTORY");
   if (category === RECENT_CATALOG_CATEGORY) {
     const [categories, items] = await Promise.all([
       getCashierCatalogCategories(businessId, type),
-      getRecentlySoldCatalogItems({ branchId, businessId, query, type }),
+      getRecentlySoldCatalogItems({ branchId, businessId, inventoryEnabled, query, type }),
     ]);
     return {
       categories,
@@ -159,11 +161,13 @@ export async function getCashierCatalog({
     });
     items.push(...productRows.map((item) => ({
       category: item.productCategory?.name ?? item.category,
-      description: `${item.stocks[0]?.quantity ?? 0} in stock`,
+      description: inventoryEnabled && item.trackInventory
+        ? `${item.stocks[0]?.quantity ?? 0} in stock`
+        : "Inventory not tracked",
       id: item.id,
       name: item.name,
       price: Number(item.price),
-      stock: item.stocks[0]?.quantity ?? 0,
+      ...(inventoryEnabled && item.trackInventory ? { stock: item.stocks[0]?.quantity ?? 0 } : {}),
       taxable: item.taxable,
       taxRate: item.taxRate == null ? null : Number(item.taxRate),
       type: "product" as const,
@@ -208,11 +212,13 @@ export async function getCashierCatalog({
 async function getRecentlySoldCatalogItems({
   branchId,
   businessId,
+  inventoryEnabled,
   query,
   type,
 }: {
   branchId: string;
   businessId: string;
+  inventoryEnabled: boolean;
   query: string;
   type: CashierCatalogType;
 }) {
@@ -305,11 +311,13 @@ async function getRecentlySoldCatalogItems({
   }));
   productRows.forEach((item) => itemByKey.set(`product:${item.id}`, {
     category: item.productCategory?.name ?? item.category,
-    description: `${item.stocks[0]?.quantity ?? 0} in stock`,
+    description: inventoryEnabled && item.trackInventory
+      ? `${item.stocks[0]?.quantity ?? 0} in stock`
+      : "Inventory not tracked",
     id: item.id,
     name: item.name,
     price: Number(item.price),
-    stock: item.stocks[0]?.quantity ?? 0,
+    ...(inventoryEnabled && item.trackInventory ? { stock: item.stocks[0]?.quantity ?? 0 } : {}),
     taxable: item.taxable,
     taxRate: item.taxRate == null ? null : Number(item.taxRate),
     type: "product",

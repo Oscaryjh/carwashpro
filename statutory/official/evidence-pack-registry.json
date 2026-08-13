@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "generatedOn": "2026-08-10",
+  "humanSignOffExecuted": false,
+  "runtimeNetworkDependency": false,
+  "packs": [
+    {
+      "scheme": "EPF",
+      "effectiveFrom": "2025-10-01",
+      "effectiveTo": null,
+      "primaryArtifactId": "kwsp-third-schedule-2025-10",
+      "acceptedDatasetArtifactIds": ["kwsp-third-schedule-2025-10"],
+      "requiredArtifactIds": ["kwsp-third-schedule-2025-10"],
+      "datasetPath": "statutory/official/datasets/kwsp-third-schedule-2025-10.json",
+      "reviewPath": "statutory/official/reviews/kwsp-third-schedule-2025-10-independent-review.json",
+      "fixturePath": "statutory/official/fixtures/kwsp-third-schedule-2025-10-golden-v1.json",
+      "certificationPath": "statutory/official/certifications/kwsp-third-schedule-2025-10-golden-certification.json",
+      "classificationPath": "statutory/official/classifications/malaysia-epf-2025-10-signoff-candidate-v1.json",
+      "calculatorVersion": "statutory-p2c-epf-calculator/1.0.0",
+      "calculatorTestDigest": "7130f1f87b1a6879d50186a1c09456a3e9d1be9d0da4a81e52e886152151fa14",
+      "knownLimitations": [
+        "Ten ambiguous component meanings remain explicitly listed and fail closed until an authorised human decision creates a new revision."
+      ]
+    },
+    {
+      "scheme": "SOCSO",
+      "effectiveFrom": "2026-06-01",
+      "effectiveTo": null,
+      "primaryArtifactId": "perkeso-act4-lindung24-2026-06",
+      "acceptedDatasetArtifactIds": ["perkeso-act4-lindung24-2026-06"],
+      "requiredArtifactIds": ["perkeso-act4-lindung24-2026-06"],
+      "datasetPath": "statutory/official/datasets/perkeso-act4-lindung24-2026-06.json",
+      "reviewPath": "statutory/official/reviews/perkeso-act4-2026-06-independent-review.json",
+      "fixturePath": "statutory/official/fixtures/perkeso-act4-2026-06-boundaries-review-v1.json",
+      "certificationPath": "statutory/official/certifications/perkeso-act4-2026-06-golden-certification.json",
+      "classificationPath": "statutory/official/classifications/malaysia-socso-eis-2026-signoff-candidate-v1.json",
+      "calculatorVersion": "statutory-p2c-calculators/1.0.0",
+      "calculatorTestDigest": "acd13f53032c299fee02ee5a9e9b11bae87d8ac5ce0a313fce05655ea79a53b3",
+      "knownLimitations": [
+        "Ten ambiguous component meanings remain explicitly listed and fail closed until an authorised human decision creates a new revision."
+      ]
+    },
+    {
+      "scheme": "EIS",
+      "effectiveFrom": "2024-10-01",
+      "effectiveTo": null,
+      "primaryArtifactId": "perkeso-act800-2024-10",
+      "acceptedDatasetArtifactIds": ["perkeso-act800-2024-10"],
+      "requiredArtifactIds": ["perkeso-act800-2024-10"],
+      "datasetPath": "statutory/official/datasets/perkeso-act800-2024-10.review.json",
+      "reviewPath": "statutory/official/reviews/perkeso-act800-2024-10-independent-review.json",
+      "fixturePath": "statutory/official/fixtures/perkeso-act800-2024-10-boundaries-review-v1.json",
+      "certificationPath": "statutory/official/certifications/perkeso-act800-2024-10-golden-certification.json",
+      "classificationPath": "statutory/official/classifications/malaysia-socso-eis-2026-signoff-candidate-v1.json",
+      "calculatorVersion": "statutory-p2c-calculators/1.0.0",
+      "calculatorTestDigest": "3dbed2c04746e0863d00473f8a281cee401cda574fb19d4882fa07c689742c9b",
+      "knownLimitations": [
+        "The retained official schedule is image-only; dataset verification therefore relies on the separately recorded rendered visual review.",
+        "Ten ambiguous component meanings remain explicitly listed and fail closed until an authorised human decision creates a new revision."
+      ]
+    },
+    {
+      "scheme": "LINDUNG24",
+      "effectiveFrom": "2026-06-01",
+      "effectiveTo": "2028-06-01",
+      "primaryArtifactId": "perkeso-lindung24-schedule-2026-06",
+      "acceptedDatasetArtifactIds": [
+        "perkeso-act4-lindung24-2026-06",
+        "perkeso-lindung24-schedule-2026-06"
+      ],
+      "requiredArtifactIds": [
+        "perkeso-lindung24-schedule-2026-06",
+        "perkeso-lindung24-faq-2026-06-v2.1",
+        "perkeso-lindung24-employer-circular-3-2026",
+        "perkeso-lindung24-participation-form-2026",
+        "perkeso-lindung24-opt-out-notice-v2.1"
+      ],
+      "datasetPath": "statutory/official/datasets/perkeso-act4-lindung24-2026-06.json",
+      "reviewPath": "statutory/official/reviews/perkeso-lindung24-2026-06-amount-review.json",
+      "fixturePath": "statutory/official/fixtures/perkeso-lindung24-2026-06-boundaries-review-v1.json",
+      "certificationPath": "statutory/official/certifications/perkeso-lindung24-2026-06-golden-certification-v1.json",
+      "classificationPath": "statutory/official/classifications/malaysia-lindung24-2026-signoff-candidate-v1.json",
+      "calculatorVersion": "statutory-p2c-calculators/1.0.0",
+      "calculatorTestDigest": "ef6aebfdbfdb4d0d28c87da6b03cd756ffa14f60a029b944da21e5735bcd35f2",
+      "knownLimitations": [
+        "The verified Phase 1 schedule ends before 2028-06-01; NEW_OFFICIAL_RULESET_REQUIRED applies from that date.",
+        "Ten ambiguous or not-yet-materialised component meanings remain explicitly listed and fail closed."
+      ]
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import type { ResolvedBusinessAccess } from "@/lib/business-groups/business-access";
+import { modulesForStaffPermission, type ModuleKey } from "@/lib/modules/registry";
 
 export function assertCanGrantStaffPermissions(
   access: ResolvedBusinessAccess,
@@ -25,3 +26,21 @@ export function assertCanGrantStaffPermissions(
     throw new Error("You cannot grant staff permissions that you do not hold.");
   }
 }
+
+export function assertStaffPermissionsEntitled(
+  requestedPermissions: readonly string[],
+  enabledModules: ReadonlySet<ModuleKey>,
+  industryType: BusinessIndustry,
+) {
+  const unavailable = requestedPermissions.filter((permission) =>
+    modulesForStaffPermission(permission, industryType).some(
+      (moduleKey) => !enabledModules.has(moduleKey),
+    ),
+  );
+  if (unavailable.length) {
+    throw new Error(
+      `Permissions require disabled business modules: ${unavailable.join(", ")}.`,
+    );
+  }
+}
+import type { BusinessIndustry } from "@prisma/client";

@@ -6,6 +6,7 @@ import {
   getDefaultStaffPermissionsForIndustry,
   getStaffPermissionsForIndustry,
 } from "@/lib/auth/staff-permissions";
+import { modulesForStaffPermission, type ModuleKey } from "@/lib/modules/registry";
 
 export type StaffFormStaff = {
   appointmentBookable: boolean;
@@ -31,6 +32,7 @@ type StaffFormProps = {
   allowPayrollFields?: boolean;
   branches: StaffBranch[];
   canManagePermissions: boolean;
+  enabledModules?: readonly ModuleKey[];
   staff?: StaffFormStaff;
   employeeProfile?: {
     id: string;
@@ -59,6 +61,7 @@ export function StaffForm({
   allowPayrollFields = true,
   branches,
   canManagePermissions,
+  enabledModules,
   staff,
   employeeProfile,
   assignedBranchIds = [],
@@ -73,7 +76,7 @@ export function StaffForm({
   const isLegacyEdit = Boolean(staff && !employeeProfile);
   const [createEmploymentProfile, setCreateEmploymentProfile] = useState(false);
   const hasEmploymentForm =
-    !isEdit || Boolean(employeeProfile) || createEmploymentProfile;
+    allowHrFields && (!isEdit || Boolean(employeeProfile) || createEmploymentProfile);
   const isLegacyOnlyEdit = isLegacyEdit && !createEmploymentProfile;
 
   const [accessType, setAccessType] = useState<AccessType>(
@@ -141,6 +144,11 @@ export function StaffForm({
 
   return (
     <form className="form" action={action}>
+      <input
+        name="peopleCoreOnly"
+        type="hidden"
+        value={allowHrFields ? "" : "on"}
+      />
       {staff ? <input type="hidden" name="userId" value={staff.id} /> : null}
       <input name="accessType" type="hidden" value={accessType} />
       <input
@@ -203,7 +211,9 @@ export function StaffForm({
               type="tel"
             />
             <small className="form-hint">
-              Used for this person&apos;s employee identity and future attendance access.
+              {allowHrFields
+                ? "Used for this person's employee identity and future attendance access."
+                : "Used for this team member's operational contact details."}
             </small>
           </label>
           {hasEmploymentForm ? (
@@ -645,6 +655,7 @@ export function StaffForm({
             </summary>
             <PermissionChecklist
               defaultPermissions={selectedPermissions}
+              enabledModules={enabledModules}
               industryType={industryType}
             />
           </details>
@@ -652,8 +663,9 @@ export function StaffForm({
           <div className="staff-record-access-note">
             <strong>No system permissions</strong>
             <span>
-              This team member can still use attendance or provide services when those
-              options are enabled.
+              {allowHrFields
+                ? "This team member can still use attendance or provide services when those options are enabled."
+                : "This team member can still provide services when that option is enabled."}
             </span>
           </div>
         ) : null}
@@ -671,17 +683,27 @@ export function PermissionChecklist({
   defaultPermissions,
   description,
   disabled = false,
+  enabledModules,
   industryType,
   title,
 }: {
   defaultPermissions: string[];
   description?: string;
   disabled?: boolean;
+  enabledModules?: readonly ModuleKey[];
   industryType?: string;
   title?: string;
 }) {
   const selected = new Set(defaultPermissions);
+  const enabledModuleSet = enabledModules ? new Set(enabledModules) : null;
   const availablePermissions = getStaffPermissionsForIndustry(industryType)
+    .filter((permission) =>
+      !enabledModuleSet ||
+      modulesForStaffPermission(
+        permission.key,
+        industryType === "SALON_BEAUTY" ? "SALON_BEAUTY" : "AUTO_DETAILING",
+      ).every((moduleKey) => enabledModuleSet.has(moduleKey)),
+    )
     .filter((permission) => permission.key !== "DASHBOARD");
   const permissionGroups = [
     {

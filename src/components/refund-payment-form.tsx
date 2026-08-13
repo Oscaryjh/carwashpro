@@ -15,6 +15,11 @@ type RefundPaymentFormProps = {
   originalMethod: string;
   refundableAmount: number;
   onSuccess?: () => void;
+  stockLines?: Array<{
+    id: string;
+    name: string;
+    remainingQuantity: number;
+  }>;
 };
 
 const initialState: RefundPaymentState = {
@@ -37,6 +42,7 @@ export function RefundPaymentForm({
   originalMethod,
   refundableAmount,
   onSuccess,
+  stockLines = [],
 }: RefundPaymentFormProps) {
   const router = useRouter();
   const packageRefund = originalMethod === "PACKAGE";
@@ -144,6 +150,21 @@ export function RefundPaymentForm({
           />
         </label>
       </div>
+
+      {stockLines.length ? (
+        <fieldset className="product-stock-fieldset">
+          <legend>Returned product stock</legend>
+          <p className="field-helper">For each returned tracked product, choose an explicit quantity and stock treatment.</p>
+          {stockLines.map((line) => (
+            <div className="refund-form-grid" key={line.id}>
+              <input name="refundItemId" type="hidden" value={line.id} />
+              <label><span>{line.name} return quantity</span><input defaultValue="0" max={line.remainingQuantity} min="0" name={`refundQuantity_${line.id}`} step="1" type="number" /></label>
+              <label><span>Stock treatment</span><select defaultValue="RESTOCK" name={`refundDisposition_${line.id}`}><option value="RESTOCK">RESTOCK — sellable stock</option><option value="NO_RESTOCK">NO RESTOCK — damaged / not returned</option></select></label>
+              <label><span>No-restock reason</span><input name={`refundNoRestockReason_${line.id}`} placeholder="Required when NO RESTOCK" /></label>
+            </div>
+          ))}
+        </fieldset>
+      ) : null}
 
       <div className="refund-form-footer">
         <button className="danger-button" type="submit" disabled={pending}>

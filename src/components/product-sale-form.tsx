@@ -18,6 +18,7 @@ export type ProductSaleOption = {
   price: number;
   taxable: boolean;
   taxRate: number | null;
+  trackInventory: boolean;
   stock: Array<{ branchId: string; quantity: number }>;
 };
 
@@ -90,7 +91,9 @@ export function ProductSaleForm({
       }
 
       const selectedProduct = products.find((product) => product.id === productId);
-      const availableStock = selectedProduct?.stock.find((stock) => stock.branchId === branchId)?.quantity ?? 0;
+      const availableStock = selectedProduct?.trackInventory
+        ? selectedProduct.stock.find((stock) => stock.branchId === branchId)?.quantity ?? 0
+        : 99;
       const mergedQuantity = Math.min(
         Math.max(availableStock, 1),
         current[existingIndex].quantity + currentLine.quantity,
@@ -107,7 +110,9 @@ export function ProductSaleForm({
     setLines((current) => {
       const line = current[index];
       const product = products.find((option) => option.id === line?.productId);
-      const availableStock = product?.stock.find((stock) => stock.branchId === branchId)?.quantity ?? 0;
+      const availableStock = product?.trackInventory
+        ? product.stock.find((stock) => stock.branchId === branchId)?.quantity ?? 0
+        : 99;
       const maximum = Math.max(availableStock, 1);
       const quantity = Math.min(maximum, Math.max(1, Number.isFinite(requestedQuantity) ? requestedQuantity : 1));
 
@@ -138,7 +143,9 @@ export function ProductSaleForm({
         <div className="product-sale-lines">
           {lines.map((line, index) => {
             const selectedProduct = products.find((product) => product.id === line.productId);
-            const availableStock = selectedProduct?.stock.find((stock) => stock.branchId === branchId)?.quantity ?? 0;
+            const availableStock = selectedProduct?.trackInventory
+              ? selectedProduct.stock.find((stock) => stock.branchId === branchId)?.quantity ?? 0
+              : 99;
             const lineTotal = (selectedProduct?.price ?? 0) * line.quantity;
 
             return (
@@ -214,7 +221,10 @@ export function ProductSaleForm({
       <input name="returnTo" type="hidden" value={returnTo} />
       <div className="form-actions">
         <FinancialSubmitButton
-          disabled={!lines.length || !branches.length || lines.some((line) => !line.productId || line.quantity > (products.find((product) => product.id === line.productId)?.stock.find((stock) => stock.branchId === branchId)?.quantity ?? 0))}
+          disabled={!lines.length || !branches.length || lines.some((line) => {
+            const product = products.find((option) => option.id === line.productId);
+            return !line.productId || Boolean(product?.trackInventory && line.quantity > (product.stock.find((stock) => stock.branchId === branchId)?.quantity ?? 0));
+          })}
           pendingLabel="Processing sale..."
         >
           Pay RM{tax.total.toFixed(2)}

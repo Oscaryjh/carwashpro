@@ -1,0 +1,9 @@
+.lineGrid { display: grid; gap: .75rem; }
+.lineCard { border: 1px solid var(--border, #d9e0e5); border-radius: .75rem; padding: 1rem; display: grid; grid-template-columns: minmax(12rem, 2fr) repeat(3, minmax(6rem, 1fr)) minmax(14rem, 2fr); gap: .75rem; align-items: flex-end; }
+.lineCard h3, .lineCard p { margin: 0; }
+.facts { display: contents; }
+.countForm { display: flex; gap: .5rem; align-items: flex-end; flex-wrap: wrap; }
+.countForm label { min-width: 7rem; flex: 1; }
+.history { font-size: .85rem; color: var(--text-muted, #5f6b73); }
+@media (max-width: 700px) { .lineCard { grid-template-columns: 1fr 1fr; } .product, .countForm, .history { grid-column: 1 / -1; } .facts { display: contents; } .countForm input { width: 100%; } }
+@media (max-width: 390px) { .lineCard { grid-template-columns: 1fr; padding: .8rem; } .product, .countForm, .history { grid-column: 1; } .facts { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; } .countForm button { width: 100%; } }

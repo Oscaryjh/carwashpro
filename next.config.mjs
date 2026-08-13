@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Keep the audited webpack production pipeline while the Next 16 Turbopack
+  // prerender path is not yet compatible with this migrated App Router tree.
+  turbopack: {},
   serverExternalPackages: [
     "@whiskeysockets/baileys",
     "ws",

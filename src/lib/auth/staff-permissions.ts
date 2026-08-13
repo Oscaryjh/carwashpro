@@ -43,12 +43,56 @@ const claimCapabilityPermissions = [
   ["LINK_CLAIM_TO_PAYROLL", "Schedule verified claims for payroll (not available yet)"],
 ] as const;
 
+const commissionCapabilityPermissions = [
+  ["VIEW_COMMISSION", "View commission statements"],
+  ["MANAGE_COMMISSION_RULES", "Manage commission rules"],
+  ["CALCULATE_COMMISSION", "Calculate commission periods"],
+  ["APPROVE_COMMISSION", "Approve and lock commission periods"],
+  ["ADJUST_COMMISSION", "Create audited future commission corrections"],
+  ["LINK_COMMISSION_TO_PAYROLL", "Link approved commission to payroll"],
+] as const;
+
+const expenseCapabilityPermissions = [
+  ["EXPENSE_VIEW", "View business expenses"],
+  ["EXPENSE_CREATE", "Create business expenses"],
+  ["EXPENSE_EDIT_DRAFT", "Edit draft business expenses"],
+  ["EXPENSE_CONFIRM", "Confirm business expenses"],
+  ["EXPENSE_VOID", "Void unpaid confirmed expenses"],
+  ["EXPENSE_MARK_PAID", "Mark confirmed expenses paid"],
+  ["EXPENSE_CATEGORY_MANAGE", "Manage expense categories and recurring templates"],
+  ["EXPENSE_RECEIPT_VIEW", "View authorised expense receipts"],
+] as const;
+
+const supplierApCapabilityPermissions = [
+  ["SUPPLIER_BILLS_VIEW", "View supplier bills"],
+  ["SUPPLIER_BILLS_CREATE", "Create supplier bill drafts"],
+  ["SUPPLIER_BILLS_EDIT_DRAFT", "Edit supplier bill drafts"],
+  ["SUPPLIER_BILLS_CONFIRM", "Confirm supplier bills"],
+  ["SUPPLIER_BILLS_VOID", "Void unpaid confirmed supplier bills"],
+  ["ACCOUNTS_PAYABLE_VIEW", "View accounts payable"],
+  ["SUPPLIER_PAYMENTS_RECORD", "Record supplier payments"],
+  ["SUPPLIER_PAYMENTS_REVERSE", "Reverse supplier payments"],
+  ["SUPPLIER_INVOICE_ATTACHMENT_VIEW", "View supplier invoice attachments"],
+] as const;
+
+const aiCapabilityPermissions = [
+  ["AI_ANALYSIS_VIEW", "View AI business analysis"],
+  ["AI_ANALYSIS_USE", "Ask Tetamu AI for read-only analysis"],
+  ["AI_USAGE_VIEW", "View AI request and token usage"],
+  ["AI_SETTINGS_MANAGE", "Manage AI provider settings"],
+] as const;
+
 export const staffPermissions = [
   {
     key: "DASHBOARD",
     label: "Dashboard",
     description: "View daily overview for assigned access.",
   },
+  ...aiCapabilityPermissions.map(([key, label]) => ({
+    key,
+    label,
+    description: "Read-only AI analysis capability. It never grants business mutation access.",
+  })),
   {
     key: "ALL_BRANCHES",
     label: "All branch access",
@@ -136,6 +180,36 @@ export const staffPermissions = [
     description: "Update branch attendance and geofence settings.",
   },
   {
+    key: "ROSTER_VIEW",
+    label: "View roster",
+    description: "View published and authorised draft rosters within assigned branches.",
+  },
+  {
+    key: "ROSTER_CREATE",
+    label: "Create roster",
+    description: "Create weekly draft rosters within assigned branches.",
+  },
+  {
+    key: "ROSTER_EDIT",
+    label: "Edit roster drafts",
+    description: "Edit draft shift, rest-day and not-scheduled assignments.",
+  },
+  {
+    key: "ROSTER_PUBLISH",
+    label: "Publish roster",
+    description: "Publish a versioned roster revision that becomes Attendance evidence.",
+  },
+  {
+    key: "ROSTER_AMEND",
+    label: "Amend published roster",
+    description: "Prepare and publish a new future revision of an existing roster.",
+  },
+  {
+    key: "ROSTER_RETROSPECTIVE",
+    label: "Manage retrospective roster",
+    description: "Record a reasoned retrospective roster revision without manufacturing no-show evidence.",
+  },
+  {
     key: "VIEW_LEAVE",
     label: "View employee leave",
     description: "View leave balances, applications and approval history within assigned branches.",
@@ -160,6 +234,17 @@ export const staffPermissions = [
     label,
     description:
       "Sensitive claim capability. Grant only for the required business function.",
+  })),
+  ...commissionCapabilityPermissions.map(([key, label]) => ({
+    key,
+    label,
+    description:
+      "Sensitive commission capability. Grant only for the required business function.",
+  })),
+  ...expenseCapabilityPermissions.map(([key, label]) => ({
+    key,
+    label,
+    description: "Sensitive business-spending capability. Grant only for the required branch or business function.",
   })),
   {
     key: "PAYROLL_READ",
@@ -200,8 +285,103 @@ export const staffPermissions = [
   {
     key: "PRODUCTS",
     label: "Products",
-    description: "Create and update retail products and branch stock.",
+    description: "Create and update the retail product catalog.",
   },
+  {
+    key: "INVENTORY_VIEW",
+    label: "View inventory",
+    description: "View branch balances, low stock, and the immutable movement ledger.",
+  },
+  {
+    key: "INVENTORY_MANAGE",
+    label: "Stock in / out",
+    description: "Record reasoned stock receipts and stock-outs for assigned branches.",
+  },
+  {
+    key: "INVENTORY_ADJUST",
+    label: "Adjust inventory",
+    description: "Create audited delta corrections without overwriting stock history.",
+  },
+  {
+    key: "INVENTORY_TRANSFER",
+    label: "Transfer inventory",
+    description: "Move tracked stock atomically between authorised branches.",
+  },
+  {
+    key: "STOCK_COUNTS_VIEW",
+    label: "View stock counts",
+    description: "View branch physical-count sessions and frozen variance evidence.",
+  },
+  {
+    key: "STOCK_COUNTS_CREATE",
+    label: "Create stock counts",
+    description: "Create full-branch or selected-product count sessions.",
+  },
+  {
+    key: "STOCK_COUNTS_COUNT",
+    label: "Count inventory",
+    description: "Record physical quantities and submit completed count sessions.",
+  },
+  {
+    key: "STOCK_COUNTS_APPROVE",
+    label: "Approve stock counts",
+    description: "Review, reopen, and approve variance adjustments counted by another user.",
+  },
+  {
+    key: "STOCK_COUNTS_CANCEL",
+    label: "Cancel stock counts",
+    description: "Cancel an unapproved count session with an audited reason.",
+  },
+  {
+    key: "REORDER_SETTINGS_MANAGE",
+    label: "Manage reorder settings",
+    description: "Set branch-specific reorder and target stock levels.",
+  },
+  {
+    key: "SUPPLIERS_VIEW",
+    label: "View suppliers",
+    description: "View business supplier records and purchasing history.",
+  },
+  {
+    key: "SUPPLIERS_MANAGE",
+    label: "Manage suppliers",
+    description: "Create, update, activate, and deactivate suppliers.",
+  },
+  {
+    key: "PURCHASE_ORDERS_VIEW",
+    label: "View purchase orders",
+    description: "View purchase orders and immutable goods receipts.",
+  },
+  {
+    key: "PURCHASE_ORDERS_CREATE",
+    label: "Create purchase orders",
+    description: "Create and edit draft purchase orders.",
+  },
+  {
+    key: "PURCHASE_ORDERS_APPROVE",
+    label: "Approve purchase orders",
+    description: "Approve another user's draft purchase order without changing stock.",
+  },
+  {
+    key: "PURCHASE_ORDERS_CANCEL",
+    label: "Cancel or close purchase orders",
+    description: "Cancel unreceived orders or close their remaining quantity with a reason.",
+  },
+  {
+    key: "PURCHASE_ORDERS_RECEIVE",
+    label: "Receive purchase orders",
+    description: "Post partial or full goods receipts into the inventory ledger.",
+  },
+  {
+    key: "GOODS_RECEIPTS_REVERSE",
+    label: "Reverse goods receipts",
+    description: "Create reasoned receipt reversals without modifying the original receipt.",
+  },
+  ...supplierApCapabilityPermissions.map(([key, label]) => ({
+    key,
+    label,
+    description: "Sensitive supplier accounts-payable capability. Grant only for the required branch or business function.",
+  })),
   {
     key: "DISCOUNTS",
     label: "Discounts",
@@ -253,6 +433,25 @@ const impliedStaffPermissions: Partial<
   VERIFY_CLAIM: ["VIEW_CLAIM"],
   MANAGE_CLAIM_SETTINGS: ["VIEW_CLAIM"],
   LINK_CLAIM_TO_PAYROLL: ["VIEW_CLAIM", "VIEW_PAYROLL_RUN", "PAYROLL_READ"],
+  MANAGE_COMMISSION_RULES: ["VIEW_COMMISSION"],
+  CALCULATE_COMMISSION: ["VIEW_COMMISSION"],
+  APPROVE_COMMISSION: ["VIEW_COMMISSION"],
+  ADJUST_COMMISSION: ["VIEW_COMMISSION"],
+  LINK_COMMISSION_TO_PAYROLL: ["VIEW_COMMISSION", "VIEW_PAYROLL_RUN", "PAYROLL_READ"],
+  EXPENSE_CREATE: ["EXPENSE_VIEW"],
+  EXPENSE_EDIT_DRAFT: ["EXPENSE_VIEW"],
+  EXPENSE_CONFIRM: ["EXPENSE_VIEW"],
+  EXPENSE_VOID: ["EXPENSE_VIEW"],
+  EXPENSE_MARK_PAID: ["EXPENSE_VIEW"],
+  EXPENSE_CATEGORY_MANAGE: ["EXPENSE_VIEW"],
+  EXPENSE_RECEIPT_VIEW: ["EXPENSE_VIEW"],
+  SUPPLIER_BILLS_CREATE: ["SUPPLIER_BILLS_VIEW"],
+  SUPPLIER_BILLS_EDIT_DRAFT: ["SUPPLIER_BILLS_VIEW"],
+  SUPPLIER_BILLS_CONFIRM: ["SUPPLIER_BILLS_VIEW"],
+  SUPPLIER_BILLS_VOID: ["SUPPLIER_BILLS_VIEW"],
+  SUPPLIER_PAYMENTS_RECORD: ["ACCOUNTS_PAYABLE_VIEW", "SUPPLIER_BILLS_VIEW"],
+  SUPPLIER_PAYMENTS_REVERSE: ["ACCOUNTS_PAYABLE_VIEW", "SUPPLIER_BILLS_VIEW"],
+  SUPPLIER_INVOICE_ATTACHMENT_VIEW: ["SUPPLIER_BILLS_VIEW"],
   PAYROLL_MANAGE: ["PAYROLL_READ"],
   EDIT_COMPENSATION: ["VIEW_COMPENSATION", "PAYROLL_READ"],
   VIEW_COMPENSATION: ["PAYROLL_READ"],
@@ -339,6 +538,7 @@ export function assertStaffPermission(
 }
 
 const staffHomeRoutes: Array<[StaffPermission, string]> = [
+  ["AI_ANALYSIS_VIEW", "/ai"],
   ["JOBS", "/work-orders"],
   ["APPOINTMENTS", "/appointments"],
   ["CRM", "/crm"],
@@ -355,8 +555,13 @@ const staffHomeRoutes: Array<[StaffPermission, string]> = [
   ["TEAM", "/team"],
   ["ATTENDANCE_EMPLOYEE_READ", "/team/employees"],
   ["ATTENDANCE_SETTINGS_READ", "/team/attendance-settings"],
+  ["VIEW_LEAVE", "/team/leave"],
   ["PAYROLL_READ", "/team/payroll/workspace"],
   ["VIEW_CLAIM", "/team/claims"],
+  ["VIEW_COMMISSION", "/team/commission"],
+  ["EXPENSE_VIEW", "/expenses"],
+  ["ACCOUNTS_PAYABLE_VIEW", "/inventory/accounts-payable"],
+  ["SUPPLIER_BILLS_VIEW", "/inventory/supplier-bills"],
 ];
 
 export function getStaffHomePath(
@@ -376,6 +581,9 @@ export function getStaffHomePath(
 }
 
 export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY" | null {
+  if (pathname === "/ai" || pathname.startsWith("/ai/")) {
+    return "AI_ANALYSIS_VIEW";
+  }
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
     return "DASHBOARD";
   }
@@ -442,8 +650,28 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
   ) {
     return "ATTENDANCE_SETTINGS_READ";
   }
+  if (pathname === "/team/roster" || pathname.startsWith("/team/roster/")) {
+    return "ROSTER_VIEW";
+  }
+  if (pathname === "/team/approvals" || pathname.startsWith("/team/approvals/")) {
+    // The page requires HR plus at least one actionable domain capability.
+    // No single legacy staff permission represents this aggregated route.
+    return null;
+  }
   if (pathname === "/team/claims" || pathname.startsWith("/team/claims/")) {
     return "VIEW_CLAIM";
+  }
+  if (pathname === "/team/commission" || pathname.startsWith("/team/commission/")) {
+    return "VIEW_COMMISSION";
+  }
+  if (pathname === "/expenses" || pathname.startsWith("/expenses/")) {
+    return "EXPENSE_VIEW";
+  }
+  if (pathname === "/inventory/accounts-payable" || pathname.startsWith("/inventory/accounts-payable/")) {
+    return "ACCOUNTS_PAYABLE_VIEW";
+  }
+  if (pathname === "/inventory/supplier-bills" || pathname.startsWith("/inventory/supplier-bills/")) {
+    return "SUPPLIER_BILLS_VIEW";
   }
   // These read-only payroll surfaces render their own capability-aware denied
   // state before any payroll query. Let authenticated users reach that boundary

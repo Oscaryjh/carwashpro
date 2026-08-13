@@ -312,7 +312,9 @@ export function CashierUnifiedSaleForm({
   const hasServices = lines.some((line) => line.type === "service");
   const requiresCustomer = hasPackages || hasServices;
   const totalItems = lines.reduce((sum, line) => sum + line.quantity, 0);
-  const hasStockError = lines.some((line) => line.type === "product" && line.quantity > (line.stock ?? 0));
+  const hasStockError = lines.some((line) =>
+    line.type === "product" && line.stock !== undefined && line.quantity > line.stock,
+  );
   const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
   const selectedCatalogDiscount = catalogDiscounts.find((discount) => discount.id === catalogDiscountId) ?? null;
   const catalogDiscountAmount = selectedCatalogDiscount
@@ -560,11 +562,11 @@ export function CashierUnifiedSaleForm({
   }
 
   function addItem(item: CashierCatalogItem) {
-    if (item.type === "product" && (item.stock ?? 0) < 1) return;
+    if (item.type === "product" && item.stock !== undefined && item.stock < 1) return;
     setLines((current) => {
       const existing = current.find((line) => line.type === item.type && line.id === item.id);
       if (!existing) return [...current, { ...item, quantity: 1 }];
-      const maximum = item.type === "product" ? item.stock ?? 0 : 99;
+      const maximum = item.type === "product" && item.stock !== undefined ? item.stock : 99;
       return current.map((line) =>
         line.type === item.type && line.id === item.id
           ? { ...line, quantity: Math.min(maximum || 1, line.quantity + 1) }
@@ -578,7 +580,7 @@ export function CashierUnifiedSaleForm({
       const selected = current[index];
       if (!selected) return current;
       if (requested < 1) return current.filter((_, lineIndex) => lineIndex !== index);
-      const maximum = selected.type === "product" ? selected.stock ?? 0 : 99;
+      const maximum = selected.type === "product" && selected.stock !== undefined ? selected.stock : 99;
       return current.map((line, lineIndex) =>
         lineIndex === index
           ? { ...line, quantity: Math.max(1, Math.min(maximum || 1, requested)) }
@@ -708,7 +710,7 @@ export function CashierUnifiedSaleForm({
         <div aria-busy={catalogLoading} className={styles.catalogGrid}>
           {visibleItems.map((item) => {
             const selected = lines.find((line) => line.type === item.type && line.id === item.id);
-            const outOfStock = item.type === "product" && (item.stock ?? 0) < 1;
+            const outOfStock = item.type === "product" && item.stock !== undefined && item.stock < 1;
             return (
               <button
                 className={`${styles.itemTile} ${selected ? styles.itemTileAdded : ""}`}
@@ -819,18 +821,22 @@ export function CashierUnifiedSaleForm({
           />
         </div>
 
-        {hasServices && !appointmentSale ? (
+        {lines.length > 0 && !appointmentSale ? (
           <label className={`${styles.staffArea} ${!assignedStaffId ? styles.staffRequired : ""}`}>
             <span>
-              <strong>Service staff</strong>
-              <small>Used for commission and service reporting.</small>
+              <strong>{hasServices ? "Service & sales staff" : "Salesperson (optional)"}</strong>
+              <small>
+                {hasServices
+                  ? "Required for service reporting and explicit line commission attribution."
+                  : "Select only when this product or package sale has an explicit commission recipient."}
+              </small>
             </span>
             <select
               onChange={(event) => setAssignedStaffId(event.target.value)}
-              required
+              required={hasServices}
               value={assignedStaffId}
             >
-              <option value="">Select staff</option>
+              <option value="">{hasServices ? "Select staff" : "No salesperson"}</option>
               {staffOptions.map((staff) => (
                 <option key={staff.id} value={staff.id}>
                   {staff.name}
@@ -844,7 +850,7 @@ export function CashierUnifiedSaleForm({
           {lines.map((line, index) => {
             const name = line.name;
             const lineTotal = line.price * line.quantity;
-            const maximumQuantity = line.type === "product" ? line.stock ?? 0 : 99;
+            const maximumQuantity = line.type === "product" && line.stock !== undefined ? line.stock : 99;
             const removesLine = line.quantity === 1;
             const reachedMaximum = line.quantity >= Math.max(1, maximumQuantity);
             return (

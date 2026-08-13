@@ -52,7 +52,7 @@ test("Claims self-service identity can authenticate without enabling Attendance"
   const authenticated = await verifyEmployeeOtp(
     {
       challengeId: requested.challengeId,
-      otp: "123456",
+      otp: provider.sent[0]!.otp,
       deviceIdentifier,
     },
     { database: prisma, config, requireAttendance: false },

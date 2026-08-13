@@ -14,6 +14,10 @@ export default async function NewStaffPage() {
   }
 
   const branches = await getActiveBranches(businessId);
+  const hrEnabled = moduleContext.enabledModules.has("HR");
+  const canEditCompensation =
+    moduleContext.enabledModules.has("PAYROLL") &&
+    hasBusinessCapability(access, "EDIT_COMPENSATION");
 
   return (
     <>
@@ -39,13 +43,14 @@ export default async function NewStaffPage() {
           </div>
           <StaffForm
             action={createStaffAction}
-            allowHrFields={moduleContext.enabledModules.has("HR")}
-            allowPayrollFields={moduleContext.enabledModules.has("PAYROLL")}
+            allowHrFields={hrEnabled}
+            allowPayrollFields={canEditCompensation}
             branches={branches}
             canManagePermissions={hasBusinessCapability(
               access,
               "MANAGE_TEAM_PERMISSIONS",
             )}
+            enabledModules={[...moduleContext.enabledModules]}
             industryType={industryType}
             submitLabel="Create staff"
           />

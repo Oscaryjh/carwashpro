@@ -6,6 +6,8 @@ import {
   createStatutoryCorrectionRevision,
   downloadOrCreateStatutoryArtifact,
 } from "../../src/lib/payroll/statutory-artifact";
+import { statutoryExportStepUpResourceId } from "../../src/lib/payroll/high-risk-mfa";
+import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 
 test("immutable statutory artifact rejects database update and delete", async () => {
   const suffix = randomUUID();
@@ -165,6 +167,8 @@ test("immutable statutory artifact rejects database update and delete", async ()
       month: "2040-01",
       provider: "PERKESO",
       request: {},
+      stepUp: { rawToken: "precondition-only", sessionId: randomUUID() },
+      stepUpResourceId: statutoryExportStepUpResourceId("2040-01", "PERKESO"),
     }),
     /legacy submission did not retain exact export bytes and cannot be regenerated/i,
   );
@@ -191,6 +195,14 @@ test("subsequent statutory downloads return exact retained bytes without current
       data: {
         name: `Artifact Download ${suffix}`,
         slug: `artifact-download-${suffix}`,
+      },
+    });
+    const owner = await prisma.user.create({
+      data: {
+        businessId: business.id,
+        email: `artifact-${suffix}@test.local`,
+        name: "Artifact Export Owner",
+        role: "BUSINESS_OWNER",
       },
     });
     const employeeAccount = await prisma.employeeAccount.create({
@@ -255,20 +267,36 @@ test("subsequent statutory downloads return exact retained bytes without current
       data: { finalizedAt: now, status: "FINALIZED", submittedAt: now },
     });
 
+    const resourceId = statutoryExportStepUpResourceId("2041-02", "EPF");
+    const firstAuthorization = await issueTestHighRiskStepUp(prisma, {
+      actionKey: "STATUTORY_EXPORT",
+      businessId: business.id,
+      resourceId,
+      userId: owner.id,
+    });
     const downloadInput = {
-      actor: null,
+      actor: { email: owner.email!, name: owner.name, userId: owner.id },
       allowCreate: true,
       businessId: business.id,
       month: "2041-02",
       provider: "EPF",
       request: { ipAddress: "127.0.0.1", userAgent: "integration-test" },
+      stepUp: firstAuthorization.stepUp,
+      stepUpResourceId: resourceId,
     } as const;
-    const [first, concurrent] = await Promise.all([
+    const concurrentResults = await Promise.allSettled([
       downloadOrCreateStatutoryArtifact(downloadInput),
       downloadOrCreateStatutoryArtifact(downloadInput),
     ]);
-    assert.equal(concurrent.artifactId, first.artifactId);
-    assert.deepEqual(concurrent.body, first.body);
+    assert.equal(
+      concurrentResults.filter((result) => result.status === "fulfilled").length,
+      1,
+    );
+    const fulfilled = concurrentResults.find(
+      (result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof downloadOrCreateStatutoryArtifact>>> => result.status === "fulfilled",
+    );
+    assert.ok(fulfilled);
+    const first = fulfilled.value;
     assert.match(first.body.toString(), /Original Employee Name/);
     assert.match(first.body.toString(), /12345678/);
 
@@ -290,7 +318,16 @@ test("subsequent statutory downloads return exact retained bytes without current
       data: { epfEmployerNumber: null },
     });
 
-    const second = await downloadOrCreateStatutoryArtifact(downloadInput);
+    const secondAuthorization = await issueTestHighRiskStepUp(prisma, {
+      actionKey: "STATUTORY_EXPORT",
+      businessId: business.id,
+      resourceId,
+      userId: owner.id,
+    });
+    const second = await downloadOrCreateStatutoryArtifact({
+      ...downloadInput,
+      stepUp: secondAuthorization.stepUp,
+    });
     assert.equal(second.artifactId, first.artifactId);
     assert.deepEqual(second.body, first.body);
     assert.equal(second.checksumSha256, first.checksumSha256);
@@ -308,7 +345,7 @@ test("subsequent statutory downloads return exact retained bytes without current
           action: "PAYROLL_OFFICIAL_STATUTORY_ARTIFACT_DOWNLOADED",
         },
       }),
-      3,
+      2,
     );
   } finally {
     restoreEnvironment("STATUTORY_ARTIFACT_ACTIVE_KEY_VERSION", previousVersion);

@@ -121,11 +121,11 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
 
       {deviceVerified ? (
         <button className="staff-primary-button" onClick={() => router.replace("/staff")} type="button">
-          Continue to Today
+          Continue to Home
         </button>
       ) : null}
       <button className="staff-danger-button" disabled={busy} onClick={logout} type="button">
-        {busy ? "Signing out…" : "Sign out of Attendance"}
+        {busy ? "Signing out…" : "Sign out of Staff App"}
       </button>
     </div>
   );

@@ -10,6 +10,9 @@ export type EmployeeAuthErrorCode =
   | "INVALID_REQUEST"
   | "RATE_LIMITED"
   | "OTP_INVALID"
+  | "OTP_EXPIRED"
+  | "OTP_LOCKED"
+  | "OTP_PROVIDER_UNAVAILABLE"
   | "MEMBERSHIP_SELECTION_REQUIRED"
   | "MEMBERSHIP_NOT_AVAILABLE"
   | "CONFIGURATION_ERROR";
@@ -32,6 +35,9 @@ const DEFAULT_STATUS: Record<EmployeeAuthErrorCode, number> = {
   INVALID_REQUEST: 400,
   RATE_LIMITED: 429,
   OTP_INVALID: 400,
+  OTP_EXPIRED: 400,
+  OTP_LOCKED: 429,
+  OTP_PROVIDER_UNAVAILABLE: 503,
   MEMBERSHIP_SELECTION_REQUIRED: 409,
   MEMBERSHIP_NOT_AVAILABLE: 403,
   CONFIGURATION_ERROR: 503,
@@ -49,6 +55,9 @@ const DEFAULT_PUBLIC_MESSAGE: Record<EmployeeAuthErrorCode, string> = {
   INVALID_REQUEST: "Invalid request.",
   RATE_LIMITED: "Please wait before trying again.",
   OTP_INVALID: "The verification code is invalid or expired.",
+  OTP_EXPIRED: "The verification code has expired. Request a new code.",
+  OTP_LOCKED: "Too many verification attempts. Request a new code.",
+  OTP_PROVIDER_UNAVAILABLE: "Verification service is temporarily unavailable.",
   MEMBERSHIP_SELECTION_REQUIRED: "Select a workplace to continue.",
   MEMBERSHIP_NOT_AVAILABLE: "The selected workplace is not available.",
   CONFIGURATION_ERROR: "Employee authentication is temporarily unavailable.",

@@ -7,6 +7,7 @@ import {
   publishPayrollPayslips,
 } from "../../src/lib/payroll/payslip-publication";
 import { reopenPayrollRun } from "../../src/lib/payroll/service";
+import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 
 const prisma = new PrismaClient();
 
@@ -52,6 +53,12 @@ test("P4D publishes immutable snapshot bytes and enforces own-only self service"
     publicationId: publication.id,
   }), null);
 
+  const reopenStepUp = await issueTestHighRiskStepUp(prisma, {
+    actionKey: "PAYROLL_REOPEN",
+    businessId: fixture.business.id,
+    resourceId: fixture.run.id,
+    userId: fixture.owner.id,
+  });
   await assert.rejects(
     prisma.payrollPayslipPublication.update({
       where: { id: publication.id },
@@ -65,6 +72,7 @@ test("P4D publishes immutable snapshot bytes and enforces own-only self service"
       runId: fixture.run.id,
       actor: actor(fixture.owner),
       reason: "Published snapshot must remain immutable.",
+      stepUp: reopenStepUp.stepUp,
     }),
     /published payslips cannot be reopened/i,
   );

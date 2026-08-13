@@ -23,6 +23,7 @@ import {
   createBusinessSchema,
 } from "@/lib/validation/business";
 import { branchSchema } from "@/lib/validation/branches";
+import { assertCommercialBranchCapacity, CommercialError } from "@/lib/commercial/service";
 
 const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 const LOGO_EXTENSIONS = new Map([
@@ -322,7 +323,9 @@ export async function createAdminBusinessBranchAction(formData: FormData) {
     throw new Error("Branch name already exists in this business.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await assertCommercialBranchCapacity(businessId, tx);
     const branch = await tx.branch.create({
       data: {
         businessId,
@@ -332,6 +335,22 @@ export async function createAdminBusinessBranchAction(formData: FormData) {
         status: "ACTIVE",
       },
     });
+    const trackedProducts = await tx.product.findMany({
+      where: { businessId, trackInventory: true },
+      select: { id: true },
+    });
+    if (trackedProducts.length) {
+      await tx.productStock.createMany({
+        data: trackedProducts.map((product) => ({
+          branchId: branch.id,
+          businessId,
+          productId: product.id,
+          quantity: 0,
+          reorderLevel: 0,
+        })),
+        skipDuplicates: true,
+      });
+    }
 
     await writeAuditLog(
       {
@@ -347,7 +366,13 @@ export async function createAdminBusinessBranchAction(formData: FormData) {
       },
       tx,
     );
-  });
+    });
+  } catch (error) {
+    if (error instanceof CommercialError && error.code === "COMMERCIAL_BRANCH_LIMIT_REACHED") {
+      redirect(`/admin/businesses/${businessId}/branches/new?type=error&message=${encodeURIComponent("Branch limit reached. Add an allowance override before creating another active branch.")}`);
+    }
+    throw error;
+  }
 
   revalidatePath(`/admin/businesses/${businessId}`);
   revalidatePath("/branches");

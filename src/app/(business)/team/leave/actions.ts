@@ -130,6 +130,7 @@ export async function updateLeaveBalanceAction(formData: FormData) {
 
 function revalidateLeavePaths() {
   revalidatePath("/team");
+  revalidatePath("/team/approvals");
   revalidatePath("/team/leave");
   revalidatePath("/staff/leave");
   revalidatePath("/team/attendance");

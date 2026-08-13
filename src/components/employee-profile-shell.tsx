@@ -22,12 +22,14 @@ export function EmployeeProfileShell({
   activeSection,
   authorized,
   person,
+  profileLabel,
   sectionContent,
   visibleTabs,
 }: {
   activeSection: EmployeeProfileSection;
   authorized: boolean;
   person: EmployeeProfileShellPerson;
+  profileLabel: "People" | "People & HR";
   sectionContent?: ReactNode;
   visibleTabs: readonly VisibleTab[];
 }) {
@@ -43,10 +45,13 @@ export function EmployeeProfileShell({
             {getInitials(person.fullName)}
           </span>
           <div>
-            <p className={styles.eyebrow}>HR &amp; Payroll / Employee Profile</p>
+            <p className={styles.eyebrow}>{profileLabel} / Team Member Profile</p>
             <h1>{person.fullName}</h1>
             <div className={styles.meta}>
-              <span>{person.employeeCode ?? "Employment not linked"}</span>
+              <span>
+                {person.employeeCode ??
+                  (profileLabel === "People" ? "Core staff" : "Employment not linked")}
+              </span>
               {person.employmentType ? (
                 <span>{formatEnum(person.employmentType)}</span>
               ) : null}
@@ -83,6 +88,8 @@ export function EmployeeProfileShell({
           description="This employee exists inside your authorized business scope, but this section requires an additional capability."
           tone="denied"
         />
+      ) : sectionContent ? (
+        sectionContent
       ) : !person.linked ? (
         <ProfileState
           eyebrow="Profile incomplete"
@@ -90,8 +97,6 @@ export function EmployeeProfileShell({
           description="This team member can remain in People, but an Employee membership must be linked before profile sections can show employment data."
           tone="empty"
         />
-      ) : sectionContent ? (
-        sectionContent
       ) : (
         <ProfileState
           eyebrow={activeTab?.label ?? "Employee profile"}

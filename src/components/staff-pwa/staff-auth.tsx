@@ -46,7 +46,7 @@ type OtpVerifyResponse =
       memberships: EmployeeMembershipChoice[];
     };
 
-export function StaffLoginForm({ initialMessage = "" }: { initialMessage?: string }) {
+export function StaffLoginForm({ initialMessage = "", testingMode = false }: { initialMessage?: string; testingMode?: boolean }) {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState("");
   const [message, setMessage] = useState(initialMessage);
@@ -110,8 +110,8 @@ export function StaffLoginForm({ initialMessage = "" }: { initialMessage?: strin
             </svg>
           </span>
           <p className="staff-kicker">TETAMU STAFF</p>
-          <h2>Attendance made simple.</h2>
-          <p>Secure, accurate time records for every workday.</p>
+          <h2>Work made simple.</h2>
+          <p>Attendance, requests, commission and payslips in one secure place.</p>
         </div>
         <ul className="staff-login-features">
           <li>
@@ -136,7 +136,7 @@ export function StaffLoginForm({ initialMessage = "" }: { initialMessage?: strin
             </svg>
           </span>
           <p className="staff-kicker">EMPLOYEE ACCESS</p>
-          <h1>Sign in to Attendance</h1>
+          <h1>Sign in to Staff App</h1>
           <p>Enter the mobile number registered by your HR administrator.</p>
         </div>
         <form className="staff-form-stack" onSubmit={submit}>
@@ -168,6 +168,11 @@ export function StaffLoginForm({ initialMessage = "" }: { initialMessage?: strin
           <span aria-hidden="true">✓</span>
           No self-registration. Contact your manager if your employee access is not enabled.
         </p>
+        {testingMode ? (
+          <p className="staff-alert warning" role="note">
+            Local / Testing mock OTP is enabled. It is not a Production OTP provider.
+          </p>
+        ) : null}
       </div>
     </section>
   );
@@ -460,7 +465,16 @@ function publicAuthMessage(error: unknown) {
       return "Your employee profile is not enabled. Please contact your administrator.";
     }
     if (error.code === "OTP_INVALID") {
-      return "The verification code is invalid or expired.";
+      return "The verification code is invalid.";
+    }
+    if (error.code === "OTP_EXPIRED") {
+      return "This verification code has expired. Request a new code.";
+    }
+    if (error.code === "OTP_LOCKED") {
+      return "Too many invalid attempts. Request a new verification code.";
+    }
+    if (error.code === "OTP_PROVIDER_UNAVAILABLE") {
+      return "Verification service is temporarily unavailable. Please try again later.";
     }
     if (error.code === "RATE_LIMITED") {
       return "Too many attempts. Please wait before trying again.";

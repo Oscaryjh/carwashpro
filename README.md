@@ -73,7 +73,7 @@ npm.cmd install
 
 ```env
 SEED_ADMIN_EMAIL="admin@example.com"
-SEED_ADMIN_PASSWORD="ChangeMe123!"
+SEED_ADMIN_PASSWORD="LOCAL_ONLY_CHANGE_ME"
 ```
 
 登录后进入 `/admin/businesses`，可以创建洗车店和第一位 Business Owner。

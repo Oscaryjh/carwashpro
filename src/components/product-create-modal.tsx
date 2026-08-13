@@ -7,9 +7,10 @@ type ProductCreateModalProps = {
   action: (formData: FormData) => Promise<void>;
   branches: BranchOption[];
   categories: Pick<ProductCategory, "id" | "name" | "status">[];
+  inventoryEnabled: boolean;
 };
 
-export function ProductCreateModal({ action, branches, categories }: ProductCreateModalProps) {
+export function ProductCreateModal({ action, branches, categories, inventoryEnabled }: ProductCreateModalProps) {
   return (
     <CatalogFormModal
       ariaLabel="New product"
@@ -21,6 +22,7 @@ export function ProductCreateModal({ action, branches, categories }: ProductCrea
         action={action}
         branches={branches}
         categories={categories}
+        inventoryEnabled={inventoryEnabled}
         returnPath="/products"
         submitLabel="Create product"
       />

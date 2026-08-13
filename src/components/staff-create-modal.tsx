@@ -1,5 +1,6 @@
 import { CatalogFormModal } from "@/components/catalog-form-modal";
 import { StaffForm, type StaffFormStaff } from "@/components/staff-form";
+import type { ModuleKey } from "@/lib/modules/registry";
 
 type StaffBranch = {
   id: string;
@@ -12,6 +13,7 @@ type StaffCreateModalProps = {
   allowPayrollFields: boolean;
   branches: StaffBranch[];
   canManagePermissions: boolean;
+  enabledModules: readonly ModuleKey[];
   industryType?: string;
   roleProfiles: Array<{ id: string; name: string }>;
   services: Array<{ id: string; name: string }>;
@@ -24,6 +26,7 @@ export function StaffCreateModal({
   allowPayrollFields,
   branches,
   canManagePermissions,
+  enabledModules,
   industryType,
   roleProfiles,
   services,
@@ -50,6 +53,7 @@ export function StaffCreateModal({
           allowPayrollFields={allowPayrollFields}
           branches={branches}
           canManagePermissions={canManagePermissions}
+          enabledModules={enabledModules}
           industryType={industryType}
           roleProfiles={roleProfiles}
           services={services}
@@ -84,6 +88,7 @@ export function StaffEditModal({
   assignedBranchIds,
   branches,
   canManagePermissions,
+  enabledModules,
   employeeProfile,
   industryType,
   roleProfiles,
@@ -141,6 +146,7 @@ export function StaffEditModal({
           assignedBranchIds={assignedBranchIds}
           branches={branches}
           canManagePermissions={canManagePermissions}
+          enabledModules={enabledModules}
           employeeProfile={employeeProfile}
           industryType={industryType}
           roleProfiles={roleProfiles}

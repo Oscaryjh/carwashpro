@@ -34,6 +34,10 @@ import {
   assertPayrollReadinessCanProceed,
   getPayrollPeriodReadiness,
 } from "@/lib/payroll/readiness";
+import {
+  consumePayrollHighRiskAuthorization,
+  type PayrollHighRiskStepUp,
+} from "@/lib/payroll/high-risk-mfa";
 import { prisma } from "@/lib/prisma";
 
 export { parsePayrollMonth } from "@/lib/payroll/period";
@@ -196,7 +200,11 @@ export async function generatePayrollRun(
         effectiveFrom: { lte: period.start },
         OR: [{ effectiveTo: null }, { effectiveTo: { gt: period.start } }],
       },
-      include: { classifications: true },
+      include: {
+        classifications: {
+          include: { reviewDecisions: { orderBy: { decisionRevision: "asc" } } },
+        },
+      },
       orderBy: [{ scheme: "asc" }, { effectiveFrom: "desc" }],
     });
     const lindung24Participation = await transaction.employeeLindung24ParticipationVersion.findMany({
@@ -756,6 +764,7 @@ export async function finalizePayrollRun(
     runId: string;
     allowSelfApprovalOverride?: boolean;
     overrideReason?: string;
+    stepUp: PayrollHighRiskStepUp;
   },
   database: PrismaClient = prisma,
 ) {
@@ -789,6 +798,16 @@ export async function finalizePayrollRun(
       transaction,
     );
     assertPayrollReadinessCanProceed(readiness);
+    const stepUpAudit = await consumePayrollHighRiskAuthorization(
+      {
+        actionKey: "PAYROLL_FINALIZE",
+        businessId: context.businessId,
+        resourceId: run.id,
+        stepUp: context.stepUp,
+        userId: context.actor.userId,
+      },
+      transaction,
+    );
     const finalized = await transaction.payrollRun.update({
       where: { id: run.id },
       data: {
@@ -809,8 +828,12 @@ export async function finalizePayrollRun(
         entityId: run.id,
         summary: `Payroll run finalized with ${run._count.entries} entries.`,
         metadata: selfApproval
-          ? { ownerOverride: true, reason: context.overrideReason }
-          : { ownerOverride: false },
+          ? {
+              ownerOverride: true,
+              reason: context.overrideReason,
+              ...stepUpAudit,
+            }
+          : { ownerOverride: false, ...stepUpAudit },
       },
       transaction,
     );
@@ -819,7 +842,11 @@ export async function finalizePayrollRun(
 }
 
 export async function reopenPayrollRun(
-  context: PayrollContext & { runId: string; reason: string },
+  context: PayrollContext & {
+    runId: string;
+    reason: string;
+    stepUp: PayrollHighRiskStepUp;
+  },
   database: PrismaClient = prisma,
 ) {
   const result = await database.$transaction(async (transaction) => {
@@ -864,6 +891,16 @@ export async function reopenPayrollRun(
     if (publishedPayslipCount > 0) {
       return { blocked: true as const, blockReason: "PUBLISHED_PAYSLIP" as const, run };
     }
+    const stepUpAudit = await consumePayrollHighRiskAuthorization(
+      {
+        actionKey: "PAYROLL_REOPEN",
+        businessId: context.businessId,
+        resourceId: run.id,
+        stepUp: context.stepUp,
+        userId: context.actor.userId,
+      },
+      transaction,
+    );
     await transaction.$executeRaw`
       SELECT set_config('tetamu.payroll_reopen', ${run.id}, TRUE)
     `;
@@ -886,7 +923,7 @@ export async function reopenPayrollRun(
         entityType: "PayrollRun",
         entityId: run.id,
         summary: "Finalized payroll run reopened as a draft.",
-        metadata: { reason: context.reason },
+        metadata: { reason: context.reason, ...stepUpAudit },
       },
       transaction,
     );

@@ -2,8 +2,8 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import type { EmployeeAuthConfig } from "./config";
 
 type OtpRateLimitDatabase =
-  | Pick<PrismaClient, "employeeOtpChallenge">
-  | Pick<Prisma.TransactionClient, "employeeOtpChallenge">;
+  | Pick<PrismaClient, "employeeOtpChallenge" | "authSecurityEvent">
+  | Pick<Prisma.TransactionClient, "employeeOtpChallenge" | "authSecurityEvent">;
 
 export type EmployeeOtpRateLimitInput = Readonly<{
   phoneNumberNormalized: string | null;
@@ -24,6 +24,11 @@ export type EmployeeOtpRateLimitResult = Readonly<{
     | "RESEND_COOLDOWN"
     | "PROVIDER"
   )[];
+  cooldownChallenge: Readonly<{
+    id: string;
+    expiresAt: Date;
+    resendAvailableAt: Date;
+  }> | null;
 }>;
 
 export async function checkEmployeeOtpRateLimit(
@@ -73,7 +78,7 @@ export async function checkEmployeeOtpRateLimit(
             phoneNumberNormalized: input.phoneNumberNormalized,
           },
           orderBy: { createdAt: "desc" },
-          select: { resendAvailableAt: true },
+          select: { id: true, expiresAt: true, resendAvailableAt: true },
         })
       : Promise.resolve(null),
   ]);
@@ -110,7 +115,71 @@ export async function checkEmployeeOtpRateLimit(
     requestAllowed: !reasons.some((reason) => reason !== "PROVIDER"),
     providerAllowed,
     reasons,
+    cooldownChallenge:
+      latestPhoneChallenge &&
+      latestPhoneChallenge.resendAvailableAt.getTime() > input.now.getTime()
+        ? latestPhoneChallenge
+        : null,
   };
+}
+
+export async function checkEmployeeOtpVerifyRateLimit(
+  input: {
+    phoneIdentifierHash: string;
+    ipAddressHash: string | null;
+    now: Date;
+  },
+  config: EmployeeAuthConfig,
+  database: OtpRateLimitDatabase,
+) {
+  const hourAgo = new Date(input.now.getTime() - 60 * 60 * 1_000);
+  const [phoneAttempts, ipAttempts] = await Promise.all([
+    database.authSecurityEvent.count({
+      where: {
+        surface: "EMPLOYEE_OTP_VERIFY",
+        identifierHash: input.phoneIdentifierHash,
+        createdAt: { gte: hourAgo },
+      },
+    }),
+    input.ipAddressHash
+      ? database.authSecurityEvent.count({
+          where: {
+            surface: "EMPLOYEE_OTP_VERIFY",
+            ipAddressHash: input.ipAddressHash,
+            createdAt: { gte: hourAgo },
+          },
+        })
+      : Promise.resolve(0),
+  ]);
+
+  return {
+    allowed:
+      phoneAttempts < config.otp.verifyPhoneAttemptsPerHour &&
+      ipAttempts < config.otp.verifyIpAttemptsPerHour,
+    phoneAttempts,
+    ipAttempts,
+  } as const;
+}
+
+export async function acquireEmployeeOtpVerifyRateLimitLocks(
+  input: {
+    phoneIdentifierHash: string;
+    ipAddressHash: string | null;
+  },
+  transaction: Pick<Prisma.TransactionClient, "$queryRaw">,
+) {
+  const keys = [
+    `employee-otp-verify:phone:${input.phoneIdentifierHash}`,
+    ...(input.ipAddressHash
+      ? [`employee-otp-verify:ip:${input.ipAddressHash}`]
+      : []),
+  ].sort();
+
+  for (const key of keys) {
+    await transaction.$queryRaw<Array<{ acquired: string }>>(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text AS acquired`,
+    );
+  }
 }
 
 export async function acquireEmployeeOtpRateLimitLocks(

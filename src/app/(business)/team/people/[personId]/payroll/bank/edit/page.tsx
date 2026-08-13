@@ -9,6 +9,7 @@ import { salaryBankOptions } from "@/lib/payroll/payment/bank-directory";
 import { prisma } from "@/lib/prisma";
 import { loadEmployeeBankSection } from "@/lib/team/employee-profile-bank-read";
 import styles from "@/components/employee-profile-shell.module.css";
+import { PayrollHighRiskMfaFields } from "@/components/payroll-high-risk-mfa-fields";
 
 export default async function EmployeeBankEditPage({
   params,
@@ -175,6 +176,7 @@ export default async function EmployeeBankEditPage({
                 instruction, Payroll Run, payslip, or prior bank version.
               </span>
             </div>
+            <PayrollHighRiskMfaFields actionLabel="Save this employee bank-account change" />
             <button type="submit">
               {replacing ? "Save replacement bank account" : "Save salary bank account"}
             </button>

@@ -323,13 +323,26 @@ export async function destroySession(options: { reason?: string } = {}) {
 export async function revokeUserSessions(
   userId: string,
   reason: string,
-  database: Pick<Prisma.TransactionClient, "authSession"> | PrismaClient = prisma,
+  database: Pick<
+    Prisma.TransactionClient,
+    "authSession" | "sensitiveActionAuthorization"
+  > | PrismaClient = prisma,
   now = new Date(),
 ) {
-  return database.authSession.updateMany({
-    where: { userId, revokedAt: null },
-    data: { revokedAt: now, revokeReason: reason.slice(0, 500) },
-  });
+  const [sessions] = await Promise.all([
+    database.authSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: now, revokeReason: reason.slice(0, 500) },
+    }),
+    database.sensitiveActionAuthorization.updateMany({
+      where: { userId, consumedAt: null, revokedAt: null },
+      data: {
+        revokedAt: now,
+        revokeReason: "USER_SESSIONS_REVOKED",
+      },
+    }),
+  ]);
+  return sessions;
 }
 
 export function isStoredSessionUsable(

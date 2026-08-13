@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { deactivateProductAction, updateProductAction } from "../actions";
 
 export default async function ProductDetailsPage({ params }: { params: Promise<{ productId: string }> }) {
-  const { user, businessId } = await requireBusinessUserForModule("POS");
+  const { user, businessId, moduleContext } = await requireBusinessUserForModule("POS");
   assertStaffPermission(user, "PRODUCTS");
   const { productId } = await params;
   const [product, branches, categories] = await Promise.all([
@@ -28,8 +28,8 @@ export default async function ProductDetailsPage({ params }: { params: Promise<{
   return (
     <>
       <section className="content">
-        <div className="page-header"><div><h1>{product.name}</h1><p>Edit product details and branch stock.</p></div><BackButton fallbackHref="/products" /></div>
-        <div className="panel"><div className="section-header"><h2>Edit product</h2><span className={`status ${product.status.toLowerCase()}`}>{product.status}</span></div><ProductForm action={updateProductAction} branches={branches} categories={categories} product={productForForm} submitLabel="Save product" /><div className="form-actions service-action-row"><form action={deactivateProductAction}><input name="productId" type="hidden" value={product.id} /><button className="danger-button" type="submit">Deactivate product</button></form><DeleteProductForm productId={product.id} productName={product.name} label="Delete product" /></div></div>
+        <div className="page-header"><div><h1>{product.name}</h1><p>Edit product details and inventory tracking.</p></div><BackButton fallbackHref="/products" /></div>
+        <div className="panel"><div className="section-header"><h2>Edit product</h2><span className={`status ${product.status.toLowerCase()}`}>{product.status}</span></div><ProductForm action={updateProductAction} branches={branches} categories={categories} inventoryEnabled={moduleContext.enabledModules.has("INVENTORY")} product={productForForm} submitLabel="Save product" /><div className="form-actions service-action-row"><form action={deactivateProductAction}><input name="productId" type="hidden" value={product.id} /><button className="danger-button" type="submit">Deactivate product</button></form><DeleteProductForm productId={product.id} productName={product.name} label="Delete product" /></div></div>
       </section>
     </>
   );

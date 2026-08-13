@@ -35,7 +35,7 @@ test("Personal uses the existing People tenant and branch scope", async () => {
   assert.match(serialized, /effectiveUntil/);
 });
 
-test("Personal query selects only the four approved data sources", async () => {
+test("Personal query selects only the People Core contact data sources", async () => {
   let select: unknown = null;
   const database = {
     employeeBusinessMembership: {
@@ -52,7 +52,6 @@ test("Personal query selects only the four approved data sources", async () => {
     id: true,
     fullName: true,
     phoneNumber: true,
-    dateOfBirth: true,
     staffUser: {
       select: {
         id: true,
@@ -118,6 +117,8 @@ test("Personal remains read-only as later read-only sections are added", async (
   assert.match(route, /activeSection === "attendance"/);
   assert.match(route, /activeSection === "leave"/);
   assert.doesNotMatch(component, /<form|<input|<button|action=/);
-  assert.match(component, /Not available in this phase/);
-  assert.match(component, /Not stored in the current employee record/);
+  assert.match(component, /Full name/);
+  assert.match(component, /Phone number/);
+  assert.match(component, /Linked POS email/);
+  assert.doesNotMatch(component, /dateOfBirth|Date of birth/);
 });

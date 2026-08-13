@@ -37,6 +37,7 @@ export async function POST(request: Request) {
   try {
     assertEmployeeAuthSameOrigin(request);
     const auth = await requireEmployeePunchAuthContext(request);
+    await requireEmployeeBusinessModule(auth, "HR");
     const input = await readEmployeeAuthJson(
       request,
       employeeResolutionSubmissionSchema,
@@ -52,6 +53,7 @@ export async function DELETE(request: Request) {
   try {
     assertEmployeeAuthSameOrigin(request);
     const auth = await requireEmployeePunchAuthContext(request);
+    await requireEmployeeBusinessModule(auth, "HR");
     const input = await readEmployeeAuthJson(
       request,
       employeeResolutionCancellationSchema,
