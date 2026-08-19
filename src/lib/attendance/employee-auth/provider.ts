@@ -92,6 +92,16 @@ export class MockEmployeeOtpProvider implements EmployeeOtpProvider {
 
   async checkVerification(input: CheckEmployeeVerificationInput) {
     const stored = mockVerificationStore.get(input.providerReference);
+    if (!stored && this.config.otp.mockCode) {
+      const expectedReference = `mock:${input.challengeId}`;
+      return {
+        status:
+          safeEqual(input.providerReference, expectedReference) &&
+          safeEqual(input.code, this.config.otp.mockCode)
+            ? ("APPROVED" as const)
+            : ("REJECTED" as const),
+      };
+    }
     if (!stored || stored.expiresAt.getTime() <= Date.now()) {
       mockVerificationStore.delete(input.providerReference);
       return { status: "EXPIRED" as const };

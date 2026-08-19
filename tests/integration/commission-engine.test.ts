@@ -68,6 +68,52 @@ test("commission lifecycle is tenant-scoped, immutable, approved-only and Payrol
   assert.equal(Number(payroll.amount), 9);
   assert.equal(await prisma.payrollVariablePay.count({ where: { sourceReference: payroll.sourceReference } }), 1);
 
+  const trainingInvoice = await prisma.invoice.create({
+    data: {
+      businessId: business.id,
+      branchId: branch.id,
+      invoiceNumber: `COM-TRAINING-${token}`,
+      checkoutType: "TRAINING_COMPLIMENTARY",
+      checkoutReason: "Supervised therapist training acceptance.",
+      subtotal: 100,
+      discountAmount: 100,
+      discountReason: "Training / Complimentary: Supervised therapist training acceptance.",
+      total: 0,
+      paidAmount: 0,
+      balance: 0,
+      status: "PAID",
+      issuedAt: new Date("2026-06-10T05:00:00.000Z"),
+      items: {
+        create: {
+          businessId: business.id,
+          serviceId: service.id,
+          commissionMembershipId: membership.id,
+          name: service.name,
+          quantity: 1,
+          unitPrice: 100,
+          lineTotal: 100,
+        },
+      },
+    },
+  });
+  const trainingPeriod = await calculateCommissionPeriod(calculatorContext, {
+    earnedPeriodStart: "2026-06-01",
+    earnedPeriodEnd: "2026-06-30",
+  }, prisma);
+  const trainingStatement = await prisma.commissionStatement.findFirstOrThrow({
+    where: { periodId: trainingPeriod.id, calculationRevision: trainingPeriod.currentRevision },
+  });
+  const trainingSource = await prisma.commissionSourceEvent.findFirstOrThrow({
+    where: { invoiceId: trainingInvoice.id },
+  });
+  assert.equal(trainingSource.grossAmountCents, 10_000);
+  assert.equal(trainingSource.discountAmountCents, 10_000);
+  assert.equal(trainingSource.netAmountCents, 0);
+  assert.equal(trainingSource.grossBasisOverride, true);
+  assert.equal(trainingStatement.eligibleSalesCents, 10_000);
+  assert.equal(trainingStatement.finalCommissionCents, 1_000);
+  assert.equal(await prisma.payment.count({ where: { invoiceId: trainingInvoice.id } }), 0);
+
   const payment = await prisma.payment.create({
     data: {
       businessId: business.id,

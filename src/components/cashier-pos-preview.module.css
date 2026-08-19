@@ -1715,6 +1715,60 @@
   font-weight: 800;
 }
 
+.paymentSection > p {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.convertedTenderGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(130px, .75fr);
+  gap: 8px;
+}
+
+.convertedTenderGrid label,
+.convertedTenderSummary {
+  display: grid;
+  gap: 5px;
+}
+
+.convertedTenderGrid label > span,
+.convertedTenderSummary > span,
+.convertedTenderSummary small {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.convertedTenderGrid input,
+.convertedTenderSummary {
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 1px solid #d5dfe8;
+  border-radius: 6px;
+  background: #fff;
+  padding: 0 10px;
+}
+
+.convertedTenderGrid input {
+  width: 100%;
+  font: inherit;
+  font-weight: 750;
+}
+
+.convertedTenderSummary {
+  align-content: center;
+  border-color: #b8e2dc;
+  background: #eaf7f5;
+}
+
+.convertedTenderSummary strong {
+  color: #08776e;
+  font-size: 16px;
+}
+
 .paymentChoices {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2098,6 +2152,9 @@
 }
 
 @media (max-width: 760px) {
+  .convertedTenderGrid {
+    grid-template-columns: 1fr;
+  }
   .previewHeader { align-items: start; }
   .previewNote { display: none; }
   .posShell {

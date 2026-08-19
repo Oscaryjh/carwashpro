@@ -32,8 +32,15 @@ export function ProductForm({ action, branches, categories, product, submitLabel
           <input name="name" defaultValue={product?.name ?? ""} placeholder="Shampoo" required />
         </label>
         <label>
-          <span>SKU optional</span>
-          <input name="sku" defaultValue={product?.sku ?? ""} placeholder="SKU-001" />
+          <span>SKU</span>
+          <input
+            aria-label="System-generated SKU"
+            disabled
+            value={product?.sku ?? "Assigned automatically when saved"}
+          />
+          <small className="field-helper">
+            Tetamu assigns the next unique product number. No manual entry is needed.
+          </small>
         </label>
         <label>
           <span>Category</span>

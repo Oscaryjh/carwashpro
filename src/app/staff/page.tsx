@@ -18,8 +18,9 @@ export default async function StaffHomePage() {
 
   return (
     <div className="staff-home-stack">
-      {context.enabledModules.has("HR") ? <StaffToday /> : null}
-      <StaffHomeOverview overview={overview} />
+      <StaffHomeOverview overview={overview}>
+        {context.enabledModules.has("HR") ? <StaffToday /> : null}
+      </StaffHomeOverview>
     </div>
   );
 }

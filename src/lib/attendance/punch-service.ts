@@ -9,6 +9,7 @@ import {
   AttendanceApiError,
   normalizeAttendanceApiError,
 } from "@/lib/attendance/api-error";
+import { resolveAttendanceDailyWorkTarget } from "@/lib/attendance/daily-work-target";
 import { hashEmployeeIdentifier } from "@/lib/attendance/employee-auth/crypto";
 import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
 import { loadEmployeeAttendancePrincipal } from "@/lib/attendance/employee-principal";
@@ -33,6 +34,7 @@ import {
 } from "@/lib/attendance/write-rate-limit";
 import { tryWriteAuditLog, writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { ensureEffectiveRosterExpectedDayInTransaction } from "@/lib/roster/service";
 
 export type AttendancePunchResult = Readonly<{
   attendanceSessionId: string;
@@ -131,6 +133,46 @@ export async function performAttendancePunch(args: {
           principal.setting.allowOutsideGeofenceRequest,
           input.exceptionReason,
         );
+        const workDate = getAttendanceWorkDate(now, principal.setting.timezone);
+        if (args.type === "CLOCK_IN") {
+          await ensureEffectiveRosterExpectedDayInTransaction({
+            businessId: args.auth.businessId,
+            branchId: input.branchId,
+            membershipId: args.auth.membershipId,
+            workDate,
+            transaction,
+          });
+        }
+        const clockInExpectedDay =
+          args.type === "CLOCK_IN"
+            ? await transaction.attendanceExpectedDay.findFirst({
+                where: {
+                  businessId: args.auth.businessId,
+                  branchId: input.branchId,
+                  membershipId: args.auth.membershipId,
+                  workDate,
+                  status: "CURRENT",
+                },
+                orderBy: { revision: "desc" },
+                select: {
+                  expectedEndAt: true,
+                  expectedStartAt: true,
+                  kind: true,
+                  policySnapshot: true,
+                  source: true,
+                },
+              })
+            : null;
+        const dailyWorkTarget = resolveAttendanceDailyWorkTarget({
+          branchNormalWorkMinutesPerDay:
+            principal.setting.normalWorkMinutesPerDay,
+          branchTargetBreakMinutes: principal.setting.targetBreakMinutes,
+          employeeNormalWorkMinutesPerDay:
+            principal.membership.normalWorkMinutesPerDay,
+          employeeTargetBreakMinutes:
+            principal.membership.targetBreakMinutes,
+          expectedDay: clockInExpectedDay,
+        });
 
         const idempotency =
           await transaction.attendanceRequestIdempotency.create({
@@ -160,9 +202,7 @@ export async function performAttendancePunch(args: {
                 ipAddress: args.ipAddress,
                 timezone: principal.setting.timezone,
                 breakPolicy: principal.setting.breakPolicy,
-                expectedBreakMinutes:
-                  principal.membership.targetBreakMinutes ??
-                  principal.setting.targetBreakMinutes,
+                expectedBreakMinutes: dailyWorkTarget.expectedBreakMinutes,
                 evaluation,
               })
             : await createActiveSessionPunch({

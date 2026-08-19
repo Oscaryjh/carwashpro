@@ -1,6 +1,5 @@
 import type {
   LeaveCountMode,
-  LeavePolicyCode,
   LeavePolicyVersion,
 } from "@prisma/client";
 import { z } from "zod";
@@ -63,6 +62,47 @@ export const leavePolicyVersionInputSchema = z.object({
   fiveYearsPlusDays: z.union([z.literal(""), z.coerce.number().min(0).max(366)]).optional(),
   requiresDocument: z.coerce.boolean(),
   allowNegativeBalance: z.coerce.boolean(),
+  statutoryCategory: z.enum(["ANNUAL_LEAVE", "SICK_LEAVE", "HOSPITALISATION_LEAVE", "MATERNITY_LEAVE", "PATERNITY_LEAVE"]).or(z.literal("")).optional(),
+  entitlementPeriodType: z.enum(["CALENDAR_YEAR", "SERVICE_ANNIVERSARY", "CUSTOM_YEAR"]).default("CALENDAR_YEAR"),
+  customYearStartMonth: z.union([z.literal(""), z.coerce.number().int().min(1).max(12)]).optional(),
+  customYearStartDay: z.union([z.literal(""), z.coerce.number().int().min(1).max(31)]).optional(),
+  prorationMethod: z.enum(["NONE", "CALENDAR_DAY_RATIO"]).default("NONE"),
+  entitlementRounding: z.enum(["NONE", "DOWN_TO_HALF_DAY", "NEAREST_HALF_DAY", "UP_TO_HALF_DAY"]).default("NONE"),
+  eligibleEmploymentTypes: z.array(z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "DAILY", "HOURLY"])).default([]),
+  carryForwardEnabled: z.coerce.boolean().default(false),
+  carryForwardLimitUnits: z.union([z.literal(""), z.coerce.number().min(0).max(366)]).optional(),
+  carryForwardExpiryRule: z.enum(["NO_EXPIRY", "DAYS_AFTER_ROLLOVER", "MONTHS_AFTER_ROLLOVER", "FIXED_DATE_IN_DESTINATION_PERIOD"]).default("NO_EXPIRY"),
+  carryForwardExpiryValue: z.string().trim().max(10).optional(),
+  consumptionPriority: z.enum(["EARLIEST_EXPIRY_FIRST", "OLDEST_ENTITLEMENT_FIRST"]).default("EARLIEST_EXPIRY_FIRST"),
+  reason: z.string().trim().min(3).max(500),
+}).superRefine((value, context) => {
+  if (value.payTreatment === "UNPAID" && value.balanceTracked) {
+    context.addIssue({ code: "custom", path: ["balanceTracked"], message: "Unpaid leave must not consume a paid-leave balance." });
+  }
+  if (value.entitlementPeriodType === "CUSTOM_YEAR" && (!value.customYearStartMonth || !value.customYearStartDay)) {
+    context.addIssue({ code: "custom", path: ["customYearStartMonth"], message: "Custom year requires a start month and day." });
+  }
+  if (!value.carryForwardEnabled) return;
+  if (["DAYS_AFTER_ROLLOVER", "MONTHS_AFTER_ROLLOVER"].includes(value.carryForwardExpiryRule)) {
+    const amount = Number(value.carryForwardExpiryValue);
+    if (!Number.isInteger(amount) || amount < 1) {
+      context.addIssue({ code: "custom", path: ["carryForwardExpiryValue"], message: "Enter a positive whole-number expiry period." });
+    }
+  }
+  if (value.carryForwardExpiryRule === "FIXED_DATE_IN_DESTINATION_PERIOD" && !/^\d{2}-\d{2}$/.test(value.carryForwardExpiryValue ?? "")) {
+    context.addIssue({ code: "custom", path: ["carryForwardExpiryValue"], message: "Enter the expiry date as MM-DD." });
+  }
+});
+
+export const leavePolicyCreateInputSchema = z.object({
+  effectiveFrom: dateValue,
+  name: z.string().trim().min(2).max(120),
+  payTreatment: z.enum(["PAID", "UNPAID"]),
+  countMode: z.enum(["WEEKDAYS", "CALENDAR_DAYS"]),
+  balanceTracked: z.coerce.boolean(),
+  defaultEntitlementDays: z.union([z.literal(""), z.coerce.number().min(0).max(366)]).optional(),
+  requiresDocument: z.coerce.boolean(),
+  allowNegativeBalance: z.coerce.boolean(),
   reason: z.string().trim().min(3).max(500),
 }).superRefine((value, context) => {
   if (value.payTreatment === "UNPAID" && value.balanceTracked) {
@@ -70,8 +110,21 @@ export const leavePolicyVersionInputSchema = z.object({
   }
 });
 
+export const SYSTEM_LEAVE_POLICY_CODES = [
+  "ANNUAL",
+  "SICK",
+  "HOSPITALISATION",
+  "MATERNITY",
+  "PATERNITY",
+  "UNPAID",
+  "COMPASSIONATE",
+  "OTHER",
+] as const;
+
+export type SystemLeavePolicyCode = (typeof SYSTEM_LEAVE_POLICY_CODES)[number];
+
 export type LeavePolicyStarter = Readonly<{
-  code: LeavePolicyCode;
+  code: SystemLeavePolicyCode;
   name: string;
   payTreatment: "PAID" | "UNPAID";
   countMode: LeaveCountMode;
@@ -120,8 +173,8 @@ export function resolveLeaveEntitlementDays(
   return Number(tier ?? policy.defaultEntitlementDays ?? 0);
 }
 
-export function leavePolicyCodeLabel(code: LeavePolicyCode) {
-  const labels: Record<LeavePolicyCode, string> = {
+export function leavePolicyCodeLabel(code: string) {
+  const labels: Record<SystemLeavePolicyCode, string> = {
     ANNUAL: "Annual",
     SICK: "Sick",
     HOSPITALISATION: "Hospitalisation",
@@ -131,5 +184,5 @@ export function leavePolicyCodeLabel(code: LeavePolicyCode) {
     COMPASSIONATE: "Compassionate",
     OTHER: "Other",
   };
-  return labels[code];
+  return code in labels ? labels[code as SystemLeavePolicyCode] : "Custom";
 }

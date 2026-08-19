@@ -21,6 +21,7 @@ const source: CommissionSource = {
   grossAmountCents: 10_000,
   discountAmountCents: 1_000,
   netAmountCents: 9_000,
+  grossBasisOverride: false,
 };
 
 function rule(overrides: Partial<CommissionRuleCandidate> = {}): CommissionRuleCandidate {
@@ -65,6 +66,19 @@ test("percentage, fixed and whole-period tier calculations use cents and frozen 
   assert.equal(calculateCommission(source, rule({ ruleType: "FIXED_AMOUNT", rateBasisPoints: null, fixedAmountCents: 250 })).commissionAmountCents, 500);
   const tiered = rule({ ruleType: "TIERED_PERCENTAGE", rateBasisPoints: null, tiers: [{ fromCents: 0, rateBasisPoints: 500 }, { fromCents: 20_000, rateBasisPoints: 800 }] });
   assert.equal(calculateCommission(source, tiered, 25_000).commissionAmountCents, 720);
+});
+
+test("training complimentary source uses original gross price for commission", () => {
+  const result = calculateCommission({
+    ...source,
+    discountAmountCents: 10_000,
+    netAmountCents: 0,
+    grossBasisOverride: true,
+  }, rule({ basis: "NET_AFTER_DISCOUNT" }));
+
+  assert.equal(result.eligibleAmountCents, 10_000);
+  assert.equal(result.commissionAmountCents, 1_000);
+  assert.equal(result.trace.basisOverride, "TRAINING_COMPLIMENTARY_GROSS");
 });
 
 test("whole-period tiers are deterministic below, at and above a boundary", () => {

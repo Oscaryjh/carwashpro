@@ -214,7 +214,7 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
                 <h3>Payment history</h3>
                 {workOrder.payments.map((payment) => (
                   <div className="pos-history-row" key={payment.id}>
-                    <span>{payment.paidAt.toLocaleString()}</span>
+                    <span>{payment.paidAt.toLocaleString("en-MY")}</span>
                     <strong>RM{Number(payment.amount).toFixed(2)}</strong>
                     <small>{formatStatus(payment.method)}</small>
                   </div>

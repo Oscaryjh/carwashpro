@@ -63,9 +63,33 @@ test("P5 materialises exact locked P2 outcomes, preserves manual lines and detec
           ["REGULAR_DAILY_PAY", "100", "ATTENDANCE"],
         ],
       );
+      assert.deepEqual(daily.attendanceInputSnapshot?.leaveCategoryBreakdown, [
+        {
+          category: "COMPANY_PAID_LEAVE",
+          dayHundredths: 50,
+          payTreatment: "PAID",
+          requestCount: 1,
+        },
+      ]);
+      const dailyLeaveFacts = daily.attendanceInputSnapshot?.leaveFacts;
+      assert.ok(Array.isArray(dailyLeaveFacts));
+      assert.equal(dailyLeaveFacts.length, 1);
+      assert.equal((dailyLeaveFacts[0] as { payTreatment?: string }).payTreatment, "PAID");
+      assert.equal("reason" in (dailyLeaveFacts[0] as object), false);
+      assert.equal("document" in (dailyLeaveFacts[0] as object), false);
       assert.equal(hourly.components[0]?.code, "REGULAR_HOURLY_PAY");
       assert.equal(hourly.components[0]?.amount.toString(), "22.75");
       assert.equal(hourly.overtimeMinutes, 0);
+      assert.equal(
+        await transaction.auditLog.count({
+          where: {
+            businessId: fixture.businessId,
+            entityId: run.id,
+            action: "PAYROLL_LEAVE_SNAPSHOT_CREATED",
+          },
+        }),
+        1,
+      );
 
       let editable = daily;
       await addManualPayrollAdjustment(
@@ -274,6 +298,15 @@ async function createRevision(
     const membershipId = fixture.memberships.get(code)!.id;
     const workDate = new Date(`2026-08-${String(day).padStart(2, "0")}T00:00:00.000Z`);
     const digest = `${revisionNumber}${day}`.padEnd(64, "0").slice(0, 64);
+    const isLeave =
+      outcome === "APPROVED_PAID_LEAVE" ||
+      outcome === "APPROVED_UNPAID_LEAVE";
+    const leavePayTreatment =
+      outcome === "APPROVED_PAID_LEAVE"
+        ? ("PAID" as const)
+        : outcome === "APPROVED_UNPAID_LEAVE"
+          ? ("UNPAID" as const)
+          : undefined;
     const finalResult = await transaction.attendanceP2FinalResult.create({
       data: {
         businessId: fixture.businessId,
@@ -303,6 +336,17 @@ async function createRevision(
         outcome,
         expectedDayKindSnapshot: kind,
         leaveDayFractionSnapshot: leaveFraction,
+        leaveRequestIdSnapshot: isLeave ? randomUUID() : undefined,
+        leaveRequestRevisionSnapshot: isLeave ? revisionNumber : undefined,
+        leaveRequestDigestSnapshot: isLeave ? digest : undefined,
+        leavePolicyIdSnapshot: isLeave ? randomUUID() : undefined,
+        leavePolicyVersionIdSnapshot: isLeave ? randomUUID() : undefined,
+        leavePolicyNameSnapshot: isLeave ? "P5 Company Leave" : undefined,
+        leavePayTreatmentSnapshot: leavePayTreatment,
+        leaveUnitSnapshot:
+          isLeave && leaveFraction === 0.5 ? "HALF_DAY_AM" : isLeave ? "FULL_DAY" : undefined,
+        leaveLegalStatusSnapshot: isLeave ? "COMPANY_POLICY_ONLY" : undefined,
+        leaveComplianceStatusSnapshot: isLeave ? "NOT_APPLICABLE" : undefined,
         totalBreakMinutes: 0,
         totalWorkedMinutes: minutes,
         sourceDigest: digest,

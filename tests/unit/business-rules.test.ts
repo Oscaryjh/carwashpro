@@ -161,6 +161,39 @@ test("cashier sale allows products and packages while services require an appoin
   );
 });
 
+test("cashier sale requires an amount, MYR rate and reference for converted tenders", () => {
+  const baseSale = {
+    operationId: "checkout:77777777-7777-4777-8777-777777777777",
+    branchId: "",
+    customerId: "",
+    paymentMethodCode: "CUSTOM_USD",
+    packageIds: [],
+    packageQuantities: [],
+    productIds: ["88888888-8888-4888-8888-888888888888"],
+    productQuantities: [1],
+  };
+
+  assert.equal(cashierSaleSchema.safeParse({
+    ...baseSale,
+    method: "FOREIGN_CURRENCY",
+    reference: "USD-RECEIPT-1",
+  }).success, false);
+  assert.equal(cashierSaleSchema.safeParse({
+    ...baseSale,
+    method: "FOREIGN_CURRENCY",
+    reference: "USD-RECEIPT-1",
+    tenderAmount: "25.00",
+    exchangeRateToMyr: "4.50",
+  }).success, true);
+  assert.equal(cashierSaleSchema.safeParse({
+    ...baseSale,
+    method: "CRYPTO",
+    reference: "0xabc",
+    tenderAmount: "0.001",
+    exchangeRateToMyr: "450000.00",
+  }).success, true);
+});
+
 test("cashier sale requires a customer before redeeming an existing package", () => {
   const customerId = "11111111-1111-4111-8111-111111111111";
   const serviceId = "22222222-2222-4222-8222-222222222222";

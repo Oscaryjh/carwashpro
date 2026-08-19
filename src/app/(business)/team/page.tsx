@@ -16,8 +16,10 @@ import {
   buildPeopleStaffScopeWhere,
   hasWholeBusinessPeopleScope,
 } from "@/lib/team/people-scope";
+import { suggestNextEmployeeCode } from "@/lib/team/employee-code";
 import {
   createStaffAction,
+  enableStaffAppAction,
   linkTeamMemberAction,
   updateStaffAction,
   updateOwnerAppointmentAvailabilityAction,
@@ -31,16 +33,21 @@ import {
 
 const teamSections = [
   { key: "people", label: "People", description: "Employment & access" },
-  { key: "schedule", label: "Schedule", description: "Hours & services" },
+  {
+    key: "schedule",
+    label: "Availability & Services",
+    description: "Hours, breaks & assigned services",
+  },
   { key: "attendance", label: "Attendance", description: "Clock records" },
-  { key: "roles", label: "Roles & Permissions", description: "Access roles" },
-  { key: "activity", label: "Activity", description: "Changes & logs" },
+  { key: "roles", label: "Roles & Permissions", description: "Access roles & staff levels" },
+  { key: "activity", label: "Activity", description: "Team changes & attendance log" },
 ] as const;
 
 type TeamSection = (typeof teamSections)[number]["key"];
 
 type TeamPageProps = {
   searchParams: Promise<{
+    activityPage?: string;
     levelId?: string;
     message?: string;
     modal?: string;
@@ -97,7 +104,14 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
       ? { ...item, description: "Team & access" }
       : item,
   );
+  const visiblePeopleTools = visibleTeamSections.filter(
+    (item) => item.key !== "people" && item.key !== "attendance",
+  );
   const query = params.q?.trim() ?? "";
+  const requestedActivityPage = Math.max(
+    Number.parseInt(params.activityPage ?? "1", 10) || 1,
+    1,
+  );
   const now = new Date();
   const attendanceModalOpen = params.modal === "attendance" && canViewAttendance;
   const scheduleDataRequired =
@@ -138,6 +152,37 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const membershipScopeWhere =
     buildPeopleMembershipScopeWhere(peopleScope);
   const allowedBranchIds = new Set(scope.allowedBranchIds);
+  const activityAuditWhere = {
+    businessId,
+    action: { startsWith: "STAFF_" },
+    ...(wholeBusinessScope
+      ? {}
+      : { branchId: { in: [...scope.allowedBranchIds] } }),
+  };
+  const activityAttendanceWhere = {
+    businessId,
+    ...(wholeBusinessScope
+      ? {}
+      : { branchId: { in: [...scope.allowedBranchIds] } }),
+  };
+  const [activityAuditCount, activityAttendanceCount, activityClockOutCount] =
+    activityDataRequired
+      ? await Promise.all([
+          prisma.auditLog.count({ where: activityAuditWhere }),
+          prisma.employeeAttendance.count({ where: activityAttendanceWhere }),
+          prisma.employeeAttendance.count({
+            where: { ...activityAttendanceWhere, clockOutAt: { not: null } },
+          }),
+        ])
+      : [0, 0, 0];
+  const activityTotalEntries =
+    activityAuditCount + activityAttendanceCount + activityClockOutCount;
+  const activityPageCount = Math.max(
+    1,
+    Math.ceil(activityTotalEntries / 10),
+  );
+  const activityPage = Math.min(requestedActivityPage, activityPageCount);
+  const activityFetchSize = activityPage * 10;
 
   const [staffData, employeeOnlyMemberships, owners, branches, roleProfiles, staffLevels, services, recentActivity, attendance] =
     await Promise.all([
@@ -284,15 +329,9 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         select: { id: true, name: true },
       }) : Promise.resolve([]),
       activityDataRequired ? prisma.auditLog.findMany({
-        where: {
-          businessId,
-          action: { startsWith: "STAFF_" },
-          ...(wholeBusinessScope
-            ? {}
-            : { branchId: { in: [...scope.allowedBranchIds] } }),
-        },
+        where: activityAuditWhere,
         orderBy: { createdAt: "desc" },
-        take: 10,
+        take: activityFetchSize,
         select: {
           id: true,
           action: true,
@@ -302,18 +341,17 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         },
       }) : Promise.resolve([]),
       attendanceDataRequired ? prisma.employeeAttendance.findMany({
-        where: {
-          businessId,
-          ...(wholeBusinessScope
-            ? {}
-            : { branchId: { in: [...scope.allowedBranchIds] } }),
-        },
+        where: activityAttendanceWhere,
         include: {
           employeeAccount: { select: { name: true, phoneNormalized: true } },
           branch: { select: { name: true } },
         },
         orderBy: { clockInAt: "desc" },
-        take: attendanceModalOpen ? 100 : 10,
+        take: attendanceModalOpen
+          ? 100
+          : activityDataRequired
+            ? activityFetchSize
+            : 10,
       }) : Promise.resolve([]),
     ]);
 
@@ -367,17 +405,31 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const activeStaffLevelOptions = staffLevels
     .filter((level) => level.active)
     .map(({ id, name }) => ({ id, name }));
+  const suggestedEmployeeCode =
+    params.modal === "create" && canManageTeam && hrEnabled
+      ? suggestNextEmployeeCode(
+          (
+            await prisma.employeeBusinessMembership.findMany({
+              where: {
+                businessId,
+                employeeCode: { startsWith: "EMP-", mode: "insensitive" },
+              },
+              select: { employeeCode: true },
+            })
+          ).map((membership) => membership.employeeCode),
+        )
+      : undefined;
 
   return (
     <>
       <section className="content team-workspace-page hr-module-page">
         <div className="page-header team-page-header hr-module-header">
           <div>
-            <span className="hr-module-eyebrow">{hrEnabled ? "People & HR" : "People Core"}</span>
-            <h1>{hrEnabled ? "People & HR" : "People"}</h1>
+            <span className="hr-module-eyebrow">People management</span>
+            <h1>People</h1>
             <p>
               {hrEnabled
-                ? "People, employment, services, attendance, and access in one place."
+                ? "Employees, employment, services and access in one place."
                 : "Team members, branches, roles, login and operational assignment."}
             </p>
           </div>
@@ -396,25 +448,22 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         ) : null}
 
         <div className="team-workspace">
-          <nav aria-label="Team sections" className="team-section-nav">
-            <div className="team-section-nav-heading">
-              <span>TEAM</span>
-              <strong>Management</strong>
-            </div>
-            {visibleTeamSections.map((item) => (
+          <nav aria-label="People tools" className="team-section-nav">
+            {visiblePeopleTools.map((item) => (
               <Link
+                aria-current={section === item.key ? "page" : undefined}
                 className={section === item.key ? "active" : ""}
-                href={
-                  item.key === "attendance"
-                    ? "/team/attendance"
-                    : `/team?section=${item.key}`
-                }
+                href={`/team?section=${item.key}`}
                 key={item.key}
               >
-                <span>
+                <span aria-hidden="true" className="team-section-nav-icon">
+                  <TeamToolIcon section={item.key} />
+                </span>
+                <span className="team-section-nav-copy">
                   <strong>{item.label}</strong>
                   <small>{item.description}</small>
                 </span>
+                <span aria-hidden="true" className="team-section-nav-arrow">›</span>
               </Link>
             ))}
           </nav>
@@ -434,22 +483,62 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
                 staffLevels={activeStaffLevelOptions}
               />
             ) : null}
-            {section === "schedule" ? <ScheduleSection owners={owners} staff={staff} /> : null}
             {section === "attendance" ? <AttendanceSection attendance={attendance} /> : null}
-            {section === "roles" ? (
-              <RolesSection
-                canEditCompensation={canEditCompensation}
-                canManageTeamPermissions={canManageTeamPermissions}
-                roleProfiles={roleProfiles}
-                staffLevels={staffLevels}
-              />
-            ) : null}
-            {section === "activity" ? (
-              <ActivitySection activity={recentActivity} attendance={attendance} />
-            ) : null}
           </div>
         </div>
       </section>
+
+      {section === "schedule" && !params.modal ? (
+        <CatalogFormModal
+          ariaLabel="Availability and services"
+          closePath="/team"
+          eyebrow="PEOPLE"
+          modalClassName="team-tool-modal"
+          showMark={false}
+          title="Availability & services"
+          wide
+        >
+          <ScheduleSection compact owners={owners} staff={staff} />
+        </CatalogFormModal>
+      ) : null}
+      {section === "roles" && !params.modal ? (
+        <CatalogFormModal
+          ariaLabel="Roles and permissions"
+          closePath="/team"
+          eyebrow="PEOPLE"
+          modalClassName="team-tool-modal"
+          showMark={false}
+          title="Roles & permissions"
+          wide
+        >
+          <RolesSection
+            canEditCompensation={canEditCompensation}
+            canManageTeamPermissions={canManageTeamPermissions}
+            compact
+            roleProfiles={roleProfiles}
+            staffLevels={staffLevels}
+          />
+        </CatalogFormModal>
+      ) : null}
+      {section === "activity" && !params.modal ? (
+        <CatalogFormModal
+          ariaLabel="Team activity"
+          closePath="/team"
+          eyebrow="PEOPLE"
+          modalClassName="team-tool-modal"
+          showMark={false}
+          title="Activity"
+          wide
+        >
+          <ActivitySection
+            activity={recentActivity}
+            attendance={attendance}
+            page={activityPage}
+            pageCount={activityPageCount}
+            totalEntries={activityTotalEntries}
+          />
+        </CatalogFormModal>
+      ) : null}
 
       {params.modal === "create" && canManageTeam ? (
         <StaffCreateModal
@@ -463,6 +552,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           roleProfiles={activeRoleOptions}
           services={services}
           staffLevels={activeStaffLevelOptions}
+          suggestedEmployeeCode={suggestedEmployeeCode}
         />
       ) : null}
       {params.modal === "edit" && editingStaff && canManageTeam ? (
@@ -721,6 +811,32 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   );
 }
 
+function TeamToolIcon({ section }: { section: TeamSection }) {
+  if (section === "schedule") {
+    return (
+      <svg fill="none" viewBox="0 0 24 24">
+        <path d="M7 3v3M17 3v3M4.5 9h15" />
+        <rect height="16" rx="3" width="17" x="3.5" y="4.5" />
+        <path d="M8 13h3M8 17h7" />
+      </svg>
+    );
+  }
+  if (section === "roles") {
+    return (
+      <svg fill="none" viewBox="0 0 24 24">
+        <path d="M12 3.5 19 6v5.2c0 4.4-2.8 7.6-7 9.3-4.2-1.7-7-4.9-7-9.3V6l7-2.5Z" />
+        <path d="M9 12.2 11.1 14l4-4" />
+      </svg>
+    );
+  }
+  return (
+    <svg fill="none" viewBox="0 0 24 24">
+      <path d="M5 4.5h14v15H5z" />
+      <path d="M8 8h8M8 12h8M8 16h5" />
+    </svg>
+  );
+}
+
 function PeopleSection({
   branchesAvailable,
   canEditCompensation,
@@ -778,6 +894,7 @@ function PeopleSection({
       <div className="team-staff-list">
         {staff.map((member) => {
           const employment = employmentProfile(member);
+          const staffApp = staffAppAccess(member);
           const readiness = hrEnabled
             ? staffAttendanceReadiness(member, employment)
             : null;
@@ -798,13 +915,7 @@ function PeopleSection({
                   </span>
                 </div>
                 <span className={member.status === "active" ? "status" : "status status-neutral"}>
-                  {hrEnabled
-                    ? member.teamMemberLinkStatus === "REVIEW_REQUIRED"
-                      ? "Review required"
-                      : member.teamMemberLinkStatus === "LINKED"
-                        ? "Linked"
-                        : "Unlinked"
-                    : capitalize(member.status)}
+                  {capitalize(member.status)}
                 </span>
               </div>
               <div className="team-staff-facts">
@@ -813,6 +924,10 @@ function PeopleSection({
                 <span><small>Services</small>{member.serviceStaffAssignments.length} assigned</span>
               </div>
               <div className="team-member-feature-badges" aria-label={`${member.name} features`}>
+                <FeatureBadge
+                  enabled={staffApp.ready}
+                  label={staffApp.label}
+                />
                 {hrEnabled ? (
                   <>
                     <FeatureBadge
@@ -851,31 +966,35 @@ function PeopleSection({
                   </span>
                 ) : null}
               </div>
-              {canManageTeamPermissions ? (
-                <form action={assignStaffRoleAction} className="team-staff-classification">
-                  <input name="userId" type="hidden" value={member.id} />
-                  <label>
-                    <span>Role</span>
-                    <select defaultValue={member.staffRoleProfileId ?? ""} name="staffRoleProfileId">
-                      <option value="">Advanced override (custom)</option>
-                      {roleProfiles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-                    </select>
-                  </label>
-                  <button className="secondary-light-button" type="submit">Apply role</button>
-                </form>
-              ) : null}
-              {employment && canEditCompensation ? (
-                <form action={assignStaffLevelAction} className="team-staff-classification">
-                  <input name="userId" type="hidden" value={member.id} />
-                  <label>
-                    <span>Level</span>
-                    <select defaultValue={member.staffLevelId ?? ""} name="staffLevelId">
-                      <option value="">No level</option>
-                      {staffLevels.map((level) => <option key={level.id} value={level.id}>{level.name}</option>)}
-                    </select>
-                  </label>
-                  <button className="secondary-light-button" type="submit">Apply level</button>
-                </form>
+              {canManageTeamPermissions || (employment && canEditCompensation) ? (
+                <div className="team-staff-classifications">
+                  {canManageTeamPermissions ? (
+                    <form action={assignStaffRoleAction} className="team-staff-classification">
+                      <input name="userId" type="hidden" value={member.id} />
+                      <label>
+                        <span>Role</span>
+                        <select defaultValue={member.staffRoleProfileId ?? ""} name="staffRoleProfileId">
+                          <option value="">Advanced override (custom)</option>
+                          {roleProfiles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                        </select>
+                      </label>
+                      <button className="secondary-light-button" type="submit">Apply role</button>
+                    </form>
+                  ) : null}
+                  {employment && canEditCompensation ? (
+                    <form action={assignStaffLevelAction} className="team-staff-classification">
+                      <input name="userId" type="hidden" value={member.id} />
+                      <label>
+                        <span>Level</span>
+                        <select defaultValue={member.staffLevelId ?? ""} name="staffLevelId">
+                          <option value="">No level</option>
+                          {staffLevels.map((level) => <option key={level.id} value={level.id}>{level.name}</option>)}
+                        </select>
+                      </label>
+                      <button className="secondary-light-button" type="submit">Apply level</button>
+                    </form>
+                  ) : null}
+                </div>
               ) : null}
               {hrEnabled && !employment && employeeOnlyMemberships.length ? (
                 <form action={linkTeamMemberAction} className="team-staff-classification">
@@ -900,13 +1019,21 @@ function PeopleSection({
                   </label>
                   <button className="secondary-light-button" type="submit">Link</button>
                 </form>
-              ) : hrEnabled && !employment ? (
-                <div className="team-staff-classification team-staff-link-note">
+              ) : !employment && !staffApp.ready ? (
+                <div className="team-staff-classification team-staff-link-note team-staff-app-setup">
                   <span aria-hidden="true">i</span>
                   <span>
-                    <strong>Employment profile not linked</strong>
-                    <small>No available employment profile in this business.</small>
+                    <strong>{staffApp.label}</strong>
+                    <small>{staffApp.detail}</small>
                   </span>
+                  {canManageTeam && staffApp.canEnable ? (
+                    <form action={enableStaffAppAction}>
+                      <input name="userId" type="hidden" value={member.id} />
+                      <button className="secondary-light-button" type="submit">
+                        Enable Staff App
+                      </button>
+                    </form>
+                  ) : null}
                 </div>
               ) : null}
               <div className="team-row-actions">
@@ -1059,11 +1186,25 @@ function FeatureBadge({ enabled, label }: { enabled: boolean; label: string }) {
   );
 }
 
-function ScheduleSection({ owners, staff }: { owners: OwnerRow[]; staff: StaffRow[] }) {
+function ScheduleSection({
+  compact = false,
+  owners,
+  staff,
+}: {
+  compact?: boolean;
+  owners: OwnerRow[];
+  staff: StaffRow[];
+}) {
   return (
     <section className="team-section-panel">
       <div className="team-section-toolbar">
-        <div><p className="eyebrow">SCHEDULE</p><h2>Availability & services</h2></div>
+        {compact ? (
+          <p className="team-tool-intro">
+            Manage working hours, breaks and assigned services for each team member.
+          </p>
+        ) : (
+          <div><p className="eyebrow">SCHEDULE</p><h2>Availability & services</h2></div>
+        )}
         <span className="status">{staff.length} staff</span>
       </div>
       {owners.length ? (
@@ -1127,11 +1268,13 @@ function AttendanceSection({ attendance }: { attendance: AttendanceRow[] }) {
 function RolesSection({
   canEditCompensation,
   canManageTeamPermissions,
+  compact = false,
   roleProfiles,
   staffLevels,
 }: {
   canEditCompensation: boolean;
   canManageTeamPermissions: boolean;
+  compact?: boolean;
   roleProfiles: RoleRow[];
   staffLevels: LevelRow[];
 }) {
@@ -1139,7 +1282,7 @@ function RolesSection({
     <section className="team-section-panel team-roles-section">
       {canManageTeamPermissions ? (
         <>
-          <div className="team-section-toolbar"><div><p className="eyebrow">TEAM ACCESS</p><h2>Roles & Permissions</h2></div><Link className="button-link" href="/team?section=roles&modal=role">New role</Link></div>
+          <div className="team-section-toolbar"><div><p className="eyebrow">TEAM ACCESS</p><h2>{compact ? "Access roles" : "Roles & Permissions"}</h2></div><Link className="button-link" href="/team?section=roles&modal=role">New role</Link></div>
           <div className="team-config-list">
             {roleProfiles.length ? roleProfiles.map((role) => (
               <article key={role.id}>
@@ -1185,10 +1328,17 @@ function RolesSection({
 function ActivitySection({
   activity,
   attendance,
+  page,
+  pageCount,
+  totalEntries,
 }: {
   activity: ActivityRow[];
   attendance: AttendanceRow[];
+  page: number;
+  pageCount: number;
+  totalEntries: number;
 }) {
+  const firstEntryIndex = (page - 1) * 10;
   const entries = [
     ...activity.map((entry) => ({
       id: `audit-${entry.id}`,
@@ -1217,11 +1367,14 @@ function ActivitySection({
     ]),
   ]
     .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
-    .slice(0, 10);
+    .slice(firstEntryIndex, firstEntryIndex + 10);
 
   return (
-    <section className="team-section-panel">
-      <div className="team-section-toolbar"><div><p className="eyebrow">ACTIVITY</p><h2>Team activity</h2></div><span className="status">Latest 10</span></div>
+    <section className="team-section-panel team-activity-section">
+      <div className="team-section-toolbar">
+        <p className="team-tool-intro">Team changes and clock activity, newest first.</p>
+        <span className="status">{totalEntries} records</span>
+      </div>
       <div className="team-audit-list">
         {entries.length ? entries.map((entry) => (
           <article key={entry.id}>
@@ -1231,6 +1384,25 @@ function ActivitySection({
           </article>
         )) : <div className="empty-state">No team activity yet.</div>}
       </div>
+      {totalEntries ? (
+        <nav aria-label="Activity pages" className="team-activity-pagination">
+          {page > 1 ? (
+            <Link href={`/team?section=activity&activityPage=${page - 1}`}>
+              Previous
+            </Link>
+          ) : (
+            <span aria-disabled="true">Previous</span>
+          )}
+          <strong>Page {page} of {pageCount}</strong>
+          {page < pageCount ? (
+            <Link href={`/team?section=activity&activityPage=${page + 1}`}>
+              Next
+            </Link>
+          ) : (
+            <span aria-disabled="true">Next</span>
+          )}
+        </nav>
+      ) : null}
     </section>
   );
 }
@@ -1244,6 +1416,8 @@ type StaffRow = {
   loginEnabled: boolean;
   status: "active" | "inactive";
   teamMemberLinkStatus: string;
+  employeeAccountId: string | null;
+  employeeBusinessMembershipId: string | null;
   permissions: string[];
   branchId: string | null;
   staffRoleProfileId: string | null;
@@ -1346,6 +1520,60 @@ function assignedBranchIds(member: Pick<
 
 function employmentProfile(member: StaffRow) {
   return member.employeeBusinessMembership;
+}
+
+function staffAppAccess(member: StaffRow) {
+  if (member.status !== "active") {
+    return {
+      canEnable: false,
+      detail: "Reactivate this team member before enabling Staff App access.",
+      label: "Staff App disabled",
+      ready: false,
+    };
+  }
+  if (member.teamMemberLinkStatus === "REVIEW_REQUIRED") {
+    return {
+      canEnable: false,
+      detail: "Resolve the identity review before enabling Staff App access.",
+      label: "Staff App review required",
+      ready: false,
+    };
+  }
+  if (
+    member.teamMemberLinkStatus === "LINKED" &&
+    member.employeeAccountId &&
+    member.employeeBusinessMembershipId
+  ) {
+    return {
+      canEnable: false,
+      detail: "Canonical employee identity and membership are linked.",
+      label: "Staff App ready",
+      ready: true,
+    };
+  }
+  if (!member.whatsappPhone) {
+    return {
+      canEnable: false,
+      detail: "Add a valid mobile number in Edit before enabling Staff App access.",
+      label: "Staff App not linked",
+      ready: false,
+    };
+  }
+  if (!member.branchId) {
+    return {
+      canEnable: false,
+      detail: "Assign a primary branch in Edit before enabling Staff App access.",
+      label: "Staff App not linked",
+      ready: false,
+    };
+  }
+  return {
+    canEnable: true,
+    detail:
+      "Creates the employee identity needed for Staff App login. Attendance and payroll stay disabled.",
+    label: "Staff App not linked",
+    ready: false,
+  };
 }
 
 function employeeBranchNames(employee: EmployeeOnlyRow) {

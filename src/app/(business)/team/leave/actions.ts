@@ -8,11 +8,21 @@ import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import {
   cancelApprovedLeaveRequest,
+  createCompanyLeavePolicy,
   createCompanyLeavePolicyVersion,
+  generateLeaveEntitlementsForYear,
   installCompanyLeaveStarter,
+  processDueCarryForwardExpiries,
+  processDueLeavePeriodRollovers,
   reviewLeaveRequest,
   upsertEmployeeLeaveBalance,
 } from "@/lib/leave/service";
+import { reviewLeaveDocument } from "@/lib/leave/document-service";
+import {
+  installSabahStatutoryRulePackDraft,
+  markStatutoryRuleSetReadyForHumanSignOff,
+  submitStatutoryRuleSetForReview,
+} from "@/lib/leave/statutory-service";
 
 export async function installLeaveStarterAction() {
   try {
@@ -47,6 +57,18 @@ export async function createLeavePolicyVersionAction(formData: FormData) {
         fiveYearsPlusDays: formData.get("fiveYearsPlusDays"),
         requiresDocument: formData.get("requiresDocument") === "on",
         allowNegativeBalance: formData.get("allowNegativeBalance") === "on",
+        statutoryCategory: formData.get("statutoryCategory"),
+        entitlementPeriodType: formData.get("entitlementPeriodType") || "CALENDAR_YEAR",
+        customYearStartMonth: formData.get("customYearStartMonth"),
+        customYearStartDay: formData.get("customYearStartDay"),
+        prorationMethod: formData.get("prorationMethod") || "NONE",
+        entitlementRounding: formData.get("entitlementRounding") || "NONE",
+        eligibleEmploymentTypes: formData.getAll("eligibleEmploymentTypes"),
+        carryForwardEnabled: formData.get("carryForwardEnabled") === "on",
+        carryForwardLimitUnits: formData.get("carryForwardLimitUnits"),
+        carryForwardExpiryRule: formData.get("carryForwardExpiryRule") || "NO_EXPIRY",
+        carryForwardExpiryValue: formData.get("carryForwardExpiryValue"),
+        consumptionPriority: formData.get("consumptionPriority") || "EARLIEST_EXPIRY_FIRST",
         reason: formData.get("reason"),
       },
     });
@@ -58,15 +80,138 @@ export async function createLeavePolicyVersionAction(formData: FormData) {
   }
 }
 
+export async function submitStatutoryRuleSetAction(formData: FormData) {
+  const year = String(formData.get("year") ?? "");
+  try {
+    const { user, businessId } = await requireBusinessUser("EDIT_LEAVE_POLICY");
+    await submitStatutoryRuleSetForReview({
+      businessId,
+      actor: user,
+      request: await getAuditRequestContext(),
+      rawInput: { ruleSetId: formData.get("ruleSetId"), expectedStatus: "DRAFT" },
+    });
+    revalidateLeavePaths();
+    redirectWithMessage("success", "Rule pack is ready for independent review.", { year });
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirectWithMessage("error", error instanceof Error ? error.message : "Unable to submit rule pack.", { year });
+  }
+}
+
+export async function installSabahStatutoryRulePackDraftAction(formData: FormData) {
+  const year = String(formData.get("year") ?? "");
+  try {
+    const { user, businessId } = await requireBusinessUser("EDIT_LEAVE_POLICY");
+    await installSabahStatutoryRulePackDraft({
+      businessId,
+      actor: user,
+      request: await getAuditRequestContext(),
+    });
+    revalidateLeavePaths();
+    redirectWithMessage("success", "Official Sabah statutory rule pack installed as Draft. No legal rule was activated.", { year });
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirectWithMessage("error", error instanceof Error ? error.message : "Unable to install Sabah statutory rule pack.", { year });
+  }
+}
+
+export async function markStatutoryRuleSetReadyForHumanSignOffAction(formData: FormData) {
+  const year = String(formData.get("year") ?? "");
+  try {
+    const { user, businessId } = await requireBusinessUser("EDIT_LEAVE_POLICY");
+    await markStatutoryRuleSetReadyForHumanSignOff({
+      businessId,
+      actor: user,
+      request: await getAuditRequestContext(),
+      rawInput: {
+        ruleSetId: formData.get("ruleSetId"),
+        expectedStatus: "READY_FOR_REVIEW",
+        reviewNote: formData.get("reviewNote"),
+        confirmed: formData.get("confirmed") === "on",
+      },
+    });
+    revalidateLeavePaths();
+    redirectWithMessage("success", "Independent review complete. The rule pack now awaits explicit human sign-off; it is not active.", { year });
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirectWithMessage("error", error instanceof Error ? error.message : "Unable to complete independent review.", { year });
+  }
+}
+
+export async function generateLeaveEntitlementsAction(formData: FormData) {
+  const year = Number(formData.get("year"));
+  try {
+    const { user, businessId } = await requireBusinessUser("EDIT_LEAVE_POLICY");
+    const result = await generateLeaveEntitlementsForYear({ businessId, actor: user, request: await getAuditRequestContext(), year });
+    revalidateLeavePaths();
+    redirectWithMessage("success", `Entitlement run complete: ${result.created} created, ${result.unchanged} unchanged, ${result.reviewRequired.length} need review.`, { year: String(year) });
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirectWithMessage("error", error instanceof Error ? error.message : "Unable to generate entitlements.", { year: String(year) });
+  }
+}
+
+export async function processLeaveLifecycleAction(formData: FormData) {
+  const year = String(formData.get("year") ?? "");
+  try {
+    const { user, businessId } = await requireBusinessUser("EDIT_LEAVE_POLICY");
+    const rawAsOf = String(formData.get("asOf") ?? "");
+    const asOf = /^\d{4}-\d{2}-\d{2}$/.test(rawAsOf)
+      ? new Date(`${rawAsOf}T00:00:00.000Z`)
+      : new Date();
+    const request = await getAuditRequestContext();
+    const rollover = await processDueLeavePeriodRollovers({ businessId, actor: user, request, asOf });
+    const expiry = await processDueCarryForwardExpiries({ businessId, actor: user, request, asOf });
+    revalidateLeavePaths();
+    redirectWithMessage(
+      "success",
+      `Leave lifecycle checked: ${rollover.created} rollover(s), ${expiry.expiredBuckets} expired carry-forward bucket(s), ${rollover.reviewRequired.length} item(s) need review.`,
+      { year },
+    );
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirectWithMessage("error", error instanceof Error ? error.message : "Unable to process Leave lifecycle.", { year });
+  }
+}
+
+export async function createLeavePolicyAction(formData: FormData) {
+  const year = String(formData.get("year") ?? "");
+  try {
+    const { user, businessId } = await requireBusinessUser("EDIT_LEAVE_POLICY");
+    await createCompanyLeavePolicy({
+      businessId,
+      actor: user,
+      request: await getAuditRequestContext(),
+      rawInput: {
+        effectiveFrom: formData.get("effectiveFrom"),
+        name: formData.get("name"),
+        payTreatment: formData.get("payTreatment"),
+        countMode: formData.get("countMode"),
+        balanceTracked: formData.get("balanceTracked") === "on",
+        defaultEntitlementDays: formData.get("defaultEntitlementDays"),
+        requiresDocument: formData.get("requiresDocument") === "on",
+        allowNegativeBalance: formData.get("allowNegativeBalance") === "on",
+        reason: formData.get("reason") || "New company Leave type created.",
+      },
+    });
+    revalidateLeavePaths();
+    redirectWithMessage("success", "New Leave type created. It is now available for employee balances and requests.", { year });
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirectWithMessage("error", error instanceof Error ? error.message : "Unable to create Leave type.", { year, newLeaveType: true });
+  }
+}
+
 export async function reviewLeaveRequestAction(formData: FormData) {
   try {
     const { access, user, businessId } = await requireBusinessUser("APPROVE_LEAVE");
     const scope = await resolveAttendanceScope(access);
     const decision = String(formData.get("decision") ?? "");
-    await reviewLeaveRequest({
+    const result = await reviewLeaveRequest({
       businessId,
       allowedBranchIds: scope.allowedBranchIds,
       actor: user,
+      actorLevel: access.effectiveBusinessRole === "BUSINESS_OWNER" ? "OWNER" : "MANAGER",
       request: await getAuditRequestContext(),
       rawInput: {
         requestId: formData.get("requestId"),
@@ -76,10 +221,42 @@ export async function reviewLeaveRequestAction(formData: FormData) {
       },
     });
     revalidateLeavePaths();
-    redirectWithMessage("success", decision === "APPROVED" ? "Leave approved using its frozen treatment." : "Leave rejected.");
+    redirectWithMessage(
+      "success",
+      !result.finalized
+        ? "第一级审批已完成，申请已转交老板作最终审批。"
+        : decision === "APPROVED"
+          ? "Leave approved using its frozen treatment."
+          : "Leave rejected.",
+    );
   } catch (error) {
     if (isRedirectError(error)) throw error;
     redirectWithMessage("error", error instanceof Error ? error.message : "Unable to review Leave.");
+  }
+}
+
+export async function reviewLeaveDocumentAction(formData: FormData) {
+  try {
+    const { access, user, businessId } = await requireBusinessUser("APPROVE_LEAVE");
+    const scope = await resolveAttendanceScope(access);
+    const status = String(formData.get("status") ?? "");
+    if (!(["VERIFIED", "REJECTED", "REVIEW_REQUIRED"] as const).includes(status as "VERIFIED" | "REJECTED" | "REVIEW_REQUIRED")) {
+      throw new Error("Choose a valid supporting-document review result.");
+    }
+    await reviewLeaveDocument({
+      documentId: String(formData.get("documentId") ?? ""),
+      businessId,
+      allowedBranchIds: scope.allowedBranchIds,
+      actor: user,
+      request: await getAuditRequestContext(),
+      status: status as "VERIFIED" | "REJECTED" | "REVIEW_REQUIRED",
+      note: String(formData.get("note") ?? ""),
+    });
+    revalidateLeavePaths();
+    redirectWithMessage("success", status === "VERIFIED" ? "Supporting document verified." : "Supporting document review updated.");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirectWithMessage("error", error instanceof Error ? error.message : "Unable to review supporting document.");
   }
 }
 
@@ -103,9 +280,21 @@ export async function cancelApprovedLeaveAction(formData: FormData) {
 }
 
 export async function updateLeaveBalanceAction(formData: FormData) {
+  const year = String(formData.get("year") ?? "");
+  const balanceEmployee = String(formData.get("membershipId") ?? "");
   try {
     const { access, user, businessId } = await requireBusinessUser("ADJUST_LEAVE_BALANCE");
     const scope = await resolveAttendanceScope(access);
+    const days = formData.get("days");
+    const direction = String(formData.get("direction") ?? "");
+    const legacyUnits = formData.get("units");
+    const units = legacyUnits ?? (
+      direction === "DEDUCT"
+        ? -Math.abs(Number(days))
+        : direction === "ADD"
+          ? Math.abs(Number(days))
+          : days
+    );
     await upsertEmployeeLeaveBalance({
       businessId,
       allowedBranchIds: scope.allowedBranchIds,
@@ -115,16 +304,16 @@ export async function updateLeaveBalanceAction(formData: FormData) {
         membershipId: formData.get("membershipId"),
         policyId: formData.get("policyId"),
         year: formData.get("year"),
-        units: formData.get("units"),
+        units,
         reason: formData.get("reason"),
         sourceKey: formData.get("sourceKey"),
       },
     });
     revalidateLeavePaths();
-    redirectWithMessage("success", "Immutable Leave balance adjustment appended.");
+    redirectWithMessage("success", "Leave balance updated. The change was added to the audit history.", { year, balanceEmployee });
   } catch (error) {
     if (isRedirectError(error)) throw error;
-    redirectWithMessage("error", error instanceof Error ? error.message : "Unable to adjust Leave balance.");
+    redirectWithMessage("error", error instanceof Error ? error.message : "Unable to adjust Leave balance.", { year, balanceEmployee });
   }
 }
 
@@ -138,6 +327,14 @@ function revalidateLeavePaths() {
   revalidatePath("/team/payroll/runs");
 }
 
-function redirectWithMessage(type: "success" | "error", message: string): never {
-  redirect(`/team/leave?type=${type}&message=${encodeURIComponent(message)}`);
+function redirectWithMessage(
+  type: "success" | "error",
+  message: string,
+  context?: { year?: string; balanceEmployee?: string; newLeaveType?: boolean },
+): never {
+  const query = new URLSearchParams({ type, message });
+  if (/^\d{4}$/.test(context?.year ?? "")) query.set("year", context!.year!);
+  if (/^[0-9a-f-]{36}$/i.test(context?.balanceEmployee ?? "")) query.set("balanceEmployee", context!.balanceEmployee!);
+  if (context?.newLeaveType) query.set("newLeaveType", "1");
+  redirect(`/team/leave?${query.toString()}`);
 }

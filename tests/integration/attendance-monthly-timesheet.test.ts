@@ -11,6 +11,7 @@ import {
   markAttendanceTimesheetBranchReady,
 } from "../../src/lib/attendance/timesheet-service";
 import { materializeAttendanceResolutionFoundationInTransaction, resolveAttendanceCaseInTransaction } from "../../src/lib/attendance/resolution-service";
+import { deriveOvertimeCandidate } from "../../src/lib/attendance/overtime-service";
 import { generatePayrollRun, submitPayrollRunForReview } from "../../src/lib/payroll/service";
 
 const prisma = new PrismaClient();
@@ -82,6 +83,13 @@ test("A3 marks current branch evidence ready, locks immutable revision, and pres
       database,
     });
     assert.equal(locked.revision, 1);
+    const lockedSnapshot = await loadMonthlyAttendanceTimesheet({
+      businessId: fixture.business.id,
+      allowedBranchIds: [fixture.branchA.id, fixture.branchB.id],
+      month: "2026-08",
+      database: transaction,
+    });
+    assert.equal(lockedSnapshot.timesheet?.approvalSourceDigest, lockedSnapshot.currentSourceDigest);
     assert.equal(await transaction.attendanceTimesheetRevisionEntry.count({ where: { revisionId: locked.revisionId } }), 2);
     assert.deepEqual(await transaction.payrollRun.findUniqueOrThrow({ where: { id: finalizedPayroll.id } }), payrollBefore);
 
@@ -123,7 +131,7 @@ test("A3 invalidates stale Branch Ready and creates revision 2 without changing 
       },
     }, transaction);
     const changed = await loadMonthlyAttendanceTimesheet({ businessId: fixture.business.id, allowedBranchIds: [fixture.branchA.id], month: "2026-08", database: transaction });
-    assert.notEqual(changed.currentSourceDigest, changed.timesheet?.currentRevision?.sourceDigest);
+    assert.notEqual(changed.currentSourceDigest, changed.timesheet?.approvalSourceDigest);
     await beginMonthlyAttendanceTimesheetRevision({ context, month: "2026-08", reason: "Include approved corrected departure time.", expectedUpdatedAt: changed.timesheet?.updatedAt.toISOString(), database });
     const draft = await loadMonthlyAttendanceTimesheet({ businessId: fixture.business.id, allowedBranchIds: [fixture.branchA.id], month: "2026-08", database: transaction });
     assert.equal(draft.timesheet?.status, "DRAFT");
@@ -236,6 +244,242 @@ test("A3 keeps unresolved sessions blocked and enforces branch scope", async () 
     assert.equal(await transaction.attendanceTimesheetBranchReadiness.count({
       where: { timesheet: { businessId: fixture.business.id } },
     }), 0);
+    return fixture.business.id;
+  });
+});
+
+test("P6B locks local-date segments and Payroll freezes the exact six buckets", async () => {
+  await withRollback(async (transaction) => {
+    const fixture = await createFixture(transaction);
+    const database = transactionDatabase(transaction);
+    const context = timesheetContext(fixture, true, [fixture.branchA.id]);
+    const timezone = "Asia/Kuala_Lumpur";
+    const workDate = new Date("2026-08-30T00:00:00.000Z");
+    const clockInAt = new Date("2026-08-30T14:00:00.000Z");
+    const clockOutAt = new Date("2026-08-30T22:00:00.000Z");
+    const expectedEndAt = new Date("2026-08-30T20:00:00.000Z");
+
+    const attendance = await transaction.employeeAttendance.create({
+      data: {
+        employeeAccountId: fixture.employeeAccount.id,
+        membershipId: fixture.membership.id,
+        businessId: fixture.business.id,
+        branchId: fixture.branchA.id,
+        workDate,
+        status: "COMPLETED",
+        clockInAt,
+        clockOutAt,
+        totalBreakMinutes: 30,
+        totalWorkedMinutes: 450,
+        expectedBreakMinutes: 30,
+        confirmedBreakMinutes: 30,
+        approvalStatus: "NOT_REQUIRED",
+      },
+    });
+    await materializeAttendanceResolutionFoundationInTransaction(
+      { ...resolutionContext(fixture), attendanceSessionId: attendance.id },
+      transaction,
+    );
+    await transaction.attendancePunch.createMany({
+      data: [
+        {
+          businessId: fixture.business.id,
+          branchId: fixture.branchA.id,
+          employeeId: fixture.membership.id,
+          attendanceSessionId: attendance.id,
+          type: "BREAK_START",
+          serverTimestamp: new Date("2026-08-30T15:45:00.000Z"),
+          insideGeofence: true,
+          geofenceStatus: "INSIDE",
+          source: "SYSTEM",
+        },
+        {
+          businessId: fixture.business.id,
+          branchId: fixture.branchA.id,
+          employeeId: fixture.membership.id,
+          attendanceSessionId: attendance.id,
+          type: "BREAK_END",
+          serverTimestamp: new Date("2026-08-30T16:15:00.000Z"),
+          insideGeofence: true,
+          geofenceStatus: "INSIDE",
+          source: "SYSTEM",
+        },
+      ],
+    });
+
+    const normalExpectedDay = await transaction.attendanceExpectedDay.create({
+      data: {
+        businessId: fixture.business.id,
+        branchId: fixture.branchA.id,
+        membershipId: fixture.membership.id,
+        workDate,
+        kind: "WORKDAY",
+        source: "MANUAL_EVIDENCE",
+        expectedStartAt: clockInAt,
+        expectedEndAt,
+        timezoneSnapshot: timezone,
+        status: "CURRENT",
+        revision: 1,
+        createdById: fixture.owner.id,
+      },
+    });
+    await transaction.attendanceExpectedDay.create({
+      data: {
+        businessId: fixture.business.id,
+        branchId: fixture.branchA.id,
+        membershipId: fixture.membership.id,
+        workDate: new Date("2026-08-31T00:00:00.000Z"),
+        kind: "PUBLIC_HOLIDAY",
+        source: "MANUAL_EVIDENCE",
+        timezoneSnapshot: timezone,
+        policySnapshot: {
+          publicHolidayContext: {
+            name: "National Day",
+            jurisdiction: "Sabah",
+            source: "Local P6B integration fixture",
+          },
+        },
+        status: "CURRENT",
+        revision: 1,
+        createdById: fixture.owner.id,
+      },
+    });
+    const finalResult = await transaction.attendanceP2FinalResult.create({
+      data: {
+        businessId: fixture.business.id,
+        branchId: fixture.branchA.id,
+        membershipId: fixture.membership.id,
+        workDate,
+        version: 1,
+        outcome: "PRESENT",
+        expectedDayKindSnapshot: "WORKDAY",
+        expectedDayId: normalExpectedDay.id,
+        expectedStartAt: clockInAt,
+        expectedEndAt,
+        actualClockInAt: clockInAt,
+        actualClockOutAt: clockOutAt,
+        totalBreakMinutes: 30,
+        totalWorkedMinutes: 450,
+        sourceDigest: "a".repeat(64),
+        resolutionDigest: "b".repeat(64),
+        createdById: fixture.owner.id,
+      },
+    });
+    const overtime = deriveOvertimeCandidate(finalResult, timezone);
+    assert.equal(overtime.potentialOtMinutes, 120);
+    await transaction.attendanceOvertimeReview.create({
+      data: {
+        businessId: fixture.business.id,
+        branchId: fixture.branchA.id,
+        membershipId: fixture.membership.id,
+        workDate,
+        finalResultId: finalResult.id,
+        finalResultVersion: finalResult.version,
+        expectedDayId: normalExpectedDay.id,
+        status: "ADJUSTED",
+        context: overtime.context,
+        potentialOtMinutes: overtime.potentialOtMinutes,
+        approvedOtMinutes: 90,
+        sourceDigest: overtime.sourceDigest,
+        revision: 1,
+        reviewedById: fixture.owner.id,
+        reviewedAt: new Date("2026-09-01T00:00:00.000Z"),
+        reason: "Local P6B integration approval",
+      },
+    });
+
+    await markAttendanceTimesheetBranchReady({
+      context,
+      month: "2026-08",
+      branchId: fixture.branchA.id,
+      database,
+    });
+    const ready = await loadMonthlyAttendanceTimesheet({
+      businessId: fixture.business.id,
+      allowedBranchIds: [fixture.branchA.id],
+      month: "2026-08",
+      database: transaction,
+    });
+    assert.equal(ready.totals.blockers, 0);
+    await approveMonthlyAttendanceTimesheet({
+      context,
+      month: "2026-08",
+      reason: "Approve P6B cross-midnight evidence.",
+      expectedUpdatedAt: ready.timesheet?.updatedAt.toISOString(),
+      database,
+    });
+    const approved = await loadMonthlyAttendanceTimesheet({
+      businessId: fixture.business.id,
+      allowedBranchIds: [fixture.branchA.id],
+      month: "2026-08",
+      database: transaction,
+    });
+    const locked = await lockMonthlyAttendanceTimesheet({
+      context,
+      month: "2026-08",
+      reason: "Lock P6B cross-midnight evidence.",
+      expectedUpdatedAt: approved.timesheet?.updatedAt.toISOString(),
+      database,
+    });
+
+    const segments = await transaction.attendanceTimesheetP2SegmentSnapshot.findMany({
+      where: { revisionId: locked.revisionId },
+      orderBy: { segmentIndex: "asc" },
+    });
+    assert.deepEqual(
+      segments.map((segment) => ({
+        date: segment.localDate.toISOString().slice(0, 10),
+        context: segment.context,
+        gross: segment.grossMinutes,
+        break: segment.breakMinutes,
+        worked: segment.workedMinutes,
+        potentialOt: segment.potentialOtMinutes,
+        approvedOt: segment.approvedOtMinutes,
+        publicHoliday: segment.isPublicHoliday,
+      })),
+      [
+        { date: "2026-08-30", context: "NORMAL", gross: 120, break: 15, worked: 105, potentialOt: 0, approvedOt: 0, publicHoliday: false },
+        { date: "2026-08-31", context: "PUBLIC_HOLIDAY", gross: 360, break: 15, worked: 345, potentialOt: 120, approvedOt: 90, publicHoliday: true },
+      ],
+    );
+    assert.equal(segments.reduce((sum, segment) => sum + segment.workedMinutes, 0), 450);
+    assert.equal(segments.reduce((sum, segment) => sum + segment.approvedOtMinutes, 0), 90);
+    assert.ok(segments.every((segment) => segment.timezoneSnapshot === timezone));
+
+    await transaction.employeeCompensationVersion.create({
+      data: {
+        baseRate: 2600,
+        businessId: fixture.business.id,
+        effectiveFromMonth: new Date("2026-08-01T00:00:00.000Z"),
+        membershipId: fixture.membership.id,
+        payBasis: "MONTHLY",
+        reasonType: "DATA_MIGRATION",
+        source: "LEGACY_BASELINE",
+      },
+    });
+    const payrollRun = await generatePayrollRun(
+      { actor: context.actor, businessId: fixture.business.id, month: "2026-08" },
+      database,
+    );
+    const payrollEntry = await transaction.payrollEntry.findFirstOrThrow({
+      where: { payrollRunId: payrollRun.id, membershipId: fixture.membership.id },
+    });
+    const payrollSnapshot = await transaction.payrollAttendanceInputSnapshot.findUniqueOrThrow({
+      where: { payrollEntryId: payrollEntry.id },
+    });
+    assert.deepEqual(
+      {
+        regularNormal: payrollSnapshot.regularNormalMinutes,
+        normalOt: payrollSnapshot.normalOtMinutes,
+        restWork: payrollSnapshot.restDayWorkMinutes,
+        restOt: payrollSnapshot.restDayOtMinutes,
+        holidayWork: payrollSnapshot.publicHolidayWorkMinutes,
+        holidayOt: payrollSnapshot.publicHolidayOtMinutes,
+      },
+      { regularNormal: 105, normalOt: 0, restWork: 0, restOt: 0, holidayWork: 255, holidayOt: 90 },
+    );
+    assert.equal(payrollRun.attendanceTimesheetRevisionId, locked.revisionId);
+    assert.equal(payrollSnapshot.legacyCompatibility, false);
     return fixture.business.id;
   });
 });

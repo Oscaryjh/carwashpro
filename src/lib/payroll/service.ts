@@ -11,14 +11,18 @@ import {
 import {
   buildAttendancePayrollComponents,
   buildPayrollAttendanceInput,
+  type PayrollAttendanceInput,
 } from "@/lib/payroll/attendance-integration";
 import { buildSystemPayrollEntryComponents } from "@/lib/payroll/component-calculation";
 import { deriveAndPersistEntryAggregates } from "@/lib/payroll/component-service";
 import { resolveEmployeeCompensationVersion } from "@/lib/payroll/compensation-version";
+import { calculateHolidayPayPreview } from "@/lib/payroll/holiday-pay-policy";
 import {
   resolveRecurringPayForEmployees,
 } from "@/lib/payroll/recurring-pay";
 import { materializeStatutoryP2 } from "@/lib/payroll/statutory-p2";
+import { materializeSabahWorkPayInTransaction } from "@/lib/payroll/sabah-work-pay-service";
+import { SABAH_WORK_PAY_JURISDICTION } from "@/lib/payroll/sabah-work-pay-rule-pack";
 import {
   assertPayrollRunUsesCurrentLockedTimesheet,
   resolveLockedPayrollTimesheet,
@@ -48,6 +52,9 @@ export const DEFAULT_PAYROLL_SETTING = {
   breakMinutesPerDay: 60,
   overtimeMultiplier: 1.5,
   publicHolidayExtraMultiplier: 2,
+  publicHolidayPayEnabled: false,
+  publicHolidayPayPolicyRevision: 1,
+  stateCode: null,
 } as const;
 
 type PayrollActor = Pick<AppSession, "userId" | "name" | "email">;
@@ -132,6 +139,9 @@ export async function generatePayrollRun(
             overtimeMultiplierSnapshot: setting.overtimeMultiplier,
             publicHolidayExtraMultiplierSnapshot:
               setting.publicHolidayExtraMultiplier,
+            publicHolidayPayEnabledSnapshot: setting.publicHolidayPayEnabled,
+            publicHolidayPayPolicyRevisionSnapshot:
+              setting.publicHolidayPayPolicyRevision,
           },
         })
       : await transaction.payrollRun.create({
@@ -150,6 +160,9 @@ export async function generatePayrollRun(
             overtimeMultiplierSnapshot: setting.overtimeMultiplier,
             publicHolidayExtraMultiplierSnapshot:
               setting.publicHolidayExtraMultiplier,
+            publicHolidayPayEnabledSnapshot: setting.publicHolidayPayEnabled,
+            publicHolidayPayPolicyRevisionSnapshot:
+              setting.publicHolidayPayPolicyRevision,
             createdById: context.actor.userId,
           },
         });
@@ -207,6 +220,28 @@ export async function generatePayrollRun(
       },
       orderBy: [{ scheme: "asc" }, { effectiveFrom: "desc" }],
     });
+    const activeWorkPayRules = statutoryRules.filter(
+      (rule) =>
+        rule.scheme === "WORK_PAY" &&
+        rule.jurisdictionCode === SABAH_WORK_PAY_JURISDICTION,
+    );
+    const activeWorkPayRule =
+      activeWorkPayRules.length === 1 ? activeWorkPayRules[0] : null;
+    const attendanceBranchIds = [
+      ...new Set(timesheet.p2Segments.map((segment) => segment.branchId)),
+    ];
+    const attendanceBranches = attendanceBranchIds.length
+      ? await transaction.branch.findMany({
+          where: {
+            businessId: context.businessId,
+            id: { in: attendanceBranchIds },
+          },
+          select: { id: true, countryCode: true, stateCode: true },
+        })
+      : [];
+    const attendanceBranchById = new Map(
+      attendanceBranches.map((branch) => [branch.id, branch]),
+    );
     const lindung24Participation = await transaction.employeeLindung24ParticipationVersion.findMany({
       where: {
         businessId: context.businessId,
@@ -225,6 +260,9 @@ export async function generatePayrollRun(
     let correctionAppliedCount = 0;
     let attendanceSnapshotCount = 0;
     let attendancePolicyBlockerCount = 0;
+    let leaveSnapshotFactCount = 0;
+    let statutoryWorkPayCalculationCount = 0;
+    let statutoryWorkPayComponentCount = 0;
     for (const membership of memberships) {
       const compensation = await resolveEmployeeCompensationVersion(
         {
@@ -244,8 +282,13 @@ export async function generatePayrollRun(
       const attendance = buildPayrollAttendanceInput({
         membershipId: membership.id,
         payBasis: compensation.payBasis,
+        publicHolidayPayPolicyReady: setting.publicHolidayPayEnabled,
+        statutoryWorkPayPolicyReady: Boolean(activeWorkPayRule),
         days: timesheet.p2Days.filter(
           (day) => day.membershipId === membership.id,
+        ),
+        segments: timesheet.p2Segments.filter(
+          (segment) => segment.membershipId === membership.id,
         ),
       });
       assertSupportedPayrollProration({
@@ -256,6 +299,18 @@ export async function generatePayrollRun(
         periodEnd: period.end,
       });
       const baseRateCents = moneyToCents(compensation.baseRate);
+      const holidayPayPreview = calculateHolidayPayPreview({
+        payBasis: compensation.payBasis,
+        baseRateCents,
+        workingDaysPerMonth: setting.workingDaysPerMonth,
+        normalWorkMinutesPerDay:
+          membership.normalWorkMinutesPerDay ??
+          setting.normalWorkMinutesPerDay,
+        publicHolidayWorkedMinutes: attendance.publicHolidayWorkedMinutes,
+        publicHolidayExtraMultiplier: Number(
+          setting.publicHolidayExtraMultiplier,
+        ),
+      });
       const previewAttendanceLines = buildAttendancePayrollComponents({
         snapshotId: "00000000-0000-4000-8000-000000000000",
         timesheetRevision: timesheet.revision,
@@ -283,6 +338,9 @@ export async function generatePayrollRun(
       if (previousEntry) {
         await transaction.payrollEntryComponent.deleteMany({
           where: { payrollEntryId: previousEntry.id, origin: "SYSTEM" },
+        });
+        await transaction.payrollWorkPayCalculationSnapshot.deleteMany({
+          where: { payrollEntryId: previousEntry.id },
         });
         await transaction.payrollEntryRecurringPaySnapshot.deleteMany({
           where: { payrollEntryId: previousEntry.id },
@@ -315,6 +373,18 @@ export async function generatePayrollRun(
           unpaidLeaveDeduction: "0.00",
           overtimePay: "0.00",
           publicHolidayPay: "0.00",
+          publicHolidayPayPreview: activeWorkPayRule
+            ? "0.00"
+            : centsToMoney(holidayPayPreview.amountCents),
+          publicHolidayPayDecisionStatus:
+            activeWorkPayRule || attendance.publicHolidayWorkedMinutes === 0
+              ? ("NOT_APPLICABLE" as const)
+              : setting.publicHolidayPayEnabled
+                ? ("PENDING_CONFIRMATION" as const)
+                : ("POLICY_DISABLED" as const),
+          publicHolidayPayDecisionReason: null,
+          publicHolidayPayDecidedById: null,
+          publicHolidayPayDecidedAt: null,
           epfWageBase: "0.00",
           perkesoWageBase: "0.00",
           epfEmployee: "0.00",
@@ -361,9 +431,22 @@ export async function generatePayrollRun(
         restDayWorkedMinutes: attendance.restDayWorkedMinutes,
         publicHolidayWorkedMinutes: attendance.publicHolidayWorkedMinutes,
         approvedOvertimeMinutes: attendance.approvedOvertimeMinutes,
+        regularNormalMinutes: attendance.regularNormalMinutes,
+        normalOtMinutes: attendance.normalOtMinutes,
+        restDayWorkMinutes: attendance.restDayWorkMinutes,
+        restDayOtMinutes: attendance.restDayOtMinutes,
+        publicHolidayWorkMinutes: attendance.publicHolidayWorkMinutes,
+        publicHolidayOtMinutes: attendance.publicHolidayOtMinutes,
+        segmentFacts: JSON.parse(
+          JSON.stringify(attendance.segmentFacts),
+        ) as Prisma.InputJsonValue,
         sourceDayCount: attendance.sourceDayCount,
         legacyCompatibility: attendance.legacyCompatibility,
         policyBlockers: attendance.policyBlockers,
+        leaveFacts: JSON.parse(JSON.stringify(attendance.leaveFacts)) as Prisma.InputJsonValue,
+        leaveCategoryBreakdown: JSON.parse(
+          JSON.stringify(attendance.leaveCategoryBreakdown),
+        ) as Prisma.InputJsonValue,
         sourceDigest: attendance.sourceDigest,
         generatedAt: new Date(),
       } satisfies Prisma.PayrollAttendanceInputSnapshotUncheckedUpdateInput;
@@ -377,6 +460,7 @@ export async function generatePayrollRun(
       });
       attendanceSnapshotCount += 1;
       attendancePolicyBlockerCount += attendance.policyBlockers.length;
+      leaveSnapshotFactCount += attendance.leaveFacts.length;
       if (recurringPay.length) {
         await transaction.payrollEntryRecurringPaySnapshot.createMany({
           data: recurringPay.map((component) => ({
@@ -457,6 +541,43 @@ export async function generatePayrollRun(
           })),
         });
       }
+      if (activeWorkPayRule && hasStatutoryWorkPayMinutes(attendance)) {
+        const workPayBranchIds = [
+          ...new Set(
+            attendance.segmentFacts
+              .filter((fact) =>
+                fact.context !== "NORMAL" || fact.approvedOtMinutes > 0,
+              )
+              .map((fact) => fact.branchId),
+          ),
+        ];
+        const workPayMaterialization = await materializeSabahWorkPayInTransaction(transaction, {
+          businessId: context.businessId,
+          payrollRunId: run.id,
+          payrollEntryId: entry.id,
+          membershipId: membership.id,
+          compensationVersionId: compensation.versionId,
+          attendanceInputSnapshotId: attendanceSnapshot.id,
+          payBasis: compensation.payBasis,
+          baseRateCents,
+          normalWorkMinutes:
+            membership.normalWorkMinutesPerDay ??
+            setting.normalWorkMinutesPerDay,
+          period: period.start,
+          jurisdictionCode: resolveWorkPayJurisdiction(
+            workPayBranchIds,
+            attendanceBranchById,
+          ),
+          actorUserId: context.actor.userId,
+          attendance,
+          coverageClass: null,
+          rule: activeWorkPayRule,
+        });
+        if (workPayMaterialization.status === "CREATED") {
+          statutoryWorkPayCalculationCount += 1;
+          statutoryWorkPayComponentCount += workPayMaterialization.calculation.lines.length;
+        }
+      }
       await markP4CSourcesApplied(transaction, {
         entryId: entry.id,
         variablePay,
@@ -521,6 +642,8 @@ export async function generatePayrollRun(
           correctionAppliedCount,
           attendanceSnapshotCount,
           attendancePolicyBlockerCount,
+          statutoryWorkPayCalculationCount,
+          statutoryWorkPayComponentCount,
           attendanceTimesheet: {
             revisionId: timesheet.revisionId,
             revision: timesheet.revision,
@@ -530,6 +653,48 @@ export async function generatePayrollRun(
       },
       transaction,
     );
+    await writeAuditLog(
+      {
+        businessId: context.businessId,
+        actor: context.actor,
+        request: context.request,
+        action: "PAYROLL_LEAVE_SNAPSHOT_CREATED",
+        entityType: "PayrollRun",
+        entityId: run.id,
+        summary: `Frozen Leave evidence was copied from locked Timesheet revision ${timesheet.revision}.`,
+        metadata: {
+          month: period.value,
+          timesheetRevisionId: timesheet.revisionId,
+          timesheetRevision: timesheet.revision,
+          employeeSnapshotCount: attendanceSnapshotCount,
+          leaveFactCount: leaveSnapshotFactCount,
+          policyBlockerCount: attendancePolicyBlockerCount,
+        },
+      },
+      transaction,
+    );
+    if (statutoryWorkPayCalculationCount > 0) {
+      await writeAuditLog(
+        {
+          businessId: context.businessId,
+          actor: context.actor,
+          request: context.request,
+          action: "PAYROLL_STATUTORY_WORK_PAY_MATERIALIZED",
+          entityType: "PayrollRun",
+          entityId: run.id,
+          summary: `${statutoryWorkPayCalculationCount} Sabah statutory work-pay calculations materialized from frozen payroll inputs.`,
+          metadata: {
+            month: period.value,
+            jurisdictionCode: SABAH_WORK_PAY_JURISDICTION,
+            ruleVersion: activeWorkPayRule?.version ?? null,
+            sourceDigest: activeWorkPayRule?.sourceDigest ?? null,
+            calculationCount: statutoryWorkPayCalculationCount,
+            componentCount: statutoryWorkPayComponentCount,
+          },
+        },
+        transaction,
+      );
+    }
     return run;
   });
 }
@@ -662,6 +827,190 @@ export async function updatePayrollEntry(
   }, { isolationLevel: "Serializable" });
 }
 
+export async function decidePayrollHolidayPay(
+  context: PayrollContext & {
+    entryId: string;
+    expectedRevision: number;
+    decision: "CONFIRMED" | "EXCLUDED";
+    reason?: string;
+  },
+  database: PrismaClient = prisma,
+) {
+  const reason = String(context.reason ?? "").trim();
+  if (context.decision === "EXCLUDED" && (reason.length < 5 || reason.length > 500)) {
+    throw new Error("Exclusion reason must be 5 to 500 characters.");
+  }
+  return database.$transaction(async (transaction) => {
+    const entry = await transaction.payrollEntry.findFirst({
+      where: {
+        id: context.entryId,
+        businessId: context.businessId,
+        payrollRun: { status: "DRAFT" },
+      },
+      include: {
+        payrollRun: true,
+        attendanceInputSnapshot: true,
+        membership: {
+          select: {
+            dateOfBirth: true,
+            statutoryNationality: true,
+            epfEnabled: true,
+            epfMemberBeforeAug1998: true,
+            socsoEnabled: true,
+            socsoCategory: true,
+            eisEnabled: true,
+            eisPreviouslyContributed: true,
+            lindung24OptIn: true,
+            statutoryProfileRevision: true,
+            taxProfileRevision: true,
+            taxIdentificationNumber: true,
+          },
+        },
+      },
+    });
+    if (!entry || !entry.attendanceInputSnapshot) {
+      throw new Error("The editable payroll holiday record was not found.");
+    }
+    if (entry.calculationRevision !== context.expectedRevision) {
+      throw new Error("Payroll entry changed after this page was loaded. Reload and try again.");
+    }
+    if (!entry.payrollRun.publicHolidayPayEnabledSnapshot) {
+      throw new Error("Holiday pay preview is disabled for this Payroll Run.");
+    }
+    if (entry.attendanceInputSnapshot.publicHolidayWorkedMinutes <= 0) {
+      throw new Error("No frozen public-holiday worked minutes require a decision.");
+    }
+
+    const preview = calculateHolidayPayPreview({
+      payBasis: entry.payBasisSnapshot,
+      baseRateCents: moneyToCents(entry.baseRateSnapshot),
+      workingDaysPerMonth: entry.workingDaysSnapshot,
+      normalWorkMinutesPerDay: entry.normalWorkMinutesSnapshot,
+      publicHolidayWorkedMinutes:
+        entry.attendanceInputSnapshot.publicHolidayWorkedMinutes,
+      publicHolidayExtraMultiplier: Number(
+        entry.payrollRun.publicHolidayExtraMultiplierSnapshot,
+      ),
+    });
+    const lineKey = "SYSTEM:PUBLIC_HOLIDAY_PAY";
+    if (context.decision === "CONFIRMED") {
+      await transaction.payrollEntryComponent.upsert({
+        where: {
+          payrollEntryId_lineKey: {
+            payrollEntryId: entry.id,
+            lineKey,
+          },
+        },
+        create: {
+          businessId: context.businessId,
+          payrollRunId: entry.payrollRunId,
+          payrollEntryId: entry.id,
+          membershipId: entry.membershipId,
+          lineKey,
+          type: "EARNING",
+          code: "PUBLIC_HOLIDAY_PAY",
+          name: "Public Holiday Pay",
+          amount: centsToMoney(preview.amountCents),
+          currency: "MYR",
+          sourceType: "PAYROLL_CALCULATION",
+          sourceId: entry.attendanceInputSnapshot.id,
+          sourceVersionId: entry.attendanceInputSnapshot.timesheetRevisionId,
+          sourceRevision: entry.attendanceInputSnapshot.timesheetRevision,
+          effectiveFromMonth: entry.payrollRun.periodStart,
+          calculationBasis: preview.calculationBasis,
+          origin: "SYSTEM",
+          sourceReason: preview.explanation,
+          sortOrder: 400,
+          createdById: context.actor.userId,
+        },
+        update: {
+          amount: centsToMoney(preview.amountCents),
+          sourceId: entry.attendanceInputSnapshot.id,
+          sourceVersionId: entry.attendanceInputSnapshot.timesheetRevisionId,
+          sourceRevision: entry.attendanceInputSnapshot.timesheetRevision,
+          calculationBasis: preview.calculationBasis,
+          sourceReason: preview.explanation,
+        },
+      });
+    } else {
+      await transaction.payrollEntryComponent.deleteMany({
+        where: {
+          businessId: context.businessId,
+          payrollEntryId: entry.id,
+          lineKey,
+          origin: "SYSTEM",
+        },
+      });
+    }
+
+    const write = await transaction.payrollEntry.updateMany({
+      where: {
+        id: entry.id,
+        businessId: context.businessId,
+        calculationRevision: context.expectedRevision,
+        payrollRun: { status: "DRAFT" },
+      },
+      data: {
+        publicHolidayPayPreview: centsToMoney(preview.amountCents),
+        publicHolidayPay:
+          context.decision === "CONFIRMED"
+            ? centsToMoney(preview.amountCents)
+            : "0.00",
+        publicHolidayPayDecisionStatus: context.decision,
+        publicHolidayPayDecisionReason: reason || null,
+        publicHolidayPayDecidedById: context.actor.userId,
+        publicHolidayPayDecidedAt: new Date(),
+      },
+    });
+    if (write.count !== 1) {
+      throw new Error("Payroll entry changed after this page was loaded. Reload and try again.");
+    }
+
+    await materializeStatutoryP2(transaction, {
+      businessId: context.businessId,
+      payrollRunId: entry.payrollRunId,
+      payrollEntryId: entry.id,
+      membershipId: entry.membershipId,
+      statutoryPeriod: entry.payrollRun.periodStart,
+      actorUserId: context.actor.userId,
+      profile: entry.membership,
+    });
+    const refreshed = await transaction.payrollEntry.findUniqueOrThrow({
+      where: { id: entry.id },
+    });
+    await deriveAndPersistEntryAggregates(
+      transaction,
+      refreshed,
+      context.expectedRevision,
+    );
+    await writeSensitiveAuditLog(
+      {
+        businessId: context.businessId,
+        actor: context.actor,
+        request: context.request,
+        action: `PAYROLL_HOLIDAY_PAY_${context.decision}`,
+        entityType: "PayrollEntry",
+        entityId: entry.id,
+        summary: `Holiday pay ${context.decision.toLowerCase()} for ${entry.fullNameSnapshot}.`,
+        before: {
+          decision: entry.publicHolidayPayDecisionStatus,
+          policyRevision:
+            entry.payrollRun.publicHolidayPayPolicyRevisionSnapshot,
+        },
+        after: {
+          decision: context.decision,
+          reasonRecorded: Boolean(reason),
+          amount: "[REDACTED]",
+        },
+      },
+      transaction,
+    );
+    return transaction.payrollEntry.findUniqueOrThrow({
+      where: { id: entry.id },
+    });
+  }, { isolationLevel: "Serializable" });
+}
+
 export async function submitPayrollRunForReview(
   context: PayrollContext & { runId: string },
   database: PrismaClient = prisma,
@@ -670,7 +1019,12 @@ export async function submitPayrollRunForReview(
     const run = await transaction.payrollRun.findFirst({
       where: { id: context.runId, businessId: context.businessId },
       include: {
-        entries: { select: { statutoryStatus: true } },
+        entries: {
+          select: {
+            statutoryStatus: true,
+            publicHolidayPayDecisionStatus: true,
+          },
+        },
         _count: { select: { entries: true } },
       },
     });
@@ -698,6 +1052,15 @@ export async function submitPayrollRunForReview(
     if (reviewRequired) {
       throw new Error(
         `${reviewRequired} employee statutory record(s) still require review.`,
+      );
+    }
+    const pendingHolidayPay = run.entries.filter(
+      (entry) =>
+        entry.publicHolidayPayDecisionStatus === "PENDING_CONFIRMATION",
+    ).length;
+    if (pendingHolidayPay) {
+      throw new Error(
+        `${pendingHolidayPay} employee holiday pay preview(s) still require confirmation or exclusion.`,
       );
     }
     const submitted = await transaction.payrollRun.update({
@@ -808,13 +1171,26 @@ export async function finalizePayrollRun(
       },
       transaction,
     );
-    const finalized = await transaction.payrollRun.update({
-      where: { id: run.id },
+    const finalizedWrite = await transaction.payrollRun.updateMany({
+      where: {
+        id: run.id,
+        businessId: context.businessId,
+        status: "REVIEW",
+        updatedAt: run.updatedAt,
+      },
       data: {
         status: "FINALIZED",
         finalizedAt: new Date(),
         finalizedById: context.actor.userId,
       },
+    });
+    if (finalizedWrite.count !== 1) {
+      throw new Error(
+        "Payroll run changed during final review. Reload the latest revision and run readiness again.",
+      );
+    }
+    const finalized = await transaction.payrollRun.findFirstOrThrow({
+      where: { id: run.id, businessId: context.businessId },
     });
     await writeAuditLog(
       {
@@ -1035,4 +1411,32 @@ function moneyToCents(value: { toString(): string } | number | null) {
 
 function centsToMoney(cents: number) {
   return (cents / 100).toFixed(2);
+}
+
+function hasStatutoryWorkPayMinutes(attendance: PayrollAttendanceInput) {
+  return (
+    attendance.normalOtMinutes +
+      attendance.restDayWorkMinutes +
+      attendance.restDayOtMinutes +
+      attendance.publicHolidayWorkMinutes +
+      attendance.publicHolidayOtMinutes >
+    0
+  );
+}
+
+function resolveWorkPayJurisdiction(
+  branchIds: readonly string[],
+  branches: ReadonlyMap<
+    string,
+    { countryCode: string; stateCode: string | null }
+  >,
+) {
+  if (branchIds.length === 0) return null;
+  const allSabah = branchIds.every((branchId) => {
+    const branch = branches.get(branchId);
+    if (!branch || branch.countryCode.toUpperCase() !== "MY") return false;
+    const stateCode = branch.stateCode?.trim().toUpperCase();
+    return stateCode === "12" || stateCode === "SBH" || stateCode === "SABAH";
+  });
+  return allSabah ? SABAH_WORK_PAY_JURISDICTION : null;
 }

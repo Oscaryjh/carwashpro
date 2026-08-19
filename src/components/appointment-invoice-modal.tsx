@@ -21,6 +21,8 @@ export type InvoiceModalSummary = {
   issuedAt: string;
   customerName: string;
   customerPhone: string;
+  checkoutType?: "STANDARD" | "TRAINING_COMPLIMENTARY";
+  checkoutReason?: string;
   items: Array<{
     id: string;
     name: string;
@@ -126,8 +128,12 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
       >
         <header className="appointment-invoice-header">
           <div>
-            <span className="appointment-checkout-eyebrow">Checkout complete</span>
-            <h2>Invoice</h2>
+            <span className="appointment-checkout-eyebrow">
+              {invoice.checkoutType === "TRAINING_COMPLIMENTARY"
+                ? "Complimentary service complete"
+                : "Checkout complete"}
+            </span>
+            <h2>{invoice.checkoutType === "TRAINING_COMPLIMENTARY" ? "Training / Complimentary" : "Invoice"}</h2>
             <p>{formatInvoiceNumber(invoice.invoiceNumber)}</p>
           </div>
           <div className="appointment-invoice-header-actions">
@@ -141,6 +147,12 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
             />
           </div>
         </header>
+
+        {invoice.checkoutType === "TRAINING_COMPLIMENTARY" ? (
+          <p className="form-info">
+            Customer paid RM0.00 · Original-price staff commission applies · {invoice.checkoutReason}
+          </p>
+        ) : null}
 
         <div className="appointment-invoice-meta">
           <div><span>Customer</span><strong>{invoice.customerName}</strong></div>

@@ -74,6 +74,34 @@ test("People list and core actions avoid disabled HR and payroll reads", async (
   assert.match(actions, /formData\.get\("peopleCoreOnly"\) === "on"/);
   assert.match(actions, /createCoreStaff/);
   assert.match(actions, /assertStaffPermissionsEntitled/);
+  assert.match(teamPage, /Staff App ready/);
+  assert.match(teamPage, /enableStaffAppAction/);
+  assert.match(actions, /enableStaffAppForLegacyUser/);
+});
+
+test("People navigation keeps one HR workspace entry and only contextual People tools", async () => {
+  const root = process.cwd();
+  const appShell = await readFile(path.join(root, "src/components/app-shell.tsx"), "utf8");
+  const teamPage = await readFile(path.join(root, "src/app/(business)/team/page.tsx"), "utf8");
+
+  assert.doesNotMatch(appShell, /children:\s*teamWorkspaceItems/);
+  assert.match(appShell, /label: moduleEnabled\("HR"\) \? "People & HR" : "People"/);
+  assert.match(teamPage, /aria-label="People tools"/);
+  assert.match(teamPage, /label: "Availability & Services"/);
+  assert.match(teamPage, /item\.key !== "people" && item\.key !== "attendance"/);
+});
+
+test("People tools open as dialogs and Activity is paginated at ten records", async () => {
+  const root = process.cwd();
+  const teamPage = await readFile(path.join(root, "src/app/(business)/team/page.tsx"), "utf8");
+
+  assert.match(teamPage, /section === "schedule" && !params\.modal[\s\S]*ariaLabel="Availability and services"/);
+  assert.match(teamPage, /section === "roles" && !params\.modal[\s\S]*ariaLabel="Roles and permissions"/);
+  assert.match(teamPage, /section === "activity" && !params\.modal[\s\S]*ariaLabel="Team activity"/);
+  assert.match(teamPage, /slice\(firstEntryIndex, firstEntryIndex \+ 10\)/);
+  assert.match(teamPage, /aria-label="Activity pages"/);
+  assert.match(teamPage, /activityPage=\$\{page - 1\}/);
+  assert.match(teamPage, /activityPage=\$\{page \+ 1\}/);
 });
 
 function tabs(access: ResolvedBusinessAccess, enabled: ModuleKey[]) {

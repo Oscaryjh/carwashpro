@@ -16,7 +16,14 @@ const eslintConfig = defineConfig([
     files: ["whatsapp-connector/src/**/*.ts"],
     rules: { "react-hooks/rules-of-hooks": "off" },
   },
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "whatsapp-connector/dist/**"]),
+  globalIgnores([
+    ".next/**",
+    "out/**",
+    "build/**",
+    "tmp/**",
+    "next-env.d.ts",
+    "whatsapp-connector/dist/**",
+  ]),
 ]);
 
 export default eslintConfig;

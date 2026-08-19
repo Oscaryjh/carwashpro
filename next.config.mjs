@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Permit phones on the current private Wi-Fi subnet to hydrate the Local
+  // development app. This allowlist affects dev-only assets/endpoints only.
+  allowedDevOrigins: ["192.168.1.*"],
   // Keep the audited webpack production pipeline while the Next 16 Turbopack
   // prerender path is not yet compatible with this migrated App Router tree.
   turbopack: {},

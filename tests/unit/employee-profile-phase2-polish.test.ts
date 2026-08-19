@@ -25,9 +25,9 @@ test("Phase 2 profile sections use consistent daily-use headings and read-only l
     ),
   ]);
 
-  assert.match(overview, /<h2>Team member overview<\/h2>/);
-  assert.match(overview, /<h2>Employment details<\/h2>/);
-  assert.match(personal, /<h2>Contact details<\/h2>/);
+  assert.match(overview, /<h2>Overview<\/h2>/);
+  assert.match(overview, /<h2>Employment<\/h2>/);
+  assert.match(personal, /<h2>Personal<\/h2>/);
   assert.match(attendance, /<h2>Attendance<\/h2>/);
   assert.match(leave, /<h2>Leave<\/h2>/);
 
@@ -43,14 +43,15 @@ test("Phase 2 profile sections use consistent daily-use headings and read-only l
   );
 });
 
-test("Phase 2 mobile profile navigation exposes all tabs without horizontal discovery", async () => {
+test("Phase 2 profile navigation exposes every section in the top horizontal rail", async () => {
   const styles = await readFile(
     path.join(root, "src/components/employee-profile-shell.module.css"),
     "utf8",
   );
 
-  assert.match(styles, /grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /grid-auto-flow:\s*row/);
+  assert.match(styles, /\.profileRail\s*\{[\s\S]*?overflow-x:\s*auto/);
+  assert.match(styles, /\.tabs\s*\{[\s\S]*?grid-template-columns:\s*repeat\(auto-fit, minmax\(126px, 1fr\)\)/);
+  assert.match(styles, /\.tabGroupLabel\s*\{[\s\S]*?display:\s*none/);
   assert.match(styles, /\.tabs \.activeTab\s*\{[\s\S]*?background:/);
   assert.match(styles, /overflow-wrap:\s*anywhere/);
 });

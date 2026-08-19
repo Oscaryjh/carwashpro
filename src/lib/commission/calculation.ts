@@ -43,6 +43,7 @@ export type CommissionSource = {
   grossAmountCents: number;
   discountAmountCents: number;
   netAmountCents: number;
+  grossBasisOverride: boolean;
 };
 
 export type CommissionCalculation = {
@@ -121,8 +122,7 @@ export function calculateCommission(
   periodEligibleCents?: number,
 ): CommissionCalculation {
   validateSource(source);
-  const eligibleAmountCents =
-    rule.basis === "GROSS" ? source.grossAmountCents : source.netAmountCents;
+  const eligibleAmountCents = commissionEligibleAmountCents(source, rule);
   let commissionAmountCents: number;
   let appliedRateBasisPoints: number | null = null;
   if (rule.ruleType === "FIXED_AMOUNT") {
@@ -147,6 +147,7 @@ export function calculateCommission(
       ruleRevisionId: rule.id,
       ruleType: rule.ruleType,
       basis: rule.basis,
+      basisOverride: source.grossBasisOverride ? "TRAINING_COMPLIMENTARY_GROSS" : null,
       eligibleAmountCents,
       quantity: source.quantity,
       appliedRateBasisPoints,
@@ -155,6 +156,15 @@ export function calculateCommission(
       rounding: "INTEGER_CENTS_HALF_UP",
     },
   };
+}
+
+export function commissionEligibleAmountCents(
+  source: CommissionSource,
+  rule: Pick<CommissionRuleCandidate, "basis">,
+) {
+  return source.grossBasisOverride || rule.basis === "GROSS"
+    ? source.grossAmountCents
+    : source.netAmountCents;
 }
 
 export function parseCommissionTiers(value: unknown): CommissionTier[] {

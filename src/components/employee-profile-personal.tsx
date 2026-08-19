@@ -55,7 +55,7 @@ export function EmployeeProfileCoreStaffPersonal({ data }: { data: CoreStaffData
   return (
     <div className={styles.sectionContent}>
       <section className={styles.sectionIntro}>
-        <div><p className={styles.eyebrow}>Personal</p><h2>Contact details</h2><p>Only operational People Core contact fields are loaded.</p></div>
+        <div><h2>Personal</h2><p>Contact details used by this employee profile.</p></div>
         <span className={styles.scopeBadge}>Read only</span>
       </section>
       <section className={styles.profilePanel}>
@@ -74,34 +74,21 @@ export function EmployeeProfilePersonal({ data }: { data: PersonalData }) {
     <div className={styles.sectionContent}>
       <section className={styles.sectionIntro}>
         <div>
-          <p className={styles.eyebrow}>Personal</p>
-          <h2>Contact details</h2>
+          <h2>Personal</h2>
           <p>
-            Read-only basic and contact details already stored in the employee
-            record. No additional sensitive fields are loaded.
+            Contact details already stored in the employee record. Sensitive
+            payroll and statutory information stays in its own section.
           </p>
         </div>
         <span className={styles.scopeBadge}>Read only</span>
       </section>
 
-      <div className={styles.profileGrid}>
-        <section className={styles.profilePanel}>
-          <div className={styles.panelHeading}>
-            <div>
-              <p className={styles.eyebrow}>Basic information</p>
-              <h3>Team member</h3>
-            </div>
-          </div>
-          <div className={styles.detailList}>
-            <PersonalDetail label="Full name" value={data.fullName} />
-          </div>
-        </section>
-
+      <div className={styles.singlePanelGrid}>
         <section className={styles.profilePanel}>
           <div className={styles.panelHeading}>
             <div>
               <p className={styles.eyebrow}>Contact</p>
-              <h3>Contact details</h3>
+              <h3>Phone & login contact</h3>
             </div>
           </div>
           <div className={styles.detailList}>

@@ -10,9 +10,15 @@ import {
 import { readEmployeeSessionToken } from "./cookie";
 import {
   createEmployeeSessionToken,
+  hashEmployeeIdentifier,
   hashEmployeeSessionToken,
 } from "./crypto";
 import { EmployeeAuthError } from "./errors";
+import type { EmployeeAuthRequestContext } from "./http";
+import {
+  findEligibleEmployeeIdentityById,
+  resolveEligibleEmployeeMembership,
+} from "./membership";
 
 export type EmployeeAuthContext = Readonly<{
   sessionId: string;
@@ -30,6 +36,8 @@ export type EmployeeAuthProfile = Readonly<{
     employeeCode: string;
     position: string | null;
     employmentType: string;
+    employmentStatus: string;
+    joinedAt: string;
   }>;
   workplace: Readonly<{
     businessName: string;
@@ -47,6 +55,14 @@ export type EmployeeAuthProfile = Readonly<{
     lastActiveAt: string;
     status: "ACTIVE" | "REVOKED" | "REPLACED";
   }>;
+}>;
+
+export type EmployeeWorkplaceChoice = Readonly<{
+  membershipId: string;
+  businessName: string;
+  employeeCode: string;
+  primaryBranchName: string;
+  current: boolean;
 }>;
 
 export type CreateEmployeeSessionRecordInput = Readonly<{
@@ -401,6 +417,8 @@ export async function getEmployeeAuthProfile(
         employeeCode: true,
         position: true,
         employmentType: true,
+        status: true,
+        joinedAt: true,
         business: {
           select: {
             name: true,
@@ -454,6 +472,8 @@ export async function getEmployeeAuthProfile(
       employeeCode: membership.employeeCode,
       position: membership.position,
       employmentType: membership.employmentType,
+      employmentStatus: membership.status,
+      joinedAt: membership.joinedAt.toISOString(),
     },
     workplace: {
       businessName: membership.business.name,
@@ -472,6 +492,200 @@ export async function getEmployeeAuthProfile(
       status: device.status,
     },
   };
+}
+
+export async function getEmployeeWorkplaces(
+  context: Pick<
+    EmployeeAuthContext,
+    "employeeAccountId" | "membershipId"
+  >,
+  database: PrismaClient = prisma,
+  now = new Date(),
+): Promise<readonly EmployeeWorkplaceChoice[]> {
+  const identity = await findEligibleEmployeeIdentityById(
+    context.employeeAccountId,
+    now,
+    database,
+    false,
+  );
+
+  if (!identity) {
+    throw new EmployeeAuthError("EMPLOYEE_INACTIVE");
+  }
+
+  const workplaces = identity.memberships.map((membership) => ({
+    membershipId: membership.membershipId,
+    businessName: membership.businessName,
+    employeeCode: membership.employeeCode,
+    primaryBranchName: membership.primaryBranchName,
+    current: membership.membershipId === context.membershipId,
+  }));
+  if (!workplaces.some((workplace) => workplace.current)) {
+    throw new EmployeeAuthError("MEMBERSHIP_NOT_AVAILABLE");
+  }
+  return workplaces;
+}
+
+export async function switchEmployeeWorkplace(
+  input: Readonly<{
+    auth: EmployeeAuthContext;
+    membershipId: string;
+    request?: EmployeeAuthRequestContext;
+  }>,
+  options: Readonly<{
+    database?: PrismaClient;
+    config?: EmployeeAuthConfig;
+    now?: Date;
+  }> = {},
+) {
+  if (input.membershipId === input.auth.membershipId) {
+    throw new EmployeeAuthError(
+      "INVALID_REQUEST",
+      "The selected workplace is already active.",
+    );
+  }
+
+  const database = options.database ?? prisma;
+  const config = options.config ?? getEmployeeAuthConfig();
+  const now = options.now ?? new Date();
+  const ipAddressHash = input.request?.ipAddress
+    ? hashEmployeeIdentifier(
+        "ip",
+        input.request.ipAddress,
+        config.authSecret,
+      )
+    : null;
+
+  const executeSwitch = async (transaction: Prisma.TransactionClient) => {
+    const currentSession = await transaction.employeeSession.findFirst({
+      where: {
+        id: input.auth.sessionId,
+        employeeAccountId: input.auth.employeeAccountId,
+        membershipId: input.auth.membershipId,
+        businessId: input.auth.businessId,
+        employeeDeviceId: input.auth.deviceId,
+        revokedAt: null,
+        expiresAt: { gt: now },
+        employeeDevice: {
+          employeeAccountId: input.auth.employeeAccountId,
+          status: "ACTIVE",
+          canView: true,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!currentSession) {
+      throw new EmployeeAuthError("SESSION_REVOKED");
+    }
+
+    const membership = await resolveEligibleEmployeeMembership(
+      input.auth.employeeAccountId,
+      input.membershipId,
+      now,
+      transaction,
+      false,
+    );
+
+    if (!membership) {
+      throw new EmployeeAuthError("MEMBERSHIP_NOT_AVAILABLE");
+    }
+
+    const revoked = await transaction.employeeSession.updateMany({
+      where: {
+        id: currentSession.id,
+        employeeAccountId: input.auth.employeeAccountId,
+        revokedAt: null,
+        expiresAt: { gt: now },
+      },
+      data: {
+        revokedAt: now,
+        revokeReason: "Employee switched workplace.",
+      },
+    });
+
+    if (revoked.count !== 1) {
+      throw new EmployeeAuthError("SESSION_REVOKED");
+    }
+
+    const created = await createEmployeeSessionRecord(
+      {
+        employeeAccountId: membership.employeeAccountId,
+        membershipId: membership.membershipId,
+        businessId: membership.businessId,
+        primaryBranchId: membership.primaryBranchId,
+        attendanceBranchId: membership.primaryBranchId,
+        deviceId: input.auth.deviceId,
+        ipAddressHash,
+        userAgent: input.request?.userAgent ?? null,
+        now,
+      },
+      transaction,
+      config,
+    );
+
+    await writeAuditLog(
+      {
+        businessId: input.auth.businessId,
+        branchId: input.auth.primaryBranchId,
+        action: "EMPLOYEE_WORKPLACE_SWITCHED_FROM",
+        entityType: "EmployeeSession",
+        entityId: currentSession.id,
+        summary: "Employee switched away from this workplace",
+        metadata: {
+          membershipId: input.auth.membershipId,
+          nextSessionId: created.context.sessionId,
+        },
+      },
+      transaction,
+    );
+    await writeAuditLog(
+      {
+        businessId: membership.businessId,
+        branchId: membership.primaryBranchId,
+        action: "EMPLOYEE_WORKPLACE_SWITCHED_TO",
+        entityType: "EmployeeSession",
+        entityId: created.context.sessionId,
+        summary: "Employee switched into this workplace",
+        metadata: {
+          membershipId: membership.membershipId,
+          previousSessionId: currentSession.id,
+        },
+      },
+      transaction,
+    );
+
+    return {
+      ...created,
+      workplace: {
+        membershipId: membership.membershipId,
+        businessName: membership.businessName,
+        employeeCode: membership.employeeCode,
+        primaryBranchName: membership.primaryBranchName,
+      },
+    };
+  };
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await database.$transaction(executeSwitch, {
+        isolationLevel: "Serializable",
+      });
+    } catch (error) {
+      if (attempt < 2 && isSerializableTransactionConflict(error)) continue;
+      throw error;
+    }
+  }
+
+  throw new EmployeeAuthError(
+    "CONFIGURATION_ERROR",
+    "Unable to establish the selected workplace session.",
+  );
+}
+
+function isSerializableTransactionConflict(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error &&
+    (error as { code?: unknown }).code === "P2034";
 }
 
 export async function revokeEmployeeSessionToken(

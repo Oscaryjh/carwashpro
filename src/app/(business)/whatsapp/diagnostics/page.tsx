@@ -266,5 +266,5 @@ function formatDateTime(value: string | null) {
     return value;
   }
 
-  return date.toLocaleString();
+  return date.toLocaleString("en-MY");
 }

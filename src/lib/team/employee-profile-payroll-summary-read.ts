@@ -1,7 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
 import type { ResolvedBusinessAccess } from "@/lib/business-groups/business-access";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
-import { getPayrollPeriodReadiness } from "@/lib/payroll/readiness";
+import {
+  getPayrollPeriodReadiness,
+  type PayrollReadinessSeverity,
+  type PayrollReadinessStatus,
+} from "@/lib/payroll/readiness";
 import { prisma } from "@/lib/prisma";
 
 type Input = {
@@ -17,8 +21,8 @@ export type EmployeePayrollSummaryResult =
       status: "READY";
       data: {
         currentMonth: string;
-        readiness: "READY" | "NEEDS_ATTENTION" | "BLOCKED";
-        issues: Array<{ severity: "BLOCKER" | "WARNING" | "INFO"; message: string }>;
+        readiness: PayrollReadinessStatus;
+        issues: Array<{ severity: PayrollReadinessSeverity; message: string }>;
         recentRuns: Array<{
           id: string;
           periodStart: Date;
@@ -87,7 +91,7 @@ export async function loadEmployeePayrollSummary(
       issues: employeeReadiness?.issues.map((issue) => ({
         severity: issue.severity,
         message: issue.message,
-      })) ?? [{ severity: "BLOCKER", message: "Employee is not eligible for this payroll period." }],
+      })) ?? [{ severity: "BLOCKING", message: "Employee is not eligible for this payroll period." }],
       recentRuns: entries.map((entry) => ({
         id: entry.payrollRun.id,
         periodStart: entry.payrollRun.periodStart,

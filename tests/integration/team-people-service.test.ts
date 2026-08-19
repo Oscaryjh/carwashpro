@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import type { ResolvedBusinessAccess } from "../../src/lib/business-groups/business-access";
 import {
   createTeamMember,
+  enableStaffAppForLegacyUser,
   linkExistingStaffToEmployee,
   updateLegacyStaffProfile,
   updateTeamMember,
@@ -285,6 +286,83 @@ test("People service unifies employee, attendance, service, and POS identities w
     assert.equal(reusedLegacy.membership.normalWorkMinutesPerDay, 480);
     assert.equal(reusedLegacy.membership.payBasis, "MONTHLY");
     assert.equal(reusedLegacy.membership.targetBreakMinutes, 60);
+
+    const staffAppPhone = nextPhone(phones);
+    const staffAppLegacy = await prisma.user.create({
+      data: {
+        businessId: fixture.businessA.id,
+        branchId: fixture.branchA1.id,
+        name: "Staff App only legacy staff",
+        whatsappPhone: localPhone(staffAppPhone),
+        loginEnabled: false,
+        role: "STAFF",
+      },
+    });
+    const enabledStaffApp = await enableStaffAppForLegacyUser(
+      {
+        actor: actorFrom(fixture.actorA),
+        allowedBranchIds: [fixture.branchA1.id],
+        businessId: fixture.businessA.id,
+        userId: staffAppLegacy.id,
+        wholeBusinessScope: true,
+      },
+      prisma,
+    );
+    assert.equal(enabledStaffApp.createdMembership, true);
+    assert.equal(enabledStaffApp.membership.attendanceEnabled, false);
+    assert.equal(enabledStaffApp.membership.baseSalary, null);
+    assert.equal(enabledStaffApp.membership.phoneNumberNormalized, staffAppPhone);
+    assert.equal(enabledStaffApp.staffUser.teamMemberLinkStatus, "LINKED");
+    assert.equal(
+      enabledStaffApp.staffUser.employeeBusinessMembershipId,
+      enabledStaffApp.membership.id,
+    );
+    assert.deepEqual(
+      enabledStaffApp.membership.branchAssignments.map((assignment) => ({
+        branchId: assignment.branchId,
+        canClockIn: assignment.canClockIn,
+        isPrimary: assignment.isPrimary,
+      })),
+      [
+        {
+          branchId: fixture.branchA1.id,
+          canClockIn: false,
+          isPrimary: true,
+        },
+      ],
+    );
+    const repeatedStaffAppEnable = await enableStaffAppForLegacyUser(
+      {
+        actor: actorFrom(fixture.actorA),
+        allowedBranchIds: [fixture.branchA1.id],
+        businessId: fixture.businessA.id,
+        userId: staffAppLegacy.id,
+        wholeBusinessScope: true,
+      },
+      prisma,
+    );
+    assert.equal(repeatedStaffAppEnable.createdMembership, false);
+    assert.equal(repeatedStaffAppEnable.membership.id, enabledStaffApp.membership.id);
+    assert.equal(
+      await prisma.employeeBusinessMembership.count({
+        where: {
+          businessId: fixture.businessA.id,
+          phoneNumberNormalized: staffAppPhone,
+        },
+      }),
+      1,
+      "repeated Staff App enablement must be idempotent",
+    );
+    assert.ok(
+      await prisma.auditLog.findFirst({
+        where: {
+          action: "STAFF_APP_ACCESS_ENABLED",
+          businessId: fixture.businessA.id,
+          entityId: enabledStaffApp.membership.id,
+        },
+      }),
+      "Staff App enablement must create an audit record",
+    );
 
     const ambiguousPhone = nextPhone(phones);
     await prisma.user.createMany({

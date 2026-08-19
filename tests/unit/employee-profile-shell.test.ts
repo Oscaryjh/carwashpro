@@ -120,6 +120,29 @@ test("employee profile route provides all required Phase 1 states", async () => 
   assert.doesNotMatch(shell, /Salary, bank and statutory information will appear here/);
 });
 
+test("employee profile presents one concise grouped record without exposing bank details", async () => {
+  const root = process.cwd();
+  const shell = await readFile(
+    path.join(root, "src/components/employee-profile-shell.tsx"),
+    "utf8",
+  );
+  const tabs = await readFile(
+    path.join(root, "src/lib/team/employee-profile-tabs.ts"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(shell, /Employee hub/);
+  assert.doesNotMatch(shell, /Employee record/);
+  assert.doesNotMatch(shell, /One profile, organised by purpose/);
+  assert.match(shell, /Bank\s+account numbers stay masked/);
+  assert.doesNotMatch(shell, /accountNumber|bankAccountNumber/);
+  assert.match(tabs, /group: "Summary"/);
+  assert.match(tabs, /group: "Work"/);
+  assert.match(tabs, /group: "Pay & compliance"/);
+  assert.match(tabs, /label: "Payroll & bank"/);
+  assert.match(tabs, /label: "Statutory & tax"/);
+});
+
 function buildAccess(
   overrides: Partial<Extract<ResolvedBusinessAccess, { granted: true }>>,
 ): ResolvedBusinessAccess {

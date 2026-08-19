@@ -6,6 +6,7 @@ import type {
 
 const DEVICE_STORAGE_KEY = "tetamu.staff.device";
 const AUTH_FLOW_STORAGE_KEY = "tetamu.staff.auth-flow";
+const TENANT_STORAGE_PREFIX = "tetamu.staff.tenant.";
 
 export class StaffApiError extends Error {
   readonly code: string;
@@ -122,6 +123,21 @@ export function clearEmployeeAuthFlow() {
   window.sessionStorage.removeItem(AUTH_FLOW_STORAGE_KEY);
 }
 
+export function clearStaffTenantClientState() {
+  clearEmployeeAuthFlow();
+  removeStorageKeysWithPrefix(window.sessionStorage, TENANT_STORAGE_PREFIX);
+  removeStorageKeysWithPrefix(window.localStorage, TENANT_STORAGE_PREFIX);
+}
+
+function removeStorageKeysWithPrefix(storage: Storage, prefix: string) {
+  const keys: string[] = [];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (key?.startsWith(prefix)) keys.push(key);
+  }
+  for (const key of keys) storage.removeItem(key);
+}
+
 export function maskPhoneForDisplay(value: string) {
   const digits = value.replace(/\D/g, "");
   if (digits.length < 4) {
@@ -158,6 +174,30 @@ export function attendanceConfirmation(action: AttendanceAction) {
     case "BREAK_END":
       return "End your break and return to work?";
   }
+}
+
+export function wasBreakEndedRecently(input: {
+  lastBreakEndedAt: string | null;
+  serverTime: string;
+  thresholdSeconds?: number;
+}) {
+  if (!input.lastBreakEndedAt) return false;
+  const endedAt = Date.parse(input.lastBreakEndedAt);
+  const serverTime = Date.parse(input.serverTime);
+  const thresholdSeconds = input.thresholdSeconds ?? 60;
+  if (
+    !Number.isFinite(endedAt) ||
+    !Number.isFinite(serverTime) ||
+    !Number.isFinite(thresholdSeconds) ||
+    thresholdSeconds < 0
+  ) {
+    return false;
+  }
+  const elapsedMilliseconds = serverTime - endedAt;
+  return (
+    elapsedMilliseconds >= 0 &&
+    elapsedMilliseconds <= thresholdSeconds * 1_000
+  );
 }
 
 export function isEmployeeSessionError(code: string) {

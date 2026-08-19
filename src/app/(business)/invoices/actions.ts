@@ -45,6 +45,8 @@ const refundPaymentSchema = z.object({
     "DUITNOW",
     "EWALLET",
     "BANK_TRANSFER",
+    "FOREIGN_CURRENCY",
+    "CRYPTO",
     "PACKAGE",
   ]),
   reason: z.string().trim().min(3, "Please enter a clear refund reason."),
@@ -317,6 +319,13 @@ export async function refundPaymentAction(
             shiftId: shift.id,
             amount: fromCents(amountCents),
             method: input.method,
+            tenderCurrency: input.method === payment.method ? payment.tenderCurrency : "MYR",
+            tenderAmount: input.method === payment.method && payment.tenderAmount
+              ? Number(payment.tenderAmount) * (amountCents / toCents(payment.amount))
+              : fromCents(amountCents),
+            exchangeRateToMyr: input.method === payment.method && payment.exchangeRateToMyr
+              ? payment.exchangeRateToMyr
+              : 1,
             reason: input.reason,
             reference: input.reference || null,
             packageUsesRestored,

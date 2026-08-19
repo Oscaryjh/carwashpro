@@ -10,13 +10,13 @@ import { resolveOperationalBranchId } from "@/lib/branches";
 import { nextInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { awardLoyaltyPointsForPayment } from "@/lib/loyalty/service";
 import { prisma } from "@/lib/prisma";
+import { nextProductSku } from "@/lib/products/product-sku";
 import { calculateTax } from "@/lib/tax/calculator";
 import { fromCents } from "@/lib/validation/pos";
 import { productSaleSchema, productSchema } from "@/lib/validation/products";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
-import { recordSaleInventory } from "@/lib/inventory/service";
-import { applyInventoryMovement } from "@/lib/inventory/service";
+import { applyInventoryMovement, recordSaleInventory, runInventorySerializable } from "@/lib/inventory/service";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
 export type DeleteProductState = {
@@ -47,7 +47,6 @@ function productFormReturnPath(formData: FormData) {
 function parseProductInput(formData: FormData) {
   return productSchema.parse({
     name: formData.get("name"),
-    sku: formData.get("sku")?.toString() || undefined,
     categoryId: formData.get("categoryId")?.toString() || "",
     description: formData.get("description")?.toString() || undefined,
     price: formData.get("price"),
@@ -86,7 +85,7 @@ export async function createProductAction(formData: FormData) {
   const duplicate = await prisma.product.findFirst({
     where: {
       businessId,
-      OR: [{ name: input.name }, ...(input.sku ? [{ sku: input.sku }] : [])],
+      name: input.name,
     },
     select: { id: true },
   });
@@ -95,12 +94,13 @@ export async function createProductAction(formData: FormData) {
     redirectProductFormMessage(productFormReturnPath(formData), "error", "Product name already exists.");
   }
 
-  const product = await prisma.$transaction(async (tx) => {
+  const product = await runInventorySerializable(async (tx) => {
+    const sku = await nextProductSku(tx, businessId);
     const created = await tx.product.create({
       data: {
         businessId,
         name: input.name,
-        sku: input.sku || null,
+        sku,
         categoryId: category.id,
         category: category.name,
         description: input.description || null,
@@ -138,7 +138,7 @@ export async function createProductAction(formData: FormData) {
       }
     }
     return created;
-  }, { isolationLevel: "Serializable" });
+  });
 
   revalidatePath("/products");
   redirect(`/products/${product.id}`);
@@ -162,7 +162,7 @@ export async function updateProductAction(formData: FormData) {
   }
   const product = await prisma.product.findFirst({
     where: { id: productId, businessId },
-    select: { id: true, trackInventory: true, _count: { select: { inventoryMovements: true } } },
+    select: { id: true, sku: true, trackInventory: true, _count: { select: { inventoryMovements: true } } },
   });
 
   if (!product) {
@@ -182,12 +182,13 @@ export async function updateProductAction(formData: FormData) {
     redirectProductFormMessage(`/products/${product.id}`, "error", "Inventory tracking cannot be disabled after ledger history exists. Deactivate the product instead.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  await runInventorySerializable(async (tx) => {
+    const sku = product.sku ?? await nextProductSku(tx, businessId);
     await tx.product.update({
       where: { id: product.id },
       data: {
         name: input.name,
-        sku: input.sku || null,
+        sku,
         categoryId: category.id,
         category: category.name,
         description: input.description || null,
@@ -234,7 +235,7 @@ export async function updateProductAction(formData: FormData) {
         });
       }
     }
-  }, { isolationLevel: "Serializable" });
+  });
 
   revalidatePath("/products");
   revalidatePath(`/products/${product.id}`);

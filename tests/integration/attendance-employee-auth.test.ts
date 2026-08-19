@@ -19,7 +19,9 @@ import {
   authenticateEmployeeSessionToken,
   createEmployeeSessionRecord,
   getEmployeeAuthProfile,
+  getEmployeeWorkplaces,
   revokeEmployeeSessionToken,
+  switchEmployeeWorkplace,
 } from "../../src/lib/attendance/employee-auth/session";
 
 const prisma = new PrismaClient();
@@ -812,7 +814,7 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
     ) {
       assert.fail("Multi-business replacement must require membership selection.");
     }
-    await selectEmployeeMembership(
+    const multiReplacementLogin = await selectEmployeeMembership(
       {
         selectionToken: multiReplacementSelection.selectionToken,
         membershipId: fixture.multi.membershipAId,
@@ -864,6 +866,143 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
         })
       ).revokedAt !== null,
       true,
+    );
+
+    const workplaces = await getEmployeeWorkplaces(
+      multiReplacementLogin.context,
+      prisma,
+      plusSeconds(baseTime, 125),
+    );
+    assert.equal(workplaces.length, 2);
+    assert.equal(
+      workplaces.find((workplace) => workplace.membershipId === fixture.multi.membershipAId)?.current,
+      true,
+    );
+    assert.equal(
+      workplaces.find((workplace) => workplace.membershipId === fixture.multi.membershipBId)?.current,
+      false,
+      "the session must expose only eligible workplaces owned by the same employee account",
+    );
+    await prisma.employeeBusinessMembership.update({
+      where: { id: fixture.multi.membershipBId },
+      data: { status: "SUSPENDED" },
+    });
+    assert.equal(
+      (await getEmployeeWorkplaces(
+        multiReplacementLogin.context,
+        prisma,
+        plusSeconds(baseTime, 125),
+      )).some((workplace) => workplace.membershipId === fixture.multi.membershipBId),
+      false,
+      "inactive workplaces must be hidden",
+    );
+    await assert.rejects(
+      switchEmployeeWorkplace(
+        {
+          auth: multiReplacementLogin.context,
+          membershipId: fixture.multi.membershipBId,
+        },
+        { database: prisma, config, now: plusSeconds(baseTime, 125) },
+      ),
+      isAuthError("MEMBERSHIP_NOT_AVAILABLE"),
+      "inactive workplaces must not be switchable",
+    );
+    await prisma.employeeBusinessMembership.update({
+      where: { id: fixture.multi.membershipBId },
+      data: { status: "ACTIVE" },
+    });
+    await assert.rejects(
+      switchEmployeeWorkplace(
+        {
+          auth: multiReplacementLogin.context,
+          membershipId: fixture.single.membershipId,
+          request: requestContext("10.2.0.3"),
+        },
+        { database: prisma, config, now: plusSeconds(baseTime, 126) },
+      ),
+      isAuthError("MEMBERSHIP_NOT_AVAILABLE"),
+      "a session must never switch to another employee account's membership",
+    );
+
+    const switchedToB = await switchEmployeeWorkplace(
+      {
+        auth: multiReplacementLogin.context,
+        membershipId: fixture.multi.membershipBId,
+        request: requestContext("10.2.0.3"),
+      },
+      { database: prisma, config, now: plusSeconds(baseTime, 127) },
+    );
+    assert.equal(switchedToB.context.businessId, fixture.businessB.id);
+    assert.equal(switchedToB.context.membershipId, fixture.multi.membershipBId);
+    await assert.rejects(
+      authenticateEmployeeSessionToken(multiReplacementLogin.token, {
+        database: prisma,
+        config,
+        now: plusSeconds(baseTime, 128),
+        requireAttendance: false,
+      }),
+      isAuthError("SESSION_REVOKED"),
+      "switching workplace must revoke the old tenant-scoped session",
+    );
+    assert.equal(
+      (await getEmployeeAuthProfile(switchedToB.context, prisma)).workplace.businessName,
+      fixture.businessB.name,
+    );
+
+    const switchedBackToA = await switchEmployeeWorkplace(
+      {
+        auth: switchedToB.context,
+        membershipId: fixture.multi.membershipAId,
+        request: requestContext("10.2.0.3"),
+      },
+      { database: prisma, config, now: plusSeconds(baseTime, 129) },
+    );
+    assert.equal(switchedBackToA.context.businessId, fixture.businessA.id);
+    assert.equal(switchedBackToA.context.membershipId, fixture.multi.membershipAId);
+    await assert.rejects(
+      authenticateEmployeeSessionToken(switchedToB.token, {
+        database: prisma,
+        config,
+        now: plusSeconds(baseTime, 130),
+        requireAttendance: false,
+      }),
+      isAuthError("SESSION_REVOKED"),
+    );
+
+    const concurrentSwitches = await Promise.allSettled([
+      switchEmployeeWorkplace(
+        {
+          auth: switchedBackToA.context,
+          membershipId: fixture.multi.membershipBId,
+          request: requestContext("10.2.0.4"),
+        },
+        { database: prisma, config, now: plusSeconds(baseTime, 131) },
+      ),
+      switchEmployeeWorkplace(
+        {
+          auth: switchedBackToA.context,
+          membershipId: fixture.multi.membershipBId,
+          request: requestContext("10.2.0.5"),
+        },
+        { database: prisma, config, now: plusSeconds(baseTime, 131) },
+      ),
+    ]);
+    assert.equal(
+      concurrentSwitches.filter((result) => result.status === "fulfilled").length,
+      1,
+      "concurrent workplace switches must create only one replacement session",
+    );
+    assert.equal(
+      await prisma.employeeSession.count({
+        where: {
+          employeeAccountId: fixture.multi.accountId,
+          employeeDeviceId: switchedBackToA.context.deviceId,
+          membershipId: fixture.multi.membershipBId,
+          revokedAt: null,
+          expiresAt: { gt: plusSeconds(baseTime, 131) },
+        },
+      }),
+      1,
     );
 
     await clearChallenges(fixture.single.phone);

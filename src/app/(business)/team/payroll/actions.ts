@@ -34,6 +34,7 @@ import { payrollRunReturnPath } from "@/lib/payroll/runs";
 import { publishPayrollPayslips } from "@/lib/payroll/payslip-publication";
 import {
   finalizePayrollRun,
+  decidePayrollHolidayPay,
   generatePayrollRun,
   parsePayrollMonth,
   reopenPayrollRun,
@@ -59,6 +60,7 @@ const settingSchema = z.object({
   breakMinutesPerDay: z.coerce.number().int().min(0).max(720),
   overtimeMultiplier: z.coerce.number().min(1).max(10),
   publicHolidayExtraMultiplier: z.coerce.number().min(0).max(10),
+  publicHolidayPayEnabled: z.boolean(),
   stateCode: z.string().trim().max(80).optional(),
 });
 
@@ -82,6 +84,8 @@ export async function savePayrollSettingAction(formData: FormData) {
       publicHolidayExtraMultiplier: formData.get(
         "publicHolidayExtraMultiplier",
       ),
+      publicHolidayPayEnabled:
+        formData.get("publicHolidayPayEnabled") === "true",
       stateCode: formData.get("stateCode"),
     });
     const request = await getAuditRequestContext();
@@ -89,10 +93,25 @@ export async function savePayrollSettingAction(formData: FormData) {
       const before = await transaction.payrollSetting.findUnique({
         where: { businessId: context.businessId },
       });
+      const policyChanged = before
+        ? before.publicHolidayPayEnabled !== input.publicHolidayPayEnabled ||
+          before.publicHolidayExtraMultiplier.toString() !==
+            String(input.publicHolidayExtraMultiplier)
+        : false;
+      const policyRevision = before
+        ? before.publicHolidayPayPolicyRevision + (policyChanged ? 1 : 0)
+        : 1;
       const after = await transaction.payrollSetting.upsert({
         where: { businessId: context.businessId },
-        create: { businessId: context.businessId, ...input },
-        update: input,
+        create: {
+          businessId: context.businessId,
+          ...input,
+          publicHolidayPayPolicyRevision: policyRevision,
+        },
+        update: {
+          ...input,
+          publicHolidayPayPolicyRevision: policyRevision,
+        },
       });
       await writeAuditLog(
         {
@@ -296,6 +315,60 @@ export async function updatePayrollEntryAction(formData: FormData) {
     finish("success", "Payroll entry updated.", month, returnPath);
   } catch (error) {
     handleActionError(error, month, "Unable to update payroll entry.", returnPath);
+  }
+}
+
+export async function decidePayrollHolidayPayAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const runId = String(formData.get("runId") ?? "");
+  const entryId = String(formData.get("entryId") ?? "");
+  const parentReturnPath = payrollRunReturnPath(
+    runId,
+    formData.get("returnPath"),
+  );
+  const entryReturnPath = `/team/payroll/runs/${runId}/entries/${entryId}${
+    parentReturnPath
+      ? `?returnPath=${encodeURIComponent(parentReturnPath)}`
+      : ""
+  }`;
+  try {
+    const context = await requirePayrollComponentEdit();
+    z.string().uuid().parse(runId);
+    z.string().uuid().parse(entryId);
+    const decision = z
+      .enum(["CONFIRMED", "EXCLUDED"])
+      .parse(formData.get("decision"));
+    await decidePayrollHolidayPay({
+      businessId: context.businessId,
+      actor: context.user,
+      request: await getAuditRequestContext(),
+      entryId,
+      expectedRevision: z.coerce
+        .number()
+        .int()
+        .min(0)
+        .parse(formData.get("expectedRevision")),
+      decision,
+      reason:
+        decision === "EXCLUDED"
+          ? String(formData.get("reason") ?? "")
+          : undefined,
+    });
+    finish(
+      "success",
+      decision === "CONFIRMED"
+        ? "Public holiday pay confirmed and included in this payroll draft."
+        : "Public holiday pay excluded from this payroll draft with an audit reason.",
+      month,
+      entryReturnPath,
+    );
+  } catch (error) {
+    handleActionError(
+      error,
+      month,
+      "Unable to update the public holiday pay decision.",
+      entryReturnPath,
+    );
   }
 }
 
@@ -725,6 +798,8 @@ function settingAudit(setting: {
   breakMinutesPerDay: number;
   overtimeMultiplier: { toString(): string };
   publicHolidayExtraMultiplier: { toString(): string };
+  publicHolidayPayEnabled: boolean;
+  publicHolidayPayPolicyRevision: number;
   stateCode: string | null;
 }) {
   return {
@@ -734,6 +809,8 @@ function settingAudit(setting: {
     overtimeMultiplier: setting.overtimeMultiplier.toString(),
     publicHolidayExtraMultiplier:
       setting.publicHolidayExtraMultiplier.toString(),
+    publicHolidayPayEnabled: setting.publicHolidayPayEnabled,
+    publicHolidayPayPolicyRevision: setting.publicHolidayPayPolicyRevision,
     stateCode: setting.stateCode,
   };
 }

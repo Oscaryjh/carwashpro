@@ -1,0 +1,749 @@
+.page {
+  display: grid;
+  gap: 20px;
+}
+
+.header,
+.sectionHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.header h1,
+.sectionHeading h2 {
+  margin: 3px 0 5px;
+}
+
+.header p,
+.sectionHeading p,
+.guide p {
+  margin: 0;
+  color: #5e6d79;
+}
+
+.eyebrow {
+  color: #00776d;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.guide,
+.addCard,
+.listSection {
+  border: 1px solid #d5e0e4;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.guide,
+.listSection {
+  padding: 20px;
+}
+
+.guide {
+  border-color: #b9ded9;
+  background: #f1faf8;
+}
+
+.guide strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #075f59;
+}
+
+.addCard {
+  display: block;
+  overflow: visible;
+}
+
+.addCard:has(.addToggle:checked) {
+  border-color: #9ccfc9;
+  box-shadow: 0 12px 32px rgba(18, 54, 63, .08);
+}
+
+.addCard:has(.addToggle:focus-visible) .addSummary {
+  border-radius: 18px;
+  outline: 3px solid rgba(13, 127, 115, .22);
+  outline-offset: -3px;
+}
+
+.addToggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.addSummary,
+.methodSummary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.addSummary::-webkit-details-marker,
+.methodSummary::-webkit-details-marker {
+  display: none;
+}
+
+.addSummary {
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border: 0;
+  background: transparent;
+  padding: 18px 20px;
+  text-align: left;
+}
+
+.addSummary:hover {
+  background: #f6fbfa;
+}
+
+.addSummaryIcon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 12px;
+  background: #dff4ef;
+  color: #087568;
+  font-size: 24px;
+  font-weight: 500;
+  transition: transform .18s ease;
+}
+
+.addCard:has(.addToggle:checked) .addSummaryIcon {
+  transform: rotate(45deg);
+}
+
+.addSummaryText {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.addSummaryText strong {
+  color: #172b3a;
+  font-size: 18px;
+}
+
+.addSummaryText small,
+.openHint {
+  color: #667681;
+}
+
+.openHint {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.closeLabel {
+  display: none;
+}
+
+.addCard:has(.addToggle:checked) .openLabel {
+  display: none;
+}
+
+.addCard:has(.addToggle:checked) .closeLabel {
+  display: inline;
+}
+
+.addFormWrap {
+  display: none;
+  border-top: 1px solid #e2e9eb;
+  background: #fbfdfd;
+  padding: 20px;
+}
+
+.addToggle:checked ~ .addFormWrap {
+  display: block;
+}
+
+.addForm {
+  display: grid;
+  gap: 16px;
+}
+
+.formSection {
+  display: grid;
+  gap: 14px;
+  border: 1px solid #dce6e8;
+  border-radius: 14px;
+  background: #fff;
+  padding: 16px;
+}
+
+.stepHeading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+}
+
+.stepHeading > span:last-child,
+.addFormFooter > span {
+  display: grid;
+  gap: 3px;
+}
+
+.stepHeading strong,
+.addFormFooter strong {
+  color: #172b3a;
+  font-size: 15px;
+}
+
+.stepHeading small,
+.addFormFooter small {
+  color: #667681;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.stepNumber {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 999px;
+  background: #dff4ef;
+  color: #087568;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.typePicker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.typePicker legend {
+  margin-bottom: 8px;
+  color: #223343;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.typeChoice,
+.selectedType {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: flex-start;
+  gap: 10px !important;
+  border: 1px solid #d8e2e5;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+  cursor: pointer;
+}
+
+.selectedType {
+  border-color: #15887d;
+  background: #eef9f7;
+  box-shadow: 0 0 0 2px rgba(21, 136, 125, .12);
+}
+
+.typeChoice input,
+.selectedType input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  min-height: 18px;
+  margin: 2px 0 0;
+  padding: 0;
+}
+
+.typeChoice span,
+.selectedType span {
+  display: grid;
+  gap: 3px;
+}
+
+.typeChoice strong,
+.selectedType strong {
+  color: #172b3a;
+  font-size: 14px;
+}
+
+.typeChoice small,
+.selectedType small,
+.addDetails small {
+  color: #667681;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.addDetails {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.localFields {
+  display: contents;
+}
+
+.foreignFields,
+.cryptoFields {
+  display: none;
+}
+
+.addForm:has(input[value="FOREIGN_CURRENCY"]:checked) .localFields,
+.addForm:has(input[value="FOREIGN_CURRENCY"]:checked) .cryptoFields,
+.addForm:has(input[value="CRYPTO_ASSET"]:checked) .localFields,
+.addForm:has(input[value="CRYPTO_ASSET"]:checked) .foreignFields {
+  display: none;
+}
+
+.addForm:has(input[value="FOREIGN_CURRENCY"]:checked) .foreignFields,
+.addForm:has(input[value="CRYPTO_ASSET"]:checked) .cryptoFields {
+  display: contents;
+}
+
+.typeChoice:has(input:checked) {
+  border-color: #15887d;
+  background: #eef9f7;
+  box-shadow: 0 0 0 2px rgba(21, 136, 125, .12);
+}
+
+.typeChoice:has(input:focus-visible) {
+  outline: 3px solid rgba(13, 127, 115, .2);
+  outline-offset: 2px;
+}
+
+.typeChoice input:focus-visible {
+  outline: none;
+}
+
+.myrNotice {
+  display: grid;
+  grid-column: 1 / -1;
+  min-height: 68px;
+  align-content: center;
+  gap: 3px;
+  border: 1px solid #cfe5e1;
+  border-left: 3px solid #15887d;
+  border-radius: 10px;
+  background: #f2f8f7;
+  padding: 12px 14px;
+  color: #556975;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.myrNotice strong {
+  color: #075f59;
+}
+
+.addFormFooter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border-radius: 14px;
+  background: #edf8f6;
+  padding: 14px 16px;
+}
+
+.addButton {
+  min-width: 190px;
+  min-height: 48px;
+  border: 1px solid #0d7f73;
+  border-radius: 10px;
+  background: #0d7f73;
+  padding: 0 20px;
+  color: #fff;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.addButton:hover {
+  background: #096b62;
+}
+
+.addForm label,
+.methodEditor label {
+  display: grid;
+  gap: 7px;
+  color: #425466;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.addForm input,
+.addForm select,
+.methodEditor input,
+.methodEditor select {
+  width: 100%;
+  min-height: 46px;
+}
+
+.addForm .typeChoice input,
+.addForm .selectedType input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0;
+}
+
+.listSection {
+  display: grid;
+  gap: 16px;
+}
+
+.methodCounts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.enabledCount,
+.hiddenCount {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.enabledCount {
+  background: #dff4ed;
+  color: #08725f;
+}
+
+.hiddenCount {
+  background: #eef1f3;
+  color: #64717a;
+}
+
+.methodList {
+  display: grid;
+  gap: 10px;
+}
+
+.methodCard {
+  overflow: hidden;
+  border: 1px solid #dde5e8;
+  border-radius: 14px;
+  background: #fbfcfc;
+}
+
+.methodCard[open] {
+  border-color: #9ccfc9;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(18, 54, 63, .07);
+}
+
+.methodSummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 72px;
+  padding: 12px 15px;
+}
+
+.methodSummary:hover {
+  background: #f3f8f7;
+}
+
+.methodSummaryMain {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.methodIcon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 12px;
+  background: #e8f5f2;
+  color: #087568;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.methodName {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.methodName strong {
+  overflow: hidden;
+  color: #172b3a;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.methodName small {
+  overflow: hidden;
+  color: #697984;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #087568;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.editHint span {
+  font-size: 18px;
+  transition: transform .18s ease;
+}
+
+.methodCard[open] .editHint span {
+  transform: rotate(180deg);
+}
+
+.methodEditor {
+  display: grid;
+  grid-template-columns: minmax(180px, .9fr) minmax(190px, 1.1fr) minmax(180px, 1fr) minmax(180px, 1fr);
+  align-items: end;
+  gap: 14px;
+  border-top: 1px solid #e1e8ea;
+  background: #fff;
+  padding: 18px;
+}
+
+.methodIdentity {
+  display: grid;
+  align-self: stretch;
+  align-content: center;
+  gap: 5px;
+  border-left: 3px solid #9ccfc9;
+  background: #f3f8f7;
+  padding: 10px 12px;
+}
+
+.methodIdentity small {
+  color: #6f7d87;
+  line-height: 1.45;
+}
+
+.lockedCategory {
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  border: 1px solid #d8e1e5;
+  border-radius: 9px;
+  background: #f1f4f5;
+  padding: 0 13px;
+  color: #687781;
+  font-weight: 700;
+}
+
+.methodActions {
+  display: flex;
+  grid-column: 1 / -1;
+  align-self: end;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.saveButton,
+.visibilityButton,
+.removeButton {
+  min-height: 46px;
+  border-radius: 9px;
+  padding: 0 15px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.saveButton {
+  border: 1px solid #0d7f73;
+  background: #0d7f73;
+  color: #fff;
+}
+
+.removeButton {
+  border: 1px solid #e1a6a0;
+  background: #fff;
+  color: #a22b21;
+}
+
+.visibilityButton {
+  border: 1px solid #93aaa8;
+  background: #fff;
+  color: #075f59;
+}
+
+.saveButton:hover {
+  background: #096b62;
+}
+
+.removeButton:hover {
+  background: #fff3f1;
+}
+
+.visibilityButton:hover {
+  background: #eef8f6;
+}
+
+.activeBadge,
+.inactiveBadge {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.activeBadge {
+  background: #dff4ed;
+  color: #08725f;
+}
+
+.inactiveBadge {
+  background: #eef1f3;
+  color: #64717a;
+}
+
+@media (max-width: 1050px) {
+  .methodEditor {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .methodIdentity {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .header,
+  .sectionHeading {
+    display: grid;
+  }
+
+  .addForm,
+  .methodEditor {
+    grid-template-columns: 1fr;
+  }
+
+  .typePicker,
+  .addDetails {
+    grid-template-columns: 1fr;
+  }
+
+  .guide,
+  .listSection {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .addCard {
+    border-radius: 14px;
+  }
+
+  .addSummary {
+    padding: 15px;
+  }
+
+  .addSummaryText small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .addFormWrap {
+    padding: 0 15px 15px;
+  }
+
+  .addFormWrap {
+    padding-top: 15px;
+  }
+
+  .formSection {
+    padding: 14px;
+  }
+
+  .addFormFooter {
+    display: grid;
+  }
+
+  .addButton {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .methodSummary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .methodSummary .activeBadge,
+  .methodSummary .inactiveBadge {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .editHint {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    border-top: 1px solid #e7edef;
+    padding-top: 8px;
+  }
+
+  .methodEditor {
+    padding: 15px;
+  }
+
+  .methodActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .methodCounts {
+    flex-wrap: wrap;
+  }
+
+  .methodIcon {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .openHint {
+    display: none;
+  }
+
+  .addSummary {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}

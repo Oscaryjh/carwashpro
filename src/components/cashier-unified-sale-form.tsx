@@ -47,6 +47,17 @@ export type CashierBranchOption = {
   name: string;
 };
 
+export type CashierPaymentMethodOption = {
+  id: string | null;
+  code: string;
+  label: string;
+  canonicalMethod: "CASH" | "CARD" | "DUITNOW" | "EWALLET" | "BANK_TRANSFER" | "FOREIGN_CURRENCY" | "CRYPTO";
+  paymentKind: "LOCAL_TENDER" | "FOREIGN_CURRENCY" | "CRYPTO_ASSET";
+  settlementCurrency: string;
+  assetSymbol: string | null;
+  behavior: "STANDARD_TENDER" | "TRAINING_COMPLIMENTARY";
+};
+
 type CustomerPackageBalanceOption = {
   id: string;
   customerPackageId: string;
@@ -67,6 +78,7 @@ type CashierUnifiedSaleFormProps = {
   initialCatalog: CashierCatalogResult;
   initialCatalogType: "package" | "product" | "service";
   initialSale?: CashierInitialSale | null;
+  paymentMethods: CashierPaymentMethodOption[];
   staffOptions: CashierStaffOption[];
   taxSettings: TaxDisplaySettings;
   loyaltySettings: {
@@ -76,13 +88,6 @@ type CashierUnifiedSaleFormProps = {
     minimumPoints: number;
   };
 };
-
-const paymentMethods = [
-  { label: "Cash", value: "CASH" },
-  { label: "Card", value: "CARD" },
-  { label: "E-Wallet", value: "EWALLET" },
-  { label: "Bank", value: "BANK_TRANSFER" },
-] as const;
 
 export function CashierUnifiedSaleForm({
   action,
@@ -94,6 +99,7 @@ export function CashierUnifiedSaleForm({
   initialCatalog,
   initialCatalogType,
   initialSale = null,
+  paymentMethods,
   staffOptions,
   taxSettings,
   loyaltySettings,
@@ -109,9 +115,16 @@ export function CashierUnifiedSaleForm({
   const [assignedStaffId, setAssignedStaffId] = useState(
     appointmentSale?.assignedStaffId ?? "",
   );
-  const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [paymentMethodCode, setPaymentMethodCode] = useState(
+    paymentMethods.find((method) => method.canonicalMethod === "CASH")?.code
+      ?? paymentMethods[0]?.code
+      ?? "",
+  );
   const [cashReceived, setCashReceived] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
+  const [tenderAmount, setTenderAmount] = useState("");
+  const [exchangeRateToMyr, setExchangeRateToMyr] = useState("");
+  const [checkoutReason, setCheckoutReason] = useState("");
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [shiftModalOpen, setShiftModalOpen] = useState(false);
   const activeModal = shiftModalOpen ? "shift" : paymentOpen ? "payment" : null;
@@ -150,6 +163,16 @@ export function CashierUnifiedSaleForm({
       (option) => option !== RECENT_CATALOG_CATEGORY && option !== "All categories",
     ),
   ];
+  const selectedPaymentMethod = paymentMethods.find(
+    (method) => method.code === paymentMethodCode,
+  ) ?? paymentMethods[0] ?? null;
+  const paymentMethod = selectedPaymentMethod?.canonicalMethod ?? "CASH";
+  const isTrainingComplimentary = selectedPaymentMethod?.behavior === "TRAINING_COMPLIMENTARY";
+  const isConvertedTender = selectedPaymentMethod?.paymentKind === "FOREIGN_CURRENCY"
+    || selectedPaymentMethod?.paymentKind === "CRYPTO_ASSET";
+  const tenderSymbol = selectedPaymentMethod?.paymentKind === "CRYPTO_ASSET"
+    ? selectedPaymentMethod.assetSymbol ?? "Asset"
+    : selectedPaymentMethod?.settlementCurrency ?? "MYR";
   const currentCatalogPage = catalogData.page;
   const catalogPageCount = catalogData.pageCount;
   const visibleItems = catalogData.items;
@@ -444,8 +467,8 @@ export function CashierUnifiedSaleForm({
     sstEnabled: taxSettings.enabled,
     sstLabel: taxSettings.label,
     sstRate: taxSettings.rate,
-    discount: totalDiscount,
-  }), [lines, taxSettings, totalDiscount]);
+    discount: isTrainingComplimentary ? subtotal : totalDiscount,
+  }), [isTrainingComplimentary, lines, subtotal, taxSettings, totalDiscount]);
 
   const selectedCustomerPackages = availableCustomerPackages.filter((option) =>
     selectedCustomerPackageIds.includes(option.id),
@@ -471,7 +494,7 @@ export function CashierUnifiedSaleForm({
     (sum, option) => sum + option.coveredAmount,
     0,
   );
-  const amountDue = Math.max(0, tax.total - packageCoverage);
+  const amountDue = isTrainingComplimentary ? 0 : Math.max(0, tax.total - packageCoverage);
 
   const draftTax = useMemo(() => calculateTax({
     lines: lines.map((line) => ({
@@ -489,7 +512,18 @@ export function CashierUnifiedSaleForm({
   const cashReceivedCents = Math.max(0, Math.round((Number(cashReceived) || 0) * 100));
   const cashPaymentReady = paymentMethod !== "CASH" || totalCents === 0 || cashReceivedCents >= totalCents;
   const cashChange = Math.max(0, cashReceivedCents - totalCents) / 100;
-  const paymentReferenceReady = paymentMethod === "CASH" || Boolean(paymentReference.trim());
+  const tenderEquivalent = Math.max(0, Number(tenderAmount) || 0) * Math.max(0, Number(exchangeRateToMyr) || 0);
+  const convertedTenderReady = !isConvertedTender || (
+    Number(tenderAmount) > 0
+    && Number(exchangeRateToMyr) > 0
+    && Math.round(tenderEquivalent * 100) >= totalCents
+  );
+  const paymentReferenceReady = isTrainingComplimentary || paymentMethod === "CASH" || Boolean(paymentReference.trim());
+  const trainingCheckoutReady = !isTrainingComplimentary || (
+    checkoutReason.trim().length >= 5 &&
+    lines.length > 0 &&
+    lines.every((line) => line.type === "service")
+  );
   const cashSuggestions = useMemo(() => {
     const exact = amountDue;
     const roundedFive = Math.ceil(exact / 5) * 5;
@@ -591,9 +625,17 @@ export function CashierUnifiedSaleForm({
 
   async function submitSale(formData: FormData) {
     setSaleError("");
+    if (!trainingCheckoutReady) {
+      setSaleError("Training / Complimentary requires service items only and a reason of at least 5 characters.");
+      return;
+    }
     if (!cashPaymentReady) {
       setSaleError(`Enter at least ${formatMoney(amountDue)} cash received.`);
       cashReceivedRef.current?.click();
+      return;
+    }
+    if (!convertedTenderReady) {
+      setSaleError(`Enter the ${tenderSymbol} amount received and its MYR rate.`);
       return;
     }
 
@@ -932,6 +974,9 @@ export function CashierUnifiedSaleForm({
               <strong>−{formatMoney(loyaltyDiscount)}</strong>
             </div>
           ) : null}
+          {isTrainingComplimentary ? (
+            <div><span>Training / Complimentary</span><strong>−{formatMoney(subtotal)}</strong></div>
+          ) : null}
           {taxSettings.enabled ? (
             <div><span>{formatTaxLabel(tax.taxLabel, tax.taxRate)}</span><strong>{formatMoney(tax.tax)}</strong></div>
           ) : null}
@@ -939,20 +984,25 @@ export function CashierUnifiedSaleForm({
         </div>
 
         <input name="method" type="hidden" value={paymentMethod} />
-        <input name="discountType" type="hidden" value={discountType} />
-        <input name="discountValue" type="hidden" value={numericDiscountValue} />
-        <input name="discountReference" type="hidden" value={discountReference} />
-        <input name="catalogDiscountId" type="hidden" value={catalogDiscountId} />
-        <input name="loyaltyPoints" type="hidden" value={redemption.points} />
+        <input name="paymentMethodId" type="hidden" value={selectedPaymentMethod?.id ?? ""} />
+        <input name="paymentMethodCode" type="hidden" value={selectedPaymentMethod?.code ?? ""} />
+        <input name="checkoutReason" type="hidden" value={isTrainingComplimentary ? checkoutReason : ""} />
+        <input name="tenderAmount" type="hidden" value={isConvertedTender ? tenderAmount : ""} />
+        <input name="exchangeRateToMyr" type="hidden" value={isConvertedTender ? exchangeRateToMyr : ""} />
+        <input name="discountType" type="hidden" value={isTrainingComplimentary ? "AMOUNT" : discountType} />
+        <input name="discountValue" type="hidden" value={isTrainingComplimentary ? 0 : numericDiscountValue} />
+        <input name="discountReference" type="hidden" value={isTrainingComplimentary ? "" : discountReference} />
+        <input name="catalogDiscountId" type="hidden" value={isTrainingComplimentary ? "" : catalogDiscountId} />
+        <input name="loyaltyPoints" type="hidden" value={isTrainingComplimentary ? 0 : redemption.points} />
         <input name="assignedStaffId" type="hidden" value={assignedStaffId} />
-        {selectedCustomerPackageIds.map((customerPackageId) => (
+        {!isTrainingComplimentary ? selectedCustomerPackageIds.map((customerPackageId) => (
           <input
             key={customerPackageId}
             name="customerPackageId"
             type="hidden"
             value={customerPackageId}
           />
-        ))}
+        )) : null}
         {hasStockError ? <p className={styles.submitMessage}>A product quantity exceeds available stock.</p> : null}
         <button
           className={styles.payButton}
@@ -991,12 +1041,16 @@ export function CashierUnifiedSaleForm({
             <div className={styles.paymentBody}>
               <div className={styles.paymentControls}>
                 <section className={styles.paymentAmount}>
-                  <span>Balance to pay</span>
+                  <span>{isTrainingComplimentary ? "Customer pays" : "Balance to pay"}</span>
                   <strong>{formatMoney(amountDue)}</strong>
-                  <small>{totalItems} {totalItems === 1 ? "item" : "items"}</small>
+                  <small>
+                    {isTrainingComplimentary
+                      ? `${formatMoney(tax.subtotal)} original service value`
+                      : `${totalItems} ${totalItems === 1 ? "item" : "items"}`}
+                  </small>
                 </section>
 
-                {customer && serviceIdsKey ? (
+                {!isTrainingComplimentary && customer && serviceIdsKey ? (
                   <section className={styles.customerPackagePanel}>
                     <header>
                       <div>
@@ -1054,7 +1108,7 @@ export function CashierUnifiedSaleForm({
                   </section>
                 ) : null}
 
-                <section className={styles.adjustmentsPanel}>
+                {!isTrainingComplimentary ? <section className={styles.adjustmentsPanel}>
                   <button
                     aria-expanded={adjustmentsOpen}
                     aria-haspopup="dialog"
@@ -1072,17 +1126,24 @@ export function CashierUnifiedSaleForm({
                     </span>
                     <b>{totalDiscount > 0 ? "Edit" : "+"}</b>
                   </button>
-                </section>
+                </section> : null}
 
                 <section className={styles.paymentSection}>
                   <h3>Payment method</h3>
                   <div aria-label="Payment method" className={styles.paymentChoices}>
                     {paymentMethods.map((method) => (
                       <button
-                        className={paymentMethod === method.value ? styles.activePaymentChoice : ""}
-                        key={method.value}
+                        className={paymentMethodCode === method.code ? styles.activePaymentChoice : ""}
+                        key={method.code}
                         onClick={() => {
-                          setPaymentMethod(method.value);
+                          setPaymentMethodCode(method.code);
+                          if (method.behavior === "TRAINING_COMPLIMENTARY") {
+                            setSelectedCustomerPackageIds([]);
+                            setCashReceived("");
+                            setPaymentReference("");
+                          }
+                          setTenderAmount("");
+                          setExchangeRateToMyr("");
                           setSaleError("");
                         }}
                         type="button"
@@ -1093,7 +1154,22 @@ export function CashierUnifiedSaleForm({
                   </div>
                 </section>
 
-                {paymentMethod === "CASH" ? (
+                {isTrainingComplimentary ? (
+                  <section className={styles.paymentSection}>
+                    <h3>Training / Complimentary details</h3>
+                    <p>Customer pays RM0.00. No cash or payment record is created. Staff commission uses the original service price.</p>
+                    <label className={`${styles.referenceField} ${styles.paymentReferenceField}`}>
+                      <span>Reason</span>
+                      <textarea
+                        maxLength={500}
+                        onChange={(event) => setCheckoutReason(event.target.value)}
+                        placeholder="e.g. New therapist supervised training session"
+                        rows={3}
+                        value={checkoutReason}
+                      />
+                    </label>
+                  </section>
+                ) : paymentMethod === "CASH" ? (
                   <section className={styles.paymentSection}>
                     <h3>Cash received</h3>
                     <div className={styles.cashSuggestions}>
@@ -1126,6 +1202,30 @@ export function CashierUnifiedSaleForm({
                         <strong>{formatMoney(cashChange)}</strong>
                       </div>
                     </div>
+                  </section>
+                ) : isConvertedTender ? (
+                  <section className={styles.paymentSection}>
+                    <h3>{selectedPaymentMethod?.paymentKind === "CRYPTO_ASSET" ? "Crypto received" : "Foreign currency received"}</h3>
+                    <p>The invoice stays in MYR. Record the actual {tenderSymbol} received and the rate used for this payment.</p>
+                    <div className={styles.convertedTenderGrid}>
+                      <label>
+                        <span>Amount received ({tenderSymbol})</span>
+                        <input inputMode="decimal" min="0.00000001" onChange={(event) => setTenderAmount(event.target.value)} placeholder="0.00" step="0.00000001" type="number" value={tenderAmount} />
+                      </label>
+                      <label>
+                        <span>MYR rate for 1 {tenderSymbol}</span>
+                        <input inputMode="decimal" min="0.00000001" onChange={(event) => setExchangeRateToMyr(event.target.value)} placeholder="0.00" step="0.00000001" type="number" value={exchangeRateToMyr} />
+                      </label>
+                      <div className={styles.convertedTenderSummary}>
+                        <span>MYR equivalent</span>
+                        <strong>{formatMoney(tenderEquivalent)}</strong>
+                        <small>Balance due {formatMoney(amountDue)}</small>
+                      </div>
+                    </div>
+                    <label className={`${styles.referenceField} ${styles.paymentReferenceField}`}>
+                      <span>{selectedPaymentMethod?.paymentKind === "CRYPTO_ASSET" ? "Transaction hash / reference" : "Exchange / receipt reference"}</span>
+                      <input maxLength={120} name="reference" onChange={(event) => setPaymentReference(event.target.value)} placeholder="Enter transaction reference" required value={paymentReference} />
+                    </label>
                   </section>
                 ) : (
                   <label className={`${styles.referenceField} ${styles.paymentReferenceField}`}>
@@ -1165,6 +1265,7 @@ export function CashierUnifiedSaleForm({
                 <div className={styles.paymentOrderTotals}>
                   <div><span>Subtotal</span><strong>{formatMoney(tax.subtotal)}</strong></div>
                   {totalDiscount > 0 ? <div><span>Discount</span><strong>−{formatMoney(totalDiscount)}</strong></div> : null}
+                  {isTrainingComplimentary ? <div><span>Training / Complimentary</span><strong>−{formatMoney(subtotal)}</strong></div> : null}
                   {taxSettings.enabled ? <div><span>{formatTaxLabel(tax.taxLabel, tax.taxRate)}</span><strong>{formatMoney(tax.tax)}</strong></div> : null}
                   {selectedPackageApplications.map((option) => (
                     <div className={styles.packageCoverageRow} key={option.id}>
@@ -1184,8 +1285,9 @@ export function CashierUnifiedSaleForm({
             <footer className={styles.paymentFooter}>
               <button onClick={() => setPaymentOpen(false)} type="button">Back</button>
               <CashierPayButton
-                canPay={canPay && cashPaymentReady && paymentReferenceReady}
+                canPay={canPay && cashPaymentReady && convertedTenderReady && paymentReferenceReady && trainingCheckoutReady}
                 cashRequired={paymentMethod === "CASH" && !cashPaymentReady}
+                complimentary={isTrainingComplimentary}
                 referenceRequired={!paymentReferenceReady}
                 total={amountDue}
               />
@@ -1515,11 +1617,13 @@ export function CashierUnifiedSaleForm({
 function CashierPayButton({
   canPay,
   cashRequired,
+  complimentary,
   referenceRequired,
   total,
 }: {
   canPay: boolean;
   cashRequired: boolean;
+  complimentary: boolean;
   referenceRequired: boolean;
   total: number;
 }) {
@@ -1532,7 +1636,9 @@ function CashierPayButton({
           ? "Enter cash received"
           : referenceRequired
             ? "Enter payment reference"
-            : `Confirm payment · ${formatMoney(total)}`}
+            : complimentary
+              ? "Confirm complimentary service · RM0.00"
+              : `Confirm payment · ${formatMoney(total)}`}
     </button>
   );
 }

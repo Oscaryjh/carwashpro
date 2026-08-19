@@ -33,17 +33,18 @@ export async function getStaffHomeOverview(
         const schedule = await getEmployeePublishedRoster({
           businessId: auth.businessId,
           membershipId: auth.membershipId,
+          branchId: auth.attendanceBranchId ?? auth.primaryBranchId,
           from: today,
           to: addDays(today, 7),
         });
         const next = schedule[0];
         return next
           ? {
-              value: next.kind === "WORK_SHIFT" ? "Published shift" : humanize(next.kind),
+              value: next.kind === "WORK_SHIFT" ? "Scheduled shift" : humanize(next.kind),
               detail: `${date(next.workDate)} · ${next.branch.name}.`,
             }
           : {
-              value: "No published schedule",
+              value: "No effective schedule",
               detail: "Tetamu will not infer that an unspecified day is an Off Day.",
             };
       }),
@@ -122,7 +123,7 @@ export async function getStaffHomeOverview(
   return {
     profile,
     cards: await Promise.all(loaders),
-    showWelcome: !modules.has("HR"),
+    showWelcome: true,
   };
 }
 

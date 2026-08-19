@@ -7,6 +7,7 @@ import {
   getStaffPermissionsForIndustry,
 } from "@/lib/auth/staff-permissions";
 import { modulesForStaffPermission, type ModuleKey } from "@/lib/modules/registry";
+import { workHoursToMinutesInput } from "@/lib/team/work-duration";
 
 export type StaffFormStaff = {
   appointmentBookable: boolean;
@@ -51,6 +52,7 @@ type StaffFormProps = {
   services?: Array<{ id: string; name: string }>;
   staffLevels?: Array<{ id: string; name: string }>;
   submitLabel: string;
+  suggestedEmployeeCode?: string;
 };
 
 type AccessType = "LOGIN" | "NO_LOGIN";
@@ -71,6 +73,7 @@ export function StaffForm({
   services = [],
   staffLevels = [],
   submitLabel,
+  suggestedEmployeeCode,
 }: StaffFormProps) {
   const isEdit = Boolean(staff);
   const isLegacyEdit = Boolean(staff && !employeeProfile);
@@ -116,6 +119,13 @@ export function StaffForm({
   const [employmentStatus, setEmploymentStatus] = useState<
     "ACTIVE" | "SUSPENDED" | "TERMINATED"
   >(employeeProfile?.status ?? "ACTIVE");
+  const [defaultWorkHours, setDefaultWorkHours] = useState("");
+  const [defaultBreakChoice, setDefaultBreakChoice] = useState("");
+  const [customBreakMinutes, setCustomBreakMinutes] = useState("");
+  const defaultBreakMinutes =
+    defaultBreakChoice === "CUSTOM"
+      ? customBreakMinutes
+      : defaultBreakChoice;
 
   function updateBranchSelection(branchId: string, checked: boolean) {
     const nextBranchIds = checked
@@ -222,12 +232,18 @@ export function StaffForm({
                 <span>Employee code</span>
                 <input
                   autoComplete="off"
-                  defaultValue={employeeProfile?.employeeCode ?? ""}
+                  defaultValue={employeeProfile?.employeeCode ?? suggestedEmployeeCode ?? ""}
                   maxLength={50}
                   name="employeeCode"
                   placeholder="EMP-001"
                   required
                 />
+                {!employeeProfile && suggestedEmployeeCode ? (
+                  <small className="form-hint">
+                    Suggested automatically from this company&apos;s employee codes. You
+                    can change it if you use a different numbering format.
+                  </small>
+                ) : null}
               </label>
               <label>
                 <span>Employment type</span>
@@ -256,13 +272,77 @@ export function StaffForm({
                     <span>Base pay (RM)</span>
                     <input inputMode="decimal" min="0" name="baseSalary" placeholder="2000.00" step="0.01" type="number" />
                   </label>
+                  <div className="staff-attendance-override-note">
+                    <span aria-hidden="true">i</span>
+                    <div>
+                      <strong>Personal attendance override (optional)</strong>
+                      <small>
+                        Published Roster hours take priority. Leave both fields blank
+                        to use the Roster for scheduled days, or the branch defaults
+                        when no published Roster applies.
+                      </small>
+                    </div>
+                  </div>
                   <label>
-                    <span>Paid work minutes / day (optional)</span>
-                    <input max="1440" min="60" name="normalWorkMinutesPerDay" placeholder="Use branch policy" step="1" type="number" />
+                    <span>Personal paid work hours / day</span>
+                    <input
+                      inputMode="decimal"
+                      max="24"
+                      min="1"
+                      onChange={(event) => setDefaultWorkHours(event.target.value)}
+                      placeholder="Use Roster / branch default"
+                      step="0.25"
+                      type="number"
+                      value={defaultWorkHours}
+                    />
+                    <input
+                      name="normalWorkMinutesPerDay"
+                      type="hidden"
+                      value={workHoursToMinutesInput(defaultWorkHours)}
+                    />
+                    <small className="form-hint">
+                      Enter hours, for example 8 or 7.5. This personal value is
+                      used only when no published Roster controls that workday.
+                    </small>
                   </label>
                   <label>
-                    <span>Expected break minutes (optional)</span>
-                    <input max="480" min="0" name="targetBreakMinutes" placeholder="Use branch policy" step="1" type="number" />
+                    <span>Personal expected break</span>
+                    <select
+                      onChange={(event) => setDefaultBreakChoice(event.target.value)}
+                      value={defaultBreakChoice}
+                    >
+                      <option value="">Use Roster / branch default</option>
+                      <option value="0">No break</option>
+                      <option value="15">15 minutes</option>
+                      <option value="30">30 minutes</option>
+                      <option value="45">45 minutes</option>
+                      <option value="60">1 hour</option>
+                      <option value="90">1 hour 30 minutes</option>
+                      <option value="120">2 hours</option>
+                      <option value="CUSTOM">Other duration</option>
+                    </select>
+                    {defaultBreakChoice === "CUSTOM" ? (
+                      <input
+                        aria-label="Custom break minutes"
+                        inputMode="numeric"
+                        max="480"
+                        min="0"
+                        onChange={(event) => setCustomBreakMinutes(event.target.value)}
+                        placeholder="Enter minutes"
+                        step="1"
+                        type="number"
+                        value={customBreakMinutes}
+                      />
+                    ) : null}
+                    <input
+                      name="targetBreakMinutes"
+                      type="hidden"
+                      value={defaultBreakMinutes}
+                    />
+                    <small className="form-hint">
+                      Optional. A published Roster&apos;s break takes priority for
+                      that day.
+                    </small>
                   </label>
                 </>
               ) : employeeProfile && allowPayrollFields ? (

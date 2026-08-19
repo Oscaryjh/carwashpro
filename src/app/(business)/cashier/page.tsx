@@ -13,6 +13,7 @@ import {
 } from "@/lib/cashier/catalog";
 import { prisma } from "@/lib/prisma";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
+import { getEffectiveBusinessPaymentMethods } from "@/lib/payments/business-methods";
 import { completeCashierSaleAction } from "@/app/(business)/cashier/actions";
 
 type CashierPageProps = {
@@ -54,7 +55,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
   const requestedAppointmentId = params.appointmentId?.trim() || null;
-  const [branches, openShift, business, loyaltyProgram, requestedAppointment] = await Promise.all([
+  const [branches, openShift, business, loyaltyProgram, requestedAppointment, paymentMethods] = await Promise.all([
     getOperationalBranches(businessId, user),
     prisma.cashierShift.findFirst({
       where: { businessId, cashierId: user.userId, status: "OPEN" },
@@ -111,6 +112,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
           },
         })
       : Promise.resolve(null),
+    getEffectiveBusinessPaymentMethods(businessId, { activeOnly: true }),
   ]);
   const appointmentError = requestedAppointmentId && !requestedAppointment
     ? "This appointment could not be found."
@@ -324,6 +326,16 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
           initialCatalog={initialCatalog}
           initialCatalogType={catalogAvailability.initialType}
           initialSale={initialSale}
+          paymentMethods={paymentMethods.map((method) => ({
+            id: method.id,
+            code: method.code,
+            label: method.label,
+              canonicalMethod: method.canonicalMethod,
+              paymentKind: method.paymentKind,
+              settlementCurrency: method.settlementCurrency,
+              assetSymbol: method.assetSymbol,
+              behavior: method.behavior,
+          }))}
           staffOptions={staffOptions}
           taxSettings={{
             enabled: business.sstEnabled,

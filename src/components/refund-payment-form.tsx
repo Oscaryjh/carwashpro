@@ -46,9 +46,14 @@ export function RefundPaymentForm({
 }: RefundPaymentFormProps) {
   const router = useRouter();
   const packageRefund = originalMethod === "PACKAGE";
+  const availableRefundMethods = originalMethod === "FOREIGN_CURRENCY"
+    ? [...refundMethods, { value: "FOREIGN_CURRENCY", label: "Original foreign currency" } as const]
+    : originalMethod === "CRYPTO"
+      ? [...refundMethods, { value: "CRYPTO", label: "Original crypto asset" } as const]
+      : refundMethods;
   const defaultMethod = packageRefund
     ? "PACKAGE"
-    : refundMethods.some((method) => method.value === originalMethod)
+    : availableRefundMethods.some((method) => method.value === originalMethod)
       ? originalMethod
       : "CASH";
   const [method, setMethod] = useState(defaultMethod);
@@ -118,7 +123,7 @@ export function RefundPaymentForm({
               value={method}
               onChange={(event) => setMethod(event.target.value)}
             >
-              {refundMethods.map((refundMethod) => (
+              {availableRefundMethods.map((refundMethod) => (
                 <option key={refundMethod.value} value={refundMethod.value}>
                   {refundMethod.label}
                 </option>

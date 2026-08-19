@@ -22,6 +22,7 @@ import {
 } from "@/components/employee-profile-payroll";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
 import {
   canViewEmployeeProfileTab,
@@ -47,6 +48,7 @@ import { loadEmployeeStatutoryProfileSection } from "@/lib/team/employee-profile
 import { loadEmployeePayrollNavigationSection } from "@/lib/team/employee-profile-payroll-navigation-read";
 import { loadEmployeePayrollSummary } from "@/lib/team/employee-profile-payroll-summary-read";
 import { loadEmployeeBankSection } from "@/lib/team/employee-profile-bank-read";
+import { updateEmployeeAvatarAction } from "./avatar-actions";
 
 type EmployeeProfilePageProps = {
   params: Promise<{ personId: string }>;
@@ -103,6 +105,7 @@ export default async function EmployeeProfilePage({
       },
       select: {
         id: true,
+        avatarUrl: true,
         employeeCode: true,
         fullName: true,
         status: true,
@@ -145,6 +148,7 @@ export default async function EmployeeProfilePage({
   const person: EmployeeProfileShellPerson = membership
     ? {
         id: membership.id,
+        avatarUrl: membership.avatarUrl,
         fullName: membership.fullName,
         employeeCode: membership.employeeCode,
         employmentType: null,
@@ -156,6 +160,7 @@ export default async function EmployeeProfilePage({
       }
     : {
         id: staff!.id,
+        avatarUrl: null,
         fullName: staff!.name,
         employeeCode: null,
         employmentType: null,
@@ -292,6 +297,11 @@ export default async function EmployeeProfilePage({
   return (
     <EmployeeProfileShell
       activeSection={activeSection}
+      avatarAction={
+        membership && hasBusinessCapability(context.access, "MODIFY_TEAM")
+          ? updateEmployeeAvatarAction.bind(null, membership.id)
+          : undefined
+      }
       authorized={sectionAuthorized}
       person={person}
       sectionContent={sectionContent}

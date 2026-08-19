@@ -23,6 +23,7 @@ import {
   readEmployeeAuthJson,
 } from "../../src/lib/attendance/employee-auth/http";
 import {
+  clearMockEmployeeOtp,
   MockEmployeeOtpProvider,
   readMockEmployeeOtp,
 } from "../../src/lib/attendance/employee-auth/provider";
@@ -46,6 +47,13 @@ test("employee auth config is centralized and production mock fails closed", () 
     EMPLOYEE_OTP_MOCK_CODE: "000000",
   });
   assert.equal(fixedMockCodeConfig.otp.mockCode, "000000");
+
+  const localDevelopmentConfig = getEmployeeAuthConfig({
+    NODE_ENV: "development",
+    EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+  });
+  assert.equal(localDevelopmentConfig.otp.sendMode, "mock");
+  assert.equal(localDevelopmentConfig.otp.mockCode, "000000");
 
   assert.throws(
     () =>
@@ -187,6 +195,27 @@ test("mock OTP is memory-only, access-key protected, and carries locale", async 
       config,
     ),
     "123456",
+  );
+
+  const fixedConfig = testConfig({ EMPLOYEE_OTP_MOCK_CODE: "000000" });
+  const fixedProvider = new MockEmployeeOtpProvider(fixedConfig);
+  await fixedProvider.sendVerification({
+    challengeId: "challenge-fixed",
+    phoneNumber: "+601112212259",
+    purpose: "LOGIN",
+    expiresAt,
+    locale: "en-MY",
+  });
+  clearMockEmployeeOtp("challenge-fixed", fixedConfig);
+  assert.deepEqual(
+    await new MockEmployeeOtpProvider(fixedConfig).checkVerification({
+      challengeId: "challenge-fixed",
+      phoneNumber: "+601112212259",
+      providerReference: "mock:challenge-fixed",
+      code: "000000",
+    }),
+    { status: "APPROVED" },
+    "fixed Local mock codes must survive isolated Next.js route module instances",
   );
 
   assert.throws(

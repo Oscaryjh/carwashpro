@@ -13,6 +13,7 @@ import {
   cancelPayrollVariablePayAction,
   createPayrollCorrectionAction,
   createPayrollVariablePayAction,
+  decidePayrollHolidayPayAction,
   editManualPayrollAdjustmentAction,
   removeManualPayrollAdjustmentAction,
   updatePayrollEntryAction,
@@ -109,6 +110,12 @@ export default async function PayrollEntryEditorPage({
         </div>
 
         <AttendanceSourceSnapshot attendance={data.entry.attendance} />
+        <PublicHolidayPayReview
+          data={data}
+          editable
+          month={month}
+          returnPath={returnPath}
+        />
         <StatutorySnapshotDetail snapshots={data.entry.statutorySnapshots} />
 
         <div className={styles.editorFieldset}>
@@ -370,6 +377,12 @@ function ReadOnlyPayrollEntry({
           <SummaryMetric label="Calculation revision" value={String(data.entry.calculationRevision)} />
         </div>
         <AttendanceSourceSnapshot attendance={data.entry.attendance} />
+        <PublicHolidayPayReview
+          data={data}
+          editable={false}
+          month={data.run.periodStart.toISOString().slice(0, 7)}
+          returnPath={returnPath}
+        />
         <div className={styles.editorGrid}>
           <ReadOnlyComponentGroup
             title="Earnings"
@@ -401,6 +414,126 @@ function ReadOnlyPayrollEntry({
         </section>
       </section>
     </main>
+  );
+}
+
+function PublicHolidayPayReview({
+  data,
+  editable,
+  month,
+  returnPath,
+}: {
+  data: NonNullable<Awaited<ReturnType<typeof loadPayrollRunEntryEditor>>>;
+  editable: boolean;
+  month: string;
+  returnPath: string;
+}) {
+  const minutes = data.entry.attendance?.publicHolidayWorkedMinutes ?? 0;
+  const status = data.entry.publicHolidayPayDecisionStatus;
+  const statusLabel = {
+    NOT_APPLICABLE: "Not applicable",
+    POLICY_DISABLED: "Policy off",
+    PENDING_CONFIRMATION: "Needs confirmation",
+    CONFIRMED: "Included",
+    EXCLUDED: "Excluded",
+  }[status];
+
+  return (
+    <section className={styles.editorFieldset} aria-labelledby="holiday-pay-review-heading">
+      <div className={styles.sectionHeading}>
+        <p className={styles.eyebrow}>Public holiday pay</p>
+        <h3 id="holiday-pay-review-heading">Review before payroll inclusion</h3>
+        <p>
+          The preview uses frozen Timesheet evidence and Payroll policy revision {data.run.publicHolidayPayPolicyRevisionSnapshot}.
+          It is a business-policy calculation, not automatic statutory or legal advice.
+        </p>
+      </div>
+      <div className={styles.editorSummary}>
+        <SummaryMetric label="Holiday work" value={`${minutes} min`} />
+        <SummaryMetric label="Policy multiplier" value={`${data.run.publicHolidayExtraMultiplierSnapshot}×`} />
+        <SummaryMetric label="Preview" value={formatMoney(data.entry.publicHolidayPayPreview)} />
+        <SummaryMetric label="Included in pay" value={formatMoney(data.entry.publicHolidayPay)} />
+        <SummaryMetric label="Decision" value={statusLabel} />
+      </div>
+
+      {status === "POLICY_DISABLED" ? (
+        <p className={`${styles.notice} ${styles.noticeError}`}>
+          Public holiday pay is disabled in this run snapshot. Enable and review the policy in Payroll settings, then regenerate the Draft run.
+        </p>
+      ) : status === "PENDING_CONFIRMATION" && editable ? (
+        <div className={styles.editorGrid}>
+          <form action={decidePayrollHolidayPayAction} className={styles.editorForm}>
+            <HolidayPayHiddenFields
+              data={data}
+              decision="CONFIRMED"
+              month={month}
+              returnPath={returnPath}
+            />
+            <div className={styles.noWorkflowAction}>
+              <strong>Include {formatMoney(data.entry.publicHolidayPayPreview)}</strong>
+              <span>Recalculates the preview from canonical frozen facts inside the server transaction.</span>
+            </div>
+            <button className={styles.primaryButton} type="submit">Confirm and include</button>
+          </form>
+          <form action={decidePayrollHolidayPayAction} className={styles.editorForm}>
+            <HolidayPayHiddenFields
+              data={data}
+              decision="EXCLUDED"
+              month={month}
+              returnPath={returnPath}
+            />
+            <label className={styles.notesField}>
+              <span>Reason for exclusion</span>
+              <input
+                maxLength={500}
+                minLength={5}
+                name="reason"
+                placeholder="Record the reviewed business reason"
+                required
+              />
+            </label>
+            <button className={styles.secondaryButton} type="submit">Exclude with reason</button>
+          </form>
+        </div>
+      ) : status === "CONFIRMED" ? (
+        <p className={`${styles.notice} ${styles.noticeSuccess}`}>
+          Confirmed and included in this payroll calculation.
+        </p>
+      ) : status === "EXCLUDED" ? (
+        <p className={styles.readOnlyNote}>
+          <strong>Excluded after review.</strong>
+          {data.entry.publicHolidayPayDecisionReason ?? "An audit reason was recorded."}
+        </p>
+      ) : (
+        <p className={styles.readOnlyNote}>
+          <strong>No holiday-pay decision is required.</strong>
+          No frozen public-holiday work minutes were found for this entry.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function HolidayPayHiddenFields({
+  data,
+  decision,
+  month,
+  returnPath,
+}: {
+  data: NonNullable<Awaited<ReturnType<typeof loadPayrollRunEntryEditor>>>;
+  decision: "CONFIRMED" | "EXCLUDED";
+  month: string;
+  returnPath: string;
+}) {
+  return (
+    <>
+      <input name="entryId" type="hidden" value={data.entry.id} />
+      <input name="expectedRevision" type="hidden" value={data.entry.calculationRevision} />
+      <input name="runId" type="hidden" value={data.run.id} />
+      <input name="month" type="hidden" value={month} />
+      <input name="returnPath" type="hidden" value={returnPath} />
+      <input name="decision" type="hidden" value={decision} />
+    </>
   );
 }
 
@@ -480,6 +613,12 @@ function AttendanceSourceSnapshot({
       </section>
     );
   }
+  const hasP6bSegments = attendance.segmentFacts.length > 0;
+  const approvedOtMinutes = hasP6bSegments
+    ? attendance.normalOtMinutes +
+      attendance.restDayOtMinutes +
+      attendance.publicHolidayOtMinutes
+    : attendance.approvedOvertimeMinutes;
   return (
     <section className={styles.editorFieldset}>
       <h3>Attendance source</h3>
@@ -487,16 +626,70 @@ function AttendanceSourceSnapshot({
         Locked Timesheet revision {attendance.timesheetRevision} · locked {attendance.timesheetLockedAt.toLocaleString("en-MY")}.
       </p>
       <div className={styles.editorSummary}>
-        <SummaryMetric label="Regular days" value={String(attendance.regularDays)} />
-        <SummaryMetric label="Regular hours" value={(attendance.regularMinutes / 60).toFixed(2)} />
+        <SummaryMetric
+          label="Normal work"
+          value={formatMinutes(
+            hasP6bSegments
+              ? attendance.regularNormalMinutes
+              : attendance.regularMinutes,
+          )}
+        />
+        <SummaryMetric
+          label="Rest day work"
+          value={formatMinutes(
+            hasP6bSegments
+              ? attendance.restDayWorkMinutes
+              : attendance.restDayWorkedMinutes,
+          )}
+        />
+        <SummaryMetric
+          label="Public holiday work"
+          value={formatMinutes(
+            hasP6bSegments
+              ? attendance.publicHolidayWorkMinutes
+              : attendance.publicHolidayWorkedMinutes,
+          )}
+        />
+        <SummaryMetric label="Approved OT" value={formatMinutes(approvedOtMinutes)} />
         <SummaryMetric label="Paid leave" value={`${attendance.paidLeaveDays} day(s)`} />
         <SummaryMetric label="Unpaid leave" value={`${attendance.unpaidLeaveDays} day(s)`} />
         <SummaryMetric label="Unauthorized absence" value={`${attendance.unauthorizedAbsenceDays} day(s)`} />
         <SummaryMetric label="Authorized absence" value={`${attendance.authorizedAbsenceDays} day(s)`} />
-        <SummaryMetric label="Rest-day work" value={`${attendance.restDayWorkedMinutes} min`} />
-        <SummaryMetric label="Public-holiday work" value={`${attendance.publicHolidayWorkedMinutes} min`} />
-        <SummaryMetric label="Approved OT" value={`${attendance.approvedOvertimeMinutes} min`} />
       </div>
+      {hasP6bSegments ? (
+        <details>
+          <summary>View cross-midnight classification</summary>
+          <div className={styles.editorSummary}>
+            <SummaryMetric label="Normal · non-OT" value={formatMinutes(attendance.regularNormalMinutes)} />
+            <SummaryMetric label="Normal · approved OT" value={formatMinutes(attendance.normalOtMinutes)} />
+            <SummaryMetric label="Rest day · work" value={formatMinutes(attendance.restDayWorkMinutes)} />
+            <SummaryMetric label="Rest day · approved OT" value={formatMinutes(attendance.restDayOtMinutes)} />
+            <SummaryMetric label="Public holiday · work" value={formatMinutes(attendance.publicHolidayWorkMinutes)} />
+            <SummaryMetric label="Public holiday · approved OT" value={formatMinutes(attendance.publicHolidayOtMinutes)} />
+          </div>
+          <div className={styles.componentList}>
+            {attendance.segmentFacts.map((segment, index) => (
+              <div className={styles.componentRow} key={`${segment.localDate}-${segment.startAt}-${index}`}>
+                <div>
+                  <strong>{formatSegmentDate(segment.localDate)} · {segmentContextLabel(segment.context)}</strong>
+                  <small>
+                    {formatSegmentTime(segment.startAt, segment.timezone)}–{formatSegmentTime(segment.endAt, segment.timezone)}
+                    {segment.isRestDay && segment.isPublicHoliday
+                      ? " · Public holiday overlapping a Rest Day"
+                      : ""}
+                  </small>
+                </div>
+                <span>
+                  {formatMinutes(segment.workedMinutes)} worked
+                  {segment.breakMinutes > 0 ? ` · ${formatMinutes(segment.breakMinutes)} break` : ""}
+                  {segment.approvedOtMinutes > 0 ? ` · ${formatMinutes(segment.approvedOtMinutes)} approved OT` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p>Minute classification is frozen from the locked Timesheet. Monetary OT calculation is deferred to Payroll P6C.</p>
+        </details>
+      ) : null}
       {attendance.policyBlockers.length ? (
         <p>
           Payroll is blocked until policy is ready: {attendance.policyBlockers.join(", ")}.
@@ -510,6 +703,37 @@ function AttendanceSourceSnapshot({
       )}
     </section>
   );
+}
+
+function formatMinutes(minutes: number) {
+  const safeMinutes = Number.isFinite(minutes) ? Math.max(0, Math.round(minutes)) : 0;
+  const hours = Math.floor(safeMinutes / 60);
+  const remainder = safeMinutes % 60;
+  if (hours === 0) return `${remainder}m`;
+  if (remainder === 0) return `${hours}h`;
+  return `${hours}h ${remainder}m`;
+}
+
+function formatSegmentDate(localDate: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(localDate);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : localDate;
+}
+
+function formatSegmentTime(value: string, timezone: string) {
+  return new Intl.DateTimeFormat("en-MY", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: timezone,
+  }).format(new Date(value));
+}
+
+function segmentContextLabel(
+  context: "NORMAL" | "REST_DAY" | "PUBLIC_HOLIDAY",
+) {
+  if (context === "REST_DAY") return "Rest day";
+  if (context === "PUBLIC_HOLIDAY") return "Public holiday";
+  return "Normal workday";
 }
 
 type ComponentLine = PayrollRunEntryEditorComponent;

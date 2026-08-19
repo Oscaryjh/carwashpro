@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import type { AppSession } from "@/lib/auth/session";
 import type { AuditRequestContext } from "@/lib/audit";
 import { writeAuditLog } from "@/lib/audit";
+import { routeHrApprovalDecision, type HrApprovalActorLevel } from "@/lib/approvals/policy-service";
 import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth";
 import { prisma } from "@/lib/prisma";
 import { deriveAndPersistEntryAggregates } from "@/lib/payroll/component-service";
@@ -408,43 +409,90 @@ export async function reviewEmployeeClaim(context: {
   businessId: string;
   allowedBranchIds: string[];
   actor: ClaimActor;
+  actorLevel?: HrApprovalActorLevel;
   request?: AuditRequestContext;
   rawInput: unknown;
 }, database: PrismaClient = prisma) {
-  const input = reviewClaimInputSchema.parse(context.rawInput);
+  const submittedInput = reviewClaimInputSchema.parse(context.rawInput);
   return database.$transaction(async (transaction) => {
     const claim = await transaction.employeeClaim.findFirst({
-      where: { id: input.claimId, businessId: context.businessId, branchId: { in: context.allowedBranchIds } },
+      where: { id: submittedInput.claimId, businessId: context.businessId, branchId: { in: context.allowedBranchIds } },
       include: { lines: true, membership: { select: { staffUser: { select: { id: true } } } } },
     });
     if (!claim || claim.status !== "SUBMITTED") throw new Error("Submitted Claim was not found in the authorized scope.");
-    if (claim.revision !== input.expectedRevision) throw new Error("Claim changed after this page was loaded. Reload and try again.");
+    if (claim.revision !== submittedInput.expectedRevision) throw new Error("Claim changed after this page was loaded. Reload and try again.");
     if (claim.membership.staffUser?.id === context.actor.userId) throw new Error("Employees cannot approve their own Claims.");
-    if (input.lines.length !== claim.lines.length || new Set(input.lines.map((line) => line.lineId)).size !== claim.lines.length) {
-      throw new Error("Every Claim line must receive exactly one decision.");
-    }
     const sourceLine = new Map(claim.lines.map((line) => [line.id, line]));
-    let approvedTotalCents = 0;
-    const decisions = input.lines.map((decision) => {
-      const line = sourceLine.get(decision.lineId);
-      if (!line) throw new Error("Claim line is outside this Claim.");
-      const submitted = moneyToCents(line.submittedAmount);
-      const approved = parseNonNegativeMoneyCents(decision.approvedAmount);
-      if (approved > submitted) throw new Error("Approved Claim amount cannot exceed submitted amount.");
-      const isReduced = approved < submitted;
-      if (isReduced && !decision.reason?.trim() && !input.reason?.trim()) {
-        throw new Error("Partial approval or rejection requires a reason.");
-      }
-      approvedTotalCents += approved;
-      return {
-        line,
-        approved,
-        reviewStatus: approved === 0 ? "REJECTED" as const : approved === submitted ? "APPROVED" as const : "PARTIALLY_APPROVED" as const,
-        reason: decision.reason?.trim() || (isReduced ? input.reason?.trim() : null) || null,
-      };
-    });
     const submittedTotalCents = moneyToCents(claim.submittedTotal);
-    const status = approvedTotalCents === 0 ? "REJECTED" as const : approvedTotalCents === submittedTotalCents ? "APPROVED" as const : "PARTIALLY_APPROVED" as const;
+    const calculateDecision = (reviewInput: typeof submittedInput) => {
+      if (reviewInput.lines.length !== claim.lines.length || new Set(reviewInput.lines.map((line) => line.lineId)).size !== claim.lines.length) {
+        throw new Error("Every Claim line must receive exactly one decision.");
+      }
+      let approvedTotalCents = 0;
+      const decisions = reviewInput.lines.map((decision) => {
+        const line = sourceLine.get(decision.lineId);
+        if (!line) throw new Error("Claim line is outside this Claim.");
+        const submitted = moneyToCents(line.submittedAmount);
+        const approved = parseNonNegativeMoneyCents(decision.approvedAmount);
+        if (approved > submitted) throw new Error("Approved Claim amount cannot exceed submitted amount.");
+        const isReduced = approved < submitted;
+        if (isReduced && !decision.reason?.trim() && !reviewInput.reason?.trim()) {
+          throw new Error("Partial approval or rejection requires a reason.");
+        }
+        approvedTotalCents += approved;
+        return {
+          line,
+          approved,
+          reviewStatus: approved === 0 ? "REJECTED" as const : approved === submitted ? "APPROVED" as const : "PARTIALLY_APPROVED" as const,
+          reason: decision.reason?.trim() || (isReduced ? reviewInput.reason?.trim() : null) || null,
+        };
+      });
+      const status = approvedTotalCents === 0 ? "REJECTED" as const : approvedTotalCents === submittedTotalCents ? "APPROVED" as const : "PARTIALLY_APPROVED" as const;
+      return { approvedTotalCents, decisions, status };
+    };
+
+    let reviewInput = submittedInput;
+    let calculated = calculateDecision(reviewInput);
+    const approvalRoute = await routeHrApprovalDecision(transaction, {
+      businessId: context.businessId,
+      domain: "CLAIMS",
+      subjectId: claim.id,
+      subjectRevision: claim.revision,
+      subjectValue: Number(claim.submittedTotal),
+      actorUserId: context.actor.userId,
+      actorLevel: context.actorLevel ?? "MANAGER",
+      outcome: calculated.status === "REJECTED" ? "REJECTED" : "APPROVED",
+      payload: {
+        claimId: submittedInput.claimId,
+        expectedRevision: submittedInput.expectedRevision,
+        reason: submittedInput.reason || null,
+        lines: submittedInput.lines.map((line) => ({
+          lineId: line.lineId,
+          approvedAmount: line.approvedAmount,
+          reason: line.reason || null,
+        })),
+      },
+      reason: submittedInput.reason || null,
+    });
+    if (!approvalRoute.finalized) {
+      await writeAuditLog({
+        businessId: context.businessId,
+        branchId: claim.branchId,
+        actor: context.actor,
+        request: context.request,
+        action: "CLAIM_LEVEL_ONE_APPROVED",
+        entityType: "EmployeeClaim",
+        entityId: claim.id,
+        summary: `Claim ${claim.claimNumber} passed manager review and is awaiting owner approval.`,
+        metadata: { membershipId: claim.membershipId, amount: "[REDACTED]", approvalStage: "LEVEL_ONE" },
+      }, transaction);
+      return { status: claim.status, revision: claim.revision, finalized: false, approvalStage: "LEVEL_ONE" as const };
+    }
+    if (approvalRoute.stage === "LEVEL_TWO" && approvalRoute.payload) {
+      reviewInput = reviewClaimInputSchema.parse(approvalRoute.payload);
+      calculated = calculateDecision(reviewInput);
+    }
+    const { approvedTotalCents, decisions, status } = calculated;
     const nextRevision = claim.revision + 1;
     const decisionDigest = digest({
       claimId: claim.id,
@@ -453,14 +501,14 @@ export async function reviewEmployeeClaim(context: {
       lines: decisions.map((item) => ({ id: item.line.id, approved: item.approved, reason: item.reason })),
     });
     const changed = await transaction.employeeClaim.updateMany({
-      where: { id: claim.id, businessId: context.businessId, status: "SUBMITTED", revision: input.expectedRevision },
+      where: { id: claim.id, businessId: context.businessId, status: "SUBMITTED", revision: reviewInput.expectedRevision },
       data: {
         status,
         approvedTotal: centsToMoney(approvedTotalCents),
         revision: { increment: 1 },
         reviewedById: context.actor.userId,
         reviewedAt: new Date(),
-        reviewReason: input.reason?.trim() || null,
+        reviewReason: reviewInput.reason?.trim() || null,
         decisionDigest,
       },
     });
@@ -489,7 +537,7 @@ export async function reviewEmployeeClaim(context: {
       claimRevision: nextRevision,
       type: status === "APPROVED" ? "APPROVED" : status === "PARTIALLY_APPROVED" ? "PARTIALLY_APPROVED" : "REJECTED",
       actorUserId: context.actor.userId,
-      reason: input.reason?.trim() || null,
+      reason: reviewInput.reason?.trim() || null,
       metadata: { lineCount: decisions.length, amount: "[REDACTED]", decisionDigest },
     });
     await writeAuditLog({
@@ -503,7 +551,7 @@ export async function reviewEmployeeClaim(context: {
       summary: `Claim ${claim.claimNumber} ${status.toLowerCase().replaceAll("_", " ")}.`,
       metadata: { membershipId: claim.membershipId, amount: "[REDACTED]", decisionDigest },
     }, transaction);
-    return { status, revision: nextRevision };
+    return { status, revision: nextRevision, finalized: true, approvalStage: approvalRoute.stage };
   }, { isolationLevel: "Serializable" });
 }
 

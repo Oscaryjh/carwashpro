@@ -14,7 +14,10 @@ export const cashierSaleSchema = z
     appointmentId: z.string().uuid("Appointment is invalid.").optional().or(z.literal("")),
     assignedStaffId: z.string().uuid("Staff member is invalid.").optional().or(z.literal("")),
     customerId: z.string().uuid("Customer is invalid.").optional().or(z.literal("")),
-    method: z.enum(["CASH", "CARD", "DUITNOW", "EWALLET", "BANK_TRANSFER"]),
+    method: z.enum(["CASH", "CARD", "DUITNOW", "EWALLET", "BANK_TRANSFER", "FOREIGN_CURRENCY", "CRYPTO"]),
+    paymentMethodId: z.string().uuid("Payment method is invalid.").optional().or(z.literal("")),
+    paymentMethodCode: z.string().trim().min(1).max(80).default("BUILTIN_CASH"),
+    checkoutReason: z.string().trim().max(500, "Reason is too long.").optional(),
     packageIds: z.array(z.string().uuid("Package is invalid.")),
     packageQuantities: z.array(quantitySchema),
     productIds: z.array(z.string().uuid("Product is invalid.")),
@@ -23,6 +26,14 @@ export const cashierSaleSchema = z
     serviceQuantities: z.array(quantitySchema).default([]),
     customerPackageIds: z.array(z.string().uuid("Customer package is invalid.")).default([]),
     reference: z.string().trim().max(120, "Reference is too long.").optional(),
+    tenderAmount: z.preprocess(
+      (value) => value === "" || value == null ? undefined : value,
+      z.coerce.number().positive("Tender amount must be greater than zero.").max(1_000_000_000).optional(),
+    ),
+    exchangeRateToMyr: z.preprocess(
+      (value) => value === "" || value == null ? undefined : value,
+      z.coerce.number().positive("MYR rate must be greater than zero.").max(1_000_000_000).optional(),
+    ),
     discountType: z.enum(["AMOUNT", "PERCENT"]).default("AMOUNT"),
     discountValue: z.coerce
       .number()
@@ -108,6 +119,14 @@ export const cashierSaleSchema = z
         code: z.ZodIssueCode.custom,
         message: "Reference is required for non-cash payments.",
         path: ["reference"],
+      });
+    }
+
+    if (["FOREIGN_CURRENCY", "CRYPTO"].includes(input.method) && (!input.tenderAmount || !input.exchangeRateToMyr)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Enter the received amount and MYR rate for this payment.",
+        path: ["tenderAmount"],
       });
     }
 

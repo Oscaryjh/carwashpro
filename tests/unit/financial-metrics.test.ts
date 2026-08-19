@@ -102,6 +102,7 @@ test("Group KPI and Daily Closing produce the same sales and refund values", () 
   const closingSource: DailyClosingSourceData = {
     appointments: [],
     customers: [],
+    drawerExpensePayouts: [],
     invoices: [
       {
         balanceCents: 0,

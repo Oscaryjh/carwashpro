@@ -72,7 +72,9 @@ function formatDateTime(
 function formatDuration(minutes: number) {
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
-  return hours ? `${hours}h ${remainingMinutes}m` : `${remainingMinutes}m`;
+  return hours
+    ? `${hours}h ${String(remainingMinutes).padStart(2, "0")}m`
+    : `${remainingMinutes}m`;
 }
 
 function getInitials(value: string) {
@@ -98,10 +100,6 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
   const canViewTeamDirectory = hasBusinessCapability(
     access,
     "VIEW_TEAM_DIRECTORY",
-  );
-  const canViewAttendanceSettings = hasBusinessCapability(
-    access,
-    "VIEW_ATTENDANCE_SETTINGS",
   );
   const branches = (await getOperationalBranches(businessId, user)).filter(
     (branch) => scope.allowedBranchIds.includes(branch.id),
@@ -333,8 +331,8 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
       );
     }
   }, 0);
-  const totalHours =
-    ((terminalMinutes._sum.totalWorkedMinutes ?? 0) + activeWorkedMinutes) / 60;
+  const totalWorkedMinutes =
+    (terminalMinutes._sum.totalWorkedMinutes ?? 0) + activeWorkedMinutes;
   const exportParams = new URLSearchParams();
   if (dateFilter === "all") exportParams.set("datePreset", "all");
   else exportParams.set("date", dateFilter);
@@ -355,33 +353,7 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
         <div className={styles.headerCopy}>
           <span className={`hr-module-eyebrow ${styles.eyebrow}`}>HR &amp; PAYROLL</span>
           <h1>Staff Attendance</h1>
-          <p>See who is working now and review clock-in records across your branches.</p>
-        </div>
-        <div className={`hr-module-actions ${styles.headerActions}`}>
-          <Link className="secondary-light-button" href="/team/attendance/p2">
-            P2 workspace
-          </Link>
-          <Link className="secondary-light-button" href="/team/attendance/timesheets">
-            Monthly timesheets
-          </Link>
-          {canModify ? (
-            <Link className="secondary-light-button" href="/team/attendance/resolutions">
-              Resolution queue
-            </Link>
-          ) : null}
-          <Link className="secondary-light-button" href={`/team/attendance/export?${exportParams}`}>
-            Export CSV
-          </Link>
-          {canViewAttendanceSettings ? (
-            <Link className="secondary-light-button" href="/team/attendance-settings">
-              Attendance settings
-            </Link>
-          ) : null}
-          {canViewTeamDirectory ? (
-            <Link className="secondary-light-button" href="/team?section=people">
-              People
-            </Link>
-          ) : null}
+          <p>See who is working now and review clock-in records for your current branch.</p>
         </div>
       </header>
 
@@ -421,8 +393,8 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
             <span>Total hours</span>
             <span aria-hidden="true" className={styles.metricIndicator} />
           </div>
-          <strong>{totalHours.toFixed(1)}h</strong>
-          <small>Net worked time after breaks</small>
+          <strong>{formatDuration(totalWorkedMinutes)}</strong>
+          <small>Exact net worked time after breaks</small>
         </article>
       </div>
       <section className={styles.recordsPanel}>
@@ -533,7 +505,7 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
           <div>
             <span className={styles.eyebrow}>ATTENDANCE LOG</span>
             <h2>Attendance records</h2>
-            <p>Filter by date, branch, or status to find the shift you need.</p>
+            <p>Filter by date or status to find the shift you need.</p>
           </div>
           <span className={styles.resultCount}>
             {totalRecords} {totalRecords === 1 ? "record" : "records"}
@@ -541,6 +513,9 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
         </div>
 
         <form className={styles.filters} action="/team/attendance">
+          {requestedBranchId ? (
+            <input name="branchId" type="hidden" value={requestedBranchId} />
+          ) : null}
           <label>
             <span>Date range</span>
             <select name="datePreset" defaultValue={dateFilter === "all" ? "all" : params.date ? "custom" : "today"}>
@@ -552,13 +527,6 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
           <label>
             <span>Specific date</span>
             <input name="date" type="date" defaultValue={dateFilter === "all" || !params.date ? "" : dateFilter} />
-          </label>
-          <label>
-            <span>Branch</span>
-            <select name="branchId" defaultValue={requestedBranchId}>
-              <option value="">All assigned branches</option>
-              {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
           </label>
           <label>
             <span>Status</span>
@@ -658,7 +626,7 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
                       <td data-label="Actions">
                         {canModify && !isOpen ? (
                           <Link className={styles.adjustLink} href={`/team/attendance/resolutions?employee=${encodeURIComponent(entry.employeeAccount.name)}`}>
-                            Resolution queue
+                            Attendance issue
                           </Link>
                         ) : "—"}
                       </td>

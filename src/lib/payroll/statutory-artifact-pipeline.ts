@@ -33,7 +33,8 @@ export type OfficialStatutoryScheme =
   | "SOCSO"
   | "EIS"
   | "LINDUNG24"
-  | "PCB";
+  | "PCB"
+  | "WORK_PAY";
 
 export type OfficialArtifactStatus =
   | "DISCOVERED"

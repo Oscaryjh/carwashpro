@@ -3,19 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  clearEmployeeAuthFlow,
   isEmployeeSessionError,
   StaffApiError,
   staffApiFetch,
 } from "@/lib/staff-pwa/client";
 import type { EmployeeProfile } from "@/lib/staff-pwa/types";
 import { StaffLoading } from "./staff-auth";
+import { useStaffShell } from "./staff-pwa-chrome";
 
 export function StaffProfile({ deviceVerified = false }: { deviceVerified?: boolean }) {
   const router = useRouter();
+  const { workplaces, openWorkplaceSwitcher, logout, switching } = useStaffShell();
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -44,23 +44,6 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
     };
   }, [router]);
 
-  async function logout() {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await staffApiFetch<{ ok: true }>("/api/employee-auth/logout", {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
-    } catch {
-      // The local employee flow is cleared even if the already-expired session
-      // cannot be revoked again.
-    } finally {
-      clearEmployeeAuthFlow();
-      router.replace("/staff/login?reason=logged-out");
-    }
-  }
-
   if (!profile && !error) {
     return <StaffLoading label="Loading your profile…" />;
   }
@@ -77,10 +60,13 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
       ) : null}
       <section className="staff-profile-hero">
         <span>{initials(profile.employee.fullName)}</span>
-        <div>
+        <div className="staff-profile-identity">
           <p className="staff-kicker">EMPLOYEE PROFILE</p>
           <h1>{profile.employee.fullName}</h1>
-          <p>{profile.employee.employeeCode} · {humanize(profile.employee.employmentType)}</p>
+          <p className="staff-profile-meta">
+            <span>{humanize(profile.employee.employmentType)}</span>
+            <code>{profile.employee.employeeCode}</code>
+          </p>
         </div>
       </section>
 
@@ -90,11 +76,57 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
             <p className="staff-kicker">WORKPLACE</p>
             <h2>{profile.workplace.businessName}</h2>
           </div>
-          <span className="staff-status-chip">ACTIVE</span>
+          <span className="staff-status-chip active">ACTIVE</span>
         </div>
         <p>{profile.workplace.primaryBranchName}</p>
         {profile.employee.position ? <small>{profile.employee.position}</small> : null}
       </section>
+
+      <section className="staff-page-card">
+        <div className="staff-card-heading">
+          <div>
+            <p className="staff-kicker">EMPLOYMENT</p>
+            <h2>My work details</h2>
+          </div>
+          <span className="staff-status-chip active">
+            {humanize(profile.employee.employmentStatus)}
+          </span>
+        </div>
+        <div className="staff-device-details staff-employment-details">
+          <Detail label="Employee no." value={profile.employee.employeeCode} />
+          <Detail label="Employment type" value={humanize(profile.employee.employmentType)} />
+          <Detail label="Position" value={profile.employee.position || "Not specified"} />
+          <Detail label="Start date" value={formatDate(profile.employee.joinedAt)} />
+        </div>
+      </section>
+
+      {workplaces.length > 1 ? (
+        <section className="staff-page-card">
+          <div className="staff-card-heading">
+            <div>
+              <p className="staff-kicker">MY WORKPLACES</p>
+              <h2>{workplaces.length} active employers</h2>
+            </div>
+            <button className="staff-inline-action" onClick={openWorkplaceSwitcher} type="button">
+              Switch
+            </button>
+          </div>
+          <div className="staff-profile-workplaces">
+            {workplaces.map((workplace) => (
+              <button
+                disabled={switching || workplace.current}
+                key={workplace.membershipId}
+                onClick={openWorkplaceSwitcher}
+                type="button"
+              >
+                <span><strong>{workplace.businessName}</strong><small>{workplace.primaryBranchName}</small></span>
+                <b>{workplace.current ? "Current" : "Choose"}</b>
+              </button>
+            ))}
+          </div>
+          <p className="staff-form-hint">Each employer has a separate secure Staff Session and separate data.</p>
+        </section>
+      ) : null}
 
       <section className="staff-page-card">
         <div className="staff-card-heading">
@@ -124,8 +156,8 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
           Continue to Home
         </button>
       ) : null}
-      <button className="staff-danger-button" disabled={busy} onClick={logout} type="button">
-        {busy ? "Signing out…" : "Sign out of Staff App"}
+      <button className="staff-danger-button" disabled={switching} onClick={() => void logout()} type="button">
+        {switching ? "Signing out…" : "Sign out of Staff App"}
       </button>
     </div>
   );
@@ -148,6 +180,10 @@ function formatDateTime(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-MY", { dateStyle: "medium" }).format(new Date(value));
 }
 
 function humanize(value: string) {

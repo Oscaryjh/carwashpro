@@ -26,7 +26,7 @@ export default async function AttendanceP2WorkspacePage({ searchParams }: Props)
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   return (
     <section className="content hr-module-page">
-      <header className="page-header hr-module-header"><div><span className="hr-module-eyebrow">HR &amp; PAYROLL</span><h1>Attendance P2 Workspace</h1><p>Record expected-work evidence, detect ambiguity and send blockers to resolution.</p></div><div className="hr-module-actions"><Link className="secondary-light-button" href="/team/attendance">Attendance</Link><Link className="secondary-light-button" href="/team/attendance/resolutions">Resolution queue</Link><Link className="secondary-light-button" href="/team/attendance/timesheets">Timesheets</Link></div></header>
+      <header className="page-header hr-module-header"><div><span className="hr-module-eyebrow">HR &amp; PAYROLL</span><h1>Attendance P2 Workspace</h1><p>Record expected-work evidence, detect ambiguity and send blockers to resolution.</p></div></header>
       {params.message ? <p role="status"><strong>{params.type === "error" ? "Error: " : ""}{params.message}</strong></p> : null}
       <div className="settings-grid">
         <form action={recordExpectedAttendanceAction} className="settings-card">

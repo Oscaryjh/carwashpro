@@ -11,8 +11,6 @@ export default async function AttendanceSettingsPage() {
   );
   const scope = await resolveAttendanceScope(access);
   const canManage = hasBusinessCapability(access, "MODIFY_ATTENDANCE_SETTINGS");
-  const canViewTeamDirectory = hasBusinessCapability(access, "VIEW_TEAM_DIRECTORY");
-  const canViewAttendance = hasBusinessCapability(access, "VIEW_ATTENDANCE_EMPLOYEES");
   const [business, branches] = await Promise.all([
     prisma.business.findUnique({
       where: { id: businessId },
@@ -37,28 +35,9 @@ export default async function AttendanceSettingsPage() {
           <h1>Attendance Settings</h1>
           <p>
             Configure secure branch geofence rules for {business?.name ?? "this business"}.
+            The same rules apply to Staff App clock-ins and Attendance APIs.
           </p>
         </div>
-        <div className={`hr-module-actions ${styles.headerActions}`}>
-          {canViewTeamDirectory ? (
-            <Link className="secondary-light-button" href="/team?section=people">
-              People
-            </Link>
-          ) : null}
-          {canViewAttendance ? (
-            <Link className="secondary-light-button" href="/team/attendance">
-              Attendance
-            </Link>
-          ) : null}
-        </div>
-      </div>
-
-      <div className={styles.notice}>
-        <strong>Attendance API enforcement</strong>
-        <span>
-          Employee attendance APIs enforce these branch location rules. The
-          Staff PWA and attendance administration use the same enforced rules.
-        </span>
       </div>
 
       {branches.length ? (
@@ -79,8 +58,8 @@ export default async function AttendanceSettingsPage() {
                   >
                     {setting
                       ? setting.isEnabled
-                        ? "Enabled"
-                        : "Disabled"
+                        ? "Active"
+                        : "Paused"
                       : "Not configured"}
                   </span>
                 </div>
@@ -95,7 +74,7 @@ export default async function AttendanceSettingsPage() {
                   </div>
                   <div>
                     <dt>Timezone</dt>
-                    <dd>{setting?.timezone ?? "Business default"}</dd>
+                    <dd>{setting ? timeZoneLabel(setting.timezone) : "Business default"}</dd>
                   </div>
                   <div>
                     <dt>Outside request</dt>
@@ -111,7 +90,7 @@ export default async function AttendanceSettingsPage() {
                     className="button-link"
                     href={`/team/attendance-settings/${branch.id}`}
                   >
-                    {setting ? "Manage settings" : "Configure branch"}
+                    GPS &amp; Attendance
                   </Link>
                 ) : (
                   <p className={styles.readOnly}>
@@ -129,4 +108,10 @@ export default async function AttendanceSettingsPage() {
       )}
     </section>
   );
+}
+
+function timeZoneLabel(timezone: string) {
+  return timezone === "Asia/Kuching" || timezone === "Asia/Kuala_Lumpur"
+    ? "Malaysia (UTC+8)"
+    : timezone;
 }

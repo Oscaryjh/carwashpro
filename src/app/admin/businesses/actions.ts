@@ -9,7 +9,7 @@ import { assertCanManageBusiness, assertRole } from "@/lib/auth/permissions";
 import { requireUser, revokeUserSessions } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import {
-  changeBusinessModuleEntitlement,
+  changeBusinessModuleEntitlements,
   provisionDefaultBusinessModules,
 } from "@/lib/modules/service";
 import {
@@ -60,24 +60,29 @@ export async function changeBusinessModuleEntitlementAction(formData: FormData) 
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
   const businessId = String(formData.get("businessId") ?? "");
+  const submittedModuleKeys = formData.getAll("moduleKey").map(String);
   let type = "success";
-  let message = "Business module entitlement updated.";
+  let message = "No module changes to save.";
   try {
-    await changeBusinessModuleEntitlement({
+    const result = await changeBusinessModuleEntitlements({
       actor: user,
       request: await getAuditRequestContext(),
-      rawInput: {
+      rawInputs: submittedModuleKeys.map((moduleKey) => ({
         businessId,
-        moduleKey: formData.get("moduleKey"),
-        status: formData.get("status"),
-        enabledFrom: formData.get("enabledFrom"),
-        enabledUntil: formData.get("enabledUntil"),
+        moduleKey,
+        status: formData.get(`status:${moduleKey}`),
+        enabledFrom: formData.get(`enabledFrom:${moduleKey}`),
+        enabledUntil: formData.get(`enabledUntil:${moduleKey}`),
         source: "MANUAL",
-        planCode: formData.get("planCode"),
+        planCode: formData.get(`planCode:${moduleKey}`),
         reason: formData.get("reason"),
-        expectedRevision: formData.get("expectedRevision") || undefined,
-      },
+        expectedRevision:
+          formData.get(`expectedRevision:${moduleKey}`) || undefined,
+      })),
     });
+    if (result.changedCount > 0) {
+      message = `${result.changedCount} module entitlement${result.changedCount === 1 ? "" : "s"} updated.`;
+    }
     revalidatePath(`/admin/businesses/${businessId}`);
   } catch (error) {
     type = "error";

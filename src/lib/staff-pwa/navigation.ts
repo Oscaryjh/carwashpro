@@ -35,10 +35,10 @@ export function buildStaffNavigation(
     primary.push(
       { href: "/staff/history", label: "Attendance", icon: "attendance" },
       { href: "/staff/leave", label: "Leave", icon: "leave" },
+      { href: "/staff/timesheet", label: "Timesheet", icon: "timesheet" },
     );
     more.push(
       { href: "/staff/roster", label: "My Schedule", icon: "schedule" },
-      { href: "/staff/timesheet", label: "My Timesheets", icon: "timesheet" },
     );
   }
   if (modules.has("CLAIMS")) {
@@ -51,6 +51,6 @@ export function buildStaffNavigation(
     more.push({ href: "/staff/payslips", label: "My Payslips", icon: "payslip" });
   }
 
-  primary.push({ href: "/staff/profile", label: "Profile", icon: "profile" });
+  more.push({ href: "/staff/profile", label: "My Profile", icon: "profile" });
   return { primary, more };
 }

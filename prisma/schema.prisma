@@ -345,6 +345,14 @@ enum PayrollRunStatus {
   FINALIZED
 }
 
+enum PayrollHolidayPayDecisionStatus {
+  NOT_APPLICABLE
+  POLICY_DISABLED
+  PENDING_CONFIRMATION
+  CONFIRMED
+  EXCLUDED
+}
+
 enum PayrollEntryComponentType {
   EARNING
   DEDUCTION
@@ -367,6 +375,21 @@ enum StatutoryScheme {
   EIS
   LINDUNG24
   PCB
+  WORK_PAY
+}
+
+enum PayrollWorkPayCoverageStatus {
+  ELIGIBLE
+  NOT_ELIGIBLE
+  REVIEW_REQUIRED
+}
+
+enum PayrollWorkPayClassification {
+  NORMAL_OT
+  REST_DAY_WORK
+  REST_DAY_OT
+  PUBLIC_HOLIDAY_WORK
+  PUBLIC_HOLIDAY_OT
 }
 
 enum StatutoryRuleSetStatus {
@@ -724,17 +747,6 @@ enum StatutoryArtifactIntegrityStatus {
   LEGACY_UNVERIFIED
 }
 
-enum LeavePolicyCode {
-  ANNUAL
-  SICK
-  HOSPITALISATION
-  MATERNITY
-  PATERNITY
-  UNPAID
-  COMPASSIONATE
-  OTHER
-}
-
 enum LeavePayTreatment {
   PAID
   UNPAID
@@ -750,6 +762,27 @@ enum LeaveRequestStatus {
   APPROVED
   REJECTED
   CANCELLED
+}
+
+enum HrApprovalDomain {
+  LEAVE
+  CLAIMS
+}
+
+enum HrApprovalPolicyMode {
+  ONE_LEVEL
+  TWO_LEVEL_ALWAYS
+  TWO_LEVEL_THRESHOLD
+}
+
+enum HrApprovalDecisionStage {
+  LEVEL_ONE
+  LEVEL_TWO
+}
+
+enum HrApprovalDecisionOutcome {
+  APPROVED
+  REJECTED
 }
 
 enum LeavePolicyOrigin {
@@ -770,6 +803,56 @@ enum LeavePolicyVersionStatus {
   SUPERSEDED
 }
 
+enum LeaveStatutoryRuleSetStatus {
+  DRAFT
+  READY_FOR_REVIEW
+  READY_FOR_HUMAN_SIGN_OFF
+  ACTIVE
+  SUPERSEDED
+}
+
+enum LeaveStatutoryCategory {
+  ANNUAL_LEAVE
+  SICK_LEAVE
+  HOSPITALISATION_LEAVE
+  MATERNITY_LEAVE
+  PATERNITY_LEAVE
+  UNPAID_LEAVE
+}
+
+enum LeaveComplianceStatus {
+  COMPLIANT
+  BELOW_MINIMUM
+  REVIEW_REQUIRED
+  NOT_APPLICABLE
+}
+
+enum LeaveEntitlementPeriodType {
+  CALENDAR_YEAR
+  SERVICE_ANNIVERSARY
+  CUSTOM_YEAR
+}
+
+enum LeaveEntitlementSemantics {
+  PERIOD_BALANCE
+  EVENT_BASED
+  NON_ACCRUAL
+}
+
+enum LeaveProrationMethod {
+  NONE
+  CALENDAR_DAY_RATIO
+  COMPLETED_MONTHS
+}
+
+enum LeaveEntitlementRounding {
+  NONE
+  DOWN_TO_HALF_DAY
+  NEAREST_HALF_DAY
+  UP_TO_HALF_DAY
+  STATUTORY_WHOLE_DAY
+}
+
 enum LeaveUnit {
   FULL_DAY
   HALF_DAY_AM
@@ -779,10 +862,34 @@ enum LeaveUnit {
 enum LeaveLedgerEventType {
   ENTITLEMENT
   CARRY_FORWARD
+  CARRY_FORWARD_LAPSE
   MANUAL_ADJUSTMENT
   APPROVED_CONSUMPTION
   CANCELLATION_RESTORE
   EXPIRY
+}
+
+enum LeaveCarryForwardExpiryRule {
+  NO_EXPIRY
+  DAYS_AFTER_ROLLOVER
+  MONTHS_AFTER_ROLLOVER
+  FIXED_DATE_IN_DESTINATION_PERIOD
+}
+
+enum LeaveConsumptionPriority {
+  EARLIEST_EXPIRY_FIRST
+  OLDEST_ENTITLEMENT_FIRST
+}
+
+enum LeaveEntitlementBucketSourceType {
+  CURRENT_ENTITLEMENT
+  CARRY_FORWARD
+}
+
+enum LeaveEntitlementBucketStatus {
+  ACTIVE
+  EXHAUSTED
+  EXPIRED
 }
 
 enum LeaveApplicationEventType {
@@ -791,6 +898,46 @@ enum LeaveApplicationEventType {
   REJECTED
   WITHDRAWN
   CANCELLED
+}
+
+enum LeaveEvidenceStatus {
+  NOT_REVIEWED
+  VERIFIED
+  REJECTED
+  REVIEW_REQUIRED
+}
+
+enum LeaveSupportingDocumentType {
+  MEDICAL_CERTIFICATE
+  HOSPITALISATION_SUPPORT
+  MATERNITY_SUPPORT
+  PATERNITY_SUPPORT
+  SUPPORTING_DOCUMENT
+  OTHER
+}
+
+enum LeaveSupportingDocumentSource {
+  UPLOAD
+  LEGACY_REFERENCE
+}
+
+enum LeaveSupportingDocumentLifecycleStatus {
+  ACTIVE
+  SUPERSEDED
+  REMOVED
+  LEGACY_REFERENCE
+}
+
+enum LeaveDocumentSecurityStatus {
+  SCAN_NOT_AVAILABLE
+  PENDING_SECURITY_SCAN
+  CLEAN
+  REJECTED
+}
+
+enum LeaveDocumentPrivacyClass {
+  SENSITIVE_HR
+  SENSITIVE_MEDICAL
 }
 
 enum ClaimStatus {
@@ -1024,6 +1171,52 @@ enum AttendanceExpectedDayStatus {
   SUPERSEDED
 }
 
+enum AttendanceOvertimeApprovalStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  ADJUSTED
+  NOT_APPLICABLE
+}
+
+enum AttendanceOvertimeContext {
+  NORMAL
+  REST_DAY
+  PUBLIC_HOLIDAY
+}
+
+enum AttendanceOvertimeEventType {
+  OT_REVIEW_CREATED
+  OT_APPROVED
+  OT_REJECTED
+  OT_ADJUSTED
+  OT_REOPENED
+}
+
+enum HolidayType {
+  PUBLIC_HOLIDAY
+  COMPANY_HOLIDAY
+  SPECIAL_CLOSURE
+}
+
+enum HolidaySource {
+  OFFICIAL
+  CUSTOM
+}
+
+enum HolidayScope {
+  NATIONAL
+  STATE
+  BUSINESS
+  BRANCH
+}
+
+enum HolidayStatus {
+  ACTIVE
+  SUPERSEDED
+  CANCELLED
+}
+
 enum RosterPeriodStatus {
   DRAFT
   PUBLISHED
@@ -1038,6 +1231,21 @@ enum RosterAssignmentKind {
 enum RosterEvidenceDisposition {
   APPLIED
   RETROSPECTIVE_REVIEW_REQUIRED
+}
+
+enum EmployeeRosterRestPolicy {
+  FIXED
+  VARIABLE
+}
+
+enum RosterResolvedSource {
+  DEFAULT_SHIFT
+  FIXED_REST
+  VARIABLE_REST
+  WEEKLY_SHIFT_OVERRIDE
+  WEEKLY_REST_OVERRIDE
+  WEEKLY_NOT_SCHEDULED_OVERRIDE
+  CUSTOM_SHIFT
 }
 
 enum AttendanceP2ExceptionType {
@@ -1167,7 +1375,25 @@ enum PaymentMethod {
   DUITNOW
   EWALLET
   BANK_TRANSFER
+  FOREIGN_CURRENCY
+  CRYPTO
   PACKAGE
+}
+
+enum BusinessPaymentMethodKind {
+  LOCAL_TENDER
+  FOREIGN_CURRENCY
+  CRYPTO_ASSET
+}
+
+enum BusinessPaymentMethodBehavior {
+  STANDARD_TENDER
+  TRAINING_COMPLIMENTARY
+}
+
+enum InvoiceCheckoutType {
+  STANDARD
+  TRAINING_COMPLIMENTARY
 }
 
 enum PaymentRecordStatus {
@@ -1338,6 +1564,7 @@ enum ExpenseStatus {
 
 enum ExpensePaymentStatus {
   UNPAID
+  PARTIALLY_PAID
   PAID
 }
 
@@ -1347,6 +1574,29 @@ enum ExpensePaymentMethod {
   CARD
   EWALLET
   OTHER
+}
+
+enum ExpensePaymentSource {
+  POS_DRAWER
+  PETTY_CASH
+  BANK_ACCOUNT
+  COMPANY_CARD
+  OWNER_ADVANCE
+  STAFF_ADVANCE
+  OTHER
+}
+
+enum ExpenseDocumentType {
+  EXPENSE_RECEIPT
+  SUPPLIER_INVOICE
+  CLAIM_RECEIPT
+  UNKNOWN
+}
+
+enum ExpenseDocumentConfidence {
+  HIGH
+  MEDIUM
+  LOW
 }
 
 enum ExpenseCommandType {
@@ -1578,6 +1828,7 @@ model Business {
   supplierPaymentSequence Int              @default(1000) @map("supplier_payment_sequence")
   stockCountSequence      Int              @default(0) @map("stock_count_sequence")
   expenseSequence         Int              @default(0) @map("expense_sequence")
+  productSequence         Int              @default(0) @map("product_sequence")
   sstEnabled              Boolean          @default(false) @map("sst_enabled")
   sstLabel                String           @default("SST") @map("sst_label")
   sstRate                 Decimal          @default(0) @map("sst_rate") @db.Decimal(5, 2)
@@ -1621,7 +1872,9 @@ model Business {
   businessExpenses               BusinessExpense[]
   businessExpenseRevisions       BusinessExpenseRevision[]
   businessExpensePayments        BusinessExpensePaymentEvent[]
+  cashierShiftExpensePayouts     CashierShiftExpensePayout[]
   businessExpenseAttachments     BusinessExpenseAttachment[]
+  expenseDocumentScans           ExpenseDocumentScan[]
   expenseCommands                ExpenseCommand[]
   recurringExpenseTemplates      RecurringExpenseTemplate[]
   packageCategories              PackageCategory[]
@@ -1630,6 +1883,7 @@ model Business {
   invoiceItems                   InvoiceItem[]
   creditNoteItems                CreditNoteItem[]
   payments                       Payment[]
+  businessPaymentMethods         BusinessPaymentMethod[]
   paymentRefunds                 PaymentRefund[]
   financialOperations            FinancialOperation[]
   creditNotes                    CreditNote[]
@@ -1665,11 +1919,14 @@ model Business {
   lindung24RefundEvents          EmployeeLindung24RefundEvent[]
   payrollSetting                 PayrollSetting?
   payrollHolidays                PayrollHoliday[]
+  holidayOccurrences             HolidayOccurrence[]
   payrollRuns                    PayrollRun[]
   payrollEntries                 PayrollEntry[]
   payrollPayslipPublications     PayrollPayslipPublication[]
   payrollEntryComponents         PayrollEntryComponent[]
   payrollAttendanceSnapshots     PayrollAttendanceInputSnapshot[]
+  payrollWorkPaySnapshots        PayrollWorkPayCalculationSnapshot[]
+  payrollWorkPayLines            PayrollWorkPayCalculationLine[]
   payrollVariablePay             PayrollVariablePay[]
   payrollCorrections             PayrollCorrection[]
   compensationVersions           EmployeeCompensationVersion[]
@@ -1687,9 +1944,12 @@ model Business {
   payrollPaymentEvents           PayrollPaymentEvent[]
   payrollPaymentArtifacts        PayrollPaymentArtifact[]
   leavePolicies                  LeavePolicy[]
+  leaveStatutoryRuleSets         LeaveStatutoryRuleSet[]
   employeeLeaveBalances          EmployeeLeaveBalance[]
   leaveRequests                  LeaveRequest[]
   leaveRequestDays               LeaveRequestDay[]
+  hrApprovalPolicies             HrApprovalPolicy[]
+  hrApprovalDecisions            HrApprovalDecision[]
   employeeBranchAssignments      EmployeeBranchAssignment[]
   employeeAttendances            EmployeeAttendance[]
   branchAttendanceSettings       BranchAttendanceSetting[]
@@ -1734,6 +1994,8 @@ model Business {
   commissionStatements           CommissionStatement[]
   commissionAccruals             CommissionAccrual[]
   commissionAdjustments          CommissionAdjustment[]
+  rosterShiftTemplates           RosterShiftTemplate[]
+  employeeRosterScheduleVersions EmployeeRosterScheduleVersion[]
   rosterPeriods                  RosterPeriod[]
   rosterAssignments              RosterAssignment[]
   rosterPublications             RosterPublication[]
@@ -2166,78 +2428,85 @@ model CommercialAuditEvent {
 }
 
 model Branch {
-  id         String       @id @default(uuid()) @db.Uuid
-  businessId String       @map("business_id") @db.Uuid
-  name       String
-  phone      String?
-  address    String?
-  status     BranchStatus @default(ACTIVE)
-  createdAt  DateTime     @default(now()) @map("created_at")
-  updatedAt  DateTime     @updatedAt @map("updated_at")
+  id          String       @id @default(uuid()) @db.Uuid
+  businessId  String       @map("business_id") @db.Uuid
+  name        String
+  phone       String?
+  address     String?
+  countryCode String       @default("MY") @map("country_code") @db.VarChar(2)
+  stateCode   String?      @map("state_code") @db.VarChar(12)
+  status      BranchStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
 
-  business                      Business                             @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  customers                     Customer[]
-  vehicles                      Vehicle[]
-  services                      Service[]
-  productStocks                 ProductStock[]
-  inventoryMovements            InventoryMovement[]
-  inventoryTransfersOut         InventoryTransfer[]                  @relation("InventoryTransferSourceBranch")
-  inventoryTransfersIn          InventoryTransfer[]                  @relation("InventoryTransferDestinationBranch")
-  inventoryRefundLines          InventoryRefundLine[]
-  purchaseOrders                PurchaseOrder[]
-  goodsReceipts                 GoodsReceipt[]
-  goodsReceiptReversals         GoodsReceiptReversal[]
-  supplierBills                 SupplierBill[]
-  supplierPayments              SupplierPayment[]
-  stockCountSessions            StockCountSession[]
-  stockCountLines               StockCountLine[]
-  businessExpenses              BusinessExpense[]
-  recurringExpenseTemplates     RecurringExpenseTemplate[]
-  packages                      Package[]
-  customerPackages              CustomerPackage[]
-  staffUsers                    User[]
-  workOrders                    WorkOrder[]
-  payments                      Payment[]
-  paymentRefunds                PaymentRefund[]
-  creditNotes                   CreditNote[]
-  cashierShifts                 CashierShift[]
-  invoices                      Invoice[]
-  whatsappMessages              WhatsAppMessage[]
-  notificationQueues            NotificationQueue[]
-  vehicleOwnershipHistories     VehicleOwnershipHistory[]
-  appointments                  Appointment[]
-  auditLogs                     AuditLog[]
-  loyaltyTransactions           LoyaltyTransaction[]
-  employeeBranchAssignments     EmployeeBranchAssignment[]
-  payrollHolidays               PayrollHoliday[]
-  employeeAttendances           EmployeeAttendance[]
-  attendanceSetting             BranchAttendanceSetting?
-  attendancePunches             AttendancePunch[]
-  attendanceExceptions          AttendanceException[]
-  attendanceAdjustments         AttendanceAdjustment[]
-  attendanceResolutionCases     AttendanceResolutionCase[]
-  attendanceFinalResults        AttendanceFinalResult[]
-  attendanceResolutionEvents    AttendanceResolutionEvent[]
-  attendanceTimesheetBranches   AttendanceTimesheetBranchReadiness[]
-  attendanceTimesheetEntries    AttendanceTimesheetRevisionEntry[]
-  primaryEmployeeSessions       EmployeeSession[]                    @relation("EmployeeSessionPrimaryBranch")
-  attendanceEmployeeSessions    EmployeeSession[]                    @relation("EmployeeSessionAttendanceBranch")
-  attendanceIdempotencyRequests AttendanceRequestIdempotency[]
-  leaveRequests                 LeaveRequest[]
-  catalogDiscounts              CatalogDiscount[]
-  dailyClosingSnapshots         DailyClosingSnapshot[]
-  closingWhatsAppSetting        ClosingWhatsAppBranchSetting?
-  closingWhatsAppRecipients     ClosingWhatsAppRecipient[]
-  closingWhatsAppSends          ClosingWhatsAppSendAttempt[]
-  financialOperations           FinancialOperation[]
-  employeeClaims                EmployeeClaim[]
-  commissionRuleRevisions       CommissionRuleRevision[]
-  commissionSourceEvents        CommissionSourceEvent[]
-  commissionPeriods             CommissionPeriod[]
-  rosterPeriods                 RosterPeriod[]
-  rosterAssignments             RosterAssignment[]
-  rosterPublications            RosterPublication[]
-  rosterPublishedAssignments    RosterPublishedAssignment[]
+  business                       Business                             @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customers                      Customer[]
+  vehicles                       Vehicle[]
+  services                       Service[]
+  productStocks                  ProductStock[]
+  inventoryMovements             InventoryMovement[]
+  inventoryTransfersOut          InventoryTransfer[]                  @relation("InventoryTransferSourceBranch")
+  inventoryTransfersIn           InventoryTransfer[]                  @relation("InventoryTransferDestinationBranch")
+  inventoryRefundLines           InventoryRefundLine[]
+  purchaseOrders                 PurchaseOrder[]
+  goodsReceipts                  GoodsReceipt[]
+  goodsReceiptReversals          GoodsReceiptReversal[]
+  supplierBills                  SupplierBill[]
+  supplierPayments               SupplierPayment[]
+  stockCountSessions             StockCountSession[]
+  stockCountLines                StockCountLine[]
+  businessExpenses               BusinessExpense[]
+  expenseDocumentScans           ExpenseDocumentScan[]
+  recurringExpenseTemplates      RecurringExpenseTemplate[]
+  packages                       Package[]
+  customerPackages               CustomerPackage[]
+  staffUsers                     User[]
+  workOrders                     WorkOrder[]
+  payments                       Payment[]
+  paymentRefunds                 PaymentRefund[]
+  creditNotes                    CreditNote[]
+  cashierShifts                  CashierShift[]
+  cashierShiftExpensePayouts     CashierShiftExpensePayout[]
+  invoices                       Invoice[]
+  whatsappMessages               WhatsAppMessage[]
+  notificationQueues             NotificationQueue[]
+  vehicleOwnershipHistories      VehicleOwnershipHistory[]
+  appointments                   Appointment[]
+  auditLogs                      AuditLog[]
+  loyaltyTransactions            LoyaltyTransaction[]
+  employeeBranchAssignments      EmployeeBranchAssignment[]
+  payrollHolidays                PayrollHoliday[]
+  holidayOccurrences             HolidayOccurrence[]
+  employeeAttendances            EmployeeAttendance[]
+  attendanceSetting              BranchAttendanceSetting?
+  attendancePunches              AttendancePunch[]
+  attendanceExceptions           AttendanceException[]
+  attendanceAdjustments          AttendanceAdjustment[]
+  attendanceResolutionCases      AttendanceResolutionCase[]
+  attendanceFinalResults         AttendanceFinalResult[]
+  attendanceResolutionEvents     AttendanceResolutionEvent[]
+  attendanceTimesheetBranches    AttendanceTimesheetBranchReadiness[]
+  attendanceTimesheetEntries     AttendanceTimesheetRevisionEntry[]
+  primaryEmployeeSessions        EmployeeSession[]                    @relation("EmployeeSessionPrimaryBranch")
+  attendanceEmployeeSessions     EmployeeSession[]                    @relation("EmployeeSessionAttendanceBranch")
+  attendanceIdempotencyRequests  AttendanceRequestIdempotency[]
+  leaveRequests                  LeaveRequest[]
+  catalogDiscounts               CatalogDiscount[]
+  dailyClosingSnapshots          DailyClosingSnapshot[]
+  closingWhatsAppSetting         ClosingWhatsAppBranchSetting?
+  closingWhatsAppRecipients      ClosingWhatsAppRecipient[]
+  closingWhatsAppSends           ClosingWhatsAppSendAttempt[]
+  financialOperations            FinancialOperation[]
+  employeeClaims                 EmployeeClaim[]
+  commissionRuleRevisions        CommissionRuleRevision[]
+  commissionSourceEvents         CommissionSourceEvent[]
+  commissionPeriods              CommissionPeriod[]
+  rosterShiftTemplates           RosterShiftTemplate[]
+  employeeRosterScheduleVersions EmployeeRosterScheduleVersion[]
+  rosterPeriods                  RosterPeriod[]
+  rosterAssignments              RosterAssignment[]
+  rosterPublications             RosterPublication[]
+  rosterPublishedAssignments     RosterPublishedAssignment[]
 
   @@unique([businessId, name])
   @@unique([id, businessId])
@@ -2305,7 +2574,9 @@ model User {
   businessExpensesVoided              BusinessExpense[]                    @relation("BusinessExpenseVoidedBy")
   businessExpenseRevisionsCreated     BusinessExpenseRevision[]            @relation("BusinessExpenseRevisionCreatedBy")
   businessExpensePaymentsCreated      BusinessExpensePaymentEvent[]        @relation("BusinessExpensePaymentActor")
+  cashierShiftExpensePayoutsCreated   CashierShiftExpensePayout[]          @relation("CashierShiftExpensePayoutCreator")
   businessExpenseAttachmentsUploaded  BusinessExpenseAttachment[]          @relation("BusinessExpenseAttachmentUploader")
+  expenseDocumentScansCreated         ExpenseDocumentScan[]                @relation("ExpenseDocumentScanCreator")
   expenseCommands                     ExpenseCommand[]                     @relation("ExpenseCommandActor")
   recurringExpenseTemplatesCreated    RecurringExpenseTemplate[]           @relation("RecurringExpenseTemplateCreatedBy")
   recurringExpenseTemplatesUpdated    RecurringExpenseTemplate[]           @relation("RecurringExpenseTemplateUpdatedBy")
@@ -2361,6 +2632,7 @@ model User {
   subscriptionPaymentReversalsCreated SubscriptionPaymentReversal[]        @relation("SubscriptionPaymentReversalCreatedBy")
   aiUsageEvents                       AiUsageEvent[]
   reviewedClaims                      EmployeeClaim[]                      @relation("ClaimReviewedBy")
+  hrApprovalDecisions                 HrApprovalDecision[]                 @relation("HrApprovalDecisionActor")
   claimReimbursementsSelected         ClaimReimbursement[]                 @relation("ClaimReimbursementSelectedBy")
   claimReimbursementsPaid             ClaimReimbursement[]                 @relation("ClaimReimbursementPaidBy")
 
@@ -2400,6 +2672,9 @@ model User {
   commissionPeriodsApproved      CommissionPeriod[]                      @relation("CommissionPeriodApprovedBy")
   commissionStatementsApproved   CommissionStatement[]                   @relation("CommissionStatementApprovedBy")
   commissionAdjustmentsCreated   CommissionAdjustment[]                  @relation("CommissionAdjustmentCreatedBy")
+  rosterShiftTemplatesCreated    RosterShiftTemplate[]                   @relation("RosterShiftTemplateCreatedBy")
+  rosterShiftTemplatesUpdated    RosterShiftTemplate[]                   @relation("RosterShiftTemplateUpdatedBy")
+  employeeRosterSchedulesCreated EmployeeRosterScheduleVersion[]         @relation("EmployeeRosterScheduleCreatedBy")
   rosterPeriodsCreated           RosterPeriod[]                          @relation("RosterPeriodCreatedBy")
   rosterPeriodsUpdated           RosterPeriod[]                          @relation("RosterPeriodUpdatedBy")
   rosterAssignmentsCreated       RosterAssignment[]                      @relation("RosterAssignmentCreatedBy")
@@ -3035,6 +3310,7 @@ model EmployeeBusinessMembership {
   businessId                String                         @map("business_id") @db.Uuid
   employeeCode              String                         @map("employee_code")
   fullName                  String                         @map("full_name")
+  avatarUrl                 String?                        @map("avatar_url")
   phoneNumber               String                         @map("phone_number")
   phoneNumberNormalized     String                         @map("phone_number_normalized")
   employmentType            EmployeeEmploymentType         @default(FULL_TIME) @map("employment_type")
@@ -3087,6 +3363,8 @@ model EmployeeBusinessMembership {
   payrollPayslipPublications     PayrollPayslipPublication[]
   payrollEntryComponents         PayrollEntryComponent[]
   payrollAttendanceSnapshots     PayrollAttendanceInputSnapshot[]
+  payrollWorkPaySnapshots        PayrollWorkPayCalculationSnapshot[]
+  payrollWorkPayLines            PayrollWorkPayCalculationLine[]
   statutoryProfileVersions       EmployeeStatutoryProfileVersion[]
   lindung24ParticipationVersions EmployeeLindung24ParticipationVersion[]
   lindung24RefundEvents          EmployeeLindung24RefundEvent[]
@@ -3112,6 +3390,7 @@ model EmployeeBusinessMembership {
   commissionAdjustments          CommissionAdjustment[]
   rosterAssignments              RosterAssignment[]
   rosterPublishedAssignments     RosterPublishedAssignment[]
+  rosterScheduleVersions         EmployeeRosterScheduleVersion[]
   claimPayrollSnapshots          PayrollClaimReimbursementSnapshot[]
   staffUser                      User?                                   @relation("EmployeeBusinessMembershipStaffUser")
 
@@ -3149,6 +3428,7 @@ model EmployeeCompensationVersion {
   supersedesVersion  EmployeeCompensationVersion?  @relation("CompensationVersionSupersession", fields: [supersedesVersionId], references: [id], onDelete: Restrict)
   supersededVersions EmployeeCompensationVersion[] @relation("CompensationVersionSupersession")
   payrollEntries     PayrollEntry[]
+  workPaySnapshots   PayrollWorkPayCalculationSnapshot[]
 
   @@unique([id, businessId])
   @@index([businessId, membershipId, effectiveFromMonth])
@@ -3627,11 +3907,13 @@ model AttendanceTimesheetRevision {
   lockedById   String   @map("locked_by_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at")
 
-  timesheet                  AttendanceMonthlyTimesheet         @relation("AttendanceTimesheetRevisions", fields: [timesheetId, businessId], references: [id, businessId], onDelete: Restrict)
-  currentFor                 AttendanceMonthlyTimesheet?        @relation("CurrentAttendanceTimesheetRevision")
-  business                   Business                           @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  lockedBy                   User                               @relation("AttendanceTimesheetRevisionLockedBy", fields: [lockedById], references: [id], onDelete: Restrict)
+  timesheet                  AttendanceMonthlyTimesheet             @relation("AttendanceTimesheetRevisions", fields: [timesheetId, businessId], references: [id, businessId], onDelete: Restrict)
+  currentFor                 AttendanceMonthlyTimesheet?            @relation("CurrentAttendanceTimesheetRevision")
+  business                   Business                               @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  lockedBy                   User                                   @relation("AttendanceTimesheetRevisionLockedBy", fields: [lockedById], references: [id], onDelete: Restrict)
   entries                    AttendanceTimesheetRevisionEntry[]
+  p2DaySnapshots             AttendanceTimesheetP2DaySnapshot[]
+  p2SegmentSnapshots         AttendanceTimesheetP2SegmentSnapshot[]
   payrollRuns                PayrollRun[]
   payrollAttendanceSnapshots PayrollAttendanceInputSnapshot[]
 
@@ -3642,22 +3924,23 @@ model AttendanceTimesheetRevision {
 }
 
 model AttendanceTimesheetRevisionEntry {
-  id                  String                           @id @default(uuid()) @db.Uuid
-  revisionId          String                           @map("revision_id") @db.Uuid
-  businessId          String                           @map("business_id") @db.Uuid
-  branchId            String                           @map("branch_id") @db.Uuid
-  employeeId          String                           @map("employee_id") @db.Uuid
-  attendanceSessionId String                           @map("attendance_session_id") @db.Uuid
-  finalResultId       String                           @map("final_result_id") @db.Uuid
-  finalResultVersion  Int                              @map("final_result_version")
-  disposition         AttendanceFinalResultDisposition
-  workDate            DateTime                         @map("work_date") @db.Date
-  clockInAt           DateTime?                        @map("clock_in_at")
-  clockOutAt          DateTime?                        @map("clock_out_at")
-  totalBreakMinutes   Int                              @map("total_break_minutes")
-  totalWorkedMinutes  Int                              @map("total_worked_minutes")
-  finalResultChecksum String                           @map("final_result_checksum") @db.VarChar(64)
-  createdAt           DateTime                         @default(now()) @map("created_at")
+  id                     String                           @id @default(uuid()) @db.Uuid
+  revisionId             String                           @map("revision_id") @db.Uuid
+  businessId             String                           @map("business_id") @db.Uuid
+  branchId               String                           @map("branch_id") @db.Uuid
+  employeeId             String                           @map("employee_id") @db.Uuid
+  attendanceSessionId    String                           @map("attendance_session_id") @db.Uuid
+  finalResultId          String                           @map("final_result_id") @db.Uuid
+  finalResultVersion     Int                              @map("final_result_version")
+  disposition            AttendanceFinalResultDisposition
+  workDate               DateTime                         @map("work_date") @db.Date
+  clockInAt              DateTime?                        @map("clock_in_at")
+  clockOutAt             DateTime?                        @map("clock_out_at")
+  totalBreakMinutes      Int                              @map("total_break_minutes")
+  totalWorkedMinutes     Int                              @map("total_worked_minutes")
+  finalResultChecksum    String                           @map("final_result_checksum") @db.VarChar(64)
+  holidayContextSnapshot Json?                            @map("holiday_context_snapshot")
+  createdAt              DateTime                         @default(now()) @map("created_at")
 
   revision          AttendanceTimesheetRevision @relation(fields: [revisionId, businessId], references: [id, businessId], onDelete: Restrict)
   business          Business                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
@@ -3700,6 +3983,76 @@ model AttendanceExpectedDay {
   @@map("attendance_expected_days")
 }
 
+model RosterShiftTemplate {
+  id            String   @id @default(uuid()) @db.Uuid
+  businessId    String   @map("business_id") @db.Uuid
+  branchId      String?  @map("branch_id") @db.Uuid
+  name          String   @db.VarChar(80)
+  shortCode     String?  @map("short_code") @db.VarChar(12)
+  startMinute   Int      @map("start_minute")
+  endMinute     Int      @map("end_minute")
+  breakMinutes  Int      @default(0) @map("break_minutes")
+  breakPaid     Boolean  @default(false) @map("break_paid")
+  colorToken    String   @default("TEAL") @map("color_token") @db.VarChar(20)
+  crossMidnight Boolean  @default(false) @map("cross_midnight")
+  active        Boolean  @default(true)
+  displayOrder  Int      @default(100) @map("display_order")
+  revision      Int      @default(1)
+  createdById   String   @map("created_by_id") @db.Uuid
+  updatedById   String   @map("updated_by_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  business         Business                        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch           Branch?                         @relation(fields: [branchId, businessId], references: [id, businessId], onDelete: Restrict)
+  createdBy        User                            @relation("RosterShiftTemplateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy        User                            @relation("RosterShiftTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  assignments      RosterAssignment[]
+  scheduleVersions EmployeeRosterScheduleVersion[]
+
+  @@unique([id, businessId])
+  @@index([businessId, branchId, active, displayOrder])
+  @@index([businessId, name])
+  @@map("roster_shift_templates")
+}
+
+model EmployeeRosterScheduleVersion {
+  id                     String                   @id @default(uuid()) @db.Uuid
+  businessId             String                   @map("business_id") @db.Uuid
+  branchId               String                   @map("branch_id") @db.Uuid
+  membershipId           String                   @map("membership_id") @db.Uuid
+  effectiveFrom          DateTime                 @map("effective_from") @db.Date
+  effectiveUntil         DateTime?                @map("effective_until") @db.Date
+  revision               Int
+  defaultShiftTemplateId String?                  @map("default_shift_template_id") @db.Uuid
+  shiftNameSnapshot      String?                  @map("shift_name_snapshot") @db.VarChar(80)
+  shiftShortCodeSnapshot String?                  @map("shift_short_code_snapshot") @db.VarChar(12)
+  shiftColorSnapshot     String?                  @map("shift_color_snapshot") @db.VarChar(20)
+  startMinuteSnapshot    Int?                     @map("start_minute_snapshot")
+  endMinuteSnapshot      Int?                     @map("end_minute_snapshot")
+  crossMidnightSnapshot  Boolean?                 @map("cross_midnight_snapshot")
+  breakMinutesSnapshot   Int                      @default(0) @map("break_minutes_snapshot")
+  breakPaidSnapshot      Boolean                  @default(false) @map("break_paid_snapshot")
+  restPolicy             EmployeeRosterRestPolicy @map("rest_policy")
+  fixedRestWeekdays      Int[]                    @default([]) @map("fixed_rest_weekdays")
+  requiredRestDays       Int                      @default(0) @map("required_rest_days")
+  sourceDigest           String                   @map("source_digest") @db.Char(64)
+  createdById            String                   @map("created_by_id") @db.Uuid
+  createdAt              DateTime                 @default(now()) @map("created_at")
+
+  business             Business                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch               Branch                      @relation(fields: [branchId, businessId], references: [id, businessId], onDelete: Restrict)
+  membership           EmployeeBusinessMembership  @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  defaultShiftTemplate RosterShiftTemplate?        @relation(fields: [defaultShiftTemplateId, businessId], references: [id, businessId], onDelete: Restrict)
+  createdBy            User                        @relation("EmployeeRosterScheduleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  publishedAssignments RosterPublishedAssignment[]
+
+  @@unique([id, businessId])
+  @@unique([businessId, branchId, membershipId, revision], map: "employee_roster_schedule_scope_revision_key")
+  @@index([businessId, branchId, membershipId, effectiveFrom, effectiveUntil], map: "employee_roster_schedule_effective_idx")
+  @@map("employee_roster_schedule_versions")
+}
+
 model RosterPeriod {
   id                  String             @id @default(uuid()) @db.Uuid
   businessId          String             @map("business_id") @db.Uuid
@@ -3728,28 +4081,34 @@ model RosterPeriod {
 }
 
 model RosterAssignment {
-  id             String               @id @default(uuid()) @db.Uuid
-  rosterPeriodId String               @map("roster_period_id") @db.Uuid
-  businessId     String               @map("business_id") @db.Uuid
-  branchId       String               @map("branch_id") @db.Uuid
-  membershipId   String               @map("membership_id") @db.Uuid
-  workDate       DateTime             @map("work_date") @db.Date
-  kind           RosterAssignmentKind
-  startAt        DateTime?            @map("start_at")
-  endAt          DateTime?            @map("end_at")
-  breakMinutes   Int                  @default(0) @map("break_minutes")
-  note           String?              @db.VarChar(500)
-  createdById    String               @map("created_by_id") @db.Uuid
-  updatedById    String               @map("updated_by_id") @db.Uuid
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
+  id                    String               @id @default(uuid()) @db.Uuid
+  rosterPeriodId        String               @map("roster_period_id") @db.Uuid
+  businessId            String               @map("business_id") @db.Uuid
+  branchId              String               @map("branch_id") @db.Uuid
+  membershipId          String               @map("membership_id") @db.Uuid
+  workDate              DateTime             @map("work_date") @db.Date
+  kind                  RosterAssignmentKind
+  shiftTemplateId       String?              @map("shift_template_id") @db.Uuid
+  shiftNameSnapshot     String?              @map("shift_name_snapshot") @db.VarChar(80)
+  shiftColorSnapshot    String?              @map("shift_color_snapshot") @db.VarChar(20)
+  crossMidnightSnapshot Boolean?             @map("cross_midnight_snapshot")
+  startAt               DateTime?            @map("start_at")
+  endAt                 DateTime?            @map("end_at")
+  breakMinutes          Int                  @default(0) @map("break_minutes")
+  breakPaidSnapshot     Boolean              @default(false) @map("break_paid_snapshot")
+  note                  String?              @db.VarChar(500)
+  createdById           String               @map("created_by_id") @db.Uuid
+  updatedById           String               @map("updated_by_id") @db.Uuid
+  createdAt             DateTime             @default(now()) @map("created_at")
+  updatedAt             DateTime             @updatedAt @map("updated_at")
 
-  rosterPeriod RosterPeriod               @relation(fields: [rosterPeriodId, businessId], references: [id, businessId], onDelete: Cascade)
-  business     Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch       Branch                     @relation(fields: [branchId, businessId], references: [id, businessId], onDelete: Restrict)
-  membership   EmployeeBusinessMembership @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
-  createdBy    User                       @relation("RosterAssignmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy    User                       @relation("RosterAssignmentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  rosterPeriod  RosterPeriod               @relation(fields: [rosterPeriodId, businessId], references: [id, businessId], onDelete: Cascade)
+  business      Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch        Branch                     @relation(fields: [branchId, businessId], references: [id, businessId], onDelete: Restrict)
+  membership    EmployeeBusinessMembership @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  shiftTemplate RosterShiftTemplate?       @relation(fields: [shiftTemplateId, businessId], references: [id, businessId], onDelete: Restrict)
+  createdBy     User                       @relation("RosterAssignmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy     User                       @relation("RosterAssignmentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
 
   @@unique([rosterPeriodId, membershipId, workDate])
   @@unique([businessId, membershipId, workDate])
@@ -3787,33 +4146,42 @@ model RosterPublication {
 }
 
 model RosterPublishedAssignment {
-  id                  String                    @id @default(uuid()) @db.Uuid
-  publicationId       String                    @map("publication_id") @db.Uuid
-  sourceAssignmentId  String                    @map("source_assignment_id") @db.Uuid
-  businessId          String                    @map("business_id") @db.Uuid
-  branchId            String                    @map("branch_id") @db.Uuid
-  membershipId        String                    @map("membership_id") @db.Uuid
-  workDate            DateTime                  @map("work_date") @db.Date
-  kind                RosterAssignmentKind
-  startAt             DateTime?                 @map("start_at")
-  endAt               DateTime?                 @map("end_at")
-  breakMinutes        Int                       @map("break_minutes")
-  note                String?                   @db.VarChar(500)
-  timezoneSnapshot    String                    @map("timezone_snapshot") @db.VarChar(100)
-  evidenceDisposition RosterEvidenceDisposition @default(APPLIED) @map("evidence_disposition")
-  evidenceReference   String?                   @map("evidence_reference") @db.VarChar(160)
-  createdAt           DateTime                  @default(now()) @map("created_at")
+  id                      String                    @id @default(uuid()) @db.Uuid
+  publicationId           String                    @map("publication_id") @db.Uuid
+  sourceAssignmentId      String?                   @map("source_assignment_id") @db.Uuid
+  sourceScheduleVersionId String?                   @map("source_schedule_version_id") @db.Uuid
+  resolvedSource          RosterResolvedSource      @map("resolved_source")
+  businessId              String                    @map("business_id") @db.Uuid
+  branchId                String                    @map("branch_id") @db.Uuid
+  membershipId            String                    @map("membership_id") @db.Uuid
+  workDate                DateTime                  @map("work_date") @db.Date
+  kind                    RosterAssignmentKind
+  shiftTemplateId         String?                   @map("shift_template_id") @db.Uuid
+  shiftNameSnapshot       String?                   @map("shift_name_snapshot") @db.VarChar(80)
+  shiftColorSnapshot      String?                   @map("shift_color_snapshot") @db.VarChar(20)
+  crossMidnightSnapshot   Boolean?                  @map("cross_midnight_snapshot")
+  startAt                 DateTime?                 @map("start_at")
+  endAt                   DateTime?                 @map("end_at")
+  breakMinutes            Int                       @map("break_minutes")
+  breakPaidSnapshot       Boolean                   @default(false) @map("break_paid_snapshot")
+  note                    String?                   @db.VarChar(500)
+  timezoneSnapshot        String                    @map("timezone_snapshot") @db.VarChar(100)
+  evidenceDisposition     RosterEvidenceDisposition @default(APPLIED) @map("evidence_disposition")
+  evidenceReference       String?                   @map("evidence_reference") @db.VarChar(160)
+  createdAt               DateTime                  @default(now()) @map("created_at")
 
-  publication RosterPublication          @relation(fields: [publicationId, businessId], references: [id, businessId], onDelete: Restrict)
-  business    Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch      Branch                     @relation(fields: [branchId, businessId], references: [id, businessId], onDelete: Restrict)
-  membership  EmployeeBusinessMembership @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  publication           RosterPublication              @relation(fields: [publicationId, businessId], references: [id, businessId], onDelete: Restrict)
+  business              Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch                Branch                         @relation(fields: [branchId, businessId], references: [id, businessId], onDelete: Restrict)
+  membership            EmployeeBusinessMembership     @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  sourceScheduleVersion EmployeeRosterScheduleVersion? @relation(fields: [sourceScheduleVersionId, businessId], references: [id, businessId], onDelete: Restrict)
 
   @@unique([publicationId, membershipId, workDate])
   @@unique([id, businessId])
   @@index([businessId, branchId, workDate])
   @@index([businessId, membershipId, workDate])
   @@index([publicationId, sourceAssignmentId])
+  @@index([sourceScheduleVersionId])
   @@map("roster_published_assignments")
 }
 
@@ -3923,31 +4291,158 @@ model AttendanceP2FinalResult {
   @@map("attendance_p2_final_results")
 }
 
+model AttendanceOvertimeReview {
+  id                 String                           @id @default(uuid()) @db.Uuid
+  businessId         String                           @map("business_id") @db.Uuid
+  branchId           String                           @map("branch_id") @db.Uuid
+  membershipId       String                           @map("membership_id") @db.Uuid
+  workDate           DateTime                         @map("work_date") @db.Date
+  finalResultId      String                           @map("final_result_id") @db.Uuid
+  finalResultVersion Int                              @map("final_result_version")
+  expectedDayId      String?                          @map("expected_day_id") @db.Uuid
+  status             AttendanceOvertimeApprovalStatus @default(PENDING_REVIEW)
+  context            AttendanceOvertimeContext
+  potentialOtMinutes Int                              @map("potential_ot_minutes")
+  approvedOtMinutes  Int                              @default(0) @map("approved_ot_minutes")
+  sourceDigest       String                           @map("source_digest") @db.VarChar(64)
+  revision           Int                              @default(0)
+  reviewedById       String?                          @map("reviewed_by_id") @db.Uuid
+  reviewedAt         DateTime?                        @map("reviewed_at")
+  reason             String?                          @db.VarChar(500)
+  createdAt          DateTime                         @default(now()) @map("created_at")
+  updatedAt          DateTime                         @updatedAt @map("updated_at")
+
+  events AttendanceOvertimeReviewEvent[]
+
+  @@unique([businessId, membershipId, workDate])
+  @@unique([id, businessId])
+  @@index([businessId, branchId, status, workDate])
+  @@index([businessId, finalResultId, finalResultVersion])
+  @@map("attendance_overtime_reviews")
+}
+
+model AttendanceOvertimeReviewEvent {
+  id                 String                      @id @default(uuid()) @db.Uuid
+  reviewId           String                      @map("review_id") @db.Uuid
+  businessId         String                      @map("business_id") @db.Uuid
+  branchId           String                      @map("branch_id") @db.Uuid
+  membershipId       String                      @map("membership_id") @db.Uuid
+  workDate           DateTime                    @map("work_date") @db.Date
+  type               AttendanceOvertimeEventType
+  reviewRevision     Int                         @map("review_revision")
+  potentialOtMinutes Int                         @map("potential_ot_minutes")
+  approvedOtMinutes  Int                         @map("approved_ot_minutes")
+  context            AttendanceOvertimeContext
+  actorId            String                      @map("actor_id") @db.Uuid
+  reason             String?                     @db.VarChar(500)
+  beforeSnapshot     Json?                       @map("before_snapshot")
+  afterSnapshot      Json                        @map("after_snapshot")
+  createdAt          DateTime                    @default(now()) @map("created_at")
+
+  review AttendanceOvertimeReview @relation(fields: [reviewId], references: [id], onDelete: Restrict)
+
+  @@index([reviewId, reviewRevision])
+  @@index([businessId, branchId, createdAt])
+  @@index([businessId, membershipId, workDate, createdAt])
+  @@map("attendance_overtime_review_events")
+}
+
 model AttendanceTimesheetP2DaySnapshot {
+  id                                   String                           @id @default(uuid()) @db.Uuid
+  revisionId                           String                           @map("revision_id") @db.Uuid
+  businessId                           String                           @map("business_id") @db.Uuid
+  branchId                             String                           @map("branch_id") @db.Uuid
+  membershipId                         String                           @map("membership_id") @db.Uuid
+  workDate                             DateTime                         @map("work_date") @db.Date
+  finalResultId                        String                           @map("final_result_id") @db.Uuid
+  finalResultVersion                   Int                              @map("final_result_version")
+  outcome                              AttendanceP2Outcome
+  expectedDayKindSnapshot              AttendanceExpectedDayKind?       @map("expected_day_kind_snapshot")
+  leaveDayFractionSnapshot             Decimal?                         @map("leave_day_fraction_snapshot") @db.Decimal(3, 2)
+  leaveRequestIdSnapshot               String?                          @map("leave_request_id_snapshot") @db.Uuid
+  leaveRequestRevisionSnapshot         Int?                             @map("leave_request_revision_snapshot")
+  leaveRequestDigestSnapshot           String?                          @map("leave_request_digest_snapshot") @db.Char(64)
+  leavePolicyIdSnapshot                String?                          @map("leave_policy_id_snapshot") @db.Uuid
+  leavePolicyVersionIdSnapshot         String?                          @map("leave_policy_version_id_snapshot") @db.Uuid
+  leavePolicyNameSnapshot              String?                          @map("leave_policy_name_snapshot")
+  leavePayTreatmentSnapshot            LeavePayTreatment?               @map("leave_pay_treatment_snapshot")
+  leaveUnitSnapshot                    LeaveUnit?                       @map("leave_unit_snapshot")
+  leaveLegalStatusSnapshot             LeaveLegalStatus?                @map("leave_legal_status_snapshot")
+  leaveJurisdictionCodeSnapshot        String?                          @map("leave_jurisdiction_code_snapshot") @db.VarChar(32)
+  leaveStatutoryRuleSetVersionSnapshot String?                          @map("leave_statutory_rule_set_version_snapshot") @db.VarChar(40)
+  leaveStatutoryRuleSetStatusSnapshot  LeaveStatutoryRuleSetStatus?     @map("leave_statutory_rule_set_status_snapshot")
+  leaveStatutoryCategorySnapshot       LeaveStatutoryCategory?          @map("leave_statutory_category_snapshot")
+  leaveStatutoryEligibilitySnapshot    Json?                            @map("leave_statutory_eligibility_snapshot")
+  leaveStatutoryPayTreatmentSnapshot   Json?                            @map("leave_statutory_pay_treatment_snapshot")
+  leaveComplianceStatusSnapshot        LeaveComplianceStatus?           @map("leave_compliance_status_snapshot")
+  expectedStartAt                      DateTime?                        @map("expected_start_at")
+  expectedEndAt                        DateTime?                        @map("expected_end_at")
+  actualClockInAt                      DateTime?                        @map("actual_clock_in_at")
+  actualClockOutAt                     DateTime?                        @map("actual_clock_out_at")
+  timezoneSnapshot                     String?                          @map("timezone_snapshot") @db.VarChar(100)
+  crossMidnightSnapshot                Boolean                          @default(false) @map("cross_midnight_snapshot")
+  potentialOtMinutes                   Int                              @default(0) @map("potential_ot_minutes")
+  approvedOtMinutes                    Int                              @default(0) @map("approved_ot_minutes")
+  otContext                            AttendanceOvertimeContext?       @map("ot_context")
+  otApprovalStatus                     AttendanceOvertimeApprovalStatus @default(NOT_APPLICABLE) @map("ot_approval_status")
+  otApprovalRef                        String?                          @map("ot_approval_ref") @db.Uuid
+  otApprovalRevision                   Int?                             @map("ot_approval_revision")
+  totalBreakMinutes                    Int                              @map("total_break_minutes")
+  totalWorkedMinutes                   Int                              @map("total_worked_minutes")
+  sourceDigest                         String                           @map("source_digest") @db.VarChar(64)
+  holidayContextSnapshot               Json?                            @map("holiday_context_snapshot")
+  createdAt                            DateTime                         @default(now()) @map("created_at")
+
+  revision AttendanceTimesheetRevision            @relation(fields: [revisionId, businessId], references: [id, businessId], onDelete: Restrict)
+  segments AttendanceTimesheetP2SegmentSnapshot[]
+
+  @@unique([revisionId, membershipId, workDate])
+  @@index([businessId, branchId, workDate])
+  @@index([finalResultId])
+  @@index([businessId, leaveRequestIdSnapshot])
+  @@map("attendance_timesheet_p2_day_snapshots")
+}
+
+model AttendanceTimesheetP2SegmentSnapshot {
   id                       String                     @id @default(uuid()) @db.Uuid
   revisionId               String                     @map("revision_id") @db.Uuid
   businessId               String                     @map("business_id") @db.Uuid
   branchId                 String                     @map("branch_id") @db.Uuid
   membershipId             String                     @map("membership_id") @db.Uuid
-  workDate                 DateTime                   @map("work_date") @db.Date
-  finalResultId            String                     @map("final_result_id") @db.Uuid
-  finalResultVersion       Int                        @map("final_result_version")
-  outcome                  AttendanceP2Outcome
+  sourceDaySnapshotId      String                     @map("source_day_snapshot_id") @db.Uuid
+  sourceFinalResultId      String                     @map("source_final_result_id") @db.Uuid
+  sourceAttendanceId       String?                    @map("source_attendance_id") @db.Uuid
+  segmentIndex             Int                        @map("segment_index")
+  localDate                DateTime                   @map("local_date") @db.Date
+  startAt                  DateTime                   @map("start_at")
+  endAt                    DateTime                   @map("end_at")
+  timezoneSnapshot         String                     @map("timezone_snapshot") @db.VarChar(100)
+  context                  AttendanceOvertimeContext
   expectedDayKindSnapshot  AttendanceExpectedDayKind? @map("expected_day_kind_snapshot")
-  leaveDayFractionSnapshot Decimal?                   @map("leave_day_fraction_snapshot") @db.Decimal(3, 2)
   expectedStartAt          DateTime?                  @map("expected_start_at")
   expectedEndAt            DateTime?                  @map("expected_end_at")
-  actualClockInAt          DateTime?                  @map("actual_clock_in_at")
-  actualClockOutAt         DateTime?                  @map("actual_clock_out_at")
-  totalBreakMinutes        Int                        @map("total_break_minutes")
-  totalWorkedMinutes       Int                        @map("total_worked_minutes")
+  isRestDay                Boolean                    @default(false) @map("is_rest_day")
+  isPublicHoliday          Boolean                    @default(false) @map("is_public_holiday")
+  isUnscheduled            Boolean                    @default(false) @map("is_unscheduled")
+  holidayContextSnapshot   Json?                      @map("holiday_context_snapshot")
+  leaveRequestIdSnapshot   String?                    @map("leave_request_id_snapshot") @db.Uuid
+  leaveDayFractionSnapshot Decimal?                   @map("leave_day_fraction_snapshot") @db.Decimal(3, 2)
+  grossMinutes             Int                        @map("gross_minutes")
+  breakMinutes             Int                        @map("break_minutes")
+  workedMinutes            Int                        @map("worked_minutes")
+  potentialOtMinutes       Int                        @default(0) @map("potential_ot_minutes")
+  approvedOtMinutes        Int                        @default(0) @map("approved_ot_minutes")
   sourceDigest             String                     @map("source_digest") @db.VarChar(64)
   createdAt                DateTime                   @default(now()) @map("created_at")
 
-  @@unique([revisionId, membershipId, workDate])
-  @@index([businessId, branchId, workDate])
-  @@index([finalResultId])
-  @@map("attendance_timesheet_p2_day_snapshots")
+  revision          AttendanceTimesheetRevision      @relation(fields: [revisionId, businessId], references: [id, businessId], onDelete: Restrict)
+  sourceDaySnapshot AttendanceTimesheetP2DaySnapshot @relation(fields: [sourceDaySnapshotId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceDaySnapshotId, segmentIndex])
+  @@index([revisionId, membershipId, localDate])
+  @@index([businessId, branchId, localDate])
+  @@index([sourceFinalResultId])
+  @@map("attendance_timesheet_p2_segment_snapshots")
 }
 
 model Customer {
@@ -3987,16 +4482,18 @@ model Customer {
 }
 
 model PayrollSetting {
-  id                           String   @id @default(uuid()) @db.Uuid
-  businessId                   String   @unique @map("business_id") @db.Uuid
-  workingDaysPerMonth          Int      @default(26) @map("working_days_per_month")
-  normalWorkMinutesPerDay      Int      @default(480) @map("normal_work_minutes_per_day")
-  breakMinutesPerDay           Int      @default(60) @map("break_minutes_per_day")
-  overtimeMultiplier           Decimal  @default(1.50) @map("overtime_multiplier") @db.Decimal(5, 2)
-  publicHolidayExtraMultiplier Decimal  @default(2.00) @map("public_holiday_extra_multiplier") @db.Decimal(5, 2)
-  stateCode                    String?  @map("state_code")
-  createdAt                    DateTime @default(now()) @map("created_at")
-  updatedAt                    DateTime @updatedAt @map("updated_at")
+  id                             String   @id @default(uuid()) @db.Uuid
+  businessId                     String   @unique @map("business_id") @db.Uuid
+  workingDaysPerMonth            Int      @default(26) @map("working_days_per_month")
+  normalWorkMinutesPerDay        Int      @default(480) @map("normal_work_minutes_per_day")
+  breakMinutesPerDay             Int      @default(60) @map("break_minutes_per_day")
+  overtimeMultiplier             Decimal  @default(1.50) @map("overtime_multiplier") @db.Decimal(5, 2)
+  publicHolidayExtraMultiplier   Decimal  @default(2.00) @map("public_holiday_extra_multiplier") @db.Decimal(5, 2)
+  publicHolidayPayEnabled        Boolean  @default(false) @map("public_holiday_pay_enabled")
+  publicHolidayPayPolicyRevision Int      @default(1) @map("public_holiday_pay_policy_revision")
+  stateCode                      String?  @map("state_code")
+  createdAt                      DateTime @default(now()) @map("created_at")
+  updatedAt                      DateTime @updatedAt @map("updated_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
 
@@ -4020,29 +4517,63 @@ model PayrollHoliday {
   @@map("payroll_holidays")
 }
 
+model HolidayOccurrence {
+  id                  String        @id @default(uuid()) @db.Uuid
+  businessId          String        @map("business_id") @db.Uuid
+  branchId            String?       @map("branch_id") @db.Uuid
+  workDate            DateTime      @map("work_date") @db.Date
+  name                String        @db.VarChar(160)
+  holidayType         HolidayType   @map("holiday_type")
+  source              HolidaySource
+  scope               HolidayScope
+  countryCode         String        @default("MY") @map("country_code") @db.VarChar(2)
+  stateCode           String?       @map("state_code") @db.VarChar(12)
+  statutory           Boolean       @default(false)
+  officialReference   String?       @map("official_reference") @db.VarChar(500)
+  status              HolidayStatus @default(ACTIVE)
+  revision            Int           @default(1)
+  supersedesHolidayId String?       @map("supersedes_holiday_id") @db.Uuid
+  reason              String?       @db.VarChar(500)
+  createdById         String        @map("created_by_id") @db.Uuid
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  business   Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch     Branch?             @relation(fields: [branchId, businessId], references: [id, businessId], onDelete: Restrict)
+  supersedes HolidayOccurrence?  @relation("HolidayOccurrenceRevision", fields: [supersedesHolidayId], references: [id], onDelete: Restrict)
+  revisions  HolidayOccurrence[] @relation("HolidayOccurrenceRevision")
+
+  @@unique([businessId, workDate, name, revision])
+  @@index([businessId, workDate, status])
+  @@index([businessId, branchId, workDate, status])
+  @@index([businessId, countryCode, stateCode, workDate, status])
+  @@map("holiday_occurrences")
+}
+
 model PayrollRun {
-  id                                   String                  @id @default(uuid()) @db.Uuid
-  businessId                           String                  @map("business_id") @db.Uuid
-  periodStart                          DateTime                @map("period_start") @db.Date
-  periodEnd                            DateTime                @map("period_end") @db.Date
-  status                               PayrollRunStatus        @default(DRAFT)
-  attendanceSource                     PayrollAttendanceSource @map("attendance_source")
-  attendanceTimesheetRevisionId        String?                 @map("attendance_timesheet_revision_id") @db.Uuid
-  attendanceTimesheetRevisionSnapshot  Int?                    @map("attendance_timesheet_revision_snapshot")
-  attendanceTimesheetDigestSnapshot    String?                 @map("attendance_timesheet_digest_snapshot") @db.VarChar(64)
-  attendanceTimesheetLockedAtSnapshot  DateTime?               @map("attendance_timesheet_locked_at_snapshot")
-  workingDaysPerMonthSnapshot          Int                     @map("working_days_per_month_snapshot")
-  normalWorkMinutesPerDaySnapshot      Int                     @map("normal_work_minutes_per_day_snapshot")
-  breakMinutesPerDaySnapshot           Int                     @map("break_minutes_per_day_snapshot")
-  overtimeMultiplierSnapshot           Decimal                 @map("overtime_multiplier_snapshot") @db.Decimal(5, 2)
-  publicHolidayExtraMultiplierSnapshot Decimal                 @map("public_holiday_extra_multiplier_snapshot") @db.Decimal(5, 2)
-  createdById                          String?                 @map("created_by_id") @db.Uuid
-  submittedById                        String?                 @map("submitted_by_id") @db.Uuid
-  submittedAt                          DateTime?               @map("submitted_at")
-  finalizedById                        String?                 @map("finalized_by_id") @db.Uuid
-  finalizedAt                          DateTime?               @map("finalized_at")
-  createdAt                            DateTime                @default(now()) @map("created_at")
-  updatedAt                            DateTime                @updatedAt @map("updated_at")
+  id                                     String                  @id @default(uuid()) @db.Uuid
+  businessId                             String                  @map("business_id") @db.Uuid
+  periodStart                            DateTime                @map("period_start") @db.Date
+  periodEnd                              DateTime                @map("period_end") @db.Date
+  status                                 PayrollRunStatus        @default(DRAFT)
+  attendanceSource                       PayrollAttendanceSource @map("attendance_source")
+  attendanceTimesheetRevisionId          String?                 @map("attendance_timesheet_revision_id") @db.Uuid
+  attendanceTimesheetRevisionSnapshot    Int?                    @map("attendance_timesheet_revision_snapshot")
+  attendanceTimesheetDigestSnapshot      String?                 @map("attendance_timesheet_digest_snapshot") @db.VarChar(64)
+  attendanceTimesheetLockedAtSnapshot    DateTime?               @map("attendance_timesheet_locked_at_snapshot")
+  workingDaysPerMonthSnapshot            Int                     @map("working_days_per_month_snapshot")
+  normalWorkMinutesPerDaySnapshot        Int                     @map("normal_work_minutes_per_day_snapshot")
+  breakMinutesPerDaySnapshot             Int                     @map("break_minutes_per_day_snapshot")
+  overtimeMultiplierSnapshot             Decimal                 @map("overtime_multiplier_snapshot") @db.Decimal(5, 2)
+  publicHolidayExtraMultiplierSnapshot   Decimal                 @map("public_holiday_extra_multiplier_snapshot") @db.Decimal(5, 2)
+  publicHolidayPayEnabledSnapshot        Boolean                 @default(false) @map("public_holiday_pay_enabled_snapshot")
+  publicHolidayPayPolicyRevisionSnapshot Int                     @default(1) @map("public_holiday_pay_policy_revision_snapshot")
+  createdById                            String?                 @map("created_by_id") @db.Uuid
+  submittedById                          String?                 @map("submitted_by_id") @db.Uuid
+  submittedAt                            DateTime?               @map("submitted_at")
+  finalizedById                          String?                 @map("finalized_by_id") @db.Uuid
+  finalizedAt                            DateTime?               @map("finalized_at")
+  createdAt                              DateTime                @default(now()) @map("created_at")
+  updatedAt                              DateTime                @updatedAt @map("updated_at")
 
   business                    Business                            @relation(fields: [businessId], references: [id], onDelete: Restrict)
   createdBy                   User?                               @relation("PayrollRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -4056,6 +4587,8 @@ model PayrollRun {
   paymentBatches              PayrollPaymentBatch[]
   payslipPublications         PayrollPayslipPublication[]
   attendanceInputSnapshots    PayrollAttendanceInputSnapshot[]
+  workPaySnapshots            PayrollWorkPayCalculationSnapshot[]
+  workPayLines                PayrollWorkPayCalculationLine[]
   statutorySnapshots          PayrollEntryStatutorySnapshot[]
   claimReimbursementSnapshots PayrollClaimReimbursementSnapshot[]
 
@@ -4067,55 +4600,60 @@ model PayrollRun {
 }
 
 model PayrollEntry {
-  id                                     String                      @id @default(uuid()) @db.Uuid
-  payrollRunId                           String                      @map("payroll_run_id") @db.Uuid
-  businessId                             String                      @map("business_id") @db.Uuid
-  membershipId                           String                      @map("membership_id") @db.Uuid
-  compensationVersionId                  String?                     @map("compensation_version_id") @db.Uuid
-  compensationEffectiveFromMonthSnapshot DateTime?                   @map("compensation_effective_from_month_snapshot") @db.Date
-  compensationSourceSnapshot             EmployeeCompensationSource? @map("compensation_source_snapshot")
-  employeeCodeSnapshot                   String                      @map("employee_code_snapshot")
-  fullNameSnapshot                       String                      @map("full_name_snapshot")
-  payBasisSnapshot                       EmployeePayBasis            @map("pay_basis_snapshot")
-  baseRateSnapshot                       Decimal                     @map("base_rate_snapshot") @db.Decimal(12, 2)
-  workingDaysSnapshot                    Int                         @map("working_days_snapshot")
-  normalWorkMinutesSnapshot              Int                         @map("normal_work_minutes_snapshot")
-  attendanceDays                         Int                         @default(0) @map("attendance_days")
-  regularMinutes                         Int                         @default(0) @map("regular_minutes")
-  overtimeMinutes                        Int                         @default(0) @map("overtime_minutes")
-  publicHolidayMinutes                   Int                         @default(0) @map("public_holiday_minutes")
-  paidLeaveDays                          Decimal                     @default(0) @map("paid_leave_days") @db.Decimal(6, 2)
-  unpaidLeaveDays                        Decimal                     @default(0) @map("unpaid_leave_days") @db.Decimal(6, 2)
-  basicPay                               Decimal                     @default(0) @map("basic_pay") @db.Decimal(12, 2)
-  leavePay                               Decimal                     @default(0) @map("leave_pay") @db.Decimal(12, 2)
-  unpaidLeaveDeduction                   Decimal                     @default(0) @map("unpaid_leave_deduction") @db.Decimal(12, 2)
-  overtimePay                            Decimal                     @default(0) @map("overtime_pay") @db.Decimal(12, 2)
-  publicHolidayPay                       Decimal                     @default(0) @map("public_holiday_pay") @db.Decimal(12, 2)
-  recurringAllowancesSnapshot            Decimal                     @default(0) @map("recurring_allowances_snapshot") @db.Decimal(12, 2)
-  recurringDeductionsSnapshot            Decimal                     @default(0) @map("recurring_deductions_snapshot") @db.Decimal(12, 2)
-  calculationRevision                    Int                         @default(0) @map("calculation_revision")
-  allowances                             Decimal                     @default(0) @db.Decimal(12, 2)
-  otherDeductions                        Decimal                     @default(0) @map("other_deductions") @db.Decimal(12, 2)
-  epfWageBase                            Decimal                     @default(0) @map("epf_wage_base") @db.Decimal(12, 2)
-  perkesoWageBase                        Decimal                     @default(0) @map("perkeso_wage_base") @db.Decimal(12, 2)
-  epfEmployee                            Decimal                     @default(0) @map("epf_employee") @db.Decimal(12, 2)
-  socsoEmployee                          Decimal                     @default(0) @map("socso_employee") @db.Decimal(12, 2)
-  eisEmployee                            Decimal                     @default(0) @map("eis_employee") @db.Decimal(12, 2)
-  lindung24Employee                      Decimal                     @default(0) @map("lindung_24_employee") @db.Decimal(12, 2)
-  pcb                                    Decimal                     @default(0) @db.Decimal(12, 2)
-  employerEpf                            Decimal                     @default(0) @map("employer_epf") @db.Decimal(12, 2)
-  employerSocso                          Decimal                     @default(0) @map("employer_socso") @db.Decimal(12, 2)
-  employerEis                            Decimal                     @default(0) @map("employer_eis") @db.Decimal(12, 2)
-  grossPay                               Decimal                     @default(0) @map("gross_pay") @db.Decimal(12, 2)
-  netPay                                 Decimal                     @default(0) @map("net_pay") @db.Decimal(12, 2)
-  statutoryStatus                        PayrollStatutoryStatus      @default(NOT_CONFIGURED) @map("statutory_status")
-  statutoryRuleVersion                   String?                     @map("statutory_rule_version")
-  statutoryCalculatedAt                  DateTime?                   @map("statutory_calculated_at")
-  statutoryWarning                       String?                     @map("statutory_warning")
+  id                                     String                          @id @default(uuid()) @db.Uuid
+  payrollRunId                           String                          @map("payroll_run_id") @db.Uuid
+  businessId                             String                          @map("business_id") @db.Uuid
+  membershipId                           String                          @map("membership_id") @db.Uuid
+  compensationVersionId                  String?                         @map("compensation_version_id") @db.Uuid
+  compensationEffectiveFromMonthSnapshot DateTime?                       @map("compensation_effective_from_month_snapshot") @db.Date
+  compensationSourceSnapshot             EmployeeCompensationSource?     @map("compensation_source_snapshot")
+  employeeCodeSnapshot                   String                          @map("employee_code_snapshot")
+  fullNameSnapshot                       String                          @map("full_name_snapshot")
+  payBasisSnapshot                       EmployeePayBasis                @map("pay_basis_snapshot")
+  baseRateSnapshot                       Decimal                         @map("base_rate_snapshot") @db.Decimal(12, 2)
+  workingDaysSnapshot                    Int                             @map("working_days_snapshot")
+  normalWorkMinutesSnapshot              Int                             @map("normal_work_minutes_snapshot")
+  attendanceDays                         Int                             @default(0) @map("attendance_days")
+  regularMinutes                         Int                             @default(0) @map("regular_minutes")
+  overtimeMinutes                        Int                             @default(0) @map("overtime_minutes")
+  publicHolidayMinutes                   Int                             @default(0) @map("public_holiday_minutes")
+  paidLeaveDays                          Decimal                         @default(0) @map("paid_leave_days") @db.Decimal(6, 2)
+  unpaidLeaveDays                        Decimal                         @default(0) @map("unpaid_leave_days") @db.Decimal(6, 2)
+  basicPay                               Decimal                         @default(0) @map("basic_pay") @db.Decimal(12, 2)
+  leavePay                               Decimal                         @default(0) @map("leave_pay") @db.Decimal(12, 2)
+  unpaidLeaveDeduction                   Decimal                         @default(0) @map("unpaid_leave_deduction") @db.Decimal(12, 2)
+  overtimePay                            Decimal                         @default(0) @map("overtime_pay") @db.Decimal(12, 2)
+  publicHolidayPay                       Decimal                         @default(0) @map("public_holiday_pay") @db.Decimal(12, 2)
+  publicHolidayPayPreview                Decimal                         @default(0) @map("public_holiday_pay_preview") @db.Decimal(12, 2)
+  publicHolidayPayDecisionStatus         PayrollHolidayPayDecisionStatus @default(NOT_APPLICABLE) @map("public_holiday_pay_decision_status")
+  publicHolidayPayDecisionReason         String?                         @map("public_holiday_pay_decision_reason") @db.VarChar(500)
+  publicHolidayPayDecidedById            String?                         @map("public_holiday_pay_decided_by_id") @db.Uuid
+  publicHolidayPayDecidedAt              DateTime?                       @map("public_holiday_pay_decided_at")
+  recurringAllowancesSnapshot            Decimal                         @default(0) @map("recurring_allowances_snapshot") @db.Decimal(12, 2)
+  recurringDeductionsSnapshot            Decimal                         @default(0) @map("recurring_deductions_snapshot") @db.Decimal(12, 2)
+  calculationRevision                    Int                             @default(0) @map("calculation_revision")
+  allowances                             Decimal                         @default(0) @db.Decimal(12, 2)
+  otherDeductions                        Decimal                         @default(0) @map("other_deductions") @db.Decimal(12, 2)
+  epfWageBase                            Decimal                         @default(0) @map("epf_wage_base") @db.Decimal(12, 2)
+  perkesoWageBase                        Decimal                         @default(0) @map("perkeso_wage_base") @db.Decimal(12, 2)
+  epfEmployee                            Decimal                         @default(0) @map("epf_employee") @db.Decimal(12, 2)
+  socsoEmployee                          Decimal                         @default(0) @map("socso_employee") @db.Decimal(12, 2)
+  eisEmployee                            Decimal                         @default(0) @map("eis_employee") @db.Decimal(12, 2)
+  lindung24Employee                      Decimal                         @default(0) @map("lindung_24_employee") @db.Decimal(12, 2)
+  pcb                                    Decimal                         @default(0) @db.Decimal(12, 2)
+  employerEpf                            Decimal                         @default(0) @map("employer_epf") @db.Decimal(12, 2)
+  employerSocso                          Decimal                         @default(0) @map("employer_socso") @db.Decimal(12, 2)
+  employerEis                            Decimal                         @default(0) @map("employer_eis") @db.Decimal(12, 2)
+  grossPay                               Decimal                         @default(0) @map("gross_pay") @db.Decimal(12, 2)
+  netPay                                 Decimal                         @default(0) @map("net_pay") @db.Decimal(12, 2)
+  statutoryStatus                        PayrollStatutoryStatus          @default(NOT_CONFIGURED) @map("statutory_status")
+  statutoryRuleVersion                   String?                         @map("statutory_rule_version")
+  statutoryCalculatedAt                  DateTime?                       @map("statutory_calculated_at")
+  statutoryWarning                       String?                         @map("statutory_warning")
   notes                                  String?
-  attendanceUpdatedAtSnapshot            DateTime?                   @map("attendance_updated_at_snapshot")
-  createdAt                              DateTime                    @default(now()) @map("created_at")
-  updatedAt                              DateTime                    @updatedAt @map("updated_at")
+  attendanceUpdatedAtSnapshot            DateTime?                       @map("attendance_updated_at_snapshot")
+  createdAt                              DateTime                        @default(now()) @map("created_at")
+  updatedAt                              DateTime                        @updatedAt @map("updated_at")
 
   payrollRun                  PayrollRun                          @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
   business                    Business                            @relation(fields: [businessId], references: [id], onDelete: Restrict)
@@ -4129,6 +4667,8 @@ model PayrollEntry {
   correctionsApplied          PayrollCorrection[]                 @relation("PayrollCorrectionAppliedEntry")
   payslipPublication          PayrollPayslipPublication?
   attendanceInputSnapshot     PayrollAttendanceInputSnapshot?
+  workPayCalculationSnapshot  PayrollWorkPayCalculationSnapshot?
+  workPayCalculationLines     PayrollWorkPayCalculationLine[]
   statutorySnapshots          PayrollEntryStatutorySnapshot[]
   claimReimbursementSnapshots PayrollClaimReimbursementSnapshot[]
 
@@ -4162,9 +4702,18 @@ model PayrollAttendanceInputSnapshot {
   restDayWorkedMinutes       Int      @default(0) @map("rest_day_worked_minutes")
   publicHolidayWorkedMinutes Int      @default(0) @map("public_holiday_worked_minutes")
   approvedOvertimeMinutes    Int      @default(0) @map("approved_overtime_minutes")
+  regularNormalMinutes       Int      @default(0) @map("regular_normal_minutes")
+  normalOtMinutes            Int      @default(0) @map("normal_ot_minutes")
+  restDayWorkMinutes         Int      @default(0) @map("rest_day_work_minutes")
+  restDayOtMinutes           Int      @default(0) @map("rest_day_ot_minutes")
+  publicHolidayWorkMinutes   Int      @default(0) @map("public_holiday_work_minutes")
+  publicHolidayOtMinutes     Int      @default(0) @map("public_holiday_ot_minutes")
+  segmentFacts               Json     @default("[]") @map("segment_facts")
   sourceDayCount             Int      @default(0) @map("source_day_count")
   legacyCompatibility        Boolean  @default(false) @map("legacy_compatibility")
   policyBlockers             Json     @default("[]") @map("policy_blockers")
+  leaveFacts                 Json     @default("[]") @map("leave_facts")
+  leaveCategoryBreakdown     Json     @default("[]") @map("leave_category_breakdown")
   sourceDigest               String   @map("source_digest") @db.VarChar(64)
   generatedAt                DateTime @default(now()) @map("generated_at")
 
@@ -4174,6 +4723,7 @@ model PayrollAttendanceInputSnapshot {
   membership              EmployeeBusinessMembership  @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
   timesheet               AttendanceMonthlyTimesheet  @relation(fields: [timesheetId, businessId], references: [id, businessId], onDelete: Restrict)
   timesheetRevisionSource AttendanceTimesheetRevision @relation(fields: [timesheetRevisionId, businessId], references: [id, businessId], onDelete: Restrict)
+  workPayCalculation      PayrollWorkPayCalculationSnapshot?
 
   @@unique([id, businessId])
   @@unique([payrollEntryId, businessId, membershipId])
@@ -4240,6 +4790,7 @@ model PayrollEntryComponent {
   membership          EmployeeBusinessMembership                   @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
   createdBy           User                                         @relation("PayrollEntryComponentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   statutoryTreatments PayrollComponentStatutoryTreatmentSnapshot[]
+  workPayLines         PayrollWorkPayCalculationLine[]
 
   @@unique([payrollEntryId, lineKey])
   @@index([businessId, payrollRunId, payrollEntryId])
@@ -4252,6 +4803,7 @@ model StatutoryRuleSet {
   id                        String                     @id @default(uuid()) @db.Uuid
   scheme                    StatutoryScheme
   version                   String                     @db.VarChar(100)
+  jurisdictionCode          String?                    @map("jurisdiction_code") @db.VarChar(32)
   effectiveFrom             DateTime                   @map("effective_from") @db.Date
   effectiveTo               DateTime?                  @map("effective_to") @db.Date
   authority                 String                     @db.VarChar(80)
@@ -4292,10 +4844,89 @@ model StatutoryRuleSet {
   lifecycleAudits StatutoryRuleLifecycleAudit[]
   signOffs        StatutoryRuleSetSignOff[]
   reviewDecisions StatutoryComponentReviewDecision[]
+  workPaySnapshots PayrollWorkPayCalculationSnapshot[]
 
   @@unique([scheme, version])
   @@index([scheme, status, effectiveFrom, effectiveTo])
+  @@index([scheme, jurisdictionCode, status, effectiveFrom, effectiveTo])
   @@map("statutory_rule_sets")
+}
+
+model PayrollWorkPayCalculationSnapshot {
+  id                        String                       @id @default(uuid()) @db.Uuid
+  businessId                String                       @map("business_id") @db.Uuid
+  payrollRunId              String                       @map("payroll_run_id") @db.Uuid
+  payrollEntryId            String                       @unique @map("payroll_entry_id") @db.Uuid
+  membershipId              String                       @map("membership_id") @db.Uuid
+  compensationVersionId     String                       @map("compensation_version_id") @db.Uuid
+  attendanceInputSnapshotId String                       @unique @map("attendance_input_snapshot_id") @db.Uuid
+  ruleSetId                 String                       @map("rule_set_id") @db.Uuid
+  jurisdictionCode          String                       @map("jurisdiction_code") @db.VarChar(32)
+  ruleVersion               String                       @map("rule_version") @db.VarChar(100)
+  ruleStatusSnapshot        StatutoryRuleSetStatus       @map("rule_status_snapshot")
+  sourceReference           String                       @map("source_reference") @db.VarChar(500)
+  sourceDigest              String                       @map("source_digest") @db.Char(64)
+  payBasis                  EmployeePayBasis             @map("pay_basis")
+  baseRate                  Decimal                      @map("base_rate") @db.Decimal(12, 2)
+  ordinaryDailyRate         Decimal?                     @map("ordinary_daily_rate") @db.Decimal(18, 8)
+  hourlyRate                Decimal?                     @map("hourly_rate") @db.Decimal(18, 8)
+  coverageStatus            PayrollWorkPayCoverageStatus @map("coverage_status")
+  coverageReason            String                       @map("coverage_reason") @db.VarChar(1000)
+  normalWorkMinutes         Int                          @map("normal_work_minutes")
+  inputDigest               String                       @map("input_digest") @db.Char(64)
+  calculationDigest         String                       @map("calculation_digest") @db.Char(64)
+  inputFacts                Json                         @map("input_facts")
+  blockerCodes              Json                         @default("[]") @map("blocker_codes")
+  generatedAt               DateTime                     @default(now()) @map("generated_at") @db.Timestamptz(3)
+
+  business                Business                           @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  payrollRun              PayrollRun                         @relation(fields: [payrollRunId, businessId], references: [id, businessId], onDelete: Restrict)
+  payrollEntry            PayrollEntry                       @relation(fields: [payrollEntryId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Cascade)
+  membership              EmployeeBusinessMembership         @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  compensationVersion     EmployeeCompensationVersion        @relation(fields: [compensationVersionId, businessId], references: [id, businessId], onDelete: Restrict)
+  attendanceInputSnapshot PayrollAttendanceInputSnapshot     @relation(fields: [attendanceInputSnapshotId], references: [id], onDelete: Restrict)
+  ruleSet                 StatutoryRuleSet                    @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
+  lines                   PayrollWorkPayCalculationLine[]
+
+  @@unique([id, businessId])
+  @@unique([payrollEntryId, businessId, membershipId])
+  @@index([businessId, payrollRunId])
+  @@index([businessId, membershipId, generatedAt])
+  @@index([ruleSetId])
+  @@map("payroll_work_pay_calculation_snapshots")
+}
+
+model PayrollWorkPayCalculationLine {
+  id                 String                       @id @default(uuid()) @db.Uuid
+  businessId         String                       @map("business_id") @db.Uuid
+  payrollRunId       String                       @map("payroll_run_id") @db.Uuid
+  payrollEntryId     String                       @map("payroll_entry_id") @db.Uuid
+  membershipId       String                       @map("membership_id") @db.Uuid
+  snapshotId         String                       @map("snapshot_id") @db.Uuid
+  payrollComponentId String?                      @map("payroll_component_id") @db.Uuid
+  localDate          DateTime                     @map("local_date") @db.Date
+  classification     PayrollWorkPayClassification
+  minutes            Int
+  multiplier         Decimal                      @db.Decimal(8, 4)
+  rate               Decimal                      @db.Decimal(18, 8)
+  amount             Decimal                      @db.Decimal(12, 2)
+  ruleSection        String                       @map("rule_section") @db.VarChar(80)
+  sourceDigest       String                       @map("source_digest") @db.Char(64)
+  lineDigest         String                       @map("line_digest") @db.Char(64)
+  trace              Json
+  createdAt          DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  business         Business                          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  payrollRun       PayrollRun                        @relation(fields: [payrollRunId, businessId], references: [id, businessId], onDelete: Restrict)
+  payrollEntry     PayrollEntry                      @relation(fields: [payrollEntryId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Cascade)
+  membership       EmployeeBusinessMembership        @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  snapshot         PayrollWorkPayCalculationSnapshot @relation(fields: [snapshotId, businessId], references: [id, businessId], onDelete: Cascade)
+  payrollComponent PayrollEntryComponent?             @relation(fields: [payrollComponentId], references: [id], onDelete: SetNull)
+
+  @@unique([snapshotId, localDate, classification])
+  @@index([businessId, payrollRunId, payrollEntryId])
+  @@index([payrollComponentId])
+  @@map("payroll_work_pay_calculation_lines")
 }
 
 model StatutoryRuleSetSignOff {
@@ -5804,6 +6435,7 @@ model BusinessExpense {
   revisions         BusinessExpenseRevision[]
   paymentEvents     BusinessExpensePaymentEvent[]
   attachments       BusinessExpenseAttachment[]
+  documentScan      ExpenseDocumentScan?
   sourceSnapshot    ExpenseSourceSnapshot?
   sourceSettlement  ExpenseSourceSettlement?
 
@@ -5934,18 +6566,22 @@ model BusinessExpensePaymentEvent {
   businessId       String               @map("business_id") @db.Uuid
   expenseId        String               @map("expense_id") @db.Uuid
   paymentStatus    ExpensePaymentStatus @map("payment_status")
+  amount           Decimal              @db.Decimal(12, 2)
   paymentMethod    ExpensePaymentMethod @map("payment_method")
+  paymentSource    ExpensePaymentSource @map("payment_source")
   paymentDate      DateTime             @map("payment_date") @db.Date
   paymentReference String?              @map("payment_reference") @db.VarChar(160)
   actorUserId      String               @map("actor_user_id") @db.Uuid
   createdAt        DateTime             @default(now()) @map("created_at")
 
-  business Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  expense  BusinessExpense @relation(fields: [expenseId, businessId], references: [id, businessId], onDelete: Restrict)
-  actor    User            @relation("BusinessExpensePaymentActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  business     Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  expense      BusinessExpense            @relation(fields: [expenseId, businessId], references: [id, businessId], onDelete: Restrict)
+  actor        User                       @relation("BusinessExpensePaymentActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  drawerPayout CashierShiftExpensePayout?
 
-  @@unique([expenseId, paymentStatus])
-  @@index([businessId, paymentDate])
+  @@unique([id, businessId])
+  @@index([businessId, paymentDate, paymentMethod])
+  @@index([businessId, expenseId, createdAt])
   @@map("business_expense_payment_events")
 }
 
@@ -5971,6 +6607,47 @@ model BusinessExpenseAttachment {
   @@unique([id, businessId])
   @@index([businessId, expenseId])
   @@map("business_expense_attachments")
+}
+
+model ExpenseDocumentScan {
+  id                    String                       @id @default(uuid()) @db.Uuid
+  businessId            String                       @map("business_id") @db.Uuid
+  branchId              String?                      @map("branch_id") @db.Uuid
+  createdById           String                       @map("created_by_id") @db.Uuid
+  expenseId             String?                      @unique @map("expense_id") @db.Uuid
+  objectKey             String                       @unique @map("object_key") @db.VarChar(300)
+  sanitizedFileName     String                       @map("sanitized_file_name") @db.VarChar(120)
+  mimeType              String                       @map("mime_type") @db.VarChar(80)
+  byteLength            Int                          @map("byte_length")
+  checksumSha256        String                       @map("checksum_sha256") @db.Char(64)
+  malwareStatus         ClaimAttachmentMalwareStatus @default(NOT_SCANNED) @map("malware_status")
+  privacyMetadataStatus ClaimAttachmentPrivacyStatus @default(NOT_CHECKED) @map("privacy_metadata_status")
+  quarantineDisposition String                       @default("QUARANTINED") @map("quarantine_disposition") @db.VarChar(30)
+  documentType          ExpenseDocumentType          @default(UNKNOWN) @map("document_type")
+  confidence            ExpenseDocumentConfidence    @default(LOW)
+  extraction            Json
+  warnings              Json
+  duplicateCandidates   Json                         @map("duplicate_candidates")
+  provider              String                       @db.VarChar(40)
+  providerModel         String                       @map("provider_model") @db.VarChar(120)
+  providerRequestId     String?                      @map("provider_request_id") @db.VarChar(160)
+  extractionVersion     String                       @default("expense-document-v1") @map("extraction_version") @db.VarChar(80)
+  expiresAt             DateTime                     @map("expires_at")
+  consumedAt            DateTime?                    @map("consumed_at")
+  createdAt             DateTime                     @default(now()) @map("created_at")
+
+  business  Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch    Branch?          @relation(fields: [branchId, businessId], references: [id, businessId], onDelete: Restrict)
+  createdBy User             @relation("ExpenseDocumentScanCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  expense   BusinessExpense? @relation(fields: [expenseId, businessId], references: [id, businessId], onDelete: Restrict)
+
+  @@unique([id, businessId])
+  @@unique([expenseId, businessId])
+  @@index([businessId, createdById, createdAt])
+  @@index([businessId, checksumSha256])
+  @@index([businessId, documentType, createdAt])
+  @@index([expiresAt, consumedAt])
+  @@map("expense_document_scans")
 }
 
 model ExpenseCommand {
@@ -6176,6 +6853,48 @@ model EmployeeClaim {
   @@map("employee_claims")
 }
 
+model HrApprovalPolicy {
+  id             String               @id @default(uuid()) @db.Uuid
+  businessId     String               @map("business_id") @db.Uuid
+  domain         HrApprovalDomain
+  mode           HrApprovalPolicyMode @default(ONE_LEVEL)
+  thresholdValue Decimal?             @map("threshold_value") @db.Decimal(12, 2)
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, domain])
+  @@index([businessId, mode])
+  @@map("hr_approval_policies")
+}
+
+model HrApprovalDecision {
+  id                     String                    @id @default(uuid()) @db.Uuid
+  businessId             String                    @map("business_id") @db.Uuid
+  domain                 HrApprovalDomain
+  subjectId              String                    @map("subject_id") @db.Uuid
+  subjectRevision        Int                       @map("subject_revision")
+  stage                  HrApprovalDecisionStage
+  outcome                HrApprovalDecisionOutcome
+  policyModeSnapshot     HrApprovalPolicyMode      @map("policy_mode_snapshot")
+  thresholdValueSnapshot Decimal?                  @map("threshold_value_snapshot") @db.Decimal(12, 2)
+  subjectValueSnapshot   Decimal?                  @map("subject_value_snapshot") @db.Decimal(12, 2)
+  decisionPayload        Json?                     @map("decision_payload")
+  payloadDigest          String?                   @map("payload_digest") @db.Char(64)
+  reason                 String?                   @db.VarChar(500)
+  actorUserId            String                    @map("actor_user_id") @db.Uuid
+  decidedAt              DateTime                  @default(now()) @map("decided_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  actor    User     @relation("HrApprovalDecisionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, domain, subjectId, subjectRevision, stage], map: "hr_approval_decision_subject_stage_key")
+  @@index([businessId, domain, subjectId, subjectRevision], map: "hr_approval_decision_subject_idx")
+  @@index([actorUserId, decidedAt])
+  @@map("hr_approval_decisions")
+}
+
 model ClaimLine {
   id                       String                        @id @default(uuid()) @db.Uuid
   businessId               String                        @map("business_id") @db.Uuid
@@ -6330,24 +7049,36 @@ model ClaimEvent {
 }
 
 model LeavePolicy {
-  id                     String            @id @default(uuid()) @db.Uuid
-  businessId             String            @map("business_id") @db.Uuid
-  code                   LeavePolicyCode
-  name                   String
-  payTreatment           LeavePayTreatment @default(PAID) @map("pay_treatment")
-  countMode              LeaveCountMode    @default(WEEKDAYS) @map("count_mode")
-  balanceTracked         Boolean           @default(true) @map("balance_tracked")
-  defaultEntitlementDays Decimal?          @map("default_entitlement_days") @db.Decimal(6, 2)
-  underTwoYearsDays      Decimal?          @map("under_two_years_days") @db.Decimal(6, 2)
-  twoToFiveYearsDays     Decimal?          @map("two_to_five_years_days") @db.Decimal(6, 2)
-  fiveYearsPlusDays      Decimal?          @map("five_years_plus_days") @db.Decimal(6, 2)
-  requiresDocument       Boolean           @default(false) @map("requires_document")
-  allowNegativeBalance   Boolean           @default(false) @map("allow_negative_balance")
-  active                 Boolean           @default(true)
-  origin                 LeavePolicyOrigin @default(BUSINESS_CUSTOM)
-  legalStatus            LeaveLegalStatus  @default(LEGAL_RULE_NOT_READY) @map("legal_status")
-  createdAt              DateTime          @default(now()) @map("created_at")
-  updatedAt              DateTime          @updatedAt @map("updated_at")
+  id                      String                      @id @default(uuid()) @db.Uuid
+  businessId              String                      @map("business_id") @db.Uuid
+  code                    String                      @db.VarChar(80)
+  name                    String
+  payTreatment            LeavePayTreatment           @default(PAID) @map("pay_treatment")
+  countMode               LeaveCountMode              @default(WEEKDAYS) @map("count_mode")
+  balanceTracked          Boolean                     @default(true) @map("balance_tracked")
+  defaultEntitlementDays  Decimal?                    @map("default_entitlement_days") @db.Decimal(6, 2)
+  underTwoYearsDays       Decimal?                    @map("under_two_years_days") @db.Decimal(6, 2)
+  twoToFiveYearsDays      Decimal?                    @map("two_to_five_years_days") @db.Decimal(6, 2)
+  fiveYearsPlusDays       Decimal?                    @map("five_years_plus_days") @db.Decimal(6, 2)
+  requiresDocument        Boolean                     @default(false) @map("requires_document")
+  allowNegativeBalance    Boolean                     @default(false) @map("allow_negative_balance")
+  active                  Boolean                     @default(true)
+  origin                  LeavePolicyOrigin           @default(BUSINESS_CUSTOM)
+  legalStatus             LeaveLegalStatus            @default(LEGAL_RULE_NOT_READY) @map("legal_status")
+  statutoryCategory       LeaveStatutoryCategory?     @map("statutory_category")
+  entitlementPeriodType   LeaveEntitlementPeriodType  @default(CALENDAR_YEAR) @map("entitlement_period_type")
+  customYearStartMonth    Int?                        @map("custom_year_start_month")
+  customYearStartDay      Int?                        @map("custom_year_start_day")
+  prorationMethod         LeaveProrationMethod        @default(NONE) @map("proration_method")
+  entitlementRounding     LeaveEntitlementRounding    @default(NONE) @map("entitlement_rounding")
+  eligibleEmploymentTypes EmployeeEmploymentType[]    @default([]) @map("eligible_employment_types")
+  carryForwardEnabled     Boolean                     @default(false) @map("carry_forward_enabled")
+  carryForwardLimitUnits  Decimal?                    @map("carry_forward_limit_units") @db.Decimal(6, 2)
+  carryForwardExpiryRule  LeaveCarryForwardExpiryRule @default(NO_EXPIRY) @map("carry_forward_expiry_rule")
+  carryForwardExpiryValue String?                     @map("carry_forward_expiry_value") @db.VarChar(40)
+  consumptionPriority     LeaveConsumptionPriority    @default(EARLIEST_EXPIRY_FIRST) @map("consumption_priority")
+  createdAt               DateTime                    @default(now()) @map("created_at")
+  updatedAt               DateTime                    @updatedAt @map("updated_at")
 
   business Business               @relation(fields: [businessId], references: [id], onDelete: Restrict)
   balances EmployeeLeaveBalance[]
@@ -6360,29 +7091,43 @@ model LeavePolicy {
 }
 
 model LeavePolicyVersion {
-  id                     String                   @id @default(uuid()) @db.Uuid
-  businessId             String                   @map("business_id") @db.Uuid
-  policyId               String                   @map("policy_id") @db.Uuid
-  revision               Int
-  status                 LeavePolicyVersionStatus @default(ACTIVE)
-  effectiveFrom          DateTime                 @map("effective_from") @db.Date
-  effectiveTo            DateTime?                @map("effective_to") @db.Date
-  nameSnapshot           String                   @map("name_snapshot")
-  payTreatment           LeavePayTreatment        @map("pay_treatment")
-  countMode              LeaveCountMode           @map("count_mode")
-  balanceTracked         Boolean                  @map("balance_tracked")
-  defaultEntitlementDays Decimal?                 @map("default_entitlement_days") @db.Decimal(6, 2)
-  underTwoYearsDays      Decimal?                 @map("under_two_years_days") @db.Decimal(6, 2)
-  twoToFiveYearsDays     Decimal?                 @map("two_to_five_years_days") @db.Decimal(6, 2)
-  fiveYearsPlusDays      Decimal?                 @map("five_years_plus_days") @db.Decimal(6, 2)
-  requiresDocument       Boolean                  @default(false) @map("requires_document")
-  allowNegativeBalance   Boolean                  @default(false) @map("allow_negative_balance")
-  origin                 LeavePolicyOrigin
-  legalStatus            LeaveLegalStatus         @map("legal_status")
-  sourceReference        String?                  @map("source_reference") @db.VarChar(500)
-  reason                 String                   @db.VarChar(500)
-  createdById            String?                  @map("created_by_id") @db.Uuid
-  createdAt              DateTime                 @default(now()) @map("created_at")
+  id                      String                      @id @default(uuid()) @db.Uuid
+  businessId              String                      @map("business_id") @db.Uuid
+  policyId                String                      @map("policy_id") @db.Uuid
+  revision                Int
+  status                  LeavePolicyVersionStatus    @default(ACTIVE)
+  effectiveFrom           DateTime                    @map("effective_from") @db.Date
+  effectiveTo             DateTime?                   @map("effective_to") @db.Date
+  nameSnapshot            String                      @map("name_snapshot")
+  payTreatment            LeavePayTreatment           @map("pay_treatment")
+  countMode               LeaveCountMode              @map("count_mode")
+  balanceTracked          Boolean                     @map("balance_tracked")
+  defaultEntitlementDays  Decimal?                    @map("default_entitlement_days") @db.Decimal(6, 2)
+  underTwoYearsDays       Decimal?                    @map("under_two_years_days") @db.Decimal(6, 2)
+  twoToFiveYearsDays      Decimal?                    @map("two_to_five_years_days") @db.Decimal(6, 2)
+  fiveYearsPlusDays       Decimal?                    @map("five_years_plus_days") @db.Decimal(6, 2)
+  requiresDocument        Boolean                     @default(false) @map("requires_document")
+  allowNegativeBalance    Boolean                     @default(false) @map("allow_negative_balance")
+  origin                  LeavePolicyOrigin
+  legalStatus             LeaveLegalStatus            @map("legal_status")
+  statutoryCategory       LeaveStatutoryCategory?     @map("statutory_category")
+  entitlementPeriodType   LeaveEntitlementPeriodType  @default(CALENDAR_YEAR) @map("entitlement_period_type")
+  customYearStartMonth    Int?                        @map("custom_year_start_month")
+  customYearStartDay      Int?                        @map("custom_year_start_day")
+  prorationMethod         LeaveProrationMethod        @default(NONE) @map("proration_method")
+  entitlementRounding     LeaveEntitlementRounding    @default(NONE) @map("entitlement_rounding")
+  eligibleEmploymentTypes EmployeeEmploymentType[]    @default([]) @map("eligible_employment_types")
+  carryForwardEnabled     Boolean                     @default(false) @map("carry_forward_enabled")
+  carryForwardLimitUnits  Decimal?                    @map("carry_forward_limit_units") @db.Decimal(6, 2)
+  carryForwardExpiryRule  LeaveCarryForwardExpiryRule @default(NO_EXPIRY) @map("carry_forward_expiry_rule")
+  carryForwardExpiryValue String?                     @map("carry_forward_expiry_value") @db.VarChar(40)
+  consumptionPriority     LeaveConsumptionPriority    @default(EARLIEST_EXPIRY_FIRST) @map("consumption_priority")
+  statutoryRuleSetId      String?                     @map("statutory_rule_set_id") @db.Uuid
+  statutoryRuleId         String?                     @map("statutory_rule_id") @db.Uuid
+  sourceReference         String?                     @map("source_reference") @db.VarChar(500)
+  reason                  String                      @db.VarChar(500)
+  createdById             String?                     @map("created_by_id") @db.Uuid
+  createdAt               DateTime                    @default(now()) @map("created_at")
 
   policy   LeavePolicy    @relation(fields: [policyId], references: [id], onDelete: Restrict)
   requests LeaveRequest[]
@@ -6391,6 +7136,103 @@ model LeavePolicyVersion {
   @@unique([id, businessId])
   @@index([businessId, policyId, status, effectiveFrom])
   @@map("leave_policy_versions")
+}
+
+model LeaveStatutoryRuleSet {
+  id                      String                      @id @default(uuid()) @db.Uuid
+  businessId              String                      @map("business_id") @db.Uuid
+  jurisdictionCountryCode String                      @map("jurisdiction_country_code") @db.Char(2)
+  jurisdictionStateCode   String?                     @map("jurisdiction_state_code") @db.VarChar(16)
+  version                 String                      @db.VarChar(40)
+  status                  LeaveStatutoryRuleSetStatus @default(DRAFT)
+  effectiveFrom           DateTime                    @map("effective_from") @db.Date
+  effectiveTo             DateTime?                   @map("effective_to") @db.Date
+  jurisdictionCode        String?                     @map("jurisdiction_code") @db.VarChar(32)
+  sourceTitle             String                      @map("source_title") @db.VarChar(200)
+  sourceReference         String                      @map("source_reference") @db.VarChar(500)
+  sourceDigest            String?                     @map("source_digest") @db.Char(64)
+  validationSnapshot      Json?                       @map("validation_snapshot")
+  signOffChecklist        Json?                       @map("sign_off_checklist")
+  reviewNote              String?                     @map("review_note") @db.VarChar(500)
+  reviewedById            String?                     @map("reviewed_by_id") @db.Uuid
+  reviewedAt              DateTime?                   @map("reviewed_at")
+  readyForSignOffById     String?                     @map("ready_for_sign_off_by_id") @db.Uuid
+  readyForSignOffAt       DateTime?                   @map("ready_for_sign_off_at")
+  activatedById           String?                     @map("activated_by_id") @db.Uuid
+  activatedAt             DateTime?                   @map("activated_at")
+  createdById             String                      @map("created_by_id") @db.Uuid
+  createdAt               DateTime                    @default(now()) @map("created_at")
+  updatedAt               DateTime                    @updatedAt @map("updated_at")
+
+  business Business               @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  rules    LeaveStatutoryRule[]
+  sources  LeaveStatutorySource[]
+
+  @@unique([businessId, jurisdictionCountryCode, jurisdictionStateCode, version])
+  @@unique([id, businessId])
+  @@index([businessId, jurisdictionCountryCode, jurisdictionStateCode, status, effectiveFrom])
+  @@map("leave_statutory_rule_sets")
+}
+
+model LeaveStatutorySource {
+  id            String   @id @default(uuid()) @db.Uuid
+  businessId    String   @map("business_id") @db.Uuid
+  ruleSetId     String   @map("rule_set_id") @db.Uuid
+  sourceTitle   String   @map("source_title") @db.VarChar(240)
+  sourceUrl     String   @map("source_url") @db.VarChar(800)
+  sourceSection String   @map("source_section") @db.VarChar(160)
+  retrievedAt   DateTime @map("retrieved_at")
+  contentHash   String   @map("content_hash") @db.Char(64)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  ruleSet LeaveStatutoryRuleSet @relation(fields: [ruleSetId, businessId], references: [id, businessId], onDelete: Restrict)
+
+  @@unique([ruleSetId, sourceUrl, sourceSection])
+  @@index([businessId, ruleSetId])
+  @@map("leave_statutory_sources")
+}
+
+model LeaveStatutoryRule {
+  id                      String                     @id @default(uuid()) @db.Uuid
+  businessId              String                     @map("business_id") @db.Uuid
+  ruleSetId               String                     @map("rule_set_id") @db.Uuid
+  category                LeaveStatutoryCategory
+  entitlementSemantics    LeaveEntitlementSemantics  @default(PERIOD_BALANCE) @map("entitlement_semantics")
+  entitlementPeriodType   LeaveEntitlementPeriodType @default(CALENDAR_YEAR) @map("entitlement_period_type")
+  customYearStartMonth    Int?                       @map("custom_year_start_month")
+  customYearStartDay      Int?                       @map("custom_year_start_day")
+  prorationMethod         LeaveProrationMethod       @default(NONE) @map("proration_method")
+  entitlementRounding     LeaveEntitlementRounding   @default(NONE) @map("entitlement_rounding")
+  eligibleEmploymentTypes EmployeeEmploymentType[]   @default([]) @map("eligible_employment_types")
+  statutorySection        String                     @map("statutory_section") @db.VarChar(160)
+  requiresDocument        Boolean                    @default(false) @map("requires_document")
+  carryForwardAllowed     Boolean                    @default(false) @map("carry_forward_allowed")
+  eventRules              Json?                      @map("event_rules")
+  reviewMarkers           Json?                      @map("review_markers")
+  createdAt               DateTime                   @default(now()) @map("created_at")
+
+  ruleSet LeaveStatutoryRuleSet           @relation(fields: [ruleSetId, businessId], references: [id, businessId], onDelete: Restrict)
+  tiers   LeaveStatutoryEntitlementTier[]
+
+  @@unique([ruleSetId, category])
+  @@unique([id, businessId])
+  @@index([businessId, category])
+  @@map("leave_statutory_rules")
+}
+
+model LeaveStatutoryEntitlementTier {
+  id               String   @id @default(uuid()) @db.Uuid
+  ruleId           String   @map("rule_id") @db.Uuid
+  minServiceMonths Int      @default(0) @map("min_service_months")
+  maxServiceMonths Int?     @map("max_service_months")
+  entitlementUnits Decimal  @map("entitlement_units") @db.Decimal(6, 2)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  rule LeaveStatutoryRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+
+  @@unique([ruleId, minServiceMonths])
+  @@index([ruleId, minServiceMonths, maxServiceMonths])
+  @@map("leave_statutory_entitlement_tiers")
 }
 
 model EmployeeLeaveBalance {
@@ -6416,44 +7258,58 @@ model EmployeeLeaveBalance {
 }
 
 model LeaveRequest {
-  id                     String             @id @default(uuid()) @db.Uuid
-  businessId             String             @map("business_id") @db.Uuid
-  membershipId           String             @map("membership_id") @db.Uuid
-  branchId               String             @map("branch_id") @db.Uuid
-  policyId               String             @map("policy_id") @db.Uuid
-  policyVersionId        String             @map("policy_version_id") @db.Uuid
-  policyNameSnapshot     String             @map("policy_name_snapshot")
-  payTreatmentSnapshot   LeavePayTreatment  @map("pay_treatment_snapshot")
-  balanceTrackedSnapshot Boolean            @default(true) @map("balance_tracked_snapshot")
-  legalStatusSnapshot    LeaveLegalStatus   @default(LEGAL_RULE_NOT_READY) @map("legal_status_snapshot")
-  leaveUnit              LeaveUnit          @default(FULL_DAY) @map("leave_unit")
-  startsOn               DateTime           @map("starts_on") @db.Date
-  endsOn                 DateTime           @map("ends_on") @db.Date
-  requestedDays          Decimal            @map("requested_days") @db.Decimal(6, 2)
-  reason                 String
-  documentReference      String?            @map("document_reference")
-  status                 LeaveRequestStatus @default(PENDING)
-  revision               Int                @default(0)
-  clientRequestId        String             @default(uuid()) @map("client_request_id") @db.Uuid
-  reviewedById           String?            @map("reviewed_by_id") @db.Uuid
-  reviewedAt             DateTime?          @map("reviewed_at")
-  reviewNote             String?            @map("review_note")
-  cancelledAt            DateTime?          @map("cancelled_at")
-  cancelledById          String?            @map("cancelled_by_id") @db.Uuid
-  cancellationReason     String?            @map("cancellation_reason") @db.VarChar(500)
-  decisionDigest         String?            @map("decision_digest") @db.Char(64)
-  createdAt              DateTime           @default(now()) @map("created_at")
-  updatedAt              DateTime           @updatedAt @map("updated_at")
+  id                                      String                  @id @default(uuid()) @db.Uuid
+  businessId                              String                  @map("business_id") @db.Uuid
+  membershipId                            String                  @map("membership_id") @db.Uuid
+  branchId                                String                  @map("branch_id") @db.Uuid
+  policyId                                String                  @map("policy_id") @db.Uuid
+  policyVersionId                         String                  @map("policy_version_id") @db.Uuid
+  policyNameSnapshot                      String                  @map("policy_name_snapshot")
+  payTreatmentSnapshot                    LeavePayTreatment       @map("pay_treatment_snapshot")
+  balanceTrackedSnapshot                  Boolean                 @default(true) @map("balance_tracked_snapshot")
+  legalStatusSnapshot                     LeaveLegalStatus        @default(LEGAL_RULE_NOT_READY) @map("legal_status_snapshot")
+  jurisdictionCodeSnapshot                String?                 @map("jurisdiction_code_snapshot") @db.VarChar(32)
+  statutoryRuleSetVersionSnapshot         String?                 @map("statutory_rule_set_version_snapshot") @db.VarChar(40)
+  statutoryCategorySnapshot               LeaveStatutoryCategory? @map("statutory_category_snapshot")
+  statutoryEligibilitySnapshot            Json?                   @map("statutory_eligibility_snapshot")
+  statutoryDurationSnapshot               Json?                   @map("statutory_duration_snapshot")
+  statutoryPayTreatmentSnapshot           Json?                   @map("statutory_pay_treatment_snapshot")
+  complianceStatusSnapshot                LeaveComplianceStatus?  @map("compliance_status_snapshot")
+  leaveUnit                               LeaveUnit               @default(FULL_DAY) @map("leave_unit")
+  startsOn                                DateTime                @map("starts_on") @db.Date
+  endsOn                                  DateTime                @map("ends_on") @db.Date
+  requestedDays                           Decimal                 @map("requested_days") @db.Decimal(6, 2)
+  reason                                  String
+  documentReference                       String?                 @map("document_reference")
+  supportingEvidenceRequiredSnapshot      Boolean                 @default(false) @map("supporting_evidence_required_snapshot")
+  supportingEvidenceStatus                LeaveEvidenceStatus     @default(NOT_REVIEWED) @map("supporting_evidence_status")
+  supportingEvidencePresentSnapshot       Boolean?                @map("supporting_evidence_present_snapshot")
+  supportingEvidenceStatusSnapshot        LeaveEvidenceStatus?    @map("supporting_evidence_status_snapshot")
+  supportingEvidenceReferenceSnapshot     String?                 @map("supporting_evidence_reference_snapshot") @db.Char(64)
+  supportingEvidenceDocumentCountSnapshot Int?                    @map("supporting_evidence_document_count_snapshot")
+  status                                  LeaveRequestStatus      @default(PENDING)
+  revision                                Int                     @default(0)
+  clientRequestId                         String                  @default(uuid()) @map("client_request_id") @db.Uuid
+  reviewedById                            String?                 @map("reviewed_by_id") @db.Uuid
+  reviewedAt                              DateTime?               @map("reviewed_at")
+  reviewNote                              String?                 @map("review_note")
+  cancelledAt                             DateTime?               @map("cancelled_at")
+  cancelledById                           String?                 @map("cancelled_by_id") @db.Uuid
+  cancellationReason                      String?                 @map("cancellation_reason") @db.VarChar(500)
+  decisionDigest                          String?                 @map("decision_digest") @db.Char(64)
+  createdAt                               DateTime                @default(now()) @map("created_at")
+  updatedAt                               DateTime                @updatedAt @map("updated_at")
 
-  business          Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  membership        EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
-  branch            Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  policy            LeavePolicy                @relation(fields: [policyId], references: [id], onDelete: Restrict)
-  policyVersion     LeavePolicyVersion         @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
-  reviewedBy        User?                      @relation("LeaveRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  days              LeaveRequestDay[]
-  applicationEvents LeaveApplicationEvent[]
-  staffTimeOff      StaffTimeOff?
+  business            Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  membership          EmployeeBusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  branch              Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  policy              LeavePolicy                @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  policyVersion       LeavePolicyVersion         @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
+  reviewedBy          User?                      @relation("LeaveRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  days                LeaveRequestDay[]
+  applicationEvents   LeaveApplicationEvent[]
+  supportingDocuments LeaveSupportingDocument[]
+  staffTimeOff        StaffTimeOff?
 
   @@unique([businessId, membershipId, clientRequestId])
   @@unique([id, businessId])
@@ -6461,6 +7317,47 @@ model LeaveRequest {
   @@index([membershipId, status, startsOn])
   @@index([policyId, status, startsOn])
   @@map("leave_requests")
+}
+
+model LeaveSupportingDocument {
+  id                     String                                 @id @default(uuid()) @db.Uuid
+  businessId             String                                 @map("business_id") @db.Uuid
+  leaveRequestId         String                                 @map("leave_request_id") @db.Uuid
+  membershipId           String                                 @map("membership_id") @db.Uuid
+  source                 LeaveSupportingDocumentSource
+  documentType           LeaveSupportingDocumentType            @default(SUPPORTING_DOCUMENT) @map("document_type")
+  objectKey              String?                                @unique @map("object_key") @db.VarChar(300)
+  legacyReference        String?                                @map("legacy_reference") @db.VarChar(500)
+  sanitizedFileName      String?                                @map("sanitized_file_name") @db.VarChar(120)
+  mimeType               String?                                @map("mime_type") @db.VarChar(80)
+  byteLength             Int?                                   @map("byte_length")
+  checksumSha256         String?                                @map("checksum_sha256") @db.Char(64)
+  securityStatus         LeaveDocumentSecurityStatus            @default(SCAN_NOT_AVAILABLE) @map("security_status")
+  privacyClass           LeaveDocumentPrivacyClass              @default(SENSITIVE_HR) @map("privacy_class")
+  lifecycleStatus        LeaveSupportingDocumentLifecycleStatus @default(ACTIVE) @map("lifecycle_status")
+  reviewStatus           LeaveEvidenceStatus                    @default(NOT_REVIEWED) @map("review_status")
+  uploadedByUserId       String?                                @map("uploaded_by_user_id") @db.Uuid
+  uploadedByMembershipId String?                                @map("uploaded_by_membership_id") @db.Uuid
+  reviewedById           String?                                @map("reviewed_by_id") @db.Uuid
+  reviewedAt             DateTime?                              @map("reviewed_at")
+  reviewNote             String?                                @map("review_note") @db.VarChar(500)
+  supersededById         String?                                @map("superseded_by_id") @db.Uuid
+  removedAt              DateTime?                              @map("removed_at")
+  removedByUserId        String?                                @map("removed_by_user_id") @db.Uuid
+  removedByMembershipId  String?                                @map("removed_by_membership_id") @db.Uuid
+  retentionClass         String                                 @default("HR_LEAVE_EVIDENCE") @map("retention_class") @db.VarChar(60)
+  retainUntil            DateTime?                              @map("retain_until") @db.Date
+  legalHold              Boolean                                @default(false) @map("legal_hold")
+  createdAt              DateTime                               @default(now()) @map("created_at")
+  updatedAt              DateTime                               @updatedAt @map("updated_at")
+
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId, businessId], references: [id, businessId], onDelete: Restrict)
+
+  @@unique([id, businessId])
+  @@index([businessId, leaveRequestId, lifecycleStatus])
+  @@index([businessId, membershipId, createdAt])
+  @@index([businessId, reviewStatus, createdAt])
+  @@map("leave_supporting_documents")
 }
 
 model LeaveRequestDay {
@@ -6489,18 +7386,24 @@ model LeaveRequestDay {
 }
 
 model EmployeeLeaveEntitlement {
-  id              String   @id @default(uuid()) @db.Uuid
-  businessId      String   @map("business_id") @db.Uuid
-  membershipId    String   @map("membership_id") @db.Uuid
-  policyId        String   @map("policy_id") @db.Uuid
-  policyVersionId String   @map("policy_version_id") @db.Uuid
-  leaveYearStart  DateTime @map("leave_year_start") @db.Date
-  leaveYearEnd    DateTime @map("leave_year_end") @db.Date
-  entitledUnits   Decimal  @map("entitled_units") @db.Decimal(6, 2)
-  source          String   @db.VarChar(80)
-  sourceDigest    String   @map("source_digest") @db.Char(64)
-  createdById     String?  @map("created_by_id") @db.Uuid
-  createdAt       DateTime @default(now()) @map("created_at")
+  id                  String   @id @default(uuid()) @db.Uuid
+  businessId          String   @map("business_id") @db.Uuid
+  membershipId        String   @map("membership_id") @db.Uuid
+  policyId            String   @map("policy_id") @db.Uuid
+  policyVersionId     String   @map("policy_version_id") @db.Uuid
+  leaveYearStart      DateTime @map("leave_year_start") @db.Date
+  leaveYearEnd        DateTime @map("leave_year_end") @db.Date
+  entitledUnits       Decimal  @map("entitled_units") @db.Decimal(6, 2)
+  rawEntitledUnits    Decimal  @default(0) @map("raw_entitled_units") @db.Decimal(10, 4)
+  prorationFactor     Decimal  @default(1) @map("proration_factor") @db.Decimal(10, 6)
+  eligibilitySnapshot Json?    @map("eligibility_snapshot")
+  calculationSnapshot Json?    @map("calculation_snapshot")
+  statutoryRuleSetId  String?  @map("statutory_rule_set_id") @db.Uuid
+  statutoryRuleId     String?  @map("statutory_rule_id") @db.Uuid
+  source              String   @db.VarChar(80)
+  sourceDigest        String   @map("source_digest") @db.Char(64)
+  createdById         String?  @map("created_by_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at")
 
   @@unique([businessId, membershipId, policyId, leaveYearStart])
   @@unique([id, businessId])
@@ -6520,6 +7423,11 @@ model LeaveBalanceLedgerEntry {
   sourceKey       String               @unique @map("source_key") @db.VarChar(200)
   leaveRequestId  String?              @map("leave_request_id") @db.Uuid
   entitlementId   String?              @map("entitlement_id") @db.Uuid
+  bucketId        String?              @map("bucket_id") @db.Uuid
+  allocationId    String?              @map("allocation_id") @db.Uuid
+  rolloverId      String?              @map("rollover_id") @db.Uuid
+  bucketExpiryId  String?              @map("bucket_expiry_id") @db.Uuid
+  restorationId   String?              @map("restoration_id") @db.Uuid
   reason          String               @db.VarChar(500)
   actorUserId     String?              @map("actor_user_id") @db.Uuid
   createdAt       DateTime             @default(now()) @map("created_at")
@@ -6528,6 +7436,99 @@ model LeaveBalanceLedgerEntry {
   @@index([businessId, membershipId, policyId, leaveYearStart])
   @@index([leaveRequestId, eventType])
   @@map("leave_balance_ledger_entries")
+}
+
+model LeaveEntitlementBucket {
+  id              String                           @id @default(uuid()) @db.Uuid
+  businessId      String                           @map("business_id") @db.Uuid
+  membershipId    String                           @map("membership_id") @db.Uuid
+  policyId        String                           @map("policy_id") @db.Uuid
+  policyVersionId String                           @map("policy_version_id") @db.Uuid
+  periodStart     DateTime                         @map("period_start") @db.Date
+  periodEnd       DateTime                         @map("period_end") @db.Date
+  sourceType      LeaveEntitlementBucketSourceType @map("source_type")
+  grantedUnits    Decimal                          @map("granted_units") @db.Decimal(6, 2)
+  availableFrom   DateTime                         @map("available_from") @db.Date
+  expiresAt       DateTime?                        @map("expires_at") @db.Date
+  status          LeaveEntitlementBucketStatus     @default(ACTIVE)
+  entitlementId   String?                          @unique @map("entitlement_id") @db.Uuid
+  rolloverId      String?                          @unique @map("rollover_id") @db.Uuid
+  sourceDigest    String                           @map("source_digest") @db.Char(64)
+  createdAt       DateTime                         @default(now()) @map("created_at")
+
+  @@unique([id, businessId])
+  @@index([businessId, membershipId, policyId, periodStart, status])
+  @@index([businessId, expiresAt, status])
+  @@map("leave_entitlement_buckets")
+}
+
+model LeavePeriodRollover {
+  id                       String    @id @default(uuid()) @db.Uuid
+  businessId               String    @map("business_id") @db.Uuid
+  membershipId             String    @map("membership_id") @db.Uuid
+  policyId                 String    @map("policy_id") @db.Uuid
+  policyVersionId          String    @map("policy_version_id") @db.Uuid
+  sourcePeriodStart        DateTime  @map("source_period_start") @db.Date
+  sourcePeriodEnd          DateTime  @map("source_period_end") @db.Date
+  destinationPeriodStart   DateTime  @map("destination_period_start") @db.Date
+  destinationPeriodEnd     DateTime  @map("destination_period_end") @db.Date
+  sourceRemainingUnits     Decimal   @map("source_remaining_units") @db.Decimal(6, 2)
+  carriedUnits             Decimal   @map("carried_units") @db.Decimal(6, 2)
+  lapsedUnits              Decimal   @map("lapsed_units") @db.Decimal(6, 2)
+  carryExpiresAt           DateTime? @map("carry_expires_at") @db.Date
+  carryForwardRuleSnapshot Json      @map("carry_forward_rule_snapshot")
+  sourceDigest             String    @map("source_digest") @db.Char(64)
+  actorUserId              String?   @map("actor_user_id") @db.Uuid
+  createdAt                DateTime  @default(now()) @map("created_at")
+
+  @@unique([businessId, membershipId, policyId, sourcePeriodStart, destinationPeriodStart])
+  @@unique([id, businessId])
+  @@index([businessId, destinationPeriodStart, policyId])
+  @@map("leave_period_rollovers")
+}
+
+model LeaveConsumptionAllocation {
+  id             String   @id @default(uuid()) @db.Uuid
+  businessId     String   @map("business_id") @db.Uuid
+  leaveRequestId String   @map("leave_request_id") @db.Uuid
+  bucketId       String   @map("bucket_id") @db.Uuid
+  units          Decimal  @db.Decimal(6, 2)
+  sourceKey      String   @unique @map("source_key") @db.VarChar(200)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([leaveRequestId, bucketId])
+  @@unique([id, businessId])
+  @@index([businessId, bucketId, createdAt])
+  @@map("leave_consumption_allocations")
+}
+
+model LeaveAllocationRestoration {
+  id             String   @id @default(uuid()) @db.Uuid
+  businessId     String   @map("business_id") @db.Uuid
+  leaveRequestId String   @map("leave_request_id") @db.Uuid
+  allocationId   String   @unique @map("allocation_id") @db.Uuid
+  bucketId       String   @map("bucket_id") @db.Uuid
+  units          Decimal  @db.Decimal(6, 2)
+  sourceKey      String   @unique @map("source_key") @db.VarChar(200)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([id, businessId])
+  @@index([businessId, leaveRequestId, createdAt])
+  @@map("leave_allocation_restorations")
+}
+
+model LeaveBucketExpiry {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  bucketId   String   @unique @map("bucket_id") @db.Uuid
+  units      Decimal  @db.Decimal(6, 2)
+  expiresAt  DateTime @map("expires_at") @db.Date
+  sourceKey  String   @unique @map("source_key") @db.VarChar(200)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([id, businessId])
+  @@index([businessId, expiresAt])
+  @@map("leave_bucket_expiries")
 }
 
 model LeaveApplicationEvent {
@@ -6870,6 +7871,11 @@ model Payment {
   shiftId                         String?             @map("shift_id") @db.Uuid
   amount                          Decimal             @db.Decimal(10, 2)
   method                          PaymentMethod
+  tenderCurrency                  String              @default("MYR") @map("tender_currency") @db.VarChar(12)
+  tenderAmount                    Decimal?            @map("tender_amount") @db.Decimal(24, 8)
+  exchangeRateToMyr               Decimal?            @map("exchange_rate_to_myr") @db.Decimal(20, 8)
+  businessPaymentMethodId         String?             @map("business_payment_method_id") @db.Uuid
+  paymentMethodLabel              String?             @map("payment_method_label")
   status                          PaymentRecordStatus @default(ACTIVE)
   packageUses                     Int                 @default(0) @map("package_uses")
   reference                       String?
@@ -6880,6 +7886,7 @@ model Payment {
   updatedAt                       DateTime            @updatedAt @map("updated_at")
 
   business                      Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  businessPaymentMethod         BusinessPaymentMethod?         @relation(fields: [businessId, businessPaymentMethodId], references: [businessId, id], onDelete: Restrict)
   branch                        Branch?                        @relation(fields: [branchId], references: [id], onDelete: SetNull)
   workOrder                     WorkOrder?                     @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
   appointment                   Appointment?                   @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
@@ -6892,6 +7899,7 @@ model Payment {
   loyaltyTransactions           LoyaltyTransaction[]
 
   @@index([businessId])
+  @@index([businessId, businessPaymentMethodId])
   @@index([branchId])
   @@index([workOrderId])
   @@index([appointmentId])
@@ -6907,6 +7915,33 @@ model Payment {
   @@map("payments")
 }
 
+model BusinessPaymentMethod {
+  id                 String                        @id @default(uuid()) @db.Uuid
+  businessId         String                        @map("business_id") @db.Uuid
+  code               String
+  label              String
+  normalizedLabel    String                        @map("normalized_label")
+  canonicalMethod    PaymentMethod                 @map("canonical_method")
+  paymentKind        BusinessPaymentMethodKind     @default(LOCAL_TENDER) @map("payment_kind")
+  settlementCurrency String                        @default("MYR") @map("settlement_currency") @db.VarChar(3)
+  assetSymbol        String?                       @map("asset_symbol") @db.VarChar(12)
+  behavior           BusinessPaymentMethodBehavior @default(STANDARD_TENDER)
+  builtIn            Boolean                       @default(false) @map("built_in")
+  active             Boolean                       @default(true)
+  sortOrder          Int                           @default(100) @map("sort_order")
+  createdAt          DateTime                      @default(now()) @map("created_at")
+  updatedAt          DateTime                      @updatedAt @map("updated_at")
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  payments Payment[]
+
+  @@unique([businessId, code], map: "business_payment_methods_business_code_key")
+  @@unique([businessId, normalizedLabel], map: "business_payment_methods_business_label_key")
+  @@unique([businessId, id], map: "business_payment_methods_business_id_key")
+  @@index([businessId, active, sortOrder], map: "business_payment_methods_business_active_sort_idx")
+  @@map("business_payment_methods")
+}
+
 model PaymentRefund {
   id                  String        @id @default(uuid()) @db.Uuid
   businessId          String        @map("business_id") @db.Uuid
@@ -6918,6 +7953,9 @@ model PaymentRefund {
   shiftId             String?       @map("shift_id") @db.Uuid
   amount              Decimal       @db.Decimal(10, 2)
   method              PaymentMethod
+  tenderCurrency      String        @default("MYR") @map("tender_currency") @db.VarChar(12)
+  tenderAmount        Decimal?      @map("tender_amount") @db.Decimal(24, 8)
+  exchangeRateToMyr   Decimal?      @map("exchange_rate_to_myr") @db.Decimal(20, 8)
   reason              String
   reference           String?
   packageUsesRestored Int           @default(0) @map("package_uses_restored")
@@ -7120,18 +8158,43 @@ model CashierShift {
   createdAt      DateTime           @default(now()) @map("created_at")
   updatedAt      DateTime           @updatedAt @map("updated_at")
 
-  business Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  branch   Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  cashier  User            @relation("CashierShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict)
-  payments Payment[]
-  refunds  PaymentRefund[]
+  business       Business                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch         Branch?                     @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  cashier        User                        @relation("CashierShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict)
+  payments       Payment[]
+  refunds        PaymentRefund[]
+  expensePayouts CashierShiftExpensePayout[]
 
+  @@unique([id, businessId, branchId])
   @@index([businessId])
   @@index([branchId])
   @@index([cashierId])
   @@index([status])
   @@index([startedAt])
   @@map("cashier_shifts")
+}
+
+model CashierShiftExpensePayout {
+  id             String   @id @default(uuid()) @db.Uuid
+  businessId     String   @map("business_id") @db.Uuid
+  branchId       String   @map("branch_id") @db.Uuid
+  shiftId        String   @map("shift_id") @db.Uuid
+  paymentEventId String   @unique @map("payment_event_id") @db.Uuid
+  amount         Decimal  @db.Decimal(12, 2)
+  occurredAt     DateTime @default(now()) @map("occurred_at")
+  createdById    String   @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  business     Business                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch       Branch                      @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  shift        CashierShift                @relation(fields: [shiftId, businessId, branchId], references: [id, businessId, branchId], onDelete: Restrict)
+  paymentEvent BusinessExpensePaymentEvent @relation(fields: [paymentEventId, businessId], references: [id, businessId], onDelete: Restrict)
+  createdBy    User                        @relation("CashierShiftExpensePayoutCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([paymentEventId, businessId])
+  @@index([businessId, branchId, occurredAt])
+  @@index([shiftId, occurredAt])
+  @@map("cashier_shift_expense_payouts")
 }
 
 model DailyClosingSnapshot {
@@ -7368,34 +8431,36 @@ model ClosingWhatsAppSendAttempt {
 }
 
 model Invoice {
-  id                    String        @id @default(uuid()) @db.Uuid
-  businessId            String        @map("business_id") @db.Uuid
-  branchId              String?       @map("branch_id") @db.Uuid
-  workOrderId           String?       @unique @map("work_order_id") @db.Uuid
-  appointmentId         String?       @unique @map("appointment_id") @db.Uuid
-  customerId            String?       @map("customer_id") @db.Uuid
-  customerPackageId     String?       @unique @map("customer_package_id") @db.Uuid
-  invoiceNumber         String        @map("invoice_number")
-  subtotal              Decimal       @db.Decimal(10, 2)
-  discountAmount        Decimal       @default(0) @map("discount_amount") @db.Decimal(10, 2)
-  discountReason        String?       @map("discount_reason")
-  loyaltyPointsRedeemed Int           @default(0) @map("loyalty_points_redeemed")
-  loyaltyDiscountAmount Decimal       @default(0) @map("loyalty_discount_amount") @db.Decimal(10, 2)
-  depositAmount         Decimal       @default(0) @map("deposit_amount") @db.Decimal(10, 2)
-  tipAmount             Decimal       @default(0) @map("tip_amount") @db.Decimal(10, 2)
-  taxableSubtotal       Decimal       @default(0) @map("taxable_subtotal") @db.Decimal(10, 2)
-  taxAmount             Decimal       @default(0) @map("tax_amount") @db.Decimal(10, 2)
-  taxRate               Decimal       @default(0) @map("tax_rate") @db.Decimal(5, 2)
-  taxLabel              String?       @map("tax_label")
-  total                 Decimal       @db.Decimal(10, 2)
-  paidAmount            Decimal       @map("paid_amount") @db.Decimal(10, 2)
-  balance               Decimal       @db.Decimal(10, 2)
-  status                InvoiceStatus @default(UNPAID)
-  issuedAt              DateTime      @default(now()) @map("issued_at")
-  voidedAt              DateTime?     @map("voided_at")
-  voidReason            String?       @map("void_reason")
-  createdAt             DateTime      @default(now()) @map("created_at")
-  updatedAt             DateTime      @updatedAt @map("updated_at")
+  id                    String              @id @default(uuid()) @db.Uuid
+  businessId            String              @map("business_id") @db.Uuid
+  branchId              String?             @map("branch_id") @db.Uuid
+  workOrderId           String?             @unique @map("work_order_id") @db.Uuid
+  appointmentId         String?             @unique @map("appointment_id") @db.Uuid
+  customerId            String?             @map("customer_id") @db.Uuid
+  customerPackageId     String?             @unique @map("customer_package_id") @db.Uuid
+  invoiceNumber         String              @map("invoice_number")
+  checkoutType          InvoiceCheckoutType @default(STANDARD) @map("checkout_type")
+  checkoutReason        String?             @map("checkout_reason") @db.VarChar(500)
+  subtotal              Decimal             @db.Decimal(10, 2)
+  discountAmount        Decimal             @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  discountReason        String?             @map("discount_reason")
+  loyaltyPointsRedeemed Int                 @default(0) @map("loyalty_points_redeemed")
+  loyaltyDiscountAmount Decimal             @default(0) @map("loyalty_discount_amount") @db.Decimal(10, 2)
+  depositAmount         Decimal             @default(0) @map("deposit_amount") @db.Decimal(10, 2)
+  tipAmount             Decimal             @default(0) @map("tip_amount") @db.Decimal(10, 2)
+  taxableSubtotal       Decimal             @default(0) @map("taxable_subtotal") @db.Decimal(10, 2)
+  taxAmount             Decimal             @default(0) @map("tax_amount") @db.Decimal(10, 2)
+  taxRate               Decimal             @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  taxLabel              String?             @map("tax_label")
+  total                 Decimal             @db.Decimal(10, 2)
+  paidAmount            Decimal             @map("paid_amount") @db.Decimal(10, 2)
+  balance               Decimal             @db.Decimal(10, 2)
+  status                InvoiceStatus       @default(UNPAID)
+  issuedAt              DateTime            @default(now()) @map("issued_at")
+  voidedAt              DateTime?           @map("voided_at")
+  voidReason            String?             @map("void_reason")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
 
   business               Business                @relation(fields: [businessId], references: [id], onDelete: Restrict)
   branch                 Branch?                 @relation(fields: [branchId], references: [id], onDelete: SetNull)
@@ -7530,6 +8595,7 @@ model CommissionSourceEvent {
   grossAmountCents     Int                         @map("gross_amount_cents")
   discountAmountCents  Int                         @map("discount_amount_cents")
   netAmountCents       Int                         @map("net_amount_cents")
+  grossBasisOverride   Boolean                     @default(false) @map("gross_basis_override")
   currency             String                      @default("MYR") @db.Char(3)
   createdAt            DateTime                    @default(now()) @map("created_at")
 

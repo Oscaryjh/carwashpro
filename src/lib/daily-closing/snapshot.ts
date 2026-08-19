@@ -51,7 +51,7 @@ export function getExpectedCashCents(report: DailyClosingReport) {
   return (
     report.paymentMethods.find((payment) => payment.method === "CASH")?.netCents ??
     0
-  );
+  ) - (report.cashDrawer?.expensePayoutCents ?? 0);
 }
 
 export function normalizeBusinessDate(dateValue: string) {

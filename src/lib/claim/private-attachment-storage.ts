@@ -20,7 +20,7 @@ import {
 } from "./attachment-policy";
 
 const CLAIM_OBJECT_KEY_PATTERN =
-  /^claim-receipts\/[0-9]{4}\/[0-9]{2}\/[0-9a-f-]{36}\.(jpg|png|webp|pdf)$/;
+  /^(claim-receipts|leave-evidence)\/[0-9]{4}\/[0-9]{2}\/[0-9a-f-]{36}\.(jpg|png|webp|pdf)$/;
 const CLAIM_S3_PREFIX_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/;
 const CLAIM_S3_REQUEST_TIMEOUT_MS = 15_000;
 
@@ -40,9 +40,14 @@ export type StoredPrivateClaimAttachment = Readonly<
   }
 >;
 
+export type PrivateAttachmentNamespace =
+  | "claim-receipts"
+  | "leave-evidence";
+
 export interface ClaimPrivateAttachmentStore {
   putQuarantined(
     attachment: ValidatedClaimAttachment,
+    namespace?: PrivateAttachmentNamespace,
   ): Promise<StoredPrivateClaimAttachment>;
   getQuarantinedMetadata(
     objectKey: string,
@@ -94,12 +99,16 @@ export class FileSystemClaimPrivateAttachmentStore
     } = {},
   ) {}
 
-  async putQuarantined(attachment: ValidatedClaimAttachment) {
+  async putQuarantined(
+    attachment: ValidatedClaimAttachment,
+    namespace: PrivateAttachmentNamespace = "claim-receipts",
+  ) {
     const root = await this.resolveSafeRoot();
-    const objectKey = createClaimObjectKey(
+    const objectKey = createPrivateObjectKey(
       attachment.extension,
       this.options.now?.() ?? new Date(),
       this.options.createId?.() ?? randomUUID(),
+      namespace,
     );
     const filePath = resolveObjectPath(root, objectKey);
 
@@ -199,11 +208,15 @@ export class S3ClaimPrivateAttachmentStore
       }) as unknown as ClaimS3CommandClient);
   }
 
-  async putQuarantined(attachment: ValidatedClaimAttachment) {
-    const objectKey = createClaimObjectKey(
+  async putQuarantined(
+    attachment: ValidatedClaimAttachment,
+    namespace: PrivateAttachmentNamespace = "claim-receipts",
+  ) {
+    const objectKey = createPrivateObjectKey(
       attachment.extension,
       this.options.now?.() ?? new Date(),
       this.options.createId?.() ?? randomUUID(),
+      namespace,
     );
     const storageKey = this.storageKey(objectKey);
 
@@ -394,13 +407,14 @@ export function getClaimPrivateAttachmentStore(
   );
 }
 
-function createClaimObjectKey(
+function createPrivateObjectKey(
   extension: ValidatedClaimAttachment["extension"],
   now: Date,
   id: string,
+  namespace: PrivateAttachmentNamespace,
 ) {
   const objectKey = [
-    "claim-receipts",
+    namespace,
     String(now.getUTCFullYear()).padStart(4, "0"),
     String(now.getUTCMonth() + 1).padStart(2, "0"),
     `${id}.${extension}`,

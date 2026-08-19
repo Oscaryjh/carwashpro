@@ -153,7 +153,7 @@ export default async function PackageCheckoutPage({
               <tbody>
                 {customerPackage.payments.map((payment) => (
                   <tr key={payment.id}>
-                    <td>{payment.paidAt.toLocaleString()}</td>
+                    <td>{payment.paidAt.toLocaleString("en-MY")}</td>
                     <td>RM{Number(payment.amount).toFixed(2)}</td>
                     <td>{formatStatus(payment.method)}</td>
                     <td>{payment.reference || "No reference"}</td>

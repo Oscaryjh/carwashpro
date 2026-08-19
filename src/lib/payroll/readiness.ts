@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 
 type ReadinessDatabase = PrismaClient | Prisma.TransactionClient;
 
-export type PayrollReadinessSeverity = "BLOCKER" | "WARNING" | "INFO";
+export type PayrollReadinessSeverity = "BLOCKING" | "REVIEW" | "INFO";
+export type PayrollReadinessStatus = "READY" | "REVIEW_REQUIRED" | "BLOCKED";
 export type PayrollReadinessCode =
   | "MISSING_COMPENSATION"
   | "RECONCILIATION_FAILED"
@@ -40,15 +41,22 @@ export type PayrollReadinessCode =
   | "PENDING_VARIABLE_PAY"
   | "FUTURE_COMPENSATION_CHANGE"
   | "APPROVED_INPUT_READY"
-  | "CLAIM_STATUTORY_TREATMENT_NOT_READY";
+  | "CLAIM_STATUTORY_TREATMENT_NOT_READY"
+  | "STATUTORY_WORK_PAY_NOT_READY"
+  | "STATUTORY_WORK_PAY_REVIEW_REQUIRED"
+  | "STALE_STATUTORY_WORK_PAY_SOURCE"
+  | "STATUTORY_WORK_PAY_RECONCILIATION_FAILED";
 
 export type PayrollReadinessIssue = {
   code: PayrollReadinessCode;
   severity: PayrollReadinessSeverity;
+  employeeId: string | null;
   membershipId: string | null;
   employeeCode: string | null;
   employeeName: string | null;
+  source: string;
   message: string;
+  resolutionHint: string;
 };
 
 export type PayrollReadiness = {
@@ -56,8 +64,12 @@ export type PayrollReadiness = {
   month: string;
   runId: string | null;
   employeeCount: number;
+  status: PayrollReadinessStatus;
   readyCount: number;
+  reviewRequiredCount: number;
+  blockedCount: number;
   needsAttentionCount: number;
+  issues: PayrollReadinessIssue[];
   blockers: PayrollReadinessIssue[];
   warnings: PayrollReadinessIssue[];
   info: PayrollReadinessIssue[];
@@ -66,7 +78,7 @@ export type PayrollReadiness = {
     membershipId: string;
     employeeCode: string;
     employeeName: string;
-    status: "READY" | "NEEDS_ATTENTION" | "BLOCKED";
+    status: PayrollReadinessStatus;
     issues: PayrollReadinessIssue[];
   }>;
   canProceed: boolean;
@@ -218,7 +230,14 @@ export async function getPayrollPeriodReadiness(
               membershipId: true,
               compensationVersionId: true,
               payBasisSnapshot: true,
-              components: { select: { sourceId: true, sourceType: true } },
+              components: {
+                select: {
+                  id: true,
+                  amount: true,
+                  sourceId: true,
+                  sourceType: true,
+                },
+              },
               attendanceInputSnapshot: {
                 select: {
                   membershipId: true,
@@ -230,6 +249,27 @@ export async function getPayrollPeriodReadiness(
                   periodEnd: true,
                   legacyCompatibility: true,
                   policyBlockers: true,
+                  normalOtMinutes: true,
+                  restDayWorkMinutes: true,
+                  restDayOtMinutes: true,
+                  publicHolidayWorkMinutes: true,
+                  publicHolidayOtMinutes: true,
+                },
+              },
+              workPayCalculationSnapshot: {
+                select: {
+                  id: true,
+                  ruleSetId: true,
+                  ruleVersion: true,
+                  sourceDigest: true,
+                  coverageStatus: true,
+                  blockerCodes: true,
+                  lines: {
+                    select: {
+                      payrollComponentId: true,
+                      amount: true,
+                    },
+                  },
                 },
               },
               statutorySnapshots: {
@@ -297,6 +337,7 @@ export async function getPayrollPeriodReadiness(
         select: {
           id: true,
           scheme: true,
+          jurisdictionCode: true,
           version: true,
           sourceDigest: true,
           datasetDigest: true,
@@ -341,19 +382,14 @@ export async function getPayrollPeriodReadiness(
   const activeStatutoryRuleByScheme = new Map(
     activeStatutoryRules.map((rule) => [rule.scheme, rule]),
   );
+  const activeSabahWorkPayRules = activeStatutoryRules.filter(
+    (rule) =>
+      rule.scheme === "WORK_PAY" && rule.jurisdictionCode === "MY-SABAH",
+  );
   const lindung24ParticipationByMembership = new Map(
     lindung24Participation.map((record) => [record.membershipId, record]),
   );
-  const issues: PayrollReadinessIssue[] = [
-    {
-      severity: "WARNING",
-      code: "OVERTIME_APPROVAL_SOURCE_NOT_READY",
-      message: "Formal approved overtime is not yet a canonical Attendance source, so excess worked time never creates overtime pay.",
-      membershipId: null,
-      employeeCode: null,
-      employeeName: null,
-    },
-  ];
+  const issues: PayrollReadinessIssue[] = [];
 
   for (const membership of memberships) {
     const compensation = compensationByMembership.get(membership.id);
@@ -362,17 +398,17 @@ export async function getPayrollPeriodReadiness(
       severity: PayrollReadinessSeverity,
       code: PayrollReadinessCode,
       message: string,
-    ) => issues.push({
+    ) => issues.push(createPayrollReadinessIssue({
       severity,
       code,
       message,
       membershipId: membership.id,
       employeeCode: membership.employeeCode,
       employeeName: membership.fullName,
-    });
+    }));
 
     if (!compensation || (run && (!entry || !entry.compensationVersionId))) {
-      add("BLOCKER", "MISSING_COMPENSATION", "No verified compensation applies to this payroll month.");
+      add("BLOCKING", "MISSING_COMPENSATION", "No verified compensation applies to this payroll month.");
     } else {
       try {
         assertSupportedPayrollProration({
@@ -383,7 +419,7 @@ export async function getPayrollPeriodReadiness(
           periodEnd: period.end,
         });
       } catch {
-        add("BLOCKER", "PRORATION_NOT_SUPPORTED", "Monthly mid-period join or termination needs an approved proration policy.");
+        add("BLOCKING", "PRORATION_NOT_SUPPORTED", "Monthly mid-period join or termination needs an approved proration policy.");
       }
     }
     if (
@@ -393,19 +429,19 @@ export async function getPayrollPeriodReadiness(
       !lockedP2MembershipIds.has(membership.id)
     ) {
       add(
-        "BLOCKER",
+        "BLOCKING",
         "APPROVED_ATTENDANCE_INPUT_NOT_MATERIALISED",
         "Daily and Hourly payroll require employee day snapshots in the locked Timesheet revision.",
       );
     }
     if (entry && reconciliationFailures.has(entry.id)) {
-      add("BLOCKER", "RECONCILIATION_FAILED", "Stored totals do not reconcile with canonical component lines.");
+      add("BLOCKING", "RECONCILIATION_FAILED", "Stored totals do not reconcile with canonical component lines.");
     }
     if (entry) {
       for (const snapshot of entry.claimReimbursementSnapshots) {
         if (snapshot.status === "BLOCKED_STATUTORY") {
           add(
-            "BLOCKER",
+            "BLOCKING",
             "CLAIM_STATUTORY_TREATMENT_NOT_READY",
             `Claim ${snapshot.claimNumberSnapshot} reimbursement is blocked until its non-wage statutory treatment is verified.`,
           );
@@ -417,7 +453,7 @@ export async function getPayrollPeriodReadiness(
           snapshot.taxProfileRevisionSnapshot !== membership.taxProfileRevision
         ) {
           add(
-            "BLOCKER",
+            "BLOCKING",
             "STALE_STATUTORY_PROFILE",
             `${snapshot.scheme} profile changed after this Draft was calculated. Recalculate payroll.`,
           );
@@ -431,7 +467,7 @@ export async function getPayrollPeriodReadiness(
               (currentParticipation?.selectedEmployer ?? null)
           ) {
             add(
-              "BLOCKER",
+              "BLOCKING",
               "STALE_LINDUNG24_PARTICIPATION",
               "LINDUNG24 participation or selected-employer evidence changed after this Draft was calculated. Recalculate payroll.",
             );
@@ -446,14 +482,14 @@ export async function getPayrollPeriodReadiness(
           )
         ) {
           add(
-            "BLOCKER",
+            "BLOCKING",
             "STALE_STATUTORY_SOURCE",
             `${snapshot.scheme} rule or verified source changed after this Draft was calculated. Recalculate payroll.`,
           );
         }
         if (snapshot.status !== "BLOCKED") continue;
         add(
-          "BLOCKER",
+          "BLOCKING",
           readinessCodeForStatutoryBlocker(snapshot.blockerCode),
           `${snapshot.scheme} statutory calculation is blocked: ${snapshot.blockerCode ?? "unknown reason"}.`,
         );
@@ -466,7 +502,7 @@ export async function getPayrollPeriodReadiness(
         : null;
     if (!lockedRevision) {
       add(
-        "BLOCKER",
+        "BLOCKING",
         "MISSING_LOCKED_TIMESHEET",
         "A locked Attendance Timesheet is required for this payroll period.",
       );
@@ -480,7 +516,7 @@ export async function getPayrollPeriodReadiness(
           lockedRevision.lockedAt.getTime())
     ) {
       add(
-        "BLOCKER",
+        "BLOCKING",
         "STALE_ATTENDANCE_SOURCE",
         "Attendance source changed. Recalculate this Draft payroll before continuing.",
       );
@@ -489,7 +525,7 @@ export async function getPayrollPeriodReadiness(
       const snapshot = entry.attendanceInputSnapshot;
       if (!snapshot) {
         add(
-          "BLOCKER",
+          "BLOCKING",
           "APPROVED_ATTENDANCE_INPUT_NOT_MATERIALISED",
           "The approved Attendance input has not been materialised for this employee.",
         );
@@ -504,24 +540,82 @@ export async function getPayrollPeriodReadiness(
         snapshot.periodEnd.getTime() !== period.end.getTime()
       ) {
         add(
-          "BLOCKER",
+          "BLOCKING",
           "TIMESHEET_REVISION_INVALID",
           "The employee Attendance snapshot does not match the exact locked Timesheet revision.",
         );
       }
       if (snapshot?.legacyCompatibility) {
         add(
-          "WARNING",
+          "REVIEW",
           "LEGACY_ATTENDANCE_INPUT",
           "This Monthly entry uses a locked pre-P2 Timesheet with no P2 day snapshots; no Attendance money effect was inferred.",
         );
       }
       for (const policyCode of jsonStringArray(snapshot?.policyBlockers)) {
         add(
-          "BLOCKER",
+          "BLOCKING",
           "ATTENDANCE_PAY_POLICY_NOT_READY",
           `Attendance payroll policy is not ready: ${policyCode}.`,
         );
+      }
+      if (snapshot && hasStatutoryWorkPayMinutes(snapshot)) {
+        const workPay = entry.workPayCalculationSnapshot;
+        if (!workPay) {
+          add(
+            "BLOCKING",
+            "STATUTORY_WORK_PAY_NOT_READY",
+            "Sabah overtime, Rest Day or Public Holiday work pay has not been materialised from the frozen Attendance facts.",
+          );
+        } else {
+          const blockerCodes = jsonStringArray(workPay.blockerCodes);
+          if (workPay.coverageStatus !== "ELIGIBLE" || blockerCodes.length > 0) {
+            add(
+              "BLOCKING",
+              "STATUTORY_WORK_PAY_REVIEW_REQUIRED",
+              `Sabah statutory work pay requires review: ${blockerCodes.join(", ") || workPay.coverageStatus}.`,
+            );
+          }
+          const activeRule =
+            activeSabahWorkPayRules.length === 1
+              ? activeSabahWorkPayRules[0]
+              : null;
+          if (
+            !activeRule ||
+            workPay.ruleSetId !== activeRule.id ||
+            workPay.ruleVersion !== activeRule.version ||
+            workPay.sourceDigest !== activeRule.sourceDigest
+          ) {
+            add(
+              "BLOCKING",
+              "STALE_STATUTORY_WORK_PAY_SOURCE",
+              "The Sabah statutory work-pay rule or official source changed. Recalculate this Draft payroll.",
+            );
+          }
+          const componentById = new Map(
+            entry.components.map((component) => [component.id, component]),
+          );
+          const lineMismatch =
+            workPay.coverageStatus === "ELIGIBLE" &&
+            (workPay.lines.length === 0 ||
+              workPay.lines.some((line) => {
+                if (!line.payrollComponentId) return true;
+                const component = componentById.get(line.payrollComponentId);
+                return (
+                  !component ||
+                  component.sourceType !== "STATUTORY" ||
+                  component.sourceId !== workPay.id ||
+                  component.amount.toString() !== line.amount.toString()
+                );
+              }));
+          if (lineMismatch) {
+            add(
+              "BLOCKING",
+              "STATUTORY_WORK_PAY_RECONCILIATION_FAILED",
+              "Sabah statutory work-pay calculation lines do not reconcile with canonical payroll components.",
+            );
+          }
+        }
       }
     }
 
@@ -533,22 +627,22 @@ export async function getPayrollPeriodReadiness(
     const variables = variableByMembership.get(membership.id) ?? [];
     for (const source of variables.filter((item) => item.status === "APPROVED")) {
       if (run && !entrySources.has(`VARIABLE_PAY:${source.id}`)) {
-        add("BLOCKER", "APPROVED_VARIABLE_PAY_MISSING", "Approved variable pay has not been materialised into this run.");
+        add("BLOCKING", "APPROVED_VARIABLE_PAY_MISSING", "Approved variable pay has not been materialised into this run.");
       } else if (!run) {
         add("INFO", "APPROVED_INPUT_READY", "Approved variable pay is ready for payroll generation.");
       }
     }
     for (const source of variables.filter((item) => item.status === "APPLIED")) {
       if (run && source.appliedPayrollEntryId === entry?.id && !entrySources.has(`VARIABLE_PAY:${source.id}`)) {
-        add("BLOCKER", "APPROVED_VARIABLE_PAY_MISSING", "Applied variable pay is missing from canonical component lines.");
+        add("BLOCKING", "APPROVED_VARIABLE_PAY_MISSING", "Applied variable pay is missing from canonical component lines.");
       }
     }
     if (variables.some((item) => item.status === "DRAFT")) {
-      add("WARNING", "PENDING_VARIABLE_PAY", "Draft variable pay exists and is not included.");
+      add("REVIEW", "PENDING_VARIABLE_PAY", "Draft variable pay exists and is not included.");
     }
     for (const correction of correctionByMembership.get(membership.id) ?? []) {
       if (correction.status === "APPROVED" && run && !entrySources.has(`CORRECTION:${correction.id}`)) {
-        add("BLOCKER", "APPROVED_CORRECTION_MISSING", "Approved correction has not been materialised into this run.");
+        add("BLOCKING", "APPROVED_CORRECTION_MISSING", "Approved correction has not been materialised into this run.");
       } else if (correction.status === "APPROVED" && !run) {
         add("INFO", "APPROVED_INPUT_READY", "Approved correction is ready for payroll generation.");
       } else if (
@@ -557,14 +651,14 @@ export async function getPayrollPeriodReadiness(
         correction.appliedPayrollEntryId === entry?.id &&
         !entrySources.has(`CORRECTION:${correction.id}`)
       ) {
-        add("BLOCKER", "APPROVED_CORRECTION_MISSING", "Applied correction is missing from canonical component lines.");
+        add("BLOCKING", "APPROVED_CORRECTION_MISSING", "Applied correction is missing from canonical component lines.");
       }
     }
 
     const bank = bankByMembership.get(membership.id);
-    if (!bank) add("WARNING", "MISSING_BANK_ACCOUNT", "No active primary bank account is configured.");
+    if (!bank) add("REVIEW", "MISSING_BANK_ACCOUNT", "No active primary bank account is configured.");
     else if (bank.verificationStatus !== "MANUALLY_VERIFIED") {
-      add("WARNING", "BANK_ACCOUNT_UNVERIFIED", "The primary bank account is not verified.");
+      add("REVIEW", "BANK_ACCOUNT_UNVERIFIED", "The primary bank account is not verified.");
     }
     const statutoryIncomplete =
       membership.statutoryProfileRevision === 0 ||
@@ -573,7 +667,7 @@ export async function getPayrollPeriodReadiness(
       (membership.socsoEnabled && !membership.socsoMemberNumber) ||
       !membership.taxIdentificationNumber;
     if (statutoryIncomplete) {
-      add("WARNING", "STATUTORY_PROFILE_INCOMPLETE", "Statutory or tax profile is incomplete.");
+      add("REVIEW", "STATUTORY_PROFILE_INCOMPLETE", "Statutory or tax profile is incomplete.");
     }
     if (futureCompensationMemberships.has(membership.id)) {
       add("INFO", "FUTURE_COMPENSATION_CHANGE", "A future compensation change is scheduled.");
@@ -581,14 +675,14 @@ export async function getPayrollPeriodReadiness(
   }
 
   if (run && entries.length === 0) {
-    issues.push({
+    issues.push(createPayrollReadinessIssue({
       code: "EMPTY_PAYROLL_RUN",
-      severity: "BLOCKER",
+      severity: "BLOCKING",
       membershipId: null,
       employeeCode: null,
       employeeName: null,
       message: "An empty payroll run cannot proceed.",
-    });
+    }));
   }
   return summarizePayrollReadiness({
     businessId: input.businessId,
@@ -606,18 +700,18 @@ export function summarizePayrollReadiness(input: {
   memberships: Array<{ id: string; employeeCode: string; fullName: string }>;
   issues: PayrollReadinessIssue[];
 }): PayrollReadiness {
-  const blockers = input.issues.filter((issue) => issue.severity === "BLOCKER");
-  const warnings = input.issues.filter((issue) => issue.severity === "WARNING");
+  const blockers = input.issues.filter((issue) => issue.severity === "BLOCKING");
+  const warnings = input.issues.filter((issue) => issue.severity === "REVIEW");
   const info = input.issues.filter((issue) => issue.severity === "INFO");
   const counts = Object.fromEntries(
     READINESS_CODES.map((code) => [code, input.issues.filter((issue) => issue.code === code).length]),
   ) as Record<PayrollReadinessCode, number>;
   const employees = input.memberships.map((membership) => {
     const employeeIssues = input.issues.filter((issue) => issue.membershipId === membership.id);
-    const status = employeeIssues.some((issue) => issue.severity === "BLOCKER")
+    const status = employeeIssues.some((issue) => issue.severity === "BLOCKING")
       ? "BLOCKED" as const
-      : employeeIssues.some((issue) => issue.severity === "WARNING")
-        ? "NEEDS_ATTENTION" as const
+      : employeeIssues.some((issue) => issue.severity === "REVIEW")
+        ? "REVIEW_REQUIRED" as const
         : "READY" as const;
     return {
       membershipId: membership.id,
@@ -627,19 +721,50 @@ export function summarizePayrollReadiness(input: {
       issues: employeeIssues,
     };
   });
+  const readyCount = employees.filter((employee) => employee.status === "READY").length;
+  const reviewRequiredCount = employees.filter(
+    (employee) => employee.status === "REVIEW_REQUIRED",
+  ).length;
+  const blockedCount = employees.filter((employee) => employee.status === "BLOCKED").length;
+  const status: PayrollReadinessStatus = blockers.length
+    ? "BLOCKED"
+    : warnings.length
+      ? "REVIEW_REQUIRED"
+      : "READY";
   return {
     businessId: input.businessId,
     month: input.month,
     runId: input.runId,
     employeeCount: employees.length,
-    readyCount: employees.filter((employee) => employee.status === "READY").length,
-    needsAttentionCount: employees.filter((employee) => employee.status !== "READY").length,
+    status,
+    readyCount,
+    reviewRequiredCount,
+    blockedCount,
+    needsAttentionCount: reviewRequiredCount + blockedCount,
+    issues: input.issues,
     blockers,
     warnings,
     info,
     counts,
     employees,
     canProceed: blockers.length === 0,
+  };
+}
+
+export function createPayrollReadinessIssue(input: {
+  code: PayrollReadinessCode;
+  severity: PayrollReadinessSeverity;
+  membershipId: string | null;
+  employeeCode: string | null;
+  employeeName: string | null;
+  message: string;
+}): PayrollReadinessIssue {
+  const guidance = readinessIssueGuidance(input.code);
+  return {
+    ...input,
+    employeeId: input.membershipId,
+    source: guidance.source,
+    resolutionHint: guidance.resolutionHint,
   };
 }
 
@@ -684,7 +809,97 @@ const READINESS_CODES: PayrollReadinessCode[] = [
   "PENDING_VARIABLE_PAY",
   "FUTURE_COMPENSATION_CHANGE",
   "APPROVED_INPUT_READY",
+  "CLAIM_STATUTORY_TREATMENT_NOT_READY",
+  "STATUTORY_WORK_PAY_NOT_READY",
+  "STATUTORY_WORK_PAY_REVIEW_REQUIRED",
+  "STALE_STATUTORY_WORK_PAY_SOURCE",
+  "STATUTORY_WORK_PAY_RECONCILIATION_FAILED",
 ];
+
+function readinessIssueGuidance(code: PayrollReadinessCode): {
+  source: string;
+  resolutionHint: string;
+} {
+  switch (code) {
+    case "MISSING_COMPENSATION":
+    case "PRORATION_NOT_SUPPORTED":
+    case "FUTURE_COMPENSATION_CHANGE":
+      return {
+        source: "Compensation",
+        resolutionHint:
+          code === "MISSING_COMPENSATION"
+            ? "Add and verify an effective compensation version for this payroll month."
+            : code === "PRORATION_NOT_SUPPORTED"
+              ? "Approve a supported proration policy or correct the effective employment dates."
+              : "Review the future compensation version; no action is required for this run.",
+      };
+    case "MISSING_LOCKED_TIMESHEET":
+    case "STALE_ATTENDANCE_SOURCE":
+    case "TIMESHEET_REVISION_INVALID":
+    case "APPROVED_ATTENDANCE_INPUT_NOT_MATERIALISED":
+    case "ATTENDANCE_PAY_POLICY_NOT_READY":
+    case "LEGACY_ATTENDANCE_INPUT":
+    case "OVERTIME_APPROVAL_SOURCE_NOT_READY":
+      return {
+        source: "Attendance Timesheet",
+        resolutionHint:
+          code === "MISSING_LOCKED_TIMESHEET"
+            ? "Resolve Attendance issues and lock the monthly Timesheet before generating payroll."
+            : code === "LEGACY_ATTENDANCE_INPUT"
+              ? "Review the legacy locked Timesheet evidence; regenerate only if a current P2 revision is required."
+              : "Return the run to Draft and refresh it from the current locked Timesheet revision.",
+      };
+    case "RECONCILIATION_FAILED":
+    case "APPROVED_VARIABLE_PAY_MISSING":
+    case "APPROVED_CORRECTION_MISSING":
+      return {
+        source: "Payroll Components",
+        resolutionHint: "Return the run to Draft and refresh canonical component lines, then review the employee totals.",
+      };
+    case "EMPTY_PAYROLL_RUN":
+      return {
+        source: "Payroll Run",
+        resolutionHint: "Regenerate the Draft after confirming at least one eligible employee is in scope.",
+      };
+    case "PENDING_VARIABLE_PAY":
+      return {
+        source: "Variable Pay",
+        resolutionHint: "Approve or remove the Draft variable-pay item before final review if it belongs in this month.",
+      };
+    case "APPROVED_INPUT_READY":
+      return {
+        source: "Approved Payroll Input",
+        resolutionHint: "Generate or refresh the payroll Draft to materialise this approved input.",
+      };
+    case "MISSING_BANK_ACCOUNT":
+    case "BANK_ACCOUNT_UNVERIFIED":
+      return {
+        source: "Payment Readiness",
+        resolutionHint: "Add or verify the employee bank account before creating a payment batch; payroll finalization is not blocked.",
+      };
+    case "STATUTORY_WORK_PAY_NOT_READY":
+    case "STATUTORY_WORK_PAY_REVIEW_REQUIRED":
+    case "STALE_STATUTORY_WORK_PAY_SOURCE":
+    case "STATUTORY_WORK_PAY_RECONCILIATION_FAILED":
+      return {
+        source: "Sabah Work Pay",
+        resolutionHint: "Resolve the P6C work-pay evidence or rule coverage, then refresh the Draft calculation.",
+      };
+    case "CLAIM_STATUTORY_TREATMENT_NOT_READY":
+      return {
+        source: "Claims",
+        resolutionHint: "Verify the claim reimbursement statutory treatment before refreshing payroll.",
+      };
+    default:
+      return {
+        source: "Statutory Readiness",
+        resolutionHint:
+          code === "STATUTORY_PROFILE_INCOMPLETE"
+            ? "Complete the employee statutory profile before submission; manual verified PCB remains allowed where configured."
+            : "Resolve the statutory profile, classification or verified rule-source issue, then refresh the Draft.",
+      };
+  }
+}
 
 function readinessCodeForStatutoryBlocker(
   blockerCode: string | null,
@@ -767,4 +982,21 @@ function jsonStringArray(value: Prisma.JsonValue | undefined) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+function hasStatutoryWorkPayMinutes(snapshot: {
+  normalOtMinutes: number;
+  restDayWorkMinutes: number;
+  restDayOtMinutes: number;
+  publicHolidayWorkMinutes: number;
+  publicHolidayOtMinutes: number;
+}) {
+  return (
+    snapshot.normalOtMinutes +
+      snapshot.restDayWorkMinutes +
+      snapshot.restDayOtMinutes +
+      snapshot.publicHolidayWorkMinutes +
+      snapshot.publicHolidayOtMinutes >
+    0
+  );
 }

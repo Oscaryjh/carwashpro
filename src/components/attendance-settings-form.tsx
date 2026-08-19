@@ -33,12 +33,20 @@ type AttendanceSettingsFormProps = {
     id: string;
     name: string;
   };
+  isConfigured: boolean;
   initialValues: AttendanceSettingValues;
+};
+
+type PendingDeviceLocation = {
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
 };
 
 export function AttendanceSettingsForm({
   action,
   branch,
+  isConfigured,
   initialValues,
 }: AttendanceSettingsFormProps) {
   const [state, formAction, pending] = useActionState(
@@ -49,6 +57,14 @@ export function AttendanceSettingsForm({
   const [longitude, setLongitude] = useState(initialValues.longitude);
   const [locating, setLocating] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
+  const [pendingDeviceLocation, setPendingDeviceLocation] =
+    useState<PendingDeviceLocation | null>(null);
+  const [attendancePaused, setAttendancePaused] = useState(
+    isConfigured ? !initialValues.isEnabled : false,
+  );
+  const isMalaysiaTimezone =
+    initialValues.timezone === "Asia/Kuching" ||
+    initialValues.timezone === "Asia/Kuala_Lumpur";
 
   function useCurrentLocation() {
     if (!navigator.geolocation) {
@@ -60,17 +76,22 @@ export function AttendanceSettingsForm({
     setLocationMessage("Requesting the current device location...");
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setLatitude(position.coords.latitude.toFixed(6));
-        setLongitude(position.coords.longitude.toFixed(6));
-        setLocationMessage(
-          "Coordinates were filled from this device. Review and save them to confirm.",
-        );
+        setPendingDeviceLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracyMeters: position.coords.accuracy,
+        });
+        setLocationMessage("");
         setLocating(false);
       },
       (error) => {
-        setLocationMessage(
-          error.message || "The current device location could not be read.",
-        );
+        const message =
+          error.code === error.PERMISSION_DENIED
+            ? "Location access is off. Allow location for this site in your browser settings, then try again."
+            : error.code === error.TIMEOUT
+              ? "Location took too long. Move near a window or outdoors, then try again."
+              : "This device could not determine its location. Check GPS and precise-location settings, then try again.";
+        setLocationMessage(message);
         setLocating(false);
       },
       {
@@ -81,17 +102,29 @@ export function AttendanceSettingsForm({
     );
   }
 
+  function confirmCurrentLocation() {
+    if (!pendingDeviceLocation) {
+      return;
+    }
+
+    setLatitude(pendingDeviceLocation.latitude.toFixed(6));
+    setLongitude(pendingDeviceLocation.longitude.toFixed(6));
+    setPendingDeviceLocation(null);
+    setLocationMessage(
+      "Branch location updated from this device. Save Attendance Settings to apply it.",
+    );
+  }
+
   return (
     <form
       action={formAction}
       className={styles.form}
       onSubmit={(event) => {
-        const formData = new FormData(event.currentTarget);
         if (
           initialValues.isEnabled &&
-          formData.get("isEnabled") !== "on" &&
+          attendancePaused &&
           !window.confirm(
-            "Disable Attendance for this branch? Existing attendance history will be preserved.",
+            "Pause Attendance for this branch? Staff will not be able to Clock In or Clock Out. Existing attendance history will be preserved.",
           )
         ) {
           event.preventDefault();
@@ -99,6 +132,11 @@ export function AttendanceSettingsForm({
       }}
     >
       <input name="branchId" type="hidden" value={branch.id} />
+      <input
+        name="isEnabled"
+        type="hidden"
+        value={attendancePaused ? "" : "on"}
+      />
 
       {state.message ? (
         <div
@@ -115,19 +153,137 @@ export function AttendanceSettingsForm({
             <p>BRANCH ATTENDANCE</p>
             <h2>{branch.name}</h2>
           </div>
-          <label className={styles.switchField}>
+          <span
+            className={`${styles.attendanceStatus} ${
+              attendancePaused
+                ? styles.attendanceStatusPaused
+                : styles.attendanceStatusActive
+            }`}
+          >
+            {attendancePaused ? "Paused" : "Active"}
+          </span>
+        </div>
+
+        <div className={styles.attendanceAvailability}>
+          <div>
+            <strong>
+              {attendancePaused
+                ? "Staff clock-in is paused"
+                : "Staff can use Attendance"}
+            </strong>
             <span>
-              <strong>Attendance Enabled</strong>
-              <small>Allow this branch to use Attendance after Phase 1C.</small>
+              {attendancePaused
+                ? "Staff cannot Clock In or Clock Out for this branch until Attendance is resumed. Existing history remains available."
+                : isConfigured
+                  ? "Clock In and Clock Out use the saved location and work-policy rules below."
+                  : "Saving valid settings will activate Clock In and Clock Out for this branch automatically."}
             </span>
+          </div>
+          <label className={styles.pauseControl}>
             <input
-              defaultChecked={initialValues.isEnabled}
-              name="isEnabled"
+              checked={attendancePaused}
+              onChange={(event) => setAttendancePaused(event.target.checked)}
               type="checkbox"
             />
+            <span>
+              <strong>Pause Attendance for this branch</strong>
+              <small>Use only when staff punching must be temporarily stopped.</small>
+            </span>
           </label>
         </div>
       </section>
+
+      {pendingDeviceLocation ? (
+        <div
+          className={styles.locationModalBackdrop}
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              setPendingDeviceLocation(null);
+            }
+          }}
+        >
+          <section
+            aria-describedby="location-confirmation-description"
+            aria-labelledby="location-confirmation-title"
+            aria-modal="true"
+            className={styles.locationModal}
+            role="dialog"
+          >
+            <div className={styles.locationModalHeading}>
+              <div>
+                <p>CONFIRM BRANCH LOCATION</p>
+                <h2 id="location-confirmation-title">Is this the right place?</h2>
+              </div>
+              <button
+                aria-label="Close location preview"
+                autoFocus
+                className={styles.locationModalClose}
+                onClick={() => setPendingDeviceLocation(null)}
+                type="button"
+              >
+                X
+              </button>
+            </div>
+
+            <p
+              className={styles.locationModalDescription}
+              id="location-confirmation-description"
+            >
+              Check that the marker is at {branch.name}. Nothing changes until you
+              confirm this location and save the settings.
+            </p>
+
+            <div className={styles.locationMapFrame}>
+              <iframe
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                src={`https://www.google.com/maps?q=${pendingDeviceLocation.latitude},${pendingDeviceLocation.longitude}&z=18&output=embed`}
+                title={`Google Maps preview for ${branch.name}`}
+              />
+            </div>
+
+            <div className={styles.locationConfirmationDetails}>
+              <div>
+                <span>Detected position</span>
+                <strong>{branch.name}</strong>
+                <small>
+                  GPS accuracy: approximately{" "}
+                  {Math.round(pendingDeviceLocation.accuracyMeters)} m
+                </small>
+              </div>
+              <a
+                href={`https://www.google.com/maps?q=${pendingDeviceLocation.latitude},${pendingDeviceLocation.longitude}`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Open in Google Maps
+              </a>
+            </div>
+
+            <details className={styles.locationCoordinatesDetails}>
+              <summary>View coordinates</summary>
+              <span>
+                {pendingDeviceLocation.latitude.toFixed(6)}, {" "}
+                {pendingDeviceLocation.longitude.toFixed(6)}
+              </span>
+            </details>
+
+            <div className={styles.locationModalActions}>
+              <button
+                className={styles.locationSecondaryButton}
+                disabled={locating}
+                onClick={useCurrentLocation}
+                type="button"
+              >
+                {locating ? "Locating..." : "Try location again"}
+              </button>
+              <button onClick={confirmCurrentLocation} type="button">
+                Use this location
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
@@ -227,14 +383,27 @@ export function AttendanceSettingsForm({
             <small>The largest device location error accepted (10-500 m).</small>
           </label>
           <label>
-            <span>Timezone</span>
-            <input
-              defaultValue={initialValues.timezone}
+            <span>Time zone</span>
+            <select
+              aria-describedby="attendance-timezone-help"
+              defaultValue={
+                isMalaysiaTimezone
+                  ? "Asia/Kuala_Lumpur"
+                  : initialValues.timezone
+              }
               name="timezone"
-              placeholder="Asia/Kuching"
               required
-            />
-            <small>Use a valid IANA timezone.</small>
+            >
+              {!isMalaysiaTimezone ? (
+                <option value={initialValues.timezone}>
+                  {initialValues.timezone} (Current)
+                </option>
+              ) : null}
+              <option value="Asia/Kuala_Lumpur">Malaysia (UTC+8)</option>
+            </select>
+            <small id="attendance-timezone-help">
+              Malaysia time is used for clock-in dates, shifts and overnight work.
+            </small>
           </label>
         </div>
 
@@ -284,27 +453,58 @@ function WorkPolicyFields({
     <section className={styles.section}>
       <div className={styles.sectionHeading}>
         <div>
-          <p>WORK &amp; BREAK POLICY</p>
-          <h2>Paid time rules</h2>
+          <p>BRANCH DEFAULTS</p>
+          <h2>Default work &amp; break rules</h2>
+          <span className={styles.sectionIntro}>
+            Used only when the employee has no published Roster for that day and
+            no employee-specific work-time setting.
+          </span>
         </div>
+      </div>
+
+      <div
+        aria-label="How Tetamu chooses work and break rules"
+        className={styles.policyPriority}
+      >
+        <article>
+          <span className={styles.policyStep}>1</span>
+          <div>
+            <strong>Published Roster</strong>
+            <small>First choice: that day&apos;s scheduled hours and break.</small>
+          </div>
+        </article>
+        <article>
+          <span className={styles.policyStep}>2</span>
+          <div>
+            <strong>Employee-specific setting</strong>
+            <small>Second choice: used when no published Roster applies.</small>
+          </div>
+        </article>
+        <article>
+          <span className={styles.policyStep}>3</span>
+          <div>
+            <strong>These branch defaults</strong>
+            <small>Used only when the first two choices are unavailable.</small>
+          </div>
+        </article>
       </div>
 
       <div className={styles.fieldGrid}>
         <label>
-          <span>Break handling</span>
+          <span>How staff record breaks</span>
           <select defaultValue={initialValues.breakPolicy} name="breakPolicy">
             <option value="MANUAL_PUNCH">Manual Break Start / End</option>
             <option value="FLEXIBLE_CONFIRMATION">
-              Flexible break ? confirm at Clock Out
+              Flexible break — confirm at Clock Out
             </option>
-            <option value="PAID_BREAK">Paid break ? do not deduct</option>
+            <option value="PAID_BREAK">Paid break — do not deduct</option>
           </select>
           <small>
-            Flexible confirmation suits appointment-based service teams.
+            The default break method when no published Roster rule applies.
           </small>
         </label>
         <label>
-          <span>Expected break (minutes)</span>
+          <span>Default break length (minutes)</span>
           <input
             defaultValue={initialValues.targetBreakMinutes}
             max="480"
@@ -314,10 +514,10 @@ function WorkPolicyFields({
             step="1"
             type="number"
           />
-          <small>Normally 60 minutes for a 9-hour shift.</small>
+          <small>60 minutes equals a 1-hour break.</small>
         </label>
         <label>
-          <span>Normal paid work (minutes)</span>
+          <span>Default paid working time (minutes)</span>
           <input
             defaultValue={initialValues.normalWorkMinutesPerDay}
             max="1440"
@@ -330,7 +530,7 @@ function WorkPolicyFields({
           <small>480 minutes equals 8 paid working hours.</small>
         </label>
         <label>
-          <span>Normal shift span (minutes)</span>
+          <span>Default total shift length (minutes)</span>
           <input
             defaultValue={initialValues.shiftSpanMinutes}
             max="1440"
@@ -345,13 +545,13 @@ function WorkPolicyFields({
       </div>
 
       <div className={styles.example}>
-        <strong>Recommended for service businesses</strong>
-        <span>Shift span: 9 hours</span>
-        <span>Expected break: 1 hour</span>
-        <span>Normal paid work: 8 hours</span>
+        <strong>Example: a standard 9-hour shift</strong>
+        <span>Total shift: 9 hours</span>
+        <span>Break: 1 hour</span>
+        <span>Paid working time: 8 hours</span>
         <small>
-          Appointment gaps are never counted as breaks automatically. Staff confirm
-          their actual total break when clocking out.
+          Published Roster hours and employee-specific settings still take priority.
+          Appointment gaps are never counted as breaks automatically.
         </small>
       </div>
     </section>

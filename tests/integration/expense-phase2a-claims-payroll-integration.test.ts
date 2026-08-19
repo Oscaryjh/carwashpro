@@ -62,7 +62,7 @@ test("Claim and finalized Payroll materialize exactly once with payment, reversa
   await synchronizeClaimExpense({ actor, businessId: business.id, claimId: claim.id }, prisma);
   const paidClaimExpense = await prisma.businessExpense.findUniqueOrThrow({ where: { id: first.expenseId } });
   assert.equal(paidClaimExpense.paymentStatus, "PAID");
-  await assert.rejects(markBusinessExpensePaid({ actor, businessId: business.id, expenseId: paidClaimExpense.id, expectedRevision: paidClaimExpense.revision, operationKey: `MANUAL-SOURCE-PAY:${token}`, paymentDate: "2026-08-12", paymentMethod: "OTHER" }, prisma), /source domain/i);
+  await assert.rejects(markBusinessExpensePaid({ actor, businessId: business.id, expenseId: paidClaimExpense.id, expectedRevision: paidClaimExpense.revision, operationKey: `MANUAL-SOURCE-PAY:${token}`, paymentDate: "2026-08-12", paymentMethod: "OTHER", paymentSource: "OTHER" }, prisma), /source domain/i);
 
   const cancelledClaim = await createApprovedClaim({ businessId: business.id, branchId: branch.id, membershipId: membership.id, number: `CLM-CANCEL-${token}`, amount: "40.00" });
   const cancelledExpense = await synchronizeClaimExpense({ actor, businessId: business.id, claimId: cancelledClaim.id }, prisma);
@@ -81,7 +81,7 @@ test("Claim and finalized Payroll materialize exactly once with payment, reversa
   assert.equal(payrollExpense.paymentStatus, "UNPAID");
   assert.equal(payrollExpense.sourceSnapshot?.employerContributionTotal?.toFixed(2), "0.00");
 
-  await createBusinessExpense({ actor, amount: "1500.00", branchId: branch.id, businessId: business.id, categoryId: manualCategory.id, description: "Phase 2A dashboard fixture", desiredStatus: "CONFIRMED", expenseDate: "2026-08-11", operationKey: `P2A-MANUAL:${token}`, paymentStatus: "PAID", paymentDate: "2026-08-11", paymentMethod: "CARD" }, prisma);
+  await createBusinessExpense({ actor, amount: "1500.00", branchId: branch.id, businessId: business.id, categoryId: manualCategory.id, description: "Phase 2A dashboard fixture", desiredStatus: "CONFIRMED", expenseDate: "2026-08-11", operationKey: `P2A-MANUAL:${token}`, paymentStatus: "PAID", paymentDate: "2026-08-11", paymentMethod: "CARD", paymentSource: "COMPANY_CARD" }, prisma);
   const inventoryProduct = await prisma.product.create({ data: { businessId: business.id, costPrice: 20, name: `P2B Dashboard Product ${token}`, price: 30, sku: `P2B-${token}`, trackInventory: true } });
   const inventorySupplier = await createSupplier({ actor, businessId: business.id, name: `P2B Dashboard Supplier ${token}`, operationKey: `P2B:${token}:SUPPLIER:001` });
   const inventoryPo = await createPurchaseOrder({ actor, branchId: branch.id, businessId: business.id, lines: [{ expectedUnitCost: 20, orderedQuantity: 6, productId: inventoryProduct.id }], operationKey: `P2B:${token}:PO:00000001`, orderDate: new Date("2026-08-11T00:00:00.000Z"), supplierId: inventorySupplier.id });

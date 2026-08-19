@@ -16,6 +16,7 @@ import {
   generateRecurringExpense,
   getBusinessExpenseDetail,
   markBusinessExpensePaid,
+  reorderExpenseCategories,
   updateDraftBusinessExpense,
   updateExpenseCategory,
   updateRecurringExpenseTemplate,
@@ -34,6 +35,7 @@ const facts = operation.extend({
   payeeName: z.string().max(160).optional(),
 });
 const paymentMethods = ["CASH", "BANK_TRANSFER", "CARD", "EWALLET", "OTHER"] as const;
+const paymentSources = ["POS_DRAWER", "PETTY_CASH", "BANK_ACCOUNT", "COMPANY_CARD", "OWNER_ADVANCE", "STAFF_ADVANCE", "OTHER"] as const;
 
 export async function createExpenseAction(formData: FormData) {
   const context = await requireBusinessUserForModule("EXPENSE", "CREATE_EXPENSE");
@@ -41,15 +43,19 @@ export async function createExpenseAction(formData: FormData) {
     intent: z.enum(["DRAFT", "CONFIRMED"]),
     paymentDate: z.string().date().optional().or(z.literal("")),
     paymentMethod: z.enum(paymentMethods).optional().or(z.literal("")),
+    paymentSource: z.enum(paymentSources).optional().or(z.literal("")),
+    cashierShiftId: z.string().uuid().optional().or(z.literal("")),
     paymentReference: z.string().max(160).optional(),
     paymentStatus: z.enum(["UNPAID", "PAID"]),
+    documentScanId: z.string().uuid().optional().or(z.literal("")),
+    duplicateOverride: z.enum(["true", "false"]).optional(),
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) fail("/expenses/new", parsed.error.issues[0]?.message ?? "Invalid Expense.");
   try {
     const branchId = await resolveExpenseMutationBranch({ access: context.access, businessId: context.businessId, requestedBranchId: parsed.data.branchId || null, user: context.user });
     const file = formData.get("receipt");
     const receipt = file instanceof File && file.size > 0 ? { bytes: new Uint8Array(await file.arrayBuffer()), claimedMimeType: file.type, originalFileName: file.name } : null;
-    const expense = await createBusinessExpense({ actor: actor(context.user), amount: parsed.data.amount, branchId, businessId: context.businessId, categoryId: parsed.data.categoryId, description: parsed.data.description, desiredStatus: parsed.data.intent, expenseDate: parsed.data.expenseDate, notes: parsed.data.notes, operationKey: parsed.data.operationKey, payeeName: parsed.data.payeeName, paymentDate: parsed.data.paymentDate || null, paymentMethod: parsed.data.paymentMethod || null, paymentReference: parsed.data.paymentReference, paymentStatus: parsed.data.paymentStatus, receipt, request: await getAuditRequestContext() });
+    const expense = await createBusinessExpense({ actor: actor(context.user), amount: parsed.data.amount, branchId, businessId: context.businessId, cashierShiftId: parsed.data.cashierShiftId || null, categoryId: parsed.data.categoryId, description: parsed.data.description, desiredStatus: parsed.data.intent, expenseDate: parsed.data.expenseDate, notes: parsed.data.notes, operationKey: parsed.data.operationKey, payeeName: parsed.data.payeeName, paymentDate: parsed.data.paymentDate || null, paymentMethod: parsed.data.paymentMethod || null, paymentSource: parsed.data.paymentSource || null, paymentReference: parsed.data.paymentReference, paymentStatus: parsed.data.paymentStatus, receipt, documentScanId: parsed.data.documentScanId || null, duplicateOverride: parsed.data.duplicateOverride === "true", request: await getAuditRequestContext() });
     refresh(); success(`/expenses/${expense.id}`, `${expense.expenseNumber} created.`);
   } catch (error) { actionFailure("/expenses/new", error); }
 }
@@ -75,13 +81,13 @@ export async function confirmExpenseAction(formData: FormData) { return transiti
 
 export async function markExpensePaidAction(formData: FormData) {
   const context = await requireBusinessUserForModule("EXPENSE", "MARK_EXPENSE_PAID");
-  const parsed = operation.extend({ expenseId: z.string().uuid(), expectedRevision: z.coerce.number().int().min(0), paymentDate: z.string().date(), paymentMethod: z.enum(paymentMethods), paymentReference: z.string().max(160).optional() }).safeParse(Object.fromEntries(formData));
+  const parsed = operation.extend({ amount: z.string().regex(/^\d+(\.\d{1,2})?$/), cashierShiftId: z.string().uuid().optional().or(z.literal("")), expenseId: z.string().uuid(), expectedRevision: z.coerce.number().int().min(0), paymentDate: z.string().date(), paymentMethod: z.enum(paymentMethods), paymentSource: z.enum(paymentSources), paymentReference: z.string().max(160).optional() }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) fail("/expenses", parsed.error.issues[0]?.message ?? "Invalid payment details.");
   const path = `/expenses/${parsed.data.expenseId}`;
   try {
     await assertScoped(context, parsed.data.expenseId);
-    await markBusinessExpensePaid({ actor: actor(context.user), businessId: context.businessId, ...parsed.data, request: await getAuditRequestContext() });
-    refresh(); success(path, "Expense marked paid; recorded total is unchanged.");
+    await markBusinessExpensePaid({ actor: actor(context.user), businessId: context.businessId, ...parsed.data, cashierShiftId: parsed.data.cashierShiftId || null, request: await getAuditRequestContext() });
+    refresh(); success(path, "Expense payment recorded; recognised spending is unchanged.");
   } catch (error) { actionFailure(path, error); }
 }
 
@@ -114,6 +120,25 @@ export async function updateExpenseCategoryAction(formData: FormData) {
   try {
     await updateExpenseCategory({ actor: actor(context.user), businessId: context.businessId, ...parsed.data, active: parsed.data.active === "on", requiresReceipt: parsed.data.requiresReceipt === "on", request: await getAuditRequestContext() });
     refresh(); success("/expenses/categories", "Expense category updated.");
+  } catch (error) { actionFailure("/expenses/categories", error); }
+}
+
+export async function reorderExpenseCategoriesAction(formData: FormData) {
+  const context = await requireBusinessUserForModule("EXPENSE", "MANAGE_EXPENSE_CATEGORY");
+  const parsed = operation.extend({ expectedOrder: z.string().max(25000), order: z.string().max(25000) }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) fail("/expenses/categories", parsed.error.issues[0]?.message ?? "Invalid category order.");
+  const idList = z.array(z.string().uuid()).min(1).max(500);
+  let expectedOrderIds: string[];
+  let orderIds: string[];
+  try {
+    expectedOrderIds = idList.parse(JSON.parse(parsed.data.expectedOrder));
+    orderIds = idList.parse(JSON.parse(parsed.data.order));
+  } catch {
+    fail("/expenses/categories", "Invalid category order.");
+  }
+  try {
+    await reorderExpenseCategories({ actor: actor(context.user), businessId: context.businessId, expectedOrderIds, operationKey: parsed.data.operationKey, orderIds, request: await getAuditRequestContext() });
+    refresh(); success("/expenses/categories", "Category order saved.");
   } catch (error) { actionFailure("/expenses/categories", error); }
 }
 

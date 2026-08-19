@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   createAttendanceIdempotencyKey,
   createBrowserUuid,
+  clearStaffTenantClientState,
   getOrCreateDeviceIdentifier,
   attendanceActionLabel,
   attendanceConfirmation,
@@ -11,6 +12,7 @@ import {
   gpsStatusLabel,
   isEmployeeSessionError,
   maskPhoneForDisplay,
+  wasBreakEndedRecently,
 } from "../../src/lib/staff-pwa/client";
 import { buildStaffManifest } from "../../src/lib/staff-pwa/manifest";
 import { buildStaffNavigation } from "../../src/lib/staff-pwa/navigation";
@@ -21,6 +23,18 @@ const todaySource = readFileSync(
 );
 const authSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-auth.tsx", import.meta.url),
+  "utf8",
+);
+const profileSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-profile.tsx", import.meta.url),
+  "utf8",
+);
+const chromeSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-pwa-chrome.tsx", import.meta.url),
+  "utf8",
+);
+const switchWorkplaceRouteSource = readFileSync(
+  new URL("../../src/app/api/employee-auth/switch-workplace/route.ts", import.meta.url),
   "utf8",
 );
 const serviceWorkerSource = readFileSync(
@@ -37,6 +51,10 @@ const moduleRouteSource = readFileSync(
 );
 const staffCssSource = readFileSync(
   new URL("../../src/app/staff/staff.css", import.meta.url),
+  "utf8",
+);
+const nextConfigSource = readFileSync(
+  new URL("../../next.config.mjs", import.meta.url),
   "utf8",
 );
 const homeSource = readFileSync(
@@ -63,6 +81,21 @@ test("Staff PWA action labels and confirmation copy cover the API action set", (
   assert.equal(attendanceActionLabel("CLOCK_OUT"), "Clock Out");
   assert.match(attendanceConfirmation("CLOCK_IN"), /current branch/i);
   assert.match(attendanceConfirmation("CLOCK_OUT"), /ending today/i);
+});
+
+test("Staff PWA warns only when another break starts shortly after the previous one", () => {
+  assert.equal(wasBreakEndedRecently({
+    lastBreakEndedAt: "2026-08-15T01:10:02.000Z",
+    serverTime: "2026-08-15T01:10:16.000Z",
+  }), true);
+  assert.equal(wasBreakEndedRecently({
+    lastBreakEndedAt: "2026-08-15T01:10:02.000Z",
+    serverTime: "2026-08-15T01:12:02.000Z",
+  }), false);
+  assert.equal(wasBreakEndedRecently({
+    lastBreakEndedAt: null,
+    serverTime: "2026-08-15T01:10:16.000Z",
+  }), false);
 });
 
 test("Staff PWA formats employee-safe status without exposing the full phone", () => {
@@ -129,6 +162,46 @@ test("Staff PWA replaces a malformed persisted device identifier", () => {
   }
 });
 
+test("workplace switching clears tenant state without deleting the verified device", () => {
+  const sessionValues = new Map<string, string>([
+    ["tetamu.staff.auth-flow", "temporary"],
+    ["tetamu.staff.tenant.home", "business-a"],
+    ["unrelated", "keep"],
+  ]);
+  const localValues = new Map<string, string>([
+    ["tetamu.staff.device", "verified-device"],
+    ["tetamu.staff.tenant.filters", "business-a"],
+  ]);
+  const storage = (values: Map<string, string>) => ({
+    get length() { return values.size; },
+    key: (index: number) => [...values.keys()][index] ?? null,
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+    clear: () => values.clear(),
+  });
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      sessionStorage: storage(sessionValues),
+      localStorage: storage(localValues),
+    },
+  });
+
+  try {
+    clearStaffTenantClientState();
+    assert.equal(sessionValues.has("tetamu.staff.auth-flow"), false);
+    assert.equal(sessionValues.has("tetamu.staff.tenant.home"), false);
+    assert.equal(localValues.has("tetamu.staff.tenant.filters"), false);
+    assert.equal(localValues.get("tetamu.staff.device"), "verified-device");
+    assert.equal(sessionValues.get("unrelated"), "keep");
+  } finally {
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+  }
+});
+
 test("revoked and expired employee sessions are routed back to Staff login", () => {
   assert.equal(isEmployeeSessionError("SESSION_EXPIRED"), true);
   assert.equal(isEmployeeSessionError("SESSION_REVOKED"), true);
@@ -149,7 +222,7 @@ test("Today prioritizes shift facts and shows explicit completion and approval s
   assert.match(todaySource, /Shift completed/);
   assert.match(todaySource, /Manager approval pending/);
   assert.match(todaySource, /formatBranchDate\(today\.branchLocalTime\)/);
-  assert.match(todaySource, /formatWorkplace\(today\.business\.name, today\.branch\.name\)/);
+  assert.match(todaySource, /Working at: \{today\.branch\.name\}/);
   assert.doesNotMatch(todaySource, /label="GPS"/);
   assert.doesNotMatch(todaySource, /<section className="staff-time-card">/);
 });
@@ -167,11 +240,35 @@ test("Today shows only explicit expected-attendance evidence and never guesses a
   assert.doesNotMatch(todaySource, /!today\.expectedAttendance[^\n]*Off Day/i);
 });
 
+test("location failures offer recovery before manager approval", () => {
+  assert.match(todaySource, /Try location again/);
+  assert.match(todaySource, /Request manager approval/);
+  assert.match(todaySource, /exceptionPrompt && !exceptionFormOpen/);
+  assert.match(todaySource, /GPS_INSECURE_CONTEXT/);
+  assert.match(todaySource, /GPS_TIMEOUT/);
+  assert.match(todaySource, /GPS_POSITION_UNAVAILABLE/);
+  assert.match(todaySource, /enableHighAccuracy: false/);
+  assert.match(todaySource, /timeout: 30_000/);
+  assert.match(todaySource, /Google Location Accuracy/);
+  assert.doesNotMatch(
+    todaySource,
+    /This punch needs an exception reason and manager approval/,
+  );
+});
+
 test("OTP UI never stores the entered OTP and supports paste plus resend timing", () => {
   assert.match(authSource, /onPaste=\{paste\}/);
   assert.match(authSource, /Resend in \$\{resendSeconds\}s/);
   assert.doesNotMatch(authSource, /localStorage\.setItem\([^)]*otp/i);
   assert.doesNotMatch(authSource, /sessionStorage\.setItem\([^)]*otp/i);
+});
+
+test("successful Staff authentication always opens Home instead of More", () => {
+  assert.equal(
+    authSource.match(/window\.location\.replace\("\/staff"\)/g)?.length,
+    2,
+  );
+  assert.doesNotMatch(authSource, /\/staff\/device\?verified=1/);
 });
 
 test("Staff manifest is installable and starts inside the isolated Staff scope", () => {
@@ -185,15 +282,15 @@ test("Staff manifest is installable and starts inside the isolated Staff scope",
 
 test("Staff navigation follows module entitlement without overcrowding the mobile bar", () => {
   const posOnly = buildStaffNavigation(["CORE", "POS", "SALON"]);
-  assert.deepEqual(posOnly.primary.map((item) => item.label), ["Home", "Profile"]);
-  assert.deepEqual(posOnly.more, []);
+  assert.deepEqual(posOnly.primary.map((item) => item.label), ["Home"]);
+  assert.deepEqual(posOnly.more.map((item) => item.label), ["My Profile"]);
 
   const hrOnly = buildStaffNavigation(["CORE", "HR"]);
-  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance", "Leave", "Profile"]);
-  assert.deepEqual(hrOnly.more.map((item) => item.label), ["My Schedule", "My Timesheets"]);
+  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance", "Leave", "Timesheet"]);
+  assert.deepEqual(hrOnly.more.map((item) => item.label), ["My Schedule", "My Profile"]);
 
   const full = buildStaffNavigation(["CORE", "HR", "CLAIMS", "COMMISSION", "PAYROLL"]);
-  assert.deepEqual(full.more.map((item) => item.label), ["My Schedule", "My Timesheets", "My Claims", "My Commission", "My Payslips"]);
+  assert.deepEqual(full.more.map((item) => item.label), ["My Schedule", "My Claims", "My Commission", "My Payslips", "My Profile"]);
   assert.ok(full.primary.length + 1 <= 5, "primary navigation plus More must fit five mobile slots");
 });
 
@@ -211,7 +308,17 @@ test("Staff Home delegates summaries to canonical domain readers", () => {
   assert.match(homeSource, /loadPublishedPayslipsForEmployee/);
   assert.doesNotMatch(homeSource, /prisma\./);
   assert.match(homeSource, /Temporarily unavailable/);
-  assert.match(homeSource, /showWelcome: !modules\.has\("HR"\)/);
+  assert.match(homeSource, /showWelcome: true/);
+});
+
+test("Staff workplace switching is server-scoped and performs a hard tenant reset", () => {
+  assert.match(switchWorkplaceRouteSource, /requireEmployeeSelfServiceAuthContext/);
+  assert.match(switchWorkplaceRouteSource, /switchEmployeeWorkplace/);
+  assert.match(switchWorkplaceRouteSource, /membershipId: z\.string\(\)\.uuid\(\)/);
+  assert.doesNotMatch(switchWorkplaceRouteSource, /businessId/);
+  assert.match(chromeSource, /clearStaffTenantClientState\(\)/);
+  assert.match(chromeSource, /window\.location\.replace\("\/staff"\)/);
+  assert.match(chromeSource, /Choose where you are working/);
 });
 
 test("every employee Attendance mutation rechecks the HR module server-side", () => {
@@ -240,4 +347,16 @@ test("Staff PWA owns vertical scrolling when the POS body is locked", () => {
   assert.match(shellRule, /overflow-y:\s*auto/);
   assert.match(shellRule, /overflow-x:\s*hidden/);
   assert.match(shellRule, /-webkit-overflow-scrolling:\s*touch/);
+});
+
+test("Staff Profile keeps long employee identifiers inside the mobile card", () => {
+  assert.match(profileSource, /className="staff-profile-identity"/);
+  assert.match(profileSource, /className="staff-profile-meta"/);
+  assert.match(staffCssSource, /\.staff-profile-identity\s*\{[\s\S]*?min-width:\s*0/);
+  assert.match(staffCssSource, /\.staff-profile-meta code\s*\{[\s\S]*?overflow-wrap:\s*anywhere/);
+  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-profile-stack \.staff-device-details/);
+});
+
+test("Local mobile Staff App can hydrate from the private Wi-Fi subnet", () => {
+  assert.match(nextConfigSource, /allowedDevOrigins:\s*\["192\.168\.1\.\*"\]/);
 });

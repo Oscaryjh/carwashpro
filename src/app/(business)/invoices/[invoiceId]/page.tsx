@@ -223,7 +223,7 @@ export default async function InvoiceDetailsPage({
                 <h3>Payment history</h3>
                 {invoice.payments.map((payment) => (
                   <div className="pos-history-row" key={payment.id}>
-                    <span>{payment.paidAt.toLocaleString()}</span>
+                    <span>{payment.paidAt.toLocaleString("en-MY")}</span>
                     <strong>RM{Number(payment.amount).toFixed(2)}</strong>
                     <small>{formatStatus(payment.method)}</small>
                   </div>
@@ -242,7 +242,7 @@ export default async function InvoiceDetailsPage({
                       </span>
                     </div>
                     <div>
-                      <span>{refund.refundedAt.toLocaleString()}</span>
+                      <span>{refund.refundedAt.toLocaleString("en-MY")}</span>
                       <small>
                         {refund.processedBy?.name ?? "Owner"}
                         {refund.packageUsesRestored
@@ -270,7 +270,7 @@ export default async function InvoiceDetailsPage({
                   <div>
                     <strong>-RM{Number(creditNote.total).toFixed(2)}</strong>
                     <small>
-                      {creditNote.issuedAt.toLocaleString()}{" "}
+                      {creditNote.issuedAt.toLocaleString("en-MY")}{" "}
                       <Link href={`/invoices/${invoice.id}/credit-notes/${creditNote.id}/pdf`}>
                         Download PDF
                       </Link>
@@ -299,7 +299,7 @@ export default async function InvoiceDetailsPage({
                     <div className="refund-payment-heading">
                       <div>
                         <strong>{formatStatus(payment.method)} payment</strong>
-                        <span>{payment.paidAt.toLocaleString()}</span>
+                        <span>{payment.paidAt.toLocaleString("en-MY")}</span>
                       </div>
                       <strong>RM{(refundableCents / 100).toFixed(2)} available</strong>
                     </div>
@@ -415,7 +415,7 @@ export default async function InvoiceDetailsPage({
                   <div>
                     <strong>-RM{Number(creditNote.total).toFixed(2)}</strong>
                     <small>
-                      {creditNote.issuedAt.toLocaleString()}
+                      {creditNote.issuedAt.toLocaleString("en-MY")}
                       {" "}
                       <Link href={`/invoices/${invoice.id}/credit-notes/${creditNote.id}/pdf`}>
                         Download PDF
@@ -449,7 +449,7 @@ export default async function InvoiceDetailsPage({
                       <div className="refund-payment-heading">
                         <div>
                           <strong>{formatStatus(payment.method)} payment</strong>
-                          <span>{payment.paidAt.toLocaleString()}</span>
+                          <span>{payment.paidAt.toLocaleString("en-MY")}</span>
                         </div>
                         <strong>RM{(refundableCents / 100).toFixed(2)} available</strong>
                       </div>
@@ -656,7 +656,7 @@ export default async function InvoiceDetailsPage({
               <h3>Payment history</h3>
               {invoice.workOrder.payments.map((payment) => (
                 <div className="pos-history-row" key={payment.id}>
-                  <span>{payment.paidAt.toLocaleString()}</span>
+                  <span>{payment.paidAt.toLocaleString("en-MY")}</span>
                   <strong>RM{Number(payment.amount).toFixed(2)}</strong>
                   <small>
                     {payment.method === "PACKAGE"
@@ -689,7 +689,7 @@ export default async function InvoiceDetailsPage({
                     </span>
                   </div>
                   <div>
-                    <span>{refund.refundedAt.toLocaleString()}</span>
+                    <span>{refund.refundedAt.toLocaleString("en-MY")}</span>
                     <small>
                       {refund.processedBy?.name ?? "Owner"}
                       {refund.reference ? ` - ${refund.reference}` : ""}
@@ -717,7 +717,7 @@ export default async function InvoiceDetailsPage({
                   <div>
                     <strong>-RM{Number(creditNote.total).toFixed(2)}</strong>
                     <small>
-                      {creditNote.issuedAt.toLocaleString()}
+                      {creditNote.issuedAt.toLocaleString("en-MY")}
                       {" "}
                       <Link href={`/invoices/${invoice.id}/credit-notes/${creditNote.id}/pdf`}>
                         Download PDF
@@ -751,7 +751,7 @@ export default async function InvoiceDetailsPage({
                   <div className="refund-payment-heading">
                     <div>
                       <strong>{formatStatus(payment.method)} payment</strong>
-                      <span>{payment.paidAt.toLocaleString()}</span>
+                      <span>{payment.paidAt.toLocaleString("en-MY")}</span>
                     </div>
                     <strong>RM{(refundableCents / 100).toFixed(2)} available</strong>
                   </div>
@@ -779,7 +779,7 @@ export default async function InvoiceDetailsPage({
               {invoice.voidReason || "No void reason recorded."}
             </p>
             <p className="muted">
-              Voided at: {invoice.voidedAt?.toLocaleString() ?? "Unknown"}
+              Voided at: {invoice.voidedAt?.toLocaleString("en-MY") ?? "Unknown"}
             </p>
             <Link className="button-link" href={`/pos/${invoice.workOrder.id}`}>
               {context.industry.industryType === "SALON_BEAUTY"

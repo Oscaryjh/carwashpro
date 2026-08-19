@@ -6,6 +6,7 @@ import {
   CashierUnifiedSaleForm,
   type CashierBranchOption,
   type CashierInitialSale,
+  type CashierPaymentMethodOption,
   type CashierStaffOption,
 } from "@/components/cashier-unified-sale-form";
 import type { CashierCatalogResult } from "@/lib/cashier/catalog";
@@ -23,6 +24,7 @@ type CashierSalesPanelProps = {
   initialCatalog: CashierCatalogResult;
   initialCatalogType: "package" | "product" | "service";
   initialSale?: CashierInitialSale | null;
+  paymentMethods: CashierPaymentMethodOption[];
   staffOptions: CashierStaffOption[];
   taxSettings: TaxDisplaySettings;
   loyaltySettings: {
@@ -44,6 +46,7 @@ export function CashierSalesPanel({
   initialCatalog,
   initialCatalogType,
   initialSale = null,
+  paymentMethods,
   staffOptions,
   taxSettings,
   loyaltySettings,
@@ -75,6 +78,7 @@ export function CashierSalesPanel({
       initialCatalog={initialCatalog}
       initialCatalogType={initialCatalogType}
       initialSale={initialSale}
+      paymentMethods={paymentMethods}
       staffOptions={staffOptions}
       taxSettings={taxSettings}
       loyaltySettings={loyaltySettings}

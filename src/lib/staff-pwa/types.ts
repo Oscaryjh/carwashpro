@@ -12,6 +12,8 @@ export type EmployeeProfile = {
     employeeCode: string;
     position: string | null;
     employmentType: string;
+    employmentStatus: string;
+    joinedAt: string;
   };
   workplace: {
     businessName: string;
@@ -29,6 +31,14 @@ export type EmployeeProfile = {
     lastActiveAt: string;
     status: "ACTIVE" | "REVOKED" | "REPLACED";
   };
+};
+
+export type EmployeeWorkplaceChoice = {
+  membershipId: string;
+  businessName: string;
+  employeeCode: string;
+  primaryBranchName: string;
+  current: boolean;
 };
 
 export type EmployeeMembershipChoice = {
@@ -91,6 +101,7 @@ export type AttendanceToday = {
   status: "OPEN" | "ON_BREAK" | "COMPLETED" | null;
   clockInAt: string | null;
   breakStartedAt: string | null;
+  lastBreakEndedAt: string | null;
   totalCompletedBreakMinutes: number;
   currentWorkedMinutes: number;
   geofenceRequirements: {
@@ -106,7 +117,16 @@ export type AttendanceToday = {
       | "FLEXIBLE_CONFIRMATION"
       | "PAID_BREAK";
     expectedBreakMinutes: number;
+    expectedBreakSource:
+      | "SESSION_SNAPSHOT"
+      | "PUBLISHED_ROSTER"
+      | "EMPLOYEE_PROFILE"
+      | "BRANCH_POLICY";
     normalWorkMinutesPerDay: number;
+    normalWorkMinutesSource:
+      | "PUBLISHED_ROSTER"
+      | "EMPLOYEE_PROFILE"
+      | "BRANCH_POLICY";
   };
   expectedAttendance: {
     kind: "WORKDAY" | "NOT_SCHEDULED" | "REST_DAY" | "PUBLIC_HOLIDAY";

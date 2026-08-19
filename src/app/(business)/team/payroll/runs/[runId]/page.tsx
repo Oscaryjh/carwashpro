@@ -5,6 +5,7 @@ import { PayrollHighRiskMfaFields } from "@/components/payroll-high-risk-mfa-fie
 import { resolvePayrollRunsReadAccess } from "@/lib/payroll/runs-access";
 import { loadPayrollRunDetail, parsePayrollPage, payrollRunBrowsePath } from "@/lib/payroll/runs";
 import { getPayrollPeriodReadiness } from "@/lib/payroll/readiness";
+import type { PayrollReadinessStatus } from "@/lib/payroll/readiness";
 import {
   finalizePayrollRunAction,
   generatePayrollRunAction,
@@ -33,6 +34,7 @@ type PayrollRunDetailPageProps = {
     message?: string;
     page?: string;
     q?: string;
+    readiness?: string;
     type?: string;
   }>;
 };
@@ -44,29 +46,44 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
   }
 
   const [{ runId }, queryParams] = await Promise.all([params, searchParams]);
-  const data = await loadPayrollRunDetail(
+  const initialData = await loadPayrollRunDetail(
     access.businessId,
     runId,
     queryParams.q,
     parsePayrollPage(queryParams.page),
   );
-  if (!data) notFound();
+  if (!initialData) notFound();
   const readiness = await getPayrollPeriodReadiness({
     businessId: access.businessId,
-    month: data.run.periodStart.toISOString().slice(0, 7),
-    runId: data.run.id,
+    month: initialData.run.periodStart.toISOString().slice(0, 7),
+    runId: initialData.run.id,
   });
+  const readinessFilter = parseReadinessFilter(queryParams.readiness);
+  const filteredMembershipIds = readinessFilter === "ALL"
+    ? undefined
+    : readiness.employees
+        .filter((employee) => employee.status === readinessFilter)
+        .map((employee) => employee.membershipId);
+  const data = filteredMembershipIds
+    ? await loadPayrollRunDetail(
+        access.businessId,
+        runId,
+        queryParams.q,
+        parsePayrollPage(queryParams.page),
+        undefined,
+        filteredMembershipIds,
+      )
+    : initialData;
+  if (!data) notFound();
   const readinessByMembership = new Map(
     readiness.employees.map((employee) => [employee.membershipId, employee]),
   );
 
   const legacyMonth = data.run.periodStart.toISOString().slice(0, 7);
   const returnPath = `/team/payroll/runs/${data.run.id}`;
-  const entryReturnPath = payrollRunBrowsePath(
-    data.run.id,
-    data.query,
-    data.page,
-  );
+  const entryReturnPath = readinessFilter === "ALL"
+    ? payrollRunBrowsePath(data.run.id, data.query, data.page)
+    : readinessFilterPath(data.run.id, readinessFilter, data.query, data.page);
   const notice = sanitizePayrollNotice(queryParams.message, queryParams.type);
   const isSelfSubmitted = data.run.submittedById === access.userId;
   const attendanceRefreshRequired =
@@ -135,16 +152,23 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
         <div className={styles.entriesHeader}>
           <div className={styles.sectionHeading}>
             <p className={styles.eyebrow}>Canonical readiness</p>
-            <h2 id="run-readiness-heading">{readiness.canProceed ? "Ready for workflow" : "Resolve blockers before review"}</h2>
-            <p>{readiness.readyCount} ready · {readiness.needsAttentionCount} need attention · {readiness.blockers.length} blockers · {readiness.warnings.length} warnings.</p>
+            <h2 id="run-readiness-heading">{readinessHeading(readiness.status)}</h2>
+            <p>Finalize gate and employee readiness are recalculated from canonical sources.</p>
           </div>
         </div>
+        <dl className={`${styles.heroMetrics} ${styles.readinessMetrics}`}>
+          <div><dt>Ready</dt><dd>{readiness.readyCount}</dd></div>
+          <div><dt>Review required</dt><dd>{readiness.reviewRequiredCount}</dd></div>
+          <div><dt>Blocked</dt><dd>{readiness.blockedCount}</dd></div>
+          <div><dt>Run status</dt><dd>{readiness.status.replace("_", " ")}</dd></div>
+        </dl>
         {readiness.blockers.length ? (
           <ul className={styles.issueSummary}>
             {readiness.blockers.slice(0, 8).map((issue, index) => (
               <li key={`${issue.code}-${issue.membershipId ?? "run"}-${index}`}>
-                <strong>Blocker · {issue.employeeName ?? "Payroll run"}</strong>
+                <strong>Blocking · {issue.employeeName ?? "Payroll run"} · {issue.source}</strong>
                 <span>{issue.message}</span>
+                <small>{issue.resolutionHint}</small>
               </li>
             ))}
           </ul>
@@ -155,8 +179,9 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
             <ul className={styles.issueSummary}>
               {readiness.warnings.slice(0, 12).map((issue, index) => (
                 <li key={`${issue.code}-${issue.membershipId ?? "run"}-${index}`}>
-                  <strong>Warning · {issue.employeeName ?? "Payroll run"}</strong>
+                  <strong>Review · {issue.employeeName ?? "Payroll run"} · {issue.source}</strong>
                   <span>{issue.message}</span>
+                  <small>{issue.resolutionHint}</small>
                 </li>
               ))}
             </ul>
@@ -384,12 +409,28 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
           </div>
           <form className={styles.searchForm} action={`/team/payroll/runs/${data.run.id}`}>
             <label htmlFor="entry-search">Search employee</label>
+            {readinessFilter !== "ALL" ? (
+              <input name="readiness" type="hidden" value={readinessFilter} />
+            ) : null}
             <div>
               <input id="entry-search" name="q" defaultValue={data.query} maxLength={80} placeholder="Name or employee code" />
               <button type="submit">Search</button>
             </div>
           </form>
         </div>
+
+        <nav className={styles.readinessFilters} aria-label="Filter employee readiness">
+          {(["ALL", "READY", "REVIEW_REQUIRED", "BLOCKED"] as const).map((status) => (
+            <Link
+              aria-current={readinessFilter === status ? "page" : undefined}
+              className={readinessFilter === status ? styles.readinessFilterActive : undefined}
+              href={readinessFilterPath(data.run.id, status, data.query)}
+              key={status}
+            >
+              {readinessFilterLabel(status)}
+            </Link>
+          ))}
+        </nav>
 
         {data.entries.length ? (
           <>
@@ -413,7 +454,9 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                   </tr>
                 </thead>
                 <tbody>
-                  {data.entries.map((entry) => (
+                  {data.entries.map((entry) => {
+                    const employeeReadiness = readinessByMembership.get(entry.membershipId);
+                    return (
                     <tr key={entry.id}>
                       <td data-label="Employee">
                         <Link className={styles.employeeLink} href={`/team/people/${entry.membershipId}`}>{entry.fullName}</Link>
@@ -427,8 +470,21 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                       <td data-label="Deductions">{formatMoney(entry.deductions)}</td>
                       <td data-label="Net pay"><strong>{formatMoney(entry.netPay)}</strong></td>
                       <td data-label="Status / issues">
-                        <strong>{readinessByMembership.get(entry.membershipId)?.status === "READY" ? "Ready" : "Needs attention"}</strong>
-                        <small>{readinessByMembership.get(entry.membershipId)?.issues.slice(0, 2).map((issue) => issue.message).join(" · ") || "No issues"}</small>
+                        <strong>{readinessFilterLabel(employeeReadiness?.status ?? "READY")}</strong>
+                        {employeeReadiness?.issues.length ? (
+                          <details className={styles.employeeIssues}>
+                            <summary>{employeeReadiness.issues.length} issue{employeeReadiness.issues.length === 1 ? "" : "s"}</summary>
+                            <ul>
+                              {employeeReadiness.issues.map((issue, index) => (
+                                <li key={`${issue.code}-${index}`}>
+                                  <b>{issue.source}</b>
+                                  <span>{issue.message}</span>
+                                  <small>{issue.resolutionHint}</small>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        ) : <small>No readiness issues</small>}
                       </td>
                       {(access.actions.canViewComponents) ||
                       (access.actions.canViewPayslip && data.run.status === "FINALIZED") ? (
@@ -455,17 +511,26 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                         </td>
                       ) : null}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-            <EntryPagination runId={data.run.id} query={data.query} page={data.page} totalPages={data.totalPages} />
+            <EntryPagination
+              runId={data.run.id}
+              query={data.query}
+              readiness={readinessFilter}
+              page={data.page}
+              totalPages={data.totalPages}
+            />
           </>
         ) : (
           <div className={styles.inlineEmpty}>
             <h3>{data.query ? "No matching employees" : "No employee entries"}</h3>
             <p>{data.query ? "Try a different name or employee code." : "This calculation run does not contain employee entries."}</p>
-            {data.query ? <Link href={`/team/payroll/runs/${data.run.id}`}>Clear search</Link> : null}
+            {data.query ? (
+              <Link href={readinessFilterPath(data.run.id, readinessFilter)}>Clear search</Link>
+            ) : null}
           </div>
         )}
       </section>
@@ -477,6 +542,40 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
       </footer>
     </main>
   );
+}
+
+type ReadinessFilter = PayrollReadinessStatus | "ALL";
+
+function parseReadinessFilter(value?: string): ReadinessFilter {
+  return value === "READY" || value === "REVIEW_REQUIRED" || value === "BLOCKED"
+    ? value
+    : "ALL";
+}
+
+function readinessFilterLabel(status: ReadinessFilter) {
+  if (status === "ALL") return "All employees";
+  if (status === "REVIEW_REQUIRED") return "Review required";
+  return status === "READY" ? "Ready" : "Blocked";
+}
+
+function readinessHeading(status: PayrollReadinessStatus) {
+  if (status === "READY") return "Ready for workflow";
+  if (status === "REVIEW_REQUIRED") return "Ready with items to review";
+  return "Resolve blockers before review";
+}
+
+function readinessFilterPath(
+  runId: string,
+  status: ReadinessFilter,
+  query?: string,
+  page?: number,
+) {
+  const search = new URLSearchParams();
+  if (status !== "ALL") search.set("readiness", status);
+  if (query) search.set("q", query);
+  if (page && page > 1) search.set("page", String(page));
+  const suffix = search.toString();
+  return `/team/payroll/runs/${runId}${suffix ? `?${suffix}` : ""}`;
 }
 
 function entryEditorPath(runId: string, entryId: string, returnPath: string) {
@@ -493,9 +592,21 @@ function WorkflowFields({ month, runId, returnPath }: { month: string; runId: st
   );
 }
 
-function EntryPagination({ runId, query, page, totalPages }: { runId: string; query: string; page: number; totalPages: number }) {
+function EntryPagination({
+  runId,
+  query,
+  readiness,
+  page,
+  totalPages,
+}: {
+  runId: string;
+  query: string;
+  readiness: ReadinessFilter;
+  page: number;
+  totalPages: number;
+}) {
   if (totalPages <= 1) return null;
-  const href = (target: number) => `/team/payroll/runs/${runId}?${new URLSearchParams({ ...(query ? { q: query } : {}), page: String(target) })}`;
+  const href = (target: number) => readinessFilterPath(runId, readiness, query, target);
   return (
     <nav className={styles.pagination} aria-label="Employee entry pages">
       {page > 1 ? <Link href={href(page - 1)}>Previous</Link> : <span>Previous</span>}

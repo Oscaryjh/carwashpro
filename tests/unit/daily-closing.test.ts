@@ -29,6 +29,7 @@ function createSource(
   return {
     appointments: [],
     customers: [],
+    drawerExpensePayouts: [],
     invoices: [],
     packagePurchases: [],
     payments: [],
@@ -38,6 +39,16 @@ function createSource(
     ...overrides,
   };
 }
+
+test("POS drawer expense payouts reduce expected closing cash", () => {
+  const report = calculateDailyClosingReport(createSource({
+    drawerExpensePayouts: [{ amountCents: 2_000 }],
+    payments: [{ amountCents: 10_000, method: "CASH", packageUses: 0 }],
+  }), BUSINESS_DAY_START);
+
+  assert.equal(report.cashDrawer.expensePayoutCents, 2_000);
+  assert.equal(getExpectedCashCents(report), 8_000);
+});
 
 function createInvoice(
   overrides: Partial<DailyClosingInvoice> = {},

@@ -224,6 +224,67 @@ test("concurrent manager approval has one canonical winner and one reimbursement
   assert.equal(await prisma.claimEvent.count({ where: { claimId: claim.id, type: "APPROVED" } }), 1);
 });
 
+test("two-level Claim approval creates no reimbursement until Business Owner final approval", async () => {
+  const fixture = await createFixture();
+  const manager = await prisma.user.create({
+    data: {
+      businessId: fixture.business.id,
+      branchId: fixture.branch.id,
+      name: "Claims QA Manager",
+      email: `${randomUUID()}@claims-manager.test`,
+      role: "STAFF",
+    },
+  });
+  const managerActor: AppSession = {
+    ...fixture.actor,
+    userId: manager.id,
+    name: manager.name,
+    email: manager.email ?? "",
+    role: "STAFF",
+  };
+  await prisma.hrApprovalPolicy.create({
+    data: {
+      businessId: fixture.business.id,
+      domain: "CLAIMS",
+      mode: "TWO_LEVEL_THRESHOLD",
+      thresholdValue: "50.00",
+    },
+  });
+  const claim = await submitEmployeeClaim(fixture.auth, {
+    clientRequestId: randomUUID(), purpose: "Owner approval threshold", currency: "MYR",
+    lines: [{ lineNumber: 1, categoryId: fixture.category.id, expenseDate: "2026-08-12", description: "Threshold claim", amount: "80.00" }],
+  }, []);
+  const line = await prisma.claimLine.findFirstOrThrow({ where: { claimId: claim.id } });
+  const rawInput = {
+    claimId: claim.id,
+    expectedRevision: 1,
+    lines: [{ lineId: line.id, approvedAmount: "80.00" }],
+  };
+
+  const firstLevel = await reviewEmployeeClaim({
+    businessId: fixture.business.id,
+    allowedBranchIds: [fixture.branch.id],
+    actor: managerActor,
+    actorLevel: "MANAGER",
+    rawInput,
+  });
+  assert.equal(firstLevel.finalized, false);
+  assert.equal((await prisma.employeeClaim.findUniqueOrThrow({ where: { id: claim.id } })).status, "SUBMITTED");
+  assert.equal(await prisma.claimReimbursement.count({ where: { claimId: claim.id } }), 0);
+
+  const finalLevel = await reviewEmployeeClaim({
+    businessId: fixture.business.id,
+    allowedBranchIds: [fixture.branch.id],
+    actor: fixture.actor,
+    actorLevel: "OWNER",
+    rawInput,
+  });
+  assert.equal(finalLevel.finalized, true);
+  assert.equal(finalLevel.approvalStage, "LEVEL_TWO");
+  assert.equal((await prisma.employeeClaim.findUniqueOrThrow({ where: { id: claim.id } })).status, "APPROVED");
+  assert.equal(await prisma.claimReimbursement.count({ where: { claimId: claim.id } }), 1);
+});
+
 async function submitAndApprove(fixture: Awaited<ReturnType<typeof createFixture>>, purpose: string) {
   const claim = await submitEmployeeClaim(fixture.auth, {
     clientRequestId: randomUUID(), purpose, currency: "MYR",

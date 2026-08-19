@@ -34,6 +34,7 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
   }
   if (enabled.has("HR") && hasBusinessCapability(access, "VIEW_ROSTER")) {
     items.push({ href: "/team/roster", label: "Roster", icon: "roster" });
+    items.push({ href: "/team/holidays", label: "Public Holidays", shortLabel: "Holidays", icon: "holiday" });
   }
   if (enabled.has("HR") && hasBusinessCapability(access, "VIEW_LEAVE")) {
     items.push({ href: "/team/leave", label: "Leave", icon: "leave" });

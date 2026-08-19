@@ -27,6 +27,7 @@ import { fromCents } from "@/lib/validation/pos";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
 import { recordSaleInventory } from "@/lib/inventory/service";
+import { defaultBusinessPaymentMethods } from "@/lib/payments/business-methods";
 
 export type CashierSaleInvoiceSummary = {
   id: string;
@@ -35,6 +36,8 @@ export type CashierSaleInvoiceSummary = {
   issuedAt: string;
   customerName: string;
   customerPhone: string;
+  checkoutType: "STANDARD" | "TRAINING_COMPLIMENTARY";
+  checkoutReason: string;
   items: Array<{
     id: string;
     name: string;
@@ -84,6 +87,9 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
     assignedStaffId: formData.get("assignedStaffId")?.toString() || "",
     customerId: formData.get("customerId")?.toString() || "",
     method: formData.get("method")?.toString(),
+    paymentMethodId: formData.get("paymentMethodId")?.toString() || "",
+    paymentMethodCode: formData.get("paymentMethodCode")?.toString() || "",
+    checkoutReason: formData.get("checkoutReason")?.toString() || undefined,
     packageIds: formData.getAll("packageId").map((value) => value.toString()),
     packageQuantities: formData.getAll("packageQuantity"),
     productIds: formData.getAll("productId").map((value) => value.toString()),
@@ -92,6 +98,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
     serviceQuantities: formData.getAll("serviceQuantity"),
     customerPackageIds: formData.getAll("customerPackageId").map((value) => value.toString()),
     reference: formData.get("reference")?.toString() || undefined,
+    tenderAmount: formData.get("tenderAmount")?.toString() || undefined,
+    exchangeRateToMyr: formData.get("exchangeRateToMyr")?.toString() || undefined,
     discountType: formData.get("discountType")?.toString() || "AMOUNT",
     discountValue: formData.get("discountValue")?.toString() || "0",
     discountReference: formData.get("discountReference")?.toString() || undefined,
@@ -141,6 +149,64 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
 
       if (shift.branchId !== branchId) {
         throw new Error("This sale does not belong to the current shift branch.");
+      }
+
+      const persistedPaymentMethod = await tx.businessPaymentMethod.findFirst({
+        where: {
+          businessId,
+          ...(input.paymentMethodId
+            ? { id: input.paymentMethodId }
+            : { code: input.paymentMethodCode }),
+        },
+        select: {
+          id: true,
+          code: true,
+          label: true,
+          canonicalMethod: true,
+          paymentKind: true,
+          settlementCurrency: true,
+          assetSymbol: true,
+          behavior: true,
+          active: true,
+        },
+      });
+      const virtualPaymentMethod = defaultBusinessPaymentMethods.find(
+        (method) => method.code === input.paymentMethodCode,
+      );
+      const selectedPaymentMethod = persistedPaymentMethod ?? virtualPaymentMethod ?? null;
+      if (!selectedPaymentMethod || !selectedPaymentMethod.active) {
+        throw new Error("This payment method is no longer available. Refresh checkout and try again.");
+      }
+      if (selectedPaymentMethod.code !== input.paymentMethodCode) {
+        throw new Error("Payment method details do not match checkout.");
+      }
+      if (selectedPaymentMethod.canonicalMethod !== input.method) {
+        throw new Error("Payment method details do not match the configured reporting category.");
+      }
+      const isConvertedTender = selectedPaymentMethod.paymentKind === "FOREIGN_CURRENCY"
+        || selectedPaymentMethod.paymentKind === "CRYPTO_ASSET";
+      if (isConvertedTender) {
+        const expectedMethod = selectedPaymentMethod.paymentKind === "FOREIGN_CURRENCY"
+          ? "FOREIGN_CURRENCY"
+          : "CRYPTO";
+        if (input.method !== expectedMethod || !input.tenderAmount || !input.exchangeRateToMyr) {
+          throw new Error("The foreign currency or crypto payment details are incomplete.");
+        }
+      }
+      const isTrainingComplimentary = selectedPaymentMethod.behavior === "TRAINING_COMPLIMENTARY";
+      if (isTrainingComplimentary) {
+        if (!input.checkoutReason || input.checkoutReason.length < 5) {
+          throw new Error("Enter a reason for this Training / Complimentary service.");
+        }
+        if (input.productIds.length || input.packageIds.length || input.customerPackageIds.length) {
+          throw new Error("Training / Complimentary checkout supports service items only.");
+        }
+        if (!input.serviceIds.length) {
+          throw new Error("Add at least one service for Training / Complimentary checkout.");
+        }
+        if (input.catalogDiscountId || input.discountValue > 0 || input.loyaltyPoints > 0) {
+          throw new Error("Discounts, packages, and loyalty redemption cannot be combined with Training / Complimentary checkout.");
+        }
       }
 
       const appointment = input.appointmentId
@@ -482,7 +548,9 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             allowLoyaltyStacking: catalogDiscountRecord.allowLoyaltyStacking,
           } satisfies CatalogDiscountOption
         : null;
-      const requestedManualDiscountCents = catalogDiscount
+      const requestedManualDiscountCents = isTrainingComplimentary
+        ? subtotalCents
+        : catalogDiscount
         ? calculateCatalogDiscountCents({
             discount: catalogDiscount,
             lines: [
@@ -507,7 +575,9 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         throw new Error("This catalog discount cannot be combined with loyalty points.");
       }
 
-      const discountReason = catalogDiscount
+      const discountReason = isTrainingComplimentary
+        ? `Training / Complimentary: ${input.checkoutReason}`
+        : catalogDiscount
         ? `Catalog: ${catalogDiscount.name} (${formatCatalogDiscountValue(catalogDiscount)}) · Reference: ${input.discountReference}`
         : input.discountReference ?? null;
       let loyaltyPointsRedeemed = 0;
@@ -613,6 +683,12 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       const primaryCustomerPackage = customerPackages[0] ?? null;
       const invoiceTotalCents = Math.round(tax.total * 100);
       const amountCents = Math.max(0, invoiceTotalCents - packageCoverageCents);
+      if (isConvertedTender) {
+        const convertedCents = Math.round(input.tenderAmount! * input.exchangeRateToMyr! * 100);
+        if (convertedCents < amountCents) {
+          throw new Error("The converted payment value is below the MYR balance due.");
+        }
+      }
       const invoice = await tx.invoice.create({
         data: {
           businessId,
@@ -621,6 +697,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           customerId: customer?.id ?? null,
           customerPackageId: primaryCustomerPackage?.id ?? null,
           invoiceNumber: await nextInvoiceNumber(tx, businessId),
+          checkoutType: isTrainingComplimentary ? "TRAINING_COMPLIMENTARY" : "STANDARD",
+          checkoutReason: isTrainingComplimentary ? input.checkoutReason : null,
           subtotal: fromCents(Math.round(tax.subtotal * 100)),
           taxableSubtotal: fromCents(Math.round(tax.taxableSubtotal * 100)),
           taxAmount: fromCents(Math.round(tax.tax * 100)),
@@ -761,7 +839,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         data: { status: "USED_UP" },
       });
 
-      const cashPayment = amountCents > 0 || !packagePayments.length
+      const cashPayment = !isTrainingComplimentary && (amountCents > 0 || !packagePayments.length)
         ? await tx.payment.create({
             data: {
               businessId,
@@ -773,6 +851,15 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               customerPackageId: primaryCustomerPackage?.id ?? null,
               amount: fromCents(amountCents),
               method: input.method,
+              tenderCurrency: isConvertedTender
+                ? selectedPaymentMethod.paymentKind === "CRYPTO_ASSET"
+                  ? selectedPaymentMethod.assetSymbol ?? "CRYPTO"
+                  : selectedPaymentMethod.settlementCurrency
+                : "MYR",
+              tenderAmount: isConvertedTender ? input.tenderAmount : fromCents(amountCents),
+              exchangeRateToMyr: isConvertedTender ? input.exchangeRateToMyr : 1,
+              businessPaymentMethodId: selectedPaymentMethod.id ?? null,
+              paymentMethodLabel: selectedPaymentMethod.label,
               reference:
                 input.reference ||
                 `${stocks.length} product lines, ${serviceLines.length} service lines, ${packageUnits.length} packages`,
@@ -781,7 +868,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         : null;
       const createdPayments = [...packagePayments, ...(cashPayment ? [cashPayment] : [])];
       const payment = cashPayment ?? packagePayments.at(-1);
-      if (!payment) {
+      if (!payment && !isTrainingComplimentary) {
         throw new Error("At least one payment is required.");
       }
 
@@ -812,8 +899,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         }),
       );
 
-      if (customer) {
-        if (loyaltyPointsRedeemed > 0) {
+      if (customer && !isTrainingComplimentary) {
+        if (loyaltyPointsRedeemed > 0 && payment) {
           await redeemLoyaltyPointsForPayment(tx, {
             businessId,
             branchId,
@@ -841,15 +928,21 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           businessId,
           branchId,
           actor: user,
-          action: "CASHIER_SALE_PAID",
-          entityType: "Payment",
-          entityId: payment.id,
-          summary: `Completed cashier sale with ${stocks.length} product lines, ${serviceLines.length} service lines, and ${packageUnits.length} packages`,
+          action: isTrainingComplimentary
+            ? "CASHIER_TRAINING_COMPLIMENTARY_COMPLETED"
+            : "CASHIER_SALE_PAID",
+          entityType: isTrainingComplimentary ? "Invoice" : "Payment",
+          entityId: isTrainingComplimentary ? invoice.id : payment!.id,
+          summary: isTrainingComplimentary
+            ? `Completed Training / Complimentary checkout for ${serviceLines.length} service lines`
+            : `Completed cashier sale with ${stocks.length} product lines, ${serviceLines.length} service lines, and ${packageUnits.length} packages`,
           after: {
             amount: fromCents(invoiceTotalCents),
             amountDue: fromCents(amountCents),
             packageCoverage: fromCents(packageCoverageCents),
             methods: createdPayments.map((entry) => entry.method),
+            checkoutType: invoice.checkoutType,
+            checkoutReason: invoice.checkoutReason,
             invoiceId: invoice.id,
             appointmentId: effectiveAppointmentId,
             productLines: stocks.map(({ product, quantity }) => ({
@@ -896,6 +989,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           issuedAt: invoice.issuedAt.toISOString(),
           customerName: customer?.name ?? "Walk-in customer",
           customerPhone: customer?.phone ?? "Not provided",
+          checkoutType: invoice.checkoutType,
+          checkoutReason: invoice.checkoutReason ?? "",
           items: [
             ...stocks.map(({ product, quantity }, index) => ({
               id: `${invoice.id}-product-${product.id}`,

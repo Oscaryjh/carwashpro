@@ -21,7 +21,7 @@ const attendancePageSource = readFileSync(
 test("local development skips optional workers when their configuration is absent", () => {
   assert.match(
     devSupervisorSource,
-    /if \(process\.env\.AUTH_INFO_PATH\?\.trim\(\)\)/,
+    /if \(process\.env\.AUTH_INFO_PATH\?\.trim\(\) \|\| existsSync\(whatsappConnectorEnv\)\)/,
   );
   assert.match(
     devSupervisorSource,

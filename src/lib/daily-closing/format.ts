@@ -61,6 +61,9 @@ export function buildDailyClosingWhatsAppPreview(input: {
     `Net sales: ${formatMoneyFromCents(report.financial.netSalesCents)}`,
     `Net collections: ${formatMoneyFromCents(report.financial.collectedCents)}`,
     `Outstanding: ${formatMoneyFromCents(report.financial.outstandingCents)}`,
+    ...(report.cashDrawer.expensePayoutCents > 0
+      ? [`POS drawer expense payouts: -${formatMoneyFromCents(report.cashDrawer.expensePayoutCents)}`]
+      : []),
     "",
     "*Payment methods*",
     ...(paymentMethods.length > 0 ? paymentMethods : ["No payments collected"]),
@@ -89,6 +92,8 @@ function formatPaymentMethod(method: DailyClosingReport["paymentMethods"][number
     CASH: "Cash",
     DUITNOW: "DuitNow QR",
     EWALLET: "E-wallet",
+    FOREIGN_CURRENCY: "Foreign currency",
+    CRYPTO: "Crypto asset",
   } as const;
 
   return labels[method];

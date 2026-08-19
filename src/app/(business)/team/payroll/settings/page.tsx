@@ -143,7 +143,19 @@ export default async function PayrollSettingsPage({
             <Field disabled={!canEditPayroll} hint={`${formatHours(setting.normalWorkMinutesPerDay)} paid hours`} label="Paid minutes / day" max="1440" min="1" name="normalWorkMinutesPerDay" value={setting.normalWorkMinutesPerDay} />
             <Field disabled={!canEditPayroll} hint="Unpaid break target" label="Break minutes" max="720" min="0" name="breakMinutesPerDay" value={setting.breakMinutesPerDay} />
             <Field disabled={!canEditPayroll} hint="Normal working day" label="OT multiplier" max="10" min="1" name="overtimeMultiplier" step="0.01" value={String(setting.overtimeMultiplier)} />
-            <Field disabled={!canEditPayroll} hint="Extra on top of ordinary pay" label="Public holiday extra" max="10" min="0" name="publicHolidayExtraMultiplier" step="0.01" value={String(setting.publicHolidayExtraMultiplier)} />
+            <label className={styles.formField}>
+              <span>Holiday pay policy</span>
+              <select
+                defaultValue={setting.publicHolidayPayEnabled ? "true" : "false"}
+                disabled={!canEditPayroll}
+                name="publicHolidayPayEnabled"
+              >
+                <option value="false">Off — record evidence only</option>
+                <option value="true">On — prepare preview for confirmation</option>
+              </select>
+              <small>Default is Off. Enabling never pays automatically.</small>
+            </label>
+            <Field disabled={!canEditPayroll} hint="Business policy; every result still needs confirmation" label="Holiday extra multiplier" max="10" min="0" name="publicHolidayExtraMultiplier" step="0.01" value={String(setting.publicHolidayExtraMultiplier)} />
             <label className={styles.formField}>
               <span>State / holiday label</span>
               <input
@@ -168,6 +180,15 @@ export default async function PayrollSettingsPage({
               Monthly rate = salary / {setting.workingDaysPerMonth} working days /
               {" "}{formatHours(setting.normalWorkMinutesPerDay)} paid hours. A
               9-hour shift with a 1-hour break remains 8 paid hours.
+            </p>
+          </div>
+          <div className={styles.policyNote}>
+            <span className={styles.infoIcon} aria-hidden="true">i</span>
+            <p>
+              Holiday pay policy revision {setting.publicHolidayPayPolicyRevision}.
+              A locked Timesheet can create a preview, but Payroll records RM0 until
+              an authorised reviewer confirms or excludes that employee result.
+              This configuration is a business policy, not legal advice.
             </p>
           </div>
         </section>

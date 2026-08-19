@@ -138,6 +138,7 @@ export async function loadPayrollRunDetail(
   rawQuery: string | undefined,
   requestedPage: number,
   database: RunsDatabase = prisma,
+  membershipIds?: readonly string[],
 ): Promise<PayrollRunDetailData | null> {
   const run = await database.payrollRun.findFirst({
     where: { id: runId, businessId },
@@ -190,6 +191,7 @@ export async function loadPayrollRunDetail(
   const entryWhere = {
     businessId,
     payrollRunId: runId,
+    ...(membershipIds ? { membershipId: { in: [...membershipIds] } } : {}),
     ...(query
       ? {
           OR: [

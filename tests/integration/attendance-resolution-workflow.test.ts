@@ -551,6 +551,91 @@ test("A2 enforces employee ownership, branch scope, self-resolution, and atomic 
   });
 });
 
+test("A2 manager acceptance synchronizes legacy approval state before creating the final result", async () => {
+  await withRollback(async (transaction) => {
+    const fixture = await createFixture(transaction);
+    const session = await transaction.employeeAttendance.create({
+      data: {
+        employeeAccountId: fixture.employeeAccount.id,
+        membershipId: fixture.membership.id,
+        businessId: fixture.business.id,
+        branchId: fixture.branch.id,
+        workDate: new Date("2026-08-03T00:00:00.000Z"),
+        status: "COMPLETED",
+        clockInAt: new Date("2026-08-03T01:00:00.000Z"),
+        clockOutAt: new Date("2026-08-03T10:00:00.000Z"),
+        totalBreakMinutes: 60,
+        totalWorkedMinutes: 480,
+        expectedBreakMinutes: 60,
+        requiresApproval: true,
+        approvalStatus: "PENDING",
+      },
+    });
+    const exception = await transaction.attendanceException.create({
+      data: {
+        attendanceSessionId: session.id,
+        employeeId: fixture.membership.id,
+        businessId: fixture.business.id,
+        branchId: fixture.branch.id,
+        type: "OUTSIDE_GEOFENCE",
+        reason: "Manager review required for the accepted location exception.",
+        status: "PENDING",
+      },
+    });
+    const resolutionCase =
+      await materializeAttendanceResolutionFoundationInTransaction(
+        { ...managerContext(fixture), attendanceSessionId: session.id },
+        transaction,
+      );
+    const database = transactionDatabase(transaction);
+
+    await submitEmployeeAttendanceResolution({
+      auth: fixture.employeeAuth,
+      input: {
+        resolutionCaseId: resolutionCase.id,
+        reason: "I was working at the approved off-site location.",
+      },
+      database,
+    });
+    const current = await transaction.attendanceResolutionCase.findUniqueOrThrow({
+      where: { id: resolutionCase.id },
+    });
+    const resolved = await applyManagerAttendanceResolution({
+      context: managerContext(fixture),
+      input: {
+        resolutionCaseId: resolutionCase.id,
+        action: "ACCEPT_AS_RECORDED",
+        reason: "The off-site attendance is approved.",
+        expectedUpdatedAt: current.updatedAt.toISOString(),
+        expectedCurrentResultId: null,
+      },
+      database,
+    });
+
+    assert.equal(resolved.status, "RESOLVED");
+    const synchronizedSession =
+      await transaction.employeeAttendance.findUniqueOrThrow({
+        where: { id: session.id },
+      });
+    assert.equal(synchronizedSession.requiresApproval, true);
+    assert.equal(synchronizedSession.approvalStatus, "APPROVED");
+    const synchronizedException =
+      await transaction.attendanceException.findUniqueOrThrow({
+        where: { id: exception.id },
+      });
+    assert.equal(synchronizedException.status, "APPROVED");
+    assert.equal(synchronizedException.reviewedBy, fixture.owner.id);
+    assert.ok(synchronizedException.reviewedAt);
+    const finalResult = await transaction.attendanceFinalResult.findUniqueOrThrow({
+      where: { id: resolved.finalResultId! },
+    });
+    assert.equal(finalResult.disposition, "INCLUDED");
+    assert.equal(finalResult.approvalStatusSnapshot, "APPROVED");
+
+    return fixture.business.id;
+  });
+});
+
 async function withRollback(operation: (transaction: Prisma.TransactionClient) => Promise<string>) {
   assertLocalDatabase();
   let businessId: string | null = null;

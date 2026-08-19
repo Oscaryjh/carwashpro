@@ -271,7 +271,7 @@ export function StaffVerifyForm() {
         return;
       }
       clearEmployeeAuthFlow();
-      router.replace("/staff/device?verified=1");
+      window.location.replace("/staff");
     } catch (error) {
       const nextFailures = failures + 1;
       setFailures(nextFailures);
@@ -409,7 +409,7 @@ export function StaffWorkplaceSelector() {
         },
       );
       clearEmployeeAuthFlow();
-      router.replace("/staff/device?verified=1");
+      window.location.replace("/staff");
     } catch (error) {
       setMessage(publicAuthMessage(error));
     } finally {
@@ -422,7 +422,7 @@ export function StaffWorkplaceSelector() {
       <div className="staff-auth-heading">
         <p className="staff-kicker">WORKPLACE</p>
         <h1>Where are you working?</h1>
-        <p>Select the workplace for this Attendance session.</p>
+        <p>Select the employer for this secure Staff Session.</p>
       </div>
       <div className="staff-workplace-list">
         {flow.memberships.map((membership) => (

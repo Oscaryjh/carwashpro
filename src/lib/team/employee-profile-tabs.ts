@@ -7,6 +7,8 @@ export const employeeProfileTabs = [
   {
     key: "overview",
     label: "Overview",
+    description: "Status and setup",
+    group: "Summary",
     capabilities: ["VIEW_TEAM_DIRECTORY"],
     requiredModule: "CORE",
     phase: "Phase 2",
@@ -14,6 +16,8 @@ export const employeeProfileTabs = [
   {
     key: "personal",
     label: "Personal",
+    description: "Contact and identity",
+    group: "Summary",
     capabilities: ["VIEW_TEAM_DIRECTORY"],
     requiredModule: "CORE",
     phase: "Phase 2B",
@@ -21,6 +25,8 @@ export const employeeProfileTabs = [
   {
     key: "employment",
     label: "Employment",
+    description: "Job and branches",
+    group: "Work",
     capabilities: ["VIEW_TEAM_DIRECTORY"],
     requiredModule: "HR",
     phase: "Phase 2",
@@ -28,6 +34,8 @@ export const employeeProfileTabs = [
   {
     key: "attendance",
     label: "Attendance",
+    description: "Roster and clock records",
+    group: "Work",
     capabilities: ["VIEW_ATTENDANCE_EMPLOYEES"],
     requiredModule: "HR",
     phase: "Phase 2C",
@@ -35,6 +43,8 @@ export const employeeProfileTabs = [
   {
     key: "leave",
     label: "Leave",
+    description: "Balances and requests",
+    group: "Work",
     capabilities: ["VIEW_LEAVE"],
     requiredModule: "HR",
     phase: "Phase 2D",
@@ -42,13 +52,17 @@ export const employeeProfileTabs = [
   {
     key: "claims",
     label: "Claims",
+    description: "Claims and reimbursements",
+    group: "Pay & compliance",
     capabilities: ["VIEW_CLAIM"],
     requiredModule: "CLAIMS",
     phase: "Claims closure",
   },
   {
     key: "payroll",
-    label: "Payroll",
+    label: "Payroll & bank",
+    description: "Pay setup and masked bank",
+    group: "Pay & compliance",
     capabilities: [
       "VIEW_COMPENSATION",
       "VIEW_PAYROLL_RUN",
@@ -61,7 +75,9 @@ export const employeeProfileTabs = [
   },
   {
     key: "statutory",
-    label: "Statutory",
+    label: "Statutory & tax",
+    description: "Government profiles",
+    group: "Pay & compliance",
     capabilities: ["VIEW_STATUTORY_PROFILE", "VIEW_TAX_PROFILE"],
     requiredModule: "STATUTORY",
     phase: "Statutory P2",
@@ -69,6 +85,8 @@ export const employeeProfileTabs = [
   {
     key: "documents",
     label: "Documents",
+    description: "Employee documents",
+    group: "Records",
     capabilities: ["VIEW_TEAM_DIRECTORY"],
     requiredModule: "CORE",
     phase: "Future",
@@ -76,6 +94,8 @@ export const employeeProfileTabs = [
   {
     key: "activity",
     label: "Activity",
+    description: "Changes and audit history",
+    group: "Records",
     capabilities: ["VIEW_TEAM_DIRECTORY"],
     requiredModule: "CORE",
     phase: "Future",
@@ -83,6 +103,8 @@ export const employeeProfileTabs = [
 ] as const satisfies readonly {
   key: string;
   label: string;
+  description: string;
+  group: "Summary" | "Work" | "Pay & compliance" | "Records";
   capabilities: readonly BusinessCapability[];
   requiredModule: ModuleKey;
   phase: string;

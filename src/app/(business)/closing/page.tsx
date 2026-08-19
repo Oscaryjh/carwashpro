@@ -39,6 +39,8 @@ const SHIFT_PAGE_SIZE = 10;
 
 const paymentMethodLabels: Record<PaymentMethod, string> = {
   BANK_TRANSFER: "Bank transfer",
+  FOREIGN_CURRENCY: "Foreign currency",
+  CRYPTO: "Crypto asset",
   CARD: "Card",
   CASH: "Cash",
   DUITNOW: "DuitNow",
@@ -111,6 +113,25 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
     },
     refunds: {
       orderBy: { refundedAt: "desc" as const },
+    },
+    expensePayouts: {
+      orderBy: { occurredAt: "desc" as const },
+      select: {
+        amount: true,
+        id: true,
+        occurredAt: true,
+        paymentEvent: {
+          select: {
+            paymentReference: true,
+            expense: {
+              select: {
+                expenseNumber: true,
+                payeeName: true,
+              },
+            },
+          },
+        },
+      },
     },
   };
   const [openShift, staleOpenShifts] = await Promise.all([
@@ -290,6 +311,18 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const currentShiftSummary = openShift
     ? summarizePayments(openShift.payments, openShift.refunds)
     : null;
+  const currentShiftExpensePayoutCents = openShift
+    ? openShift.expensePayouts.reduce(
+        (total, payout) => total + toCents(payout.amount),
+        0,
+      )
+    : 0;
+  const currentShiftNetCashMovementCents =
+    toCents(currentShiftSummary?.cashAmount ?? 0) -
+    currentShiftExpensePayoutCents;
+  const currentShiftExpectedCashCents = openShift
+    ? toCents(openShift.openingFloat) + currentShiftNetCashMovementCents
+    : 0;
   const allActivities = buildShiftActivities(openShift ? [openShift] : shifts);
   const activityPageCount = Math.max(1, Math.ceil(allActivities.length / ACTIVITY_PAGE_SIZE));
   const activityPage = Math.min(requestedActivityPage, activityPageCount);
@@ -375,11 +408,16 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                     value={money(currentShiftSummary?.cashAmount ?? 0)}
                   />
                   <Metric
+                    label="POS Drawer Expenses"
+                    value={formatMoneyFromCents(-currentShiftExpensePayoutCents)}
+                  />
+                  <Metric
+                    label="Net Cash Movement"
+                    value={formatMoneyFromCents(currentShiftNetCashMovementCents)}
+                  />
+                  <Metric
                     label="Expected Cash"
-                    value={money(sumMoneyAmounts([
-                      openShift.openingFloat,
-                      currentShiftSummary?.cashAmount ?? 0,
-                    ]))}
+                    value={formatMoneyFromCents(currentShiftExpectedCashCents)}
                   />
                 </div>
                 <form action={endShiftAction} className="form closing-form closing-end-form">
@@ -503,6 +541,14 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                 <Metric label="Net Collected" value={money(currentShiftSummary.collected)} />
                 <Metric label="Payments" value={currentShiftSummary.paymentCount} />
                 <Metric label="Net Cash" value={money(currentShiftSummary.cashAmount)} />
+                <Metric
+                  label="POS Drawer Expenses"
+                  value={formatMoneyFromCents(-currentShiftExpensePayoutCents)}
+                />
+                <Metric
+                  label="Net Cash Movement"
+                  value={formatMoneyFromCents(currentShiftNetCashMovementCents)}
+                />
                 <Metric label="Package Uses" value={`${currentShiftSummary.packageUses} uses`} />
               </div>
             ) : (
@@ -629,6 +675,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                       <th>Gross</th>
                       <th>Refunds</th>
                       <th>Net</th>
+                      <th>Drawer Expenses</th>
                       <th>Expected Cash</th>
                       <th>Counted</th>
                       <th>Diff</th>
@@ -637,9 +684,16 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                   <tbody>
                     {visibleShifts.map((shift) => {
                       const summary = summarizePayments(shift.payments, shift.refunds);
+                      const expensePayoutAmount = sumMoneyAmounts(
+                        shift.expensePayouts.map((payout) => payout.amount),
+                      );
                       const expectedCash =
                         shift.expectedCash ??
-                        sumMoneyAmounts([shift.openingFloat, summary.cashAmount]);
+                        sumMoneyAmounts([
+                          shift.openingFloat,
+                          summary.cashAmount,
+                          -expensePayoutAmount,
+                        ]);
 
                       return (
                         <tr key={shift.id}>
@@ -655,6 +709,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                           <td>{money(summary.grossCollected)}</td>
                           <td>{money(summary.refunded)}</td>
                           <td>{money(summary.collected)}</td>
+                          <td>{formatMoneyFromCents(-toCents(expensePayoutAmount))}</td>
                           <td>{money(expectedCash)}</td>
                           <td>{shift.closingCash == null ? "-" : money(shift.closingCash)}</td>
                           <td>{formatDifference(shift.cashDifference)}</td>
@@ -719,6 +774,8 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                             ? `${activity.packageUses} use${activity.packageUses === 1 ? "" : "s"}`
                             : activity.type === "refund"
                               ? `-${money(activity.amount)}`
+                              : activity.type === "expense"
+                                ? `-${money(activity.amount)}`
                               : money(activity.amount)}
                         </td>
                         <td>{activity.status}</td>
@@ -729,7 +786,9 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                 </table>
               </div>
             ) : (
-              <p className="empty-state">No payment or refund records for this shift.</p>
+              <p className="empty-state">
+                No payment, refund, or POS drawer expense records for this shift.
+              </p>
             )}
             {allActivities.length > ACTIVITY_PAGE_SIZE ? (
               <div className="pagination">
@@ -814,7 +873,7 @@ type ShiftActivity = {
   packageUses: number;
   reference: string | null;
   status: string;
-  type: "payment" | "refund";
+  type: "expense" | "payment" | "refund";
 };
 
 function buildShiftActivities(
@@ -836,6 +895,18 @@ function buildShiftActivities(
       reason: string;
       reference: string | null;
       refundedAt: Date;
+    }[];
+    expensePayouts: {
+      amount: unknown;
+      id: string;
+      occurredAt: Date;
+      paymentEvent: {
+        paymentReference: string | null;
+        expense: {
+          expenseNumber: string;
+          payeeName: string | null;
+        };
+      };
     }[];
   }[],
 ) {
@@ -867,6 +938,22 @@ function buildShiftActivities(
         reference: refund.reference,
         status: "refund",
         type: "refund",
+      });
+    }
+
+    for (const payout of shift.expensePayouts) {
+      activities.push({
+        amount: Number(payout.amount ?? 0),
+        detail: payout.paymentEvent.expense.payeeName
+          ? `${payout.paymentEvent.expense.expenseNumber} · ${payout.paymentEvent.expense.payeeName}`
+          : payout.paymentEvent.expense.expenseNumber,
+        id: `expense-${payout.id}`,
+        method: "CASH",
+        occurredAt: payout.occurredAt,
+        packageUses: 0,
+        reference: payout.paymentEvent.paymentReference,
+        status: "expense payout",
+        type: "expense",
       });
     }
   }
@@ -1121,6 +1208,7 @@ function DailyClosingSummary({
         <ClosingMetric label="Outstanding" value={formatMoneyFromCents(report.financial.outstandingCents)} />
         <ClosingMetric label="Discounts" value={formatMoneyFromCents(report.financial.discountsCents)} />
         <ClosingMetric label="Refunds" value={formatMoneyFromCents(report.financial.refundsCents)} />
+        <ClosingMetric label="POS drawer expense payouts" value={formatMoneyFromCents(report.cashDrawer.expensePayoutCents)} />
         <ClosingMetric label="Net sales" value={formatMoneyFromCents(report.financial.netSalesCents)} emphasis />
       </div>
 
@@ -1129,7 +1217,7 @@ function DailyClosingSummary({
           <div className="daily-closing-section-heading">
             <div>
               <h3>Payment breakdown</h3>
-              <p>Actual active payments less refunds. Package voucher use is excluded.</p>
+              <p>Actual active payments less refunds. POS drawer expense payouts are shown separately and reduce expected cash.</p>
             </div>
           </div>
           <div className="daily-closing-table-wrap">
@@ -1304,6 +1392,8 @@ function dailyPaymentMethodLabel(method: string) {
     CASH: "Cash",
     DUITNOW: "DuitNow",
     EWALLET: "E-wallet",
+    FOREIGN_CURRENCY: "Foreign currency",
+    CRYPTO: "Crypto asset",
   };
   return labels[method] ?? method;
 }

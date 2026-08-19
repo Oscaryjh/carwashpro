@@ -100,7 +100,7 @@ export default async function WhatsAppPage() {
                       </div>
                     </td>
                     <td>
-                      <div>{message.createdAt.toLocaleString()}</div>
+                      <div>{message.createdAt.toLocaleString("en-MY")}</div>
                       <div className="muted">{latestEventLabel(message)}</div>
                     </td>
                     <td>
@@ -235,19 +235,19 @@ function latestEventLabel(message: {
   sentAt: Date | null;
 }) {
   if (message.readAt) {
-    return `Read ${message.readAt.toLocaleString()}`;
+    return `Read ${message.readAt.toLocaleString("en-MY")}`;
   }
 
   if (message.deliveredAt) {
-    return `Delivered ${message.deliveredAt.toLocaleString()}`;
+    return `Delivered ${message.deliveredAt.toLocaleString("en-MY")}`;
   }
 
   if (message.sentAt) {
-    return `Sent to WhatsApp ${message.sentAt.toLocaleString()}`;
+    return `Sent to WhatsApp ${message.sentAt.toLocaleString("en-MY")}`;
   }
 
   if (message.openedAt) {
-    return `Opened ${message.openedAt.toLocaleString()}`;
+    return `Opened ${message.openedAt.toLocaleString("en-MY")}`;
   }
 
   return "Manual deep link";

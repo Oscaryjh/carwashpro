@@ -10,10 +10,16 @@ import { saveBusinessVehicleSizeOverrideAction, removeBusinessVehicleSizeOverrid
 import { formatCents } from "@/lib/commercial/money";
 import { getEffectiveCommercialConfiguration } from "@/lib/commercial/service";
 import { listSubscriptionInvoices } from "@/lib/commercial/billing-service";
+import { getEffectiveBusinessPaymentMethods } from "@/lib/payments/business-methods";
+import { CompanySettingsDialog } from "@/components/company-settings-dialog";
+import { PaymentMethodsSettings } from "./payment-methods/payment-methods-settings";
 
 type BusinessSettingsPageProps = {
   searchParams: Promise<{
     saved?: string;
+    panel?: string;
+    message?: string;
+    type?: string;
   }>;
 };
 
@@ -24,7 +30,7 @@ export default async function BusinessSettingsPage({
     capability: "MODIFY_BUSINESS_SETTINGS",
   });
   assertRole(context.user, ["BUSINESS_OWNER"]);
-  await searchParams;
+  const params = await searchParams;
 
   const business = await prisma.business.findUnique({
     where: { id: context.businessId },
@@ -37,6 +43,7 @@ export default async function BusinessSettingsPage({
   const moduleContext = await loadBusinessModuleContext(context.businessId);
   const commercial = await getEffectiveCommercialConfiguration({ businessId: context.businessId });
   const subscriptionInvoices = await listSubscriptionInvoices({ actor: context.user, businessId: context.businessId });
+  const paymentMethods = await getEffectiveBusinessPaymentMethods(context.businessId);
 
   if (!business) {
     return (
@@ -65,6 +72,19 @@ export default async function BusinessSettingsPage({
           business={business}
           settingsLayout
         />
+        <CompanySettingsDialog
+          id="payment-methods-dialog"
+          eyebrow="Company settings"
+          title="Payment methods"
+          description="Choose the payment buttons your team sees at checkout."
+          initiallyOpen={params.panel === "payment-methods"}
+          size="large"
+        >
+          {params.panel === "payment-methods" && params.message ? (
+            <div className={params.type === "error" ? "error" : "success"}>{params.message}</div>
+          ) : null}
+          <PaymentMethodsSettings methods={paymentMethods} returnTo="business-settings" />
+        </CompanySettingsDialog>
         <div className="company-settings-sheet company-settings-secondary-section" id="modules">
           <div className="company-settings-section-heading">
             <div><span className="company-settings-eyebrow">Product access</span><h2>Modules</h2></div>

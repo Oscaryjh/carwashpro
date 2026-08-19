@@ -51,7 +51,7 @@ test("W2A checks capability and whole-business scope before loading payroll data
 
   for (const [page, loadCall] of [
     [listPage, "const data = await loadPayrollRunsList("],
-    [detailPage, "const data = await loadPayrollRunDetail("],
+    [detailPage, "const initialData = await loadPayrollRunDetail("],
   ] as const) {
     const accessResolution = page.indexOf("resolvePayrollRunsReadAccess()");
     const denial = page.indexOf("if (!access.granted)");

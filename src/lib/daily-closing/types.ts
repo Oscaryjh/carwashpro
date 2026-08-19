@@ -4,6 +4,8 @@ export const DAILY_CLOSING_PAYMENT_METHODS = [
   "DUITNOW",
   "EWALLET",
   "BANK_TRANSFER",
+  "FOREIGN_CURRENCY",
+  "CRYPTO",
 ] as const;
 
 export type DailyClosingPaymentMethod = (typeof DAILY_CLOSING_PAYMENT_METHODS)[number];
@@ -42,6 +44,9 @@ export type DailyClosingSourceData = {
   customers: {
     createdAt: Date;
     id: string;
+  }[];
+  drawerExpensePayouts: {
+    amountCents: number;
   }[];
   invoices: DailyClosingInvoice[];
   packagePurchases: {
@@ -83,6 +88,9 @@ export type DailyClosingReport = {
     netSalesCents: number;
     outstandingCents: number;
     refundsCents: number;
+  };
+  cashDrawer: {
+    expensePayoutCents: number;
   };
   invoiceCounts: {
     paid: number;

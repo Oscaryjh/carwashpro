@@ -12,6 +12,7 @@ import {
   getEmployeeAttendanceHistory,
   getEmployeeAttendanceToday,
 } from "../../src/lib/attendance/read-service";
+import { getAttendanceWorkDate } from "../../src/lib/attendance/work-date";
 
 process.env.EMPLOYEE_AUTH_SECRET =
   process.env.EMPLOYEE_AUTH_SECRET ??
@@ -154,6 +155,10 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
     assert.equal(completedToday.status, "COMPLETED");
     assert.deepEqual(completedToday.allowedActions, ["CLOCK_IN"]);
     assert.equal(completedToday.currentWorkedMinutes, 450);
+    assert.equal(
+      completedToday.lastBreakEndedAt,
+      new Date(base.getTime() + 90 * 60_000).toISOString(),
+    );
     assert.equal(completedToday.sessionCount, 1);
     assert.equal(completedToday.completedSessionCount, 1);
     assert.equal(completedToday.expectedAttendance, null);
@@ -386,6 +391,66 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
       },
     });
     assert.equal(punchCount, 7);
+  });
+});
+
+test("Clock In snapshots the published Roster break and Staff App uses the Roster daily target", async () => {
+  assertLocalDatabase();
+
+  await withRollback(async (transaction) => {
+    const fixture = await createFixture(transaction);
+    const database = transactionDatabase(transaction);
+    const now = new Date();
+    now.setUTCHours(1, 0, 0, 0);
+    const workDate = getAttendanceWorkDate(now, "Asia/Kuching");
+
+    await transaction.attendanceExpectedDay.create({
+      data: {
+        businessId: fixture.businessA.id,
+        branchId: fixture.branchA.id,
+        membershipId: fixture.auth.membershipId,
+        workDate,
+        kind: "WORKDAY",
+        source: "ROSTER",
+        expectedStartAt: now,
+        expectedEndAt: new Date(now.getTime() + 5 * 60 * 60_000),
+        graceMinutes: 0,
+        timezoneSnapshot: "Asia/Kuching",
+        policySnapshot: { scheduledBreakMinutes: 0 },
+        evidenceReference: "roster:integration-test:revision:1",
+        createdById: fixture.actorId,
+      },
+    });
+
+    const clockIn = await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "CLOCK_IN",
+      input: punchInput(
+        fixture.branchA.id,
+        fixture.deviceIdentifier,
+        "clock-in:published-roster-target",
+      ),
+      now,
+    });
+    const session = await transaction.employeeAttendance.findUniqueOrThrow({
+      where: { id: clockIn.attendanceSessionId },
+      select: { expectedBreakMinutes: true },
+    });
+    assert.equal(session.expectedBreakMinutes, 0);
+
+    const today = await getEmployeeAttendanceToday({
+      database,
+      auth: fixture.auth,
+      now: new Date(now.getTime() + 60_000),
+    });
+    assert.deepEqual(today.workPolicy, {
+      breakPolicy: "MANUAL_PUNCH",
+      expectedBreakMinutes: 0,
+      expectedBreakSource: "SESSION_SNAPSHOT",
+      normalWorkMinutesPerDay: 300,
+      normalWorkMinutesSource: "PUBLISHED_ROSTER",
+    });
   });
 });
 

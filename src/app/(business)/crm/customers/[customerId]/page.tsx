@@ -417,7 +417,7 @@ export default async function CustomerDetailsPage({
                       Transferred to {history.newCustomer.name} -{" "}
                       {history.newCustomer.phone}
                     </span>
-                    <small>{history.transferredAt.toLocaleString()}</small>
+                    <small>{history.transferredAt.toLocaleString("en-MY")}</small>
                   </div>
                 ))}
               </div>

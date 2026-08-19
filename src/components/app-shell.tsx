@@ -112,7 +112,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       ? [{ href: "/discounts", label: "Discounts", shortLabel: "Disc", icon: "reports" as const }]
       : []),
   ];
-  const teamChildren: NavItem[] = [
+  const teamWorkspaceItems: NavItem[] = [
     ...(isStoreUser &&
     (canSeeCapability("TEAM", "VIEW_TEAM_DIRECTORY") ||
       (moduleEnabled("HR") && canSeeCapability(
@@ -191,20 +191,6 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             label: "Statutory",
             shortLabel: "Stat",
             icon: "reports" as const,
-          },
-        ]
-      : []),
-    ...(isStoreUser &&
-    moduleEnabled("HR") && canSeeCapability(
-      "ATTENDANCE_SETTINGS_READ",
-      "VIEW_ATTENDANCE_SETTINGS",
-    )
-      ? [
-          {
-            href: "/team/attendance-settings",
-            label: "Attendance Settings",
-            shortLabel: "Attend",
-            icon: "settings" as const,
           },
         ]
       : []),
@@ -334,14 +320,14 @@ export async function AppShell({ user, access, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(teamChildren.length
+    ...(teamWorkspaceItems.length
       ? [
           {
             href: "/team",
             label: moduleEnabled("HR") ? "People & HR" : "People",
             shortLabel: "People",
             icon: "team" as const,
-            children: teamChildren,
+            ...(approvalBadgeCount !== null ? { badgeCount: approvalBadgeCount } : {}),
           },
         ]
       : []),

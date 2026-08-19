@@ -8,6 +8,7 @@ import {
   refreshDailyStoreSummaries,
   refreshLateAnalyticsEvents,
 } from "../../src/lib/analytics/daily-store-summary";
+import { DAILY_CLOSING_PAYMENT_METHODS } from "../../src/lib/daily-closing/types";
 
 const prisma = new PrismaClient();
 
@@ -103,7 +104,7 @@ test("daily analytics refresh is idempotent and repairs late voids", async () =>
       await prisma.analyticsDailyPaymentMethodSummary.count({
         where: { businessId: business.id },
       }),
-      5,
+      DAILY_CLOSING_PAYMENT_METHODS.length,
     );
 
     const stored = await prisma.analyticsDailyStoreSummary.findFirstOrThrow({

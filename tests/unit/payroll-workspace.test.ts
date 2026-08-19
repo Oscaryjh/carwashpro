@@ -120,6 +120,21 @@ test("Workspace exposes the current P2 payment module without fake bank executio
   assert.doesNotMatch(page, /Publish payslip/);
 });
 
+test("Payroll readiness separates calculation, payment and statutory gates", async () => {
+  const page = await source("src/app/(business)/team/payroll/workspace/page.tsx");
+
+  assert.match(page, /Profile warnings do not block payroll calculation, Review or Finalize/);
+  assert.match(page, /label="Payroll calculation"/);
+  assert.match(page, /label="Bank payment batch"/);
+  assert.match(page, /label="Statutory submission"/);
+  assert.match(page, /title="Must fix before payroll"/);
+  assert.match(page, /title="Fix before payment or submission"/);
+  assert.match(page, /\/team\/people\/\$\{issue\.membershipId\}\/payroll\/bank\/edit/);
+  assert.match(page, /\?section=statutory/);
+  assert.match(page, /canEditBankProfile/);
+  assert.match(page, /canEditStatutoryProfile/);
+});
+
 test("W1 includes dedicated loading and error states", async () => {
   const [loading, error] = await Promise.all([
     source("src/app/(business)/team/payroll/workspace/loading.tsx"),

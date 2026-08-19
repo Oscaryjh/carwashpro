@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { AttendanceApiError } from "@/lib/attendance/api-error";
+import { resolveAttendanceDailyWorkTarget } from "@/lib/attendance/daily-work-target";
 import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
 import { loadEmployeeAttendancePrincipal } from "@/lib/attendance/employee-principal";
 import {
@@ -17,6 +18,7 @@ import {
   getAttendanceWorkDate,
 } from "@/lib/attendance/work-date";
 import { prisma } from "@/lib/prisma";
+import { ensureEffectiveRosterExpectedDayInTransaction } from "@/lib/roster/service";
 
 export async function getEmployeeAttendanceToday(args: {
   auth: EmployeeAuthContext;
@@ -52,6 +54,8 @@ export async function getEmployeeAttendanceToday(args: {
           clockOutAt: true,
           totalBreakMinutes: true,
           totalWorkedMinutes: true,
+          breakPolicySnapshot: true,
+          expectedBreakMinutes: true,
           requiresApproval: true,
           approvalStatus: true,
           punches: {
@@ -127,6 +131,8 @@ export async function getEmployeeAttendanceToday(args: {
             clockOutAt: true,
             totalBreakMinutes: true,
             totalWorkedMinutes: true,
+            breakPolicySnapshot: true,
+            expectedBreakMinutes: true,
             requiresApproval: true,
             approvalStatus: true,
             punches: {
@@ -206,6 +212,9 @@ export async function getEmployeeAttendanceToday(args: {
     const status =
       activeStatus ??
       (completedSession?.status === "COMPLETED" ? "COMPLETED" : null);
+    const lastBreakEndedAt = currentSession?.punches
+      .filter((punch) => punch.type === "BREAK_END")
+      .at(-1)?.serverTimestamp ?? null;
     const availableBranches =
       await transaction.employeeBranchAssignment.findMany({
         where: {
@@ -235,6 +244,13 @@ export async function getEmployeeAttendanceToday(args: {
           },
         },
       });
+    await ensureEffectiveRosterExpectedDayInTransaction({
+      businessId: args.auth.businessId,
+      branchId: principal.branch.id,
+      membershipId: args.auth.membershipId,
+      workDate,
+      transaction,
+    });
     const expectedAttendance =
       await transaction.attendanceExpectedDay.findFirst({
         where: {
@@ -251,10 +267,20 @@ export async function getEmployeeAttendanceToday(args: {
           expectedStartAt: true,
           expectedEndAt: true,
           graceMinutes: true,
+          policySnapshot: true,
           timezoneSnapshot: true,
           revision: true,
         },
       });
+    const dailyWorkTarget = resolveAttendanceDailyWorkTarget({
+      branchNormalWorkMinutesPerDay:
+        principal.setting.normalWorkMinutesPerDay,
+      branchTargetBreakMinutes: principal.setting.targetBreakMinutes,
+      employeeNormalWorkMinutesPerDay:
+        principal.membership.normalWorkMinutesPerDay,
+      employeeTargetBreakMinutes: principal.membership.targetBreakMinutes,
+      expectedDay: expectedAttendance,
+    });
 
     return {
       employee: {
@@ -292,6 +318,7 @@ export async function getEmployeeAttendanceToday(args: {
       clockInAt: currentSession?.clockInAt.toISOString() ?? null,
       breakStartedAt:
         completedDurations?.openBreakStartedAt?.toISOString() ?? null,
+      lastBreakEndedAt: lastBreakEndedAt?.toISOString() ?? null,
       totalCompletedBreakMinutes:
         completedBreakMinutes +
         (completedDurations?.totalBreakMinutes ?? 0),
@@ -309,13 +336,16 @@ export async function getEmployeeAttendanceToday(args: {
         timezone: principal.setting.timezone,
       },
       workPolicy: {
-        breakPolicy: principal.setting.breakPolicy,
+        breakPolicy:
+          currentSession?.breakPolicySnapshot ?? principal.setting.breakPolicy,
         expectedBreakMinutes:
-          principal.membership.targetBreakMinutes ??
-          principal.setting.targetBreakMinutes,
-        normalWorkMinutesPerDay:
-          principal.membership.normalWorkMinutesPerDay ??
-          principal.setting.normalWorkMinutesPerDay,
+          currentSession?.expectedBreakMinutes ??
+          dailyWorkTarget.expectedBreakMinutes,
+        expectedBreakSource: currentSession
+          ? "SESSION_SNAPSHOT"
+          : dailyWorkTarget.expectedBreakSource,
+        normalWorkMinutesPerDay: dailyWorkTarget.normalWorkMinutesPerDay,
+        normalWorkMinutesSource: dailyWorkTarget.normalWorkMinutesSource,
       },
       expectedAttendance: expectedAttendance
         ? {

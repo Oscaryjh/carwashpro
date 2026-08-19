@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function StaffTimesheetPage() {
   const auth = await requireEmployeeModulePage("HR");
-  const { latest, exceptions } = await getEmployeeTimesheetOverview(auth);
+  const { latest, exceptions, overtime, lockedOvertime, timesheetStatus } = await getEmployeeTimesheetOverview(auth);
   return (
     <section className="staff-page-card" aria-labelledby="staff-timesheet-heading">
       <div className="staff-page-title">
@@ -16,6 +16,43 @@ export default async function StaffTimesheetPage() {
         <h1 id="staff-timesheet-heading">My timesheet</h1>
         <p>Raw punches, pending corrections and resolved day outcomes stay separate.</p>
       </div>
+      {overtime.length || lockedOvertime.length ? (
+        <div className="staff-history-list" aria-label="Overtime classification">
+          <div className="staff-page-title">
+            <p>Overtime classification</p>
+            <h2>My overtime</h2>
+            <p>Attendance reviews the minutes. Payroll can use only approved minutes from a locked monthly timesheet.</p>
+          </div>
+          {(timesheetStatus === "LOCKED" ? lockedOvertime : overtime).map((item) => {
+            const locked = "otApprovalStatus" in item;
+            const review = locked ? null : item.review;
+            const status = locked ? item.otApprovalStatus : item.effectiveStatus;
+            const potentialMinutes = item.potentialOtMinutes;
+            const approvedMinutes = locked ? item.approvedOtMinutes : review?.approvedOtMinutes ?? 0;
+            const context = locked ? item.otContext : item.context;
+            return (
+              <article className="staff-history-card" key={locked ? item.id : item.finalResultId}>
+                <div className="staff-history-card-header">
+                  <div>
+                    <strong>{format(status)}</strong>
+                    <small>{item.workDate.toISOString().slice(0, 10)} · {format(context ?? "NORMAL")}</small>
+                  </div>
+                </div>
+                <div className="staff-history-times">
+                  <span><small>Potential OT</small><strong>{minutes(potentialMinutes)}</strong></span>
+                  <span><small>Approved OT</small><strong>{minutes(approvedMinutes)}</strong></span>
+                </div>
+                <p>{locked
+                  ? "Final payroll classification frozen in the locked timesheet."
+                  : status === "PENDING_REVIEW"
+                    ? "Waiting for an authorised manager to review."
+                    : "Decision recorded. It becomes final for payroll only after the monthly timesheet is locked."}</p>
+                {!locked && review?.reason ? <small>Reason: {review.reason}</small> : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
       {exceptions.length ? (
         <div className="staff-history-list">
           {exceptions.map((issue) => (
@@ -44,3 +81,4 @@ export default async function StaffTimesheetPage() {
 
 function format(value: string) { return value.toLowerCase().replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase()); }
 function time(value: Date | null) { return value ? value.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kuala_Lumpur" }) : "—"; }
+function minutes(value: number) { return `${Math.floor(value / 60)}h ${String(value % 60).padStart(2, "0")}m`; }

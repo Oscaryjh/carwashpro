@@ -94,12 +94,9 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
       <header className={`page-header hr-module-header ${styles.header}`}>
         <div>
           <span className="hr-module-eyebrow">HR &amp; PAYROLL</span>
-          <h1>Attendance Resolution Queue</h1>
-          <p>Review employee responses and create the final attendance result.</p>
+          <h1>Attendance Issues</h1>
+          <p>Review attendance exceptions, employee responses and required corrections.</p>
         </div>
-        <Link className="secondary-light-button" href="/team/attendance">
-          Back to attendance
-        </Link>
       </header>
 
       {params.message ? (
@@ -109,6 +106,7 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
       ) : null}
 
       <form action="/team/attendance/resolutions" className={styles.filters}>
+        {branchId ? <input name="branchId" type="hidden" value={branchId} /> : null}
         <label>
           <span>Status</span>
           <select defaultValue={status} name="status">
@@ -117,15 +115,6 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
             <option value="UNDER_REVIEW">Ready for review</option>
             <option value="RETURNED_FOR_CORRECTION">Returned</option>
             <option value="RESOLVED">Resolved</option>
-          </select>
-        </label>
-        <label>
-          <span>Branch</span>
-          <select defaultValue={branchId ?? ""} name="branchId">
-            <option value="">All authorized branches</option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>{branch.name}</option>
-            ))}
           </select>
         </label>
         <label>
@@ -317,12 +306,12 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
         </div>
       ) : (
         <div className={styles.empty}>
-          <strong>No resolution cases found</strong>
-          <span>Try another status, branch, or employee filter.</span>
+          <strong>No attendance issues found</strong>
+          <span>Try another status or employee filter.</span>
         </div>
       )}
 
-      <nav aria-label="Resolution queue pages" className={styles.pagination}>
+      <nav aria-label="Attendance issue pages" className={styles.pagination}>
         {result.pagination.page > 1 ? <Link href={pageHref(result.pagination.page - 1)}>Previous</Link> : <span>Previous</span>}
         <strong>Page {result.pagination.page} of {result.pagination.totalPages}</strong>
         {result.pagination.page < result.pagination.totalPages ? <Link href={pageHref(result.pagination.page + 1)}>Next</Link> : <span>Next</span>}

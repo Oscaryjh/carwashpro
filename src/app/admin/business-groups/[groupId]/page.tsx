@@ -187,7 +187,7 @@ export default async function BusinessGroupDetailPage({ params }: BusinessGroupD
                         </Link>
                       </td>
                       <td>{getBusinessIndustryLabel(member.business.industryType)}</td>
-                      <td>{member.joinedAt.toLocaleString()}</td>
+                      <td>{member.joinedAt.toLocaleString("en-MY")}</td>
                       <td>
                         <span className="status active">active</span>
                       </td>
@@ -231,8 +231,8 @@ export default async function BusinessGroupDetailPage({ params }: BusinessGroupD
                       <tr key={member.id}>
                         <td>{member.business.name}</td>
                         <td>{getBusinessIndustryLabel(member.business.industryType)}</td>
-                        <td>{member.joinedAt.toLocaleString()}</td>
-                        <td>{member.removedAt?.toLocaleString() ?? "-"}</td>
+                        <td>{member.joinedAt.toLocaleString("en-MY")}</td>
+                        <td>{member.removedAt?.toLocaleString("en-MY") ?? "-"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -347,7 +347,7 @@ export default async function BusinessGroupDetailPage({ params }: BusinessGroupD
                           {grant.status.toLowerCase()}
                         </span>
                       </td>
-                      <td>{grant.grantedAt.toLocaleString()}</td>
+                      <td>{grant.grantedAt.toLocaleString("en-MY")}</td>
                       <td>
                         {group.status === "ACTIVE" && grant.status === "ACTIVE" ? (
                           <div className="business-group-user-actions">
@@ -398,7 +398,7 @@ export default async function BusinessGroupDetailPage({ params }: BusinessGroupD
                 <tbody>
                   {group.auditLogs.map((entry) => (
                     <tr key={entry.id}>
-                      <td>{entry.createdAt.toLocaleString()}</td>
+                      <td>{entry.createdAt.toLocaleString("en-MY")}</td>
                       <td>{entry.action}</td>
                       <td>{entry.summary}</td>
                       <td>{entry.actor?.name ?? "System"}</td>

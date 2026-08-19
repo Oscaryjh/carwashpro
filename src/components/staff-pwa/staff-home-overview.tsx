@@ -1,7 +1,8 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { AwaitedReturn } from "@/lib/staff-pwa/home-types";
 
-export function StaffHomeOverview({ overview }: { overview: AwaitedReturn }) {
+export function StaffHomeOverview({ overview, children }: { overview: AwaitedReturn; children?: ReactNode }) {
   return (
     <section className="staff-home-overview" aria-labelledby="staff-home-overview-heading">
       {overview.showWelcome ? (
@@ -14,6 +15,7 @@ export function StaffHomeOverview({ overview }: { overview: AwaitedReturn }) {
           <span className="staff-state-orb ready">Ready</span>
         </section>
       ) : null}
+      {children}
       <div className="staff-home-section-heading">
         <div><p className="staff-kicker">MY SELF-SERVICE</p><h2 id="staff-home-overview-heading">Your work in one place</h2></div>
         <Link href="/staff/profile">Profile</Link>

@@ -32,6 +32,7 @@ export type DailyClosingDatabase = Pick<
   | "branch"
   | "business"
   | "cashierShift"
+  | "cashierShiftExpensePayout"
   | "customerPackage"
   | "invoice"
   | "payment"
@@ -70,6 +71,7 @@ export async function getDailyClosingReport(
     workOrders,
     packagePurchases,
     shifts,
+    drawerExpensePayouts,
   ] = await Promise.all([
     database.branch.findFirstOrThrow({
       where: {
@@ -210,6 +212,13 @@ export async function getDailyClosingReport(
         status: true,
       },
     }),
+    database.cashierShiftExpensePayout.findMany({
+      where: {
+        ...branchScope,
+        occurredAt: { gte: range.fromDate, lt: range.toDateExclusive },
+      },
+      select: { amount: true },
+    }),
   ]);
 
   const source: DailyClosingSourceData = {
@@ -221,6 +230,9 @@ export async function getDailyClosingReport(
       ...appointments.map((appointment) => appointment.customer),
       ...workOrders.map((workOrder) => workOrder.customer),
     ]),
+    drawerExpensePayouts: drawerExpensePayouts.map((payout) => ({
+      amountCents: toCents(payout.amount),
+    })),
     invoices: invoices.map((invoice) => ({
       balanceCents: toCents(invoice.balance),
       customerId: invoice.customerId,

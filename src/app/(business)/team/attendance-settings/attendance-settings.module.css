@@ -1,36 +1,11 @@
 .page {
   display: grid;
-  gap: 14px;
-}
-
-.headerActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.notice {
-  display: grid;
-  gap: 3px;
-  padding: 13px 15px;
-  border: 1px solid #b9d9d4;
-  border-radius: 8px;
-  color: #155e57;
-  background: #effaf8;
-}
-
-.notice strong {
-  font-size: 13px;
-}
-
-.notice span {
-  color: #456b67;
-  font-size: 12px;
+  gap: 18px;
 }
 
 .branchGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -165,6 +140,66 @@
   font-size: 18px;
 }
 
+.sectionIntro {
+  display: block;
+  max-width: 760px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.policyPriority {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #cfe3df;
+  border-radius: 9px;
+  background: #f7fbfa;
+}
+
+.policyPriority article {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 14px;
+}
+
+.policyPriority article + article {
+  border-left: 1px solid #dce9e7;
+}
+
+.policyPriority article > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.policyPriority strong {
+  color: #173c38;
+  font-size: 12px;
+}
+
+.policyPriority small {
+  color: #58706d;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.policyStep {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--accent-strong);
+  font-size: 10px;
+  font-weight: 900;
+}
+
 .switchField,
 .toggleField {
   display: flex;
@@ -190,6 +225,74 @@
   width: 18px;
   height: 18px;
   min-height: 18px;
+}
+
+.attendanceStatus {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.attendanceStatusActive {
+  color: #0f6e5f;
+  background: #dff6ef;
+}
+
+.attendanceStatusPaused {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.attendanceAvailability {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, .72fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.attendanceAvailability > div,
+.pauseControl {
+  display: grid;
+  gap: 5px;
+  padding: 14px 15px;
+  border: 1px solid #cfe3df;
+  border-radius: 8px;
+  background: #f7fbfa;
+}
+
+.attendanceAvailability > div > strong,
+.pauseControl strong {
+  color: #173c38;
+  font-size: 13px;
+}
+
+.attendanceAvailability > div > span,
+.pauseControl small {
+  color: #58706d;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.pauseControl {
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  cursor: pointer;
+  border-color: #e5e7eb;
+  background: #fafcfd;
+}
+
+.pauseControl input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 1px 0 0;
+}
+
+.pauseControl > span {
+  display: grid;
+  gap: 2px;
 }
 
 .fieldGrid {
@@ -251,6 +354,159 @@
   background: #f1f7f6;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
+}
+
+.locationModalBackdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  overflow-y: auto;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, .58);
+  backdrop-filter: blur(3px);
+}
+
+.locationModal {
+  display: grid;
+  width: min(680px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid #d6e5e2;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+}
+
+.locationModalHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.locationModalHeading p,
+.locationModalHeading h2,
+.locationModalDescription {
+  margin: 0;
+}
+
+.locationModalHeading p {
+  color: var(--accent-strong);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.locationModalHeading h2 {
+  margin-top: 4px;
+  font-size: 24px;
+}
+
+.locationModalClose {
+  display: inline-grid;
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #36524f;
+  background: #eef6f4;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.locationModalDescription {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.locationMapFrame {
+  position: relative;
+  overflow: hidden;
+  min-height: 330px;
+  border: 1px solid #cfe3df;
+  border-radius: 12px;
+  background: #eef4f3;
+}
+
+.locationMapFrame iframe {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+  border: 0;
+}
+
+.locationConfirmationDetails {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f3f8f7;
+}
+
+.locationConfirmationDetails > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.locationConfirmationDetails span,
+.locationConfirmationDetails small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.locationConfirmationDetails strong {
+  font-size: 13px;
+}
+
+.locationConfirmationDetails a {
+  flex: 0 0 auto;
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.locationCoordinatesDetails {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.locationCoordinatesDetails summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.locationCoordinatesDetails span {
+  display: block;
+  margin-top: 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.locationModalActions {
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+  gap: 10px;
+}
+
+.locationModalActions button {
+  min-height: 46px;
+}
+
+.locationSecondaryButton {
+  border: 1px solid #9ecfc9;
+  color: var(--accent-strong);
+  background: #fff;
 }
 
 .example {
@@ -357,7 +613,6 @@
 }
 
 @media (max-width: 700px) {
-  .headerActions,
   .sectionHeading {
     align-items: stretch;
     flex-direction: column;
@@ -368,6 +623,19 @@
   .checkGrid,
   .loadingGrid {
     grid-template-columns: 1fr;
+  }
+
+  .policyPriority {
+    grid-template-columns: 1fr;
+  }
+
+  .attendanceAvailability {
+    grid-template-columns: 1fr;
+  }
+
+  .policyPriority article + article {
+    border-top: 1px solid #dce9e7;
+    border-left: 0;
   }
 
   .section {
@@ -381,5 +649,33 @@
   .actions button {
     width: 100%;
     min-width: 0;
+  }
+
+  .locationModalBackdrop {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .locationModal {
+    max-height: calc(100dvh - 24px);
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .locationModalHeading h2 {
+    font-size: 20px;
+  }
+
+  .locationMapFrame {
+    min-height: 280px;
+  }
+
+  .locationConfirmationDetails {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .locationModalActions {
+    grid-template-columns: 1fr;
   }
 }

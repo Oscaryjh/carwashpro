@@ -68,6 +68,24 @@ export default async function PayrollWorkspacePage() {
     context.access,
     "VIEW_PAYMENT_BATCH",
   );
+  const canViewTeamDirectory = hasBusinessCapability(
+    context.access,
+    "VIEW_TEAM_DIRECTORY",
+  );
+  const canViewBankProfile = hasBusinessCapability(
+    context.access,
+    "VIEW_BANK_ACCOUNT",
+  );
+  const canEditBankProfile = hasBusinessCapability(
+    context.access,
+    "EDIT_BANK_ACCOUNT",
+  );
+  const canViewStatutoryProfile =
+    hasBusinessCapability(context.access, "VIEW_STATUTORY_PROFILE") ||
+    hasBusinessCapability(context.access, "VIEW_TAX_PROFILE");
+  const canEditStatutoryProfile =
+    hasBusinessCapability(context.access, "EDIT_STATUTORY_PROFILE") ||
+    hasBusinessCapability(context.access, "EDIT_TAX_PROFILE");
   const canViewStatutory =
     hasBusinessCapability(context.access, "VIEW_STATUTORY_SUBMISSION") &&
     hasBusinessCapability(context.access, "VIEW_STATUTORY_PROFILE") &&
@@ -112,6 +130,12 @@ export default async function PayrollWorkspacePage() {
   );
   const finalizedRun = data.recentRuns.find(
     (run) => run.status === "FINALIZED",
+  );
+  const bankWarnings = readiness.warnings.filter((issue) =>
+    issue.code === "MISSING_BANK_ACCOUNT" || issue.code === "BANK_ACCOUNT_UNVERIFIED",
+  );
+  const statutoryProfileWarnings = readiness.warnings.filter((issue) =>
+    issue.code === "STATUTORY_PROFILE_INCOMPLETE",
   );
 
   return (
@@ -183,24 +207,76 @@ export default async function PayrollWorkspacePage() {
           <p className={styles.eyebrow}>Payroll readiness</p>
           <h2 id="payroll-readiness-heading">What needs attention</h2>
           <p>
-            {readiness.employeeCount} eligible employees · {readiness.readyCount} ready · {readiness.needsAttentionCount} need attention.
-            Warnings do not block Review or Finalize.
+            {readiness.employeeCount} eligible employees · {readiness.readyCount} ready · {readiness.reviewRequiredCount} review required · {readiness.blockedCount} blocked.
+            Profile warnings do not block payroll calculation, Review or Finalize.
           </p>
         </div>
+        <div className={styles.boundaryGrid} aria-label="Payroll processing gates">
+          <BoundaryStatus
+            description={
+              readiness.blockers.length
+                ? "Resolve blocking payroll or Attendance evidence before continuing."
+                : "Draft, Review and Finalize can continue for this period."
+            }
+            label="Payroll calculation"
+            status={readiness.blockers.length ? "Blocked" : "Ready"}
+            tone={readiness.blockers.length ? "blocked" : "ready"}
+          />
+          <BoundaryStatus
+            description={
+              !canViewPayments
+                ? "Payment batch access is not granted to this role."
+                : bankWarnings.length
+                  ? `${bankWarnings.length} employee bank profile${bankWarnings.length === 1 ? "" : "s"} must be completed before a bank payment batch.`
+                  : "Employee bank profiles are ready for payment-batch preparation."
+            }
+            label="Bank payment batch"
+            status={!canViewPayments ? "Not available" : bankWarnings.length ? "Action required" : "Ready"}
+            tone={!canViewPayments ? "neutral" : bankWarnings.length ? "action" : "ready"}
+          />
+          <BoundaryStatus
+            description={
+              !canViewStatutory
+                ? "Statutory submission access is not granted to this role."
+                : statutoryProfileWarnings.length
+                  ? `${statutoryProfileWarnings.length} employee profile${statutoryProfileWarnings.length === 1 ? "" : "s"} must be completed before official submission files.`
+                  : "Employee statutory and tax profiles are ready for submission preparation."
+            }
+            label="Statutory submission"
+            status={!canViewStatutory ? "Not available" : statutoryProfileWarnings.length ? "Action required" : "Ready"}
+            tone={!canViewStatutory ? "neutral" : statutoryProfileWarnings.length ? "action" : "ready"}
+          />
+        </div>
         <div className={styles.readinessCounts}>
-          <StatusItem label="Missing compensation" value={String(readiness.counts.MISSING_COMPENSATION)} />
-          <StatusItem label="Missing locked Timesheet" value={String(readiness.counts.MISSING_LOCKED_TIMESHEET)} />
-          <StatusItem label="Stale Attendance source" value={String(readiness.counts.STALE_ATTENDANCE_SOURCE)} />
-          <StatusItem label="Attendance pay policy missing" value={String(readiness.counts.ATTENDANCE_PAY_POLICY_NOT_READY)} />
+          <StatusItem label="Blocking issues" value={String(readiness.blockers.length)} />
+          <StatusItem label="Bank profile actions" value={String(bankWarnings.length)} />
+          <StatusItem label="Statutory profile actions" value={String(statutoryProfileWarnings.length)} />
           <StatusItem label="Pending variable pay" value={String(readiness.counts.PENDING_VARIABLE_PAY)} />
-          <StatusItem label="Reconciliation errors" value={String(readiness.counts.RECONCILIATION_FAILED)} />
-          <StatusItem label="Missing bank account" value={String(readiness.counts.MISSING_BANK_ACCOUNT)} />
-          <StatusItem label="Statutory warnings" value={String(readiness.counts.STATUTORY_PROFILE_INCOMPLETE)} />
         </div>
         {readiness.blockers.length || readiness.warnings.length ? (
           <div className={styles.issueColumns}>
-            <ReadinessIssues title="Blockers" issues={readiness.blockers} />
-            <ReadinessIssues title="Warnings" issues={readiness.warnings} />
+            <ReadinessIssues
+              access={{
+                canEditBankProfile,
+                canEditStatutoryProfile,
+                canViewBankProfile: canViewTeamDirectory && canViewBankProfile,
+                canViewStatutoryProfile:
+                  canViewTeamDirectory && canViewStatutoryProfile,
+              }}
+              title="Must fix before payroll"
+              issues={readiness.blockers}
+            />
+            <ReadinessIssues
+              access={{
+                canEditBankProfile,
+                canEditStatutoryProfile,
+                canViewBankProfile: canViewTeamDirectory && canViewBankProfile,
+                canViewStatutoryProfile:
+                  canViewTeamDirectory && canViewStatutoryProfile,
+              }}
+              title="Fix before payment or submission"
+              issues={readiness.warnings}
+            />
           </div>
         ) : (
           <div className={styles.readyState} role="status">
@@ -390,10 +466,39 @@ function StatusItem({ label, value }: { label: string; value: string }) {
   );
 }
 
+function BoundaryStatus({
+  description,
+  label,
+  status,
+  tone,
+}: {
+  description: string;
+  label: string;
+  status: string;
+  tone: "action" | "blocked" | "neutral" | "ready";
+}) {
+  return (
+    <article className={`${styles.boundaryStatus} ${styles[`boundary_${tone}`]}`}>
+      <div>
+        <span>{label}</span>
+        <strong>{status}</strong>
+      </div>
+      <p>{description}</p>
+    </article>
+  );
+}
+
 function ReadinessIssues({
+  access,
   issues,
   title,
 }: {
+  access: {
+    canEditBankProfile: boolean;
+    canEditStatutoryProfile: boolean;
+    canViewBankProfile: boolean;
+    canViewStatutoryProfile: boolean;
+  };
   issues: Awaited<ReturnType<typeof getPayrollPeriodReadiness>>["blockers"];
   title: string;
 }) {
@@ -404,14 +509,62 @@ function ReadinessIssues({
         <ul>
           {issues.slice(0, 6).map((issue, index) => (
             <li key={`${issue.code}-${issue.membershipId ?? "run"}-${index}`}>
-              <span>{issue.employeeName ?? "Payroll run"}</span>
+              <span>{issue.employeeName ?? "Payroll run"} · {issue.source}</span>
               <small>{issue.message}</small>
+              <small>{issue.resolutionHint}</small>
+              <ReadinessIssueAction access={access} issue={issue} />
             </li>
           ))}
         </ul>
       ) : <p>None</p>}
     </div>
   );
+}
+
+function ReadinessIssueAction({
+  access,
+  issue,
+}: {
+  access: {
+    canEditBankProfile: boolean;
+    canEditStatutoryProfile: boolean;
+    canViewBankProfile: boolean;
+    canViewStatutoryProfile: boolean;
+  };
+  issue: Awaited<ReturnType<typeof getPayrollPeriodReadiness>>["issues"][number];
+}) {
+  if (!issue.membershipId) return null;
+  if (
+    (issue.code === "MISSING_BANK_ACCOUNT" || issue.code === "BANK_ACCOUNT_UNVERIFIED") &&
+    access.canViewBankProfile
+  ) {
+    const canOpenEditor = issue.code === "MISSING_BANK_ACCOUNT" && access.canEditBankProfile;
+    return (
+      <Link
+        className={styles.issueAction}
+        href={
+          canOpenEditor
+            ? `/team/people/${issue.membershipId}/payroll/bank/edit`
+            : `/team/people/${issue.membershipId}?section=payroll`
+        }
+      >
+        {canOpenEditor ? "Add bank account" : "Review bank profile"}
+      </Link>
+    );
+  }
+  if (issue.code === "STATUTORY_PROFILE_INCOMPLETE" && access.canViewStatutoryProfile) {
+    return (
+      <Link
+        className={styles.issueAction}
+        href={`/team/people/${issue.membershipId}?section=statutory`}
+      >
+        {access.canEditStatutoryProfile
+          ? "Complete statutory profile"
+          : "Review statutory profile"}
+      </Link>
+    );
+  }
+  return null;
 }
 
 function StatusBadge({

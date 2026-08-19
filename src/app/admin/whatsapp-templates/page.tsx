@@ -119,7 +119,7 @@ export default async function AdminWhatsAppTemplatesPage({
                   </td>
                   <td>
                     {template.updatedAt
-                      ? template.updatedAt.toLocaleString()
+                      ? template.updatedAt.toLocaleString("en-MY")
                       : "Default"}
                   </td>
                   <td>

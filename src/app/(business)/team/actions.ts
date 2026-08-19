@@ -18,6 +18,7 @@ import { prisma } from "@/lib/prisma";
 import {
   createTeamMember,
   createCoreStaff,
+  enableStaffAppForLegacyUser,
   linkExistingStaffToEmployee,
   updateLegacyStaffProfile,
   updateTeamMember,
@@ -163,6 +164,10 @@ const deleteStaffSchema = z.object({
 const linkTeamMemberSchema = z.object({
   confirmLink: z.literal("confirmed"),
   membershipId: z.string().uuid(),
+  userId: z.string().uuid(),
+});
+
+const enableStaffAppSchema = z.object({
   userId: z.string().uuid(),
 });
 
@@ -723,6 +728,45 @@ export async function linkTeamMemberAction(formData: FormData) {
 
     redirectWithTeamMessage(
       getErrorMessage(error, "Unable to link team member."),
+      "error",
+    );
+  }
+}
+
+export async function enableStaffAppAction(formData: FormData) {
+  const { access, user, businessId } = await requireBusinessUser("MODIFY_TEAM");
+  if (access.source === "DIRECT_BUSINESS") {
+    assertStaffPermission(user, "TEAM");
+  }
+
+  try {
+    const input = enableStaffAppSchema.parse({
+      userId: formData.get("userId"),
+    });
+    const scope = await resolveAttendanceScope(access);
+    const result = await enableStaffAppForLegacyUser({
+      actor: user,
+      allowedBranchIds: scope.allowedBranchIds,
+      businessId,
+      request: await getAuditRequestContext(),
+      userId: input.userId,
+      wholeBusinessScope: hasWholeBusinessPeopleScope(access),
+    });
+
+    revalidatePeoplePaths(result.membership.id);
+    redirectWithTeamMessage(
+      result.createdMembership
+        ? "Staff App access enabled. Attendance and payroll remain unchanged."
+        : "Staff App access is already enabled.",
+      "success",
+    );
+  } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
+    redirectWithTeamMessage(
+      getErrorMessage(error, "Unable to enable Staff App access."),
       "error",
     );
   }

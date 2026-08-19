@@ -133,7 +133,7 @@ export default async function VehicleDetailsPage({
                         {history.newCustomer.name}
                       </Link>
                     </td>
-                    <td>{history.transferredAt.toLocaleString()}</td>
+                    <td>{history.transferredAt.toLocaleString("en-MY")}</td>
                     <td>{history.notes || "No notes"}</td>
                   </tr>
                 ))}
@@ -176,7 +176,7 @@ export default async function VehicleDetailsPage({
                     </td>
                     <td>{Number(workOrder.total).toFixed(2)}</td>
                     <td>{formatStatus(workOrder.paymentStatus)}</td>
-                    <td>{workOrder.createdAt.toLocaleString()}</td>
+                    <td>{workOrder.createdAt.toLocaleString("en-MY")}</td>
                     <td>
                       <Link href={`/work-orders/${workOrder.id}`}>View</Link>
                     </td>
@@ -254,7 +254,7 @@ export default async function VehicleDetailsPage({
                         ? formatInvoiceNumber(message.invoice.invoiceNumber)
                         : message.workOrder?.orderNumber ?? "Vehicle"}
                     </td>
-                    <td>{message.createdAt.toLocaleString()}</td>
+                    <td>{message.createdAt.toLocaleString("en-MY")}</td>
                     <td>
                       <Link href={`/whatsapp/${message.id}`}>View</Link>
                     </td>

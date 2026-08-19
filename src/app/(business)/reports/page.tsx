@@ -5,6 +5,8 @@ import {
   hasStaffPermission,
 } from "@/lib/auth/staff-permissions";
 import { branchWhere, getActiveBranches } from "@/lib/branches";
+import { getExpenseDashboard } from "@/lib/expense/service";
+import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import { prisma } from "@/lib/prisma";
 import { requireBusinessContext } from "@/lib/tenant";
 import { fromCents, toCents } from "@/lib/validation/pos";
@@ -28,6 +30,8 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
   DUITNOW: "DuitNow",
   EWALLET: "E-wallet",
   BANK_TRANSFER: "Bank transfer",
+  FOREIGN_CURRENCY: "Foreign currency",
+  CRYPTO: "Crypto asset",
   PACKAGE: "Package use",
 };
 
@@ -406,6 +410,15 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
           toDateExclusive,
         })
       : null;
+  const moduleContext = await loadBusinessModuleContext(businessId);
+  const expenseSummary = moduleContext.enabledModules.has("EXPENSE") ? await getExpenseDashboard({
+    allowedBranchIds: selectedBranchId ? [selectedBranchId] : selectableBranches.map((branch) => branch.id),
+    branchId: selectedBranchId,
+    businessId,
+    dateFrom: fromValue,
+    dateTo: toValue,
+    includeBusinessWide: canViewAllBranches && !selectedBranchId,
+  }) : null;
 
   if (!business) {
     return (
@@ -517,6 +530,27 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
             value={`${voidedPayments._count} / ${money(voidedPayments._sum.amount)}`}
           />
         </div> : null}
+
+        {expenseSummary ? <section className="report-grid" aria-label="Business performance and expense settlement">
+          <ReportCard title="Business Performance">
+            <div className="report-kpis">
+              <Metric label="Net Sales" value={money(fromCents(netSalesCents))} />
+              <Metric label="Confirmed Expenses" value={money(expenseSummary.recorded)} />
+              <Metric label="Simple Operating Balance" value={money(Number(fromCents(netSalesCents)) - Number(expenseSummary.recorded))} />
+              <Metric label="One-off Expenses" value={money(expenseSummary.oneOff)} />
+              <Metric label="Recurring Expenses" value={money(expenseSummary.recurring)} />
+            </div>
+            <p className="report-note">Confirmed expenses follow Expense Date. Simple Operating Balance is not accounting profit.</p>
+          </ReportCard>
+          <ReportCard title="Expense Settlement">
+            <div className="report-kpis">
+              <Metric label="Payments in Period" value={money(expenseSummary.paymentsInPeriod)} />
+              <Metric label="Paid against selected expenses" value={money(expenseSummary.paid)} />
+              <Metric label="Outstanding selected expenses" value={money(expenseSummary.unpaid)} />
+            </div>
+            <p className="report-note">Payments follow Payment Date and do not recognise spending again. Cash does not imply POS drawer funding.</p>
+          </ReportCard>
+        </section> : null}
 
         {!salonReport ? <section className="report-grid">
           <ReportCard title="Payment Methods">

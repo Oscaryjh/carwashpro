@@ -2,13 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { PwaInstallButton } from "@/components/pwa-install-button";
-import { staffApiFetch } from "@/lib/staff-pwa/client";
+import {
+  clearStaffTenantClientState,
+  StaffApiError,
+  staffApiFetch,
+} from "@/lib/staff-pwa/client";
 import {
   buildStaffNavigation,
   type StaffNavigationIcon,
 } from "@/lib/staff-pwa/navigation";
+import type { EmployeeWorkplaceChoice } from "@/lib/staff-pwa/types";
 
 const authRoutes = new Set([
   "/staff/login",
@@ -16,23 +26,56 @@ const authRoutes = new Set([
   "/staff/select-workplace",
 ]);
 
-export function StaffPwaChrome({ children, enabledModules }: { children: React.ReactNode; enabledModules: readonly string[] }) {
+type StaffShellContextValue = {
+  workplaces: readonly EmployeeWorkplaceChoice[];
+  openWorkplaceSwitcher: () => void;
+  logout: () => Promise<void>;
+  switching: boolean;
+};
+
+const StaffShellContext = createContext<StaffShellContextValue | null>(null);
+
+export function useStaffShell() {
+  const value = useContext(StaffShellContext);
+  if (!value) throw new Error("Staff shell is unavailable.");
+  return value;
+}
+
+export function StaffPwaChrome({
+  children,
+  enabledModules,
+  workplaces,
+}: {
+  children: React.ReactNode;
+  enabledModules: readonly string[];
+  workplaces: readonly EmployeeWorkplaceChoice[];
+}) {
   const pathname = usePathname();
   const currentPath = pathname ?? "/staff";
   const showNavigation = !authRoutes.has(currentPath);
   const [liveModules, setLiveModules] = useState<readonly string[]>(enabledModules);
   const navigation = buildStaffNavigation(liveModules);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [workplacesOpen, setWorkplacesOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState("");
+  const currentWorkplace = workplaces.find((workplace) => workplace.current);
 
-  useEffect(() => setMoreOpen(false), [currentPath]);
   useEffect(() => {
-    if (!moreOpen) return;
+    setMoreOpen(false);
+    setWorkplacesOpen(false);
+  }, [currentPath]);
+  useEffect(() => {
+    if (!moreOpen && !workplacesOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMoreOpen(false);
+      if (event.key === "Escape" && !switching) {
+        setMoreOpen(false);
+        setWorkplacesOpen(false);
+      }
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [moreOpen]);
+  }, [moreOpen, switching, workplacesOpen]);
   useEffect(() => {
     let active = true;
     setLiveModules(enabledModules);
@@ -43,63 +86,183 @@ export function StaffPwaChrome({ children, enabledModules }: { children: React.R
         if (active) setLiveModules(result.enabledModules);
       })
       .catch(() => {
-        // The page-level auth and module gates remain authoritative. A failed
-        // navigation refresh must not broaden access beyond the server seed.
+        // Page-level auth and module gates remain authoritative.
       });
 
     return () => { active = false; };
   }, [currentPath, enabledModules, showNavigation]);
 
+  function openWorkplaceSwitcher() {
+    setMoreOpen(false);
+    setSwitchError("");
+    setWorkplacesOpen(true);
+  }
+
+  async function switchWorkplace(membershipId: string) {
+    if (switching || membershipId === currentWorkplace?.membershipId) return;
+    setSwitching(true);
+    setSwitchError("");
+    try {
+      await staffApiFetch<{ ok: true }>("/api/employee-auth/switch-workplace", {
+        method: "POST",
+        body: JSON.stringify({ membershipId }),
+      });
+      clearStaffTenantClientState();
+      window.location.replace("/staff");
+    } catch (caught) {
+      setSwitching(false);
+      if (caught instanceof StaffApiError && [
+        "UNAUTHENTICATED",
+        "SESSION_EXPIRED",
+        "SESSION_REVOKED",
+        "DEVICE_REVOKED",
+        "EMPLOYEE_INACTIVE",
+      ].includes(caught.code)) {
+        clearStaffTenantClientState();
+        window.location.replace("/staff/login?reason=session-expired");
+        return;
+      }
+      setSwitchError(
+        caught instanceof StaffApiError
+          ? caught.message
+          : "Unable to switch workplace. Please try again.",
+      );
+    }
+  }
+
+  async function logout() {
+    if (switching) return;
+    setSwitching(true);
+    try {
+      await staffApiFetch<{ ok: true }>("/api/employee-auth/logout", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+    } catch {
+      // Local state is still cleared when an already-expired session cannot be revoked.
+    } finally {
+      clearStaffTenantClientState();
+      window.location.replace("/staff/login?reason=logged-out");
+    }
+  }
+
+  const shellValue: StaffShellContextValue = {
+    workplaces,
+    openWorkplaceSwitcher,
+    logout,
+    switching,
+  };
+
   return (
-    <div className="staff-pwa-shell">
-      <OfflineBanner />
-      <header className="staff-pwa-header">
-        <Link aria-label="Tetamu Staff App home" className="staff-pwa-brand" href="/staff">
-          <span aria-hidden="true">T</span>
-          <strong>Tetamu<small>Staff App</small></strong>
-        </Link>
-        <PwaInstallButton />
-      </header>
-      <main className="staff-pwa-main">{children}</main>
-      {showNavigation && moreOpen ? (
-        <div className="staff-more-backdrop" role="presentation" onClick={() => setMoreOpen(false)}>
-          <section aria-label="More Staff App sections" aria-modal="true" className="staff-more-sheet" onClick={(event) => event.stopPropagation()} role="dialog">
-            <div className="staff-more-heading">
-              <div><small>SELF-SERVICE</small><strong>More</strong></div>
-              <button aria-label="Close more menu" onClick={() => setMoreOpen(false)} type="button">Close</button>
-            </div>
-            <div className="staff-more-links">
-              {navigation.more.map((item) => (
-                <Link aria-current={isActive(currentPath, item.href) ? "page" : undefined} href={item.href} key={item.href}>
-                  <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>
-                  <strong>{item.label}</strong>
-                </Link>
-              ))}
-            </div>
-          </section>
-        </div>
-      ) : null}
-      {showNavigation ? (
-        <nav aria-label="Staff navigation" className="staff-pwa-nav">
-          {navigation.primary.map((item) => (
-            <Link aria-current={isActive(currentPath, item.href) ? "page" : undefined} className={isActive(currentPath, item.href) ? "active" : ""} href={item.href} key={item.href}>
-              <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>{item.label}
-            </Link>
-          ))}
-          {navigation.more.length ? (
+    <StaffShellContext.Provider value={shellValue}>
+      <div className="staff-pwa-shell">
+        <OfflineBanner />
+        <header className="staff-pwa-header">
+          <Link aria-label="Tetamu Staff App home" className="staff-pwa-brand" href="/staff">
+            <span aria-hidden="true">T</span>
+            <strong>Tetamu<small>Staff App</small></strong>
+          </Link>
+          {showNavigation && currentWorkplace ? (
             <button
-              aria-current={navigation.more.some((item) => isActive(currentPath, item.href)) ? "page" : undefined}
-              aria-expanded={moreOpen}
-              className={navigation.more.some((item) => isActive(currentPath, item.href)) ? "active" : ""}
-              onClick={() => setMoreOpen((open) => !open)}
+              aria-label={workplaces.length > 1 ? "Switch workplace" : "Current workplace"}
+              className="staff-current-workplace"
+              disabled={workplaces.length < 2}
+              onClick={openWorkplaceSwitcher}
               type="button"
             >
-              <span aria-hidden="true"><StaffNavIcon name="schedule" /></span>More
+              <span>{currentWorkplace.businessName}</span>
+              <small>{currentWorkplace.primaryBranchName}</small>
+              {workplaces.length > 1 ? <b aria-hidden="true">Switch</b> : null}
             </button>
           ) : null}
-        </nav>
-      ) : null}
-    </div>
+          <PwaInstallButton />
+        </header>
+        <main className="staff-pwa-main">{children}</main>
+
+        {showNavigation && moreOpen ? (
+          <div className="staff-more-backdrop" role="presentation" onClick={() => setMoreOpen(false)}>
+            <section aria-label="More Staff App sections" aria-modal="true" className="staff-more-sheet" onClick={(event) => event.stopPropagation()} role="dialog">
+              <div className="staff-more-heading">
+                <div><small>SELF-SERVICE</small><strong>More</strong></div>
+                <button aria-label="Close more menu" onClick={() => setMoreOpen(false)} type="button">Close</button>
+              </div>
+              <div className="staff-more-links">
+                {navigation.more.map((item) => (
+                  <Link aria-current={isActive(currentPath, item.href) ? "page" : undefined} href={item.href} key={item.href}>
+                    <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>
+                    <strong>{item.label}</strong>
+                  </Link>
+                ))}
+              </div>
+              <div className="staff-more-actions">
+                {workplaces.length > 1 ? (
+                  <button onClick={openWorkplaceSwitcher} type="button">Switch workplace</button>
+                ) : null}
+                <button className="danger" disabled={switching} onClick={() => void logout()} type="button">
+                  Sign out
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {showNavigation && workplacesOpen ? (
+          <div className="staff-more-backdrop staff-workplace-backdrop" role="presentation" onClick={() => !switching && setWorkplacesOpen(false)}>
+            <section aria-label="Choose workplace" aria-modal="true" className="staff-more-sheet staff-workplace-sheet" onClick={(event) => event.stopPropagation()} role="dialog">
+              <div className="staff-more-heading">
+                <div><small>MY WORKPLACES</small><strong>Choose where you are working</strong></div>
+                <button disabled={switching} onClick={() => setWorkplacesOpen(false)} type="button">Close</button>
+              </div>
+              <p className="staff-workplace-help">Your Staff Session and data access will change to the selected employer.</p>
+              {switchError ? <div className="staff-alert error" role="alert">{switchError}</div> : null}
+              <div className="staff-workplace-options">
+                {workplaces.map((workplace) => (
+                  <button
+                    aria-current={workplace.current ? "true" : undefined}
+                    disabled={switching || workplace.current}
+                    key={workplace.membershipId}
+                    onClick={() => void switchWorkplace(workplace.membershipId)}
+                    type="button"
+                  >
+                    <span><strong>{workplace.businessName}</strong><small>{workplace.primaryBranchName} · {workplace.employeeCode}</small></span>
+                    <b>{workplace.current ? "Current" : "Switch"}</b>
+                  </button>
+                ))}
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {switching ? (
+          <div aria-live="assertive" className="staff-switching-overlay" role="status">
+            <span className="staff-spinner" aria-hidden="true" />
+            <strong>Securing your workplace session…</strong>
+            <small>Please wait. Do not close this page.</small>
+          </div>
+        ) : null}
+
+        {showNavigation ? (
+          <nav aria-label="Staff navigation" className="staff-pwa-nav">
+            {navigation.primary.map((item) => (
+              <Link aria-current={isActive(currentPath, item.href) ? "page" : undefined} className={isActive(currentPath, item.href) ? "active" : ""} href={item.href} key={item.href}>
+                <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>{item.label}
+              </Link>
+            ))}
+            {navigation.more.length ? (
+              <button
+                aria-current={navigation.more.some((item) => isActive(currentPath, item.href)) ? "page" : undefined}
+                aria-expanded={moreOpen}
+                className={navigation.more.some((item) => isActive(currentPath, item.href)) ? "active" : ""}
+                onClick={() => setMoreOpen((open) => !open)}
+                type="button"
+              >
+                <span aria-hidden="true"><StaffNavIcon name="profile" /></span>More
+              </button>
+            ) : null}
+          </nav>
+        ) : null}
+      </div>
+    </StaffShellContext.Provider>
   );
 }
 
@@ -117,9 +280,7 @@ function StaffNavIcon({ name }: { name: StaffNavigationIcon }) {
   };
   return (
     <svg className="staff-nav-icon" fill="none" viewBox="0 0 24 24">
-      <g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8">
-        {paths[name]}
-      </g>
+      <g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8">{paths[name]}</g>
     </svg>
   );
 }

@@ -39,3 +39,19 @@ test("all canonical product sale entry points call the same inventory service", 
   assert.match(refund, /isStandalonePackagePurchase/);
   assert.doesNotMatch(refund, /This invoice is not linked to a refundable package/);
 });
+
+test("Inventory overview has grouped workflows, labeled filters and a dedicated mobile balance view", () => {
+  const page = readFileSync("src/app/(business)/inventory/page.tsx", "utf8");
+  const css = readFileSync("src/app/(business)/inventory/inventory.module.css", "utf8");
+
+  assert.match(page, /Move stock/);
+  assert.match(page, /Purchase/);
+  assert.match(page, /Control/);
+  assert.match(page, /Product or SKU/);
+  assert.match(page, /Stock status/);
+  assert.match(page, /Selling-price estimate, not COGS/);
+  assert.match(page, /mobileBalances/);
+  assert.match(page, /Negative stock blocked/);
+  assert.match(css, /@media \(max-width: 480px\)/);
+  assert.match(css, /\.desktopTable\s*\{\s*display: none/);
+});

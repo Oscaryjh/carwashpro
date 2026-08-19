@@ -2,6 +2,11 @@ import bcrypt from "bcryptjs";
 import { createHash } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { DATABASE_URL } from "./embedded-postgres-utils.mjs";
+import {
+  installSabahStatutoryRulePackDraft,
+  markStatutoryRuleSetReadyForHumanSignOff,
+  submitStatutoryRuleSetForReview,
+} from "../src/lib/leave/statutory-service.ts";
 
 const configuredUrl = process.env.DATABASE_URL ?? DATABASE_URL;
 if (!["localhost", "127.0.0.1"].includes(new URL(configuredUrl).hostname)) {
@@ -27,8 +32,8 @@ try {
   });
   const branch = await prisma.branch.upsert({
     where: { businessId_name: { businessId: business.id, name: "Leave QA Branch" } },
-    create: { businessId: business.id, name: "Leave QA Branch" },
-    update: { status: "ACTIVE" },
+    create: { businessId: business.id, name: "Leave QA Branch", countryCode: "MY", stateCode: "SABAH" },
+    update: { status: "ACTIVE", countryCode: "MY", stateCode: "SABAH" },
   });
   await prisma.branchAttendanceSetting.upsert({
     where: { branchId: branch.id },
@@ -43,7 +48,7 @@ try {
     create: { businessId: business.id, branchId: branch.id, name: "Leave QA Owner", email: ownerEmail, role: "BUSINESS_OWNER", status: "active" },
     update: { businessId: business.id, branchId: branch.id, name: "Leave QA Owner", role: "BUSINESS_OWNER", status: "active" },
   });
-  await prisma.user.upsert({
+  const manager = await prisma.user.upsert({
     where: { email: managerEmail },
     create: {
       businessId: business.id, branchId: branch.id, name: "Leave QA Manager", email: managerEmail,
@@ -56,6 +61,23 @@ try {
       permissions: ["ALL_BRANCHES", "TEAM", "VIEW_LEAVE", "APPROVE_LEAVE", "EDIT_LEAVE_POLICY", "ADJUST_LEAVE_BALANCE"],
     },
   });
+  const existingHrEntitlement = await prisma.businessModuleEntitlement.findUnique({
+    where: { businessId_moduleKey: { businessId: business.id, moduleKey: "HR" } },
+  });
+  if (!existingHrEntitlement) {
+    await prisma.businessModuleEntitlement.create({
+      data: {
+        businessId: business.id,
+        moduleKey: "HR",
+        status: "ENABLED",
+        enabledFrom: new Date("2026-01-01T00:00:00.000Z"),
+        source: "MANUAL",
+        planCode: "LOCAL_LEAVE_CLOSURE_QA",
+        createdById: owner.id,
+        updatedById: owner.id,
+      },
+    });
+  }
   const account = await prisma.employeeAccount.upsert({
     where: { phoneNormalized: employeePhone },
     create: { phoneNumber: employeePhone, phoneNormalized: employeePhone, name: "Leave QA Employee", status: "ACTIVE" },
@@ -67,9 +89,9 @@ try {
     create: {
       employeeAccountId: account.id, businessId: business.id, employeeCode: "LEAVE-QA-001",
       fullName: "Leave QA Employee", phoneNumber: employeePhone, phoneNumberNormalized: employeePhone,
-      attendanceEnabled: false, joinedAt: new Date("2025-01-01T00:00:00.000Z"), status: "ACTIVE",
+      attendanceEnabled: true, joinedAt: new Date("2025-01-01T00:00:00.000Z"), status: "ACTIVE",
     },
-    update: { fullName: "Leave QA Employee", phoneNumber: employeePhone, phoneNumberNormalized: employeePhone, status: "ACTIVE" },
+    update: { fullName: "Leave QA Employee", phoneNumber: employeePhone, phoneNumberNormalized: employeePhone, attendanceEnabled: true, status: "ACTIVE" },
   });
   let assignment = await prisma.employeeBranchAssignment.findFirst({
     where: { businessId: business.id, branchId: branch.id, membershipId: membership.id, status: "ACTIVE" },
@@ -83,7 +105,7 @@ try {
   if (!assignment.isPrimary) {
     assignment = await prisma.employeeBranchAssignment.update({ where: { id: assignment.id }, data: { isPrimary: true } });
   }
-  await prisma.employeeBusinessMembership.update({ where: { id: membership.id }, data: { attendanceEnabled: false } });
+  await prisma.employeeBusinessMembership.update({ where: { id: membership.id }, data: { attendanceEnabled: true } });
 
   const policy = await prisma.leavePolicy.upsert({
     where: { businessId_code: { businessId: business.id, code: "OTHER" } },
@@ -128,6 +150,56 @@ try {
     update: {},
   });
 
+  const ownerSession = {
+    userId: owner.id,
+    homeBusinessId: business.id,
+    activeBusinessId: business.id,
+    contextVersion: 1,
+    businessId: business.id,
+    branchId: branch.id,
+    name: owner.name,
+    email: owner.email,
+    role: owner.role,
+    permissions: owner.permissions,
+    status: owner.status,
+  };
+  const managerSession = {
+    userId: manager.id,
+    homeBusinessId: business.id,
+    activeBusinessId: business.id,
+    contextVersion: 1,
+    businessId: business.id,
+    branchId: branch.id,
+    name: manager.name,
+    email: manager.email,
+    role: manager.role,
+    permissions: manager.permissions,
+    status: manager.status,
+  };
+  let statutoryRuleSet = await installSabahStatutoryRulePackDraft({
+    businessId: business.id,
+    actor: ownerSession,
+  });
+  if (statutoryRuleSet.status === "DRAFT") {
+    statutoryRuleSet = await submitStatutoryRuleSetForReview({
+      businessId: business.id,
+      actor: ownerSession,
+      rawInput: { ruleSetId: statutoryRuleSet.id, expectedStatus: "DRAFT" },
+    });
+  }
+  if (statutoryRuleSet.status === "READY_FOR_REVIEW") {
+    statutoryRuleSet = await markStatutoryRuleSetReadyForHumanSignOff({
+      businessId: business.id,
+      actor: managerSession,
+      rawInput: {
+        ruleSetId: statutoryRuleSet.id,
+        expectedStatus: "READY_FOR_REVIEW",
+        confirmed: true,
+        reviewNote: "Independent local engineering review completed for browser acceptance; human legal sign-off remains pending.",
+      },
+    });
+  }
+
   const occupied = new Set((await prisma.leaveRequestDay.findMany({
     where: { businessId: business.id, membershipId: membership.id, leaveRequest: { status: { in: ["PENDING", "APPROVED"] } } },
     select: { leaveDate: true },
@@ -154,7 +226,15 @@ try {
       } });
     }
   }
-  console.log(JSON.stringify({ managerEmail, employeePhone, business: business.name, policy: version.nameSnapshot, attendanceEnabled: false, dates }, null, 2));
+  console.log(JSON.stringify({
+    managerEmail,
+    employeePhone,
+    business: business.name,
+    policy: version.nameSnapshot,
+    attendanceEnabled: true,
+    statutoryRuleSetStatus: statutoryRuleSet.status,
+    dates,
+  }, null, 2));
 } finally {
   await prisma.$disconnect();
 }

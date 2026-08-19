@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { delimiter, join } from "node:path";
+import nextEnv from "@next/env";
 import {
   DATABASE_NAME,
   DATABASE_URL,
@@ -10,6 +11,9 @@ import {
   stopOwnedPostgres,
   waitForPostgres,
 } from "./embedded-postgres-utils.mjs";
+
+const { loadEnvConfig } = nextEnv;
+loadEnvConfig(process.cwd());
 
 const pg = createEmbeddedPostgres();
 const nextBin = join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
@@ -37,6 +41,7 @@ const analyticsWorkerScript = join(
 );
 const whatsappConnectorDir = join(process.cwd(), "whatsapp-connector");
 const whatsappConnectorPackage = join(whatsappConnectorDir, "package.json");
+const whatsappConnectorEnv = join(whatsappConnectorDir, ".env");
 const binPath = join(process.cwd(), "node_modules", ".bin");
 const restartDelayMs = 1500;
 const minimumHealthyWorkerUptimeMs = 10_000;
@@ -67,11 +72,11 @@ async function main() {
   console.log("WhatsApp Connector: http://127.0.0.1:8787");
   console.log("Press Ctrl+C to stop.");
 
-  if (process.env.AUTH_INFO_PATH?.trim()) {
+  if (process.env.AUTH_INFO_PATH?.trim() || existsSync(whatsappConnectorEnv)) {
     startWhatsAppConnector();
   } else {
     console.warn(
-      "WhatsApp Connector disabled for local development because AUTH_INFO_PATH is not configured.",
+      "WhatsApp Connector disabled for local development because AUTH_INFO_PATH and whatsapp-connector/.env are not configured.",
     );
   }
   startWhatsAppWorker();
@@ -241,7 +246,10 @@ function startWhatsAppConnector() {
       cwd: whatsappConnectorDir,
       stdio: ["ignore", "pipe", "pipe"],
       shell: false,
-      env: getChildEnv(),
+      env: {
+        ...getChildEnv(),
+        PORT: process.env.WHATSAPP_CONNECTOR_PORT ?? "8787",
+      },
     },
   );
 
@@ -365,7 +373,7 @@ function getChildEnv() {
     EMPLOYEE_OTP_SEND_MODE:
       process.env.EMPLOYEE_OTP_SEND_MODE ?? "mock",
     EMPLOYEE_OTP_MOCK_CODE:
-      process.env.EMPLOYEE_OTP_MOCK_CODE ?? "123456",
+      process.env.EMPLOYEE_OTP_MOCK_CODE ?? "000000",
     NODE_OPTIONS: withNodeOption(process.env.NODE_OPTIONS, "--use-system-ca"),
     WS_NO_BUFFER_UTIL: process.env.WS_NO_BUFFER_UTIL ?? "1",
     WS_NO_UTF_8_VALIDATE: process.env.WS_NO_UTF_8_VALIDATE ?? "1",

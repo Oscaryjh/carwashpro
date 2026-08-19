@@ -5,6 +5,11 @@ import {
 } from "@/components/business-logo-upload";
 import { BusinessTaxFields } from "@/components/business-tax-fields";
 import {
+  CompanySettingsDialog,
+  CompanySettingsDialogFooter,
+  CompanySettingsDialogTrigger,
+} from "@/components/company-settings-dialog";
+import {
   BUSINESS_INDUSTRY_OPTIONS,
   getBusinessIndustryLabel,
 } from "@/lib/business-industry";
@@ -74,20 +79,38 @@ export function BusinessForm({
         </header>
 
         <nav className="company-settings-tabs" aria-label="Company settings sections">
-          <a href="#company-profile">Company profile</a>
-          <a href="#business-day">Business day</a>
-          <a href="#company-tax">Tax &amp; invoice</a>
+          <CompanySettingsDialogTrigger
+            dialogId="company-profile-dialog"
+            index="01"
+            label="Company profile"
+            description="Business identity and contact"
+          />
+          <CompanySettingsDialogTrigger
+            dialogId="business-day-dialog"
+            index="02"
+            label="Business day"
+            description="Time zone and daily cutoff"
+          />
+          <CompanySettingsDialogTrigger
+            dialogId="company-tax-dialog"
+            index="03"
+            label="Tax & invoice"
+            description="SST and invoice details"
+          />
+          <CompanySettingsDialogTrigger
+            dialogId="payment-methods-dialog"
+            index="04"
+            label="Payment methods"
+            description="Checkout buttons and reporting"
+          />
         </nav>
 
-        <section className="company-settings-sheet" id="company-profile">
-          <div className="company-settings-section-heading">
-            <div>
-              <span className="company-settings-eyebrow">Company</span>
-              <h2>Business details</h2>
-            </div>
-            <p>Information used across invoices, receipts and customer records.</p>
-          </div>
-
+        <CompanySettingsDialog
+          id="company-profile-dialog"
+          eyebrow="Company profile"
+          title="Business details"
+          description="Information used across invoices, receipts and customer records."
+        >
           <div className="company-settings-field-grid">
             <label>
               <span>Company name</span>
@@ -146,25 +169,19 @@ export function BusinessForm({
               />
             </label>
           </div>
-        </section>
+          <CompanySettingsDialogFooter>
+            <BusinessSubmitButton idleLabel="Save changes" />
+          </CompanySettingsDialogFooter>
+        </CompanySettingsDialog>
 
-        <section className="company-settings-sheet" id="business-day">
-          <div className="company-settings-section-heading">
-            <div>
-              <span className="company-settings-eyebrow">Operations</span>
-              <h2>Business day</h2>
-            </div>
-          </div>
+        <CompanySettingsDialog
+          id="business-day-dialog"
+          eyebrow="Operations"
+          title="Business day"
+          description="Set the Malaysia time zone and when each business day closes."
+        >
           <div className="company-settings-field-grid">
-            <label>
-              <span>Timezone</span>
-              <input
-                name="timezone"
-                defaultValue={business.timezone}
-                placeholder="Asia/Kuching"
-                required
-              />
-            </label>
+            <BusinessTimezoneField timezone={business.timezone} />
             <label>
               <span>Business day cutoff</span>
               <input
@@ -175,27 +192,27 @@ export function BusinessForm({
               />
             </label>
           </div>
-        </section>
+          <CompanySettingsDialogFooter>
+            <BusinessSubmitButton idleLabel="Save changes" />
+          </CompanySettingsDialogFooter>
+        </CompanySettingsDialog>
 
-        <section className="company-settings-sheet" id="company-tax">
-          <div className="company-settings-section-heading">
-            <div>
-              <span className="company-settings-eyebrow">Tax &amp; invoice</span>
-              <h2>Tax settings</h2>
-            </div>
-            <p>Applied to every industry and active branch in this company.</p>
-          </div>
+        <CompanySettingsDialog
+          id="company-tax-dialog"
+          eyebrow="Tax & invoice"
+          title="Tax settings"
+          description="Applied to every industry and active branch in this company."
+        >
           <BusinessTaxFields
             initialEnabled={business.sstEnabled}
             initialLabel={business.sstLabel ?? "SST"}
             initialRate={business.sstRate?.toString() ?? "0"}
             initialRegistrationNo={business.sstRegistrationNo ?? ""}
           />
-        </section>
-
-        <div className="company-settings-bottom-save">
-          <BusinessSubmitButton idleLabel="Save changes" />
-        </div>
+          <CompanySettingsDialogFooter>
+            <BusinessSubmitButton idleLabel="Save changes" />
+          </CompanySettingsDialogFooter>
+        </CompanySettingsDialog>
       </form>
     );
   }
@@ -289,15 +306,9 @@ export function BusinessForm({
                 </>
               )}
             </label>
-            <label>
-              <span>Timezone</span>
-              <input
-                name="timezone"
-                defaultValue={business?.timezone ?? "Asia/Kuching"}
-                placeholder="Asia/Kuching"
-                required
-              />
-            </label>
+            <BusinessTimezoneField
+              timezone={business?.timezone ?? "Asia/Kuching"}
+            />
             <label>
               <span>Business day cutoff</span>
               <input
@@ -397,6 +408,36 @@ export function BusinessForm({
         />
       </div>
     </form>
+  );
+}
+
+function BusinessTimezoneField({ timezone }: { timezone: string }) {
+  const isMalaysiaTimezone =
+    timezone === "Asia/Kuching" || timezone === "Asia/Kuala_Lumpur";
+
+  return (
+    <label>
+      <span>Time zone</span>
+      <select
+        name="timezone"
+        defaultValue={timezone}
+        required
+        aria-describedby="business-timezone-help"
+      >
+        {isMalaysiaTimezone ? (
+          <option value={timezone}>Malaysia (UTC+8)</option>
+        ) : (
+          <>
+            <option value={timezone}>{timezone} (Current)</option>
+            <option value="Asia/Kuala_Lumpur">Malaysia (UTC+8)</option>
+          </>
+        )}
+      </select>
+      <small className="field-helper" id="business-timezone-help">
+        Malaysia time is UTC+8. The standard technical time zone is kept
+        internally for accurate schedules and reports.
+      </small>
+    </label>
   );
 }
 

@@ -13,12 +13,12 @@ import {
   isEmployeeSessionError,
   StaffApiError,
   staffApiFetch,
+  wasBreakEndedRecently,
 } from "@/lib/staff-pwa/client";
 import type {
   AttendanceAction,
   AttendancePunchResult,
   AttendanceToday,
-  EmployeeProfile,
 } from "@/lib/staff-pwa/types";
 import { StaffLoading } from "./staff-auth";
 import { StaffResolutionCases } from "./staff-resolution-cases";
@@ -42,7 +42,6 @@ type PendingPunch = {
 export function StaffToday() {
   const router = useRouter();
   const mounted = useRef(true);
-  const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [today, setToday] = useState<AttendanceToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -54,22 +53,18 @@ export function StaffToday() {
   const [confirmedBreakMinutes, setConfirmedBreakMinutes] = useState("60");
   const [breakExceptionReason, setBreakExceptionReason] = useState("");
   const [exceptionPrompt, setExceptionPrompt] = useState<PendingPunch | null>(null);
+  const [exceptionFormOpen, setExceptionFormOpen] = useState(false);
   const [exceptionReason, setExceptionReason] = useState("");
+  const [exceptionError, setExceptionError] = useState("");
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     setError("");
     try {
-      const [profileResult, todayResult] = await Promise.all([
-        staffApiFetch<{ ok: true; authenticated: true; profile: EmployeeProfile }>(
-          "/api/employee-auth/me",
-        ),
-        staffApiFetch<{ ok: true; data: AttendanceToday }>(
-          "/api/employee-attendance/today",
-        ),
-      ]);
+      const todayResult = await staffApiFetch<{ ok: true; data: AttendanceToday }>(
+        "/api/employee-attendance/today",
+      );
       if (!mounted.current) return;
-      setProfile(profileResult.profile);
       setToday(todayResult.data);
       if (!silent) setGpsStatus("");
     } catch (caught) {
@@ -90,7 +85,7 @@ export function StaffToday() {
   if (loading && !today) {
     return <StaffLoading label="Loading today’s attendance…" />;
   }
-  if (!today || !profile) {
+  if (!today) {
     return (
       <section className="staff-page-card">
         <div className="staff-alert error" role="alert">{error || "Unable to load Attendance."}</div>
@@ -145,6 +140,8 @@ export function StaffToday() {
     setError("");
     setNotice("");
     setExceptionPrompt(null);
+    setExceptionFormOpen(false);
+    setExceptionError("");
 
     try {
       if (!navigator.onLine) {
@@ -162,14 +159,14 @@ export function StaffToday() {
         status: "GEOFENCE_DISABLED",
       };
       if (today.geofenceRequirements.requireGeofence) {
-        setGpsStatus("Locating…");
+        setGpsStatus("Getting your location…");
         gps = await requestGps();
         setGpsStatus(
           gps.accuracyMeters !== null &&
             gps.accuracyMeters >
               today.geofenceRequirements.maximumAcceptedGpsErrorMeters
             ? "GPS Inaccurate"
-            : "Location acquired",
+            : "Location detected",
         );
       } else {
         setGpsStatus("Geofence Disabled");
@@ -209,8 +206,9 @@ export function StaffToday() {
         };
         setPendingPunch(fallback);
         setExceptionPrompt(fallback);
+        setExceptionFormOpen(false);
         setGpsStatus(browserGpsStatus ?? gpsCodeLabel(code));
-        setError("This punch needs an exception reason and manager approval.");
+        setError(locationRecoveryMessage(code, browserGpsStatus));
       } else if (code === "GPS_REQUIRED" && browserGpsStatus) {
         setGpsStatus(browserGpsStatus);
         setError(
@@ -284,7 +282,9 @@ export function StaffToday() {
       );
       setPendingPunch(null);
       setExceptionPrompt(null);
+      setExceptionFormOpen(false);
       setExceptionReason("");
+      setExceptionError("");
       setGpsStatus(gpsStatusLabel(result.data.geofenceStatus));
       setNotice(
         result.data.requiresApproval
@@ -303,8 +303,9 @@ export function StaffToday() {
         !reason
       ) {
         setExceptionPrompt(pending);
+        setExceptionFormOpen(false);
         setGpsStatus(gpsCodeLabel(caught.code));
-        setError("This punch needs an exception reason and manager approval.");
+        setError(locationRecoveryMessage(caught.code));
         return;
       }
       if (caught instanceof StaffApiError && caught.code === "NETWORK_ERROR") {
@@ -318,18 +319,87 @@ export function StaffToday() {
     if (!exceptionPrompt || busy) return;
     const reason = exceptionReason.trim();
     if (reason.length < 3) {
-      setError("Enter at least 3 characters explaining the exception.");
+      setExceptionError("Enter at least 3 characters explaining the exception.");
       return;
     }
     setBusy(true);
-    setError("");
+    setExceptionError("");
     try {
       await submitPunch(exceptionPrompt, reason);
     } catch (caught) {
-      handleSessionOrError(caught, router, setError);
+      handleSessionOrError(caught, router, setExceptionError);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function retryLocation() {
+    const previous = exceptionPrompt;
+    if (!previous || !today || busy) return;
+
+    setBusy(true);
+    setError("");
+    setNotice("");
+    setExceptionFormOpen(false);
+    setExceptionError("");
+    try {
+      setGpsStatus("Getting your locationâ€¦");
+      const gps = await requestGps();
+      const nextPending: PendingPunch = {
+        ...previous,
+        idempotencyKey: createAttendanceIdempotencyKey(previous.action),
+        gps,
+        deviceTimestamp: new Date().toISOString(),
+      };
+      setPendingPunch(nextPending);
+      setGpsStatus(
+        gps.accuracyMeters !== null &&
+          gps.accuracyMeters >
+            today.geofenceRequirements.maximumAcceptedGpsErrorMeters
+          ? "GPS Inaccurate"
+          : "Location detected",
+      );
+      await submitPunch(nextPending);
+    } catch (caught) {
+      const code =
+        caught instanceof StaffApiError ? caught.code : gpsBrowserErrorCode(caught);
+      const browserGpsStatus =
+        caught instanceof Error ? gpsBrowserStatus(caught) : null;
+      if (
+        ["GPS_REQUIRED", "GPS_INACCURATE", "OUTSIDE_GEOFENCE"].includes(code) &&
+        today.geofenceRequirements.allowOutsideGeofenceRequest
+      ) {
+        const fallback: PendingPunch = {
+          ...previous,
+          idempotencyKey: createAttendanceIdempotencyKey(previous.action),
+          gps: {
+            latitude: null,
+            longitude: null,
+            accuracyMeters: null,
+            status: code,
+          },
+          deviceTimestamp: new Date().toISOString(),
+        };
+        setPendingPunch(fallback);
+        setExceptionPrompt(fallback);
+        setGpsStatus(browserGpsStatus ?? gpsCodeLabel(code));
+        setError(locationRecoveryMessage(code, browserGpsStatus));
+      } else {
+        handleSessionOrError(caught, router, setError);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function cancelLocationRecovery() {
+    setExceptionPrompt(null);
+    setExceptionFormOpen(false);
+    setExceptionReason("");
+    setExceptionError("");
+    setPendingPunch(null);
+    setGpsStatus("");
+    setError("");
   }
 
   async function retryPending() {
@@ -355,40 +425,14 @@ export function StaffToday() {
     : today.currentSession?.requiresApproval
       ? today.currentSession.approvalStatus
       : null;
+  const recentBreakRestart =
+    confirmAction === "BREAK_START" &&
+    wasBreakEndedRecently({
+      lastBreakEndedAt: today.lastBreakEndedAt,
+      serverTime: today.serverTime,
+    });
   return (
     <div className="staff-today-stack">
-      <section className="staff-welcome-card">
-        <div>
-          <p className="staff-kicker">{formatBranchDate(today.branchLocalTime)}</p>
-          <h1>Hello, {today.employee.fullName.split(/\s+/)[0]}</h1>
-          <p>{formatWorkplace(today.business.name, today.branch.name)}</p>
-          {today.availableBranches.length > 1 ? (
-            <label className="staff-branch-switch">
-              <span>Attendance branch</span>
-              <select
-                disabled={
-                  busy ||
-                  today.status === "OPEN" ||
-                  today.status === "ON_BREAK"
-                }
-                onChange={(event) => void switchBranch(event.target.value)}
-                value={today.branch.id}
-              >
-                {today.availableBranches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>{branch.name}</option>
-                ))}
-              </select>
-              {today.status === "OPEN" || today.status === "ON_BREAK" ? (
-                <small>Complete the active shift before switching.</small>
-              ) : null}
-            </label>
-          ) : null}
-        </div>
-        <span className={`staff-state-orb ${today.status?.toLowerCase() ?? "ready"}`}>
-          {attendanceStatusLabel(today.status)}
-        </span>
-      </section>
-
       <section className="staff-page-card">
         <div className="staff-card-heading">
           <div>
@@ -400,6 +444,30 @@ export function StaffToday() {
               ? `Shift ${today.sessionCount} · ${attendanceStatusLabel(today.status)}`
               : attendanceStatusLabel(today.status)}
           </span>
+        </div>
+        <div className="staff-attendance-context">
+          <div>
+            <small>{formatBranchDate(today.branchLocalTime)}</small>
+            <strong>Working at: {today.branch.name}</strong>
+            <span>{today.business.name}</span>
+          </div>
+          {today.availableBranches.length > 1 ? (
+            <label className="staff-branch-switch">
+              <span>Attendance branch</span>
+              <select
+                disabled={busy || today.status === "OPEN" || today.status === "ON_BREAK"}
+                onChange={(event) => void switchBranch(event.target.value)}
+                value={today.branch.id}
+              >
+                {today.availableBranches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.name}</option>
+                ))}
+              </select>
+              {today.status === "OPEN" || today.status === "ON_BREAK" ? (
+                <small>Complete the active shift before switching branch.</small>
+              ) : null}
+            </label>
+          ) : null}
         </div>
         <div className="staff-metrics">
           <Metric
@@ -437,7 +505,9 @@ export function StaffToday() {
           </div>
         ) : null}
 
-        {error ? <div className="staff-alert error" role="alert">{error}</div> : null}
+        {error && !exceptionPrompt ? (
+          <div className="staff-alert error" role="alert">{error}</div>
+        ) : null}
         {notice ? (
           <div
             className={`staff-alert ${notice.includes("Pending") ? "warning" : "success"}`}
@@ -458,10 +528,56 @@ export function StaffToday() {
           </button>
         ) : null}
 
-        {exceptionPrompt ? (
+        {exceptionPrompt && !exceptionFormOpen ? (
+          <div className="staff-location-recovery" role="status">
+            <div>
+              <p className="staff-kicker">LOCATION CHECK</p>
+              <h3>{locationRecoveryTitle(gpsStatus)}</h3>
+              <p>{error}</p>
+            </div>
+            <button
+              className="staff-primary-button"
+              disabled={busy}
+              onClick={retryLocation}
+              type="button"
+            >
+              {busy ? "Checking location…" : "Try location again"}
+            </button>
+            <button
+              className="staff-secondary-button"
+              disabled={busy}
+              onClick={() => {
+                setExceptionError("");
+                setExceptionFormOpen(true);
+              }}
+              type="button"
+            >
+              Request manager approval
+            </button>
+            <button
+              className="staff-link-button"
+              disabled={busy}
+              onClick={cancelLocationRecovery}
+              type="button"
+            >
+              Not now
+            </button>
+            <small>
+              Nothing is submitted until you retry successfully or send an
+              exception request.
+            </small>
+          </div>
+        ) : null}
+
+        {exceptionPrompt && exceptionFormOpen ? (
           <div className="staff-exception-panel">
             <h3>Request an attendance exception</h3>
             <p>This will be submitted as Pending Approval, not a normal punch.</p>
+            {exceptionError ? (
+              <div className="staff-alert error" role="alert">
+                {exceptionError}
+              </div>
+            ) : null}
             <label>
               Reason
               <textarea
@@ -486,8 +602,9 @@ export function StaffToday() {
                 className="staff-link-button"
                 disabled={busy}
                 onClick={() => {
-                  setExceptionPrompt(null);
+                  setExceptionFormOpen(false);
                   setExceptionReason("");
+                  setExceptionError("");
                 }}
                 type="button"
               >
@@ -527,7 +644,7 @@ export function StaffToday() {
                   type="button"
                 >
                   {busy
-                    ? "Working…"
+                    ? "Recording..."
                     : isAdditionalShift
                       ? "Start another shift"
                       : attendanceActionLabel(action)}
@@ -604,13 +721,25 @@ export function StaffToday() {
             <h2 id="staff-confirm-title">
               {confirmAction === "CLOCK_IN" && today.completedSessionCount > 0
                 ? "Start another shift"
+                : recentBreakRestart
+                  ? "Start another break?"
                 : attendanceActionLabel(confirmAction)}
             </h2>
             <p>
               {confirmAction === "CLOCK_IN" && today.completedSessionCount > 0
                 ? "Your previous shift stays completed. A new attendance shift will start now."
+                : recentBreakRestart && today.lastBreakEndedAt
+                  ? `Your previous break ended at ${formatTime(
+                      today.lastBreakEndedAt,
+                      timeZone,
+                    )}. Continue only if you intend to record another break.`
                 : attendanceConfirmation(confirmAction)}
             </p>
+            {recentBreakRestart ? (
+              <div className="staff-alert warning" role="status">
+                This extra check helps prevent an accidental second break.
+              </div>
+            ) : null}
             {confirmAction === "CLOCK_OUT" &&
             today.workPolicy.breakPolicy === "FLEXIBLE_CONFIRMATION" ? (
               <div className="staff-break-confirmation">
@@ -627,7 +756,12 @@ export function StaffToday() {
                   />
                 </label>
                 <small>
-                  Company policy: {today.workPolicy.expectedBreakMinutes} minutes.
+                  Today&apos;s break target: {today.workPolicy.expectedBreakMinutes} minutes
+                  {today.workPolicy.expectedBreakSource === "PUBLISHED_ROSTER"
+                    ? " from the published roster."
+                    : today.workPolicy.expectedBreakSource === "SESSION_SNAPSHOT"
+                      ? " locked when you clocked in."
+                    : "."}
                   Appointment gaps are not counted automatically.
                 </small>
                 {Number(confirmedBreakMinutes) <
@@ -648,7 +782,7 @@ export function StaffToday() {
             ) : null}
             <div className="staff-inline-actions">
               <button className="staff-primary-button" onClick={confirmAndPunch} type="button">
-                Confirm
+                {recentBreakRestart ? "Start another break" : "Confirm"}
               </button>
               <button
                 className="staff-link-button"
@@ -686,13 +820,6 @@ function attendanceStatusLabel(status: AttendanceToday["status"]) {
   if (status === "ON_BREAK") return "On break";
   if (status === "COMPLETED") return "Shift done";
   return "Ready";
-}
-
-function formatWorkplace(businessName: string, branchName: string) {
-  return businessName.trim().toLocaleLowerCase() ===
-    branchName.trim().toLocaleLowerCase()
-    ? branchName
-    : `${businessName} · ${branchName}`;
 }
 
 function formatBranchDate(value: string) {
@@ -760,9 +887,32 @@ function attendanceEndpoint(action: AttendanceAction) {
 }
 
 function requestGps(): Promise<GpsEvidence> {
+  if (!window.isSecureContext) {
+    return Promise.reject(new Error("GPS_INSECURE_CONTEXT"));
+  }
   if (!("geolocation" in navigator)) {
     return Promise.reject(new Error("GPS_UNAVAILABLE"));
   }
+  return requestBrowserPosition({
+    enableHighAccuracy: true,
+    maximumAge: 0,
+    timeout: 30_000,
+  }).catch((error: unknown) => {
+    if (
+      error instanceof Error &&
+      ["GPS_TIMEOUT", "GPS_POSITION_UNAVAILABLE"].includes(error.message)
+    ) {
+      return requestBrowserPosition({
+        enableHighAccuracy: false,
+        maximumAge: 0,
+        timeout: 20_000,
+      });
+    }
+    throw error;
+  });
+}
+
+function requestBrowserPosition(options: PositionOptions): Promise<GpsEvidence> {
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       (position) =>
@@ -777,13 +927,13 @@ function requestGps(): Promise<GpsEvidence> {
           reject(new Error("GPS_PERMISSION_DENIED"));
           return;
         }
-        reject(new Error("GPS_UNAVAILABLE"));
+        if (error.code === error.TIMEOUT) {
+          reject(new Error("GPS_TIMEOUT"));
+          return;
+        }
+        reject(new Error("GPS_POSITION_UNAVAILABLE"));
       },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 15_000,
-      },
+      options,
     );
   });
 }
@@ -793,6 +943,15 @@ function gpsBrowserErrorCode(error: unknown) {
     return "GPS_REQUIRED";
   }
   if (error instanceof Error && error.message === "GPS_UNAVAILABLE") {
+    return "GPS_REQUIRED";
+  }
+  if (
+    error instanceof Error &&
+    ["GPS_TIMEOUT", "GPS_POSITION_UNAVAILABLE"].includes(error.message)
+  ) {
+    return "GPS_REQUIRED";
+  }
+  if (error instanceof Error && error.message === "GPS_INSECURE_CONTEXT") {
     return "GPS_REQUIRED";
   }
   return "UNKNOWN";
@@ -805,6 +964,15 @@ function gpsBrowserStatus(error: Error) {
   if (error.message === "GPS_UNAVAILABLE") {
     return "GPS Unavailable";
   }
+  if (error.message === "GPS_POSITION_UNAVAILABLE") {
+    return "GPS Unavailable";
+  }
+  if (error.message === "GPS_TIMEOUT") {
+    return "Location Timed Out";
+  }
+  if (error.message === "GPS_INSECURE_CONTEXT") {
+    return "Secure Connection Required";
+  }
   return null;
 }
 
@@ -812,6 +980,37 @@ function gpsCodeLabel(code: string) {
   if (code === "GPS_INACCURATE") return "GPS Inaccurate";
   if (code === "OUTSIDE_GEOFENCE") return "Outside Work Location";
   return "GPS Permission Denied or Unavailable";
+}
+
+function locationRecoveryTitle(status: string) {
+  if (status === "GPS Permission Denied") return "Allow location to continue";
+  if (status === "GPS Inaccurate") return "Improve your location accuracy";
+  if (status === "Outside Work Location") return "Move closer to your workplace";
+  if (status === "Secure Connection Required") return "Open a secure Staff App link";
+  if (status === "Location Timed Out") return "Location is taking too long";
+  return "Location could not be confirmed";
+}
+
+function locationRecoveryMessage(code: string, browserStatus?: string | null) {
+  if (browserStatus === "GPS Permission Denied") {
+    return "Allow precise location for Tetamu in your phone and browser settings, then try again.";
+  }
+  if (browserStatus === "Secure Connection Required") {
+    return "Mobile location requires an HTTPS Staff App address. Use the secure Testing link, then try again.";
+  }
+  if (browserStatus === "GPS Unavailable") {
+    return "Android could not provide a location. Turn on Location, Google Location Accuracy and precise location, then try again.";
+  }
+  if (browserStatus === "Location Timed Out") {
+    return "Keep Tetamu open while the phone finds your location. Turn on Google Location Accuracy, then try again.";
+  }
+  if (code === "GPS_INACCURATE") {
+    return "The location reading is not accurate enough. Turn on precise location or move to an open area, then try again.";
+  }
+  if (code === "OUTSIDE_GEOFENCE") {
+    return "You appear to be outside the approved work location. Move closer to the branch, then try again.";
+  }
+  return "Tetamu could not confirm your work location. Check your location settings, then try again.";
 }
 
 function handleSessionOrError(

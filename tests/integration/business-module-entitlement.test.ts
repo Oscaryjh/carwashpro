@@ -9,9 +9,11 @@ import {
 } from "../../src/lib/modules/entitlements";
 import {
   CORE_MODULE_SYSTEM_REQUIRED,
+  DEFAULT_MANUAL_ENTITLEMENT_REASON,
   DEPENDENT_MODULE_ENABLED,
   MODULE_DEPENDENCY_REQUIRED,
   changeBusinessModuleEntitlement,
+  changeBusinessModuleEntitlements,
 } from "../../src/lib/modules/service";
 import { prisma } from "../../src/lib/prisma";
 
@@ -25,6 +27,7 @@ test("effective entitlement, dependency, audit and idempotency are canonical", a
     new RegExp(MODULE_DEPENDENCY_REQUIRED),
   );
   const hr = await change(fixture, "HR", "ENABLED", new Date("2026-08-01T00:00:00.000Z"));
+  assert.ok(hr.entitlement);
   await change(fixture, "PAYROLL", "ENABLED", future);
 
   const beforeFuture = await loadBusinessModuleContext(fixture.businessId, { now: new Date("2026-08-11T00:00:00.000Z") });
@@ -71,6 +74,130 @@ test("disable and re-enable preserves historical HR data", async () => {
   await change(fixture, "HR", "ENABLED", new Date("2026-08-10T00:01:00.000Z"));
   await requireBusinessModule(fixture.businessId, "HR", { now: new Date("2026-08-10T00:02:00.000Z") });
   assert.equal(await prisma.leavePolicy.count({ where: { id: policy.id, businessId: fixture.businessId } }), 1);
+});
+
+test("manual entitlement changes use a standard audit reason when the optional note is blank", async () => {
+  assertLocalDatabase();
+  const fixture = await createFixture();
+  const changed = await changeBusinessModuleEntitlement({
+    actor: fixture.actor,
+    rawInput: {
+      businessId: fixture.businessId,
+      moduleKey: "HR",
+      status: "ENABLED",
+      enabledFrom: "2026-08-01T00:00:00.000Z",
+      enabledUntil: "",
+      source: "MANUAL",
+      reason: "   ",
+    },
+  });
+  assert.ok(changed.entitlement);
+
+  const [event, audit] = await Promise.all([
+    prisma.businessModuleEntitlementEvent.findFirstOrThrow({
+      where: { entitlementId: changed.entitlement.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.auditLog.findFirstOrThrow({
+      where: {
+        businessId: fixture.businessId,
+        action: "BUSINESS_MODULE_ENTITLEMENT_CHANGED",
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  assert.equal(event.reason, DEFAULT_MANUAL_ENTITLEMENT_REASON);
+  assert.equal(
+    (audit.metadata as { reason?: string } | null)?.reason,
+    DEFAULT_MANUAL_ENTITLEMENT_REASON,
+  );
+});
+
+test("one batch atomically enables dependent modules and skips untouched disabled modules", async () => {
+  assertLocalDatabase();
+  const fixture = await createFixture();
+  const enabledFrom = "2026-08-01T00:00:00.000Z";
+  const batch = await changeBusinessModuleEntitlements({
+    actor: fixture.actor,
+    rawInputs: [
+      {
+        businessId: fixture.businessId,
+        moduleKey: "HR",
+        status: "ENABLED",
+        enabledFrom,
+        source: "MANUAL",
+        reason: "Batch HR setup.",
+      },
+      {
+        businessId: fixture.businessId,
+        moduleKey: "PAYROLL",
+        status: "ENABLED",
+        enabledFrom,
+        source: "MANUAL",
+        reason: "Batch HR setup.",
+      },
+      {
+        businessId: fixture.businessId,
+        moduleKey: "INVENTORY",
+        status: "DISABLED",
+        enabledFrom,
+        source: "MANUAL",
+        reason: "Batch HR setup.",
+      },
+    ],
+  });
+
+  assert.equal(batch.changedCount, 2);
+  const context = await loadBusinessModuleContext(fixture.businessId, {
+    now: new Date("2026-08-02T00:00:00.000Z"),
+  });
+  assert.equal(context.enabledModules.has("HR"), true);
+  assert.equal(context.enabledModules.has("PAYROLL"), true);
+  assert.equal(
+    await prisma.businessModuleEntitlement.count({
+      where: { businessId: fixture.businessId, moduleKey: "INVENTORY" },
+    }),
+    0,
+  );
+});
+
+test("an invalid dependency rolls back every change in the entitlement batch", async () => {
+  assertLocalDatabase();
+  const fixture = await createFixture();
+  const enabledFrom = "2026-08-01T00:00:00.000Z";
+
+  await assert.rejects(
+    changeBusinessModuleEntitlements({
+      actor: fixture.actor,
+      rawInputs: [
+        {
+          businessId: fixture.businessId,
+          moduleKey: "HR",
+          status: "ENABLED",
+          enabledFrom,
+          source: "MANUAL",
+          reason: "Atomic batch test.",
+        },
+        {
+          businessId: fixture.businessId,
+          moduleKey: "STATUTORY",
+          status: "ENABLED",
+          enabledFrom,
+          source: "MANUAL",
+          reason: "Atomic batch test.",
+        },
+      ],
+    }),
+    new RegExp(MODULE_DEPENDENCY_REQUIRED),
+  );
+
+  assert.equal(
+    await prisma.businessModuleEntitlement.count({
+      where: { businessId: fixture.businessId },
+    }),
+    0,
+  );
 });
 
 test("concurrent dependency mutations cannot leave Payroll enabled without HR", async () => {

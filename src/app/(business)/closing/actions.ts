@@ -243,48 +243,32 @@ export async function endShiftAction(formData: FormData) {
     );
   }
 
-  const [cashPayments, cashRefunds] = await Promise.all([
-    prisma.payment.aggregate({
-      where: {
-        businessId,
-        method: "CASH",
-        shiftId: shift.id,
-        status: "ACTIVE",
-      },
-      _sum: { amount: true },
-    }),
-    prisma.paymentRefund.aggregate({
-      where: {
-        businessId,
-        method: "CASH",
-        shiftId: shift.id,
-      },
-      _sum: { amount: true },
-    }),
-  ]);
-  const openingFloatCents = toCents(shift.openingFloat);
-  const cashPaymentCents = toCents(cashPayments._sum.amount ?? 0);
-  const cashRefundCents = toCents(cashRefunds._sum.amount ?? 0);
   const closingCashCents = Math.round(input.closingCash * 100);
-  const expectedCashCents =
-    openingFloatCents + cashPaymentCents - cashRefundCents;
-  const differenceCents = closingCashCents - expectedCashCents;
   const notes = input.notes?.trim() || null;
-
-  if (differenceCents !== 0 && !notes) {
-    const direction = differenceCents < 0 ? "short" : "over";
-    redirect(
-      `/closing?type=error&message=${encodeURIComponent(
-        `Cash is ${direction} by ${moneyFromCents(Math.abs(differenceCents))}. Please add a note before ending the shift.`,
-      )}`,
-    );
-  }
 
   let dailyClosingCompleted = false;
 
   try {
     const result = await prisma.$transaction(
       async (tx) => {
+        const canonicalShift = await tx.cashierShift.findFirst({
+          where: { businessId, cashierId: user.userId, id: shift.id, status: "OPEN" },
+          select: { openingFloat: true },
+        });
+        if (!canonicalShift) throw new ShiftAlreadyClosedError();
+        const [cashPayments, cashRefunds, expensePayouts] = await Promise.all([
+          tx.payment.aggregate({ where: { businessId, method: "CASH", shiftId: shift.id, status: "ACTIVE" }, _sum: { amount: true } }),
+          tx.paymentRefund.aggregate({ where: { businessId, method: "CASH", shiftId: shift.id }, _sum: { amount: true } }),
+          tx.cashierShiftExpensePayout.aggregate({ where: { businessId, shiftId: shift.id }, _sum: { amount: true } }),
+        ]);
+        const openingFloatCents = toCents(canonicalShift.openingFloat);
+        const cashPaymentCents = toCents(cashPayments._sum.amount ?? 0);
+        const cashRefundCents = toCents(cashRefunds._sum.amount ?? 0);
+        const expensePayoutCents = toCents(expensePayouts._sum.amount ?? 0);
+        const expectedCashCents = openingFloatCents + cashPaymentCents - cashRefundCents - expensePayoutCents;
+        const differenceCents = closingCashCents - expectedCashCents;
+        if (differenceCents !== 0 && !notes) throw new ShiftCashNoteRequiredError(differenceCents);
+
         const closed = await tx.cashierShift.updateMany({
           where: {
             businessId,
@@ -319,13 +303,14 @@ export async function endShiftAction(formData: FormData) {
             entityType: "CashierShift",
             entityId: updated.id,
             summary: `Ended shift with ${moneyFromCents(differenceCents)} difference`,
-            before: { status: "OPEN", openingFloat: shift.openingFloat },
+            before: { status: "OPEN", openingFloat: canonicalShift.openingFloat },
             after: {
               status: updated.status,
               closingCash: updated.closingCash,
               expectedCash: updated.expectedCash,
               cashPayments: fromCents(cashPaymentCents),
               cashRefunds: fromCents(cashRefundCents),
+              expensePayouts: fromCents(expensePayoutCents),
               cashDifference: updated.cashDifference,
               notes: updated.notes,
               endedAt: updated.endedAt,
@@ -429,6 +414,10 @@ export async function endShiftAction(formData: FormData) {
           "This shift has already been closed.",
         )}`,
       );
+    }
+    if (error instanceof ShiftCashNoteRequiredError) {
+      const direction = error.differenceCents < 0 ? "short" : "over";
+      redirect(`/closing?type=error&message=${encodeURIComponent(`Cash is ${direction} by ${moneyFromCents(Math.abs(error.differenceCents))}. Please add a note before ending the shift.`)}`);
     }
 
     console.error("[shift-closing] Unable to close shift", error);
@@ -661,6 +650,12 @@ class DailyClosingAlreadyExistsError extends Error {
 class ShiftAlreadyClosedError extends Error {
   constructor() {
     super("Shift has already been closed.");
+  }
+}
+
+class ShiftCashNoteRequiredError extends Error {
+  constructor(readonly differenceCents: number) {
+    super("A cash difference note is required.");
   }
 }
 

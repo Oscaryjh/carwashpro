@@ -8,8 +8,13 @@ import {
 } from "@/lib/business-groups/capabilities";
 import type { BusinessModuleContext } from "@/lib/modules/entitlements";
 import type { ModuleKey } from "@/lib/modules/registry";
+import {
+  listAttendanceOvertimeCandidates,
+  type OvertimeCandidate,
+} from "@/lib/attendance/overtime-service";
 import { getPayrollPeriodReadiness } from "@/lib/payroll/readiness";
 import { prisma } from "@/lib/prisma";
+import { getHrApprovalStages, type HrApprovalActorLevel } from "./policy-service";
 import {
   approvalDomains,
   type ApprovalCounts,
@@ -26,6 +31,7 @@ export type UnifiedApprovalContext = Readonly<{
   wholeBusinessScope: boolean;
   enabledModules: ReadonlySet<ModuleKey>;
   capabilities: ReadonlySet<BusinessCapability>;
+  actorLevel?: HrApprovalActorLevel;
 }>;
 
 type ApprovalDatabase = PrismaClient;
@@ -78,6 +84,7 @@ export async function resolveUnifiedApprovalContext(input: {
         hasBusinessCapability(access, capability),
       ),
     ),
+    actorLevel: access.effectiveBusinessRole === "BUSINESS_OWNER" ? "OWNER" : "MANAGER",
   };
 }
 
@@ -229,7 +236,9 @@ async function loadAttendance(
     ...memberWhere,
   } satisfies Prisma.AttendanceResolutionCaseWhereInput;
   const includeTimesheets = context.wholeBusinessScope && !filters.branchId && !employee;
-  const [p2Count, p2, caseCount, cases, timesheets] = await Promise.all([
+  const overtimePeriodStart = filters.from ?? new Date("2000-01-01T00:00:00.000Z");
+  const overtimePeriodEnd = filters.to ?? new Date("2100-01-01T00:00:00.000Z");
+  const [p2Count, p2, caseCount, cases, timesheets, overtimeCandidates] = await Promise.all([
     database.attendanceP2Exception.count({ where: p2Where }),
     database.attendanceP2Exception.findMany({
       where: p2Where,
@@ -278,7 +287,25 @@ async function loadAttendance(
           take: 200,
         })
       : Promise.resolve([]),
+    listAttendanceOvertimeCandidates({
+      businessId: context.businessId,
+      allowedBranchIds: branchIds,
+      periodStart: overtimePeriodStart,
+      periodEndExclusive: overtimePeriodEnd,
+      database,
+    }),
   ]);
+  const actionableOvertime = overtimeCandidates.filter((candidate) => {
+    if (candidate.employeeUserId === context.actorUserId) return false;
+    if (employee) {
+      const query = employee.toLocaleLowerCase("en");
+      if (
+        !candidate.employeeName.toLocaleLowerCase("en").includes(query) &&
+        !candidate.employeeCode.toLocaleLowerCase("en").includes(query)
+      ) return false;
+    }
+    return candidate.effectiveStatus === "PENDING_REVIEW";
+  });
   const actionableTimesheets = timesheets.filter((timesheet) =>
     timesheet.status === "APPROVED" ||
     (timesheet.branchReadiness.length === context.allowedBranchIds.length &&
@@ -297,7 +324,7 @@ async function loadAttendance(
   const p2MemberById = new Map(p2Members.map((member) => [member.id, member]));
   const p2BranchById = new Map(p2Branches.map((branch) => [branch.id, branch]));
   return {
-    total: p2Count + caseCount + actionableTimesheets.length,
+    total: p2Count + caseCount + actionableTimesheets.length + actionableOvertime.length,
     items: [
       ...p2.flatMap((row) => {
         const membership = p2MemberById.get(row.membershipId);
@@ -307,8 +334,42 @@ async function loadAttendance(
           : [];
       }),
       ...cases.map((row) => projectAttendanceCase(row, context.businessId)),
+      ...actionableOvertime.slice(0, limit).map((row) => projectAttendanceOvertime(row)),
       ...actionableTimesheets.map((row) => projectTimesheet(row, context.businessId)),
     ],
+  };
+}
+
+export function projectAttendanceOvertime(row: OvertimeCandidate): ApprovalInboxItem {
+  const blocked = Boolean(row.blockedReason);
+  return {
+    id: `ATTENDANCE:OT:${row.finalResultId}`,
+    domain: "ATTENDANCE",
+    businessId: row.businessId,
+    branchId: row.branchId,
+    branchName: row.branchName,
+    subjectType: "ATTENDANCE_OVERTIME_REVIEW",
+    subjectId: row.finalResultId,
+    employeeId: row.membershipId,
+    membershipId: row.membershipId,
+    employeeName: row.employeeName,
+    title: blocked ? "OT review blocked" : "Review potential OT",
+    summary: `${row.employeeCode} · ${dateValue(row.workDate)} · ${row.potentialOtMinutes} potential minute(s) · ${humanize(row.context)}`,
+    requestedAt: row.workDate,
+    status: blocked ? "BLOCKED" : "PENDING",
+    priority: "HIGH",
+    requestedBy: row.membershipId,
+    requestedByName: row.employeeName,
+    amount: null,
+    units: row.potentialOtMinutes,
+    requiredCapability: "MODIFY_ATTENDANCE_EMPLOYEES",
+    targetUrl: `/team/attendance/timesheets?month=${monthValue(row.workDate)}#overtime-review`,
+    revision: row.review?.revision ?? 0,
+    metadata: {
+      overtimeContext: row.context,
+      stale: row.stale,
+      blockedReason: row.blockedReason,
+    },
   };
 }
 
@@ -332,9 +393,7 @@ async function loadLeave(
     },
     ...(range ? { createdAt: range } : {}),
   };
-  const [total, rows] = await Promise.all([
-    database.leaveRequest.count({ where }),
-    database.leaveRequest.findMany({
+  const rows = await database.leaveRequest.findMany({
       where,
       select: {
         id: true,
@@ -352,10 +411,19 @@ async function loadLeave(
         branch: { select: { name: true } },
       },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      take: limit,
-    }),
-  ]);
-  return { total, items: rows.map((row) => projectLeave(row, context.businessId)) };
+      take: Math.max(limit, 500),
+    });
+  const stages = await getHrApprovalStages({
+    businessId: context.businessId,
+    domain: "LEAVE",
+    actorLevel: context.actorLevel ?? "MANAGER",
+    subjects: rows.map((row) => ({ id: row.id, revision: row.revision, value: Number(row.requestedDays) })),
+  }, database);
+  const visible = rows.filter((row) => stages.get(row.id)?.visible);
+  return {
+    total: visible.length,
+    items: visible.slice(0, limit).map((row) => projectLeave(row, context.businessId, stages.get(row.id)?.stage)),
+  };
 }
 
 async function loadClaims(
@@ -378,9 +446,7 @@ async function loadClaims(
     },
     ...(range ? { submittedAt: range } : {}),
   };
-  const [total, rows] = await Promise.all([
-    database.employeeClaim.count({ where }),
-    database.employeeClaim.findMany({
+  const rows = await database.employeeClaim.findMany({
       where,
       select: {
         id: true,
@@ -403,10 +469,19 @@ async function loadClaims(
         },
       },
       orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
-      take: limit,
-    }),
-  ]);
-  return { total, items: rows.map((row) => projectClaim(row, context.businessId)) };
+      take: Math.max(limit, 500),
+    });
+  const stages = await getHrApprovalStages({
+    businessId: context.businessId,
+    domain: "CLAIMS",
+    actorLevel: context.actorLevel ?? "MANAGER",
+    subjects: rows.map((row) => ({ id: row.id, revision: row.revision, value: Number(row.submittedTotal) })),
+  }, database);
+  const visible = rows.filter((row) => stages.get(row.id)?.visible);
+  return {
+    total: visible.length,
+    items: visible.slice(0, limit).map((row) => projectClaim(row, context.businessId, stages.get(row.id)?.stage)),
+  };
 }
 
 async function loadCommission(
@@ -597,7 +672,7 @@ export function projectTimesheet(row: any, businessId: string): ApprovalInboxIte
   };
 }
 
-export function projectLeave(row: any, businessId: string): ApprovalInboxItem {
+export function projectLeave(row: any, businessId: string, approvalStage?: "LEVEL_ONE" | "LEVEL_TWO"): ApprovalInboxItem {
   return {
     id: `LEAVE:${row.id}`,
     domain: "LEAVE",
@@ -609,7 +684,7 @@ export function projectLeave(row: any, businessId: string): ApprovalInboxItem {
     employeeId: row.membership.id,
     membershipId: row.membership.id,
     employeeName: row.membership.fullName,
-    title: "Leave request",
+    title: approvalStage === "LEVEL_TWO" ? "Leave request · Owner approval" : "Leave request",
     summary: `${row.policyNameSnapshot} · ${dateValue(row.startsOn)}–${dateValue(row.endsOn)} · ${Number(row.requestedDays)} day(s) · ${humanize(row.payTreatmentSnapshot)}`,
     requestedAt: row.createdAt,
     status: "PENDING",
@@ -625,11 +700,12 @@ export function projectLeave(row: any, businessId: string): ApprovalInboxItem {
       attachment: Boolean(row.documentReference),
       leaveUnit: row.leaveUnit,
       payTreatment: row.payTreatmentSnapshot,
+      approvalStage: approvalStage ?? "LEVEL_ONE",
     },
   };
 }
 
-export function projectClaim(row: any, businessId: string): ApprovalInboxItem {
+export function projectClaim(row: any, businessId: string, approvalStage?: "LEVEL_ONE" | "LEVEL_TWO"): ApprovalInboxItem {
   const categories = [...new Set(row.lines.map((line: any) => line.categoryNameSnapshot))].slice(0, 2);
   const receiptAttached = row.lines.some((line: any) => line.attachments.length > 0);
   return {
@@ -643,7 +719,7 @@ export function projectClaim(row: any, businessId: string): ApprovalInboxItem {
     employeeId: row.membership.id,
     membershipId: row.membership.id,
     employeeName: row.membership.fullName,
-    title: `Claim ${row.claimNumber}`,
+    title: approvalStage === "LEVEL_TWO" ? `Claim ${row.claimNumber} · Owner approval` : `Claim ${row.claimNumber}`,
     summary: `${categories.join(", ") || "Claim"} · ${receiptAttached ? "Receipt attached" : "No receipt"}${row.duplicateWarning ? " · possible duplicate warning" : ""}`,
     requestedAt: row.submittedAt ?? row.createdAt,
     status: "PENDING",
@@ -655,7 +731,7 @@ export function projectClaim(row: any, businessId: string): ApprovalInboxItem {
     requiredCapability: "REVIEW_CLAIM",
     targetUrl: `/team/claims?employee=${encodeURIComponent(row.membership.employeeCode)}&status=SUBMITTED`,
     revision: row.revision,
-    metadata: { receiptAttached, duplicateWarning: row.duplicateWarning },
+    metadata: { receiptAttached, duplicateWarning: row.duplicateWarning, approvalStage: approvalStage ?? "LEVEL_ONE" },
   };
 }
 

@@ -166,6 +166,7 @@ export async function synchronizeClaimExpense(
     payeeName: claim.membership.fullName,
     paymentDate: paid && paymentDate ? paymentDate : null,
     paymentMethod: paid ? "OTHER" : null,
+    paymentSource: paid ? "OTHER" : null,
     paymentReference: paid ? claim.reimbursement.paymentReference : null,
     paymentStatus: paid ? "PAID" : "UNPAID",
     request: input.request,
@@ -206,6 +207,7 @@ export async function synchronizeClaimExpense(
       operationKey: `EXPENSE_SOURCE_PAID:CLAIM:${claim.reimbursement.id}:${claim.reimbursement.revision}`,
       paymentDate,
       paymentMethod: "OTHER",
+      paymentSource: "OTHER",
       paymentReference: claim.reimbursement.paymentReference,
       request: input.request,
     }, database);

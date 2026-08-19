@@ -836,7 +836,15 @@ function formatStatus(value: string) {
 }
 
 function formatPaymentMethod(value: string) {
-  return value === "BANK_TRANSFER" ? "Bank" : value === "EWALLET" ? "E-Wallet" : formatStatus(value);
+  return value === "BANK_TRANSFER"
+    ? "Bank"
+    : value === "EWALLET"
+      ? "E-Wallet"
+      : value === "FOREIGN_CURRENCY"
+        ? "Foreign currency"
+        : value === "CRYPTO"
+          ? "Crypto asset"
+          : formatStatus(value);
 }
 
 function initials(name: string) {

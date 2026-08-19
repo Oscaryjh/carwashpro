@@ -15,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 import {
   allocateDiscountCents,
   calculateCommission,
+  commissionEligibleAmountCents,
   centsToMoney,
   moneyToCents,
   parseCommissionTiers,
@@ -140,6 +141,7 @@ export async function captureCommissionSourceEvents(
       appointmentId: true,
       customerPackageId: true,
       discountAmount: true,
+      checkoutType: true,
       issuedAt: true,
       items: {
         select: {
@@ -180,6 +182,7 @@ export async function captureCommissionSourceEvents(
           : membershipId
             ? "ATTRIBUTED"
             : "REVIEW_REQUIRED";
+        const grossBasisOverride = invoice.checkoutType === "TRAINING_COMPLIMENTARY";
         const sourceRevision = stableCommissionDigest({
           invoiceId: invoice.id,
           invoiceItemId: item.id,
@@ -188,6 +191,7 @@ export async function captureCommissionSourceEvents(
           quantity: item.quantity,
           grossAmountCents: gross[index],
           discountAmountCents: discounts[index],
+          grossBasisOverride,
         });
         const created = await transaction.commissionSourceEvent.createMany({
           data: [{
@@ -210,6 +214,7 @@ export async function captureCommissionSourceEvents(
             grossAmountCents: gross[index],
             discountAmountCents: discounts[index],
             netAmountCents: gross[index] - discounts[index],
+            grossBasisOverride,
           }],
           skipDuplicates: true,
         });
@@ -302,7 +307,7 @@ export async function calculateCommissionPeriod(
     const tierTotals = new Map<string, number>();
     for (const item of resolved) {
       const rule = item.resolution.rule!;
-      const eligible = rule.basis === "GROSS" ? item.source.grossAmountCents : item.source.netAmountCents;
+      const eligible = commissionEligibleAmountCents(item.source, rule);
       const key = `${item.row.membershipId}:${rule.id}`;
       tierTotals.set(key, (tierTotals.get(key) ?? 0) + eligible);
     }
@@ -747,7 +752,7 @@ function classifySource(invoiceCustomerPackageId: string | null, item: { service
   return "SERVICE";
 }
 
-function sourceShape(row: { id: string; sourceType: CommissionSourceType; branchId: string | null; sourceItemId: string | null; sourceCategoryId: string | null; eventAt: Date; quantity: number; grossAmountCents: number; discountAmountCents: number; netAmountCents: number }): CommissionSource {
+function sourceShape(row: { id: string; sourceType: CommissionSourceType; branchId: string | null; sourceItemId: string | null; sourceCategoryId: string | null; eventAt: Date; quantity: number; grossAmountCents: number; discountAmountCents: number; netAmountCents: number; grossBasisOverride: boolean }): CommissionSource {
   return { ...row };
 }
 

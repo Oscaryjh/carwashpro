@@ -149,7 +149,7 @@ export default async function BusinessesPage({ searchParams }: BusinessesPagePro
                       </span>
                     </td>
                     <td>{business._count.users}</td>
-                    <td>{business.createdAt.toLocaleDateString()}</td>
+                    <td>{business.createdAt.toLocaleDateString("en-MY")}</td>
                     <td>
                       <Link href={`/admin/businesses/${business.id}`}>View</Link>
                     </td>

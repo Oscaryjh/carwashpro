@@ -11,21 +11,17 @@ export default async function AttendanceSettingsLayout({ children }: { children:
   const { access } = await requireBusinessUser();
   const items: HrPayrollWorkspaceItem[] = [
     { href: "/team/attendance", label: "Overview", icon: "attendance", exact: true },
-    { href: "/team/attendance/p2", label: "Expected work", icon: "evidence" },
     { href: "/team/attendance/timesheets", label: "Timesheets", icon: "timesheet" },
   ];
 
-  if (hasBusinessCapability(access, "MODIFY_ATTENDANCE_EMPLOYEES")) {
-    items.splice(2, 0, {
-      href: "/team/attendance/resolutions",
-      label: "Resolution queue",
-      shortLabel: "Resolutions",
-      icon: "resolution",
-    });
-  }
   if (hasBusinessCapability(access, "VIEW_ATTENDANCE_SETTINGS")) {
     items.push({ href: "/team/attendance-settings", label: "Settings", icon: "settings" });
   }
+  items.push({
+    href: "/team/attendance/export",
+    label: "Export CSV",
+    icon: "export",
+  });
 
   return (
     <>

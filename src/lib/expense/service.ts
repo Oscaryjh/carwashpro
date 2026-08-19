@@ -3,6 +3,7 @@ import {
   ExpenseCategoryGroup,
   ExpenseCommandType,
   ExpensePaymentMethod,
+  ExpensePaymentSource,
   ExpenseSourceType,
   ExpenseStatus,
   Prisma,
@@ -135,6 +136,40 @@ export async function updateExpenseCategory(input: {
   }, { isolationLevel: mutationIsolation });
 }
 
+export async function reorderExpenseCategories(input: {
+  actor: ExpenseActor;
+  businessId: string;
+  expectedOrderIds: string[];
+  operationKey: string;
+  orderIds: string[];
+  request?: AuditRequestContext;
+}, database: PrismaClient = prisma) {
+  const orderIds = [...input.orderIds];
+  const expectedOrderIds = [...input.expectedOrderIds];
+  if (orderIds.length === 0 || orderIds.length > 500 || new Set(orderIds).size !== orderIds.length) throw new ExpenseDomainError("Category order is invalid.", "EXPENSE_CATEGORY_ORDER_INVALID");
+  if (expectedOrderIds.length !== orderIds.length || new Set(expectedOrderIds).size !== expectedOrderIds.length) throw new ExpenseDomainError("Category order is stale. Refresh and try again.", "EXPENSE_CATEGORY_ORDER_STALE");
+  const fingerprint = hash({ command: "REORDER_CATEGORIES", expectedOrderIds, orderIds });
+
+  return database.$transaction(async (tx) => {
+    const replay = await replayCommand(tx, input.businessId, input.operationKey, "UPDATE_CATEGORY", fingerprint);
+    if (replay) return { changed: false };
+    const current = await tx.expenseCategory.findMany({ where: { businessId: input.businessId }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true } });
+    const currentIds = current.map((category) => category.id);
+    if (currentIds.length !== orderIds.length || currentIds.some((id, index) => id !== expectedOrderIds[index])) throw new ExpenseDomainError("Categories changed while you were arranging them. Refresh and try again.", "EXPENSE_CATEGORY_ORDER_STALE");
+    const currentIdSet = new Set(currentIds);
+    if (orderIds.some((id) => !currentIdSet.has(id))) throw new ExpenseDomainError("Category order contains a category outside this business.", "EXPENSE_CATEGORY_ORDER_SCOPE_INVALID");
+
+    for (const [index, id] of orderIds.entries()) {
+      await tx.expenseCategory.update({ where: { id }, data: { sortOrder: (index + 1) * 10 } });
+    }
+
+    const nameById = new Map(current.map((category) => [category.id, category.name]));
+    await recordCommand(tx, input, "UPDATE_CATEGORY", fingerprint, "ExpenseCategoryOrder", orderIds[0]);
+    await writeAuditLog({ businessId: input.businessId, actor: input.actor, action: "EXPENSE_CATEGORIES_REORDERED", entityType: "ExpenseCategoryOrder", entityId: input.businessId, summary: "Expense categories reordered.", before: { order: currentIds.map((id) => nameById.get(id) ?? id) }, after: { order: orderIds.map((id) => nameById.get(id) ?? id) }, request: input.request }, tx);
+    return { changed: true };
+  }, { isolationLevel: mutationIsolation });
+}
+
 type ExpenseFactsInput = {
   amount: string | number | Prisma.Decimal;
   branchId?: string | null;
@@ -152,9 +187,13 @@ export async function createBusinessExpense(input: ExpenseFactsInput & {
   operationKey: string;
   paymentDate?: string | Date | null;
   paymentMethod?: ExpensePaymentMethod | null;
+  paymentSource?: ExpensePaymentSource | null;
+  cashierShiftId?: string | null;
   paymentReference?: string | null;
   paymentStatus?: "UNPAID" | "PAID";
   receipt?: ExpenseReceiptInput | null;
+  documentScanId?: string | null;
+  duplicateOverride?: boolean;
   request?: AuditRequestContext;
 }, database: PrismaClient = prisma, store?: ClaimPrivateAttachmentStore) {
   return createExpenseWithSource({ ...input, sourceType: "MANUAL", sourceId: null, sourceRevision: null }, database, store);
@@ -169,6 +208,8 @@ export async function materializeSourceExpense(input: ExpenseFactsInput & {
   sourceType: Exclude<ExpenseSourceType, "MANUAL">;
   paymentDate?: string | Date | null;
   paymentMethod?: ExpensePaymentMethod | null;
+  paymentSource?: ExpensePaymentSource | null;
+  cashierShiftId?: string | null;
   paymentReference?: string | null;
   paymentStatus?: "UNPAID" | "PAID";
   request?: AuditRequestContext;
@@ -183,9 +224,13 @@ async function createExpenseWithSource(input: ExpenseFactsInput & {
   operationKey: string;
   paymentDate?: string | Date | null;
   paymentMethod?: ExpensePaymentMethod | null;
+  paymentSource?: ExpensePaymentSource | null;
+  cashierShiftId?: string | null;
   paymentReference?: string | null;
   paymentStatus?: "UNPAID" | "PAID";
   receipt?: ExpenseReceiptInput | null;
+  documentScanId?: string | null;
+  duplicateOverride?: boolean;
   request?: AuditRequestContext;
   sourceId: string | null;
   sourceRevision: string | null;
@@ -198,8 +243,9 @@ async function createExpenseWithSource(input: ExpenseFactsInput & {
   const paymentStatus = input.paymentStatus ?? "UNPAID";
   if (paymentStatus === "PAID" && desiredStatus !== "CONFIRMED") throw new ExpenseDomainError("Paid expenses must be confirmed.", "PAID_EXPENSE_MUST_BE_CONFIRMED");
   const payment = normalizePayment(paymentStatus, input);
+  if (input.receipt && input.documentScanId) throw new ExpenseDomainError("Use either the scanned private document or a new receipt upload, not both.", "EXPENSE_RECEIPT_SOURCE_CONFLICT");
   const validatedReceipt = input.receipt ? validateClaimAttachment({ bytes: input.receipt.bytes, claimedMimeType: input.receipt.claimedMimeType, originalFileName: input.receipt.originalFileName }) : null;
-  const fingerprint = hash({ command: "CREATE_EXPENSE", ...facts.fingerprint, desiredStatus, payment, sourceType: input.sourceType, sourceId: input.sourceId, sourceRevision: input.sourceRevision, receiptChecksum: validatedReceipt?.checksumSha256 ?? null });
+  const fingerprint = hash({ command: "CREATE_EXPENSE", ...facts.fingerprint, desiredStatus, payment, sourceType: input.sourceType, sourceId: input.sourceId, sourceRevision: input.sourceRevision, receiptChecksum: validatedReceipt?.checksumSha256 ?? null, documentScanId: input.documentScanId ?? null, duplicateOverride: Boolean(input.duplicateOverride) });
 
   const existing = await database.expenseCommand.findUnique({ where: { businessId_operationKey: { businessId: input.businessId, operationKey: operationKey(input.operationKey) } } });
   if (existing) {
@@ -213,13 +259,23 @@ async function createExpenseWithSource(input: ExpenseFactsInput & {
     return await database.$transaction(async (tx) => {
       const replay = await replayCommand(tx, input.businessId, input.operationKey, "CREATE_EXPENSE", fingerprint);
       if (replay) return tx.businessExpense.findFirstOrThrow({ where: { businessId: input.businessId, id: replay.resultEntityId }, include: { attachments: true } });
-      const [category, branch] = await Promise.all([
+      const [category, branch, documentScan] = await Promise.all([
         tx.expenseCategory.findFirst({ where: { active: true, businessId: input.businessId, id: facts.categoryId } }),
         facts.branchId ? tx.branch.findFirst({ where: { businessId: input.businessId, id: facts.branchId, status: "ACTIVE" } }) : null,
+        input.documentScanId ? tx.expenseDocumentScan.findFirst({ where: { id: input.documentScanId, businessId: input.businessId, createdById: input.actor.userId } }) : null,
       ]);
       if (!category) throw new ExpenseDomainError("An active expense category is required.", "EXPENSE_CATEGORY_INACTIVE");
       if (facts.branchId && !branch) throw new ExpenseDomainError("Expense branch is outside this business.", "EXPENSE_BRANCH_INVALID");
-      if (desiredStatus === "CONFIRMED" && category.requiresReceipt && !stored && input.sourceType === "MANUAL") throw new ExpenseDomainError("This category requires a receipt before confirmation.", "EXPENSE_RECEIPT_REQUIRED");
+      if (input.documentScanId && !documentScan) throw new ExpenseDomainError("The private document scan was not found in this business or user scope.", "EXPENSE_DOCUMENT_SCAN_NOT_FOUND");
+      if (documentScan) {
+        if (documentScan.expenseId || documentScan.consumedAt) throw new ExpenseDomainError("This private document scan has already been used.", "EXPENSE_DOCUMENT_SCAN_ALREADY_USED");
+        if (documentScan.expiresAt <= new Date()) throw new ExpenseDomainError("This private document scan expired. Scan the receipt again.", "EXPENSE_DOCUMENT_SCAN_EXPIRED");
+        if (documentScan.branchId !== null && documentScan.branchId !== facts.branchId) throw new ExpenseDomainError("The scanned document belongs to a different branch scope.", "EXPENSE_DOCUMENT_SCAN_BRANCH_MISMATCH");
+        if (!["EXPENSE_RECEIPT", "UNKNOWN"].includes(documentScan.documentType)) throw new ExpenseDomainError(documentScan.documentType === "SUPPLIER_INVOICE" ? "This document belongs in Supplier Bills, not manual Expenses." : "This document belongs in employee Claims, not manual Expenses.", "EXPENSE_DOCUMENT_WRONG_WORKFLOW");
+        const duplicates = Array.isArray(documentScan.duplicateCandidates) ? documentScan.duplicateCandidates : [];
+        if (duplicates.length > 0 && !input.duplicateOverride) throw new ExpenseDomainError("Review the possible duplicate and explicitly choose Continue anyway.", "EXPENSE_DUPLICATE_REVIEW_REQUIRED");
+      }
+      if (desiredStatus === "CONFIRMED" && category.requiresReceipt && !stored && !documentScan && input.sourceType === "MANUAL") throw new ExpenseDomainError("This category requires a receipt before confirmation.", "EXPENSE_RECEIPT_REQUIRED");
       if (input.sourceType !== "MANUAL" && (!input.sourceId || !input.sourceRevision)) throw new ExpenseDomainError("System-sourced expenses require stable source identity.", "EXPENSE_SOURCE_IDENTITY_REQUIRED");
       if (input.sourceType === "MANUAL" && (input.sourceId || input.sourceRevision)) throw new ExpenseDomainError("Manual expenses cannot claim a system source identity.", "MANUAL_SOURCE_IDENTITY_INVALID");
 
@@ -259,10 +315,26 @@ async function createExpenseWithSource(input: ExpenseFactsInput & {
         },
       });
       if (stored) await tx.businessExpenseAttachment.create({ data: { businessId: input.businessId, expenseId: expense.id, uploadedById: input.actor.userId, objectKey: stored.objectKey, sanitizedFileName: stored.sanitizedFileName, mimeType: stored.mimeType, byteLength: stored.byteLength, checksumSha256: stored.checksumSha256, malwareStatus: validatedReceipt!.malwareStatus, privacyMetadataStatus: validatedReceipt!.privacyMetadataStatus, quarantineDisposition: stored.disposition } });
-      if (paymentStatus === "PAID") await tx.businessExpensePaymentEvent.create({ data: { businessId: input.businessId, expenseId: expense.id, paymentStatus: "PAID", paymentMethod: payment.paymentMethod!, paymentDate: payment.paymentDate!, paymentReference: payment.paymentReference, actorUserId: input.actor.userId } });
+      if (documentScan) {
+        await tx.businessExpenseAttachment.create({ data: { businessId: input.businessId, expenseId: expense.id, uploadedById: input.actor.userId, objectKey: documentScan.objectKey, sanitizedFileName: documentScan.sanitizedFileName, mimeType: documentScan.mimeType, byteLength: documentScan.byteLength, checksumSha256: documentScan.checksumSha256, malwareStatus: documentScan.malwareStatus, privacyMetadataStatus: documentScan.privacyMetadataStatus, quarantineDisposition: documentScan.quarantineDisposition } });
+        await tx.expenseDocumentScan.update({ where: { id: documentScan.id }, data: { expenseId: expense.id, consumedAt: now } });
+      }
+      if (paymentStatus === "PAID") {
+        const paymentEvent = await tx.businessExpensePaymentEvent.create({ data: { amount: expense.amount, businessId: input.businessId, expenseId: expense.id, paymentStatus: "PAID", paymentMethod: payment.paymentMethod!, paymentSource: payment.paymentSource!, paymentDate: payment.paymentDate!, paymentReference: payment.paymentReference, actorUserId: input.actor.userId } });
+        await recordExpenseDrawerPayout(tx, {
+          actorUserId: input.actor.userId,
+          amount: expense.amount,
+          branchId: expense.branchId,
+          businessId: input.businessId,
+          cashierShiftId: payment.cashierShiftId,
+          paymentEventId: paymentEvent.id,
+          paymentMethod: payment.paymentMethod!,
+          paymentSource: payment.paymentSource!,
+        });
+      }
       await createRevision(tx, expense, input.actor.userId, desiredStatus === "CONFIRMED" ? "CREATED_CONFIRMED" : "CREATED_DRAFT", null);
       await recordCommand(tx, input, "CREATE_EXPENSE", fingerprint, "BusinessExpense", expense.id);
-      await writeAuditLog({ businessId: input.businessId, branchId: facts.branchId, actor: input.actor, action: input.sourceType === "CLAIM" ? "EXPENSE_SOURCE_MATERIALIZED_FROM_CLAIM" : input.sourceType === "PAYROLL" ? "EXPENSE_SOURCE_MATERIALIZED_FROM_PAYROLL" : "EXPENSE_CREATED", entityType: "BusinessExpense", entityId: expense.id, summary: `${expense.expenseNumber} created as ${desiredStatus.toLowerCase()}.`, after: auditExpense(expense, Boolean(stored)), request: input.request }, tx);
+      await writeAuditLog({ businessId: input.businessId, branchId: facts.branchId, actor: input.actor, action: input.sourceType === "CLAIM" ? "EXPENSE_SOURCE_MATERIALIZED_FROM_CLAIM" : input.sourceType === "PAYROLL" ? "EXPENSE_SOURCE_MATERIALIZED_FROM_PAYROLL" : "EXPENSE_CREATED", entityType: "BusinessExpense", entityId: expense.id, summary: `${expense.expenseNumber} created as ${desiredStatus.toLowerCase()}.`, after: auditExpense(expense, Boolean(stored || documentScan)), metadata: documentScan ? { documentScanId: documentScan.id, humanReviewed: true, automaticConfirmation: false, duplicateOverride: Boolean(input.duplicateOverride) } : undefined, request: input.request }, tx);
       return tx.businessExpense.findUniqueOrThrow({ where: { id: expense.id }, include: { attachments: true } });
     }, { isolationLevel: mutationIsolation });
   } catch (error) {
@@ -315,7 +387,7 @@ async function reviseExpenseFacts(input: ExpenseFactsInput & {
     if (!expense) throw new ExpenseDomainError("Expense was not found in this business.", "EXPENSE_NOT_FOUND");
     if (expense.status !== input.requiredStatus) throw new ExpenseDomainError(`Only ${input.requiredStatus.toLowerCase()} expenses can use this action.`, "EXPENSE_STATUS_INVALID");
     if (expense.sourceType !== "MANUAL") throw new ExpenseDomainError("System-sourced expenses must be corrected in their source domain.", "SYSTEM_SOURCE_EDIT_DENIED");
-    if (expense.paymentStatus === "PAID" && input.commandType === "CORRECT_EXPENSE") throw new ExpenseDomainError("Paid expenses require a separate reviewed correction workflow.", "PAID_EXPENSE_CORRECTION_REQUIRES_REVIEW");
+    if (expense.paymentStatus !== "UNPAID" && input.commandType === "CORRECT_EXPENSE") throw new ExpenseDomainError("Expenses with recorded payments require a separate reviewed correction workflow.", "PAID_EXPENSE_CORRECTION_REQUIRES_REVIEW");
     if (expense.revision !== input.expectedRevision) throw stale();
     const [category, branch] = await Promise.all([
       tx.expenseCategory.findFirst({ where: { active: true, businessId: input.businessId, id: facts.categoryId } }),
@@ -356,27 +428,48 @@ export async function confirmBusinessExpense(input: TransitionInput, database: P
 
 export async function markBusinessExpensePaid(input: TransitionInput & {
   allowSystemSource?: boolean;
+  amount?: string | number | Prisma.Decimal;
   paymentDate: string | Date;
   paymentMethod: ExpensePaymentMethod;
+  paymentSource?: ExpensePaymentSource | null;
+  cashierShiftId?: string | null;
   paymentReference?: string | null;
 }, database: PrismaClient = prisma) {
   const payment = normalizePayment("PAID", input);
-  const fingerprint = hash({ command: "MARK_PAID", expenseId: input.expenseId, expectedRevision: input.expectedRevision, payment });
+  const requestedAmount = input.amount === undefined ? null : money(input.amount);
+  const fingerprint = hash({ command: "MARK_PAID", expenseId: input.expenseId, expectedRevision: input.expectedRevision, payment, requestedAmount: requestedAmount?.toFixed(2) ?? null });
   return database.$transaction(async (tx) => {
     const replay = await replayCommand(tx, input.businessId, input.operationKey, "MARK_PAID", fingerprint);
     if (replay) return tx.businessExpense.findFirstOrThrow({ where: { businessId: input.businessId, id: replay.resultEntityId } });
-    const expense = await tx.businessExpense.findFirst({ where: { businessId: input.businessId, id: input.expenseId } });
+    const expense = await tx.businessExpense.findFirst({ where: { businessId: input.businessId, id: input.expenseId }, include: { paymentEvents: { select: { amount: true } } } });
     if (!expense) throw new ExpenseDomainError("Expense was not found in this business.", "EXPENSE_NOT_FOUND");
     if (expense.sourceType !== "MANUAL" && !input.allowSystemSource) throw new ExpenseDomainError("System-sourced payment state is controlled by its source domain.", "SYSTEM_SOURCE_EDIT_DENIED");
-    if (expense.status !== "CONFIRMED" || expense.paymentStatus !== "UNPAID") throw new ExpenseDomainError("Only confirmed unpaid expenses can be marked paid.", "EXPENSE_PAYMENT_STATUS_INVALID");
+    if (expense.status !== "CONFIRMED" || expense.paymentStatus === "PAID") throw new ExpenseDomainError("Only confirmed expenses with an outstanding balance can accept payment.", "EXPENSE_PAYMENT_STATUS_INVALID");
     if (expense.revision !== input.expectedRevision) throw stale();
-    const updated = await tx.businessExpense.updateMany({ where: { id: expense.id, revision: input.expectedRevision, status: "CONFIRMED", paymentStatus: "UNPAID" }, data: { paidAt: new Date(), paidById: input.actor.userId, paymentDate: payment.paymentDate, paymentMethod: payment.paymentMethod, paymentReference: payment.paymentReference, paymentStatus: "PAID", revision: { increment: 1 } } });
+    const alreadyPaid = expense.paymentEvents.reduce((sum, event) => sum.add(event.amount), new Prisma.Decimal(0));
+    const outstanding = expense.amount.sub(alreadyPaid);
+    const amount = requestedAmount ?? outstanding;
+    if (amount.lte(0)) throw new ExpenseDomainError("Payment amount must be greater than zero.", "EXPENSE_PAYMENT_AMOUNT_INVALID");
+    if (amount.gt(outstanding)) throw new ExpenseDomainError(`Payment exceeds the outstanding amount of RM ${outstanding.toFixed(2)}.`, "EXPENSE_OVERPAYMENT_BLOCKED");
+    const nextPaid = alreadyPaid.add(amount);
+    const nextStatus = nextPaid.eq(expense.amount) ? "PAID" : "PARTIALLY_PAID";
+    const updated = await tx.businessExpense.updateMany({ where: { id: expense.id, revision: input.expectedRevision, status: "CONFIRMED", paymentStatus: { not: "PAID" } }, data: { paidAt: nextStatus === "PAID" ? new Date() : null, paidById: nextStatus === "PAID" ? input.actor.userId : null, paymentDate: payment.paymentDate, paymentMethod: payment.paymentMethod, paymentReference: payment.paymentReference, paymentStatus: nextStatus, revision: { increment: 1 } } });
     if (updated.count !== 1) throw stale();
-    await tx.businessExpensePaymentEvent.create({ data: { businessId: input.businessId, expenseId: expense.id, paymentStatus: "PAID", paymentMethod: payment.paymentMethod!, paymentDate: payment.paymentDate!, paymentReference: payment.paymentReference, actorUserId: input.actor.userId } });
+    const paymentEvent = await tx.businessExpensePaymentEvent.create({ data: { amount, businessId: input.businessId, expenseId: expense.id, paymentStatus: nextStatus, paymentMethod: payment.paymentMethod!, paymentSource: payment.paymentSource!, paymentDate: payment.paymentDate!, paymentReference: payment.paymentReference, actorUserId: input.actor.userId } });
+    await recordExpenseDrawerPayout(tx, {
+      actorUserId: input.actor.userId,
+      amount,
+      branchId: expense.branchId,
+      businessId: input.businessId,
+      cashierShiftId: payment.cashierShiftId,
+      paymentEventId: paymentEvent.id,
+      paymentMethod: payment.paymentMethod!,
+      paymentSource: payment.paymentSource!,
+    });
     const current = await tx.businessExpense.findUniqueOrThrow({ where: { id: expense.id } });
-    await createRevision(tx, current, input.actor.userId, "MARKED_PAID", null);
+    await createRevision(tx, current, input.actor.userId, nextStatus === "PAID" ? "MARKED_PAID" : "PARTIAL_PAYMENT_RECORDED", null);
     await recordCommand(tx, input, "MARK_PAID", fingerprint, "BusinessExpense", current.id);
-    await writeAuditLog({ businessId: input.businessId, branchId: current.branchId, actor: input.actor, action: expense.sourceType === "CLAIM" ? "EXPENSE_SOURCE_PAYMENT_SYNCED" : "EXPENSE_MARKED_PAID", entityType: "BusinessExpense", entityId: current.id, summary: `${current.expenseNumber} marked paid.`, before: { paymentStatus: expense.paymentStatus }, after: { paymentDate: current.paymentDate, paymentMethod: current.paymentMethod, paymentReference: current.paymentReference, paymentStatus: current.paymentStatus }, request: input.request }, tx);
+    await writeAuditLog({ businessId: input.businessId, branchId: current.branchId, actor: input.actor, action: expense.sourceType === "CLAIM" ? "EXPENSE_SOURCE_PAYMENT_SYNCED" : nextStatus === "PAID" ? "EXPENSE_MARKED_PAID" : "EXPENSE_PARTIAL_PAYMENT_RECORDED", entityType: "BusinessExpense", entityId: current.id, summary: `${current.expenseNumber} payment of RM ${amount.toFixed(2)} recorded; RM ${expense.amount.sub(nextPaid).toFixed(2)} remains outstanding.`, before: { paidAmount: alreadyPaid.toFixed(2), paymentStatus: expense.paymentStatus }, after: { paidAmount: nextPaid.toFixed(2), paymentDate: current.paymentDate, paymentMethod: current.paymentMethod, paymentSource: payment.paymentSource, paymentReference: current.paymentReference, paymentStatus: current.paymentStatus }, request: input.request }, tx);
     return current;
   }, { isolationLevel: mutationIsolation });
 }
@@ -391,7 +484,7 @@ export async function voidBusinessExpense(input: TransitionInput & { allowSystem
     if (!expense) throw new ExpenseDomainError("Expense was not found in this business.", "EXPENSE_NOT_FOUND");
     if (expense.sourceType !== "MANUAL" && !input.allowSystemSource) throw new ExpenseDomainError("System-sourced lifecycle is controlled by its source domain.", "SYSTEM_SOURCE_EDIT_DENIED");
     if (expense.status !== "CONFIRMED") throw new ExpenseDomainError("Only confirmed expenses can be voided.", "EXPENSE_STATUS_INVALID");
-    if (expense.paymentStatus === "PAID") throw new ExpenseDomainError("Paid expenses cannot be voided directly; reviewed correction is required.", "PAID_EXPENSE_CANNOT_BE_VOIDED_DIRECTLY");
+    if (expense.paymentStatus !== "UNPAID") throw new ExpenseDomainError("Expenses with recorded payments cannot be voided directly; reviewed correction is required.", "PAID_EXPENSE_CANNOT_BE_VOIDED_DIRECTLY");
     if (expense.revision !== input.expectedRevision) throw stale();
     const updated = await tx.businessExpense.updateMany({ where: { id: expense.id, revision: input.expectedRevision, status: "CONFIRMED", paymentStatus: "UNPAID" }, data: { status: "VOID", voidedAt: new Date(), voidedById: input.actor.userId, voidReason: reason, revision: { increment: 1 } } });
     if (updated.count !== 1) throw stale();
@@ -523,7 +616,7 @@ export async function listBusinessExpenses(input: ExpenseReadScope & {
   dateTo?: string | Date | null;
   page?: number;
   pageSize?: number;
-  paymentStatus?: "UNPAID" | "PAID" | null;
+  paymentStatus?: "UNPAID" | "PARTIALLY_PAID" | "PAID" | null;
   q?: string | null;
   sourceType?: ExpenseSourceType | null;
   status?: ExpenseStatus | null;
@@ -549,7 +642,7 @@ export async function listBusinessExpenses(input: ExpenseReadScope & {
 }
 
 export async function getBusinessExpenseDetail(input: ExpenseReadScope & { businessId: string; expenseId: string }, database: PrismaClient = prisma) {
-  const expense = await database.businessExpense.findFirst({ where: { businessId: input.businessId, id: input.expenseId, ...readScopeWhere(input) }, include: { attachments: { select: { byteLength: true, createdAt: true, id: true, malwareStatus: true, mimeType: true, privacyMetadataStatus: true, sanitizedFileName: true } }, branch: { select: { name: true } }, category: true, confirmedBy: { select: { name: true } }, createdBy: { select: { name: true } }, paidBy: { select: { name: true } }, paymentEvents: { include: { actor: { select: { name: true } } }, orderBy: { createdAt: "asc" } }, revisions: { include: { createdBy: { select: { name: true } } }, orderBy: { revision: "desc" } }, sourceSettlement: true, sourceSnapshot: true, voidedBy: { select: { name: true } } } });
+  const expense = await database.businessExpense.findFirst({ where: { businessId: input.businessId, id: input.expenseId, ...readScopeWhere(input) }, include: { attachments: { select: { byteLength: true, createdAt: true, id: true, malwareStatus: true, mimeType: true, privacyMetadataStatus: true, sanitizedFileName: true } }, branch: { select: { name: true } }, category: true, confirmedBy: { select: { name: true } }, createdBy: { select: { name: true } }, paidBy: { select: { name: true } }, paymentEvents: { include: { actor: { select: { name: true } }, drawerPayout: { include: { shift: { include: { cashier: { select: { name: true } } } } } } }, orderBy: { createdAt: "asc" } }, revisions: { include: { createdBy: { select: { name: true } } }, orderBy: { revision: "desc" } }, sourceSettlement: true, sourceSnapshot: true, voidedBy: { select: { name: true } } } });
   if (!expense) throw new ExpenseDomainError("Expense was not found in the authorised scope.", "EXPENSE_NOT_FOUND");
   return expense;
 }
@@ -561,20 +654,51 @@ export async function getExpenseDashboard(input: ExpenseReadScope & {
   dateTo: string | Date;
   sourceType?: ExpenseSourceType | null;
 }, database: PrismaClient = prisma) {
-  const where: Prisma.BusinessExpenseWhereInput = { businessId: input.businessId, status: "CONFIRMED", expenseDate: { gte: dateOnly(input.dateFrom, "From date"), lte: dateOnly(input.dateTo, "To date") }, ...readScopeWhere(input), ...(input.branchId ? { branchId: input.branchId } : {}), ...(input.sourceType ? { sourceType: input.sourceType } : {}) };
-  const [aggregate, paidGeneric, unpaidGeneric, inventorySettlements, byCategory, byBranch, bySource, recent, sales] = await Promise.all([
+  const fromDate = dateOnly(input.dateFrom, "From date");
+  const toDate = dateOnly(input.dateTo, "To date");
+  const scopeWhere = readScopeWhere(input);
+  const where: Prisma.BusinessExpenseWhereInput = { businessId: input.businessId, status: "CONFIRMED", expenseDate: { gte: fromDate, lte: toDate }, ...scopeWhere, ...(input.branchId ? { branchId: input.branchId } : {}), ...(input.sourceType ? { sourceType: input.sourceType } : {}) };
+  const settlementExpenseWhere: Prisma.BusinessExpenseWhereInput = { businessId: input.businessId, status: "CONFIRMED", ...scopeWhere, ...(input.branchId ? { branchId: input.branchId } : {}), ...(input.sourceType ? { sourceType: input.sourceType } : {}) };
+  const [aggregate, recognizedExpenses, byCategory, byBranch, bySource, recent, sales, periodPaymentEvents, inventoryExpenseSources] = await Promise.all([
     database.businessExpense.aggregate({ where, _avg: { amount: true }, _count: true, _max: { amount: true }, _sum: { amount: true } }),
-    database.businessExpense.aggregate({ where: { ...where, sourceType: { not: "INVENTORY_PURCHASE" }, paymentStatus: "PAID" }, _sum: { amount: true } }),
-    database.businessExpense.aggregate({ where: { ...where, sourceType: { not: "INVENTORY_PURCHASE" }, paymentStatus: "UNPAID" }, _sum: { amount: true } }),
-    database.expenseSourceSettlement.aggregate({ where: { businessId: input.businessId, sourceType: "INVENTORY_PURCHASE", expense: where }, _sum: { paidAmount: true, outstandingAmount: true } }),
+    database.businessExpense.findMany({ where, select: { amount: true, id: true, recurringTemplateId: true, sourceId: true, sourceType: true } }),
     database.businessExpense.groupBy({ by: ["categoryId", "categoryNameSnapshot"], where, _count: true, _sum: { amount: true }, orderBy: { _sum: { amount: "desc" } } }),
     database.businessExpense.groupBy({ by: ["branchId", "branchNameSnapshot"], where, _count: true, _sum: { amount: true }, orderBy: { _sum: { amount: "desc" } } }),
     database.businessExpense.groupBy({ by: ["sourceType"], where, _count: true, _sum: { amount: true }, orderBy: { _sum: { amount: "desc" } } }),
     database.businessExpense.findMany({ where, select: { amount: true, branchNameSnapshot: true, categoryNameSnapshot: true, expenseDate: true, expenseNumber: true, id: true, payeeName: true, sourceType: true }, orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }], take: 10 }),
     input.branchId || input.allowedBranchIds ? Promise.resolve(null) : database.analyticsDailyStoreSummary.aggregate({ where: { businessId: input.businessId, businessDate: { gte: dateOnly(input.dateFrom, "From date"), lte: dateOnly(input.dateTo, "To date") }, businessDayDefinitionVersion: ANALYTICS_BUSINESS_DAY_DEFINITION_VERSION, metricDefinitionVersion: ANALYTICS_METRIC_DEFINITION_VERSION }, _sum: { netSalesCents: true } }),
+    database.businessExpensePaymentEvent.findMany({ where: { businessId: input.businessId, paymentDate: { gte: fromDate, lte: toDate }, expense: settlementExpenseWhere }, select: { amount: true, paymentMethod: true, paymentSource: true } }),
+    input.sourceType && input.sourceType !== "INVENTORY_PURCHASE" ? Promise.resolve([]) : database.businessExpense.findMany({ where: { ...settlementExpenseWhere, sourceType: "INVENTORY_PURCHASE", sourceId: { not: null } }, select: { sourceId: true } }),
+  ]);
+  const genericExpenseIds = recognizedExpenses.filter((expense) => expense.sourceType !== "INVENTORY_PURCHASE").map((expense) => expense.id);
+  const selectedSupplierBillIds = recognizedExpenses.filter((expense) => expense.sourceType === "INVENTORY_PURCHASE").map((expense) => expense.sourceId).filter((value): value is string => Boolean(value));
+  const supplierBillIds = inventoryExpenseSources.map((expense) => expense.sourceId).filter((value): value is string => Boolean(value));
+  const [appliedPayments, selectedSupplierPayments, supplierPayments] = await Promise.all([
+    genericExpenseIds.length ? database.businessExpensePaymentEvent.aggregate({ where: { businessId: input.businessId, expenseId: { in: genericExpenseIds }, paymentDate: { lte: toDate } }, _sum: { amount: true } }) : Promise.resolve({ _sum: { amount: null } }),
+    selectedSupplierBillIds.length ? database.supplierPayment.aggregate({ where: { businessId: input.businessId, paymentDate: { lte: toDate }, status: "COMPLETED", supplierBillId: { in: selectedSupplierBillIds } }, _sum: { amount: true } }) : Promise.resolve({ _sum: { amount: null } }),
+    supplierBillIds.length ? database.supplierPayment.findMany({ where: { businessId: input.businessId, paymentDate: { gte: fromDate, lte: toDate }, status: "COMPLETED", supplierBillId: { in: supplierBillIds } }, select: { amount: true, paymentMethod: true } }) : Promise.resolve([]),
   ]);
   const total = moneyString(aggregate._sum.amount);
   const totalCents = toCents(total);
+  const genericPaid = new Prisma.Decimal(appliedPayments._sum.amount ?? 0);
+  const inventoryPaid = new Prisma.Decimal(selectedSupplierPayments._sum.amount ?? 0);
+  const paid = genericPaid.add(inventoryPaid);
+  const outstanding = Prisma.Decimal.max(new Prisma.Decimal(0), new Prisma.Decimal(total).sub(paid));
+  const oneOff = recognizedExpenses.filter((expense) => !expense.recurringTemplateId).reduce((sum, expense) => sum.add(expense.amount), new Prisma.Decimal(0));
+  const recurring = recognizedExpenses.filter((expense) => Boolean(expense.recurringTemplateId)).reduce((sum, expense) => sum.add(expense.amount), new Prisma.Decimal(0));
+  const paymentMethodTotals = new Map<string, Prisma.Decimal>();
+  const paymentSourceTotals = new Map<string, Prisma.Decimal>();
+  for (const payment of periodPaymentEvents) {
+    paymentMethodTotals.set(payment.paymentMethod, (paymentMethodTotals.get(payment.paymentMethod) ?? new Prisma.Decimal(0)).add(payment.amount));
+    paymentSourceTotals.set(payment.paymentSource, (paymentSourceTotals.get(payment.paymentSource) ?? new Prisma.Decimal(0)).add(payment.amount));
+  }
+  for (const payment of supplierPayments) {
+    const method = supplierPaymentMethod(payment.paymentMethod);
+    paymentMethodTotals.set(method, (paymentMethodTotals.get(method) ?? new Prisma.Decimal(0)).add(payment.amount));
+    const source = supplierPaymentSource(payment.paymentMethod);
+    paymentSourceTotals.set(source, (paymentSourceTotals.get(source) ?? new Prisma.Decimal(0)).add(payment.amount));
+  }
+  const paymentsInPeriod = [...periodPaymentEvents, ...supplierPayments].reduce((sum, payment) => sum.add(payment.amount), new Prisma.Decimal(0));
   return {
     average: moneyString(aggregate._avg.amount),
     byBranch: byBranch.map((row) => ({ amount: moneyString(row._sum.amount), branchId: row.branchId, branchName: row.branchNameSnapshot ?? "Business-wide", count: row._count })),
@@ -583,11 +707,16 @@ export async function getExpenseDashboard(input: ExpenseReadScope & {
     count: aggregate._count,
     highest: moneyString(aggregate._max.amount),
     netSales: sales?._sum.netSalesCents === null || sales?._sum.netSalesCents === undefined ? null : centsNumberToMoney(sales._sum.netSalesCents),
-    paid: new Prisma.Decimal(paidGeneric._sum.amount ?? 0).add(inventorySettlements._sum.paidAmount ?? 0).toFixed(2),
+    oneOff: oneOff.toFixed(2),
+    paid: paid.toFixed(2),
+    paymentByMethod: [...paymentMethodTotals.entries()].map(([method, amount]) => ({ amount: amount.toFixed(2), method })),
+    paymentBySource: [...paymentSourceTotals.entries()].map(([source, amount]) => ({ amount: amount.toFixed(2), source })),
+    paymentsInPeriod: paymentsInPeriod.toFixed(2),
     recent,
     recorded: total,
+    recurring: recurring.toFixed(2),
     topCategory: byCategory[0]?.categoryNameSnapshot ?? null,
-    unpaid: new Prisma.Decimal(unpaidGeneric._sum.amount ?? 0).add(inventorySettlements._sum.outstandingAmount ?? 0).toFixed(2),
+    unpaid: outstanding.toFixed(2),
   };
 }
 
@@ -618,10 +747,69 @@ function normalizeFacts(input: ExpenseFactsInput) {
   return { amount, branchId, categoryId, description, expenseDate, notes, payeeName, fingerprint: { amount: amount.toFixed(2), branchId, categoryId, description, expenseDate: expenseDate.toISOString().slice(0, 10), notes, payeeName } };
 }
 
-function normalizePayment(status: "UNPAID" | "PAID", input: { paymentDate?: string | Date | null; paymentMethod?: ExpensePaymentMethod | null; paymentReference?: string | null }) {
-  if (status === "UNPAID") return { paymentDate: null, paymentMethod: null, paymentReference: null };
-  if (!input.paymentDate || !input.paymentMethod) throw new ExpenseDomainError("Paid expenses require payment date and payment method.", "EXPENSE_PAYMENT_DETAILS_REQUIRED");
-  return { paymentDate: dateOnly(input.paymentDate, "Payment date"), paymentMethod: input.paymentMethod, paymentReference: optionalText(input.paymentReference, 160) };
+function normalizePayment(status: "UNPAID" | "PAID", input: { cashierShiftId?: string | null; paymentDate?: string | Date | null; paymentMethod?: ExpensePaymentMethod | null; paymentSource?: ExpensePaymentSource | null; paymentReference?: string | null }) {
+  if (status === "UNPAID") return { cashierShiftId: null, paymentDate: null, paymentMethod: null, paymentSource: null, paymentReference: null };
+  if (!input.paymentDate || !input.paymentMethod || !input.paymentSource) throw new ExpenseDomainError("Paid expenses require payment date, payment method and funding source.", "EXPENSE_PAYMENT_DETAILS_REQUIRED");
+  const cashierShiftId = input.paymentSource === "POS_DRAWER" ? requiredText(input.cashierShiftId, 100, "Open POS shift") : null;
+  return { cashierShiftId, paymentDate: dateOnly(input.paymentDate, "Payment date"), paymentMethod: input.paymentMethod, paymentSource: input.paymentSource, paymentReference: optionalText(input.paymentReference, 160) };
+}
+
+async function recordExpenseDrawerPayout(tx: Prisma.TransactionClient, input: {
+  actorUserId: string;
+  amount: Prisma.Decimal;
+  branchId: string | null;
+  businessId: string;
+  cashierShiftId: string | null;
+  paymentEventId: string;
+  paymentMethod: ExpensePaymentMethod;
+  paymentSource: ExpensePaymentSource;
+}) {
+  if (input.paymentSource !== "POS_DRAWER") return;
+  if (input.paymentMethod !== "CASH") throw new ExpenseDomainError("POS Drawer payments must use the Cash payment method.", "EXPENSE_DRAWER_METHOD_INVALID");
+  if (!input.branchId) throw new ExpenseDomainError("Business-wide expenses cannot be paid from a branch POS Drawer.", "EXPENSE_DRAWER_BRANCH_REQUIRED");
+  if (!input.cashierShiftId) throw new ExpenseDomainError("Select an open POS shift for this drawer payment.", "EXPENSE_DRAWER_SHIFT_REQUIRED");
+
+  const shift = await tx.cashierShift.findFirst({
+    where: { branchId: input.branchId, businessId: input.businessId, id: input.cashierShiftId, status: "OPEN" },
+    select: { id: true, openingFloat: true },
+  });
+  if (!shift) throw new ExpenseDomainError("The selected POS shift is closed or outside this expense branch.", "EXPENSE_DRAWER_SHIFT_INVALID");
+
+  const [cashPayments, cashRefunds, priorPayouts] = await Promise.all([
+    tx.payment.aggregate({ where: { businessId: input.businessId, method: "CASH", shiftId: shift.id, status: "ACTIVE" }, _sum: { amount: true } }),
+    tx.paymentRefund.aggregate({ where: { businessId: input.businessId, method: "CASH", shiftId: shift.id }, _sum: { amount: true } }),
+    tx.cashierShiftExpensePayout.aggregate({ where: { businessId: input.businessId, branchId: input.branchId, shiftId: shift.id }, _sum: { amount: true } }),
+  ]);
+  const available = new Prisma.Decimal(shift.openingFloat)
+    .add(cashPayments._sum.amount ?? 0)
+    .sub(cashRefunds._sum.amount ?? 0)
+    .sub(priorPayouts._sum.amount ?? 0);
+  if (input.amount.gt(available)) throw new ExpenseDomainError(`POS Drawer has only RM ${available.toFixed(2)} expected cash available.`, "EXPENSE_DRAWER_INSUFFICIENT_CASH");
+
+  await tx.cashierShiftExpensePayout.create({
+    data: {
+      amount: input.amount,
+      branchId: input.branchId,
+      businessId: input.businessId,
+      createdById: input.actorUserId,
+      paymentEventId: input.paymentEventId,
+      shiftId: shift.id,
+    },
+  });
+}
+
+function supplierPaymentMethod(method: string): ExpensePaymentMethod {
+  if (method === "CASH") return "CASH";
+  if (method === "BANK_TRANSFER") return "BANK_TRANSFER";
+  if (method === "CARD") return "CARD";
+  if (method === "EWALLET") return "EWALLET";
+  return "OTHER";
+}
+
+function supplierPaymentSource(method: string): ExpensePaymentSource {
+  if (method === "BANK_TRANSFER" || method === "CHEQUE") return "BANK_ACCOUNT";
+  if (method === "CARD") return "COMPANY_CARD";
+  return "OTHER";
 }
 
 async function createRevision(tx: Prisma.TransactionClient, expense: Prisma.BusinessExpenseGetPayload<object>, actorUserId: string, revisionType: string, reason: string | null) {

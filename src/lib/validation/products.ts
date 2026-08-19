@@ -8,7 +8,6 @@ const optionalMoney = z.preprocess(
 
 export const productSchema = z.object({
   name: z.string().trim().min(1, "Product name is required.").max(120),
-  sku: z.string().trim().max(60, "SKU is too long.").optional(),
   categoryId: z.string().uuid("Please select a product category."),
   description: z.string().trim().max(500, "Description is too long.").optional(),
   price: z.coerce.number().finite().min(0, "Price cannot be negative."),

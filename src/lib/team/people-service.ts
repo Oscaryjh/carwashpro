@@ -90,6 +90,15 @@ export type UpdateLegacyStaffProfileArgs = {
   wholeBusinessScope?: boolean;
 };
 
+export type EnableStaffAppForLegacyUserArgs = {
+  actor: AttendanceServiceActor;
+  allowedBranchIds: readonly string[];
+  businessId: string;
+  request?: AuditRequestContext;
+  userId: string;
+  wholeBusinessScope?: boolean;
+};
+
 export async function createTeamMember(
   args: CreateTeamMemberArgs,
   database: PeopleServiceDatabase = prisma,
@@ -764,6 +773,226 @@ export async function linkExistingStaffToEmployee(
     );
 
     return synchronizedLinked;
+  });
+}
+
+export async function enableStaffAppForLegacyUser(
+  args: EnableStaffAppForLegacyUserArgs,
+  database: PeopleServiceDatabase = prisma,
+) {
+  return runCanonicalPeopleTransaction(database, async (transaction) => {
+    const now = new Date();
+    const peopleScope = {
+      allowedBranchIds: args.allowedBranchIds,
+      businessId: args.businessId,
+      now,
+      wholeBusinessScope: args.wholeBusinessScope === true,
+    };
+    const staffUser = await transaction.user.findFirst({
+      where: {
+        ...buildPeopleStaffScopeWhere(peopleScope),
+        id: args.userId,
+        role: "STAFF",
+      },
+    });
+
+    if (!staffUser) {
+      throw new Error("Team member was not found in the authorized business scope.");
+    }
+    if (staffUser.status !== "active") {
+      throw new Error("Reactivate this team member before enabling Staff App access.");
+    }
+    if (staffUser.teamMemberLinkStatus === "REVIEW_REQUIRED") {
+      throw new Error(
+        "This team member requires manual identity review before Staff App access can be enabled.",
+      );
+    }
+
+    if (
+      staffUser.employeeAccountId ||
+      staffUser.employeeBusinessMembershipId ||
+      staffUser.teamMemberLinkStatus === "LINKED"
+    ) {
+      if (
+        !staffUser.employeeAccountId ||
+        !staffUser.employeeBusinessMembershipId ||
+        staffUser.teamMemberLinkStatus !== "LINKED"
+      ) {
+        throw new Error(
+          "This team member has an incomplete employee identity link. Manual review is required.",
+        );
+      }
+      const linkedMembership =
+        await transaction.employeeBusinessMembership.findFirst({
+          where: {
+            ...buildPeopleMembershipScopeWhere(peopleScope),
+            employeeAccountId: staffUser.employeeAccountId,
+            id: staffUser.employeeBusinessMembershipId,
+            status: "ACTIVE",
+          },
+          include: {
+            branchAssignments: {
+              where: { status: "ACTIVE" },
+            },
+          },
+        });
+      if (!linkedMembership) {
+        throw new Error(
+          "The linked employee identity is no longer active or available in this business.",
+        );
+      }
+      return {
+        createdMembership: false,
+        membership: linkedMembership,
+        staffUser,
+      };
+    }
+
+    const phoneNumberNormalized = normalizeAttendancePhone(
+      staffUser.whatsappPhone ?? "",
+    );
+    if (!phoneNumberNormalized) {
+      throw new Error(
+        "Add a valid Malaysia mobile number before enabling Staff App access.",
+      );
+    }
+    if (!staffUser.branchId) {
+      throw new Error(
+        "Assign a primary branch before enabling Staff App access.",
+      );
+    }
+
+    const branch = await transaction.branch.findFirst({
+      where: {
+        businessId: args.businessId,
+        id: staffUser.branchId,
+        status: "ACTIVE",
+      },
+      select: { id: true },
+    });
+    if (
+      !branch ||
+      (!args.wholeBusinessScope &&
+        !args.allowedBranchIds.includes(staffUser.branchId))
+    ) {
+      throw new Error(
+        "The team member's primary branch is outside the authorized active branch scope.",
+      );
+    }
+
+    const existingMembership =
+      await transaction.employeeBusinessMembership.findFirst({
+        where: {
+          businessId: args.businessId,
+          phoneNumberNormalized,
+        },
+        include: {
+          branchAssignments: {
+            where: { status: "ACTIVE" },
+          },
+          staffUser: { select: { id: true } },
+        },
+      });
+    if (existingMembership) {
+      throw new Error(
+        existingMembership.staffUser
+          ? "This phone is already linked to another team member."
+          : "An employment profile already uses this phone. Link it explicitly after confirming the identity.",
+      );
+    }
+
+    const employeeCode = `STAFF-${staffUser.id.replaceAll("-", "").toUpperCase()}`;
+    const membership = await createAttendanceEmployeeInTransaction(
+      {
+        actor: args.actor,
+        allowedBranchIds: args.allowedBranchIds,
+        businessId: args.businessId,
+        input: {
+          assignments: [
+            {
+              branchId: staffUser.branchId,
+              canClockIn: false,
+              effectiveFrom: now,
+              effectiveUntil: null,
+              isPrimary: true,
+              status: "ACTIVE",
+            },
+          ],
+          attendanceEnabled: false,
+          baseSalary: null,
+          businessId: args.businessId,
+          employeeCode,
+          employmentType: "FULL_TIME",
+          fullName: staffUser.name,
+          joinedAt: now,
+          normalWorkMinutesPerDay: null,
+          payBasis: "MONTHLY",
+          phoneNumber: phoneNumberNormalized,
+          position: null,
+          status: "ACTIVE",
+          targetBreakMinutes: null,
+          terminatedAt: null,
+        },
+        request: args.request,
+        wholeBusinessScope: args.wholeBusinessScope,
+      },
+      transaction,
+    );
+
+    const linkedStaffUser = await transaction.user.update({
+      where: { id: staffUser.id },
+      data: {
+        employeeAccountId: membership.employeeAccountId,
+        employeeBusinessMembershipId: membership.id,
+        teamMemberLinkedAt: now,
+        teamMemberLinkReason: "STAFF_APP_ENABLEMENT",
+        teamMemberLinkStatus: "LINKED",
+        whatsappPhone: phoneNumberNormalized,
+      },
+    });
+
+    await synchronizeTeamMemberEmploymentState(transaction, {
+      businessId: args.businessId,
+      employeeAccountId: membership.employeeAccountId,
+      fullName: membership.fullName,
+      membershipId: membership.id,
+      phoneNumberNormalized: membership.phoneNumberNormalized,
+      status: membership.status,
+    });
+    const synchronizedStaffUser = await transaction.user.findUniqueOrThrow({
+      where: { id: linkedStaffUser.id },
+    });
+
+    await writeAuditLog(
+      {
+        action: "STAFF_APP_ACCESS_ENABLED",
+        actor: args.actor,
+        after: {
+          attendanceEnabled: false,
+          employeeAccountId: membership.employeeAccountId,
+          membershipId: membership.id,
+          userId: synchronizedStaffUser.id,
+        },
+        before: {
+          employeeAccountId: null,
+          membershipId: null,
+          userId: staffUser.id,
+        },
+        branchId: staffUser.branchId,
+        businessId: args.businessId,
+        entityId: membership.id,
+        entityType: "EmployeeBusinessMembership",
+        request: args.request,
+        summary: `Enabled Staff App access for ${staffUser.name}.`,
+      },
+      transaction,
+    );
+
+    return {
+      createdMembership: true,
+      membership,
+      staffUser: synchronizedStaffUser,
+    };
   });
 }
 

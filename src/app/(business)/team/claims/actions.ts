@@ -60,10 +60,11 @@ export async function reviewClaimAction(formData: FormData) {
     });
     const request = await getAuditRequestContext();
     const claimId = String(formData.get("claimId") ?? "");
-    await reviewEmployeeClaim({
+    const result = await reviewEmployeeClaim({
       businessId,
       allowedBranchIds: [...scope.allowedBranchIds],
       actor: user,
+      actorLevel: access.effectiveBusinessRole === "BUSINESS_OWNER" ? "OWNER" : "MANAGER",
       request,
       rawInput: {
         claimId: formData.get("claimId"),
@@ -72,6 +73,9 @@ export async function reviewClaimAction(formData: FormData) {
         lines,
       },
     });
+    if (!result.finalized) {
+      done("success", "第一级审批已完成，Claim 已转交老板作最终审批；目前尚未建立报销义务。");
+    }
     const sync = await trySynchronizeClaimExpense({ businessId, actor: user, claimId, request });
     done("success", sync.status === "DEFERRED" ? "Claim decision recorded. Expense representation is queued for reconciliation." : "Claim decision recorded. Approval remains separate from payment.");
   } catch (error) {

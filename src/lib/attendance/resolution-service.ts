@@ -270,10 +270,18 @@ export async function resolveAttendanceCaseInTransaction(
       );
     }
 
+    const legacyApprovalSync = await synchronizeLegacyApprovalState(
+      transaction,
+      {
+        session,
+        disposition: input.disposition,
+        reviewedById: args.actor.userId,
+      },
+    );
     const nextVersion = (resolutionCase.currentFinalResult?.version ?? 0) + 1;
     const result = await createFinalResultVersion(transaction, {
       caseId: resolutionCase.id,
-      session,
+      session: legacyApprovalSync.session,
       disposition: input.disposition,
       source: input.source,
       createdById: args.actor.userId,
@@ -324,6 +332,9 @@ export async function resolveAttendanceCaseInTransaction(
           attendanceSessionId: resolutionCase.attendanceSessionId,
           membershipId: resolutionCase.employeeId,
           resolutionCaseId: resolutionCase.id,
+          legacyApprovalStatus: legacyApprovalSync.approvalStatus,
+          synchronizedExceptionCount:
+            legacyApprovalSync.synchronizedExceptionCount,
         },
       },
       transaction,
@@ -407,9 +418,48 @@ type ResolutionSession = Pick<
   | "breakPolicySnapshot"
   | "expectedBreakMinutes"
   | "confirmedBreakMinutes"
+  | "requiresApproval"
   | "approvalStatus"
   | "updatedAt"
 >;
+
+async function synchronizeLegacyApprovalState(
+  transaction: Prisma.TransactionClient,
+  input: {
+    session: ResolutionSession;
+    disposition: AttendanceFinalResultDisposition;
+    reviewedById: string;
+  },
+) {
+  const approvalStatus =
+    input.disposition === "INCLUDED" ? "APPROVED" : "REJECTED";
+  const reviewedAt = new Date();
+  const synchronizedExceptions = await transaction.attendanceException.updateMany({
+    where: {
+      attendanceSessionId: input.session.id,
+      status: { not: "CANCELLED" },
+    },
+    data: {
+      status: approvalStatus,
+      reviewedBy: input.reviewedById,
+      reviewedAt,
+    },
+  });
+  const session = await transaction.employeeAttendance.update({
+    where: { id: input.session.id },
+    data: {
+      requiresApproval:
+        input.session.requiresApproval || synchronizedExceptions.count > 0,
+      approvalStatus,
+    },
+  });
+
+  return {
+    session,
+    approvalStatus,
+    synchronizedExceptionCount: synchronizedExceptions.count,
+  };
+}
 
 function attendanceResultChecksum(input: {
   caseId: string;

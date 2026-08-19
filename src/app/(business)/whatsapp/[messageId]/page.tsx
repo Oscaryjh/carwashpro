@@ -150,7 +150,7 @@ function PipelineRow({
     <tr>
       <td>{label}</td>
       <td>{active ? "Complete" : "Pending"}</td>
-      <td>{timestamp ? timestamp.toLocaleString() : "-"}</td>
+      <td>{timestamp ? timestamp.toLocaleString("en-MY") : "-"}</td>
     </tr>
   );
 }

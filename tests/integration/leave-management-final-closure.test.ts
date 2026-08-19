@@ -5,6 +5,8 @@ import type { AppSession } from "../../src/lib/auth/session";
 import type { EmployeeAuthContext } from "../../src/lib/attendance/employee-auth";
 import {
   cancelApprovedLeaveRequest,
+  processDueCarryForwardExpiries,
+  processLeavePeriodRollover,
   reviewLeaveRequest,
   submitEmployeeLeave,
 } from "../../src/lib/leave/service";
@@ -136,7 +138,181 @@ test("Leave submission blocks overlap and freezes policy treatment per request",
   assert.equal(requests[1]?.policyVersionId, secondVersion.id);
 });
 
-async function createFixture(entitlement: number, dates = ["2026-09-07", "2026-09-08"]) {
+test("two-level Leave approval keeps canonical effects pending until a different owner gives final approval", async () => {
+  const fixture = await createFixture(2);
+  const manager = await prisma.user.create({
+    data: {
+      businessId: fixture.business.id,
+      branchId: fixture.branch.id,
+      name: "Leave QA Manager",
+      email: `${randomUUID()}@leave-manager.test`,
+      role: "STAFF",
+    },
+  });
+  const managerActor: AppSession = {
+    ...fixture.actor,
+    userId: manager.id,
+    name: manager.name,
+    email: manager.email ?? "",
+    role: "STAFF",
+  };
+  await prisma.hrApprovalPolicy.create({
+    data: {
+      businessId: fixture.business.id,
+      domain: "LEAVE",
+      mode: "TWO_LEVEL_ALWAYS",
+    },
+  });
+  const submitted = await submitEmployeeLeave(fixture.auth, {
+    clientRequestId: randomUUID(),
+    policyId: fixture.policy.id,
+    startsOn: "2026-09-07",
+    endsOn: "2026-09-07",
+    leaveUnit: "FULL_DAY",
+    reason: "Two-level approval integration coverage",
+  });
+  const balanceBeforeApproval = await ledgerBalance(fixture);
+
+  const firstLevel = await reviewLeaveRequest({
+    businessId: fixture.business.id,
+    allowedBranchIds: [fixture.branch.id],
+    actor: managerActor,
+    actorLevel: "MANAGER",
+    rawInput: { requestId: submitted.id, expectedRevision: 0, decision: "APPROVED", reviewNote: "Manager supports this request" },
+  });
+  assert.equal(firstLevel.finalized, false);
+  assert.equal(firstLevel.approvalStage, "LEVEL_ONE");
+  assert.equal((await prisma.leaveRequest.findUniqueOrThrow({ where: { id: submitted.id } })).status, "PENDING");
+  assert.equal(await ledgerBalance(fixture), balanceBeforeApproval);
+
+  await prisma.hrApprovalPolicy.update({
+    where: { businessId_domain: { businessId: fixture.business.id, domain: "LEAVE" } },
+    data: { mode: "ONE_LEVEL", thresholdValue: null },
+  });
+
+  await assert.rejects(reviewLeaveRequest({
+    businessId: fixture.business.id,
+    allowedBranchIds: [fixture.branch.id],
+    actor: managerActor,
+    actorLevel: "OWNER",
+    rawInput: { requestId: submitted.id, expectedRevision: 0, decision: "APPROVED", reviewNote: "Illegal self-final approval" },
+  }), /same person|同一个人/i);
+
+  const finalLevel = await reviewLeaveRequest({
+    businessId: fixture.business.id,
+    allowedBranchIds: [fixture.branch.id],
+    actor: fixture.actor,
+    actorLevel: "OWNER",
+    rawInput: { requestId: submitted.id, expectedRevision: 0, decision: "APPROVED", reviewNote: "Owner final approval" },
+  });
+  assert.equal(finalLevel.finalized, true);
+  assert.equal(finalLevel.approvalStage, "LEVEL_TWO");
+  assert.equal((await prisma.leaveRequest.findUniqueOrThrow({ where: { id: submitted.id } })).status, "APPROVED");
+  assert.equal(await ledgerBalance(fixture), balanceBeforeApproval - 1);
+  assert.deepEqual(
+    await prisma.hrApprovalDecision.findMany({
+      where: { businessId: fixture.business.id, subjectId: submitted.id },
+      orderBy: { stage: "asc" },
+      select: { stage: true, outcome: true, actorUserId: true },
+    }),
+    [
+      { stage: "LEVEL_ONE", outcome: "APPROVED", actorUserId: manager.id },
+      { stage: "LEVEL_TWO", outcome: "APPROVED", actorUserId: fixture.owner.id },
+    ],
+  );
+});
+
+test("Phase 2B rolls unused leave once, consumes expiring carry first and blocks restoration after expiry", async () => {
+  const fixture = await createFixture(
+    4,
+    ["2025-09-07", "2026-08-10"],
+    { carryForwardEnabled: true, carryForwardLimitUnits: 2, carryForwardExpiryRule: "FIXED_DATE_IN_DESTINATION_PERIOD", carryForwardExpiryValue: "12-31" },
+  );
+  const sourceRequest = await submitEmployeeLeave(fixture.auth, {
+    clientRequestId: randomUUID(), policyId: fixture.policy.id,
+    startsOn: "2025-09-07", endsOn: "2025-09-07", leaveUnit: "FULL_DAY", reason: "Use one day before rollover",
+  });
+  await reviewLeaveRequest({
+    businessId: fixture.business.id,
+    allowedBranchIds: [fixture.branch.id],
+    actor: fixture.actor,
+    rawInput: { requestId: sourceRequest.id, expectedRevision: 0, decision: "APPROVED" },
+  });
+
+  const firstRollover = await processLeavePeriodRollover({
+    businessId: fixture.business.id,
+    membershipId: fixture.membership.id,
+    policyId: fixture.policy.id,
+    destinationAsOf: new Date("2026-01-01T00:00:00.000Z"),
+    actor: fixture.actor,
+  });
+  const replayedRollover = await processLeavePeriodRollover({
+    businessId: fixture.business.id,
+    membershipId: fixture.membership.id,
+    policyId: fixture.policy.id,
+    destinationAsOf: new Date("2026-01-01T00:00:00.000Z"),
+    actor: fixture.actor,
+  });
+  assert.equal(firstRollover.created, true);
+  assert.equal(replayedRollover.created, false);
+  assert.equal(Number(firstRollover.rollover.sourceRemainingUnits), 3);
+  assert.equal(Number(firstRollover.rollover.carriedUnits), 2);
+  assert.equal(Number(firstRollover.rollover.lapsedUnits), 1);
+  assert.equal(await prisma.leavePeriodRollover.count({ where: { businessId: fixture.business.id } }), 1);
+
+  const destinationRequest = await submitEmployeeLeave(fixture.auth, {
+    clientRequestId: randomUUID(), policyId: fixture.policy.id,
+    startsOn: "2026-08-10", endsOn: "2026-08-10", leaveUnit: "FULL_DAY", reason: "Consume carry-forward first",
+  });
+  await reviewLeaveRequest({
+    businessId: fixture.business.id,
+    allowedBranchIds: [fixture.branch.id],
+    actor: fixture.actor,
+    rawInput: { requestId: destinationRequest.id, expectedRevision: 0, decision: "APPROVED" },
+  });
+  const allocations = await prisma.leaveConsumptionAllocation.findMany({
+    where: { leaveRequestId: destinationRequest.id },
+  });
+  assert.equal(allocations.length, 1);
+  const allocatedBucket = await prisma.leaveEntitlementBucket.findUniqueOrThrow({
+    where: { id: allocations[0]!.bucketId },
+  });
+  assert.equal(allocatedBucket.sourceType, "CARRY_FORWARD");
+  assert.equal(Number(allocations[0]?.units), 1);
+
+  const firstExpiry = await processDueCarryForwardExpiries({
+    businessId: fixture.business.id,
+    actor: fixture.actor,
+    asOf: new Date("2027-01-01T00:00:00.000Z"),
+  });
+  const replayedExpiry = await processDueCarryForwardExpiries({
+    businessId: fixture.business.id,
+    actor: fixture.actor,
+    asOf: new Date("2027-01-01T00:00:00.000Z"),
+  });
+  assert.equal(firstExpiry.expiredBuckets, 1);
+  assert.equal(firstExpiry.expiredUnits, 1);
+  assert.equal(replayedExpiry.expiredBuckets, 0);
+  assert.equal(await prisma.leaveBucketExpiry.count({ where: { businessId: fixture.business.id } }), 1);
+
+  await assert.rejects(cancelApprovedLeaveRequest({
+    businessId: fixture.business.id,
+    allowedBranchIds: [fixture.branch.id],
+    actor: fixture.actor,
+    rawInput: { requestId: destinationRequest.id, expectedRevision: 1, reason: "Cancellation after carry expiry requires review" },
+  }), /LEAVE_CANCELLATION_REVIEW_REQUIRED/);
+});
+
+async function createFixture(
+  entitlement: number,
+  dates = ["2026-09-07", "2026-09-08"],
+  carryForward?: {
+    carryForwardEnabled: boolean;
+    carryForwardLimitUnits: number | null;
+    carryForwardExpiryRule: "NO_EXPIRY" | "DAYS_AFTER_ROLLOVER" | "MONTHS_AFTER_ROLLOVER" | "FIXED_DATE_IN_DESTINATION_PERIOD";
+    carryForwardExpiryValue: string | null;
+  },
+) {
   assertLocalDatabase();
   const token = randomUUID();
   const business = await prisma.business.create({ data: { name: `Leave closure ${token}`, slug: `leave-closure-${token}`, timezone: "Asia/Kuala_Lumpur" } });
@@ -162,13 +338,15 @@ async function createFixture(entitlement: number, dates = ["2026-09-07", "2026-0
     businessId: business.id, code: "ANNUAL", name: "Annual leave", payTreatment: "PAID",
     countMode: "WEEKDAYS", balanceTracked: true, defaultEntitlementDays: entitlement,
     origin: "BUSINESS_CUSTOM", legalStatus: "COMPANY_POLICY_ONLY",
+    ...carryForward,
   } });
   const version = await prisma.leavePolicyVersion.create({ data: {
     businessId: business.id, policyId: policy.id, revision: 1,
-    effectiveFrom: new Date("2026-01-01T00:00:00.000Z"), nameSnapshot: "Annual leave",
+    effectiveFrom: new Date("2025-01-01T00:00:00.000Z"), nameSnapshot: "Annual leave",
     payTreatment: "PAID", countMode: "WEEKDAYS", balanceTracked: true,
     defaultEntitlementDays: entitlement, origin: "BUSINESS_CUSTOM", legalStatus: "COMPANY_POLICY_ONLY",
     sourceReference: "COMPANY_POLICY", reason: "Local integration fixture", createdById: owner.id,
+    ...carryForward,
   } });
   for (const date of dates) {
     await prisma.attendanceExpectedDay.create({ data: {

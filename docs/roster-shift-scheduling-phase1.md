@@ -1,105 +1,205 @@
-# Tetamu Roster / Shift Scheduling Phase 1
+# Tetamu Roster — Simple Scheduling Final Closure
 
-## A. Objective
+Environment: **Local / Testing only**. Production was not accessed or validated.
 
-Phase 1 provides branch-scoped weekly and monthly roster planning, immutable publication revisions, Staff self-service schedule visibility, and a controlled bridge into the existing `AttendanceExpectedDay` evidence model. It is planning evidence only; it does not calculate Attendance, Timesheet or Payroll.
+## Previous implementation audit
 
-## B. Existing Audit
+| Decision | Result |
+| --- | --- |
+| KEEP | Shift Templates, weekly grid, Quick Assign, bulk/copy, Draft/Publish, revision audit, RBAC and Attendance evidence protection |
+| ADAPT | Weekly Roster now stores exceptions over an effective employee schedule instead of materialising every inherited day |
+| REMOVE / REWORK | Generic recurring work-pattern service, its management page and the unexecuted work-pattern migration |
+| NOT IMPLEMENTED | AI scheduling, rotating-pattern engine, shift bidding and automatic labour-law decisions |
 
-Before this phase, `/team?section=schedule` represented appointment-booking availability for legacy `User` records. It was not an employee roster. Attendance P2 already provided versioned `AttendanceExpectedDay`, safe `NO_ATTENDANCE_RECORDED` behaviour, suspected No-show only for explicit `WORKDAY`, Leave linkage, monthly Timesheet locking and Payroll P5 consumption of locked Timesheets. Those boundaries remain canonical.
+No destructive Git operation was used. Existing dirty changes were preserved. The removed migration had not been applied; the replacement migration was deployed normally.
 
-## C. Roster Domain
+## Canonical roster architecture
 
-`RosterPeriod` is one business/branch/Monday week. Mutable `RosterAssignment` rows form the current Draft. `RosterPublication` and `RosterPublishedAssignment` form immutable, versioned history. The Phase 1 single-interval expected-day architecture deliberately blocks a second employee assignment on the same date.
+```text
+Business / Branch
+  -> Shift Templates
+  -> Employee Effective Schedule
+       -> optional Default Shift
+       -> Fixed Rest Days or Variable Rest requirement
+  -> Weekly Roster Exceptions
+  -> Resolved Effective Schedule
+  -> Published immutable schedule snapshots when weekly publication is required
+  -> AttendanceExpectedDay
+  -> Attendance and Resolution
+  -> Locked Timesheet
+  -> Payroll
+```
 
-## D. Module / Capability Boundary
+Roster defines planned work. It does not record actual attendance, calculate salary or decide payroll deductions.
 
-Roster belongs to the existing HR entitlement; no commercial ROSTER module was added. Manager capabilities are `VIEW_ROSTER`, `CREATE_ROSTER`, `EDIT_ROSTER`, `PUBLISH_ROSTER`, `AMEND_PUBLISHED_ROSTER`, and `MANAGE_RETROSPECTIVE_ROSTER`. Staff permissions map to the same HR boundary. HR-only businesses do not need POS or Payroll.
+## Shift templates
 
-## E. Roster Period
+- Business-wide or branch-specific scope remains tenant isolated.
+- Name, optional short code, start/end, break duration, paid/unpaid break, colour, active state and display order are supported.
+- `end < start` is an overnight shift ending on the next calendar day.
+- Scheduled and paid minutes are calculated from time and break treatment.
+- Assignments and publications snapshot template facts, so later template edits never rewrite historical roster evidence.
 
-Periods are branch-specific and always start on Monday. A unique business/branch/week constraint prevents duplicate periods. `draftRevision` provides optimistic edit concurrency and `publicationRevision` identifies the latest public view.
+## Employee default schedule
 
-## F. Shift Assignment
+- A schedule version belongs to the correct business membership and branch.
+- Default Shift is optional for part-time, freelancer, on-call or fully variable staff.
+- Versions are effective-dated. A future change does not rewrite earlier schedules or published evidence.
+- The UI explains the three product concepts: Default Shift, Rest policy and Weekly exceptions.
 
-Phase 1 supports `WORK_SHIFT`, `REST_DAY`, and `NOT_SCHEDULED`. Work shifts require start/end, accept an unpaid planning break, and are limited to a conservative maximum of 24 hours. Scheduled duration is not paid duration or overtime.
+## Rest Day policy
 
-## G. Branch / Timezone
+### Fixed
 
-Every write verifies the trusted business and allowed branch scope, active employee branch assignment and employment dates. Publication snapshots the branch Attendance timezone, falling back to the business timezone; no Roster domain timezone is hard-coded.
+Zero or more weekdays may be configured as recurring Rest Days. Normal workdays inherit the Default Shift automatically, so the manager does not need to publish an unchanged week.
 
-## H. Rest / Off / Unspecified
+### Variable
 
-Explicit Rest publishes `REST_DAY`; explicit Off/Not Scheduled publishes `NOT_SCHEDULED`. A blank cell publishes no evidence and never becomes Rest, Off or Workday. No roster plus no punch therefore remains `NO_ATTENDANCE_RECORDED`.
+A required weekly Rest Day count is configured. The manager selects the actual Rest Day dates in the weekly roster. If the requirement is not met, the week is marked as requiring attention and publication is blocked. The system never silently resolves the employee as working all seven days.
 
-## I. Draft
+`REST_DAY`, approved Leave, Public Holiday, `NOT_SCHEDULED` and an unassigned day retain separate meanings.
 
-Draft writes only `RosterAssignment`. They never write or materialize Attendance, never appear in Staff App, and never alter the last published revision.
+## Weekly exceptions
 
-## J. Publish
+- Normal cells are resolved from the effective employee schedule.
+- Temporary shift changes, Rest Day moves, `NOT_SCHEDULED` days and custom shifts are exceptions for specific dates only.
+- Reset deletes the weekly override and immediately returns the day to its inherited default; it does not create a redundant override.
+- Copy Previous Week copies exceptions only. It never flattens inherited days into seven manual assignments.
+- Bulk assignment reuses the same scope, overlap, Leave and historical validation.
+- Source labels explain whether a day came from Default Shift, Fixed Rest, Variable Rest or a Weekly/Custom override.
 
-Publish runs in a retryable Serializable transaction. It freezes the complete branch-week snapshot, versions current Roster-owned expected evidence, writes the immutable publication and AuditLog, and moves the period to Published atomically.
+## Draft, publish and history
 
-## K. Published Revision
+- Draft exceptions do not affect official Attendance evidence or Staff App effective schedules.
+- Publish re-reads canonical state in a serializable transaction, validates the expected revision and creates immutable snapshots.
+- Retrying publish is idempotent and does not duplicate evidence.
+- Retrospective changes require a reason and remain audited.
+- Locked Timesheet history cannot be silently rewritten.
+- Fixed schedules without exceptions are available as an automatic effective baseline; no weekly Save/Publish ritual is required.
 
-Every publication has a monotonic revision, operation key and SHA-256 source digest. Database triggers reject update/delete of publications and snapshots. Editing after publication returns the period to Draft while Staff continues reading the previous publication until the next Publish.
+## Attendance, Leave and Public Holiday
 
-## L. AttendanceExpectedDay Integration
+- Fixed baseline evidence is materialised safely when Attendance needs it and only where no weekly publication supersedes it.
+- Variable-rest weeks cannot produce final workday evidence until the weekly Rest requirement is resolved.
+- Approved Leave stays owned by the Leave domain and takes precedence in roster display.
+- Public Holiday stays owned by the holiday domain; it does not automatically mean the employee cannot work.
+- Expected start/end, break and timezone flow to Attendance. Late/no-show policy stays in Attendance.
+- Payroll continues to consume locked Timesheet outcomes, not Roster hours.
 
-Only current latest published snapshots with `APPLIED` disposition create the existing `AttendanceExpectedDay`: Work Shift → `WORKDAY`, Rest → `REST_DAY`, Not Scheduled → `NOT_SCHEDULED`. Evidence references contain publication and snapshot identity. Removed future assignments supersede only the precise prior Roster-owned evidence; non-Roster evidence is not blindly overwritten.
+## Staff App
 
-## M. No-show Safety
+- Employees can view only their own effective schedule in the selected workplace.
+- The mobile page shows day cards, clear dates, shifts, times, Rest Day/Leave/PH states and scheduled planning hours.
+- Draft manager changes remain private.
+- If no effective schedule exists, the UI says so and explicitly does not infer an Off Day.
+- Published weekly changes replace the inherited baseline without exposing another employee's roster.
 
-Roster does not create Attendance exceptions or final outcomes. Attendance P2 continues to derive suspected No-show only from current explicit `WORKDAY`; an absent roster remains no-evidence and cannot become No-show.
+## Permissions and isolation
 
-## N. Retrospective Safety
+- Existing `VIEW_ROSTER`, `EDIT_ROSTER` and `PUBLISH_ROSTER` capabilities are reused; no duplicate permission family was added.
+- Template and employee-schedule changes use the existing roster-management permission boundary.
+- Server-side checks enforce business, branch, membership, employment status and own-roster scope.
+- The same global employee may have different schedules in different businesses without data crossover.
 
-Past or already-started dates require the dedicated retrospective capability and a reason. Their published snapshots use `RETROSPECTIVE_REVIEW_REQUIRED`, do not write automatic expected evidence, and are audited. This records schedule history without manufacturing a disciplinary Attendance outcome.
+## Notification decision
 
-## O. Leave Interaction
+The repository currently has a WhatsApp-specific delivery queue, not a generic staff notification event bus. Roster publication remains fully audited, but no fake SMS, push or WhatsApp success is reported. Provider-neutral schedule-change delivery is deferred.
 
-Approved full-day Leave blocks publication of an overlapping Work Shift. Leave type and paid/unpaid snapshots remain owned by Leave. Half-day semantics are not guessed. Pending Leave remains a review concern and is not converted by Roster.
+## Final simplified manager UX
 
-## P. Public Holiday
+The primary manager flow is now deliberately short:
 
-Roster does not own a holiday calendar. If authoritative current `PUBLIC_HOLIDAY` evidence exists and a Work Shift is published, the new `WORKDAY` evidence preserves the prior holiday identity/source/revision inside `publicHolidayContext`. Both facts remain available without any rate calculation.
+```text
+Open Roster
+  -> Month / Week / Staff
+  -> select a date or employee
+  -> choose Rest Day, a saved Shift, Not Scheduled, or Custom time
+  -> Save Draft
+  -> Review changes
+  -> Publish to Staff App and Attendance
+```
 
-## Q. Copy Week
+- `Month` is the default overview. Normal schedules are expanded across the real calendar and a date opens the Day Roster drawer.
+- Day Roster separates `Working` from `On Leave`; Leave remains read-only and owned by the Leave domain.
+- `Week` is the team-by-day operating grid. `Staff` is a focused one-employee weekly view rather than another dense matrix.
+- Month, Week and Staff reuse one shift picker. Managers do not need to learn separate assignment controls.
+- The picker presents Rest Day, active Shift Templates and Not Scheduled first. `Custom time` remains a secondary advanced action.
+- `Reset to normal schedule` removes the date override instead of writing a duplicate baseline assignment.
+- Search is collapsed until needed. Previous/current/next controls match the active Month or Week context.
+- Technical source names, materialisation terms and revision numbers are removed from normal manager and Staff App surfaces.
+- Internal Employee Normal Schedules and Shift Coverage remain available under `More`; they are not part of the daily primary flow.
+- Shift Template and Employee Schedule history, audit and immutable snapshots remain intact behind the simplified UI.
+- Draft count represents actual unpublished exceptions, not inherited baseline days.
+- Dates use unambiguous formats such as `10 Aug 2026` and `10–16 Aug 2026`.
 
-Copy Week reads the prior latest published snapshot and creates new Draft rows with new identities and shifted dates/times. It requires an empty target, rechecks employee/branch eligibility and approved Leave, and does not affect Staff or Attendance until Publish.
+## Product simplification audit
 
-## R. Bulk Assignment
+| Area | Final decision |
+| --- | --- |
+| Shift Templates, fixed/variable Rest policy, effective schedule versions | KEEP |
+| Month, Week, Staff and Day Roster | REWORKED into the primary simple workflow |
+| Weekly override picker | REWORKED into one shared picker |
+| Employee Normal Schedules and Shift Coverage | KEEP under More |
+| Technical materialisation/revision/source labels in daily UI | REMOVED from normal surfaces |
+| Leave, Public Holiday, Attendance and Payroll ownership boundaries | KEEP |
+| Custom/overnight shift editor | KEEP as advanced editing |
+| AI scheduling, rotating patterns, shift bidding | DEFERRED |
 
-Manager UI can apply one explicit assignment to multiple selected employees for one date. The service validates every row and commits all rows plus one draft revision atomically. It performs no automatic scheduling.
+## Verification
 
-## S. Conflict Detection
+| Gate | Result |
+| --- | --- |
+| Roster targeted unit | 10/10 PASS |
+| Roster targeted integration | 4/4 PASS |
+| Full unit | 921/921 PASS |
+| Full integration | 168/168 PASS |
+| TypeScript | PASS |
+| ESLint | PASS, 0 errors; 8 pre-existing non-Roster warnings |
+| Prisma validate / generate | PASS |
+| Migration status | 184 migrations, database up to date |
+| Fresh migration rebuild | 184/184 PASS |
+| Local production-mode build | PASS, 137 pages |
+| Manager browser | Roster, Employee Schedules and Shift Templates accessible |
+| Staff browser | Local QA login and own My Schedule accessible |
+| 390px | Root/body horizontal overflow 0 |
+| Browser runtime | Console errors 0, hydration errors 0, runtime error overlays 0 |
 
-Database and service constraints prevent duplicate employee/day assignments, cross-tenant references, out-of-week rows and invalid shift shapes. Service overlap checks compare absolute start/end instants across branches and adjacent dates, so an overnight shift also blocks a conflicting next-day shift. Since Attendance P2 currently holds one expected interval per employee/day, `MULTIPLE_SHIFT_SAME_DAY` is intentionally blocked rather than ambiguously merged. Overnight shifts are supported.
+Two stale test expectations were aligned with already-existing behavior: the dev-supervisor WhatsApp configuration guard and the canonical seven payment-method reporting categories. No Roster business rule was weakened.
 
-## T. Employee Staff App
+## Deferred
 
-`/staff/roster` displays Today and weekly own-data schedule using only each period's latest publication. It shows branch, start/end, break, Rest or Not Scheduled. Missing rows say “No published schedule available” and explicitly avoid inferring Off Day. The Staff home card links to the same source.
+- AI auto scheduling and demand forecasting.
+- Generic recurring/rotating work-pattern engine.
+- Shift bidding and swap marketplace.
+- Provider-neutral staff notification delivery.
+- Malaysia labour-law automation.
+- Roster-derived payroll amounts.
 
-## U. Permissions / Tenant
+## Final status
 
-Manager queries use existing Attendance branch scope plus HR entitlement and Roster capabilities. Staff queries bind trusted Employee session `businessId + membershipId`. Composite business foreign keys and scope triggers reject cross-business branch, employee, period, publication and snapshot references.
+```text
+SIMPLE ROSTER UX
+READY
 
-## V. Idempotency / Concurrency
+MONTH / WEEK / STAFF / DAY ROSTER
+READY
 
-`businessId + operationKey` makes Publish idempotent. Draft revision checks prevent lost updates. Serializable retry handles database write conflicts. Concurrent Publish can produce only one canonical revision/operation result.
+SHARED SHIFT PICKER
+READY
 
-## W. Reconciliation
+DEFAULT SHIFT
+READY
 
-The reconciliation reader compares latest `APPLIED` snapshots against current expected-day source, membership, branch, date, kind, time, timezone and evidence reference. It reports missing, mismatched and stale Roster evidence. Past disciplinary evidence is never auto-repaired.
+REST DAY POLICY
+READY
 
-## X. Tests / Browser / Regression
+WEEKLY EXCEPTIONS
+READY
 
-Targeted unit and Local transaction-rollback integration tests cover Draft isolation, work/rest/blank semantics, overnight validation, immutable publication revision, ExpectedDay versioning, holiday context, approved Leave conflict, Copy Week, idempotency, own-data reads, tenant/branch scope, retrospective safety and locked Timesheet protection. Full gates include Unit, Integration, TypeScript, lint, Prisma validate/generate, migration status, fresh rebuild, production-mode Local build, browser console and 390px checks.
+ROSTER -> ATTENDANCE EVIDENCE
+READY
 
-## Y. Deferred Phase 2
-
-Deferred: shift swap/trade, availability, open shifts, recurring templates, minimum staffing, auto/AI scheduling, reminders/WhatsApp notifications and employee acceptance. Multiple same-day shifts remain explicitly blocked until expected-attendance semantics support multiple intervals safely.
-
-## Z. Final Status
-
-Phase 1 is ready only when all repository, migration, browser and regression gates pass. Production is outside scope and is neither accessed nor validated.
+LOCAL / TESTING ONLY
+PRODUCTION NOT ACCESSED
+PRODUCTION NOT VALIDATED
+```

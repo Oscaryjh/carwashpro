@@ -72,6 +72,7 @@ export default async function AttendanceSettingsDetailPage({
       <AttendanceSettingsForm
         action={saveBranchAttendanceSettingAction}
         branch={{ id: branch.id, name: branch.name }}
+        isConfigured={Boolean(setting)}
         initialValues={{
           latitude: setting?.latitude.toString() ?? "",
           longitude: setting?.longitude.toString() ?? "",
@@ -85,7 +86,7 @@ export default async function AttendanceSettingsDetailPage({
           normalWorkMinutesPerDay: setting?.normalWorkMinutesPerDay ?? 480,
           shiftSpanMinutes: setting?.shiftSpanMinutes ?? 540,
           timezone: setting?.timezone ?? business?.timezone ?? "Asia/Kuching",
-          isEnabled: setting?.isEnabled ?? false,
+          isEnabled: setting?.isEnabled ?? true,
         }}
       />
     </section>

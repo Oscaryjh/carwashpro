@@ -119,6 +119,9 @@ export function calculateDailyClosingReport(
 
   return {
     alerts,
+    cashDrawer: {
+      expensePayoutCents: source.drawerExpensePayouts.reduce((sum, payout) => sum + payout.amountCents, 0),
+    },
     financial: {
       collectedCents,
       discountsCents,

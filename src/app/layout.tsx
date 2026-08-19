@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { MalaysiaDateControls } from "@/components/malaysia-date-controls";
 import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "TETAMU POS",
-  description: "Multi-industry customer, appointment, cashier, and operations platform",
+  description:
+    "Multi-industry customer, appointment, cashier, and operations platform",
   applicationName: "TETAMU POS",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -37,8 +39,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en-MY">
       <body>
+        <MalaysiaDateControls />
         <PwaRegister />
         {children}
       </body>

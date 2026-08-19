@@ -22,7 +22,7 @@ test("period comparison handles a zero denominator without Infinity", () => {
 test("dashboard contract keeps canonical and accounting boundaries visible", async () => {
   const page = await readFile("src/app/(business)/dashboard/page.tsx", "utf8");
   const model = await readFile("src/lib/business-performance/read-model.ts", "utf8");
-  for (const wording of ["Recorded Business Spending", "Income vs Recorded Spending", "does not represent accounting profit", "Outstanding AP is settlement information", "Missing module data is not zero"]) assert.match(page, new RegExp(wording));
+  for (const wording of ["Recorded Business Spending", "Simple Operating Balance", "does not represent accounting profit", "Outstanding AP is settlement information", "Missing module data is not zero"]) assert.match(page, new RegExp(wording));
   assert.doesNotMatch(page, /label="Net Profit"|label="Gross Profit"|label="Operating Profit"/);
   assert.match(model, /getExpenseDashboard/);
   assert.match(model, /getAccountsPayableOverview/);

@@ -16,28 +16,26 @@ export function EmployeeProfileOverview({ data }: { data: OverviewData }) {
     data.branchAssignments.find((assignment) => assignment.isPrimary) ?? null;
   const operationalChecks = [
     {
-      label: "People record",
-      detail: `${data.employeeCode} is linked to this business`,
-      ready: true,
-    },
-    {
-      label: "Primary branch",
-      detail: primaryAssignment?.branch.name ?? "No active primary branch",
-      ready: Boolean(primaryAssignment),
-    },
-    {
-      label: "System account",
+      label: "Back-office login",
       detail: data.staffUser?.loginEnabled
-        ? "Back-office login is enabled"
-        : "No back-office login",
-      ready: Boolean(data.staffUser),
+        ? "Ready to sign in"
+        : "Login is not enabled",
+      ready: Boolean(data.staffUser?.loginEnabled),
     },
     {
-      label: "Operational assignment",
+      label: "Service booking",
       detail: data.staffUser?.appointmentBookable
-        ? "Available for service assignment"
-        : "Not assigned to services",
-      ready: Boolean(data.staffUser),
+        ? "Available for appointment assignment"
+        : "Not available for appointments",
+      ready: Boolean(data.staffUser?.appointmentBookable),
+    },
+    {
+      label: "Staff profile",
+      detail:
+        data.staffUser?.status === "active"
+          ? "Operational profile is active"
+          : "Operational profile needs review",
+      ready: data.staffUser?.status === "active",
     },
   ];
 
@@ -45,11 +43,10 @@ export function EmployeeProfileOverview({ data }: { data: OverviewData }) {
     <div className={styles.sectionContent}>
       <section className={styles.sectionIntro}>
         <div>
-          <p className={styles.eyebrow}>Overview</p>
-          <h2>Team member overview</h2>
+          <h2>Overview</h2>
           <p>
-            Branch, access and operational assignment at a glance. HR, payroll,
-            statutory and claims records are loaded only in entitled sections.
+            The employee&apos;s current work setup at a glance. Open a section only
+            when you need its full details.
           </p>
         </div>
         <span className={styles.scopeBadge}>Read only</span>
@@ -57,26 +54,26 @@ export function EmployeeProfileOverview({ data }: { data: OverviewData }) {
 
       <section aria-label="People snapshot" className={styles.metricGrid}>
         <ProfileMetric
-          label="Employee code"
-          value={data.employeeCode}
-          note="People identifier"
-        />
-        <ProfileMetric
-          label="Role"
+          label="Access role"
           value={data.staffUser?.staffRoleProfile?.name ?? "Custom access"}
-          note="Operational access role"
+          note="System permissions"
         />
         <ProfileMetric
-          label="Account"
+          label="Assigned services"
+          value={String(data.staffUser?._count.serviceStaffAssignments ?? 0)}
+          note="Available service assignments"
+        />
+        <ProfileMetric
+          label="Back-office access"
           value={data.staffUser?.loginEnabled ? "Login enabled" : "No login"}
-          note={formatEnum(data.status)}
+          note="Account access"
         />
         <ProfileMetric
-          label="Primary branch"
-          value={primaryAssignment?.branch.name ?? "Not assigned"}
-          note={`${Math.max(0, data.branchAssignments.length - 1)} additional branch${
-            data.branchAssignments.length - 1 === 1 ? "" : "es"
+          label="Branch coverage"
+          value={`${data.branchAssignments.length} branch${
+            data.branchAssignments.length === 1 ? "" : "es"
           }`}
+          note={primaryAssignment ? "Primary branch assigned" : "Review branch setup"}
         />
       </section>
 
@@ -108,34 +105,16 @@ export function EmployeeProfileOverview({ data }: { data: OverviewData }) {
         <section className={styles.profilePanel}>
           <div className={styles.panelHeading}>
             <div>
-              <p className={styles.eyebrow}>System connection</p>
-              <h3>POS and services</h3>
+              <p className={styles.eyebrow}>Information structure</p>
+              <h3>One section for each purpose</h3>
             </div>
           </div>
-          <div className={styles.detailList}>
-            <ProfileDetail
-              label="Staff profile"
-              value={data.staffUser ? "Linked" : "Not linked"}
-            />
-            <ProfileDetail
-              label="POS access"
-              value={
-                data.staffUser?.status === "active" &&
-                data.staffUser.loginEnabled
-                  ? "Enabled"
-                  : "Not enabled"
-              }
-            />
-            <ProfileDetail
-              label="Provides services"
-              value={data.staffUser?.appointmentBookable ? "Yes" : "No"}
-            />
-            <ProfileDetail
-              label="Assigned services"
-              value={String(
-                data.staffUser?._count.serviceStaffAssignments ?? 0,
-              )}
-            />
+          <div className={styles.overviewNote}>
+            <strong>Details now live in their own section</strong>
+            <p>
+              Employment keeps job and branch records. Personal keeps contact
+              details. Payroll, leave and attendance stay permission-controlled.
+            </p>
           </div>
         </section>
       </div>
@@ -151,11 +130,10 @@ export function EmployeeProfileEmployment({
     <div className={styles.sectionContent}>
       <section className={styles.sectionIntro}>
         <div>
-          <p className={styles.eyebrow}>Employment</p>
-          <h2>Employment details</h2>
+          <h2>Employment</h2>
           <p>
-            Read-only employment, branch, POS and service connections within
-            your authorized business scope.
+            Job details and current branch assignments within your authorized
+            business scope.
           </p>
         </div>
         <span className={styles.scopeBadge}>Read only</span>
@@ -165,13 +143,11 @@ export function EmployeeProfileEmployment({
         <section className={styles.profilePanel}>
           <div className={styles.panelHeading}>
             <div>
-              <p className={styles.eyebrow}>Employment record</p>
-              <h3>Core details</h3>
+              <p className={styles.eyebrow}>Job</p>
+              <h3>Employment details</h3>
             </div>
-            <StatusBadge status={data.status} />
           </div>
           <div className={styles.detailList}>
-            <ProfileDetail label="Employee code" value={data.employeeCode} />
             <ProfileDetail
               label="Employment type"
               value={formatEnum(data.employmentType)}
@@ -198,29 +174,24 @@ export function EmployeeProfileEmployment({
         <section className={styles.profilePanel}>
           <div className={styles.panelHeading}>
             <div>
-              <p className={styles.eyebrow}>System connection</p>
-              <h3>POS and service profile</h3>
+              <p className={styles.eyebrow}>Access</p>
+              <h3>Staff access & services</h3>
             </div>
           </div>
           {data.staffUser ? (
             <>
               <div className={styles.detailList}>
-                <ProfileDetail label="Staff profile" value="Linked" />
                 <ProfileDetail
-                  label="Account status"
-                  value={formatEnum(data.staffUser.status)}
-                />
-                <ProfileDetail
-                  label="POS access"
+                  label="Back-office login"
                   value={data.staffUser.loginEnabled ? "Enabled" : "Disabled"}
                 />
                 <ProfileDetail
-                  label="System access role"
+                  label="Access role"
                   value={data.staffUser.staffRoleProfile?.name ?? "Custom access"}
                 />
                 <ProfileDetail
-                  label="Provides services"
-                  value={data.staffUser.appointmentBookable ? "Yes" : "No"}
+                  label="Service booking"
+                  value={data.staffUser.appointmentBookable ? "Enabled" : "Not enabled"}
                 />
               </div>
               <div className={styles.serviceList}>
@@ -240,8 +211,8 @@ export function EmployeeProfileEmployment({
             </>
           ) : (
             <ProfileEmpty
-              title="No linked system profile"
-              description="This employee does not currently have POS access or a service profile."
+              title="No staff access profile"
+              description="This employee does not currently have back-office or service access."
             />
           )}
         </section>
@@ -250,9 +221,8 @@ export function EmployeeProfileEmployment({
       <section className={styles.profilePanel}>
         <div className={styles.panelHeading}>
           <div>
-            <p className={styles.eyebrow}>Branch scope</p>
-            <h3>Current assignments</h3>
-            <p>Only current assignments inside your authorized branches appear.</p>
+            <p className={styles.eyebrow}>Branches</p>
+            <h3>Current branch assignments</h3>
           </div>
           <span>{data.branchAssignments.length} assignment(s)</span>
         </div>

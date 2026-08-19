@@ -8,22 +8,22 @@ import {
 } from "../../src/lib/payroll/payslip-publication";
 import {
   assertPayrollReadinessCanProceed,
+  createPayrollReadinessIssue,
   summarizePayrollReadiness,
-  type PayrollReadinessIssue,
 } from "../../src/lib/payroll/readiness";
 
 const businessId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const membershipId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 test("P4D readiness is deterministic and warnings do not block workflow", () => {
-  const warning: PayrollReadinessIssue = {
+  const warning = createPayrollReadinessIssue({
     code: "MISSING_BANK_ACCOUNT",
-    severity: "WARNING",
+    severity: "REVIEW",
     membershipId,
     employeeCode: "EMP-1",
     employeeName: "Aina",
     message: "No active primary bank account is configured.",
-  };
+  });
   const input = {
     businessId,
     month: "2026-08",
@@ -37,6 +37,10 @@ test("P4D readiness is deterministic and warnings do not block workflow", () => 
   assert.equal(first.canProceed, true);
   assert.equal(first.blockers.length, 0);
   assert.equal(first.warnings.length, 1);
+  assert.equal(first.status, "REVIEW_REQUIRED");
+  assert.equal(first.reviewRequiredCount, 1);
+  assert.equal(first.warnings[0].source, "Payment Readiness");
+  assert.match(first.warnings[0].resolutionHint, /payment batch/);
   assert.equal(first.counts.MISSING_BANK_ACCOUNT, 1);
   assert.doesNotThrow(() => assertPayrollReadinessCanProceed(first));
 });
@@ -47,14 +51,14 @@ test("P4D blockers fail closed with a concrete employee reason", () => {
     month: "2026-08",
     runId: null,
     memberships: [{ id: membershipId, employeeCode: "EMP-1", fullName: "Aina" }],
-    issues: [{
+    issues: [createPayrollReadinessIssue({
       code: "MISSING_COMPENSATION",
-      severity: "BLOCKER",
+      severity: "BLOCKING",
       membershipId,
       employeeCode: "EMP-1",
       employeeName: "Aina",
       message: "No verified compensation applies to this payroll month.",
-    }],
+    })],
   });
   assert.equal(readiness.canProceed, false);
   assert.equal(readiness.employees[0].status, "BLOCKED");
@@ -75,9 +79,9 @@ test("P4D reconciliation, proration and missing correction materialization all b
     month: "2026-08",
     runId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     memberships: [{ id: membershipId, employeeCode: "EMP-1", fullName: "Aina" }],
-    issues: blockerCodes.map((code) => ({
+    issues: blockerCodes.map((code) => createPayrollReadinessIssue({
       code,
-      severity: "BLOCKER" as const,
+      severity: "BLOCKING" as const,
       membershipId,
       employeeCode: "EMP-1",
       employeeName: "Aina",

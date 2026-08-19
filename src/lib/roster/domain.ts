@@ -6,9 +6,14 @@ export type RosterAssignmentInput = Readonly<{
   membershipId: string;
   workDate: Date;
   kind: "WORK_SHIFT" | "REST_DAY" | "NOT_SCHEDULED";
+  shiftTemplateId?: string | null;
+  shiftNameSnapshot?: string | null;
+  shiftColorSnapshot?: string | null;
+  crossMidnightSnapshot?: boolean | null;
   startAt?: Date | null;
   endAt?: Date | null;
   breakMinutes?: number;
+  breakPaidSnapshot?: boolean;
   note?: string | null;
 }>;
 
@@ -19,6 +24,18 @@ export function dateOnly(value: Date) {
 
 export function dateValue(value: Date) {
   return dateOnly(value).toISOString().slice(0, 10);
+}
+
+export function scheduledPaidMinutes(input: {
+  startMinute: number;
+  endMinute: number;
+  breakMinutes: number;
+  breakPaid?: boolean;
+}) {
+  const elapsed = input.endMinute + (input.endMinute <= input.startMinute ? 1_440 : 0) - input.startMinute;
+  if (elapsed <= 0 || elapsed > ROSTER_MAX_SHIFT_MINUTES) throw new Error("Shift duration must be greater than zero and no more than 24 hours.");
+  if (!Number.isInteger(input.breakMinutes) || input.breakMinutes < 0 || input.breakMinutes >= elapsed) throw new Error("Break minutes must be shorter than the shift duration.");
+  return elapsed - (input.breakPaid ? 0 : input.breakMinutes);
 }
 
 export function startOfIsoWeek(value: Date) {
@@ -93,11 +110,36 @@ export function assignmentSourceShape(input: RosterAssignmentInput) {
     membershipId: input.membershipId,
     workDate: dateValue(input.workDate),
     kind: input.kind,
+    shiftTemplateId: input.shiftTemplateId ?? null,
+    shiftNameSnapshot: input.shiftNameSnapshot ?? null,
+    shiftColorSnapshot: input.shiftColorSnapshot ?? null,
+    crossMidnightSnapshot: input.crossMidnightSnapshot ?? null,
     startAt: input.startAt?.toISOString() ?? null,
     endAt: input.endAt?.toISOString() ?? null,
     breakMinutes: input.breakMinutes ?? 0,
+    breakPaidSnapshot: input.breakPaidSnapshot ?? false,
     note: input.note?.trim() || null,
   };
+}
+
+export function changedRosterAssignments(
+  current: readonly RosterAssignmentInput[],
+  previous: readonly RosterAssignmentInput[],
+) {
+  const before = new Map(previous.map((item) => [
+    `${item.membershipId}:${dateValue(item.workDate)}`,
+    { item, signature: stableJson(assignmentSourceShape(item)) },
+  ]));
+  const after = new Map(current.map((item) => [
+    `${item.membershipId}:${dateValue(item.workDate)}`,
+    { item, signature: stableJson(assignmentSourceShape(item)) },
+  ]));
+  return [...new Set([...before.keys(), ...after.keys()])].flatMap((key) => {
+    const prior = before.get(key);
+    const next = after.get(key);
+    if (prior?.signature === next?.signature) return [];
+    return [next?.item ?? prior!.item];
+  });
 }
 
 function assertDate(value: Date, label: string) {

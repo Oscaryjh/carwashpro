@@ -332,6 +332,7 @@ function closingReport(
 ): DailyClosingReport {
   return {
     alerts: [],
+    cashDrawer: { expensePayoutCents: 0 },
     financial: { ...financial, discountsCents: 0 },
     invoiceCounts: { paid: 0, partial: 0, refunded: 0, total: 0, unpaid: 0 },
     operations: {

@@ -1,4 +1,8 @@
-import type { PayrollRunStatus, PrismaClient } from "@prisma/client";
+import type {
+  PayrollHolidayPayDecisionStatus,
+  PayrollRunStatus,
+  PrismaClient,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 type EntryEditorDatabase = Pick<
@@ -11,6 +15,9 @@ export type PayrollRunEntryEditorData = {
     id: string;
     periodStart: Date;
     status: PayrollRunStatus;
+    publicHolidayPayEnabledSnapshot: boolean;
+    publicHolidayPayPolicyRevisionSnapshot: number;
+    publicHolidayExtraMultiplierSnapshot: number;
   };
   entry: {
     id: string;
@@ -23,6 +30,10 @@ export type PayrollRunEntryEditorData = {
     unpaidLeaveDeduction: number;
     overtimePay: number;
     publicHolidayPay: number;
+    publicHolidayPayPreview: number;
+    publicHolidayPayDecisionStatus: PayrollHolidayPayDecisionStatus;
+    publicHolidayPayDecisionReason: string | null;
+    publicHolidayPayDecidedAt: Date | null;
     allowances: number;
     otherDeductions: number;
     epfWageBase: number;
@@ -50,6 +61,24 @@ export type PayrollRunEntryEditorData = {
       restDayWorkedMinutes: number;
       publicHolidayWorkedMinutes: number;
       approvedOvertimeMinutes: number;
+      regularNormalMinutes: number;
+      normalOtMinutes: number;
+      restDayWorkMinutes: number;
+      restDayOtMinutes: number;
+      publicHolidayWorkMinutes: number;
+      publicHolidayOtMinutes: number;
+      segmentFacts: Array<{
+        localDate: string;
+        startAt: string;
+        endAt: string;
+        timezone: string;
+        context: "NORMAL" | "REST_DAY" | "PUBLIC_HOLIDAY";
+        isRestDay: boolean;
+        isPublicHoliday: boolean;
+        workedMinutes: number;
+        breakMinutes: number;
+        approvedOtMinutes: number;
+      }>;
       policyBlockers: string[];
       legacyCompatibility: boolean;
     } | null;
@@ -132,6 +161,10 @@ export async function loadPayrollRunEntryEditor(
       unpaidLeaveDeduction: true,
       overtimePay: true,
       publicHolidayPay: true,
+      publicHolidayPayPreview: true,
+      publicHolidayPayDecisionStatus: true,
+      publicHolidayPayDecisionReason: true,
+      publicHolidayPayDecidedAt: true,
       allowances: true,
       otherDeductions: true,
       epfWageBase: true,
@@ -160,6 +193,13 @@ export async function loadPayrollRunEntryEditor(
           restDayWorkedMinutes: true,
           publicHolidayWorkedMinutes: true,
           approvedOvertimeMinutes: true,
+          regularNormalMinutes: true,
+          normalOtMinutes: true,
+          restDayWorkMinutes: true,
+          restDayOtMinutes: true,
+          publicHolidayWorkMinutes: true,
+          publicHolidayOtMinutes: true,
+          segmentFacts: true,
           policyBlockers: true,
           legacyCompatibility: true,
         },
@@ -196,7 +236,14 @@ export async function loadPayrollRunEntryEditor(
         },
       },
       payrollRun: {
-        select: { id: true, periodStart: true, status: true },
+        select: {
+          id: true,
+          periodStart: true,
+          status: true,
+          publicHolidayPayEnabledSnapshot: true,
+          publicHolidayPayPolicyRevisionSnapshot: true,
+          publicHolidayExtraMultiplierSnapshot: true,
+        },
       },
     },
   });
@@ -264,7 +311,12 @@ export async function loadPayrollRunEntryEditor(
   ]);
 
   return {
-    run: entry.payrollRun,
+    run: {
+      ...entry.payrollRun,
+      publicHolidayExtraMultiplierSnapshot: money(
+        entry.payrollRun.publicHolidayExtraMultiplierSnapshot,
+      ),
+    },
     entry: {
       id: entry.id,
       membershipId: entry.membershipId,
@@ -276,6 +328,10 @@ export async function loadPayrollRunEntryEditor(
       unpaidLeaveDeduction: money(entry.unpaidLeaveDeduction),
       overtimePay: money(entry.overtimePay),
       publicHolidayPay: money(entry.publicHolidayPay),
+      publicHolidayPayPreview: money(entry.publicHolidayPayPreview),
+      publicHolidayPayDecisionStatus: entry.publicHolidayPayDecisionStatus,
+      publicHolidayPayDecisionReason: entry.publicHolidayPayDecisionReason,
+      publicHolidayPayDecidedAt: entry.publicHolidayPayDecidedAt,
       allowances: money(entry.allowances),
       otherDeductions: money(entry.otherDeductions),
       epfWageBase: money(entry.epfWageBase),
@@ -305,6 +361,9 @@ export async function loadPayrollRunEntryEditor(
             ),
             policyBlockers: jsonStringArray(
               entry.attendanceInputSnapshot.policyBlockers,
+            ),
+            segmentFacts: jsonSegmentFacts(
+              entry.attendanceInputSnapshot.segmentFacts,
             ),
           }
         : null,
@@ -372,6 +431,48 @@ function jsonStringArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+function jsonSegmentFacts(
+  value: unknown,
+): PayrollRunEntryEditorData["entry"]["attendance"] extends infer T
+  ? T extends { segmentFacts: infer S }
+    ? S
+    : never
+  : never {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const fact = item as Record<string, unknown>;
+    if (
+      typeof fact.localDate !== "string" ||
+      typeof fact.startAt !== "string" ||
+      typeof fact.endAt !== "string" ||
+      typeof fact.timezone !== "string" ||
+      !["NORMAL", "REST_DAY", "PUBLIC_HOLIDAY"].includes(
+        String(fact.context),
+      ) ||
+      typeof fact.workedMinutes !== "number" ||
+      typeof fact.breakMinutes !== "number" ||
+      typeof fact.approvedOtMinutes !== "number"
+    ) {
+      return [];
+    }
+
+    return [{
+      localDate: fact.localDate,
+      startAt: fact.startAt,
+      endAt: fact.endAt,
+      timezone: fact.timezone,
+      context: fact.context as "NORMAL" | "REST_DAY" | "PUBLIC_HOLIDAY",
+      isRestDay: fact.isRestDay === true,
+      isPublicHoliday: fact.isPublicHoliday === true,
+      workedMinutes: fact.workedMinutes,
+      breakMinutes: fact.breakMinutes,
+      approvedOtMinutes: fact.approvedOtMinutes,
+    }];
+  });
 }
 
 function money(value: { toString(): string } | null | undefined) {

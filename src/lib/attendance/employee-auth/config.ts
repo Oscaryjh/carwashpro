@@ -210,7 +210,9 @@ function readMockCode(
   const code = value?.trim() ?? "";
 
   if (!code) {
-    return null;
+    return environment === "development" && sendMode === "mock"
+      ? "000000"
+      : null;
   }
 
   if (

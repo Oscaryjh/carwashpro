@@ -1,14 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
-import { getBranchLocalDateKey } from "@/lib/attendance/work-date";
+import { getBranchLocalDateKey, parseBranchLocalDateTime } from "@/lib/attendance/work-date";
 import { writeAuditLog, type AuditRequestContext } from "@/lib/audit";
 import type { AppSession } from "@/lib/auth/session";
+import { holidayContext } from "@/lib/holidays/domain";
+import { resolveBranchHolidays } from "@/lib/holidays/service";
 import { prisma } from "@/lib/prisma";
 import {
   addDays,
   assignmentSourceShape,
   assertWeeklyPeriod,
+  changedRosterAssignments,
   dateOnly,
   dateValue,
   expectedKindForRoster,
@@ -17,6 +20,7 @@ import {
   validateRosterAssignment,
   type RosterAssignmentInput,
 } from "./domain";
+import { resolveRosterWeek } from "./employee-schedule-service";
 
 export type RosterServiceContext = Readonly<{
   businessId: string;
@@ -41,6 +45,7 @@ export class RosterError extends Error {
       | "TIMESHEET_REOPEN_REQUIRED"
       | "PUBLISHED_AMENDMENT_FORBIDDEN"
       | "TARGET_NOT_EMPTY"
+      | "VARIABLE_REST_REQUIRED"
       | "NOT_FOUND",
     message: string,
   ) {
@@ -56,6 +61,7 @@ const assignmentSchema = z.object({
   membershipId: z.string().uuid(),
   workDate: z.date(),
   kind: z.enum(["WORK_SHIFT", "REST_DAY", "NOT_SCHEDULED"]),
+  shiftTemplateId: z.string().uuid().nullable().optional(),
   startAt: z.date().nullable().optional(),
   endAt: z.date().nullable().optional(),
   breakMinutes: z.number().int().min(0).max(720).default(0),
@@ -85,14 +91,18 @@ export async function upsertRosterAssignment(args: {
   const workDate = dateOnly(input.workDate);
   assertWeeklyPeriod(weekStart, workDate);
   assertBranchScope(args.context, input.branchId);
-  try {
-    validateRosterAssignment(input);
-  } catch (error) {
-    throw new RosterError("INVALID_ASSIGNMENT", messageOf(error));
-  }
   const database = args.database ?? prisma;
   return runSerializable(database, async (transaction) => {
     const branch = await getRosterBranch(transaction, args.context.businessId, input.branchId);
+    const normalized = await resolveTemplateAssignment(transaction, args.context.businessId, input.branchId, branch.timezone, {
+      ...input,
+      workDate,
+    });
+    try {
+      validateRosterAssignment(normalized);
+    } catch (error) {
+      throw new RosterError("INVALID_ASSIGNMENT", messageOf(error));
+    }
     await assertEmployeeEligible(transaction, {
       businessId: args.context.businessId,
       branchId: input.branchId,
@@ -126,22 +136,28 @@ export async function upsertRosterAssignment(args: {
         "This employee already has an assignment on that day. Multiple same-day shifts are safely deferred in Phase 1.",
       );
     }
-    if (input.kind === "WORK_SHIFT") {
+    await assertNoApprovedFullDayLeave(transaction, args.context.businessId, normalized.membershipId, workDate);
+    if (normalized.kind === "WORK_SHIFT") {
       await assertNoShiftOverlap(transaction, {
         businessId: args.context.businessId,
-        membershipId: input.membershipId,
-        startAt: input.startAt!,
-        endAt: input.endAt!,
+        membershipId: normalized.membershipId,
+        startAt: normalized.startAt!,
+        endAt: normalized.endAt!,
         excludeAssignmentId: existing?.id,
       });
     }
     const assignmentData = {
       branchId: input.branchId,
-      kind: input.kind,
-      startAt: input.kind === "WORK_SHIFT" ? input.startAt : null,
-      endAt: input.kind === "WORK_SHIFT" ? input.endAt : null,
-      breakMinutes: input.kind === "WORK_SHIFT" ? input.breakMinutes : 0,
-      note: input.note || null,
+      kind: normalized.kind,
+      shiftTemplateId: normalized.kind === "WORK_SHIFT" ? normalized.shiftTemplateId : null,
+      shiftNameSnapshot: normalized.kind === "WORK_SHIFT" ? normalized.shiftNameSnapshot : null,
+      shiftColorSnapshot: normalized.kind === "WORK_SHIFT" ? normalized.shiftColorSnapshot : null,
+      crossMidnightSnapshot: normalized.kind === "WORK_SHIFT" ? normalized.crossMidnightSnapshot : null,
+      startAt: normalized.kind === "WORK_SHIFT" ? normalized.startAt : null,
+      endAt: normalized.kind === "WORK_SHIFT" ? normalized.endAt : null,
+      breakMinutes: normalized.kind === "WORK_SHIFT" ? normalized.breakMinutes : 0,
+      breakPaidSnapshot: normalized.kind === "WORK_SHIFT" ? normalized.breakPaidSnapshot ?? false : false,
+      note: normalized.note || null,
       updatedById: args.context.actor.userId,
     } as const;
     const assignment = existing
@@ -180,6 +196,23 @@ export async function upsertRosterAssignment(args: {
   });
 }
 
+export async function ensureRosterPeriod(args: {
+  context: RosterServiceContext;
+  branchId: string;
+  weekStart: Date;
+  database?: PrismaClient;
+}) {
+  assertBranchScope(args.context, args.branchId);
+  const weekStart = dateOnly(args.weekStart);
+  assertWeeklyPeriod(weekStart);
+  const database = args.database ?? prisma;
+  return database.rosterPeriod.upsert({
+    where: { businessId_branchId_weekStart: { businessId: args.context.businessId, branchId: args.branchId, weekStart } },
+    update: {},
+    create: { businessId: args.context.businessId, branchId: args.branchId, weekStart, createdById: args.context.actor.userId, updatedById: args.context.actor.userId },
+  });
+}
+
 export async function bulkUpsertRosterAssignments(args: {
   context: RosterServiceContext;
   input: {
@@ -199,14 +232,13 @@ export async function bulkUpsertRosterAssignments(args: {
   const keys = new Set<string>();
   for (const row of args.input.assignments) {
     assertWeeklyPeriod(weekStart, row.workDate);
-    try { validateRosterAssignment(row); } catch (error) { throw new RosterError("INVALID_ASSIGNMENT", messageOf(error)); }
     const key = `${row.membershipId}:${dateValue(row.workDate)}`;
     if (keys.has(key)) throw new RosterError("INVALID_ASSIGNMENT", "Bulk assignment contains a duplicate employee/day row.");
     keys.add(key);
   }
   const database = args.database ?? prisma;
   return runSerializable(database, async (transaction) => {
-    await getRosterBranch(transaction, args.context.businessId, args.input.branchId);
+    const branch = await getRosterBranch(transaction, args.context.businessId, args.input.branchId);
     const period = await transaction.rosterPeriod.upsert({
       where: { businessId_branchId_weekStart: { businessId: args.context.businessId, branchId: args.input.branchId, weekStart } },
       update: {},
@@ -223,27 +255,41 @@ export async function bulkUpsertRosterAssignments(args: {
     const saved = [];
     for (const row of args.input.assignments) {
       const workDate = dateOnly(row.workDate);
+      const normalized = await resolveTemplateAssignment(
+        transaction,
+        args.context.businessId,
+        args.input.branchId,
+        branch.timezone,
+        { ...row, workDate },
+      );
+      try { validateRosterAssignment(normalized); } catch (error) { throw new RosterError("INVALID_ASSIGNMENT", messageOf(error)); }
       await assertEmployeeEligible(transaction, { businessId: args.context.businessId, branchId: args.input.branchId, membershipId: row.membershipId, workDate });
       const existing = await transaction.rosterAssignment.findUnique({
         where: { businessId_membershipId_workDate: { businessId: args.context.businessId, membershipId: row.membershipId, workDate } },
       });
       if (existing && existing.rosterPeriodId !== period.id) throw new RosterError("MULTIPLE_SHIFT_SAME_DAY", "An employee already has an assignment on that day in another branch.");
-      if (row.kind === "WORK_SHIFT") {
+      await assertNoApprovedFullDayLeave(transaction, args.context.businessId, normalized.membershipId, workDate);
+      if (normalized.kind === "WORK_SHIFT") {
         await assertNoShiftOverlap(transaction, {
           businessId: args.context.businessId,
-          membershipId: row.membershipId,
-          startAt: row.startAt!,
-          endAt: row.endAt!,
+          membershipId: normalized.membershipId,
+          startAt: normalized.startAt!,
+          endAt: normalized.endAt!,
           excludeAssignmentId: existing?.id,
         });
       }
       const data = {
         branchId: args.input.branchId,
-        kind: row.kind,
-        startAt: row.kind === "WORK_SHIFT" ? row.startAt : null,
-        endAt: row.kind === "WORK_SHIFT" ? row.endAt : null,
-        breakMinutes: row.kind === "WORK_SHIFT" ? row.breakMinutes ?? 0 : 0,
-        note: row.note?.trim() || null,
+        kind: normalized.kind,
+        shiftTemplateId: normalized.kind === "WORK_SHIFT" ? normalized.shiftTemplateId : null,
+        shiftNameSnapshot: normalized.kind === "WORK_SHIFT" ? normalized.shiftNameSnapshot : null,
+        shiftColorSnapshot: normalized.kind === "WORK_SHIFT" ? normalized.shiftColorSnapshot : null,
+        crossMidnightSnapshot: normalized.kind === "WORK_SHIFT" ? normalized.crossMidnightSnapshot : null,
+        startAt: normalized.kind === "WORK_SHIFT" ? normalized.startAt : null,
+        endAt: normalized.kind === "WORK_SHIFT" ? normalized.endAt : null,
+        breakMinutes: normalized.kind === "WORK_SHIFT" ? normalized.breakMinutes ?? 0 : 0,
+        breakPaidSnapshot: normalized.kind === "WORK_SHIFT" ? normalized.breakPaidSnapshot ?? false : false,
+        note: normalized.note?.trim() || null,
         updatedById: args.context.actor.userId,
       } as const;
       saved.push(existing
@@ -349,18 +395,31 @@ export async function copyPreviousRosterWeek(args: {
     if (target.status === "PUBLISHED" && !args.context.canAmendPublished) {
       throw new RosterError("PUBLISHED_AMENDMENT_FORBIDDEN", "Published roster changes require the amend-roster capability.");
     }
+    const sourceOverrides = sourcePublication.assignments.filter((assignment) => assignment.sourceAssignmentId !== null);
     const rows = [];
-    for (const source of sourcePublication.assignments) {
+    for (const source of sourceOverrides) {
       const workDate = addDays(source.workDate, 7);
+      if (source.shiftTemplateId) {
+        const reusableTemplate = await transaction.rosterShiftTemplate.findFirst({
+          where: {
+            id: source.shiftTemplateId,
+            businessId: args.context.businessId,
+            active: true,
+            OR: [{ branchId: null }, { branchId: args.branchId }],
+          },
+          select: { id: true },
+        });
+        if (!reusableTemplate) {
+          throw new RosterError("INVALID_ASSIGNMENT", `Shift template ${source.shiftNameSnapshot ?? "from the previous week"} is inactive or unavailable.`);
+        }
+      }
       await assertEmployeeEligible(transaction, {
         businessId: args.context.businessId,
         branchId: args.branchId,
         membershipId: source.membershipId,
         workDate,
       });
-      if (source.kind === "WORK_SHIFT") {
-        await assertNoApprovedFullDayLeave(transaction, args.context.businessId, source.membershipId, workDate);
-      }
+      await assertNoApprovedFullDayLeave(transaction, args.context.businessId, source.membershipId, workDate);
       const existing = await transaction.rosterAssignment.findUnique({
         where: {
           businessId_membershipId_workDate: {
@@ -389,9 +448,14 @@ export async function copyPreviousRosterWeek(args: {
         membershipId: source.membershipId,
         workDate,
         kind: source.kind,
+        shiftTemplateId: source.shiftTemplateId,
+        shiftNameSnapshot: source.shiftNameSnapshot,
+        shiftColorSnapshot: source.shiftColorSnapshot,
+        crossMidnightSnapshot: source.crossMidnightSnapshot,
         startAt: source.startAt ? new Date(source.startAt.getTime() + 7 * 86_400_000) : null,
         endAt: source.endAt ? new Date(source.endAt.getTime() + 7 * 86_400_000) : null,
         breakMinutes: source.breakMinutes,
+        breakPaidSnapshot: source.breakPaidSnapshot,
         note: source.note,
         createdById: args.context.actor.userId,
         updatedById: args.context.actor.userId,
@@ -410,7 +474,7 @@ export async function copyPreviousRosterWeek(args: {
       action: "ROSTER_WEEK_COPIED",
       entityType: "RosterPeriod",
       entityId: period.id,
-      summary: "Previous published roster copied into a new draft only.",
+      summary: "Previous published weekly exceptions copied into a new draft only.",
       metadata: { sourcePublicationId: sourcePublication.id, assignmentCount: rows.length },
     }, transaction);
     return period;
@@ -452,9 +516,40 @@ export async function publishRoster(args: {
           include: { assignments: true },
         })
       : null;
+    const resolution = await resolveRosterWeek({
+      businessId: args.context.businessId,
+      branchId: period.branchId,
+      weekStart: period.weekStart,
+      database: transaction,
+      overrides: period.assignments,
+    });
+    if (resolution.attention.length) {
+      const employeeNames = resolution.attention.map((item) => `${item.employeeName} (${item.assigned}/${item.required} Rest Days)`).join(", ");
+      throw new RosterError("VARIABLE_REST_REQUIRED", `Roster requires attention. Assign the required variable Rest Days before publishing: ${employeeNames}.`);
+    }
+    const resolvedAssignments = resolution.assignments;
     const historicalDates = new Set<string>();
+    for (const assignment of resolvedAssignments) {
+      validateRosterAssignment(assignment);
+      const day = dateValue(assignment.workDate);
+      if (day < localToday || (day === localToday && (!assignment.startAt || assignment.startAt <= now))) historicalDates.add(day);
+    }
     for (const assignment of period.assignments) {
       validateRosterAssignment(assignment);
+      if (assignment.shiftTemplateId) {
+        const template = await transaction.rosterShiftTemplate.findFirst({
+          where: {
+            id: assignment.shiftTemplateId,
+            businessId: args.context.businessId,
+            active: true,
+            OR: [{ branchId: null }, { branchId: period.branchId }],
+          },
+          select: { id: true },
+        });
+        if (!template) {
+          throw new RosterError("INVALID_ASSIGNMENT", `Shift template ${assignment.shiftNameSnapshot ?? "used by this roster"} is inactive or unavailable.`);
+        }
+      }
       await assertEmployeeEligible(transaction, {
         businessId: args.context.businessId,
         branchId: period.branchId,
@@ -477,17 +572,29 @@ export async function publishRoster(args: {
     for (const prior of priorPublication?.assignments ?? []) {
       if (dateValue(prior.workDate) < localToday) historicalDates.add(dateValue(prior.workDate));
     }
-    if (historicalDates.size && (!args.context.canManageRetrospective || !input.reason)) {
+    const changedAssignments = priorPublication
+      ? changedRosterAssignments(resolvedAssignments, priorPublication.assignments)
+      : period.assignments;
+    const retrospectiveChangeDates = new Set(changedAssignments.flatMap((assignment) => {
+      const day = dateValue(assignment.workDate);
+      return day < localToday || (day === localToday && (!assignment.startAt || assignment.startAt <= now)) ? [day] : [];
+    }));
+    if (retrospectiveChangeDates.size && (!args.context.canManageRetrospective || !input.reason)) {
       throw new RosterError(
         "RETROSPECTIVE_REVIEW_REQUIRED",
         "Past or already-started roster dates require retrospective capability and a reason. They cannot manufacture No-show evidence.",
       );
     }
     await assertNoLockedTimesheet(transaction, args.context.businessId, [
-      ...period.assignments.map((item) => item.workDate),
+      ...resolvedAssignments.map((item) => item.workDate),
       ...(priorPublication?.assignments.map((item) => item.workDate) ?? []),
     ]);
-    const sourceDigest = rosterAssignmentDigest(period.assignments.map(assignmentSourceShape));
+    const sourceDigest = rosterAssignmentDigest(resolvedAssignments.map((assignment) => ({
+      ...assignmentSourceShape(assignment),
+      sourceAssignmentId: assignment.sourceAssignmentId,
+      sourceScheduleVersionId: assignment.sourceScheduleVersionId,
+      resolvedSource: assignment.resolvedSource,
+    })));
     const revision = period.publicationRevision + 1;
     const publication = await transaction.rosterPublication.create({
       data: {
@@ -503,7 +610,7 @@ export async function publishRoster(args: {
       },
     });
     const evidenceMembershipIds = [...new Set([
-      ...period.assignments.map((item) => item.membershipId),
+      ...resolvedAssignments.map((item) => item.membershipId),
       ...(priorPublication?.assignments.map((item) => item.membershipId) ?? []),
     ])];
     const currentByMemberDate = new Map(
@@ -516,7 +623,18 @@ export async function publishRoster(args: {
         },
       })).map((item) => [`${item.membershipId}:${dateValue(item.workDate)}`, item]),
     );
-    const currentAssignmentKeys = new Set(period.assignments.map((item) => `${item.membershipId}:${dateValue(item.workDate)}`));
+    const holidayByDate = new Map<string, Awaited<ReturnType<typeof resolveBranchHolidays>>[number]>();
+    for (const holiday of await resolveBranchHolidays({
+      businessId: args.context.businessId,
+      branchId: period.branchId,
+      from: period.weekStart,
+      to: addDays(period.weekStart, 6),
+      database: transaction,
+    })) {
+      const key = dateValue(holiday.workDate);
+      if (!holidayByDate.has(key)) holidayByDate.set(key, holiday);
+    }
+    const currentAssignmentKeys = new Set(resolvedAssignments.map((item) => `${item.membershipId}:${dateValue(item.workDate)}`));
     for (const prior of priorPublication?.assignments ?? []) {
       const key = `${prior.membershipId}:${dateValue(prior.workDate)}`;
       if (currentAssignmentKeys.has(key) || historicalDates.has(dateValue(prior.workDate))) continue;
@@ -527,7 +645,7 @@ export async function publishRoster(args: {
       }
     }
     const snapshots = [];
-    for (const assignment of period.assignments) {
+    for (const assignment of resolvedAssignments) {
       const key = `${assignment.membershipId}:${dateValue(assignment.workDate)}`;
       const retrospective = historicalDates.has(dateValue(assignment.workDate));
       const snapshotId = randomUUID();
@@ -536,15 +654,22 @@ export async function publishRoster(args: {
         data: {
           id: snapshotId,
           publicationId: publication.id,
-          sourceAssignmentId: assignment.id,
+          sourceAssignmentId: assignment.sourceAssignmentId,
+          sourceScheduleVersionId: assignment.sourceScheduleVersionId,
+          resolvedSource: assignment.resolvedSource,
           businessId: args.context.businessId,
           branchId: period.branchId,
           membershipId: assignment.membershipId,
           workDate: assignment.workDate,
           kind: assignment.kind,
+          shiftTemplateId: assignment.shiftTemplateId,
+          shiftNameSnapshot: assignment.shiftNameSnapshot,
+          shiftColorSnapshot: assignment.shiftColorSnapshot,
+          crossMidnightSnapshot: assignment.crossMidnightSnapshot,
           startAt: assignment.startAt,
           endAt: assignment.endAt,
           breakMinutes: assignment.breakMinutes,
+          breakPaidSnapshot: assignment.breakPaidSnapshot,
           note: assignment.note,
           timezoneSnapshot: branch.timezone,
           evidenceDisposition: retrospective ? "RETROSPECTIVE_REVIEW_REQUIRED" : "APPLIED",
@@ -554,10 +679,17 @@ export async function publishRoster(args: {
       snapshots.push(snapshot);
       if (retrospective) continue;
       const current = currentByMemberDate.get(key);
-      const publicHolidayContext = current?.kind === "PUBLIC_HOLIDAY"
+      const resolvedHoliday = holidayByDate.get(dateValue(assignment.workDate));
+      const currentPublicHolidayContext = current?.kind === "PUBLIC_HOLIDAY"
         ? { expectedDayId: current.id, source: current.source, revision: current.revision }
         : null;
-      if (current && current.source !== "ROSTER" && !(assignment.kind === "WORK_SHIFT" && publicHolidayContext)) {
+      const publicHolidayContext = resolvedHoliday || currentPublicHolidayContext
+        ? {
+            ...currentPublicHolidayContext,
+            ...holidayContext(resolvedHoliday),
+          }
+        : null;
+      if (current && current.source !== "ROSTER" && !(assignment.kind === "WORK_SHIFT" && currentPublicHolidayContext)) {
         throw new RosterError(
           "EXPECTED_DAY_CONFLICT",
           "A non-roster expected-day record already controls this employee and date. Resolve it before publishing.",
@@ -587,6 +719,9 @@ export async function publishRoster(args: {
             rosterPublicationRevision: revision,
             rosterPublishedAssignmentId: snapshot.id,
             scheduledBreakMinutes: assignment.breakMinutes,
+            scheduledBreakPaid: assignment.breakPaidSnapshot,
+            resolvedSource: assignment.resolvedSource,
+            sourceScheduleVersionId: assignment.sourceScheduleVersionId,
             publicHolidayContext,
             payrollEffect: "NONE",
           },
@@ -646,7 +781,7 @@ export async function getRosterManagerOverview(args: {
         include: { membership: { select: { id: true, fullName: true, employeeCode: true } } },
         orderBy: [{ workDate: "asc" }, { membership: { fullName: "asc" } }],
       },
-      publications: { orderBy: { revision: "desc" }, take: 1 },
+      publications: { include: { assignments: true }, orderBy: { revision: "desc" }, take: 1 },
     },
     orderBy: [{ weekStart: "asc" }, { branch: { name: "asc" } }],
   });
@@ -656,6 +791,7 @@ export async function getRosterManagerOverview(args: {
 export async function getEmployeePublishedRoster(args: {
   businessId: string;
   membershipId: string;
+  branchId?: string;
   from: Date;
   to: Date;
   database?: PrismaClient;
@@ -663,21 +799,22 @@ export async function getEmployeePublishedRoster(args: {
   const from = dateOnly(args.from);
   const to = dateOnly(args.to);
   const database = args.database ?? prisma;
+  const requestedWeeks: Date[] = [];
+  for (let week = startOfIsoWeek(from); week <= startOfIsoWeek(to); week = addDays(week, 7)) requestedWeeks.push(week);
   const periods = await database.rosterPeriod.findMany({
     where: {
       businessId: args.businessId,
+      ...(args.branchId ? { branchId: args.branchId } : {}),
       weekStart: { gte: startOfIsoWeek(addDays(from, -6)), lte: startOfIsoWeek(to) },
       publicationRevision: { gt: 0 },
     },
-    select: { id: true, publicationRevision: true },
+    select: { id: true, weekStart: true, publicationRevision: true },
   });
-  if (!periods.length) return [];
   const publications = await database.rosterPublication.findMany({
     where: { OR: periods.map((period) => ({ rosterPeriodId: period.id, revision: period.publicationRevision })) },
     select: { id: true, revision: true, publishedAt: true },
   });
-  if (!publications.length) return [];
-  return database.rosterPublishedAssignment.findMany({
+  const publishedAssignments = publications.length ? await database.rosterPublishedAssignment.findMany({
     where: {
       businessId: args.businessId,
       membershipId: args.membershipId,
@@ -689,6 +826,128 @@ export async function getEmployeePublishedRoster(args: {
       publication: { select: { revision: true, publishedAt: true } },
     },
     orderBy: [{ workDate: "asc" }, { startAt: "asc" }],
+  }) : [];
+  if (!args.branchId) return publishedAssignments;
+
+  const publishedWeekKeys = new Set(periods.map((period) => dateValue(period.weekStart)));
+  const branch = await database.branch.findFirst({
+    where: { id: args.branchId, businessId: args.businessId, status: "ACTIVE" },
+    select: { id: true, name: true },
+  });
+  if (!branch) return publishedAssignments;
+  const effectiveAssignments = [];
+  for (const weekStart of requestedWeeks) {
+    if (publishedWeekKeys.has(dateValue(weekStart))) continue;
+    const resolution = await resolveRosterWeek({
+      businessId: args.businessId,
+      branchId: args.branchId,
+      weekStart,
+      database,
+      overrides: [],
+    });
+    if (resolution.attention.some((item) => item.membershipId === args.membershipId)) continue;
+    for (const assignment of resolution.assignments) {
+      if (assignment.membershipId !== args.membershipId || assignment.workDate < from || assignment.workDate > to) continue;
+      effectiveAssignments.push({
+        id: assignment.id,
+        publicationId: `effective:${assignment.sourceScheduleVersionId ?? "none"}`,
+        sourceAssignmentId: null,
+        sourceScheduleVersionId: assignment.sourceScheduleVersionId,
+        resolvedSource: assignment.resolvedSource,
+        businessId: args.businessId,
+        branchId: args.branchId,
+        membershipId: assignment.membershipId,
+        workDate: assignment.workDate,
+        kind: assignment.kind,
+        shiftTemplateId: assignment.shiftTemplateId,
+        shiftNameSnapshot: assignment.shiftNameSnapshot,
+        shiftColorSnapshot: assignment.shiftColorSnapshot,
+        crossMidnightSnapshot: assignment.crossMidnightSnapshot,
+        startAt: assignment.startAt,
+        endAt: assignment.endAt,
+        breakMinutes: assignment.breakMinutes,
+        breakPaidSnapshot: assignment.breakPaidSnapshot,
+        note: assignment.note,
+        timezoneSnapshot: resolution.timezone,
+        evidenceDisposition: "APPLIED" as const,
+        evidenceReference: null,
+        createdAt: new Date(0),
+        branch,
+        publication: { revision: 0, publishedAt: new Date(0) },
+      });
+    }
+  }
+  return [...publishedAssignments, ...effectiveAssignments].sort((left, right) => left.workDate.getTime() - right.workDate.getTime() || (left.startAt?.getTime() ?? 0) - (right.startAt?.getTime() ?? 0));
+}
+
+export async function ensureEffectiveRosterExpectedDayInTransaction(args: {
+  businessId: string;
+  branchId: string;
+  membershipId: string;
+  workDate: Date;
+  transaction: Prisma.TransactionClient;
+}) {
+  const workDate = dateOnly(args.workDate);
+  const current = await args.transaction.attendanceExpectedDay.findFirst({
+    where: { businessId: args.businessId, branchId: args.branchId, membershipId: args.membershipId, workDate, status: "CURRENT" },
+    orderBy: { revision: "desc" },
+  });
+  if (current) return current;
+
+  const weekStart = startOfIsoWeek(workDate);
+  const publishedPeriod = await args.transaction.rosterPeriod.findUnique({
+    where: { businessId_branchId_weekStart: { businessId: args.businessId, branchId: args.branchId, weekStart } },
+    select: { publicationRevision: true },
+  });
+  if (publishedPeriod?.publicationRevision) return null;
+
+  const resolution = await resolveRosterWeek({ businessId: args.businessId, branchId: args.branchId, weekStart, database: args.transaction, overrides: [] });
+  if (resolution.attention.some((item) => item.membershipId === args.membershipId)) return null;
+  const assignment = resolution.assignments.find((item) => item.membershipId === args.membershipId && dateValue(item.workDate) === dateValue(workDate));
+  if (!assignment?.sourceScheduleVersionId) return null;
+  const schedule = await args.transaction.employeeRosterScheduleVersion.findFirst({
+    where: { id: assignment.sourceScheduleVersionId, businessId: args.businessId, branchId: args.branchId, membershipId: args.membershipId },
+    select: { createdById: true, sourceDigest: true },
+  });
+  if (!schedule) return null;
+  const [resolvedHoliday] = await resolveBranchHolidays({
+    businessId: args.businessId,
+    branchId: args.branchId,
+    from: workDate,
+    to: workDate,
+    database: args.transaction,
+  });
+  const latest = await args.transaction.attendanceExpectedDay.findFirst({
+    where: { businessId: args.businessId, membershipId: args.membershipId, workDate },
+    orderBy: { revision: "desc" },
+    select: { revision: true },
+  });
+  return args.transaction.attendanceExpectedDay.create({
+    data: {
+      businessId: args.businessId,
+      branchId: args.branchId,
+      membershipId: args.membershipId,
+      workDate,
+      kind: expectedKindForRoster(assignment.kind),
+      source: "ROSTER",
+      expectedStartAt: assignment.startAt,
+      expectedEndAt: assignment.endAt,
+      graceMinutes: 0,
+      timezoneSnapshot: resolution.timezone,
+      policySnapshot: {
+        effectiveScheduleBaseline: true,
+        sourceScheduleVersionId: assignment.sourceScheduleVersionId,
+        sourceScheduleDigest: schedule.sourceDigest,
+        resolvedSource: assignment.resolvedSource,
+        scheduledBreakMinutes: assignment.breakMinutes,
+        scheduledBreakPaid: assignment.breakPaidSnapshot,
+        publicHolidayContext: holidayContext(resolvedHoliday),
+        payrollEffect: "NONE",
+      },
+      evidenceReference: `effective-roster:${assignment.sourceScheduleVersionId}:${dateValue(workDate)}`,
+      revision: (latest?.revision ?? 0) + 1,
+      createdById: schedule.createdById,
+    },
   });
 }
 
@@ -748,6 +1007,53 @@ export async function reconcileRosterExpectedDays(args: {
   return { checked: currentSnapshots.length, issues, consistent: issues.length === 0 };
 }
 
+async function resolveTemplateAssignment(
+  transaction: Prisma.TransactionClient,
+  businessId: string,
+  branchId: string,
+  timezone: string,
+  input: RosterAssignmentInput,
+): Promise<RosterAssignmentInput> {
+  if (input.kind !== "WORK_SHIFT") {
+    return {
+      ...input,
+      shiftTemplateId: null,
+      shiftNameSnapshot: null,
+      shiftColorSnapshot: null,
+      crossMidnightSnapshot: null,
+      startAt: null,
+      endAt: null,
+      breakMinutes: 0,
+      breakPaidSnapshot: false,
+    };
+  }
+  if (!input.shiftTemplateId) return input;
+  const template = await transaction.rosterShiftTemplate.findFirst({
+    where: {
+      id: input.shiftTemplateId,
+      businessId,
+      active: true,
+      OR: [{ branchId: null }, { branchId }],
+    },
+  });
+  if (!template) {
+    throw new RosterError("INVALID_ASSIGNMENT", "The selected shift template is inactive or outside this branch.");
+  }
+  const workDate = dateValue(input.workDate);
+  const endDate = template.crossMidnight ? dateValue(addDays(input.workDate, 1)) : workDate;
+  return {
+    ...input,
+    shiftTemplateId: template.id,
+    shiftNameSnapshot: template.name,
+    shiftColorSnapshot: template.colorToken,
+    crossMidnightSnapshot: template.crossMidnight,
+    startAt: parseBranchLocalDateTime(`${workDate}T${minuteValue(template.startMinute)}`, timezone),
+    endAt: parseBranchLocalDateTime(`${endDate}T${minuteValue(template.endMinute)}`, timezone),
+    breakMinutes: template.breakMinutes,
+    breakPaidSnapshot: template.breakPaid,
+  };
+}
+
 async function getRosterBranch(transaction: Prisma.TransactionClient, businessId: string, branchId: string) {
   const branch = await transaction.branch.findFirst({
     where: { id: branchId, businessId, status: "ACTIVE" },
@@ -759,6 +1065,12 @@ async function getRosterBranch(transaction: Prisma.TransactionClient, businessId
   });
   if (!branch) throw new RosterError("OUTSIDE_SCOPE", "Roster branch is not active in the authorised business.");
   return { id: branch.id, timezone: branch.attendanceSetting?.timezone ?? branch.business.timezone };
+}
+
+function minuteValue(value: number) {
+  const hour = Math.floor(value / 60).toString().padStart(2, "0");
+  const minute = (value % 60).toString().padStart(2, "0");
+  return `${hour}:${minute}`;
 }
 
 async function assertEmployeeEligible(
@@ -807,7 +1119,7 @@ async function assertNoApprovedFullDayLeave(
     select: { id: true },
   });
   if (leave) {
-    throw new RosterError("LEAVE_CONFLICT", "An approved full-day Leave record conflicts with this work shift.");
+    throw new RosterError("LEAVE_CONFLICT", "Approved full-day Leave already controls this date. Remove or change the Leave record before adding a weekly roster exception.");
   }
 }
 

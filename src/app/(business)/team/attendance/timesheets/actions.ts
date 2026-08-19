@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
+import { decideAttendanceOvertime } from "@/lib/attendance/overtime-service";
 import {
   approveMonthlyAttendanceTimesheet,
   beginMonthlyAttendanceTimesheetRevision,
@@ -78,6 +79,35 @@ export async function beginTimesheetRevisionAction(formData: FormData) {
   } catch (error) {
     if (isRedirectError(error)) throw error;
     refresh(month, "error", message(error, "Unable to start a Timesheet revision."));
+  }
+}
+
+export async function decideOvertimeAction(formData: FormData) {
+  const month = String(formData.get("month") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  try {
+    const context = await getTimesheetWriteContext();
+    const reason = String(formData.get("reason") ?? "").trim();
+    const rawMinutes = String(formData.get("approvedMinutes") ?? "").trim();
+    const approvedMinutes = rawMinutes ? Number(rawMinutes) : undefined;
+    await decideAttendanceOvertime({
+      context,
+      finalResultId: String(formData.get("finalResultId") ?? ""),
+      expectedRevision: Number(formData.get("expectedRevision") ?? 0),
+      input: decision === "REJECT"
+        ? { decision: "REJECT", reason }
+        : decision === "ADJUST"
+          ? { decision: "ADJUST", approvedMinutes: approvedMinutes ?? Number.NaN, reason }
+          : { decision: "APPROVE", reason: reason || undefined },
+    });
+    refresh(month, "success", decision === "REJECT"
+      ? "Potential OT rejected. Approved OT is 0 minutes."
+      : decision === "ADJUST"
+        ? "Adjusted OT minutes approved and recorded."
+        : "Potential OT approved in full.");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    refresh(month, "error", message(error, "Unable to record this OT decision."));
   }
 }
 

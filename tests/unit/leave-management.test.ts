@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   COMPANY_LEAVE_STARTER,
   enumerateCalendarDates,
+  leavePolicyCreateInputSchema,
   leavePolicyVersionInputSchema,
   leaveReviewInputSchema,
   resolveLeaveEntitlementDays,
@@ -25,6 +26,36 @@ test("company policy refuses an unpaid type that consumes paid balance", () => {
     policyId: "f0cf7c07-224c-4905-9213-b5cf41de07fe",
     effectiveFrom: "2026-01-01",
     name: "Unpaid Leave",
+    payTreatment: "UNPAID",
+    countMode: "WEEKDAYS",
+    balanceTracked: true,
+    requiresDocument: false,
+    allowNegativeBalance: false,
+    reason: "Company policy",
+  }), /must not consume/i);
+});
+
+test("a business can define a custom Leave type without supplying a trusted code", () => {
+  const parsed = leavePolicyCreateInputSchema.parse({
+    effectiveFrom: "2026-08-17",
+    name: "Vacation leave",
+    payTreatment: "PAID",
+    countMode: "WEEKDAYS",
+    balanceTracked: true,
+    defaultEntitlementDays: 8,
+    requiresDocument: false,
+    allowNegativeBalance: false,
+    reason: "Company benefit",
+    code: "ANNUAL",
+  });
+  assert.equal(parsed.name, "Vacation leave");
+  assert.equal("code" in parsed, false);
+});
+
+test("a new unpaid Leave type cannot consume a tracked paid balance", () => {
+  assert.throws(() => leavePolicyCreateInputSchema.parse({
+    effectiveFrom: "2026-08-17",
+    name: "Personal unpaid leave",
     payTreatment: "UNPAID",
     countMode: "WEEKDAYS",
     balanceTracked: true,
@@ -66,4 +97,11 @@ test("Leave self-service API does not require Attendance eligibility", async () 
   const route = await readFile("src/app/api/employee-leave/route.ts", "utf8");
   assert.match(route, /requireEmployeeSelfServiceAuthContext/);
   assert.doesNotMatch(route, /\brequireEmployeeAuthContext\b/);
+});
+
+test("custom Leave type migration preserves existing policy codes", async () => {
+  const migration = await readFile("prisma/migrations/20260817200000_custom_leave_types/migration.sql", "utf8");
+  assert.match(migration, /TYPE VARCHAR\(80\)/);
+  assert.match(migration, /USING "code"::text/);
+  assert.doesNotMatch(migration, /DROP TABLE|DROP COLUMN|TRUNCATE/i);
 });

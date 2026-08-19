@@ -44,9 +44,28 @@ test("attendance modules use capabilities instead of role-name UI checks", async
   }
 
   assert.match(attendance, /canViewTeamDirectory \?/);
-  assert.match(attendance, /canViewAttendanceSettings \?/);
-  assert.match(leave, /canViewPayroll \?/);
-  assert.match(settings, /canViewAttendance \?/);
+  assert.match(leave, /canEditPolicy \?/);
+  assert.match(settings, /canManage \?/);
+});
+
+test("Attendance Settings stays inside the Attendance workspace navigation", async () => {
+  const [appShell, attendanceLayout, settingsLayout] = await Promise.all([
+    source("src/components/app-shell.tsx"),
+    source("src/app/(business)/team/attendance/layout.tsx"),
+    source("src/app/(business)/team/attendance-settings/layout.tsx"),
+  ]);
+
+  assert.doesNotMatch(appShell, /label: "Attendance Settings"/);
+  assert.match(
+    attendanceLayout,
+    /href: "\/team\/attendance-settings", label: "Settings"/,
+  );
+  assert.doesNotMatch(settingsLayout, /Expected work|Resolution queue/);
+  assert.match(settingsLayout, /label: "Export CSV"/);
+  assert.doesNotMatch(
+    await source("src/app/(business)/team/attendance-settings/page.tsx"),
+    />People<|>Attendance<|Attendance API enforcement/,
+  );
 });
 
 test("employee names use the unified profile route when directory access exists", async () => {
@@ -112,4 +131,20 @@ test("current and unavailable payroll modules are labelled honestly", async () =
       new RegExp(`\\["${capability}", "[^"]+\\(not available yet\\)"\\]`),
     );
   }
+});
+
+test("Leave balances provide audited employee-level add and deduct controls", async () => {
+  const [page, actions, service] = await Promise.all([
+    source("src/app/(business)/team/leave/page.tsx"),
+    source("src/app/(business)/team/leave/actions.ts"),
+    source("src/lib/leave/service.ts"),
+  ]);
+
+  assert.match(page, /Employee leave balances/);
+  assert.match(page, /name="direction" value="ADD"/);
+  assert.match(page, /name="direction" value="DEDUCT"/);
+  assert.doesNotMatch(page, /Days to add or subtract/);
+  assert.match(actions, /direction === "DEDUCT"/);
+  assert.match(service, /eventType: "MANUAL_ADJUSTMENT"/);
+  assert.match(service, /resolveLeaveEntitlementDays\(version, employee\.joinedAt, input\.year\)/);
 });

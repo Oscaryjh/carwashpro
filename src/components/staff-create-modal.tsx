@@ -18,6 +18,7 @@ type StaffCreateModalProps = {
   roleProfiles: Array<{ id: string; name: string }>;
   services: Array<{ id: string; name: string }>;
   staffLevels: Array<{ id: string; name: string }>;
+  suggestedEmployeeCode?: string;
 };
 
 export function StaffCreateModal({
@@ -31,6 +32,7 @@ export function StaffCreateModal({
   roleProfiles,
   services,
   staffLevels,
+  suggestedEmployeeCode,
 }: StaffCreateModalProps) {
   return (
     <CatalogFormModal
@@ -59,6 +61,7 @@ export function StaffCreateModal({
           services={services}
           staffLevels={staffLevels}
           submitLabel="Add team member"
+          suggestedEmployeeCode={suggestedEmployeeCode}
         />
       </div>
     </CatalogFormModal>

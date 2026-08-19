@@ -81,12 +81,21 @@ export default async function BusinessDetailsPage({
           </div>
         ) : null}
 
-        <div className="panel">
+        <form action={changeBusinessModuleEntitlementAction} className="panel module-entitlements-panel">
+          <input name="businessId" type="hidden" value={business.id} />
           <div className="section-header">
             <div>
               <h2>Business modules</h2>
-              <p>Commercial entitlement is business-scoped and separate from user permissions. Manual changes require a reason.</p>
+              <p>Update one or several modules, then save all changes once. Dependencies are validated together.</p>
             </div>
+          </div>
+          <div className="module-entitlement-toolbar">
+            <label>
+              Change note (optional)
+              <input name="reason" minLength={3} maxLength={500} placeholder="Add one note for this batch" />
+              <small>Leave blank to use the standard audit note.</small>
+            </label>
+            <button type="submit">Save all module changes</button>
           </div>
           <div className="grid">
             {moduleView.modules.map(({ definition, entitlement }) => {
@@ -108,24 +117,21 @@ export default async function BusinessDetailsPage({
                   {definition.isCore ? (
                     <p>CORE is SYSTEM_REQUIRED and cannot be disabled.</p>
                   ) : (
-                    <form action={changeBusinessModuleEntitlementAction} className="form-grid">
-                      <input name="businessId" type="hidden" value={business.id} />
+                    <div className="form-grid">
                       <input name="moduleKey" type="hidden" value={definition.key} />
-                      <input name="expectedRevision" type="hidden" value={entitlement?.revision ?? ""} />
-                      <label>Status<select name="status" defaultValue={entitlement?.status ?? "DISABLED"}><option value="ENABLED">Enabled</option><option value="DISABLED">Disabled</option></select></label>
-                      <label>Enabled from<input name="enabledFrom" type="datetime-local" defaultValue={toLocalInput(entitlement?.enabledFrom ?? now)} required /></label>
-                      <label>Enabled until<input name="enabledUntil" type="datetime-local" defaultValue={entitlement?.enabledUntil ? toLocalInput(entitlement.enabledUntil) : ""} /></label>
-                      <label>Plan reference (optional)<input name="planCode" defaultValue={entitlement?.planCode ?? ""} maxLength={80} /></label>
-                      <label className="full-width">Reason<input name="reason" minLength={3} maxLength={500} required placeholder="Why this entitlement changes" /></label>
-                      <button type="submit">Save module entitlement</button>
-                    </form>
+                      <input name={`expectedRevision:${definition.key}`} type="hidden" value={entitlement?.revision ?? ""} />
+                      <label>Status<select name={`status:${definition.key}`} defaultValue={entitlement?.status ?? "DISABLED"}><option value="ENABLED">Enabled</option><option value="DISABLED">Disabled</option></select></label>
+                      <label>Enabled from<input name={`enabledFrom:${definition.key}`} type="datetime-local" defaultValue={toLocalInput(entitlement?.enabledFrom ?? now)} required /></label>
+                      <label>Enabled until<input name={`enabledUntil:${definition.key}`} type="datetime-local" defaultValue={entitlement?.enabledUntil ? toLocalInput(entitlement.enabledUntil) : ""} /></label>
+                      <label>Plan reference (optional)<input name={`planCode:${definition.key}`} defaultValue={entitlement?.planCode ?? ""} maxLength={80} /></label>
+                    </div>
                   )}
                   {entitlement ? <small>Source {entitlement.source} · revision {entitlement.revision}</small> : <small>No entitlement record.</small>}
                 </article>
               );
             })}
           </div>
-        </div>
+        </form>
 
         <div className="panel">
           <h2>Company profile</h2>

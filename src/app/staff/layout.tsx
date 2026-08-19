@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { StaffPwaChrome } from "@/components/staff-pwa/staff-pwa-chrome";
-import { getEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee-auth/session";
+import {
+  getEmployeeSelfServiceAuthContext,
+  getEmployeeWorkplaces,
+} from "@/lib/attendance/employee-auth/session";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import "./staff.css";
 
@@ -29,6 +32,16 @@ export const viewport: Viewport = {
 
 export default async function StaffLayout({ children }: { children: ReactNode }) {
   const auth = await getEmployeeSelfServiceAuthContext();
-  const modules = auth ? [...(await loadBusinessModuleContext(auth.businessId)).enabledModules] : ["CORE"];
-  return <StaffPwaChrome enabledModules={modules}>{children}</StaffPwaChrome>;
+  const [moduleContext, workplaces] = auth
+    ? await Promise.all([
+        loadBusinessModuleContext(auth.businessId),
+        getEmployeeWorkplaces(auth),
+      ])
+    : [null, []];
+  const modules = moduleContext ? [...moduleContext.enabledModules] : ["CORE"];
+  return (
+    <StaffPwaChrome enabledModules={modules} workplaces={workplaces}>
+      {children}
+    </StaffPwaChrome>
+  );
 }

@@ -30,12 +30,13 @@ test("A3 migration is additive, scoped, immutable, and does not bridge Payroll",
   assert.doesNotMatch(sql, /DELETE FROM "payroll_/i);
 });
 
-test("A3 UI describes Resolution completion separately from Payroll integration", () => {
+test("monthly timesheet UI keeps Attendance evidence separate from Payroll calculation", () => {
   const page = readFileSync(join(
     process.cwd(),
     "src/app/(business)/team/attendance/timesheets/page.tsx",
   ), "utf8");
-  assert.match(page, /Payroll calculation is not connected in A3/);
+  assert.match(page, /Attendance and approved OT minutes are frozen by local date for Payroll/);
+  assert.match(page, /Monetary OT calculation remains deferred to Payroll P6C/);
   assert.match(page, /Final Attendance Result/);
   assert.doesNotMatch(page, /Payroll Ready/);
   assert.doesNotMatch(page, /Timesheet Ready/);

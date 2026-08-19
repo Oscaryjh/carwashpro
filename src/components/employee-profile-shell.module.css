@@ -12,30 +12,29 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  padding: 22px;
-  border: 1px solid var(--border, #dce3ea);
-  border-radius: 12px 12px 0 0;
-  background: var(--surface, #fff);
+  padding: 18px 22px;
+  border: 1px solid #d8e7e5;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 0 0, rgb(216 244 239 / 58%), transparent 34%),
+    linear-gradient(135deg, #fff 0%, #fbfefd 64%, #f4faf9 100%);
+  box-shadow: 0 12px 32px rgb(30 78 73 / 7%);
 }
 
 .identity {
-  display: flex;
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
   min-width: 0;
-  align-items: center;
-  gap: 16px;
+  align-items: start;
+  gap: 18px;
 }
 
-.avatar {
+.identityCopy {
   display: grid;
-  width: 58px;
-  height: 58px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 16px;
-  background: #e2f3f1;
-  color: var(--accent-strong, #08786f);
-  font-size: 17px;
-  font-weight: 900;
+  min-width: 0;
+  align-content: start;
+  gap: 10px;
+  padding-top: 8px;
 }
 
 .eyebrow,
@@ -54,7 +53,6 @@
 }
 
 .header h1 {
-  margin-top: 4px;
   font-size: clamp(25px, 3vw, 34px);
   line-height: 1.08;
   letter-spacing: -0.03em;
@@ -65,24 +63,43 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 7px;
-  margin-top: 10px;
+  margin-top: 0;
   color: var(--muted, #64748b);
   font-size: 11px;
   font-weight: 700;
 }
 
-.meta span:not(:last-of-type)::after {
-  margin-left: 7px;
-  color: #b7c1ca;
-  content: "•";
+.meta span {
+  display: inline-flex;
+  box-sizing: border-box;
+  min-height: 30px;
+  align-items: center;
+  padding: 5px 10px;
+  border: 1px solid #e1e9e8;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 74%);
+  line-height: 1.2;
+}
+
+.meta .employeeCode {
+  border-color: #cbe5e1;
+  background: #edf8f6;
+  color: #21665f;
+  font-weight: 850;
 }
 
 .meta strong {
-  padding: 4px 8px;
+  display: inline-flex;
+  box-sizing: border-box;
+  min-height: 30px;
+  align-items: center;
+  padding: 5px 10px;
+  border: 1px solid #d7eee4;
   border-radius: 999px;
   background: #edf9f3;
   color: #176a4c;
-  font-size: 9px;
+  font-size: 10px;
+  line-height: 1.2;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -98,66 +115,124 @@
   color: #576677;
 }
 
-.backLink {
-  display: inline-flex;
-  min-height: 40px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 13px;
-  border: 1px solid var(--border, #dce3ea);
-  border-radius: 7px;
-  background: #fff;
-  color: var(--text, #17202d);
-  font-size: 11px;
-  font-weight: 800;
-  text-decoration: none;
-  gap: 6px;
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  margin-top: 12px;
 }
 
-.backLink:hover {
-  border-color: #9ccfc9;
-  color: var(--accent-strong, #08786f);
+.profileRail {
+  position: static;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border, #dce3ea);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(30 78 73 / 5%);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.profileRail::-webkit-scrollbar {
+  display: none;
+}
+
+.privacyNote {
+  color: var(--muted, #64748b);
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 .tabs {
   display: grid;
-  grid-auto-columns: minmax(max-content, 1fr);
-  grid-auto-flow: column;
-  gap: 4px;
-  padding: 0 16px;
-  border: 1px solid var(--border, #dce3ea);
-  border-top: 0;
-  background: var(--surface, #fff);
+  width: 100%;
+  min-width: 1040px;
+  grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
+  align-items: stretch;
+  gap: 6px;
+  padding: 0;
+}
+
+.tabGroup,
+.tabGroupLinks {
+  display: contents;
+}
+
+.tabGroupLabel {
+  display: none;
 }
 
 .tabs a {
-  position: relative;
   display: inline-flex;
-  min-height: 50px;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 48px;
   align-items: center;
   justify-content: center;
-  padding: 0 13px;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 1px solid #e7edec;
+  border-radius: 11px;
+  background: #fbfcfc;
   color: var(--muted, #64748b);
-  font-size: 12px;
-  font-weight: 800;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .tabs a:hover,
 .tabs .activeTab {
+  border-color: #b9dcd7;
+  background: #edf8f6;
   color: var(--accent-strong, #08786f);
 }
 
-.tabs .activeTab::after {
-  position: absolute;
-  right: 10px;
-  bottom: -1px;
-  left: 10px;
-  height: 3px;
-  border-radius: 3px 3px 0 0;
-  background: var(--accent, #0c7e74);
-  content: "";
+.tabs .activeTab {
+  box-shadow: 0 6px 16px rgb(25 105 96 / 10%);
+}
+
+.tabIcon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  background: #f0f4f5;
+  color: #60727f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.activeTab .tabIcon,
+.tabs a:hover .tabIcon {
+  background: #d8efeb;
+  color: #08786f;
+}
+
+.tabs a > span:last-child {
+  display: block;
+  min-width: 0;
+}
+
+.tabs a strong {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.tabs a small {
+  display: none;
+  color: #7b8996;
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+.privacyNote {
+  display: none;
+}
+
+.profileMain {
+  min-width: 0;
 }
 
 .state {
@@ -168,8 +243,7 @@
   gap: 16px;
   padding: 42px 24px;
   border: 1px solid var(--border, #dce3ea);
-  border-top: 0;
-  border-radius: 0 0 12px 12px;
+  border-radius: 12px;
   background: var(--surface, #fff);
 }
 
@@ -242,11 +316,7 @@
 .sectionContent {
   display: grid;
   gap: 16px;
-  padding: 22px;
-  border: 1px solid var(--border, #dce3ea);
-  border-top: 0;
-  border-radius: 0 0 12px 12px;
-  background: #f7fafb;
+  padding: 0;
 }
 
 .sectionIntro {
@@ -254,7 +324,11 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  padding: 2px 2px 4px;
+  padding: 8px 4px 2px;
+}
+
+.sectionIntro .eyebrow {
+  display: none;
 }
 
 .sectionIntro h2,
@@ -339,9 +413,34 @@
   gap: 16px;
 }
 
+.singlePanelGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 760px);
+}
+
 .profilePanel {
   min-width: 0;
   padding: 20px;
+}
+
+.overviewNote {
+  display: grid;
+  min-height: 150px;
+  align-content: center;
+  gap: 8px;
+  color: var(--muted, #64748b);
+}
+
+.overviewNote strong {
+  color: var(--text, #17202d);
+  font-size: 14px;
+}
+
+.overviewNote p {
+  max-width: 48ch;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .payrollNavigation {
@@ -870,47 +969,88 @@
   }
 
   .identity {
+    grid-template-columns: 70px minmax(0, 1fr);
     align-items: flex-start;
     gap: 12px;
   }
 
-  .avatar {
-    width: 50px;
-    height: 50px;
-    border-radius: 14px;
+  .identityCopy {
+    gap: 8px;
+    padding-top: 4px;
   }
 
   .header h1 {
     font-size: 26px;
   }
 
-  .backLink {
-    width: 100%;
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .profileRail {
+    position: static;
+    padding: 8px;
+    overflow-x: auto;
+  }
+
+  .railHeading,
+  .privacyNote,
+  .tabGroupLabel,
+  .tabs a small {
+    display: none;
   }
 
   .tabs {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-auto-columns: auto;
-    grid-auto-flow: row;
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 0;
+  }
+
+  .tabGroup {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tabGroup + .tabGroup {
+    padding-left: 6px;
+    border-left: 1px solid #dfe8e8;
+  }
+
+  .tabGroupLinks {
+    display: flex;
     gap: 4px;
-    padding: 8px;
   }
 
   .tabs a {
-    min-height: 40px;
+    display: inline-flex;
+    min-width: max-content;
+    min-height: 42px;
     justify-content: center;
-    padding: 0 4px;
-    border-radius: 7px;
-    font-size: 11px;
+    gap: 6px;
+    padding: 6px 9px;
+    border: 1px solid #e1e9ed;
+    border-radius: 9px;
   }
 
   .tabs .activeTab {
+    border-color: #9ccfc9;
     background: #e7f5f3;
   }
 
-  .tabs .activeTab::after {
-    right: 12px;
-    left: 12px;
+  .tabIcon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .tabs a strong {
+    font-size: 10px;
   }
 
   .state {
@@ -1009,13 +1149,35 @@
 }
 
 @media (max-width: 360px) {
-  .tabs a {
-    font-size: 9px;
-    letter-spacing: -0.01em;
+  .header {
+    padding: 16px;
+  }
+
+  .profileRail {
+    padding: 10px;
   }
 }
 
 @media (min-width: 761px) and (max-width: 1080px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .profileRail {
+    padding: 10px;
+  }
+
+  .tabs a {
+    gap: 7px;
+    padding-inline: 7px;
+  }
+
+  .tabIcon {
+    width: 28px;
+    height: 28px;
+  }
+
   .metricGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
