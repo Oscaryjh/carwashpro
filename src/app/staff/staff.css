@@ -2799,12 +2799,6 @@
   padding: 0 14px;
 }
 
-.staff-history-filter-card .staff-history-filters {
-  border-top: 1px solid var(--staff-line);
-  margin-top: 16px;
-  padding-top: 16px;
-}
-
 .staff-timesheet-page,
 .staff-commission-page {
   display: grid;
@@ -3322,6 +3316,31 @@
   resize: none;
 }
 
+.staff-filter-sheet .staff-history-filters {
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.staff-filter-sheet .staff-history-filters > label {
+  min-width: 0;
+}
+
+.staff-filter-sheet .staff-history-filters > label:last-of-type {
+  grid-column: auto;
+}
+
+.staff-filter-sheet .staff-history-filters input,
+.staff-filter-sheet .staff-history-filters select {
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+.staff-filter-sheet .staff-history-filters > .staff-primary-button {
+  grid-column: 1 / -1;
+  min-height: 52px;
+}
+
 @media (max-width: 640px) {
   .staff-correction-backdrop {
     align-items: flex-end;
@@ -3349,6 +3368,10 @@
     grid-template-columns: 1fr;
   }
 
+  .staff-filter-sheet .staff-history-filters {
+    grid-template-columns: 1fr;
+  }
+
   .staff-correction-sheet .staff-history-filters > label:last-of-type {
     grid-column: auto;
   }
@@ -3357,6 +3380,10 @@
     grid-column: auto;
     min-height: 52px;
     width: 100%;
+  }
+
+  .staff-filter-sheet .staff-history-filters > .staff-primary-button {
+    grid-column: auto;
   }
 }
 

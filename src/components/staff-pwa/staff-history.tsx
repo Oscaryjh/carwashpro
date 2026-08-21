@@ -24,6 +24,10 @@ export function StaffHistory() {
   const [to, setTo] = useState(defaults.to);
   const [branchId, setBranchId] = useState("");
   const [status, setStatus] = useState("");
+  const [draftFrom, setDraftFrom] = useState(defaults.from);
+  const [draftTo, setDraftTo] = useState(defaults.to);
+  const [draftBranchId, setDraftBranchId] = useState("");
+  const [draftStatus, setDraftStatus] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -90,26 +94,35 @@ export function StaffHistory() {
   }, [load]);
 
   useEffect(() => {
-    if (!correctionOpen) return;
+    if (!correctionOpen && !filtersOpen) return;
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape" && !correctionSubmitting) {
-        setCorrectionOpen(false);
-      }
+      if (event.key !== "Escape") return;
+      if (filtersOpen) setFiltersOpen(false);
+      if (correctionOpen && !correctionSubmitting) setCorrectionOpen(false);
     }
 
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [correctionOpen, correctionSubmitting]);
+  }, [correctionOpen, correctionSubmitting, filtersOpen]);
 
   function filter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setFrom(draftFrom);
+    setTo(draftTo);
+    setBranchId(draftBranchId);
+    setStatus(draftStatus);
     setFiltersOpen(false);
-    if (page === 1) {
-      void load();
-    } else {
-      setPage(1);
-    }
+    setPage(1);
+  }
+
+  function openFilters() {
+    setDraftFrom(from);
+    setDraftTo(to);
+    setDraftBranchId(branchId);
+    setDraftStatus(status);
+    setCorrectionOpen(false);
+    setFiltersOpen(true);
   }
 
   async function submitCorrection(event: FormEvent<HTMLFormElement>) {
@@ -188,7 +201,10 @@ export function StaffHistory() {
           aria-expanded={correctionOpen}
           aria-haspopup="dialog"
           className="staff-secondary-button"
-          onClick={() => setCorrectionOpen(true)}
+          onClick={() => {
+            setFiltersOpen(false);
+            setCorrectionOpen(true);
+          }}
           type="button"
         >
           Report issue
@@ -328,51 +344,89 @@ export function StaffHistory() {
           <div>
             <small>Showing</small>
             <strong>{formatWorkDate(from)} – {formatWorkDate(to)}</strong>
-            <span>{branchId || status ? "Custom filters applied" : "All branches · All statuses"}</span>
+            <span>
+              {branchId || status || from !== defaults.from || to !== defaults.to
+                ? "Custom filters applied"
+                : "All branches · All statuses"}
+            </span>
           </div>
           <button
+            aria-controls="staff-history-filters"
             aria-expanded={filtersOpen}
+            aria-haspopup="dialog"
             className="staff-filter-toggle"
-            onClick={() => setFiltersOpen((current) => !current)}
+            onClick={openFilters}
             type="button"
           >
             <span aria-hidden="true">≡</span>
-            {filtersOpen ? "Close" : "Filters"}
+            Filters
           </button>
         </div>
-        {filtersOpen ? <form className="staff-history-filters" onSubmit={filter}>
-          <label>
-            From
-            <input onChange={(event) => setFrom(event.target.value)} type="date" value={from} />
-          </label>
-          <label>
-            To
-            <input onChange={(event) => setTo(event.target.value)} type="date" value={to} />
-          </label>
-          <label>
-            Branch
-            <select onChange={(event) => setBranchId(event.target.value)} value={branchId}>
-              <option value="">All branches</option>
-              {knownBranches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Status
-            <select onChange={(event) => setStatus(event.target.value)} value={status}>
-              <option value="">All statuses</option>
-              <option value="OPEN">Open</option>
-              <option value="ON_BREAK">On break</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="INCOMPLETE">Incomplete</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
-          </label>
-          <button className="staff-secondary-button" type="submit">Apply filters</button>
-          <small>Date ranges are limited to 31 days.</small>
-        </form> : null}
       </section>
+
+      {filtersOpen ? (
+        <div
+          className="staff-correction-backdrop staff-filter-backdrop"
+          onClick={() => setFiltersOpen(false)}
+          role="presentation"
+        >
+          <section
+            aria-labelledby="staff-filter-heading"
+            aria-modal="true"
+            className="staff-page-card staff-correction-sheet staff-filter-sheet"
+            id="staff-history-filters"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="staff-card-heading staff-correction-heading">
+              <div>
+                <p className="staff-kicker">ATTENDANCE</p>
+                <h2 id="staff-filter-heading">Filter history</h2>
+              </div>
+              <button
+                aria-label="Close attendance filters"
+                className="staff-correction-close"
+                onClick={() => setFiltersOpen(false)}
+                type="button"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+            <form className="staff-history-filters" onSubmit={filter}>
+              <label>
+                From
+                <input onChange={(event) => setDraftFrom(event.target.value)} type="date" value={draftFrom} />
+              </label>
+              <label>
+                To
+                <input onChange={(event) => setDraftTo(event.target.value)} type="date" value={draftTo} />
+              </label>
+              <label>
+                Branch
+                <select onChange={(event) => setDraftBranchId(event.target.value)} value={draftBranchId}>
+                  <option value="">All branches</option>
+                  {knownBranches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>{branch.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Status
+                <select onChange={(event) => setDraftStatus(event.target.value)} value={draftStatus}>
+                  <option value="">All statuses</option>
+                  <option value="OPEN">Open</option>
+                  <option value="ON_BREAK">On break</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="INCOMPLETE">Incomplete</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+              </label>
+              <button className="staff-primary-button" type="submit">Apply filters</button>
+              <small>Date ranges are limited to 31 days.</small>
+            </form>
+          </section>
+        </div>
+      ) : null}
 
       {error ? <div className="staff-alert error" role="alert">{error}</div> : null}
       {loading && !history ? <StaffLoading label="Loading attendance history…" /> : null}
