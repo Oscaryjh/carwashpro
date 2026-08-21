@@ -15,6 +15,8 @@ import {
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
+const nextDevCliArguments = process.argv.slice(2);
+const configuredPort = readCliOption("--port", "-p") ?? "3000";
 const pg = createEmbeddedPostgres();
 const nextBin = join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
 const localHttpsKey = join(
@@ -67,7 +69,7 @@ async function main() {
 
   console.log("WashFlow dev supervisor started.");
   console.log(
-    `Local URL: ${hasLocalHttpsCertificate() ? "https" : "http"}://localhost:3000`,
+    `Local URL: ${hasLocalHttpsCertificate() ? "https" : "http"}://localhost:${configuredPort}`,
   );
   console.log("WhatsApp Connector: http://127.0.0.1:8787");
   console.log("Press Ctrl+C to stop.");
@@ -141,7 +143,23 @@ function getNextDevArguments() {
     );
   }
 
+  argumentsList.push(...nextDevCliArguments);
+
   return argumentsList;
+}
+
+function readCliOption(longName, shortName) {
+  for (let index = 0; index < nextDevCliArguments.length; index += 1) {
+    const argument = nextDevCliArguments[index];
+    if (argument === longName || argument === shortName) {
+      return nextDevCliArguments[index + 1];
+    }
+    if (argument.startsWith(`${longName}=`)) {
+      return argument.slice(longName.length + 1);
+    }
+  }
+
+  return undefined;
 }
 
 function hasLocalHttpsCertificate() {
