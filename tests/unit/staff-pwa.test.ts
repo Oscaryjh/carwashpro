@@ -389,6 +389,8 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
   assert.match(homeComponentSource, /<p className="staff-kicker">TODAY<\/p>/);
   assert.match(homeComponentSource, /Quick access/);
   assert.match(homeComponentSource, /HomeDomainIcon/);
+  assert.doesNotMatch(homeComponentSource, /<strong>\{card\.value\}<\/strong>/);
+  assert.doesNotMatch(homeComponentSource, /staff-home-card-arrow/);
   assert.match(todaySource, /staff-page-card staff-attendance-card/);
   assert.match(todaySource, /Today’s shift/);
   assert.doesNotMatch(todaySource, /Today&apos;s published evidence|Revision \{today\.expectedAttendance\.revision\}|Source:/);
@@ -396,7 +398,7 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
     todaySource.indexOf("staff-action-grid") < todaySource.indexOf("aria-label=\"Today's attendance summary\""),
     "Attendance actions should appear before secondary metrics",
   );
-  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-home-grid\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-home-grid\s*\{[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/);
 });
 
 test("Staff App keeps key employee journeys compact and iPhone-first", () => {

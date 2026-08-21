@@ -54,11 +54,7 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
               key={card.domain}
             >
               <span className="staff-home-card-icon" aria-hidden="true"><HomeDomainIcon domain={card.domain} /></span>
-              <div>
-                <small>{card.label.replace(/^My\s+/i, "")}</small>
-                <strong>{card.value}</strong>
-              </div>
-              <span aria-hidden="true" className="staff-home-card-arrow">›</span>
+              <small>{card.label.replace(/^My\s+/i, "")}</small>
             </Link>
           ))}
         </div>

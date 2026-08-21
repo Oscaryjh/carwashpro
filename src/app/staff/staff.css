@@ -736,83 +736,47 @@
 .staff-home-grid {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .staff-home-card {
-  align-items: center;
+  align-content: center;
   background: var(--staff-card);
   border: 1px solid var(--staff-line);
-  border-radius: 18px;
+  border-radius: 16px;
   color: var(--staff-ink);
-  display: flex;
-  gap: 9px;
-  min-height: 74px;
-  padding: 10px;
+  display: grid;
+  gap: 7px;
+  justify-items: center;
+  min-height: 82px;
+  padding: 10px 5px;
   position: relative;
+  text-align: center;
   text-decoration: none;
 }
 
-.staff-home-card > div {
-  display: grid;
-  flex: 1 1 auto;
-  gap: 3px;
-  min-width: 0;
-}
-
 .staff-home-card small {
-  color: var(--staff-brand);
-  font-size: 10px;
-  font-weight: 850;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.staff-home-card strong {
-  display: -webkit-box;
-  font-size: 13px;
-  line-height: 1.25;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.staff-home-card-top {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 5px;
+  color: var(--staff-ink);
+  font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0;
+  line-height: 1.2;
 }
 
 .staff-home-card-icon {
   align-items: center;
   background: var(--staff-brand-soft);
-  border-radius: 10px;
+  border-radius: 12px;
   color: var(--staff-brand-dark);
   display: inline-flex;
-  flex: 0 0 34px;
-  height: 34px;
+  height: 40px;
   justify-content: center;
-  width: 34px;
+  width: 40px;
 }
 
 .staff-home-card-icon svg {
-  height: 18px;
-  width: 18px;
-}
-
-.staff-home-card-arrow {
-  align-items: center;
-  background: #f2f7f6;
-  border-radius: 50%;
-  color: var(--staff-brand-dark);
-  display: inline-flex;
-  flex: 0 0 24px;
-  font-size: 20px;
-  height: 24px;
-  justify-content: center;
-  width: 24px;
+  height: 20px;
+  width: 20px;
 }
 
 .staff-home-card.unavailable {
@@ -2323,21 +2287,17 @@
 
   .staff-home-grid {
     gap: 7px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .staff-home-card {
-    min-height: 72px;
-    padding: 9px;
+    min-height: 80px;
+    padding: 9px 4px;
   }
 
   .staff-home-card-icon {
-    height: 34px;
-    width: 34px;
-  }
-
-  .staff-home-card-arrow {
-    display: none;
+    height: 38px;
+    width: 38px;
   }
 
   .staff-profile-stack {
