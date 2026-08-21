@@ -16,6 +16,11 @@ import {
 } from "../../src/lib/staff-pwa/client";
 import { buildStaffManifest } from "../../src/lib/staff-pwa/manifest";
 import { buildStaffNavigation } from "../../src/lib/staff-pwa/navigation";
+import {
+  DEFAULT_STAFF_APP_ICONS,
+  resolveStaffAppAppearance,
+  toStoredStaffAppAppearance,
+} from "../../src/lib/staff-pwa/appearance-config";
 
 const todaySource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-today.tsx", import.meta.url),
@@ -75,6 +80,13 @@ const homeSource = readFileSync(
 );
 const homeComponentSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-home-overview.tsx", import.meta.url),
+  "utf8",
+);
+const appearanceActionSource = readFileSync(
+  new URL(
+    "../../src/app/(business)/business/settings/staff-app/actions.ts",
+    import.meta.url,
+  ),
   "utf8",
 );
 const historyComponentSource = readFileSync(
@@ -388,7 +400,7 @@ test("Staff Home delegates summaries to canonical domain readers", () => {
 test("Staff Home prioritizes a mobile today workspace without inventing new domains", () => {
   assert.match(homeComponentSource, /<p className="staff-kicker">TODAY<\/p>/);
   assert.match(homeComponentSource, /Quick access/);
-  assert.match(homeComponentSource, /HomeDomainIcon/);
+  assert.match(homeComponentSource, /StaffAppIcon/);
   assert.doesNotMatch(homeComponentSource, /<strong>\{card\.value\}<\/strong>/);
   assert.doesNotMatch(homeComponentSource, /staff-home-card-arrow/);
   assert.match(todaySource, /staff-page-card staff-attendance-card/);
@@ -399,6 +411,40 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
     "Attendance actions should appear before secondary metrics",
   );
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-home-grid\s*\{[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/);
+});
+
+test("Staff App appearance keeps business icon choices safe and complete", () => {
+  const customized = resolveStaffAppAppearance(
+    {
+      version: 1,
+      quickAccessIcons: {
+        ROSTER: "briefcase",
+        TIMESHEET: "not-an-icon",
+      },
+    },
+    "/uploads/staff-app-logos/staff-logo.webp",
+  );
+
+  assert.equal(customized.logoUrl, "/uploads/staff-app-logos/staff-logo.webp");
+  assert.equal(customized.quickAccessIcons.ROSTER, "briefcase");
+  assert.equal(
+    customized.quickAccessIcons.TIMESHEET,
+    DEFAULT_STAFF_APP_ICONS.TIMESHEET,
+  );
+  assert.deepEqual(
+    resolveStaffAppAppearance(toStoredStaffAppAppearance(customized.quickAccessIcons)).quickAccessIcons,
+    customized.quickAccessIcons,
+  );
+  assert.equal(Object.keys(customized.quickAccessIcons).length, 6);
+  assert.match(chromeSource, /appearance\?\.logoUrl/);
+  assert.match(homeSource, /loadStaffAppAppearance/);
+  assert.match(
+    appearanceActionSource,
+    /requireBusinessUser\("MODIFY_BUSINESS_SETTINGS"\)/,
+  );
+  assert.match(appearanceActionSource, /assertRole\(user, \["BUSINESS_OWNER"\]\)/);
+  assert.match(appearanceActionSource, /writeRuntimeStaffAppLogo/);
+  assert.match(appearanceActionSource, /STAFF_APP_APPEARANCE_UPDATED/);
 });
 
 test("Staff App keeps key employee journeys compact and iPhone-first", () => {

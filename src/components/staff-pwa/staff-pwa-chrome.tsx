@@ -20,6 +20,7 @@ import {
   type StaffNavigationIcon,
 } from "@/lib/staff-pwa/navigation";
 import type { EmployeeWorkplaceChoice } from "@/lib/staff-pwa/types";
+import type { StaffAppAppearance } from "@/lib/staff-pwa/appearance-config";
 
 const authRoutes = new Set([
   "/staff/login",
@@ -44,10 +45,12 @@ export function useStaffShell() {
 
 export function StaffPwaChrome({
   children,
+  appearance,
   enabledModules,
   workplaces,
 }: {
   children: React.ReactNode;
+  appearance: StaffAppAppearance | null;
   enabledModules: readonly string[];
   workplaces: readonly EmployeeWorkplaceChoice[];
 }) {
@@ -165,7 +168,12 @@ export function StaffPwaChrome({
         <OfflineBanner />
         <header className="staff-pwa-header">
           <Link aria-label="Tetamu Staff App home" className="staff-pwa-brand" href="/staff">
-            <span aria-hidden="true">T</span>
+            <span aria-hidden="true" className={appearance?.logoUrl ? "has-logo" : undefined}>
+              {appearance?.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img alt="" src={appearance.logoUrl} />
+              ) : "T"}
+            </span>
             <strong>Tetamu<small>Staff App</small></strong>
           </Link>
           {showNavigation && currentWorkplace ? (

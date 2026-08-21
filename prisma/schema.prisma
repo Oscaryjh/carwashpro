@@ -1813,6 +1813,8 @@ model Business {
   slug                    String           @unique
   industryType            BusinessIndustry @default(AUTO_DETAILING) @map("industry_type")
   logoUrl                 String?          @map("logo_url")
+  staffAppLogoUrl         String?          @map("staff_app_logo_url")
+  staffAppAppearance      Json?            @map("staff_app_appearance")
   companyNo               String?          @map("company_no")
   phone                   String?
   email                   String?

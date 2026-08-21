@@ -8,6 +8,7 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { loadPublishedPayslipsForEmployee } from "@/lib/payroll/payslip-publication";
 import { addDays, dateOnly } from "@/lib/roster/domain";
 import { getEmployeePublishedRoster } from "@/lib/roster/service";
+import { loadStaffAppAppearance } from "./appearance";
 
 export type StaffHomeCard = {
   domain: "ROSTER" | "TIMESHEET" | "LEAVE" | "CLAIMS" | "COMMISSION" | "PAYSLIP";
@@ -23,7 +24,10 @@ export async function getStaffHomeOverview(
   enabledModules: readonly string[],
 ) {
   const modules = new Set(enabledModules as readonly ModuleKey[]);
-  const profile = await getEmployeeAuthProfile(auth);
+  const [profile, appearance] = await Promise.all([
+    getEmployeeAuthProfile(auth),
+    loadStaffAppAppearance(auth.businessId),
+  ]);
   const loaders: Array<Promise<StaffHomeCard>> = [];
 
   if (modules.has("HR")) {
@@ -122,6 +126,7 @@ export async function getStaffHomeOverview(
 
   return {
     profile,
+    appearance,
     cards: await Promise.all(loaders),
     showWelcome: true,
   };

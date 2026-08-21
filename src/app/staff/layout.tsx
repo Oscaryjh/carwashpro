@@ -6,6 +6,7 @@ import {
   getEmployeeWorkplaces,
 } from "@/lib/attendance/employee-auth/session";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
+import { loadStaffAppAppearance } from "@/lib/staff-pwa/appearance";
 import "./staff.css";
 
 export const metadata: Metadata = {
@@ -32,15 +33,16 @@ export const viewport: Viewport = {
 
 export default async function StaffLayout({ children }: { children: ReactNode }) {
   const auth = await getEmployeeSelfServiceAuthContext();
-  const [moduleContext, workplaces] = auth
+  const [moduleContext, workplaces, appearance] = auth
     ? await Promise.all([
         loadBusinessModuleContext(auth.businessId),
         getEmployeeWorkplaces(auth),
+        loadStaffAppAppearance(auth.businessId),
       ])
-    : [null, []];
+    : [null, [], null];
   const modules = moduleContext ? [...moduleContext.enabledModules] : ["CORE"];
   return (
-    <StaffPwaChrome enabledModules={modules} workplaces={workplaces}>
+    <StaffPwaChrome appearance={appearance} enabledModules={modules} workplaces={workplaces}>
       {children}
     </StaffPwaChrome>
   );

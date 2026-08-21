@@ -707,6 +707,7 @@ test("management routes are restricted to the permissions that protect them", ()
     "PAYROLL_READ",
   );
   assert.equal(routePermission("/business/settings"), "OWNER_ONLY");
+  assert.equal(routePermission("/business/settings/staff-app"), "OWNER_ONLY");
   assert.equal(routePermission("/branches/123"), "OWNER_ONLY");
 });
 

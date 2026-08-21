@@ -135,7 +135,7 @@ export const config = {
     "/appointments/:path*",
     "/ai/:path*",
     "/branches/:path*",
-    "/business/settings",
+    "/business/settings/:path*",
     "/business-context/:path*",
     "/cashier/:path*",
     "/closing/:path*",

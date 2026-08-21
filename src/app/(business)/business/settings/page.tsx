@@ -61,6 +61,9 @@ export default async function BusinessSettingsPage({
     <>
       <section className="content company-settings-page">
         <div className="company-settings-page-actions">
+          <Link className="secondary-link-button" href="/business/settings/staff-app">
+            Staff App appearance
+          </Link>
           <Link className="secondary-link-button" href="/business/settings/logs">
             Staff logs
           </Link>

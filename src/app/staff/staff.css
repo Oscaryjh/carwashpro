@@ -232,6 +232,19 @@
   width: 40px;
 }
 
+.staff-pwa-brand > span.has-logo {
+  background: #fff;
+  border: 1px solid var(--staff-line);
+  overflow: hidden;
+}
+
+.staff-pwa-brand > span img {
+  height: 100%;
+  object-fit: contain;
+  padding: 3px;
+  width: 100%;
+}
+
 .staff-pwa-brand strong {
   display: grid;
   font-size: 17px;

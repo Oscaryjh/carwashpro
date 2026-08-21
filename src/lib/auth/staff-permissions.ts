@@ -720,7 +720,10 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
     return "OWNER_ONLY";
   }
 
-  if (pathname === "/business/settings") {
+  if (
+    pathname === "/business/settings" ||
+    pathname.startsWith("/business/settings/")
+  ) {
     return "OWNER_ONLY";
   }
 
