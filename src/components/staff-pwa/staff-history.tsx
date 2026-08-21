@@ -40,7 +40,6 @@ export function StaffHistory() {
   const [correctionBranchId, setCorrectionBranchId] = useState("");
   const [requestedClockInAt, setRequestedClockInAt] = useState("");
   const [requestedClockOutAt, setRequestedClockOutAt] = useState("");
-  const [correctionReason, setCorrectionReason] = useState("");
   const [correctionSubmitting, setCorrectionSubmitting] = useState(false);
   const [correctionMessage, setCorrectionMessage] = useState("");
   const [knownBranches, setKnownBranches] = useState<Array<{ id: string; name: string }>>([]);
@@ -161,7 +160,10 @@ export function StaffHistory() {
             Number.isFinite(requestedClockOut.getTime())
               ? requestedClockOut.toISOString()
               : null,
-          reason: correctionReason,
+          reason:
+            correctionType === "FORGOT_CLOCK_IN"
+              ? "Employee requested a missing clock-in correction."
+              : "Employee requested a missing clock-out correction.",
           deviceIdentifier: getOrCreateDeviceIdentifier(),
         }),
       });
@@ -170,7 +172,6 @@ export function StaffHistory() {
           ? "This request is already pending."
           : "Request submitted for manager review.",
       );
-      setCorrectionReason("");
       await load();
     } catch (caught) {
       if (
@@ -313,17 +314,6 @@ export function StaffHistory() {
                 required={correctionType === "FORGOT_CLOCK_OUT"}
                 type="datetime-local"
                 value={requestedClockOutAt}
-              />
-            </label>
-            <label>
-              Reason
-              <textarea
-                maxLength={500}
-                minLength={3}
-                onChange={(event) => setCorrectionReason(event.target.value)}
-                required
-                rows={3}
-                value={correctionReason}
               />
             </label>
             <button

@@ -482,6 +482,8 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(historyComponentSource, /className="staff-page-card staff-correction-sheet staff-filter-sheet"/);
   assert.match(historyComponentSource, /setDraftFrom\(from\)/);
   assert.match(historyComponentSource, /id="staff-history-filters"/);
+  assert.doesNotMatch(historyComponentSource, />\s*Reason\s*</);
+  assert.match(historyComponentSource, /Employee requested a missing clock-out correction\./);
   assert.match(staffCssSource, /@media \(max-width: 640px\)[\s\S]*?\.staff-correction-backdrop\s*\{[\s\S]*?align-items:\s*flex-end/);
   assert.match(staffCssSource, /\.staff-correction-sheet\s*\{[\s\S]*?max-height:\s*calc\(100dvh - 32px\);[\s\S]*?overflow-y:\s*auto/);
   assert.match(staffCssSource, /\.staff-history-stack > \.staff-section-hero > \.staff-secondary-button\s*\{[\s\S]*?grid-area:\s*action;[\s\S]*?min-height:\s*38px/);
