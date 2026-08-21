@@ -1408,7 +1408,7 @@
   align-items: center;
   display: flex;
   justify-content: space-between;
-  padding: 20px;
+  padding: 16px 18px;
 }
 
 .staff-welcome-card {
@@ -1417,14 +1417,14 @@
     linear-gradient(145deg, #075f59 0%, #087f76 64%, #0a9488 100%);
   border-color: rgba(5, 100, 93, 0.24);
   color: #fff;
-  min-height: 126px;
+  min-height: 100px;
   overflow: hidden;
 }
 
 .staff-welcome-identity {
   align-items: center;
   display: flex;
-  gap: 15px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -1439,10 +1439,10 @@
   border-radius: 50%;
   color: #fff;
   display: inline-flex;
-  flex: 0 0 48px;
-  font-size: 15px;
+  flex: 0 0 40px;
+  font-size: 13px;
   font-weight: 900;
-  height: 48px;
+  height: 40px;
   justify-content: center;
 }
 
@@ -1452,8 +1452,19 @@
   color: #fff;
 }
 
+.staff-welcome-card .staff-kicker {
+  font-size: 9px;
+  margin-bottom: 3px;
+}
+
+.staff-welcome-card h1 {
+  font-size: clamp(23px, 5.5vw, 30px);
+  line-height: 1;
+}
+
 .staff-welcome-card p {
-  margin-top: 4px;
+  font-size: 12px;
+  margin-top: 5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1473,19 +1484,21 @@
   align-items: flex-end;
   display: grid;
   flex: 0 0 auto;
-  gap: 7px;
+  gap: 5px;
   justify-items: end;
 }
 
 .staff-welcome-meta time {
   color: rgba(255, 255, 255, 0.78);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 800;
 }
 
 .staff-welcome-card .staff-state-orb {
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
+  min-height: 30px;
+  padding: 0 11px;
 }
 
 .staff-welcome-card .staff-state-orb i {
@@ -2149,9 +2162,9 @@
   .staff-welcome-card {
     align-items: center;
     display: flex;
-    gap: 12px;
-    min-height: 118px;
-    padding: 17px;
+    gap: 10px;
+    min-height: 92px;
+    padding: 14px;
   }
 
   .staff-welcome-meta {
