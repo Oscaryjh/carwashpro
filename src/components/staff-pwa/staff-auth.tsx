@@ -188,7 +188,11 @@ export function StaffLoginForm({
   );
 }
 
-export function StaffVerifyForm() {
+export function StaffVerifyForm({
+  developmentFastPath = false,
+}: {
+  developmentFastPath?: boolean;
+}) {
   const router = useRouter();
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const [flow, setFlow] = useState<EmployeeAuthFlow | null>(null);
@@ -246,9 +250,9 @@ export function StaffVerifyForm() {
   async function verify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const otp = digits.join("");
-    if (otp.length !== 6 || busy || secondsRemaining === 0) {
+    if (otp.length !== 6 || busy || (!developmentFastPath && secondsRemaining === 0)) {
       setMessage(
-        secondsRemaining === 0
+        !developmentFastPath && secondsRemaining === 0
           ? "This verification code has expired. Request a new code."
           : "Enter the complete 6-digit verification code.",
       );
@@ -288,7 +292,7 @@ export function StaffVerifyForm() {
       setDigits(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
       setMessage(
-        nextFailures >= 5
+        !developmentFastPath && nextFailures >= 5
           ? "Verification has been locked for your security. Request a new code or contact your manager."
           : publicAuthMessage(error),
       );
@@ -367,8 +371,17 @@ export function StaffVerifyForm() {
           ))}
         </div>
         <div className="staff-code-timer">
-          <span>Expires in</span>
-          <strong>{formatCountdown(secondsRemaining)}</strong>
+          {developmentFastPath ? (
+            <>
+              <span>Development OTP</span>
+              <strong>Ready now</strong>
+            </>
+          ) : (
+            <>
+              <span>Expires in</span>
+              <strong>{formatCountdown(secondsRemaining)}</strong>
+            </>
+          )}
         </div>
         {message ? <div className="staff-alert" role="alert">{message}</div> : null}
         <button className="staff-primary-button" disabled={busy} type="submit">

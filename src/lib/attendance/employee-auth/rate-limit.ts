@@ -36,6 +36,15 @@ export async function checkEmployeeOtpRateLimit(
   config: EmployeeAuthConfig,
   database: OtpRateLimitDatabase,
 ): Promise<EmployeeOtpRateLimitResult> {
+  if (config.otp.developmentFastPath) {
+    return {
+      requestAllowed: true,
+      providerAllowed: true,
+      reasons: [],
+      cooldownChallenge: null,
+    };
+  }
+
   const hourAgo = new Date(input.now.getTime() - 60 * 60 * 1_000);
   const [
     phoneCount,
@@ -132,6 +141,10 @@ export async function checkEmployeeOtpVerifyRateLimit(
   config: EmployeeAuthConfig,
   database: OtpRateLimitDatabase,
 ) {
+  if (config.otp.developmentFastPath) {
+    return { allowed: true, phoneAttempts: 0, ipAttempts: 0 } as const;
+  }
+
   const hourAgo = new Date(input.now.getTime() - 60 * 60 * 1_000);
   const [phoneAttempts, ipAttempts] = await Promise.all([
     database.authSecurityEvent.count({

@@ -561,11 +561,17 @@ export async function verifyEmployeeOtp(
 
   if (providerCheck.status !== "APPROVED") {
     const terminalFailure = await database.$transaction(async (transaction) => {
-      const nextAttempts = verification.record.attempts + 1;
+      const keepDevelopmentChallenge =
+        config.otp.developmentFastPath && providerCheck.status === "REJECTED";
+      const nextAttempts = keepDevelopmentChallenge
+        ? verification.record.attempts
+        : verification.record.attempts + 1;
       const terminal =
-        providerCheck.status === "EXPIRED"
-          ? "EXPIRED"
-          : providerCheck.status === "LOCKED" ||
+        keepDevelopmentChallenge
+          ? null
+          : providerCheck.status === "EXPIRED"
+            ? "EXPIRED"
+            : providerCheck.status === "LOCKED" ||
               nextAttempts >= verification.record.maxAttempts
             ? "MAX_ATTEMPTS"
             : null;
@@ -577,7 +583,9 @@ export async function verifyEmployeeOtp(
           invalidatedAt: null,
         },
         data: {
-          attempts: { increment: 1 },
+          ...(keepDevelopmentChallenge
+            ? {}
+            : { attempts: { increment: 1 } }),
           verificationAttemptId: null,
           verificationStartedAt: null,
           ...(terminal ? { invalidatedAt: now } : {}),

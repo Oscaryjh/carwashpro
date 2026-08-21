@@ -61,6 +61,10 @@ const rootLayoutSource = readFileSync(
   new URL("../../src/app/layout.tsx", import.meta.url),
   "utf8",
 );
+const verifyPageSource = readFileSync(
+  new URL("../../src/app/staff/verify/page.tsx", import.meta.url),
+  "utf8",
+);
 const clientInstrumentationSource = readFileSync(
   new URL("../../src/instrumentation-client.ts", import.meta.url),
   "utf8",
@@ -298,6 +302,9 @@ test("OTP UI never stores the entered OTP and supports paste plus resend timing"
   assert.match(authSource, /className="staff-auth-card staff-verify-card"/);
   assert.match(authSource, /<h1>Check your phone<\/h1>/);
   assert.match(authSource, /onClick=\{changePhoneNumber\}/);
+  assert.match(authSource, /<span>Development OTP<\/span>/);
+  assert.match(authSource, /<strong>Ready now<\/strong>/);
+  assert.match(verifyPageSource, /developmentFastPath=\{config\.otp\.developmentFastPath\}/);
   assert.match(staffCssSource, /\.staff-auth-shell \.staff-auth-card\.staff-verify-card/);
   assert.doesNotMatch(authSource, /localStorage\.setItem\([^)]*otp/i);
   assert.doesNotMatch(authSource, /sessionStorage\.setItem\([^)]*otp/i);

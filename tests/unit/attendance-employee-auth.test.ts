@@ -27,6 +27,10 @@ import {
   MockEmployeeOtpProvider,
   readMockEmployeeOtp,
 } from "../../src/lib/attendance/employee-auth/provider";
+import {
+  checkEmployeeOtpRateLimit,
+  checkEmployeeOtpVerifyRateLimit,
+} from "../../src/lib/attendance/employee-auth/rate-limit";
 
 const TEST_SECRET =
   "phase-1c-test-secret-that-is-longer-than-thirty-two-bytes";
@@ -54,6 +58,10 @@ test("employee auth config is centralized and production mock fails closed", () 
   });
   assert.equal(localDevelopmentConfig.otp.sendMode, "mock");
   assert.equal(localDevelopmentConfig.otp.mockCode, "000000");
+  assert.equal(localDevelopmentConfig.otp.developmentFastPath, true);
+  assert.equal(localDevelopmentConfig.otp.expiresInSeconds, 24 * 60 * 60);
+  assert.equal(localDevelopmentConfig.otp.resendCooldownSeconds, 0);
+  assert.equal(fixedMockCodeConfig.otp.developmentFastPath, false);
 
   assert.throws(
     () =>
@@ -128,6 +136,48 @@ test("employee auth config is centralized and production mock fails closed", () 
       }),
     /only in non-production mock mode/,
   );
+});
+
+test("development mock OTP is ready immediately without cooldown or rate-limit waiting", async () => {
+  const config = getEmployeeAuthConfig({
+    NODE_ENV: "development",
+    EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+  });
+  const unusedDatabase = new Proxy(
+    {},
+    {
+      get() {
+        throw new Error("Development fast path must not query rate-limit counters.");
+      },
+    },
+  );
+
+  const requestLimit = await checkEmployeeOtpRateLimit(
+    {
+      phoneNumberNormalized: "+601122334455",
+      phoneIdentifierHash: "phone-hash",
+      ipAddressHash: "ip-hash",
+      deviceFingerprintHash: "device-hash",
+      purpose: "LOGIN",
+      now: new Date("2026-08-21T00:00:00.000Z"),
+    },
+    config,
+    unusedDatabase as never,
+  );
+  const verifyLimit = await checkEmployeeOtpVerifyRateLimit(
+    {
+      phoneIdentifierHash: "phone-hash",
+      ipAddressHash: "ip-hash",
+      now: new Date("2026-08-21T00:00:00.000Z"),
+    },
+    config,
+    unusedDatabase as never,
+  );
+
+  assert.equal(config.otp.resendCooldownSeconds, 0);
+  assert.equal(requestLimit.requestAllowed, true);
+  assert.equal(requestLimit.cooldownChallenge, null);
+  assert.equal(verifyLimit.allowed, true);
 });
 
 test("employee auth crypto uses domain-separated hashes and one-time secrets", () => {

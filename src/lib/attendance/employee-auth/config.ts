@@ -26,6 +26,7 @@ export type EmployeeAuthConfig = Readonly<{
     verifyIpAttemptsPerHour: number;
     providerTimeoutMs: number;
     sendMode: EmployeeOtpSendMode;
+    developmentFastPath: boolean;
     testingDeployment: boolean;
     locale: string;
     mockAccessKey: string | null;
@@ -68,6 +69,8 @@ export function getEmployeeAuthConfig(
   const channel = normalizeChannel(env.OTP_CHANNEL, provider);
   const sendMode: EmployeeOtpSendMode =
     provider === "mock" ? "mock" : "provider";
+  const developmentFastPath =
+    environment === "development" && sendMode === "mock";
 
   if (environment === "production" && provider === "mock") {
     throw new EmployeeAuthError(
@@ -99,9 +102,9 @@ export function getEmployeeAuthConfig(
       channel,
       expiresInSeconds: readInteger(
         env.EMPLOYEE_OTP_EXPIRES_SECONDS,
-        5 * 60,
+        developmentFastPath ? 24 * 60 * 60 : 5 * 60,
         60,
-        15 * 60,
+        developmentFastPath ? 24 * 60 * 60 : 15 * 60,
         "EMPLOYEE_OTP_EXPIRES_SECONDS",
       ),
       maxAttempts: readInteger(
@@ -111,13 +114,16 @@ export function getEmployeeAuthConfig(
         10,
         "EMPLOYEE_OTP_MAX_ATTEMPTS",
       ),
-      resendCooldownSeconds: readInteger(
-        env.EMPLOYEE_OTP_RESEND_SECONDS,
-        60,
-        10,
-        10 * 60,
-        "EMPLOYEE_OTP_RESEND_SECONDS",
-      ),
+      resendCooldownSeconds:
+        developmentFastPath && !env.EMPLOYEE_OTP_RESEND_SECONDS
+          ? 0
+          : readInteger(
+              env.EMPLOYEE_OTP_RESEND_SECONDS,
+              60,
+              10,
+              10 * 60,
+              "EMPLOYEE_OTP_RESEND_SECONDS",
+            ),
       phoneRequestsPerHour: readInteger(
         env.EMPLOYEE_OTP_PHONE_HOURLY_LIMIT,
         5,
@@ -168,6 +174,7 @@ export function getEmployeeAuthConfig(
         "STAFF_OTP_PROVIDER_TIMEOUT_MS",
       ),
       sendMode,
+      developmentFastPath,
       testingDeployment,
       locale: readLocale(env.EMPLOYEE_OTP_LOCALE),
       mockAccessKey: env.EMPLOYEE_OTP_MOCK_ACCESS_KEY?.trim() || null,
