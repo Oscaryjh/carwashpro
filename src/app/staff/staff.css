@@ -1555,13 +1555,13 @@
   border-radius: 50%;
   color: #fff;
   display: inline-flex;
-  flex: 0 0 40px;
-  font-size: 13px;
+  flex: 0 0 80px;
+  font-size: 20px;
   font-weight: 900;
-  height: 40px;
+  height: 80px;
   justify-content: center;
   overflow: hidden;
-  width: 40px;
+  width: 80px;
 }
 
 .staff-welcome-avatar img {
@@ -2249,7 +2249,7 @@
 
 @media (max-width: 430px) {
   .staff-pwa-shell {
-    padding-bottom: calc(86px + env(safe-area-inset-bottom));
+    padding-bottom: calc(80px + max(8px, calc(env(safe-area-inset-bottom) - 12px)));
     padding-left: 12px;
     padding-right: 12px;
   }
@@ -2259,14 +2259,19 @@
     border-left: 0;
     border-radius: 24px 24px 0 0;
     border-right: 0;
-    bottom: calc(0px - env(safe-area-inset-bottom));
+    bottom: 0;
     max-width: none;
     padding:
       6px
       max(6px, env(safe-area-inset-right))
-      calc(6px + env(safe-area-inset-bottom) + env(safe-area-inset-bottom))
+      max(8px, calc(env(safe-area-inset-bottom) - 12px))
       max(6px, env(safe-area-inset-left));
     width: 100%;
+  }
+
+  .staff-pwa-nav a,
+  .staff-pwa-nav > button {
+    min-height: 54px;
   }
 
   .staff-pwa-shell .pwa-install-button span {
@@ -2334,7 +2339,7 @@
     align-items: center;
     display: flex;
     gap: 10px;
-    min-height: 88px;
+    min-height: 104px;
     padding: 12px 13px;
   }
 

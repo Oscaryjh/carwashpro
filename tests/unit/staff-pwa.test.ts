@@ -413,6 +413,7 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
   assert.doesNotMatch(homeComponentSource, /Quick access|View profile/);
   assert.match(homeComponentSource, /StaffAppIcon/);
   assert.match(homeComponentSource, /profile\.employee\.avatarUrl/);
+  assert.match(homeComponentSource, /sizes="80px"/);
   assert.match(homeComponentSource, /<h1>\{displayName\}<\/h1>/);
   assert.doesNotMatch(homeComponentSource, /<h1>Hello,/);
   assert.match(employeeSessionSource, /avatarUrl:\s*true/);
@@ -428,6 +429,7 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-home-grid\s*\{[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(staffCssSource, /\.staff-welcome-card h1\s*\{[\s\S]*?white-space:\s*nowrap/);
   assert.match(staffCssSource, /\.staff-welcome-card h1\s*\{[\s\S]*?line-height:\s*1\.15/);
+  assert.match(staffCssSource, /\.staff-welcome-avatar\s*\{[\s\S]*?flex:\s*0 0 80px;[\s\S]*?height:\s*80px;[\s\S]*?width:\s*80px/);
 });
 
 test("Staff App appearance keeps business icon choices safe and complete", () => {
@@ -480,8 +482,9 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(staffCssSource, /font-size: 16px/);
   assert.match(
     staffCssSource,
-    /@media \(max-width: 430px\)[\s\S]*?\.staff-pwa-nav\s*\{[\s\S]*?bottom:\s*calc\(0px - env\(safe-area-inset-bottom\)\);[\s\S]*?env\(safe-area-inset-bottom\) \+ env\(safe-area-inset-bottom\)/,
+    /@media \(max-width: 430px\)[\s\S]*?\.staff-pwa-nav\s*\{[\s\S]*?bottom:\s*0;[\s\S]*?max\(8px, calc\(env\(safe-area-inset-bottom\) - 12px\)\)/,
   );
+  assert.match(staffCssSource, /\.staff-pwa-nav > button\s*\{\s*min-height:\s*54px/);
 });
 
 test("Staff workplace switching is server-scoped and performs a hard tenant reset", () => {

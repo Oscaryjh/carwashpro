@@ -32,7 +32,7 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
                 <Image
                   alt={`${overview.profile.employee.fullName} profile photo`}
                   height={80}
-                  sizes="40px"
+                  sizes="80px"
                   src={overview.profile.employee.avatarUrl}
                   unoptimized
                   width={80}
