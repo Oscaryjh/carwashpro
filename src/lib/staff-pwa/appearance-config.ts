@@ -10,6 +10,12 @@ export const STAFF_APP_DOMAINS = [
 export type StaffAppDomain = (typeof STAFF_APP_DOMAINS)[number];
 
 export const STAFF_APP_ICON_OPTIONS = [
+  { value: "schedule-3d", label: "Schedule · 3D" },
+  { value: "timesheets-3d", label: "Timesheets · 3D" },
+  { value: "leave-3d", label: "Leave · 3D" },
+  { value: "claims-3d", label: "Claims · 3D" },
+  { value: "commission-3d", label: "Commission · 3D" },
+  { value: "payslips-3d", label: "Payslips · 3D" },
   { value: "calendar", label: "Calendar" },
   { value: "clock", label: "Clock" },
   { value: "document", label: "Document" },
@@ -25,12 +31,12 @@ export const STAFF_APP_ICON_OPTIONS = [
 export type StaffAppIconName = (typeof STAFF_APP_ICON_OPTIONS)[number]["value"];
 
 export const DEFAULT_STAFF_APP_ICONS: Readonly<Record<StaffAppDomain, StaffAppIconName>> = {
-  ROSTER: "calendar",
-  TIMESHEET: "document",
-  LEAVE: "leaf",
-  CLAIMS: "document",
-  COMMISSION: "money",
-  PAYSLIP: "receipt",
+  ROSTER: "schedule-3d",
+  TIMESHEET: "timesheets-3d",
+  LEAVE: "leave-3d",
+  CLAIMS: "claims-3d",
+  COMMISSION: "commission-3d",
+  PAYSLIP: "payslips-3d",
 };
 
 export const STAFF_APP_DOMAIN_LABELS: Readonly<Record<StaffAppDomain, string>> = {

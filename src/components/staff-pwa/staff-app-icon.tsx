@@ -1,7 +1,17 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 import type { StaffAppIconName } from "@/lib/staff-pwa/appearance-config";
 
-const paths: Record<StaffAppIconName, ReactNode> = {
+const imageSources: Partial<Record<StaffAppIconName, string>> = {
+  "schedule-3d": "/staff-app/icons/schedule.webp",
+  "timesheets-3d": "/staff-app/icons/timesheets.webp",
+  "leave-3d": "/staff-app/icons/leave.webp",
+  "claims-3d": "/staff-app/icons/claims.webp",
+  "commission-3d": "/staff-app/icons/commission.webp",
+  "payslips-3d": "/staff-app/icons/payslips.webp",
+};
+
+const paths: Partial<Record<StaffAppIconName, ReactNode>> = {
   calendar: <><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16M8 14h3M13 14h3" /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   document: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M8.5 8h7M8.5 12h7M8.5 16h4.5" /></>,
@@ -15,10 +25,15 @@ const paths: Record<StaffAppIconName, ReactNode> = {
 };
 
 export function StaffAppIcon({ name }: { name: StaffAppIconName }) {
+  const imageSource = imageSources[name];
+  if (imageSource) {
+    return <Image alt="" height={96} src={imageSource} width={96} />;
+  }
+
   return (
     <svg fill="none" viewBox="0 0 24 24">
       <g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8">
-        {paths[name]}
+        {paths[name] ?? paths.calendar}
       </g>
     </svg>
   );

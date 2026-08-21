@@ -414,6 +414,12 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
 });
 
 test("Staff App appearance keeps business icon choices safe and complete", () => {
+  assert.equal(DEFAULT_STAFF_APP_ICONS.ROSTER, "schedule-3d");
+  assert.equal(DEFAULT_STAFF_APP_ICONS.TIMESHEET, "timesheets-3d");
+  assert.equal(DEFAULT_STAFF_APP_ICONS.LEAVE, "leave-3d");
+  assert.equal(DEFAULT_STAFF_APP_ICONS.CLAIMS, "claims-3d");
+  assert.equal(DEFAULT_STAFF_APP_ICONS.COMMISSION, "commission-3d");
+  assert.equal(DEFAULT_STAFF_APP_ICONS.PAYSLIP, "payslips-3d");
   const customized = resolveStaffAppAppearance(
     {
       version: 1,
