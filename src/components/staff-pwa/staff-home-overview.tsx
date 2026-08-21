@@ -5,7 +5,7 @@ import { StaffAppIcon } from "@/components/staff-pwa/staff-app-icon";
 import type { AwaitedReturn } from "@/lib/staff-pwa/home-types";
 
 export function StaffHomeOverview({ overview, children }: { overview: AwaitedReturn; children?: ReactNode }) {
-  const firstName = overview.profile.employee.fullName.split(/\s+/)[0];
+  const displayName = formatDisplayName(overview.profile.employee.fullName);
   const businessName = overview.profile.workplace.businessName;
   const branchName = overview.profile.workplace.primaryBranchName;
   const showBranchName = normalizeLabel(branchName) !== normalizeLabel(businessName);
@@ -43,7 +43,7 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
             </span>
             <div>
               <p className="staff-kicker">TODAY</p>
-              <h1>Hello, {firstName}</h1>
+              <h1>{displayName}</h1>
               <p>{businessName}</p>
               {showBranchName ? <span className="staff-welcome-branch">{branchName}</span> : null}
             </div>
@@ -84,6 +84,18 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
       )}
     </section>
   );
+}
+
+function formatDisplayName(fullName: string) {
+  return fullName
+    .trim()
+    .split(/\s+/)
+    .map((part) =>
+      part
+        ? `${part[0]?.toLocaleUpperCase("en-MY")}${part.slice(1).toLocaleLowerCase("en-MY")}`
+        : part,
+    )
+    .join(" ");
 }
 
 function normalizeLabel(value: string) {

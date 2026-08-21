@@ -1547,7 +1547,7 @@
 }
 
 .staff-welcome-card h1 {
-  font-size: clamp(21px, 5.2vw, 28px);
+  font-size: clamp(19px, 4.8vw, 24px);
   line-height: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2286,7 +2286,7 @@
   }
 
   .staff-welcome-card h1 {
-    font-size: 21px;
+    font-size: 18px;
   }
 
   .staff-welcome-meta {

@@ -409,6 +409,8 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
   assert.match(homeComponentSource, /Quick access/);
   assert.match(homeComponentSource, /StaffAppIcon/);
   assert.match(homeComponentSource, /profile\.employee\.avatarUrl/);
+  assert.match(homeComponentSource, /<h1>\{displayName\}<\/h1>/);
+  assert.doesNotMatch(homeComponentSource, /<h1>Hello,/);
   assert.match(employeeSessionSource, /avatarUrl:\s*true/);
   assert.doesNotMatch(homeComponentSource, /<strong>\{card\.value\}<\/strong>/);
   assert.doesNotMatch(homeComponentSource, /staff-home-card-arrow/);
