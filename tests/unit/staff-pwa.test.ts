@@ -306,6 +306,11 @@ test("OTP UI never stores the entered OTP and supports paste plus resend timing"
   assert.match(authSource, /<strong>Ready now<\/strong>/);
   assert.match(verifyPageSource, /developmentFastPath=\{config\.otp\.developmentFastPath\}/);
   assert.match(staffCssSource, /\.staff-auth-shell \.staff-auth-card\.staff-verify-card/);
+  assert.match(authSource, /formRef\.current\?\.requestSubmit\(\)/);
+  assert.match(authSource, /verificationInFlightRef\.current/);
+  assert.match(authSource, /Code checks automatically/);
+  assert.match(authSource, /Incorrect OTP\. Please try again\./);
+  assert.doesNotMatch(authSource, /Verifying…" : "Verify code/);
   assert.doesNotMatch(authSource, /localStorage\.setItem\([^)]*otp/i);
   assert.doesNotMatch(authSource, /sessionStorage\.setItem\([^)]*otp/i);
 });

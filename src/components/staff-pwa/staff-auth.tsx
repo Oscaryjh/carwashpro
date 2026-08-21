@@ -194,12 +194,15 @@ export function StaffVerifyForm({
   developmentFastPath?: boolean;
 }) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const verificationInFlightRef = useRef(false);
   const [flow, setFlow] = useState<EmployeeAuthFlow | null>(null);
   const [digits, setDigits] = useState(["", "", "", "", "", ""]);
   const [busy, setBusy] = useState(false);
   const [failures, setFailures] = useState(0);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"error" | "success">("error");
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -212,6 +215,11 @@ export function StaffVerifyForm({
     const timer = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, [router]);
+
+  useEffect(() => {
+    if (busy || digits.some((digit) => !digit)) return;
+    formRef.current?.requestSubmit();
+  }, [busy, digits]);
 
   if (!flow) {
     return <StaffLoading label="Loading secure verification…" />;
@@ -250,7 +258,13 @@ export function StaffVerifyForm({
   async function verify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const otp = digits.join("");
-    if (otp.length !== 6 || busy || (!developmentFastPath && secondsRemaining === 0)) {
+    if (
+      otp.length !== 6 ||
+      busy ||
+      verificationInFlightRef.current ||
+      (!developmentFastPath && secondsRemaining === 0)
+    ) {
+      setMessageTone("error");
       setMessage(
         !developmentFastPath && secondsRemaining === 0
           ? "This verification code has expired. Request a new code."
@@ -258,6 +272,7 @@ export function StaffVerifyForm({
       );
       return;
     }
+    verificationInFlightRef.current = true;
     setBusy(true);
     setMessage("");
 
@@ -274,6 +289,7 @@ export function StaffVerifyForm({
           }),
         },
       );
+      setDigits(["", "", "", "", "", ""]);
       if (result.status === "MEMBERSHIP_SELECTION_REQUIRED") {
         const nextFlow = {
           ...activeFlow,
@@ -291,12 +307,14 @@ export function StaffVerifyForm({
       setFailures(nextFailures);
       setDigits(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
+      setMessageTone("error");
       setMessage(
         !developmentFastPath && nextFailures >= 5
           ? "Verification has been locked for your security. Request a new code or contact your manager."
           : publicAuthMessage(error),
       );
     } finally {
+      verificationInFlightRef.current = false;
       setBusy(false);
     }
   }
@@ -328,8 +346,10 @@ export function StaffVerifyForm({
       setNow(requestedAt);
       setDigits(["", "", "", "", "", ""]);
       setFailures(0);
+      setMessageTone("success");
       setMessage(result.message);
     } catch (error) {
+      setMessageTone("error");
       setMessage(publicAuthMessage(error));
     } finally {
       setBusy(false);
@@ -348,7 +368,11 @@ export function StaffVerifyForm({
         <h1>Check your phone</h1>
         <p>Enter the 6-digit code sent to <strong>{flow.phoneMasked}</strong>.</p>
       </div>
-      <form className="staff-form-stack staff-verify-form" onSubmit={verify}>
+      <form
+        className="staff-form-stack staff-verify-form"
+        onSubmit={verify}
+        ref={formRef}
+      >
         <div
           aria-label="Verification code"
           className="staff-otp-inputs"
@@ -383,11 +407,18 @@ export function StaffVerifyForm({
             </>
           )}
         </div>
-        {message ? <div className="staff-alert" role="alert">{message}</div> : null}
-        <button className="staff-primary-button" disabled={busy} type="submit">
-          <span>{busy ? "Verifying…" : "Verify code"}</span>
-          {!busy ? <b aria-hidden="true">→</b> : null}
-        </button>
+        <div
+          aria-live="polite"
+          className={`staff-otp-auto-status ${busy ? "is-checking" : ""}`}
+          role="status"
+        >
+          <span aria-hidden="true" />
+          <strong>{busy ? "Checking code…" : "Code checks automatically"}</strong>
+          <small>{busy ? "Please wait" : "Enter all 6 digits to continue"}</small>
+        </div>
+        {message ? (
+          <div className={`staff-alert ${messageTone}`} role="alert">{message}</div>
+        ) : null}
         <div className="staff-verify-actions">
           <button
             className="staff-link-button"
@@ -505,7 +536,7 @@ function publicAuthMessage(error: unknown) {
       return "Your employee profile is not enabled. Please contact your administrator.";
     }
     if (error.code === "OTP_INVALID") {
-      return "The verification code is invalid.";
+      return "Incorrect OTP. Please try again.";
     }
     if (error.code === "OTP_EXPIRED") {
       return "This verification code has expired. Request a new code.";
