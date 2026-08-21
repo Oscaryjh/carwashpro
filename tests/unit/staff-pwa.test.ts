@@ -335,6 +335,8 @@ test("OTP UI never stores the entered OTP and supports paste plus resend timing"
   assert.match(authSource, /function updateDigit[\s\S]*?setMessage\(""\);[\s\S]*?setDigits/);
   assert.match(authSource, /otpError \? "Code not accepted"/);
   assert.match(staffCssSource, /\.staff-otp-auto-status\.is-error/);
+  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-auth-shell \.staff-auth-card\.staff-verify-card\s*\{[\s\S]*?margin-top:\s*10px;[\s\S]*?\.staff-auth-shell \.staff-verify-heading h1\s*\{[\s\S]*?font-size:\s*28px/);
+  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-auth-shell \.staff-otp-inputs\s*\{[\s\S]*?gap:\s*6px;[\s\S]*?\.staff-auth-shell \.staff-otp-auto-status\s*\{[\s\S]*?min-height:\s*52px/);
   assert.doesNotMatch(authSource, /Verifying…" : "Verify code/);
   assert.doesNotMatch(authSource, /localStorage\.setItem\([^)]*otp/i);
   assert.doesNotMatch(authSource, /sessionStorage\.setItem\([^)]*otp/i);
