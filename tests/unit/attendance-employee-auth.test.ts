@@ -32,6 +32,7 @@ import {
   checkEmployeeOtpRateLimit,
   checkEmployeeOtpVerifyRateLimit,
 } from "../../src/lib/attendance/employee-auth/rate-limit";
+import { buildEmployeeOtpChallengeInvalidationWhere } from "../../src/lib/attendance/employee-auth/otp-service";
 
 const TEST_SECRET =
   "phase-1c-test-secret-that-is-longer-than-thirty-two-bytes";
@@ -200,6 +201,37 @@ test("development device binding keeps existing devices and sessions active", as
     "demote-existing-punch-device",
     "create-current-punch-device",
   ]);
+});
+
+test("development OTP requests invalidate only the current device challenge", () => {
+  const base = {
+    phoneNumberNormalized: "+601112212259",
+    deviceFingerprintHash: "device-b-hash",
+  };
+
+  assert.deepEqual(
+    buildEmployeeOtpChallengeInvalidationWhere({
+      ...base,
+      developmentFastPath: true,
+    }),
+    {
+      phoneNumberNormalized: "+601112212259",
+      purpose: { in: ["LOGIN", "REGISTER_DEVICE"] },
+      invalidatedAt: null,
+      deviceFingerprintHash: "device-b-hash",
+    },
+  );
+  assert.deepEqual(
+    buildEmployeeOtpChallengeInvalidationWhere({
+      ...base,
+      developmentFastPath: false,
+    }),
+    {
+      phoneNumberNormalized: "+601112212259",
+      purpose: { in: ["LOGIN", "REGISTER_DEVICE"] },
+      invalidatedAt: null,
+    },
+  );
 });
 
 test("development mock OTP is ready immediately without cooldown or rate-limit waiting", async () => {

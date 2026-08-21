@@ -216,11 +216,11 @@ export async function requestEmployeeOtp(
       rateLimit.providerAllowed;
 
     await transaction.employeeOtpChallenge.updateMany({
-      where: {
+      where: buildEmployeeOtpChallengeInvalidationWhere({
         phoneNumberNormalized,
-        purpose: { in: ["LOGIN", "REGISTER_DEVICE"] },
-        invalidatedAt: null,
-      },
+        deviceFingerprintHash,
+        developmentFastPath: config.otp.developmentFastPath,
+      }),
       data: { invalidatedAt: now },
     });
 
@@ -371,6 +371,21 @@ export async function requestEmployeeOtp(
     config.otp.expiresInSeconds,
     config.otp.resendCooldownSeconds,
   );
+}
+
+export function buildEmployeeOtpChallengeInvalidationWhere(input: {
+  phoneNumberNormalized: string;
+  deviceFingerprintHash: string;
+  developmentFastPath: boolean;
+}): Prisma.EmployeeOtpChallengeWhereInput {
+  return {
+    phoneNumberNormalized: input.phoneNumberNormalized,
+    purpose: { in: ["LOGIN", "REGISTER_DEVICE"] },
+    invalidatedAt: null,
+    ...(input.developmentFastPath
+      ? { deviceFingerprintHash: input.deviceFingerprintHash }
+      : {}),
+  };
 }
 
 export async function verifyEmployeeOtp(
