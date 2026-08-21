@@ -282,6 +282,9 @@ test("Today prioritizes shift facts and shows explicit completion and approval s
   assert.match(todaySource, /Manager approval pending/);
   assert.match(todaySource, /formatBranchDate\(today\.branchLocalTime\)/);
   assert.match(todaySource, /today\.branch\.name/);
+  assert.match(todaySource, /className="staff-shift-summary"/);
+  assert.match(todaySource, /className="staff-shift-summary-icon"/);
+  assert.match(staffCssSource, /\.staff-shift-summary-copy strong\s*\{[\s\S]*?font-variant-numeric: tabular-nums/);
   assert.doesNotMatch(todaySource, /label="GPS"/);
   assert.doesNotMatch(todaySource, /<section className="staff-time-card">/);
 });

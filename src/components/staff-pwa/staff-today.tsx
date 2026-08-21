@@ -446,18 +446,25 @@ export function StaffToday() {
           </span>
         </div>
         <div className="staff-attendance-context">
-          <div>
-            <small>{formatBranchDate(today.branchLocalTime)} · {today.branch.name}</small>
-            <strong>
-              {today.expectedAttendance
-                ? expectedAttendanceLabel(today.expectedAttendance.kind)
-                : "Schedule not available"}
-            </strong>
-            <span>
-              {today.expectedAttendance
-                ? expectedAttendanceDetail(today.expectedAttendance)
-                : "Check Schedule or contact your manager for today’s shift."}
+          <div className="staff-shift-summary">
+            <span className="staff-shift-summary-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M7 3v3M17 3v3M4.5 9h15M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+              </svg>
             </span>
+            <div className="staff-shift-summary-copy">
+              <small>
+                {today.expectedAttendance
+                  ? expectedAttendanceLabel(today.expectedAttendance.kind)
+                  : "Schedule not available"}
+              </small>
+              <strong>
+                {today.expectedAttendance
+                  ? expectedAttendanceDetail(today.expectedAttendance)
+                  : "Check Schedule or contact your manager for today’s shift."}
+              </strong>
+              <span>{formatBranchDate(today.branchLocalTime)} · {today.branch.name}</span>
+            </div>
           </div>
           {today.availableBranches.length > 1 ? (
             <label className="staff-branch-switch">
