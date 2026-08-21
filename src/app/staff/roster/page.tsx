@@ -53,7 +53,30 @@ export default async function StaffRosterPage({ searchParams }: Props) {
           const assignment = byDate.get(dateValue(day));
           const leave = leaveByDate.get(dateValue(day));
           const holiday = holidayByDate.get(dateValue(day));
-          return <article className="staff-page-card staff-roster-day" key={dateValue(day)}><div className="staff-roster-date"><strong>{day.toLocaleDateString("en-MY", { weekday: "long", timeZone: "UTC" })}</strong><small>{day.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}</small></div>{leave ? <Leave label={leave.leaveRequest.policyNameSnapshot} /> : assignment ? <Assignment assignment={assignment} holiday={holiday?.name} /> : <div className="staff-roster-empty" title="No effective schedule available · Unspecified · not an Off Day">{holiday ? <span className="staff-roster-holiday">Public holiday · {holiday.name}</span> : null}<strong>No work shift scheduled</strong><small>Not automatically an Off Day</small></div>}</article>;
+          const isToday = dateValue(day) === dateValue(today);
+          return (
+            <article
+              aria-current={isToday ? "date" : undefined}
+              className={`staff-page-card staff-roster-day${isToday ? " is-today" : ""}`}
+              key={dateValue(day)}
+            >
+              <div className="staff-roster-date">
+                <strong>{day.toLocaleDateString("en-MY", { weekday: "long", timeZone: "UTC" })}</strong>
+                <small>{day.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}</small>
+              </div>
+              {leave ? (
+                <Leave label={leave.leaveRequest.policyNameSnapshot} />
+              ) : assignment ? (
+                <Assignment assignment={assignment} holiday={holiday?.name} />
+              ) : (
+                <div className="staff-roster-empty" title="No effective schedule available · Unspecified · not an Off Day">
+                  {holiday ? <span className="staff-roster-holiday">Public holiday · {holiday.name}</span> : null}
+                  <strong>No work shift scheduled</strong>
+                  <small>Not automatically an Off Day</small>
+                </div>
+              )}
+            </article>
+          );
         })}
       </div>
       <p className="staff-roster-note">This is your planned schedule. Use Attendance to record the hours you actually work.</p>
@@ -67,9 +90,9 @@ function Assignment({ assignment, holiday, prominent = false }: { assignment: As
   const overnight = assignment.startAt && assignment.endAt
     ? localDayKey(assignment.startAt, assignment.timezoneSnapshot) !== localDayKey(assignment.endAt, assignment.timezoneSnapshot)
     : false;
-  return <div className={prominent ? "staff-roster-assignment prominent" : "staff-roster-assignment"}>{holiday ? <span className="staff-roster-holiday">PH · {holiday}</span> : null}<strong>{label}</strong>{assignment.startAt && assignment.endAt ? <span>{time(assignment.startAt, assignment.timezoneSnapshot)} – {time(assignment.endAt, assignment.timezoneSnapshot)}</span> : null}{overnight && assignment.startAt && assignment.endAt ? <span>Overnight shift · {shortDate(assignment.startAt, assignment.timezoneSnapshot)}–{shortDate(assignment.endAt, assignment.timezoneSnapshot)}</span> : null}<small>{assignment.branch.name}{assignment.breakMinutes ? ` · ${humanDuration(assignment.breakMinutes)} ${assignment.breakPaidSnapshot ? "paid" : "unpaid"} break` : ""}</small></div>;
+  return <div className={prominent ? "staff-roster-assignment prominent" : "staff-roster-assignment"}>{holiday ? <span className="staff-roster-holiday">PH · {holiday}</span> : null}<strong>{label}</strong>{assignment.startAt && assignment.endAt ? <span className="staff-roster-time">{time(assignment.startAt, assignment.timezoneSnapshot)} – {time(assignment.endAt, assignment.timezoneSnapshot)}</span> : null}{overnight && assignment.startAt && assignment.endAt ? <span className="staff-roster-overnight">Overnight shift · {shortDate(assignment.startAt, assignment.timezoneSnapshot)}–{shortDate(assignment.endAt, assignment.timezoneSnapshot)}</span> : null}<small>{assignment.branch.name}{assignment.breakMinutes ? ` · ${humanDuration(assignment.breakMinutes)} ${assignment.breakPaidSnapshot ? "paid" : "unpaid"} break` : ""}</small></div>;
 }
-function Leave({ label }: { label: string }) { return <div className="staff-roster-assignment staff-roster-leave"><span>Approved Leave</span><strong>{label}</strong><small>Your manager approved this leave.</small></div>; }
+function Leave({ label }: { label: string }) { return <div className="staff-roster-assignment staff-roster-leave"><span className="staff-roster-leave-status">Approved Leave</span><strong>{label}</strong><small>Your manager approved this leave.</small></div>; }
 function localDate(now: Date, timezone: string) { const value = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now); return new Date(`${value}T00:00:00.000Z`); }
 function parseDate(value?: string) { return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : null; }
 function time(value: Date, timezone: string) { return value.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timezone }); }

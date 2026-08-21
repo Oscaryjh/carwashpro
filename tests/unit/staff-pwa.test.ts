@@ -478,6 +478,8 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(leaveCssSource, /grid-auto-flow:column/);
   assert.match(timesheetPageSource, /staff-timesheet-summary/);
   assert.match(rosterPageSource, /aria-label="Previous week"/);
+  assert.match(rosterPageSource, /aria-current=\{isToday \? "date" : undefined\}/);
+  assert.match(rosterPageSource, /staff-roster-time/);
   assert.match(commissionPageSource, /staff-commission-empty/);
   assert.match(staffCssSource, /font-size: 16px/);
   assert.match(
@@ -486,6 +488,8 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   );
   assert.match(staffCssSource, /\.staff-pwa-nav::after\s*\{[\s\S]*?height:\s*64px;[\s\S]*?top:\s*100%/);
   assert.match(staffCssSource, /\.staff-pwa-nav > button\s*\{\s*min-height:\s*54px/);
+  assert.match(staffCssSource, /\.staff-roster-day\s*\{[\s\S]*?min-height:\s*78px;[\s\S]*?padding:\s*12px 14px/);
+  assert.match(staffCssSource, /\.staff-roster-day\.is-today\s*\{/);
 });
 
 test("Staff workplace switching is server-scoped and performs a hard tenant reset", () => {
