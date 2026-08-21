@@ -2249,7 +2249,7 @@
 
 @media (max-width: 430px) {
   .staff-pwa-shell {
-    padding-bottom: calc(80px + max(8px, calc(env(safe-area-inset-bottom) - 12px)));
+    padding-bottom: 66px;
     padding-left: 12px;
     padding-right: 12px;
   }
@@ -2264,7 +2264,7 @@
     padding:
       6px
       max(6px, env(safe-area-inset-right))
-      max(8px, calc(env(safe-area-inset-bottom) - 12px))
+      0
       max(6px, env(safe-area-inset-left));
     width: 100%;
   }
