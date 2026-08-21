@@ -56,8 +56,7 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
       ) : null}
       {children}
       <div className="staff-home-section-heading">
-        <div><p className="staff-kicker">MY WORKSPACE</p><h2 id="staff-home-overview-heading">Quick access</h2></div>
-        <Link href="/staff/profile">View profile <span aria-hidden="true">→</span></Link>
+        <p className="staff-kicker" id="staff-home-overview-heading">MY WORKSPACE</p>
       </div>
       {overview.cards.length ? (
         <div className="staff-home-grid">

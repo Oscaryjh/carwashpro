@@ -768,27 +768,13 @@
 }
 
 .staff-home-section-heading {
-  align-items: center;
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
+  padding: 0 2px;
 }
 
-.staff-home-section-heading > div {
-  display: grid;
-  gap: 2px;
-}
-
-.staff-home-section-heading h2,
 .staff-home-section-heading p {
   margin: 0;
 }
 
-.staff-home-section-heading h2 {
-  font-size: 17px;
-}
-
-.staff-home-section-heading a,
 .staff-core-only-state a {
   color: var(--staff-brand-dark);
   font-size: 13px;

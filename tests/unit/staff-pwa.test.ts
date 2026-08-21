@@ -409,7 +409,8 @@ test("Staff Home delegates summaries to canonical domain readers", () => {
 
 test("Staff Home prioritizes a mobile today workspace without inventing new domains", () => {
   assert.match(homeComponentSource, /<p className="staff-kicker">TODAY<\/p>/);
-  assert.match(homeComponentSource, /Quick access/);
+  assert.match(homeComponentSource, /MY WORKSPACE/);
+  assert.doesNotMatch(homeComponentSource, /Quick access|View profile/);
   assert.match(homeComponentSource, /StaffAppIcon/);
   assert.match(homeComponentSource, /profile\.employee\.avatarUrl/);
   assert.match(homeComponentSource, /<h1>\{displayName\}<\/h1>/);
