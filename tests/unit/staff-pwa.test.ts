@@ -476,6 +476,10 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(rosterPageSource, /aria-label="Previous week"/);
   assert.match(commissionPageSource, /staff-commission-empty/);
   assert.match(staffCssSource, /font-size: 16px/);
+  assert.match(
+    staffCssSource,
+    /@media \(max-width: 430px\)[\s\S]*?\.staff-pwa-nav\s*\{[\s\S]*?bottom:\s*0;[\s\S]*?env\(safe-area-inset-bottom\)/,
+  );
 });
 
 test("Staff workplace switching is server-scoped and performs a hard tenant reset", () => {
