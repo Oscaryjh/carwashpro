@@ -65,6 +65,30 @@ const homeComponentSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-home-overview.tsx", import.meta.url),
   "utf8",
 );
+const historyComponentSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-history.tsx", import.meta.url),
+  "utf8",
+);
+const leaveComponentSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-leave.tsx", import.meta.url),
+  "utf8",
+);
+const leaveCssSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-leave.module.css", import.meta.url),
+  "utf8",
+);
+const timesheetPageSource = readFileSync(
+  new URL("../../src/app/staff/timesheet/page.tsx", import.meta.url),
+  "utf8",
+);
+const rosterPageSource = readFileSync(
+  new URL("../../src/app/staff/roster/page.tsx", import.meta.url),
+  "utf8",
+);
+const commissionPageSource = readFileSync(
+  new URL("../../src/app/staff/commission/page.tsx", import.meta.url),
+  "utf8",
+);
 const attendanceMutationSources = [
   "clock-in",
   "clock-out",
@@ -325,6 +349,16 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
     "Attendance actions should appear before secondary metrics",
   );
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-home-grid\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
+});
+
+test("Staff App keeps key employee journeys compact and iPhone-first", () => {
+  assert.match(historyComponentSource, /aria-expanded=\{filtersOpen\}/);
+  assert.match(leaveComponentSource, /href="#staff-leave-apply"/);
+  assert.match(leaveCssSource, /grid-auto-flow:column/);
+  assert.match(timesheetPageSource, /staff-timesheet-summary/);
+  assert.match(rosterPageSource, /aria-label="Previous week"/);
+  assert.match(commissionPageSource, /staff-commission-empty/);
+  assert.match(staffCssSource, /font-size: 16px/);
 });
 
 test("Staff workplace switching is server-scoped and performs a hard tenant reset", () => {

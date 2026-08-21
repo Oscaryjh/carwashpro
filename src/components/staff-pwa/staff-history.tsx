@@ -27,6 +27,7 @@ export function StaffHistory() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [correctionType, setCorrectionType] = useState<
     "FORGOT_CLOCK_IN" | "FORGOT_CLOCK_OUT"
@@ -90,6 +91,7 @@ export function StaffHistory() {
 
   function filter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setFiltersOpen(false);
     if (page === 1) {
       void load();
     } else {
@@ -280,8 +282,24 @@ export function StaffHistory() {
         </section>
       ) : null}
 
-      <section className="staff-page-card">
-        <form className="staff-history-filters" onSubmit={filter}>
+      <section className="staff-history-filter-card">
+        <div className="staff-history-filter-summary">
+          <div>
+            <small>Showing</small>
+            <strong>{formatWorkDate(from)} – {formatWorkDate(to)}</strong>
+            <span>{branchId || status ? "Custom filters applied" : "All branches · All statuses"}</span>
+          </div>
+          <button
+            aria-expanded={filtersOpen}
+            className="staff-filter-toggle"
+            onClick={() => setFiltersOpen((current) => !current)}
+            type="button"
+          >
+            <span aria-hidden="true">≡</span>
+            {filtersOpen ? "Close" : "Filters"}
+          </button>
+        </div>
+        {filtersOpen ? <form className="staff-history-filters" onSubmit={filter}>
           <label>
             From
             <input onChange={(event) => setFrom(event.target.value)} type="date" value={from} />
@@ -312,7 +330,7 @@ export function StaffHistory() {
           </label>
           <button className="staff-secondary-button" type="submit">Apply filters</button>
           <small>Date ranges are limited to 31 days.</small>
-        </form>
+        </form> : null}
       </section>
 
       {error ? <div className="staff-alert error" role="alert">{error}</div> : null}

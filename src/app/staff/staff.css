@@ -2306,16 +2306,254 @@
   }
 
   .staff-roster-nav {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .staff-roster-nav span {
-    grid-column: 1 / -1;
-    grid-row: 1;
+    grid-template-columns: 48px minmax(0, 1fr) 48px;
   }
 
   .staff-roster-day {
     grid-template-columns: 78px minmax(0, 1fr);
     padding: 15px;
+  }
+}
+
+/* iPhone-first interaction and hierarchy */
+.staff-history-filter-card {
+  background: var(--staff-card);
+  border: 1px solid var(--staff-line);
+  border-radius: 20px;
+  box-shadow: var(--staff-shadow-soft);
+  overflow: hidden;
+  padding: 16px;
+}
+
+.staff-history-filter-summary {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.staff-history-filter-summary > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.staff-history-filter-summary small,
+.staff-history-filter-summary span {
+  color: var(--staff-muted);
+  font-size: 11px;
+}
+
+.staff-history-filter-summary strong {
+  color: var(--staff-ink);
+  font-size: 14px;
+}
+
+.staff-filter-toggle {
+  align-items: center;
+  background: #edf7f5;
+  border: 0;
+  border-radius: 13px;
+  color: var(--staff-brand-dark);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  gap: 6px;
+  min-height: 46px;
+  padding: 0 14px;
+}
+
+.staff-history-filter-card .staff-history-filters {
+  border-top: 1px solid var(--staff-line);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.staff-timesheet-page,
+.staff-commission-page {
+  display: grid;
+  gap: 18px;
+}
+
+.staff-timesheet-page > .staff-page-title {
+  padding: 0;
+}
+
+.staff-timesheet-summary {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.staff-timesheet-summary > div {
+  background: #f1f8f6;
+  border: 1px solid #dbe9e6;
+  border-radius: 15px;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 13px 11px;
+}
+
+.staff-timesheet-summary small,
+.staff-timesheet-summary span {
+  color: var(--staff-muted);
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.staff-timesheet-summary strong {
+  color: var(--staff-ink);
+  font-size: 19px;
+}
+
+.staff-timesheet-summary .attention {
+  background: #fff6e4;
+  border-color: #f2dfb6;
+}
+
+.staff-timesheet-section-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.staff-timesheet-section-heading p,
+.staff-timesheet-section-heading h2 {
+  margin: 0;
+}
+
+.staff-timesheet-section-heading p {
+  color: var(--staff-brand);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+
+.staff-timesheet-section-heading h2 {
+  font-size: 18px;
+  margin-top: 3px;
+}
+
+.staff-timesheet-section-heading > span {
+  align-items: center;
+  background: #edf7f5;
+  border-radius: 999px;
+  color: var(--staff-brand-dark);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  height: 32px;
+  justify-content: center;
+  min-width: 32px;
+}
+
+.staff-commission-summary {
+  background: linear-gradient(135deg, #087f76, #075f59);
+  border-radius: 20px;
+  color: #fff;
+  display: grid;
+  gap: 5px;
+  padding: 20px;
+}
+
+.staff-commission-summary small,
+.staff-commission-summary span {
+  color: rgba(255, 255, 255, .78);
+}
+
+.staff-commission-summary strong {
+  font-size: 30px;
+  letter-spacing: -.03em;
+}
+
+.staff-commission-empty {
+  align-items: center;
+  background: linear-gradient(180deg, #f4faf8, #fff);
+  border: 1px dashed #bdd8d3;
+  border-radius: 20px;
+  display: grid;
+  gap: 7px;
+  justify-items: center;
+  min-height: 280px;
+  padding: 34px 24px;
+  text-align: center;
+}
+
+.staff-commission-empty-icon {
+  align-items: center;
+  background: #e3f3f0;
+  border-radius: 999px;
+  color: var(--staff-brand);
+  display: inline-flex;
+  font-size: 28px;
+  height: 66px;
+  justify-content: center;
+  width: 66px;
+}
+
+.staff-commission-empty p {
+  color: var(--staff-brand);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .15em;
+  margin: 7px 0 0;
+}
+
+.staff-commission-empty strong {
+  color: var(--staff-ink);
+  font-size: 20px;
+}
+
+.staff-commission-empty > span:last-child {
+  color: var(--staff-muted);
+  line-height: 1.55;
+  max-width: 290px;
+}
+
+.staff-roster-nav a {
+  align-items: center;
+  display: grid;
+  justify-items: center;
+  min-height: 48px;
+  padding: 5px;
+}
+
+.staff-roster-nav a b {
+  font-size: 25px;
+  line-height: .75;
+}
+
+.staff-roster-nav a small {
+  font-size: 9px;
+}
+
+.staff-pwa-shell :focus-visible {
+  outline: 3px solid rgba(8, 127, 118, .32);
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .staff-pwa-shell input,
+  .staff-pwa-shell select,
+  .staff-pwa-shell textarea {
+    font-size: 16px;
+  }
+
+  .staff-pwa-shell button,
+  .staff-pwa-shell a {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@media (max-width: 380px) {
+  .staff-timesheet-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .staff-timesheet-summary > div:first-child {
+    grid-column: 1 / -1;
   }
 }

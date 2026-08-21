@@ -44,9 +44,9 @@ export default async function StaffRosterPage({ searchParams }: Props) {
         {todayLeave ? <Leave label={todayLeave.leaveRequest.policyNameSnapshot} /> : todayAssignment ? <Assignment assignment={todayAssignment} holiday={todayHoliday?.name} prominent /> : <div title="No effective schedule available · Unspecified · not an Off Day">{todayHoliday ? <span className="staff-roster-holiday">Public holiday · {todayHoliday.name}</span> : null}<strong>No work shift scheduled</strong><span>This is not automatically an Off Day.</span></div>}
       </section>
       <nav className="staff-roster-nav" aria-label="Schedule week">
-        <Link href={`/staff/roster?week=${dateValue(addDays(weekStart, -7))}`}>Previous</Link>
+        <Link aria-label="Previous week" href={`/staff/roster?week=${dateValue(addDays(weekStart, -7))}`}><b aria-hidden="true">‹</b><small>Previous</small></Link>
         <span>{weekLabel(weekStart, weekEnd)}</span>
-        <Link href={`/staff/roster?week=${dateValue(addDays(weekStart, 7))}`}>Next</Link>
+        <Link aria-label="Next week" href={`/staff/roster?week=${dateValue(addDays(weekStart, 7))}`}><b aria-hidden="true">›</b><small>Next</small></Link>
       </nav>
       <div className="staff-roster-list">
         {days.map((day) => {

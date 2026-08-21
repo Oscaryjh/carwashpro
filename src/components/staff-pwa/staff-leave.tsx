@@ -187,7 +187,10 @@ export function StaffLeave() {
   if (loading && !data) return <section className={styles.state}>Loading Leave...</section>;
   return (
     <div className={styles.page}>
-      <section className={styles.hero}><p>TIME OFF</p><h1>My Leave</h1><span>You choose the Leave type; your manager approves or rejects it without changing its treatment.</span></section>
+      <section className={styles.hero}>
+        <div><p>TIME OFF</p><h1>My Leave</h1><span>View your balance and request time off.</span></div>
+        <a className={styles.heroAction} href="#staff-leave-apply">Apply Leave</a>
+      </section>
       {message ? <div className={styles.success} role="status">{message}</div> : null}
       {error ? <div className={styles.error} role="alert">{error}</div> : null}
 
@@ -219,7 +222,7 @@ export function StaffLeave() {
         </section>
       ) : null}
 
-      <section className={styles.card}>
+      <section className={styles.card} id="staff-leave-apply">
         <h2>Apply for Leave</h2>
         {!data?.policies.length ? <p>Your company has not enabled Leave policies yet. Contact HR.</p> : (
           <form onSubmit={submit} className={styles.form}>

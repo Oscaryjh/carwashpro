@@ -9,12 +9,18 @@ export const dynamic = "force-dynamic";
 export default async function StaffTimesheetPage() {
   const auth = await requireEmployeeModulePage("HR");
   const { latest, exceptions, overtime, lockedOvertime, timesheetStatus } = await getEmployeeTimesheetOverview(auth);
+  const period = latest.at(0)?.workDate ?? exceptions.at(0)?.workDate ?? new Date();
   return (
-    <section className="staff-page-card" aria-labelledby="staff-timesheet-heading">
+    <section className="staff-page-card staff-timesheet-page" aria-labelledby="staff-timesheet-heading">
       <div className="staff-page-title">
         <p>Attendance results</p>
         <h1 id="staff-timesheet-heading">My timesheet</h1>
-        <p>Raw punches, pending corrections and resolved day outcomes stay separate.</p>
+        <p>Review your recorded workdays and anything that needs attention.</p>
+      </div>
+      <div className="staff-timesheet-summary" aria-label="Timesheet summary">
+        <div><small>Period</small><strong>{month(period)}</strong><span>{format(timesheetStatus)}</span></div>
+        <div><small>Recorded</small><strong>{latest.length}</strong><span>workday results</span></div>
+        <div className={exceptions.length ? "attention" : ""}><small>Review</small><strong>{exceptions.length}</strong><span>items need attention</span></div>
       </div>
       {overtime.length || lockedOvertime.length ? (
         <div className="staff-history-list" aria-label="Overtime classification">
@@ -35,7 +41,7 @@ export default async function StaffTimesheetPage() {
                 <div className="staff-history-card-header">
                   <div>
                     <strong>{format(status)}</strong>
-                    <small>{item.workDate.toISOString().slice(0, 10)} · {format(context ?? "NORMAL")}</small>
+                    <small>{date(item.workDate)} · {format(context ?? "NORMAL")}</small>
                   </div>
                 </div>
                 <div className="staff-history-times">
@@ -57,7 +63,7 @@ export default async function StaffTimesheetPage() {
         <div className="staff-history-list">
           {exceptions.map((issue) => (
             <article className="staff-history-card" key={issue.id}>
-              <div className="staff-history-card-header"><div><strong>{format(issue.type)}</strong><small>{issue.workDate.toISOString().slice(0, 10)} · {format(issue.status)}</small></div></div>
+              <div className="staff-history-card-header"><div><strong>{format(issue.type)}</strong><small>{date(issue.workDate)} · {format(issue.status)}</small></div></div>
               <p>This issue must be resolved before monthly Timesheet approval.</p>
               {(issue.type === "MISSING_CLOCK_IN" || issue.type === "MISSING_CLOCK_OUT") && issue.status !== "PENDING_MANAGER" ? (
                 <StaffP2CorrectionForm exceptionId={issue.id} type={issue.type} workDate={issue.workDate.toISOString().slice(0, 10)} />
@@ -66,10 +72,11 @@ export default async function StaffTimesheetPage() {
           ))}
         </div>
       ) : null}
+      <div className="staff-timesheet-section-heading"><div><p>DAILY RESULTS</p><h2>Recorded days</h2></div><span>{latest.length}</span></div>
       <div className="staff-history-list">
         {latest.map((row) => (
           <article className="staff-history-card" key={row.id}>
-            <div className="staff-history-card-header"><div><strong>{format(row.outcome)}</strong><small>{row.workDate.toISOString().slice(0, 10)} · Version {row.version}</small></div></div>
+            <div className="staff-history-card-header"><div><strong>{format(row.outcome)}</strong><small>{date(row.workDate)} · Version {row.version}</small></div></div>
             <div className="staff-history-times"><span><small>Clock in</small><strong>{time(row.actualClockInAt)}</strong></span><span><small>Clock out</small><strong>{time(row.actualClockOutAt)}</strong></span></div>
           </article>
         ))}
@@ -82,3 +89,5 @@ export default async function StaffTimesheetPage() {
 function format(value: string) { return value.toLowerCase().replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase()); }
 function time(value: Date | null) { return value ? value.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kuala_Lumpur" }) : "—"; }
 function minutes(value: number) { return `${Math.floor(value / 60)}h ${String(value % 60).padStart(2, "0")}m`; }
+function date(value: Date) { return value.toLocaleDateString("en-MY", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }); }
+function month(value: Date) { return value.toLocaleDateString("en-MY", { month: "short", year: "numeric", timeZone: "UTC" }); }
