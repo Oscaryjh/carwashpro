@@ -2259,7 +2259,7 @@
     border-left: 0;
     border-radius: 24px 24px 0 0;
     border-right: 0;
-    bottom: calc(0px - env(safe-area-inset-bottom));
+    bottom: 0;
     max-width: none;
     padding:
       6px
@@ -2267,6 +2267,17 @@
       0
       max(6px, env(safe-area-inset-left));
     width: 100%;
+  }
+
+  .staff-pwa-nav::after {
+    background: #fff;
+    content: "";
+    height: 64px;
+    left: 0;
+    pointer-events: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
   }
 
   .staff-pwa-nav a,
