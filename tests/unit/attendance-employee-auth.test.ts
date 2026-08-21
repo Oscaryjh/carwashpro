@@ -18,6 +18,7 @@ import {
   verifyEmployeeOtpHash,
 } from "../../src/lib/attendance/employee-auth/crypto";
 import { EmployeeAuthError } from "../../src/lib/attendance/employee-auth/errors";
+import { bindVerifiedEmployeeDevice } from "../../src/lib/attendance/employee-auth/device-service";
 import {
   assertEmployeeAuthSameOrigin,
   readEmployeeAuthJson,
@@ -61,7 +62,9 @@ test("employee auth config is centralized and production mock fails closed", () 
   assert.equal(localDevelopmentConfig.otp.developmentFastPath, true);
   assert.equal(localDevelopmentConfig.otp.expiresInSeconds, 24 * 60 * 60);
   assert.equal(localDevelopmentConfig.otp.resendCooldownSeconds, 0);
+  assert.equal(localDevelopmentConfig.session.allowConcurrentDevices, true);
   assert.equal(fixedMockCodeConfig.otp.developmentFastPath, false);
+  assert.equal(fixedMockCodeConfig.session.allowConcurrentDevices, false);
 
   assert.throws(
     () =>
@@ -136,6 +139,45 @@ test("employee auth config is centralized and production mock fails closed", () 
       }),
     /only in non-production mock mode/,
   );
+});
+
+test("development device binding keeps existing devices and sessions active", async () => {
+  const config = getEmployeeAuthConfig({
+    NODE_ENV: "development",
+    EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+  });
+  let searchedForReplacementDevices = false;
+
+  const transaction = {
+    employeeDevice: {
+      findUnique: async () => null,
+      findMany: async () => {
+        searchedForReplacementDevices = true;
+        throw new Error("Development mode must not replace another active device.");
+      },
+      create: async () => ({
+        id: "development-device-2",
+        canView: true,
+        canPunch: true,
+      }),
+    },
+  } as never;
+
+  const result = await bindVerifiedEmployeeDevice(
+    {
+      employeeAccountId: "development-account",
+      deviceIdentifierHash: "development-device-hash",
+      now: new Date("2026-08-22T00:00:00.000Z"),
+      purpose: "REGISTER_DEVICE",
+    },
+    transaction,
+    config,
+  );
+
+  assert.equal(searchedForReplacementDevices, false);
+  assert.deepEqual(result.replacedDeviceIds, []);
+  assert.deepEqual(result.revokedSessionScopes, []);
+  assert.equal(result.deviceId, "development-device-2");
 });
 
 test("development mock OTP is ready immediately without cooldown or rate-limit waiting", async () => {

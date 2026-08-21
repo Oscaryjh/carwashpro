@@ -45,6 +45,7 @@ export type EmployeeAuthConfig = Readonly<{
     selectionExpiresInSeconds: number;
     activityTouchIntervalSeconds: number;
     secureCookie: boolean;
+    allowConcurrentDevices: boolean;
   }>;
 }>;
 
@@ -183,6 +184,7 @@ export function getEmployeeAuthConfig(
     },
     session: {
       cookieName: EMPLOYEE_SESSION_COOKIE,
+      allowConcurrentDevices: environment === "development",
       expiresInSeconds: readInteger(
         env.EMPLOYEE_SESSION_EXPIRES_SECONDS,
         7 * 24 * 60 * 60,

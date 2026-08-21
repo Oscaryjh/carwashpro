@@ -873,6 +873,7 @@ async function completeEmployeeLogin(
     const device = await bindVerifiedEmployeeDevice(
       deviceInput,
       transaction,
+      dependencies.config,
     );
 
     if (!device.canView) {
