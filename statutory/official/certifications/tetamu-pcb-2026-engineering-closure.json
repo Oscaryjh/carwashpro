@@ -141,14 +141,77 @@
   },
   "testEvidence": {
     "command": "npx tsx --test tests/unit/payroll-pcb-2026.test.ts tests/unit/payroll-pcb-profile.test.ts tests/unit/payroll-pcb-runtime.test.ts tests/unit/payroll-cp38-instruction.test.ts tests/unit/payroll-statutory-submission.test.ts tests/unit/payroll-pcb-engineering-closure.test.ts",
-    "tests": 46,
-    "passed": 46,
+    "tests": 47,
+    "passed": 47,
     "failed": 0,
     "typeCheck": "npx tsc --noEmit",
-    "typeCheckResult": "PASS"
+    "typeCheckResult": "PASS",
+    "relevantPayrollRegression": {
+      "tests": 305,
+      "passed": 305,
+      "failed": 0,
+      "includes": "tests/unit/payroll*.test.ts and tests/unit/employee-bank-profile-p1.test.ts"
+    },
+    "statutoryGovernanceUnitAndIntegration": {
+      "unitTests": 18,
+      "unitPassed": 18,
+      "integrationTests": 16,
+      "integrationPassed": 16,
+      "failed": 0,
+      "database": "FRESH_DISPOSABLE_POSTGRES"
+    },
+    "disposableDatabaseEndToEnd": {
+      "test": "tests/integration/payroll-pcb-vc1-disposable-e2e.test.ts",
+      "tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "phases": [
+        "A_EMPLOYEE_AND_PCB_PROFILE",
+        "B_PAYROLL_COMPONENTS",
+        "C_DRAFT_PCB_AND_READINESS",
+        "D_FINALIZATION_AND_FROZEN_STATUTORY_SNAPSHOT",
+        "E_PAYSLIP",
+        "F_DATABASE_BACKED_CP39"
+      ],
+      "cleanup": "PASS"
+    },
+    "freshMigrationRebuild": {
+      "result": "PASS",
+      "migrationCount": 204,
+      "head": "20260821170000_pcb_cp38_engineering_closure"
+    },
+    "officialArtifactVerification": {
+      "verified": 14,
+      "total": 14,
+      "result": "PASS"
+    },
+    "evidencePackVerification": "PASS",
+    "p2cVerification": "PASS"
   },
-  "candidateSourceCommit": "bdc15f8805b8ff401ff60a5c9da37fb5928fc08a",
-  "workingTreeModifiedForClosure": true,
+  "candidateSourceCommit": "cd579925b895c9de57b48c8766c6efb33eed109a",
+  "verificationCandidate": {
+    "name": "TETAMU PCB 2026 VC1",
+    "branch": "verification/pcb-2026-vc1",
+    "plannedAnnotatedTag": "pcb-2026-verification-candidate-v1",
+    "commitA": "cd579925b895c9de57b48c8766c6efb33eed109a",
+    "commitB": "RECORDED_BY_GIT_AFTER_THIS_EVIDENCE_ONLY_COMMIT",
+    "worktreeIsolationManifest": {
+      "path": "statutory/official/certifications/tetamu-pcb-2026-vc1-worktree-isolation.json",
+      "sha256": "c9a95b0a63128432c27e524ac142cf0b375f8dd4f15ed03033197a01642c5937",
+      "pathsClassified": 180
+    },
+    "kwspThirdScheduleSourceDrift": {
+      "semanticChange": false,
+      "artifactReissued": false,
+      "retainedArtifactSha256": "c4904e44f0cb15a251a59e4f34c11a1ededa0868b962b2ebd9b81270285358b1",
+      "resolutionEvidence": "statutory/official/reviews/kwsp-third-schedule-2025-10-source-drift-resolution-2026-08-21.json"
+    },
+    "productionAccessed": false,
+    "productionActivated": false,
+    "hasilApprovalClaimed": false
+  },
+  "workingTreeModifiedForClosure": false,
+  "candidateBuiltFromCleanWorktree": true,
   "knownUnsupportedCases": [
     "TP3 C2 exempt-income capture is not represented because it is not added to PCB remuneration; imports must not convert it to taxable pay.",
     "Ambiguous or unlisted custom payroll components remain blocked until HR classification is supported by retained evidence.",
