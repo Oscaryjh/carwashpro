@@ -169,6 +169,20 @@ export async function bindVerifiedEmployeeDevice(
     });
   }
 
+  if (allowConcurrentDevices) {
+    await transaction.employeeDevice.updateMany({
+      where: {
+        employeeAccountId: input.employeeAccountId,
+        status: "ACTIVE",
+        canPunch: true,
+        ...(existing ? { id: { not: existing.id } } : {}),
+      },
+      data: {
+        canPunch: false,
+      },
+    });
+  }
+
   if (existing) {
     const device = await transaction.employeeDevice.update({
       where: { id: existing.id },
@@ -181,7 +195,9 @@ export async function bindVerifiedEmployeeDevice(
         revokedAt: null,
         revokeReason: null,
         canView: true,
-        ...(existing.status === "REPLACED" ? { canPunch: true } : {}),
+        ...(allowConcurrentDevices || existing.status === "REPLACED"
+          ? { canPunch: true }
+          : {}),
       },
       select: {
         id: true,

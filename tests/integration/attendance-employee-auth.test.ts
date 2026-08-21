@@ -1373,6 +1373,98 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
   }
 });
 
+test("development auth keeps concurrent sessions and transfers punch access to the latest device", async () => {
+  assertLocalDatabase();
+  const fixture = await createFixture();
+  const config = getEmployeeAuthConfig({
+    NODE_ENV: "development",
+    EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+  });
+  const now = new Date(Date.now() - 60_000);
+
+  try {
+    const primaryIdentifier = "development-primary-device-0001";
+    const primaryRequest = await requestWithCapture({
+      phone: fixture.single.phone,
+      deviceIdentifier: primaryIdentifier,
+      ipAddress: "10.6.0.1",
+      now,
+      config,
+    });
+    const primaryLogin = await verifyEmployeeOtp(
+      {
+        challengeId: primaryRequest.result.challengeId,
+        otp: primaryRequest.provider.sent[0].otp,
+        deviceIdentifier: primaryIdentifier,
+        request: requestContext("10.6.0.1"),
+      },
+      { database: prisma, config, now: plusSeconds(now, 1) },
+    );
+    if (primaryLogin.status !== "AUTHENTICATED") {
+      assert.fail("The first development device should authenticate.");
+    }
+
+    const latestIdentifier = "development-latest-device-0002";
+    const latestRequest = await requestWithCapture({
+      phone: fixture.single.phone,
+      deviceIdentifier: latestIdentifier,
+      ipAddress: "10.6.0.2",
+      now: plusSeconds(now, 2),
+      config,
+    });
+    const latestLogin = await verifyEmployeeOtp(
+      {
+        challengeId: latestRequest.result.challengeId,
+        otp: latestRequest.provider.sent[0].otp,
+        deviceIdentifier: latestIdentifier,
+        request: requestContext("10.6.0.2"),
+      },
+      { database: prisma, config, now: plusSeconds(now, 3) },
+    );
+    if (latestLogin.status !== "AUTHENTICATED") {
+      assert.fail("The latest development device should authenticate.");
+    }
+
+    await authenticateEmployeeSessionToken(primaryLogin.token, {
+      database: prisma,
+      config,
+      now: plusSeconds(now, 4),
+    });
+    await authenticateEmployeeSessionToken(latestLogin.token, {
+      database: prisma,
+      config,
+      now: plusSeconds(now, 4),
+      requirePunch: true,
+    });
+
+    const [primaryDevice, latestDevice] = await Promise.all([
+      prisma.employeeDevice.findUniqueOrThrow({
+        where: { id: primaryLogin.context.deviceId },
+      }),
+      prisma.employeeDevice.findUniqueOrThrow({
+        where: { id: latestLogin.context.deviceId },
+      }),
+    ]);
+    assert.equal(primaryDevice.status, "ACTIVE");
+    assert.equal(primaryDevice.canView, true);
+    assert.equal(primaryDevice.canPunch, false);
+    assert.equal(latestDevice.status, "ACTIVE");
+    assert.equal(latestDevice.canView, true);
+    assert.equal(latestDevice.canPunch, true);
+    assert.equal(
+      await prisma.employeeSession.count({
+        where: {
+          employeeAccountId: fixture.single.accountId,
+          revokedAt: null,
+        },
+      }),
+      2,
+    );
+  } finally {
+    await cleanupFixture(fixture);
+  }
+});
+
 async function exerciseRateLimits(
   fixture: Awaited<ReturnType<typeof createFixture>>,
   now: Date,

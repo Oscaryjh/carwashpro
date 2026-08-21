@@ -147,6 +147,7 @@ test("development device binding keeps existing devices and sessions active", as
     EMPLOYEE_AUTH_SECRET: TEST_SECRET,
   });
   let searchedForReplacementDevices = false;
+  const deviceWrites: string[] = [];
 
   const transaction = {
     employeeDevice: {
@@ -155,11 +156,28 @@ test("development device binding keeps existing devices and sessions active", as
         searchedForReplacementDevices = true;
         throw new Error("Development mode must not replace another active device.");
       },
-      create: async () => ({
-        id: "development-device-2",
-        canView: true,
-        canPunch: true,
-      }),
+      updateMany: async (args: {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
+      }) => {
+        deviceWrites.push("demote-existing-punch-device");
+        assert.deepEqual(args.where, {
+          employeeAccountId: "development-account",
+          status: "ACTIVE",
+          canPunch: true,
+        });
+        assert.deepEqual(args.data, { canPunch: false });
+        return { count: 1 };
+      },
+      create: async () => {
+        assert.deepEqual(deviceWrites, ["demote-existing-punch-device"]);
+        deviceWrites.push("create-current-punch-device");
+        return {
+          id: "development-device-2",
+          canView: true,
+          canPunch: true,
+        };
+      },
     },
   } as never;
 
@@ -178,6 +196,10 @@ test("development device binding keeps existing devices and sessions active", as
   assert.deepEqual(result.replacedDeviceIds, []);
   assert.deepEqual(result.revokedSessionScopes, []);
   assert.equal(result.deviceId, "development-device-2");
+  assert.deepEqual(deviceWrites, [
+    "demote-existing-punch-device",
+    "create-current-punch-device",
+  ]);
 });
 
 test("development mock OTP is ready immediately without cooldown or rate-limit waiting", async () => {
