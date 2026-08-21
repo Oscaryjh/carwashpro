@@ -46,10 +46,19 @@ type OtpVerifyResponse =
       memberships: EmployeeMembershipChoice[];
     };
 
-export function StaffLoginForm({ initialMessage = "", testingMode = false }: { initialMessage?: string; testingMode?: boolean }) {
+export function StaffLoginForm({
+  initialMessage = "",
+  initialMessageTone = "error",
+  testingMode = false,
+}: {
+  initialMessage?: string;
+  initialMessageTone?: "error" | "success";
+  testingMode?: boolean;
+}) {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState("");
   const [message, setMessage] = useState(initialMessage);
+  const [messageTone, setMessageTone] = useState<"error" | "success">(initialMessageTone);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -92,6 +101,7 @@ export function StaffLoginForm({ initialMessage = "", testingMode = false }: { i
       });
       router.push("/staff/verify");
     } catch (error) {
+      setMessageTone("error");
       setMessage(publicAuthMessage(error));
     } finally {
       setBusy(false);
@@ -135,9 +145,9 @@ export function StaffLoginForm({ initialMessage = "", testingMode = false }: { i
               <path d="M12 15v2" />
             </svg>
           </span>
-          <p className="staff-kicker">EMPLOYEE ACCESS</p>
-          <h1>Sign in to Staff App</h1>
-          <p>Enter the mobile number registered by your HR administrator.</p>
+          <p className="staff-kicker">STAFF SIGN IN</p>
+          <h1>Welcome back</h1>
+          <p>Use the mobile number registered by your workplace.</p>
         </div>
         <form className="staff-form-stack" onSubmit={submit} suppressHydrationWarning>
           <label>
@@ -155,24 +165,23 @@ export function StaffLoginForm({ initialMessage = "", testingMode = false }: { i
                 value={phoneNumber}
               />
             </div>
-            <small className="staff-input-hint">
-              Malaysian local and +60 formats are accepted.
-            </small>
+            <small className="staff-input-hint">Malaysian local and +60 formats are accepted.</small>
           </label>
-          {message ? <div className="staff-alert error" role="alert">{message}</div> : null}
+          {message ? <div className={`staff-alert ${messageTone}`} role="status">{message}</div> : null}
           <button className="staff-primary-button" disabled={busy} type="submit">
-            <span>{busy ? "Requesting code…" : "Request verification code"}</span>
+            <span>{busy ? "Requesting code…" : "Continue"}</span>
             {!busy ? <b aria-hidden="true">→</b> : null}
           </button>
         </form>
         <p className="staff-security-note">
           <span aria-hidden="true">✓</span>
-          No self-registration. Contact your manager if your employee access is not enabled.
+          Employee accounts are created by your workplace.
         </p>
         {testingMode ? (
-          <p className="staff-alert warning" role="note">
-            Local / Testing mock OTP is enabled. It is not a Production OTP provider.
-          </p>
+          <details className="staff-testing-note">
+            <summary>Testing mode</summary>
+            <p>Mock OTP is enabled. This is not a Production OTP provider.</p>
+          </details>
         ) : null}
       </div>
     </section>

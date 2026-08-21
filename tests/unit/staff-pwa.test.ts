@@ -301,6 +301,13 @@ test("Staff login tolerates mobile browser form metadata added before hydration"
   assert.match(rootLayoutSource, /<html lang="en-MY" suppressHydrationWarning>/);
 });
 
+test("Staff login keeps the iPhone journey focused on one primary action", () => {
+  assert.match(authSource, /<h1>Welcome back<\/h1>/);
+  assert.match(authSource, /<span>\{busy \? "Requesting code…" : "Continue"\}<\/span>/);
+  assert.match(authSource, /<details className="staff-testing-note">/);
+  assert.match(chromeSource, /"staff-auth-shell"/);
+});
+
 test("successful Staff authentication always opens Home instead of More", () => {
   assert.equal(
     authSource.match(/window\.location\.replace\("\/staff"\)/g)?.length,

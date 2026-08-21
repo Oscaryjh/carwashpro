@@ -22,5 +22,11 @@ export default async function StaffLoginPage({ searchParams }: StaffLoginPagePro
           : "";
 
   const config = getEmployeeAuthConfig();
-  return <StaffLoginForm initialMessage={initialMessage} testingMode={config.otp.sendMode === "mock"} />;
+  return (
+    <StaffLoginForm
+      initialMessage={initialMessage}
+      initialMessageTone={reason === "logged-out" ? "success" : "error"}
+      testingMode={config.otp.sendMode === "mock"}
+    />
+  );
 }

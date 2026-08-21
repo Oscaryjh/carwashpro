@@ -155,7 +155,7 @@ export function StaffPwaChrome({
 
   return (
     <StaffShellContext.Provider value={shellValue}>
-      <div className="staff-pwa-shell">
+      <div className={`staff-pwa-shell ${showNavigation ? "staff-app-shell" : "staff-auth-shell"}`}>
         <OfflineBanner />
         <header className="staff-pwa-header">
           <Link aria-label="Tetamu Staff App home" className="staff-pwa-brand" href="/staff">
