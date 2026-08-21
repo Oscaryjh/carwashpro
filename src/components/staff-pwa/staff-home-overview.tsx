@@ -27,7 +27,7 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
           <div className="staff-welcome-identity">
             <span aria-hidden="true" className="staff-welcome-avatar">{initials || "T"}</span>
             <div>
-              <p className="staff-kicker">TODAY AT WORK</p>
+              <p className="staff-kicker">TODAY</p>
               <h1>Hello, {firstName}</h1>
               <p>{businessName}</p>
               {showBranchName ? <span className="staff-welcome-branch">{branchName}</span> : null}
@@ -41,21 +41,24 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
       ) : null}
       {children}
       <div className="staff-home-section-heading">
-        <div><p className="staff-kicker">QUICK ACCESS</p><h2 id="staff-home-overview-heading">My workspace</h2></div>
+        <div><p className="staff-kicker">MY WORKSPACE</p><h2 id="staff-home-overview-heading">Quick access</h2></div>
         <Link href="/staff/profile">View profile <span aria-hidden="true">→</span></Link>
       </div>
       {overview.cards.length ? (
         <div className="staff-home-grid">
           {overview.cards.map((card) => (
-            <Link className={`staff-home-card ${card.status.toLowerCase()}`} href={card.href} key={card.domain}>
-              <div className="staff-home-card-top">
-                <span className="staff-home-card-icon" aria-hidden="true"><HomeDomainIcon domain={card.domain} /></span>
-                <span aria-hidden="true" className="staff-home-card-arrow">↗</span>
+            <Link
+              aria-label={`${card.label}: ${card.value}`}
+              className={`staff-home-card ${card.status.toLowerCase()}`}
+              href={card.href}
+              key={card.domain}
+            >
+              <span className="staff-home-card-icon" aria-hidden="true"><HomeDomainIcon domain={card.domain} /></span>
+              <div>
+                <small>{card.label.replace(/^My\s+/i, "")}</small>
+                <strong>{card.value}</strong>
               </div>
-              <small>{card.label}</small>
-              <strong>{card.value}</strong>
-              <span>{card.detail}</span>
-              <b>View details <span aria-hidden="true">→</span></b>
+              <span aria-hidden="true" className="staff-home-card-arrow">›</span>
             </Link>
           ))}
         </div>

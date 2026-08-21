@@ -160,20 +160,20 @@
   justify-content: space-between;
   margin: 0 auto;
   max-width: 760px;
-  min-height: 76px;
-  padding: 12px 0;
+  min-height: 64px;
+  padding: 8px 0;
 }
 
 .staff-current-workplace {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--staff-line);
-  border-radius: 14px;
+  border-radius: 16px;
   color: var(--staff-ink);
   display: grid;
   flex: 0 1 260px;
   font: inherit;
   gap: 1px;
-  min-height: 48px;
+  min-height: 44px;
   min-width: 0;
   padding: 7px 50px 7px 12px;
   position: relative;
@@ -227,9 +227,9 @@
   display: inline-flex;
   font-size: 20px;
   font-weight: 900;
-  height: 44px;
+  height: 40px;
   justify-content: center;
-  width: 44px;
+  width: 40px;
 }
 
 .staff-pwa-brand strong {
@@ -493,13 +493,13 @@
   display: flex;
   gap: 14px;
   justify-content: space-between;
-  margin-top: 16px;
-  padding: 13px;
+  margin-top: 14px;
+  padding: 14px;
 }
 
 .staff-attendance-context > div {
   display: grid;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -514,6 +514,14 @@
 .staff-attendance-context strong,
 .staff-attendance-context span {
   overflow-wrap: anywhere;
+}
+
+.staff-attendance-context strong {
+  font-size: 16px;
+}
+
+.staff-attendance-context > div > span {
+  font-size: 13px;
 }
 
 .staff-branch-switch {
@@ -632,11 +640,16 @@
 .staff-home-stack,
 .staff-home-overview {
   display: grid;
-  gap: 18px;
+  gap: 14px;
+}
+
+.staff-home-overview > .staff-today-stack {
+  gap: 14px;
+  padding: 0;
 }
 
 .staff-home-section-heading {
-  align-items: flex-end;
+  align-items: center;
   display: flex;
   gap: 16px;
   justify-content: space-between;
@@ -662,45 +675,47 @@
 
 .staff-home-grid {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .staff-home-card {
+  align-items: center;
   background: var(--staff-card);
   border: 1px solid var(--staff-line);
-  border-radius: 22px;
+  border-radius: 18px;
   color: var(--staff-ink);
-  display: grid;
-  gap: 8px;
-  min-height: 196px;
-  padding: 17px;
+  display: flex;
+  gap: 11px;
+  min-height: 86px;
+  padding: 13px;
   position: relative;
   text-decoration: none;
 }
 
+.staff-home-card > div {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 4px;
+  min-width: 0;
+}
+
 .staff-home-card small {
   color: var(--staff-brand);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 850;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
-.staff-home-card > strong {
-  font-size: 20px;
-}
-
-.staff-home-card > span {
-  color: var(--staff-muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.staff-home-card > b {
-  align-self: end;
-  color: var(--staff-brand-dark);
-  font-size: 12px;
+.staff-home-card strong {
+  display: -webkit-box;
+  font-size: 14px;
+  line-height: 1.25;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .staff-home-card-top {
@@ -713,12 +728,13 @@
 .staff-home-card-icon {
   align-items: center;
   background: var(--staff-brand-soft);
-  border-radius: 13px;
+  border-radius: 12px;
   color: var(--staff-brand-dark);
   display: inline-flex;
-  height: 42px;
+  flex: 0 0 40px;
+  height: 40px;
   justify-content: center;
-  width: 42px;
+  width: 40px;
 }
 
 .staff-home-card-icon svg {
@@ -732,10 +748,11 @@
   border-radius: 50%;
   color: var(--staff-brand-dark);
   display: inline-flex;
-  font-size: 15px;
-  height: 30px;
+  flex: 0 0 24px;
+  font-size: 20px;
+  height: 24px;
   justify-content: center;
-  width: 30px;
+  width: 24px;
 }
 
 .staff-home-card.unavailable {
@@ -1391,7 +1408,7 @@
   align-items: center;
   display: flex;
   justify-content: space-between;
-  padding: 24px;
+  padding: 20px;
 }
 
 .staff-welcome-card {
@@ -1400,7 +1417,7 @@
     linear-gradient(145deg, #075f59 0%, #087f76 64%, #0a9488 100%);
   border-color: rgba(5, 100, 93, 0.24);
   color: #fff;
-  min-height: 174px;
+  min-height: 126px;
   overflow: hidden;
 }
 
@@ -1422,10 +1439,10 @@
   border-radius: 50%;
   color: #fff;
   display: inline-flex;
-  flex: 0 0 56px;
-  font-size: 17px;
+  flex: 0 0 48px;
+  font-size: 15px;
   font-weight: 900;
-  height: 56px;
+  height: 48px;
   justify-content: center;
 }
 
@@ -1436,7 +1453,7 @@
 }
 
 .staff-welcome-card p {
-  margin-top: 7px;
+  margin-top: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1456,7 +1473,7 @@
   align-items: flex-end;
   display: grid;
   flex: 0 0 auto;
-  gap: 10px;
+  gap: 7px;
   justify-items: end;
 }
 
@@ -1549,7 +1566,7 @@
 }
 
 .staff-attendance-card {
-  border-top: 4px solid var(--staff-brand);
+  border-top: 3px solid var(--staff-brand);
 }
 
 .staff-card-heading,
@@ -1655,11 +1672,35 @@
 
 .staff-attendance-card .staff-action-grid > .staff-primary-button {
   box-shadow: 0 12px 24px rgba(8, 127, 118, 0.2);
-  min-height: 54px;
+  min-height: 52px;
 }
 
 .staff-attendance-card .staff-metrics {
-  margin-bottom: 4px;
+  background: #f6f9f8;
+  border: 1px solid #e1eae8;
+  border-radius: 14px;
+  gap: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 14px 0 2px;
+  overflow: hidden;
+}
+
+.staff-attendance-card .staff-metrics > span {
+  background: transparent;
+  border: 0;
+  border-left: 1px solid #e1eae8;
+  border-radius: 0;
+  gap: 4px;
+  min-height: 62px;
+  padding: 10px 8px;
+}
+
+.staff-attendance-card .staff-metrics > span:first-child {
+  border-left: 0;
+}
+
+.staff-attendance-card .staff-metrics strong {
+  font-size: 12px;
 }
 
 .staff-action-grid:has(> button:nth-child(2)) {
@@ -2053,7 +2094,7 @@
   }
 
   .staff-pwa-brand {
-    flex: 0 0 44px;
+    flex: 0 0 40px;
   }
 
   .staff-pwa-brand strong {
@@ -2106,16 +2147,18 @@
   }
 
   .staff-welcome-card {
-    align-items: stretch;
-    display: grid;
-    gap: 18px;
-    padding: 20px;
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    min-height: 118px;
+    padding: 17px;
   }
 
   .staff-welcome-meta {
-    align-items: center;
-    display: flex;
-    justify-content: space-between;
+    align-items: flex-end;
+    display: grid;
+    gap: 6px;
+    justify-items: end;
   }
 
   .staff-history-filters {
@@ -2150,22 +2193,17 @@
   }
 
   .staff-home-card {
-    border-radius: 18px;
-    min-height: 188px;
-    padding: 14px;
-  }
-
-  .staff-home-card > strong {
-    font-size: 17px;
-  }
-
-  .staff-home-card > span {
-    font-size: 11px;
+    min-height: 84px;
+    padding: 12px;
   }
 
   .staff-home-card-icon {
     height: 38px;
     width: 38px;
+  }
+
+  .staff-home-card-arrow {
+    display: none;
   }
 
   .staff-profile-stack {

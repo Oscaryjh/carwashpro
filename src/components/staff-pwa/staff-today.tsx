@@ -436,7 +436,7 @@ export function StaffToday() {
       <section className="staff-page-card staff-attendance-card">
         <div className="staff-card-heading">
           <div>
-            <p className="staff-kicker">ATTENDANCE</p>
+            <p className="staff-kicker">TODAY&apos;S ATTENDANCE</p>
             <h2>{attendanceHeadline(today)}</h2>
           </div>
           <span className={`staff-status-chip ${today.status?.toLowerCase() ?? "ready"}`}>
@@ -447,11 +447,17 @@ export function StaffToday() {
         </div>
         <div className="staff-attendance-context">
           <div>
-            <small>{formatBranchDate(today.branchLocalTime)}</small>
-            <strong>Working at: {today.branch.name}</strong>
-            {normalizeLabel(today.business.name) !== normalizeLabel(today.branch.name) ? (
-              <span>{today.business.name}</span>
-            ) : null}
+            <small>{formatBranchDate(today.branchLocalTime)} · {today.branch.name}</small>
+            <strong>
+              {today.expectedAttendance
+                ? expectedAttendanceLabel(today.expectedAttendance.kind)
+                : "Schedule not available"}
+            </strong>
+            <span>
+              {today.expectedAttendance
+                ? expectedAttendanceDetail(today.expectedAttendance)
+                : "Check Schedule or contact your manager for today’s shift."}
+            </span>
           </div>
           {today.availableBranches.length > 1 ? (
             <label className="staff-branch-switch">
@@ -662,30 +668,6 @@ export function StaffToday() {
         {today.status === "ON_BREAK" ? (
           <p className="staff-form-hint">End the current break before clocking out.</p>
         ) : null}
-      </section>
-
-      <section className="staff-page-card staff-schedule-card" aria-labelledby="staff-schedule-heading">
-        <div className="staff-card-heading">
-          <div>
-            <p className="staff-kicker">EXPECTED ATTENDANCE</p>
-            <h2 id="staff-schedule-heading">Today&apos;s published evidence</h2>
-          </div>
-          {today.expectedAttendance ? (
-            <span className="staff-status-chip">Revision {today.expectedAttendance.revision}</span>
-          ) : null}
-        </div>
-        {today.expectedAttendance ? (
-          <div className="staff-schedule-evidence">
-            <strong>{expectedAttendanceLabel(today.expectedAttendance.kind)}</strong>
-            <span>{expectedAttendanceDetail(today.expectedAttendance)}</span>
-            <small>Source: {today.expectedAttendance.source.replaceAll("_", " ").toLowerCase()}</small>
-          </div>
-        ) : (
-          <div className="staff-schedule-empty" role="status">
-            <strong>No published schedule available</strong>
-            <span>No expected-attendance evidence exists for today. Tetamu will not infer that this is an off day.</span>
-          </div>
-        )}
       </section>
 
       <StaffResolutionCases />
@@ -1038,30 +1020,29 @@ function formatTime(value: string, timeZone?: string) {
   return new Intl.DateTimeFormat("en-MY", {
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit",
     timeZone,
   }).format(new Date(value));
 }
 
 function expectedAttendanceLabel(kind: NonNullable<AttendanceToday["expectedAttendance"]>["kind"]) {
-  if (kind === "WORKDAY") return "Published workday";
-  if (kind === "REST_DAY") return "Published rest day";
-  if (kind === "PUBLIC_HOLIDAY") return "Published public holiday";
-  return "Published as not scheduled";
+  if (kind === "WORKDAY") return "Today’s shift";
+  if (kind === "REST_DAY") return "Rest day";
+  if (kind === "PUBLIC_HOLIDAY") return "Public holiday";
+  return "Not scheduled";
 }
 
 function expectedAttendanceDetail(expected: NonNullable<AttendanceToday["expectedAttendance"]>) {
   if (expected.kind !== "WORKDAY") {
-    return "This status comes from explicit expected-attendance evidence.";
+    return expected.kind === "REST_DAY"
+      ? "No shift is scheduled for today."
+      : expected.kind === "PUBLIC_HOLIDAY"
+        ? "Today is marked as a public holiday."
+        : "No shift is scheduled for today.";
   }
   if (!expected.expectedStartAt || !expected.expectedEndAt) {
-    return "Published workday evidence is incomplete. Contact your manager.";
+    return "Shift time is not available. Contact your manager.";
   }
   const start = formatTime(expected.expectedStartAt, expected.timezone);
   const end = formatTime(expected.expectedEndAt, expected.timezone);
-  return `${start} – ${end}${expected.graceMinutes ? ` · ${expected.graceMinutes} minute grace` : ""}`;
-}
-
-function normalizeLabel(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-MY");
+  return `${start} – ${end}`;
 }

@@ -262,7 +262,7 @@ test("Today prioritizes shift facts and shows explicit completion and approval s
   assert.match(todaySource, /Shift completed/);
   assert.match(todaySource, /Manager approval pending/);
   assert.match(todaySource, /formatBranchDate\(today\.branchLocalTime\)/);
-  assert.match(todaySource, /Working at: \{today\.branch\.name\}/);
+  assert.match(todaySource, /today\.branch\.name/);
   assert.doesNotMatch(todaySource, /label="GPS"/);
   assert.doesNotMatch(todaySource, /<section className="staff-time-card">/);
 });
@@ -274,8 +274,8 @@ test("Today offers an additional shift after a completed session", () => {
 });
 
 test("Today shows only explicit expected-attendance evidence and never guesses an off day", () => {
-  assert.match(todaySource, /No published schedule available/);
-  assert.match(todaySource, /will not infer that this is an off day/);
+  assert.match(todaySource, /Schedule not available/);
+  assert.match(todaySource, /Check Schedule or contact your manager for today’s shift/);
   assert.match(todaySource, /expectedAttendance\.kind/);
   assert.doesNotMatch(todaySource, /!today\.expectedAttendance[^\n]*Off Day/i);
 });
@@ -386,10 +386,12 @@ test("Staff Home delegates summaries to canonical domain readers", () => {
 });
 
 test("Staff Home prioritizes a mobile today workspace without inventing new domains", () => {
-  assert.match(homeComponentSource, /TODAY AT WORK/);
-  assert.match(homeComponentSource, /QUICK ACCESS/);
+  assert.match(homeComponentSource, /<p className="staff-kicker">TODAY<\/p>/);
+  assert.match(homeComponentSource, /Quick access/);
   assert.match(homeComponentSource, /HomeDomainIcon/);
   assert.match(todaySource, /staff-page-card staff-attendance-card/);
+  assert.match(todaySource, /Today’s shift/);
+  assert.doesNotMatch(todaySource, /Today&apos;s published evidence|Revision \{today\.expectedAttendance\.revision\}|Source:/);
   assert.ok(
     todaySource.indexOf("staff-action-grid") < todaySource.indexOf("aria-label=\"Today's attendance summary\""),
     "Attendance actions should appear before secondary metrics",

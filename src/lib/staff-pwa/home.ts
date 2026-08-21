@@ -44,8 +44,8 @@ export async function getStaffHomeOverview(
               detail: `${date(next.workDate)} · ${next.branch.name}.`,
             }
           : {
-              value: "No effective schedule",
-              detail: "Tetamu will not infer that an unspecified day is an Off Day.",
+              value: "No shift scheduled",
+              detail: "Check again after your manager publishes the schedule.",
             };
       }),
       safeCard("TIMESHEET", "My Timesheets", "/staff/timesheet", async () => {
@@ -53,10 +53,10 @@ export async function getStaffHomeOverview(
         return {
           value: overview.exceptions.length
             ? `${overview.exceptions.length} unresolved`
-            : `${overview.latest.length} day result${overview.latest.length === 1 ? "" : "s"}`,
+            : `${overview.latest.length} attendance day${overview.latest.length === 1 ? "" : "s"}`,
           detail: overview.exceptions.length
             ? "Attendance issues need correction or manager review."
-            : "Current-month final attendance outcomes.",
+            : "Your attendance records for this month.",
         };
       }),
       safeCard("LEAVE", "My Leave", "/staff/leave", async () => {
