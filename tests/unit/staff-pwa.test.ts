@@ -78,6 +78,13 @@ const homeSource = readFileSync(
   new URL("../../src/lib/staff-pwa/home.ts", import.meta.url),
   "utf8",
 );
+const employeeSessionSource = readFileSync(
+  new URL(
+    "../../src/lib/attendance/employee-auth/session.ts",
+    import.meta.url,
+  ),
+  "utf8",
+);
 const homeComponentSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-home-overview.tsx", import.meta.url),
   "utf8",
@@ -401,6 +408,8 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
   assert.match(homeComponentSource, /<p className="staff-kicker">TODAY<\/p>/);
   assert.match(homeComponentSource, /Quick access/);
   assert.match(homeComponentSource, /StaffAppIcon/);
+  assert.match(homeComponentSource, /profile\.employee\.avatarUrl/);
+  assert.match(employeeSessionSource, /avatarUrl:\s*true/);
   assert.doesNotMatch(homeComponentSource, /<strong>\{card\.value\}<\/strong>/);
   assert.doesNotMatch(homeComponentSource, /staff-home-card-arrow/);
   assert.match(todaySource, /staff-page-card staff-attendance-card/);

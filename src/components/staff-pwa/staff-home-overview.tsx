@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { StaffAppIcon } from "@/components/staff-pwa/staff-app-icon";
 import type { AwaitedReturn } from "@/lib/staff-pwa/home-types";
@@ -26,7 +27,20 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
       {overview.showWelcome ? (
         <section className="staff-welcome-card">
           <div className="staff-welcome-identity">
-            <span aria-hidden="true" className="staff-welcome-avatar">{initials || "T"}</span>
+            <span className="staff-welcome-avatar">
+              {overview.profile.employee.avatarUrl ? (
+                <Image
+                  alt={`${overview.profile.employee.fullName} profile photo`}
+                  height={80}
+                  sizes="40px"
+                  src={overview.profile.employee.avatarUrl}
+                  unoptimized
+                  width={80}
+                />
+              ) : (
+                <span aria-hidden="true">{initials || "T"}</span>
+              )}
+            </span>
             <div>
               <p className="staff-kicker">TODAY</p>
               <h1>Hello, {firstName}</h1>
