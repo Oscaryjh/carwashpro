@@ -411,6 +411,7 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
     "Attendance actions should appear before secondary metrics",
   );
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-home-grid\s*\{[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(staffCssSource, /\.staff-welcome-card h1\s*\{[\s\S]*?white-space:\s*nowrap/);
 });
 
 test("Staff App appearance keeps business icon choices safe and complete", () => {
