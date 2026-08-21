@@ -3126,6 +3126,107 @@
   }
 }
 
+/* Shared Staff App content language: compact, iPhone-first, and aligned with Home. */
+.staff-section-hero {
+  background: var(--staff-card);
+  border: 1px solid var(--staff-line);
+  border-radius: 18px;
+  border-top: 3px solid var(--staff-brand);
+  box-shadow: 0 8px 24px rgba(34, 71, 68, 0.055);
+  display: grid;
+  gap: 3px;
+  padding: 15px 16px;
+}
+
+.staff-section-hero.staff-page-title,
+.staff-roster-page > .staff-section-hero.staff-page-title,
+.staff-timesheet-page > .staff-section-hero.staff-page-title {
+  padding: 15px 16px;
+}
+
+.staff-section-hero h1,
+.staff-payslip-heading.staff-section-hero h1 {
+  color: var(--staff-ink);
+  font-size: 27px;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  margin: 0;
+}
+
+.staff-section-hero > p:first-child,
+.staff-section-hero > .staff-kicker:first-child {
+  color: var(--staff-brand);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  margin: 0 0 2px;
+  text-transform: uppercase;
+}
+
+.staff-section-hero > p:not(:first-child),
+.staff-section-hero > span:last-child {
+  color: var(--staff-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 3px 0 0;
+}
+
+.staff-page-card,
+.staff-history-card,
+.staff-profile-hero {
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(34, 71, 68, 0.055);
+}
+
+.staff-page-card,
+.staff-history-card {
+  padding: 16px;
+}
+
+.staff-history-stack,
+.staff-profile-stack,
+.staff-timesheet-page,
+.staff-commission-page,
+.staff-payslip-page {
+  gap: 12px;
+  padding: 4px 0 18px;
+}
+
+.staff-payslip-list article,
+.staff-payslip-empty,
+.staff-timesheet-summary > div {
+  border-color: var(--staff-line);
+  border-radius: 14px;
+}
+
+.staff-commission-summary,
+.staff-commission-empty {
+  border-radius: 18px;
+}
+
+.staff-system-state {
+  gap: 8px;
+  margin: 4px 0 18px;
+}
+
+.staff-system-state .staff-secondary-button {
+  justify-self: start;
+  margin-top: 4px;
+  text-decoration: none;
+}
+
+@media (max-width: 430px) {
+  .staff-section-hero h1,
+  .staff-payslip-heading.staff-section-hero h1 {
+    font-size: 25px;
+  }
+
+  .staff-card-heading h2,
+  .staff-history-card-header strong {
+    font-size: 17px;
+  }
+}
+
 @media (max-width: 430px) {
   .staff-auth-shell {
     background: #f8fbfa;

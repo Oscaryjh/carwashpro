@@ -38,19 +38,19 @@ export function buildStaffNavigation(
       { href: "/staff/timesheet", label: "Timesheet", icon: "timesheet" },
     );
     more.push(
-      { href: "/staff/roster", label: "My Schedule", icon: "schedule" },
+      { href: "/staff/roster", label: "Schedule", icon: "schedule" },
     );
   }
   if (modules.has("CLAIMS")) {
-    more.push({ href: "/staff/claims", label: "My Claims", icon: "claims" });
+    more.push({ href: "/staff/claims", label: "Claims", icon: "claims" });
   }
   if (modules.has("COMMISSION")) {
-    more.push({ href: "/staff/commission", label: "My Commission", icon: "commission" });
+    more.push({ href: "/staff/commission", label: "Commission", icon: "commission" });
   }
   if (modules.has("PAYROLL")) {
-    more.push({ href: "/staff/payslips", label: "My Payslips", icon: "payslip" });
+    more.push({ href: "/staff/payslips", label: "Payslips", icon: "payslip" });
   }
 
-  more.push({ href: "/staff/profile", label: "My Profile", icon: "profile" });
+  more.push({ href: "/staff/profile", label: "Profile", icon: "profile" });
   return { primary, more };
 }

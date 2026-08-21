@@ -3,7 +3,7 @@ import Link from "next/link";
 import { loadPublishedPayslipsForEmployee } from "@/lib/payroll/payslip-publication";
 import { requireEmployeeModulePage } from "@/lib/modules/employee-access";
 
-export const metadata: Metadata = { title: "My payslips" };
+export const metadata: Metadata = { title: "Payslips" };
 export const dynamic = "force-dynamic";
 
 export default async function StaffPayslipsPage() {
@@ -14,10 +14,10 @@ export default async function StaffPayslipsPage() {
   });
   return (
     <section className="staff-payslip-page" aria-labelledby="staff-payslip-heading">
-      <div className="staff-payslip-heading">
-        <p>Payroll documents</p>
-        <h1 id="staff-payslip-heading">My payslips</h1>
-        <span>Only payslips published to your own employee account appear here.</span>
+      <div className="staff-payslip-heading staff-section-hero">
+        <p>Payslips</p>
+        <h1 id="staff-payslip-heading">Payroll documents</h1>
+        <span>Download documents published to your employee account.</span>
       </div>
       {payslips.length ? (
         <div className="staff-payslip-list">
@@ -33,8 +33,8 @@ export default async function StaffPayslipsPage() {
         </div>
       ) : (
         <div className="staff-payslip-empty" role="status">
-          <strong>No published payslips</strong>
-          <span>Your employer has not published a payslip to this account yet.</span>
+          <strong>No documents yet</strong>
+          <span>Your employer has not published anything to this account.</span>
         </div>
       )}
     </section>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { isEmployeeSessionError, staffApiFetch, StaffApiError } from "@/lib/staff-pwa/client";
 import styles from "./staff-claims.module.css";
@@ -43,6 +44,7 @@ type Overview = {
 };
 
 export function StaffClaims() {
+  const router = useRouter();
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -58,14 +60,14 @@ export function StaffClaims() {
       setError(null);
     } catch (value) {
       if (value instanceof StaffApiError && isEmployeeSessionError(value.code)) {
-        window.location.assign("/staff/login?reason=session-expired");
+        router.replace("/staff/login?reason=session-expired");
         return;
       }
       setError(value instanceof Error ? value.message : "Unable to load Claims.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => { void load(); }, [load]);
   const selected = useMemo(() => data?.categories.find((category) => category.id === selectedCategoryId), [data, selectedCategoryId]);
@@ -123,14 +125,14 @@ export function StaffClaims() {
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
-        <p>EXPENSES</p><h1>My Claims</h1>
-        <span>Submit MYR business expenses. Approval does not mean payment; reimbursement is tracked separately.</span>
+        <p>CLAIMS</p><h1>Expenses</h1>
+        <span>Submit business expenses and follow their status.</span>
       </section>
       {message ? <div className={styles.success} role="status">{message}</div> : null}
       {error ? <div className={styles.error} role="alert">{error}</div> : null}
 
       <section className={styles.card}>
-        <h2>New Claim</h2>
+        <h2>Submit expense</h2>
         {!data?.categories.length ? <p>Your company has not configured Claim categories yet. Contact HR.</p> : (
           <form onSubmit={submit} className={styles.form}>
             <label>Purpose<input name="purpose" required minLength={3} maxLength={500} placeholder="Why this expense was needed" /></label>
@@ -150,7 +152,7 @@ export function StaffClaims() {
       </section>
 
       <section className={styles.card}>
-        <h2>Claim history</h2>
+        <h2>Previous submissions</h2>
         <div className={styles.list}>{data?.claims.length ? data.claims.map((claim) => (
           <article key={claim.id}>
             <header><div><strong>Claim {claim.claimNumber}</strong><span>{claim.purpose}</span></div><b data-status={claim.status}>{claim.status.replaceAll("_", " ")}</b></header>
@@ -162,7 +164,7 @@ export function StaffClaims() {
             {claim.withdrawalReason ? <p>Withdrawal reason: {claim.withdrawalReason}</p> : null}
             {claim.status === "SUBMITTED" ? <button type="button" onClick={() => void withdraw(claim.id, claim.revision)}>Withdraw</button> : null}
           </article>
-        )) : <p>No Claims yet.</p>}</div>
+        )) : <p>No submissions yet.</p>}</div>
       </section>
     </div>
   );

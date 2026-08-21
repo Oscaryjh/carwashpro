@@ -3,7 +3,7 @@ import { StaffP2CorrectionForm } from "@/components/staff-pwa/staff-p2-correctio
 import { getEmployeeTimesheetOverview } from "@/lib/attendance/employee-timesheet";
 import { requireEmployeeModulePage } from "@/lib/modules/employee-access";
 
-export const metadata: Metadata = { title: "My timesheet" };
+export const metadata: Metadata = { title: "Timesheet" };
 export const dynamic = "force-dynamic";
 
 export default async function StaffTimesheetPage() {
@@ -11,10 +11,10 @@ export default async function StaffTimesheetPage() {
   const { latest, exceptions, overtime, lockedOvertime, timesheetStatus } = await getEmployeeTimesheetOverview(auth);
   const period = latest.at(0)?.workDate ?? exceptions.at(0)?.workDate ?? new Date();
   return (
-    <section className="staff-page-card staff-timesheet-page" aria-labelledby="staff-timesheet-heading">
-      <div className="staff-page-title">
-        <p>Attendance results</p>
-        <h1 id="staff-timesheet-heading">My timesheet</h1>
+    <section className="staff-timesheet-page" aria-labelledby="staff-timesheet-heading">
+      <div className="staff-page-title staff-section-hero">
+        <p>Timesheet</p>
+        <h1 id="staff-timesheet-heading">Monthly results</h1>
         <p>Review your recorded workdays and anything that needs attention.</p>
       </div>
       <div className="staff-timesheet-summary" aria-label="Timesheet summary">
@@ -25,8 +25,8 @@ export default async function StaffTimesheetPage() {
       {overtime.length || lockedOvertime.length ? (
         <div className="staff-history-list" aria-label="Overtime classification">
           <div className="staff-page-title">
-            <p>Overtime classification</p>
-            <h2>My overtime</h2>
+            <p>Overtime</p>
+            <h2>Classification</h2>
             <p>Attendance reviews the minutes. Payroll can use only approved minutes from a locked monthly timesheet.</p>
           </div>
           {(timesheetStatus === "LOCKED" ? lockedOvertime : overtime).map((item) => {

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getEmployeeCommissionStatements } from "@/lib/commission/read";
 import { requireEmployeeModulePage } from "@/lib/modules/employee-access";
 
-export const metadata: Metadata = { title: "My commission" };
+export const metadata: Metadata = { title: "Commission" };
 export const dynamic = "force-dynamic";
 
 export default async function StaffCommissionPage() {
@@ -10,11 +10,11 @@ export default async function StaffCommissionPage() {
   const statements = await getEmployeeCommissionStatements({ businessId: auth.businessId, membershipId: auth.membershipId });
   const latest = statements.at(0);
   return (
-    <section className="staff-page-card staff-commission-page" aria-labelledby="staff-commission-heading">
-      <div className="staff-payslip-heading">
+    <section className="staff-commission-page" aria-labelledby="staff-commission-heading">
+      <div className="staff-payslip-heading staff-section-hero">
         <p>Commission</p>
-        <h1 id="staff-commission-heading">My commission</h1>
-        <span>Track your own calculated and approved commission statements.</span>
+        <h1 id="staff-commission-heading">Earnings</h1>
+        <span>View calculated and approved statements.</span>
       </div>
       {latest ? (
         <div className="staff-commission-summary">
@@ -39,8 +39,8 @@ export default async function StaffCommissionPage() {
         <div className="staff-commission-empty">
           <span className="staff-commission-empty-icon" aria-hidden="true">↗</span>
           <p>NO STATEMENTS YET</p>
-          <strong>Commission will appear here</strong>
-          <span>Your calculated and approved statements will be added automatically once they are ready.</span>
+          <strong>Approved earnings will appear here</strong>
+          <span>Statements are added automatically when they are ready.</span>
         </div>
       )}
     </section>

@@ -61,12 +61,8 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
       <section className="staff-profile-hero">
         <span>{initials(profile.employee.fullName)}</span>
         <div className="staff-profile-identity">
-          <p className="staff-kicker">EMPLOYEE PROFILE</p>
+          <p className="staff-kicker">PROFILE</p>
           <h1>{profile.employee.fullName}</h1>
-          <p className="staff-profile-meta">
-            <span>{humanize(profile.employee.employmentType)}</span>
-            <code>{profile.employee.employeeCode}</code>
-          </p>
         </div>
       </section>
 
@@ -78,7 +74,9 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
           </div>
           <span className="staff-status-chip active">ACTIVE</span>
         </div>
-        <p>{profile.workplace.primaryBranchName}</p>
+        {normalizeLabel(profile.workplace.primaryBranchName) !== normalizeLabel(profile.workplace.businessName) ? (
+          <p>{profile.workplace.primaryBranchName}</p>
+        ) : null}
         {profile.employee.position ? <small>{profile.employee.position}</small> : null}
       </section>
 
@@ -86,7 +84,7 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
         <div className="staff-card-heading">
           <div>
             <p className="staff-kicker">EMPLOYMENT</p>
-            <h2>My work details</h2>
+            <h2>Employment details</h2>
           </div>
           <span className="staff-status-chip active">
             {humanize(profile.employee.employmentStatus)}
@@ -104,8 +102,8 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
         <section className="staff-page-card">
           <div className="staff-card-heading">
             <div>
-              <p className="staff-kicker">MY WORKPLACES</p>
-              <h2>{workplaces.length} active employers</h2>
+              <p className="staff-kicker">WORKPLACES</p>
+              <h2>{workplaces.length} employers</h2>
             </div>
             <button className="staff-inline-action" onClick={openWorkplaceSwitcher} type="button">
               Switch
@@ -119,7 +117,12 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
                 onClick={openWorkplaceSwitcher}
                 type="button"
               >
-                <span><strong>{workplace.businessName}</strong><small>{workplace.primaryBranchName}</small></span>
+                <span>
+                  <strong>{workplace.businessName}</strong>
+                  {normalizeLabel(workplace.primaryBranchName) !== normalizeLabel(workplace.businessName) ? (
+                    <small>{workplace.primaryBranchName}</small>
+                  ) : null}
+                </span>
                 <b>{workplace.current ? "Current" : "Choose"}</b>
               </button>
             ))}
@@ -131,7 +134,7 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
       <section className="staff-page-card">
         <div className="staff-card-heading">
           <div>
-            <p className="staff-kicker">CURRENT DEVICE</p>
+            <p className="staff-kicker">SECURITY</p>
             <h2>{profile.device.displayName || "Verified device"}</h2>
           </div>
           <span className={`staff-status-chip ${profile.device.status.toLowerCase()}`}>
@@ -188,4 +191,8 @@ function formatDate(value: string) {
 
 function humanize(value: string) {
   return value.toLowerCase().replaceAll("_", " ").replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
+function normalizeLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-MY");
 }

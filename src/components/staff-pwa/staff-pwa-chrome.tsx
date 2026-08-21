@@ -57,6 +57,7 @@ export function StaffPwaChrome({
   const pathname = usePathname();
   const currentPath = pathname ?? "/staff";
   const showNavigation = !authRoutes.has(currentPath);
+  const showBrandHeader = authRoutes.has(currentPath) || currentPath === "/staff";
   const shellRef = useRef<HTMLDivElement>(null);
   const [liveModules, setLiveModules] = useState<readonly string[]>(enabledModules);
   const navigation = buildStaffNavigation(liveModules);
@@ -166,33 +167,35 @@ export function StaffPwaChrome({
         ref={shellRef}
       >
         <OfflineBanner />
-        <header className="staff-pwa-header">
-          <Link aria-label="Tetamu Staff App home" className="staff-pwa-brand" href="/staff">
-            <span aria-hidden="true" className={appearance?.logoUrl ? "has-logo" : undefined}>
-              {appearance?.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img alt="" src={appearance.logoUrl} />
-              ) : "T"}
-            </span>
-            <strong>Tetamu<small>Staff App</small></strong>
-          </Link>
-          {showNavigation && currentWorkplace ? (
-            <button
-              aria-label={workplaces.length > 1 ? "Switch workplace" : "Current workplace"}
-              className="staff-current-workplace"
-              disabled={workplaces.length < 2}
-              onClick={openWorkplaceSwitcher}
-              type="button"
-            >
-              <span>{currentWorkplace.businessName}</span>
-              {normalizeLabel(currentWorkplace.primaryBranchName) !== normalizeLabel(currentWorkplace.businessName) ? (
-                <small>{currentWorkplace.primaryBranchName}</small>
-              ) : null}
-              {workplaces.length > 1 ? <b aria-hidden="true">Switch</b> : null}
-            </button>
-          ) : null}
-          <PwaInstallButton />
-        </header>
+        {showBrandHeader ? (
+          <header className="staff-pwa-header">
+            <Link aria-label="Tetamu Staff App home" className="staff-pwa-brand" href="/staff">
+              <span aria-hidden="true" className={appearance?.logoUrl ? "has-logo" : undefined}>
+                {appearance?.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img alt="" src={appearance.logoUrl} />
+                ) : "T"}
+              </span>
+              <strong>Tetamu<small>Staff App</small></strong>
+            </Link>
+            {showNavigation && currentWorkplace ? (
+              <button
+                aria-label={workplaces.length > 1 ? "Switch workplace" : "Current workplace"}
+                className="staff-current-workplace"
+                disabled={workplaces.length < 2}
+                onClick={openWorkplaceSwitcher}
+                type="button"
+              >
+                <span>{currentWorkplace.businessName}</span>
+                {normalizeLabel(currentWorkplace.primaryBranchName) !== normalizeLabel(currentWorkplace.businessName) ? (
+                  <small>{currentWorkplace.primaryBranchName}</small>
+                ) : null}
+                {workplaces.length > 1 ? <b aria-hidden="true">Switch</b> : null}
+              </button>
+            ) : null}
+            <PwaInstallButton />
+          </header>
+        ) : null}
         <main className="staff-pwa-main">{children}</main>
 
         {showNavigation && moreOpen ? (

@@ -166,10 +166,10 @@ export function StaffHistory() {
 
   return (
     <div className="staff-history-stack">
-      <section className="staff-page-title">
-        <p className="staff-kicker">MY ATTENDANCE</p>
-        <h1>My Attendance</h1>
-        <p>Only your own Attendance records are shown.</p>
+      <section className="staff-page-title staff-section-hero">
+        <p className="staff-kicker">ATTENDANCE</p>
+        <h1>History</h1>
+        <p>Review your clock-ins, hours and attendance status.</p>
         <button
           className="staff-secondary-button"
           onClick={() => setCorrectionOpen((current) => !current)}
@@ -183,7 +183,7 @@ export function StaffHistory() {
         <section className="staff-page-card">
           <div className="staff-card-heading">
             <div>
-              <p className="staff-kicker">ATTENDANCE CORRECTION</p>
+              <p className="staff-kicker">CORRECTION</p>
               <h2>Report a missing punch</h2>
             </div>
           </div>

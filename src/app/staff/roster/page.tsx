@@ -8,7 +8,7 @@ import { getEmployeePublishedRoster } from "@/lib/roster/service";
 
 type Props = { searchParams: Promise<{ week?: string }> };
 
-export const metadata: Metadata = { title: "My schedule" };
+export const metadata: Metadata = { title: "Schedule" };
 export const dynamic = "force-dynamic";
 
 export default async function StaffRosterPage({ searchParams }: Props) {
@@ -34,9 +34,9 @@ export default async function StaffRosterPage({ searchParams }: Props) {
 
   return (
     <section className="staff-roster-page" aria-labelledby="staff-roster-heading">
-      <header className="staff-page-title">
-        <p>My roster</p>
-        <h1 id="staff-roster-heading">My schedule</h1>
+      <header className="staff-page-title staff-section-hero">
+        <p>Schedule</p>
+        <h1 id="staff-roster-heading">Work week</h1>
         <span>See when you work, rest, or have approved leave.</span>
       </header>
       <section className="staff-page-card staff-roster-today">

@@ -188,15 +188,15 @@ export function StaffLeave() {
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
-        <div><p>TIME OFF</p><h1>My Leave</h1><span>View your balance and request time off.</span></div>
-        <a className={styles.heroAction} href="#staff-leave-apply">Apply Leave</a>
+        <div><p>LEAVE</p><h1>Time off</h1><span>Check balances and submit a request.</span></div>
+        <a className={styles.heroAction} href="#staff-leave-apply">New request</a>
       </section>
       {message ? <div className={styles.success} role="status">{message}</div> : null}
       {error ? <div className={styles.error} role="alert">{error}</div> : null}
 
       {data?.policies.length ? (
         <section className={styles.card}>
-          <h2>{data.year} balances</h2>
+          <h2>Balances · {data.year}</h2>
           <div className={styles.balances}>
             {data.policies.filter((policy) => policy.balanceTracked).map((policy) => (
               <article className={styles.balanceCard} key={policy.id}>
@@ -223,7 +223,7 @@ export function StaffLeave() {
       ) : null}
 
       <section className={styles.card} id="staff-leave-apply">
-        <h2>Apply for Leave</h2>
+        <h2>New request</h2>
         {!data?.policies.length ? <p>Your company has not enabled Leave policies yet. Contact HR.</p> : (
           <form onSubmit={submit} className={styles.form}>
             <label>Leave type<select required value={selectedPolicyId} onChange={(event) => setSelectedPolicyId(event.target.value)}><option value="" disabled>Select a ready Leave type</option>{data.policies.map((policy) => <option value={policy.id} key={policy.id} disabled={!policy.applicationReady}>{policy.name} · {policy.payTreatment === "PAID" ? "Paid" : "Unpaid"}{policy.readinessCode ? ` · ${policy.readinessCode}` : ""}</option>)}</select></label>
@@ -247,7 +247,7 @@ export function StaffLeave() {
       </section>
 
       <section className={styles.card}>
-        <h2>My applications</h2>
+        <h2>Request history</h2>
         <div className={styles.requests}>
           {data?.requests.length ? data.requests.map((request) => (
             <article key={request.id} className={styles.requestCard}>
@@ -304,7 +304,7 @@ export function StaffLeave() {
                 ) : null}
               </div>
             </article>
-          )) : <p>No Leave applications yet.</p>}
+          )) : <p>No requests yet.</p>}
         </div>
       </section>
     </div>

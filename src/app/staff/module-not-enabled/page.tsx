@@ -8,14 +8,11 @@ export default async function StaffModuleNotEnabledPage({ searchParams }: { sear
   const query = await searchParams;
   const moduleKey = moduleKeys.includes(query.module as ModuleKey) ? query.module as ModuleKey : null;
   return (
-    <section className="staff-pwa-card">
-      <p>MODULE_NOT_ENABLED</p>
+    <section className="staff-section-hero staff-system-state">
+      <p>ACCESS</p>
       <h1>{moduleKey ? MODULE_REGISTRY[moduleKey].label : "This module"} is not enabled</h1>
-      <p>Contact your business administrator if you need access. User permissions cannot override the business module entitlement.</p>
-      <div className="staff-action-grid">
-        <Link href="/staff" className="staff-secondary-button">Return to Home</Link>
-        <Link href="/staff/profile" className="staff-secondary-button">Open My Profile</Link>
-      </div>
+      <p>Contact your administrator if you need access.</p>
+      <Link href="/staff" className="staff-secondary-button">Back to Home</Link>
     </section>
   );
 }

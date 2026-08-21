@@ -379,14 +379,14 @@ test("Staff manifest is installable and starts inside the isolated Staff scope",
 test("Staff navigation follows module entitlement without overcrowding the mobile bar", () => {
   const posOnly = buildStaffNavigation(["CORE", "POS", "SALON"]);
   assert.deepEqual(posOnly.primary.map((item) => item.label), ["Home"]);
-  assert.deepEqual(posOnly.more.map((item) => item.label), ["My Profile"]);
+  assert.deepEqual(posOnly.more.map((item) => item.label), ["Profile"]);
 
   const hrOnly = buildStaffNavigation(["CORE", "HR"]);
   assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance", "Leave", "Timesheet"]);
-  assert.deepEqual(hrOnly.more.map((item) => item.label), ["My Schedule", "My Profile"]);
+  assert.deepEqual(hrOnly.more.map((item) => item.label), ["Schedule", "Profile"]);
 
   const full = buildStaffNavigation(["CORE", "HR", "CLAIMS", "COMMISSION", "PAYROLL"]);
-  assert.deepEqual(full.more.map((item) => item.label), ["My Schedule", "My Claims", "My Commission", "My Payslips", "My Profile"]);
+  assert.deepEqual(full.more.map((item) => item.label), ["Schedule", "Claims", "Commission", "Payslips", "Profile"]);
   assert.ok(full.primary.length + 1 <= 5, "primary navigation plus More must fit five mobile slots");
 });
 
@@ -473,6 +473,8 @@ test("Staff App appearance keeps business icon choices safe and complete", () =>
 });
 
 test("Staff App keeps key employee journeys compact and iPhone-first", () => {
+  assert.match(chromeSource, /const showBrandHeader = authRoutes\.has\(currentPath\) \|\| currentPath === "\/staff"/);
+  assert.match(chromeSource, /\{showBrandHeader \? \(/);
   assert.match(historyComponentSource, /aria-expanded=\{filtersOpen\}/);
   assert.match(leaveComponentSource, /href="#staff-leave-apply"/);
   assert.match(leaveCssSource, /grid-auto-flow:column/);
@@ -532,11 +534,12 @@ test("Staff PWA owns vertical scrolling when the POS body is locked", () => {
   assert.match(shellRule, /-webkit-overflow-scrolling:\s*touch/);
 });
 
-test("Staff Profile keeps long employee identifiers inside the mobile card", () => {
+test("Staff Profile shows employee identifiers once inside the mobile details card", () => {
   assert.match(profileSource, /className="staff-profile-identity"/);
-  assert.match(profileSource, /className="staff-profile-meta"/);
+  assert.doesNotMatch(profileSource, /className="staff-profile-meta"/);
+  assert.match(profileSource, /staff-device-details staff-employment-details/);
   assert.match(staffCssSource, /\.staff-profile-identity\s*\{[\s\S]*?min-width:\s*0/);
-  assert.match(staffCssSource, /\.staff-profile-meta code\s*\{[\s\S]*?overflow-wrap:\s*anywhere/);
+  assert.match(staffCssSource, /\.staff-device-details strong,[\s\S]*?overflow-wrap:\s*anywhere/);
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-profile-stack \.staff-device-details/);
 });
 

@@ -3,7 +3,7 @@ import { StaffHistory } from "@/components/staff-pwa/staff-history";
 import { requireEmployeeModulePage } from "@/lib/modules/employee-access";
 
 export const metadata: Metadata = {
-  title: "My attendance",
+  title: "Attendance history",
 };
 
 export default async function StaffHistoryPage() {
