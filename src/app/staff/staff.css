@@ -1427,6 +1427,20 @@
   box-shadow: 0 0 0 5px rgba(8, 127, 118, 0.12);
 }
 
+.staff-otp-auto-status.is-error {
+  background: #fff1ef;
+  border-color: #efc8c2;
+}
+
+.staff-otp-auto-status.is-error > span {
+  background: #b33b32;
+}
+
+.staff-otp-auto-status.is-error strong,
+.staff-otp-auto-status.is-error small {
+  color: #8f2f28;
+}
+
 @keyframes staff-otp-pulse {
   to {
     opacity: 0.45;

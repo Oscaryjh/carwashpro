@@ -228,9 +228,11 @@ export function StaffVerifyForm({
 
   const secondsRemaining = Math.max(0, Math.ceil((flow.expiresAt - now) / 1_000));
   const resendSeconds = Math.max(0, Math.ceil((flow.resendAt - now) / 1_000));
+  const otpError = messageTone === "error" ? message : "";
 
   function updateDigit(index: number, value: string) {
     const nextValue = value.replace(/\D/g, "").slice(-1);
+    setMessage("");
     setDigits((current) => {
       const next = [...current];
       next[index] = nextValue;
@@ -251,6 +253,7 @@ export function StaffVerifyForm({
     const value = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
     if (!value) return;
     event.preventDefault();
+    setMessage("");
     setDigits(Array.from({ length: 6 }, (_, index) => value[index] ?? ""));
     inputRefs.current[Math.min(value.length, 6) - 1]?.focus();
   }
@@ -408,16 +411,20 @@ export function StaffVerifyForm({
           )}
         </div>
         <div
-          aria-live="polite"
-          className={`staff-otp-auto-status ${busy ? "is-checking" : ""}`}
-          role="status"
+          aria-live={otpError ? "assertive" : "polite"}
+          className={`staff-otp-auto-status ${busy ? "is-checking" : ""} ${otpError ? "is-error" : ""}`}
+          role={otpError ? "alert" : "status"}
         >
           <span aria-hidden="true" />
-          <strong>{busy ? "Checking code…" : "Code checks automatically"}</strong>
-          <small>{busy ? "Please wait" : "Enter all 6 digits to continue"}</small>
+          <strong>
+            {busy ? "Checking code…" : otpError ? "Code not accepted" : "Code checks automatically"}
+          </strong>
+          <small>
+            {busy ? "Please wait" : otpError || "Enter all 6 digits to continue"}
+          </small>
         </div>
-        {message ? (
-          <div className={`staff-alert ${messageTone}`} role="alert">{message}</div>
+        {message && messageTone === "success" ? (
+          <div className="staff-alert success" role="status">{message}</div>
         ) : null}
         <div className="staff-verify-actions">
           <button

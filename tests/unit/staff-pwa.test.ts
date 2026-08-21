@@ -332,6 +332,9 @@ test("OTP UI never stores the entered OTP and supports paste plus resend timing"
   assert.match(authSource, /verificationInFlightRef\.current/);
   assert.match(authSource, /Code checks automatically/);
   assert.match(authSource, /Incorrect OTP\. Please try again\./);
+  assert.match(authSource, /function updateDigit[\s\S]*?setMessage\(""\);[\s\S]*?setDigits/);
+  assert.match(authSource, /otpError \? "Code not accepted"/);
+  assert.match(staffCssSource, /\.staff-otp-auto-status\.is-error/);
   assert.doesNotMatch(authSource, /Verifying…" : "Verify code/);
   assert.doesNotMatch(authSource, /localStorage\.setItem\([^)]*otp/i);
   assert.doesNotMatch(authSource, /sessionStorage\.setItem\([^)]*otp/i);
