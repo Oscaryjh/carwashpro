@@ -1584,8 +1584,9 @@
 
 .staff-welcome-card h1 {
   font-size: clamp(19px, 4.8vw, 24px);
-  line-height: 1;
+  line-height: 1.15;
   overflow: hidden;
+  padding-bottom: 1px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
