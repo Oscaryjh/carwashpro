@@ -12,6 +12,6 @@
 
 .page,.hero,.card{min-width:0}.hero{align-items:center;display:flex;justify-content:space-between;gap:14px}.hero>div{min-width:0}.heroAction{align-items:center;background:#e5f5f2;border-radius:999px;color:#05645d;display:inline-flex;flex:0 0 auto;font-size:.76rem;font-weight:900;justify-content:center;min-height:40px;padding:0 14px;text-decoration:none}.card[id="staff-leave-apply"]{scroll-margin-top:18px}
 
-@media(max-width:600px){.hero{align-items:stretch}.heroAction{min-width:112px}.balances{display:grid;grid-auto-columns:min(82vw,300px);grid-auto-flow:column;grid-template-columns:none;max-width:100%;overflow-x:auto;padding:1px 16px 8px 1px;margin-right:-16px;scroll-snap-type:x mandatory;scrollbar-width:none;width:100%}.balances::-webkit-scrollbar{display:none}.balances .balanceCard{scroll-snap-align:start}.form select,.form input,.form textarea{font-size:16px}.form button{min-height:48px}}
+@media(max-width:600px){.hero{align-items:stretch}.heroAction{min-width:112px}.balances{display:grid;grid-template-columns:1fr;max-width:100%;overflow-x:visible;width:100%}.form select,.form input,.form textarea{font-size:16px}.form button{min-height:48px}}
 
 @media(max-width:380px){.hero{display:grid}.heroAction{width:100%}}

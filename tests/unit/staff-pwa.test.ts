@@ -477,7 +477,8 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(chromeSource, /\{showBrandHeader \? \(/);
   assert.match(historyComponentSource, /aria-expanded=\{filtersOpen\}/);
   assert.match(leaveComponentSource, /href="#staff-leave-apply"/);
-  assert.match(leaveCssSource, /grid-auto-flow:column/);
+  assert.doesNotMatch(leaveCssSource, /grid-auto-flow:column|overflow-x:auto|scroll-snap-type/);
+  assert.match(leaveCssSource, /@media\(max-width:600px\)[\s\S]*?\.balances\{display:grid;grid-template-columns:1fr/);
   assert.match(timesheetPageSource, /staff-timesheet-summary/);
   assert.match(rosterPageSource, /aria-label="Previous week"/);
   assert.match(rosterPageSource, /aria-current=\{isToday \? "date" : undefined\}/);
