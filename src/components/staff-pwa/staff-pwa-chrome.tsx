@@ -6,6 +6,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { PwaInstallButton } from "@/components/pwa-install-button";
@@ -53,6 +54,7 @@ export function StaffPwaChrome({
   const pathname = usePathname();
   const currentPath = pathname ?? "/staff";
   const showNavigation = !authRoutes.has(currentPath);
+  const shellRef = useRef<HTMLDivElement>(null);
   const [liveModules, setLiveModules] = useState<readonly string[]>(enabledModules);
   const navigation = buildStaffNavigation(liveModules);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -64,6 +66,7 @@ export function StaffPwaChrome({
   useEffect(() => {
     setMoreOpen(false);
     setWorkplacesOpen(false);
+    shellRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, [currentPath]);
   useEffect(() => {
     if (!moreOpen && !workplacesOpen) return;
@@ -155,7 +158,10 @@ export function StaffPwaChrome({
 
   return (
     <StaffShellContext.Provider value={shellValue}>
-      <div className={`staff-pwa-shell ${showNavigation ? "staff-app-shell" : "staff-auth-shell"}`}>
+      <div
+        className={`staff-pwa-shell ${showNavigation ? "staff-app-shell" : "staff-auth-shell"}`}
+        ref={shellRef}
+      >
         <OfflineBanner />
         <header className="staff-pwa-header">
           <Link aria-label="Tetamu Staff App home" className="staff-pwa-brand" href="/staff">

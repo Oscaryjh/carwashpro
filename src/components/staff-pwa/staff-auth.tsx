@@ -332,14 +332,19 @@ export function StaffVerifyForm() {
     }
   }
 
+  function changePhoneNumber() {
+    clearEmployeeAuthFlow();
+    router.replace("/staff/login");
+  }
+
   return (
-    <section className="staff-auth-card">
-      <div className="staff-auth-heading">
-        <p className="staff-kicker">SECURE VERIFICATION</p>
-        <h1>Enter your 6-digit code</h1>
-        <p>We sent a code if {flow.phoneMasked} is registered and enabled.</p>
+    <section className="staff-auth-card staff-verify-card">
+      <div className="staff-auth-heading staff-verify-heading">
+        <p className="staff-kicker">SECURE SIGN IN</p>
+        <h1>Check your phone</h1>
+        <p>Enter the 6-digit code sent to <strong>{flow.phoneMasked}</strong>.</p>
       </div>
-      <form className="staff-form-stack" onSubmit={verify}>
+      <form className="staff-form-stack staff-verify-form" onSubmit={verify}>
         <div
           aria-label="Verification code"
           className="staff-otp-inputs"
@@ -362,21 +367,33 @@ export function StaffVerifyForm() {
           ))}
         </div>
         <div className="staff-code-timer">
-          <span>Code expires in</span>
+          <span>Expires in</span>
           <strong>{formatCountdown(secondsRemaining)}</strong>
         </div>
         {message ? <div className="staff-alert" role="alert">{message}</div> : null}
         <button className="staff-primary-button" disabled={busy} type="submit">
-          {busy ? "Verifying…" : "Verify and continue"}
+          <span>{busy ? "Verifying…" : "Verify code"}</span>
+          {!busy ? <b aria-hidden="true">→</b> : null}
         </button>
-        <button
-          className="staff-link-button"
-          disabled={busy || resendSeconds > 0}
-          onClick={resend}
-          type="button"
-        >
-          {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : "Resend code"}
-        </button>
+        <div className="staff-verify-actions">
+          <button
+            className="staff-link-button"
+            disabled={busy || resendSeconds > 0}
+            onClick={resend}
+            type="button"
+          >
+            {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : "Resend code"}
+          </button>
+          <span aria-hidden="true">·</span>
+          <button
+            className="staff-link-button"
+            disabled={busy}
+            onClick={changePhoneNumber}
+            type="button"
+          >
+            Change number
+          </button>
+        </div>
       </form>
     </section>
   );

@@ -295,6 +295,10 @@ test("location failures offer recovery before manager approval", () => {
 test("OTP UI never stores the entered OTP and supports paste plus resend timing", () => {
   assert.match(authSource, /onPaste=\{paste\}/);
   assert.match(authSource, /Resend in \$\{resendSeconds\}s/);
+  assert.match(authSource, /className="staff-auth-card staff-verify-card"/);
+  assert.match(authSource, /<h1>Check your phone<\/h1>/);
+  assert.match(authSource, /onClick=\{changePhoneNumber\}/);
+  assert.match(staffCssSource, /\.staff-auth-shell \.staff-auth-card\.staff-verify-card/);
   assert.doesNotMatch(authSource, /localStorage\.setItem\([^)]*otp/i);
   assert.doesNotMatch(authSource, /sessionStorage\.setItem\([^)]*otp/i);
 });
@@ -313,6 +317,7 @@ test("Staff login keeps the iPhone journey focused on one primary action", () =>
   assert.match(authSource, /<span>\{busy \? "Requesting code…" : "Continue"\}<\/span>/);
   assert.match(authSource, /<details className="staff-testing-note">/);
   assert.match(chromeSource, /"staff-auth-shell"/);
+  assert.match(chromeSource, /scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
 test("successful Staff authentication always opens Home instead of More", () => {

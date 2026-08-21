@@ -1090,14 +1090,16 @@
   color: #fff;
 }
 
-.staff-login-panel .staff-primary-button {
+.staff-login-panel .staff-primary-button,
+.staff-verify-card .staff-primary-button {
   justify-content: space-between;
   margin-top: 2px;
   padding-left: 20px;
   padding-right: 12px;
 }
 
-.staff-login-panel .staff-primary-button b {
+.staff-login-panel .staff-primary-button b,
+.staff-verify-card .staff-primary-button b {
   align-items: center;
   background: rgba(255, 255, 255, 0.16);
   border-radius: 10px;
@@ -1204,16 +1206,49 @@
 
 .staff-otp-inputs {
   display: grid;
-  gap: clamp(6px, 2vw, 10px);
+  gap: clamp(5px, 2vw, 8px);
   grid-template-columns: repeat(6, 1fr);
 }
 
 .staff-otp-inputs input {
-  font-size: clamp(22px, 7vw, 30px);
+  aspect-ratio: 1;
+  border-radius: 15px;
+  font-size: clamp(20px, 6vw, 26px);
   font-weight: 900;
+  min-height: 0;
   min-width: 0;
   padding: 0;
   text-align: center;
+}
+
+.staff-verify-card {
+  max-width: 440px;
+}
+
+.staff-verify-heading {
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.staff-verify-heading > p:last-child {
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.staff-verify-heading > p:last-child strong {
+  color: var(--staff-ink);
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.staff-verify-form {
+  gap: 14px;
+}
+
+.staff-verify-card .staff-primary-button {
+  border-radius: 16px;
+  min-height: 54px;
+  width: 100%;
 }
 
 .staff-code-timer {
@@ -1227,6 +1262,20 @@
 .staff-code-timer strong {
   color: var(--staff-brand-dark);
   font-variant-numeric: tabular-nums;
+}
+
+.staff-verify-actions {
+  align-items: center;
+  color: #a5b2b0;
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.staff-verify-actions .staff-link-button {
+  font-size: 12px;
+  min-height: 44px;
+  padding: 0 10px;
 }
 
 .staff-workplace-list {
@@ -2633,6 +2682,14 @@
     max-width: 440px;
   }
 
+  .staff-auth-shell .staff-auth-card.staff-verify-card {
+    border: 0;
+    border-radius: 26px;
+    margin-top: 26px;
+    max-width: 440px;
+    padding: 34px 32px 30px;
+  }
+
   .staff-auth-shell .staff-login-panel {
     padding: 34px 32px 30px;
   }
@@ -2697,11 +2754,29 @@
     margin-top: 22px;
   }
 
+
+  .staff-auth-shell .staff-auth-card.staff-verify-card {
+    background: transparent;
+    box-shadow: none;
+    margin-top: 22px;
+    padding: 18px 2px 24px;
+  }
+
   .staff-auth-shell .staff-login-panel {
     padding: 18px 2px 24px;
   }
 
   .staff-auth-shell .staff-login-heading h1 {
     font-size: 32px;
+  }
+
+  .staff-auth-shell .staff-verify-heading h1 {
+    font-size: 32px;
+  }
+}
+
+@media (max-width: 340px) {
+  .staff-auth-shell .staff-otp-inputs {
+    gap: 4px;
   }
 }
