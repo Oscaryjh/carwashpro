@@ -57,6 +57,10 @@ const nextConfigSource = readFileSync(
   new URL("../../next.config.mjs", import.meta.url),
   "utf8",
 );
+const rootLayoutSource = readFileSync(
+  new URL("../../src/app/layout.tsx", import.meta.url),
+  "utf8",
+);
 const homeSource = readFileSync(
   new URL("../../src/lib/staff-pwa/home.ts", import.meta.url),
   "utf8",
@@ -289,6 +293,12 @@ test("OTP UI never stores the entered OTP and supports paste plus resend timing"
   assert.match(authSource, /Resend in \$\{resendSeconds\}s/);
   assert.doesNotMatch(authSource, /localStorage\.setItem\([^)]*otp/i);
   assert.doesNotMatch(authSource, /sessionStorage\.setItem\([^)]*otp/i);
+});
+
+test("Staff login tolerates mobile browser form metadata added before hydration", () => {
+  assert.match(authSource, /onSubmit=\{submit\} suppressHydrationWarning/);
+  assert.match(authSource, /required\s+suppressHydrationWarning\s+value=\{phoneNumber\}/);
+  assert.match(rootLayoutSource, /<html lang="en-MY" suppressHydrationWarning>/);
 });
 
 test("successful Staff authentication always opens Home instead of More", () => {

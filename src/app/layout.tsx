@@ -39,7 +39,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en-MY">
+    <html lang="en-MY" suppressHydrationWarning>
       <body>
         <MalaysiaDateControls />
         <PwaRegister />

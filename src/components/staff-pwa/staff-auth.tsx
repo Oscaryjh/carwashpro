@@ -139,7 +139,7 @@ export function StaffLoginForm({ initialMessage = "", testingMode = false }: { i
           <h1>Sign in to Staff App</h1>
           <p>Enter the mobile number registered by your HR administrator.</p>
         </div>
-        <form className="staff-form-stack" onSubmit={submit}>
+        <form className="staff-form-stack" onSubmit={submit} suppressHydrationWarning>
           <label>
             Mobile number
             <div className="staff-phone-input">
@@ -151,6 +151,7 @@ export function StaffLoginForm({ initialMessage = "", testingMode = false }: { i
                 onChange={(event) => setPhoneNumber(event.target.value)}
                 placeholder="012 345 6789"
                 required
+                suppressHydrationWarning
                 value={phoneNumber}
               />
             </div>
