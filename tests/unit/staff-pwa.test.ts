@@ -61,6 +61,10 @@ const homeSource = readFileSync(
   new URL("../../src/lib/staff-pwa/home.ts", import.meta.url),
   "utf8",
 );
+const homeComponentSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-home-overview.tsx", import.meta.url),
+  "utf8",
+);
 const attendanceMutationSources = [
   "clock-in",
   "clock-out",
@@ -309,6 +313,18 @@ test("Staff Home delegates summaries to canonical domain readers", () => {
   assert.doesNotMatch(homeSource, /prisma\./);
   assert.match(homeSource, /Temporarily unavailable/);
   assert.match(homeSource, /showWelcome: true/);
+});
+
+test("Staff Home prioritizes a mobile today workspace without inventing new domains", () => {
+  assert.match(homeComponentSource, /TODAY AT WORK/);
+  assert.match(homeComponentSource, /QUICK ACCESS/);
+  assert.match(homeComponentSource, /HomeDomainIcon/);
+  assert.match(todaySource, /staff-page-card staff-attendance-card/);
+  assert.ok(
+    todaySource.indexOf("staff-action-grid") < todaySource.indexOf("aria-label=\"Today's attendance summary\""),
+    "Attendance actions should appear before secondary metrics",
+  );
+  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-home-grid\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
 });
 
 test("Staff workplace switching is server-scoped and performs a hard tenant reset", () => {

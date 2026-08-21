@@ -433,7 +433,7 @@ export function StaffToday() {
     });
   return (
     <div className="staff-today-stack">
-      <section className="staff-page-card">
+      <section className="staff-page-card staff-attendance-card">
         <div className="staff-card-heading">
           <div>
             <p className="staff-kicker">ATTENDANCE</p>
@@ -469,29 +469,6 @@ export function StaffToday() {
             </label>
           ) : null}
         </div>
-        <div className="staff-metrics">
-          <Metric
-            label="Clock in"
-            value={today.clockInAt ? formatTime(today.clockInAt, timeZone) : "—"}
-          />
-          <Metric
-            label="Clock out"
-            value={
-              today.currentSession?.clockOutAt
-                ? formatTime(today.currentSession.clockOutAt, timeZone)
-                : "—"
-            }
-          />
-          <Metric
-            label="Break today"
-            value={`${today.totalCompletedBreakMinutes} min`}
-          />
-          <Metric
-            label="Worked today"
-            value={formatMinutesAsHours(today.currentWorkedMinutes)}
-          />
-        </div>
-
         {showLocationStatus ? (
           <div className="staff-gps-panel">
             <span aria-hidden="true">⌖</span>
@@ -658,6 +635,28 @@ export function StaffToday() {
             ) : null}
           </div>
         ) : null}
+        <div className="staff-metrics" aria-label="Today's attendance summary">
+          <Metric
+            label="Clock in"
+            value={today.clockInAt ? formatTime(today.clockInAt, timeZone) : "—"}
+          />
+          <Metric
+            label="Clock out"
+            value={
+              today.currentSession?.clockOutAt
+                ? formatTime(today.currentSession.clockOutAt, timeZone)
+                : "—"
+            }
+          />
+          <Metric
+            label="Break today"
+            value={`${today.totalCompletedBreakMinutes} min`}
+          />
+          <Metric
+            label="Worked today"
+            value={formatMinutesAsHours(today.currentWorkedMinutes)}
+          />
+        </div>
         {today.status === "ON_BREAK" ? (
           <p className="staff-form-hint">End the current break before clocking out.</p>
         ) : null}

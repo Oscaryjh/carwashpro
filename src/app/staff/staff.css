@@ -5,7 +5,7 @@
   --staff-brand-dark: #05645d;
   --staff-brand-soft: #e5f5f2;
   --staff-line: #d8e4e2;
-  --staff-card: rgba(255, 255, 255, 0.96);
+  --staff-card: rgba(255, 255, 255, 0.98);
   background:
     radial-gradient(circle at 100% -10%, rgba(15, 158, 145, 0.18), transparent 32rem),
     linear-gradient(180deg, #f8fbfa 0%, #eef5f3 100%);
@@ -160,8 +160,8 @@
   justify-content: space-between;
   margin: 0 auto;
   max-width: 760px;
-  min-height: 72px;
-  padding: 10px 0;
+  min-height: 76px;
+  padding: 12px 0;
 }
 
 .staff-current-workplace {
@@ -280,13 +280,13 @@
   backdrop-filter: blur(18px);
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(190, 210, 207, 0.9);
-  border-radius: 22px;
+  border-radius: 26px;
   bottom: max(12px, env(safe-area-inset-bottom));
   box-shadow: 0 16px 44px rgba(25, 58, 56, 0.18);
   display: flex;
   left: 50%;
   max-width: min(520px, calc(100vw - 24px));
-  padding: 7px;
+  padding: 6px;
   position: fixed;
   transform: translateX(-50%);
   width: 100%;
@@ -298,7 +298,7 @@
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: 16px;
+  border-radius: 20px;
   color: var(--staff-muted);
   display: flex;
   flex: 1 1 0;
@@ -308,7 +308,7 @@
   font-weight: 800;
   gap: 2px;
   justify-content: center;
-  min-height: 54px;
+  min-height: 58px;
   text-decoration: none;
 }
 
@@ -332,7 +332,8 @@
 
 .staff-pwa-nav a.active,
 .staff-pwa-nav > button.active {
-  background: var(--staff-brand-soft);
+  background: linear-gradient(145deg, #e9f7f4, #dff1ed);
+  box-shadow: inset 0 0 0 1px rgba(8, 127, 118, 0.08);
   color: var(--staff-brand-dark);
 }
 
@@ -656,23 +657,25 @@
   color: var(--staff-brand-dark);
   font-size: 13px;
   font-weight: 800;
+  text-decoration: none;
 }
 
 .staff-home-grid {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .staff-home-card {
   background: var(--staff-card);
   border: 1px solid var(--staff-line);
-  border-radius: 19px;
+  border-radius: 22px;
   color: var(--staff-ink);
   display: grid;
-  gap: 7px;
-  min-height: 155px;
-  padding: 16px;
+  gap: 8px;
+  min-height: 196px;
+  padding: 17px;
+  position: relative;
   text-decoration: none;
 }
 
@@ -698,6 +701,41 @@
   align-self: end;
   color: var(--staff-brand-dark);
   font-size: 12px;
+}
+
+.staff-home-card-top {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+
+.staff-home-card-icon {
+  align-items: center;
+  background: var(--staff-brand-soft);
+  border-radius: 13px;
+  color: var(--staff-brand-dark);
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.staff-home-card-icon svg {
+  height: 21px;
+  width: 21px;
+}
+
+.staff-home-card-arrow {
+  align-items: center;
+  background: #f2f7f6;
+  border-radius: 50%;
+  color: var(--staff-brand-dark);
+  display: inline-flex;
+  font-size: 15px;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
 }
 
 .staff-home-card.unavailable {
@@ -1272,6 +1310,91 @@
   padding: 24px;
 }
 
+.staff-welcome-card {
+  background:
+    radial-gradient(circle at 88% 10%, rgba(107, 229, 211, 0.28), transparent 13rem),
+    linear-gradient(145deg, #075f59 0%, #087f76 64%, #0a9488 100%);
+  border-color: rgba(5, 100, 93, 0.24);
+  color: #fff;
+  min-height: 174px;
+  overflow: hidden;
+}
+
+.staff-welcome-identity {
+  align-items: center;
+  display: flex;
+  gap: 15px;
+  min-width: 0;
+}
+
+.staff-welcome-identity > div {
+  min-width: 0;
+}
+
+.staff-welcome-avatar {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  color: #fff;
+  display: inline-flex;
+  flex: 0 0 56px;
+  font-size: 17px;
+  font-weight: 900;
+  height: 56px;
+  justify-content: center;
+}
+
+.staff-welcome-card .staff-kicker,
+.staff-welcome-card h1,
+.staff-welcome-card p {
+  color: #fff;
+}
+
+.staff-welcome-card p {
+  margin-top: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-welcome-branch {
+  color: rgba(255, 255, 255, 0.72);
+  display: block;
+  font-size: 12px;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-welcome-meta {
+  align-items: flex-end;
+  display: grid;
+  flex: 0 0 auto;
+  gap: 10px;
+  justify-items: end;
+}
+
+.staff-welcome-meta time {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.staff-welcome-card .staff-state-orb {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.staff-welcome-card .staff-state-orb i {
+  background: #68e1b1;
+  border-radius: 50%;
+  height: 7px;
+  margin-right: 7px;
+  width: 7px;
+}
+
 .staff-state-orb,
 .staff-profile-hero > span {
   align-items: center;
@@ -1339,6 +1462,10 @@
 
 .staff-page-card {
   padding: clamp(18px, 5vw, 26px);
+}
+
+.staff-attendance-card {
+  border-top: 4px solid var(--staff-brand);
 }
 
 .staff-card-heading,
@@ -1440,6 +1567,15 @@
   display: grid;
   gap: 10px;
   margin-top: 18px;
+}
+
+.staff-attendance-card .staff-action-grid > .staff-primary-button {
+  box-shadow: 0 12px 24px rgba(8, 127, 118, 0.2);
+  min-height: 54px;
+}
+
+.staff-attendance-card .staff-metrics {
+  margin-bottom: 4px;
 }
 
 .staff-action-grid:has(> button:nth-child(2)) {
@@ -1886,8 +2022,16 @@
   }
 
   .staff-welcome-card {
-    align-items: flex-start;
+    align-items: stretch;
+    display: grid;
+    gap: 18px;
     padding: 20px;
+  }
+
+  .staff-welcome-meta {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
   }
 
   .staff-history-filters {
@@ -1917,7 +2061,27 @@
   }
 
   .staff-home-grid {
-    grid-template-columns: 1fr;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .staff-home-card {
+    border-radius: 18px;
+    min-height: 188px;
+    padding: 14px;
+  }
+
+  .staff-home-card > strong {
+    font-size: 17px;
+  }
+
+  .staff-home-card > span {
+    font-size: 11px;
+  }
+
+  .staff-home-card-icon {
+    height: 38px;
+    width: 38px;
   }
 
   .staff-profile-stack {
