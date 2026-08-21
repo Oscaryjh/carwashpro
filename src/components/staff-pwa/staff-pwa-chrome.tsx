@@ -218,24 +218,32 @@ export function StaffPwaChrome({
           <div className="staff-more-backdrop staff-workplace-backdrop" role="presentation" onClick={() => !switching && setWorkplacesOpen(false)}>
             <section aria-label="Choose workplace" aria-modal="true" className="staff-more-sheet staff-workplace-sheet" onClick={(event) => event.stopPropagation()} role="dialog">
               <div className="staff-more-heading">
-                <div><small>MY WORKPLACES</small><strong>Choose where you are working</strong></div>
+                <div><small>MY WORKPLACES</small><strong>Choose workplace</strong></div>
                 <button disabled={switching} onClick={() => setWorkplacesOpen(false)} type="button">Close</button>
               </div>
-              <p className="staff-workplace-help">Your Staff Session and data access will change to the selected employer.</p>
+              <p className="staff-workplace-help">Your Staff App will switch to the selected workplace.</p>
               {switchError ? <div className="staff-alert error" role="alert">{switchError}</div> : null}
               <div className="staff-workplace-options">
-                {workplaces.map((workplace) => (
-                  <button
-                    aria-current={workplace.current ? "true" : undefined}
-                    disabled={switching || workplace.current}
-                    key={workplace.membershipId}
-                    onClick={() => void switchWorkplace(workplace.membershipId)}
-                    type="button"
-                  >
-                    <span><strong>{workplace.businessName}</strong><small>{workplace.primaryBranchName} · {workplace.employeeCode}</small></span>
-                    <b>{workplace.current ? "Current" : "Switch"}</b>
-                  </button>
-                ))}
+                {workplaces.map((workplace) => {
+                  const showBranchName = normalizeLabel(workplace.primaryBranchName)
+                    !== normalizeLabel(workplace.businessName);
+
+                  return (
+                    <button
+                      aria-current={workplace.current ? "true" : undefined}
+                      disabled={switching || workplace.current}
+                      key={workplace.membershipId}
+                      onClick={() => void switchWorkplace(workplace.membershipId)}
+                      type="button"
+                    >
+                      <span>
+                        <strong>{workplace.businessName}</strong>
+                        {showBranchName ? <small>{workplace.primaryBranchName}</small> : null}
+                      </span>
+                      <b>{workplace.current ? "Current" : "Switch"}</b>
+                    </button>
+                  );
+                })}
               </div>
             </section>
           </div>

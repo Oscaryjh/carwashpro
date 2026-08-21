@@ -398,20 +398,31 @@
 }
 
 .staff-workplace-sheet {
-  gap: 13px;
+  border-radius: 22px;
+  gap: 10px;
+  padding: 15px;
+}
+
+.staff-workplace-sheet .staff-more-heading strong {
+  font-size: 20px;
+}
+
+.staff-workplace-sheet .staff-more-heading button {
+  min-height: 34px;
+  padding: 0 12px;
 }
 
 .staff-workplace-help {
   color: var(--staff-muted);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.4;
   margin: 0;
 }
 
 .staff-workplace-options,
 .staff-profile-workplaces {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .staff-workplace-options button,
@@ -425,8 +436,8 @@
   font: inherit;
   gap: 12px;
   justify-content: space-between;
-  min-height: 64px;
-  padding: 11px 13px;
+  min-height: 54px;
+  padding: 9px 12px;
   text-align: left;
   width: 100%;
 }
@@ -449,6 +460,11 @@
 .staff-profile-workplaces button strong,
 .staff-profile-workplaces button small {
   overflow-wrap: anywhere;
+}
+
+.staff-workplace-options button strong,
+.staff-profile-workplaces button strong {
+  font-size: 14px;
 }
 
 .staff-workplace-options button small,

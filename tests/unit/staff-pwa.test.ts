@@ -416,7 +416,9 @@ test("Staff workplace switching is server-scoped and performs a hard tenant rese
   assert.doesNotMatch(switchWorkplaceRouteSource, /businessId/);
   assert.match(chromeSource, /clearStaffTenantClientState\(\)/);
   assert.match(chromeSource, /window\.location\.replace\("\/staff"\)/);
-  assert.match(chromeSource, /Choose where you are working/);
+  assert.match(chromeSource, /Choose workplace/);
+  assert.match(chromeSource, /showBranchName \? <small>\{workplace\.primaryBranchName\}<\/small> : null/);
+  assert.doesNotMatch(chromeSource, /\{workplace\.primaryBranchName\} · \{workplace\.employeeCode\}/);
 });
 
 test("every employee Attendance mutation rechecks the HR module server-side", () => {
