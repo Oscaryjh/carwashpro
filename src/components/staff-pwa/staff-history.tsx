@@ -89,6 +89,19 @@ export function StaffHistory() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!correctionOpen) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !correctionSubmitting) {
+        setCorrectionOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [correctionOpen, correctionSubmitting]);
+
   function filter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFiltersOpen(false);
@@ -171,23 +184,49 @@ export function StaffHistory() {
         <h1>History</h1>
         <p>Review your clock-ins, hours and attendance status.</p>
         <button
+          aria-controls="staff-correction-sheet"
+          aria-expanded={correctionOpen}
+          aria-haspopup="dialog"
           className="staff-secondary-button"
-          onClick={() => setCorrectionOpen((current) => !current)}
+          onClick={() => setCorrectionOpen(true)}
           type="button"
         >
-          {correctionOpen ? "Close" : "Report issue"}
+          Report issue
         </button>
       </section>
 
       {correctionOpen ? (
-        <section className="staff-page-card">
-          <div className="staff-card-heading">
-            <div>
-              <p className="staff-kicker">CORRECTION</p>
-              <h2>Report a missing punch</h2>
+        <div
+          className="staff-correction-backdrop"
+          onClick={() => {
+            if (!correctionSubmitting) setCorrectionOpen(false);
+          }}
+          role="presentation"
+        >
+          <section
+            aria-labelledby="staff-correction-heading"
+            aria-modal="true"
+            className="staff-page-card staff-correction-sheet"
+            id="staff-correction-sheet"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="staff-card-heading staff-correction-heading">
+              <div>
+                <p className="staff-kicker">CORRECTION</p>
+                <h2 id="staff-correction-heading">Report a missing punch</h2>
+              </div>
+              <button
+                aria-label="Close correction request"
+                className="staff-correction-close"
+                disabled={correctionSubmitting}
+                onClick={() => setCorrectionOpen(false)}
+                type="button"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
             </div>
-          </div>
-          <form className="staff-history-filters" onSubmit={submitCorrection}>
+            <form className="staff-history-filters" onSubmit={submitCorrection}>
             <label>
               Missing action
               <select
@@ -262,11 +301,12 @@ export function StaffHistory() {
             </label>
             <label>
               Reason
-              <input
+              <textarea
                 maxLength={500}
                 minLength={3}
                 onChange={(event) => setCorrectionReason(event.target.value)}
                 required
+                rows={3}
                 value={correctionReason}
               />
             </label>
@@ -278,8 +318,9 @@ export function StaffHistory() {
               {correctionSubmitting ? "Submitting…" : "Submit for review"}
             </button>
             {correctionMessage ? <small>{correctionMessage}</small> : null}
-          </form>
-        </section>
+            </form>
+          </section>
+        </div>
       ) : null}
 
       <section className="staff-history-filter-card">

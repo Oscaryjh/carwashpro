@@ -476,8 +476,11 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(chromeSource, /const showBrandHeader = authRoutes\.has\(currentPath\) \|\| currentPath === "\/staff"/);
   assert.match(chromeSource, /\{showBrandHeader \? \(/);
   assert.match(historyComponentSource, /aria-expanded=\{filtersOpen\}/);
-  assert.match(historyComponentSource, /correctionOpen \? "Close" : "Report issue"/);
-  assert.match(staffCssSource, /@media \(max-width: 640px\)[\s\S]*?\.staff-history-stack > \.staff-page-card \.staff-history-filters\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
+  assert.match(historyComponentSource, /onClick=\{\(\) => setCorrectionOpen\(true\)\}/);
+  assert.match(historyComponentSource, /aria-modal="true"/);
+  assert.match(historyComponentSource, /className="staff-page-card staff-correction-sheet"/);
+  assert.match(staffCssSource, /@media \(max-width: 640px\)[\s\S]*?\.staff-correction-backdrop\s*\{[\s\S]*?align-items:\s*flex-end/);
+  assert.match(staffCssSource, /\.staff-correction-sheet\s*\{[\s\S]*?max-height:\s*calc\(100dvh - 32px\);[\s\S]*?overflow-y:\s*auto/);
   assert.match(staffCssSource, /\.staff-history-stack > \.staff-section-hero > \.staff-secondary-button\s*\{[\s\S]*?grid-area:\s*action;[\s\S]*?min-height:\s*38px/);
   assert.match(leaveComponentSource, /href="#staff-leave-apply"/);
   assert.doesNotMatch(leaveCssSource, /grid-auto-flow:column|overflow-x:auto|scroll-snap-type/);
