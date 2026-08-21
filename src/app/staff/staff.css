@@ -3215,6 +3215,51 @@
   text-decoration: none;
 }
 
+.staff-history-stack > .staff-section-hero > .staff-secondary-button {
+  border: 0;
+  border-radius: 999px;
+  font-size: 12px;
+  justify-self: start;
+  margin-top: 8px;
+  min-height: 38px;
+  padding: 0 13px;
+}
+
+.staff-history-stack > .staff-page-card .staff-history-filters {
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.staff-history-stack > .staff-page-card .staff-history-filters > label {
+  min-width: 0;
+}
+
+.staff-history-stack > .staff-page-card .staff-history-filters > label:last-of-type {
+  grid-column: 1 / -1;
+}
+
+.staff-history-stack > .staff-page-card .staff-history-filters input,
+.staff-history-stack > .staff-page-card .staff-history-filters select {
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .staff-history-stack > .staff-page-card .staff-history-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-history-stack > .staff-page-card .staff-history-filters > label:last-of-type {
+    grid-column: auto;
+  }
+
+  .staff-history-stack > .staff-page-card .staff-history-filters > .staff-primary-button {
+    grid-column: auto;
+    width: 100%;
+  }
+}
+
 @media (max-width: 430px) {
   .staff-section-hero h1,
   .staff-payslip-heading.staff-section-hero h1 {
