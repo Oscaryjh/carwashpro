@@ -449,7 +449,9 @@ export function StaffToday() {
           <div>
             <small>{formatBranchDate(today.branchLocalTime)}</small>
             <strong>Working at: {today.branch.name}</strong>
-            <span>{today.business.name}</span>
+            {normalizeLabel(today.business.name) !== normalizeLabel(today.branch.name) ? (
+              <span>{today.business.name}</span>
+            ) : null}
           </div>
           {today.availableBranches.length > 1 ? (
             <label className="staff-branch-switch">
@@ -1058,4 +1060,8 @@ function expectedAttendanceDetail(expected: NonNullable<AttendanceToday["expecte
   const start = formatTime(expected.expectedStartAt, expected.timezone);
   const end = formatTime(expected.expectedEndAt, expected.timezone);
   return `${start} – ${end}${expected.graceMinutes ? ` · ${expected.graceMinutes} minute grace` : ""}`;
+}
+
+function normalizeLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-MY");
 }

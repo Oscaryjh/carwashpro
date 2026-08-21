@@ -4,6 +4,9 @@ import type { AwaitedReturn } from "@/lib/staff-pwa/home-types";
 
 export function StaffHomeOverview({ overview, children }: { overview: AwaitedReturn; children?: ReactNode }) {
   const firstName = overview.profile.employee.fullName.split(/\s+/)[0];
+  const businessName = overview.profile.workplace.businessName;
+  const branchName = overview.profile.workplace.primaryBranchName;
+  const showBranchName = normalizeLabel(branchName) !== normalizeLabel(businessName);
   const initials = overview.profile.employee.fullName
     .split(/\s+/)
     .filter(Boolean)
@@ -26,8 +29,8 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
             <div>
               <p className="staff-kicker">TODAY AT WORK</p>
               <h1>Hello, {firstName}</h1>
-              <p>{overview.profile.workplace.businessName}</p>
-              <span className="staff-welcome-branch">{overview.profile.workplace.primaryBranchName}</span>
+              <p>{businessName}</p>
+              {showBranchName ? <span className="staff-welcome-branch">{branchName}</span> : null}
             </div>
           </div>
           <div className="staff-welcome-meta">
@@ -65,6 +68,10 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
       )}
     </section>
   );
+}
+
+function normalizeLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-MY");
 }
 
 function HomeDomainIcon({ domain }: { domain: AwaitedReturn["cards"][number]["domain"] }) {

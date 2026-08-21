@@ -171,7 +171,9 @@ export function StaffPwaChrome({
               type="button"
             >
               <span>{currentWorkplace.businessName}</span>
-              <small>{currentWorkplace.primaryBranchName}</small>
+              {normalizeLabel(currentWorkplace.primaryBranchName) !== normalizeLabel(currentWorkplace.businessName) ? (
+                <small>{currentWorkplace.primaryBranchName}</small>
+              ) : null}
               {workplaces.length > 1 ? <b aria-hidden="true">Switch</b> : null}
             </button>
           ) : null}
@@ -264,6 +266,10 @@ export function StaffPwaChrome({
       </div>
     </StaffShellContext.Provider>
   );
+}
+
+function normalizeLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-MY");
 }
 
 function StaffNavIcon({ name }: { name: StaffNavigationIcon }) {
