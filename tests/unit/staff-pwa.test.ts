@@ -61,6 +61,10 @@ const rootLayoutSource = readFileSync(
   new URL("../../src/app/layout.tsx", import.meta.url),
   "utf8",
 );
+const clientInstrumentationSource = readFileSync(
+  new URL("../../src/instrumentation-client.ts", import.meta.url),
+  "utf8",
+);
 const homeSource = readFileSync(
   new URL("../../src/lib/staff-pwa/home.ts", import.meta.url),
   "utf8",
@@ -299,6 +303,9 @@ test("Staff login tolerates mobile browser form metadata added before hydration"
   assert.match(authSource, /onSubmit=\{submit\} suppressHydrationWarning/);
   assert.match(authSource, /required\s+suppressHydrationWarning\s+value=\{phoneNumber\}/);
   assert.match(rootLayoutSource, /<html lang="en-MY" suppressHydrationWarning>/);
+  assert.match(clientInstrumentationSource, /"__gcrremoteframetoken"/);
+  assert.match(clientInstrumentationSource, /"__gcruniqueid"/);
+  assert.match(clientInstrumentationSource, /element\.removeAttribute\(attribute\)/);
 });
 
 test("Staff login keeps the iPhone journey focused on one primary action", () => {
