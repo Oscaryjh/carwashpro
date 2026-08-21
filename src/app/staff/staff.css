@@ -2259,7 +2259,7 @@
     border-left: 0;
     border-radius: 24px 24px 0 0;
     border-right: 0;
-    bottom: 0;
+    bottom: calc(0px - env(safe-area-inset-bottom));
     max-width: none;
     padding:
       6px

@@ -482,7 +482,7 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(staffCssSource, /font-size: 16px/);
   assert.match(
     staffCssSource,
-    /@media \(max-width: 430px\)[\s\S]*?\.staff-pwa-shell\s*\{[\s\S]*?padding-bottom:\s*66px;[\s\S]*?\.staff-pwa-nav\s*\{[\s\S]*?bottom:\s*0;[\s\S]*?max\(6px, env\(safe-area-inset-right\)\)\s*0/,
+    /@media \(max-width: 430px\)[\s\S]*?\.staff-pwa-shell\s*\{[\s\S]*?padding-bottom:\s*66px;[\s\S]*?\.staff-pwa-nav\s*\{[\s\S]*?bottom:\s*calc\(0px - env\(safe-area-inset-bottom\)\);[\s\S]*?max\(6px, env\(safe-area-inset-right\)\)\s*0/,
   );
   assert.match(staffCssSource, /\.staff-pwa-nav > button\s*\{\s*min-height:\s*54px/);
 });
