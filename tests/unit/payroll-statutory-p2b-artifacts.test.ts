@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   STATUTORY_ARTIFACT_ERRORS,
   assertRuleActivationReady,
+  canonicalDigest,
   contributionDatasetDigest,
   goldenFixtureDigest,
   lookupContributionRow,
@@ -17,6 +18,7 @@ import {
   type OfficialArtifactManifestEntry,
   type RuleActivationEvidence,
 } from "../../src/lib/payroll/statutory-artifact-pipeline";
+import { PCB_2026_CALCULATOR_VERSION } from "../../src/lib/payroll/pcb-2026";
 
 const manifest = readJson<OfficialArtifactManifest>("statutory/official/manifest.json");
 const act4 = readJson<NormalizedContributionDataset>(
@@ -148,12 +150,64 @@ test("P2B migration is additive and enforces activation and active provenance im
   assert.doesNotMatch(sql, /DROP\s+(?:TABLE|COLUMN|TYPE)|TRUNCATE|DELETE\s+FROM/i);
 });
 
-test("PCB requirements inventory is partial and retains explicit production blockers", () => {
-  const requirements = readJson<{ status: string; requirements: Array<{ status: string }> }>(
+test("PCB requirements inventory retains governed declarations and explicit production blockers", () => {
+  const requirements = readJson<{
+    status: string;
+    requirements: Array<{ requirement: string; status: string }>;
+    remainingBlockers: string[];
+  }>(
     "statutory/official/pcb-2026-requirements.json",
   );
+  const verification = readJson<{
+    calculatorVersion: string;
+    calculatorSourceSha256: string;
+    requirementsDigest: string;
+    requirementsCoverage: Record<string, number>;
+    recordDigest: string;
+    closureStatus: string;
+    hasilSoftwareVerificationStatus: string;
+  }>(
+    "statutory/official/certifications/hasil-pcb-2026-technical-verification-v1.json",
+  );
   assert.equal(requirements.status, "PARTIAL");
-  assert.ok(requirements.requirements.some((item) => item.status === "BLOCKED"));
+  assert.equal(
+    requirements.requirements.find(
+      (item) => item.requirement === "previous-employer remuneration",
+    )?.status,
+    "IMPLEMENTED",
+  );
+  assert.equal(
+    requirements.requirements.find(
+      (item) => item.requirement === "TP1 current-month allowable deductions",
+    )?.status,
+    "IMPLEMENTED",
+  );
+  assert.equal(
+    requirements.requirements.find(
+      (item) => item.requirement === "religious-travel departure levy rebate",
+    )?.status,
+    "IMPLEMENTED",
+  );
+  assert.equal(
+    requirements.requirements.find(
+      (item) => item.requirement === "current additional-remuneration EPF",
+    )?.status,
+    "IMPLEMENTED",
+  );
+  assert.ok(!requirements.remainingBlockers.includes("PCB_YTD_LEDGER_INCOMPLETE"));
+  assert.ok(!requirements.remainingBlockers.includes("PCB_TP1_DOMAIN_NOT_AVAILABLE"));
+  assert.ok(!requirements.remainingBlockers.includes("PCB_TP3_DOMAIN_NOT_AVAILABLE"));
+  assert.ok(requirements.remainingBlockers.includes("HASIL_SOFTWARE_VERIFICATION_REQUIRED"));
+  assert.equal(verification.calculatorVersion, PCB_2026_CALCULATOR_VERSION);
+  assert.equal(
+    verification.calculatorSourceSha256,
+    sha256(readFileSync("src/lib/payroll/pcb-2026.ts")),
+  );
+  assert.equal(canonicalDigest(requirements), verification.requirementsDigest);
+  const { recordDigest, ...verificationRecord } = verification;
+  assert.equal(canonicalDigest(verificationRecord), recordDigest);
+  assert.equal(verification.closureStatus, "PARTIAL");
+  assert.equal(verification.hasilSoftwareVerificationStatus, "PENDING");
 });
 
 function readJson<T>(path: string): T {

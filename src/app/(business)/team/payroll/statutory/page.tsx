@@ -10,6 +10,7 @@ import {
 } from "@/lib/payroll/statutory-submission";
 import { prisma } from "@/lib/prisma";
 import { PayrollHighRiskMfaFields } from "@/components/payroll-high-risk-mfa-fields";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 import {
   authorizeStatutoryExportAction,
   saveBusinessStatutoryProfileAction,
@@ -34,6 +35,7 @@ const providers: Array<{
 ];
 
 export default async function StatutorySubmissionPage({ searchParams }: PageProps) {
+  const mfaFeatureEnabled = isMfaFeatureEnabled();
   const context = await requireWholeBusinessPayroll("VIEW_STATUTORY_SUBMISSION");
   await requireWholeBusinessPayroll("VIEW_STATUTORY_PROFILE");
   await requireWholeBusinessPayroll("VIEW_TAX_PROFILE");
@@ -150,7 +152,9 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
                       <input name="provider" type="hidden" value={provider.id} />
                       {artifactAvailable ? <input name="revision" type="hidden" value={submission?.revision} /> : null}
                       <PayrollHighRiskMfaFields actionLabel={`${provider.name} statutory export`} />
-                      <button type="submit">Verify MFA and continue</button>
+                      <button type="submit">
+                        {mfaFeatureEnabled ? "Verify and continue" : "Continue"}
+                      </button>
                     </form>
                   </details>
                 ) : canExport ? (
@@ -160,7 +164,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
                 ) : null}
                 <small>{submission?.artifact?.exportVersion ?? STATUTORY_EXPORT_VERSION[provider.id]}</small>
               </div>
-              {submission ? <SubmissionWorkflow submission={submission} history={providerSubmissions} provider={provider.id} month={period.value} canSubmit={canSubmit} canResolve={canResolve} /> : null}
+              {submission ? <SubmissionWorkflow submission={submission} history={providerSubmissions} provider={provider.id} month={period.value} canSubmit={canSubmit} canResolve={canResolve} mfaFeatureEnabled={mfaFeatureEnabled} /> : null}
             </article>
           );
         })}
@@ -223,7 +227,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
 
 type SubmissionSummary = { id: string; revision: number; status: string; integrityStatus: string; exportedAt: Date | null; submittedAt: Date | null; resolvedAt: Date | null; submissionReference: string | null; rejectionReason: string | null; artifact: { id: string } | null };
 
-function SubmissionWorkflow({ submission, history, provider, month, canSubmit, canResolve }: { submission: SubmissionSummary; history: SubmissionSummary[]; provider: StatutorySubmissionProvider; month: string; canSubmit: boolean; canResolve: boolean }) {
+function SubmissionWorkflow({ submission, history, provider, month, canSubmit, canResolve, mfaFeatureEnabled }: { submission: SubmissionSummary; history: SubmissionSummary[]; provider: StatutorySubmissionProvider; month: string; canSubmit: boolean; canResolve: boolean; mfaFeatureEnabled: boolean }) {
   const verified = submission.integrityStatus === "VERIFIED" && Boolean(submission.artifact);
   return (
     <div className={styles.workflow}>
@@ -267,7 +271,9 @@ function SubmissionWorkflow({ submission, history, provider, month, canSubmit, c
                 <input name="provider" type="hidden" value={provider} />
                 <input name="revision" type="hidden" value={item.revision} />
                 <PayrollHighRiskMfaFields actionLabel={`${provider} statutory export revision ${item.revision}`} />
-                <button type="submit">Verify MFA and download</button>
+                <button type="submit">
+                  {mfaFeatureEnabled ? "Verify and download" : "Download"}
+                </button>
               </form>
             </details>
           ))}

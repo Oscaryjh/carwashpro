@@ -6,6 +6,7 @@ import {
   createPayrollReadinessIssue,
   summarizePayrollReadiness,
 } from "../../src/lib/payroll/readiness";
+import { calculateCompanyWorkPay } from "../../src/lib/payroll/company-work-pay";
 
 const businessId = "11111111-1111-4111-8111-111111111111";
 const readyMembershipId = "22222222-2222-4222-8222-222222222222";
@@ -101,16 +102,31 @@ test("P7 finalize re-runs canonical readiness transactionally and fails closed o
   assert.match(finalizeSource, /isolationLevel: "Serializable"/);
 });
 
-test("P7 statutory work-pay readiness is contextual and components retain provenance", async () => {
-  const [readiness, schema] = await Promise.all([
-    readFile("src/lib/payroll/readiness.ts", "utf8"),
-    readFile("prisma/schema.prisma", "utf8"),
-  ]);
+test("P7 HR company work-pay is deterministic and canonical components retain provenance", async () => {
+  const schema = await readFile("prisma/schema.prisma", "utf8");
+  const calculated = calculateCompanyWorkPay({
+    payBasis: "MONTHLY",
+    baseRateCents: 260_000,
+    workingDaysPerMonth: 26,
+    normalWorkMinutesPerDay: 480,
+    normalOtMinutes: 180,
+    restDayWorkMinutes: 120,
+    restDayOtMinutes: 0,
+    publicHolidayWorkMinutes: 60,
+    publicHolidayOtMinutes: 0,
+    overtimeMultiplier: 1.5,
+    restDayWorkMultiplier: 2,
+    restDayOvertimeMultiplier: 2,
+    publicHolidayWorkMultiplier: 2,
+    publicHolidayOvertimeMultiplier: 3,
+    publicHolidayPayEnabled: true,
+  });
 
-  assert.match(readiness, /if \(snapshot && hasStatutoryWorkPayMinutes\(snapshot\)\)/);
-  assert.match(readiness, /normalOtMinutes/);
-  assert.match(readiness, /restDayWorkMinutes/);
-  assert.match(readiness, /publicHolidayWorkMinutes/);
+  assert.equal(calculated.normalOvertimePayCents, 5_625);
+  assert.equal(calculated.restDayWorkPayCents, 5_000);
+  assert.equal(calculated.publicHolidayWorkPayCents, 2_500);
+  assert.equal(calculated.overtimePayCents, 10_625);
+  assert.equal(calculated.publicHolidayPayCents, 2_500);
   assert.match(schema, /model PayrollEntryComponent/);
   assert.match(schema, /sourceType\s+PayrollEntryComponentSourceType/);
   assert.match(schema, /sourceVersionId/);
@@ -129,7 +145,9 @@ test("P7 run review filters readiness before pagination and shows actionable dri
   assert.match(runs, /membershipId: \{ in: \[\.\.\.membershipIds\] \}/);
   assert.match(page, /REVIEW_REQUIRED/);
   assert.match(page, /Blocked/);
-  assert.match(page, /issue\.source/);
-  assert.match(page, /issue\.resolutionHint/);
+  assert.match(page, /Payroll setup incomplete/);
+  assert.match(page, /readinessIssueDisplay/);
+  assert.match(page, /readinessIssueFix/);
+  assert.match(page, /aria-label={`Fix \$\{display\.title\}`}/);
   assert.match(page, /loadPayrollRunDetail\([\s\S]*?filteredMembershipIds/);
 });

@@ -59,7 +59,10 @@ const settingSchema = z.object({
   normalWorkMinutesPerDay: z.coerce.number().int().min(1).max(1440),
   breakMinutesPerDay: z.coerce.number().int().min(0).max(720),
   overtimeMultiplier: z.coerce.number().min(1).max(10),
+  restDayWorkMultiplier: z.coerce.number().min(0).max(10),
+  restDayOvertimeMultiplier: z.coerce.number().min(0).max(10),
   publicHolidayExtraMultiplier: z.coerce.number().min(0).max(10),
+  publicHolidayOvertimeMultiplier: z.coerce.number().min(0).max(10),
   publicHolidayPayEnabled: z.boolean(),
   stateCode: z.string().trim().max(80).optional(),
 });
@@ -81,8 +84,15 @@ export async function savePayrollSettingAction(formData: FormData) {
       normalWorkMinutesPerDay: formData.get("normalWorkMinutesPerDay"),
       breakMinutesPerDay: formData.get("breakMinutesPerDay"),
       overtimeMultiplier: formData.get("overtimeMultiplier"),
+      restDayWorkMultiplier: formData.get("restDayWorkMultiplier"),
+      restDayOvertimeMultiplier: formData.get(
+        "restDayOvertimeMultiplier",
+      ),
       publicHolidayExtraMultiplier: formData.get(
         "publicHolidayExtraMultiplier",
+      ),
+      publicHolidayOvertimeMultiplier: formData.get(
+        "publicHolidayOvertimeMultiplier",
       ),
       publicHolidayPayEnabled:
         formData.get("publicHolidayPayEnabled") === "true",
@@ -95,8 +105,16 @@ export async function savePayrollSettingAction(formData: FormData) {
       });
       const policyChanged = before
         ? before.publicHolidayPayEnabled !== input.publicHolidayPayEnabled ||
+          before.overtimeMultiplier.toString() !==
+            String(input.overtimeMultiplier) ||
+          before.restDayWorkMultiplier.toString() !==
+            String(input.restDayWorkMultiplier) ||
+          before.restDayOvertimeMultiplier.toString() !==
+            String(input.restDayOvertimeMultiplier) ||
           before.publicHolidayExtraMultiplier.toString() !==
-            String(input.publicHolidayExtraMultiplier)
+            String(input.publicHolidayExtraMultiplier) ||
+          before.publicHolidayOvertimeMultiplier.toString() !==
+            String(input.publicHolidayOvertimeMultiplier)
         : false;
       const policyRevision = before
         ? before.publicHolidayPayPolicyRevision + (policyChanged ? 1 : 0)
@@ -121,7 +139,7 @@ export async function savePayrollSettingAction(formData: FormData) {
           action: "PAYROLL_SETTING_UPDATED",
           entityType: "PayrollSetting",
           entityId: after.id,
-          summary: "Payroll calculation settings updated.",
+          summary: "HR company work and pay rules updated.",
           before: before && settingAudit(before),
           after: settingAudit(after),
         },
@@ -299,16 +317,6 @@ export async function updatePayrollEntryAction(formData: FormData) {
       entryId: z.string().uuid().parse(formData.get("entryId")),
       expectedRevision: z.coerce.number().int().min(0).parse(formData.get("expectedRevision")),
       values: {
-        epfWageBase: formData.get("epfWageBase"),
-        perkesoWageBase: formData.get("perkesoWageBase"),
-        lindung24Employee: formData.get("lindung24Employee"),
-        epfEmployee: formData.get("epfEmployee"),
-        socsoEmployee: formData.get("socsoEmployee"),
-        eisEmployee: formData.get("eisEmployee"),
-        pcb: formData.get("pcb"),
-        employerEpf: formData.get("employerEpf"),
-        employerSocso: formData.get("employerSocso"),
-        employerEis: formData.get("employerEis"),
         notes: formData.get("notes"),
       },
     });
@@ -797,7 +805,10 @@ function settingAudit(setting: {
   normalWorkMinutesPerDay: number;
   breakMinutesPerDay: number;
   overtimeMultiplier: { toString(): string };
+  restDayWorkMultiplier: { toString(): string };
+  restDayOvertimeMultiplier: { toString(): string };
   publicHolidayExtraMultiplier: { toString(): string };
+  publicHolidayOvertimeMultiplier: { toString(): string };
   publicHolidayPayEnabled: boolean;
   publicHolidayPayPolicyRevision: number;
   stateCode: string | null;
@@ -807,8 +818,13 @@ function settingAudit(setting: {
     normalWorkMinutesPerDay: setting.normalWorkMinutesPerDay,
     breakMinutesPerDay: setting.breakMinutesPerDay,
     overtimeMultiplier: setting.overtimeMultiplier.toString(),
+    restDayWorkMultiplier: setting.restDayWorkMultiplier.toString(),
+    restDayOvertimeMultiplier:
+      setting.restDayOvertimeMultiplier.toString(),
     publicHolidayExtraMultiplier:
       setting.publicHolidayExtraMultiplier.toString(),
+    publicHolidayOvertimeMultiplier:
+      setting.publicHolidayOvertimeMultiplier.toString(),
     publicHolidayPayEnabled: setting.publicHolidayPayEnabled,
     publicHolidayPayPolicyRevision: setting.publicHolidayPayPolicyRevision,
     stateCode: setting.stateCode,

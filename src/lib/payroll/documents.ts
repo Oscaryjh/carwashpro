@@ -105,6 +105,7 @@ export function payrollDocumentEntry(
     eisEmployee: Number(entry.eisEmployee),
     lindung24Employee: Number(entry.lindung24Employee),
     pcb: Number(entry.pcb),
+    cp38: Number(entry.cp38),
     employerEpf: Number(entry.employerEpf),
     employerSocso: Number(entry.employerSocso),
     employerEis: Number(entry.employerEis),

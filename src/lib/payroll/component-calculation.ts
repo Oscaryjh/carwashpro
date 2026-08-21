@@ -115,6 +115,7 @@ export function buildStatutoryDeductionComponents(input: {
   eisEmployeeCents: number;
   lindung24EmployeeCents: number;
   pcbCents: number;
+  cp38Cents: number;
 }): PayrollComponentLine[] {
   const lines: PayrollComponentLine[] = [];
   const values = [
@@ -123,6 +124,7 @@ export function buildStatutoryDeductionComponents(input: {
     ["EIS_EMPLOYEE", "EIS Employee", input.eisEmployeeCents],
     ["LINDUNG24_EMPLOYEE", "LINDUNG 24 Employee", input.lindung24EmployeeCents],
     ["PCB", "Monthly Tax Deduction (PCB)", input.pcbCents],
+    ["CP38", "CP38 tax instruction", input.cp38Cents],
   ] as const;
   values.forEach(([code, name, amountCents], index) => {
     addPositiveLine(lines, {
@@ -151,6 +153,7 @@ export function calculatePayrollComponentAggregates(
     eisEmployeeCents: number;
     lindung24EmployeeCents: number;
     pcbCents: number;
+    cp38Cents: number;
   },
   reimbursementCents = 0,
 ): PayrollComponentAggregates {

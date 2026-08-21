@@ -21,6 +21,7 @@ import {
   type CanonicalCommandResult,
   type PayrollProfileWriteContext,
 } from "./types";
+import { pcbProfileDataSchema, pcbProfileToJson } from "../pcb-profile";
 
 const identifier = z
   .string()
@@ -49,6 +50,7 @@ const taxCommandSchema = z
       .nullable()
       .optional(),
     taxIdentificationNumber: identifier.optional(),
+    pcbProfile: pcbProfileDataSchema.nullable().optional(),
   })
   .and(reasonFieldsSchema);
 
@@ -168,6 +170,12 @@ function buildExecution(
           command.taxIdentificationNumber === undefined
             ? membership.taxIdentificationNumber
             : command.taxIdentificationNumber,
+        pcbProfile:
+          command.pcbProfile === undefined
+            ? membership.pcbProfile
+            : command.pcbProfile === null
+              ? null
+              : pcbProfileToJson(command.pcbProfile),
       };
       if (
         Boolean(desired.statutoryIdentityType) !==
@@ -188,6 +196,10 @@ function buildExecution(
           statutoryIdentityType: desired.statutoryIdentityType,
           statutoryProfileUpdatedAt: new Date(),
           taxIdentificationNumber: desired.taxIdentificationNumber,
+          pcbProfile:
+            desired.pcbProfile === null
+              ? Prisma.JsonNull
+              : desired.pcbProfile,
           taxProfileRevision: { increment: 1 },
         },
         select: {
@@ -197,6 +209,7 @@ function buildExecution(
           statutoryIdentityNumber: true,
           statutoryIdentityType: true,
           taxIdentificationNumber: true,
+          pcbProfile: true,
           taxProfileRevision: true,
         },
       });
@@ -207,10 +220,13 @@ function buildExecution(
         "epfMemberNumber",
         "socsoMemberNumber",
         "taxIdentificationNumber",
+        "pcbProfile",
       ].filter(
         (field) =>
-          String((membership as Record<string, unknown>)[field] ?? "") !==
-          String((after as Record<string, unknown>)[field] ?? ""),
+          comparableProfileValue(
+            (membership as Record<string, unknown>)[field],
+          ) !==
+          comparableProfileValue((after as Record<string, unknown>)[field]),
       );
       await writeCanonicalPayrollProfileAudit(
         {
@@ -253,4 +269,9 @@ function buildExecution(
       };
     },
   };
+}
+
+function comparableProfileValue(value: unknown) {
+  if (value === null || value === undefined) return "";
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
 }

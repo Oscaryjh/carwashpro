@@ -66,7 +66,7 @@ test("verified Claim reimbursement increases net without changing gross wage", (
       reason: null,
       sortOrder: 100,
     },
-  ], { epfEmployeeCents: 33_000, socsoEmployeeCents: 1_500, eisEmployeeCents: 500, lindung24EmployeeCents: 0, pcbCents: 4_000 }, 12_345);
+  ], { epfEmployeeCents: 33_000, socsoEmployeeCents: 1_500, eisEmployeeCents: 500, lindung24EmployeeCents: 0, pcbCents: 4_000, cp38Cents: 0 }, 12_345);
   assert.equal(totals.grossPayCents, 300_000);
   assert.equal(totals.netPayCents, 273_345);
   assert.equal(CLAIM_STATUTORY_TREATMENT_NOT_READY, "CLAIM_STATUTORY_TREATMENT_NOT_READY");

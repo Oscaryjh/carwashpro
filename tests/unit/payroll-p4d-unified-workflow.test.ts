@@ -137,6 +137,7 @@ test("P4D payslip renders frozen canonical component names", () => {
     eisEmployee: 0,
     lindung24Employee: 0,
     pcb: 0,
+    cp38: 0,
     employerEpf: 0,
     employerSocso: 0,
     employerEis: 0,
@@ -182,7 +183,12 @@ test("P4D wiring keeps domain logic server-side and publication immutable", asyn
   assert.match(readiness, /APPROVED_CORRECTION_MISSING/);
   assert.match(readiness, /PRORATION_NOT_SUPPORTED/);
   assert.match(service, /assertPayrollReadinessCanProceed\(readiness\)/);
-  assert.match(runPage, /Canonical readiness/);
+  assert.match(runPage, /Payroll readiness/);
+  assert.match(runPage, /groupReadinessIssues/);
+  assert.match(runPage, /Payroll setup incomplete/);
+  assert.match(runPage, /View fixes/);
+  assert.match(runPage, /\/admin\/statutory\/rulesets/);
+  assert.match(runPage, /section=statutory/);
   assert.match(runPage, /Publish payslips/);
   assert.match(entryPage, /Review is locked for editing/);
   assert.match(entryPage, /Finalized payroll is immutable/);

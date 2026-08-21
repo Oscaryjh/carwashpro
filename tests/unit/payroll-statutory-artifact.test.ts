@@ -133,7 +133,8 @@ test("statutory GET creates or downloads artifacts and never regenerates in the 
   assert.match(service, /isolationLevel: "Serializable"/);
   assert.doesNotMatch(page, /Confirm downloaded file|markStatutoryFileExportedAction/);
   assert.match(page, /form action=\{authorizeStatutoryExportAction\}/);
-  assert.match(page, /Verify MFA and continue/);
+  assert.match(page, /isMfaFeatureEnabled/);
+  assert.match(page, /mfaFeatureEnabled \? "Verify and continue" : "Continue"/);
   assert.doesNotMatch(page, /href=\{?`?\/team\/payroll\/statutory\/export/);
   assert.match(page, /Create correction revision/);
   assert.match(page, /Create new revision/);

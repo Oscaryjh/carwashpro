@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "id": "tetamu-pcb-2026-engineering-closure",
+  "scheme": "PCB",
+  "taxYear": 2026,
+  "engineeringStatus": "READY_FOR_HASIL_VERIFICATION",
+  "environmentBoundary": ["LOCAL", "TESTING"],
+  "productionActivated": false,
+  "hasilExternalVerificationPerformed": false,
+  "hasilApprovalEvidence": null,
+  "calculator": {
+    "version": "TETAMU_PCB_2026_1.1.0",
+    "ruleVersion": "HASIL_MTD_SPEC_2026",
+    "sourcePath": "src/lib/payroll/pcb-2026.ts",
+    "sourceSha256": "bf579528584120b8f6d5ef11ef9cacb05aaa9fceb70249710463a9578b9a1158",
+    "arithmetic": "INTEGER_SEN",
+    "rounding": "ROUND_UP_TO_5_SEN",
+    "manualFallback": false
+  },
+  "officialSources": [
+    {
+      "id": "hasil-pcb-computerised-spec-2026",
+      "path": "statutory/official/artifacts/hasil-pcb-computerised-spec-2026.pdf",
+      "sha256": "a1618051c858393d92d868c9975c183309d3d07e48f0e4f0cdef589f45f5800c"
+    },
+    {
+      "id": "hasil-pcb-tp1-2026-bm",
+      "path": "statutory/official/artifacts/hasil-pcb-tp1-2026-bm.pdf",
+      "sha256": "28f84eea1ec9842ad3bce766215917cbc739ca7cbb1b8a5bd0b7438defa3166e"
+    },
+    {
+      "id": "hasil-pcb-tp3-2026-bm",
+      "path": "statutory/official/artifacts/hasil-pcb-tp3-2026-bm.pdf",
+      "sha256": "c00c98072498284cbc97f777e038fa59c7720fcefa4909379f408f36f66683d2"
+    }
+  ],
+  "governance": {
+    "ruleSetCandidateId": "malaysia-pcb-2026-signoff-candidate-v1",
+    "ruleSetCandidateFileSha256": "54e0adb1d8aa408531c877f9d3f9d5eb92e793b06c261feb2c2835f9e77bcd7f",
+    "classificationDigest": "02df2ba360b88adfdba6209bb287ad6d3915a388f4b04926151d10544b0136c6",
+    "requirementsSha256": "0cbae34184ceddba98787199b0f1812bb49b88b5f9f3062354ca77d60093c4e4",
+    "runtimeBindingIncludes": [
+      "taxYear",
+      "officialRuleVersion",
+      "calculatorVersion",
+      "ruleSetVersion",
+      "officialSourceDigest",
+      "datasetDigest",
+      "classificationVersion",
+      "classificationDigest",
+      "effectiveFrom",
+      "environment",
+      "bindingDigest"
+    ],
+    "productionPolicy": "FAIL_CLOSED_UNLESS_HASIL_VERIFIED_AND_ACTIVE"
+  },
+  "supportedTaxRegimes": [
+    {
+      "regime": "RESIDENT_STANDARD",
+      "status": "ENGINEERING_VERIFIED",
+      "officialGoldenFixtureCount": 5
+    },
+    {
+      "regime": "NON_RESIDENT",
+      "status": "IMPLEMENTED_FAIL_CLOSED_PENDING_SCOPE_VERIFICATION"
+    },
+    {
+      "regime": "RETURNING_EXPERT_PROGRAM",
+      "status": "IMPLEMENTED_FAIL_CLOSED_PENDING_APPROVAL_EVIDENCE"
+    },
+    {
+      "regime": "KNOWLEDGE_WORKER",
+      "status": "IMPLEMENTED_FAIL_CLOSED_PENDING_APPROVAL_EVIDENCE"
+    },
+    {
+      "regime": "C_SUITE_NON_CITIZEN",
+      "status": "IMPLEMENTED_FAIL_CLOSED_PENDING_APPROVAL_EVIDENCE"
+    }
+  ],
+  "tp1Support": {
+    "formVersion": "HASIL_TP1_1_2026_BM",
+    "structuredCategories": [
+      "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9",
+      "C10", "C11", "C12", "C13", "C14", "C15", "C16", "C17", "D1"
+    ],
+    "categoryLimitsValidated": true,
+    "duplicateCategoriesRejected": true,
+    "sourceReferenceRequired": true,
+    "revisionRetained": true
+  },
+  "tp3Support": {
+    "formVersion": "HASIL_TP3_1_2026_BM",
+    "accumulatedFields": {
+      "C1": "grossRemunerationCents",
+      "C2": "NOT_SUPPORTED_EXEMPT_INCOME_IS_NOT_ADDED_TO_PCB_REMUNERATION",
+      "C3": "epfCents",
+      "C4": "zakatCents",
+      "C5": "pcbCents_EXCLUDING_CP38"
+    },
+    "structuredDeductionCategories": [
+      "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
+      "D10", "D11", "D12", "D13", "D14", "D15", "D16", "D17"
+    ],
+    "categoryLimitsValidated": true,
+    "duplicateCategoriesRejected": true,
+    "sourceReferenceRequired": true,
+    "revisionRetained": true
+  },
+  "classificationScope": {
+    "declaredComponents": 23,
+    "deterministicMappings": 15,
+    "explicitReviewRequiredMappings": 8,
+    "unlistedCustomComponents": "FAIL_CLOSED_REVIEW_REQUIRED",
+    "unknownTreatmentFallback": false
+  },
+  "cp38": {
+    "separateFromPcbFormula": true,
+    "instructionLifecycle": true,
+    "payrollEntryDeduction": true,
+    "payslipLine": true,
+    "frozenSnapshot": true,
+    "cp39DetailAndTotals": true,
+    "ambiguousInstructionPolicy": "FAIL_CLOSED"
+  },
+  "cp39": {
+    "format": "LHDN_CP39_EXHIBIT_4_2026",
+    "headerCharacters": 57,
+    "detailCharacters": 136,
+    "newline": "CRLF",
+    "encoding": "UTF-8_ASCII_FIELD_SUBSET",
+    "pcbAndCp38Amounts": "INTEGER_SEN_ZERO_PADDED",
+    "byteGoldenResult": "PASS",
+    "portalAcceptanceClaimed": false
+  },
+  "goldenVerification": {
+    "fixtureSetId": "hasil-pcb-2026-official-golden-v1",
+    "fixtureCount": 5,
+    "fixtureFileSha256": "93e0f68b3cc13933b20e1fa3c297f3aceba7f229a3f462000f8bfd1e308627d4",
+    "tetamuDifferenceCents": 0,
+    "result": "PASS"
+  },
+  "testEvidence": {
+    "command": "npx tsx --test tests/unit/payroll-pcb-2026.test.ts tests/unit/payroll-pcb-profile.test.ts tests/unit/payroll-pcb-runtime.test.ts tests/unit/payroll-cp38-instruction.test.ts tests/unit/payroll-statutory-submission.test.ts tests/unit/payroll-pcb-engineering-closure.test.ts",
+    "tests": 46,
+    "passed": 46,
+    "failed": 0,
+    "typeCheck": "npx tsc --noEmit",
+    "typeCheckResult": "PASS"
+  },
+  "candidateSourceCommit": "bdc15f8805b8ff401ff60a5c9da37fb5928fc08a",
+  "workingTreeModifiedForClosure": true,
+  "knownUnsupportedCases": [
+    "TP3 C2 exempt-income capture is not represented because it is not added to PCB remuneration; imports must not convert it to taxable pay.",
+    "Ambiguous or unlisted custom payroll components remain blocked until HR classification is supported by retained evidence.",
+    "Special tax regimes and non-resident calculation remain runtime-gated to the regimes explicitly named in activation evidence.",
+    "HASiL software verification and CP39 portal acceptance have not been performed."
+  ],
+  "remainingHumanActions": [
+    "Submit the retained calculator package and official examples for HASiL computerized MTD software verification.",
+    "Record genuine HASiL approval evidence before any production activation.",
+    "Complete HR classification only for ambiguous payroll components actually used by a business.",
+    "Run a real CP39 portal acceptance exercise separately; no acceptance is claimed here."
+  ]
+}

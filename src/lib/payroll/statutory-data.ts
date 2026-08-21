@@ -72,6 +72,7 @@ export async function loadStatutorySubmissionData(
       employerEis: Number(entry.employerEis),
       lindung24Employee: Number(entry.lindung24Employee),
       pcb: Number(entry.pcb),
+      cp38: Number(entry.cp38),
       membership: entry.membership,
     })),
   };

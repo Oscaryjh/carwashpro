@@ -35,6 +35,7 @@ const run: StatutorySubmissionRun = {
     employerEis: 6.5,
     lindung24Employee: 0,
     pcb: 12.5,
+    cp38: 7.25,
     membership: {
       statutoryIdentityType: "NEW_IC",
       statutoryIdentityNumber: "900101145555",
@@ -80,8 +81,32 @@ test("LHDN CP39 file has a 57-character header and 136-character detail", () => 
   assert.equal(detail.slice(0, 1), "D");
   assert.equal(detail.slice(1, 12), "12345678901");
   assert.equal(detail.slice(84, 96), "900101145555");
-  assert.equal(detail.slice(110, 118), "00012.50");
+  assert.equal(header.slice(27, 37), "0000001250");
+  assert.equal(header.slice(37, 42), "00001");
+  assert.equal(header.slice(42, 52), "0000000725");
+  assert.equal(header.slice(52, 57), "00001");
+  assert.equal(detail.slice(110, 118), "00001250");
+  assert.equal(detail.slice(118, 126), "00000725");
   assert.equal(statutorySubmissionFileName("PCB", profile, run), "000065432108_2026.txt");
+});
+
+test("LHDN CP39 Exhibit 4 output is byte-stable for PCB and CP38 amounts", () => {
+  const text = buildOfficialSubmissionFile("PCB", profile, run).toString("utf8");
+  const expectedHeader =
+    "H00001234560000654321202608000000125000001000000072500001";
+  const expectedDetail = [
+    "D",
+    "12345678901",
+    "Oscar Staff".padEnd(60, " "),
+    " ".repeat(12),
+    "900101145555",
+    " ".repeat(12),
+    "  ",
+    "00001250",
+    "00000725",
+    "EMP001".padEnd(10, " "),
+  ].join("");
+  assert.deepEqual(Buffer.from(text, "utf8"), Buffer.from(`${expectedHeader}\r\n${expectedDetail}\r\n`, "utf8"));
 });
 
 test("validation lists employee-specific blocking fields instead of guessing", () => {

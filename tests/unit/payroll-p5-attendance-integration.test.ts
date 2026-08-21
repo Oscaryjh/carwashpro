@@ -204,6 +204,27 @@ test("P5 keeps Monthly base salary separate and fails closed for unsupported mon
     policyReady.policyBlockers.join(","),
     /PUBLIC_HOLIDAY_RATE_POLICY_NOT_READY/,
   );
+
+  const absencePolicyReady = buildPayrollAttendanceInput({
+    membershipId: "member-3",
+    payBasis: "MONTHLY",
+    monthlyAbsencePolicyReady: true,
+    days: [day("absence-ready", "UNAUTHORIZED_ABSENCE", 0, "WORKDAY")],
+  });
+  assert.deepEqual(absencePolicyReady.policyBlockers, []);
+  const absenceLines = buildAttendancePayrollComponents({
+    snapshotId: "10000000-0000-4000-8000-000000000003",
+    timesheetRevision: 1,
+    periodStart,
+    payBasis: "MONTHLY",
+    baseRateCents: 260_000,
+    workingDaysPerMonth: 26,
+    attendance: absencePolicyReady,
+  });
+  assert.equal(absenceLines.length, 1);
+  assert.equal(absenceLines[0]?.type, "DEDUCTION");
+  assert.equal(absenceLines[0]?.code, "UNPAID_ABSENCE_DEDUCTION");
+  assert.equal(absenceLines[0]?.amountCents, 10_000);
 });
 
 test("P5 correction bridge proposes a P4C-governed future delta without rewriting history", () => {

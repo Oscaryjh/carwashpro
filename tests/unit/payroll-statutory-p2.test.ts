@@ -2,12 +2,18 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  contributionDatasetFromRule,
   resolveApplicableStatutoryRule,
   resolveComponentTreatment,
   resolveStatutorySchemeEligibility,
 } from "../../src/lib/payroll/statutory-p2";
 import { buildStatutoryDeductionComponents } from "../../src/lib/payroll/component-calculation";
 import { isStatutorySnapshotSourceCurrent } from "../../src/lib/payroll/readiness";
+import {
+  contributionDatasetDigest,
+  validateContributionDataset,
+  type NormalizedContributionDataset,
+} from "../../src/lib/payroll/statutory-artifact-pipeline";
 
 const period = new Date("2026-08-01T00:00:00.000Z");
 
@@ -113,8 +119,67 @@ test("classification is scheme-specific and unknown never defaults included or e
   assert.equal(resolveComponentTreatment({
     componentCode: "CUSTOM_BONUS_X",
     componentSourceType: "VARIABLE_PAY",
+    componentType: "EARNING",
     classifications,
   }), null);
+});
+
+test("a frozen payroll deduction never blocks the statutory remuneration base", () => {
+  const treatment = resolveComponentTreatment({
+    componentCode: "UNPAID_ABSENCE_DEDUCTION",
+    componentSourceType: "ATTENDANCE",
+    componentType: "DEDUCTION",
+    classifications: [],
+  });
+
+  assert.equal(treatment?.treatment, "EXCLUDED");
+  assert.equal(treatment?.id, null);
+  assert.match(treatment?.rationale ?? "", /cannot increase a statutory remuneration base/);
+});
+
+test("retained rule metadata is excluded from contribution dataset verification", () => {
+  const datasetWithoutDigest = {
+    schemaVersion: 1 as const,
+    id: "test-dataset",
+    schemes: ["EPF" as const],
+    artifactId: "test-artifact",
+    artifactSha256: "a".repeat(64),
+    parserName: "test-parser",
+    parserVersion: "1.0.0",
+    extractionMode: "MANUALLY_TRANSCRIBED" as const,
+    verificationStatus: "VERIFIED" as const,
+    expectedRowCount: 1,
+    calculationMode: "TABLE_ONLY" as const,
+    rows: [{
+      key: "all-wages",
+      lowerInclusiveCents: 0,
+      upperInclusiveCents: null,
+      contributions: { employee: 0, employer: 0 },
+      sourceReference: "test source",
+    }],
+  };
+  const dataset: NormalizedContributionDataset = {
+    ...datasetWithoutDigest,
+    datasetDigest: contributionDatasetDigest(datasetWithoutDigest),
+  };
+  const projected = contributionDatasetFromRule({
+    id: "rule-1",
+    scheme: "EPF",
+    version: "TEST",
+    effectiveFrom: period,
+    effectiveTo: null,
+    readiness: "CALCULATION_VERIFIED",
+    status: "ACTIVE",
+    sourceDigest: dataset.artifactSha256,
+    datasetDigest: dataset.datasetDigest,
+    ruleData: {
+      ...dataset,
+      evidencePackDigest: "b".repeat(64),
+      knownLimitations: ["metadata retained beside the dataset"],
+    },
+  }, "EPF");
+
+  assert.equal(validateContributionDataset(projected).datasetDigest, dataset.datasetDigest);
 });
 
 test("EIS eligibility distinguishes legitimate ineligibility from missing profile facts", () => {
@@ -254,6 +319,7 @@ test("statutory employee deductions have stable P4B component provenance", () =>
     eisEmployeeCents: 200,
     lindung24EmployeeCents: 0,
     pcbCents: 4500,
+    cp38Cents: 0,
   });
   assert.deepEqual(lines.map((line) => line.lineKey), [
     "STATUTORY:EPF_EMPLOYEE",

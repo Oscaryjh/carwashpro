@@ -60,6 +60,10 @@ export type EmployeeCompensationSectionResult =
           type: "EARNING" | "DEDUCTION";
         }>;
         workingDaysPerMonth: number;
+        workingDaysPolicySource:
+          | "Employee profile"
+          | "Company payroll settings"
+          | "System default";
         normalWorkMinutesPerDay: number;
         normalWorkPolicySource:
           | "Employee profile"
@@ -116,6 +120,7 @@ export async function loadEmployeeCompensationSection(
         workTargetRevision: true,
         payBasis: true,
         baseSalary: true,
+        workingDaysPerMonth: true,
         normalWorkMinutesPerDay: true,
         targetBreakMinutes: true,
       },
@@ -201,6 +206,11 @@ export async function loadEmployeeCompensationSection(
     return { status: "NOT_FOUND" };
   }
 
+  const workingDaysPolicySource = membership.workingDaysPerMonth != null
+    ? "Employee profile"
+    : payrollSetting
+      ? "Company payroll settings"
+      : "System default";
   const normalWorkPolicySource = membership.normalWorkMinutesPerDay !== null
     ? "Employee profile"
     : payrollSetting
@@ -269,8 +279,10 @@ export async function loadEmployeeCompensationSection(
         }];
       }),
       workingDaysPerMonth:
+        membership.workingDaysPerMonth ??
         payrollSetting?.workingDaysPerMonth ??
         DEFAULT_PAYROLL_SETTING.workingDaysPerMonth,
+      workingDaysPolicySource,
       normalWorkMinutesPerDay:
         membership.normalWorkMinutesPerDay ??
         payrollSetting?.normalWorkMinutesPerDay ??

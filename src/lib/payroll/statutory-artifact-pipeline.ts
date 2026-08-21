@@ -516,7 +516,11 @@ export function prepareControlledActivation(input: {
     input.actorCapabilities !== undefined &&
     !input.actorCapabilities.includes("ACTIVATE_STATUTORY_RULESET")
   ) throw new Error("STATUTORY_CAPABILITY_REQUIRED:ACTIVATE_STATUTORY_RULESET");
-  if (input.reviewerActorId && input.reviewerActorId === input.actorId) {
+  if (
+    input.reviewerActorId &&
+    input.reviewerActorId === input.actorId &&
+    !input.actorCapabilities?.includes("SIGN_OFF_STATUTORY_RULESET")
+  ) {
     throw new Error("STATUTORY_REVIEWER_ACTIVATOR_SEPARATION_REQUIRED");
   }
   const reason = input.reason.trim();

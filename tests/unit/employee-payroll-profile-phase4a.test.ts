@@ -31,9 +31,34 @@ test("Phase 4A UI is capability-aware and explains monthly and draft boundaries"
   assert.match(source, /Finalized and locked Payroll Runs retain/);
   assert.match(source, /Saving does not recalculate an existing Draft/);
   assert.match(source, /Refresh the Draft manually/);
+  assert.match(source, /Applies to the next payroll/);
+  assert.match(source, /Changes will be applied automatically/);
+  assert.doesNotMatch(source, /No payroll draft exists yet/);
+  assert.match(source, /payroll draft needs refreshing/);
+  assert.match(source, /Monthly pay updated/);
+  assert.match(source, /The change will apply automatically to the next payroll/);
+  assert.doesNotMatch(source, /View change details/);
+  assert.doesNotMatch(source, /Saved revision/);
+  assert.doesNotMatch(source, /Changed fields:/);
+  assert.match(source, /Monthly additions/);
+  assert.match(source, /Monthly deductions/);
+  assert.match(source, /Transport allowance/);
+  assert.match(source, /Payroll status/);
+  assert.match(source, /Complete statutory & tax details/);
+  assert.match(source, /Bank account added/);
+  assert.match(source, /Confirm the bank name and account number before the first salary payment/);
+  assert.doesNotMatch(source, /Verify bank account/);
+  assert.doesNotMatch(source, /No payroll run includes this employee yet/);
+  assert.doesNotMatch(source, /How payroll records are updated/);
+  assert.match(source, /result\.payslip\.status !== "AVAILABLE"/);
+  assert.doesNotMatch(source, /No published payslip available/);
+  assert.doesNotMatch(source, /Payment tracking is not available/);
+  assert.doesNotMatch(source, /title="Recurring earnings"/);
+  assert.doesNotMatch(source, /title="Recurring deductions"/);
   assert.match(source, /Change reason/);
-  assert.match(source, /Payroll Workspace/);
+  assert.match(source, /calculated and reviewed in individual Payroll Runs/);
   assert.match(source, /Payroll Runs/);
+  assert.doesNotMatch(source, /View Payroll Runs in Workspace|Payroll Workspace/);
 });
 
 test("legacy employee editors no longer expose existing compensation fields", async () => {

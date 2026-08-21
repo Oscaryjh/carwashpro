@@ -5,6 +5,13 @@ import { headers } from "next/headers";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { pcbProfileDataSchema, type EmployeePcbProfile } from "@/lib/payroll/pcb-profile";
+import {
+  PCB_2026_TP1_CATEGORIES,
+  PCB_2026_TP3_CATEGORIES,
+  type Pcb2026Tp1Category,
+  type Pcb2026Tp3Category,
+} from "@/lib/payroll/pcb-declarations";
 import { getAuditRequestContext } from "@/lib/audit";
 import {
   assertServerActionSameOrigin,
@@ -26,6 +33,7 @@ import {
   deactivateEmployeeBankVersion,
   verifyEmployeeBankVersion,
 } from "@/lib/payroll/payment/bank-account-service";
+import { isPayrollBankAccountMfaEnabled } from "@/lib/payroll/payment/bank-account-security";
 import { PayrollPaymentError } from "@/lib/payroll/payment/types";
 import {
   issuePayrollHighRiskAuthorization,
@@ -38,8 +46,9 @@ import {
   updateEmployeePayrollWorkTarget,
 } from "@/lib/payroll/employee-profile-write/work-target";
 import { updateEmployeeStatutoryProfile } from "@/lib/payroll/employee-profile-write/statutory";
+import { updateEmployeeStatutoryAndTaxProfiles } from "@/lib/payroll/employee-profile-write/statutory-tax";
 import { updateEmployeeTaxProfile } from "@/lib/payroll/employee-profile-write/tax";
-import { recordEmployeeLindung24Participation } from "@/lib/payroll/lindung24-participation-service";
+import { recordEmployeeLindung24ParticipationAndRefreshDrafts } from "@/lib/payroll/lindung24-participation-service";
 
 const reasonSchema = z.object({
   reasonNote: z.string().trim().min(5, "Enter a reason of at least 5 characters.").max(500),
@@ -53,11 +62,11 @@ const compensationSchema = z.object({
   expectedRevision: z.coerce.number().int().min(0),
   membershipId: z.string().uuid(),
   payBasis: z.enum(["MONTHLY", "DAILY", "HOURLY"]),
-}).and(reasonSchema);
+});
 
 const recurringPaySchema = z.object({
   amount: z.string().trim().regex(/^\d+(?:\.\d{1,2})?$/, "Enter a valid positive RM amount."),
-  code: z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9_]{1,63}$/, "Use an uppercase component code."),
+  code: z.string().trim().toUpperCase().optional().default(""),
   commandId: z.string().trim().min(1).max(128),
   componentId: z.preprocess(
     (value) => typeof value === "string" && value.trim() === "" ? null : value,
@@ -69,20 +78,26 @@ const recurringPaySchema = z.object({
   name: z.string().trim().min(1).max(120),
   operation: z.enum(["SET", "END"]),
   type: z.enum(["EARNING", "DEDUCTION"]),
-}).and(reasonSchema);
+});
 
 const optionalMinutes = z.preprocess(
   (value) => typeof value === "string" && value.trim() === "" ? null : value,
   z.coerce.number().int().min(1).max(1_440).nullable(),
 );
 
+const optionalWorkingDays = z.preprocess(
+  (value) => typeof value === "string" && value.trim() === "" ? null : value,
+  z.coerce.number().int().min(1).max(31).nullable(),
+);
+
 const workTargetSchema = z.object({
   commandId: z.string().trim().min(1).max(128),
   expectedRevision: z.coerce.number().int().min(0),
   membershipId: z.string().uuid(),
+  workingDaysPerMonth: optionalWorkingDays,
   normalWorkMinutesPerDay: optionalMinutes,
   targetBreakMinutes: optionalMinutes,
-}).and(reasonSchema).superRefine((value, context) => {
+}).superRefine((value, context) => {
   if (
     value.normalWorkMinutesPerDay !== null &&
     value.targetBreakMinutes !== null &&
@@ -113,12 +128,24 @@ const lindung24ParticipationSchema = z.object({
   expectedRevision: z.coerce.number().int().min(0),
   membershipId: z.string().uuid(),
   officialSubmittedAt: z.preprocess(
-    (value) => typeof value === "string" && value.trim() === "" ? null : value,
-    z.coerce.date().nullable(),
+    (value) => value === null || (typeof value === "string" && value.trim() === "")
+      ? new Date()
+      : value,
+    z.coerce.date(),
   ),
-  reason: z.string().trim().min(5).max(500),
+  reason: z.preprocess(
+    (value) => typeof value !== "string" || value.trim() === ""
+      ? "LINDUNG 24 coverage updated from the employee profile."
+      : value,
+    z.string().trim().min(5).max(500),
+  ),
   selectedEmployer: z.enum(["CURRENT_BUSINESS", "OTHER_EMPLOYER", "PERKESO_SELECTION_PENDING"]),
-  sourceReference: z.string().trim().min(5).max(500),
+  sourceReference: z.preprocess(
+    (value) => typeof value !== "string" || value.trim() === ""
+      ? "HR-confirmed LINDUNG 24 coverage"
+      : value,
+    z.string().trim().min(5).max(500),
+  ),
   sourceType: z.enum([
     "OFFICIAL_TRANSITION",
     "EMPLOYEE_OPT_IN",
@@ -151,7 +178,172 @@ const taxProfileSchema = z.object({
     .enum(["NEW_IC", "OLD_IC", "PASSPORT", "OTHER"])
     .nullable(),
   taxIdentificationNumber: replacementIdentifier,
+  pcbProfile: pcbProfileDataSchema.nullable().optional(),
 }).and(reasonSchema);
+
+const pcbFormSchema = z.object({
+  pcbTaxYear: z.coerce.number().int().refine((value) => value === 2026),
+  pcbTaxRegime: z.enum([
+    "RESIDENT_STANDARD",
+    "NON_RESIDENT",
+    "RETURNING_EXPERT_PROGRAM",
+    "KNOWLEDGE_WORKER",
+    "C_SUITE_NON_CITIZEN",
+  ]),
+  pcbEmployeeCategory: z.enum(["CATEGORY_1", "CATEGORY_2", "CATEGORY_3"]),
+  pcbUnder18Full: z.coerce.number().int().min(0).max(99),
+  pcbUnder18Half: z.coerce.number().int().min(0).max(99),
+  pcbStudying18PlusFull: z.coerce.number().int().min(0).max(99),
+  pcbStudying18PlusHalf: z.coerce.number().int().min(0).max(99),
+  pcbDiplomaOrDegreeFull: z.coerce.number().int().min(0).max(99),
+  pcbDiplomaOrDegreeHalf: z.coerce.number().int().min(0).max(99),
+  pcbDisabledFull: z.coerce.number().int().min(0).max(99),
+  pcbDisabledHalf: z.coerce.number().int().min(0).max(99),
+  pcbDisabledStudyingFull: z.coerce.number().int().min(0).max(99),
+  pcbDisabledStudyingHalf: z.coerce.number().int().min(0).max(99),
+  pcbPriorEmployerGross: z.coerce.number().min(0),
+  pcbPriorEmployerEpf: z.coerce.number().min(0),
+  pcbPriorEmployerPcb: z.coerce.number().min(0),
+  pcbPriorEmployerZakat: z.coerce.number().min(0),
+  pcbReligiousTravelLevy: z.coerce.number().min(0),
+  pcbTp1Reference: z.string().trim().max(240).optional().default(""),
+  pcbTp3Reference: z.string().trim().max(240).optional().default(""),
+  pcbReligiousTravelLevyReference: z.string().trim().max(240).optional().default(""),
+  pcbProfileRevision: z.coerce.number().int().min(0).optional().default(0),
+});
+
+function pcbProfileFromForm(
+  formData: FormData,
+): EmployeePcbProfile | null | undefined {
+  if (formData.get("pcbProfilePresent") !== "1") return undefined;
+  if (formData.get("pcbProfileMode") !== "CONFIRMED") return null;
+  const value = pcbFormSchema.parse(Object.fromEntries(formData));
+  const cents = (amount: number) => Math.round(amount * 100);
+  const confirmedAt = new Date().toISOString();
+  const tp1Status = formData.has("pcbTp1Confirmed")
+    ? "CONFIRMED"
+    : "NOT_APPLICABLE";
+  const tp3Status = formData.has("pcbTp3Confirmed")
+    ? "CONFIRMED"
+    : "NOT_APPLICABLE";
+  const religiousTravelLevyStatus = formData.has("pcbReligiousTravelLevyConfirmed")
+    ? "CONFIRMED"
+    : "NOT_APPLICABLE";
+  const priorEmployerGrossRemunerationCents =
+    tp3Status === "CONFIRMED" ? cents(value.pcbPriorEmployerGross) : 0;
+  const priorEmployerEpfCents =
+    tp3Status === "CONFIRMED" ? cents(value.pcbPriorEmployerEpf) : 0;
+  const priorEmployerPcbCents =
+    tp3Status === "CONFIRMED" ? cents(value.pcbPriorEmployerPcb) : 0;
+  const priorEmployerZakatCents =
+    tp3Status === "CONFIRMED" ? cents(value.pcbPriorEmployerZakat) : 0;
+  const currentReligiousTravelLevyCents =
+    religiousTravelLevyStatus === "CONFIRMED"
+      ? cents(value.pcbReligiousTravelLevy)
+      : 0;
+  const declarationEntries = <T extends Pcb2026Tp1Category | Pcb2026Tp3Category>(
+    categories: readonly { code: T; limitCents: number }[],
+    prefix: "pcbTp1" | "pcbTp3",
+    sourceForm: "HASIL_TP1_1_2026_BM" | "HASIL_TP3_1_2026_BM",
+    sourceReference: string,
+  ) => categories.flatMap(({ code, limitCents }) => {
+    const raw = String(formData.get(`${prefix}${code}`) ?? "").trim();
+    if (!raw) return [];
+    const amount = Number(raw);
+    if (!Number.isFinite(amount) || amount < 0) {
+      throw new Error(`Enter a valid non-negative amount for ${code}.`);
+    }
+    const amountCents = cents(amount);
+    if (amountCents === 0) return [];
+    return [{
+      taxYear: 2026 as const,
+      categoryCode: code,
+      amountCents,
+      categoryLimitCents: limitCents,
+      sourceForm,
+      sourceReference,
+      declarationStatus: "CONFIRMED" as const,
+      reviewStatus: "REVIEWED" as const,
+      revision: value.pcbProfileRevision + 1,
+    }];
+  });
+  const tp1Entries = tp1Status === "CONFIRMED"
+    ? declarationEntries(PCB_2026_TP1_CATEGORIES, "pcbTp1", "HASIL_TP1_1_2026_BM", value.pcbTp1Reference)
+    : [];
+  const tp3Entries = tp3Status === "CONFIRMED"
+    ? declarationEntries(PCB_2026_TP3_CATEGORIES, "pcbTp3", "HASIL_TP3_1_2026_BM", value.pcbTp3Reference)
+    : [];
+  const structuredCurrentDeductionsCents = tp1Entries
+    .filter((entry) => entry.categoryCode !== "D1")
+    .reduce((total, entry) => total + entry.amountCents, 0);
+  const structuredCurrentZakatCents = tp1Entries
+    .filter((entry) => entry.categoryCode === "D1")
+    .reduce((total, entry) => total + entry.amountCents, 0);
+  const structuredPriorDeductionsCents = tp3Entries
+    .reduce((total, entry) => total + entry.amountCents, 0);
+  return pcbProfileDataSchema.parse({
+    version: 3,
+    profileRevision: value.pcbProfileRevision + 1,
+    taxYear: value.pcbTaxYear,
+    taxRegime: value.pcbTaxRegime,
+    employeeCategory: value.pcbEmployeeCategory,
+    individualDisabled: formData.has("pcbIndividualDisabled"),
+    spouseDisabled: formData.has("pcbSpouseDisabled"),
+    children: {
+      under18Full: value.pcbUnder18Full,
+      under18Half: value.pcbUnder18Half,
+      studying18PlusFull: value.pcbStudying18PlusFull,
+      studying18PlusHalf: value.pcbStudying18PlusHalf,
+      diplomaOrDegreeFull: value.pcbDiplomaOrDegreeFull,
+      diplomaOrDegreeHalf: value.pcbDiplomaOrDegreeHalf,
+      disabledFull: value.pcbDisabledFull,
+      disabledHalf: value.pcbDisabledHalf,
+      disabledStudyingFull: value.pcbDisabledStudyingFull,
+      disabledStudyingHalf: value.pcbDisabledStudyingHalf,
+    },
+    priorEmployerGrossRemunerationCents,
+    priorEmployerEpfCents,
+    priorEmployerPcbCents,
+    priorEmployerAllowableDeductionsCents: structuredPriorDeductionsCents,
+    priorEmployerZakatCents,
+    currentAllowableDeductionsCents: structuredCurrentDeductionsCents,
+    currentZakatCents: structuredCurrentZakatCents,
+    currentReligiousTravelLevyCents,
+    tp1Declaration: {
+      formVersion: "HASIL_TP1_1_2026_BM",
+      status: tp1Status,
+      entries: tp1Entries,
+      sourceReference:
+        tp1Status === "CONFIRMED" ? value.pcbTp1Reference || null : null,
+      declaredAt: confirmedAt,
+      reviewedAt: confirmedAt,
+    },
+    tp3Declaration: {
+      formVersion: "HASIL_TP3_1_2026_BM",
+      status: tp3Status,
+      grossRemunerationCents: priorEmployerGrossRemunerationCents,
+      epfCents: priorEmployerEpfCents,
+      pcbCents: priorEmployerPcbCents,
+      zakatCents: priorEmployerZakatCents,
+      entries: tp3Entries,
+      sourceReference:
+        tp3Status === "CONFIRMED" ? value.pcbTp3Reference || null : null,
+      declaredAt: confirmedAt,
+      reviewedAt: confirmedAt,
+    },
+    religiousTravelLevyDeclaration: {
+      status: religiousTravelLevyStatus,
+      amountCents: currentReligiousTravelLevyCents,
+      sourceReference:
+        religiousTravelLevyStatus === "CONFIRMED"
+          ? value.pcbReligiousTravelLevyReference || null
+          : null,
+      declaredAt: confirmedAt,
+      reviewedAt: confirmedAt,
+    },
+    confirmedAt,
+  });
+}
 
 const bankVersionBaseSchema = z.object({
   commandId: z.string().trim().min(1).max(128),
@@ -188,6 +380,8 @@ export async function scheduleEmployeeCompensationChangeAction(formData: FormDat
       command: {
         ...input,
         effectiveFromMonth: new Date(`${input.effectiveFromMonth}-01T00:00:00.000Z`),
+        reasonNote: "Salary updated from the employee payroll profile.",
+        reasonType: "PAYROLL_POLICY_CHANGE",
         source: "MANUAL",
       },
       context: {
@@ -227,6 +421,12 @@ export async function scheduleEmployeeRecurringPayAction(formData: FormData) {
       command: {
         ...input,
         effectiveFromMonth: new Date(`${input.effectiveFromMonth}-01T00:00:00.000Z`),
+        reasonNote: input.operation === "END"
+          ? "Monthly payroll item ended from the employee payroll profile."
+          : input.componentId
+            ? "Monthly payroll item updated from the employee payroll profile."
+            : "Monthly payroll item added from the employee payroll profile.",
+        reasonType: "PAYROLL_POLICY_CHANGE",
         source: "MANUAL",
       },
       context: {
@@ -265,7 +465,11 @@ export async function updateEmployeePayrollWorkTargetAction(formData: FormData) 
     const context = await requireWholeBusinessPayroll("EDIT_COMPENSATION");
     const request = await getAuditRequestContext();
     const result = await updateEmployeePayrollWorkTarget({
-      command: input,
+      command: {
+        ...input,
+        reasonNote: "Payroll work hours updated from the employee payroll profile.",
+        reasonType: "PAYROLL_POLICY_CHANGE",
+      },
       context: {
         access: context.access,
         actor: context.user,
@@ -361,6 +565,155 @@ export async function updateEmployeeStatutoryProfileAction(formData: FormData) {
   }
 }
 
+export async function updateEmployeeStatutoryAndTaxProfilesAction(
+  formData: FormData,
+) {
+  let membershipId = safeMembershipId(formData.get("membershipId"));
+  try {
+    const statutoryInput = statutoryProfileSchema.parse({
+      commandId: formData.get("statutoryCommandId"),
+      expectedRevision: formData.get("statutoryExpectedRevision"),
+      membershipId: formData.get("membershipId"),
+      reasonNote:
+        "Statutory contribution settings updated from the employee profile.",
+      reasonType: "STATUTORY_CORRECTION",
+      socsoCategory: optionalFormValue(formData, "socsoCategory"),
+      statutoryNationality: optionalFormValue(
+        formData,
+        "statutoryNationality",
+      ),
+    });
+    const taxInput = taxProfileSchema.parse({
+      commandId: formData.get("taxCommandId"),
+      epfMemberNumber: formData.get("epfMemberNumber"),
+      expectedRevision: formData.get("taxExpectedRevision"),
+      membershipId: formData.get("membershipId"),
+      reasonNote: "Tax and government IDs updated from the employee profile.",
+      reasonType: "TAX_INFORMATION_UPDATE",
+      socsoMemberNumber: formData.get("socsoMemberNumber"),
+      statutoryCountryCode: formData.get("statutoryCountryCode"),
+      statutoryIdentityNumber: formData.get("statutoryIdentityNumber"),
+      statutoryIdentityType: optionalFormValue(
+        formData,
+        "statutoryIdentityType",
+      ),
+      taxIdentificationNumber: formData.get("taxIdentificationNumber"),
+      pcbProfile: pcbProfileFromForm(formData),
+    });
+    membershipId = statutoryInput.membershipId;
+    if (taxInput.membershipId !== membershipId) {
+      throw new PayrollProfileWriteError(
+        "VALIDATION_ERROR",
+        "The statutory and tax records must belong to the same employee.",
+      );
+    }
+
+    const [statutoryContext, taxContext, request] = await Promise.all([
+      requireWholeBusinessPayroll("EDIT_STATUTORY_PROFILE"),
+      requireWholeBusinessPayroll("EDIT_TAX_PROFILE"),
+      getAuditRequestContext(),
+    ]);
+    if (statutoryContext.businessId !== taxContext.businessId) {
+      throw new PayrollProfileWriteError(
+        "ACCESS_DENIED",
+        "The statutory and tax records must belong to the same business.",
+      );
+    }
+
+    const epfEnabled = formData.has("epfEnabled");
+    const socsoEnabled = formData.has("socsoEnabled");
+    const eisEnabled = formData.has("eisEnabled");
+    const clearIdentity = formData.has("clearIdentity");
+    const result = await updateEmployeeStatutoryAndTaxProfiles({
+      statutory: {
+        command: {
+          ...statutoryInput,
+          eisEnabled,
+          eisPreviouslyContributed:
+            eisEnabled && formData.has("eisPreviouslyContributed"),
+          epfEnabled,
+          epfMemberBeforeAug1998:
+            epfEnabled && formData.has("epfMemberBeforeAug1998"),
+          lindung24OptIn:
+            socsoEnabled && formData.get("lindung24OptIn") === "on",
+          socsoCategory: socsoEnabled ? statutoryInput.socsoCategory : null,
+          socsoEnabled,
+        },
+        context: {
+          access: statutoryContext.access,
+          actor: statutoryContext.user,
+          allowedBranchIds: statutoryContext.allowedBranchIds,
+          businessId: statutoryContext.businessId,
+          caller: "EMPLOYEE_ACTION",
+          request,
+        },
+      },
+      tax: {
+        command: {
+          commandId: taxInput.commandId,
+          epfMemberNumber: replacementValue(
+            taxInput.epfMemberNumber,
+            formData.has("clearEpfMemberNumber"),
+          ),
+          expectedRevision: taxInput.expectedRevision,
+          membershipId: taxInput.membershipId,
+          reasonNote: taxInput.reasonNote,
+          reasonType: taxInput.reasonType,
+          socsoMemberNumber: replacementValue(
+            taxInput.socsoMemberNumber,
+            formData.has("clearSocsoMemberNumber"),
+          ),
+          statutoryCountryCode:
+            taxInput.statutoryCountryCode.trim().toUpperCase() || null,
+          statutoryIdentityNumber: clearIdentity
+            ? null
+            : replacementValue(taxInput.statutoryIdentityNumber, false),
+          statutoryIdentityType: clearIdentity
+            ? null
+            : taxInput.statutoryIdentityType ?? undefined,
+          taxIdentificationNumber: replacementValue(
+            taxInput.taxIdentificationNumber,
+            formData.has("clearTaxIdentificationNumber"),
+          ),
+          pcbProfile: taxInput.pcbProfile,
+        },
+        context: {
+          access: taxContext.access,
+          actor: taxContext.user,
+          allowedBranchIds: taxContext.allowedBranchIds,
+          businessId: taxContext.businessId,
+          caller: "EMPLOYEE_ACTION",
+          request,
+        },
+      },
+    });
+
+    revalidatePayrollProfile(membershipId);
+    redirect(profileNoticeUrl(membershipId, {
+      affectedDrafts: Math.max(
+        result.statutory.affectedDrafts,
+        result.tax.affectedDrafts,
+      ),
+      changedFields: [
+        ...new Set([
+          ...result.statutory.changedFields,
+          ...result.tax.changedFields,
+        ]),
+      ],
+      kind: "statutory",
+      message: "Statutory and tax details updated.",
+      status: "success",
+    }));
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirect(profileNoticeUrl(membershipId, {
+      kind: "statutory",
+      message: publicWriteError(error),
+      status: "error",
+    }));
+  }
+}
+
 export async function recordEmployeeLindung24ParticipationAction(formData: FormData) {
   let membershipId = safeMembershipId(formData.get("membershipId"));
   try {
@@ -379,7 +732,8 @@ export async function recordEmployeeLindung24ParticipationAction(formData: FormD
     });
     membershipId = command.membershipId;
     const context = await requireWholeBusinessPayroll("EDIT_STATUTORY_PROFILE");
-    const result = await recordEmployeeLindung24Participation({
+    const request = await getAuditRequestContext();
+    const result = await recordEmployeeLindung24ParticipationAndRefreshDrafts({
       command: {
         ...command,
         effectiveFromMonth: new Date(`${command.effectiveFromMonth}-01T00:00:00.000Z`),
@@ -390,14 +744,20 @@ export async function recordEmployeeLindung24ParticipationAction(formData: FormD
         allowedBranchIds: context.allowedBranchIds,
         businessId: context.businessId,
         caller: "STATUTORY_ACTION",
-        request: await getAuditRequestContext(),
+        request,
       },
     });
     revalidatePayrollProfile(membershipId);
     redirect(profileNoticeUrl(membershipId, {
+      affectedDrafts: result.refreshedDrafts,
       kind: "statutory",
-      message: "LINDUNG24 participation evidence recorded. Draft payroll must be recalculated explicitly.",
-      newRevision: result.revision,
+      message:
+        result.draftCount === 0
+          ? "LINDUNG 24 coverage saved. It will apply automatically to the next payroll."
+          : result.refreshedDrafts === result.draftCount
+            ? `LINDUNG 24 coverage saved. ${result.refreshedDrafts} draft payroll${result.refreshedDrafts === 1 ? "" : "s"} refreshed.`
+            : "LINDUNG 24 coverage saved. Refresh any open draft payroll that could not be updated.",
+      newRevision: result.participation.revision,
       status: "success",
     }));
   } catch (error) {
@@ -426,6 +786,7 @@ export async function updateEmployeeTaxProfileAction(formData: FormData) {
       statutoryIdentityType:
         optionalFormValue(formData, "statutoryIdentityType"),
       taxIdentificationNumber: formData.get("taxIdentificationNumber"),
+      pcbProfile: pcbProfileFromForm(formData),
     });
     membershipId = input.membershipId;
     const context = await requireWholeBusinessPayroll("EDIT_TAX_PROFILE");
@@ -457,6 +818,7 @@ export async function updateEmployeeTaxProfileAction(formData: FormData) {
           input.taxIdentificationNumber,
           formData.has("clearTaxIdentificationNumber"),
         ),
+        pcbProfile: input.pcbProfile,
       },
       context: {
         access: context.access,
@@ -493,6 +855,7 @@ export async function updateEmployeeTaxProfileAction(formData: FormData) {
 
 export async function createEmployeeBankVersionAction(formData: FormData) {
   let membershipId = safeMembershipId(formData.get("membershipId"));
+  const returnToProfile = formData.get("returnTo") === "profile";
   try {
     const input = createBankVersionSchema.parse(Object.fromEntries(formData));
     membershipId = input.membershipId;
@@ -526,6 +889,14 @@ export async function createEmployeeBankVersionAction(formData: FormData) {
     }));
   } catch (error) {
     if (isRedirectError(error)) throw error;
+    if (returnToProfile) {
+      const params = new URLSearchParams({
+        bankDialog: "1",
+        bankDialogError: publicWriteError(error).slice(0, 180),
+        section: "payroll",
+      });
+      redirect(`/team/people/${membershipId}?${params.toString()}`);
+    }
     redirect(bankEditNoticeUrl(membershipId, publicWriteError(error)));
   }
 }
@@ -614,7 +985,10 @@ function profileNoticeUrl(
   },
 ) {
   const params = new URLSearchParams({
-    section: "payroll",
+    section:
+      notice.kind === "statutory" || notice.kind === "tax"
+        ? "statutory"
+        : "payroll",
     payrollUpdate: notice.kind,
     payrollUpdateMessage: notice.message.slice(0, 180),
     payrollUpdateStatus: notice.status,
@@ -672,6 +1046,8 @@ async function issueBankStepUp(
 ) {
   const requestHeaders = await headers();
   assertServerActionSameOrigin(requestHeaders);
+  if (!isPayrollBankAccountMfaEnabled()) return undefined;
+
   return issuePayrollHighRiskAuthorization({
     access: context.access,
     actionKey: "BANK_ACCOUNT_EDIT",

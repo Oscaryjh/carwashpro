@@ -3,10 +3,38 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { Prisma } from "@prisma/client";
 import {
+  buildRecurringPayComponentCode,
   recurringPayMonthStart,
   resolveRecurringPayForEmployee,
   sumRecurringPay,
 } from "../../src/lib/payroll/recurring-pay";
+
+test("recurring pay creates a stable internal code without asking HR to enter one", () => {
+  const code = buildRecurringPayComponentCode({
+    commandId: "command-transport-allowance",
+    name: "Transport allowance",
+    type: "EARNING",
+  });
+  assert.match(code, /^EMP_TRANSPORT_ALLOWANCE_[A-F0-9]{10}$/);
+  assert.equal(code.length <= 64, true);
+  assert.equal(
+    code,
+    buildRecurringPayComponentCode({
+      commandId: "command-transport-allowance",
+      name: "Transport allowance",
+      type: "EARNING",
+    }),
+  );
+
+  assert.match(
+    buildRecurringPayComponentCode({
+      commandId: "command-chinese-name",
+      name: "交通津贴",
+      type: "EARNING",
+    }),
+    /^EMP_MONTHLY_EARNING_[A-F0-9]{10}$/,
+  );
+});
 
 test("recurring pay resolver is tenant scoped, deterministic and month effective", async () => {
   let capturedQuery: Record<string, unknown> | undefined;

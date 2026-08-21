@@ -223,6 +223,7 @@ export function buildPayrollAttendanceInput(input: {
   segments?: readonly FrozenPayrollAttendanceSegment[];
   publicHolidayPayPolicyReady?: boolean;
   statutoryWorkPayPolicyReady?: boolean;
+  monthlyAbsencePolicyReady?: boolean;
 }): PayrollAttendanceInput {
   let regularDayHundredths = 0;
   let regularMinutes = 0;
@@ -376,6 +377,7 @@ export function buildPayrollAttendanceInput(input: {
       continue;
     }
     if (hasFrozenSegments) {
+      if (PRESENT_OUTCOMES.has(day.outcome)) regularDayHundredths += 100;
       continue;
     }
     if (crossMidnight) {
@@ -422,7 +424,8 @@ export function buildPayrollAttendanceInput(input: {
   }
   if (
     input.payBasis === "MONTHLY" &&
-    (unpaidLeaveDayHundredths > 0 || unauthorizedAbsenceDayHundredths > 0)
+    (unpaidLeaveDayHundredths > 0 || unauthorizedAbsenceDayHundredths > 0) &&
+    input.monthlyAbsencePolicyReady !== true
   ) {
     blockers.add("PAYROLL_ABSENCE_RATE_POLICY_NOT_READY");
   }
@@ -704,11 +707,38 @@ export function buildAttendancePayrollComponents(input: {
   periodStart: Date;
   payBasis: EmployeePayBasis;
   baseRateCents: number;
+  workingDaysPerMonth?: number;
   attendance: PayrollAttendanceInput;
 }): PayrollComponentLine[] {
   if (input.attendance.policyBlockers.length) return [];
   const lines: PayrollComponentLine[] = [];
-  if (input.payBasis === "DAILY") {
+  if (input.payBasis === "MONTHLY") {
+    const absenceDayHundredths =
+      input.attendance.unpaidLeaveDayHundredths +
+      input.attendance.unauthorizedAbsenceDayHundredths;
+    if (absenceDayHundredths > 0) {
+      const workingDaysPerMonth = input.workingDaysPerMonth;
+      if (
+        workingDaysPerMonth === undefined ||
+        !Number.isSafeInteger(workingDaysPerMonth) ||
+        workingDaysPerMonth <= 0
+      ) {
+        throw new Error("Monthly absence deduction requires valid working days per month.");
+      }
+      addAttendanceLine(lines, input, {
+        type: "DEDUCTION",
+        code: "UNPAID_ABSENCE_DEDUCTION",
+        name: "Unpaid Absence Deduction",
+        amountCents: divideAndRound(
+          input.baseRateCents * absenceDayHundredths,
+          workingDaysPerMonth * 100,
+        ),
+        basis: "MONTHLY_SALARY_DIVIDED_BY_WORKING_DAYS_X_UNPAID_ABSENCE",
+        sourceReason: `${formatHundredths(absenceDayHundredths)} unpaid absence day(s) deducted using the employee's monthly working-day rule.`,
+        sortOrder: 710,
+      });
+    }
+  } else if (input.payBasis === "DAILY") {
     addAttendanceLine(lines, input, {
       code: "REGULAR_DAILY_PAY",
       name: "Regular Daily Pay",
@@ -802,6 +832,7 @@ function addAttendanceLine(
   lines: PayrollComponentLine[],
   input: Parameters<typeof buildAttendancePayrollComponents>[0],
   line: {
+    type?: "EARNING" | "DEDUCTION";
     code: string;
     name: string;
     amountCents: number;
@@ -814,7 +845,7 @@ function addAttendanceLine(
   assertMoney(line.amountCents);
   lines.push({
     lineKey: `ATTENDANCE:${line.code}`,
-    type: "EARNING",
+    type: line.type ?? "EARNING",
     code: line.code,
     name: line.name,
     amountCents: line.amountCents,

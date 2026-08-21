@@ -24,11 +24,19 @@ const optionalMinutes = z
   .max(1_440, "Minutes cannot exceed 1,440.")
   .nullable();
 
+const optionalWorkingDays = z
+  .number()
+  .int("Working days must be a whole number.")
+  .min(1, "Working days must be at least 1.")
+  .max(31, "Working days cannot exceed 31.")
+  .nullable();
+
 const workTargetCommandSchema = z
   .object({
     commandId: commandIdSchema,
     expectedRevision: expectedRevisionSchema,
     membershipId: z.string().uuid(),
+    workingDaysPerMonth: optionalWorkingDays.optional(),
     normalWorkMinutesPerDay: optionalMinutes,
     targetBreakMinutes: optionalMinutes,
   })
@@ -55,6 +63,7 @@ export type UpdateEmployeePayrollWorkTargetResult = CanonicalCommandResult & {
   affectedDrafts: number;
   message: string;
   newRevision: number;
+  workingDaysPerMonth: number | null;
   normalWorkMinutesPerDay: number | null;
   targetBreakMinutes: number | null;
 };
@@ -109,17 +118,22 @@ function buildExecution(
       const updated = await transaction.employeeBusinessMembership.update({
         where: { id: membership.id },
         data: {
+          workingDaysPerMonth: command.workingDaysPerMonth,
           normalWorkMinutesPerDay: command.normalWorkMinutesPerDay,
           targetBreakMinutes: command.targetBreakMinutes,
           workTargetRevision: { increment: 1 },
         },
         select: {
+          workingDaysPerMonth: true,
           normalWorkMinutesPerDay: true,
           targetBreakMinutes: true,
           workTargetRevision: true,
         },
       });
       const changedFields = [
+        ...(membership.workingDaysPerMonth === updated.workingDaysPerMonth
+          ? []
+          : ["workingDaysPerMonth"]),
         ...(membership.normalWorkMinutesPerDay === updated.normalWorkMinutesPerDay
           ? []
           : ["normalWorkMinutesPerDay"]),
@@ -132,10 +146,12 @@ function buildExecution(
           action: "EMPLOYEE_PAYROLL_WORK_TARGET_COMMAND_APPLIED",
           actor: context.actor,
           after: {
+            workingDaysPerMonth: updated.workingDaysPerMonth,
             normalWorkMinutesPerDay: updated.normalWorkMinutesPerDay,
             targetBreakMinutes: updated.targetBreakMinutes,
           },
           before: {
+            workingDaysPerMonth: membership.workingDaysPerMonth,
             normalWorkMinutesPerDay: membership.normalWorkMinutesPerDay,
             targetBreakMinutes: membership.targetBreakMinutes,
           },
@@ -156,15 +172,17 @@ function buildExecution(
         transaction,
       );
       const cleared =
+        updated.workingDaysPerMonth === null ||
         updated.normalWorkMinutesPerDay === null ||
         updated.targetBreakMinutes === null;
       return {
         affectedDrafts: impact.draftCount,
         commandReplay: false,
         message: cleared
-          ? "Employee override updated. Cleared values use the existing company or attendance fallback; existing records were not changed."
-          : "Employee payroll work target updated. Existing attendance and payroll runs were not changed.",
+          ? "Employee work rules updated. Blank values use the company defaults."
+          : "Employee work rules updated.",
         newRevision: updated.workTargetRevision,
+        workingDaysPerMonth: updated.workingDaysPerMonth,
         normalWorkMinutesPerDay: updated.normalWorkMinutesPerDay,
         status: "SUCCESS",
         targetBreakMinutes: updated.targetBreakMinutes,

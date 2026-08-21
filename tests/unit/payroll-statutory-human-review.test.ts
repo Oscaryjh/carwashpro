@@ -8,10 +8,10 @@ import {
   STATUTORY_REVIEW_CHECKLIST_VERSION,
 } from "../../src/lib/payroll/statutory-human-review";
 
-test("human review packages expose the four complete evidence sets in required order", async () => {
+test("human review packages expose four complete contribution packs and gated PCB readiness", async () => {
   const packages = await loadStatutoryHumanReviewPackages();
-  assert.deepEqual(packages.map((item) => item.scheme), ["EPF", "SOCSO", "EIS", "LINDUNG24"]);
-  for (const pack of packages) {
+  assert.deepEqual(packages.map((item) => item.scheme), ["EPF", "SOCSO", "EIS", "LINDUNG24", "PCB"]);
+  for (const pack of packages.slice(0, 4)) {
     assert.equal(pack.engineering, "READY");
     assert.equal(pack.evidencePack, "COMPLETE");
     assert.equal(pack.humanReview, "NOT_EXECUTED");
@@ -23,6 +23,15 @@ test("human review packages expose the four complete evidence sets in required o
     assert.equal(pack.fixtureProvenance.MISSING, 0);
     assert.match(pack.evidenceDigest, /^[a-f0-9]{64}$/);
   }
+  const pcb = packages[4];
+  assert.equal(pcb.engineering, "PARTIAL");
+  assert.equal(pcb.evidencePack, "INCOMPLETE");
+  assert.equal(pcb.activation, "BLOCKED_ENGINEERING");
+  assert.equal(pcb.artifacts.length, 6);
+  assert.equal(pcb.fixtures.length, 5);
+  assert.equal(pcb.independentReview.mismatchCount, 4);
+  assert.ok(pcb.knownLimitations.some((item) => item.includes("HASiL software verification")));
+  assert.match(pcb.evidenceDigest, /^[a-f0-9]{64}$/);
 });
 
 test("review packages expose repository counts, classifications and schedule horizon", async () => {
@@ -76,12 +85,18 @@ test("admin review workspace stays authenticated, evidence-only and activation-f
     "src/app/admin/statutory/rulesets/[ruleSetId]/page.tsx",
     "utf8",
   );
+  const approvalChecklist = await readFile(
+    "src/app/admin/statutory/rulesets/[ruleSetId]/approval-checklist.tsx",
+    "utf8",
+  );
   assert.match(reviewPage, /requireUser\(\)/);
   assert.match(reviewPage, /assertRole\(user, \["PLATFORM_ADMIN"\]\)/);
   assert.doesNotMatch(reviewPage, /activateStatutoryRuleAction/);
   assert.doesNotMatch(reviewPage, /signOffStatutoryRuleAction/);
-  assert.match(reviewPage, /Sign-off unavailable on evidence-only package/);
+  assert.match(reviewPage, /Approval remains locked until the evidence and engineering readiness gate is complete/);
+  assert.match(reviewPage, /"LINDUNG24", "PCB"/);
   assert.match(actions, /assertStatutoryReviewChecklist\(formData\)/);
-  assert.match(rulePage, /reviewChecklist\.\$\{item\.id\}/);
-  assert.match(rulePage, /required/);
+  assert.match(rulePage, /<ApprovalChecklist \/>/);
+  assert.match(approvalChecklist, /name={`reviewChecklist\.\$\{itemId\}`}/);
+  assert.match(approvalChecklist, /required/);
 });

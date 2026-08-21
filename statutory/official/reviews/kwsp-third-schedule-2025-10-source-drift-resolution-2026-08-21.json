@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "kwsp-third-schedule-2025-10-source-drift-resolution-2026-08-21",
+  "artifactId": "kwsp-third-schedule-2025-10",
+  "scheme": "EPF",
+  "canonicalLandingPage": "https://www.kwsp.gov.my/en/epf-act-1991-third-schedule",
+  "canonicalOfficialSource": "https://www.kwsp.gov.my/documents/d/guest/third_schedule_from_-1-october-2025",
+  "officialPageLastUpdated": "2026-05-26",
+  "effectiveFrom": "2025-10-01",
+  "retainedBaseline": {
+    "retrievedAt": "2026-08-10T00:00:00.000Z",
+    "byteSize": 761109,
+    "sha256": "c4904e44f0cb15a251a59e4f34c11a1ededa0868b962b2ebd9b81270285358b1",
+    "retainedPath": "statutory/official/artifacts/kwsp-third-schedule-2025-10.pdf"
+  },
+  "currentOfficialArtifact": {
+    "retrievedAt": "2026-08-21T09:51:48.2506276Z",
+    "byteSize": 761109,
+    "sha256": "c4904e44f0cb15a251a59e4f34c11a1ededa0868b962b2ebd9b81270285358b1",
+    "retrievalMethod": "OFFICIAL_LANDING_PAGE_BROWSER_DOWNLOAD"
+  },
+  "comparison": {
+    "result": "BYTE_IDENTICAL",
+    "sourceIdentity": "IDENTICAL",
+    "title": "IDENTICAL",
+    "effectiveDate": "IDENTICAL",
+    "consumedParts": ["PART_A", "PART_C", "PART_E", "PART_F"],
+    "nationalityAndResidencyApplicability": "IDENTICAL",
+    "ageApplicability": "IDENTICAL",
+    "wageBands": "IDENTICAL",
+    "employerAmountsAndRates": "IDENTICAL",
+    "employeeAmountsAndRates": "IDENTICAL",
+    "aboveRm20000Treatment": "IDENTICAL",
+    "foreignWorkerRules": "IDENTICAL",
+    "allConsumedTableValues": "IDENTICAL",
+    "relevantPageAndTableStructure": "IDENTICAL"
+  },
+  "resolution": "SOURCE_DRIFT_RESOLVED",
+  "semanticRuleChange": false,
+  "artifactReissued": false,
+  "detectedCause": "AUTOMATED_REFETCH_RECEIVED_HTTP_403_HTML_INSTEAD_OF_THE_OFFICIAL_PDF",
+  "runtimeImpact": "NONE",
+  "externalBoundary": "Technical provenance verification only; not legal advice or government certification."
+}

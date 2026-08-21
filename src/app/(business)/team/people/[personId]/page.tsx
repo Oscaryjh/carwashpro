@@ -271,6 +271,7 @@ export default async function EmployeeProfilePage({
       <EmployeeProfilePayroll
         bank={bank}
         compensation={compensation}
+        employeeName={membership.fullName}
         navigation={payrollNavigation}
         summary={payrollSummary}
         notice={parsePayrollUpdateNotice(query)}
@@ -289,6 +290,7 @@ export default async function EmployeeProfilePage({
     sectionContent = (
       <EmployeeProfileStatutory
         notice={parsePayrollUpdateNotice(query)}
+        profileEditHref={`/team/people/${person.id}?section=overview`}
         statutoryProfile={statutoryProfile}
       />
     );

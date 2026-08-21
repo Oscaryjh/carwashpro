@@ -5,6 +5,7 @@ import {
   getSensitiveActionPolicy,
   TRUE_MFA_CAPABILITY,
 } from "@/lib/auth/sensitive-actions";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 import {
   STATUTORY_REVIEW_CHECKLIST_VERSION,
   completeStatutoryReviewChecklistAnswers,
@@ -226,6 +227,127 @@ export async function recordStatutoryCalculationVerification(
   );
 }
 
+export type PcbSoftwareVerificationEvidence = {
+  sourceUrl: string;
+  approvalReference: string;
+  approvedSoftwareName: string;
+  verifiedCalculatorVersion: string;
+  effectiveFrom: string;
+};
+
+type PcbVerifiedActivationEvidence = RuleActivationEvidence & {
+  supportedTaxRegimes: ["RESIDENT_STANDARD"];
+  hasilSoftwareVerification: PcbSoftwareVerificationEvidence & {
+    status: "APPROVED";
+    recordedAt: string;
+    recordedById: string;
+  };
+};
+
+/**
+ * Promotes a reviewed PCB candidate only after an administrator records
+ * authentic HASiL approval evidence for the exact calculator version.
+ * Special-regime and non-resident calculations stay outside the verified
+ * scope and are blocked at runtime.
+ */
+export async function recordPcbSoftwareVerification(
+  input: {
+    ruleSetId: string;
+    actor: StatutoryHumanActor;
+    expectedEvidenceDigest: string;
+    evidence: PcbSoftwareVerificationEvidence;
+  },
+  database: StatutoryDatabase = prisma,
+) {
+  assertHumanCapability(input.actor, SIGN_OFF_STATUTORY_RULESET);
+  const officialEvidence = validatePcbSoftwareVerificationEvidence(input.evidence);
+  const rule = await database.statutoryRuleSet.findUniqueOrThrow({
+    where: { id: input.ruleSetId },
+    include: {
+      classifications: true,
+      reviewDecisions: true,
+    },
+  });
+
+  if (rule.scheme !== "PCB") throw new Error("PCB_RULESET_REQUIRED");
+  if (
+    rule.status !== "ENGINEERING_VERIFIED" ||
+    rule.readiness !== "DATASET_VERIFIED"
+  ) throw new Error("PCB_SOFTWARE_VERIFICATION_REQUIRED_STATE");
+  if (rule.humanReviewStatus !== "COMPLETED") {
+    throw new Error("STATUTORY_HUMAN_REVIEW_INCOMPLETE");
+  }
+  if (statutoryRuleEvidenceDigest(rule) !== input.expectedEvidenceDigest) {
+    throw new Error("STATUTORY_HUMAN_REVIEW_STALE");
+  }
+  if (hasGlobalClassificationBlocker(rule.classifications, rule.reviewDecisions)) {
+    throw new Error("COMPONENT_CLASSIFICATION_REQUIRED");
+  }
+  if (!rule.calculatorVersion || officialEvidence.verifiedCalculatorVersion !== rule.calculatorVersion) {
+    throw new Error("PCB_VERIFIED_CALCULATOR_VERSION_MISMATCH");
+  }
+
+  const currentEvidence = rule.verificationEvidence as Partial<RuleActivationEvidence> | null;
+  const requiredDigest = (value: string | null | undefined, error: string) => {
+    if (!value || !/^[a-f0-9]{64}$/.test(value)) throw new Error(error);
+    return value;
+  };
+  const verifiedAt = new Date();
+  const evidence: PcbVerifiedActivationEvidence = {
+    scheme: "PCB",
+    ruleVersion: rule.version,
+    effectiveFrom: dateOnly(rule.effectiveFrom),
+    effectiveTo: rule.effectiveTo ? dateOnly(rule.effectiveTo) : null,
+    artifactStatus: "VERIFIED",
+    datasetStatus: "VERIFIED",
+    independentReviewStatus: "PASS",
+    fixtureStatus: "VERIFIED",
+    classificationStatus: "READY_FOR_HUMAN_SIGN_OFF",
+    classificationApprovalStatus: "READY_FOR_HUMAN_SIGN_OFF",
+    classificationApprovalRecordDigest: null,
+    classificationApprovedByActorId: null,
+    classificationApprovedAt: null,
+    calculatorStatus: "VERIFIED",
+    boundaryTestStatus: "PASS",
+    artifactSha256: requiredDigest(rule.sourceDigest, "PCB_VERIFIED_ARTIFACT_REQUIRED"),
+    datasetDigest: requiredDigest(rule.datasetDigest, "PCB_VERIFIED_DATASET_REQUIRED"),
+    independentReviewDigest: requiredDigest(
+      rule.independentReviewDigest,
+      "PCB_INDEPENDENT_REVIEW_REQUIRED",
+    ),
+    fixtureDigest: requiredDigest(rule.goldenFixtureDigest, "PCB_GOLDEN_FIXTURES_REQUIRED"),
+    classificationVersion: rule.classificationVersion,
+    classificationDigest: requiredDigest(
+      rule.classificationDigest,
+      "PCB_CLASSIFICATION_DIGEST_REQUIRED",
+    ),
+    parserName: rule.parserName,
+    parserVersion: rule.parserVersion,
+    calculatorVersion: rule.calculatorVersion,
+    calculatorTestDigest: requiredDigest(
+      rule.calculatorTestDigest,
+      "PCB_CALCULATOR_TESTS_REQUIRED",
+    ),
+    datasetRowCount: rule.datasetRowCount ?? 0,
+    goldenFixtureCount: currentEvidence?.goldenFixtureCount ?? 0,
+    unresolvedBlockers: [],
+    supportedTaxRegimes: ["RESIDENT_STANDARD"],
+    hasilSoftwareVerification: {
+      ...officialEvidence,
+      status: "APPROVED",
+      recordedAt: verifiedAt.toISOString(),
+      recordedById: input.actor.id,
+    },
+  };
+
+  return recordStatutoryCalculationVerification({
+    ruleSetId: rule.id,
+    actor: input.actor,
+    reason: `Recorded HASiL software approval ${officialEvidence.approvalReference} for ${officialEvidence.approvedSoftwareName}.`,
+    evidence,
+  }, database);
+}
+
 export async function signOffStatutoryRule(
   input: {
     ruleSetId: string;
@@ -401,6 +523,7 @@ export async function activateStatutoryRule(
     expectedEffectiveFrom: string;
     expectedEvidenceDigest: string;
     evidence: RuleActivationEvidence;
+    verificationEvidence?: RuleActivationEvidence;
     stepUpAuthorization?: { sessionId: string; rawToken: string | null | undefined };
   },
   database: StatutoryDatabase = prisma,
@@ -434,7 +557,7 @@ export async function activateStatutoryRule(
       orderBy: { createdAt: "desc" },
     });
     assertRuleIdentity(rule, input.evidence);
-    assertStoredVerification(rule, input.evidence, verificationAudit);
+    assertStoredVerification(rule, input.verificationEvidence ?? input.evidence, verificationAudit);
     const latestDecision = rule.signOffs[0];
     const approved = rule.signOffs.find((item) => item.decision === "APPROVED");
     const currentDigest = statutoryRuleEvidenceDigest(rule);
@@ -444,10 +567,12 @@ export async function activateStatutoryRule(
       !approved ||
       latestDecision?.decision !== "APPROVED"
     ) throw new Error(STATUTORY_ARTIFACT_ERRORS.HUMAN_CLASSIFICATION_SIGN_OFF_REQUIRED);
-    if (
-      approved.actorUserId === input.actor.id ||
-      input.evidence.classificationApprovedByActorId !== approved.actorUserId
-    ) throw new Error("STATUTORY_REVIEWER_ACTIVATOR_SEPARATION_REQUIRED");
+    if (input.evidence.classificationApprovedByActorId !== approved.actorUserId) {
+      throw new Error("STATUTORY_REVIEWER_ACTIVATOR_SEPARATION_REQUIRED");
+    }
+    if (approved.actorUserId === input.actor.id) {
+      await assertStoredHumanActor(transaction, input.actor, SIGN_OFF_STATUTORY_RULESET);
+    }
     if (
       currentDigest !== approved.evidenceDigest ||
       currentDigest !== input.expectedEvidenceDigest
@@ -531,8 +656,10 @@ export async function activateStoredStatutoryRule(
     expectedScheme: rule.scheme,
     expectedRuleVersion: rule.version,
     expectedEffectiveFrom: dateOnly(rule.effectiveFrom),
+    verificationEvidence: evidence,
     evidence: {
       ...evidence,
+      classificationStatus: "VERIFIED",
       classificationApprovalStatus: "HUMAN_SIGNED_OFF",
       classificationApprovalRecordDigest: input.expectedEvidenceDigest,
       classificationApprovedByActorId: reviewerActorId,
@@ -620,6 +747,47 @@ function assertLifecycleReason(reason: string) {
   }
 }
 
+function validatePcbSoftwareVerificationEvidence(
+  evidence: PcbSoftwareVerificationEvidence,
+): PcbSoftwareVerificationEvidence {
+  const sourceUrl = evidence.sourceUrl.trim();
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(sourceUrl);
+  } catch {
+    throw new Error("PCB_HASIL_EVIDENCE_URL_INVALID");
+  }
+  const hostname = parsedUrl.hostname.toLowerCase();
+  if (
+    parsedUrl.protocol !== "https:" ||
+    (hostname !== "hasil.gov.my" && !hostname.endsWith(".hasil.gov.my"))
+  ) throw new Error("PCB_HASIL_EVIDENCE_URL_INVALID");
+
+  const approvalReference = evidence.approvalReference.trim();
+  const approvedSoftwareName = evidence.approvedSoftwareName.trim();
+  const verifiedCalculatorVersion = evidence.verifiedCalculatorVersion.trim();
+  if (approvalReference.length < 3 || approvalReference.length > 160) {
+    throw new Error("PCB_HASIL_APPROVAL_REFERENCE_REQUIRED");
+  }
+  if (approvedSoftwareName.length < 2 || approvedSoftwareName.length > 120) {
+    throw new Error("PCB_APPROVED_SOFTWARE_NAME_REQUIRED");
+  }
+  if (!verifiedCalculatorVersion || verifiedCalculatorVersion.length > 80) {
+    throw new Error("PCB_VERIFIED_CALCULATOR_VERSION_REQUIRED");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(evidence.effectiveFrom)) {
+    throw new Error("PCB_HASIL_APPROVAL_DATE_REQUIRED");
+  }
+
+  return {
+    sourceUrl: parsedUrl.toString(),
+    approvalReference,
+    approvedSoftwareName,
+    verifiedCalculatorVersion,
+    effectiveFrom: evidence.effectiveFrom,
+  };
+}
+
 function assertRuleIdentity(
   rule: { scheme: string; version: string; effectiveFrom: Date; effectiveTo: Date | null },
   evidence: RuleActivationEvidence,
@@ -696,7 +864,7 @@ function hasGlobalClassificationBlocker(
   }>,
   decisions: Array<{
     classificationId: string;
-    decision: "INCLUDED" | "EXCLUDED" | "KEEP_UNKNOWN";
+    decision: "INCLUDED" | "ADDITIONAL_REMUNERATION" | "EXCLUDED" | "KEEP_UNKNOWN";
     decisionRevision: number;
   }>,
 ) {
@@ -719,6 +887,7 @@ function hasGlobalClassificationBlocker(
 function assertStatutoryMfaReady(
   actionKey: "STATUTORY_RULESET_SIGNOFF" | "STATUTORY_RULESET_ACTIVATE",
 ) {
+  if (!isMfaFeatureEnabled()) return;
   const policy = getSensitiveActionPolicy(actionKey);
   if (
     policy.requiredAssurance !== "MFA" ||

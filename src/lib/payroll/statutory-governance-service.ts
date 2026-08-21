@@ -11,14 +11,17 @@ import {
   getSensitiveActionPolicy,
   TRUE_MFA_CAPABILITY,
 } from "@/lib/auth/sensitive-actions";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 import {
   canonicalDigest,
   type RuleActivationEvidence,
 } from "./statutory-artifact-pipeline";
 import {
   evaluateStatutoryEvidencePack,
+  loadStatutoryHumanReviewPackages,
   loadStatutoryEvidencePackInputs,
   type EvidencePackScheme,
+  type StatutoryHumanReviewPackage,
   type StatutoryEvidencePackInput,
 } from "./statutory-evidence-pack";
 import {
@@ -79,6 +82,9 @@ export function statutoryStepUpReadiness(rule: {
   sourceReference?: string;
 }) {
   void rule;
+  if (!isMfaFeatureEnabled()) {
+    return { status: "READY" as const, blocker: null };
+  }
   const policy = getSensitiveActionPolicy("STATUTORY_RULESET_SIGNOFF");
   return policy.requiredAssurance === "MFA" &&
     TRUE_MFA_CAPABILITY.status !== "NOT_READY"
@@ -102,6 +108,126 @@ export async function registerCanonicalStatutoryCandidates(
     registrations.push(await registerCanonicalCandidate(pack, input.actor, input.reason, database));
   }
   return registrations;
+}
+
+export async function registerPcbReviewDraft(
+  input: {
+    actor: StatutoryHumanActor;
+    reason: string;
+    root?: string;
+  },
+  database: GovernanceDatabase = prisma,
+) {
+  assertReviewActor(input.actor);
+  assertReason(input.reason);
+  const pack = (await loadStatutoryHumanReviewPackages(input.root ?? process.cwd()))
+    .find((candidate) => candidate.scheme === "PCB");
+  if (!pack) throw new Error("PCB_EVIDENCE_PACKAGE_NOT_FOUND");
+
+  const primary = pack.artifacts.find((artifact) => artifact.verified && artifact.sha256) ?? null;
+  if (!primary?.sha256) throw new Error("PCB_VERIFIED_PRIMARY_ARTIFACT_REQUIRED");
+
+  const existing = await database.statutoryRuleSet.findUnique({
+    where: { scheme_version: { scheme: "PCB", version: pack.classification.version } },
+    select: { id: true, ruleData: true },
+  });
+  if (existing) {
+    const digest = (existing.ruleData as { evidencePackDigest?: unknown } | null)?.evidencePackDigest;
+    if (digest !== pack.evidenceDigest) throw new Error("PCB_REVIEW_DRAFT_EVIDENCE_CHANGED");
+    return { ruleSetId: existing.id, status: "EXISTING" as const };
+  }
+
+  const classifications = pcbReviewDraftClassificationRows(pack, primary.sourceUrl);
+  const ruleData = {
+    id: pack.dataset.id,
+    reviewDraft: true,
+    evidencePackDigest: pack.evidenceDigest,
+    eligibilityLogicRevision: pack.classification.version,
+    officialArtifacts: pack.artifacts.map((artifact) => ({
+      id: artifact.id,
+      authority: artifact.authority,
+      title: artifact.title,
+      sha256: artifact.sha256,
+      sourceUrl: artifact.sourceUrl,
+      retainedPath: artifact.retainedPath,
+      verified: artifact.verified,
+    })),
+    knownLimitations: pack.knownLimitations,
+  } satisfies Prisma.InputJsonObject;
+  const verificationEvidence = {
+    scheme: "PCB",
+    ruleVersion: pack.classification.version,
+    effectiveFrom: pack.effectiveFrom,
+    effectiveTo: pack.effectiveTo,
+    artifactStatus: "VERIFIED",
+    datasetStatus: pack.dataset.verificationStatus,
+    independentReviewStatus: pack.independentReview.status,
+    fixtureStatus: "PARTIAL",
+    classificationStatus: "HR_REVIEW_ALLOWED",
+    calculatorStatus: "PARTIAL",
+    artifactSha256: primary.sha256,
+    datasetDigest: pack.dataset.digest,
+    independentReviewDigest: pack.independentReview.digest,
+    fixtureDigest: pack.fixtureDigest,
+    classificationVersion: pack.classification.version,
+    classificationDigest: pack.classification.digest,
+    parserName: pack.dataset.parserName,
+    parserVersion: pack.dataset.parserVersion,
+    calculatorVersion: pack.calculator.version,
+    calculatorTestDigest: pack.calculator.testDigest,
+    datasetRowCount: pack.dataset.actualRowCount,
+    goldenFixtureCount: pack.fixtures.length,
+    unresolvedBlockers: pack.knownLimitations,
+    signOffAllowed: false,
+    activationAllowed: false,
+  } satisfies Prisma.InputJsonObject;
+
+  return database.$transaction(async (transaction) => {
+    await assertStoredReviewActor(transaction, input.actor);
+    const rule = await transaction.statutoryRuleSet.create({
+      data: {
+        scheme: "PCB",
+        version: pack.classification.version,
+        effectiveFrom: dateValue(pack.effectiveFrom),
+        effectiveTo: pack.effectiveTo ? dateValue(pack.effectiveTo) : null,
+        authority: primary.authority,
+        sourceReference: primary.sourceUrl,
+        sourceDocumentName: primary.title,
+        sourceDigest: primary.sha256,
+        datasetDigest: pack.dataset.digest,
+        goldenFixtureDigest: pack.fixtureDigest,
+        independentReviewDigest: pack.independentReview.digest,
+        classificationVersion: pack.classification.version,
+        classificationDigest: pack.classification.digest,
+        parserName: pack.dataset.parserName,
+        parserVersion: pack.dataset.parserVersion,
+        calculatorVersion: pack.calculator.version,
+        calculatorTestDigest: pack.calculator.testDigest,
+        datasetRowCount: pack.dataset.actualRowCount,
+        readiness: "DATASET_VERIFIED",
+        status: "ENGINEERING_VERIFIED",
+        humanReviewStatus: "PENDING",
+        ruleData,
+        verificationEvidence,
+        createdById: input.actor.id,
+        classifications: { create: classifications },
+      },
+    });
+    await transaction.statutoryRuleLifecycleAudit.create({
+      data: {
+        ruleSetId: rule.id,
+        scheme: rule.scheme,
+        ruleVersion: rule.version,
+        action: "RULESET_REGISTERED",
+        actorId: input.actor.id,
+        reason: input.reason.trim(),
+        evidenceDigest: pack.evidenceDigest,
+        previousStatus: rule.status,
+        nextStatus: rule.status,
+      },
+    });
+    return { ruleSetId: rule.id, status: "REGISTERED" as const };
+  }, { isolationLevel: "Serializable" });
 }
 
 async function registerCanonicalCandidate(
@@ -227,10 +353,54 @@ export async function recordStatutoryComponentReviewDecision(
   },
   database: GovernanceDatabase = prisma,
 ) {
+  const saved = await recordStatutoryComponentReviewDecisions({
+    ruleSetId: input.ruleSetId,
+    decisions: [{
+      classificationId: input.classificationId,
+      decision: input.decision,
+      evidenceReference: input.evidenceReference,
+      reason: input.reason,
+    }],
+    expectedEvidenceDigest: input.expectedEvidenceDigest,
+    expectedReviewRevision: input.expectedReviewRevision,
+    actor: input.actor,
+  }, database);
+  return {
+    decision: saved.decisions[0],
+    humanClassificationDigest: saved.humanClassificationDigest,
+    reviewRevision: saved.reviewRevision,
+  };
+}
+
+export async function recordStatutoryComponentReviewDecisions(
+  input: {
+    ruleSetId: string;
+    decisions: Array<{
+      classificationId: string;
+      decision: StatutoryComponentReviewDecisionValue;
+      evidenceReference: string;
+      reason: string;
+    }>;
+    expectedEvidenceDigest: string;
+    expectedReviewRevision: number;
+    actor: StatutoryHumanActor;
+  },
+  database: GovernanceDatabase = prisma,
+) {
   assertReviewActor(input.actor);
-  assertReason(input.reason);
-  if (input.evidenceReference.trim().length < 5) {
-    throw new Error("STATUTORY_REVIEW_EVIDENCE_REFERENCE_REQUIRED");
+  if (input.decisions.length === 0) {
+    throw new Error("STATUTORY_REVIEW_DECISION_REQUIRED");
+  }
+  const classificationIds = new Set<string>();
+  for (const decision of input.decisions) {
+    assertReason(decision.reason);
+    if (decision.evidenceReference.trim().length < 5) {
+      throw new Error("STATUTORY_REVIEW_EVIDENCE_REFERENCE_REQUIRED");
+    }
+    if (classificationIds.has(decision.classificationId)) {
+      throw new Error("STATUTORY_REVIEW_DUPLICATE_CLASSIFICATION");
+    }
+    classificationIds.add(decision.classificationId);
   }
   return database.$transaction(async (transaction) => {
     await assertStoredReviewActor(transaction, input.actor);
@@ -241,7 +411,7 @@ export async function recordStatutoryComponentReviewDecision(
         reviewDecisions: true,
       },
     });
-    if (rule.status !== "READY_FOR_HUMAN_SIGN_OFF" || rule.readiness !== "CALCULATION_VERIFIED") {
+    if (!isHumanReviewState(rule)) {
       throw new Error("STATUTORY_HUMAN_REVIEW_REQUIRED_STATE");
     }
     if (rule.humanReviewStatus === "COMPLETED") {
@@ -254,56 +424,61 @@ export async function recordStatutoryComponentReviewDecision(
     if (currentEvidenceDigest !== input.expectedEvidenceDigest) {
       throw new Error("STATUTORY_HUMAN_REVIEW_STALE");
     }
-    const classification = rule.classifications.find((item) => item.id === input.classificationId);
-    if (!classification || classification.treatment !== "UNKNOWN") {
-      throw new Error("STATUTORY_UNKNOWN_CLASSIFICATION_REQUIRED");
-    }
-    assertArrearsDecision(classification.componentCode, input.decision);
     const reviewedAt = new Date();
-    const decisionRevision = (classification.reviewDecisions.at(-1)?.decisionRevision ?? 0) + 1;
-    const blockingScope = classificationBlockingScope({
-      componentCode: classification.componentCode,
-      currentTreatment: classification.treatment,
-      latestDecision: input.decision,
-    }) ?? "CONDITIONAL_RUNTIME_BLOCKER";
-    const decisionDigest = canonicalDigest({
-      ruleSetId: rule.id,
-      classificationId: classification.id,
-      scheme: rule.scheme,
-      componentCode: classification.componentCode,
-      classificationRevision: rule.classificationVersion,
-      previousClassification: classification.treatment,
-      decision: input.decision,
-      blockingScope,
-      evidenceReference: input.evidenceReference.trim(),
-      reason: input.reason.trim(),
-      reviewerUserId: input.actor.id,
-      reviewedAt: reviewedAt.toISOString(),
-      decisionRevision,
-      evidenceDigest: currentEvidenceDigest,
-    });
-    const created = await transaction.statutoryComponentReviewDecision.create({
-      data: {
+    const created = [];
+    for (const requestedDecision of input.decisions) {
+      const classification = rule.classifications.find(
+        (item) => item.id === requestedDecision.classificationId,
+      );
+      if (!classification || classification.treatment !== "UNKNOWN") {
+        throw new Error("STATUTORY_UNKNOWN_CLASSIFICATION_REQUIRED");
+      }
+      assertArrearsDecision(classification.componentCode, requestedDecision.decision);
+      const decisionRevision = (classification.reviewDecisions.at(-1)?.decisionRevision ?? 0) + 1;
+      const blockingScope = classificationBlockingScope({
+        componentCode: classification.componentCode,
+        currentTreatment: classification.treatment,
+        latestDecision: requestedDecision.decision,
+      }) ?? "CONDITIONAL_RUNTIME_BLOCKER";
+      const decisionDigest = canonicalDigest({
         ruleSetId: rule.id,
         classificationId: classification.id,
         scheme: rule.scheme,
         componentCode: classification.componentCode,
-        classificationRevision: rule.classificationVersion ?? rule.version,
+        classificationRevision: rule.classificationVersion,
         previousClassification: classification.treatment,
-        decision: input.decision,
+        decision: requestedDecision.decision,
         blockingScope,
-        evidenceReference: input.evidenceReference.trim(),
-        reason: input.reason.trim(),
+        evidenceReference: requestedDecision.evidenceReference.trim(),
+        reason: requestedDecision.reason.trim(),
         reviewerUserId: input.actor.id,
-        reviewedAt,
+        reviewedAt: reviewedAt.toISOString(),
         decisionRevision,
         evidenceDigest: currentEvidenceDigest,
-        decisionDigest,
-      },
-    });
+      });
+      created.push(await transaction.statutoryComponentReviewDecision.create({
+        data: {
+          ruleSetId: rule.id,
+          classificationId: classification.id,
+          scheme: rule.scheme,
+          componentCode: classification.componentCode,
+          classificationRevision: rule.classificationVersion ?? rule.version,
+          previousClassification: classification.treatment,
+          decision: requestedDecision.decision,
+          blockingScope,
+          evidenceReference: requestedDecision.evidenceReference.trim(),
+          reason: requestedDecision.reason.trim(),
+          reviewerUserId: input.actor.id,
+          reviewedAt,
+          decisionRevision,
+          evidenceDigest: currentEvidenceDigest,
+          decisionDigest,
+        },
+      }));
+    }
     const latest = latestDecisions([
       ...rule.classifications.flatMap((item) => item.reviewDecisions),
-      created,
+      ...created,
     ]);
     const humanClassificationDigest = humanDecisionDigest(rule.classificationDigest, latest);
     const nextRevision = rule.humanReviewRevision + 1;
@@ -319,15 +494,25 @@ export async function recordStatutoryComponentReviewDecision(
     });
     if (update.count !== 1) throw new Error("STATUTORY_HUMAN_REVIEW_STALE");
     if (rule.humanReviewStatus === "PENDING") {
-      await writeReviewAudit(transaction, rule, "HUMAN_REVIEW_STARTED", input.actor.id,
-        input.reason, decisionDigest);
+      await writeReviewAudit(
+        transaction,
+        rule,
+        "HUMAN_REVIEW_STARTED",
+        input.actor.id,
+        `Started HR review with ${created.length} payroll item decision(s).`,
+        humanClassificationDigest,
+      );
     }
-    await writeReviewAudit(transaction, rule,
-      input.decision === "KEEP_UNKNOWN"
-        ? "COMPONENT_CLASSIFICATION_KEPT_UNKNOWN"
-        : "COMPONENT_CLASSIFICATION_REVIEWED",
-      input.actor.id, input.reason, decisionDigest);
-    return { decision: created, humanClassificationDigest, reviewRevision: nextRevision };
+    for (let index = 0; index < created.length; index += 1) {
+      const requestedDecision = input.decisions[index];
+      const savedDecision = created[index];
+      await writeReviewAudit(transaction, rule,
+        requestedDecision.decision === "KEEP_UNKNOWN"
+          ? "COMPONENT_CLASSIFICATION_KEPT_UNKNOWN"
+          : "COMPONENT_CLASSIFICATION_REVIEWED",
+        input.actor.id, requestedDecision.reason, savedDecision.decisionDigest);
+    }
+    return { decisions: created, humanClassificationDigest, reviewRevision: nextRevision };
   }, { isolationLevel: "Serializable" });
 }
 
@@ -352,6 +537,12 @@ export async function completeStatutoryHumanReview(
         reviewDecisions: true,
       },
     });
+    const pcbReviewDraft = isPcbReviewDraft(rule);
+    const canCompleteReview = pcbReviewDraft ||
+      (rule.status === "READY_FOR_HUMAN_SIGN_OFF" && rule.readiness === "CALCULATION_VERIFIED");
+    if (!canCompleteReview) {
+      throw new Error("STATUTORY_HUMAN_REVIEW_REQUIRED_STATE");
+    }
     if (rule.humanReviewStatus !== "IN_PROGRESS") {
       throw new Error("STATUTORY_HUMAN_REVIEW_NOT_IN_PROGRESS");
     }
@@ -383,6 +574,71 @@ export async function completeStatutoryHumanReview(
       input.reason, humanClassificationDigest);
     return { rule: updated, humanClassificationDigest, reviewRevision: nextRevision };
   }, { isolationLevel: "Serializable" });
+}
+
+function pcbReviewDraftClassificationRows(
+  pack: StatutoryHumanReviewPackage,
+  sourceReference: string,
+) {
+  const rows = new Map<string, Prisma.StatutoryComponentClassificationCreateWithoutRuleSetInput>();
+  for (const entry of pack.classification.entries) {
+    rows.set(entry.componentCode, {
+      scheme: "PCB",
+      componentCode: entry.componentCode,
+      sourceType: null,
+      treatment: pcbTreatment(entry.treatments.PCB),
+      rationale: limitedText(entry.reason || "PCB pay-item treatment requires HR review.", 500),
+      authorityRef: limitedText(entry.officialEvidence.join("; ") || sourceReference, 500),
+    });
+  }
+  for (const componentCode of pack.unknownComponents) {
+    const existing = rows.get(componentCode);
+    if (existing) {
+      existing.treatment = "UNKNOWN";
+      continue;
+    }
+    rows.set(componentCode, {
+      scheme: "PCB",
+      componentCode,
+      sourceType: null,
+      treatment: "UNKNOWN",
+      rationale: "PCB treatment is not proven by the retained official evidence.",
+      authorityRef: sourceReference,
+    });
+  }
+  return [...rows.values()].sort((left, right) => left.componentCode.localeCompare(right.componentCode));
+}
+
+function pcbTreatment(value: string | undefined): StatutoryComponentTreatment {
+  if (value === "NORMAL_REMUNERATION" || value === "INCLUDED") return "INCLUDED";
+  if (value === "ADDITIONAL_REMUNERATION") return "ADDITIONAL_REMUNERATION";
+  if (value === "EXCLUDED") return "EXCLUDED";
+  return "UNKNOWN";
+}
+
+function isHumanReviewState(rule: {
+  scheme: StatutoryScheme;
+  status: string;
+  readiness: string;
+  ruleData: Prisma.JsonValue | null;
+}) {
+  return (rule.status === "READY_FOR_HUMAN_SIGN_OFF" && rule.readiness === "CALCULATION_VERIFIED") ||
+    isPcbReviewDraft(rule);
+}
+
+function isPcbReviewDraft(rule: {
+  scheme: StatutoryScheme;
+  status: string;
+  readiness: string;
+  ruleData: Prisma.JsonValue | null;
+}) {
+  return rule.scheme === "PCB" && rule.status === "ENGINEERING_VERIFIED" &&
+    rule.readiness === "DATASET_VERIFIED" &&
+    (rule.ruleData as { reviewDraft?: unknown } | null)?.reviewDraft === true;
+}
+
+function limitedText(value: string, max: number) {
+  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 }
 
 export function statutoryClassificationGovernance(

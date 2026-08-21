@@ -22,32 +22,36 @@ test("Phase 4B Employee Profile actions use only canonical statutory and tax com
   assert.doesNotMatch(source, /employeeBusinessMembership\.(update|upsert|create)/);
 });
 
-test("Phase 4B forms are capability-aware and never preload full protected identifiers", async () => {
+test("Phase 4B forms reveal identity and TIN only through the authorized tax editor", async () => {
   const [component, loader] = await Promise.all([
     readFile(path.join(root, "src/components/employee-profile-payroll.tsx"), "utf8"),
     readFile(path.join(root, "src/lib/team/employee-profile-statutory-read.ts"), "utf8"),
   ]);
 
-  assert.match(component, /data\.canEdit \? <StatutoryEditForm/);
-  assert.match(component, /data\.canEdit \? <TaxEditForm/);
-  assert.match(component, /Replacement fields are deliberately blank/);
-  assert.match(component, /leaving it blank preserves/);
-  assert.match(component, /Clear current value/);
-  assert.match(component, /Historical payroll and exported artifacts stay unchanged/);
-  assert.match(component, /Existing Draft\s+Payroll Runs must be refreshed manually/);
-  assert.match(component, /Current impact preview/);
+  assert.match(component, /data\.canEdit && showStandaloneEdit \? \(/);
+  assert.match(component, /<StatutoryAndTaxEditForm/);
+  assert.match(component, /action={updateEmployeeStatutoryAndTaxProfilesAction}/);
+  assert.match(component, /<TaxEditForm/);
+  assert.match(component, /Tax & government IDs/);
+  assert.match(component, /name="statutoryCountryCode" type="hidden" value="MY"/);
+  assert.doesNotMatch(component, /<span>Tax country code<\/span>/);
+  assert.match(component, /Only enter a new number when it changes/);
+  assert.match(component, /<span>Remove<\/span>/);
+  assert.match(component, /Full identifiers are visible to authorized HR editors/);
+  assert.match(component, /Full numbers are visible only to HR users who can edit tax details/);
+  assert.match(component, /currentValue=\{data\.identityNumber\}/);
+  assert.match(component, /currentValue=\{data\.tin\}/);
+  assert.match(component, /defaultValue=\{currentValue \?\? undefined\}/);
+  assert.match(loader, /identityNumber: canEditTax/);
+  assert.match(loader, /tin: canEditTax/);
+  assert.match(component, /Tax and government IDs updated from the employee profile/);
   assert.match(component, /EmployeeProfileProtectedSubmit/);
   assert.match(loader, /EDIT_STATUTORY_PROFILE/);
   assert.match(loader, /EDIT_TAX_PROFILE/);
   assert.match(loader, /expectedRevision/);
   assert.doesNotMatch(loader, /bankAccount|paymentBatch|payrollEntry|payslip/i);
 
-  for (const field of [
-    "statutoryIdentityNumber",
-    "taxIdentificationNumber",
-    "epfMemberNumber",
-    "socsoMemberNumber",
-  ]) {
+  for (const field of ["epfMemberNumber", "socsoMemberNumber"]) {
     assert.doesNotMatch(
       component,
       new RegExp(`defaultValue=\\{data\\.${field}`),
@@ -67,6 +71,20 @@ test("Phase 4B tax command supports protected keep-current semantics inside cano
   assert.match(source, /membership\.statutoryIdentityNumber/);
   assert.match(source, /Identity type and identity number must be supplied together/);
   assert.match(source, /executeCanonicalPayrollProfileCommand/);
+});
+
+test("Phase 4B combined statutory and tax save is atomic", async () => {
+  const source = await readFile(
+    path.join(
+      root,
+      "src/lib/payroll/employee-profile-write/statutory-tax.ts",
+    ),
+    "utf8",
+  );
+
+  assert.match(source, /prisma\.\$transaction/);
+  assert.match(source, /updateEmployeeStatutoryProfileInTransaction/);
+  assert.match(source, /updateEmployeeTaxProfileInTransaction/);
 });
 
 test("Phase 4B retires legacy employee statutory and tax editing surfaces", async () => {

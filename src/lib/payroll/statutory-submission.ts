@@ -4,7 +4,7 @@ export type StatutoryIdentityType = "NEW_IC" | "OLD_IC" | "PASSPORT" | "OTHER";
 export const STATUTORY_EXPORT_VERSION: Record<StatutorySubmissionProvider, string> = {
   EPF: "KWSP_ECARUMAN_CSV_2020",
   PERKESO: "PERKESO_COMBINED_TEXT_2.0_2026-02-13",
-  PCB: "LHDN_CP39_TEXT_2025",
+  PCB: "LHDN_CP39_EXHIBIT_4_2026",
 };
 
 export type StatutoryBusinessProfile = {
@@ -39,6 +39,7 @@ export type StatutorySubmissionEntry = {
   employerEis: number;
   lindung24Employee: number;
   pcb: number;
+  cp38?: number;
   membership: StatutoryEmployeeProfile;
 };
 
@@ -168,17 +169,19 @@ function buildPcbText(
 ) {
   const year = run.periodStart.toISOString().slice(0, 4);
   const month = run.periodStart.toISOString().slice(5, 7);
-  const total = entries.reduce((sum, entry) => sum + entry.pcb, 0);
+  const totalPcb = entries.reduce((sum, entry) => sum + entry.pcb, 0);
+  const totalCp38 = entries.reduce((sum, entry) => sum + (entry.cp38 ?? 0), 0);
+  const cp38EntryCount = entries.filter((entry) => (entry.cp38 ?? 0) > 0).length;
   const header = [
     "H",
     numeric(profile.lhdnEmployerNumberHq, 10),
     numeric(profile.lhdnEmployerNumber, 10),
     year,
     month,
-    money(total, 10),
+    fixedCents(totalPcb, 10, "PCB header total"),
     String(entries.length).padStart(5, "0"),
-    money(0, 10),
-    "00000",
+    fixedCents(totalCp38, 10, "CP38 header total"),
+    String(cp38EntryCount).padStart(5, "0"),
   ].join("");
   if (header.length !== 57) throw new Error("PCB export header length is invalid.");
 
@@ -193,8 +196,8 @@ function buildPcbText(
       type === "NEW_IC" ? numeric(identity, 12) : " ".repeat(12),
       type === "PASSPORT" ? left(alnum(identity), 12) : " ".repeat(12),
       type === "PASSPORT" ? left(entry.membership.statutoryCountryCode?.toUpperCase(), 2) : "  ",
-      money(entry.pcb, 8),
-      money(0, 8),
+      fixedCents(entry.pcb, 8, "PCB employee amount"),
+      fixedCents(entry.cp38 ?? 0, 8, "CP38 employee amount"),
       left(alnum(entry.employeeCode), 10),
     ].join("");
     if (line.length !== 136) throw new Error("PCB export detail length is invalid.");
@@ -260,7 +263,7 @@ function validateEmployee(
 function hasProviderAmount(provider: StatutorySubmissionProvider, entry: StatutorySubmissionEntry) {
   if (provider === "EPF") return entry.epfEmployee + entry.employerEpf > 0;
   if (provider === "PERKESO") return entry.socsoEmployee + entry.employerSocso + entry.eisEmployee + entry.employerEis + entry.lindung24Employee > 0;
-  return entry.pcb > 0;
+  return entry.pcb + (entry.cp38 ?? 0) > 0;
 }
 
 function providerLabel(provider: StatutorySubmissionProvider) {
@@ -273,7 +276,14 @@ function alnum(value: string | null | undefined) { return clean(value).replace(/
 function left(value: string | null | undefined, width: number) { return clean(value).slice(0, width).padEnd(width, " "); }
 function numeric(value: string | null | undefined, width: number) { return digits(value).slice(-width).padStart(width, "0"); }
 function cents(value: number, width: number) { return String(Math.round(value * 100)).padStart(width, "0").slice(-width); }
-function money(value: number, width: number) { return value.toFixed(2).padStart(width, "0").slice(-width); }
+function fixedCents(value: number, width: number, label: string) {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${label} must be a non-negative amount.`);
+  }
+  const encoded = String(Math.round(value * 100));
+  if (encoded.length > width) throw new Error(`${label} exceeds the CP39 field width.`);
+  return encoded.padStart(width, "0");
+}
 function formatNewIc(value: string | null) {
   const number = digits(value);
   return number.length === 12 ? `${number.slice(0, 6)}-${number.slice(6, 8)}-${number.slice(8)}` : clean(value);

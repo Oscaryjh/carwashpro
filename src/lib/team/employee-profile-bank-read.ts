@@ -2,6 +2,10 @@ import type { PrismaClient } from "@prisma/client";
 import type { ResolvedBusinessAccess } from "@/lib/business-groups/business-access";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { toSafeEmployeeBankVersion } from "@/lib/payroll/payment/bank-account-service";
+import {
+  decryptBankAccountNumber,
+  type PaymentCryptoEnvironment,
+} from "@/lib/payroll/payment/bank-account-crypto";
 import { prisma } from "@/lib/prisma";
 
 type EmployeeBankSectionInput = {
@@ -20,7 +24,11 @@ export type EmployeeBankSectionResult =
   | {
       status: "READY";
       data: {
-        bank: ReturnType<typeof toSafeEmployeeBankVersion> | null;
+        bank:
+          | (ReturnType<typeof toSafeEmployeeBankVersion> & {
+              accountNumber: string;
+            })
+          | null;
         canEdit: boolean;
         canVerify: boolean;
         membershipId: string;
@@ -30,6 +38,7 @@ export type EmployeeBankSectionResult =
 export async function loadEmployeeBankSection(
   input: EmployeeBankSectionInput,
   database: PrismaClient = prisma,
+  environment: PaymentCryptoEnvironment = process.env,
 ): Promise<EmployeeBankSectionResult> {
   if (!hasBusinessCapability(input.access, "VIEW_BANK_ACCOUNT")) {
     return { status: "ACCESS_DENIED", reason: "CAPABILITY" };
@@ -67,12 +76,16 @@ export async function loadEmployeeBankSection(
     orderBy: [{ revision: "desc" }, { createdAt: "desc" }],
     select: {
       accountHolderName: true,
+      accountNumberAuthTag: true,
+      accountNumberCiphertext: true,
+      accountNumberIv: true,
       accountNumberLast4: true,
       bankCode: true,
       bankNameSnapshot: true,
       effectiveFrom: true,
       effectiveUntil: true,
       id: true,
+      encryptionKeyVersion: true,
       revision: true,
       status: true,
       verificationStatus: true,
@@ -82,7 +95,23 @@ export async function loadEmployeeBankSection(
   return {
     status: "READY",
     data: {
-      bank: bank ? toSafeEmployeeBankVersion(bank) : null,
+      bank: bank
+        ? {
+            ...toSafeEmployeeBankVersion(bank),
+            accountNumber: decryptBankAccountNumber(
+              {
+                accountNumberAuthTag: bank.accountNumberAuthTag,
+                accountNumberCiphertext: bank.accountNumberCiphertext,
+                accountNumberIv: bank.accountNumberIv,
+                bankAccountVersionId: bank.id,
+                businessId: input.businessId,
+                employeeMembershipId: input.membershipId,
+                encryptionKeyVersion: bank.encryptionKeyVersion,
+              },
+              environment,
+            ),
+          }
+        : null,
       canEdit: hasBusinessCapability(input.access, "EDIT_BANK_ACCOUNT"),
       canVerify: hasBusinessCapability(input.access, "VERIFY_BANK_ACCOUNT"),
       membershipId: membership.id,

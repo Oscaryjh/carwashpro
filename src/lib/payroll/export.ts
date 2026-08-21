@@ -25,6 +25,7 @@ export type PayrollDocumentEntry = {
   eisEmployee: number;
   lindung24Employee: number;
   pcb: number;
+  cp38: number;
   employerEpf: number;
   employerSocso: number;
   employerEis: number;
@@ -88,7 +89,8 @@ export function buildPayslipPdf(
     entry.socsoEmployee +
     entry.eisEmployee +
     entry.lindung24Employee +
-    entry.pcb;
+    entry.pcb +
+    entry.cp38;
   const employerContributions =
     entry.employerEpf + entry.employerSocso + entry.employerEis;
   const componentEarnings = entry.components?.filter((component) => component.type === "EARNING") ?? [];
@@ -138,6 +140,7 @@ export function buildPayslipPdf(
     moneyLine("EIS employee", entry.eisEmployee),
     moneyLine("LINDUNG 24 Jam", entry.lindung24Employee),
     moneyLine("PCB", entry.pcb),
+    moneyLine("CP38 instruction", entry.cp38),
     moneyLine("Total deductions", employeeDeductions),
     "",
     ...(entry.claimReimbursements?.length
@@ -206,6 +209,7 @@ function payrollRows(run: PayrollDocumentRun): Array<Array<string | number>> {
       "EIS employee",
       "LINDUNG 24 Jam",
       "PCB",
+      "CP38",
       "Net pay",
       "Notes",
     ],
@@ -228,6 +232,7 @@ function payrollRows(run: PayrollDocumentRun): Array<Array<string | number>> {
       entry.eisEmployee,
       entry.lindung24Employee,
       entry.pcb,
+      entry.cp38,
       entry.netPay,
       entry.notes ?? "",
     ]),
@@ -253,6 +258,7 @@ function statutoryRows(run: PayrollDocumentRun): Array<Array<string | number>> {
       "EIS employer",
       "LINDUNG 24 Jam",
       "PCB",
+      "CP38",
       "Statutory status",
       "Rule version",
     ],
@@ -268,6 +274,7 @@ function statutoryRows(run: PayrollDocumentRun): Array<Array<string | number>> {
       entry.employerEis,
       entry.lindung24Employee,
       entry.pcb,
+      entry.cp38,
       entry.statutoryStatus,
       entry.statutoryRuleVersion ?? "",
     ]),

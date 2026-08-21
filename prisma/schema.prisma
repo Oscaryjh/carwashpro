@@ -345,6 +345,12 @@ enum PayrollRunStatus {
   FINALIZED
 }
 
+enum EmployeeCp38InstructionStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
 enum PayrollHolidayPayDecisionStatus {
   NOT_APPLICABLE
   POLICY_DISABLED
@@ -432,6 +438,7 @@ enum StatutoryHumanReviewStatus {
 
 enum StatutoryComponentReviewDecisionValue {
   INCLUDED
+  ADDITIONAL_REMUNERATION
   EXCLUDED
   KEEP_UNKNOWN
 }
@@ -3318,6 +3325,7 @@ model EmployeeBusinessMembership {
   attendanceEnabled         Boolean                        @default(false) @map("attendance_enabled")
   payBasis                  EmployeePayBasis               @default(MONTHLY) @map("pay_basis")
   baseSalary                Decimal?                       @map("base_salary") @db.Decimal(12, 2)
+  workingDaysPerMonth       Int?                           @map("working_days_per_month")
   normalWorkMinutesPerDay   Int?                           @map("normal_work_minutes_per_day")
   targetBreakMinutes        Int?                           @map("target_break_minutes")
   dateOfBirth               DateTime?                      @map("date_of_birth") @db.Date
@@ -3335,6 +3343,7 @@ model EmployeeBusinessMembership {
   epfMemberNumber           String?                        @map("epf_member_number")
   socsoMemberNumber         String?                        @map("socso_member_number")
   taxIdentificationNumber   String?                        @map("tax_identification_number")
+  pcbProfile                Json?                          @map("pcb_profile")
   statutoryProfileUpdatedAt DateTime?                      @map("statutory_profile_updated_at")
   compensationRevision      Int                            @default(0) @map("compensation_revision")
   recurringPayRevision      Int                            @default(0) @map("recurring_pay_revision")
@@ -4482,18 +4491,21 @@ model Customer {
 }
 
 model PayrollSetting {
-  id                             String   @id @default(uuid()) @db.Uuid
-  businessId                     String   @unique @map("business_id") @db.Uuid
-  workingDaysPerMonth            Int      @default(26) @map("working_days_per_month")
-  normalWorkMinutesPerDay        Int      @default(480) @map("normal_work_minutes_per_day")
-  breakMinutesPerDay             Int      @default(60) @map("break_minutes_per_day")
-  overtimeMultiplier             Decimal  @default(1.50) @map("overtime_multiplier") @db.Decimal(5, 2)
-  publicHolidayExtraMultiplier   Decimal  @default(2.00) @map("public_holiday_extra_multiplier") @db.Decimal(5, 2)
-  publicHolidayPayEnabled        Boolean  @default(false) @map("public_holiday_pay_enabled")
-  publicHolidayPayPolicyRevision Int      @default(1) @map("public_holiday_pay_policy_revision")
-  stateCode                      String?  @map("state_code")
-  createdAt                      DateTime @default(now()) @map("created_at")
-  updatedAt                      DateTime @updatedAt @map("updated_at")
+  id                              String   @id @default(uuid()) @db.Uuid
+  businessId                      String   @unique @map("business_id") @db.Uuid
+  workingDaysPerMonth             Int      @default(26) @map("working_days_per_month")
+  normalWorkMinutesPerDay         Int      @default(480) @map("normal_work_minutes_per_day")
+  breakMinutesPerDay              Int      @default(60) @map("break_minutes_per_day")
+  overtimeMultiplier              Decimal  @default(1.50) @map("overtime_multiplier") @db.Decimal(5, 2)
+  restDayWorkMultiplier           Decimal  @default(1.00) @map("rest_day_work_multiplier") @db.Decimal(5, 2)
+  restDayOvertimeMultiplier       Decimal  @default(2.00) @map("rest_day_overtime_multiplier") @db.Decimal(5, 2)
+  publicHolidayExtraMultiplier    Decimal  @default(2.00) @map("public_holiday_extra_multiplier") @db.Decimal(5, 2)
+  publicHolidayOvertimeMultiplier Decimal  @default(3.00) @map("public_holiday_overtime_multiplier") @db.Decimal(5, 2)
+  publicHolidayPayEnabled         Boolean  @default(false) @map("public_holiday_pay_enabled")
+  publicHolidayPayPolicyRevision  Int      @default(1) @map("public_holiday_pay_policy_revision")
+  stateCode                       String?  @map("state_code")
+  createdAt                       DateTime @default(now()) @map("created_at")
+  updatedAt                       DateTime @updatedAt @map("updated_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
 
@@ -4550,30 +4562,33 @@ model HolidayOccurrence {
 }
 
 model PayrollRun {
-  id                                     String                  @id @default(uuid()) @db.Uuid
-  businessId                             String                  @map("business_id") @db.Uuid
-  periodStart                            DateTime                @map("period_start") @db.Date
-  periodEnd                              DateTime                @map("period_end") @db.Date
-  status                                 PayrollRunStatus        @default(DRAFT)
-  attendanceSource                       PayrollAttendanceSource @map("attendance_source")
-  attendanceTimesheetRevisionId          String?                 @map("attendance_timesheet_revision_id") @db.Uuid
-  attendanceTimesheetRevisionSnapshot    Int?                    @map("attendance_timesheet_revision_snapshot")
-  attendanceTimesheetDigestSnapshot      String?                 @map("attendance_timesheet_digest_snapshot") @db.VarChar(64)
-  attendanceTimesheetLockedAtSnapshot    DateTime?               @map("attendance_timesheet_locked_at_snapshot")
-  workingDaysPerMonthSnapshot            Int                     @map("working_days_per_month_snapshot")
-  normalWorkMinutesPerDaySnapshot        Int                     @map("normal_work_minutes_per_day_snapshot")
-  breakMinutesPerDaySnapshot             Int                     @map("break_minutes_per_day_snapshot")
-  overtimeMultiplierSnapshot             Decimal                 @map("overtime_multiplier_snapshot") @db.Decimal(5, 2)
-  publicHolidayExtraMultiplierSnapshot   Decimal                 @map("public_holiday_extra_multiplier_snapshot") @db.Decimal(5, 2)
-  publicHolidayPayEnabledSnapshot        Boolean                 @default(false) @map("public_holiday_pay_enabled_snapshot")
-  publicHolidayPayPolicyRevisionSnapshot Int                     @default(1) @map("public_holiday_pay_policy_revision_snapshot")
-  createdById                            String?                 @map("created_by_id") @db.Uuid
-  submittedById                          String?                 @map("submitted_by_id") @db.Uuid
-  submittedAt                            DateTime?               @map("submitted_at")
-  finalizedById                          String?                 @map("finalized_by_id") @db.Uuid
-  finalizedAt                            DateTime?               @map("finalized_at")
-  createdAt                              DateTime                @default(now()) @map("created_at")
-  updatedAt                              DateTime                @updatedAt @map("updated_at")
+  id                                      String                  @id @default(uuid()) @db.Uuid
+  businessId                              String                  @map("business_id") @db.Uuid
+  periodStart                             DateTime                @map("period_start") @db.Date
+  periodEnd                               DateTime                @map("period_end") @db.Date
+  status                                  PayrollRunStatus        @default(DRAFT)
+  attendanceSource                        PayrollAttendanceSource @map("attendance_source")
+  attendanceTimesheetRevisionId           String?                 @map("attendance_timesheet_revision_id") @db.Uuid
+  attendanceTimesheetRevisionSnapshot     Int?                    @map("attendance_timesheet_revision_snapshot")
+  attendanceTimesheetDigestSnapshot       String?                 @map("attendance_timesheet_digest_snapshot") @db.VarChar(64)
+  attendanceTimesheetLockedAtSnapshot     DateTime?               @map("attendance_timesheet_locked_at_snapshot")
+  workingDaysPerMonthSnapshot             Int                     @map("working_days_per_month_snapshot")
+  normalWorkMinutesPerDaySnapshot         Int                     @map("normal_work_minutes_per_day_snapshot")
+  breakMinutesPerDaySnapshot              Int                     @map("break_minutes_per_day_snapshot")
+  overtimeMultiplierSnapshot              Decimal                 @map("overtime_multiplier_snapshot") @db.Decimal(5, 2)
+  restDayWorkMultiplierSnapshot           Decimal                 @default(1.00) @map("rest_day_work_multiplier_snapshot") @db.Decimal(5, 2)
+  restDayOvertimeMultiplierSnapshot       Decimal                 @default(2.00) @map("rest_day_overtime_multiplier_snapshot") @db.Decimal(5, 2)
+  publicHolidayExtraMultiplierSnapshot    Decimal                 @map("public_holiday_extra_multiplier_snapshot") @db.Decimal(5, 2)
+  publicHolidayOvertimeMultiplierSnapshot Decimal                 @default(3.00) @map("public_holiday_overtime_multiplier_snapshot") @db.Decimal(5, 2)
+  publicHolidayPayEnabledSnapshot         Boolean                 @default(false) @map("public_holiday_pay_enabled_snapshot")
+  publicHolidayPayPolicyRevisionSnapshot  Int                     @default(1) @map("public_holiday_pay_policy_revision_snapshot")
+  createdById                             String?                 @map("created_by_id") @db.Uuid
+  submittedById                           String?                 @map("submitted_by_id") @db.Uuid
+  submittedAt                             DateTime?               @map("submitted_at")
+  finalizedById                           String?                 @map("finalized_by_id") @db.Uuid
+  finalizedAt                             DateTime?               @map("finalized_at")
+  createdAt                               DateTime                @default(now()) @map("created_at")
+  updatedAt                               DateTime                @updatedAt @map("updated_at")
 
   business                    Business                            @relation(fields: [businessId], references: [id], onDelete: Restrict)
   createdBy                   User?                               @relation("PayrollRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -4641,6 +4656,7 @@ model PayrollEntry {
   eisEmployee                            Decimal                         @default(0) @map("eis_employee") @db.Decimal(12, 2)
   lindung24Employee                      Decimal                         @default(0) @map("lindung_24_employee") @db.Decimal(12, 2)
   pcb                                    Decimal                         @default(0) @db.Decimal(12, 2)
+  cp38                                   Decimal                         @default(0) @db.Decimal(12, 2)
   employerEpf                            Decimal                         @default(0) @map("employer_epf") @db.Decimal(12, 2)
   employerSocso                          Decimal                         @default(0) @map("employer_socso") @db.Decimal(12, 2)
   employerEis                            Decimal                         @default(0) @map("employer_eis") @db.Decimal(12, 2)
@@ -4678,6 +4694,26 @@ model PayrollEntry {
   @@index([businessId, membershipId])
   @@index([compensationVersionId])
   @@map("payroll_entries")
+}
+
+model EmployeeCp38Instruction {
+  id                   String                        @id @default(uuid()) @db.Uuid
+  businessId           String                        @map("business_id") @db.Uuid
+  membershipId         String                        @map("membership_id") @db.Uuid
+  instructionReference String                        @map("instruction_reference") @db.VarChar(120)
+  effectiveFromMonth   DateTime                      @map("effective_from_month") @db.Date
+  effectiveToMonth     DateTime?                     @map("effective_to_month") @db.Date
+  monthlyAmount        Decimal                       @map("monthly_amount") @db.Decimal(12, 2)
+  status               EmployeeCp38InstructionStatus @default(ACTIVE)
+  evidenceReference    String                        @map("evidence_reference") @db.VarChar(500)
+  revision             Int
+  recordedById         String                        @map("recorded_by_id") @db.Uuid
+  recordedAt           DateTime                      @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  sourceDigest         String                        @map("source_digest") @db.Char(64)
+
+  @@unique([membershipId, instructionReference, revision])
+  @@index([businessId, membershipId, status, effectiveFromMonth, effectiveToMonth])
+  @@map("employee_cp38_instructions")
 }
 
 model PayrollAttendanceInputSnapshot {
@@ -5039,6 +5075,7 @@ model EmployeeStatutoryProfileVersion {
   eisPreviouslyContributed Boolean                       @map("eis_previously_contributed")
   lindung24OptIn           Boolean                       @map("lindung_24_opt_in")
   taxProfileRevision       Int                           @map("tax_profile_revision")
+  pcbProfileSnapshot       Json?                         @map("pcb_profile_snapshot")
   sourceDigest             String                        @map("source_digest") @db.Char(64)
   createdAt                DateTime                      @default(now()) @map("created_at")
   createdById              String?                       @map("created_by_id") @db.Uuid

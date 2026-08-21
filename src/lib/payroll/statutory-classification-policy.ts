@@ -53,12 +53,19 @@ export function effectiveClassificationTreatment(input: {
   latestDecision: StatutoryComponentReviewDecisionValue | null;
 }): StatutoryComponentTreatment {
   if (input.latestDecision === "INCLUDED") return "INCLUDED";
+  if (input.latestDecision === "ADDITIONAL_REMUNERATION") {
+    return "ADDITIONAL_REMUNERATION";
+  }
   if (input.latestDecision === "EXCLUDED") return "EXCLUDED";
   return input.currentTreatment;
 }
 
 export function assertArrearsDecision(componentCode: string, decision: StatutoryComponentReviewDecisionValue) {
-  if (componentCode === "ARREARS" && decision !== "KEEP_UNKNOWN") {
+  if (isArrearsComponent(componentCode) && decision !== "KEEP_UNKNOWN") {
     throw new Error("ARREARS_STATUTORY_SOURCE_NATURE_REQUIRED");
   }
+}
+
+export function isArrearsComponent(componentCode: string) {
+  return componentCode === "ARREARS" || componentCode === "SALARY_ARREARS";
 }

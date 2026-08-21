@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
+import { generatePayrollRun } from "@/lib/payroll/service";
 import { prisma } from "@/lib/prisma";
 import type { PayrollProfileWriteContext } from "./employee-profile-write/types";
 import {
@@ -43,6 +44,51 @@ const commandSchema = z.object({
 });
 
 export type RecordLindung24ParticipationCommand = z.input<typeof commandSchema>;
+
+export async function recordEmployeeLindung24ParticipationAndRefreshDrafts(
+  input: {
+    command: RecordLindung24ParticipationCommand;
+    context: PayrollProfileWriteContext;
+  },
+  database: PrismaClient = prisma,
+) {
+  const participation = await recordEmployeeLindung24Participation(input, database);
+  const draftRuns = await database.payrollRun.findMany({
+    where: {
+      businessId: input.context.businessId,
+      periodStart: { gte: participation.effectiveFromMonth },
+      status: "DRAFT",
+    },
+    orderBy: { periodStart: "asc" },
+    select: { periodStart: true },
+  });
+  let refreshedDrafts = 0;
+  for (const draft of draftRuns) {
+    const month = `${draft.periodStart.getUTCFullYear()}-${String(
+      draft.periodStart.getUTCMonth() + 1,
+    ).padStart(2, "0")}`;
+    try {
+      await generatePayrollRun(
+        {
+          actor: input.context.actor,
+          businessId: input.context.businessId,
+          month,
+          request: input.context.request,
+        },
+        database,
+      );
+      refreshedDrafts += 1;
+    } catch {
+      // Participation evidence remains valid when an older Draft cannot be
+      // regenerated, for example because its Timesheet is no longer locked.
+    }
+  }
+  return {
+    draftCount: draftRuns.length,
+    participation,
+    refreshedDrafts,
+  };
+}
 
 export async function recordEmployeeLindung24Participation(
   input: {

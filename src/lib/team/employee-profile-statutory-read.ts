@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { ResolvedBusinessAccess } from "@/lib/business-groups/business-access";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
+import { parseEmployeePcbProfile, type EmployeePcbProfile } from "@/lib/payroll/pcb-profile";
 
 type EmployeeStatutoryReadInput = {
   access: ResolvedBusinessAccess;
@@ -28,15 +29,18 @@ type StatutorySection =
       status: "READY";
       data: {
         canEdit: boolean;
+        employeeAge: number | null;
         expectedRevision: number;
         impact: PayrollProfileImpact;
         membershipId: string;
         nationality: "MALAYSIAN" | "PERMANENT_RESIDENT" | "NON_MALAYSIAN" | null;
         epfEnabled: boolean;
+        epfMemberNumber: string | null;
         epfMemberNumberMasked: string | null;
         epfMemberBeforeAug1998: boolean;
         socsoEnabled: boolean;
         socsoCategory: "FIRST" | "SECOND" | null;
+        socsoMemberNumber: string | null;
         socsoMemberNumberMasked: string | null;
         eisEnabled: boolean;
         eisPreviouslyContributed: boolean;
@@ -50,6 +54,7 @@ type StatutorySection =
           officialSubmittedAt: string | null;
           revision: number;
           selectedEmployer: "CURRENT_BUSINESS" | "OTHER_EMPLOYER" | "PERKESO_SELECTION_PENDING";
+          sourceReference: string;
           sourceType: string;
           status: "MANDATORY" | "DEFAULT_PARTICIPATING" | "VOLUNTARY_OPT_IN" | "VOLUNTARY_OPT_OUT";
         }>;
@@ -67,9 +72,12 @@ type TaxSection =
         impact: PayrollProfileImpact;
         membershipId: string;
         identityType: "NEW_IC" | "OLD_IC" | "PASSPORT" | "OTHER" | null;
+        identityNumber: string | null;
         identityNumberMasked: string | null;
         countryCode: string | null;
+        tin: string | null;
         tinMasked: string | null;
+        pcbProfile: EmployeePcbProfile | null;
         profileUpdatedAt: string | null;
       };
     };
@@ -133,6 +141,7 @@ export async function loadEmployeeStatutoryProfileSection(
       ? database.employeeBusinessMembership.findFirst({
           where: { businessId: input.businessId, id: input.membershipId },
           select: {
+            dateOfBirth: true,
             id: true,
             statutoryProfileRevision: true,
             statutoryNationality: true,
@@ -159,6 +168,7 @@ export async function loadEmployeeStatutoryProfileSection(
             statutoryIdentityNumber: true,
             statutoryCountryCode: true,
             taxIdentificationNumber: true,
+            pcbProfile: true,
             statutoryProfileUpdatedAt: true,
           },
         })
@@ -187,6 +197,7 @@ export async function loadEmployeeStatutoryProfileSection(
             officialSubmittedAt: true,
             revision: true,
             selectedEmployer: true,
+            sourceReference: true,
             sourceType: true,
             status: true,
           },
@@ -215,17 +226,24 @@ export async function loadEmployeeStatutoryProfileSection(
           status: "READY",
           data: {
             canEdit: canEditStatutory,
+            employeeAge: calculateAge(statutoryProfile.dateOfBirth),
             expectedRevision: statutoryProfile.statutoryProfileRevision,
             impact,
             membershipId: statutoryProfile.id,
             nationality: statutoryProfile.statutoryNationality,
             epfEnabled: statutoryProfile.epfEnabled,
+            epfMemberNumber: canEditTax
+              ? statutoryProfile.epfMemberNumber
+              : null,
             epfMemberNumberMasked: maskIdentifier(
               statutoryProfile.epfMemberNumber,
             ),
             epfMemberBeforeAug1998: statutoryProfile.epfMemberBeforeAug1998,
             socsoEnabled: statutoryProfile.socsoEnabled,
             socsoCategory: statutoryProfile.socsoCategory,
+            socsoMemberNumber: canEditTax
+              ? statutoryProfile.socsoMemberNumber
+              : null,
             socsoMemberNumberMasked: maskIdentifier(
               statutoryProfile.socsoMemberNumber,
             ),
@@ -255,11 +273,16 @@ export async function loadEmployeeStatutoryProfileSection(
             impact,
             membershipId: taxProfile.id,
             identityType: taxProfile.statutoryIdentityType,
+            identityNumber: canEditTax
+              ? taxProfile.statutoryIdentityNumber
+              : null,
             identityNumberMasked: maskIdentifier(
               taxProfile.statutoryIdentityNumber,
             ),
             countryCode: taxProfile.statutoryCountryCode,
+            tin: canEditTax ? taxProfile.taxIdentificationNumber : null,
             tinMasked: maskIdentifier(taxProfile.taxIdentificationNumber),
+            pcbProfile: parseEmployeePcbProfile(taxProfile.pcbProfile),
             profileUpdatedAt:
               taxProfile.statutoryProfileUpdatedAt?.toISOString() ?? null,
           },
@@ -280,4 +303,18 @@ function maskIdentifier(value: string | null) {
   if (!compact) return null;
   if (compact.length <= 4) return "••••";
   return `•••• ${compact.slice(-4)}`;
+}
+
+function calculateAge(dateOfBirth: Date | null | undefined) {
+  if (!dateOfBirth) return null;
+
+  const today = new Date();
+  let age = today.getUTCFullYear() - dateOfBirth.getUTCFullYear();
+  const birthdayHasPassed =
+    today.getUTCMonth() > dateOfBirth.getUTCMonth() ||
+    (today.getUTCMonth() === dateOfBirth.getUTCMonth() &&
+      today.getUTCDate() >= dateOfBirth.getUTCDate());
+
+  if (!birthdayHasPassed) age -= 1;
+  return age;
 }
