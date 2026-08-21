@@ -496,21 +496,26 @@ export function StaffWorkplaceSelector() {
         <p>Select the employer for this secure Staff Session.</p>
       </div>
       <div className="staff-workplace-list">
-        {flow.memberships.map((membership) => (
-          <button
-            disabled={Boolean(busyId)}
-            key={membership.membershipId}
-            onClick={() => select(membership)}
-            type="button"
-          >
-            <span className="staff-workplace-mark" aria-hidden="true">T</span>
-            <span>
-              <strong>{membership.businessName}</strong>
-              <small>{membership.primaryBranchName} · {membership.employeeCode}</small>
-            </span>
-            <b>{busyId === membership.membershipId ? "…" : "›"}</b>
-          </button>
-        ))}
+        {flow.memberships.map((membership) => {
+          const showBranchName = normalizeLabel(membership.primaryBranchName)
+            !== normalizeLabel(membership.businessName);
+
+          return (
+            <button
+              disabled={Boolean(busyId)}
+              key={membership.membershipId}
+              onClick={() => select(membership)}
+              type="button"
+            >
+              <span className="staff-workplace-mark" aria-hidden="true">T</span>
+              <span>
+                <strong>{membership.businessName}</strong>
+                {showBranchName ? <small>{membership.primaryBranchName}</small> : null}
+              </span>
+              <b>{busyId === membership.membershipId ? "…" : "›"}</b>
+            </button>
+          );
+        })}
       </div>
       {message ? <div className="staff-alert error" role="alert">{message}</div> : null}
     </section>
@@ -558,4 +563,8 @@ function publicAuthMessage(error: unknown) {
 function formatCountdown(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function normalizeLabel(value: string) {
+  return value.trim().toLocaleLowerCase();
 }

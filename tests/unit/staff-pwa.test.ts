@@ -315,6 +315,11 @@ test("OTP UI never stores the entered OTP and supports paste plus resend timing"
   assert.doesNotMatch(authSource, /sessionStorage\.setItem\([^)]*otp/i);
 });
 
+test("workplace selection keeps internal employee codes out of the login UI", () => {
+  assert.match(authSource, /showBranchName \? <small>\{membership\.primaryBranchName\}<\/small> : null/);
+  assert.doesNotMatch(authSource, /\{membership\.primaryBranchName\} · \{membership\.employeeCode\}/);
+});
+
 test("Staff login tolerates mobile browser form metadata added before hydration", () => {
   assert.match(authSource, /onSubmit=\{submit\} suppressHydrationWarning/);
   assert.match(authSource, /required\s+suppressHydrationWarning\s+value=\{phoneNumber\}/);
