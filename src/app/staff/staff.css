@@ -3216,13 +3216,38 @@
 }
 
 .staff-history-stack > .staff-section-hero > .staff-secondary-button {
+  align-self: center;
   border: 0;
   border-radius: 999px;
   font-size: 12px;
-  justify-self: start;
-  margin-top: 8px;
+  grid-area: action;
+  justify-self: end;
+  margin: 0;
   min-height: 38px;
   padding: 0 13px;
+}
+
+.staff-history-stack > .staff-section-hero {
+  align-items: start;
+  column-gap: 12px;
+  grid-template-areas:
+    "kicker action"
+    "title action"
+    "description description";
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 3px;
+}
+
+.staff-history-stack > .staff-section-hero > .staff-kicker {
+  grid-area: kicker;
+}
+
+.staff-history-stack > .staff-section-hero > h1 {
+  grid-area: title;
+}
+
+.staff-history-stack > .staff-section-hero > p:not(.staff-kicker) {
+  grid-area: description;
 }
 
 .staff-history-stack > .staff-page-card .staff-history-filters {

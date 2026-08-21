@@ -175,7 +175,7 @@ export function StaffHistory() {
           onClick={() => setCorrectionOpen((current) => !current)}
           type="button"
         >
-          {correctionOpen ? "Close request" : "Report a missing punch"}
+          {correctionOpen ? "Close" : "Report issue"}
         </button>
       </section>
 
