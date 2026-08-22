@@ -610,9 +610,10 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-pwa-nav\s*\{[^}]*bottom:\s*0;[^}]*left:\s*0;[^}]*position:\s*fixed;[^}]*width:\s*100%/);
   assert.doesNotMatch(staffCssSource, /\.staff-pwa-nav::after/);
   assert.match(staffCssSource, /\.staff-pwa-nav\s*\{[^}]*background:\s*#fff/);
+  assert.match(staffCssSource, /\.staff-pwa-nav\s*\{[^}]*display:\s*grid;[^}]*grid-auto-columns:\s*minmax\(0, 1fr\);[^}]*grid-auto-flow:\s*column/);
   assert.doesNotMatch(staffCssSource, /\.staff-pwa-nav\s*\{[^}]*backdrop-filter:/);
   assert.match(staffCssSource, /\.staff-current-workplace\s*\{[^}]*background:\s*#fff/);
-  assert.match(staffCssSource, /\.staff-pwa-nav > button\s*\{\s*min-height:\s*54px/);
+  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-pwa-nav a,[\s\S]*?\.staff-pwa-nav > button\s*\{[^}]*font-size:\s*clamp\(8\.5px, 2\.35vw, 10px\);[^}]*min-height:\s*54px;[^}]*text-align:\s*center/);
   assert.match(staffCssSource, /\.staff-roster-day summary\s*\{[\s\S]*?grid-template-columns:\s*50px minmax\(0, 1fr\) 22px;[\s\S]*?min-height:\s*62px/);
   assert.match(staffCssSource, /\.staff-roster-page\s*\{[\s\S]*?overflow-x:\s*clip/);
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-roster-day summary/);
