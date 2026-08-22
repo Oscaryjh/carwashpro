@@ -587,6 +587,8 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
     /@media \(max-width: 430px\)[\s\S]*?\.staff-pwa-shell\s*\{[\s\S]*?padding-bottom:\s*66px;[\s\S]*?\.staff-pwa-nav\s*\{[\s\S]*?bottom:\s*0;[\s\S]*?max\(6px, env\(safe-area-inset-right\)\)\s*0/,
   );
   assert.match(staffCssSource, /\.staff-pwa-nav::after\s*\{[\s\S]*?height:\s*64px;[\s\S]*?top:\s*100%/);
+  assert.match(staffCssSource, /\.staff-pwa-nav\s*\{[^}]*background:\s*#fff/);
+  assert.doesNotMatch(staffCssSource, /\.staff-pwa-nav\s*\{[^}]*backdrop-filter:/);
   assert.match(staffCssSource, /\.staff-pwa-nav > button\s*\{\s*min-height:\s*54px/);
   assert.match(staffCssSource, /\.staff-roster-day summary\s*\{[\s\S]*?grid-template-columns:\s*50px minmax\(0, 1fr\) 22px;[\s\S]*?min-height:\s*62px/);
   assert.match(staffCssSource, /\.staff-roster-page\s*\{[\s\S]*?overflow-x:\s*clip/);
