@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { isEmployeeSessionError, staffApiFetch, StaffApiError } from "@/lib/staff-pwa/client";
 import styles from "./staff-leave.module.css";
@@ -58,7 +59,7 @@ type Overview = {
   }>;
 };
 
-export function StaffLeave() {
+export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-request" }) {
   const router = useRouter();
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -185,14 +186,54 @@ export function StaffLeave() {
   }
 
   if (loading && !data) return <section className={styles.state}>Loading Leave...</section>;
+
+  const requestForm = !data?.policies.length ? <p>Your company has not enabled Leave policies yet. Contact HR.</p> : (
+    <form onSubmit={submit} className={styles.form}>
+      <label>Leave type<select required value={selectedPolicyId} onChange={(event) => setSelectedPolicyId(event.target.value)}><option value="" disabled>Select a ready Leave type</option>{data.policies.map((policy) => <option value={policy.id} key={policy.id} disabled={!policy.applicationReady}>{policy.name} · {policy.payTreatment === "PAID" ? "Paid" : "Unpaid"}{policy.readinessCode ? ` · ${policy.readinessCode}` : ""}</option>)}</select></label>
+      <div><label>From<input name="startsOn" type="date" required /></label><label>To<input name="endsOn" type="date" required /></label></div>
+      <label>Duration<select name="leaveUnit"><option value="FULL_DAY">Full day / days</option><option value="HALF_DAY_AM">Half day · AM</option><option value="HALF_DAY_PM">Half day · PM</option></select></label>
+      <label>Reason<textarea name="reason" minLength={3} maxLength={500} required placeholder="Tell your manager why you need Leave" /></label>
+      <fieldset className={styles.documents}>
+        <legend>Supporting documents {selectedPolicy?.requiresDocument ? <span>Required</span> : <small>Optional</small>}</legend>
+        <p>Private HR evidence. PDF, JPG, PNG or WEBP · up to 10 MB each · maximum 5 files.</p>
+        <label>Document type<select name="documentType" defaultValue={selectedPolicy?.name.toLowerCase().includes("medical") ? "MEDICAL_CERTIFICATE" : "SUPPORTING_DOCUMENT"}><option value="SUPPORTING_DOCUMENT">Supporting document</option><option value="MEDICAL_CERTIFICATE">Medical certificate</option><option value="HOSPITALISATION_SUPPORT">Hospitalisation support</option><option value="MATERNITY_SUPPORT">Maternity support</option><option value="PATERNITY_SUPPORT">Paternity support</option><option value="OTHER">Other evidence</option></select></label>
+        <div className={styles.documentButtons}>
+          <label className={styles.fileButton}>Take photo<input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" /></label>
+          <label className={styles.fileButtonSecondary}>Upload files<input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple /></label>
+        </div>
+        <small>Files are stored privately. There is no public attachment link.</small>
+      </fieldset>
+      <p>{selectedPolicy?.countMode === "CALENDAR_DAYS" ? "This company policy counts calendar days." : "Only explicit expected workdays are counted; rest days and public holidays are excluded."}</p>
+      <button type="submit" disabled={!selectedPolicy?.applicationReady}>Submit for approval</button>
+    </form>
+  );
+
+  if (view === "new-request") {
+    return (
+      <div className={`${styles.page} ${styles.requestPage}`}>
+        <section className={styles.requestHero}>
+          <Link className={styles.backButton} href="/staff/leave" aria-label="Back to Leave">
+            <span aria-hidden="true">&#8249;</span>
+          </Link>
+          <div><p>LEAVE</p><h1>New request</h1><span>Send a time-off request for manager approval.</span></div>
+        </section>
+        {message ? <div className={styles.success} role="status">{message}</div> : null}
+        {error ? <div className={styles.error} role="alert">{error}</div> : null}
+        <section className={`${styles.card} ${styles.requestCard}`} aria-label="New leave request">
+          {requestForm}
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
         <div><p>LEAVE</p><h1>Time off</h1><span>Check balances and submit a request.</span></div>
-        <a className={styles.heroAction} href="#staff-leave-apply">
+        <Link className={styles.heroAction} href="/staff/leave/new">
           <span aria-hidden="true">+</span>
           New request
-        </a>
+        </Link>
       </section>
       {message ? <div className={styles.success} role="status">{message}</div> : null}
       {error ? <div className={styles.error} role="alert">{error}</div> : null}
@@ -224,30 +265,6 @@ export function StaffLeave() {
           </div>
         </section>
       ) : null}
-
-      <section className={styles.card} id="staff-leave-apply">
-        <h2>New request</h2>
-        {!data?.policies.length ? <p>Your company has not enabled Leave policies yet. Contact HR.</p> : (
-          <form onSubmit={submit} className={styles.form}>
-            <label>Leave type<select required value={selectedPolicyId} onChange={(event) => setSelectedPolicyId(event.target.value)}><option value="" disabled>Select a ready Leave type</option>{data.policies.map((policy) => <option value={policy.id} key={policy.id} disabled={!policy.applicationReady}>{policy.name} · {policy.payTreatment === "PAID" ? "Paid" : "Unpaid"}{policy.readinessCode ? ` · ${policy.readinessCode}` : ""}</option>)}</select></label>
-            <div><label>From<input name="startsOn" type="date" required /></label><label>To<input name="endsOn" type="date" required /></label></div>
-            <label>Duration<select name="leaveUnit"><option value="FULL_DAY">Full day / days</option><option value="HALF_DAY_AM">Half day · AM</option><option value="HALF_DAY_PM">Half day · PM</option></select></label>
-            <label>Reason<textarea name="reason" minLength={3} maxLength={500} required placeholder="Tell your manager why you need Leave" /></label>
-            <fieldset className={styles.documents}>
-              <legend>Supporting documents {selectedPolicy?.requiresDocument ? <span>Required</span> : <small>Optional</small>}</legend>
-              <p>Private HR evidence. PDF, JPG, PNG or WEBP · up to 10 MB each · maximum 5 files.</p>
-              <label>Document type<select name="documentType" defaultValue={selectedPolicy?.name.toLowerCase().includes("medical") ? "MEDICAL_CERTIFICATE" : "SUPPORTING_DOCUMENT"}><option value="SUPPORTING_DOCUMENT">Supporting document</option><option value="MEDICAL_CERTIFICATE">Medical certificate</option><option value="HOSPITALISATION_SUPPORT">Hospitalisation support</option><option value="MATERNITY_SUPPORT">Maternity support</option><option value="PATERNITY_SUPPORT">Paternity support</option><option value="OTHER">Other evidence</option></select></label>
-              <div className={styles.documentButtons}>
-                <label className={styles.fileButton}>Take photo<input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" /></label>
-                <label className={styles.fileButtonSecondary}>Upload files<input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple /></label>
-              </div>
-              <small>Files are stored privately. There is no public attachment link.</small>
-            </fieldset>
-            <p>{selectedPolicy?.countMode === "CALENDAR_DAYS" ? "This company policy counts calendar days." : "Only explicit expected workdays are counted; rest days and public holidays are excluded."}</p>
-            <button type="submit" disabled={!selectedPolicy?.applicationReady}>Submit for approval</button>
-          </form>
-        )}
-      </section>
 
       <section className={styles.card}>
         <h2>Request history</h2>

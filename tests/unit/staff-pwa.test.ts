@@ -116,6 +116,10 @@ const leaveCssSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-leave.module.css", import.meta.url),
   "utf8",
 );
+const newLeavePageSource = readFileSync(
+  new URL("../../src/app/staff/leave/new/page.tsx", import.meta.url),
+  "utf8",
+);
 const timesheetPageSource = readFileSync(
   new URL("../../src/app/staff/timesheet/page.tsx", import.meta.url),
   "utf8",
@@ -571,8 +575,13 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-correction-time-grid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
   assert.match(staffCssSource, /@media \(max-width: 350px\)[\s\S]*?\.staff-filter-field-grid,\s*[\s\S]*?\.staff-correction-field-grid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
   assert.match(staffCssSource, /\.staff-history-stack > \.staff-section-hero > \.staff-secondary-button\s*\{[\s\S]*?grid-area:\s*action;[\s\S]*?min-height:\s*38px/);
-  assert.match(leaveComponentSource, /href="#staff-leave-apply"/);
+  assert.match(leaveComponentSource, /href="\/staff\/leave\/new"/);
   assert.match(leaveComponentSource, /<span aria-hidden="true">\+<\/span>[\s\S]*?New request/);
+  assert.match(leaveComponentSource, /view === "new-request"/);
+  assert.match(leaveComponentSource, /href="\/staff\/leave" aria-label="Back to Leave"/);
+  assert.doesNotMatch(leaveComponentSource, /href="#staff-leave-apply"|id="staff-leave-apply"/);
+  assert.match(newLeavePageSource, /requireEmployeeModulePage\("HR"\)/);
+  assert.match(newLeavePageSource, /<StaffLeave view="new-request" \/>/);
   assert.match(leaveCssSource, /\.heroAction\{[^}]*min-height:42px[^}]*padding:0 13px/);
   assert.match(leaveCssSource, /\.heroAction>span\{[^}]*height:20px[^}]*width:20px/);
   assert.doesNotMatch(leaveCssSource, /\.hero\{align-items:stretch\}|\.heroAction\{min-width:112px\}/);
