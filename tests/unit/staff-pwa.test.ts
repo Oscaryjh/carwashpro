@@ -464,7 +464,8 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
     "Attendance actions should appear before secondary metrics",
   );
   assert.match(attentionSource, /NEEDS YOUR ATTENTION/);
-  assert.match(attentionSource, /You&apos;re all set/);
+  assert.match(attentionSource, /if \(!actionableCases\.length\) return null/);
+  assert.doesNotMatch(attentionSource, /You&apos;re all set|No items need your attention/);
   assert.match(attentionSource, /item\.status === "OPEN" \|\| item\.status === "RETURNED_FOR_CORRECTION" \|\| item\.canCancel/);
   assert.doesNotMatch(attentionSource, /Unauthorized absence|No-show/i);
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-home-grid\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);

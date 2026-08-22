@@ -55,14 +55,7 @@ export function StaffResolutionCases() {
   const actionableCases = cases.filter((item) => (
     item.status === "OPEN" || item.status === "RETURNED_FOR_CORRECTION" || item.canCancel
   ));
-  if (!actionableCases.length) {
-    return (
-      <section className="staff-home-attention is-clear" role="status">
-        <p className="staff-kicker">NEEDS YOUR ATTENTION</p>
-        <div><span aria-hidden="true">✓</span><strong>You&apos;re all set</strong><small>No items need your attention.</small></div>
-      </section>
-    );
-  }
+  if (!actionableCases.length) return null;
 
   return (
     <section className="staff-home-attention has-items">
