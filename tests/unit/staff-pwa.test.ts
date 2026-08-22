@@ -426,7 +426,7 @@ test("Staff navigation follows module entitlement without overcrowding the mobil
   assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Attendance", "Appointments", "Schedule"]);
   assert.deepEqual(full.more.map((item) => item.label), ["Profile"]);
   assert.deepEqual(full.more.filter((item) => item.section === "ACCOUNT").map((item) => item.label), ["Profile"]);
-  assert.ok(full.primary.length + 1 <= 5, "primary navigation plus More must fit five mobile slots");
+  assert.ok(full.primary.length + full.more.length <= 5, "primary navigation plus Profile must fit five mobile slots");
 });
 
 test("Staff navigation refreshes live employee module entitlement after login", () => {
@@ -490,17 +490,11 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
   assert.match(staffCssSource, /\.staff-welcome-avatar\s*\{[\s\S]*?flex:\s*0 0 80px;[\s\S]*?height:\s*80px;[\s\S]*?width:\s*80px/);
 });
 
-test("More avoids Home duplication and keeps only account actions", () => {
-  assert.doesNotMatch(chromeSource, /<MoreSection label="SELF-SERVICE">/);
-  assert.doesNotMatch(chromeSource, /selfServiceNavigation/);
-  assert.match(chromeSource, /<MoreSection label="ACCOUNT">/);
-  assert.doesNotMatch(chromeSource, /<MoreSection label="WORKPLACE">/);
-  assert.doesNotMatch(chromeSource, /staff-more-context-action/);
-  assert.match(chromeSource, /<MoreSection label="ACCOUNT ACTIONS">/);
-  assert.match(chromeSource, /className="staff-more-signout"/);
-  assert.match(chromeSource, /onClick=\{\(\) => void logout\(\)\}/);
-  assert.doesNotMatch(chromeSource, /StaffNavIcon name="profile" \/><\/span>More/);
-  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-more-section \.staff-more-links\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
+test("Profile is a direct bottom navigation destination", () => {
+  assert.match(chromeSource, /navigation\.more\.map\(\(item\) => \(/);
+  assert.doesNotMatch(chromeSource, /moreOpen|MoreSection|staff-more-signout|StaffNavIcon name="more"/);
+  assert.match(profileSource, /Sign out of Staff App/);
+  assert.doesNotMatch(staffCssSource, /\.staff-more-section|\.staff-more-signout/);
 });
 
 test("Staff App appearance keeps business icon choices safe and complete", () => {

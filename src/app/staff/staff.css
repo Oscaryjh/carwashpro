@@ -680,40 +680,6 @@
   padding: 0 14px;
 }
 
-.staff-more-links {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.staff-more-links a {
-  align-items: center;
-  border: 1px solid var(--staff-line);
-  border-radius: 16px;
-  color: var(--staff-ink);
-  display: flex;
-  gap: 11px;
-  min-height: 58px;
-  padding: 11px 13px;
-  text-decoration: none;
-}
-
-.staff-more-links span {
-  align-items: center;
-  background: var(--staff-brand-soft);
-  border-radius: 10px;
-  color: var(--staff-brand-dark);
-  display: inline-flex;
-  flex: 0 0 34px;
-  height: 34px;
-  justify-content: center;
-}
-
-.staff-more-links .staff-nav-icon {
-  height: 19px;
-  width: 19px;
-}
-
 .staff-schedule-evidence,
 .staff-schedule-empty {
   background: #f6faf9;
@@ -2471,10 +2437,6 @@
   .staff-history-filters > button,
   .staff-history-filters > small {
     grid-column: auto;
-  }
-
-  .staff-more-links {
-    grid-template-columns: 1fr;
   }
 
   .staff-more-actions {
@@ -4332,49 +4294,10 @@
   }
 }
 
-/* Staff IA: today-first Home, fixed primary navigation, and grouped self-service. */
+/* Staff IA: today-first Home and direct, fixed primary navigation. */
 .staff-more-sheet {
   gap: 12px;
   overscroll-behavior: contain;
-}
-
-.staff-more-section {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-}
-
-.staff-more-section > h2 {
-  color: var(--staff-brand);
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: .13em;
-  margin: 0;
-}
-
-.staff-more-section .staff-more-links {
-  gap: 8px;
-}
-
-.staff-more-section .staff-more-links a {
-  min-height: 54px;
-  padding: 9px 11px;
-}
-
-.staff-more-account-links {
-  grid-template-columns: 1fr;
-}
-
-.staff-more-signout {
-  background: #fff5f4;
-  border: 1px solid #efd0cc;
-  border-radius: 14px;
-  color: #96352e;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 850;
-  min-height: 46px;
-  width: 100%;
 }
 
 .staff-home-up-next,
@@ -4629,14 +4552,6 @@
   .staff-more-sheet {
     max-height: calc(100dvh - 92px - env(safe-area-inset-bottom));
     padding: 14px;
-  }
-
-  .staff-more-section .staff-more-links {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .staff-more-section .staff-more-account-links {
-    grid-template-columns: 1fr;
   }
 
   .staff-home-grid {

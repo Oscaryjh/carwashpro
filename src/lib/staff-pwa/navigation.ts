@@ -17,8 +17,7 @@ export type StaffNavigationIcon =
   | "claims"
   | "commission"
   | "payslip"
-  | "profile"
-  | "more";
+  | "profile";
 
 export type StaffNavigation = {
   primary: StaffNavigationItem[];
