@@ -419,11 +419,11 @@ test("Staff navigation follows module entitlement without overcrowding the mobil
   assert.deepEqual(posOnly.more.map((item) => item.label), ["Profile"]);
 
   const hrOnly = buildStaffNavigation(["CORE", "HR"]);
-  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance", "Schedule"]);
+  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance"]);
   assert.deepEqual(hrOnly.more.map((item) => item.label), ["Profile"]);
 
   const full = buildStaffNavigation(["CORE", "SALON", "HR", "CLAIMS", "COMMISSION", "PAYROLL"]);
-  assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Attendance", "Appointments", "Schedule"]);
+  assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Attendance", "Appointments"]);
   assert.deepEqual(full.more.map((item) => item.label), ["Profile"]);
   assert.deepEqual(full.more.filter((item) => item.section === "ACCOUNT").map((item) => item.label), ["Profile"]);
   assert.ok(full.primary.length + full.more.length <= 5, "primary navigation plus Profile must fit five mobile slots");
@@ -466,11 +466,12 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
   assert.match(employeeSessionSource, /avatarUrl:\s*true/);
   assert.doesNotMatch(homeComponentSource, /<strong>\{card\.value\}<\/strong>/);
   assert.doesNotMatch(homeComponentSource, /staff-home-card-arrow/);
-  const quickAccessOrder = ["Commission", "Claims", "Payslips", "Timesheets"]
+  const quickAccessOrder = ["Schedule", "Leave", "Timesheets", "Claims", "Commission", "Payslips"]
     .map((label) => homeSource.indexOf(`label: "${label}"`));
   assert.ok(quickAccessOrder.every((index) => index >= 0));
   assert.deepEqual(quickAccessOrder, [...quickAccessOrder].sort((left, right) => left - right));
-  assert.doesNotMatch(homeSource, /label: "Schedule"|label: "Leave"/);
+  assert.match(homeSource, /domain: "ROSTER", label: "Schedule", href: "\/staff\/roster"/);
+  assert.match(homeSource, /domain: "LEAVE", label: "Leave", href: "\/staff\/leave"/);
   assert.match(todaySource, /staff-page-card staff-attendance-card/);
   assert.match(todaySource, /Today’s shift/);
   assert.doesNotMatch(todaySource, /Today&apos;s published evidence|Revision \{today\.expectedAttendance\.revision\}|Source:/);

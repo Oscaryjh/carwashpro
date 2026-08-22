@@ -39,10 +39,6 @@ export function buildStaffNavigation(
   if (modules.has("SALON")) {
     primary.push({ href: "/staff/appointments", label: "Appointments", icon: "appointments" });
   }
-  if (modules.has("HR")) {
-    primary.push({ href: "/staff/roster", label: "Schedule", icon: "schedule" });
-  }
-
   more.push({ href: "/staff/profile", label: "Profile", icon: "profile", section: "ACCOUNT" });
   return { primary, more };
 }
