@@ -442,8 +442,8 @@ export function StaffHistory() {
               </div>
             ) : null}
           </section>
-          <div className={`staff-pagination ${history.pagination.totalPages <= 1 ? "single-page" : ""}`}>
-            {history.pagination.totalPages > 1 ? (
+          {history.pagination.totalPages > 1 ? (
+            <div className="staff-pagination">
               <button
                 disabled={loading || history.pagination.page <= 1}
                 onClick={() => setPage((current) => Math.max(1, current - 1))}
@@ -451,24 +451,22 @@ export function StaffHistory() {
               >
                 Previous
               </button>
-            ) : null}
-            <span>
-              Page {history.pagination.page} of {Math.max(1, history.pagination.totalPages)}
-              <small>{history.pagination.total} records</small>
-            </span>
-            {history.pagination.totalPages > 1 ? (
+              <span>
+                Page {history.pagination.page} of {history.pagination.totalPages}
+                <small>{history.pagination.total} records</small>
+              </span>
               <button
                 disabled={
                   loading ||
-                  history.pagination.page >= Math.max(1, history.pagination.totalPages)
+                  history.pagination.page >= history.pagination.totalPages
                 }
                 onClick={() => setPage((current) => current + 1)}
                 type="button"
               >
                 Next
               </button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </>
       ) : null}
     </div>

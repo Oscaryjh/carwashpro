@@ -561,6 +561,8 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.doesNotMatch(historyComponentSource, /Select branch|All branches/);
   assert.doesNotMatch(historyComponentSource, /branchId: correctionBranchId/);
   assert.match(attendanceExceptionRouteSource, /auth\.attendanceBranchId \?\? auth\.primaryBranchId/);
+  assert.match(historyComponentSource, /history\.pagination\.totalPages > 1 \? \(\s*<div className="staff-pagination">/);
+  assert.doesNotMatch(staffCssSource, /\.staff-pagination\.single-page/);
   assert.doesNotMatch(historyComponentSource, />\s*Reason\s*</);
   assert.match(historyComponentSource, /Employee requested a missing clock-out correction\./);
   assert.match(staffCssSource, /@media \(max-width: 640px\)[\s\S]*?\.staff-correction-backdrop\s*\{[\s\S]*?align-items:\s*flex-end/);

@@ -5078,13 +5078,6 @@
   padding: 0 2px;
 }
 
-.staff-pagination.single-page {
-  display: flex;
-  justify-content: center;
-  min-height: 46px;
-  padding: 9px 0 0;
-}
-
 @media (max-width: 430px) {
   .staff-attendance-attention,
   .staff-history-list {
