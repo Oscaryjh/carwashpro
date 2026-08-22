@@ -595,6 +595,8 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.doesNotMatch(leaveCssSource, /\.hero\{align-items:stretch\}|\.heroAction\{min-width:112px\}/);
   assert.match(leaveCssSource, /\.requestPage \.dateRange\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(leaveCssSource, /\.requestPage \.form select,[\s\S]*?min-height:\s*50px/);
+  assert.match(leaveCssSource, /\.requestPage\s*\{[^}]*padding-bottom:\s*12px/);
+  assert.doesNotMatch(leaveCssSource, /\.requestPage\s*\{[^}]*padding-bottom:\s*96px/);
   assert.match(leaveCssSource, /@media \(max-width: 369px\)[\s\S]*?\.requestPage \.dateRange\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
   assert.match(leaveComponentSource, /<StaffDatePicker label="From" name="startsOn"/);
   assert.match(leaveComponentSource, /<StaffDatePicker label="To" min=\{startsOn \|\| undefined\}/);
