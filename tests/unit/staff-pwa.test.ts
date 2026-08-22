@@ -116,6 +116,14 @@ const leaveCssSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-leave.module.css", import.meta.url),
   "utf8",
 );
+const staffDatePickerSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-date-picker.tsx", import.meta.url),
+  "utf8",
+);
+const staffDatePickerCssSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-date-picker.module.css", import.meta.url),
+  "utf8",
+);
 const newLeavePageSource = readFileSync(
   new URL("../../src/app/staff/leave/new/page.tsx", import.meta.url),
   "utf8",
@@ -588,6 +596,13 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(leaveCssSource, /\.requestPage \.dateRange\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(leaveCssSource, /\.requestPage \.form select,[\s\S]*?min-height:\s*50px/);
   assert.match(leaveCssSource, /@media \(max-width: 369px\)[\s\S]*?\.requestPage \.dateRange\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
+  assert.match(leaveComponentSource, /<StaffDatePicker label="From" name="startsOn"/);
+  assert.match(leaveComponentSource, /<StaffDatePicker label="To" min=\{startsOn \|\| undefined\}/);
+  assert.match(staffDatePickerSource, /createPortal\([\s\S]*?role="dialog" aria-modal="true"/);
+  assert.match(staffDatePickerSource, /WEEKDAYS[\s\S]*?calendarDays\(visibleMonth\)/);
+  assert.match(staffDatePickerSource, /aria-haspopup="dialog"/);
+  assert.match(staffDatePickerCssSource, /\.sheet\s*\{[\s\S]*?border-radius:\s*28px 28px 0 0[\s\S]*?env\(safe-area-inset-bottom\)/);
+  assert.match(staffDatePickerCssSource, /\.grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(7, minmax\(0, 1fr\)\)/);
   assert.match(leaveComponentSource, /setCameraDocumentNames\(Array\.from\(event\.currentTarget\.files/);
   assert.match(leaveComponentSource, /setUploadedDocumentNames\(Array\.from\(event\.currentTarget\.files/);
   assert.match(leaveComponentSource, /className=\{styles\.selectedFiles\} role="status" aria-live="polite"/);

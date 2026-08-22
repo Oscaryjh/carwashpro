@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { isEmployeeSessionError, staffApiFetch, StaffApiError } from "@/lib/staff-pwa/client";
+import { StaffDatePicker } from "./staff-date-picker";
 import styles from "./staff-leave.module.css";
 
 type Overview = {
@@ -66,6 +67,8 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedPolicyId, setSelectedPolicyId] = useState("");
+  const [startsOn, setStartsOn] = useState("");
+  const [endsOn, setEndsOn] = useState("");
   const [cameraDocumentNames, setCameraDocumentNames] = useState<string[]>([]);
   const [uploadedDocumentNames, setUploadedDocumentNames] = useState<string[]>([]);
 
@@ -100,6 +103,7 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
       const files = form.getAll("supportingDocument").filter((value): value is File => value instanceof File && value.size > 0);
       if (files.length > 5) throw new Error("Upload up to 5 supporting documents.");
       if (selectedPolicy?.requiresDocument && files.length === 0) throw new Error("Add a supporting document before submitting this Leave request.");
+      if (!startsOn || !endsOn) throw new Error("Choose the start and end dates for this Leave request.");
       const outgoing = new FormData();
       outgoing.set("payload", JSON.stringify({
         clientRequestId: crypto.randomUUID(),
@@ -117,6 +121,8 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
         body: outgoing,
       });
       formElement.reset();
+      setStartsOn("");
+      setEndsOn("");
       setCameraDocumentNames([]);
       setUploadedDocumentNames([]);
       setMessage("Leave application submitted for manager approval.");
@@ -197,7 +203,10 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
     <form onSubmit={submit} className={styles.form}>
       <div className={styles.requestFields}>
         <label>Leave type<select required value={selectedPolicyId} onChange={(event) => setSelectedPolicyId(event.target.value)}><option value="" disabled>Select a ready Leave type</option>{data.policies.map((policy) => <option value={policy.id} key={policy.id} disabled={!policy.applicationReady}>{policy.name} · {policy.payTreatment === "PAID" ? "Paid" : "Unpaid"}{policy.readinessCode ? ` · ${policy.readinessCode}` : ""}</option>)}</select></label>
-        <div className={styles.dateRange}><label>From<input name="startsOn" type="date" required /></label><label>To<input name="endsOn" type="date" required /></label></div>
+        <div className={styles.dateRange}>
+          <StaffDatePicker label="From" name="startsOn" value={startsOn} onChange={(value) => { setStartsOn(value); if (endsOn && endsOn < value) setEndsOn(""); }} />
+          <StaffDatePicker label="To" min={startsOn || undefined} name="endsOn" value={endsOn} onChange={setEndsOn} />
+        </div>
         <label>Duration<select name="leaveUnit"><option value="FULL_DAY">Full day / days</option><option value="HALF_DAY_AM">Half day · AM</option><option value="HALF_DAY_PM">Half day · PM</option></select></label>
         <label>Reason<textarea name="reason" minLength={3} maxLength={500} required placeholder="Tell your manager why you need Leave" /></label>
       </div>
