@@ -512,6 +512,11 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.doesNotMatch(leaveCssSource, /grid-auto-flow:column|overflow-x:auto|scroll-snap-type/);
   assert.match(leaveCssSource, /@media\(max-width:600px\)[\s\S]*?\.balances\{display:grid;grid-template-columns:1fr/);
   assert.match(timesheetPageSource, /staff-timesheet-summary/);
+  assert.match(timesheetPageSource, /Monthly work record/);
+  assert.match(timesheetPageSource, /Review your confirmed work results before payroll/);
+  assert.match(timesheetPageSource, /staff-timesheet-attention/);
+  assert.match(timesheetPageSource, /staff-timesheet-list/);
+  assert.doesNotMatch(timesheetPageSource, /Version \{row\.version\}/);
   assert.match(rosterPageSource, /<h1 id="staff-roster-heading">Schedule<\/h1>/);
   assert.doesNotMatch(rosterPageSource, /Work week/);
   assert.match(rosterPageSource, /<small>Today<\/small>/);
