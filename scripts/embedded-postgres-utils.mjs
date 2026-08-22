@@ -1,11 +1,11 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createConnection } from "node:net";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import EmbeddedPostgres from "embedded-postgres";
 
-export const DATABASE_DIR = ".local-postgres/data";
+export const DATABASE_DIR = resolveDatabaseDirectory();
 export const DATABASE_NAME = "car_wash_crm_pos";
 export const DATABASE_PORT = Number(process.env.LOCAL_POSTGRES_PORT ?? "5432");
 export const DATABASE_URL =
@@ -13,6 +13,34 @@ export const DATABASE_URL =
 const REQUIRED_DATABASE_ENCODING = "UTF8";
 const REQUIRED_DATABASE_COLLATE = "C";
 const REQUIRED_DATABASE_CTYPE = "C";
+
+export function resolveDatabaseDirectory(options = {}) {
+  const cwd = options.cwd ?? process.cwd();
+  const configuredDirectory =
+    options.configuredDirectory ?? process.env.LOCAL_POSTGRES_DATA_DIR?.trim();
+
+  if (configuredDirectory) {
+    return resolve(cwd, configuredDirectory);
+  }
+
+  try {
+    const commonGitDirectory =
+      options.resolveGitCommonDirectory?.(cwd) ??
+      execFileSync("git", ["rev-parse", "--git-common-dir"], {
+        cwd,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+    if (commonGitDirectory) {
+      const absoluteCommonGitDirectory = resolve(cwd, commonGitDirectory);
+      return join(dirname(absoluteCommonGitDirectory), ".local-postgres", "data");
+    }
+  } catch {
+    // Non-Git copies keep the historical project-local database directory.
+  }
+
+  return resolve(cwd, ".local-postgres", "data");
+}
 
 export function createEmbeddedPostgres() {
   return new EmbeddedPostgres({
