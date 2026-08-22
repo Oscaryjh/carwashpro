@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { StaffAppointmentCalendar } from "@/components/staff-pwa/staff-appointment-calendar";
 import { requireEmployeeModulePage } from "@/lib/modules/employee-access";
-import { getStaffAppointmentDay } from "@/lib/staff-pwa/appointments";
+import { getStaffAppointmentCalendarWeek, getStaffAppointmentDay } from "@/lib/staff-pwa/appointments";
 
 export const metadata: Metadata = { title: "My Appointments" };
 export const dynamic = "force-dynamic";
@@ -14,6 +14,7 @@ export default async function StaffAppointmentsPage({
   const auth = await requireEmployeeModulePage("SALON");
   const params = await searchParams;
   const day = await getStaffAppointmentDay({ auth, date: params.date });
+  const week = getStaffAppointmentCalendarWeek(day.date);
 
   return (
     <div className="staff-appointments-stack">
@@ -23,14 +24,14 @@ export default async function StaffAppointmentsPage({
         <p>Your assigned customer appointments, in time order.</p>
       </header>
 
-      <nav aria-label="Appointment date" className="staff-appointment-date-nav">
-        <Link aria-label="Previous day" href={`/staff/appointments?date=${day.previousDate}`}>‹</Link>
-        <div>
-          <strong>{day.isToday ? "Today" : day.dateLabel}</strong>
-          {!day.isToday ? <Link href="/staff/appointments">Back to today</Link> : <span>{day.dateLabel}</span>}
-        </div>
-        <Link aria-label="Next day" href={`/staff/appointments?date=${day.nextDate}`}>›</Link>
-      </nav>
+      <StaffAppointmentCalendar
+        date={day.date}
+        dateLabel={day.dateLabel}
+        isToday={day.isToday}
+        nextDate={day.nextDate}
+        previousDate={day.previousDate}
+        week={week}
+      />
 
       {day.staffMapping === "MISSING" ? (
         <section className="staff-appointment-state warning" role="status">

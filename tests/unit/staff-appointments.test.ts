@@ -4,6 +4,7 @@ import test from "node:test";
 import type { AppointmentStatus, PrismaClient } from "@prisma/client";
 import {
   appointmentStatusView,
+  getStaffAppointmentCalendarWeek,
   getStaffAppointmentDay,
 } from "../../src/lib/staff-pwa/appointments";
 
@@ -62,6 +63,21 @@ test("Staff appointments preserve every canonical POS status with readable label
   const values: AppointmentStatus[] = ["SCHEDULED", "CONFIRMED", "ARRIVED", "IN_SERVICE", "COMPLETED", "CONVERTED_TO_JOB", "CANCELLED", "NO_SHOW"];
   assert.deepEqual(values.map((status) => appointmentStatusView(status).label), ["Scheduled", "Confirmed", "Arrived", "In service", "Completed", "Converted to job", "Cancelled", "No show"]);
   assert.deepEqual(values.filter((status) => appointmentStatusView(status).terminal), ["COMPLETED", "CONVERTED_TO_JOB", "CANCELLED", "NO_SHOW"]);
+});
+
+test("Appointment calendar shows the selected Monday-to-Sunday week", () => {
+  const week = getStaffAppointmentCalendarWeek("2026-08-22");
+  assert.deepEqual(week.map((day) => day.date), [
+    "2026-08-17",
+    "2026-08-18",
+    "2026-08-19",
+    "2026-08-20",
+    "2026-08-21",
+    "2026-08-22",
+    "2026-08-23",
+  ]);
+  assert.deepEqual(week.map((day) => day.weekdayLabel), ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+  assert.equal(week.find((day) => day.selected)?.date, "2026-08-22");
 });
 
 test("A normal employee receives only appointments assigned through the exact membership-linked User", async () => {
@@ -142,11 +158,15 @@ test("Shift, rest-day and approved-leave conflicts are warnings only", async () 
 test("Staff appointment surface is read-only, tenant-scoped and does not expose phone or notes", () => {
   const source = readFileSync("src/lib/staff-pwa/appointments.ts", "utf8");
   const page = readFileSync("src/app/staff/appointments/page.tsx", "utf8");
+  const calendar = readFileSync("src/components/staff-pwa/staff-appointment-calendar.tsx", "utf8");
   const route = readFileSync("src/app/api/employee-appointments/route.ts", "utf8");
   assert.match(source, /businessId: input\.auth\.businessId/);
   assert.match(source, /employeeBusinessMembershipId: input\.auth\.membershipId/);
   assert.doesNotMatch(source, /customer.*phone|customer.*notes|select:\s*\{[^}]*phone/);
   assert.doesNotMatch(page, /Edit appointment|Book appointment|customerPhone|notes/);
+  assert.match(page, /StaffAppointmentCalendar/);
+  assert.match(calendar, /type="date"/);
+  assert.match(calendar, /aria-current=\{item\.selected \? "date"/);
   assert.match(route, /requireEmployeeSelfServiceAuthContext/);
   assert.match(route, /requireEmployeeBusinessModule\(auth, "SALON"\)/);
 });

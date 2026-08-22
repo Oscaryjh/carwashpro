@@ -54,6 +54,34 @@ export type StaffAppointmentDay = Readonly<{
   nextAppointment: StaffAppointmentView | null;
 }>;
 
+export type StaffAppointmentCalendarDay = Readonly<{
+  date: string;
+  dayLabel: string;
+  weekdayLabel: string;
+  selected: boolean;
+}>;
+
+export function getStaffAppointmentCalendarWeek(date: string): readonly StaffAppointmentCalendarDay[] {
+  const selected = isDateValue(date) ? date : getBranchLocalDateKey(new Date(), "UTC");
+  const selectedDate = dateValueToUtcDate(selected);
+  const mondayOffset = (selectedDate.getUTCDay() + 6) % 7;
+  const monday = addDaysToDateValue(selected, -mondayOffset);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const itemDate = addDaysToDateValue(monday, index);
+    const utcDate = dateValueToUtcDate(itemDate);
+    return {
+      date: itemDate,
+      dayLabel: String(utcDate.getUTCDate()),
+      weekdayLabel: new Intl.DateTimeFormat("en-MY", {
+        weekday: "short",
+        timeZone: "UTC",
+      }).format(utcDate),
+      selected: itemDate === selected,
+    };
+  });
+}
+
 export async function getStaffAppointmentDay(input: {
   auth: EmployeeAuthContext;
   date?: string;
