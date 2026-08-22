@@ -20,11 +20,9 @@ export function StaffHistory() {
   const [history, setHistory] = useState<AttendanceHistory | null>(null);
   const [from, setFrom] = useState(defaults.from);
   const [to, setTo] = useState(defaults.to);
-  const [branchId, setBranchId] = useState("");
   const [status, setStatus] = useState("");
   const [draftFrom, setDraftFrom] = useState(defaults.from);
   const [draftTo, setDraftTo] = useState(defaults.to);
-  const [draftBranchId, setDraftBranchId] = useState("");
   const [draftStatus, setDraftStatus] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -35,12 +33,10 @@ export function StaffHistory() {
     "FORGOT_CLOCK_IN" | "FORGOT_CLOCK_OUT"
   >("FORGOT_CLOCK_OUT");
   const [correctionSessionId, setCorrectionSessionId] = useState("");
-  const [correctionBranchId, setCorrectionBranchId] = useState("");
   const [requestedClockInAt, setRequestedClockInAt] = useState("");
   const [requestedClockOutAt, setRequestedClockOutAt] = useState("");
   const [correctionSubmitting, setCorrectionSubmitting] = useState(false);
   const [correctionMessage, setCorrectionMessage] = useState("");
-  const [knownBranches, setKnownBranches] = useState<Array<{ id: string; name: string }>>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,7 +47,6 @@ export function StaffHistory() {
       page: String(page),
       pageSize: "12",
     });
-    if (branchId) params.set("branchId", branchId);
     if (status) params.set("status", status);
 
     try {
@@ -59,18 +54,6 @@ export function StaffHistory() {
         `/api/employee-attendance/history?${params.toString()}`,
       );
       setHistory(result.data);
-      setKnownBranches((current) => {
-        const map = new Map(
-          [...current, ...result.data.availableBranches].map((branch) => [
-            branch.id,
-            branch,
-          ]),
-        );
-        for (const item of result.data.items) {
-          map.set(item.branch.id, item.branch);
-        }
-        return [...map.values()].sort((left, right) => left.name.localeCompare(right.name));
-      });
     } catch (caught) {
       if (caught instanceof StaffApiError && isEmployeeSessionError(caught.code)) {
         router.replace("/staff/login?reason=session-expired");
@@ -84,7 +67,7 @@ export function StaffHistory() {
     } finally {
       setLoading(false);
     }
-  }, [branchId, from, page, router, status, to]);
+  }, [from, page, router, status, to]);
 
   useEffect(() => {
     void load();
@@ -107,7 +90,6 @@ export function StaffHistory() {
     event.preventDefault();
     setFrom(draftFrom);
     setTo(draftTo);
-    setBranchId(draftBranchId);
     setStatus(draftStatus);
     setFiltersOpen(false);
     setPage(1);
@@ -116,7 +98,6 @@ export function StaffHistory() {
   function openFilters() {
     setDraftFrom(from);
     setDraftTo(to);
-    setDraftBranchId(branchId);
     setDraftStatus(status);
     setCorrectionOpen(false);
     setFiltersOpen(true);
@@ -140,7 +121,6 @@ export function StaffHistory() {
       }>("/api/employee-attendance/exception", {
         method: "POST",
         body: JSON.stringify({
-          branchId: correctionBranchId,
           attendanceSessionId:
             correctionType === "FORGOT_CLOCK_OUT"
               ? correctionSessionId
@@ -243,7 +223,7 @@ export function StaffHistory() {
               </button>
             </div>
             <form className="staff-history-filters" onSubmit={submitCorrection}>
-              <div className="staff-correction-field-grid">
+              <div className="staff-correction-field-grid staff-correction-action-grid">
                 <label>
                   Missing action
                   <select
@@ -258,19 +238,6 @@ export function StaffHistory() {
                   >
                     <option value="FORGOT_CLOCK_OUT">Forgot clock out</option>
                     <option value="FORGOT_CLOCK_IN">Forgot clock in</option>
-                  </select>
-                </label>
-                <label>
-                  Branch
-                  <select
-                    onChange={(event) => setCorrectionBranchId(event.target.value)}
-                    required
-                    value={correctionBranchId}
-                  >
-                    <option value="">Select branch</option>
-                    {(history?.availableBranches ?? knownBranches).map((branch) => (
-                      <option key={branch.id} value={branch.id}>{branch.name}</option>
-                    ))}
                   </select>
                 </label>
               </div>
@@ -294,7 +261,7 @@ export function StaffHistory() {
                           )
                           .map((session) => (
                             <option key={session.id} value={session.id}>
-                              {item.workDate} / {item.branch.name} / In progress
+                              {item.workDate} / In progress
                             </option>
                           ))) }
                     </select>
@@ -345,9 +312,9 @@ export function StaffHistory() {
             <small>Showing</small>
             <strong>{formatWorkDate(from)} – {formatWorkDate(to)}</strong>
             <span>
-              {branchId || status || from !== defaults.from || to !== defaults.to
+              {status || from !== defaults.from || to !== defaults.to
                 ? "Custom filters applied"
-                : "All branches · All statuses"}
+                : "All statuses"}
             </span>
           </div>
           <button
@@ -382,7 +349,7 @@ export function StaffHistory() {
               <div>
                 <p className="staff-kicker">ATTENDANCE</p>
                 <h2 id="staff-filter-heading">Filter history</h2>
-                <p className="staff-sheet-description">Choose a period, branch and status.</p>
+                <p className="staff-sheet-description">Choose a period and status.</p>
               </div>
               <button
                 aria-label="Close attendance filters"
@@ -404,16 +371,7 @@ export function StaffHistory() {
                   <input onChange={(event) => setDraftTo(event.target.value)} type="date" value={draftTo} />
                 </label>
               </div>
-              <div className="staff-filter-field-grid staff-filter-select-grid">
-                <label>
-                  Branch
-                  <select onChange={(event) => setDraftBranchId(event.target.value)} value={draftBranchId}>
-                    <option value="">All branches</option>
-                    {knownBranches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>{branch.name}</option>
-                    ))}
-                  </select>
-                </label>
+              <div className="staff-filter-field-grid staff-filter-status-grid">
                 <label>
                   Status
                   <select onChange={(event) => setDraftStatus(event.target.value)} value={draftStatus}>

@@ -104,6 +104,10 @@ const historyComponentSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-history.tsx", import.meta.url),
   "utf8",
 );
+const attendanceExceptionRouteSource = readFileSync(
+  new URL("../../src/app/api/employee-attendance/exception/route.ts", import.meta.url),
+  "utf8",
+);
 const leaveComponentSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-leave.tsx", import.meta.url),
   "utf8",
@@ -548,17 +552,23 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(historyComponentSource, /setDraftFrom\(from\)/);
   assert.match(historyComponentSource, /id="staff-history-filters"/);
   assert.match(historyComponentSource, /staff-filter-date-grid/);
-  assert.match(historyComponentSource, /staff-filter-select-grid/);
+  assert.match(historyComponentSource, /staff-filter-status-grid/);
   assert.match(historyComponentSource, /Choose up to 31 days\./);
   assert.match(historyComponentSource, /staff-correction-field-grid/);
   assert.match(historyComponentSource, /staff-correction-time-grid/);
   assert.match(historyComponentSource, /Finalized timesheet records stay locked\./);
+  assert.doesNotMatch(historyComponentSource, />\s*Branch\s*</);
+  assert.doesNotMatch(historyComponentSource, /Select branch|All branches/);
+  assert.doesNotMatch(historyComponentSource, /branchId: correctionBranchId/);
+  assert.match(attendanceExceptionRouteSource, /auth\.attendanceBranchId \?\? auth\.primaryBranchId/);
   assert.doesNotMatch(historyComponentSource, />\s*Reason\s*</);
   assert.match(historyComponentSource, /Employee requested a missing clock-out correction\./);
   assert.match(staffCssSource, /@media \(max-width: 640px\)[\s\S]*?\.staff-correction-backdrop\s*\{[\s\S]*?align-items:\s*flex-end/);
   assert.match(staffCssSource, /\.staff-correction-sheet\s*\{[\s\S]*?max-height:\s*calc\(100dvh - 32px\);[\s\S]*?overflow-y:\s*auto/);
   assert.match(staffCssSource, /\.staff-filter-field-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(staffCssSource, /\.staff-correction-field-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(staffCssSource, /\.staff-correction-action-grid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
+  assert.match(staffCssSource, /\.staff-filter-field-grid > label\s*\{[\s\S]*?\.staff-filter-status-grid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-correction-time-grid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
   assert.match(staffCssSource, /@media \(max-width: 350px\)[\s\S]*?\.staff-filter-field-grid,\s*[\s\S]*?\.staff-correction-field-grid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
   assert.match(staffCssSource, /\.staff-history-stack > \.staff-section-hero > \.staff-secondary-button\s*\{[\s\S]*?grid-area:\s*action;[\s\S]*?min-height:\s*38px/);

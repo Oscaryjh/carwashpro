@@ -4065,6 +4065,10 @@
   min-width: 0;
 }
 
+.staff-correction-action-grid {
+  grid-template-columns: 1fr;
+}
+
 .staff-correction-sheet .staff-history-filters input,
 .staff-correction-sheet .staff-history-filters select,
 .staff-correction-sheet .staff-history-filters textarea {
@@ -4136,6 +4140,10 @@
 
 .staff-filter-field-grid > label {
   min-width: 0;
+}
+
+.staff-filter-status-grid {
+  grid-template-columns: 1fr;
 }
 
 .staff-filter-sheet .staff-history-filters input,
