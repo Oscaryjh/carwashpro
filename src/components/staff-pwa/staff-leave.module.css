@@ -15,3 +15,156 @@
 @media(max-width:600px){.hero{align-items:center}.heroAction{min-width:0}.balances{display:grid;grid-template-columns:1fr;max-width:100%;overflow-x:visible;width:100%}.form select,.form input,.form textarea{font-size:16px}.form button{min-height:48px}}
 
 @media(max-width:350px){.hero{display:grid}.heroAction{justify-self:start;width:auto}}
+
+/* iPhone-style request page */
+.requestPage {
+  gap: 10px;
+  margin: 0 auto;
+  max-width: 540px;
+  padding-bottom: 96px;
+  width: 100%;
+}
+
+.requestHero {
+  min-height: 62px;
+  padding: 2px 4px 8px;
+}
+
+.requestHero h1 {
+  color: #102b28;
+  font-size: 1.45rem;
+  font-weight: 850;
+  letter-spacing: -.03em;
+  margin: 2px 0 3px;
+}
+
+.requestHero > div > span {
+  color: #667a77;
+  font-size: .74rem;
+}
+
+.backButton {
+  background: rgba(229, 245, 242, .92);
+  border-color: #cfe5e2;
+  box-shadow: 0 2px 8px rgba(17, 74, 68, .06);
+  height: 40px;
+  width: 40px;
+}
+
+.requestCard {
+  border: 1px solid rgba(205, 224, 221, .92);
+  border-radius: 24px;
+  box-shadow: 0 12px 30px rgba(36, 77, 72, .07);
+  padding: 16px;
+}
+
+.requestPage .form {
+  gap: 16px;
+}
+
+.requestPage .requestFields {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.requestPage .dateRange {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.requestPage .form label {
+  color: #405956;
+  font-size: .74rem;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.requestPage .form select,
+.requestPage .form input,
+.requestPage .form textarea {
+  background: #f8fbfa;
+  border: 1px solid #cfe0de;
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9);
+  color: #17312e;
+  font-size: 16px;
+  font-weight: 650;
+  min-height: 50px;
+  padding: 0 14px;
+}
+
+.requestPage .form textarea {
+  line-height: 1.4;
+  min-height: 94px;
+  padding-block: 13px;
+}
+
+.requestPage .form select:focus,
+.requestPage .form input:focus,
+.requestPage .form textarea:focus {
+  border-color: #15978c;
+  box-shadow: 0 0 0 3px rgba(21, 151, 140, .14);
+  outline: none;
+}
+
+.requestPage .documents {
+  background: #f4f9f8;
+  border-color: #d4e4e2;
+  border-radius: 18px;
+  gap: 11px;
+  padding: 14px;
+}
+
+.requestPage .documents legend {
+  color: #153d39;
+  font-size: .8rem;
+}
+
+.requestPage .documents legend small,
+.requestPage .documents legend span {
+  border-radius: 999px;
+  font-size: .63rem;
+  font-weight: 800;
+  padding: 4px 7px;
+}
+
+.requestPage .documents legend small {
+  background: #e6efed;
+  color: #60716f;
+}
+
+.requestPage .documents p,
+.requestPage .documents > small,
+.requestPage .form > p {
+  color: #6a7d7a;
+  font-size: .7rem;
+  line-height: 1.45;
+}
+
+.requestPage .fileButton,
+.requestPage .fileButtonSecondary {
+  border-radius: 13px;
+  min-height: 44px;
+}
+
+.requestPage .form > button {
+  background: linear-gradient(135deg, #0c9b90, #08776f);
+  border-radius: 15px;
+  box-shadow: 0 8px 20px rgba(7, 126, 117, .2);
+  min-height: 50px;
+  padding: 0 18px;
+}
+
+.requestPage .form > button:disabled {
+  background: #d8e4e2;
+  box-shadow: none;
+  color: #7b8d8a;
+}
+
+@media (max-width: 369px) {
+  .requestPage .dateRange {
+    grid-template-columns: 1fr;
+  }
+}

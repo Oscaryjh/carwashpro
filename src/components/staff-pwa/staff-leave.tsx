@@ -189,10 +189,12 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
 
   const requestForm = !data?.policies.length ? <p>Your company has not enabled Leave policies yet. Contact HR.</p> : (
     <form onSubmit={submit} className={styles.form}>
-      <label>Leave type<select required value={selectedPolicyId} onChange={(event) => setSelectedPolicyId(event.target.value)}><option value="" disabled>Select a ready Leave type</option>{data.policies.map((policy) => <option value={policy.id} key={policy.id} disabled={!policy.applicationReady}>{policy.name} · {policy.payTreatment === "PAID" ? "Paid" : "Unpaid"}{policy.readinessCode ? ` · ${policy.readinessCode}` : ""}</option>)}</select></label>
-      <div><label>From<input name="startsOn" type="date" required /></label><label>To<input name="endsOn" type="date" required /></label></div>
-      <label>Duration<select name="leaveUnit"><option value="FULL_DAY">Full day / days</option><option value="HALF_DAY_AM">Half day · AM</option><option value="HALF_DAY_PM">Half day · PM</option></select></label>
-      <label>Reason<textarea name="reason" minLength={3} maxLength={500} required placeholder="Tell your manager why you need Leave" /></label>
+      <div className={styles.requestFields}>
+        <label>Leave type<select required value={selectedPolicyId} onChange={(event) => setSelectedPolicyId(event.target.value)}><option value="" disabled>Select a ready Leave type</option>{data.policies.map((policy) => <option value={policy.id} key={policy.id} disabled={!policy.applicationReady}>{policy.name} · {policy.payTreatment === "PAID" ? "Paid" : "Unpaid"}{policy.readinessCode ? ` · ${policy.readinessCode}` : ""}</option>)}</select></label>
+        <div className={styles.dateRange}><label>From<input name="startsOn" type="date" required /></label><label>To<input name="endsOn" type="date" required /></label></div>
+        <label>Duration<select name="leaveUnit"><option value="FULL_DAY">Full day / days</option><option value="HALF_DAY_AM">Half day · AM</option><option value="HALF_DAY_PM">Half day · PM</option></select></label>
+        <label>Reason<textarea name="reason" minLength={3} maxLength={500} required placeholder="Tell your manager why you need Leave" /></label>
+      </div>
       <fieldset className={styles.documents}>
         <legend>Supporting documents {selectedPolicy?.requiresDocument ? <span>Required</span> : <small>Optional</small>}</legend>
         <p>Private HR evidence. PDF, JPG, PNG or WEBP · up to 10 MB each · maximum 5 files.</p>
@@ -215,7 +217,7 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
           <Link className={styles.backButton} href="/staff/leave" aria-label="Back to Leave">
             <span aria-hidden="true">&#8249;</span>
           </Link>
-          <div><p>LEAVE</p><h1>New request</h1><span>Send a time-off request for manager approval.</span></div>
+          <div><p>TIME OFF</p><h1>New request</h1><span>Complete the details for your manager to review.</span></div>
         </section>
         {message ? <div className={styles.success} role="status">{message}</div> : null}
         {error ? <div className={styles.error} role="alert">{error}</div> : null}

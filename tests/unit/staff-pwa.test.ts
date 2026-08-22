@@ -585,6 +585,9 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(leaveCssSource, /\.heroAction\{[^}]*min-height:42px[^}]*padding:0 13px/);
   assert.match(leaveCssSource, /\.heroAction>span\{[^}]*height:20px[^}]*width:20px/);
   assert.doesNotMatch(leaveCssSource, /\.hero\{align-items:stretch\}|\.heroAction\{min-width:112px\}/);
+  assert.match(leaveCssSource, /\.requestPage \.dateRange\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(leaveCssSource, /\.requestPage \.form select,[\s\S]*?min-height:\s*50px/);
+  assert.match(leaveCssSource, /@media \(max-width: 369px\)[\s\S]*?\.requestPage \.dateRange\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
   assert.doesNotMatch(leaveCssSource, /grid-auto-flow:column|overflow-x:auto|scroll-snap-type/);
   assert.match(leaveCssSource, /@media\(max-width:600px\)[\s\S]*?\.balances\{display:grid;grid-template-columns:1fr/);
   assert.match(timesheetPageSource, /staff-timesheet-summary/);
