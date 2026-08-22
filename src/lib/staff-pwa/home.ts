@@ -12,6 +12,7 @@ import {
   type StaffScheduleLeave,
 } from "@/lib/staff-pwa/schedule";
 import { loadStaffAppAppearance } from "./appearance";
+import { getStaffAppointmentDay } from "./appointments";
 
 export type StaffHomeQuickAccess = Readonly<{
   domain: "TIMESHEET" | "CLAIMS" | "COMMISSION" | "PAYSLIP";
@@ -42,13 +43,17 @@ export async function getStaffHomeOverview(
     }),
   ]);
 
+  const [upNext, appointmentDay] = await Promise.all([
+    modules.has("HR") ? loadUpNext(auth, business.timezone) : null,
+    modules.has("SALON") ? getStaffAppointmentDay({ auth }).catch(() => null) : null,
+  ]);
+
   return {
     profile,
     appearance,
     quickAccess: buildQuickAccess(modules),
-    upNext: modules.has("HR")
-      ? await loadUpNext(auth, business.timezone)
-      : null,
+    upNext,
+    appointmentDay,
     showWelcome: true,
   };
 }

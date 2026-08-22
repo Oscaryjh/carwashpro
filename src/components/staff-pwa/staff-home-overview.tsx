@@ -55,10 +55,45 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
         </section>
       ) : null}
       {children}
+      {overview.appointmentDay ? (
+        <section className="staff-home-next-appointment" aria-labelledby="staff-home-next-appointment-heading">
+          <header className="staff-home-section-heading">
+            <p className="staff-kicker" id="staff-home-next-appointment-heading">NEXT APPOINTMENT</p>
+            <Link href="/staff/appointments">View all</Link>
+          </header>
+          {overview.appointmentDay.staffMapping === "MISSING" ? (
+            <Link className="staff-home-next-appointment-card empty" href="/staff/appointments">
+              <span aria-hidden="true">!</span>
+              <div><strong>Staff mapping needed</strong><small>Ask your manager to link your booking profile.</small></div>
+              <i aria-hidden="true">›</i>
+            </Link>
+          ) : overview.appointmentDay.nextAppointment ? (
+            <Link className="staff-home-next-appointment-card" href={`/staff/appointments?date=${overview.appointmentDay.date}`}>
+              <time dateTime={overview.appointmentDay.nextAppointment.scheduledAt}>{overview.appointmentDay.nextAppointment.timeLabel}</time>
+              <div>
+                <strong>{overview.appointmentDay.nextAppointment.customerName}</strong>
+                <small>{overview.appointmentDay.nextAppointment.serviceSummary}</small>
+                <span>{overview.appointmentDay.nextAppointment.durationLabel} · {overview.appointmentDay.nextAppointment.branchName}</span>
+              </div>
+              <i aria-hidden="true">›</i>
+            </Link>
+          ) : (
+            <Link className="staff-home-next-appointment-card empty" href="/staff/appointments">
+              <span aria-hidden="true">✓</span>
+              <div>
+                <strong>{overview.appointmentDay.appointments.length ? "Today’s appointments are complete" : "No appointments today"}</strong>
+                <small>{overview.appointmentDay.appointments.length ? "Your assigned bookings are finished." : "You have no assigned customer bookings."}</small>
+              </div>
+              <i aria-hidden="true">›</i>
+            </Link>
+          )}
+          <small className="staff-home-appointment-count">{overview.appointmentDay.remainingCount} appointment{overview.appointmentDay.remainingCount === 1 ? "" : "s"} remaining today</small>
+        </section>
+      ) : null}
       {overview.upNext ? (
         <section className="staff-home-up-next" aria-labelledby="staff-home-up-next-heading">
           <header className="staff-home-section-heading">
-            <p className="staff-kicker" id="staff-home-up-next-heading">UP NEXT</p>
+            <p className="staff-kicker" id="staff-home-up-next-heading">UPCOMING SCHEDULE</p>
           </header>
           <Link className={`staff-home-up-next-card ${overview.upNext.status.toLowerCase()}`} href={overview.upNext.href}>
             <span className="staff-home-up-next-icon" aria-hidden="true">

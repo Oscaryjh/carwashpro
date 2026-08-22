@@ -411,17 +411,17 @@ test("Staff manifest is installable and starts inside the isolated Staff scope",
 
 test("Staff navigation follows module entitlement without overcrowding the mobile bar", () => {
   const posOnly = buildStaffNavigation(["CORE", "POS", "SALON"]);
-  assert.deepEqual(posOnly.primary.map((item) => item.label), ["Home"]);
+  assert.deepEqual(posOnly.primary.map((item) => item.label), ["Home", "Appointments"]);
   assert.deepEqual(posOnly.more.map((item) => item.label), ["Profile"]);
 
   const hrOnly = buildStaffNavigation(["CORE", "HR"]);
-  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance", "Schedule", "Leave"]);
-  assert.deepEqual(hrOnly.more.map((item) => item.label), ["Timesheets", "Profile"]);
+  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance", "Schedule"]);
+  assert.deepEqual(hrOnly.more.map((item) => item.label), ["Leave", "Timesheets", "Profile"]);
 
-  const full = buildStaffNavigation(["CORE", "HR", "CLAIMS", "COMMISSION", "PAYROLL"]);
-  assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Attendance", "Schedule", "Leave"]);
-  assert.deepEqual(full.more.map((item) => item.label), ["Timesheets", "Claims", "Commission", "Payslips", "Profile"]);
-  assert.deepEqual(full.more.filter((item) => item.section === "SELF_SERVICE").map((item) => item.label), ["Timesheets", "Claims", "Commission", "Payslips"]);
+  const full = buildStaffNavigation(["CORE", "SALON", "HR", "CLAIMS", "COMMISSION", "PAYROLL"]);
+  assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Attendance", "Appointments", "Schedule"]);
+  assert.deepEqual(full.more.map((item) => item.label), ["Leave", "Timesheets", "Claims", "Commission", "Payslips", "Profile"]);
+  assert.deepEqual(full.more.filter((item) => item.section === "SELF_SERVICE").map((item) => item.label), ["Leave", "Timesheets", "Claims", "Commission", "Payslips"]);
   assert.deepEqual(full.more.filter((item) => item.section === "ACCOUNT").map((item) => item.label), ["Profile"]);
   assert.ok(full.primary.length + 1 <= 5, "primary navigation plus More must fit five mobile slots");
 });
@@ -444,11 +444,13 @@ test("Staff Home composes existing canonical readers without recalculating modul
   assert.doesNotMatch(homeSource, /getEmployeeTimesheetOverview|getEmployeeLeaveOverview|getEmployeeClaimOverview|getEmployeeCommissionStatements|loadPublishedPayslipsForEmployee/);
   assert.match(homeSource, /Schedule temporarily unavailable/);
   assert.match(homeSource, /showWelcome: true/);
+  assert.match(homeSource, /getStaffAppointmentDay/);
 });
 
 test("Staff Home prioritizes a mobile today workspace without inventing new domains", () => {
   assert.match(homeComponentSource, /<p className="staff-kicker">TODAY<\/p>/);
-  assert.match(homeComponentSource, /UP NEXT/);
+  assert.match(homeComponentSource, /NEXT APPOINTMENT/);
+  assert.match(homeComponentSource, /UPCOMING SCHEDULE/);
   assert.match(homeComponentSource, /QUICK ACCESS/);
   assert.doesNotMatch(homeComponentSource, /MY WORKSPACE/);
   assert.match(homeComponentSource, /StaffAppIcon/);

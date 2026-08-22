@@ -10,6 +10,7 @@ export type StaffNavigationItem = {
 export type StaffNavigationIcon =
   | "home"
   | "attendance"
+  | "appointments"
   | "leave"
   | "schedule"
   | "timesheet"
@@ -34,12 +35,15 @@ export function buildStaffNavigation(
   const more: StaffNavigationItem[] = [];
 
   if (modules.has("HR")) {
-    primary.push(
-      { href: "/staff/history", label: "Attendance", icon: "attendance" },
-      { href: "/staff/roster", label: "Schedule", icon: "schedule" },
-      { href: "/staff/leave", label: "Leave", icon: "leave" },
-    );
+    primary.push({ href: "/staff/history", label: "Attendance", icon: "attendance" });
+  }
+  if (modules.has("SALON")) {
+    primary.push({ href: "/staff/appointments", label: "Appointments", icon: "appointments" });
+  }
+  if (modules.has("HR")) {
+    primary.push({ href: "/staff/roster", label: "Schedule", icon: "schedule" });
     more.push(
+      { href: "/staff/leave", label: "Leave", icon: "leave", section: "SELF_SERVICE" },
       { href: "/staff/timesheet", label: "Timesheets", icon: "timesheet", section: "SELF_SERVICE" },
     );
   }
