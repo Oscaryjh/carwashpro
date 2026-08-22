@@ -455,6 +455,8 @@ export function StaffWorkplaceSelector() {
   const [flow, setFlow] = useState<EmployeeAuthFlow | null>(null);
   const [busyId, setBusyId] = useState("");
   const [message, setMessage] = useState("");
+  const [temporaryError, setTemporaryError] = useState(false);
+  const [retryMembershipId, setRetryMembershipId] = useState("");
 
   useEffect(() => {
     const stored = readEmployeeAuthFlow();
@@ -473,6 +475,8 @@ export function StaffWorkplaceSelector() {
     if (!flow?.selectionToken || busyId) return;
     setBusyId(membership.membershipId);
     setMessage("");
+    setTemporaryError(false);
+    setRetryMembershipId("");
     try {
       await staffApiFetch<{ ok: true; status: "AUTHENTICATED"; expiresAt: string }>(
         "/api/employee-auth/select-membership",
@@ -490,9 +494,18 @@ export function StaffWorkplaceSelector() {
       window.location.replace("/staff");
     } catch (error) {
       setMessage(publicAuthMessage(error));
+      setTemporaryError(isTemporaryAuthError(error));
+      setRetryMembershipId(membership.membershipId);
     } finally {
       setBusyId("");
     }
+  }
+
+  function retry() {
+    const membership = flow?.memberships?.find(
+      (item) => item.membershipId === retryMembershipId,
+    );
+    if (membership) void select(membership);
   }
 
   return (
@@ -524,7 +537,20 @@ export function StaffWorkplaceSelector() {
           );
         })}
       </div>
-      {message ? <div className="staff-alert error" role="alert">{message}</div> : null}
+      {message && temporaryError ? (
+        <div className="staff-auth-service-alert" role="alert">
+          <span className="staff-auth-service-icon" aria-hidden="true">↻</span>
+          <div>
+            <strong>Connection interrupted</strong>
+            <p>{message}</p>
+          </div>
+          <button disabled={Boolean(busyId)} onClick={retry} type="button">
+            {busyId ? "Trying…" : "Try again"}
+          </button>
+        </div>
+      ) : message ? (
+        <div className="staff-alert error" role="alert">{message}</div>
+      ) : null}
     </section>
   );
 }
@@ -557,14 +583,29 @@ function publicAuthMessage(error: unknown) {
       return "Too many invalid attempts. Request a new verification code.";
     }
     if (error.code === "OTP_PROVIDER_UNAVAILABLE") {
-      return "Verification service is temporarily unavailable. Please try again later.";
+      return "We can’t reach verification right now. Your account is safe—please try again.";
     }
     if (error.code === "RATE_LIMITED") {
       return "Too many attempts. Please wait before trying again.";
     }
+    if (error.code === "CONFIGURATION_ERROR" || error.code === "REQUEST_FAILED") {
+      return "We can’t connect to the Staff service right now. Your account is safe—please try again.";
+    }
+    if (error.code === "NETWORK_ERROR") {
+      return "Check your internet connection, then try again.";
+    }
     return error.message;
   }
   return "Unable to continue. Please try again.";
+}
+
+function isTemporaryAuthError(error: unknown) {
+  return error instanceof StaffApiError && [
+    "CONFIGURATION_ERROR",
+    "NETWORK_ERROR",
+    "OTP_PROVIDER_UNAVAILABLE",
+    "REQUEST_FAILED",
+  ].includes(error.code);
 }
 
 function formatCountdown(seconds: number) {

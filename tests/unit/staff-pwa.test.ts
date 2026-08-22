@@ -347,6 +347,14 @@ test("workplace selection keeps internal employee codes out of the login UI", ()
   assert.doesNotMatch(authSource, /\{membership\.primaryBranchName\} · \{membership\.employeeCode\}/);
 });
 
+test("temporary Staff authentication failures have a clear retry action", () => {
+  assert.match(authSource, /<strong>Connection interrupted<\/strong>/);
+  assert.match(authSource, /Your account is safe—please try again\./);
+  assert.match(authSource, /onClick=\{retry\}/);
+  assert.match(authSource, /function isTemporaryAuthError/);
+  assert.match(staffCssSource, /\.staff-auth-service-alert button\s*\{[\s\S]*?min-height:\s*44px/);
+});
+
 test("Staff login tolerates mobile browser form metadata added before hydration", () => {
   assert.match(authSource, /onSubmit=\{submit\} suppressHydrationWarning/);
   assert.match(authSource, /required\s+suppressHydrationWarning\s+value=\{phoneNumber\}/);

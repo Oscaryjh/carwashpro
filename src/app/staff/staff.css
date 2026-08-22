@@ -1337,6 +1337,75 @@
   color: #775512;
 }
 
+.staff-auth-service-alert {
+  align-items: center;
+  background: #fff8e8;
+  border: 1px solid #ead8aa;
+  border-radius: 16px;
+  color: var(--staff-ink);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto 1fr auto;
+  padding: 12px;
+}
+
+.staff-auth-service-icon {
+  align-items: center;
+  background: #fff;
+  border-radius: 12px;
+  color: var(--staff-brand-dark);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 20px;
+  font-weight: 800;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.staff-auth-service-alert strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.staff-auth-service-alert p {
+  color: #667775;
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 3px 0 0;
+}
+
+.staff-auth-service-alert button {
+  background: var(--staff-brand-soft);
+  border: 0;
+  border-radius: 12px;
+  color: var(--staff-brand-dark);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  min-height: 44px;
+  padding: 0 13px;
+  white-space: nowrap;
+}
+
+.staff-auth-service-alert button:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+@media (max-width: 430px) {
+  .staff-auth-service-alert {
+    grid-template-columns: auto 1fr;
+  }
+
+  .staff-auth-service-alert button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
 .staff-otp-inputs {
   display: grid;
   gap: clamp(5px, 2vw, 8px);
