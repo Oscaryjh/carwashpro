@@ -127,7 +127,7 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
         </button>
       ) : null}
       <button className="staff-danger-button" disabled={switching} onClick={() => void logout()} type="button">
-        {switching ? "Signing out…" : "Sign out of Staff App"}
+        {switching ? "Signing out…" : "Sign out"}
       </button>
     </div>
   );

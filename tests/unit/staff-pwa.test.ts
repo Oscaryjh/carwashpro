@@ -493,7 +493,7 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
 test("Profile is a direct bottom navigation destination", () => {
   assert.match(chromeSource, /navigation\.more\.map\(\(item\) => \(/);
   assert.doesNotMatch(chromeSource, /moreOpen|MoreSection|staff-more-signout|StaffNavIcon name="more"/);
-  assert.match(profileSource, /Sign out of Staff App/);
+  assert.match(profileSource, /switching \? "Signing out…" : "Sign out"/);
   assert.doesNotMatch(staffCssSource, /\.staff-more-section|\.staff-more-signout/);
 });
 
