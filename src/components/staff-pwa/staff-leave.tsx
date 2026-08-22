@@ -189,7 +189,10 @@ export function StaffLeave() {
     <div className={styles.page}>
       <section className={styles.hero}>
         <div><p>LEAVE</p><h1>Time off</h1><span>Check balances and submit a request.</span></div>
-        <a className={styles.heroAction} href="#staff-leave-apply">New request</a>
+        <a className={styles.heroAction} href="#staff-leave-apply">
+          <span aria-hidden="true">+</span>
+          New request
+        </a>
       </section>
       {message ? <div className={styles.success} role="status">{message}</div> : null}
       {error ? <div className={styles.error} role="alert">{error}</div> : null}
