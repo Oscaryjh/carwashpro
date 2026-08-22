@@ -230,6 +230,7 @@ export function StaffHistory() {
               <div>
                 <p className="staff-kicker">CORRECTION</p>
                 <h2 id="staff-correction-heading">Report a missing punch</h2>
+                <p className="staff-sheet-description">Add the missing time and send it for review.</p>
               </div>
               <button
                 aria-label="Close correction request"
@@ -242,90 +243,97 @@ export function StaffHistory() {
               </button>
             </div>
             <form className="staff-history-filters" onSubmit={submitCorrection}>
-            <label>
-              Missing action
-              <select
-                onChange={(event) =>
-                  setCorrectionType(
-                    event.target.value as
-                      | "FORGOT_CLOCK_IN"
-                      | "FORGOT_CLOCK_OUT",
-                  )
-                }
-                value={correctionType}
-              >
-                <option value="FORGOT_CLOCK_OUT">Forgot clock out</option>
-                <option value="FORGOT_CLOCK_IN">Forgot clock in</option>
-              </select>
-            </label>
-            <label>
-              Branch
-              <select
-                onChange={(event) => setCorrectionBranchId(event.target.value)}
-                required
-                value={correctionBranchId}
-              >
-                <option value="">Select branch</option>
-                {(history?.availableBranches ?? knownBranches).map((branch) => (
-                  <option key={branch.id} value={branch.id}>{branch.name}</option>
-                ))}
-              </select>
-            </label>
-            {correctionType === "FORGOT_CLOCK_OUT" ? (
-              <label>
-                Attendance shift
-                <select
-                  onChange={(event) => setCorrectionSessionId(event.target.value)}
-                  required
-                  value={correctionSessionId}
-                >
-                  <option value="">Select shift</option>
-                  {(history?.items ?? [])
-                    .flatMap((item) => item.sessions
-                      .filter((session) =>
-                        !item.locked &&
-                        !session.clockOutAt &&
-                        session.punchStatus !== "COMPLETED" &&
-                        session.punchStatus !== "CANCELLED",
+              <div className="staff-correction-field-grid">
+                <label>
+                  Missing action
+                  <select
+                    onChange={(event) =>
+                      setCorrectionType(
+                        event.target.value as
+                          | "FORGOT_CLOCK_IN"
+                          | "FORGOT_CLOCK_OUT",
                       )
-                      .map((session) => (
-                        <option key={session.id} value={session.id}>
-                          {item.workDate} / {item.branch.name} / In progress
-                        </option>
-                      ))) }
-                </select>
-                {(history?.items ?? []).some((item) => item.locked) ? (
-                  <small>Finalized timesheet records cannot be changed here.</small>
-                ) : null}
-              </label>
-            ) : (
-              <label>
-                Requested clock in
-                <input
-                  onChange={(event) => setRequestedClockInAt(event.target.value)}
-                  required
-                  type="datetime-local"
-                  value={requestedClockInAt}
-                />
-              </label>
-            )}
-            <label>
-              Requested clock out
-              <input
-                onChange={(event) => setRequestedClockOutAt(event.target.value)}
-                required={correctionType === "FORGOT_CLOCK_OUT"}
-                type="datetime-local"
-                value={requestedClockOutAt}
-              />
-            </label>
-            <button
-              className="staff-primary-button"
-              disabled={correctionSubmitting}
-              type="submit"
-            >
-              {correctionSubmitting ? "Submitting…" : "Submit for review"}
-            </button>
-            {correctionMessage ? <small>{correctionMessage}</small> : null}
+                    }
+                    value={correctionType}
+                  >
+                    <option value="FORGOT_CLOCK_OUT">Forgot clock out</option>
+                    <option value="FORGOT_CLOCK_IN">Forgot clock in</option>
+                  </select>
+                </label>
+                <label>
+                  Branch
+                  <select
+                    onChange={(event) => setCorrectionBranchId(event.target.value)}
+                    required
+                    value={correctionBranchId}
+                  >
+                    <option value="">Select branch</option>
+                    {(history?.availableBranches ?? knownBranches).map((branch) => (
+                      <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="staff-correction-field-grid staff-correction-time-grid">
+                {correctionType === "FORGOT_CLOCK_OUT" ? (
+                  <label>
+                    Attendance shift
+                    <select
+                      onChange={(event) => setCorrectionSessionId(event.target.value)}
+                      required
+                      value={correctionSessionId}
+                    >
+                      <option value="">Select shift</option>
+                      {(history?.items ?? [])
+                        .flatMap((item) => item.sessions
+                          .filter((session) =>
+                            !item.locked &&
+                            !session.clockOutAt &&
+                            session.punchStatus !== "COMPLETED" &&
+                            session.punchStatus !== "CANCELLED",
+                          )
+                          .map((session) => (
+                            <option key={session.id} value={session.id}>
+                              {item.workDate} / {item.branch.name} / In progress
+                            </option>
+                          ))) }
+                    </select>
+                  </label>
+                ) : (
+                  <label>
+                    Requested clock in
+                    <input
+                      onChange={(event) => setRequestedClockInAt(event.target.value)}
+                      required
+                      type="datetime-local"
+                      value={requestedClockInAt}
+                    />
+                  </label>
+                )}
+                <label>
+                  Requested clock out
+                  <input
+                    onChange={(event) => setRequestedClockOutAt(event.target.value)}
+                    required={correctionType === "FORGOT_CLOCK_OUT"}
+                    type="datetime-local"
+                    value={requestedClockOutAt}
+                  />
+                </label>
+              </div>
+              {correctionType === "FORGOT_CLOCK_OUT" && (history?.items ?? []).some((item) => item.locked) ? (
+                <p className="staff-correction-note">
+                  <span aria-hidden="true">i</span>
+                  Finalized timesheet records stay locked.
+                </p>
+              ) : null}
+              <button
+                className="staff-primary-button"
+                disabled={correctionSubmitting}
+                type="submit"
+              >
+                {correctionSubmitting ? "Submitting…" : "Submit for review"}
+              </button>
+              {correctionMessage ? <small className="staff-correction-message" role="status">{correctionMessage}</small> : null}
             </form>
           </section>
         </div>
@@ -374,7 +382,7 @@ export function StaffHistory() {
               <div>
                 <p className="staff-kicker">ATTENDANCE</p>
                 <h2 id="staff-filter-heading">Filter history</h2>
-                <p className="staff-filter-description">Choose a period, branch and status.</p>
+                <p className="staff-sheet-description">Choose a period, branch and status.</p>
               </div>
               <button
                 aria-label="Close attendance filters"
