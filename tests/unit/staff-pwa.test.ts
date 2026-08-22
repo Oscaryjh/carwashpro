@@ -454,6 +454,8 @@ test("Staff Home composes existing canonical readers without recalculating modul
 test("Staff Home prioritizes a mobile today workspace without inventing new domains", () => {
   assert.match(homeComponentSource, /<p className="staff-kicker">TODAY<\/p>/);
   assert.match(homeComponentSource, /NEXT APPOINTMENT/);
+  assert.match(homeComponentSource, /overview\.appointmentDay\?\.nextAppointment \? \(/);
+  assert.doesNotMatch(homeComponentSource, /No appointments today|Today’s appointments are complete|Staff mapping needed/);
   assert.match(homeComponentSource, /UPCOMING SCHEDULE/);
   assert.match(homeComponentSource, /QUICK ACCESS/);
   assert.doesNotMatch(homeComponentSource, /MY WORKSPACE/);
