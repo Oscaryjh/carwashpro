@@ -374,6 +374,7 @@ export function StaffHistory() {
               <div>
                 <p className="staff-kicker">ATTENDANCE</p>
                 <h2 id="staff-filter-heading">Filter history</h2>
+                <p className="staff-filter-description">Choose a period, branch and status.</p>
               </div>
               <button
                 aria-label="Close attendance filters"
@@ -385,38 +386,42 @@ export function StaffHistory() {
               </button>
             </div>
             <form className="staff-history-filters" onSubmit={filter}>
-              <label>
-                From
-                <input onChange={(event) => setDraftFrom(event.target.value)} type="date" value={draftFrom} />
-              </label>
-              <label>
-                To
-                <input onChange={(event) => setDraftTo(event.target.value)} type="date" value={draftTo} />
-              </label>
-              <label>
-                Branch
-                <select onChange={(event) => setDraftBranchId(event.target.value)} value={draftBranchId}>
-                  <option value="">All branches</option>
-                  {knownBranches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>{branch.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Status
-                <select onChange={(event) => setDraftStatus(event.target.value)} value={draftStatus}>
-                  <option value="">All statuses</option>
-                  <option value="OPEN">In progress</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="NEEDS_REVIEW">Needs review</option>
-                  <option value="MISSING_PUNCH">Missing punch</option>
-                  <option value="ADJUSTED">Adjusted</option>
-                  <option value="RESOLVED">Resolved</option>
-                  <option value="CANCELLED">Cancelled</option>
-                </select>
-              </label>
+              <div className="staff-filter-field-grid staff-filter-date-grid">
+                <label>
+                  From
+                  <input onChange={(event) => setDraftFrom(event.target.value)} type="date" value={draftFrom} />
+                </label>
+                <label>
+                  To
+                  <input onChange={(event) => setDraftTo(event.target.value)} type="date" value={draftTo} />
+                </label>
+              </div>
+              <div className="staff-filter-field-grid staff-filter-select-grid">
+                <label>
+                  Branch
+                  <select onChange={(event) => setDraftBranchId(event.target.value)} value={draftBranchId}>
+                    <option value="">All branches</option>
+                    {knownBranches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Status
+                  <select onChange={(event) => setDraftStatus(event.target.value)} value={draftStatus}>
+                    <option value="">All statuses</option>
+                    <option value="OPEN">In progress</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="NEEDS_REVIEW">Needs review</option>
+                    <option value="MISSING_PUNCH">Missing punch</option>
+                    <option value="ADJUSTED">Adjusted</option>
+                    <option value="RESOLVED">Resolved</option>
+                    <option value="CANCELLED">Cancelled</option>
+                  </select>
+                </label>
+              </div>
+              <p className="staff-filter-limit">Choose up to 31 days.</p>
               <button className="staff-primary-button" type="submit">Apply filters</button>
-              <small>Date ranges are limited to 31 days.</small>
             </form>
           </section>
         </div>
