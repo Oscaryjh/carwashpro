@@ -66,6 +66,9 @@ export function StaffPwaChrome({
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState("");
   const currentWorkplace = workplaces.find((workplace) => workplace.current);
+  const selfServiceNavigation = navigation.more.filter((item) => item.section === "SELF_SERVICE");
+  const accountNavigation = navigation.more.filter((item) => item.section === "ACCOUNT");
+  const moreActive = navigation.more.some((item) => isActive(currentPath, item.href));
 
   useEffect(() => {
     setMoreOpen(false);
@@ -202,25 +205,47 @@ export function StaffPwaChrome({
           <div className="staff-more-backdrop" role="presentation" onClick={() => setMoreOpen(false)}>
             <section aria-label="More Staff App sections" aria-modal="true" className="staff-more-sheet" onClick={(event) => event.stopPropagation()} role="dialog">
               <div className="staff-more-heading">
-                <div><small>SELF-SERVICE</small><strong>More</strong></div>
+                <div><small>STAFF APP</small><strong>More</strong></div>
                 <button aria-label="Close more menu" onClick={() => setMoreOpen(false)} type="button">Close</button>
               </div>
-              <div className="staff-more-links">
-                {navigation.more.map((item) => (
-                  <Link aria-current={isActive(currentPath, item.href) ? "page" : undefined} href={item.href} key={item.href}>
-                    <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>
-                    <strong>{item.label}</strong>
-                  </Link>
-                ))}
-              </div>
-              <div className="staff-more-actions">
-                {workplaces.length > 1 ? (
-                  <button onClick={openWorkplaceSwitcher} type="button">Switch workplace</button>
-                ) : null}
-                <button className="danger" disabled={switching} onClick={() => void logout()} type="button">
+              {selfServiceNavigation.length ? (
+                <MoreSection label="SELF-SERVICE">
+                  <div className="staff-more-links">
+                    {selfServiceNavigation.map((item) => (
+                      <Link aria-current={isActive(currentPath, item.href) ? "page" : undefined} href={item.href} key={item.href}>
+                        <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>
+                        <strong>{item.label}</strong>
+                      </Link>
+                    ))}
+                  </div>
+                </MoreSection>
+              ) : null}
+              <MoreSection label="ACCOUNT">
+                <div className="staff-more-links staff-more-account-links">
+                  {accountNavigation.map((item) => (
+                    <Link aria-current={isActive(currentPath, item.href) ? "page" : undefined} href={item.href} key={item.href}>
+                      <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>
+                      <strong>{item.label}</strong>
+                    </Link>
+                  ))}
+                </div>
+              </MoreSection>
+              <MoreSection label="WORKPLACE">
+                <button
+                  className="staff-more-context-action"
+                  disabled={switching || workplaces.length < 2}
+                  onClick={openWorkplaceSwitcher}
+                  type="button"
+                >
+                  <span><strong>Switch workplace</strong><small>{currentWorkplace?.businessName ?? "Current workplace"}</small></span>
+                  <b aria-hidden="true">›</b>
+                </button>
+              </MoreSection>
+              <MoreSection label="ACCOUNT ACTIONS">
+                <button className="staff-more-signout" disabled={switching} onClick={() => void logout()} type="button">
                   Sign out
                 </button>
-              </div>
+              </MoreSection>
             </section>
           </div>
         ) : null}
@@ -277,19 +302,28 @@ export function StaffPwaChrome({
             ))}
             {navigation.more.length ? (
               <button
-                aria-current={navigation.more.some((item) => isActive(currentPath, item.href)) ? "page" : undefined}
+                aria-current={moreActive ? "page" : undefined}
                 aria-expanded={moreOpen}
-                className={navigation.more.some((item) => isActive(currentPath, item.href)) ? "active" : ""}
+                className={moreActive ? "active" : ""}
                 onClick={() => setMoreOpen((open) => !open)}
                 type="button"
               >
-                <span aria-hidden="true"><StaffNavIcon name="profile" /></span>More
+                <span aria-hidden="true"><StaffNavIcon name="more" /></span>More
               </button>
             ) : null}
           </nav>
         ) : null}
       </div>
     </StaffShellContext.Provider>
+  );
+}
+
+function MoreSection({ children, label }: { children: React.ReactNode; label: string }) {
+  return (
+    <section className="staff-more-section">
+      <h2>{label}</h2>
+      {children}
+    </section>
   );
 }
 
@@ -308,6 +342,7 @@ function StaffNavIcon({ name }: { name: StaffNavigationIcon }) {
     commission: <><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5c-.8-.7-1.9-1-3.2-1-1.8 0-3 .8-3 2.1 0 3.2 6.1 1.6 6.1 4.9 0 1.3-1.2 2.1-3.2 2.1-1.5 0-2.8-.5-3.7-1.4M12 5.5v13" /></>,
     payslip: <><path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21V3Z" /><path d="M9 8h6M9 12h6M9 16h4" /></>,
     profile: <><circle cx="12" cy="8" r="4" /><path d="M4.5 21c.8-4.5 3.3-6.7 7.5-6.7s6.7 2.2 7.5 6.7" /></>,
+    more: <><circle cx="5" cy="12" r="1.25" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.25" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.25" fill="currentColor" stroke="none" /></>,
   };
   return (
     <svg className="staff-nav-icon" fill="none" viewBox="0 0 24 24">

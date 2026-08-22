@@ -672,32 +672,18 @@ export function StaffToday() {
             value={formatMinutesAsHours(today.currentWorkedMinutes)}
           />
         </div>
+        {reviewStatus ? (
+          <div className={`staff-attendance-review-state ${approvalTone(reviewStatus)}`}>
+            <span><strong>{approvalHeadline(reviewStatus)}</strong><small>{approvalDescription(reviewStatus)}</small></span>
+            <Link href="/staff/history">History</Link>
+          </div>
+        ) : null}
         {today.status === "ON_BREAK" ? (
           <p className="staff-form-hint">End the current break before clocking out.</p>
         ) : null}
       </section>
 
       <StaffResolutionCases />
-
-      {reviewStatus ? (
-        <section
-          className={`staff-page-card staff-approval-card ${reviewStatus.toLowerCase()}`}
-        >
-          <div className="staff-card-heading">
-            <div>
-              <p className="staff-kicker">ATTENDANCE REVIEW</p>
-              <h2>{approvalHeadline(reviewStatus)}</h2>
-            </div>
-            <span className={`staff-status-chip ${approvalTone(reviewStatus)}`}>
-              {approvalLabel(reviewStatus)}
-            </span>
-          </div>
-          <p>{approvalDescription(reviewStatus)}</p>
-          <Link className="staff-approval-history-link" href="/staff/history">
-            View attendance history
-          </Link>
-        </section>
-      ) : null}
 
       {confirmAction ? (
         <div className="staff-confirm-backdrop" role="presentation">
@@ -833,14 +819,6 @@ function approvalHeadline(
   if (status === "APPROVED") return "Attendance exception approved";
   if (status === "REJECTED") return "Attendance exception rejected";
   return "Manager approval pending";
-}
-
-function approvalLabel(
-  status: NonNullable<AttendanceToday["currentSession"]>["approvalStatus"],
-) {
-  if (status === "APPROVED") return "Approved";
-  if (status === "REJECTED") return "Rejected";
-  return "Pending";
 }
 
 function approvalTone(

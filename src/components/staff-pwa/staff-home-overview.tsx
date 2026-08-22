@@ -23,7 +23,7 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
   }).format(new Date());
 
   return (
-    <section className="staff-home-overview" aria-labelledby="staff-home-overview-heading">
+    <section aria-label="Staff home" className="staff-home-overview">
       {overview.showWelcome ? (
         <section className="staff-welcome-card">
           <div className="staff-welcome-identity">
@@ -55,22 +55,42 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
         </section>
       ) : null}
       {children}
-      <div className="staff-home-section-heading">
-        <p className="staff-kicker" id="staff-home-overview-heading">MY WORKSPACE</p>
-      </div>
-      {overview.cards.length ? (
+      {overview.upNext ? (
+        <section className="staff-home-up-next" aria-labelledby="staff-home-up-next-heading">
+          <header className="staff-home-section-heading">
+            <p className="staff-kicker" id="staff-home-up-next-heading">UP NEXT</p>
+          </header>
+          <Link className={`staff-home-up-next-card ${overview.upNext.status.toLowerCase()}`} href={overview.upNext.href}>
+            <span className="staff-home-up-next-icon" aria-hidden="true">
+              <StaffAppIcon name={overview.appearance.quickAccessIcons.ROSTER} />
+            </span>
+            <span>
+              <small>{overview.upNext.dateLabel}</small>
+              <strong>{overview.upNext.title}</strong>
+              {overview.upNext.timeLabel ? <b>{overview.upNext.timeLabel}</b> : null}
+              {overview.upNext.branchName ? <em>{overview.upNext.branchName}</em> : null}
+            </span>
+            <i aria-hidden="true">›</i>
+          </Link>
+        </section>
+      ) : null}
+      <section className="staff-home-quick-access" aria-labelledby="staff-home-quick-access-heading">
+        <header className="staff-home-section-heading">
+          <p className="staff-kicker" id="staff-home-quick-access-heading">QUICK ACCESS</p>
+        </header>
+      {overview.quickAccess.length ? (
         <div className="staff-home-grid">
-          {overview.cards.map((card) => (
+          {overview.quickAccess.map((item) => (
             <Link
-              aria-label={`${card.label}: ${card.value}`}
-              className={`staff-home-card ${card.status.toLowerCase()}`}
-              href={card.href}
-              key={card.domain}
+              aria-label={`Open ${item.label}`}
+              className="staff-home-card"
+              href={item.href}
+              key={item.domain}
             >
               <span className="staff-home-card-icon" aria-hidden="true">
-                <StaffAppIcon name={overview.appearance.quickAccessIcons[card.domain]} />
+                <StaffAppIcon name={overview.appearance.quickAccessIcons[item.domain]} />
               </span>
-              <small>{card.label.replace(/^My\s+/i, "")}</small>
+              <small>{item.label}</small>
             </Link>
           ))}
         </div>
@@ -81,6 +101,7 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
           <Link href="/staff/profile">Open my profile</Link>
         </div>
       )}
+      </section>
     </section>
   );
 }

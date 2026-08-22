@@ -4,6 +4,7 @@ export type StaffNavigationItem = {
   href: string;
   label: string;
   icon: StaffNavigationIcon;
+  section?: "SELF_SERVICE" | "ACCOUNT";
 };
 
 export type StaffNavigationIcon =
@@ -15,7 +16,8 @@ export type StaffNavigationIcon =
   | "claims"
   | "commission"
   | "payslip"
-  | "profile";
+  | "profile"
+  | "more";
 
 export type StaffNavigation = {
   primary: StaffNavigationItem[];
@@ -34,23 +36,23 @@ export function buildStaffNavigation(
   if (modules.has("HR")) {
     primary.push(
       { href: "/staff/history", label: "Attendance", icon: "attendance" },
+      { href: "/staff/roster", label: "Schedule", icon: "schedule" },
       { href: "/staff/leave", label: "Leave", icon: "leave" },
-      { href: "/staff/timesheet", label: "Timesheet", icon: "timesheet" },
     );
     more.push(
-      { href: "/staff/roster", label: "Schedule", icon: "schedule" },
+      { href: "/staff/timesheet", label: "Timesheets", icon: "timesheet", section: "SELF_SERVICE" },
     );
   }
   if (modules.has("CLAIMS")) {
-    more.push({ href: "/staff/claims", label: "Claims", icon: "claims" });
+    more.push({ href: "/staff/claims", label: "Claims", icon: "claims", section: "SELF_SERVICE" });
   }
   if (modules.has("COMMISSION")) {
-    more.push({ href: "/staff/commission", label: "Commission", icon: "commission" });
+    more.push({ href: "/staff/commission", label: "Commission", icon: "commission", section: "SELF_SERVICE" });
   }
   if (modules.has("PAYROLL")) {
-    more.push({ href: "/staff/payslips", label: "Payslips", icon: "payslip" });
+    more.push({ href: "/staff/payslips", label: "Payslips", icon: "payslip", section: "SELF_SERVICE" });
   }
 
-  more.push({ href: "/staff/profile", label: "Profile", icon: "profile" });
+  more.push({ href: "/staff/profile", label: "Profile", icon: "profile", section: "ACCOUNT" });
   return { primary, more };
 }

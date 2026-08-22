@@ -89,6 +89,10 @@ const homeComponentSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-home-overview.tsx", import.meta.url),
   "utf8",
 );
+const attentionSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-resolution-cases.tsx", import.meta.url),
+  "utf8",
+);
 const appearanceActionSource = readFileSync(
   new URL(
     "../../src/app/(business)/business/settings/staff-app/actions.ts",
@@ -403,11 +407,14 @@ test("Staff navigation follows module entitlement without overcrowding the mobil
   assert.deepEqual(posOnly.more.map((item) => item.label), ["Profile"]);
 
   const hrOnly = buildStaffNavigation(["CORE", "HR"]);
-  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance", "Leave", "Timesheet"]);
-  assert.deepEqual(hrOnly.more.map((item) => item.label), ["Schedule", "Profile"]);
+  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance", "Schedule", "Leave"]);
+  assert.deepEqual(hrOnly.more.map((item) => item.label), ["Timesheets", "Profile"]);
 
   const full = buildStaffNavigation(["CORE", "HR", "CLAIMS", "COMMISSION", "PAYROLL"]);
-  assert.deepEqual(full.more.map((item) => item.label), ["Schedule", "Claims", "Commission", "Payslips", "Profile"]);
+  assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Attendance", "Schedule", "Leave"]);
+  assert.deepEqual(full.more.map((item) => item.label), ["Timesheets", "Claims", "Commission", "Payslips", "Profile"]);
+  assert.deepEqual(full.more.filter((item) => item.section === "SELF_SERVICE").map((item) => item.label), ["Timesheets", "Claims", "Commission", "Payslips"]);
+  assert.deepEqual(full.more.filter((item) => item.section === "ACCOUNT").map((item) => item.label), ["Profile"]);
   assert.ok(full.primary.length + 1 <= 5, "primary navigation plus More must fit five mobile slots");
 });
 
@@ -417,21 +424,25 @@ test("Staff navigation refreshes live employee module entitlement after login", 
   assert.match(moduleRouteSource, /enabledModules: \[\.\.\.context\.enabledModules\]/);
 });
 
-test("Staff Home delegates summaries to canonical domain readers", () => {
-  assert.match(homeSource, /getEmployeeLeaveOverview/);
-  assert.match(homeSource, /getEmployeeClaimOverview/);
-  assert.match(homeSource, /getEmployeeCommissionStatements/);
-  assert.match(homeSource, /getEmployeeTimesheetOverview/);
-  assert.match(homeSource, /loadPublishedPayslipsForEmployee/);
-  assert.doesNotMatch(homeSource, /prisma\./);
-  assert.match(homeSource, /Temporarily unavailable/);
+test("Staff Home composes existing canonical readers without recalculating modules", () => {
+  assert.match(homeSource, /getEmployeeAuthProfile/);
+  assert.match(homeSource, /getEmployeePublishedRoster/);
+  assert.match(homeSource, /buildStaffScheduleDay/);
+  assert.match(homeSource, /businessId: auth\.businessId/);
+  assert.match(homeSource, /membershipId: auth\.membershipId/);
+  assert.match(homeSource, /const branchId = auth\.attendanceBranchId \?\? auth\.primaryBranchId/);
+  assert.match(homeSource, /resolveBranchHolidays/);
+  assert.match(homeSource, /leaveRequest: \{ branchId, status: "APPROVED" \}/);
+  assert.doesNotMatch(homeSource, /getEmployeeTimesheetOverview|getEmployeeLeaveOverview|getEmployeeClaimOverview|getEmployeeCommissionStatements|loadPublishedPayslipsForEmployee/);
+  assert.match(homeSource, /Schedule temporarily unavailable/);
   assert.match(homeSource, /showWelcome: true/);
 });
 
 test("Staff Home prioritizes a mobile today workspace without inventing new domains", () => {
   assert.match(homeComponentSource, /<p className="staff-kicker">TODAY<\/p>/);
-  assert.match(homeComponentSource, /MY WORKSPACE/);
-  assert.doesNotMatch(homeComponentSource, /Quick access|View profile/);
+  assert.match(homeComponentSource, /UP NEXT/);
+  assert.match(homeComponentSource, /QUICK ACCESS/);
+  assert.doesNotMatch(homeComponentSource, /MY WORKSPACE/);
   assert.match(homeComponentSource, /StaffAppIcon/);
   assert.match(homeComponentSource, /profile\.employee\.avatarUrl/);
   assert.match(homeComponentSource, /sizes="80px"/);
@@ -440,6 +451,11 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
   assert.match(employeeSessionSource, /avatarUrl:\s*true/);
   assert.doesNotMatch(homeComponentSource, /<strong>\{card\.value\}<\/strong>/);
   assert.doesNotMatch(homeComponentSource, /staff-home-card-arrow/);
+  const quickAccessOrder = ["Commission", "Claims", "Payslips", "Timesheets"]
+    .map((label) => homeSource.indexOf(`label: "${label}"`));
+  assert.ok(quickAccessOrder.every((index) => index >= 0));
+  assert.deepEqual(quickAccessOrder, [...quickAccessOrder].sort((left, right) => left - right));
+  assert.doesNotMatch(homeSource, /label: "Schedule"|label: "Leave"/);
   assert.match(todaySource, /staff-page-card staff-attendance-card/);
   assert.match(todaySource, /Today’s shift/);
   assert.doesNotMatch(todaySource, /Today&apos;s published evidence|Revision \{today\.expectedAttendance\.revision\}|Source:/);
@@ -447,10 +463,27 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
     todaySource.indexOf("staff-action-grid") < todaySource.indexOf("aria-label=\"Today's attendance summary\""),
     "Attendance actions should appear before secondary metrics",
   );
-  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-home-grid\s*\{[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(attentionSource, /NEEDS YOUR ATTENTION/);
+  assert.match(attentionSource, /You&apos;re all set/);
+  assert.match(attentionSource, /item\.status === "OPEN" \|\| item\.status === "RETURNED_FOR_CORRECTION" \|\| item\.canCancel/);
+  assert.doesNotMatch(attentionSource, /Unauthorized absence|No-show/i);
+  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-home-grid\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(staffCssSource, /\.staff-home-up-next-card\s*\{[\s\S]*?grid-template-columns:/);
   assert.match(staffCssSource, /\.staff-welcome-card h1\s*\{[\s\S]*?white-space:\s*nowrap/);
   assert.match(staffCssSource, /\.staff-welcome-card h1\s*\{[\s\S]*?line-height:\s*1\.15/);
   assert.match(staffCssSource, /\.staff-welcome-avatar\s*\{[\s\S]*?flex:\s*0 0 80px;[\s\S]*?height:\s*80px;[\s\S]*?width:\s*80px/);
+});
+
+test("More keeps occasional self-service grouped and preserves canonical workplace actions", () => {
+  assert.match(chromeSource, /<MoreSection label="SELF-SERVICE">/);
+  assert.match(chromeSource, /<MoreSection label="ACCOUNT">/);
+  assert.match(chromeSource, /<MoreSection label="WORKPLACE">/);
+  assert.match(chromeSource, /<MoreSection label="ACCOUNT ACTIONS">/);
+  assert.match(chromeSource, /className="staff-more-signout"/);
+  assert.match(chromeSource, /onClick=\{openWorkplaceSwitcher\}/);
+  assert.match(chromeSource, /onClick=\{\(\) => void logout\(\)\}/);
+  assert.doesNotMatch(chromeSource, /StaffNavIcon name="profile" \/><\/span>More/);
+  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-more-section \.staff-more-links\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
 });
 
 test("Staff App appearance keeps business icon choices safe and complete", () => {
