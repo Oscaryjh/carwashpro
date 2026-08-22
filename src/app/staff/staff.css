@@ -2323,6 +2323,7 @@
   }
 
   .staff-app-shell > .staff-pwa-main {
+    -ms-overflow-style: none;
     -webkit-overflow-scrolling: touch;
     flex: 1 1 auto;
     min-height: 0;
@@ -2331,6 +2332,13 @@
     overscroll-behavior-y: contain;
     padding-bottom: calc(72px + env(safe-area-inset-bottom));
     scroll-padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    scrollbar-width: none;
+  }
+
+  .staff-app-shell > .staff-pwa-main::-webkit-scrollbar {
+    display: none;
+    height: 0;
+    width: 0;
   }
 
   .staff-pwa-nav {

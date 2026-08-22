@@ -607,6 +607,8 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
     /@media \(max-width: 430px\)[\s\S]*?\.staff-app-shell\s*\{[\s\S]*?display:\s*flex;[\s\S]*?inset:\s*0;[\s\S]*?overflow:\s*hidden;[\s\S]*?position:\s*fixed/,
   );
   assert.match(staffCssSource, /\.staff-app-shell > \.staff-pwa-main\s*\{[^}]*flex:\s*1 1 auto;[^}]*overflow-y:\s*auto;[^}]*padding-bottom:\s*calc\(72px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(staffCssSource, /\.staff-app-shell > \.staff-pwa-main\s*\{[^}]*scrollbar-width:\s*none/);
+  assert.match(staffCssSource, /\.staff-app-shell > \.staff-pwa-main::\-webkit-scrollbar\s*\{[^}]*display:\s*none/);
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-pwa-nav\s*\{[^}]*bottom:\s*0;[^}]*left:\s*0;[^}]*position:\s*fixed;[^}]*width:\s*100%/);
   assert.doesNotMatch(staffCssSource, /\.staff-pwa-nav::after/);
   assert.match(staffCssSource, /\.staff-pwa-nav\s*\{[^}]*background:\s*#fff/);
