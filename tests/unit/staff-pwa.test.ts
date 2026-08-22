@@ -420,12 +420,11 @@ test("Staff navigation follows module entitlement without overcrowding the mobil
 
   const hrOnly = buildStaffNavigation(["CORE", "HR"]);
   assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance", "Schedule"]);
-  assert.deepEqual(hrOnly.more.map((item) => item.label), ["Leave", "Timesheets", "Profile"]);
+  assert.deepEqual(hrOnly.more.map((item) => item.label), ["Profile"]);
 
   const full = buildStaffNavigation(["CORE", "SALON", "HR", "CLAIMS", "COMMISSION", "PAYROLL"]);
   assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Attendance", "Appointments", "Schedule"]);
-  assert.deepEqual(full.more.map((item) => item.label), ["Leave", "Timesheets", "Claims", "Commission", "Payslips", "Profile"]);
-  assert.deepEqual(full.more.filter((item) => item.section === "SELF_SERVICE").map((item) => item.label), ["Leave", "Timesheets", "Claims", "Commission", "Payslips"]);
+  assert.deepEqual(full.more.map((item) => item.label), ["Profile"]);
   assert.deepEqual(full.more.filter((item) => item.section === "ACCOUNT").map((item) => item.label), ["Profile"]);
   assert.ok(full.primary.length + 1 <= 5, "primary navigation plus More must fit five mobile slots");
 });
@@ -491,8 +490,9 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
   assert.match(staffCssSource, /\.staff-welcome-avatar\s*\{[\s\S]*?flex:\s*0 0 80px;[\s\S]*?height:\s*80px;[\s\S]*?width:\s*80px/);
 });
 
-test("More keeps occasional self-service grouped and preserves canonical workplace actions", () => {
-  assert.match(chromeSource, /<MoreSection label="SELF-SERVICE">/);
+test("More avoids Home quick-access duplication and preserves canonical workplace actions", () => {
+  assert.doesNotMatch(chromeSource, /<MoreSection label="SELF-SERVICE">/);
+  assert.doesNotMatch(chromeSource, /selfServiceNavigation/);
   assert.match(chromeSource, /<MoreSection label="ACCOUNT">/);
   assert.match(chromeSource, /<MoreSection label="WORKPLACE">/);
   assert.match(chromeSource, /<MoreSection label="ACCOUNT ACTIONS">/);

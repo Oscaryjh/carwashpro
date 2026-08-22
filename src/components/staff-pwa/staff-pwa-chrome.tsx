@@ -66,7 +66,6 @@ export function StaffPwaChrome({
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState("");
   const currentWorkplace = workplaces.find((workplace) => workplace.current);
-  const selfServiceNavigation = navigation.more.filter((item) => item.section === "SELF_SERVICE");
   const accountNavigation = navigation.more.filter((item) => item.section === "ACCOUNT");
   const moreActive = navigation.more.some((item) => isActive(currentPath, item.href));
 
@@ -208,18 +207,6 @@ export function StaffPwaChrome({
                 <div><small>STAFF APP</small><strong>More</strong></div>
                 <button aria-label="Close more menu" onClick={() => setMoreOpen(false)} type="button">Close</button>
               </div>
-              {selfServiceNavigation.length ? (
-                <MoreSection label="SELF-SERVICE">
-                  <div className="staff-more-links">
-                    {selfServiceNavigation.map((item) => (
-                      <Link aria-current={isActive(currentPath, item.href) ? "page" : undefined} href={item.href} key={item.href}>
-                        <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>
-                        <strong>{item.label}</strong>
-                      </Link>
-                    ))}
-                  </div>
-                </MoreSection>
-              ) : null}
               <MoreSection label="ACCOUNT">
                 <div className="staff-more-links staff-more-account-links">
                   {accountNavigation.map((item) => (
