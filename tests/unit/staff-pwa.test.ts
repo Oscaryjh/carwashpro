@@ -604,13 +604,14 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(staffCssSource, /font-size: 16px/);
   assert.match(
     staffCssSource,
-    /@media \(max-width: 430px\)[\s\S]*?\.staff-app-shell\s*\{[\s\S]*?display:\s*flex;[\s\S]*?overflow:\s*hidden;[\s\S]*?padding-bottom:\s*0/,
+    /@media \(max-width: 430px\)[\s\S]*?\.staff-app-shell\s*\{[\s\S]*?display:\s*flex;[\s\S]*?inset:\s*0;[\s\S]*?overflow:\s*hidden;[\s\S]*?position:\s*fixed/,
   );
-  assert.match(staffCssSource, /\.staff-app-shell > \.staff-pwa-main\s*\{[^}]*flex:\s*1 1 auto;[^}]*overflow-y:\s*auto/);
-  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-pwa-nav\s*\{[^}]*bottom:\s*auto;[^}]*position:\s*relative;[^}]*width:\s*calc\(100% \+ 24px\)/);
+  assert.match(staffCssSource, /\.staff-app-shell > \.staff-pwa-main\s*\{[^}]*flex:\s*1 1 auto;[^}]*overflow-y:\s*auto;[^}]*padding-bottom:\s*calc\(72px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-pwa-nav\s*\{[^}]*bottom:\s*0;[^}]*left:\s*0;[^}]*position:\s*fixed;[^}]*width:\s*100%/);
   assert.doesNotMatch(staffCssSource, /\.staff-pwa-nav::after/);
   assert.match(staffCssSource, /\.staff-pwa-nav\s*\{[^}]*background:\s*#fff/);
   assert.doesNotMatch(staffCssSource, /\.staff-pwa-nav\s*\{[^}]*backdrop-filter:/);
+  assert.match(staffCssSource, /\.staff-current-workplace\s*\{[^}]*background:\s*#fff/);
   assert.match(staffCssSource, /\.staff-pwa-nav > button\s*\{\s*min-height:\s*54px/);
   assert.match(staffCssSource, /\.staff-roster-day summary\s*\{[\s\S]*?grid-template-columns:\s*50px minmax\(0, 1fr\) 22px;[\s\S]*?min-height:\s*62px/);
   assert.match(staffCssSource, /\.staff-roster-page\s*\{[\s\S]*?overflow-x:\s*clip/);

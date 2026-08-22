@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: "Secure employee self-service for Tetamu workplaces.",
   applicationName: "Tetamu Staff App",
   manifest: "/staff/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Tetamu Staff App" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Tetamu Staff App" },
   icons: {
     icon: [
       { url: "/pwa/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -28,7 +28,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#087f76",
+  themeColor: "#f3f8f7",
 };
 
 export default async function StaffLayout({ children }: { children: ReactNode }) {
