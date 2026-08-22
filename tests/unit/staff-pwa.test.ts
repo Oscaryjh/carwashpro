@@ -600,6 +600,8 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(leaveCssSource, /@media \(max-width: 369px\)[\s\S]*?\.requestPage \.dateRange\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
   assert.match(leaveComponentSource, /<StaffDatePicker label="From" name="startsOn"/);
   assert.match(leaveComponentSource, /<StaffDatePicker label="To" min=\{startsOn \|\| undefined\}/);
+  assert.match(leaveComponentSource, /clientRequestId:\s*createBrowserUuid\(\)/);
+  assert.doesNotMatch(leaveComponentSource, /crypto\.randomUUID\(\)/);
   assert.match(staffDatePickerSource, /createPortal\([\s\S]*?role="dialog" aria-modal="true"/);
   assert.match(staffDatePickerSource, /WEEKDAYS[\s\S]*?calendarDays\(visibleMonth\)/);
   assert.match(staffDatePickerSource, /aria-haspopup="dialog"/);
@@ -641,6 +643,8 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(claimsComponentSource, /className=\{styles\.moneyField\}/);
   assert.match(claimsComponentSource, /className=\{styles\.receiptField\}/);
   assert.match(claimsComponentSource, /disabled=\{submitting\}/);
+  assert.match(claimsComponentSource, /clientRequestId:\s*createBrowserUuid\(\)/);
+  assert.doesNotMatch(claimsComponentSource, /crypto\.randomUUID\(\)/);
   assert.match(claimsCssSource, /\.formRow\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.match(claimsCssSource, /@media \(min-width: 700px\)[\s\S]*?\.formRow\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(staffCssSource, /font-size: 16px/);

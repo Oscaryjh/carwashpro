@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { isEmployeeSessionError, staffApiFetch, StaffApiError } from "@/lib/staff-pwa/client";
+import { createBrowserUuid, isEmployeeSessionError, staffApiFetch, StaffApiError } from "@/lib/staff-pwa/client";
 import { StaffDatePicker } from "./staff-date-picker";
 import styles from "./staff-leave.module.css";
 
@@ -106,7 +106,7 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
       if (!startsOn || !endsOn) throw new Error("Choose the start and end dates for this Leave request.");
       const outgoing = new FormData();
       outgoing.set("payload", JSON.stringify({
-        clientRequestId: crypto.randomUUID(),
+        clientRequestId: createBrowserUuid(),
         policyId: selectedPolicyId,
         startsOn: form.get("startsOn"),
         endsOn: form.get("endsOn"),

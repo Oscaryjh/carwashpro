@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { isEmployeeSessionError, staffApiFetch, StaffApiError } from "@/lib/staff-pwa/client";
+import { createBrowserUuid, isEmployeeSessionError, staffApiFetch, StaffApiError } from "@/lib/staff-pwa/client";
 import styles from "./staff-claims.module.css";
 
 type Overview = {
@@ -78,7 +78,7 @@ export function StaffClaims() {
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const payload = {
-      clientRequestId: crypto.randomUUID(),
+      clientRequestId: createBrowserUuid(),
       purpose: form.get("purpose"),
       currency: "MYR",
       lines: [{
