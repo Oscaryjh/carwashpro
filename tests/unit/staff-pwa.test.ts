@@ -132,6 +132,14 @@ const commissionPageSource = readFileSync(
   new URL("../../src/app/staff/commission/page.tsx", import.meta.url),
   "utf8",
 );
+const claimsComponentSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-claims.tsx", import.meta.url),
+  "utf8",
+);
+const claimsCssSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-claims.module.css", import.meta.url),
+  "utf8",
+);
 const attendanceMutationSources = [
   "clock-in",
   "clock-out",
@@ -566,6 +574,13 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(rosterErrorSource, /Unable to load schedule/);
   assert.match(rosterErrorSource, /Try again/);
   assert.match(commissionPageSource, /staff-commission-empty/);
+  assert.match(claimsComponentSource, /<span>Claim title<\/span>/);
+  assert.match(claimsComponentSource, /<span>Expense details<\/span>/);
+  assert.match(claimsComponentSource, /className=\{styles\.moneyField\}/);
+  assert.match(claimsComponentSource, /className=\{styles\.receiptField\}/);
+  assert.match(claimsComponentSource, /disabled=\{submitting\}/);
+  assert.match(claimsCssSource, /\.formRow\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(claimsCssSource, /@media \(min-width: 700px\)[\s\S]*?\.formRow\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(staffCssSource, /font-size: 16px/);
   assert.match(
     staffCssSource,
