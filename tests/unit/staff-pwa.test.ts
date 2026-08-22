@@ -666,6 +666,8 @@ test("Staff Profile shows employee identifiers once inside the mobile details ca
   assert.match(staffCssSource, /\.staff-profile-identity\s*\{[\s\S]*?min-width:\s*0/);
   assert.match(staffCssSource, /\.staff-device-details strong,[\s\S]*?overflow-wrap:\s*anywhere/);
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-profile-stack \.staff-device-details/);
+  assert.doesNotMatch(profileSource, /WORKPLACES|staff-profile-workplaces|openWorkplaceSwitcher|employers/);
+  assert.doesNotMatch(staffCssSource, /\.staff-profile-workplaces/);
 });
 
 test("Local mobile Staff App can hydrate from the private Wi-Fi subnet", () => {

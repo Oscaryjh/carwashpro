@@ -441,14 +441,12 @@
   margin: 0;
 }
 
-.staff-workplace-options,
-.staff-profile-workplaces {
+.staff-workplace-options {
   display: grid;
   gap: 8px;
 }
 
-.staff-workplace-options button,
-.staff-profile-workplaces button {
+.staff-workplace-options button {
   align-items: center;
   background: #fff;
   border: 1px solid var(--staff-line);
@@ -464,39 +462,32 @@
   width: 100%;
 }
 
-.staff-workplace-options button[aria-current="true"],
-.staff-profile-workplaces button:disabled {
+.staff-workplace-options button[aria-current="true"] {
   background: var(--staff-brand-soft);
   opacity: 1;
 }
 
-.staff-workplace-options button span,
-.staff-profile-workplaces button span {
+.staff-workplace-options button span {
   display: grid;
   gap: 3px;
   min-width: 0;
 }
 
 .staff-workplace-options button strong,
-.staff-workplace-options button small,
-.staff-profile-workplaces button strong,
-.staff-profile-workplaces button small {
+.staff-workplace-options button small {
   overflow-wrap: anywhere;
 }
 
-.staff-workplace-options button strong,
-.staff-profile-workplaces button strong {
+.staff-workplace-options button strong {
   font-size: 14px;
 }
 
-.staff-workplace-options button small,
-.staff-profile-workplaces button small {
+.staff-workplace-options button small {
   color: var(--staff-muted);
   font-size: 11px;
 }
 
-.staff-workplace-options button b,
-.staff-profile-workplaces button b {
+.staff-workplace-options button b {
   color: var(--staff-brand-dark);
   flex: 0 0 auto;
   font-size: 11px;

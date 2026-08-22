@@ -13,7 +13,7 @@ import { useStaffShell } from "./staff-pwa-chrome";
 
 export function StaffProfile({ deviceVerified = false }: { deviceVerified?: boolean }) {
   const router = useRouter();
-  const { workplaces, openWorkplaceSwitcher, logout, switching } = useStaffShell();
+  const { logout, switching } = useStaffShell();
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [error, setError] = useState("");
 
@@ -97,39 +97,6 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
           <Detail label="Start date" value={formatDate(profile.employee.joinedAt)} />
         </div>
       </section>
-
-      {workplaces.length > 1 ? (
-        <section className="staff-page-card">
-          <div className="staff-card-heading">
-            <div>
-              <p className="staff-kicker">WORKPLACES</p>
-              <h2>{workplaces.length} employers</h2>
-            </div>
-            <button className="staff-inline-action" onClick={openWorkplaceSwitcher} type="button">
-              Switch
-            </button>
-          </div>
-          <div className="staff-profile-workplaces">
-            {workplaces.map((workplace) => (
-              <button
-                disabled={switching || workplace.current}
-                key={workplace.membershipId}
-                onClick={openWorkplaceSwitcher}
-                type="button"
-              >
-                <span>
-                  <strong>{workplace.businessName}</strong>
-                  {normalizeLabel(workplace.primaryBranchName) !== normalizeLabel(workplace.businessName) ? (
-                    <small>{workplace.primaryBranchName}</small>
-                  ) : null}
-                </span>
-                <b>{workplace.current ? "Current" : "Choose"}</b>
-              </button>
-            ))}
-          </div>
-          <p className="staff-form-hint">Each employer has a separate secure Staff Session and separate data.</p>
-        </section>
-      ) : null}
 
       <section className="staff-page-card">
         <div className="staff-card-heading">
