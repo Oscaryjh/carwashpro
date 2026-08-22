@@ -605,6 +605,9 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(staffDatePickerSource, /aria-haspopup="dialog"/);
   assert.match(staffDatePickerCssSource, /\.sheet\s*\{[\s\S]*?border-radius:\s*28px 28px 0 0[\s\S]*?env\(safe-area-inset-bottom\)/);
   assert.match(staffDatePickerCssSource, /\.grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(7, minmax\(0, 1fr\)\)/);
+  assert.match(staffDatePickerCssSource, /\.trigger svg,[\s\S]*?stroke:\s*#111/);
+  assert.doesNotMatch(leaveCssSource, /\.form button\{/);
+  assert.match(leaveCssSource, /\.form>button\{/);
   assert.match(leaveComponentSource, /setCameraDocumentNames\(Array\.from\(event\.currentTarget\.files/);
   assert.match(leaveComponentSource, /setUploadedDocumentNames\(Array\.from\(event\.currentTarget\.files/);
   assert.match(leaveComponentSource, /className=\{styles\.selectedFiles\} role="status" aria-live="polite"/);
