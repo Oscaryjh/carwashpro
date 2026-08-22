@@ -3,9 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
-  formatMinutesAsHours,
   getOrCreateDeviceIdentifier,
-  gpsStatusLabel,
   isEmployeeSessionError,
   StaffApiError,
   staffApiFetch,
@@ -283,18 +281,22 @@ export function StaffHistory() {
                 >
                   <option value="">Select shift</option>
                   {(history?.items ?? [])
-                    .filter(
-                      (item) =>
-                        !item.clockOutAt &&
-                        item.status !== "COMPLETED" &&
-                        item.status !== "CANCELLED",
-                    )
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.workDate} / {item.branch.name} / {humanize(item.status)}
-                      </option>
-                    ))}
+                    .flatMap((item) => item.sessions
+                      .filter((session) =>
+                        !item.locked &&
+                        !session.clockOutAt &&
+                        session.punchStatus !== "COMPLETED" &&
+                        session.punchStatus !== "CANCELLED",
+                      )
+                      .map((session) => (
+                        <option key={session.id} value={session.id}>
+                          {item.workDate} / {item.branch.name} / In progress
+                        </option>
+                      ))) }
                 </select>
+                {(history?.items ?? []).some((item) => item.locked) ? (
+                  <small>Finalized timesheet records cannot be changed here.</small>
+                ) : null}
               </label>
             ) : (
               <label>
@@ -404,10 +406,12 @@ export function StaffHistory() {
                 Status
                 <select onChange={(event) => setDraftStatus(event.target.value)} value={draftStatus}>
                   <option value="">All statuses</option>
-                  <option value="OPEN">Open</option>
-                  <option value="ON_BREAK">On break</option>
+                  <option value="OPEN">In progress</option>
                   <option value="COMPLETED">Completed</option>
-                  <option value="INCOMPLETE">Incomplete</option>
+                  <option value="NEEDS_REVIEW">Needs review</option>
+                  <option value="MISSING_PUNCH">Missing punch</option>
+                  <option value="ADJUSTED">Adjusted</option>
+                  <option value="RESOLVED">Resolved</option>
                   <option value="CANCELLED">Cancelled</option>
                 </select>
               </label>
@@ -423,8 +427,42 @@ export function StaffHistory() {
 
       {history ? (
         <>
-          <section className="staff-history-list" aria-busy={loading}>
-            {history.items.map((item) => <HistoryCard item={item} key={item.id} />)}
+          {history.items.some((item) => item.attention) ? (
+            <section className="staff-attendance-attention" aria-labelledby="staff-attention-heading">
+              <div className="staff-attendance-section-heading">
+                <div>
+                  <p className="staff-kicker">NEEDS YOUR ATTENTION</p>
+                  <h2 id="staff-attention-heading">Attendance issues</h2>
+                </div>
+                <span>{history.items.filter((item) => item.attention).length}</span>
+              </div>
+              <div className="staff-attention-list">
+                {history.items.filter((item) => item.attention).map((item) => (
+                  <a className="staff-attention-row" href={`#attendance-${item.id}`} key={`attention-${item.id}`}>
+                    <span className="staff-attention-date">{formatCompactWorkDate(item.workDate)}</span>
+                    <span>
+                      <strong>{item.attention?.label}</strong>
+                      <small>{item.attention?.description}</small>
+                    </span>
+                    <b>{attentionStateLabel(item.attention?.status ?? "")}</b>
+                    <i aria-hidden="true">›</i>
+                  </a>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <section className="staff-history-list" aria-busy={loading} aria-labelledby="staff-history-heading">
+            <div className="staff-attendance-section-heading staff-history-heading">
+              <div>
+                <p className="staff-kicker">HISTORY</p>
+                <h2 id="staff-history-heading">Clock-in records</h2>
+              </div>
+              <span>{history.pagination.total}</span>
+            </div>
+            <div className="staff-history-rows">
+              {history.items.map((item) => <HistoryRow item={item} key={item.id} />)}
+            </div>
             {!history.items.length ? (
               <div className="staff-empty-state">
                 <span aria-hidden="true">◷</span>
@@ -433,28 +471,32 @@ export function StaffHistory() {
               </div>
             ) : null}
           </section>
-          <div className="staff-pagination">
-            <button
-              disabled={loading || history.pagination.page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              type="button"
-            >
-              Previous
-            </button>
+          <div className={`staff-pagination ${history.pagination.totalPages <= 1 ? "single-page" : ""}`}>
+            {history.pagination.totalPages > 1 ? (
+              <button
+                disabled={loading || history.pagination.page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                type="button"
+              >
+                Previous
+              </button>
+            ) : null}
             <span>
               Page {history.pagination.page} of {Math.max(1, history.pagination.totalPages)}
               <small>{history.pagination.total} records</small>
             </span>
-            <button
-              disabled={
-                loading ||
-                history.pagination.page >= Math.max(1, history.pagination.totalPages)
-              }
-              onClick={() => setPage((current) => current + 1)}
-              type="button"
-            >
-              Next
-            </button>
+            {history.pagination.totalPages > 1 ? (
+              <button
+                disabled={
+                  loading ||
+                  history.pagination.page >= Math.max(1, history.pagination.totalPages)
+                }
+                onClick={() => setPage((current) => current + 1)}
+                type="button"
+              >
+                Next
+              </button>
+            ) : null}
           </div>
         </>
       ) : null}
@@ -462,30 +504,144 @@ export function StaffHistory() {
   );
 }
 
-function HistoryCard({ item }: { item: AttendanceHistoryItem }) {
+function HistoryRow({ item }: { item: AttendanceHistoryItem }) {
+  const timezone = item.branch.timezone;
   return (
-    <article className="staff-history-card">
-      <div className="staff-history-card-header">
-        <div>
-          <strong>{formatWorkDate(item.workDate)}</strong>
+    <details className={`staff-attendance-day ${item.primaryStatus.tone}`} id={`attendance-${item.id}`}>
+      <summary>
+        <span className="staff-attendance-day-date">
+          <strong>{formatCompactWorkDate(item.workDate)}</strong>
           <small>{item.branch.name}</small>
-        </div>
-        <span className={`staff-status-chip ${item.status.toLowerCase()}`}>
-          {humanize(item.status)}
         </span>
+        <span className="staff-attendance-day-facts">
+          <strong>{formatActualRange(item, timezone)}</strong>
+          <small>
+            Worked {formatCompactDuration(item.actual.totalWorkedMinutes)} · Break {formatCompactDuration(item.actual.totalBreakMinutes)}
+          </small>
+          {item.flags.length ? <em>{item.flags.join(" · ")}</em> : null}
+        </span>
+        <span className={`staff-attendance-status ${item.primaryStatus.tone}`}>
+          {item.primaryStatus.label}
+        </span>
+        <i aria-hidden="true">⌄</i>
+      </summary>
+
+      <div className="staff-attendance-day-detail">
+        <div className="staff-attendance-detail-heading">
+          <div>
+            <p className="staff-kicker">ATTENDANCE DETAIL</p>
+            <h3>{formatFullWorkDate(item.workDate)}</h3>
+          </div>
+          <span className={`staff-attendance-status ${item.primaryStatus.tone}`}>
+            {item.primaryStatus.label}
+          </span>
+        </div>
+
+        {item.attention ? (
+          <div className="staff-attendance-detail-alert">
+            <strong>{item.attention.label}</strong>
+            <span>{item.attention.description}</span>
+            <small>{attentionStateLabel(item.attention.status)}</small>
+          </div>
+        ) : null}
+
+        <section className="staff-scheduled-actual" aria-label="Scheduled and actual attendance">
+          <div>
+            <small>SCHEDULED</small>
+            <strong>{scheduledLabel(item, timezone)}</strong>
+            <span>{scheduledKindLabel(item.scheduled?.kind ?? null)}</span>
+          </div>
+          <div>
+            <small>ACTUAL</small>
+            <strong>{formatActualRange(item, timezone)}</strong>
+            <span>Worked {formatCompactDuration(item.actual.totalWorkedMinutes)} · Break {formatCompactDuration(item.actual.totalBreakMinutes)}</span>
+          </div>
+        </section>
+
+        {item.sessions.length > 1 ? (
+          <section className="staff-attendance-evidence-block">
+            <p className="staff-kicker">SESSIONS</p>
+            <div className="staff-session-list">
+              {item.sessions.map((session, index) => (
+                <div key={session.id}>
+                  <span>Session {index + 1}</span>
+                  <strong>{formatTime(session.clockInAt, timezone)} – {session.clockOutAt ? formatTime(session.clockOutAt, timezone) : "—"}</strong>
+                  <small>Worked {formatCompactDuration(session.totalWorkedMinutes)} · Break {formatCompactDuration(session.totalBreakMinutes)}</small>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <SessionEvidence item={item} />
+
+        {item.locked ? (
+          <div className="staff-attendance-lock-note">
+            <strong>Finalized timesheet</strong>
+            <span>This attendance record belongs to a finalized timesheet. Contact your manager if a correction is required.</span>
+          </div>
+        ) : null}
       </div>
-      <div className="staff-history-times">
-        <span><small>Clock in</small><strong>{formatTime(item.clockInAt)}</strong></span>
-        <span><small>Clock out</small><strong>{item.clockOutAt ? formatTime(item.clockOutAt) : "—"}</strong></span>
-        <span><small>Break</small><strong>{item.totalBreakMinutes} min</strong></span>
-        <span><small>Worked</small><strong>{formatMinutesAsHours(item.totalWorkedMinutes)}</strong></span>
-      </div>
-      <div className="staff-history-flags">
-        <span>{gpsStatusLabel(item.geofenceStatus)}</span>
-        <span>{item.requiresApproval ? `Approval: ${humanize(item.approvalStatus)}` : "No approval required"}</span>
-        {item.adjusted ? <span className="adjusted">Adjusted</span> : null}
-      </div>
-    </article>
+    </details>
+  );
+}
+
+function SessionEvidence({ item }: { item: AttendanceHistoryItem }) {
+  const timezone = item.branch.timezone;
+  const locationEvidence = item.sessions.flatMap((session) => session.geofenceEvidence)
+    .filter((evidence) => evidence.type === "CLOCK_IN" || evidence.type === "CLOCK_OUT");
+  const breakPeriods = item.sessions.flatMap((session) => session.breakPeriods);
+  const approvalLabels = [...new Set(item.sessions.flatMap((session) => session.approvalLabel ? [session.approvalLabel] : []))];
+  const adjusted = item.sessions.some((session) => session.adjusted);
+
+  return (
+    <>
+      {breakPeriods.length ? (
+        <section className="staff-attendance-evidence-block">
+          <p className="staff-kicker">BREAKS</p>
+          {breakPeriods.map((period, index) => (
+            <div className="staff-evidence-line" key={`${period.startAt}-${index}`}>
+              <span>Break {breakPeriods.length > 1 ? index + 1 : ""}</span>
+              <strong>{formatTime(period.startAt, timezone)} – {period.endAt ? formatTime(period.endAt, timezone) : "In progress"}</strong>
+            </div>
+          ))}
+          <div className="staff-evidence-line"><span>Canonical total</span><strong>{formatCompactDuration(item.actual.totalBreakMinutes)}</strong></div>
+        </section>
+      ) : null}
+
+      {locationEvidence.length ? (
+        <section className="staff-attendance-evidence-block">
+          <p className="staff-kicker">LOCATION EVIDENCE</p>
+          {locationEvidence.map((evidence) => (
+            <div className="staff-evidence-line" key={evidence.punchId}>
+              <span>{evidence.type === "CLOCK_IN" ? "Clock-in" : "Clock-out"}</span>
+              <strong>{locationEvidenceLabel(evidence.geofenceStatus)}</strong>
+              <small>Punch recorded{evidence.accuracyMeters === null ? "" : ` · Accuracy ${Math.round(evidence.accuracyMeters)} m`}</small>
+            </div>
+          ))}
+        </section>
+      ) : null}
+
+      {adjusted || approvalLabels.length ? (
+        <section className="staff-attendance-evidence-block">
+          <p className="staff-kicker">ADJUSTMENT</p>
+          <div className="staff-evidence-line">
+            <span>Status</span>
+            <strong>{approvalLabels[0] ?? "Attendance adjusted"}</strong>
+          </div>
+          <div className="staff-evidence-line">
+            <span>Final attendance</span>
+            <strong>{formatActualRange(item, timezone)}</strong>
+          </div>
+        </section>
+      ) : null}
+
+      {item.sessions.length ? (
+        <div className="staff-punch-status-note">
+          Punch status: {item.sessions.map((session) => humanize(session.punchStatus)).join(", ")}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -507,11 +663,75 @@ function formatWorkDate(value: string) {
   }).format(new Date(`${value}T00:00:00.000Z`));
 }
 
-function formatTime(value: string) {
+function formatCompactWorkDate(value: string) {
   return new Intl.DateTimeFormat("en-MY", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00.000Z`));
+}
+
+function formatFullWorkDate(value: string) {
+  return new Intl.DateTimeFormat("en-MY", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00.000Z`));
+}
+
+function formatTime(value: string, timezone: string) {
+  return new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: timezone,
   }).format(new Date(value));
+}
+
+function formatActualRange(item: AttendanceHistoryItem, timezone: string) {
+  const { clockInAt, clockOutAt } = item.actual;
+  if (!clockInAt && !clockOutAt) return "No punches recorded";
+  return `${clockInAt ? formatTime(clockInAt, timezone) : "—"} – ${clockOutAt ? formatTime(clockOutAt, timezone) : "—"}`;
+}
+
+function formatCompactDuration(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (!hours) return `${remainder}m`;
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+}
+
+function scheduledLabel(item: AttendanceHistoryItem, timezone: string) {
+  if (!item.scheduled?.startAt || !item.scheduled.endAt) return "No scheduled time";
+  return `${formatTime(item.scheduled.startAt, timezone)} – ${formatTime(item.scheduled.endAt, timezone)}`;
+}
+
+function scheduledKindLabel(kind: string | null) {
+  switch (kind) {
+    case "WORKDAY": return "Published workday";
+    case "REST_DAY": return "Rest day";
+    case "PUBLIC_HOLIDAY": return "Public holiday";
+    case "NOT_SCHEDULED": return "Not scheduled";
+    default: return "No expected work evidence";
+  }
+}
+
+function attentionStateLabel(status: string) {
+  if (status === "PENDING_EMPLOYEE" || status === "RETURNED_FOR_CORRECTION") return "Action required";
+  if (status === "RESOLVED" || status === "CLOSED") return "Resolved";
+  return "Pending review";
+}
+
+function locationEvidenceLabel(status: string) {
+  switch (status) {
+    case "INSIDE": return "Inside work location";
+    case "OUTSIDE": return "Outside work location";
+    case "GPS_INACCURATE": return "Low GPS accuracy";
+    case "GPS_UNAVAILABLE": return "GPS unavailable";
+    case "GEOFENCE_DISABLED": return "Location check not required";
+    default: return "Location evidence recorded";
+  }
 }
 
 function humanize(value: string) {

@@ -19,6 +19,11 @@ import {
 } from "@/lib/attendance/work-date";
 import { prisma } from "@/lib/prisma";
 import { ensureEffectiveRosterExpectedDayInTransaction } from "@/lib/roster/service";
+import {
+  buildStaffAttendancePrimaryStatus,
+  staffAttendanceIssueCopy,
+  type StaffAttendanceIssue,
+} from "@/lib/staff-pwa/attendance-history";
 
 export async function getEmployeeAttendanceToday(args: {
   auth: EmployeeAuthContext;
@@ -439,17 +444,9 @@ export async function getEmployeeAttendanceHistory(args: {
             branchId: input.branchId,
           }
         : {}),
-      ...(input.status
-        ? {
-            status: input.status,
-          }
-        : {}),
     } satisfies Prisma.EmployeeAttendanceWhereInput;
 
-    const [total, sessions] = await Promise.all([
-      transaction.employeeAttendance.count({
-        where,
-      }),
+    const [sessions, expectedDays, p2Exceptions, p2FinalResults, lockedTimesheets, availableBranchRows] = await Promise.all([
       transaction.employeeAttendance.findMany({
         where,
         orderBy: [
@@ -463,8 +460,6 @@ export async function getEmployeeAttendanceHistory(args: {
             id: "desc",
           },
         ],
-        skip: (input.page - 1) * input.pageSize,
-        take: input.pageSize,
         select: {
           id: true,
           workDate: true,
@@ -479,6 +474,11 @@ export async function getEmployeeAttendanceHistory(args: {
             select: {
               id: true,
               name: true,
+              attendanceSetting: {
+                select: {
+                  timezone: true,
+                },
+              },
             },
           },
           punches: {
@@ -496,6 +496,19 @@ export async function getEmployeeAttendanceHistory(args: {
               serverTimestamp: true,
               geofenceStatus: true,
               insideGeofence: true,
+              accuracyMeters: true,
+            },
+          },
+          exceptions: {
+            where: {
+              status: "PENDING",
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+            select: {
+              type: true,
+              status: true,
             },
           },
           adjustments: {
@@ -504,12 +517,85 @@ export async function getEmployeeAttendanceHistory(args: {
               id: true,
             },
           },
+          resolutionCase: {
+            select: {
+              status: true,
+              openedReason: true,
+              currentFinalResult: {
+                select: {
+                  source: true,
+                },
+              },
+            },
+          },
         },
       }),
-    ]);
-
-    const availableBranches =
-      await transaction.employeeBranchAssignment.findMany({
+      transaction.attendanceExpectedDay.findMany({
+        where: {
+          businessId: args.auth.businessId,
+          membershipId: args.auth.membershipId,
+          workDate: { gte: dateRange.from, lte: dateRange.to },
+          status: "CURRENT",
+          ...(input.branchId ? { branchId: input.branchId } : {}),
+        },
+        orderBy: [{ workDate: "desc" }, { revision: "desc" }],
+        select: {
+          branchId: true,
+          workDate: true,
+          kind: true,
+          expectedStartAt: true,
+          expectedEndAt: true,
+          timezoneSnapshot: true,
+        },
+      }),
+      transaction.attendanceP2Exception.findMany({
+        where: {
+          businessId: args.auth.businessId,
+          membershipId: args.auth.membershipId,
+          workDate: { gte: dateRange.from, lte: dateRange.to },
+          status: { in: ["OPEN", "PENDING_EMPLOYEE", "PENDING_MANAGER"] },
+          ...(input.branchId ? { branchId: input.branchId } : {}),
+        },
+        orderBy: [{ workDate: "desc" }, { detectedAt: "desc" }],
+        select: {
+          branchId: true,
+          workDate: true,
+          type: true,
+          status: true,
+        },
+      }),
+      transaction.attendanceP2FinalResult.findMany({
+        where: {
+          businessId: args.auth.businessId,
+          membershipId: args.auth.membershipId,
+          workDate: { gte: dateRange.from, lte: dateRange.to },
+          ...(input.branchId ? { branchId: input.branchId } : {}),
+        },
+        orderBy: [{ workDate: "desc" }, { version: "desc" }],
+        select: {
+          branchId: true,
+          workDate: true,
+          outcome: true,
+          actualClockInAt: true,
+          actualClockOutAt: true,
+          totalBreakMinutes: true,
+          totalWorkedMinutes: true,
+        },
+      }),
+      transaction.attendanceMonthlyTimesheet.findMany({
+        where: {
+          businessId: args.auth.businessId,
+          status: "LOCKED",
+          periodStart: {
+            gte: startOfUtcMonth(dateRange.from),
+            lte: dateRange.to,
+          },
+        },
+        select: {
+          periodStart: true,
+        },
+      }),
+      transaction.employeeBranchAssignment.findMany({
         where: {
           membershipId: args.auth.membershipId,
           businessId: args.auth.businessId,
@@ -527,36 +613,161 @@ export async function getEmployeeAttendanceHistory(args: {
             select: {
               id: true,
               name: true,
+              attendanceSetting: {
+                select: {
+                  timezone: true,
+                },
+              },
             },
           },
         },
+      }),
+    ]);
+
+    type SessionRow = (typeof sessions)[number];
+    type ExpectedRow = (typeof expectedDays)[number];
+    type ExceptionRow = (typeof p2Exceptions)[number];
+    type FinalRow = (typeof p2FinalResults)[number];
+    type DayGroup = {
+      workDate: string;
+      branchId: string;
+      sessions: SessionRow[];
+      expected: ExpectedRow | null;
+      exceptions: ExceptionRow[];
+      finalResult: FinalRow | null;
+    };
+
+    const groups = new Map<string, DayGroup>();
+    const groupFor = (workDate: Date, branchId: string) => {
+      const dateKey = workDate.toISOString().slice(0, 10);
+      const key = `${dateKey}:${branchId}`;
+      let group = groups.get(key);
+      if (!group) {
+        group = { workDate: dateKey, branchId, sessions: [], expected: null, exceptions: [], finalResult: null };
+        groups.set(key, group);
+      }
+      return group;
+    };
+
+    for (const session of sessions) groupFor(session.workDate, session.branch.id).sessions.push(session);
+    for (const exception of p2Exceptions) groupFor(exception.workDate, exception.branchId).exceptions.push(exception);
+    const finalResultDates = new Set<string>();
+    for (const finalResult of p2FinalResults) {
+      const dateKey = finalResult.workDate.toISOString().slice(0, 10);
+      if (finalResultDates.has(dateKey)) continue;
+      finalResultDates.add(dateKey);
+      const group = groupFor(finalResult.workDate, finalResult.branchId);
+      if (!group.finalResult) group.finalResult = finalResult;
+    }
+    const expectedByDay = new Map(expectedDays.map((expected) => [
+      `${expected.workDate.toISOString().slice(0, 10)}:${expected.branchId}`,
+      expected,
+    ]));
+    for (const [key, group] of groups) group.expected = expectedByDay.get(key) ?? null;
+
+    const branchMap = new Map(availableBranchRows.map(({ branch }) => [branch.id, branch]));
+    for (const session of sessions) branchMap.set(session.branch.id, session.branch);
+    const lockedMonths = new Set(lockedTimesheets.map(({ periodStart }) => periodStart.toISOString().slice(0, 7)));
+
+    const allItems = [...groups.values()]
+      .map((group) => {
+        const orderedSessions = [...group.sessions].sort((left, right) => left.clockInAt.getTime() - right.clockInAt.getTime());
+        const sessionIssues = orderedSessions.flatMap((session) => session.exceptions.map((item) => ({ type: item.type, status: item.status })));
+        const resolutionIssues = orderedSessions.flatMap((session) => {
+          const resolution = session.resolutionCase;
+          if (!resolution || resolution.status === "RESOLVED" || resolution.status === "SUPERSEDED") return [];
+          return [{ type: resolutionReasonType(resolution.openedReason, session.status), status: resolution.status }];
+        });
+        const issueSources = [
+          ...group.exceptions.map((item) => ({ type: item.type, status: item.status })),
+          ...sessionIssues,
+          ...resolutionIssues,
+        ];
+        const issues: StaffAttendanceIssue[] = issueSources.map((issue) => ({
+          ...issue,
+          ...staffAttendanceIssueCopy(issue.type),
+        }));
+        const adjusted = orderedSessions.some((session) => session.adjustments.length > 0);
+        const resolved = orderedSessions.some((session) => session.resolutionCase?.status === "RESOLVED");
+        const finalOutcome = group.finalResult?.outcome ?? null;
+        const primaryStatus = buildStaffAttendancePrimaryStatus({
+          sessionStatuses: orderedSessions.map((session) => session.status),
+          issues,
+          finalOutcome,
+          adjusted,
+          resolved,
+        });
+        const branch = branchMap.get(group.branchId);
+        const timezone = group.expected?.timezoneSnapshot ?? branch?.attendanceSetting?.timezone ?? principal.setting?.timezone ?? "Asia/Kuala_Lumpur";
+        const locked = lockedMonths.has(group.workDate.slice(0, 7));
+        const active = orderedSessions.some((session) => session.status === "OPEN" || session.status === "ON_BREAK");
+        const firstClockIn = orderedSessions[0]?.clockInAt ?? null;
+        const lastClockOut = [...orderedSessions].reverse().find((session) => session.clockOutAt)?.clockOutAt ?? null;
+        const actual = group.finalResult ? {
+          clockInAt: group.finalResult.actualClockInAt?.toISOString() ?? null,
+          clockOutAt: group.finalResult.actualClockOutAt?.toISOString() ?? null,
+          totalBreakMinutes: group.finalResult.totalBreakMinutes,
+          totalWorkedMinutes: group.finalResult.totalWorkedMinutes,
+        } : {
+          clockInAt: firstClockIn?.toISOString() ?? null,
+          clockOutAt: active ? null : lastClockOut?.toISOString() ?? null,
+          totalBreakMinutes: orderedSessions.reduce((total, session) => total + session.totalBreakMinutes, 0),
+          totalWorkedMinutes: orderedSessions.reduce((total, session) => total + session.totalWorkedMinutes, 0),
+        };
+        const flags = [
+          adjusted && primaryStatus.key !== "ADJUSTED" ? "Adjusted" : null,
+          orderedSessions.length > 1 ? `${orderedSessions.length} sessions` : null,
+        ].filter((flag): flag is string => Boolean(flag)).slice(0, 2);
+
+        return {
+          id: `${group.workDate}-${group.branchId}`,
+          workDate: group.workDate,
+          branch: { id: group.branchId, name: branch?.name ?? "Workplace", timezone },
+          primaryStatus,
+          attention: issues[0] ?? null,
+          scheduled: group.expected ? {
+            kind: group.expected.kind,
+            startAt: group.expected.expectedStartAt?.toISOString() ?? null,
+            endAt: group.expected.expectedEndAt?.toISOString() ?? null,
+          } : null,
+          actual,
+          finalOutcome,
+          flags,
+          locked,
+          sessions: orderedSessions.map((session) => ({
+            id: session.id,
+            clockInAt: session.clockInAt.toISOString(),
+            clockOutAt: session.clockOutAt?.toISOString() ?? null,
+            totalBreakMinutes: session.totalBreakMinutes,
+            totalWorkedMinutes: session.totalWorkedMinutes,
+            punchStatus: session.status,
+            approvalLabel: attendanceApprovalLabel(session),
+            adjusted: session.adjustments.length > 0,
+            locked,
+            breakPeriods: pairBreakPeriods(session.punches),
+            geofenceEvidence: session.punches.map((punch) => ({
+              punchId: punch.id,
+              type: punch.type,
+              serverTimestamp: punch.serverTimestamp.toISOString(),
+              geofenceStatus: punch.geofenceStatus,
+              insideGeofence: punch.insideGeofence,
+              accuracyMeters: punch.accuracyMeters === null ? null : Number(punch.accuracyMeters),
+            })),
+          })),
+        };
+      })
+      .filter((item) => matchesAttendanceHistoryStatus(item.primaryStatus.key, input.status))
+      .sort((left, right) => {
+        const attentionOrder = Number(Boolean(right.attention)) - Number(Boolean(left.attention));
+        return attentionOrder || right.workDate.localeCompare(left.workDate);
       });
 
+    const total = allItems.length;
+    const items = allItems.slice((input.page - 1) * input.pageSize, input.page * input.pageSize);
+
     return {
-      items: sessions.map((session) => ({
-        id: session.id,
-        workDate: session.workDate.toISOString().slice(0, 10),
-        branch: session.branch,
-        clockInAt: session.clockInAt.toISOString(),
-        clockOutAt: session.clockOutAt?.toISOString() ?? null,
-        totalBreakMinutes: session.totalBreakMinutes,
-        totalWorkedMinutes: session.totalWorkedMinutes,
-        status: session.status,
-        geofenceStatus:
-          session.punches.find((punch) => punch.type === "CLOCK_IN")
-            ?.geofenceStatus ?? null,
-        geofenceEvidence: session.punches.map((punch) => ({
-          punchId: punch.id,
-          type: punch.type,
-          serverTimestamp: punch.serverTimestamp.toISOString(),
-          geofenceStatus: punch.geofenceStatus,
-          insideGeofence: punch.insideGeofence,
-        })),
-        approvalStatus: session.approvalStatus,
-        requiresApproval: session.requiresApproval,
-        adjusted: session.adjustments.length > 0,
-      })),
-      availableBranches: availableBranches.map((item) => item.branch),
+      items,
+      availableBranches: availableBranchRows.map(({ branch }) => ({ id: branch.id, name: branch.name })),
       pagination: {
         page: input.page,
         pageSize: input.pageSize,
@@ -571,6 +782,51 @@ export async function getEmployeeAttendanceHistory(args: {
       serverTime: now.toISOString(),
     };
   });
+}
+
+function startOfUtcMonth(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
+}
+
+function resolutionReasonType(reason: string, sessionStatus: string) {
+  if (reason === "INCOMPLETE_SESSION" && sessionStatus === "INCOMPLETE") return "MISSING_CLOCK_OUT";
+  return reason;
+}
+
+function attendanceApprovalLabel(session: {
+  requiresApproval: boolean;
+  approvalStatus: string;
+  adjustments: Array<{ id: string }>;
+}) {
+  const adjusted = session.adjustments.length > 0;
+  if (adjusted && session.approvalStatus === "APPROVED") return "Adjustment approved";
+  if (adjusted && session.approvalStatus === "PENDING") return "Adjustment pending";
+  if (adjusted) return "Attendance adjusted";
+  if (!session.requiresApproval) return null;
+  if (session.approvalStatus === "APPROVED") return "Attendance correction approved";
+  if (session.approvalStatus === "PENDING") return "Attendance correction pending";
+  if (session.approvalStatus === "REJECTED") return "Attendance correction declined";
+  return null;
+}
+
+function pairBreakPeriods(punches: Array<{ type: string; serverTimestamp: Date }>) {
+  const periods: Array<{ startAt: string; endAt: string | null }> = [];
+  for (const punch of punches) {
+    if (punch.type === "BREAK_START") {
+      periods.push({ startAt: punch.serverTimestamp.toISOString(), endAt: null });
+    } else if (punch.type === "BREAK_END") {
+      const open = [...periods].reverse().find((period) => period.endAt === null);
+      if (open) open.endAt = punch.serverTimestamp.toISOString();
+    }
+  }
+  return periods;
+}
+
+function matchesAttendanceHistoryStatus(primaryStatus: string, filter: string | undefined) {
+  if (!filter) return true;
+  if (filter === "OPEN" || filter === "ON_BREAK") return primaryStatus === "IN_PROGRESS";
+  if (filter === "INCOMPLETE") return primaryStatus === "NEEDS_REVIEW" || primaryStatus === "MISSING_PUNCH";
+  return primaryStatus === filter;
 }
 
 function resolveHistoryDateRange(

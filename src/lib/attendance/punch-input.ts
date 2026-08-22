@@ -207,7 +207,17 @@ export const attendanceHistoryInputSchema = z
     page: z.coerce.number().int().min(1).max(100_000).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(25),
     status: z
-      .enum(["OPEN", "ON_BREAK", "COMPLETED", "INCOMPLETE", "CANCELLED"])
+      .enum([
+        "OPEN",
+        "ON_BREAK",
+        "COMPLETED",
+        "INCOMPLETE",
+        "CANCELLED",
+        "NEEDS_REVIEW",
+        "MISSING_PUNCH",
+        "ADJUSTED",
+        "RESOLVED",
+      ])
       .optional(),
     branchId: z.string().uuid("Branch is invalid.").optional(),
   })

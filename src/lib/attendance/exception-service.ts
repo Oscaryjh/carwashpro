@@ -15,6 +15,7 @@ import {
   type AttendanceWriteRateLimitConfig,
 } from "@/lib/attendance/write-rate-limit";
 import { tryWriteAuditLog, writeAuditLog } from "@/lib/audit";
+import { getAttendanceWorkDate } from "@/lib/attendance/work-date";
 import { prisma } from "@/lib/prisma";
 
 export async function submitAttendanceException(args: {
@@ -70,6 +71,7 @@ export async function submitAttendanceException(args: {
             },
             select: {
               id: true,
+              workDate: true,
               clockInAt: true,
               clockOutAt: true,
               status: true,
@@ -98,6 +100,13 @@ export async function submitAttendanceException(args: {
         if (input.attendancePunchId && !punch) {
           throw new AttendanceApiError("INVALID_ATTENDANCE_STATE");
         }
+        await assertAttendancePeriodOpen({
+          transaction,
+          auth: args.auth,
+          input,
+          attendanceWorkDate: attendanceSession?.workDate ?? null,
+          timezone: principal.setting?.timezone ?? "Asia/Kuala_Lumpur",
+        });
         validateCorrectionRequest(input, attendanceSession, now);
         validateExceptionEvidence(input, punch);
 
@@ -341,6 +350,36 @@ function validateCorrectionRequest(
     throw new AttendanceApiError(
       "VALIDATION_ERROR",
       "Requested clock-out must be after clock-in.",
+    );
+  }
+}
+
+async function assertAttendancePeriodOpen(args: {
+  transaction: Prisma.TransactionClient;
+  auth: EmployeeAuthContext;
+  input: AttendanceExceptionInput;
+  attendanceWorkDate: Date | null;
+  timezone: string;
+}) {
+  const requestedAt = args.input.requestedClockInAt ?? args.input.requestedClockOutAt;
+  const workDate = args.attendanceWorkDate ?? (requestedAt
+    ? getAttendanceWorkDate(requestedAt, args.timezone)
+    : null);
+  if (!workDate) return;
+
+  const periodStart = new Date(Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth(), 1));
+  const locked = await args.transaction.attendanceMonthlyTimesheet.findFirst({
+    where: {
+      businessId: args.auth.businessId,
+      periodStart,
+      status: "LOCKED",
+    },
+    select: { id: true },
+  });
+  if (locked) {
+    throw new AttendanceApiError(
+      "INVALID_ATTENDANCE_STATE",
+      "This attendance record belongs to a finalized timesheet. Contact your manager if a correction is required.",
     );
   }
 }

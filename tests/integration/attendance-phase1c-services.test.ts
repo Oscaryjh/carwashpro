@@ -359,7 +359,8 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
       },
       now: new Date(base.getTime() + 10 * 60 * 60_000 + 2_000),
     });
-    assert.ok(history.items.length >= 2);
+    assert.ok(history.items.length >= 1);
+    assert.ok(history.items.some((item) => item.sessions.length >= 2));
     assert.ok(
       history.items.every(
         (item) => item.branch.id === fixture.branchA.id,
@@ -367,8 +368,8 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
     );
     assert.doesNotMatch(JSON.stringify(history), /phone/i);
     assert.equal(
-      history.items.some(
-        (item) => item.id === fixture.otherEmployeeAttendanceId,
+      history.items.some((item) =>
+        item.sessions.some((session) => session.id === fixture.otherEmployeeAttendanceId),
       ),
       false,
     );

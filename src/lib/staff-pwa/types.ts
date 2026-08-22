@@ -190,29 +190,64 @@ export type AttendanceResolutionCase = {
   } | null;
 };
 
-export type AttendanceHistoryItem = {
+export type AttendanceHistorySession = {
   id: string;
-  workDate: string;
-  branch: {
-    id: string;
-    name: string;
-  };
   clockInAt: string;
   clockOutAt: string | null;
   totalBreakMinutes: number;
   totalWorkedMinutes: number;
-  status: string;
-  geofenceStatus: string | null;
+  punchStatus: string;
+  approvalLabel: string | null;
+  adjusted: boolean;
+  locked: boolean;
+  breakPeriods: Array<{
+    startAt: string;
+    endAt: string | null;
+  }>;
   geofenceEvidence: Array<{
     punchId: string;
     type: AttendanceAction;
     serverTimestamp: string;
     geofenceStatus: string;
     insideGeofence: boolean;
+    accuracyMeters: number | null;
   }>;
-  approvalStatus: string;
-  requiresApproval: boolean;
-  adjusted: boolean;
+};
+
+export type AttendanceHistoryItem = {
+  id: string;
+  workDate: string;
+  branch: {
+    id: string;
+    name: string;
+    timezone: string;
+  };
+  primaryStatus: {
+    key: string;
+    label: string;
+    tone: "complete" | "progress" | "attention" | "adjusted" | "neutral";
+  };
+  attention: {
+    type: string;
+    status: string;
+    label: string;
+    description: string;
+  } | null;
+  scheduled: {
+    kind: string;
+    startAt: string | null;
+    endAt: string | null;
+  } | null;
+  actual: {
+    clockInAt: string | null;
+    clockOutAt: string | null;
+    totalBreakMinutes: number;
+    totalWorkedMinutes: number;
+  };
+  finalOutcome: string | null;
+  flags: string[];
+  locked: boolean;
+  sessions: AttendanceHistorySession[];
 };
 
 export type AttendanceHistory = {
