@@ -44,8 +44,8 @@ test("Shift-based roster contract uses default schedules plus weekly exceptions"
   assert.match(scheduleService, /NO_DEFAULT_SCHEDULE/);
   assert.match(scheduleService, /addEmployeeRecurringRestDay/);
   assert.match(scheduleService, /EMPLOYEE_RECURRING_REST_DAY_ADDED/);
-  assert.match(staffPage, /Approved Leave/);
-  assert.match(staffPage, /branchId: activeBranchId/);
+  assert.match(staffPage, /status: "APPROVED"/);
+  assert.match(staffPage, /branchIds: branches\.map/);
 });
 
 test("Roster assignment validation supports overnight work but rejects unsafe duration and non-work times", () => {
@@ -117,8 +117,8 @@ test("Roster contract keeps Draft, published history, Staff visibility and Atten
   assert.match(service, /source: "ROSTER"/);
   assert.match(service, /payrollEffect: "NONE"/);
   assert.match(service, /publicationRevision/);
-  assert.match(staffPage, /No effective schedule available/);
-  assert.match(staffPage, /Unspecified · not an Off Day/);
+  assert.match(staffPage, /No schedule yet/);
+  assert.match(staffPage, /Schedule shows planned work only/);
   assert.match(service, /ensureEffectiveRosterExpectedDayInTransaction/);
   assert.match(schema, /model RosterPublishedAssignment/);
   assert.match(schema, /evidenceDisposition\s+RosterEvidenceDisposition/);

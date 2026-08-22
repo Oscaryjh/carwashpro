@@ -116,6 +116,14 @@ const rosterPageSource = readFileSync(
   new URL("../../src/app/staff/roster/page.tsx", import.meta.url),
   "utf8",
 );
+const rosterLoadingSource = readFileSync(
+  new URL("../../src/app/staff/roster/loading.tsx", import.meta.url),
+  "utf8",
+);
+const rosterErrorSource = readFileSync(
+  new URL("../../src/app/staff/roster/error.tsx", import.meta.url),
+  "utf8",
+);
 const commissionPageSource = readFileSync(
   new URL("../../src/app/staff/commission/page.tsx", import.meta.url),
   "utf8",
@@ -504,9 +512,20 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.doesNotMatch(leaveCssSource, /grid-auto-flow:column|overflow-x:auto|scroll-snap-type/);
   assert.match(leaveCssSource, /@media\(max-width:600px\)[\s\S]*?\.balances\{display:grid;grid-template-columns:1fr/);
   assert.match(timesheetPageSource, /staff-timesheet-summary/);
+  assert.match(rosterPageSource, /<h1 id="staff-roster-heading">Schedule<\/h1>/);
+  assert.doesNotMatch(rosterPageSource, /Work week/);
+  assert.match(rosterPageSource, /<small>Today<\/small>/);
+  assert.match(rosterPageSource, /<small>This week<\/small>/);
   assert.match(rosterPageSource, /aria-label="Previous week"/);
   assert.match(rosterPageSource, /aria-current=\{isToday \? "date" : undefined\}/);
-  assert.match(rosterPageSource, /staff-roster-time/);
+  assert.match(rosterPageSource, /<details className=/);
+  assert.match(rosterPageSource, /No schedule yet/);
+  assert.match(rosterPageSource, /status: "APPROVED"/);
+  assert.match(rosterPageSource, /Promise\.all\(input\.branchIds\.map/);
+  assert.doesNotMatch(rosterPageSource, /Absent|No-show/);
+  assert.match(rosterLoadingSource, /Loading schedule/);
+  assert.match(rosterErrorSource, /Unable to load schedule/);
+  assert.match(rosterErrorSource, /Try again/);
   assert.match(commissionPageSource, /staff-commission-empty/);
   assert.match(staffCssSource, /font-size: 16px/);
   assert.match(
@@ -515,8 +534,9 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   );
   assert.match(staffCssSource, /\.staff-pwa-nav::after\s*\{[\s\S]*?height:\s*64px;[\s\S]*?top:\s*100%/);
   assert.match(staffCssSource, /\.staff-pwa-nav > button\s*\{\s*min-height:\s*54px/);
-  assert.match(staffCssSource, /\.staff-roster-day\s*\{[\s\S]*?min-height:\s*78px;[\s\S]*?padding:\s*12px 14px/);
-  assert.match(staffCssSource, /\.staff-roster-day\.is-today\s*\{/);
+  assert.match(staffCssSource, /\.staff-roster-day summary\s*\{[\s\S]*?grid-template-columns:\s*50px minmax\(0, 1fr\) 22px;[\s\S]*?min-height:\s*62px/);
+  assert.match(staffCssSource, /\.staff-roster-page\s*\{[\s\S]*?overflow-x:\s*clip/);
+  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-roster-day summary/);
 });
 
 test("Staff workplace switching is server-scoped and performs a hard tenant reset", () => {
