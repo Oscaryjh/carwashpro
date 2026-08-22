@@ -490,14 +490,14 @@ test("Staff Home prioritizes a mobile today workspace without inventing new doma
   assert.match(staffCssSource, /\.staff-welcome-avatar\s*\{[\s\S]*?flex:\s*0 0 80px;[\s\S]*?height:\s*80px;[\s\S]*?width:\s*80px/);
 });
 
-test("More avoids Home quick-access duplication and preserves canonical workplace actions", () => {
+test("More avoids Home duplication and keeps only account actions", () => {
   assert.doesNotMatch(chromeSource, /<MoreSection label="SELF-SERVICE">/);
   assert.doesNotMatch(chromeSource, /selfServiceNavigation/);
   assert.match(chromeSource, /<MoreSection label="ACCOUNT">/);
-  assert.match(chromeSource, /<MoreSection label="WORKPLACE">/);
+  assert.doesNotMatch(chromeSource, /<MoreSection label="WORKPLACE">/);
+  assert.doesNotMatch(chromeSource, /staff-more-context-action/);
   assert.match(chromeSource, /<MoreSection label="ACCOUNT ACTIONS">/);
   assert.match(chromeSource, /className="staff-more-signout"/);
-  assert.match(chromeSource, /onClick=\{openWorkplaceSwitcher\}/);
   assert.match(chromeSource, /onClick=\{\(\) => void logout\(\)\}/);
   assert.doesNotMatch(chromeSource, /StaffNavIcon name="profile" \/><\/span>More/);
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-more-section \.staff-more-links\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);

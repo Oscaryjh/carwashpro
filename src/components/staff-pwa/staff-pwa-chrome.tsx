@@ -217,17 +217,6 @@ export function StaffPwaChrome({
                   ))}
                 </div>
               </MoreSection>
-              <MoreSection label="WORKPLACE">
-                <button
-                  className="staff-more-context-action"
-                  disabled={switching || workplaces.length < 2}
-                  onClick={openWorkplaceSwitcher}
-                  type="button"
-                >
-                  <span><strong>Switch workplace</strong><small>{currentWorkplace?.businessName ?? "Current workplace"}</small></span>
-                  <b aria-hidden="true">›</b>
-                </button>
-              </MoreSection>
               <MoreSection label="ACCOUNT ACTIONS">
                 <button className="staff-more-signout" disabled={switching} onClick={() => void logout()} type="button">
                   Sign out
