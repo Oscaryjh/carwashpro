@@ -66,6 +66,8 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedPolicyId, setSelectedPolicyId] = useState("");
+  const [cameraDocumentNames, setCameraDocumentNames] = useState<string[]>([]);
+  const [uploadedDocumentNames, setUploadedDocumentNames] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -115,6 +117,8 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
         body: outgoing,
       });
       formElement.reset();
+      setCameraDocumentNames([]);
+      setUploadedDocumentNames([]);
       setMessage("Leave application submitted for manager approval.");
       await load();
     } catch (value) {
@@ -187,6 +191,8 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
 
   if (loading && !data) return <section className={styles.state}>Loading Leave...</section>;
 
+  const selectedDocumentNames = [...cameraDocumentNames, ...uploadedDocumentNames];
+
   const requestForm = !data?.policies.length ? <p>Your company has not enabled Leave policies yet. Contact HR.</p> : (
     <form onSubmit={submit} className={styles.form}>
       <div className={styles.requestFields}>
@@ -200,9 +206,15 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
         <p>Private HR evidence. PDF, JPG, PNG or WEBP · up to 10 MB each · maximum 5 files.</p>
         <label>Document type<select name="documentType" defaultValue={selectedPolicy?.name.toLowerCase().includes("medical") ? "MEDICAL_CERTIFICATE" : "SUPPORTING_DOCUMENT"}><option value="SUPPORTING_DOCUMENT">Supporting document</option><option value="MEDICAL_CERTIFICATE">Medical certificate</option><option value="HOSPITALISATION_SUPPORT">Hospitalisation support</option><option value="MATERNITY_SUPPORT">Maternity support</option><option value="PATERNITY_SUPPORT">Paternity support</option><option value="OTHER">Other evidence</option></select></label>
         <div className={styles.documentButtons}>
-          <label className={styles.fileButton}>Take photo<input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" /></label>
-          <label className={styles.fileButtonSecondary}>Upload files<input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple /></label>
+          <label className={styles.fileButton}>{cameraDocumentNames.length ? "Retake photo" : "Take photo"}<input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => setCameraDocumentNames(Array.from(event.currentTarget.files ?? [], (file) => file.name))} /></label>
+          <label className={styles.fileButtonSecondary}>{uploadedDocumentNames.length ? "Change files" : "Upload files"}<input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple onChange={(event) => setUploadedDocumentNames(Array.from(event.currentTarget.files ?? [], (file) => file.name))} /></label>
         </div>
+        {selectedDocumentNames.length ? (
+          <div className={styles.selectedFiles} role="status" aria-live="polite">
+            <span aria-hidden="true">&#10003;</span>
+            <div><strong>{selectedDocumentNames.length} {selectedDocumentNames.length === 1 ? "file" : "files"} ready</strong><small>{selectedDocumentNames.join(", ")}</small></div>
+          </div>
+        ) : null}
         <small>Files are stored privately. There is no public attachment link.</small>
       </fieldset>
       <p>{selectedPolicy?.countMode === "CALENDAR_DAYS" ? "This company policy counts calendar days." : "Only explicit expected workdays are counted; rest days and public holidays are excluded."}</p>

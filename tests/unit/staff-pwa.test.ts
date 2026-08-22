@@ -588,6 +588,11 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(leaveCssSource, /\.requestPage \.dateRange\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(leaveCssSource, /\.requestPage \.form select,[\s\S]*?min-height:\s*50px/);
   assert.match(leaveCssSource, /@media \(max-width: 369px\)[\s\S]*?\.requestPage \.dateRange\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
+  assert.match(leaveComponentSource, /setCameraDocumentNames\(Array\.from\(event\.currentTarget\.files/);
+  assert.match(leaveComponentSource, /setUploadedDocumentNames\(Array\.from\(event\.currentTarget\.files/);
+  assert.match(leaveComponentSource, /className=\{styles\.selectedFiles\} role="status" aria-live="polite"/);
+  assert.match(leaveCssSource, /\.fileButton input,\.fileButtonSecondary input\{[^}]*inset:0[^}]*inline-size:100%!important[^}]*block-size:100%/);
+  assert.doesNotMatch(leaveCssSource, /\.fileButton input,[^}]*clip:rect|\.fileButtonSecondary input[^}]*inline-size:1px/);
   assert.doesNotMatch(leaveCssSource, /grid-auto-flow:column|overflow-x:auto|scroll-snap-type/);
   assert.match(leaveCssSource, /@media\(max-width:600px\)[\s\S]*?\.balances\{display:grid;grid-template-columns:1fr/);
   assert.match(timesheetPageSource, /staff-timesheet-summary/);
