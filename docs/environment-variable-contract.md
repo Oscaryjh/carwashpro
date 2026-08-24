@@ -4,13 +4,13 @@ Never place secret values in this document, source control, browser bundles or l
 
 ## Release and database
 
-| Variable | Local | Testing | Production | Notes |
-|---|---|---|---|---|
-| `APP_ENVIRONMENT` | `development` | `testing` | `production` | Explicit environment boundary |
-| `APP_RELEASE_SHA` | optional | required for handoff identity | required | Immutable Git/base commit identity |
-| `APP_RELEASE_SOURCE_DIGEST` | optional | required for handoff identity | required, 64 hex | Digest from `npm run release:source-digest` |
-| `DATABASE_URL` | loopback DB | Testing DB | dedicated Production DB | Production localhost is rejected |
-| `SESSION_SECRET` | required | required | required, unique and >=32 chars | Server only |
+| Variable                    | Local         | Testing                       | Production                      | Notes                                       |
+| --------------------------- | ------------- | ----------------------------- | ------------------------------- | ------------------------------------------- |
+| `APP_ENVIRONMENT`           | `development` | `testing`                     | `production`                    | Explicit environment boundary               |
+| `APP_RELEASE_SHA`           | optional      | required for handoff identity | required                        | Immutable Git/base commit identity          |
+| `APP_RELEASE_SOURCE_DIGEST` | optional      | required for handoff identity | required, 64 hex                | Digest from `npm run release:source-digest` |
+| `DATABASE_URL`              | loopback DB   | Testing DB                    | dedicated Production DB         | Production localhost is rejected            |
+| `SESSION_SECRET`            | required      | required                      | required, unique and >=32 chars | Server only                                 |
 
 ## Platform MFA and payroll payment encryption
 
@@ -28,7 +28,8 @@ All are required in Production, must be Production-specific and must follow the 
 - `OTP_PROVIDER`: temporary compatibility alias; new configuration should use `SMS_PROVIDER`.
 - `OTP_CHANNEL`: `local` with mock, `sms` with SMS123.
 - `EMPLOYEE_OTP_SEND_MODE`: legacy compatibility alias.
-- `EMPLOYEE_OTP_MOCK_CODE`: forbidden in Production.
+- `EMPLOYEE_OTP_TESTING_ENABLED`: permits mock only when explicitly `true` and `RAILWAY_ENVIRONMENT_NAME=testing`.
+- `EMPLOYEE_OTP_MOCK_CODE`: forbidden in the Production deployment; allowed in an explicitly marked Railway Testing deployment.
 - `EMPLOYEE_OTP_MOCK_ACCESS_KEY`: Local/Testing only; never expose through an API response.
 - `SMS123_ENABLED`
 - `SMS123_API_KEY`
@@ -42,7 +43,7 @@ All are required in Production, must be Production-specific and must follow the 
 - `STAFF_OTP_VERIFY_IP_HOURLY_LIMIT`
 - `STAFF_OTP_PROVIDER_TIMEOUT_MS`
 
-Credentials are server-only and must never use a `NEXT_PUBLIC_` prefix. SMS123 only delivers the message. Tetamu generates the code with a cryptographic RNG, stores a challenge-bound HMAC and performs expiry, attempt and one-time verification. Online Testing and Production require separate SMS123 credentials. Production configuration and smoke remain Production Owner actions.
+Credentials are server-only and must never use a `NEXT_PUBLIC_` prefix. SMS123 only delivers the message. Tetamu generates the code with a cryptographic RNG, stores a challenge-bound HMAC and performs expiry, attempt and one-time verification. Online Testing normally uses separate SMS123 credentials, but may temporarily use the explicit testing-only mock gate while delivery is blocked. Production configuration and smoke remain Production Owner actions.
 
 ## WhatsApp
 

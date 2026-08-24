@@ -11,7 +11,8 @@ import {
   toSms123Recipient,
 } from "../../src/lib/attendance/employee-auth/provider";
 
-const TEST_SECRET = "staff-sms123-unit-secret-that-is-at-least-thirty-two-bytes";
+const TEST_SECRET =
+  "staff-sms123-unit-secret-that-is-at-least-thirty-two-bytes";
 const TEST_API_KEY = "sms123-test-api-key-never-real";
 
 test("SMS123 adapter sends the required Malaysian request without changing OTP authority", async () => {
@@ -40,14 +41,16 @@ test("SMS123 adapter sends the required Malaysian request without changing OTP a
   assert.equal(requestUrl.pathname, "/api/send.php");
   assert.equal(requestUrl.searchParams.get("apiKey"), TEST_API_KEY);
   assert.equal(requestUrl.searchParams.get("recipients"), "601112212259");
-  assert.equal(requestUrl.searchParams.get("messageContent"), sampleSend().message);
+  assert.equal(
+    requestUrl.searchParams.get("messageContent"),
+    sampleSend().message,
+  );
   assert.equal(requestUrl.searchParams.get("referenceID"), "otp_challenge-a_1");
 });
 
 test("SMS123 adapter requires both HTTP success and provider success code", async () => {
-  const provider = new Sms123Provider(
-    sms123Config(),
-    async () => Response.json({
+  const provider = new Sms123Provider(sms123Config(), async () =>
+    Response.json({
       status: "error",
       msgCode: "E00012",
       statusMsg: "sensitive provider detail",
@@ -99,9 +102,18 @@ test("SMS123 phone normalization, message and reference IDs are deterministic an
   assert.equal(toSms123Recipient("+601112212259"), "601112212259");
   assert.equal(toSms123Recipient("6011-1221 2259"), "601112212259");
   assert.throws(() => toSms123Recipient("+441234567890"));
-  assert.match(buildEmployeeOtpMessage("483921", sms123Config()), /^RM0 Tetamu:/);
-  assert.match(buildEmployeeOtpMessage("483921", sms123Config()), /Valid for 5 minutes/);
-  assert.equal(createEmployeeOtpReferenceId("challenge-a"), "otp_challenge-a_1");
+  assert.match(
+    buildEmployeeOtpMessage("483921", sms123Config()),
+    /^RM0 Tetamu:/,
+  );
+  assert.match(
+    buildEmployeeOtpMessage("483921", sms123Config()),
+    /Valid for 5 minutes/,
+  );
+  assert.equal(
+    createEmployeeOtpReferenceId("challenge-a"),
+    "otp_challenge-a_1",
+  );
   assert.notEqual(
     createEmployeeOtpReferenceId("challenge-a"),
     createEmployeeOtpReferenceId("challenge-b"),
@@ -109,35 +121,38 @@ test("SMS123 phone normalization, message and reference IDs are deterministic an
   assert.doesNotMatch(createEmployeeOtpReferenceId("challenge-a"), /483921/);
 });
 
-test("SMS123 configuration fails closed and Production can never accept 000000", () => {
+test("SMS123 configuration fails closed and the Production deployment can never accept 000000", () => {
   assert.throws(
-    () => getEmployeeAuthConfig({
-      NODE_ENV: "production",
-      EMPLOYEE_AUTH_SECRET: TEST_SECRET,
-      SMS_PROVIDER: "mock",
-      OTP_CHANNEL: "local",
-      EMPLOYEE_OTP_MOCK_CODE: "000000",
-    }),
+    () =>
+      getEmployeeAuthConfig({
+        NODE_ENV: "production",
+        EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+        SMS_PROVIDER: "mock",
+        OTP_CHANNEL: "local",
+        EMPLOYEE_OTP_MOCK_CODE: "000000",
+      }),
     /mock mode is not available in production/i,
   );
   assert.throws(
-    () => getEmployeeAuthConfig({
-      NODE_ENV: "production",
-      EMPLOYEE_AUTH_SECRET: TEST_SECRET,
-      SMS_PROVIDER: "sms123",
-      OTP_CHANNEL: "sms",
-      EMPLOYEE_OTP_MOCK_CODE: "000000",
-      SMS123_API_KEY: TEST_API_KEY,
-    }),
+    () =>
+      getEmployeeAuthConfig({
+        NODE_ENV: "production",
+        EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+        SMS_PROVIDER: "sms123",
+        OTP_CHANNEL: "sms",
+        EMPLOYEE_OTP_MOCK_CODE: "000000",
+        SMS123_API_KEY: TEST_API_KEY,
+      }),
     /MOCK_CODE is available only/i,
   );
   assert.throws(
-    () => getEmployeeAuthConfig({
-      NODE_ENV: "test",
-      EMPLOYEE_AUTH_SECRET: TEST_SECRET,
-      SMS_PROVIDER: "sms123",
-      OTP_CHANNEL: "sms",
-    }),
+    () =>
+      getEmployeeAuthConfig({
+        NODE_ENV: "test",
+        EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+        SMS_PROVIDER: "sms123",
+        OTP_CHANNEL: "sms",
+      }),
     /SMS123_API_KEY/i,
   );
   const config = sms123Config();
@@ -158,10 +173,19 @@ test("SMS123 migration stores HMAC metadata without deleting legacy Twilio rows"
     "src/lib/attendance/employee-auth/otp-service.ts",
     "utf8",
   );
-  const client = readFileSync("src/components/staff-pwa/staff-auth.tsx", "utf8");
+  const client = readFileSync(
+    "src/components/staff-pwa/staff-auth.tsx",
+    "utf8",
+  );
   assert.match(schema, /providerMessageCode\s+String\?/);
-  assert.match(migration, /"provider" = 'sms123'[\s\S]*?"otp_hash" IS NOT NULL/);
-  assert.match(migration, /"provider" = 'twilio_verify'[\s\S]*?"otp_hash" IS NULL/);
+  assert.match(
+    migration,
+    /"provider" = 'sms123'[\s\S]*?"otp_hash" IS NOT NULL/,
+  );
+  assert.match(
+    migration,
+    /"provider" = 'twilio_verify'[\s\S]*?"otp_hash" IS NULL/,
+  );
   assert.match(otpService, /otpHash = hashEmployeeOtp/);
   assert.match(otpService, /verifyEmployeeOtpHash/);
   assert.doesNotMatch(migration, /DROP TABLE|TRUNCATE|DELETE FROM/i);

@@ -36,8 +36,7 @@ import {
 } from "../../src/lib/attendance/employee-auth/rate-limit";
 import { buildEmployeeOtpChallengeInvalidationWhere } from "../../src/lib/attendance/employee-auth/otp-service";
 
-const TEST_SECRET =
-  "phase-1c-test-secret-that-is-longer-than-thirty-two-bytes";
+const TEST_SECRET = "phase-1c-test-secret-that-is-longer-than-thirty-two-bytes";
 
 test("employee auth config is centralized and production mock fails closed", () => {
   const config = testConfig({
@@ -81,18 +80,18 @@ test("employee auth config is centralized and production mock fails closed", () 
       error.code === "CONFIGURATION_ERROR",
   );
 
-  assert.throws(
-    () =>
-      getEmployeeAuthConfig({
-        NODE_ENV: "production",
-        RAILWAY_ENVIRONMENT_NAME: "testing",
-        EMPLOYEE_AUTH_SECRET: TEST_SECRET,
-        EMPLOYEE_OTP_TESTING_ENABLED: "true",
-        OTP_PROVIDER: "mock",
-        EMPLOYEE_OTP_MOCK_CODE: "000000",
-      }),
-    /mock mode is not available in production/i,
-  );
+  const railwayTestingConfig = getEmployeeAuthConfig({
+    NODE_ENV: "production",
+    RAILWAY_ENVIRONMENT_NAME: "testing",
+    EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+    EMPLOYEE_OTP_TESTING_ENABLED: "true",
+    OTP_PROVIDER: "mock",
+    OTP_CHANNEL: "local",
+    EMPLOYEE_OTP_MOCK_CODE: "000000",
+  });
+  assert.equal(railwayTestingConfig.otp.testingDeployment, true);
+  assert.equal(railwayTestingConfig.otp.mockCode, "000000");
+  assert.equal(new MockEmployeeOtpProvider(railwayTestingConfig).name, "mock");
 
   assert.throws(
     () =>
@@ -129,7 +128,7 @@ test("employee auth config is centralized and production mock fails closed", () 
         EMPLOYEE_OTP_SEND_MODE: "provider",
         EMPLOYEE_OTP_MOCK_CODE: "000000",
       }),
-    /only in non-production mock mode/,
+    /only in local\/test or the explicit Railway testing deployment/,
   );
 
   assert.throws(
@@ -140,7 +139,7 @@ test("employee auth config is centralized and production mock fails closed", () 
         EMPLOYEE_OTP_SEND_MODE: "provider",
         EMPLOYEE_OTP_MOCK_CODE: "000000",
       }),
-    /only in non-production mock mode/,
+    /only in local\/test or the explicit Railway testing deployment/,
   );
 });
 
@@ -157,7 +156,9 @@ test("development device binding keeps existing devices and sessions active", as
       findUnique: async () => null,
       findMany: async () => {
         searchedForReplacementDevices = true;
-        throw new Error("Development mode must not replace another active device.");
+        throw new Error(
+          "Development mode must not replace another active device.",
+        );
       },
       updateMany: async (args: {
         where: Record<string, unknown>;
@@ -245,7 +246,9 @@ test("development mock OTP is ready immediately without cooldown or rate-limit w
     {},
     {
       get() {
-        throw new Error("Development fast path must not query rate-limit counters.");
+        throw new Error(
+          "Development fast path must not query rate-limit counters.",
+        );
       },
     },
   );
@@ -287,23 +290,16 @@ test("employee auth crypto uses domain-separated hashes and one-time secrets", (
 
   assert.match(otp, /^\d{6}$/);
   assert.notEqual(sessionTokenA, sessionTokenB);
-  assert.notEqual(sessionTokenA, hashEmployeeSessionToken(sessionTokenA, config.authSecret));
+  assert.notEqual(
+    sessionTokenA,
+    hashEmployeeSessionToken(sessionTokenA, config.authSecret),
+  );
   assert.equal(
-    verifyEmployeeOtpHash(
-      "challenge-a",
-      otp,
-      otpHash,
-      config.authSecret,
-    ),
+    verifyEmployeeOtpHash("challenge-a", otp, otpHash, config.authSecret),
     true,
   );
   assert.equal(
-    verifyEmployeeOtpHash(
-      "challenge-b",
-      otp,
-      otpHash,
-      config.authSecret,
-    ),
+    verifyEmployeeOtpHash("challenge-b", otp, otpHash, config.authSecret),
     false,
   );
   assert.notEqual(
@@ -334,8 +330,7 @@ test("mock OTP is memory-only, access-key protected, and carries locale", async 
   assert.throws(
     () => readMockEmployeeOtp("challenge-mock", "wrong-key", config),
     (error: unknown) =>
-      error instanceof EmployeeAuthError &&
-      error.code === "UNAUTHENTICATED",
+      error instanceof EmployeeAuthError && error.code === "UNAUTHENTICATED",
   );
   assert.equal(
     readMockEmployeeOtp(
@@ -435,21 +430,17 @@ test("employee auth HTTP helper enforces same-origin, body limit, and Zod output
   assert.throws(
     () => assertEmployeeAuthSameOrigin(crossSite),
     (error: unknown) =>
-      error instanceof EmployeeAuthError &&
-      error.code === "INVALID_REQUEST",
+      error instanceof EmployeeAuthError && error.code === "INVALID_REQUEST",
   );
 
-  const oversized = new Request(
-    "http://localhost/api/employee-auth/example",
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "content-length": "2048",
-      },
-      body: "{}",
+  const oversized = new Request("http://localhost/api/employee-auth/example", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "content-length": "2048",
     },
-  );
+    body: "{}",
+  });
   await assert.rejects(
     readEmployeeAuthJson(oversized, z.object({}), 1_024),
     (error: unknown) =>
@@ -495,7 +486,8 @@ test("employee cookie cannot authenticate the admin middleware", async () => {
 
     assert.equal(response.status, 307);
     assert.equal(
-      new URL(response.headers.get("location") ?? "", "http://localhost").pathname,
+      new URL(response.headers.get("location") ?? "", "http://localhost")
+        .pathname,
       "/login",
     );
   } finally {
@@ -528,9 +520,7 @@ test("employee auth route returns structured errors without touching the databas
   assert.equal(typeof body.error.message, "string");
 });
 
-function testConfig(
-  overrides: Partial<NodeJS.ProcessEnv> = {},
-) {
+function testConfig(overrides: Partial<NodeJS.ProcessEnv> = {}) {
   return getEmployeeAuthConfig({
     NODE_ENV: "test",
     EMPLOYEE_AUTH_SECRET: TEST_SECRET,

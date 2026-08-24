@@ -72,7 +72,11 @@ export function getEmployeeAuthConfig(
   const developmentFastPath =
     environment === "development" && sendMode === "mock";
 
-  if (environment === "production" && provider === "mock") {
+  if (
+    environment === "production" &&
+    provider === "mock" &&
+    !testingDeployment
+  ) {
     throw new EmployeeAuthError(
       "CONFIGURATION_ERROR",
       "OTP mock mode is not available in production.",
@@ -83,6 +87,7 @@ export function getEmployeeAuthConfig(
     env.EMPLOYEE_OTP_MOCK_CODE,
     environment,
     sendMode,
+    testingDeployment,
   );
   assertOtpLength(env.OTP_LENGTH);
   const sms123 = readSms123Config(env, provider, environment);
@@ -121,7 +126,8 @@ export function getEmployeeAuthConfig(
         !env.EMPLOYEE_OTP_RESEND_SECONDS
           ? 0
           : readInteger(
-              env.OTP_RESEND_COOLDOWN_SECONDS ?? env.EMPLOYEE_OTP_RESEND_SECONDS,
+              env.OTP_RESEND_COOLDOWN_SECONDS ??
+                env.EMPLOYEE_OTP_RESEND_SECONDS,
               60,
               10,
               10 * 60,
@@ -217,6 +223,7 @@ function readMockCode(
   value: string | undefined,
   environment: EmployeeAuthConfig["environment"],
   sendMode: EmployeeOtpSendMode,
+  testingDeployment: boolean,
 ) {
   const code = value?.trim() ?? "";
 
@@ -227,12 +234,12 @@ function readMockCode(
   }
 
   if (
-    environment === "production" ||
+    (environment === "production" && !testingDeployment) ||
     sendMode !== "mock"
   ) {
     throw new EmployeeAuthError(
       "CONFIGURATION_ERROR",
-      "EMPLOYEE_OTP_MOCK_CODE is available only in non-production mock mode.",
+      "EMPLOYEE_OTP_MOCK_CODE is available only in local/test or the explicit Railway testing deployment.",
     );
   }
 
@@ -263,9 +270,7 @@ function normalizeProvider(
   const normalized = value?.trim().toLowerCase();
 
   if (!normalized) {
-    return environment === "production"
-      ? "sms123"
-      : "mock";
+    return environment === "production" ? "sms123" : "mock";
   }
 
   if (normalized === "mock") {

@@ -42,7 +42,10 @@ export class MockEmployeeOtpProvider implements SmsProvider {
   readonly channel = "local" as const;
 
   constructor(private readonly config: EmployeeAuthConfig) {
-    if (config.environment === "production" || config.otp.provider !== "mock") {
+    if (
+      (config.environment === "production" && !config.otp.testingDeployment) ||
+      config.otp.provider !== "mock"
+    ) {
       throw new EmployeeAuthError(
         "CONFIGURATION_ERROR",
         "Employee OTP mock provider is disabled.",
@@ -182,7 +185,10 @@ export function createEmployeeOtpReferenceId(
   sendAttempt = 1,
 ) {
   if (!Number.isSafeInteger(sendAttempt) || sendAttempt < 1) {
-    throw new EmployeeAuthError("INVALID_REQUEST", "SMS send attempt is invalid.");
+    throw new EmployeeAuthError(
+      "INVALID_REQUEST",
+      "SMS send attempt is invalid.",
+    );
   }
   return `otp_${challengeId}_${sendAttempt}`;
 }
@@ -192,7 +198,10 @@ export function buildEmployeeOtpMessage(
   config: EmployeeAuthConfig = getEmployeeAuthConfig(),
 ) {
   if (!/^\d{6}$/.test(otp)) {
-    throw new EmployeeAuthError("INVALID_REQUEST", "OTP must contain six digits.");
+    throw new EmployeeAuthError(
+      "INVALID_REQUEST",
+      "OTP must contain six digits.",
+    );
   }
   const minutes = Math.max(1, Math.ceil(config.otp.expiresInSeconds / 60));
   return `${config.otp.sms123.messagePrefix} Tetamu: Your OTP is ${otp}. Valid for ${minutes} minutes. Do not share this code.`;
@@ -216,13 +225,19 @@ export function readMockEmployeeOtp(
   accessKey: string,
   config: EmployeeAuthConfig = getEmployeeAuthConfig(),
 ) {
-  if (config.environment === "production" || config.otp.provider !== "mock") {
+  if (
+    (config.environment === "production" && !config.otp.testingDeployment) ||
+    config.otp.provider !== "mock"
+  ) {
     throw new EmployeeAuthError(
       "CONFIGURATION_ERROR",
       "Employee OTP mock inspection is disabled.",
     );
   }
-  if (!config.otp.mockAccessKey || !safeEqual(accessKey, config.otp.mockAccessKey)) {
+  if (
+    !config.otp.mockAccessKey ||
+    !safeEqual(accessKey, config.otp.mockAccessKey)
+  ) {
     throw new EmployeeAuthError(
       "UNAUTHENTICATED",
       "Employee OTP mock access key is invalid.",
@@ -237,7 +252,7 @@ export function clearMockEmployeeOtp(
   challengeId: string,
   config: EmployeeAuthConfig = getEmployeeAuthConfig(),
 ) {
-  if (config.environment !== "production") {
+  if (config.environment !== "production" || config.otp.testingDeployment) {
     mockSmsStore.delete(createEmployeeOtpReferenceId(challengeId));
   }
 }
