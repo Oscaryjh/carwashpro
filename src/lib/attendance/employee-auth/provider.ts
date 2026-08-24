@@ -249,6 +249,15 @@ export class TwilioVerifySmsProvider implements EmployeeOtpProvider {
 
 const SMS123_SEND_URL = "https://www.sms123.net/api/send.php";
 const SMS123_SUCCESS_CODES = new Set(["E00001", "BE00128"]);
+const SMS123_FAILURE_REASONS: Readonly<Record<string, string>> = {
+  E00242: "The mobile number was rejected by SMS123.",
+  E00250: "The SMS123 account balance is insufficient.",
+  E00359: "The SMS123 API key was rejected.",
+  E00366: "The SMS content was rejected by SMS123.",
+  BE00035: "The registered company name is missing.",
+  BE00036: "The SMS template or company name is not whitelisted.",
+  BE00096: "SMS123 rejected a duplicate request reference.",
+};
 
 export class Sms123OtpProvider implements EmployeeOtpProvider {
   readonly name = "sms123" as const;
@@ -385,6 +394,46 @@ export class EmployeeOtpProviderError extends Error {
     this.httpStatus = options.httpStatus ?? null;
     this.providerCode = options.providerCode ?? null;
   }
+}
+
+export type EmployeeOtpProviderFailureDetail = Readonly<{
+  failureCode: string;
+  httpStatus: number | null;
+  providerCode: number | string | null;
+  reason: string;
+}>;
+
+export function describeEmployeeOtpProviderFailure(
+  error: unknown,
+): EmployeeOtpProviderFailureDetail {
+  if (!(error instanceof EmployeeOtpProviderError)) {
+    return {
+      failureCode: "UNEXPECTED_PROVIDER_ERROR",
+      httpStatus: null,
+      providerCode: null,
+      reason: "The SMS provider request failed unexpectedly.",
+    };
+  }
+
+  const providerCode = error.providerCode;
+  const mappedReason =
+    typeof providerCode === "string"
+      ? SMS123_FAILURE_REASONS[providerCode]
+      : undefined;
+
+  return {
+    failureCode: error.code,
+    httpStatus: error.httpStatus,
+    providerCode,
+    reason:
+      mappedReason ??
+      {
+        PROVIDER_UNAVAILABLE: "The SMS provider could not be reached.",
+        PROVIDER_RATE_LIMITED: "The SMS provider temporarily rate-limited this request.",
+        PROVIDER_REJECTED: "The SMS provider rejected this request.",
+        PROVIDER_INVALID_RESPONSE: "The SMS provider returned an invalid response.",
+      }[error.code],
+  };
 }
 
 export function createEmployeeOtpProvider(

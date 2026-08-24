@@ -52,6 +52,8 @@ test("admin OTP page is platform-only and never selects stored OTP material", ()
   assert.match(pageSource, /assertRole\(user, \["PLATFORM_ADMIN"\]\)/);
   assert.doesNotMatch(pageSource, /otpHash/);
   assert.doesNotMatch(pageSource, /verification code value/i);
-  assert.match(pageSource, /Twilio generates and checks each code/);
+  assert.match(pageSource, /Login codes are never shown here/);
+  assert.match(pageSource, /STAFF_OTP_SEND_FAILED/);
+  assert.match(pageSource, /providerReason/);
   assert.match(pageSource, /Do not resend from Admin/);
 });

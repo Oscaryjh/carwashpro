@@ -4,6 +4,7 @@ import test from "node:test";
 import { getEmployeeAuthConfig } from "../../src/lib/attendance/employee-auth/config";
 import { hashEmployeeOtp } from "../../src/lib/attendance/employee-auth/crypto";
 import {
+  describeEmployeeOtpProviderFailure,
   EmployeeOtpProviderError,
   Sms123OtpProvider,
 } from "../../src/lib/attendance/employee-auth/provider";
@@ -104,6 +105,24 @@ test("SMS123 adapter maps gateway failures without exposing the response message
       error.code === "PROVIDER_REJECTED" &&
       error.providerCode === "E00359" &&
       !error.message.includes("sensitive provider detail"),
+  );
+});
+
+test("SMS123 failures expose only a safe support reason and provider code", () => {
+  assert.deepEqual(
+    describeEmployeeOtpProviderFailure(
+      new EmployeeOtpProviderError(
+        "PROVIDER_REJECTED",
+        "gateway response must stay private",
+        { httpStatus: 200, providerCode: "BE00036" },
+      ),
+    ),
+    {
+      failureCode: "PROVIDER_REJECTED",
+      httpStatus: 200,
+      providerCode: "BE00036",
+      reason: "The SMS template or company name is not whitelisted.",
+    },
   );
 });
 

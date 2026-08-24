@@ -28,7 +28,10 @@ import {
   type EligibleEmployeeMembership,
 } from "./membership";
 import type { EmployeeOtpProvider } from "./provider";
-import { createEmployeeOtpProvider } from "./provider";
+import {
+  createEmployeeOtpProvider,
+  describeEmployeeOtpProviderFailure,
+} from "./provider";
 import {
   acquireEmployeeOtpRateLimitLocks,
   acquireEmployeeOtpVerifyRateLimitLocks,
@@ -351,6 +354,7 @@ export async function requestEmployeeOtp(
     );
   } catch (error) {
     const failedAt = now;
+    const providerFailure = describeEmployeeOtpProviderFailure(error);
     const invalidated = await database.employeeOtpChallenge.updateMany({
       where: { id: challengeId, invalidatedAt: null },
       data: { invalidatedAt: failedAt },
@@ -359,6 +363,10 @@ export async function requestEmployeeOtp(
       challengeId,
       provider: config.otp.provider,
       errorName: error instanceof Error ? error.name : "UnknownError",
+      failureCode: providerFailure.failureCode,
+      httpStatus: providerFailure.httpStatus,
+      providerCode: providerFailure.providerCode,
+      providerReason: providerFailure.reason,
     });
     if (invalidated.count === 1) {
       await writeOtpAuditForBusinessIds(
@@ -367,7 +375,14 @@ export async function requestEmployeeOtp(
         challengeId,
         "STAFF_OTP_SEND_FAILED",
         "Staff login verification delivery failed",
-        { provider: config.otp.provider, channel: config.otp.channel },
+        {
+          provider: config.otp.provider,
+          channel: config.otp.channel,
+          failureCode: providerFailure.failureCode,
+          httpStatus: providerFailure.httpStatus,
+          providerCode: providerFailure.providerCode,
+          providerReason: providerFailure.reason,
+        },
         input.request?.userAgent ?? null,
         database,
       );

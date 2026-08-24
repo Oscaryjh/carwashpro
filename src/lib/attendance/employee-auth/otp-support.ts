@@ -42,7 +42,7 @@ export function otpSupportStatusLabel(status: OtpSupportStatus) {
 export function otpSupportStatusDescription(status: OtpSupportStatus) {
   return {
     VERIFIED: "The employee entered the correct code and completed verification.",
-    SENT: "Twilio accepted the SMS request. This does not guarantee handset delivery.",
+    SENT: "The SMS provider accepted the request. This does not guarantee handset delivery.",
     DELIVERY_FAILED: "The provider did not accept this delivery attempt.",
     EXPIRED: "The code was not verified before its validity window ended.",
     INVALIDATED: "A newer request or another security event replaced this code.",

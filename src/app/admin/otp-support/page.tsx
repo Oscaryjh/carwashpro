@@ -118,10 +118,29 @@ export default async function OtpSupportPage({ searchParams }: OtpSupportPagePro
     },
   });
 
+  const failureAudits = challenges.length
+    ? await prisma.auditLog.findMany({
+        where: {
+          action: "STAFF_OTP_SEND_FAILED",
+          entityType: "EmployeeOtpChallenge",
+          entityId: { in: challenges.map((challenge) => challenge.id) },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { entityId: true, metadata: true },
+      })
+    : [];
+  const failureByChallenge = new Map<string, OtpFailureDetail>();
+  for (const audit of failureAudits) {
+    if (!audit.entityId || failureByChallenge.has(audit.entityId)) continue;
+    const detail = readOtpFailureDetail(audit.metadata);
+    if (detail) failureByChallenge.set(audit.entityId, detail);
+  }
+
   const rows = challenges
     .map((challenge) => ({
       ...challenge,
       supportStatus: deriveOtpSupportStatus(challenge, now),
+      failureDetail: failureByChallenge.get(challenge.id) ?? null,
     }))
     .filter((challenge) => !selectedStatus || challenge.supportStatus === selectedStatus);
 
@@ -142,7 +161,7 @@ export default async function OtpSupportPage({ searchParams }: OtpSupportPagePro
             <p className={styles.eyebrow}>Platform administration</p>
             <h1>OTP support</h1>
             <p>
-              Check which phone number was used and whether Twilio accepted or verified the
+              Check which phone number was used and whether the SMS provider accepted or verified the
               request. Use this page to diagnose delivery without exposing login codes.
             </p>
           </div>
@@ -157,7 +176,7 @@ export default async function OtpSupportPage({ searchParams }: OtpSupportPagePro
           <div>
             <strong>Login codes remain private</strong>
             <p>
-              Twilio generates and checks each code. Tetamu does not store or display it, so
+              Login codes are never shown here. Tetamu stores only a secure hash, so
               support staff cannot use an employee&apos;s login code.
             </p>
           </div>
@@ -165,7 +184,7 @@ export default async function OtpSupportPage({ searchParams }: OtpSupportPagePro
 
         <section className={styles.metrics} aria-label="OTP delivery summary">
           <Metric label="Requests" value={challenges.length} note={RANGE_OPTIONS[rangeKey].label} />
-          <Metric label="Sent to carrier" value={statusCounts.SENT} note="Accepted by Twilio" />
+          <Metric label="Sent to provider" value={statusCounts.SENT} note="Accepted for delivery" />
           <Metric label="Verified" value={statusCounts.VERIFIED} note="Login code completed" />
           <Metric label="Failed or expired" value={needsAttention} note="Support may be needed" />
         </section>
@@ -258,6 +277,14 @@ export default async function OtpSupportPage({ searchParams }: OtpSupportPagePro
                         <td>
                           <span>{providerLabel(row.provider, row.deliveryChannel)}</span>
                           <small>Ref {maskProviderReference(row.providerReference)}</small>
+                          {row.failureDetail ? (
+                            <small className={styles.providerFailure}>
+                              {row.failureDetail.reason}
+                              {row.failureDetail.providerCode
+                                ? ` (${row.failureDetail.providerCode})`
+                                : ""}
+                            </small>
+                          ) : null}
                         </td>
                         <td>
                           <span>{formatDateTime(row.createdAt)}</span>
@@ -294,7 +321,7 @@ export default async function OtpSupportPage({ searchParams }: OtpSupportPagePro
           <div>
             <strong>Customer did not receive the SMS?</strong>
             <p>
-              First confirm the phone shown above. If Twilio accepted the request, ask the
+              First confirm the phone shown above. If the provider accepted the request, ask the
               employee to wait briefly, check carrier filtering and use Resend on the same
               device. Do not resend from Admin because Staff login is device-bound.
             </p>
@@ -344,4 +371,20 @@ function formatDateTime(value: Date) {
     timeStyle: "short",
     timeZone: "Asia/Kuala_Lumpur",
   }).format(value);
+}
+
+type OtpFailureDetail = Readonly<{
+  providerCode: string | null;
+  reason: string;
+}>;
+
+function readOtpFailureDetail(metadata: Prisma.JsonValue | null): OtpFailureDetail | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const record = metadata as Record<string, Prisma.JsonValue>;
+  const providerCode =
+    typeof record.providerCode === "string" || typeof record.providerCode === "number"
+      ? String(record.providerCode)
+      : null;
+  const reason = typeof record.providerReason === "string" ? record.providerReason : "";
+  return reason ? { providerCode, reason } : null;
 }

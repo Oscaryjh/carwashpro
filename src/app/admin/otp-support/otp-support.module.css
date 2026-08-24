@@ -150,6 +150,7 @@
 .table td > strong,
 .table td > span { display: block; }
 .table td > small { color: var(--muted); display: block; font-size: 11px; line-height: 1.45; margin-top: 4px; max-width: 235px; }
+.table td > .providerFailure { color: #a33b2d; font-weight: 700; margin-top: 7px; }
 .table td > a { color: #076d64; font-weight: 800; text-decoration: none; }
 .table tbody tr:hover { background: #f8fbfb; }
 .phone { font-variant-numeric: tabular-nums; font-weight: 800; white-space: nowrap; }
