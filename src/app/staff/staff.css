@@ -1372,6 +1372,26 @@
   font-variant-numeric: tabular-nums;
 }
 
+.staff-code-timer strong.expired {
+  color: #a33a31;
+}
+
+.staff-resend-row {
+  align-items: center;
+  color: var(--staff-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 4px 8px;
+  justify-content: center;
+  margin-top: -2px;
+}
+
+.staff-resend-row .staff-link-button {
+  min-height: 36px;
+  padding: 0 4px;
+}
+
 .staff-workplace-list {
   display: grid;
   gap: 12px;

@@ -187,6 +187,7 @@ export function StaffVerifyForm() {
   const [busy, setBusy] = useState(false);
   const [failures, setFailures] = useState(0);
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<"error" | "success">("error");
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -210,6 +211,7 @@ export function StaffVerifyForm() {
 
   function updateDigit(index: number, value: string) {
     const nextValue = value.replace(/\D/g, "").slice(-1);
+    if (messageKind === "error") setMessage("");
     setDigits((current) => {
       const next = [...current];
       next[index] = nextValue;
@@ -238,6 +240,7 @@ export function StaffVerifyForm() {
     event.preventDefault();
     const otp = digits.join("");
     if (otp.length !== 6 || busy || secondsRemaining === 0) {
+      setMessageKind("error");
       setMessage(
         secondsRemaining === 0
           ? "This verification code has expired. Request a new code."
@@ -278,6 +281,7 @@ export function StaffVerifyForm() {
       setFailures(nextFailures);
       setDigits(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
+      setMessageKind("error");
       setMessage(
         nextFailures >= 5
           ? "Verification has been locked for your security. Request a new code or contact your manager."
@@ -315,8 +319,13 @@ export function StaffVerifyForm() {
       setNow(requestedAt);
       setDigits(["", "", "", "", "", ""]);
       setFailures(0);
-      setMessage(result.message);
+      setMessageKind("success");
+      setMessage(
+        `A new code was sent to ${formatPhoneForConfirmation(activeFlow.phoneNumber)}.`,
+      );
+      inputRefs.current[0]?.focus();
     } catch (error) {
+      setMessageKind("error");
       setMessage(publicAuthMessage(error));
     } finally {
       setBusy(false);
@@ -366,6 +375,7 @@ export function StaffVerifyForm() {
             <input
               aria-label={`Digit ${index + 1}`}
               autoComplete={index === 0 ? "one-time-code" : "off"}
+              autoFocus={index === 0}
               inputMode="numeric"
               key={index}
               maxLength={1}
@@ -379,21 +389,34 @@ export function StaffVerifyForm() {
           ))}
         </div>
         <div className="staff-code-timer">
-          <span>Code expires in</span>
-          <strong>{formatCountdown(secondsRemaining)}</strong>
+          <span>{secondsRemaining > 0 ? "Code expires in" : "Code expired"}</span>
+          <strong className={secondsRemaining === 0 ? "expired" : undefined}>
+            {formatCountdown(secondsRemaining)}
+          </strong>
         </div>
-        {message ? <div className="staff-alert" role="alert">{message}</div> : null}
-        <button className="staff-primary-button" disabled={busy} type="submit">
+        {message ? (
+          <div className={`staff-alert ${messageKind}`} role="alert">
+            {message}
+          </div>
+        ) : null}
+        <button
+          className="staff-primary-button"
+          disabled={busy || digits.join("").length !== 6 || secondsRemaining === 0}
+          type="submit"
+        >
           {busy ? "Verifying…" : "Verify and continue"}
         </button>
-        <button
-          className="staff-link-button"
-          disabled={busy || resendSeconds > 0}
-          onClick={resend}
-          type="button"
-        >
-          {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : "Resend code"}
-        </button>
+        <div className="staff-resend-row">
+          <span>Didn’t receive the SMS?</span>
+          <button
+            className="staff-link-button"
+            disabled={busy || resendSeconds > 0}
+            onClick={resend}
+            type="button"
+          >
+            {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : "Send a new code"}
+          </button>
+        </div>
       </form>
     </section>
   );

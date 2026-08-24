@@ -269,6 +269,9 @@ test("location failures offer recovery before manager approval", () => {
 test("OTP UI never stores the entered OTP and supports paste plus resend timing", () => {
   assert.match(authSource, /onPaste=\{paste\}/);
   assert.match(authSource, /Resend in \$\{resendSeconds\}s/);
+  assert.match(authSource, /Didn’t receive the SMS\?/);
+  assert.match(authSource, /A new code was sent to/);
+  assert.match(authSource, /digits\.join\(""\)\.length !== 6/);
   assert.doesNotMatch(authSource, /localStorage\.setItem\([^)]*otp/i);
   assert.doesNotMatch(authSource, /sessionStorage\.setItem\([^)]*otp/i);
 });
