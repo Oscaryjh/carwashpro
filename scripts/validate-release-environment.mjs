@@ -22,17 +22,22 @@ if (environment === "production") {
   if (otpProvider === "mock" || process.env.EMPLOYEE_OTP_MOCK_CODE) {
     fail("Production Employee OTP mock mode/code is forbidden.");
   }
-  if (otpProvider !== "twilio_verify" || process.env.OTP_CHANNEL !== "sms") {
-    fail('Production Staff OTP requires OTP_PROVIDER="twilio_verify" and OTP_CHANNEL="sms".');
+  if (!new Set(["twilio_verify", "sms123"]).has(otpProvider) || process.env.OTP_CHANNEL !== "sms") {
+    fail('Production Staff OTP requires OTP_PROVIDER="twilio_verify" or "sms123", with OTP_CHANNEL="sms".');
   }
-  requirePattern("TWILIO_ACCOUNT_SID", /^AC[0-9a-f]{32}$/i);
-  requirePattern("TWILIO_VERIFY_SERVICE_SID", /^VA[0-9a-f]{32}$/i);
-  const hasTwilioApiKey =
-    /^SK[0-9a-f]{32}$/i.test(process.env.TWILIO_API_KEY_SID?.trim() ?? "") &&
-    (process.env.TWILIO_API_KEY_SECRET?.trim().length ?? 0) >= 20;
-  const hasTwilioAuthToken = (process.env.TWILIO_AUTH_TOKEN?.trim().length ?? 0) >= 20;
-  if (!hasTwilioApiKey && !hasTwilioAuthToken) {
-    fail("Production Twilio Verify credentials are required.");
+  if (otpProvider === "twilio_verify") {
+    requirePattern("TWILIO_ACCOUNT_SID", /^AC[0-9a-f]{32}$/i);
+    requirePattern("TWILIO_VERIFY_SERVICE_SID", /^VA[0-9a-f]{32}$/i);
+    const hasTwilioApiKey =
+      /^SK[0-9a-f]{32}$/i.test(process.env.TWILIO_API_KEY_SID?.trim() ?? "") &&
+      (process.env.TWILIO_API_KEY_SECRET?.trim().length ?? 0) >= 20;
+    const hasTwilioAuthToken = (process.env.TWILIO_AUTH_TOKEN?.trim().length ?? 0) >= 20;
+    if (!hasTwilioApiKey && !hasTwilioAuthToken) {
+      fail("Production Twilio Verify credentials are required.");
+    }
+  }
+  if (otpProvider === "sms123") {
+    requireValue("SMS123_API_KEY", 16);
   }
 
   const aiEnabled = process.env.AI_GLOBAL_ENABLED !== "false";

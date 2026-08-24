@@ -227,6 +227,7 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
         provider: {
           name: "mock",
           channel: "local",
+          verificationMode: "provider",
           async sendVerification() {
             throw new Error("simulated provider failure");
           },
@@ -284,6 +285,7 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
         provider: {
           name: "mock",
           channel: "local",
+          verificationMode: "provider",
           async sendVerification(input) {
             delayedProviderStarted = true;
             markProviderStarted();

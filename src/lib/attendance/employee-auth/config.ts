@@ -3,7 +3,7 @@ import { EmployeeAuthError } from "./errors";
 export const EMPLOYEE_SESSION_COOKIE = "tetamu_employee_session";
 export const EMPLOYEE_OTP_DIGITS = 6;
 
-export type EmployeeOtpProviderName = "mock" | "twilio_verify";
+export type EmployeeOtpProviderName = "mock" | "twilio_verify" | "sms123";
 export type EmployeeOtpChannel = "local" | "sms";
 export type EmployeeOtpSendMode = "mock" | "provider";
 
@@ -36,6 +36,9 @@ export type EmployeeAuthConfig = Readonly<{
       apiKeySid: string | null;
       apiKeySecret: string | null;
       authToken: string | null;
+    }>;
+    sms123: Readonly<{
+      apiKey: string | null;
     }>;
   }>;
   session: Readonly<{
@@ -82,6 +85,7 @@ export function getEmployeeAuthConfig(
     sendMode,
   );
   const twilio = readTwilioConfig(env, provider);
+  const sms123 = readSms123Config(env, provider);
 
   return {
     authSecret,
@@ -173,6 +177,7 @@ export function getEmployeeAuthConfig(
       mockAccessKey: env.EMPLOYEE_OTP_MOCK_ACCESS_KEY?.trim() || null,
       mockCode,
       twilio,
+      sms123,
     },
     session: {
       cookieName: EMPLOYEE_SESSION_COOKIE,
@@ -265,9 +270,13 @@ function normalizeProvider(
     return "twilio_verify";
   }
 
+  if (normalized === "sms123") {
+    return "sms123";
+  }
+
   throw new EmployeeAuthError(
     "CONFIGURATION_ERROR",
-    "OTP_PROVIDER must be either mock or twilio_verify.",
+    "OTP_PROVIDER must be mock, twilio_verify, or sms123.",
   );
 }
 
@@ -284,11 +293,27 @@ function normalizeChannel(
       "CONFIGURATION_ERROR",
       provider === "mock"
         ? "OTP_CHANNEL must be local when OTP_PROVIDER=mock."
-        : "OTP_CHANNEL must be sms when OTP_PROVIDER=twilio_verify.",
+        : `OTP_CHANNEL must be sms when OTP_PROVIDER=${provider}.`,
     );
   }
 
   return channel;
+}
+
+function readSms123Config(
+  env: NodeJS.ProcessEnv,
+  provider: EmployeeOtpProviderName,
+) {
+  const apiKey = env.SMS123_API_KEY?.trim() || null;
+
+  if (provider === "sms123" && (!apiKey || apiKey.length < 16)) {
+    throw new EmployeeAuthError(
+      "CONFIGURATION_ERROR",
+      "SMS123_API_KEY is required when OTP_PROVIDER=sms123.",
+    );
+  }
+
+  return { apiKey } as const;
 }
 
 function readTwilioConfig(

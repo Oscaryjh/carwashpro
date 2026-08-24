@@ -3224,8 +3224,8 @@ model EmployeeOtpChallenge {
   employeeAccountId     String?            @map("employee_account_id") @db.Uuid
   phoneNumberNormalized String             @map("phone_number_normalized")
   purpose               EmployeeOtpPurpose
-  // Legacy local-verification rows may retain a hash. New mock and Twilio
-  // Verify challenges keep this null because the provider owns the code.
+  // SMS123 challenges retain only a keyed OTP hash. Twilio Verify and current
+  // mock challenges keep this null; legacy non-production mock rows may not.
   otpHash               String?            @map("otp_hash")
   provider              String             @default("legacy_local")
   deliveryChannel       String             @default("local") @map("delivery_channel")

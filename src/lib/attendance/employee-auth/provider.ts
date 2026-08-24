@@ -2,7 +2,10 @@ import { randomInt } from "node:crypto";
 import type { EmployeeAuthConfig } from "./config";
 import { getEmployeeAuthConfig } from "./config";
 import { EmployeeAuthError } from "./errors";
-import { safeEqual } from "./crypto";
+import {
+  safeEqual,
+  verifyEmployeeOtpHash,
+} from "./crypto";
 
 export type EmployeeOtpPurpose = "LOGIN" | "REGISTER_DEVICE";
 
@@ -12,6 +15,7 @@ export type StartEmployeeVerificationInput = Readonly<{
   purpose: EmployeeOtpPurpose;
   expiresAt: Date;
   locale: string;
+  code?: string;
 }>;
 
 export type CheckEmployeeVerificationInput = Readonly<{
@@ -19,6 +23,7 @@ export type CheckEmployeeVerificationInput = Readonly<{
   phoneNumber: string;
   providerReference: string;
   code: string;
+  otpHash?: string | null;
 }>;
 
 export type EmployeeVerificationStartResult = Readonly<{
@@ -31,8 +36,9 @@ export type EmployeeVerificationCheckResult = Readonly<{
 }>;
 
 export interface EmployeeOtpProvider {
-  readonly name: "mock" | "twilio_verify";
+  readonly name: "mock" | "twilio_verify" | "sms123";
   readonly channel: "local" | "sms";
+  readonly verificationMode: "provider" | "application";
   sendVerification(
     input: StartEmployeeVerificationInput,
   ): Promise<EmployeeVerificationStartResult>;
@@ -53,6 +59,7 @@ const mockVerificationStore = new Map<string, StoredMockVerification>();
 export class MockEmployeeOtpProvider implements EmployeeOtpProvider {
   readonly name = "mock" as const;
   readonly channel = "local" as const;
+  readonly verificationMode = "provider" as const;
 
   constructor(private readonly config: EmployeeAuthConfig) {
     if (
@@ -123,6 +130,7 @@ export class MockEmployeeOtpProvider implements EmployeeOtpProvider {
 export class TwilioVerifySmsProvider implements EmployeeOtpProvider {
   readonly name = "twilio_verify" as const;
   readonly channel = "sms" as const;
+  readonly verificationMode = "provider" as const;
 
   constructor(
     private readonly config: EmployeeAuthConfig,
@@ -239,6 +247,120 @@ export class TwilioVerifySmsProvider implements EmployeeOtpProvider {
   }
 }
 
+const SMS123_SEND_URL = "https://www.sms123.net/api/send.php";
+const SMS123_SUCCESS_CODES = new Set(["E00001", "BE00128"]);
+
+export class Sms123OtpProvider implements EmployeeOtpProvider {
+  readonly name = "sms123" as const;
+  readonly channel = "sms" as const;
+  readonly verificationMode = "application" as const;
+
+  constructor(
+    private readonly config: EmployeeAuthConfig,
+    private readonly request: typeof fetch = fetch,
+  ) {
+    if (config.otp.provider !== "sms123" || !config.otp.sms123.apiKey) {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "SMS123 provider is not enabled.",
+      );
+    }
+  }
+
+  async sendVerification(input: StartEmployeeVerificationInput) {
+    if (!input.code || !/^\d{6}$/.test(input.code)) {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "SMS123 requires an application-generated verification code.",
+      );
+    }
+
+    const apiKey = this.config.otp.sms123.apiKey;
+    if (!apiKey) throw new EmployeeAuthError("CONFIGURATION_ERROR");
+
+    const minutes = Math.max(
+      1,
+      Math.ceil(this.config.otp.expiresInSeconds / 60),
+    );
+    const body = new URLSearchParams({
+      apiKey,
+      recipients: normalizeSms123Recipient(input.phoneNumber),
+      messageContent:
+        `RM0.00 Tetamu verification code is ${input.code}. ` +
+        `This code expires in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+      referenceID: input.challengeId,
+    });
+
+    let response: Response;
+    try {
+      response = await this.request(SMS123_SEND_URL, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body,
+        cache: "no-store",
+        signal: AbortSignal.timeout(this.config.otp.providerTimeoutMs),
+      });
+    } catch (error) {
+      throw new EmployeeOtpProviderError(
+        "PROVIDER_UNAVAILABLE",
+        "SMS123 request failed.",
+        { cause: error },
+      );
+    }
+
+    const payload = await readProviderJson(response, "SMS123");
+    const status = readString(payload, "status");
+    const providerCode = readString(payload, "msgCode");
+    if (!response.ok || status !== "ok" || !SMS123_SUCCESS_CODES.has(providerCode)) {
+      throw new EmployeeOtpProviderError(
+        response.status === 429
+          ? "PROVIDER_RATE_LIMITED"
+          : response.status >= 500
+            ? "PROVIDER_UNAVAILABLE"
+            : "PROVIDER_REJECTED",
+        "SMS123 rejected the verification message.",
+        {
+          httpStatus: response.status,
+          providerCode: providerCode || null,
+        },
+      );
+    }
+
+    const reference = readSms123Reference(payload);
+    if (!reference) {
+      throw new EmployeeOtpProviderError(
+        "PROVIDER_INVALID_RESPONSE",
+        "SMS123 returned an unexpected response.",
+      );
+    }
+
+    return {
+      status: "ACCEPTED" as const,
+      providerReference: `sms123:${reference}`,
+    };
+  }
+
+  async checkVerification(input: CheckEmployeeVerificationInput) {
+    if (
+      !input.providerReference.startsWith("sms123:") ||
+      !input.otpHash
+    ) {
+      return { status: "REJECTED" as const };
+    }
+
+    return {
+      status: verifyEmployeeOtpHash(
+        input.challengeId,
+        input.code,
+        input.otpHash,
+        this.config.authSecret,
+      )
+        ? ("APPROVED" as const)
+        : ("REJECTED" as const),
+    };
+  }
+}
+
 export class EmployeeOtpProviderError extends Error {
   readonly code:
     | "PROVIDER_UNAVAILABLE"
@@ -246,12 +368,16 @@ export class EmployeeOtpProviderError extends Error {
     | "PROVIDER_REJECTED"
     | "PROVIDER_INVALID_RESPONSE";
   readonly httpStatus: number | null;
-  readonly providerCode: number | null;
+  readonly providerCode: number | string | null;
 
   constructor(
     code: EmployeeOtpProviderError["code"],
     message: string,
-    options: { cause?: unknown; httpStatus?: number; providerCode?: number | null } = {},
+    options: {
+      cause?: unknown;
+      httpStatus?: number;
+      providerCode?: number | string | null;
+    } = {},
   ) {
     super(message, { cause: options.cause });
     this.name = "EmployeeOtpProviderError";
@@ -264,9 +390,13 @@ export class EmployeeOtpProviderError extends Error {
 export function createEmployeeOtpProvider(
   config: EmployeeAuthConfig = getEmployeeAuthConfig(),
 ): EmployeeOtpProvider {
-  return config.otp.provider === "mock"
-    ? new MockEmployeeOtpProvider(config)
-    : new TwilioVerifySmsProvider(config);
+  if (config.otp.provider === "mock") {
+    return new MockEmployeeOtpProvider(config);
+  }
+  if (config.otp.provider === "sms123") {
+    return new Sms123OtpProvider(config);
+  }
+  return new TwilioVerifySmsProvider(config);
 }
 
 /** Development/test-only inspection for stable browser regression. */
@@ -307,6 +437,7 @@ export function clearMockEmployeeOtp(
 export class CapturingEmployeeOtpProvider implements EmployeeOtpProvider {
   readonly name = "mock" as const;
   readonly channel = "local" as const;
+  readonly verificationMode = "provider" as const;
   readonly sent: Array<StartEmployeeVerificationInput & { otp: string }> = [];
   readonly checked: CheckEmployeeVerificationInput[] = [];
   sendResult: EmployeeVerificationStartResult = {
@@ -340,6 +471,13 @@ function createMockCode() {
 }
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
+  return readProviderJson(response, "Twilio Verify");
+}
+
+async function readProviderJson(
+  response: Response,
+  providerName: string,
+): Promise<Record<string, unknown>> {
   const text = await response.text();
   if (!text) return {};
   try {
@@ -350,9 +488,42 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
   } catch {
     throw new EmployeeOtpProviderError(
       "PROVIDER_INVALID_RESPONSE",
-      "Twilio Verify returned invalid JSON.",
+      `${providerName} returned invalid JSON.`,
     );
   }
+}
+
+function normalizeSms123Recipient(phoneNumber: string) {
+  const normalized = phoneNumber.replace(/^\+/, "");
+  if (!/^60\d{8,11}$/.test(normalized)) {
+    throw new EmployeeOtpProviderError(
+      "PROVIDER_REJECTED",
+      "SMS123 recipient must be a Malaysian number with country code.",
+    );
+  }
+  return normalized;
+}
+
+function readSms123Reference(payload: Record<string, unknown>) {
+  const topLevel = payload.referenceID;
+  if (typeof topLevel === "string" && topLevel.trim()) return topLevel.trim();
+  if (Array.isArray(topLevel)) {
+    const first = topLevel.find(
+      (value): value is string => typeof value === "string" && value.trim() !== "",
+    );
+    if (first) return first.trim();
+  }
+  const data = payload.data;
+  if (Array.isArray(data)) {
+    for (const entry of data) {
+      if (!entry || typeof entry !== "object") continue;
+      const reference = (entry as Record<string, unknown>).referenceID;
+      if (typeof reference === "string" && reference.trim()) {
+        return reference.trim();
+      }
+    }
+  }
+  return "";
 }
 
 function readString(value: Record<string, unknown>, key: string) {

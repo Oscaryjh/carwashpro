@@ -24,19 +24,20 @@ All are required in Production, must be Production-specific and must follow the 
 
 ## Employee OTP
 
-- `OTP_PROVIDER`: `mock` for Local automated regression; `twilio_verify` for real Online Testing and future Production.
-- `OTP_CHANNEL`: `local` with mock, `sms` with Twilio Verify.
+- `OTP_PROVIDER`: `mock` for Local automated regression; `twilio_verify` or `sms123` for real SMS.
+- `OTP_CHANNEL`: `local` with mock; `sms` with Twilio Verify or SMS123.
 - `EMPLOYEE_OTP_SEND_MODE`: temporary compatibility alias; new configuration should use `OTP_PROVIDER`.
 - `EMPLOYEE_OTP_MOCK_CODE`: forbidden in Production.
 - `EMPLOYEE_OTP_MOCK_ACCESS_KEY`: Local/Testing only; never expose through an API response.
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_VERIFY_SERVICE_SID`
 - `TWILIO_AUTH_TOKEN`, or the preferred `TWILIO_API_KEY_SID` + `TWILIO_API_KEY_SECRET` pair
+- `SMS123_API_KEY` when `OTP_PROVIDER=sms123`
 - `STAFF_OTP_VERIFY_PHONE_HOURLY_LIMIT`
 - `STAFF_OTP_VERIFY_IP_HOURLY_LIMIT`
 - `STAFF_OTP_PROVIDER_TIMEOUT_MS`
 
-Credentials are server-only and must never use a `NEXT_PUBLIC_` prefix. Twilio Verify owns code generation and checking; Tetamu stores only request/correlation metadata. Online Testing and Production require separate Twilio credentials and Verify Services. Production configuration and smoke remain Production Owner actions.
+Credentials are server-only and must never use a `NEXT_PUBLIC_` prefix. Twilio Verify owns code generation and checking for `twilio_verify`. With `sms123`, Tetamu generates a six-digit code, sends it through SMS123, and stores only a keyed OTP hash; plaintext codes and the SMS123 key are never persisted or logged. Testing and Production credentials must remain separate. Production configuration and smoke remain Production Owner actions.
 
 ## WhatsApp
 

@@ -70,3 +70,27 @@ test("Production web contract can pass with mocks disabled and optional AI off",
   const result = validate("web", productionBase);
   assert.equal(result.status, 0, result.stderr);
 });
+
+test("Production web contract accepts SMS123 with a server-only API key", () => {
+  const result = validate("web", {
+    ...productionBase,
+    EMPLOYEE_OTP_SEND_MODE: "sms123",
+    OTP_PROVIDER: "sms123",
+    SMS123_API_KEY: "k".repeat(32),
+    TWILIO_ACCOUNT_SID: "",
+    TWILIO_VERIFY_SERVICE_SID: "",
+    TWILIO_AUTH_TOKEN: "",
+  });
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test("Production SMS123 configuration fails closed without its API key", () => {
+  const result = validate("web", {
+    ...productionBase,
+    EMPLOYEE_OTP_SEND_MODE: "sms123",
+    OTP_PROVIDER: "sms123",
+    SMS123_API_KEY: "",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /SMS123_API_KEY/i);
+});

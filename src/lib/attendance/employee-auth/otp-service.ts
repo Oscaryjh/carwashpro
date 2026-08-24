@@ -10,6 +10,8 @@ import { writeAuthSecurityEvent } from "@/lib/auth/security";
 import type { EmployeeAuthConfig } from "./config";
 import { getEmployeeAuthConfig } from "./config";
 import {
+  createEmployeeOtp,
+  hashEmployeeOtp,
   hashEmployeeIdentifier,
   safeEqual,
 } from "./crypto";
@@ -105,6 +107,7 @@ export async function requestEmployeeOtp(
 ) {
   const database = dependencies.database ?? prisma;
   const config = dependencies.config ?? getEmployeeAuthConfig();
+  const provider = dependencies.provider ?? createEmployeeOtpProvider(config);
   const now = dependencies.now ?? new Date();
   const deviceFingerprintHash = hashEmployeeIdentifier(
     "device-fingerprint",
@@ -134,6 +137,11 @@ export async function requestEmployeeOtp(
     config.authSecret,
   );
   const challengeId = randomUUID();
+  const applicationOtp =
+    provider.verificationMode === "application" ? createEmployeeOtp() : null;
+  const otpHash = applicationOtp
+    ? hashEmployeeOtp(challengeId, applicationOtp, config.authSecret)
+    : null;
   const expiresAt = new Date(
     now.getTime() + config.otp.expiresInSeconds * 1_000,
   );
@@ -233,7 +241,7 @@ export async function requestEmployeeOtp(
           : null,
         phoneNumberNormalized,
         purpose: deviceAccess.purpose,
-        otpHash: null,
+        otpHash,
         provider: config.otp.provider,
         deliveryChannel: config.otp.channel,
         expiresAt,
@@ -290,13 +298,13 @@ export async function requestEmployeeOtp(
 
   const deliveryIdentity = creation.identity;
   try {
-    const provider = dependencies.provider ?? createEmployeeOtpProvider(config);
     const accepted = await provider.sendVerification({
       challengeId,
       phoneNumber: phoneNumberNormalized,
       purpose: creation.purpose,
       expiresAt,
       locale: config.otp.locale,
+      ...(applicationOtp ? { code: applicationOtp } : {}),
     });
     const deliveryAcceptedAt = now;
     await database.employeeOtpChallenge.updateMany({
@@ -409,6 +417,7 @@ export async function verifyEmployeeOtp(
         purpose: true,
         provider: true,
         providerReference: true,
+        otpHash: true,
         deliveryAcceptedAt: true,
         expiresAt: true,
         attempts: true,
@@ -521,6 +530,7 @@ export async function verifyEmployeeOtp(
         employeeAccountId: record.employeeAccountId,
         phoneNumberNormalized: record.phoneNumberNormalized,
         providerReference: record.providerReference,
+        otpHash: record.otpHash,
         attempts: record.attempts,
         maxAttempts: record.maxAttempts,
         phoneIdentifierHash,
@@ -540,6 +550,7 @@ export async function verifyEmployeeOtp(
       phoneNumber: verification.record.phoneNumberNormalized,
       providerReference: verification.record.providerReference,
       code: input.otp,
+      otpHash: verification.record.otpHash,
     });
   } catch (error) {
     await database.employeeOtpChallenge.updateMany({
