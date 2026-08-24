@@ -291,21 +291,23 @@ export class Sms123OtpProvider implements EmployeeOtpProvider {
       1,
       Math.ceil(this.config.otp.expiresInSeconds / 60),
     );
-    const body = new URLSearchParams({
+    // SMS123's production gateway reads these credentials from the query
+    // string. This mirrors the provider's documented GET integration and the
+    // locally verified Staff App adapter.
+    const url = new URL(SMS123_SEND_URL);
+    url.search = new URLSearchParams({
       apiKey,
       recipients: normalizeSms123Recipient(input.phoneNumber),
       messageContent:
         `RM0.00 Tetamu verification code is ${input.code}. ` +
         `This code expires in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
       referenceID: input.challengeId,
-    });
+    }).toString();
 
     let response: Response;
     try {
-      response = await this.request(SMS123_SEND_URL, {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body,
+      response = await this.request(url, {
+        method: "GET",
         cache: "no-store",
         signal: AbortSignal.timeout(this.config.otp.providerTimeoutMs),
       });

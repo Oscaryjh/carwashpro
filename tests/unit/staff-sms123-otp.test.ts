@@ -12,16 +12,14 @@ import {
 const TEST_SECRET = "staff-sms123-unit-secret-that-is-at-least-thirty-two-bytes";
 const API_KEY = "testing-sms123-api-key-not-a-real-secret";
 
-test("SMS123 adapter sends the approved Tetamu SMS using a server-side POST", async () => {
+test("SMS123 adapter sends the approved Tetamu SMS using the verified GET integration", async () => {
   let capturedUrl = "";
   let capturedMethod = "";
-  let capturedBody = "";
   const provider = new Sms123OtpProvider(
     sms123Config(),
     async (url, init) => {
       capturedUrl = String(url);
       capturedMethod = init?.method ?? "";
-      capturedBody = String(init?.body);
       return Response.json({
         status: "ok",
         msgCode: "E00001",
@@ -42,14 +40,14 @@ test("SMS123 adapter sends the approved Tetamu SMS using a server-side POST", as
     code: "784571",
   });
 
-  assert.equal(capturedUrl, "https://www.sms123.net/api/send.php");
-  assert.equal(capturedMethod, "POST");
-  const body = new URLSearchParams(capturedBody);
-  assert.equal(body.get("apiKey"), API_KEY);
-  assert.equal(body.get("recipients"), "601151300932");
-  assert.equal(body.get("referenceID"), "challenge-sms123-a");
+  const requestUrl = new URL(capturedUrl);
+  assert.equal(requestUrl.origin + requestUrl.pathname, "https://www.sms123.net/api/send.php");
+  assert.equal(capturedMethod, "GET");
+  assert.equal(requestUrl.searchParams.get("apiKey"), API_KEY);
+  assert.equal(requestUrl.searchParams.get("recipients"), "601151300932");
+  assert.equal(requestUrl.searchParams.get("referenceID"), "challenge-sms123-a");
   assert.equal(
-    body.get("messageContent"),
+    requestUrl.searchParams.get("messageContent"),
     "RM0.00 Tetamu verification code is 784571. This code expires in 5 minutes.",
   );
   assert.equal(result.providerReference, "sms123:sms-reference-1");
