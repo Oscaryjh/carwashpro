@@ -289,25 +289,51 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
         </section>
       ) : null}
 
-      <section className={styles.card}>
+      <section className={`${styles.card} ${styles.historySection}`}>
         <h2>Request history</h2>
         <div className={styles.requests}>
-          {data?.requests.length ? data.requests.map((request) => (
-            <article key={request.id} className={styles.requestCard}>
-              <div className={styles.requestSummary}>
-                <strong>{request.policyNameSnapshot}</strong>
-                <span>{formatDateValue(request.startsOn)} — {formatDateValue(request.endsOn)} · {request.requestedDays} day(s) · {request.leaveUnit.replaceAll("_", " ")}</span>
-                <small>{request.cancellationReason ? `Cancellation: ${request.cancellationReason}` : request.reviewNote ? `Manager note: ${request.reviewNote}` : request.reason}</small>
-              </div>
-              <div className={styles.requestStatus}>
-                <b className={styles[request.status.toLowerCase()]}>{request.status}</b>
-                {request.status === "PENDING" ? <button type="button" onClick={() => void withdraw(request.id, request.revision)}>Withdraw</button> : null}
-              </div>
+          {data?.requests.length ? data.requests.map((request) => {
+            const note = requestNote(request);
+            const showEvidence = request.supportingEvidenceRequired
+              || request.supportingDocuments.length > 0
+              || request.status === "PENDING";
 
-              <div className={styles.requestDocuments}>
+            return (
+              <article key={request.id} className={styles.historyRequestCard}>
+                <header className={styles.requestHeader}>
+                  <div className={styles.requestTitle}>
+                    <span>Leave request</span>
+                    <strong>{request.policyNameSnapshot}</strong>
+                  </div>
+                  <div className={styles.requestStatus}>
+                    <b className={styles[request.status.toLowerCase()]}>{requestStatusLabel(request.status)}</b>
+                    {request.status === "PENDING" ? <button type="button" onClick={() => void withdraw(request.id, request.revision)}>Withdraw</button> : null}
+                  </div>
+                </header>
+
+                <div className={styles.requestFacts}>
+                  <div>
+                    <span>Dates</span>
+                    <strong>{formatDateValue(request.startsOn)} — {formatDateValue(request.endsOn)}</strong>
+                  </div>
+                  <div>
+                    <span>Duration</span>
+                    <strong>{formatRequestedDays(request.requestedDays)} · {leaveUnitLabel(request.leaveUnit)}</strong>
+                  </div>
+                </div>
+
+                {note ? (
+                  <div className={styles.requestNote}>
+                    <span>{note.label}</span>
+                    <strong>{note.value}</strong>
+                  </div>
+                ) : null}
+
+                {showEvidence ? (
+                  <div className={styles.requestDocuments}>
                 <div className={styles.requestDocumentsHeading}>
                   <strong>Supporting evidence</strong>
-                  <span>{evidenceStatusLabel(request.supportingEvidenceStatus)}</span>
+                  <span>{request.supportingDocuments.length > 0 || request.supportingEvidenceRequired ? evidenceStatusLabel(request.supportingEvidenceStatus) : "Optional"}</span>
                 </div>
                 {request.supportingEvidenceRequired && request.supportingDocuments.length === 0 ? (
                   <p className={styles.documentWarning}>A supporting document is required before this request can be approved.</p>
@@ -345,9 +371,11 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
                     <button type="submit">Add document</button>
                   </form>
                 ) : null}
-              </div>
-            </article>
-          )) : <p>No requests yet.</p>}
+                  </div>
+                ) : null}
+              </article>
+            );
+          }) : <p>No requests yet.</p>}
         </div>
       </section>
     </div>
@@ -356,6 +384,29 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
 
 function formatDays(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatRequestedDays(value: number) {
+  return `${formatDays(value)} ${value === 1 ? "day" : "days"}`;
+}
+
+function leaveUnitLabel(value: string) {
+  return ({
+    FULL_DAY: "Full day",
+    HALF_DAY_AM: "Morning half day",
+    HALF_DAY_PM: "Afternoon half day",
+  } as Record<string, string>)[value] ?? documentTypeLabel(value);
+}
+
+function requestStatusLabel(value: string) {
+  return documentTypeLabel(value);
+}
+
+function requestNote(request: Overview["requests"][number]) {
+  if (request.cancellationReason) return { label: "Cancellation", value: request.cancellationReason };
+  if (request.reviewNote) return { label: "Manager note", value: request.reviewNote };
+  if (request.reason) return { label: "Reason", value: request.reason };
+  return null;
 }
 
 function formatSignedDays(value: number) {

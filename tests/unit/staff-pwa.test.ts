@@ -604,6 +604,16 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(leaveComponentSource, /<StaffDatePicker label="To" min=\{startsOn \|\| undefined\}/);
   assert.match(leaveComponentSource, /clientRequestId:\s*createBrowserUuid\(\)/);
   assert.doesNotMatch(leaveComponentSource, /crypto\.randomUUID\(\)/);
+  assert.match(leaveComponentSource, /className=\{styles\.historyRequestCard\}/);
+  assert.match(leaveComponentSource, /requestStatusLabel\(request\.status\)/);
+  assert.match(leaveComponentSource, /formatRequestedDays\(request\.requestedDays\)/);
+  assert.match(leaveComponentSource, /request\.supportingDocuments\.length > 0[\s\S]*?request\.status === "PENDING"/);
+  assert.doesNotMatch(leaveComponentSource, /day\(s\)|request\.leaveUnit\.replaceAll/);
+  assert.match(leaveComponentSource, /className=\{`\$\{styles\.card\} \$\{styles\.historySection\}`\}/);
+  assert.match(leaveCssSource, /\.card\.historySection\s*\{[\s\S]*?background:\s*transparent;[\s\S]*?box-shadow:\s*none;[\s\S]*?padding:\s*0/);
+  assert.match(leaveCssSource, /\.requests \.historyRequestCard\s*\{[\s\S]*?border-radius:\s*18px;[\s\S]*?padding:\s*14px/);
+  assert.match(leaveCssSource, /\.requestHeader\s*\{[\s\S]*?justify-content:\s*space-between/);
+  assert.match(leaveCssSource, /@media \(max-width: 350px\)[\s\S]*?\.requestFacts\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
   assert.match(staffDatePickerSource, /createPortal\([\s\S]*?role="dialog" aria-modal="true"/);
   assert.match(staffDatePickerSource, /WEEKDAYS[\s\S]*?calendarDays\(visibleMonth\)/);
   assert.match(staffDatePickerSource, /aria-haspopup="dialog"/);
