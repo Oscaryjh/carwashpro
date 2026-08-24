@@ -369,7 +369,7 @@ export function StaffVerifyForm({
       <div className="staff-auth-heading staff-verify-heading">
         <p className="staff-kicker">SECURE SIGN IN</p>
         <h1>Check your phone</h1>
-        <p>Enter the 6-digit code sent to <strong>{flow.phoneMasked}</strong>.</p>
+        <p>Enter the 6-digit code sent to <strong>{flow.phoneNumber}</strong>.</p>
       </div>
       <form
         className="staff-form-stack staff-verify-form"

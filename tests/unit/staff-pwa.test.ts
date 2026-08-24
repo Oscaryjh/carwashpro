@@ -359,6 +359,8 @@ test("OTP UI never stores the entered OTP and supports paste plus resend timing"
   assert.match(authSource, /Resend in \$\{resendSeconds\}s/);
   assert.match(authSource, /className="staff-auth-card staff-verify-card"/);
   assert.match(authSource, /<h1>Check your phone<\/h1>/);
+  assert.match(authSource, /sent to <strong>\{flow\.phoneNumber\}<\/strong>/);
+  assert.doesNotMatch(authSource, /sent to <strong>\{flow\.phoneMasked\}<\/strong>/);
   assert.match(authSource, /onClick=\{changePhoneNumber\}/);
   assert.match(authSource, /<span>Development OTP<\/span>/);
   assert.match(authSource, /<strong>Ready now<\/strong>/);
