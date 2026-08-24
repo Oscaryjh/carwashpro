@@ -69,8 +69,10 @@ export function getEmployeeAuthConfig(
   const channel = normalizeChannel(env.OTP_CHANNEL, provider);
   const sendMode: EmployeeOtpSendMode =
     provider === "mock" ? "mock" : "provider";
-  const developmentFastPath =
+  const localDevelopmentFastPath =
     environment === "development" && sendMode === "mock";
+  const developmentFastPath =
+    localDevelopmentFastPath || (testingDeployment && sendMode === "mock");
 
   if (
     environment === "production" &&
@@ -108,9 +110,9 @@ export function getEmployeeAuthConfig(
       channel,
       expiresInSeconds: readInteger(
         env.OTP_TTL_SECONDS ?? env.EMPLOYEE_OTP_EXPIRES_SECONDS,
-        developmentFastPath ? 24 * 60 * 60 : 5 * 60,
+        localDevelopmentFastPath ? 24 * 60 * 60 : 5 * 60,
         60,
-        developmentFastPath ? 24 * 60 * 60 : 15 * 60,
+        localDevelopmentFastPath ? 24 * 60 * 60 : 15 * 60,
         "OTP_TTL_SECONDS",
       ),
       maxAttempts: readInteger(

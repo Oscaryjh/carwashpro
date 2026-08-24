@@ -91,6 +91,9 @@ test("employee auth config is centralized and production mock fails closed", () 
   });
   assert.equal(railwayTestingConfig.otp.testingDeployment, true);
   assert.equal(railwayTestingConfig.otp.mockCode, "000000");
+  assert.equal(railwayTestingConfig.otp.developmentFastPath, true);
+  assert.equal(railwayTestingConfig.otp.expiresInSeconds, 5 * 60);
+  assert.equal(railwayTestingConfig.otp.resendCooldownSeconds, 0);
   assert.equal(new MockEmployeeOtpProvider(railwayTestingConfig).name, "mock");
 
   assert.throws(
