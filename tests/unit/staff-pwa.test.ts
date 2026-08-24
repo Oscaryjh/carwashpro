@@ -34,6 +34,18 @@ const profileSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-profile.tsx", import.meta.url),
   "utf8",
 );
+const staffAvatarSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-avatar-upload.tsx", import.meta.url),
+  "utf8",
+);
+const staffAvatarRouteSource = readFileSync(
+  new URL("../../src/app/api/employee-auth/avatar/route.ts", import.meta.url),
+  "utf8",
+);
+const staffTypesSource = readFileSync(
+  new URL("../../src/lib/staff-pwa/types.ts", import.meta.url),
+  "utf8",
+);
 const chromeSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-pwa-chrome.tsx", import.meta.url),
   "utf8",
@@ -728,6 +740,26 @@ test("Staff Profile shows employee identifiers once inside the mobile details ca
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-profile-stack \.staff-device-details/);
   assert.doesNotMatch(profileSource, /WORKPLACES|staff-profile-workplaces|openWorkplaceSwitcher|employers/);
   assert.doesNotMatch(staffCssSource, /\.staff-profile-workplaces/);
+});
+
+test("Staff Profile lets an authenticated employee replace their own photo", () => {
+  assert.match(staffTypesSource, /fullName:\s*string;[\s\S]*?avatarUrl:\s*string \| null;/);
+  assert.match(profileSource, /<StaffAvatarUpload/);
+  assert.match(profileSource, /employee:\s*\{ \.\.\.current\.employee, avatarUrl \}/);
+  assert.match(staffAvatarSource, /accept="image\/\*"/);
+  assert.match(staffAvatarSource, /prepareAvatar\(source\)/);
+  assert.match(staffAvatarSource, /staffApiFetch<\{ ok: true; avatarUrl: string \}>/);
+  assert.match(staffAvatarSource, /"\/api\/employee-auth\/avatar"/);
+  assert.match(staffAvatarSource, /aria-modal="true"/);
+  assert.match(staffAvatarRouteSource, /assertEmployeeAuthSameOrigin\(request\)/);
+  assert.match(staffAvatarRouteSource, /requireEmployeeSelfServiceAuthContext\(request\)/);
+  assert.match(staffAvatarRouteSource, /employeeAccountId:\s*auth\.employeeAccountId/);
+  assert.match(staffAvatarRouteSource, /limitInputPixels:\s*40_000_000/);
+  assert.match(staffAvatarRouteSource, /EMPLOYEE_SELF_AVATAR_UPDATED/);
+  assert.match(staffAvatarRouteSource, /uploadedAvatarUrl && !avatarPersisted/);
+  assert.match(staffAvatarRouteSource, /deleteRuntimeEmployeeAvatarByUrl\(membership\.avatarUrl\)/);
+  assert.match(staffCssSource, /\.staff-profile-avatar-button\s*\{[\s\S]*?height:\s*76px;[\s\S]*?width:\s*76px/);
+  assert.match(staffCssSource, /\.staff-avatar-sheet\s*\{[\s\S]*?env\(safe-area-inset-bottom\)/);
 });
 
 test("Local mobile Staff App can hydrate from the private Wi-Fi subnet", () => {

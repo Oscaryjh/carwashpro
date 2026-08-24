@@ -9,6 +9,7 @@ import {
 } from "@/lib/staff-pwa/client";
 import type { EmployeeProfile } from "@/lib/staff-pwa/types";
 import { StaffLoading } from "./staff-auth";
+import { StaffAvatarUpload } from "./staff-avatar-upload";
 import { useStaffShell } from "./staff-pwa-chrome";
 
 export function StaffProfile({ deviceVerified = false }: { deviceVerified?: boolean }) {
@@ -59,7 +60,18 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
         </div>
       ) : null}
       <section className="staff-profile-hero">
-        <span>{initials(profile.employee.fullName)}</span>
+        <StaffAvatarUpload
+          avatarUrl={profile.employee.avatarUrl}
+          fullName={profile.employee.fullName}
+          initials={initials(profile.employee.fullName)}
+          onUpdated={(avatarUrl) => {
+            setProfile((current) => current ? {
+              ...current,
+              employee: { ...current.employee, avatarUrl },
+            } : current);
+            router.refresh();
+          }}
+        />
         <div className="staff-profile-identity">
           <p className="staff-kicker">PROFILE</p>
           <h1>{profile.employee.fullName}</h1>

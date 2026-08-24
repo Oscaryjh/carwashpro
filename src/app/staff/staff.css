@@ -2276,6 +2276,187 @@
   overflow-wrap: anywhere;
 }
 
+.staff-profile-avatar-editor {
+  flex: 0 0 76px;
+  position: relative;
+  width: 76px;
+}
+
+.staff-profile-avatar-button {
+  align-items: center;
+  background: var(--staff-brand-soft);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 4px 14px rgba(13, 78, 72, 0.14);
+  color: var(--staff-brand-dark);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 900;
+  height: 76px;
+  justify-content: center;
+  overflow: visible;
+  padding: 0;
+  position: relative;
+  width: 76px;
+}
+
+.staff-profile-avatar-button > img {
+  border-radius: 50%;
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  overflow: hidden;
+  width: 100%;
+}
+
+.staff-profile-avatar-button > i {
+  align-items: center;
+  background: #087f76;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  bottom: -2px;
+  box-shadow: 0 3px 9px rgba(7, 72, 67, 0.22);
+  color: #fff;
+  display: flex;
+  height: 27px;
+  justify-content: center;
+  position: absolute;
+  right: -2px;
+  width: 27px;
+}
+
+.staff-profile-avatar-button svg {
+  fill: none;
+  height: 14px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 14px;
+}
+
+.staff-profile-avatar-button:focus-visible {
+  outline: 3px solid rgba(8, 139, 128, 0.25);
+  outline-offset: 3px;
+}
+
+.staff-profile-avatar-input {
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
+}
+
+.staff-profile-avatar-inline-error {
+  color: #a33328;
+  font-size: 10px;
+  line-height: 1.3;
+  margin: 7px -5px 0;
+  text-align: center;
+}
+
+.staff-avatar-backdrop {
+  align-items: flex-end;
+  background: rgba(10, 26, 24, 0.42);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 16px 12px 0;
+  position: fixed;
+  z-index: 120;
+}
+
+.staff-avatar-sheet {
+  background: #fff;
+  border-radius: 28px 28px 0 0;
+  box-shadow: 0 -18px 40px rgba(12, 51, 47, 0.18);
+  display: grid;
+  gap: 15px;
+  max-width: 520px;
+  padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
+  width: 100%;
+}
+
+.staff-avatar-sheet-handle {
+  background: #bfd0cd;
+  border-radius: 999px;
+  height: 4px;
+  justify-self: center;
+  width: 48px;
+}
+
+.staff-avatar-sheet > header {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.staff-avatar-sheet h2 {
+  font-size: 22px;
+  letter-spacing: -0.03em;
+  margin: 3px 0 0;
+}
+
+.staff-avatar-sheet > header > button {
+  align-items: center;
+  background: var(--staff-brand-soft);
+  border: 0;
+  border-radius: 50%;
+  color: var(--staff-brand-dark);
+  display: flex;
+  flex: 0 0 42px;
+  font-size: 25px;
+  height: 42px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0 0 3px;
+  width: 42px;
+}
+
+.staff-avatar-preview {
+  align-items: center;
+  background: linear-gradient(145deg, #e7f3f1, #f7faf9);
+  border: 1px solid var(--staff-line);
+  border-radius: 22px;
+  display: flex;
+  justify-content: center;
+  min-height: 245px;
+  padding: 18px;
+}
+
+.staff-avatar-preview img {
+  border: 4px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 10px 28px rgba(13, 77, 71, 0.18);
+  display: block;
+  height: min(54vw, 220px);
+  object-fit: cover;
+  width: min(54vw, 220px);
+}
+
+.staff-avatar-sheet > p {
+  color: var(--staff-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: -2px 2px 0;
+  text-align: center;
+}
+
+.staff-avatar-actions {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.staff-avatar-actions > button {
+  min-height: 48px;
+}
+
 .staff-profile-hero > span {
   font-size: 20px;
 }
@@ -2499,10 +2680,20 @@
   }
 
   .staff-profile-hero {
-    align-items: flex-start;
+    align-items: center;
     border-radius: 20px;
     gap: 14px;
     padding: 18px;
+  }
+
+  .staff-profile-avatar-editor {
+    flex-basis: 68px;
+    width: 68px;
+  }
+
+  .staff-profile-avatar-button {
+    height: 68px;
+    width: 68px;
   }
 
   .staff-profile-hero > span {
@@ -2557,6 +2748,15 @@
 
   .staff-profile-stack .staff-form-hint {
     margin-bottom: 0;
+  }
+
+  .staff-avatar-backdrop {
+    padding: 0;
+  }
+
+  .staff-avatar-sheet {
+    max-height: calc(100dvh - 22px);
+    overflow-y: auto;
   }
 }
 

@@ -9,6 +9,7 @@ export type StaffApiErrorBody = {
 export type EmployeeProfile = {
   employee: {
     fullName: string;
+    avatarUrl: string | null;
     employeeCode: string;
     position: string | null;
     employmentType: string;
