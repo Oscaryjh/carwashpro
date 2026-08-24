@@ -7,8 +7,7 @@ import { getManagerLeaveDashboard } from "@/lib/leave/service";
 import { getStatutoryRuleSetOverview } from "@/lib/leave/statutory-service";
 import {
   cancelApprovedLeaveAction,
-  createLeavePolicyAction,
-  createLeavePolicyVersionAction,
+  deactivateLeavePolicyAction,
   generateLeaveEntitlementsAction,
   installSabahStatutoryRulePackDraftAction,
   installLeaveStarterAction,
@@ -19,6 +18,8 @@ import {
   submitStatutoryRuleSetAction,
   updateLeaveBalanceAction,
 } from "./actions";
+import { LeavePolicyEditor } from "./leave-policy-editor";
+import { LeaveTypeCreateForm } from "./leave-type-create-form";
 import styles from "./leave.module.css";
 
 type Props = {
@@ -29,15 +30,15 @@ type Props = {
     status?: string;
     policy?: string;
     date?: string;
+    queue?: "pending" | "approved" | "closed";
     balanceEmployee?: string;
     type?: string;
     message?: string;
     newLeaveType?: string;
-    manage?: "balances" | "types" | "entitlements" | "policy";
+    manage?: "menu" | "balances" | "types" | "policy" | "compliance" | "maintenance";
+    policyId?: string;
   }>;
 };
-
-const REQUEST_STATUSES = ["PENDING", "APPROVED", "REJECTED", "CANCELLED"] as const;
 
 export default async function LeavePage({ searchParams }: Props) {
   const { access } = await requireBusinessUser("VIEW_LEAVE");
@@ -59,19 +60,36 @@ export default async function LeavePage({ searchParams }: Props) {
     }),
     canEditPolicy ? getStatutoryRuleSetOverview(scope.businessId) : Promise.resolve(null),
   ]);
+  const requestQueue = params.queue ?? "pending";
   const employeeQuery = params.employee?.trim().toLowerCase();
   const filteredRequests = data.requests.filter((request) => (
     (!employeeQuery
       || request.employee.fullName.toLowerCase().includes(employeeQuery)
       || request.employee.employeeCode.toLowerCase().includes(employeeQuery))
     && (!params.branch || request.branch.id === params.branch)
-    && (!params.status || request.status === params.status)
     && (!params.policy || request.policyId === params.policy)
     && (!params.date || (request.startsOn <= params.date && request.endsOn >= params.date))
+    && (requestQueue === "pending"
+      ? request.status === "PENDING"
+      : requestQueue === "approved"
+        ? request.status === "APPROVED"
+        : request.status === "REJECTED" || request.status === "CANCELLED")
   ));
   const branches = [...new Map(data.requests.map((request) => [request.branch.id, request.branch])).values()];
-  const hasActiveFilters = Boolean(params.employee || params.branch || params.status || params.policy || params.date);
+  const hasActiveFilters = Boolean(params.employee || params.branch || params.policy || params.date);
+  const pendingCount = data.requests.filter((request) => request.status === "PENDING").length;
+  const approvedCount = data.requests.filter((request) => request.status === "APPROVED").length;
+  const closedCount = data.requests.filter((request) => request.status === "REJECTED" || request.status === "CANCELLED").length;
+  const today = new Date().toISOString().slice(0, 10);
+  const onLeaveToday = data.requests.filter((request) => (
+    request.status === "APPROVED" && request.startsOn <= today && request.endsOn >= today
+  ));
+  const upcomingLeave = data.requests
+    .filter((request) => request.status === "APPROVED" && request.startsOn > today)
+    .sort((left, right) => left.startsOn.localeCompare(right.startsOn));
   const trackedPolicies = data.policies.filter((policy) => policy.latestVersion?.balanceTracked);
+  const selectedPolicy = data.policies.find((policy) => policy.id === params.policyId) ?? data.policies[0] ?? null;
+  const selectedPolicyVersion = selectedPolicy?.latestVersion ?? null;
   const selectedBalanceEmployee = data.employees.find((employee) => employee.id === params.balanceEmployee)
     ?? data.employees[0]
     ?? null;
@@ -107,6 +125,9 @@ export default async function LeavePage({ searchParams }: Props) {
       })
     : [];
 
+  const earliestPolicyEffectiveDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  const noticeMessage = leaveNoticeMessage(params.message);
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -118,34 +139,34 @@ export default async function LeavePage({ searchParams }: Props) {
         <div className={styles.headerActions}>
           <Link className={styles.reportsButton} href={`/team/leave/reports?year=${year}`}>Reports & export</Link>
           {(canAdjust || canEditPolicy) ? (
-            <Link className={styles.manageButton} href={`/team/leave?year=${year}&manage=${canAdjust ? "balances" : "types"}`}>
+          <Link className={styles.manageButton} href={`/team/leave?year=${year}&manage=menu`}>
               Manage leave
             </Link>
           ) : null}
         </div>
       </header>
 
-      {params.message ? (
+      {noticeMessage ? (
         <div className={params.type === "error" ? styles.error : styles.success} role="status">
-          {params.message}
+          {noticeMessage}
         </div>
       ) : null}
 
       <section className={styles.summary} aria-label="Leave overview">
         <article className={data.summary.pending > 0 ? styles.summaryAttention : undefined}>
-          <span>Waiting for review</span>
+          <span>Needs approval</span>
           <strong>{data.summary.pending}</strong>
           <small>Requests requiring a decision</small>
         </article>
         <article>
-          <span>Approved in {year}</span>
-          <strong>{data.summary.approved}</strong>
-          <small>Approved leave applications</small>
+          <span>On leave today</span>
+          <strong>{onLeaveToday.length}</strong>
+          <small>Approved leave only</small>
         </article>
         <article>
-          <span>Employees</span>
-          <strong>{data.summary.employees}</strong>
-          <small>Active employees in scope</small>
+          <span>Upcoming leave</span>
+          <strong>{upcomingLeave.length}</strong>
+          <small>Next approved absences</small>
         </article>
         <form className={styles.yearPicker}>
           <label>
@@ -175,19 +196,36 @@ export default async function LeavePage({ searchParams }: Props) {
         <div className={styles.panelTitle}>
           <div>
             <p className={styles.eyebrow}>Approval inbox</p>
-            <h2>Leave requests</h2>
-            <p>Review the employee, dates, balance impact and supporting evidence before deciding.</p>
+            <h2>{requestQueue === "pending" ? "Pending approval" : requestQueue === "approved" ? "Approved leave" : "Rejected & cancelled"}</h2>
+            <p>{requestQueue === "pending"
+              ? "Review requests that still need a decision."
+              : requestQueue === "approved"
+                ? "View approved leave. Open a request only when details or cancellation are needed."
+                : "Review completed requests kept for reference."}</p>
           </div>
           <span>{filteredRequests.length} shown</span>
         </div>
 
+        <nav className={styles.requestQueues} aria-label="Leave request views">
+          <Link className={requestQueue === "pending" ? styles.requestQueueActive : styles.requestQueue} href={`/team/leave?year=${year}&queue=pending`}>
+            <span>Pending approval</span><b>{pendingCount}</b>
+          </Link>
+          <Link className={requestQueue === "approved" ? styles.requestQueueActive : styles.requestQueue} href={`/team/leave?year=${year}&queue=approved`}>
+            <span>Approved</span><b>{approvedCount}</b>
+          </Link>
+          <Link className={requestQueue === "closed" ? styles.requestQueueActive : styles.requestQueue} href={`/team/leave?year=${year}&queue=closed`}>
+            <span>Rejected & cancelled</span><b>{closedCount}</b>
+          </Link>
+        </nav>
+
         <details className={styles.filters} open={hasActiveFilters}>
           <summary>
             <span>{hasActiveFilters ? "Filters applied" : "Filter requests"}</span>
-            <small>{hasActiveFilters ? "Change or clear this view" : "Search by employee, status, leave type or date"}</small>
+            <small>{hasActiveFilters ? "Change or clear this view" : "Search by employee, leave type or date"}</small>
           </summary>
           <form className={styles.filterForm}>
             <input type="hidden" name="year" value={year} />
+            <input type="hidden" name="queue" value={requestQueue} />
             <label>
               Employee
               <input name="employee" defaultValue={params.employee} placeholder="Name or employee code" />
@@ -202,13 +240,6 @@ export default async function LeavePage({ searchParams }: Props) {
               </label>
             ) : null}
             <label>
-              Status
-              <select name="status" defaultValue={params.status ?? ""}>
-                <option value="">All statuses</option>
-                {REQUEST_STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
-              </select>
-            </label>
-            <label>
               Leave type
               <select name="policy" defaultValue={params.policy ?? ""}>
                 <option value="">All leave types</option>
@@ -220,7 +251,7 @@ export default async function LeavePage({ searchParams }: Props) {
               <input type="date" name="date" defaultValue={params.date} />
             </label>
             <div className={styles.filterActions}>
-              {hasActiveFilters ? <Link href={`/team/leave?year=${year}`}>Clear filters</Link> : null}
+              {hasActiveFilters ? <Link href={`/team/leave?year=${year}&queue=${requestQueue}`}>Clear filters</Link> : null}
               <button type="submit">Apply filters</button>
             </div>
           </form>
@@ -230,8 +261,16 @@ export default async function LeavePage({ searchParams }: Props) {
           {filteredRequests.length === 0 ? (
             <div className={styles.emptyState}>
               <div aria-hidden="true">✓</div>
-              <h3>{hasActiveFilters ? "No matching requests" : "No leave requests to show"}</h3>
-              <p>{hasActiveFilters ? "Try clearing one or more filters." : "New employee requests will appear here for review."}</p>
+              <h3>{hasActiveFilters
+                ? "No matching requests"
+                : requestQueue === "pending"
+                  ? "No leave requests need approval."
+                  : requestQueue === "approved"
+                    ? "No approved leave to show"
+                    : "No rejected or cancelled leave"}</h3>
+              {hasActiveFilters || requestQueue !== "pending" ? <p>{hasActiveFilters
+                ? "Try clearing one or more filters."
+                : "Approved requests will appear here automatically."}</p> : null}
             </div>
           ) : filteredRequests.map((request) => (
             <article className={styles.request} key={request.id}>
@@ -251,19 +290,28 @@ export default async function LeavePage({ searchParams }: Props) {
                     {formatDate(request.startsOn)} – {formatDate(request.endsOn)}
                     <span>{formatDays(request.requestedDays)} · {leaveUnitLabel(request.leaveUnit)}</span>
                   </p>
-                  <p className={styles.reason}>{request.reason}</p>
                   <div className={styles.requestFacts}>
                     <span>{payTreatmentLabel(request.payTreatment)}</span>
-                    <span>Balance: {formatBalance(request.currentBalance)}</span>
-                    <span>After decision: {formatBalance(request.resultingBalance)}</span>
+                    <span>Balance {formatBalance(request.currentBalance)} → {formatBalance(request.resultingBalance)}</span>
                     {request.supportingEvidenceRequired ? <span>Evidence required</span> : null}
-                    {request.supportingDocuments.length > 0 ? <span>{request.supportingDocuments.length} supporting {request.supportingDocuments.length === 1 ? "document" : "documents"}</span> : null}
+                    {request.supportingDocuments.length > 0 ? <span>{request.supportingDocuments.length} {request.supportingDocuments.length === 1 ? "document" : "documents"}</span> : null}
                   </div>
                 </div>
               </div>
               <div className={styles.requestSide}>
                 <span className={`${styles.badge} ${styles[request.status.toLowerCase()]}`}>{statusLabel(request.status)}</span>
               </div>
+
+              <details className={styles.requestDetails}>
+                <summary>
+                  <span>{requestQueue === "pending" ? "Review request" : "View details"}</span>
+                  <small>{request.supportingDocuments.length > 0 ? `${request.supportingDocuments.length} supporting ${request.supportingDocuments.length === 1 ? "document" : "documents"}` : "Employee note and balance details"}</small>
+                </summary>
+                <div className={styles.requestDetailsBody}>
+                  <div className={styles.requestReason}>
+                    <strong>Employee note</strong>
+                    <p>{request.reason || "No note provided."}</p>
+                  </div>
 
               {request.supportingDocuments.length > 0 ? (
                 <section className={styles.evidencePanel} aria-label="Private supporting documents">
@@ -326,77 +374,80 @@ export default async function LeavePage({ searchParams }: Props) {
               ) : null}
               {request.reviewNote ? <p className={styles.reviewNote}>Decision note: {request.reviewNote}</p> : null}
               {request.cancellationReason ? <p className={styles.reviewNote}>Cancellation reason: {request.cancellationReason}</p> : null}
+                </div>
+              </details>
             </article>
           ))}
         </div>
       </section>
 
-      {(canAdjust || canEditPolicy) ? (
-        <section className={styles.leaveTools} aria-label="Leave administration">
-          <div className={styles.leaveToolsIntro}>
-            <p className={styles.eyebrow}>Leave administration</p>
-            <h2>Open only what you need</h2>
-            <p>Daily approvals stay above. Balances, leave types and legal rules are kept in focused workspaces.</p>
-          </div>
-          <nav className={styles.leaveToolGrid} aria-label="Leave management tools">
-            {canAdjust ? (
-              <Link className={params.manage === "balances" ? styles.leaveToolActive : styles.leaveTool} href={`/team/leave?year=${year}&manage=balances`}>
-                <span className={styles.leaveToolIcon} aria-hidden="true">B</span>
-                <span><strong>Employee balances</strong><small>Add, deduct and review available days</small></span>
-              </Link>
-            ) : null}
+      <section className={styles.dailyOverview} aria-label="Approved leave schedule">
+        <div>
+          <p className={styles.eyebrow}>Today</p>
+          <h2>On leave today</h2>
+          {onLeaveToday.length ? (
+            <div className={styles.peopleChips}>{onLeaveToday.map((request) => (
+              <span key={request.id}>{request.employee.fullName} · {request.policyName}</span>
+            ))}</div>
+          ) : <p>No one is on approved leave today.</p>}
+        </div>
+        <div>
+          <p className={styles.eyebrow}>Coming up</p>
+          <h2>Upcoming leave</h2>
+          {upcomingLeave.length ? (
+            <div className={styles.upcomingList}>{upcomingLeave.slice(0, 6).map((request) => (
+              <span key={request.id}><b>{formatDate(request.startsOn)}</b>{request.employee.fullName} · {request.policyName}</span>
+            ))}</div>
+          ) : <p>No upcoming approved leave.</p>}
+        </div>
+      </section>
+
+      {(canAdjust || canEditPolicy) && params.manage === "menu" ? (
+        <div className={styles.modalBackdrop}>
+          <section className={`${styles.management} ${styles.managementModal}`} role="dialog" aria-modal="true" aria-labelledby="leave-management-menu-title">
+            <header className={styles.modalHeader}>
+              <div>
+                <p className={styles.eyebrow}>Leave settings</p>
+                <h2 id="leave-management-menu-title">Manage leave</h2>
+                <p>Choose one focused workspace. Daily approvals remain on the main Leave page.</p>
+              </div>
+              <Link className={styles.modalClose} href={`/team/leave?year=${year}`} aria-label="Close leave management">{"\u00d7"}</Link>
+            </header>
+            <nav className={styles.leaveToolGrid} aria-label="Leave management tools">
+              {canEditPolicy ? <Link className={styles.leaveTool} href={`/team/leave?year=${year}&manage=types`}><span className={styles.leaveToolIcon}>T</span><span><strong>Leave types</strong><small>Create and review the categories employees can request</small></span></Link> : null}
+              {canAdjust ? <Link className={styles.leaveTool} href={`/team/leave?year=${year}&manage=balances`}><span className={styles.leaveToolIcon}>B</span><span><strong>Employee balances</strong><small>Review or correct one employee&apos;s available days</small></span></Link> : null}
+              {canEditPolicy ? <Link className={styles.leaveTool} href={`/team/leave?year=${year}&manage=policy`}><span className={styles.leaveToolIcon}>P</span><span><strong>Company policies</strong><small>Change future allowance, eligibility and carry-forward rules</small></span></Link> : null}
+            </nav>
             {canEditPolicy ? (
-              <>
-                <Link className={params.manage === "types" ? styles.leaveToolActive : styles.leaveTool} href={`/team/leave?year=${year}&manage=types`}>
-                  <span className={styles.leaveToolIcon} aria-hidden="true">T</span>
-                  <span><strong>Leave types</strong><small>Manage the categories employees can request</small></span>
-                </Link>
-                <Link className={params.manage === "entitlements" ? styles.leaveToolActive : styles.leaveTool} href={`/team/leave?year=${year}&manage=entitlements`}>
-                  <span className={styles.leaveToolIcon} aria-hidden="true">E</span>
-                  <span><strong>Entitlements</strong><small>Run annual and statutory entitlement controls</small></span>
-                </Link>
-                <Link className={params.manage === "policy" ? styles.leaveToolActive : styles.leaveTool} href={`/team/leave?year=${year}&manage=policy`}>
-                  <span className={styles.leaveToolIcon} aria-hidden="true">P</span>
-                  <span><strong>Policy rules</strong><small>Create a future policy version</small></span>
-                </Link>
-              </>
+              <details className={styles.advancedTools}>
+                <summary>Advanced compliance & maintenance</summary>
+                <p>Restricted controls for statutory evidence and safe entitlement repairs.</p>
+                <div>
+                  <Link href={`/team/leave?year=${year}&manage=compliance`}>Compliance review</Link>
+                  <Link href={`/team/leave?year=${year}&manage=maintenance`}>Maintenance tools</Link>
+                </div>
+              </details>
             ) : null}
-          </nav>
-        </section>
+          </section>
+        </div>
       ) : null}
 
-      {canEditPolicy && statutoryOverview && params.manage === "entitlements" ? (
-        <section className={styles.entitlementWorkspace}>
-          <div className={styles.managementHeader}>
+      {canEditPolicy && statutoryOverview && params.manage === "compliance" ? (
+        <div className={styles.modalBackdrop}>
+        <section
+          className={`${styles.entitlementWorkspace} ${styles.managementModal}`}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="leave-entitlements-modal-title"
+        >
+          <header className={styles.modalHeader}>
             <div>
-              <p className={styles.eyebrow}>Entitlement controls</p>
-              <h2>Statutory minimums and annual entitlements</h2>
+              <p className={styles.eyebrow}>Restricted compliance</p>
+              <h2 id="leave-entitlements-modal-title">Statutory leave review</h2>
+              <p>Review sourced legal rule packs. Draft rules never affect employee balances or Payroll.</p>
             </div>
-            <p>Legal values are never guessed. A sourced rule pack must be independently reviewed before company policies can use it.</p>
-          </div>
-
-          <div className={styles.entitlementToolbar}>
-            <div>
-              <strong>{year} entitlement run</strong>
-              <span>Creates missing immutable entitlement and ledger records only. Existing records are left unchanged.</span>
-            </div>
-            <form action={generateLeaveEntitlementsAction}>
-              <input type="hidden" name="year" value={year} />
-              <button type="submit">Generate missing entitlements</button>
-            </form>
-          </div>
-
-          <div className={styles.entitlementToolbar}>
-            <div>
-              <strong>Carry-forward lifecycle</strong>
-              <span>Runs due period rollovers and expires only unused carry-forward days. Safe to run again.</span>
-            </div>
-            <form action={processLeaveLifecycleAction}>
-              <input type="hidden" name="year" value={year} />
-              <input type="hidden" name="asOf" value={new Date().toISOString().slice(0, 10)} />
-              <button type="submit">Process due leave</button>
-            </form>
-          </div>
+            <Link className={styles.modalClose} href={`/team/leave?year=${year}&manage=menu`} aria-label="Close entitlements">{"\u00d7"}</Link>
+          </header>
 
           {statutoryOverview.branches.some((branch) => !branch.countryCode || !branch.stateCode) ? (
             <div className={styles.entitlementWarning}>
@@ -476,17 +527,52 @@ export default async function LeavePage({ searchParams }: Props) {
           </div>
 
         </section>
+        </div>
+      ) : null}
+
+      {canEditPolicy && params.manage === "maintenance" ? (
+        <div className={styles.modalBackdrop}>
+          <section className={`${styles.management} ${styles.managementModal}`} role="dialog" aria-modal="true" aria-labelledby="leave-maintenance-title">
+            <header className={styles.modalHeader}>
+              <div>
+                <p className={styles.eyebrow}>Restricted maintenance</p>
+                <h2 id="leave-maintenance-title">Entitlement repair tools</h2>
+                <p>Use only to repair missing records. These actions are idempotent and never replace manual balance history.</p>
+              </div>
+              <Link className={styles.modalClose} href={`/team/leave?year=${year}&manage=menu`} aria-label="Close maintenance tools">{"\u00d7"}</Link>
+            </header>
+            <div className={styles.entitlementToolbar}>
+              <div><strong>Repair missing {year} entitlements</strong><span>Creates only missing immutable entitlement and ledger records. Existing records remain unchanged.</span></div>
+              <form action={generateLeaveEntitlementsAction}><input type="hidden" name="year" value={year} /><button type="submit">Repair missing records</button></form>
+            </div>
+            <div className={styles.entitlementToolbar}>
+              <div><strong>Run due carry-forward processing</strong><span>Creates due rollovers and expires only unused carry-forward days. Safe to run again.</span></div>
+              <form action={processLeaveLifecycleAction}>
+                <input type="hidden" name="year" value={year} />
+                <input type="hidden" name="asOf" value={new Date().toISOString().slice(0, 10)} />
+                <button type="submit">Run maintenance</button>
+              </form>
+            </div>
+          </section>
+        </div>
       ) : null}
 
       {(params.manage === "balances" || params.manage === "types" || params.manage === "policy") ? (
-      <section className={styles.management}>
-        <div className={styles.managementHeader}>
+      <div className={styles.modalBackdrop}>
+      <section
+        className={`${styles.management} ${styles.managementModal}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="leave-management-modal-title"
+      >
+        <header className={styles.modalHeader}>
           <div>
             <p className={styles.eyebrow}>Leave settings</p>
-            <h2>{params.manage === "balances" ? "Employee balances" : params.manage === "types" ? "Leave types" : "Policy rules"}</h2>
+            <h2 id="leave-management-modal-title">{params.manage === "balances" ? "Employee balances" : params.manage === "types" ? "Leave types" : "Company policies"}</h2>
+            <p>{params.manage === "balances" ? "Review and correct one employee's available leave." : params.manage === "types" ? "Manage the categories employees can request." : "Change future rules without changing past requests or balances."}</p>
           </div>
-          <Link className={styles.closeWorkspace} href={`/team/leave?year=${year}`}>Close workspace</Link>
-        </div>
+          <Link className={styles.modalClose} href={`/team/leave?year=${year}&manage=menu`} aria-label="Close leave management">{"\u00d7"}</Link>
+        </header>
 
         <div className={styles.grid}>
           {params.manage === "types" ? (
@@ -509,26 +595,41 @@ export default async function LeavePage({ searchParams }: Props) {
                   <div key={policy.id} className={styles.policyRow}>
                     <div>
                       <strong>{version?.nameSnapshot ?? policy.name}</strong>
-                      <span>Revision {version?.revision ?? "not ready"}</span>
+                      <span>{version?.balanceTracked ? `${formatDays(version.defaultEntitlementDays ?? 0)} yearly allowance` : "No balance limit"}</span>
                     </div>
                     <div>
                       <b>{payTreatmentLabel(version?.payTreatment ?? policy.payTreatment)}</b>
-                      <small>{legalStatusLabel(version?.legalStatus)}</small>
+                      <small>{version?.requiresDocument ? "Document required" : "No document required"}</small>
                     </div>
+                    {canEditPolicy ? (
+                      <details className={styles.deactivateMenu}>
+                        <summary>Deactivate</summary>
+                        <form action={deactivateLeavePolicyAction}>
+                          <input type="hidden" name="year" value={year} />
+                          <input type="hidden" name="policyId" value={policy.id} />
+                          <p>Employees will no longer be able to request this type. Historical records are retained.</p>
+                          <label>
+                            Reason
+                            <input name="reason" minLength={3} maxLength={500} required placeholder="For example, replaced by a new leave type" />
+                          </label>
+                          <button type="submit">Confirm deactivation</button>
+                        </form>
+                      </details>
+                    ) : null}
                   </div>
                 );
               })}
             </div>
-            {data.policies.length ? <p className={styles.policyNote}>Policy versions remain traceable; changing a policy does not rewrite past leave decisions.</p> : null}
+            {data.policies.length ? <p className={styles.policyNote}>These are the current settings employees see when requesting leave.</p> : null}
           </article>
           ) : null}
 
           {canAdjust && params.manage === "balances" ? (
-            <article className={styles.balanceManager}>
+            <article className={styles.balanceManager} id="employee-leave-balances">
               <div className={styles.cardHeading}>
                 <div>
                   <h3>Employee leave balances</h3>
-                  <p>Add or deduct days for one employee at a time</p>
+                  <p>Use corrections only. Regular yearly allowance comes from Company policies.</p>
                 </div>
                 <span className={styles.auditBadge}>Audited</span>
               </div>
@@ -537,6 +638,7 @@ export default async function LeavePage({ searchParams }: Props) {
                 <>
                   <form className={styles.balancePicker}>
                     <input type="hidden" name="year" value={year} />
+                    <input type="hidden" name="manage" value="balances" />
                     <label>
                       Employee
                       <select name="balanceEmployee" defaultValue={selectedBalanceEmployee.id}>
@@ -594,15 +696,15 @@ export default async function LeavePage({ searchParams }: Props) {
                       <input name="days" type="number" min="0.5" max="366" step="0.5" placeholder="For example, 1 or 0.5" required />
                     </label>
                     <label className={styles.full}>
-                      Reason
-                      <input name="reason" required minLength={3} maxLength={500} placeholder="Why is this employee's balance changing?" />
+                      Reason for correction
+                      <input name="reason" required minLength={3} maxLength={500} placeholder="For example, opening balance correction" />
                     </label>
                     <div className={`${styles.balanceActions} ${styles.full}`}>
-                      <button name="direction" value="ADD" type="submit">+ Add leave</button>
-                      <button className={styles.deductButton} name="direction" value="DEDUCT" type="submit">− Deduct leave</button>
+                      <button name="direction" value="ADD" type="submit">Add days</button>
+                      <button className={styles.deductButton} name="direction" value="DEDUCT" type="submit">Deduct days</button>
                     </div>
                   </form>
-                  <p className={styles.policyNote}>Every change creates a permanent ledger and audit record. Existing leave history is never overwritten.</p>
+                  <p className={styles.policyNote}>Every correction is recorded separately. Re-running entitlement generation will not duplicate this adjustment.</p>
                 </>
               ) : <p className={styles.empty}>Create a balance-tracked leave type before managing employee balances.</p>}
             </article>
@@ -612,126 +714,56 @@ export default async function LeavePage({ searchParams }: Props) {
         {canEditPolicy && data.policies.length && params.manage === "policy" ? (
           <details className={styles.adminCard} open>
             <summary>
-              <span>Create a new policy version</span>
-              <small>Change future leave rules without rewriting historical records</small>
+              <span>{selectedPolicyVersion?.nameSnapshot ?? selectedPolicy?.name ?? "Company policy"}</span>
+              <small>Current policy · select Save changes only when a future rule should change</small>
             </summary>
-            <form action={createLeavePolicyVersionAction} className={styles.balanceForm}>
-              <label>
-                Leave type
-                <select name="policyId" required>{data.policies.map((policy) => <option key={policy.id} value={policy.id}>{policy.name}</option>)}</select>
-              </label>
-              <label>
-                Effective from
-                <input name="effectiveFrom" type="date" required defaultValue={`${year}-01-01`} />
-              </label>
-              <label>
-                Display name
-                <input name="name" required minLength={2} maxLength={120} />
-              </label>
-              <label>
-                Pay treatment
-                <select name="payTreatment"><option value="PAID">Paid company benefit</option><option value="UNPAID">Unpaid leave</option></select>
-              </label>
-              <label>
-                Count leave using
-                <select name="countMode"><option value="WEEKDAYS">Expected workdays only</option><option value="CALENDAR_DAYS">Calendar days</option></select>
-              </label>
-              <label>
-                Default entitlement (days)
-                <input name="defaultEntitlementDays" type="number" min="0" max="366" step="0.5" />
-              </label>
-              <label>
-                Under 2 years (days)
-                <input name="underTwoYearsDays" type="number" min="0" max="366" step="0.5" />
-              </label>
-              <label>
-                2 to under 5 years (days)
-                <input name="twoToFiveYearsDays" type="number" min="0" max="366" step="0.5" />
-              </label>
-              <label>
-                5+ years (days)
-                <input name="fiveYearsPlusDays" type="number" min="0" max="366" step="0.5" />
-              </label>
-              <label>
-                Statutory minimum mapping
-                <select name="statutoryCategory" defaultValue="">
-                  <option value="">Company benefit only</option>
-                  <option value="ANNUAL_LEAVE">Annual leave</option>
-                  <option value="MEDICAL_LEAVE">Medical leave</option>
-                  <option value="HOSPITALISATION_LEAVE">Hospitalisation leave</option>
-                  <option value="MATERNITY_LEAVE">Maternity leave</option>
-                  <option value="PATERNITY_LEAVE">Paternity leave</option>
-                </select>
-              </label>
-              <label>
-                Entitlement period
-                <select name="entitlementPeriodType" defaultValue="CALENDAR_YEAR">
-                  <option value="CALENDAR_YEAR">Calendar year</option>
-                  <option value="SERVICE_ANNIVERSARY">Service anniversary</option>
-                  <option value="CUSTOM_YEAR">Custom year</option>
-                </select>
-              </label>
-              <label>
-                Join / termination proration
-                <select name="prorationMethod" defaultValue="NONE">
-                  <option value="NONE">No proration</option>
-                  <option value="CALENDAR_DAY_RATIO">Calendar-day ratio</option>
-                </select>
-              </label>
-              <label>
-                Entitlement rounding
-                <select name="entitlementRounding" defaultValue="NONE">
-                  <option value="NONE">No rounding</option>
-                  <option value="DOWN_TO_HALF_DAY">Down to half day</option>
-                  <option value="NEAREST_HALF_DAY">Nearest half day</option>
-                  <option value="UP_TO_HALF_DAY">Up to half day</option>
-                </select>
-              </label>
-              <fieldset className={styles.full}>
-                <legend>Eligible employment types</legend>
-                <label><input name="eligibleEmploymentTypes" type="checkbox" value="FULL_TIME" defaultChecked /> Full time</label>
-                <label><input name="eligibleEmploymentTypes" type="checkbox" value="PART_TIME" /> Part time</label>
-                <label><input name="eligibleEmploymentTypes" type="checkbox" value="CONTRACT" /> Contract</label>
-              </fieldset>
-              <div className={`${styles.optionGroup} ${styles.full}`}>
-                <label><input name="balanceTracked" type="checkbox" /> Track employee balance</label>
-                <label><input name="requiresDocument" type="checkbox" /> Require supporting document</label>
-                <label><input name="allowNegativeBalance" type="checkbox" /> Allow negative balance</label>
-                <label><input name="carryForwardEnabled" type="checkbox" /> Carry unused days forward</label>
-              </div>
-              <label>
-                Carry-forward limit (days)
-                <input name="carryForwardLimitUnits" type="number" min="0" max="366" step="0.5" placeholder="No limit" />
-              </label>
-              <label>
-                Carry-forward expiry
-                <select name="carryForwardExpiryRule" defaultValue="NO_EXPIRY">
-                  <option value="NO_EXPIRY">No expiry</option>
-                  <option value="DAYS_AFTER_ROLLOVER">Days after rollover</option>
-                  <option value="MONTHS_AFTER_ROLLOVER">Months after rollover</option>
-                  <option value="FIXED_DATE_IN_DESTINATION_PERIOD">Fixed date in new period</option>
-                </select>
-              </label>
-              <label>
-                Expiry value
-                <input name="carryForwardExpiryValue" placeholder="For example 90, 3, or 03-31" />
-              </label>
-              <label>
-                Days used first
-                <select name="consumptionPriority" defaultValue="EARLIEST_EXPIRY_FIRST">
-                  <option value="EARLIEST_EXPIRY_FIRST">Earliest expiry first</option>
-                  <option value="OLDEST_ENTITLEMENT_FIRST">Oldest entitlement first</option>
-                </select>
-              </label>
-              <label className={styles.full}>
-                Change reason
-                <input name="reason" required minLength={3} maxLength={500} placeholder="Why is this company policy changing?" />
-              </label>
-              <button className={styles.full} type="submit">Save new policy version</button>
-            </form>
+            <nav className={styles.policySelector} aria-label="Select company policy">
+              {data.policies.map((policy) => (
+                <Link key={policy.id} className={policy.id === selectedPolicy?.id ? styles.policySelectorActive : undefined} href={`/team/leave?year=${year}&manage=policy&policyId=${policy.id}`}>
+                  {policy.latestVersion?.nameSnapshot ?? policy.name}
+                </Link>
+              ))}
+            </nav>
+            <div className={styles.policySnapshot}>
+              <span><b>{selectedPolicyVersion?.balanceTracked ? formatDays(selectedPolicyVersion.defaultEntitlementDays ?? 0) : "No balance limit"}</b>Allowance</span>
+              <span><b>{payTreatmentLabel(selectedPolicyVersion?.payTreatment ?? selectedPolicy?.payTreatment ?? "UNPAID")}</b>Payment</span>
+              <span><b>{selectedPolicyVersion?.requiresDocument ? "Required" : "Not required"}</b>Supporting document</span>
+              <span><b>{selectedPolicyVersion?.carryForwardEnabled ? "Enabled" : "Off"}</b>Carry forward</span>
+            </div>
+            {selectedPolicy && selectedPolicyVersion ? (
+              <LeavePolicyEditor
+                earliestEffectiveDate={earliestPolicyEffectiveDate}
+                value={{
+                  id: selectedPolicy.id,
+                  name: selectedPolicyVersion.nameSnapshot,
+                  payTreatment: selectedPolicyVersion.payTreatment,
+                  countMode: selectedPolicyVersion.countMode,
+                  balanceTracked: selectedPolicyVersion.balanceTracked,
+                  defaultEntitlementDays: selectedPolicyVersion.defaultEntitlementDays,
+                  underTwoYearsDays: selectedPolicyVersion.underTwoYearsDays,
+                  twoToFiveYearsDays: selectedPolicyVersion.twoToFiveYearsDays,
+                  fiveYearsPlusDays: selectedPolicyVersion.fiveYearsPlusDays,
+                  requiresDocument: selectedPolicyVersion.requiresDocument,
+                  allowNegativeBalance: selectedPolicyVersion.allowNegativeBalance,
+                  statutoryCategory: selectedPolicyVersion.statutoryCategory,
+                  entitlementPeriodType: selectedPolicyVersion.entitlementPeriodType,
+                  customYearStartMonth: selectedPolicyVersion.customYearStartMonth,
+                  customYearStartDay: selectedPolicyVersion.customYearStartDay,
+                  prorationMethod: selectedPolicyVersion.prorationMethod,
+                  entitlementRounding: selectedPolicyVersion.entitlementRounding,
+                  eligibleEmploymentTypes: selectedPolicyVersion.eligibleEmploymentTypes,
+                  carryForwardEnabled: selectedPolicyVersion.carryForwardEnabled,
+                  carryForwardLimitUnits: selectedPolicyVersion.carryForwardLimitUnits === null ? null : Number(selectedPolicyVersion.carryForwardLimitUnits),
+                  carryForwardExpiryRule: selectedPolicyVersion.carryForwardExpiryRule,
+                  carryForwardExpiryValue: selectedPolicyVersion.carryForwardExpiryValue,
+                  consumptionPriority: selectedPolicyVersion.consumptionPriority,
+                }}
+              />
+            ) : null}
           </details>
         ) : null}
       </section>
+      </div>
       ) : null}
 
       {canEditPolicy && params.newLeaveType === "1" ? (
@@ -743,61 +775,10 @@ export default async function LeavePage({ searchParams }: Props) {
                 <h2 id="new-leave-type-title">Create leave type</h2>
                 <p>Add a company leave category, then assign its balance to employees when needed.</p>
               </div>
-              <Link className={styles.modalClose} href={`/team/leave?year=${year}`} aria-label="Close">{"\u00d7"}</Link>
+              <Link className={styles.modalClose} href={`/team/leave?year=${year}&manage=types`} aria-label="Close">{"\u00d7"}</Link>
             </header>
 
-            <form action={createLeavePolicyAction} className={styles.leaveTypeForm}>
-              <input type="hidden" name="year" value={year} />
-              <label className={styles.full}>
-                Leave type name
-                <input name="name" required minLength={2} maxLength={120} placeholder="For example, Vacation leave or Study leave" autoFocus />
-              </label>
-              <label>
-                Paid or unpaid
-                <select name="payTreatment" defaultValue="PAID">
-                  <option value="PAID">Paid leave</option>
-                  <option value="UNPAID">Unpaid leave</option>
-                </select>
-              </label>
-              <label>
-                Count leave by
-                <select name="countMode" defaultValue="WEEKDAYS">
-                  <option value="WEEKDAYS">Scheduled workdays</option>
-                  <option value="CALENDAR_DAYS">Calendar days</option>
-                </select>
-              </label>
-              <label>
-                Default days per year
-                <input name="defaultEntitlementDays" type="number" min="0" max="366" step="0.5" placeholder="For example, 8" />
-                <small>You can still add or deduct days for each employee later.</small>
-              </label>
-              <label>
-                Effective from
-                <input name="effectiveFrom" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} />
-              </label>
-              <div className={`${styles.leaveTypeOptions} ${styles.full}`}>
-                <label>
-                  <input name="balanceTracked" type="checkbox" />
-                  <span><strong>Track employee balance</strong><small>Show remaining days and allow individual adjustments.</small></span>
-                </label>
-                <label>
-                  <input name="requiresDocument" type="checkbox" />
-                  <span><strong>Require supporting document</strong><small>Use for leave such as medical or study leave.</small></span>
-                </label>
-                <label>
-                  <input name="allowNegativeBalance" type="checkbox" />
-                  <span><strong>Allow negative balance</strong><small>Employees may request more than their available days.</small></span>
-                </label>
-              </div>
-              <label className={styles.full}>
-                Setup note <small>(optional)</small>
-                <input name="reason" minLength={3} maxLength={500} placeholder="Why this leave type is being added" />
-              </label>
-              <footer className={`${styles.modalActions} ${styles.full}`}>
-                <Link href={`/team/leave?year=${year}`}>Cancel</Link>
-                <button type="submit">Create leave type</button>
-              </footer>
-            </form>
+            <LeaveTypeCreateForm year={year} existingNames={data.policies.map((policy) => policy.latestVersion?.nameSnapshot ?? policy.name)} />
           </section>
         </div>
       ) : null}
@@ -811,6 +792,14 @@ function initials(name: string) {
 
 function formatBalance(value: number | null) {
   return value === null ? "Not tracked" : formatDays(value);
+}
+
+function leaveNoticeMessage(message?: string) {
+  if (!message) return null;
+  if (message.includes("LEAVE_POLICY_NOT_READY")) {
+    return "This leave type has no active policy yet. Open Company policies and add an effective policy before changing balances.";
+  }
+  return message;
 }
 
 function formatDays(value: number) {
@@ -854,12 +843,6 @@ function payTreatmentLabel(value: string) {
 
 function leaveUnitLabel(value: string) {
   return ({ FULL_DAY: "Full day", HALF_DAY_AM: "Morning half day", HALF_DAY_PM: "Afternoon half day" } as Record<string, string>)[value] ?? value.replaceAll("_", " ").toLowerCase();
-}
-
-function legalStatusLabel(value?: string | null) {
-  if (!value) return "Policy setup incomplete";
-  if (value === "VERIFIED") return "Verified policy";
-  return value.replaceAll("_", " ").toLowerCase();
 }
 
 function ruleSetStatusLabel(value: string) {

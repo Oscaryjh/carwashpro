@@ -1,8 +1,8 @@
-import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 import {
   isProductionRuntime,
   type RuntimeEnvironmentMap,
 } from "@/lib/release/environment";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 
 const ENABLED_VALUES = new Set(["1", "true", "yes", "on"]);
 

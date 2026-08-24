@@ -41,6 +41,7 @@ type RuleCommand = {
   branchId?: string | null;
   scope: CommissionRuleScope;
   scopeId?: string | null;
+  itemId?: string | null;
   ruleType: CommissionRuleType;
   basis: CommissionBasis;
   rateBasisPoints?: unknown;
@@ -61,6 +62,7 @@ export async function createCommissionRule(
   const input = parseRuleCommand({ ...command, branchId: scopedBranch(context, command.branchId) });
   return database.$transaction(async (transaction) => {
     await validateRuleScope(transaction, context.businessId, input);
+    await validateNoParallelRuleOverlap(transaction, context.businessId, input);
     const nestedRevision = revisionValues(context, input, 1);
     const rule = await transaction.commissionRule.create({
       data: {
@@ -103,6 +105,7 @@ export async function reviseCommissionRule(
       throw new Error("A rule source type is immutable; create a new rule instead.");
     }
     await validateRuleScope(transaction, context.businessId, input);
+    await validateNoParallelRuleOverlap(transaction, context.businessId, input, rule.id);
     const revision = await transaction.commissionRuleRevision.create({
       data: {
         ...revisionValues(context, input, command.expectedRevision + 1),
@@ -149,6 +152,7 @@ export async function captureCommissionSourceEvents(
           serviceId: true,
           productId: true,
           customerPackageId: true,
+          customerPackage: { select: { packageId: true } },
           commissionMembershipId: true,
           quantity: true,
           lineTotal: true,
@@ -201,7 +205,7 @@ export async function captureCommissionSourceEvents(
             invoiceItemId: item.id,
             membershipId,
             sourceType,
-            sourceItemId: item.productId ?? item.serviceId,
+            sourceItemId: item.productId ?? item.serviceId ?? item.customerPackage?.packageId ?? null,
             sourceCategoryId: item.product?.categoryId ?? item.service?.categoryId ?? null,
             sourceRevision,
             attributionStatus,
@@ -247,6 +251,21 @@ export async function calculateCommissionPeriod(
   return database.$transaction(async (transaction) => {
     const scopeKey = branchId ? `BRANCH:${branchId}` : "BUSINESS";
     if (branchId) await requireBranch(transaction, context.businessId, branchId);
+    const overlappingPeriod = await transaction.commissionPeriod.findFirst({
+      where: {
+        businessId: context.businessId,
+        scopeKey,
+        earnedPeriodStart: { lte: earnedPeriodEnd },
+        earnedPeriodEnd: { gte: earnedPeriodStart },
+        NOT: { earnedPeriodStart, earnedPeriodEnd },
+      },
+      select: { earnedPeriodStart: true, earnedPeriodEnd: true },
+    });
+    if (overlappingPeriod) {
+      throw new Error(
+        `This period overlaps an existing commission period (${dateKey(overlappingPeriod.earnedPeriodStart)} to ${dateKey(overlappingPeriod.earnedPeriodEnd)}).`,
+      );
+    }
     let period = await transaction.commissionPeriod.findUnique({
       where: { businessId_scopeKey_earnedPeriodStart_earnedPeriodEnd: {
         businessId: context.businessId,
@@ -695,10 +714,16 @@ function parseRuleCommand(command: RuleCommand) {
   if (effectiveUntil && effectiveUntil < effectiveFrom) throw new Error("Effective until cannot be before effective from.");
   const priority = optionalInteger(command.priority, 0);
   const scopeId = command.scope === "ALL" ? null : requiredUuid(command.scopeId, "Rule scope item");
+  const itemId = command.itemId === undefined || command.itemId === null || command.itemId === ""
+    ? null
+    : requiredUuid(command.itemId, "Commission item");
   const rateBasisPoints = command.ruleType === "PERCENTAGE" ? boundedInteger(command.rateBasisPoints, "Rate basis points", 0, 10_000) : null;
   const fixedAmountCents = command.ruleType === "FIXED_AMOUNT" ? boundedInteger(command.fixedAmountCents, "Fixed amount cents", 0, 100_000_000) : null;
   const tiers = command.ruleType === "TIERED_PERCENTAGE" ? parseCommissionTiers(command.tiers) : [];
-  return { ...command, name, reason, effectiveFrom, effectiveUntil, priority, scopeId, rateBasisPoints, fixedAmountCents, tiers };
+  if (itemId && command.scope !== "MEMBER") {
+    throw new Error("An employee-specific item can only be used with an employee rule.");
+  }
+  return { ...command, name, reason, effectiveFrom, effectiveUntil, priority, scopeId, itemId, rateBasisPoints, fixedAmountCents, tiers };
 }
 
 function scopedBranch(context: CommissionWriteContext, requested: string | null | undefined) {
@@ -715,6 +740,7 @@ function revisionValues(context: CommissionWriteContext, input: ReturnType<typeo
     branchId: input.branchId ?? null,
     scope: input.scope,
     scopeId: input.scopeId,
+    itemId: input.itemId,
     ruleType: input.ruleType,
     basis: input.basis,
     rateBasisPoints: input.rateBasisPoints,
@@ -732,9 +758,7 @@ function revisionValues(context: CommissionWriteContext, input: ReturnType<typeo
 async function validateRuleScope(transaction: Prisma.TransactionClient, businessId: string, input: ReturnType<typeof parseRuleCommand>) {
   if (input.branchId) await requireBranch(transaction, businessId, input.branchId);
   if (input.scope === "ITEM") {
-    const count = input.sourceType === "PRODUCT"
-      ? await transaction.product.count({ where: { id: input.scopeId!, businessId } })
-      : await transaction.service.count({ where: { id: input.scopeId!, businessId } });
+    const count = await countSourceItem(transaction, businessId, input.sourceType, input.scopeId!);
     if (count !== 1) throw new Error("The scoped item was not found in this business.");
   }
   if (input.scope === "CATEGORY") {
@@ -743,6 +767,62 @@ async function validateRuleScope(transaction: Prisma.TransactionClient, business
       : await transaction.serviceCategory.count({ where: { id: input.scopeId!, businessId } });
     if (count !== 1) throw new Error("The scoped category was not found in this business.");
   }
+  if (input.scope === "MEMBER") {
+    const count = await transaction.employeeBusinessMembership.count({
+      where: { id: input.scopeId!, businessId },
+    });
+    if (count !== 1) throw new Error("The employee was not found in this business.");
+    if (input.itemId) {
+      const itemCount = await countSourceItem(transaction, businessId, input.sourceType, input.itemId);
+      if (itemCount !== 1) throw new Error("The employee commission item was not found in this business.");
+    }
+  }
+}
+
+async function validateNoParallelRuleOverlap(
+  transaction: Prisma.TransactionClient,
+  businessId: string,
+  input: ReturnType<typeof parseRuleCommand>,
+  currentRuleId?: string,
+) {
+  const overlapping = await transaction.commissionRuleRevision.findFirst({
+    where: {
+      businessId,
+      branchId: input.branchId ?? null,
+      scope: input.scope,
+      scopeId: input.scopeId,
+      itemId: input.itemId,
+      effectiveFrom: input.effectiveUntil ? { lte: input.effectiveUntil } : undefined,
+      OR: [{ effectiveUntil: null }, { effectiveUntil: { gte: input.effectiveFrom } }],
+      rule: {
+        status: "ACTIVE",
+        sourceType: input.sourceType,
+        ...(currentRuleId ? { id: { not: currentRuleId } } : {}),
+      },
+    },
+    select: { effectiveFrom: true, effectiveUntil: true },
+  });
+  if (overlapping) {
+    const through = overlapping.effectiveUntil ? dateKey(overlapping.effectiveUntil) : "ongoing";
+    throw new Error(
+      `A commission rate already covers this same employee or item from ${dateKey(overlapping.effectiveFrom)} to ${through}. Change the existing rate instead.`,
+    );
+  }
+}
+
+function countSourceItem(
+  transaction: Prisma.TransactionClient,
+  businessId: string,
+  sourceType: CommissionSourceType,
+  itemId: string,
+) {
+  if (sourceType === "PRODUCT") {
+    return transaction.product.count({ where: { id: itemId, businessId } });
+  }
+  if (sourceType === "PACKAGE_PURCHASE") {
+    return transaction.package.count({ where: { id: itemId, businessId } });
+  }
+  return transaction.service.count({ where: { id: itemId, businessId } });
 }
 
 function classifySource(invoiceCustomerPackageId: string | null, item: { serviceId: string | null; productId: string | null; customerPackageId: string | null }): CommissionSourceType {
@@ -752,7 +832,7 @@ function classifySource(invoiceCustomerPackageId: string | null, item: { service
   return "SERVICE";
 }
 
-function sourceShape(row: { id: string; sourceType: CommissionSourceType; branchId: string | null; sourceItemId: string | null; sourceCategoryId: string | null; eventAt: Date; quantity: number; grossAmountCents: number; discountAmountCents: number; netAmountCents: number; grossBasisOverride: boolean }): CommissionSource {
+function sourceShape(row: { id: string; membershipId: string | null; sourceType: CommissionSourceType; branchId: string | null; sourceItemId: string | null; sourceCategoryId: string | null; eventAt: Date; quantity: number; grossAmountCents: number; discountAmountCents: number; netAmountCents: number; grossBasisOverride: boolean }): CommissionSource {
   return { ...row };
 }
 
@@ -765,6 +845,7 @@ function ruleSnapshot(rule: CommissionRuleCandidate) {
     branchId: rule.branchId,
     scope: rule.scope,
     scopeId: rule.scopeId,
+    itemId: rule.itemId,
     ruleType: rule.ruleType,
     basis: rule.basis,
     rateBasisPoints: rule.rateBasisPoints,

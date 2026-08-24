@@ -69,7 +69,7 @@ test("Attendance loader returns formal status summaries without inferred labels"
   assert.equal(data.pendingApprovalCount, 2);
   assert.equal(data.pendingExceptionCount, 3);
   assert.equal(data.normalWorkMinutesPerDay, 480);
-  assert.equal(data.normalWorkPolicySource, "Primary branch attendance setting");
+  assert.equal(data.normalWorkPolicySource, "Primary branch default");
   assert.equal(data.targetBreakMinutes, 60);
   assert.equal(data.clockInBranches.length, 1);
   assert.equal(data.recentAttendance.length, 1);
@@ -85,10 +85,12 @@ test("Attendance UI remains read-only after Leave is added", async () => {
     path.join(root, "src/components/employee-profile-attendance.tsx"),
     "utf8",
   );
-  assert.match(route, /activeSection === "attendance"/);
-  assert.match(route, /activeSection === "leave"/);
-  assert.match(component, /Open Attendance Management/);
-  assert.match(component, /Up to 10 records/);
+  assert.match(route, /activeSection === "time"/);
+  assert.match(route, /activeView === "attendance"/);
+  assert.match(route, /activeView === "leave"/);
+  assert.match(component, /View attendance history/);
+  assert.match(component, /Recent attendance/);
+  assert.doesNotMatch(component, /Open Attendance Management|Up to 10 records/);
   assert.doesNotMatch(component, /<form|<input|<button|action=/);
 
   for (const forbiddenLabel of [

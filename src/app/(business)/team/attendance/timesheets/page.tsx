@@ -260,37 +260,37 @@ export default async function AttendanceTimesheetsPage({ searchParams }: Props) 
       {approved ? (
         <section className={styles.approval}>
           <div>
-            <span>Immutable snapshot boundary</span>
-            <h2>Lock approved Timesheet</h2>
-            <p>The approval digest must still match current Attendance evidence. Locking creates a new immutable revision and does not generate Payroll.</p>
+            <span>Ready for payroll</span>
+            <h2>Finalize {monthLabel} timesheet</h2>
+            <p>All branches are confirmed. Finalizing locks the current attendance records for payroll. You can reopen the month later if corrections are needed.</p>
           </div>
           {canModify && wholeBusinessScope ? (
             <div>
               <form action={lockTimesheetAction} className={styles.reasonForm}>
                 <input name="month" type="hidden" value={month} />
                 <input name="expectedUpdatedAt" type="hidden" value={data.timesheet?.updatedAt.toISOString()} />
-                <label><span>Lock reason</span><textarea minLength={3} maxLength={500} name="reason" required rows={2} /></label>
-                <button type="submit">Lock approved Timesheet</button>
+                <label><span>Finalization note</span><textarea minLength={3} maxLength={500} name="reason" placeholder="For example, all stores confirmed" required rows={2} /></label>
+                <button type="submit">Finalize timesheet</button>
               </form>
               <form action={beginTimesheetRevisionAction} className={styles.reasonForm}>
                 <input name="month" type="hidden" value={month} />
                 <input name="expectedUpdatedAt" type="hidden" value={data.timesheet?.updatedAt.toISOString()} />
-                <label><span>Reopen reason</span><textarea minLength={3} maxLength={500} name="reason" required rows={2} /></label>
-                <button type="submit">Reopen approval</button>
+                <label><span>Reason for reopening</span><textarea minLength={3} maxLength={500} name="reason" placeholder="What needs to be corrected?" required rows={2} /></label>
+                <button type="submit">Make changes</button>
               </form>
             </div>
-          ) : <div className={styles.scopeNotice}>Whole-business modify permission is required to lock.</div>}
+          ) : <div className={styles.scopeNotice}>Whole-business access is required to finalize this timesheet.</div>}
         </section>
       ) : null}
 
       {data.timesheet?.revisions.length ? (
         <section className={styles.history}>
-          <div className={styles.sectionHeading}><div><span>Audit trail</span><h2>Locked revisions</h2></div></div>
+          <div className={styles.sectionHeading}><div><span>Audit trail</span><h2>Finalized versions</h2></div></div>
           <div className={styles.historyList}>
             {data.timesheet.revisions.map((revision) => (
               <article key={revision.id}>
-                <strong>Revision {revision.revision}</strong>
-                <span>{revision._count.entries} immutable attendance results</span>
+                <strong>Version {revision.revision}</strong>
+                <span>{revision._count.entries} attendance records</span>
                 <span>{revision.lockedAt.toLocaleString("en-MY", { timeZone: "Asia/Kuala_Lumpur", dateStyle: "medium", timeStyle: "short" })}</span>
                 <small>{revision.lockedBy.name} · {revision.reason}</small>
               </article>

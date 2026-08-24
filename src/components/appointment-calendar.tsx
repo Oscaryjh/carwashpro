@@ -278,6 +278,9 @@ export function AppointmentCalendar({
   const [selectedAppointment, setSelectedAppointment] =
     useState<AppointmentCalendarItem | null>(null);
   const [isAppointmentMenuOpen, setIsAppointmentMenuOpen] = useState(false);
+  const [pendingAppointmentStatus, setPendingAppointmentStatus] = useState<
+    "CANCELLED" | "NO_SHOW" | null
+  >(null);
   const [appointmentEditor, setAppointmentEditor] = useState<
     "time" | "service" | "staff" | "notes" | null
   >(
@@ -425,6 +428,8 @@ export function AppointmentCalendar({
 
     if (initialAppointment) {
       handledInitialAppointmentRef.current = initialAppointmentId;
+      setAppointmentUpdateError(null);
+      setPendingAppointmentStatus(null);
       setSelectedAppointment(normalizeCalendarAppointment(initialAppointment));
       clearAppointmentQueryFromAddress();
     }
@@ -699,9 +704,28 @@ export function AppointmentCalendar({
     selectedAppointment.packageIds.forEach((packageId) => formData.append("packageIds", packageId));
 
     startTransition(async () => {
-      await updateAppointmentAction(formData);
+      setAppointmentUpdateError(null);
+      let result: unknown;
+
+      try {
+        result = await updateAppointmentAction(formData);
+      } catch {
+        setAppointmentUpdateError(
+          "Unable to delay this appointment. Please try again.",
+        );
+        setIsAppointmentMenuOpen(false);
+        return;
+      }
+
+      if (isFailedAppointmentMutation(result)) {
+        setAppointmentUpdateError(result.error);
+        setIsAppointmentMenuOpen(false);
+        return;
+      }
+
       setAppointmentEditor(null);
       setIsAppointmentMenuOpen(false);
+      setPendingAppointmentStatus(null);
       setSelectedAppointment(null);
       router.refresh();
     });
@@ -711,13 +735,6 @@ export function AppointmentCalendar({
     status: "COMPLETED" | "CANCELLED" | "NO_SHOW",
   ) {
     if (!selectedAppointment) {
-      return;
-    }
-
-    if (
-      status === "CANCELLED" &&
-      !window.confirm("Cancel this appointment? This action will remove it from the active calendar.")
-    ) {
       return;
     }
 
@@ -748,6 +765,7 @@ export function AppointmentCalendar({
 
     startTransition(async () => {
       try {
+        setAppointmentUpdateError(null);
         await updateAppointmentStatusAction(formData);
       } catch {
         if (status === "COMPLETED") {
@@ -758,7 +776,13 @@ export function AppointmentCalendar({
           return;
         }
 
-        throw new Error("Unable to update this appointment. Please try again.");
+        setPendingAppointmentStatus(null);
+        setAppointmentUpdateError(
+          status === "NO_SHOW"
+            ? "Unable to mark this appointment as a no show. Please try again."
+            : "Unable to cancel this appointment. Please try again.",
+        );
+        return;
       }
 
       if (status === "COMPLETED") {
@@ -768,6 +792,7 @@ export function AppointmentCalendar({
 
       setAppointmentEditor(null);
       setIsAppointmentMenuOpen(false);
+      setPendingAppointmentStatus(null);
       setSelectedAppointment(null);
       router.refresh();
     });
@@ -964,6 +989,8 @@ export function AppointmentCalendar({
             onOpen={(appointment) => {
               setIsAppointmentMenuOpen(false);
               setAppointmentEditor(null);
+              setAppointmentUpdateError(null);
+              setPendingAppointmentStatus(null);
               setSelectedAppointment(normalizeCalendarAppointment(appointment));
             }}
             selectedDate={selectedDateValue}
@@ -1760,6 +1787,8 @@ export function AppointmentCalendar({
                     className="appointment-detail-close"
                     onClick={() => {
                       setAppointmentEditor(null);
+                      setAppointmentUpdateError(null);
+                      setPendingAppointmentStatus(null);
                       setSelectedAppointment(null);
                       clearAppointmentQueryFromAddress();
                     }}
@@ -1777,7 +1806,11 @@ export function AppointmentCalendar({
                     aria-expanded={isAppointmentMenuOpen}
                     aria-label="Appointment quick actions"
                     className="appointment-detail-more"
-                    onClick={() => setIsAppointmentMenuOpen((current) => !current)}
+                    onClick={() => {
+                      setAppointmentUpdateError(null);
+                      setPendingAppointmentStatus(null);
+                      setIsAppointmentMenuOpen((current) => !current);
+                    }}
                     type="button"
                   >
                     {"\u22ef"}
@@ -1785,21 +1818,42 @@ export function AppointmentCalendar({
                 )}
                 {!isLockedAppointment(selectedAppointment) && isAppointmentMenuOpen ? (
                   <div className="appointment-detail-menu">
-                    <button onClick={() => delayAppointment(30)} type="button">
+                    <button
+                      disabled={isPending}
+                      onClick={() => delayAppointment(30)}
+                      type="button"
+                    >
                       <span aria-hidden="true">30</span>
                       Delay by 30 min
                     </button>
-                    <button onClick={() => delayAppointment(60)} type="button">
+                    <button
+                      disabled={isPending}
+                      onClick={() => delayAppointment(60)}
+                      type="button"
+                    >
                       <span aria-hidden="true">60</span>
                       Delay by 60 min
                     </button>
-                    <button onClick={() => updateAppointmentStatus("NO_SHOW")} type="button">
+                    <button
+                      disabled={isPending}
+                      onClick={() => {
+                        setAppointmentUpdateError(null);
+                        setIsAppointmentMenuOpen(false);
+                        setPendingAppointmentStatus("NO_SHOW");
+                      }}
+                      type="button"
+                    >
                       <span aria-hidden="true">!</span>
                       No Show
                     </button>
                     <button
                       className="danger"
-                      onClick={() => updateAppointmentStatus("CANCELLED")}
+                      disabled={isPending}
+                      onClick={() => {
+                        setAppointmentUpdateError(null);
+                        setIsAppointmentMenuOpen(false);
+                        setPendingAppointmentStatus("CANCELLED");
+                      }}
                       type="button"
                     >
                       <span aria-hidden="true">×</span>
@@ -1808,6 +1862,60 @@ export function AppointmentCalendar({
                   </div>
                 ) : null}
               </div>
+
+              {appointmentUpdateError && !appointmentEditor ? (
+                <div className="appointment-quick-action-feedback" role="alert">
+                  <strong>Appointment not changed</strong>
+                  <span>{appointmentUpdateError}</span>
+                </div>
+              ) : null}
+
+              {pendingAppointmentStatus ? (
+                <section
+                  aria-labelledby="appointment-quick-action-title"
+                  className={`appointment-quick-action-confirmation ${
+                    pendingAppointmentStatus === "CANCELLED" ? "is-danger" : ""
+                  }`}
+                >
+                  <div className="appointment-quick-action-copy">
+                    <span aria-hidden="true" className="appointment-quick-action-icon">
+                      {pendingAppointmentStatus === "NO_SHOW" ? "!" : "×"}
+                    </span>
+                    <div>
+                      <strong id="appointment-quick-action-title">
+                        {pendingAppointmentStatus === "NO_SHOW"
+                          ? "Mark as no show?"
+                          : "Cancel this appointment?"}
+                      </strong>
+                      <p>
+                        It will leave the active calendar and scheduled reminders will be
+                        cancelled.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="appointment-quick-action-buttons">
+                    <button
+                      disabled={isPending}
+                      onClick={() => setPendingAppointmentStatus(null)}
+                      type="button"
+                    >
+                      Keep appointment
+                    </button>
+                    <button
+                      className="confirm"
+                      disabled={isPending}
+                      onClick={() => updateAppointmentStatus(pendingAppointmentStatus)}
+                      type="button"
+                    >
+                      {isPending
+                        ? "Updating..."
+                        : pendingAppointmentStatus === "NO_SHOW"
+                          ? "Mark no show"
+                          : "Cancel appointment"}
+                    </button>
+                  </div>
+                </section>
+              ) : null}
 
               <div className="appointment-detail-body">
                 <button

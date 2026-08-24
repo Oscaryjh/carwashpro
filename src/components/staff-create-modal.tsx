@@ -74,6 +74,7 @@ type StaffEditModalProps = StaffCreateModalProps & {
     id: string;
     attendanceEnabled: boolean;
     canClockInBranchIds: string[];
+    dateOfBirth: string;
     employeeCode: string;
     employmentType: string;
     joinedAt: string;
@@ -82,6 +83,8 @@ type StaffEditModalProps = StaffCreateModalProps & {
   } | null;
   selectedServiceIds?: string[];
   staff: StaffFormStaff;
+  closePath?: string;
+  returnTo?: string;
 };
 
 export function StaffEditModal({
@@ -99,11 +102,13 @@ export function StaffEditModal({
   services,
   staff,
   staffLevels,
+  closePath = "/team?section=people",
+  returnTo,
 }: StaffEditModalProps) {
   return (
     <CatalogFormModal
       ariaLabel={`Edit ${staff.name}`}
-      closePath="/team?section=people"
+      closePath={closePath}
       eyebrow="PEOPLE"
       modalClassName="staff-edit-modal"
       title="Edit team member"
@@ -158,6 +163,7 @@ export function StaffEditModal({
           staff={staff}
           staffLevels={staffLevels}
           submitLabel="Save changes"
+          returnTo={returnTo}
         />
       </div>
     </CatalogFormModal>

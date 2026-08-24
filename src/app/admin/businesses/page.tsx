@@ -8,6 +8,7 @@ import {
   BUSINESS_INDUSTRY_OPTIONS,
   getBusinessIndustryLabel,
 } from "@/lib/business-industry";
+import styles from "../admin-directory.module.css";
 
 type BusinessesPageProps = {
   searchParams: Promise<{
@@ -20,7 +21,9 @@ type BusinessesPageProps = {
 
 const PAGE_SIZE = 10;
 
-export default async function BusinessesPage({ searchParams }: BusinessesPageProps) {
+export default async function BusinessesPage({
+  searchParams,
+}: BusinessesPageProps) {
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
   const params = await searchParams;
@@ -51,8 +54,13 @@ export default async function BusinessesPage({ searchParams }: BusinessesPagePro
     filters.push({ status });
   }
 
-  const where: Prisma.BusinessWhereInput = filters.length ? { AND: filters } : {};
-  const totalCount = await prisma.business.count({ where });
+  const where: Prisma.BusinessWhereInput = filters.length
+    ? { AND: filters }
+    : {};
+  const [totalCount, statusCounts] = await Promise.all([
+    prisma.business.count({ where }),
+    prisma.business.groupBy({ by: ["status"], _count: { _all: true } }),
+  ]);
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const currentPage = Math.min(requestedPage, totalPages);
 
@@ -71,102 +79,173 @@ export default async function BusinessesPage({ searchParams }: BusinessesPagePro
   const rangeStart = totalCount ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
   const rangeEnd = Math.min(currentPage * PAGE_SIZE, totalCount);
   const hasFilters = Boolean(query || industry || status);
+  const totalBusinesses = statusCounts.reduce(
+    (sum, item) => sum + item._count._all,
+    0,
+  );
+  const activeBusinesses =
+    statusCounts.find((item) => item.status === "active")?._count._all ?? 0;
+  const inactiveBusinesses = totalBusinesses - activeBusinesses;
 
   return (
     <AppShell user={user}>
-      <section className="content">
-        <div className="page-header">
-          <div>
+      <section className={styles.page}>
+        <header className={styles.hero}>
+          <div className={styles.heroCopy}>
+            <p className={styles.eyebrow}>Platform administration</p>
             <h1>Businesses</h1>
-            <p>Create and manage companies across supported industries.</p>
+            <p className={styles.heroDescription}>
+              Create companies, review their access status and open the correct
+              workspace from one directory.
+            </p>
           </div>
-          <Link className="button-link" href="/admin/businesses/new">
-            Create Company
+          <Link className={styles.primaryAction} href="/admin/businesses/new">
+            + New business
           </Link>
-        </div>
+        </header>
 
-        <div className="panel">
-          <div className="list-toolbar">
+        <section className={styles.metrics} aria-label="Business summary">
+          <article className={styles.metric}>
+            <span>All businesses</span>
+            <strong>{totalBusinesses}</strong>
+            <small>Across every industry</small>
+          </article>
+          <article className={styles.metric}>
+            <span>Active</span>
+            <strong>{activeBusinesses}</strong>
+            <small>Available to operate</small>
+          </article>
+          <article className={styles.metric}>
+            <span>Inactive</span>
+            <strong>{inactiveBusinesses}</strong>
+            <small>Access is paused</small>
+          </article>
+          <article className={styles.metric}>
+            <span>Matching results</span>
+            <strong>{totalCount}</strong>
+            <small>
+              {hasFilters ? "Using current filters" : "No filters applied"}
+            </small>
+          </article>
+        </section>
+
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
             <div>
-              <h2>All companies</h2>
-              <span className="muted">
-                Showing {rangeStart}-{rangeEnd} of {totalCount}
-              </span>
+              <h2>Business directory</h2>
+              <p>
+                Showing {rangeStart}-{rangeEnd} of {totalCount} matching
+                businesses.
+              </p>
             </div>
-            {hasFilters ? <Link href="/admin/businesses">Clear filters</Link> : null}
+            <span className={styles.countBadge}>
+              {totalCount} result{totalCount === 1 ? "" : "s"}
+            </span>
           </div>
-          <form className="search-form" action="/admin/businesses">
-            <input
-              name="q"
-              defaultValue={query}
-              placeholder="Search company, slug, no., phone, or email"
-            />
-            <select name="industry" defaultValue={industry} aria-label="Industry">
-              <option value="">All industries</option>
-              {BUSINESS_INDUSTRY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <select name="status" defaultValue={status} aria-label="Status">
-              <option value="">All status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-            <button type="submit">Filter</button>
-          </form>
-          {businesses.length ? (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Company</th>
-                  <th>Company No.</th>
-                  <th>Industry</th>
-                  <th>Contact</th>
-                  <th>Status</th>
-                  <th>Users</th>
-                  <th>Created</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {businesses.map((business) => (
-                  <tr key={business.id}>
-                    <td>
-                      <strong>{business.name}</strong>
-                      <div className="muted">{business.slug}</div>
-                    </td>
-                    <td>{business.companyNo || "No company no."}</td>
-                    <td>{getBusinessIndustryLabel(business.industryType)}</td>
-                    <td>
-                      <div>{business.phone || "No phone"}</div>
-                      <div className="muted">{business.email || "No email"}</div>
-                    </td>
-                    <td>
-                      <span className={`status ${business.status}`}>
-                        {business.status}
-                      </span>
-                    </td>
-                    <td>{business._count.users}</td>
-                    <td>{business.createdAt.toLocaleDateString("en-MY")}</td>
-                    <td>
-                      <Link href={`/admin/businesses/${business.id}`}>View</Link>
-                    </td>
-                  </tr>
+          <form className={styles.toolbar} action="/admin/businesses">
+            <label className={styles.field}>
+              <span>Search</span>
+              <input
+                name="q"
+                defaultValue={query}
+                placeholder="Name, company no., phone or email"
+              />
+            </label>
+            <label className={styles.field}>
+              <span>Industry</span>
+              <select name="industry" defaultValue={industry}>
+                <option value="">All industries</option>
+                {BUSINESS_INDUSTRY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
                 ))}
-              </tbody>
-            </table>
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span>Status</span>
+              <select name="status" defaultValue={status}>
+                <option value="">All statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </label>
+            <button type="submit">Apply filters</button>
+          </form>
+          {hasFilters ? (
+            <div className={styles.panelBody}>
+              <Link className={styles.clearLink} href="/admin/businesses">
+                Clear all filters
+              </Link>
+            </div>
+          ) : null}
+          {businesses.length ? (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Company No.</th>
+                    <th>Industry</th>
+                    <th>Contact</th>
+                    <th>Status</th>
+                    <th>Users</th>
+                    <th>Created</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {businesses.map((business) => (
+                    <tr key={business.id}>
+                      <td>
+                        <strong>{business.name}</strong>
+                        <div className={styles.subtext}>{business.slug}</div>
+                      </td>
+                      <td>{business.companyNo || "No company no."}</td>
+                      <td>{getBusinessIndustryLabel(business.industryType)}</td>
+                      <td>
+                        <div>{business.phone || "No phone"}</div>
+                        <div className={styles.subtext}>
+                          {business.email || "No email"}
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`status ${business.status}`}>
+                          {business.status}
+                        </span>
+                      </td>
+                      <td>{business._count.users}</td>
+                      <td>{business.createdAt.toLocaleDateString("en-MY")}</td>
+                      <td>
+                        <Link
+                          className={styles.rowAction}
+                          href={`/admin/businesses/${business.id}`}
+                        >
+                          Manage
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
-            <p className="empty-state">
-              {hasFilters ? "No companies match these filters." : "No companies yet."}
+            <p className={styles.emptyState}>
+              {hasFilters
+                ? "No companies match these filters."
+                : "No companies yet."}
             </p>
           )}
           {totalPages > 1 ? (
-            <div className="pagination">
+            <div className={styles.pagination}>
               <Link
                 className={currentPage === 1 ? "disabled" : undefined}
-                href={buildPageHref({ query, industry, status, page: currentPage - 1 })}
+                href={buildPageHref({
+                  query,
+                  industry,
+                  status,
+                  page: currentPage - 1,
+                })}
                 aria-disabled={currentPage === 1}
               >
                 Previous
@@ -176,14 +255,19 @@ export default async function BusinessesPage({ searchParams }: BusinessesPagePro
               </span>
               <Link
                 className={currentPage === totalPages ? "disabled" : undefined}
-                href={buildPageHref({ query, industry, status, page: currentPage + 1 })}
+                href={buildPageHref({
+                  query,
+                  industry,
+                  status,
+                  page: currentPage + 1,
+                })}
                 aria-disabled={currentPage === totalPages}
               >
                 Next
               </Link>
             </div>
           ) : null}
-        </div>
+        </section>
       </section>
     </AppShell>
   );

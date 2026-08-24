@@ -593,6 +593,7 @@ enum CommissionRuleScope {
   ALL
   CATEGORY
   ITEM
+  MEMBER
 }
 
 enum CommissionBasis {
@@ -3430,12 +3431,12 @@ model EmployeeCompensationVersion {
   supersededAt        DateTime?                         @map("superseded_at")
   supersededById      String?                           @map("superseded_by_id") @db.Uuid
 
-  business           Business                      @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  membership         EmployeeBusinessMembership    @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
-  createdBy          User?                         @relation("CompensationVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  supersededBy       User?                         @relation("CompensationVersionSupersededBy", fields: [supersededById], references: [id], onDelete: SetNull)
-  supersedesVersion  EmployeeCompensationVersion?  @relation("CompensationVersionSupersession", fields: [supersedesVersionId], references: [id], onDelete: Restrict)
-  supersededVersions EmployeeCompensationVersion[] @relation("CompensationVersionSupersession")
+  business           Business                            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  membership         EmployeeBusinessMembership          @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  createdBy          User?                               @relation("CompensationVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  supersededBy       User?                               @relation("CompensationVersionSupersededBy", fields: [supersededById], references: [id], onDelete: SetNull)
+  supersedesVersion  EmployeeCompensationVersion?        @relation("CompensationVersionSupersession", fields: [supersedesVersionId], references: [id], onDelete: Restrict)
+  supersededVersions EmployeeCompensationVersion[]       @relation("CompensationVersionSupersession")
   payrollEntries     PayrollEntry[]
   workPaySnapshots   PayrollWorkPayCalculationSnapshot[]
 
@@ -4753,12 +4754,12 @@ model PayrollAttendanceInputSnapshot {
   sourceDigest               String   @map("source_digest") @db.VarChar(64)
   generatedAt                DateTime @default(now()) @map("generated_at")
 
-  business                Business                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  payrollRun              PayrollRun                  @relation(fields: [payrollRunId, businessId], references: [id, businessId], onDelete: Restrict)
-  payrollEntry            PayrollEntry                @relation(fields: [payrollEntryId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Cascade)
-  membership              EmployeeBusinessMembership  @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
-  timesheet               AttendanceMonthlyTimesheet  @relation(fields: [timesheetId, businessId], references: [id, businessId], onDelete: Restrict)
-  timesheetRevisionSource AttendanceTimesheetRevision @relation(fields: [timesheetRevisionId, businessId], references: [id, businessId], onDelete: Restrict)
+  business                Business                           @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  payrollRun              PayrollRun                         @relation(fields: [payrollRunId, businessId], references: [id, businessId], onDelete: Restrict)
+  payrollEntry            PayrollEntry                       @relation(fields: [payrollEntryId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Cascade)
+  membership              EmployeeBusinessMembership         @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  timesheet               AttendanceMonthlyTimesheet         @relation(fields: [timesheetId, businessId], references: [id, businessId], onDelete: Restrict)
+  timesheetRevisionSource AttendanceTimesheetRevision        @relation(fields: [timesheetRevisionId, businessId], references: [id, businessId], onDelete: Restrict)
   workPayCalculation      PayrollWorkPayCalculationSnapshot?
 
   @@unique([id, businessId])
@@ -4826,7 +4827,7 @@ model PayrollEntryComponent {
   membership          EmployeeBusinessMembership                   @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
   createdBy           User                                         @relation("PayrollEntryComponentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   statutoryTreatments PayrollComponentStatutoryTreatmentSnapshot[]
-  workPayLines         PayrollWorkPayCalculationLine[]
+  workPayLines        PayrollWorkPayCalculationLine[]
 
   @@unique([payrollEntryId, lineKey])
   @@index([businessId, payrollRunId, payrollEntryId])
@@ -4875,11 +4876,11 @@ model StatutoryRuleSet {
   recordedAt                DateTime                   @default(now()) @map("recorded_at")
   createdById               String?                    @map("created_by_id") @db.Uuid
 
-  snapshots       PayrollEntryStatutorySnapshot[]
-  classifications StatutoryComponentClassification[]
-  lifecycleAudits StatutoryRuleLifecycleAudit[]
-  signOffs        StatutoryRuleSetSignOff[]
-  reviewDecisions StatutoryComponentReviewDecision[]
+  snapshots        PayrollEntryStatutorySnapshot[]
+  classifications  StatutoryComponentClassification[]
+  lifecycleAudits  StatutoryRuleLifecycleAudit[]
+  signOffs         StatutoryRuleSetSignOff[]
+  reviewDecisions  StatutoryComponentReviewDecision[]
   workPaySnapshots PayrollWorkPayCalculationSnapshot[]
 
   @@unique([scheme, version])
@@ -4915,13 +4916,13 @@ model PayrollWorkPayCalculationSnapshot {
   blockerCodes              Json                         @default("[]") @map("blocker_codes")
   generatedAt               DateTime                     @default(now()) @map("generated_at") @db.Timestamptz(3)
 
-  business                Business                           @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  payrollRun              PayrollRun                         @relation(fields: [payrollRunId, businessId], references: [id, businessId], onDelete: Restrict)
-  payrollEntry            PayrollEntry                       @relation(fields: [payrollEntryId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Cascade)
-  membership              EmployeeBusinessMembership         @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
-  compensationVersion     EmployeeCompensationVersion        @relation(fields: [compensationVersionId, businessId], references: [id, businessId], onDelete: Restrict)
-  attendanceInputSnapshot PayrollAttendanceInputSnapshot     @relation(fields: [attendanceInputSnapshotId], references: [id], onDelete: Restrict)
-  ruleSet                 StatutoryRuleSet                    @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
+  business                Business                        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  payrollRun              PayrollRun                      @relation(fields: [payrollRunId, businessId], references: [id, businessId], onDelete: Restrict)
+  payrollEntry            PayrollEntry                    @relation(fields: [payrollEntryId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Cascade)
+  membership              EmployeeBusinessMembership      @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  compensationVersion     EmployeeCompensationVersion     @relation(fields: [compensationVersionId, businessId], references: [id, businessId], onDelete: Restrict)
+  attendanceInputSnapshot PayrollAttendanceInputSnapshot  @relation(fields: [attendanceInputSnapshotId], references: [id], onDelete: Restrict)
+  ruleSet                 StatutoryRuleSet                @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
   lines                   PayrollWorkPayCalculationLine[]
 
   @@unique([id, businessId])
@@ -4957,7 +4958,7 @@ model PayrollWorkPayCalculationLine {
   payrollEntry     PayrollEntry                      @relation(fields: [payrollEntryId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Cascade)
   membership       EmployeeBusinessMembership        @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
   snapshot         PayrollWorkPayCalculationSnapshot @relation(fields: [snapshotId, businessId], references: [id, businessId], onDelete: Cascade)
-  payrollComponent PayrollEntryComponent?             @relation(fields: [payrollComponentId], references: [id], onDelete: SetNull)
+  payrollComponent PayrollEntryComponent?            @relation(fields: [payrollComponentId], references: [id], onDelete: SetNull)
 
   @@unique([snapshotId, localDate, classification])
   @@index([businessId, payrollRunId, payrollEntryId])
@@ -8588,6 +8589,7 @@ model CommissionRuleRevision {
   branchId         String?             @map("branch_id") @db.Uuid
   scope            CommissionRuleScope
   scopeId          String?             @map("scope_id") @db.Uuid
+  itemId           String?             @map("item_id") @db.Uuid
   ruleType         CommissionRuleType  @map("rule_type")
   basis            CommissionBasis
   rateBasisPoints  Int?                @map("rate_basis_points")
@@ -8610,6 +8612,7 @@ model CommissionRuleRevision {
   @@unique([ruleId, revision])
   @@unique([id, businessId])
   @@index([businessId, branchId, effectiveFrom, effectiveUntil])
+  @@index([businessId, scope, scopeId, itemId, effectiveFrom], map: "commission_rule_member_item_effective_idx")
   @@map("commission_rule_revisions")
 }
 

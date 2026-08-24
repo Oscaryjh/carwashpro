@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { getAuditRequestContext } from "@/lib/audit";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { markClaimReimbursementPaidOutsidePayroll, selectClaimReimbursementChannel } from "@/lib/claim/reimbursement";
+import { markClaimReimbursementPaidOutsidePayroll, reevaluateClaimPayrollTreatment, selectClaimReimbursementChannel } from "@/lib/claim/reimbursement";
 import { cancelApprovedEmployeeClaim, createClaimCategoryRevision, installClaimCategoryStarters, reviewEmployeeClaim } from "@/lib/claim/service";
 import { trySynchronizeClaimExpense } from "@/lib/expense/source-integration";
 
@@ -14,7 +14,7 @@ export async function installClaimStartersAction() {
   try {
     const { user, businessId } = await requireBusinessUser("MANAGE_CLAIM_SETTINGS");
     await installClaimCategoryStarters({ businessId, actor: user, request: await getAuditRequestContext() });
-    done("success", "Company Claim starters installed. Statutory treatment remains fail-closed.");
+    done("success", "Starter claim categories added. Travel, meals and mileage are ready as business reimbursements; general claims need review.");
   } catch (error) {
     if (isRedirectError(error)) throw error;
     done("error", message(error, "Unable to install Claim starters."));
@@ -30,7 +30,6 @@ export async function createClaimPolicyRevisionAction(formData: FormData) {
       request: await getAuditRequestContext(),
       rawInput: {
         categoryId: formData.get("categoryId") || null,
-        code: formData.get("code"),
         name: formData.get("name"),
         description: formData.get("description") || null,
         nature: formData.get("nature"),
@@ -39,13 +38,14 @@ export async function createClaimPolicyRevisionAction(formData: FormData) {
         descriptionRequired: formData.get("descriptionRequired") === "on",
         maxLineAmount: formData.get("maxLineAmount") || null,
         mileageRatePerKm: formData.get("mileageRatePerKm") || null,
-        reason: formData.get("reason"),
+        statutoryTreatmentStatus: formData.get("statutoryTreatmentStatus"),
+        reason: formData.get("reason") || null,
       },
     });
-    done("success", "Immutable Claim policy revision created.");
+    done("success", formData.get("categoryId") ? "Claim category policy updated." : "Claim category added.", "manage=categories");
   } catch (error) {
     if (isRedirectError(error)) throw error;
-    done("error", message(error, "Unable to create Claim policy revision."));
+    done("error", message(error, "Unable to save this claim category."), "manage=categories");
   }
 }
 
@@ -53,10 +53,11 @@ export async function reviewClaimAction(formData: FormData) {
   try {
     const { access, user, businessId } = await requireBusinessUser("REVIEW_CLAIM");
     const scope = await resolveAttendanceScope(access);
+    const rejectAll = formData.get("decisionIntent") === "REJECT";
     const lines = [...formData.entries()].flatMap(([key, value]) => {
       if (!key.startsWith("approved:")) return [];
       const lineId = key.slice("approved:".length);
-      return [{ lineId, approvedAmount: value, reason: formData.get(`reason:${lineId}`) || null }];
+      return [{ lineId, approvedAmount: rejectAll ? "0" : value, reason: formData.get(`reason:${lineId}`) || null }];
     });
     const request = await getAuditRequestContext();
     const claimId = String(formData.get("claimId") ?? "");
@@ -110,7 +111,7 @@ export async function selectClaimChannelAction(formData: FormData) {
   try {
     const capability = channel === "PAYROLL" ? "LINK_CLAIM_TO_PAYROLL" : "VERIFY_CLAIM";
     const { user, businessId } = await requireBusinessUser(capability);
-    await selectClaimReimbursementChannel({
+    const result = await selectClaimReimbursementChannel({
       businessId,
       actor: user,
       request: await getAuditRequestContext(),
@@ -123,7 +124,17 @@ export async function selectClaimChannelAction(formData: FormData) {
         note: formData.get("note") || null,
       },
     });
-    done("success", channel === "PAYROLL" ? "Payroll bridge snapshot created. Unverified statutory treatment remains blocked." : "Outside-Payroll reimbursement selected.");
+    const payrollSnapshot = "payrollSnapshots" in result && Array.isArray(result.payrollSnapshots)
+      ? result.payrollSnapshots.at(-1) as { status: string } | undefined
+      : null;
+    done(
+      "success",
+      channel === "PAYROLL"
+        ? payrollSnapshot?.status === "READY"
+          ? "Claim added to payroll as a reimbursement. It will not increase gross salary."
+          : "This reimbursement is on hold until its payroll treatment is set. The employee's salary can continue."
+        : "Separate reimbursement selected. Record the payment when it is completed.",
+    );
   } catch (error) {
     if (isRedirectError(error)) throw error;
     done("error", message(error, "Unable to select reimbursement channel."));
@@ -154,14 +165,34 @@ export async function markClaimPaidAction(formData: FormData) {
   }
 }
 
-function done(type: "success" | "error", text: string): never {
+export async function reevaluateClaimPayrollTreatmentAction(formData: FormData) {
+  try {
+    const { user, businessId } = await requireBusinessUser("LINK_CLAIM_TO_PAYROLL");
+    await reevaluateClaimPayrollTreatment({
+      businessId,
+      actor: user,
+      request: await getAuditRequestContext(),
+      rawInput: {
+        reimbursementId: formData.get("reimbursementId"),
+        snapshotId: formData.get("snapshotId"),
+        expectedSourceDigest: formData.get("expectedSourceDigest"),
+      },
+    });
+    done("success", "Reimbursement is ready for payroll. It will not increase gross salary.");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    done("error", message(error, "Unable to re-evaluate this reimbursement."));
+  }
+}
+
+function done(type: "success" | "error", text: string, extraQuery?: string): never {
   revalidatePath("/team/claims");
   revalidatePath("/team/approvals");
   revalidatePath("/staff/claims");
   revalidatePath("/team/payroll");
   revalidatePath("/expenses");
   revalidatePath("/expenses/history");
-  redirect(`/team/claims?type=${type}&message=${encodeURIComponent(text)}`);
+  redirect(`/team/claims?type=${type}&message=${encodeURIComponent(text)}${extraQuery ? `&${extraQuery}` : ""}`);
 }
 
 function message(error: unknown, fallback: string) {

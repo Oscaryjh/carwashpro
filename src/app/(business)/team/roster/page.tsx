@@ -12,6 +12,7 @@ import { listRosterShiftTemplates } from "@/lib/roster/shift-template-service";
 import {
   copyPreviousRosterWeekAction,
   bulkRosterAssignmentAction,
+  publishRosterMonthAction,
   publishRosterAction,
   saveRosterAssignmentAction,
 } from "./actions";
@@ -125,17 +126,21 @@ export default async function RosterPage({ searchParams }: Props) {
   const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
   const visibleMemberIds = new Set(members.map((member) => member.id));
   const resolvedWeek = branchId && (view !== "month" || selectedDay) ? await resolveRosterWeek({ businessId: context.businessId, branchId, weekStart, database: prisma, overrides: period?.assignments ?? [] }) : null;
-  const resolvedMonthAssignments = branchId && view === "month"
-    ? (await Promise.all(monthWeekStarts(range.from, range.to).map(async (monthWeekStart) => {
+  const monthWeekData = branchId && view === "month"
+    ? await Promise.all(monthWeekStarts(range.from, range.to).map(async (monthWeekStart) => {
         const monthPeriod = overview.find((item) => dateValue(item.weekStart) === dateValue(monthWeekStart));
-        return resolveRosterWeek({
+        const resolution = await resolveRosterWeek({
           businessId: context.businessId,
           branchId,
           weekStart: monthWeekStart,
           database: prisma,
           overrides: monthPeriod?.assignments ?? [],
         });
-      }))).flatMap((result) => result.assignments).filter((assignment) => assignment.workDate >= range.from && assignment.workDate <= range.to)
+        return { weekStart: monthWeekStart, period: monthPeriod, resolution };
+      }))
+    : [];
+  const resolvedMonthAssignments = view === "month"
+    ? monthWeekData.flatMap((item) => item.resolution.assignments).filter((assignment) => assignment.workDate >= range.from && assignment.workDate <= range.to)
     : null;
   const visibleAssignments = (resolvedWeek?.assignments ?? resolvedMonthAssignments ?? overview.flatMap((item) => item.assignments)).filter((item) => visibleMemberIds.has(item.membershipId));
   const visibleLeaves = leaveDays.filter((item) => visibleMemberIds.has(item.membershipId));
@@ -177,11 +182,29 @@ export default async function RosterPage({ searchParams }: Props) {
     return workDate < todayValue || (workDate === todayValue && (!assignment.startAt || assignment.startAt <= now));
   });
   const memberNameById = new Map(allMembers.map((member) => [member.id, member.fullName]));
-  const feedbackMessage = friendlyFeedback(params.message);
+  const feedback = rosterFeedback(params.message, params.type === "error");
+  const monthName = selectedDate.toLocaleDateString("en-MY", { month: "long", year: "numeric", timeZone: "UTC" });
+  const monthPublishedWeeks = monthWeekData.filter((item) => item.period?.publicationRevision && item.period.status === "PUBLISHED").length;
+  const monthPendingWeeks = monthWeekData.length - monthPublishedWeeks;
+  const monthPendingWeekData = monthWeekData.filter((item) => !(item.period?.publicationRevision && item.period.status === "PUBLISHED"));
+  const monthEmptyWeeks = monthPendingWeekData.filter((item) => !item.resolution.assignments.length);
+  const monthBlockedWeeks = monthPendingWeekData.filter((item) => item.resolution.attention.length || (item.period?.publicationRevision && item.period.status === "DRAFT" && !canAmend));
+  const monthRequiresRetrospectiveReason = monthPendingWeekData.some((item) => {
+    const latest = item.period?.publications[0];
+    const changed = latest
+      ? changedComparableAssignments(item.resolution.assignments, latest.assignments)
+      : item.period?.assignments ?? [];
+    return changed.some((assignment) => {
+      const workDate = dateValue(assignment.workDate);
+      return workDate < todayValue || (workDate === todayValue && (!assignment.startAt || assignment.startAt <= now));
+    });
+  });
+  const monthPublicationFrom = monthWeekData[0]?.weekStart;
+  const monthPublicationTo = monthWeekData.length ? addDays(monthWeekData.at(-1)!.weekStart, 6) : undefined;
 
   return (
     <section className={`content hr-module-page ${styles.page}`}>
-      {feedbackMessage ? <div className={`${styles.feedback} ${params.type === "error" ? styles.feedbackError : styles.feedbackSuccess}`} role="status"><span aria-hidden="true">{params.type === "error" ? "!" : "✓"}</span><div><strong>{feedbackMessage}</strong><small>{params.type === "error" ? "Check the highlighted information and try again." : unpublishedChanges ? "Review and publish when you are ready." : "Your roster is up to date."}</small></div></div> : null}
+      {feedback ? <div className={`${styles.feedback} ${params.type === "error" ? styles.feedbackError : styles.feedbackSuccess}`} role="status"><span aria-hidden="true">{params.type === "error" ? "!" : "✓"}</span><div><strong>{feedback.title}</strong><small>{feedback.detail ?? (unpublishedChanges ? "Review and publish when you are ready." : "Your roster is up to date.")}</small>{feedback.actionHref ? <Link className={styles.feedbackAction} href={feedback.actionHref}>{feedback.actionLabel}</Link> : null}</div></div> : null}
       <nav aria-label="Roster views" className={styles.viewTabs}>
         <Link aria-current={view === "month" ? "page" : undefined} className={view === "month" ? styles.activeViewTab : undefined} href={href(branchId, selectedDate, "month", query)}><span aria-hidden="true" className={styles.viewTabIcon}>▦</span><span><strong>Month</strong><small>Calendar overview</small></span></Link>
         <Link aria-current={view === "week" ? "page" : undefined} className={view === "week" ? styles.activeViewTab : undefined} href={href(branchId, weekStart, "week", query)}><span aria-hidden="true" className={styles.viewTabIcon}>☷</span><span><strong>Week</strong><small>Team by day</small></span></Link>
@@ -203,6 +226,41 @@ export default async function RosterPage({ searchParams }: Props) {
           </details> : null}
         </div>
       </div>
+
+      {view === "month" && branchId && canPublish ? <section aria-label={`${monthName} publication`} className={styles.monthPublishCard}>
+        <div className={styles.monthPublishSummary}>
+          <span aria-hidden="true" className={monthPendingWeeks ? styles.monthPublishPendingIcon : styles.monthPublishCompleteIcon}>{monthPendingWeeks ? monthPendingWeeks : "✓"}</span>
+          <div>
+            <strong>{monthPendingWeeks ? `${monthPendingWeeks} weekly version${monthPendingWeeks === 1 ? "" : "s"} remaining for ${monthName}` : `${monthName} roster is published`}</strong>
+            <span>{monthPublishedWeeks} of {monthWeekData.length} weeks published · Staff App and Attendance update together</span>
+          </div>
+        </div>
+        {monthPendingWeeks ? <details className={styles.monthPublishPanel}>
+          <summary>Publish {monthName}</summary>
+          <div>
+            <h3>Publish the full month</h3>
+            <p>One action creates {monthPendingWeeks} remaining weekly roster version{monthPendingWeeks === 1 ? "" : "s"}. Weekly versions keep later changes and Attendance evidence traceable.</p>
+            {monthPublicationFrom && monthPublicationTo && (monthPublicationFrom < range.from || monthPublicationTo > range.to) ? <p className={styles.monthBoundaryNote}><strong>Calendar edge weeks:</strong> this batch covers {formatWeekRange(monthPublicationFrom, monthPublicationTo)} so the first and last weeks stay complete.</p> : null}
+            {monthBlockedWeeks.length ? <div className={styles.monthPublishBlocker} role="status"><strong>{monthBlockedWeeks.length} week{monthBlockedWeeks.length === 1 ? "" : "s"} need attention</strong><ul>{monthBlockedWeeks.map((item) => <li key={dateValue(item.weekStart)}><span>{formatWeekRange(item.weekStart, addDays(item.weekStart, 6))}</span><small>{monthBlockerReason(item, canAmend)}</small></li>)}</ul></div> : null}
+            <form action={publishRosterMonthAction} className={styles.monthPublishForm}>
+              <input name="branchId" type="hidden" value={branchId} />
+              <input name="month" type="hidden" value={dateValue(selectedDate).slice(0, 7)} />
+              <input name="operationKey" type="hidden" value={`roster-month-${branchId}-${dateValue(selectedDate).slice(0, 7)}-${randomUUID()}`} />
+              <input name="returnTo" type="hidden" value={returnTo} />
+              {monthEmptyWeeks.length ? <fieldset className={styles.monthEmptyConfirmation}>
+                <legend>{monthEmptyWeeks.length} week{monthEmptyWeeks.length === 1 ? " has" : "s have"} no shifts</legend>
+                <p>Confirm only when nobody is scheduled to work. These weeks will be published as intentionally empty.</p>
+                {monthEmptyWeeks.map((item) => <label key={dateValue(item.weekStart)}>
+                  <input name="confirmEmptyWeek" required type="checkbox" value={dateValue(item.weekStart)} />
+                  <span><strong>{formatWeekRange(item.weekStart, addDays(item.weekStart, 6))}</strong><small>Confirm no employee shifts</small></span>
+                </label>)}
+              </fieldset> : null}
+              {monthRequiresRetrospectiveReason ? <label><span>Reason for past schedule corrections *</span><small>Only required because this month contains unpublished changes to dates that have already started.</small><input maxLength={500} minLength={3} name="reason" placeholder="e.g. Approved roster correction" required /></label> : null}
+              <button disabled={Boolean(monthBlockedWeeks.length) || !monthWeekData.length} type="submit">{monthEmptyWeeks.length ? "Confirm & publish" : "Publish"} {monthName}</button>
+            </form>
+          </div>
+        </details> : <span className={styles.monthPublishedBadge}>Published</span>}
+      </section> : null}
 
       {(view !== "month" || selectedDay) && unpublishedChanges ? <section aria-label="Draft and publishing" className={`${styles.publishBar} ${styles.publishBarDirty}`}>
         <div className={styles.publishStatus}>
@@ -288,6 +346,12 @@ function formatWeekRange(from: Date, to: Date) {
   const toLabel = to.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
   return `${fromLabel} – ${toLabel}`;
 }
+function monthBlockerReason(item: { period?: { publicationRevision: number; status: string } | null; resolution: { assignments: unknown[]; attention: { employeeName: string }[] } }, canAmend: boolean) {
+  if (!item.resolution.assignments.length) return "No employee schedules are available.";
+  if (item.resolution.attention.length) return `Rest Days incomplete for ${item.resolution.attention.map((attention) => attention.employeeName).join(", ")}.`;
+  if (item.period?.publicationRevision && item.period.status === "DRAFT" && !canAmend) return "Published week has new changes; amendment access is required.";
+  return "Review this week before publishing.";
+}
 function paidDuration(template: { startMinute: number; endMinute: number; crossMidnight: boolean; breakMinutes: number; breakPaid: boolean }) {
   const minutes = Math.max(0, template.endMinute + (template.crossMidnight ? 1440 : 0) - template.startMinute - (template.breakPaid ? 0 : template.breakMinutes));
   return `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ""}`;
@@ -328,11 +392,22 @@ function assignmentLabel(item: ComparableAssignment, timezone: string) {
   const time = item.startAt && item.endAt ? `${item.startAt.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timezone })}–${item.endAt.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timezone })}` : "";
   return `${item.shiftNameSnapshot ?? "Custom shift"}${time ? ` ${time}` : ""}`;
 }
-function friendlyFeedback(message?: string) {
-  if (!message) return "";
-  if (/assignment (saved|updated)|draft assignment saved/i.test(message)) return "Schedule change saved.";
-  if (/assignment (removed|reset)|normal schedule/i.test(message)) return "Normal schedule restored.";
-  if (/published/i.test(message)) return "Roster published to Staff App and Attendance.";
-  if (/copied/i.test(message)) return "Previous week changes copied.";
-  return message;
+function rosterFeedback(message?: string, isError = false) {
+  if (!message) return null;
+  const lockedTimesheet = message.match(/The (\d{4}-\d{2}) Timesheet is locked/i)?.[1];
+  if (lockedTimesheet) {
+    const publishedWeeks = Number(message.match(/^(\d+) weeks? published\./i)?.[1] ?? 0);
+    const timesheetMonth = new Date(`${lockedTimesheet}-01T00:00:00.000Z`).toLocaleDateString("en-MY", { month: "long", year: "numeric", timeZone: "UTC" });
+    return {
+      title: publishedWeeks ? `${publishedWeeks} weeks published; remaining weeks paused` : "Roster month could not be published",
+      detail: `${timesheetMonth} timesheet is locked. Reopen it, then publish the remaining weeks.`,
+      actionHref: `/team/attendance/timesheets?month=${lockedTimesheet}`,
+      actionLabel: "Open monthly timesheet",
+    };
+  }
+  if (/assignment (saved|updated)|draft assignment saved/i.test(message)) return { title: "Schedule change saved." };
+  if (/assignment (removed|reset)|normal schedule/i.test(message)) return { title: "Normal schedule restored." };
+  if (/published/i.test(message) && !isError) return { title: "Roster published to Staff App and Attendance." };
+  if (/copied/i.test(message)) return { title: "Previous week changes copied." };
+  return { title: message, detail: isError ? "Review the message and try again." : undefined };
 }

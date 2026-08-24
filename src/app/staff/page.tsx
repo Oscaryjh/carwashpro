@@ -5,6 +5,7 @@ import { StaffToday } from "@/components/staff-pwa/staff-today";
 import { getEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee-auth/session";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import { getStaffHomeOverview } from "@/lib/staff-pwa/home";
+import { getStaffTeamApprovalSummary } from "@/lib/staff-pwa/team-approvals";
 
 export const metadata: Metadata = { title: "Home" };
 export const dynamic = "force-dynamic";
@@ -14,11 +15,14 @@ export default async function StaffHomePage() {
   if (!auth) redirect("/staff/login");
   const context = await loadBusinessModuleContext(auth.businessId);
   const modules = [...context.enabledModules];
-  const overview = await getStaffHomeOverview(auth, modules);
+  const [overview, teamApprovals] = await Promise.all([
+    getStaffHomeOverview(auth, modules),
+    getStaffTeamApprovalSummary(auth),
+  ]);
 
   return (
     <div className="staff-home-stack">
-      <StaffHomeOverview overview={overview}>
+      <StaffHomeOverview overview={overview} teamApprovals={teamApprovals}>
         {context.enabledModules.has("HR") ? <StaffToday /> : null}
       </StaffHomeOverview>
     </div>

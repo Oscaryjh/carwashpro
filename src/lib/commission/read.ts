@@ -5,7 +5,20 @@ export async function getCommissionManagerDashboard(input: {
   branchId?: string | null;
 }) {
   const { businessId, branchId } = input;
-  const [rules, periods, sourceSummary] = await Promise.all([
+  const [
+    rules,
+    periods,
+    sourceSummary,
+    memberships,
+    branches,
+    staffLevels,
+    serviceCategories,
+    productCategories,
+    packageCategories,
+    services,
+    products,
+    packages,
+  ] = await Promise.all([
     prisma.commissionRule.findMany({
       where: {
         businessId,
@@ -15,7 +28,7 @@ export async function getCommissionManagerDashboard(input: {
         revisions: {
           ...(branchId ? { where: { OR: [{ branchId: null }, { branchId }] } } : {}),
           orderBy: { revision: "desc" },
-          take: 1,
+          include: { branch: { select: { name: true } } },
         },
       },
       orderBy: [{ status: "asc" }, { name: "asc" }],
@@ -57,8 +70,68 @@ export async function getCommissionManagerDashboard(input: {
       where: { businessId, ...(branchId ? { branchId } : {}) },
       _count: { _all: true },
     }),
+    prisma.employeeBusinessMembership.findMany({
+      where: { businessId, status: "ACTIVE" },
+      select: { id: true, fullName: true, employeeCode: true },
+      orderBy: { fullName: "asc" },
+    }),
+    prisma.branch.findMany({
+      where: { businessId, ...(branchId ? { id: branchId } : {}) },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.staffLevel.findMany({
+      where: { businessId, active: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.serviceCategory.findMany({
+      where: { businessId },
+      select: { id: true, name: true, status: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.productCategory.findMany({
+      where: { businessId },
+      select: { id: true, name: true, status: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.packageCategory.findMany({
+      where: { businessId },
+      select: { id: true, name: true, status: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.service.findMany({
+      where: { businessId },
+      select: { id: true, name: true, status: true, categoryId: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.product.findMany({
+      where: { businessId },
+      select: { id: true, name: true, status: true, categoryId: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.package.findMany({
+      where: { businessId },
+      select: { id: true, name: true, status: true, categoryId: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
-  return { rules, periods, sourceSummary };
+  return {
+    rules,
+    periods,
+    sourceSummary,
+    memberships,
+    branches,
+    staffLevels,
+    catalogs: {
+      serviceCategories,
+      productCategories,
+      packageCategories,
+      services,
+      products,
+      packages,
+    },
+  };
 }
 
 export async function getEmployeeCommissionStatements(input: {

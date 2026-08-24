@@ -374,7 +374,12 @@ export async function getManagerClaimDashboard(input: {
     database.payrollRun.findMany({
       where: { businessId: input.businessId, status: "DRAFT" },
       orderBy: { periodStart: "desc" },
-      select: { id: true, periodStart: true, periodEnd: true },
+      select: {
+        id: true,
+        periodStart: true,
+        periodEnd: true,
+        entries: { select: { membershipId: true } },
+      },
     }),
   ]);
   return {
@@ -401,6 +406,7 @@ export async function getManagerClaimDashboard(input: {
     payrollRuns: payrollRuns.map((run) => ({
       id: run.id,
       label: `${run.periodStart.toISOString().slice(0, 7)} Draft`,
+      eligibleMembershipIds: run.entries.map((entry) => entry.membershipId),
     })),
   };
 }
@@ -647,6 +653,7 @@ export async function installClaimCategoryStarters(
       });
       const existing = await transaction.claimPolicyRevision.findFirst({ where: { categoryId: category.id } });
       if (!existing) {
+        const statutoryTreatmentStatus = code === "GENERAL" ? "REVIEW_REQUIRED" : "VERIFIED_NON_WAGE";
         await transaction.claimPolicyRevision.create({
           data: {
             businessId: context.businessId,
@@ -658,8 +665,10 @@ export async function installClaimCategoryStarters(
             receiptRequired: code !== "MILEAGE",
             descriptionRequired: true,
             mileageRatePerKm: code === "MILEAGE" ? "0.85" : null,
-            statutoryTreatmentStatus: "REVIEW_REQUIRED",
-            reason: "Company starter; statutory treatment intentionally requires review.",
+            statutoryTreatmentStatus,
+            reason: statutoryTreatmentStatus === "VERIFIED_NON_WAGE"
+              ? "Company starter configured as a business reimbursement."
+              : "General claims require payroll treatment review.",
             createdById: context.actor.userId,
           },
         });
@@ -671,7 +680,7 @@ export async function installClaimCategoryStarters(
       request: context.request,
       action: "CLAIM_CATEGORY_STARTERS_INSTALLED",
       entityType: "ClaimCategory",
-      summary: "Company Claim category starters installed with fail-closed statutory treatment.",
+      summary: "Company Claim category starters installed with category-level payroll treatment.",
     }, transaction);
     return { installed: starters.length };
   }, { isolationLevel: "Serializable" });
@@ -688,11 +697,17 @@ export async function createClaimCategoryRevision(context: {
     const category = input.categoryId
       ? await transaction.claimCategory.findFirst({ where: { id: input.categoryId, businessId: context.businessId } })
       : await transaction.claimCategory.create({
-          data: { businessId: context.businessId, code: input.code, name: input.name, description: input.description || null, nature: input.nature },
+          data: {
+            businessId: context.businessId,
+            code: await nextClaimCategoryCode(transaction, context.businessId, input.name),
+            name: input.name,
+            description: input.description || null,
+            nature: input.nature,
+          },
         });
     if (!category) throw new Error("Claim category was not found.");
-    if (category.code !== input.code || category.nature !== input.nature) {
-      throw new Error("Category identity and expense nature are immutable; create a new category instead.");
+    if (category.nature !== input.nature) {
+      throw new Error("Expense type cannot be changed. Create a new category instead.");
     }
     const latest = await transaction.claimPolicyRevision.findFirst({
       where: { categoryId: category.id },
@@ -715,8 +730,8 @@ export async function createClaimCategoryRevision(context: {
         descriptionRequired: input.descriptionRequired,
         maxLineAmount: input.maxLineAmount ? centsToMoney(parseMoneyCents(input.maxLineAmount)) : null,
         mileageRatePerKm: mileageRate === null ? null : mileageRate.toFixed(4),
-        statutoryTreatmentStatus: "REVIEW_REQUIRED",
-        reason: input.reason,
+        statutoryTreatmentStatus: input.statutoryTreatmentStatus,
+        reason: input.reason?.trim() || "Initial company claim category policy.",
         createdById: context.actor.userId,
       },
     });
@@ -728,10 +743,34 @@ export async function createClaimCategoryRevision(context: {
       entityType: "ClaimPolicyRevision",
       entityId: revision.id,
       summary: `Immutable Claim policy revision ${revision.revision} created for ${category.code}.`,
-      metadata: { categoryId: category.id, statutoryTreatmentStatus: "REVIEW_REQUIRED" },
+      metadata: { categoryId: category.id, statutoryTreatmentStatus: input.statutoryTreatmentStatus },
     }, transaction);
     return revision;
   }, { isolationLevel: "Serializable" });
+}
+
+async function nextClaimCategoryCode(
+  transaction: Prisma.TransactionClient,
+  businessId: string,
+  name: string,
+) {
+  const base = name
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toUpperCase()
+    .slice(0, 32) || "CLAIM";
+  const existing = await transaction.claimCategory.findMany({
+    where: { businessId, code: { startsWith: base } },
+    select: { code: true },
+  });
+  const used = new Set(existing.map((category) => category.code));
+  if (!used.has(base)) return base;
+  for (let suffix = 2; suffix < 10_000; suffix += 1) {
+    const candidate = `${base.slice(0, 40 - String(suffix).length - 1)}_${suffix}`;
+    if (!used.has(candidate)) return candidate;
+  }
+  throw new Error("Unable to generate a unique claim category code.");
 }
 
 export async function getAuthorizedClaimAttachment(input: {

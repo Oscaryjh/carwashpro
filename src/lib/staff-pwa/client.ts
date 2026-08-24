@@ -146,6 +146,24 @@ export function maskPhoneForDisplay(value: string) {
   return `•••• ${digits.slice(-4)}`;
 }
 
+export function formatPhoneForConfirmation(value: string) {
+  const digits = value.replace(/\D/g, "");
+  const malaysiaNumber = digits.startsWith("60")
+    ? digits.slice(2)
+    : digits.startsWith("0")
+      ? digits.slice(1)
+      : "";
+
+  if (malaysiaNumber.length === 10) {
+    return `+60 ${malaysiaNumber.slice(0, 2)} ${malaysiaNumber.slice(2, 6)} ${malaysiaNumber.slice(6)}`;
+  }
+  if (malaysiaNumber.length === 9) {
+    return `+60 ${malaysiaNumber.slice(0, 2)} ${malaysiaNumber.slice(2, 5)} ${malaysiaNumber.slice(5)}`;
+  }
+
+  return value.trim();
+}
+
 export function createAttendanceIdempotencyKey(action: AttendanceAction) {
   return `staff-pwa:${action.toLowerCase()}:${createBrowserUuid()}`;
 }

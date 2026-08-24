@@ -1,10 +1,12 @@
-import Link from "next/link";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 
 export function PayrollHighRiskMfaFields({
   actionLabel,
 }: {
   actionLabel: string;
 }) {
+  if (!isMfaFeatureEnabled()) return null;
+
   return (
     <fieldset>
       <legend>MFA required · {actionLabel}</legend>
@@ -38,10 +40,7 @@ export function PayrollHighRiskMfaFields({
           required
         />
       </label>
-      <small>
-        Not enrolled? <Link href="/security/mfa">Set up MFA</Link> before
-        continuing.
-      </small>
+      <small>Use the authenticator or recovery code enrolled for this account.</small>
     </fieldset>
   );
 }

@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   clearEmployeeAuthFlow,
+  formatPhoneForConfirmation,
   getDeviceMetadata,
   getOrCreateDeviceIdentifier,
   maskPhoneForDisplay,
@@ -322,12 +323,38 @@ export function StaffVerifyForm() {
     }
   }
 
+  function changePhoneNumber() {
+    if (busy) return;
+    clearEmployeeAuthFlow();
+    router.replace("/staff/login");
+  }
+
   return (
-    <section className="staff-auth-card">
+    <section className="staff-auth-card staff-verify-card">
       <div className="staff-auth-heading">
         <p className="staff-kicker">SECURE VERIFICATION</p>
         <h1>Enter your 6-digit code</h1>
-        <p>We sent a code if {flow.phoneMasked} is registered and enabled.</p>
+        <p>Enter the SMS code sent to the mobile number below.</p>
+      </div>
+      <div className="staff-phone-confirmation" role="note">
+        <span className="staff-phone-confirmation-icon" aria-hidden="true">
+          <svg fill="none" viewBox="0 0 24 24">
+            <rect height="18" rx="3" width="12" x="6" y="3" />
+            <path d="M10 6h4M11 18h2" />
+          </svg>
+        </span>
+        <span className="staff-phone-confirmation-copy">
+          <small>Mobile number</small>
+          <strong>
+            {activeFlow.phoneNumber
+              ? formatPhoneForConfirmation(activeFlow.phoneNumber)
+              : activeFlow.phoneMasked}
+          </strong>
+          <span>Check the full number before entering your code.</span>
+        </span>
+        <button disabled={busy} onClick={changePhoneNumber} type="button">
+          Change
+        </button>
       </div>
       <form className="staff-form-stack" onSubmit={verify}>
         <div

@@ -5,7 +5,11 @@ import { z } from "zod";
 import { createEmployeeBankVersionAction } from "@/app/(business)/team/people/[personId]/payroll/actions";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
-import { salaryBankOptions } from "@/lib/payroll/payment/bank-directory";
+import {
+  salaryBankGroups,
+  salaryBankOptions,
+} from "@/lib/payroll/payment/bank-directory";
+import { isPayrollBankAccountMfaEnabled } from "@/lib/payroll/payment/bank-account-security";
 import { prisma } from "@/lib/prisma";
 import { loadEmployeeBankSection } from "@/lib/team/employee-profile-bank-read";
 import styles from "@/components/employee-profile-shell.module.css";
@@ -48,32 +52,40 @@ export default async function EmployeeBankEditPage({
   )
     ? current!.bankCode
     : salaryBankOptions[0].code;
-  const errorMessage = query.type === "error" ? query.message?.slice(0, 180) : null;
+  const errorMessage =
+    query.type === "error" ? query.message?.slice(0, 180) : null;
+  const bankAccountMfaEnabled = isPayrollBankAccountMfaEnabled();
 
   return (
-    <main className={styles.page}>
-      <Link
-        className={styles.backLink}
-        href={`/team/people/${employee.id}?section=payroll`}
-      >
-        Back to payroll profile
-      </Link>
-
-      <section className={styles.sectionContent}>
-        <header className={styles.sectionIntro}>
-          <div>
-            <p className={styles.eyebrow}>Bank details</p>
-            <h2>{replacing ? "Replace salary bank account" : "Add salary bank account"}</h2>
-            <p>
-              {employee.fullName}
-              {employee.employeeCode ? ` · ${employee.employeeCode}` : ""}
-            </p>
+    <main className={`${styles.page} ${styles.bankEditPage}`}>
+      <section className={styles.bankEditShell}>
+        <header className={styles.bankEditHeader}>
+          <Link
+            aria-label="Back to payroll and bank"
+            className={styles.bankEditBack}
+            href={`/team/people/${employee.id}?section=payroll`}
+          >
+            <span aria-hidden="true">←</span>
+            Payroll &amp; bank
+          </Link>
+          <div className={styles.bankEditTitleRow}>
+            <div>
+              <p className={styles.eyebrow}>Salary payment</p>
+              <h1>{replacing ? "Change bank account" : "Add bank account"}</h1>
+              <p>
+                {employee.fullName}
+                {employee.employeeCode ? ` · ${employee.employeeCode}` : ""}
+              </p>
+            </div>
           </div>
-          <span className={styles.scopeBadge}>Encrypted profile</span>
         </header>
 
         {errorMessage ? (
-          <div className={styles.payrollUpdateNotice} data-status="error" role="alert">
+          <div
+            className={styles.payrollUpdateNotice}
+            data-status="error"
+            role="alert"
+          >
             <div>
               <strong>Bank account not saved</strong>
               <p>{errorMessage}</p>
@@ -81,42 +93,76 @@ export default async function EmployeeBankEditPage({
           </div>
         ) : null}
 
-        <section className={styles.profilePanel}>
-          <div className={styles.panelHeading}>
+        {current ? (
+          <aside className={styles.bankCurrentSummary}>
             <div>
-              <p className={styles.eyebrow}>Current profile</p>
-              <h3>{current ? current.bankName : "No bank account configured"}</h3>
-              <p>
-                {current
-                  ? `Account •••• ${current.last4} · Revision ${current.revision}`
-                  : "The account number field below starts blank and is never prefilled."}
-              </p>
+              <span>Current account</span>
+              <strong>{current.bankName}</strong>
             </div>
-            <span>{current ? formatStatus(current.status) : "New"}</span>
+            <div>
+              <span>Account</span>
+              <strong>{current.accountNumber}</strong>
+            </div>
+            <span className={styles.bankStatus}>
+              {formatStatus(current.status)}
+            </span>
+          </aside>
+        ) : null}
+
+        <section className={styles.bankEditCard}>
+          <div className={styles.bankEditCardHeading}>
+            <div>
+              <h2>{replacing ? "New payment account" : "Payment account"}</h2>
+              <p>Choose where this employee should receive salary payments.</p>
+            </div>
+            {!current ? <span>New</span> : null}
           </div>
 
-          <form action={createEmployeeBankVersionAction} className={styles.payrollEditForm}>
+          <form
+            action={createEmployeeBankVersionAction}
+            className={styles.bankAccountForm}
+          >
             <input name="commandId" type="hidden" value={randomUUID()} />
             <input
               name="expectedRevision"
               type="hidden"
               value={current?.revision ?? 0}
             />
+            <input name="effectiveFrom" type="hidden" value={effectiveDate} />
             <input name="membershipId" type="hidden" value={employee.id} />
             <input
               name="reasonType"
               type="hidden"
               value={current ? "ACCOUNT_CHANGE" : "INITIAL_SETUP"}
             />
+            <input
+              name="reason"
+              type="hidden"
+              value={
+                current
+                  ? "Salary bank account replaced"
+                  : "Salary bank account added"
+              }
+            />
 
-            <div className={styles.payrollFormGrid}>
-              <label>
-                <span>Bank</span>
-                <select defaultValue={selectedBankCode} name="bankCode" required>
-                  {salaryBankOptions.map((bank) => (
-                    <option key={bank.code} value={bank.code}>
-                      {bank.name}
-                    </option>
+            <div className={styles.bankFormGrid}>
+              <label className={styles.bankAccountNumberField}>
+                <span>Receiving bank or e-wallet</span>
+                <select
+                  defaultValue={selectedBankCode}
+                  name="bankCode"
+                  required
+                >
+                  {salaryBankGroups.map((group) => (
+                    <optgroup key={group.code} label={group.label}>
+                      {salaryBankOptions
+                        .filter((bank) => bank.group === group.code)
+                        .map((bank) => (
+                          <option key={bank.code} value={bank.code}>
+                            {bank.name}
+                          </option>
+                        ))}
+                    </optgroup>
                   ))}
                 </select>
               </label>
@@ -131,7 +177,7 @@ export default async function EmployeeBankEditPage({
                 />
               </label>
               <label>
-                <span>Account number</span>
+                <span>Account number or wallet ID</span>
                 <input
                   aria-describedby="bank-account-number-help"
                   autoComplete="off"
@@ -139,47 +185,38 @@ export default async function EmployeeBankEditPage({
                   maxLength={48}
                   minLength={5}
                   name="accountNumber"
-                  placeholder="Enter the new account number once"
+                  placeholder="Enter the account number or wallet ID once"
                   required
-                />
-              </label>
-              <label>
-                <span>Effective date</span>
-                <input
-                  defaultValue={effectiveDate}
-                  min={effectiveDate}
-                  name="effectiveFrom"
-                  required
-                  type="date"
-                />
-              </label>
-              <label className={styles.reasonField}>
-                <span>Reason</span>
-                <textarea
-                  maxLength={500}
-                  minLength={5}
-                  name="reason"
-                  placeholder="Explain why this salary bank profile is being added or replaced"
-                  required
-                  rows={4}
                 />
               </label>
             </div>
 
-            <p className={styles.formHint} id="bank-account-number-help">
-              The full account number is encrypted on save and is never returned to this form.
-            </p>
-            <div className={styles.draftImpactWarning}>
-              <strong>Existing payment batches are not updated automatically</strong>
-              <span>
-                Saving creates a new immutable bank version. It does not rewrite an existing
-                instruction, Payroll Run, payslip, or prior bank version.
-              </span>
+            <div
+              className={styles.bankSecurityNote}
+              id="bank-account-number-help"
+            >
+              <span aria-hidden="true">✓</span>
+              <div>
+                <strong>Protected bank details</strong>
+                <p>The account number is encrypted when saved.</p>
+              </div>
             </div>
-            <PayrollHighRiskMfaFields actionLabel="Save this employee bank-account change" />
-            <button type="submit">
-              {replacing ? "Save replacement bank account" : "Save salary bank account"}
-            </button>
+
+            {bankAccountMfaEnabled ? (
+              <div className={styles.bankMfaSection}>
+                <PayrollHighRiskMfaFields actionLabel="Confirm bank account" />
+              </div>
+            ) : null}
+
+            <div className={styles.bankEditActions}>
+              <p>
+                Saving creates a new bank version. Existing payroll runs and
+                payment batches stay unchanged.
+              </p>
+              <button type="submit">
+                {replacing ? "Save new account" : "Save bank account"}
+              </button>
+            </div>
           </form>
         </section>
       </section>
@@ -189,11 +226,9 @@ export default async function EmployeeBankEditPage({
 
 function minimumEffectiveDate(currentEffectiveFrom: string | null) {
   const today = new Date();
-  const minimum = new Date(Date.UTC(
-    today.getUTCFullYear(),
-    today.getUTCMonth(),
-    today.getUTCDate(),
-  ));
+  const minimum = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+  );
   if (currentEffectiveFrom) {
     const afterCurrent = new Date(currentEffectiveFrom);
     afterCurrent.setUTCDate(afterCurrent.getUTCDate() + 1);

@@ -50,7 +50,6 @@ test("Phase 2A query allowlists exclude payroll and sensitive profile fields", a
     [
       "src/lib/team/employee-profile-read.ts",
       "src/components/employee-profile-phase2a.tsx",
-      "src/app/(business)/team/people/[personId]/page.tsx",
     ].map((file) => readFile(path.join(root, file), "utf8")),
   );
   const source = sources.join("\n");
@@ -70,7 +69,12 @@ test("Phase 2A query allowlists exclude payroll and sensitive profile fields", a
     "statutoryIdentityType",
     "statutoryIdentityNumber",
     "payrollEntries",
-    "staffLevel",
+    "serviceFixedAmount",
+    "servicePercent",
+    "productFixedAmount",
+    "productPercent",
+    "packageFixedAmount",
+    "packagePercent",
   ]) {
     assert.equal(
       source.includes(forbiddenField),
@@ -92,12 +96,17 @@ test("Phase 2D adds Leave after the earlier section loaders", async () => {
   );
 
   assert.match(route, /activeSection === "overview"/);
-  assert.match(route, /activeSection === "employment"/);
-  assert.match(route, /activeSection === "personal"/);
-  assert.match(route, /activeSection === "attendance"/);
-  assert.match(route, /activeSection === "leave"/);
-  assert.match(route, /activeSection === "payroll"/);
-  assert.doesNotMatch(shell, /Salary, bank and statutory information will appear here/);
+  assert.doesNotMatch(route, /activeSection === "employment"/);
+  assert.doesNotMatch(route, /activeSection === "personal"/);
+  assert.match(route, /activeSection === "time"/);
+  assert.match(route, /activeView === "attendance"/);
+  assert.match(route, /activeView === "leave"/);
+  assert.match(route, /activeSection === "compensation"/);
+  assert.match(route, /activeView === "payroll"/);
+  assert.doesNotMatch(
+    shell,
+    /Salary, bank and statutory information will appear here/,
+  );
 });
 
 test("Phase 2A performs capability checks before section queries", async () => {
@@ -111,10 +120,32 @@ test("Phase 2A performs capability checks before section queries", async () => {
 
   assert.match(
     route,
-    /membership && sectionAuthorized && activeSection === "overview"/,
+    /membership &&[\s\S]*areaAuthorized &&[\s\S]*\["overview", "work", "access"\]\.includes\(activeSection\)/,
   );
+  assert.match(route, /getEmployeeProfileOverview\(profileInput\)/);
+  assert.match(route, /getEmployeeProfilePersonal\(profileInput\)/);
   assert.match(
     route,
-    /membership && sectionAuthorized && activeSection === "employment"/,
+    /enabledModules\.has\("HR"\)[\s\S]*getEmployeeProfileEmployment\(profileInput\)/,
   );
+});
+
+test("Overview shows employment Position and keeps permission Role out of identity", async () => {
+  const root = process.cwd();
+  const [readModel, overview, route] = await Promise.all(
+    [
+      "src/lib/team/employee-profile-read.ts",
+      "src/components/employee-profile-phase2a.tsx",
+      "src/app/(business)/team/people/[personId]/page.tsx",
+    ].map((file) => readFile(path.join(root, file), "utf8")),
+  );
+
+  assert.match(readModel, /staffRoleProfile:[\s\S]*?select:[\s\S]*?name: true/);
+  assert.match(readModel, /staffLevel:[\s\S]*?select:[\s\S]*?name: true/);
+  assert.match(readModel, /position: true/);
+  assert.match(overview, /label="Position"/);
+  assert.match(overview, /label="Staff level"/);
+  assert.doesNotMatch(overview, /label="Role"/);
+  assert.doesNotMatch(overview, /label="Access role"/);
+  assert.doesNotMatch(route, /updateEmployeePositionAction|positionAction/);
 });

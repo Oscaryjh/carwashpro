@@ -2,7 +2,16 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { AwaitedReturn } from "@/lib/staff-pwa/home-types";
 
-export function StaffHomeOverview({ overview, children }: { overview: AwaitedReturn; children?: ReactNode }) {
+type TeamApprovalSummary = {
+  total: number;
+  leave: number;
+  claims: number;
+  complete: boolean;
+  canReviewLeave: boolean;
+  canReviewClaims: boolean;
+} | null;
+
+export function StaffHomeOverview({ overview, teamApprovals, children }: { overview: AwaitedReturn; teamApprovals?: TeamApprovalSummary; children?: ReactNode }) {
   return (
     <section className="staff-home-overview" aria-labelledby="staff-home-overview-heading">
       {overview.showWelcome ? (
@@ -16,6 +25,21 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
         </section>
       ) : null}
       {children}
+      {teamApprovals ? (
+        <Link className="staff-team-approvals-entry" href="/staff/approvals">
+          <span className="staff-team-approvals-icon" aria-hidden="true">✓</span>
+          <span>
+            <small>TEAM WORKSPACE</small>
+            <strong>Team Approvals</strong>
+            <b>{teamApprovals.total ? `${teamApprovals.total} waiting` : "All caught up"}</b>
+            <span className="staff-team-approvals-domains">
+              {teamApprovals.canReviewLeave ? <em>Leave {teamApprovals.leave}</em> : null}
+              {teamApprovals.canReviewClaims ? <em>Claims {teamApprovals.claims}</em> : null}
+            </span>
+          </span>
+          <span className="staff-team-approvals-count" aria-label={`${teamApprovals.total} pending approvals`}>{teamApprovals.total}</span>
+        </Link>
+      ) : null}
       <div className="staff-home-section-heading">
         <div><p className="staff-kicker">MY SELF-SERVICE</p><h2 id="staff-home-overview-heading">Your work in one place</h2></div>
         <Link href="/staff/profile">Profile</Link>

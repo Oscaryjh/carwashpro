@@ -6,6 +6,7 @@ import {
   getSensitiveActionPolicy,
   SENSITIVE_ACTION_KEYS,
 } from "../../src/lib/auth/sensitive-actions";
+import { payrollBankAccountHighRisk } from "../../src/lib/payroll/payment/bank-account-security";
 
 const read = (path: string) =>
   readFileSync(resolve(process.cwd(), path), "utf8");
@@ -54,8 +55,15 @@ test("Bank, statutory and provider-blocked payment export use canonical scoped a
   const paymentArtifact = read("src/lib/payroll/payment/payment-artifact-service.ts");
   const statutory = read("src/lib/payroll/statutory-artifact.ts");
   const statutoryRoute = read("src/app/(business)/team/payroll/statutory/export/route.ts");
-  assert.match(bank, /actionKey: "BANK_ACCOUNT_EDIT"/);
-  assert.match(bank, /resourceId: command\.membershipId/);
+  assert.deepEqual(
+    payrollBankAccountHighRisk("membership-1", {
+      MFA_FEATURE_ENABLED: "on",
+      NODE_ENV: "test",
+      PAYROLL_BANK_ACCOUNT_MFA_ENABLED: "on",
+    }),
+    { actionKey: "BANK_ACCOUNT_EDIT", resourceId: "membership-1" },
+  );
+  assert.match(bank, /highRisk: payrollBankAccountHighRisk\(command\.membershipId\)/);
   assert.match(paymentArtifact, /actionKey: "PAYMENT_FILE_EXPORT"/);
   assert.match(paymentArtifact, /process\.env\.NODE_ENV !== "test"/);
   assert.match(statutory, /actionKey: "STATUTORY_EXPORT"/);
@@ -64,15 +72,17 @@ test("Bank, statutory and provider-blocked payment export use canonical scoped a
   assert.doesNotMatch(paymentArtifact, /PUBLIC_BANK|provider.*PUBLIC_BANK/i);
 });
 
-test("High-risk Payroll UX presents canonical MFA fields and enrollment path", () => {
+test("High-risk Payroll UX retains canonical MFA fields behind the temporary feature switch", () => {
   const fields = read("src/components/payroll-high-risk-mfa-fields.tsx");
   const runPage = read("src/app/(business)/team/payroll/runs/[runId]/page.tsx");
   const bankPage = read("src/app/(business)/team/people/[personId]/payroll/bank/edit/page.tsx");
   assert.match(fields, /name="stepUpPassword"/);
   assert.match(fields, /name="stepUpFactorType"/);
   assert.match(fields, /name="stepUpCode"/);
-  assert.match(fields, /href="\/security\/mfa"/);
+  assert.match(fields, /isMfaFeatureEnabled/);
+  assert.match(fields, /if \(!isMfaFeatureEnabled\(\)\) return null/);
   assert.match(runPage, /Finalize this Payroll Run/);
   assert.match(runPage, /Reopen this Payroll Run/);
-  assert.match(bankPage, /Save this employee bank-account change/);
+  assert.match(bankPage, /isPayrollBankAccountMfaEnabled/);
+  assert.match(bankPage, /Confirm bank account/);
 });

@@ -235,7 +235,7 @@ export function EmployeeProfileStatutory({
           <p>EPF, SOCSO, EIS, LINDUNG24 and tax submission details.</p>
         </div>
         <div className={styles.statutoryHeaderActions}>
-          <span className={styles.scopeBadge}>Sensitive statutory profile</span>
+          <span className={styles.scopeBadge}>HR access only</span>
           {canEditTogether &&
           statutoryProfile.statutory.status === "READY" &&
           statutoryProfile.tax.status === "READY" ? (
@@ -396,7 +396,7 @@ function payrollUpdateNoticeCopy(notice: PayrollUpdateNoticeValue) {
   }
   if (notice.kind === "work-target") {
     return {
-      title: "Work hours updated",
+      title: "Salary work basis updated",
       message: "The change will apply automatically to the next payroll.",
     };
   }
@@ -630,8 +630,8 @@ function WorkTargetCard({
     <section className={`${styles.profilePanel} ${styles.payrollSetupCard}`}>
       <div className={styles.panelHeading}>
         <div>
-          <h3>Work hours</h3>
-          <p>Normal paid time and break targets.</p>
+          <h3>Salary work basis</h3>
+          <p>Paid-day assumptions used when payroll calculates this employee.</p>
         </div>
         <span data-tone="neutral">Current policy</span>
       </div>
@@ -660,6 +660,7 @@ function WorkTargetCard({
         <p>
           Paid hours: {data.normalWorkPolicySource} · Break: {data.targetBreakPolicySource}
         </p>
+        <p>Actual shift dates and times remain owned by the published Roster.</p>
       </details>
       {data.canEdit ? <WorkTargetEditForm data={data} /> : null}
     </section>
@@ -845,15 +846,26 @@ function RecurringPayChangeForm({
 function recurringPayDisplay(
   component: Extract<EmployeeCompensationSectionResult, { status: "READY" }>["data"]["recurringPayComponents"][number],
 ) {
-  const current = component.amount === null
-    ? component.state === "SCHEDULED" ? "Scheduled end" : "Ended"
+  const amount = component.amount === null
+    ? component.state === "SCHEDULED" ? "Scheduled to end" : "Ended"
     : `${formatMoney(component.amount)} / month`;
-  const status = `${formatEnum(component.state)} from ${formatMonthValue(component.effectiveFromMonth)}`;
-  if (!component.nextChange) return `${current} · ${status}`;
-  const nextAmount = component.nextChange.amount === null
-    ? "ends"
-    : `changes to ${formatMoney(component.nextChange.amount)}`;
-  return `${current} · ${status} · ${nextAmount} ${formatMonthValue(component.nextChange.effectiveFromMonth)}`;
+  const starts = formatMonthValue(component.effectiveFromMonth);
+  if (component.state === "SCHEDULED") return `${amount} from ${starts}`;
+  if (!component.nextChange) return `${amount} · From ${starts}`;
+
+  const nextMonth = formatMonthValue(component.nextChange.effectiveFromMonth);
+  const currentThrough = formatMonthValue(
+    previousPayrollMonth(component.nextChange.effectiveFromMonth),
+  );
+  if (component.nextChange.amount === null) {
+    return `${amount} · Through ${currentThrough} · Ends before ${nextMonth} payroll`;
+  }
+  return `${amount} · Through ${currentThrough} · New rate ${formatMoney(component.nextChange.amount)} from ${nextMonth}`;
+}
+
+function previousPayrollMonth(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
 }
 
 function recurringPayItemName(name: string) {
@@ -925,10 +937,10 @@ function WorkTargetEditForm({
 }) {
   return (
     <EmployeeProfilePayrollDialog
-      description="Set this employee's paid work and break targets, or leave them blank to use company defaults."
+      description="Set the paid-day basis payroll uses for this employee. Actual shifts still come from Roster."
       dialogId={`work-target-edit-${data.id}`}
-      label="Edit work settings"
-      title="Edit work settings"
+      label="Edit salary work basis"
+      title="Edit salary work basis"
       variant="button"
     >
       <form action={updateEmployeePayrollWorkTargetAction} className={styles.payrollEditForm}>
@@ -977,7 +989,7 @@ function WorkTargetEditForm({
           Leave a field blank to use the company default.
         </p>
         <DraftImpactWarning count={data.affectedDrafts} />
-        <button type="submit">Save work settings</button>
+        <button type="submit">Save salary work basis</button>
       </form>
     </EmployeeProfilePayrollDialog>
   );
@@ -1149,6 +1161,7 @@ function StatutoryPanel({
             </div>
           </details>
         ) : null}
+        {data.canEdit ? <Lindung24ParticipationForm data={data} /> : null}
       </section>
       <p className={styles.policyNote}>
         Full identifiers are visible to authorized HR editors. Contribution
@@ -1157,7 +1170,6 @@ function StatutoryPanel({
       {data.canEdit && showStandaloneEdit ? (
         <StatutoryEditForm data={data} profileEditHref={profileEditHref} />
       ) : null}
-      {data.canEdit ? <Lindung24ParticipationForm data={data} /> : null}
     </section>
   );
 }
@@ -1278,9 +1290,10 @@ function StatutoryAndTaxEditForm({
       description="Update contributions, identity and government numbers in one place."
       dialogId={`statutory-tax-edit-${statutoryData.membershipId}`}
       eyebrow="Statutory & tax"
-      label="Edit statutory & tax"
+      label="Edit details"
       size="compact"
       title="Edit statutory & tax"
+      triggerClassName={styles.compactProfileAction}
       variant="button"
     >
       <form
@@ -1478,12 +1491,13 @@ function Lindung24ParticipationForm({
 }) {
   return (
     <EmployeeProfilePayrollDialog
-      description="Choose whether payroll should calculate LINDUNG 24 for this employee."
+      description="Choose how LINDUNG 24 applies to this employee."
       dialogId={`lindung24-participation-${data.membershipId}`}
       eyebrow="Statutory & tax"
-      label="Manage LINDUNG 24"
+      label="Edit coverage"
       size="compact"
-      title="LINDUNG 24 participation"
+      title="Edit LINDUNG 24 coverage"
+      triggerClassName={styles.compactProfileAction}
       variant="button"
     >
       <form action={recordEmployeeLindung24ParticipationAction} className={styles.payrollEditForm}>

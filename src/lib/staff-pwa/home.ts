@@ -96,7 +96,7 @@ export async function getStaffHomeOverview(
         return latest
           ? {
               value: `RM ${(latest.finalCommissionCents / 100).toFixed(2)}`,
-              detail: `Latest statement: ${humanize(latest.status)}.`,
+              detail: `Latest statement: ${commissionStatusLabel(latest.status)}.`,
             }
           : { value: "No commission yet", detail: "Calculated and approved statements appear here." };
       }),
@@ -149,6 +149,13 @@ async function safeCard(
 
 function humanize(value: string) {
   return value.toLowerCase().replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function commissionStatusLabel(status: string) {
+  if (status === "CALCULATED") return "estimated, pending review";
+  if (status === "APPROVED") return "approved and frozen";
+  if (status === "APPLIED_TO_PAYROLL") return "approved and sent to Payroll";
+  return humanize(status);
 }
 
 function month(value: Date) {

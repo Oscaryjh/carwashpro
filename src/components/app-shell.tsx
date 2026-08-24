@@ -3,9 +3,11 @@ import { AppShellFrame } from "@/components/app-shell-frame";
 import type { NavItem } from "@/components/app-shell-frame";
 import { BusinessContextSwitcher } from "@/components/business-context-switcher";
 import { createBusinessContextToken } from "@/lib/auth/business-context-token";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import type { AppSession } from "@/lib/auth/session";
 import {
+  actionCenterDomains,
   getUnifiedApprovalCounts,
   isUnifiedApprovalCenterAvailable,
   resolveUnifiedApprovalContext,
@@ -31,6 +33,7 @@ type AppShellProps = {
 };
 
 export async function AppShell({ user, access, children }: AppShellProps) {
+  const mfaFeatureEnabled = isMfaFeatureEnabled();
   const isPlatformAdmin = user.role === "PLATFORM_ADMIN";
   const grantedAccess = access?.granted ? access : null;
   const isBusinessOwner =
@@ -90,7 +93,9 @@ export async function AppShell({ user, access, children }: AppShellProps) {
     });
     if (approvalContext && isUnifiedApprovalCenterAvailable(approvalContext)) {
       approvalNavigationVisible = true;
-      const result = await getUnifiedApprovalCounts(approvalContext);
+      const result = await getUnifiedApprovalCounts(approvalContext, prisma, {
+        domains: actionCenterDomains,
+      });
       approvalBadgeCount = result.complete ? result.counts.total : null;
     }
   }
@@ -103,13 +108,13 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       ? [{ href: "/packages", label: "Packages", shortLabel: "Pkg", icon: "packages" as const }]
       : []),
     ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("PRODUCTS", "VIEW_CATALOG")
-      ? [{ href: "/products", label: "Products", shortLabel: "Prod", icon: "services" as const }]
+      ? [{ href: "/products", label: "Products", shortLabel: "Prod", icon: "products" as const }]
       : []),
     ...(isStoreUser && moduleEnabled("INVENTORY") && canSeeCapability("INVENTORY_VIEW", "VIEW_INVENTORY")
-      ? [{ href: "/inventory", label: "Inventory", shortLabel: "Stock", icon: "reports" as const }]
+      ? [{ href: "/inventory", label: "Inventory", shortLabel: "Stock", icon: "inventory" as const }]
       : []),
     ...(isStoreUser && moduleEnabled("POS") && canSeeCapability("DISCOUNTS", "VIEW_CATALOG")
-      ? [{ href: "/discounts", label: "Discounts", shortLabel: "Disc", icon: "reports" as const }]
+      ? [{ href: "/discounts", label: "Discounts", shortLabel: "Disc", icon: "discounts" as const }]
       : []),
   ];
   const teamWorkspaceItems: NavItem[] = [
@@ -134,8 +139,8 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       ? [
           {
             href: "/team/approvals",
-            label: "Approvals",
-            shortLabel: "Approve",
+            label: "Action Center",
+            shortLabel: "Actions",
             icon: "reports" as const,
             ...(approvalBadgeCount !== null ? { badgeCount: approvalBadgeCount } : {}),
           },
@@ -208,13 +213,13 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             href: "/admin/business-groups",
             label: "Business Groups",
             shortLabel: "Groups",
-            icon: "businesses" as const,
+            icon: "businessGroups" as const,
           },
           {
             href: "/admin/commercial",
             label: "Commercial",
             shortLabel: "Plans",
-            icon: "reports" as const,
+            icon: "commercial" as const,
           },
           {
             href: "/admin/whatsapp-templates",
@@ -226,13 +231,19 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             href: "/admin/vehicle-size-defaults",
             label: "Vehicle Size Defaults",
             shortLabel: "Sizes",
-            icon: "services" as const,
+            icon: "vehicle" as const,
           },
           {
             href: "/admin/statutory/rulesets",
             label: "Statutory Rules",
             shortLabel: "Rules",
-            icon: "reports" as const,
+            icon: "statutory" as const,
+          },
+          {
+            href: "/admin/otp-support",
+            label: "OTP Support",
+            shortLabel: "OTP",
+            icon: "otpSupport" as const,
           },
         ]
       : []),
@@ -246,7 +257,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             href: "/work-orders",
             label: "Cashier",
             shortLabel: "Cashier",
-            icon: "jobs" as const,
+            icon: "cashier" as const,
           },
         ]
       : []),
@@ -261,7 +272,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             href: "/cashier",
             label: "Cashier",
             shortLabel: "Cashier",
-            icon: "jobs" as const,
+            icon: "cashier" as const,
           },
         ]
       : []),
@@ -285,7 +296,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             href: "/loyalty",
             label: "Membership",
             shortLabel: "Member",
-            icon: "packages" as const,
+            icon: "membership" as const,
           },
         ]
       : []),
@@ -295,7 +306,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             href: "/expenses",
             label: "Expenses",
             shortLabel: "Expense",
-            icon: "reports" as const,
+            icon: "expenses" as const,
           },
         ]
       : []),
@@ -305,7 +316,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             href: "/closing",
             label: "Shift Closing",
             shortLabel: "Close",
-            icon: "reports" as const,
+            icon: "shiftClosing" as const,
           },
         ]
       : []),
@@ -342,7 +353,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
         ]
       : []),
     ...(isStoreUser && moduleEnabled("AI") && canSeeCapability("AI_ANALYSIS_VIEW", "VIEW_AI_ANALYSIS")
-      ? [{ href: "/ai", label: "Ask Tetamu", shortLabel: "AI", icon: "reports" as const }]
+      ? [{ href: "/ai", label: "Ask Tetamu", shortLabel: "AI", icon: "askTetamu" as const }]
       : []),
     ...(catalogChildren.length
       ? [
@@ -350,7 +361,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             href: "/catalog",
             label: "Catalog",
             shortLabel: "Catalog",
-            icon: "services" as const,
+            icon: "catalog" as const,
             children: catalogChildren,
           },
         ]
@@ -361,16 +372,47 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             href: "/business/settings",
             label: "Company settings",
             shortLabel: "Set",
-            icon: "settings" as const,
+            icon: "companySettings" as const,
           },
         ]
       : []),
-    {
-      href: "/security/mfa",
-      label: "Security",
-      shortLabel: "Security",
-      icon: "settings" as const,
-    },
+    ...(mfaFeatureEnabled
+      ? [
+          {
+            href: "/security/mfa",
+            label: "Security",
+            shortLabel: "Security",
+            icon: "security" as const,
+            children: [
+              {
+                href: "/security/mfa",
+                label: "Account security",
+                shortLabel: "Account",
+                icon: "accountSecurity" as const,
+              },
+              ...(isStoreUser && canSeeCapability("TEAM", "MANAGE_TEAM_PERMISSIONS")
+                ? [
+                    {
+                      href: "/team?section=roles&focus=roles",
+                      label: "Staff access roles",
+                      shortLabel: "Roles",
+                      icon: "permissions" as const,
+                    },
+                  ]
+                : []),
+            ],
+          },
+        ]
+      : isStoreUser && canSeeCapability("TEAM", "MANAGE_TEAM_PERMISSIONS")
+        ? [
+            {
+              href: "/team?section=roles&focus=roles",
+              label: "Security",
+              shortLabel: "Security",
+              icon: "security" as const,
+            },
+          ]
+        : []),
   ];
   const businessContexts =
     !isPlatformAdmin && user.businessId && moduleEnabled("BUSINESS_GROUP")

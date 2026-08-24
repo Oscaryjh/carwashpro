@@ -2,10 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { ResolvedBusinessAccess } from "@/lib/business-groups/business-access";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { toSafeEmployeeBankVersion } from "@/lib/payroll/payment/bank-account-service";
-import {
-  decryptBankAccountNumber,
-  type PaymentCryptoEnvironment,
-} from "@/lib/payroll/payment/bank-account-crypto";
+import type { PaymentCryptoEnvironment } from "@/lib/payroll/payment/bank-account-crypto";
 import { prisma } from "@/lib/prisma";
 
 type EmployeeBankSectionInput = {
@@ -38,7 +35,7 @@ export type EmployeeBankSectionResult =
 export async function loadEmployeeBankSection(
   input: EmployeeBankSectionInput,
   database: PrismaClient = prisma,
-  environment: PaymentCryptoEnvironment = process.env,
+  _environment?: PaymentCryptoEnvironment,
 ): Promise<EmployeeBankSectionResult> {
   if (!hasBusinessCapability(input.access, "VIEW_BANK_ACCOUNT")) {
     return { status: "ACCESS_DENIED", reason: "CAPABILITY" };
@@ -76,16 +73,12 @@ export async function loadEmployeeBankSection(
     orderBy: [{ revision: "desc" }, { createdAt: "desc" }],
     select: {
       accountHolderName: true,
-      accountNumberAuthTag: true,
-      accountNumberCiphertext: true,
-      accountNumberIv: true,
       accountNumberLast4: true,
       bankCode: true,
       bankNameSnapshot: true,
       effectiveFrom: true,
       effectiveUntil: true,
       id: true,
-      encryptionKeyVersion: true,
       revision: true,
       status: true,
       verificationStatus: true,
@@ -98,18 +91,7 @@ export async function loadEmployeeBankSection(
       bank: bank
         ? {
             ...toSafeEmployeeBankVersion(bank),
-            accountNumber: decryptBankAccountNumber(
-              {
-                accountNumberAuthTag: bank.accountNumberAuthTag,
-                accountNumberCiphertext: bank.accountNumberCiphertext,
-                accountNumberIv: bank.accountNumberIv,
-                bankAccountVersionId: bank.id,
-                businessId: input.businessId,
-                employeeMembershipId: input.membershipId,
-                encryptionKeyVersion: bank.encryptionKeyVersion,
-              },
-              environment,
-            ),
+            accountNumber: `•••• ${bank.accountNumberLast4}`,
           }
         : null,
       canEdit: hasBusinessCapability(input.access, "EDIT_BANK_ACCOUNT"),

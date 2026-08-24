@@ -132,8 +132,11 @@ export default async function PayrollSettingsPage({
           <div className={styles.panelHeading}>
             <div>
               <p className={styles.eyebrow}>CALCULATION POLICY</p>
-              <h2>Company payroll settings</h2>
-              <p>Define the normal work pattern used for this business.</p>
+              <h2>Company work &amp; pay rules</h2>
+              <p>
+                HR controls the work-pay rules used by Payroll. Saved changes
+                apply to the next draft without rewriting finalized payroll.
+              </p>
             </div>
             <span className={styles.badge}>Malaysia</span>
           </div>
@@ -142,20 +145,27 @@ export default async function PayrollSettingsPage({
             <Field disabled={!canEditPayroll} hint="Default: 26 days" label="Working days / month" max="31" min="1" name="workingDaysPerMonth" value={setting.workingDaysPerMonth} />
             <Field disabled={!canEditPayroll} hint={`${formatHours(setting.normalWorkMinutesPerDay)} paid hours`} label="Paid minutes / day" max="1440" min="1" name="normalWorkMinutesPerDay" value={setting.normalWorkMinutesPerDay} />
             <Field disabled={!canEditPayroll} hint="Unpaid break target" label="Break minutes" max="720" min="0" name="breakMinutesPerDay" value={setting.breakMinutesPerDay} />
-            <Field disabled={!canEditPayroll} hint="Normal working day" label="OT multiplier" max="10" min="1" name="overtimeMultiplier" step="0.01" value={String(setting.overtimeMultiplier)} />
+            <div className={styles.formSectionHeading}>
+              <strong>Work pay multipliers</strong>
+              <span>Enter the multiplier HR wants Payroll to apply.</span>
+            </div>
+            <Field disabled={!canEditPayroll} hint="Approved OT on a normal workday" label="Normal day OT" max="10" min="1" name="overtimeMultiplier" step="0.01" value={String(setting.overtimeMultiplier)} />
+            <Field disabled={!canEditPayroll} hint="Hours worked on a scheduled rest day" label="Rest day work" max="10" min="0" name="restDayWorkMultiplier" step="0.01" value={String(setting.restDayWorkMultiplier)} />
+            <Field disabled={!canEditPayroll} hint="Approved OT on a rest day" label="Rest day OT" max="10" min="0" name="restDayOvertimeMultiplier" step="0.01" value={String(setting.restDayOvertimeMultiplier)} />
             <label className={styles.formField}>
-              <span>Holiday pay policy</span>
+              <span>Public holiday work pay</span>
               <select
                 defaultValue={setting.publicHolidayPayEnabled ? "true" : "false"}
                 disabled={!canEditPayroll}
                 name="publicHolidayPayEnabled"
               >
-                <option value="false">Off — record evidence only</option>
-                <option value="true">On — prepare preview for confirmation</option>
+                <option value="false">Off — do not add holiday work pay</option>
+                <option value="true">On — calculate from HR multipliers</option>
               </select>
-              <small>Default is Off. Enabling never pays automatically.</small>
+              <small>This HR setting is used directly in the next Payroll draft.</small>
             </label>
-            <Field disabled={!canEditPayroll} hint="Business policy; every result still needs confirmation" label="Holiday extra multiplier" max="10" min="0" name="publicHolidayExtraMultiplier" step="0.01" value={String(setting.publicHolidayExtraMultiplier)} />
+            <Field disabled={!canEditPayroll} hint="Hours worked on a public holiday" label="Public holiday work" max="10" min="0" name="publicHolidayExtraMultiplier" step="0.01" value={String(setting.publicHolidayExtraMultiplier)} />
+            <Field disabled={!canEditPayroll} hint="Approved OT on a public holiday" label="Public holiday OT" max="10" min="0" name="publicHolidayOvertimeMultiplier" step="0.01" value={String(setting.publicHolidayOvertimeMultiplier)} />
             <label className={styles.formField}>
               <span>State / holiday label</span>
               <input
@@ -184,11 +194,9 @@ export default async function PayrollSettingsPage({
           </div>
           <div className={styles.policyNote}>
             <span className={styles.infoIcon} aria-hidden="true">i</span>
-            <p>
-              Holiday pay policy revision {setting.publicHolidayPayPolicyRevision}.
-              A locked Timesheet can create a preview, but Payroll records RM0 until
-              an authorised reviewer confirms or excludes that employee result.
-              This configuration is a business policy, not legal advice.
+              <p>
+              Saved rules are frozen into each new Payroll draft. Existing
+              finalized Payroll and exported records remain unchanged.
             </p>
           </div>
         </section>

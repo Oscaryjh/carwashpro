@@ -1,0 +1,452 @@
+.modal {
+  width: min(780px, calc(100vw - 28px));
+  border-radius: 22px;
+  background: #f7faf9;
+}
+
+.content {
+  display: grid;
+  gap: 14px;
+}
+
+.employeeSummary {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid #d8e7e5;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.avatar {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 14px;
+  background: #e1f3f0;
+  color: #08786f;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.employeeSummary div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.employeeSummary strong {
+  overflow: hidden;
+  color: #17202d;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.employeeSummary small,
+.balanceCard small,
+.footer p {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.auditBadge {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #edf8f6;
+  color: #08786f;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.headerActions {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px !important;
+}
+
+.newTypeButton,
+.cancelTypeLink {
+  color: #08786f;
+  font-size: 11px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.newTypeButton {
+  padding: 7px 10px;
+  border: 1px solid #b8d9d4;
+  border-radius: 10px;
+  background: #f4fbf9;
+  white-space: nowrap;
+}
+
+.newTypeButton:hover {
+  border-color: #10877d;
+  background: #e8f7f4;
+}
+
+.notice {
+  padding: 11px 13px;
+  border: 1px solid #b7ded7;
+  border-radius: 12px;
+  background: #edf9f6;
+  color: #08786f;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.notice[data-tone="error"] {
+  border-color: #f0b9b2;
+  background: #fff3f1;
+  color: #a93b31;
+}
+
+.balanceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.balanceCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid #dce8e6;
+  border-radius: 15px;
+  background: #fff;
+}
+
+.balanceCard > div:first-child,
+.remaining {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+}
+
+.balanceCard > div:first-child strong {
+  color: #17202d;
+  font-size: 13px;
+}
+
+.remaining {
+  justify-items: end;
+}
+
+.remaining strong {
+  color: #08786f;
+  font-size: 16px;
+}
+
+.balanceCard p {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-top: 9px;
+  border-top: 1px solid #edf1f1;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.adjustmentForm {
+  display: grid;
+  gap: 13px;
+  padding: 15px;
+  border: 1px solid #cfe3df;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgb(30 78 73 / 6%);
+}
+
+.createTypeForm {
+  display: grid;
+  gap: 14px;
+  padding: 15px;
+  border: 1px solid #bcded8;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgb(30 78 73 / 7%);
+}
+
+.formIntro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.formIntro div {
+  display: grid;
+  gap: 3px;
+}
+
+.formIntro strong {
+  color: #17202d;
+  font-size: 15px;
+}
+
+.formIntro p {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.65fr);
+  gap: 10px;
+}
+
+.formGrid label {
+  display: grid;
+  gap: 6px;
+  color: #455468;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.formGrid input,
+.formGrid select,
+.createTypeGrid input,
+.createTypeGrid select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid #cfdedd;
+  border-radius: 11px;
+  background: #fff;
+  color: #17202d;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.formGrid input:focus,
+.formGrid select:focus,
+.createTypeGrid input:focus,
+.createTypeGrid select:focus {
+  border-color: #129388;
+  outline: 3px solid rgb(18 147 136 / 14%);
+}
+
+.reasonField {
+  display: grid;
+  gap: 6px;
+  color: #455468;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.reasonField input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid #cfdedd;
+  border-radius: 11px;
+  background: #fff;
+  color: #17202d;
+  font: inherit;
+  font-size: 13px;
+}
+
+.reasonField input:focus {
+  border-color: #129388;
+  outline: 3px solid rgb(18 147 136 / 14%);
+}
+
+.createTypeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.createTypeGrid label {
+  display: grid;
+  gap: 6px;
+  color: #455468;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.typeNameField {
+  grid-column: 1 / -1;
+}
+
+.typeOptions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.typeOptions label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid #dfebea;
+  border-radius: 12px;
+  background: #f8fbfa;
+  cursor: pointer;
+}
+
+.typeOptions input {
+  width: 17px;
+  height: 17px;
+  margin: 1px 0 0;
+  accent-color: #10877d;
+}
+
+.typeOptions span {
+  display: grid;
+  gap: 3px;
+}
+
+.typeOptions strong {
+  color: #273444;
+  font-size: 11px;
+}
+
+.typeOptions small {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.createTypeButton {
+  min-height: 46px;
+  border: 0;
+  border-radius: 11px;
+  background: #10877d;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.createTypeButton:hover {
+  background: #08786f;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.actions button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 11px;
+  background: #10877d;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.actions button:hover {
+  background: #08786f;
+}
+
+.actions .deductButton {
+  border: 1px solid #ecc7c2;
+  background: #fff5f3;
+  color: #b43d31;
+}
+
+.actions .deductButton:hover {
+  background: #fde8e5;
+}
+
+.emptyState {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 28px 18px;
+  border: 1px dashed #bfd6d2;
+  border-radius: 16px;
+  background: #fff;
+  text-align: center;
+}
+
+.emptyState p {
+  max-width: 430px;
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 2px;
+}
+
+.footer p {
+  margin: 0;
+}
+
+.footer a {
+  color: #08786f;
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 620px) {
+  .modal {
+    border-radius: 18px;
+  }
+
+  .balanceGrid,
+  .formGrid,
+  .actions,
+  .createTypeGrid,
+  .typeOptions {
+    grid-template-columns: 1fr;
+  }
+
+  .employeeSummary {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .avatar {
+    width: 42px;
+    height: 42px;
+  }
+
+  .auditBadge {
+    display: none;
+  }
+
+  .headerActions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .newTypeButton {
+    width: 100%;
+    text-align: center;
+  }
+
+  .footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

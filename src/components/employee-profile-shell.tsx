@@ -4,20 +4,22 @@ import {
   EmployeeAvatarUpload,
   type EmployeeAvatarAction,
 } from "@/components/employee-avatar-upload";
+import { EmployeeProfileSectionNav } from "@/components/employee-profile-section-nav";
 import {
   employeeProfileTabs,
+  type EmployeeProfileNavigationTab,
   type EmployeeProfileSection,
 } from "@/lib/team/employee-profile-tabs";
 import styles from "./employee-profile-shell.module.css";
 
-type VisibleTab = (typeof employeeProfileTabs)[number];
-const profileGroups = ["Summary", "Work", "Pay & compliance", "Records"] as const;
+type VisibleTab = EmployeeProfileNavigationTab;
 
 export type EmployeeProfileShellPerson = {
   id: string;
   avatarUrl: string | null;
   fullName: string;
   employeeCode: string | null;
+  position: string | null;
   employmentType: string | null;
   status: string;
   primaryBranchName: string | null;
@@ -32,6 +34,8 @@ export function EmployeeProfileShell({
   profileLabel,
   sectionContent,
   visibleTabs,
+  editHref,
+  notice,
 }: {
   activeSection: EmployeeProfileSection;
   avatarAction?: EmployeeAvatarAction;
@@ -40,17 +44,12 @@ export function EmployeeProfileShell({
   profileLabel: "People" | "People & HR";
   sectionContent?: ReactNode;
   visibleTabs: readonly VisibleTab[];
+  editHref?: string;
+  notice?: { message: string; tone: "error" | "success" } | null;
 }) {
   const activeTab = employeeProfileTabs.find(
     (tab) => tab.key === activeSection,
   );
-  const visibleGroups = profileGroups
-    .map((group) => ({
-      group,
-      tabs: visibleTabs.filter((tab) => tab.group === group),
-    }))
-    .filter((item) => item.tabs.length > 0);
-
   return (
     <main className={styles.page}>
       <header className={styles.header}>
@@ -65,8 +64,11 @@ export function EmployeeProfileShell({
             <div className={styles.meta}>
               <span className={styles.employeeCode}>
                 {person.employeeCode ??
-                  (profileLabel === "People" ? "Core staff" : "Employment not linked")}
+                  (profileLabel === "People"
+                    ? "Core staff"
+                    : "Employment not linked")}
               </span>
+              {person.position ? <span>{person.position}</span> : null}
               {person.employmentType ? (
                 <span>{formatEnum(person.employmentType)}</span>
               ) : null}
@@ -77,40 +79,32 @@ export function EmployeeProfileShell({
             </div>
           </div>
         </div>
+        {editHref ? (
+          <Link className={styles.editProfileAction} href={editHref}>
+            <span aria-hidden="true">&#9998;</span>
+            Edit details
+          </Link>
+        ) : null}
       </header>
 
+      {notice ? (
+        <div className={styles.profileNotice} data-tone={notice.tone}>
+          {notice.message}
+        </div>
+      ) : null}
+
       <div className={styles.workspace}>
-        <aside className={styles.profileRail}>
-          <nav aria-label="Employee profile sections" className={styles.tabs}>
-            {visibleGroups.map(({ group, tabs }) => (
-              <div className={styles.tabGroup} key={group}>
-                <span className={styles.tabGroupLabel}>{group}</span>
-                <div className={styles.tabGroupLinks}>
-                  {tabs.map((tab) => (
-                    <Link
-                      aria-current={tab.key === activeSection ? "page" : undefined}
-                      className={tab.key === activeSection ? styles.activeTab : undefined}
-                      href={`/team/people/${person.id}?section=${tab.key}`}
-                      key={tab.key}
-                    >
-                      <span aria-hidden="true" className={styles.tabIcon}>
-                        {sectionIcon(tab.key)}
-                      </span>
-                      <span>
-                        <strong>{tab.label}</strong>
-                        <small>{tab.description}</small>
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </nav>
-          <p className={styles.privacyNote}>
-            Sensitive payroll and bank details appear only with permission. Bank
-            account numbers stay masked outside the secure edit screen.
-          </p>
-        </aside>
+        <EmployeeProfileSectionNav
+          activeSection={activeSection}
+          items={visibleTabs.map(({ description, group, key, label }) => ({
+            description,
+            group,
+            key,
+            label,
+          }))}
+          personId={person.id}
+          privacyNote="Sensitive payroll and bank details appear only with permission. Bank account numbers stay masked outside the secure edit screen."
+        />
 
         <div className={styles.profileMain}>
           {!authorized ? (
@@ -143,22 +137,6 @@ export function EmployeeProfileShell({
   );
 }
 
-function sectionIcon(section: EmployeeProfileSection) {
-  const icons: Record<EmployeeProfileSection, string> = {
-    overview: "◉",
-    personal: "◇",
-    employment: "▣",
-    attendance: "◷",
-    leave: "◒",
-    claims: "$",
-    payroll: "▤",
-    statutory: "§",
-    documents: "▧",
-    activity: "↻",
-  };
-  return icons[section];
-}
-
 function ProfileState({
   description,
   eyebrow,
@@ -189,13 +167,7 @@ function sectionDescription() {
 }
 
 function sectionTitle(section: EmployeeProfileSection) {
-  if (section === "documents") {
-    return "Documents are not available yet";
-  }
-  if (section === "activity") {
-    return "Activity is not available yet";
-  }
-  return "Profile section is not available yet";
+  return `${employeeProfileTabs.find((tab) => tab.key === section)?.label ?? "Profile"} is not available`;
 }
 
 function formatEnum(value: string) {

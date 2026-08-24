@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import styles from "./hr-payroll-workspace.module.css";
 
@@ -12,6 +12,10 @@ export type HrPayrollWorkspaceItem = {
   icon: HrPayrollWorkspaceIcon;
   exact?: boolean;
   activePrefixes?: readonly string[];
+  activeQuery?: {
+    name: string;
+    value: string;
+  };
 };
 
 export type HrPayrollWorkspaceIcon =
@@ -24,6 +28,7 @@ export type HrPayrollWorkspaceIcon =
   | "claims"
   | "commission"
   | "payroll"
+  | "activity"
   | "overview"
   | "runs"
   | "payments"
@@ -44,6 +49,13 @@ export function HrPayrollWorkspaceNav({
   variant?: "primary" | "secondary";
 }) {
   const pathname = usePathname() ?? "";
+  const searchParams = useSearchParams();
+  const queryActiveItem = items.find(
+    (item) =>
+      item.activeQuery &&
+      pathname === item.href.split("?")[0] &&
+      searchParams?.get(item.activeQuery.name) === item.activeQuery.value,
+  );
 
   return (
     <nav
@@ -51,7 +63,9 @@ export function HrPayrollWorkspaceNav({
       className={variant === "primary" ? styles.primaryNav : styles.secondaryNav}
     >
       {items.map((item) => {
-        const active = isActive(pathname, item);
+        const active = queryActiveItem
+          ? queryActiveItem.href === item.href
+          : isActive(pathname, item);
         return (
           <Link
             aria-current={active ? "page" : undefined}
@@ -88,6 +102,7 @@ function WorkspaceIcon({ name }: { name: HrPayrollWorkspaceIcon }) {
     claims: <><path d="M7 3h10l3 3v15H4V3z" /><path d="M8 9h8M8 13h8M8 17h5" /></>,
     commission: <><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5c-.8-.7-1.9-1-3.2-1-1.8 0-3 .8-3 2.1 0 3.2 6.1 1.6 6.1 4.9 0 1.3-1.2 2.1-3.2 2.1-1.5 0-2.8-.5-3.7-1.4M12 5.5v13" /></>,
     payroll: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M7 10h10M7 14h4M15 14h2" /></>,
+    activity: <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></>,
     overview: <><path d="M4 19V9M10 19V5M16 19v-7M3 19h18" /></>,
     runs: <><path d="M4 6h16M4 12h16M4 18h10" /><circle cx="19" cy="18" r="2" /></>,
     payments: <><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h4" /></>,

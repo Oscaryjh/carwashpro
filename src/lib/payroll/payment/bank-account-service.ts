@@ -5,6 +5,7 @@ import {
   encryptBankAccountNumber,
   normalizeBankCode,
 } from "./bank-account-crypto";
+import { payrollBankAccountHighRisk } from "./bank-account-security";
 import { executePayrollPaymentCommand } from "./payment-command";
 import {
   safeBankAuditMetadata,
@@ -56,10 +57,7 @@ export async function createEmployeeBankVersion(
       capability: "EDIT_BANK_ACCOUNT",
       command: { ...command, effectiveFrom: effectiveFrom.toISOString() },
       commandType: "CREATE_BANK_VERSION",
-      highRisk: {
-        actionKey: "BANK_ACCOUNT_EDIT",
-        resourceId: command.membershipId,
-      },
+      highRisk: payrollBankAccountHighRisk(command.membershipId),
       context,
       run: async (transaction, stepUpAudit) => {
         const membership = await transaction.employeeBusinessMembership.findFirst({
@@ -183,10 +181,7 @@ export async function verifyEmployeeBankVersion(
       capability: "VERIFY_BANK_ACCOUNT",
       command,
       commandType: "VERIFY_BANK_VERSION",
-      highRisk: {
-        actionKey: "BANK_ACCOUNT_EDIT",
-        resourceId: command.membershipId,
-      },
+      highRisk: payrollBankAccountHighRisk(command.membershipId),
       context,
       run: async (transaction, stepUpAudit) => {
         const version = await transaction.employeeBankAccountVersion.findFirst({
@@ -269,10 +264,7 @@ export async function deactivateEmployeeBankVersion(
       capability: "EDIT_BANK_ACCOUNT",
       command,
       commandType: "DEACTIVATE_BANK_VERSION",
-      highRisk: {
-        actionKey: "BANK_ACCOUNT_EDIT",
-        resourceId: command.membershipId,
-      },
+      highRisk: payrollBankAccountHighRisk(command.membershipId),
       context,
       run: async (transaction, stepUpAudit) => {
         const version = await transaction.employeeBankAccountVersion.findFirst({

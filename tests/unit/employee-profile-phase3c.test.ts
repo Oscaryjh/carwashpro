@@ -157,15 +157,18 @@ test("Phase 3C navigation remains truthful after the scoped Phase 4A editing sur
   assert.match(loader, /VIEW_PAYROLL_RUN/);
   assert.match(loader, /VIEW_PAYSLIP/);
   assert.match(loader, /VIEW_PAYMENT_BATCH/);
-  assert.match(component, /View Payroll Runs/);
+  assert.match(component, /Published payroll documents available to this employee/);
   assert.match(component, /Download PDF/);
   assert.match(component, /Available for download/);
-  assert.match(component, /Payment tracking is not available/);
-  assert.match(component, /Finalized means calculations are locked/);
+  assert.match(component, /result\.payslip\.status !== "AVAILABLE"/);
+  assert.doesNotMatch(component, /No published payslip available/);
+  assert.doesNotMatch(component, /Payment tracking is not available/);
+  assert.doesNotMatch(component, /Finalized means calculations are locked/);
   assert.match(styles, /@media \(max-width: 760px\)/);
   assert.match(styles, /\.payrollActionGrid/);
   assert.doesNotMatch(component, /Publish payslip|Process payment/);
-  assert.doesNotMatch(component, /Published|Delivered|Viewed|Sent/);
+  assert.doesNotMatch(component, /View Payroll Runs in Workspace|Payroll Workspace/);
+  assert.doesNotMatch(component, /Delivered|Viewed|Sent/);
   assert.doesNotMatch(loader, /bankAccount|paymentBatch|grossPay|netPay|basicPay/);
 });
 

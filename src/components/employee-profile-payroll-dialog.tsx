@@ -13,6 +13,7 @@ export function EmployeeProfilePayrollDialog({
   label,
   size = "default",
   title,
+  triggerClassName,
   variant = "disclosure",
 }: {
   children: ReactNode;
@@ -23,6 +24,7 @@ export function EmployeeProfilePayrollDialog({
   label: string;
   size?: "compact" | "default";
   title: string;
+  triggerClassName?: string;
   variant?: "button" | "disclosure";
 }) {
   function openDialog() {
@@ -37,7 +39,7 @@ export function EmployeeProfilePayrollDialog({
       <button
         aria-controls={dialogId}
         aria-haspopup="dialog"
-        className={`${styles.payrollDialogTrigger} ${variant === "button" ? styles.payrollDialogButton : ""} ${size === "compact" ? styles.payrollDialogCompact : ""}`}
+        className={`${styles.payrollDialogTrigger} ${variant === "button" ? styles.payrollDialogButton : ""} ${size === "compact" ? styles.payrollDialogCompact : ""} ${triggerClassName ?? ""}`}
         onClick={openDialog}
         type="button"
       >

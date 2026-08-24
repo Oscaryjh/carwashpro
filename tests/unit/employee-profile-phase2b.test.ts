@@ -49,6 +49,7 @@ test("Personal query selects only the People Core contact data sources", async (
   await getEmployeeProfilePersonal(input, database);
 
   assert.deepEqual(select, {
+    dateOfBirth: true,
     id: true,
     fullName: true,
     phoneNumber: true,
@@ -67,7 +68,6 @@ test("Personal implementation contains no prohibited sensitive field", async () 
     [
       "src/lib/team/employee-profile-read.ts",
       "src/components/employee-profile-personal.tsx",
-      "src/app/(business)/team/people/[personId]/page.tsx",
     ].map((file) => readFile(path.join(root, file), "utf8")),
   );
   const source = sources.join("\n");
@@ -99,26 +99,30 @@ test("Personal implementation contains no prohibited sensitive field", async () 
   }
 });
 
-test("Personal remains read-only as later read-only sections are added", async () => {
+test("contact details remain read-only inside the merged Profile section", async () => {
   const root = process.cwd();
   const route = await readFile(
     path.join(root, "src/app/(business)/team/people/[personId]/page.tsx"),
     "utf8",
   );
   const component = await readFile(
-    path.join(root, "src/components/employee-profile-personal.tsx"),
+    path.join(root, "src/components/employee-profile-phase2a.tsx"),
     "utf8",
   );
 
   assert.match(
     route,
-    /membership && sectionAuthorized && activeSection === "personal"/,
+    /membership &&[\s\S]*?profileInput &&[\s\S]*?areaAuthorized/,
   );
-  assert.match(route, /activeSection === "attendance"/);
-  assert.match(route, /activeSection === "leave"/);
+  assert.match(route, /activeSection === "overview"/);
+  assert.match(route, /getEmployeeProfilePersonal\(profileInput\)/);
+  assert.doesNotMatch(route, /activeSection === "personal"/);
+  assert.match(route, /activeSection === "time"/);
+  assert.match(route, /activeView === "attendance"/);
+  assert.match(route, /activeView === "leave"/);
   assert.doesNotMatch(component, /<form|<input|<button|action=/);
-  assert.match(component, /Full name/);
   assert.match(component, /Phone number/);
-  assert.match(component, /Linked POS email/);
-  assert.doesNotMatch(component, /dateOfBirth|Date of birth/);
+  assert.match(component, /Date of birth/);
+  assert.match(component, /Login email/);
+  assert.doesNotMatch(component, /Full name/);
 });

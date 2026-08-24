@@ -6,7 +6,7 @@ export type CommissionSourceKind =
   | "PACKAGE_PURCHASE"
   | "PACKAGE_REDEMPTION";
 export type CommissionRuleKind = "PERCENTAGE" | "FIXED_AMOUNT" | "TIERED_PERCENTAGE";
-export type CommissionRuleScopeKind = "ALL" | "CATEGORY" | "ITEM";
+export type CommissionRuleScopeKind = "ALL" | "CATEGORY" | "ITEM" | "MEMBER";
 export type CommissionBasisKind = "GROSS" | "NET_AFTER_DISCOUNT";
 
 export type CommissionTier = {
@@ -22,6 +22,7 @@ export type CommissionRuleCandidate = {
   branchId: string | null;
   scope: CommissionRuleScopeKind;
   scopeId: string | null;
+  itemId: string | null;
   ruleType: CommissionRuleKind;
   basis: CommissionBasisKind;
   rateBasisPoints: number | null;
@@ -34,6 +35,7 @@ export type CommissionRuleCandidate = {
 
 export type CommissionSource = {
   id: string;
+  membershipId?: string | null;
   sourceType: CommissionSourceKind;
   branchId: string | null;
   sourceItemId: string | null;
@@ -56,7 +58,12 @@ const SCOPE_WEIGHT: Record<CommissionRuleScopeKind, number> = {
   ALL: 0,
   CATEGORY: 1,
   ITEM: 2,
+  MEMBER: 3,
 };
+
+function scopeWeight(rule: CommissionRuleCandidate) {
+  return rule.scope === "MEMBER" && rule.itemId ? 4 : SCOPE_WEIGHT[rule.scope];
+}
 
 export function allocateDiscountCents(
   grossLineCents: readonly number[],
@@ -94,11 +101,15 @@ export function resolveCommissionRule(
     if (rule.scope === "CATEGORY") {
       return Boolean(rule.scopeId && rule.scopeId === source.sourceCategoryId);
     }
+    if (rule.scope === "MEMBER") {
+      if (!rule.scopeId || rule.scopeId !== source.membershipId) return false;
+      return rule.itemId === null || rule.itemId === source.sourceItemId;
+    }
     return rule.scopeId === null;
   });
   eligible.sort(
     (a, b) =>
-      SCOPE_WEIGHT[b.scope] - SCOPE_WEIGHT[a.scope] ||
+      scopeWeight(b) - scopeWeight(a) ||
       Number(b.branchId !== null) - Number(a.branchId !== null) ||
       b.priority - a.priority ||
       b.revision - a.revision ||
@@ -111,7 +122,7 @@ export function resolveCommissionRule(
       candidateCount: candidates.length,
       eligibleRuleRevisionIds: eligible.map((candidate) => candidate.id),
       selectedRuleRevisionId: rule?.id ?? null,
-      policy: "MOST_SPECIFIC_THEN_BRANCH_THEN_PRIORITY_THEN_REVISION_NO_STACKING",
+      policy: "MEMBER_ITEM_THEN_MEMBER_THEN_ITEM_THEN_CATEGORY_THEN_ALL_NO_STACKING",
     },
   };
 }

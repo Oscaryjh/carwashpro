@@ -5,7 +5,6 @@ import { requireBusinessContext } from "@/lib/tenant";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import { MODULE_REGISTRY, moduleKeys } from "@/lib/modules/registry";
 import { updateBusinessAction } from "@/app/admin/businesses/actions";
-import Link from "next/link";
 import { saveBusinessVehicleSizeOverrideAction, removeBusinessVehicleSizeOverrideAction } from "./vehicle-size-actions";
 import { formatCents } from "@/lib/commercial/money";
 import { getEffectiveCommercialConfiguration } from "@/lib/commercial/service";
@@ -60,12 +59,6 @@ export default async function BusinessSettingsPage({
   return (
     <>
       <section className="content company-settings-page">
-        <div className="company-settings-page-actions">
-          <Link className="secondary-link-button" href="/business/settings/logs">
-            Staff logs
-          </Link>
-        </div>
-
         <BusinessForm
           action={updateBusinessAction}
           mode="edit"

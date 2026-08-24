@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import type { Prisma } from "@prisma/client";
 import { statutoryExportStepUpResourceId } from "../../src/lib/payroll/high-risk-mfa";
+import { pcbProfileDataSchema } from "../../src/lib/payroll/pcb-profile";
 import { publishPayrollPayslips } from "../../src/lib/payroll/payslip-publication";
 import { getPayrollPeriodReadiness } from "../../src/lib/payroll/readiness";
 import {
@@ -11,7 +12,6 @@ import {
   submitPayrollRunForReview,
 } from "../../src/lib/payroll/service";
 import { downloadOrCreateStatutoryArtifact } from "../../src/lib/payroll/statutory-artifact";
-import type { EmployeePcbProfile } from "../../src/lib/payroll/pcb-profile";
 import { prisma } from "../../src/lib/prisma";
 import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 
@@ -172,7 +172,12 @@ test("PCB VC1 executes A-F through real payroll, finalization, frozen snapshots,
   }
 });
 
-type PcbProfile = Extract<EmployeePcbProfile, { tp1Declaration: unknown }>;
+type PcbProfile = Extract<ReturnType<typeof pcbProfileDataSchema.parse>, { version: 3 }>;
+type PcbProfileOverrides = Partial<Omit<PcbProfile, "religiousTravelLevyDeclaration" | "tp1Declaration" | "tp3Declaration">> & {
+  religiousTravelLevyDeclaration?: Partial<PcbProfile["religiousTravelLevyDeclaration"]>;
+  tp1Declaration?: Partial<PcbProfile["tp1Declaration"]>;
+  tp3Declaration?: Partial<PcbProfile["tp3Declaration"]>;
+};
 
 async function createFixture() {
   const token = randomUUID();
@@ -383,7 +388,7 @@ async function createFixture() {
   return { businessId: business.id, branchId: branch.id, ownerId: owner.id, actor, memberships, ruleId: rule.id };
 }
 
-function baseProfile(overrides: Partial<Record<string, unknown>> = {}) {
+function baseProfile(overrides: PcbProfileOverrides = {}): PcbProfile {
   const timestamp = "2026-01-01T00:00:00.000Z";
   const profile = {
     version: 3 as const,
@@ -411,12 +416,13 @@ function baseProfile(overrides: Partial<Record<string, unknown>> = {}) {
     religiousTravelLevyDeclaration: { status: "NOT_APPLICABLE" as const, amountCents: 0, sourceReference: null, declaredAt: timestamp, reviewedAt: timestamp },
     confirmedAt: timestamp,
   };
-  return {
+  return pcbProfileDataSchema.parse({
     ...profile,
     ...overrides,
-    tp1Declaration: { ...profile.tp1Declaration, ...(overrides.tp1Declaration as object | undefined) },
-    tp3Declaration: { ...profile.tp3Declaration, ...(overrides.tp3Declaration as object | undefined) },
-  } as PcbProfile;
+    religiousTravelLevyDeclaration: { ...profile.religiousTravelLevyDeclaration, ...overrides.religiousTravelLevyDeclaration },
+    tp1Declaration: { ...profile.tp1Declaration, ...overrides.tp1Declaration },
+    tp3Declaration: { ...profile.tp3Declaration, ...overrides.tp3Declaration },
+  }) as PcbProfile;
 }
 
 function tp1Entry(categoryCode: "C5", amountCents: number, categoryLimitCents: number, sourceReference: string) {

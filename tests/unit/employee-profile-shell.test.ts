@@ -20,8 +20,10 @@ test("employee profile tabs follow capabilities instead of role-name UI checks",
   );
 
   assert.ok(managerTabs.includes("overview"));
-  assert.ok(managerTabs.includes("attendance"));
-  assert.equal(managerTabs.includes("payroll"), false);
+  assert.ok(managerTabs.includes("work"));
+  assert.ok(managerTabs.includes("time"));
+  assert.ok(managerTabs.includes("access"));
+  assert.equal(managerTabs.includes("compensation"), false);
   assert.equal(canViewEmployeeProfileTab(groupManager, "payroll"), false);
 
   const groupOwner = buildAccess({
@@ -29,7 +31,7 @@ test("employee profile tabs follow capabilities instead of role-name UI checks",
     effectiveBusinessRole: "BUSINESS_OWNER",
     source: "GROUP_ACCESS",
   });
-  assert.equal(canViewEmployeeProfileTab(groupOwner, "payroll"), true);
+  assert.equal(canViewEmployeeProfileTab(groupOwner, "compensation"), true);
 
   const directoryOnlyStaff = buildAccess({
     actorRole: "STAFF",
@@ -40,16 +42,20 @@ test("employee profile tabs follow capabilities instead of role-name UI checks",
   const directoryTabs = getVisibleEmployeeProfileTabs(directoryOnlyStaff).map(
     (tab) => tab.key,
   );
-  assert.ok(directoryTabs.includes("personal"));
-  assert.equal(directoryTabs.includes("attendance"), false);
-  assert.equal(directoryTabs.includes("payroll"), false);
+  assert.deepEqual(directoryTabs, ["overview", "work", "access"]);
+  assert.equal(directoryTabs.includes("time"), false);
+  assert.equal(directoryTabs.includes("compensation"), false);
 });
 
-test("employee profile shell queries only non-sensitive header data", async () => {
+test("employee profile shell keeps sensitive payroll data out of the profile editor", async () => {
   const root = process.cwd();
   const profilePage = await readFile(
     path.join(root, "src/app/(business)/team/people/[personId]/page.tsx"),
     "utf8",
+  );
+  const profileEditorLoader = profilePage.slice(
+    profilePage.indexOf("async function loadProfileEditData"),
+    profilePage.indexOf("function parseProfileUpdateNotice"),
   );
 
   for (const forbiddenField of [
@@ -64,7 +70,7 @@ test("employee profile shell queries only non-sensitive header data", async () =
     "payrollEntries",
   ]) {
     assert.equal(
-      profilePage.includes(forbiddenField),
+      profileEditorLoader.includes(forbiddenField),
       false,
       `${forbiddenField} must not be queried by the Phase 1 shell`,
     );
@@ -73,7 +79,9 @@ test("employee profile shell queries only non-sensitive header data", async () =
   assert.match(profilePage, /buildPeopleMembershipScopeWhere/);
   assert.match(profilePage, /buildPeopleStaffScopeWhere/);
   assert.match(profilePage, /employeeCode: true/);
-  assert.doesNotMatch(profilePage, /employmentType: true/);
+  assert.match(profilePage, /loadProfileEditData/);
+  assert.match(profilePage, /StaffEditModal/);
+  assert.match(profilePage, /returnTo={profilePath}/);
   assert.match(profilePage, /fullName: true/);
   assert.match(profilePage, /status: true/);
   assert.match(profilePage, /EmployeeProfileCoreStaffOverview/);
@@ -96,9 +104,46 @@ test("People uses the canonical shell while legacy edit routes remain available"
 
   assert.match(peoplePage, /href={`\/team\/people\/\$\{member\.id\}`}/);
   assert.match(peoplePage, /href={`\/team\/people\/\$\{employee\.id\}`}/);
-  assert.match(legacyStaffRoute, /redirect\(`\/team\/people\/\$\{staff\.id\}`\)/);
+  assert.match(
+    legacyStaffRoute,
+    /redirect\(`\/team\/people\/\$\{staff\.id\}`\)/,
+  );
   assert.match(legacyEmployeeRoute, /AttendanceEmployeeForm/);
   assert.equal(routePermission("/team/people/employee-1"), "TEAM");
+});
+
+test("People directory reuses the uploaded employee avatar with initials fallback", async () => {
+  const root = process.cwd();
+  const peoplePage = await readFile(
+    path.join(root, "src/app/(business)/team/page.tsx"),
+    "utf8",
+  );
+
+  assert.match(peoplePage, /avatarUrl: true/);
+  assert.match(
+    peoplePage,
+    /avatarUrl={employment\?\.avatarUrl \?\? null}/,
+  );
+  assert.match(peoplePage, /avatarUrl={employee\.avatarUrl}/);
+  assert.match(peoplePage, /function TeamAvatar/);
+  assert.match(peoplePage, /<Image[\s\S]*?fill[\s\S]*?unoptimized/);
+});
+
+test("People directory keeps role and level editing inside the edit modal", async () => {
+  const root = process.cwd();
+  const peoplePage = await readFile(
+    path.join(root, "src/app/(business)/team/page.tsx"),
+    "utf8",
+  );
+  const staffForm = await readFile(
+    path.join(root, "src/components/staff-form.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(peoplePage, />Apply role</);
+  assert.doesNotMatch(peoplePage, />Apply level</);
+  assert.match(staffForm, /name="staffRoleProfileId"/);
+  assert.match(staffForm, /name="staffLevelId"/);
 });
 
 test("employee profile route provides all required Phase 1 states", async () => {
@@ -117,7 +162,10 @@ test("employee profile route provides all required Phase 1 states", async () => 
   );
   assert.match(shell, /Access denied/);
   assert.match(shell, /Employment profile is not linked/);
-  assert.doesNotMatch(shell, /Salary, bank and statutory information will appear here/);
+  assert.doesNotMatch(
+    shell,
+    /Salary, bank and statutory information will appear here/,
+  );
 });
 
 test("employee profile presents one concise grouped record without exposing bank details", async () => {
@@ -136,11 +184,13 @@ test("employee profile presents one concise grouped record without exposing bank
   assert.doesNotMatch(shell, /One profile, organised by purpose/);
   assert.match(shell, /Bank\s+account numbers stay masked/);
   assert.doesNotMatch(shell, /accountNumber|bankAccountNumber/);
-  assert.match(tabs, /group: "Summary"/);
-  assert.match(tabs, /group: "Work"/);
-  assert.match(tabs, /group: "Pay & compliance"/);
-  assert.match(tabs, /label: "Payroll & bank"/);
-  assert.match(tabs, /label: "Statutory & tax"/);
+  assert.match(tabs, /group: "Employee 360"/);
+  assert.match(tabs, /label: "Overview"/);
+  assert.match(tabs, /label: "Work"/);
+  assert.match(tabs, /label: "Time & Leave"/);
+  assert.match(tabs, /label: "Compensation"/);
+  assert.match(tabs, /label: "Access"/);
+  assert.doesNotMatch(tabs, /label: "Personal"|label: "Employment"|label: "Payroll & bank"/);
 });
 
 function buildAccess(

@@ -8,12 +8,47 @@ export function PwaRegister() {
       return;
     }
 
+    // Development chunks change on every compile. A previously installed PWA
+    // worker can otherwise keep an old CSS/JS response alive and make a newly
+    // rendered page appear completely unstyled. Keep the PWA production-only
+    // and clean up old local registrations left by earlier builds.
+    if (process.env.NODE_ENV !== "production") {
+      void navigator.serviceWorker
+        .getRegistrations()
+        .then((registrations) =>
+          Promise.all(
+            registrations
+              .filter((registration) =>
+                registration.scope.startsWith(window.location.origin),
+              )
+              .map((registration) => registration.unregister()),
+          ),
+        )
+        .then(async () => {
+          if (!("caches" in window)) {
+            return;
+          }
+
+          const cacheNames = await window.caches.keys();
+          await Promise.all(
+            cacheNames
+              .filter((cacheName) => cacheName.startsWith("tetamu-pos-static-"))
+              .map((cacheName) => window.caches.delete(cacheName)),
+          );
+        })
+        .catch((error) => {
+          console.error(
+            "Unable to clear the local TETAMU POS service worker.",
+            error,
+          );
+        });
+      return;
+    }
+
     function registerServiceWorker() {
-      void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((error) => {
-        if (process.env.NODE_ENV !== "production") {
-          console.error("Unable to register the TETAMU POS service worker.", error);
-        }
-      });
+      void navigator.serviceWorker
+        .register("/sw.js", { scope: "/" })
+        .catch(() => undefined);
     }
 
     if (document.readyState === "complete") {

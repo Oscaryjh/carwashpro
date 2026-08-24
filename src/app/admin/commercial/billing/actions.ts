@@ -8,6 +8,7 @@ import {
   consumeSensitiveActionAuthorizationInTransaction,
   verifySensitiveActionMfa,
 } from "@/lib/auth/sensitive-action-service";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 import { getSensitiveActionPolicy, type SensitiveActionKey } from "@/lib/auth/sensitive-actions";
 import { requireUser, type AppSession } from "@/lib/auth/session";
 import {
@@ -115,6 +116,24 @@ async function requirePlatformActor() {
 async function verifiedAuthorization(actor: AppSession, actionKey: SensitiveActionKey, resourceId: string, formData: FormData) {
   if (!actor.sessionId) throw new Error("STEP_UP_SESSION_MISMATCH");
   const policy = getSensitiveActionPolicy(actionKey);
+  if (!isMfaFeatureEnabled()) {
+    return async (transaction: Prisma.TransactionClient): Promise<Prisma.InputJsonObject> => {
+      const authorization = await consumeSensitiveActionAuthorizationInTransaction({
+        actionKey,
+        businessId: null,
+        rawToken: null,
+        resourceId,
+        resourceType: policy.resourceType,
+        sessionId: actor.sessionId!,
+        userId: actor.userId,
+      }, transaction);
+      return {
+        sensitiveActionAuthorizationId: authorization.id,
+        assurance: authorization.assuranceLevel,
+        method: authorization.verificationMethod,
+      };
+    };
+  }
   const request = await getAuditRequestContext();
   const factorType = required(formData, "stepUpFactorType");
   if (factorType !== "TOTP" && factorType !== "RECOVERY_CODE") throw new Error("MFA_VERIFICATION_FAILED");

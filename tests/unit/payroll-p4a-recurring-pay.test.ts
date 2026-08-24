@@ -127,6 +127,67 @@ test("recurring pay uses UTC payroll month and Decimal aggregation", () => {
   assert.equal(amount.toFixed(2), "0.30");
 });
 
+test("a future version replaces the same recurring component without stacking", async () => {
+  const versions = [
+    {
+      amount: new Prisma.Decimal("200"),
+      currency: "MYR",
+      effectiveFromMonth: new Date("2026-08-01T00:00:00.000Z"),
+      id: "version-august",
+      name: "Transport allowance",
+      revision: 1,
+      state: "ACTIVE",
+    },
+    {
+      amount: new Prisma.Decimal("350"),
+      currency: "MYR",
+      effectiveFromMonth: new Date("2026-10-01T00:00:00.000Z"),
+      id: "version-october",
+      name: "Transport allowance",
+      revision: 2,
+      state: "ACTIVE",
+    },
+  ];
+  const database = {
+    employeeRecurringPayComponent: {
+      findMany: async (query: {
+        select: { versions: { where: { effectiveFromMonth: { lte: Date } }; take: number } };
+      }) => {
+        assert.equal(query.select.versions.take, 1);
+        const cutoff = query.select.versions.where.effectiveFromMonth.lte;
+        const selected = versions
+          .filter((version) => version.effectiveFromMonth <= cutoff)
+          .sort((left, right) => right.effectiveFromMonth.getTime() - left.effectiveFromMonth.getTime())
+          .slice(0, 1);
+        return [{
+          code: "TRANSPORT_ALLOWANCE",
+          id: "component-transport",
+          membershipId: "membership-a",
+          type: "EARNING",
+          versions: selected,
+        }];
+      },
+    },
+  } as never;
+
+  const september = await resolveRecurringPayForEmployee({
+    businessId: "business-a",
+    membershipId: "membership-a",
+    payrollPeriodStart: new Date("2026-09-15T00:00:00.000Z"),
+  }, database);
+  const october = await resolveRecurringPayForEmployee({
+    businessId: "business-a",
+    membershipId: "membership-a",
+    payrollPeriodStart: new Date("2026-10-15T00:00:00.000Z"),
+  }, database);
+
+  assert.equal(september.length, 1);
+  assert.equal(september[0]?.amount.toString(), "200");
+  assert.equal(october.length, 1);
+  assert.equal(october[0]?.amount.toString(), "350");
+  assert.equal(sumRecurringPay(october, "EARNING").toString(), "350");
+});
+
 test("P4A migration is additive and guards immutable recurring pay facts", () => {
   const sql = readFileSync(
     "prisma/migrations/20260808120000_payroll_p4a_recurring_pay_foundation/migration.sql",

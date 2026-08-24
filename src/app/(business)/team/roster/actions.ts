@@ -14,11 +14,15 @@ import { prisma } from "@/lib/prisma";
 import {
   copyPreviousRosterWeek,
   bulkUpsertRosterAssignments,
+  ensureRosterPeriod,
   publishRoster,
+  assertRosterPublishDatesUnlocked,
   removeRosterAssignment,
   upsertRosterAssignment,
   type RosterServiceContext,
 } from "@/lib/roster/service";
+import { addDays, dateValue, startOfIsoWeek } from "@/lib/roster/domain";
+import { resolveRosterWeek } from "@/lib/roster/employee-schedule-service";
 import { saveRosterShiftTemplate } from "@/lib/roster/shift-template-service";
 import { addEmployeeRecurringRestDay, saveEmployeeRosterSchedule } from "@/lib/roster/employee-schedule-service";
 
@@ -234,6 +238,94 @@ export async function publishRosterAction(formData: FormData) {
   }
 }
 
+export async function publishRosterMonthAction(formData: FormData) {
+  const returnTo = rosterReturnTo(formData);
+  try {
+    const context = await rosterWriteContext("PUBLISH_ROSTER");
+    const branchId = text(formData, "branchId");
+    const month = monthText(formData, "month");
+    const reason = text(formData, "reason") || null;
+    const operationKey = text(formData, "operationKey") || `roster-month-${randomUUID()}`;
+    const confirmedEmptyWeeks = new Set(
+      formData.getAll("confirmEmptyWeek").map((value) => String(value).trim()).filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value)),
+    );
+    const branch = await prisma.branch.findFirst({
+      where: { id: branchId, businessId: context.businessId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!branch || !context.allowedBranchIds.includes(branchId)) throw new Error("Select an authorised branch.");
+
+    const weekStarts = monthWeekStarts(month);
+    for (const weekStart of weekStarts) {
+      await ensureRosterPeriod({
+        context: { businessId: context.businessId, allowedBranchIds: context.allowedBranchIds, actor: context.actor },
+        branchId,
+        weekStart,
+      });
+    }
+    const periods = await prisma.rosterPeriod.findMany({
+      where: { businessId: context.businessId, branchId, weekStart: { in: weekStarts } },
+      include: { assignments: true },
+      orderBy: { weekStart: "asc" },
+    });
+    if (periods.length !== weekStarts.length) throw new Error("Some weekly roster versions could not be prepared. Refresh and try again.");
+
+    const pending = [];
+    for (const period of periods) {
+      if (period.publicationRevision > 0 && period.status === "PUBLISHED") continue;
+      if (period.publicationRevision > 0 && !context.canAmendPublished) {
+        throw new Error(`The week of ${dateValue(period.weekStart)} contains unpublished changes that require roster amendment permission.`);
+      }
+      const resolution = await resolveRosterWeek({
+        businessId: context.businessId,
+        branchId,
+        weekStart: period.weekStart,
+        database: prisma,
+        overrides: period.assignments,
+      });
+      if (resolution.attention.length) {
+        const names = resolution.attention.map((item) => item.employeeName).join(", ");
+        throw new Error(`Complete the Rest Days for the week of ${dateValue(period.weekStart)} before publishing: ${names}.`);
+      }
+      if (!resolution.assignments.length && !confirmedEmptyWeeks.has(dateValue(period.weekStart))) {
+        throw new Error(`Confirm that the week of ${dateValue(period.weekStart)} intentionally has no shifts before publishing.`);
+      }
+      pending.push(period);
+    }
+
+    if (!pending.length) done(returnTo, `${monthLabel(month)} roster is already published.`);
+
+    await assertRosterPublishDatesUnlocked(
+      prisma,
+      context.businessId,
+      pending.flatMap((period) => Array.from({ length: 7 }, (_, dayOffset) => addDays(period.weekStart, dayOffset))),
+    );
+
+    let published = 0;
+    for (const period of pending) {
+      try {
+        await publishRoster({
+          context,
+          input: {
+            rosterPeriodId: period.id,
+            expectedDraftRevision: period.draftRevision,
+            operationKey: `${operationKey}-${dateValue(period.weekStart)}`,
+            reason,
+          },
+        });
+        published += 1;
+      } catch (error) {
+        const prefix = published ? `${published} week${published === 1 ? "" : "s"} published. ` : "";
+        throw new Error(`${prefix}The week of ${dateValue(period.weekStart)} still needs attention: ${message(error)}`);
+      }
+    }
+    done(returnTo, `${monthLabel(month)} roster published across ${published} weekly version${published === 1 ? "" : "s"}.`);
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    done(returnTo, message(error), "error");
+  }
+}
+
 async function rosterWriteContext(capability: BusinessCapability): Promise<RosterServiceContext> {
   const { access, user, businessId } = await requireBusinessUser(capability);
   const [scope, request] = await Promise.all([resolveAttendanceScope(access), getAuditRequestContext()]);
@@ -257,6 +349,23 @@ function dateText(formData: FormData, key: string) {
   const value = text(formData, key);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("Select a valid roster date.");
   return value;
+}
+function monthText(formData: FormData, key: string) {
+  const value = text(formData, key);
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) throw new Error("Select a valid roster month.");
+  return value;
+}
+function monthWeekStarts(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const first = new Date(Date.UTC(year, monthNumber - 1, 1));
+  const last = new Date(Date.UTC(year, monthNumber, 0));
+  const weeks = [];
+  for (let week = startOfIsoWeek(first); week <= startOfIsoWeek(last); week = addDays(week, 7)) weeks.push(week);
+  return weeks;
+}
+function monthLabel(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, monthNumber - 1, 1)).toLocaleDateString("en-MY", { month: "long", year: "numeric", timeZone: "UTC" });
 }
 function utcDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("Select a valid roster date.");

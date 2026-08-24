@@ -585,7 +585,7 @@ export async function publishRoster(args: {
         "Past or already-started roster dates require retrospective capability and a reason. They cannot manufacture No-show evidence.",
       );
     }
-    await assertNoLockedTimesheet(transaction, args.context.businessId, [
+    await assertRosterPublishDatesUnlocked(transaction, args.context.businessId, [
       ...resolvedAssignments.map((item) => item.workDate),
       ...(priorPublication?.assignments.map((item) => item.workDate) ?? []),
     ]);
@@ -1152,8 +1152,8 @@ async function assertNoShiftOverlap(
   }
 }
 
-async function assertNoLockedTimesheet(
-  transaction: Prisma.TransactionClient,
+export async function assertRosterPublishDatesUnlocked(
+  database: PrismaClient | Prisma.TransactionClient,
   businessId: string,
   dates: readonly Date[],
 ) {
@@ -1163,14 +1163,14 @@ async function assertNoLockedTimesheet(
     return [month.toISOString(), month] as const;
   })).values()];
   if (!months.length) return;
-  const locked = await transaction.attendanceMonthlyTimesheet.findFirst({
+  const locked = await database.attendanceMonthlyTimesheet.findFirst({
     where: { businessId, periodStart: { in: months }, status: "LOCKED" },
     select: { periodStart: true },
   });
   if (locked) {
     throw new RosterError(
       "TIMESHEET_REOPEN_REQUIRED",
-      `The ${locked.periodStart.toISOString().slice(0, 7)} Timesheet is locked. Reopen it through the canonical Timesheet workflow first.`,
+      `The ${locked.periodStart.toISOString().slice(0, 7)} Timesheet is locked. Reopen it in Attendance > Monthly timesheets before publishing or changing this roster.`,
     );
   }
 }

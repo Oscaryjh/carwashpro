@@ -13,7 +13,7 @@ import {
 } from "./embedded-postgres-utils.mjs";
 
 const { loadEnvConfig } = nextEnv;
-loadEnvConfig(process.cwd());
+loadEnvConfig(process.cwd(), true);
 
 const pg = createEmbeddedPostgres();
 const nextBin = join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
@@ -370,10 +370,6 @@ function getChildEnv() {
       process.env.SESSION_SECRET ?? localDevSessionSecret,
     EMPLOYEE_AUTH_SECRET:
       process.env.EMPLOYEE_AUTH_SECRET ?? localDevEmployeeAuthSecret,
-    EMPLOYEE_OTP_SEND_MODE:
-      process.env.EMPLOYEE_OTP_SEND_MODE ?? "mock",
-    EMPLOYEE_OTP_MOCK_CODE:
-      process.env.EMPLOYEE_OTP_MOCK_CODE ?? "000000",
     NODE_OPTIONS: withNodeOption(process.env.NODE_OPTIONS, "--use-system-ca"),
     WS_NO_BUFFER_UTIL: process.env.WS_NO_BUFFER_UTIL ?? "1",
     WS_NO_UTF_8_VALIDATE: process.env.WS_NO_UTF_8_VALIDATE ?? "1",

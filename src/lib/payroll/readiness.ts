@@ -454,9 +454,9 @@ export async function getPayrollPeriodReadiness(
       for (const snapshot of entry.claimReimbursementSnapshots) {
         if (snapshot.status === "BLOCKED_STATUTORY") {
           add(
-            "BLOCKING",
+            "REVIEW",
             "CLAIM_STATUTORY_TREATMENT_NOT_READY",
-            `Claim ${snapshot.claimNumberSnapshot} reimbursement is blocked until its non-wage statutory treatment is verified.`,
+            `Claim ${snapshot.claimNumberSnapshot} is on hold until its payroll treatment is set. Salary payroll can continue.`,
           );
         }
       }
@@ -862,7 +862,7 @@ function readinessIssueGuidance(code: PayrollReadinessCode): {
     case "CLAIM_STATUTORY_TREATMENT_NOT_READY":
       return {
         source: "Claims",
-        resolutionHint: "Verify the claim reimbursement statutory treatment before refreshing payroll.",
+        resolutionHint: "Set the claim category as a business reimbursement to include this claim. Only this reimbursement is on hold; salary payroll may continue.",
       };
     case "STALE_STATUTORY_SOURCE":
       return {

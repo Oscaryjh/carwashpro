@@ -210,8 +210,33 @@ test("Roster Phase 1 includes versioned Shift Templates and real Staff, Shift an
   assert.match(managerPage, /resolvedMonthAssignments/);
   assert.match(managerPage, /monthWeekStarts\(range\.from, range\.to\)/);
   assert.match(managerPage, /weekStart: monthWeekStart/);
+  assert.match(managerPage, /Publish \{monthName\}/);
+  assert.match(managerPage, /Staff App and Attendance update together/);
+  assert.match(managerPage, /Calendar edge weeks/);
   assert.match(views, /Approved Leave conflict/i);
   assert.match(views, /holidayBadge/);
+});
+
+test("Monthly roster publishing keeps weekly evidence versions behind one HR action", () => {
+  const actions = readFileSync("src/app/(business)/team/roster/actions.ts", "utf8");
+  const managerPage = readFileSync("src/app/(business)/team/roster/page.tsx", "utf8");
+
+  assert.match(actions, /export async function publishRosterMonthAction/);
+  assert.match(actions, /const weekStarts = monthWeekStarts\(month\)/);
+  assert.match(actions, /await ensureRosterPeriod/);
+  assert.match(actions, /if \(period\.publicationRevision > 0 && period\.status === "PUBLISHED"\) continue/);
+  assert.match(actions, /Complete the Rest Days for the week of/);
+  assert.match(actions, /confirmedEmptyWeeks\.has\(dateValue\(period\.weekStart\)\)/);
+  assert.match(actions, /await assertRosterPublishDatesUnlocked\(/);
+  assert.match(actions, /pending\.flatMap\(\(period\) => Array\.from\(\{ length: 7 \}/);
+  assert.match(actions, /await publishRoster\(/);
+  assert.match(managerPage, /action=\{publishRosterMonthAction\}/);
+  assert.match(managerPage, /One action creates/);
+  assert.match(managerPage, /weekly roster version/);
+  assert.match(managerPage, /name="confirmEmptyWeek"/);
+  assert.match(managerPage, /Confirm no employee shifts/);
+  assert.match(managerPage, /weeks published; remaining weeks paused/);
+  assert.match(managerPage, /Open monthly timesheet/);
 });
 
 test("Simple Roster UX uses one date-and-staff shift picker across Month, Week and Staff views", () => {

@@ -18,6 +18,7 @@ import { getHrApprovalStages, type HrApprovalActorLevel } from "./policy-service
 import {
   approvalDomains,
   type ApprovalCounts,
+  type ActionCenterKindCounts,
   type ApprovalDomain,
   type ApprovalInboxFilters,
   type ApprovalInboxItem,
@@ -35,7 +36,11 @@ export type UnifiedApprovalContext = Readonly<{
 }>;
 
 type ApprovalDatabase = PrismaClient;
-type AdapterResult = { items: ApprovalInboxItem[]; total: number };
+type AdapterResult = {
+  items: ApprovalInboxItem[];
+  total: number;
+  kindCounts: ActionCenterKindCounts;
+};
 
 const EMPTY_COUNTS: ApprovalCounts = {
   ATTENDANCE: 0,
@@ -45,6 +50,14 @@ const EMPTY_COUNTS: ApprovalCounts = {
   PAYROLL: 0,
   total: 0,
 };
+
+const EMPTY_KIND_COUNTS: ActionCenterKindCounts = {
+  APPROVAL: 0,
+  TASK: 0,
+  total: 0,
+};
+
+export const actionCenterDomains = ["ATTENDANCE", "LEAVE", "CLAIMS"] as const;
 
 export async function resolveUnifiedApprovalContext(input: {
   access: ResolvedBusinessAccess;
@@ -96,7 +109,9 @@ export function availableApprovalDomains(
 }
 
 export function isUnifiedApprovalCenterAvailable(context: UnifiedApprovalContext) {
-  return availableApprovalDomains(context).length > 0;
+  return availableApprovalDomains(context).some((domain) =>
+    actionCenterDomains.includes(domain as (typeof actionCenterDomains)[number]),
+  );
 }
 
 export async function getUnifiedApprovalInbox(
@@ -107,13 +122,19 @@ export async function getUnifiedApprovalInbox(
   const pageSize = Math.min(50, Math.max(1, Math.floor(filters.pageSize ?? 20)));
   const page = Math.min(100, Math.max(1, Math.floor(filters.page ?? 1)));
   const fetchLimit = page * pageSize;
-  const domains = availableApprovalDomains(context);
+  const allowedDomains = filters.domains?.length
+    ? new Set(filters.domains)
+    : null;
+  const domains = availableApprovalDomains(context).filter((domain) =>
+    !allowedDomains || allowedDomains.has(domain),
+  );
   const adapters = domains.map((domain) => ({
     domain,
     promise: loadDomain(domain, context, filters, fetchLimit, database),
   }));
   const settled = await Promise.allSettled(adapters.map((adapter) => adapter.promise));
   const counts = { ...EMPTY_COUNTS };
+  const kindCounts = { ...EMPTY_KIND_COUNTS };
   const unavailableDomains: ApprovalDomain[] = [];
   const allItems: ApprovalInboxItem[] = [];
 
@@ -124,21 +145,34 @@ export async function getUnifiedApprovalInbox(
       return;
     }
     counts[domain] = result.value.total;
+    if (!filters.domain || filters.domain === domain) {
+      kindCounts.APPROVAL += result.value.kindCounts.APPROVAL;
+      kindCounts.TASK += result.value.kindCounts.TASK;
+    }
     allItems.push(...result.value.items);
   });
   counts.total = approvalDomains.reduce((sum, domain) => sum + counts[domain], 0);
+  kindCounts.total = kindCounts.APPROVAL + kindCounts.TASK;
 
-  const visibleItems = filters.domain
+  const domainItems = filters.domain
     ? allItems.filter((item) => item.domain === filters.domain)
     : allItems;
+  const visibleItems = filters.kind
+    ? domainItems.filter((item) => item.kind === filters.kind)
+    : domainItems;
   visibleItems.sort(compareItems);
-  const visibleTotal = filters.domain ? counts[filters.domain] : counts.total;
+  const visibleTotal = filters.kind
+    ? kindCounts[filters.kind]
+    : filters.domain
+      ? counts[filters.domain]
+      : counts.total;
   const totalPages = Math.max(1, Math.ceil(visibleTotal / pageSize));
   const effectivePage = Math.min(page, totalPages);
   const start = (effectivePage - 1) * pageSize;
   return {
     items: visibleItems.slice(start, start + pageSize),
     counts,
+    kindCounts,
     unavailableDomains,
     pagination: {
       page: effectivePage,
@@ -152,14 +186,16 @@ export async function getUnifiedApprovalInbox(
 export async function getUnifiedApprovalCounts(
   context: UnifiedApprovalContext,
   database: ApprovalDatabase = prisma,
+  filters: Pick<ApprovalInboxFilters, "domains"> = {},
 ) {
   const inbox = await getUnifiedApprovalInbox(
     context,
-    { page: 1, pageSize: 1 },
+    { ...filters, page: 1, pageSize: 1 },
     database,
   );
   return {
     counts: inbox.counts,
+    kindCounts: inbox.kindCounts,
     complete: inbox.unavailableDomains.length === 0,
     unavailableDomains: inbox.unavailableDomains,
   };
@@ -205,7 +241,7 @@ async function loadAttendance(
   database: ApprovalDatabase,
 ): Promise<AdapterResult> {
   const branchIds = scopedBranchIds(context, filters.branchId);
-  if (!branchIds.length) return { items: [], total: 0 };
+  if (!branchIds.length) return emptyAdapterResult();
   const employee = normalizedEmployee(filters.employee);
   const dateWhere = dateRange(filters);
   const matchingMembers = employee
@@ -323,9 +359,7 @@ async function loadAttendance(
   ]);
   const p2MemberById = new Map(p2Members.map((member) => [member.id, member]));
   const p2BranchById = new Map(p2Branches.map((branch) => [branch.id, branch]));
-  return {
-    total: p2Count + caseCount + actionableTimesheets.length + actionableOvertime.length,
-    items: [
+  const items = [
       ...p2.flatMap((row) => {
         const membership = p2MemberById.get(row.membershipId);
         const branch = p2BranchById.get(row.branchId);
@@ -336,7 +370,14 @@ async function loadAttendance(
       ...cases.map((row) => projectAttendanceCase(row, context.businessId)),
       ...actionableOvertime.slice(0, limit).map((row) => projectAttendanceOvertime(row)),
       ...actionableTimesheets.map((row) => projectTimesheet(row, context.businessId)),
-    ],
+    ];
+  const taskTotal = actionableTimesheets.filter((row) => row.status === "APPROVED").length;
+  const approvalTotal = p2Count + caseCount + actionableOvertime.length +
+    actionableTimesheets.length - taskTotal;
+  return {
+    total: approvalTotal + taskTotal,
+    items,
+    kindCounts: kindCounts(approvalTotal, taskTotal),
   };
 }
 
@@ -344,6 +385,7 @@ export function projectAttendanceOvertime(row: OvertimeCandidate): ApprovalInbox
   const blocked = Boolean(row.blockedReason);
   return {
     id: `ATTENDANCE:OT:${row.finalResultId}`,
+    kind: "APPROVAL",
     domain: "ATTENDANCE",
     businessId: row.businessId,
     branchId: row.branchId,
@@ -380,7 +422,7 @@ async function loadLeave(
   database: ApprovalDatabase,
 ): Promise<AdapterResult> {
   const branchIds = scopedBranchIds(context, filters.branchId);
-  if (!branchIds.length) return { items: [], total: 0 };
+  if (!branchIds.length) return emptyAdapterResult();
   const employee = normalizedEmployee(filters.employee);
   const range = dateRange(filters);
   const where = {
@@ -423,6 +465,7 @@ async function loadLeave(
   return {
     total: visible.length,
     items: visible.slice(0, limit).map((row) => projectLeave(row, context.businessId, stages.get(row.id)?.stage)),
+    kindCounts: kindCounts(visible.length, 0),
   };
 }
 
@@ -433,7 +476,7 @@ async function loadClaims(
   database: ApprovalDatabase,
 ): Promise<AdapterResult> {
   const branchIds = scopedBranchIds(context, filters.branchId);
-  if (!branchIds.length) return { items: [], total: 0 };
+  if (!branchIds.length) return emptyAdapterResult();
   const employee = normalizedEmployee(filters.employee);
   const range = dateRange(filters);
   const where = {
@@ -481,6 +524,7 @@ async function loadClaims(
   return {
     total: visible.length,
     items: visible.slice(0, limit).map((row) => projectClaim(row, context.businessId, stages.get(row.id)?.stage)),
+    kindCounts: kindCounts(visible.length, 0),
   };
 }
 
@@ -491,7 +535,7 @@ async function loadCommission(
   database: ApprovalDatabase,
 ): Promise<AdapterResult> {
   const branchIds = scopedBranchIds(context, filters.branchId);
-  if (!branchIds.length) return { items: [], total: 0 };
+  if (!branchIds.length) return emptyAdapterResult();
   const actor = await database.user.findFirst({
     where: { id: context.actorUserId, businessId: context.businessId },
     select: { employeeBusinessMembershipId: true },
@@ -542,7 +586,11 @@ async function loadCommission(
       take: limit,
     }),
   ]);
-  return { total, items: rows.map((row) => projectCommission(row, context.businessId)) };
+  return {
+    total,
+    items: rows.map((row) => projectCommission(row, context.businessId)),
+    kindCounts: kindCounts(total, 0),
+  };
 }
 
 async function loadPayroll(
@@ -552,7 +600,7 @@ async function loadPayroll(
   database: ApprovalDatabase,
 ): Promise<AdapterResult> {
   if (filters.branchId || normalizedEmployee(filters.employee)) {
-    return { items: [], total: 0 };
+    return emptyAdapterResult();
   }
   const range = dateRange(filters);
   const where = {
@@ -585,12 +633,13 @@ async function loadPayroll(
     }, database),
   ));
   const items = rows.map((row, index) => projectPayroll(row, readiness[index], context.businessId));
-  return { total, items };
+  return { total, items, kindCounts: kindCounts(total, 0) };
 }
 
 export function projectAttendanceP2(row: any, businessId: string): ApprovalInboxItem {
   return {
     id: `ATTENDANCE:P2:${row.id}`,
+    kind: "APPROVAL",
     domain: "ATTENDANCE",
     businessId,
     branchId: row.branchId,
@@ -619,6 +668,7 @@ export function projectAttendanceP2(row: any, businessId: string): ApprovalInbox
 export function projectAttendanceCase(row: any, businessId: string): ApprovalInboxItem {
   return {
     id: `ATTENDANCE:CASE:${row.id}`,
+    kind: "APPROVAL",
     domain: "ATTENDANCE",
     businessId,
     branchId: row.branchId,
@@ -645,8 +695,10 @@ export function projectAttendanceCase(row: any, businessId: string): ApprovalInb
 }
 
 export function projectTimesheet(row: any, businessId: string): ApprovalInboxItem {
+  const periodLabel = monthLabel(row.periodStart);
   return {
     id: `ATTENDANCE:TIMESHEET:${row.id}`,
+    kind: row.status === "APPROVED" ? "TASK" : "APPROVAL",
     domain: "ATTENDANCE",
     businessId,
     branchId: null,
@@ -656,8 +708,10 @@ export function projectTimesheet(row: any, businessId: string): ApprovalInboxIte
     employeeId: null,
     membershipId: null,
     employeeName: null,
-    title: row.status === "APPROVED" ? "Lock approved Timesheet" : "Approve monthly Timesheet",
-    summary: `${monthValue(row.periodStart)} · all branches ready · canonical Attendance workflow`,
+    title: row.status === "APPROVED" ? `Finalize ${periodLabel} timesheet` : `Approve ${periodLabel} timesheet`,
+    summary: row.status === "APPROVED"
+      ? "All branches are confirmed. Finalize to make attendance ready for payroll."
+      : "All branches are ready for final attendance approval.",
     requestedAt: row.updatedAt,
     status: "PENDING",
     priority: "HIGH",
@@ -675,6 +729,7 @@ export function projectTimesheet(row: any, businessId: string): ApprovalInboxIte
 export function projectLeave(row: any, businessId: string, approvalStage?: "LEVEL_ONE" | "LEVEL_TWO"): ApprovalInboxItem {
   return {
     id: `LEAVE:${row.id}`,
+    kind: "APPROVAL",
     domain: "LEAVE",
     businessId,
     branchId: row.branchId,
@@ -710,6 +765,7 @@ export function projectClaim(row: any, businessId: string, approvalStage?: "LEVE
   const receiptAttached = row.lines.some((line: any) => line.attachments.length > 0);
   return {
     id: `CLAIM:${row.id}`,
+    kind: "APPROVAL",
     domain: "CLAIMS",
     businessId,
     branchId: row.branchId,
@@ -743,6 +799,7 @@ export function projectCommission(row: any, businessId: string): ApprovalInboxIt
   }), { eligible: 0, adjustment: 0, commission: 0 });
   return {
     id: `COMMISSION:${row.id}`,
+    kind: "APPROVAL",
     domain: "COMMISSION",
     businessId,
     branchId: row.branchId,
@@ -778,6 +835,7 @@ export function projectPayroll(row: any, readiness: any, businessId: string): Ap
     : "APPROVE_PAYROLL";
   return {
     id: `PAYROLL:${row.id}`,
+    kind: "APPROVAL",
     domain: "PAYROLL",
     businessId,
     branchId: null,
@@ -812,6 +870,14 @@ export function projectPayroll(row: any, readiness: any, businessId: string): Ap
 function scopedBranchIds(context: UnifiedApprovalContext, requested?: string) {
   if (!requested) return [...context.allowedBranchIds];
   return context.allowedBranchIds.includes(requested) ? [requested] : [];
+}
+
+function emptyAdapterResult(): AdapterResult {
+  return { items: [], total: 0, kindCounts: { ...EMPTY_KIND_COUNTS } };
+}
+
+function kindCounts(approval: number, task: number): ActionCenterKindCounts {
+  return { APPROVAL: approval, TASK: task, total: approval + task };
 }
 
 function normalizedEmployee(value?: string) {
@@ -856,4 +922,12 @@ function dateValue(value: Date) {
 
 function monthValue(value: Date) {
   return value.toISOString().slice(0, 7);
+}
+
+function monthLabel(value: Date) {
+  return new Intl.DateTimeFormat("en-MY", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(value);
 }

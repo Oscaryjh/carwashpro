@@ -34,6 +34,7 @@ test("Phase 3A loads only current compensation after capability and whole-busine
           workTargetRevision: 3,
           payBasis: "MONTHLY",
           baseSalary: { toString: () => "3200.00" },
+          workingDaysPerMonth: 24,
           normalWorkMinutesPerDay: null,
           targetBreakMinutes: 45,
         });
@@ -86,6 +87,8 @@ test("Phase 3A loads only current compensation after capability and whole-busine
   assert.equal(result.status, "READY");
   if (result.status !== "READY") return;
   assert.equal(result.data.baseRate, "3200.00");
+  assert.equal(result.data.workingDaysPerMonth, 24);
+  assert.equal(result.data.workingDaysPolicySource, "Employee profile");
   assert.equal(result.data.normalWorkMinutesPerDay, 480);
   assert.equal(result.data.normalWorkPolicySource, "Company payroll settings");
   assert.equal(result.data.targetBreakMinutes, 45);
@@ -173,21 +176,50 @@ test("Phase 3A does not load salary for branch-restricted staff", async () => {
 
 test("Phase 4A compensation UI uses canonical commands and keeps sensitive domains isolated", async () => {
   const root = process.cwd();
-  const [route, loader, component] = await Promise.all([
+  const [route, loader, component, actions] = await Promise.all([
     readFile(path.join(root, "src/app/(business)/team/people/[personId]/page.tsx"), "utf8"),
     readFile(path.join(root, "src/lib/team/employee-profile-compensation-read.ts"), "utf8"),
     readFile(path.join(root, "src/components/employee-profile-payroll.tsx"), "utf8"),
+    readFile(path.join(root, "src/app/(business)/team/people/[personId]/payroll/actions.ts"), "utf8"),
   ]);
-  assert.match(route, /activeSection === "payroll"/);
+  assert.match(route, /activeSection === "compensation"/);
+  assert.match(route, /activeView === "payroll"/);
   assert.match(route, /loadEmployeeCompensationSection/);
   assert.match(loader, /VIEW_COMPENSATION/);
-  assert.match(component, /Sensitive payroll profile/);
+  assert.match(component, /Protected payroll data/);
   assert.match(component, /scheduleEmployeeCompensationChangeAction/);
   assert.match(component, /scheduleEmployeeRecurringPayAction/);
   assert.match(component, /updateEmployeePayrollWorkTargetAction/);
   assert.match(component, /Effective payroll month/);
   assert.match(component, /Change reason/);
-  assert.match(component, /Draft Payroll Run affected/);
+  assert.match(component, /Applies to the next payroll/);
+  assert.match(component, /payroll draft needs refreshing/);
+  assert.match(component, /Edit salary/);
+  assert.match(component, /Add monthly item/);
+  assert.match(component, /Edit salary work basis/);
+  assert.match(component, /Working days \/ month/);
+  assert.match(component, /name="workingDaysPerMonth"/);
+  assert.match(component, /Save salary/);
+  assert.match(component, /Save salary work basis/);
+  assert.match(component, /Item name/);
+  const recurringPayForms = component.slice(
+    component.indexOf("function RecurringPayCreateForm"),
+    component.indexOf("function CompensationEditForm"),
+  );
+  assert.doesNotMatch(recurringPayForms, /<ReasonFields/);
+  const everydayPayrollForms = component.slice(
+    component.indexOf("function CompensationEditForm"),
+    component.indexOf("function ReasonFields"),
+  );
+  assert.doesNotMatch(everydayPayrollForms, /<ReasonFields/);
+  assert.match(actions, /Monthly payroll item added from the employee payroll profile/);
+  assert.match(actions, /Salary updated from the employee payroll profile/);
+  assert.match(actions, /Payroll work hours updated from the employee payroll profile/);
+  assert.match(actions, /reasonType: "PAYROLL_POLICY_CHANGE"/);
+  assert.doesNotMatch(
+    component,
+    /Edit compensation|Add recurring component|Edit payroll work target|Stable code|TRANSPORT_ALLOWANCE/,
+  );
   assert.doesNotMatch(component, /prisma\./);
   for (const forbidden of [
     "statutoryNationality",

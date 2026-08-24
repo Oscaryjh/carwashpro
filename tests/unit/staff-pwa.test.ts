@@ -8,6 +8,7 @@ import {
   getOrCreateDeviceIdentifier,
   attendanceActionLabel,
   attendanceConfirmation,
+  formatPhoneForConfirmation,
   formatMinutesAsHours,
   gpsStatusLabel,
   isEmployeeSessionError,
@@ -39,6 +40,10 @@ const switchWorkplaceRouteSource = readFileSync(
 );
 const serviceWorkerSource = readFileSync(
   new URL("../../public/sw.js", import.meta.url),
+  "utf8",
+);
+const pwaRegisterSource = readFileSync(
+  new URL("../../src/components/pwa-register.tsx", import.meta.url),
   "utf8",
 );
 const middlewareSource = readFileSync(
@@ -104,6 +109,11 @@ test("Staff PWA formats employee-safe status without exposing the full phone", (
   assert.equal(gpsStatusLabel("INSIDE"), "Inside Work Location");
   assert.equal(gpsStatusLabel("OUTSIDE"), "Outside Work Location");
   assert.equal(gpsStatusLabel("GEOFENCE_DISABLED"), "Geofence Disabled");
+});
+
+test("Staff verification formats the full Malaysian number for confirmation", () => {
+  assert.equal(formatPhoneForConfirmation("01112212259"), "+60 11 1221 2259");
+  assert.equal(formatPhoneForConfirmation("+60123456789"), "+60 12 345 6789");
 });
 
 test("Staff PWA creates secure identifiers without requiring randomUUID", () => {
@@ -332,6 +342,13 @@ test("Service worker never caches Attendance APIs or navigations", () => {
   assert.match(serviceWorkerSource, /request\.mode === "navigate"/);
   assert.match(serviceWorkerSource, /\/staff\/manifest\.webmanifest/);
   assert.doesNotMatch(serviceWorkerSource, /employee-attendance.*cache\.put/i);
+});
+
+test("Local development removes stale PWA workers and caches", () => {
+  assert.match(pwaRegisterSource, /process\.env\.NODE_ENV !== "production"/);
+  assert.match(pwaRegisterSource, /navigator\.serviceWorker\s*\.getRegistrations\(\)/);
+  assert.match(pwaRegisterSource, /registration\.unregister\(\)/);
+  assert.match(pwaRegisterSource, /cacheName\.startsWith\("tetamu-pos-static-"\)/);
 });
 
 test("POS middleware does not treat Staff PWA as a POS user route", () => {
