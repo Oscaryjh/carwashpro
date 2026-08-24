@@ -583,7 +583,7 @@ function publicAuthMessage(error: unknown) {
       return "Too many invalid attempts. Request a new verification code.";
     }
     if (error.code === "OTP_PROVIDER_UNAVAILABLE") {
-      return "We can’t reach verification right now. Your account is safe—please try again.";
+      return "Unable to send OTP. Please try again.";
     }
     if (error.code === "RATE_LIMITED") {
       return "Too many attempts. Please wait before trying again.";

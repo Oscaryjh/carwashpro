@@ -57,7 +57,7 @@ const DEFAULT_PUBLIC_MESSAGE: Record<EmployeeAuthErrorCode, string> = {
   OTP_INVALID: "The verification code is invalid or expired.",
   OTP_EXPIRED: "The verification code has expired. Request a new code.",
   OTP_LOCKED: "Too many verification attempts. Request a new code.",
-  OTP_PROVIDER_UNAVAILABLE: "Verification service is temporarily unavailable.",
+  OTP_PROVIDER_UNAVAILABLE: "Unable to send OTP. Please try again.",
   MEMBERSHIP_SELECTION_REQUIRED: "Select a workplace to continue.",
   MEMBERSHIP_NOT_AVAILABLE: "The selected workplace is not available.",
   CONFIGURATION_ERROR: "Employee authentication is temporarily unavailable.",

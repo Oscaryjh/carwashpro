@@ -12,7 +12,7 @@ const workspace = process.cwd();
 
 test("browser date controls and UI dates use the Malaysia locale", () => {
   const rootLayout = source("src/app/layout.tsx");
-  assert.match(rootLayout, /<html lang="en-MY">/);
+  assert.match(rootLayout, /<html\s+lang="en-MY"(?:\s[^>]*)?>/);
 
   const uiFiles = [...sourceFiles("src/app"), ...sourceFiles("src/components")];
 

@@ -13,7 +13,7 @@ import {
 } from "./embedded-postgres-utils.mjs";
 
 const { loadEnvConfig } = nextEnv;
-loadEnvConfig(process.cwd());
+loadEnvConfig(process.cwd(), process.env.NODE_ENV !== "production");
 
 const nextDevCliArguments = process.argv.slice(2);
 const configuredPort = readCliOption("--port", "-p") ?? "3000";

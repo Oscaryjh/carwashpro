@@ -91,6 +91,25 @@ test("People navigation keeps one HR workspace entry and only contextual People 
   assert.match(teamPage, /item\.key !== "people" && item\.key !== "attendance"/);
 });
 
+test("People list exposes clear profile and permission-gated staff editing actions", async () => {
+  const teamPage = await readFile(
+    path.join(process.cwd(), "src/app/(business)/team/page.tsx"),
+    "utf8",
+  );
+
+  assert.match(teamPage, /<span>Profile<\/span>/);
+  assert.match(teamPage, /<span>Edit staff<\/span>/);
+  assert.match(
+    teamPage,
+    /href=\{`\/team\?section=people&modal=edit&staffId=\$\{member\.id\}`\}/,
+  );
+  assert.match(
+    teamPage,
+    /href=\{`\/team\/employees\/\$\{employee\.id\}`\}/,
+  );
+  assert.match(teamPage, /\{canManageTeam \? \(/);
+});
+
 test("People tools open as dialogs and Activity is paginated at ten records", async () => {
   const root = process.cwd();
   const teamPage = await readFile(path.join(root, "src/app/(business)/team/page.tsx"), "utf8");

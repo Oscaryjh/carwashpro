@@ -28,6 +28,7 @@ export function EmployeeProfileShell({
   activeSection,
   avatarAction,
   authorized,
+  editHref,
   person,
   profileLabel,
   sectionContent,
@@ -36,6 +37,7 @@ export function EmployeeProfileShell({
   activeSection: EmployeeProfileSection;
   avatarAction?: EmployeeAvatarAction;
   authorized: boolean;
+  editHref?: string;
   person: EmployeeProfileShellPerson;
   profileLabel: "People" | "People & HR";
   sectionContent?: ReactNode;
@@ -77,6 +79,12 @@ export function EmployeeProfileShell({
             </div>
           </div>
         </div>
+        {editHref ? (
+          <Link className={styles.editProfileAction} href={editHref}>
+            <span aria-hidden="true">&#9998;</span>
+            Edit staff
+          </Link>
+        ) : null}
       </header>
 
       <div className={styles.workspace}>

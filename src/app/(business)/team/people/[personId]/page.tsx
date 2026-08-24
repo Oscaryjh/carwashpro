@@ -169,6 +169,11 @@ export default async function EmployeeProfilePage({
         linked: false,
       };
 
+  const canEditEmployeeRecord = hasBusinessCapability(
+    context.access,
+    "MODIFY_ATTENDANCE_EMPLOYEES",
+  );
+
   let sectionContent = null;
   const sectionAuthorized = canViewEmployeeProfileTab(
     context.access,
@@ -303,6 +308,11 @@ export default async function EmployeeProfilePage({
           : undefined
       }
       authorized={sectionAuthorized}
+      editHref={
+        activeSection === "overview" && membership && canEditEmployeeRecord
+          ? `/team/employees/${membership.id}`
+          : undefined
+      }
       person={person}
       sectionContent={sectionContent}
       profileLabel={context.moduleContext.enabledModules.has("HR") ? "People & HR" : "People"}

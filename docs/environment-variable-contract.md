@@ -24,19 +24,25 @@ All are required in Production, must be Production-specific and must follow the 
 
 ## Employee OTP
 
-- `OTP_PROVIDER`: `mock` for Local automated regression; `twilio_verify` for real Online Testing and future Production.
-- `OTP_CHANNEL`: `local` with mock, `sms` with Twilio Verify.
-- `EMPLOYEE_OTP_SEND_MODE`: temporary compatibility alias; new configuration should use `OTP_PROVIDER`.
+- `SMS_PROVIDER`: `mock` for Local automated regression; `sms123` for real Online Testing and future Production.
+- `OTP_PROVIDER`: temporary compatibility alias; new configuration should use `SMS_PROVIDER`.
+- `OTP_CHANNEL`: `local` with mock, `sms` with SMS123.
+- `EMPLOYEE_OTP_SEND_MODE`: legacy compatibility alias.
 - `EMPLOYEE_OTP_MOCK_CODE`: forbidden in Production.
 - `EMPLOYEE_OTP_MOCK_ACCESS_KEY`: Local/Testing only; never expose through an API response.
-- `TWILIO_ACCOUNT_SID`
-- `TWILIO_VERIFY_SERVICE_SID`
-- `TWILIO_AUTH_TOKEN`, or the preferred `TWILIO_API_KEY_SID` + `TWILIO_API_KEY_SECRET` pair
+- `SMS123_ENABLED`
+- `SMS123_API_KEY`
+- `SMS123_API_BASE_URL`
+- `SMS123_MESSAGE_PREFIX`
+- `OTP_LENGTH`, fixed at `6`
+- `OTP_TTL_SECONDS`
+- `OTP_RESEND_COOLDOWN_SECONDS`
+- `OTP_MAX_VERIFY_ATTEMPTS`
 - `STAFF_OTP_VERIFY_PHONE_HOURLY_LIMIT`
 - `STAFF_OTP_VERIFY_IP_HOURLY_LIMIT`
 - `STAFF_OTP_PROVIDER_TIMEOUT_MS`
 
-Credentials are server-only and must never use a `NEXT_PUBLIC_` prefix. Twilio Verify owns code generation and checking; Tetamu stores only request/correlation metadata. Online Testing and Production require separate Twilio credentials and Verify Services. Production configuration and smoke remain Production Owner actions.
+Credentials are server-only and must never use a `NEXT_PUBLIC_` prefix. SMS123 only delivers the message. Tetamu generates the code with a cryptographic RNG, stores a challenge-bound HMAC and performs expiry, attempt and one-time verification. Online Testing and Production require separate SMS123 credentials. Production configuration and smoke remain Production Owner actions.
 
 ## WhatsApp
 

@@ -1052,7 +1052,7 @@ function PeopleSection({
                     href={`/team?section=people&modal=edit&staffId=${member.id}`}
                   >
                     <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
-                    <span>Edit</span>
+                    <span>Edit staff</span>
                   </Link>
                 ) : null}
               </div>
@@ -1101,8 +1101,18 @@ function PeopleSection({
                 className="secondary-light-button team-row-action"
                 href={`/team/people/${employee.id}`}
               >
-                View profile
+                Profile
               </Link>
+              {canManageTeam ? (
+                <Link
+                  aria-label={`Edit ${employee.fullName}`}
+                  className="secondary-light-button team-row-action"
+                  href={`/team/employees/${employee.id}`}
+                >
+                  <span aria-hidden="true" className="team-row-action-icon">&#9998;</span>
+                  <span>Edit staff</span>
+                </Link>
+              ) : null}
             </div>
           </article>
         ))}

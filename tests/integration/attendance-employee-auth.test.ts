@@ -215,41 +215,33 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
       data: { canClockIn: true },
     });
 
-    const providerFailureResponse = await requestEmployeeOtp(
-      {
-        phoneNumber: fixture.single.phone,
-        deviceIdentifier: "single-primary-device-0001",
-        request: requestContext("10.0.0.7"),
-      },
-      {
-        database: prisma,
-        config,
-        provider: {
-          name: "mock",
-          channel: "local",
-          async sendVerification() {
-            throw new Error("simulated provider failure");
-          },
-          async checkVerification() {
-            return { status: "REJECTED" as const };
-          },
+    let failedChallengeId = "";
+    await assert.rejects(
+      requestEmployeeOtp(
+        {
+          phoneNumber: fixture.single.phone,
+          deviceIdentifier: "single-primary-device-0001",
+          request: requestContext("10.0.0.7"),
         },
-        now: baseTime,
-      },
-    );
-    assert.equal(
-      providerFailureResponse.message,
-      EMPLOYEE_OTP_REQUEST_MESSAGE,
-      "provider failures must keep the uniform public response",
-    );
-    assert.deepEqual(
-      Object.keys(providerFailureResponse).sort(),
-      ["challengeId", "expiresInSeconds", "message", "resendAfterSeconds"],
-      "provider errors must not leak into the public result",
+        {
+          database: prisma,
+          config,
+          provider: {
+            name: "mock",
+            channel: "local",
+            async sendSms(input) {
+              failedChallengeId = input.challengeId;
+              throw new Error("simulated provider failure");
+            },
+          },
+          now: baseTime,
+        },
+      ),
+      isAuthError("OTP_PROVIDER_UNAVAILABLE"),
     );
     const providerFailureChallenge =
       await prisma.employeeOtpChallenge.findUniqueOrThrow({
-        where: { id: providerFailureResponse.challengeId },
+        where: { id: failedChallengeId },
       });
     assert.equal(
       providerFailureChallenge.invalidatedAt?.getTime(),
@@ -284,17 +276,15 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
         provider: {
           name: "mock",
           channel: "local",
-          async sendVerification(input) {
+          async sendSms(input) {
             delayedProviderStarted = true;
             markProviderStarted();
             await providerRelease;
             return {
-              status: "ACCEPTED" as const,
-              providerReference: `mock:${input.challengeId}`,
+              status: "SENT" as const,
+              providerReferenceId: input.referenceId,
+              providerMessageCode: "MOCK_SENT",
             };
-          },
-          async checkVerification() {
-            return { status: "REJECTED" as const };
           },
         },
         now: baseTime,
@@ -335,7 +325,8 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
     assert.equal(singleChallengeBeforeVerify.invalidatedAt, null);
     assert.equal(singleChallengeBeforeVerify.verifiedAt, null);
     assert.equal(singleChallengeBeforeVerify.attempts, 0);
-    assert.equal(singleChallengeBeforeVerify.otpHash, null);
+    assert.match(singleChallengeBeforeVerify.otpHash ?? "", /^[a-f0-9]{64}$/);
+    assert.notEqual(singleChallengeBeforeVerify.otpHash, "000000");
     assert.equal(singleChallengeBeforeVerify.provider, "mock");
     assert.equal(singleChallengeBeforeVerify.deliveryChannel, "local");
     assert.notEqual(singleChallengeBeforeVerify.providerReference, null);
@@ -535,7 +526,7 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
           now: plusSeconds(baseTime, 301),
         },
       ),
-      isAuthError("OTP_INVALID"),
+      isAuthError("OTP_EXPIRED"),
     );
     const expiredChallenge =
       await prisma.employeeOtpChallenge.findUniqueOrThrow({

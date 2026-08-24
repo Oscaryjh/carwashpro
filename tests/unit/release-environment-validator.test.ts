@@ -22,12 +22,13 @@ const productionBase = {
   PAYROLL_PAYMENT_ENCRYPTION_KEYS: "v1:" + "p".repeat(32),
   PAYROLL_PAYMENT_FINGERPRINT_KEY: "f".repeat(32),
   EMPLOYEE_OTP_SEND_MODE: "provider",
-  OTP_PROVIDER: "twilio_verify",
+  SMS_PROVIDER: "sms123",
+  OTP_PROVIDER: "sms123",
   OTP_CHANNEL: "sms",
   EMPLOYEE_OTP_MOCK_CODE: "",
-  TWILIO_ACCOUNT_SID: `AC${"a".repeat(32)}`,
-  TWILIO_VERIFY_SERVICE_SID: `VA${"b".repeat(32)}`,
-  TWILIO_AUTH_TOKEN: "t".repeat(32),
+  SMS123_ENABLED: "true",
+  SMS123_API_KEY: "sms123-production-key-placeholder",
+  SMS123_API_BASE_URL: "https://www.sms123.net/api",
   AI_GLOBAL_ENABLED: "false",
   AI_PROVIDER: "mock",
   OPENAI_API_KEY: "",
@@ -53,7 +54,7 @@ test("Production environment fails closed when source identity is incomplete", (
 });
 
 test("Production environment rejects employee OTP, AI and WhatsApp mocks", () => {
-  const otp = validate("web", { ...productionBase, OTP_PROVIDER: "mock", OTP_CHANNEL: "local" });
+  const otp = validate("web", { ...productionBase, SMS_PROVIDER: "mock", OTP_PROVIDER: "mock", OTP_CHANNEL: "local" });
   assert.notEqual(otp.status, 0);
   assert.match(otp.stderr, /Employee OTP mock/i);
 

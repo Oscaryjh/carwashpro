@@ -4,7 +4,7 @@ These items are transparent launch constraints. External provider, human governa
 
 ## Ready with limitation
 
-1. **Real employee OTP live acceptance** — the Twilio Verify SMS adapter, provider-owned code verification, challenge lifecycle, replay/concurrency protection, rate limiting and existing session/device binding are implemented. Online Testing credentials and a real receiving phone were not configured at the 2026-08-13 audit, so real-SMS acceptance remains blocked. Local mock regression is not SMS acceptance. Production remains a separate Production Owner configuration and validation action.
+1. **Real employee OTP live acceptance** — the SMS123 delivery adapter and Tetamu-owned hashed OTP lifecycle, replay/concurrency protection, rate limiting and existing session/device binding are implemented. SMS123 credentials and a real receiving phone were not configured during migration, so real-SMS acceptance remains blocked. Local mock regression is not SMS acceptance. Production remains a separate Production Owner configuration and validation action.
 2. **Attachment malware scanning** — private storage, signature/MIME validation, size limits, sanitised names, checksum, tenant authorization and quarantine are implemented. A scanner is not integrated. Files remain non-releasable until a trusted process records `CLEAN` plus safe/sanitised metadata.
 3. **Worker HTTP health** — workers use process supervision, database leases, retry/recovery state and structured logs rather than public HTTP endpoints. Production monitoring must provide liveness and queue-age/lease alerts.
 4. **Warnings** — ESLint reports 9 existing warnings and 0 errors. Next.js also reports the middleware-to-proxy deprecation and two webpack Edge-runtime compatibility warnings; the build succeeds. Prisma reports its package.json configuration deprecation. These are DEV-P3 cleanup items, not a release blocker.
@@ -13,7 +13,7 @@ These items are transparent launch constraints. External provider, human governa
 
 - Statutory EPF, SOCSO, EIS and LINDUNG24 engineering is ready, but authorised human review/sign-off is pending and activation remains off.
 - Production database, backups/PITR, secrets, domain/TLS, monitoring and deployment are Production Owner responsibilities.
-- Production Twilio Verify Service/credentials, WhatsApp and OpenAI Projects/credentials are Production Owner/provider actions and must be separate from Testing.
+- Production SMS123, WhatsApp and OpenAI Projects/credentials are Production Owner/provider actions and must be separate from Testing.
 
 ## Deferred product scope
 

@@ -25,6 +25,11 @@ import {
   type StaffAttendanceIssue,
 } from "@/lib/staff-pwa/attendance-history";
 
+const EMPLOYEE_ATTENDANCE_READ_TRANSACTION_OPTIONS = {
+  maxWait: 5_000,
+  timeout: 20_000,
+} as const;
+
 export async function getEmployeeAttendanceToday(args: {
   auth: EmployeeAuthContext;
   database?: PrismaClient;
@@ -383,7 +388,7 @@ export async function getEmployeeAttendanceToday(args: {
         principal.setting.timezone,
       ),
     };
-  });
+  }, EMPLOYEE_ATTENDANCE_READ_TRANSACTION_OPTIONS);
 }
 
 export async function getEmployeeAttendanceHistory(args: {
@@ -781,7 +786,7 @@ export async function getEmployeeAttendanceHistory(args: {
       },
       serverTime: now.toISOString(),
     };
-  });
+  }, EMPLOYEE_ATTENDANCE_READ_TRANSACTION_OPTIONS);
 }
 
 function startOfUtcMonth(value: Date) {

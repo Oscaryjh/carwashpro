@@ -24,7 +24,9 @@ import {
   readEmployeeAuthJson,
 } from "../../src/lib/attendance/employee-auth/http";
 import {
+  buildEmployeeOtpMessage,
   clearMockEmployeeOtp,
+  createEmployeeOtpReferenceId,
   MockEmployeeOtpProvider,
   readMockEmployeeOtp,
 } from "../../src/lib/attendance/employee-auth/provider";
@@ -319,10 +321,11 @@ test("mock OTP is memory-only, access-key protected, and carries locale", async 
   const provider = new MockEmployeeOtpProvider(config);
   const expiresAt = new Date(Date.now() + 60_000);
 
-  await provider.sendOtp({
+  await provider.sendSms({
     challengeId: "challenge-mock",
-    phoneNumber: "+60123456789",
-    otp: "123456",
+    recipient: "+60123456789",
+    message: buildEmployeeOtpMessage("123456", config),
+    referenceId: createEmployeeOtpReferenceId("challenge-mock"),
     purpose: "LOGIN",
     expiresAt,
     locale: "en-MY",
@@ -345,23 +348,31 @@ test("mock OTP is memory-only, access-key protected, and carries locale", async 
 
   const fixedConfig = testConfig({ EMPLOYEE_OTP_MOCK_CODE: "000000" });
   const fixedProvider = new MockEmployeeOtpProvider(fixedConfig);
-  await fixedProvider.sendVerification({
+  await fixedProvider.sendSms({
     challengeId: "challenge-fixed",
-    phoneNumber: "+601112212259",
+    recipient: "+601112212259",
+    message: buildEmployeeOtpMessage("000000", fixedConfig),
+    referenceId: createEmployeeOtpReferenceId("challenge-fixed"),
     purpose: "LOGIN",
     expiresAt,
     locale: "en-MY",
   });
+  assert.equal(
+    readMockEmployeeOtp(
+      "challenge-fixed",
+      fixedConfig.otp.mockAccessKey ?? "",
+      fixedConfig,
+    ),
+    "000000",
+  );
   clearMockEmployeeOtp("challenge-fixed", fixedConfig);
-  assert.deepEqual(
-    await new MockEmployeeOtpProvider(fixedConfig).checkVerification({
-      challengeId: "challenge-fixed",
-      phoneNumber: "+601112212259",
-      providerReference: "mock:challenge-fixed",
-      code: "000000",
-    }),
-    { status: "APPROVED" },
-    "fixed Local mock codes must survive isolated Next.js route module instances",
+  assert.equal(
+    readMockEmployeeOtp(
+      "challenge-fixed",
+      fixedConfig.otp.mockAccessKey ?? "",
+      fixedConfig,
+    ),
+    null,
   );
 
   assert.throws(

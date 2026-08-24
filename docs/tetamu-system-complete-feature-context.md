@@ -53,7 +53,7 @@ PRODUCTION NOT VALIDATED
 
 `npm run build` 是 Local / Testing 的 production-mode build，不代表 Production deployment。
 
-Production database、backup/PITR、domain/TLS、secrets、monitoring、Twilio、WhatsApp、OpenAI 和部署都属于 Production Owner 的独立责任。
+Production database、backup/PITR、domain/TLS、secrets、monitoring、SMS123、WhatsApp、OpenAI 和部署都属于 Production Owner 的独立责任。
 
 ## 4. 技术基础
 
@@ -63,7 +63,7 @@ Production database、backup/PITR、domain/TLS、secrets、monitoring、Twilio�
 - bcrypt password hashing、JWT/session cookie；
 - True MFA / TOTP、sensitive-action step-up；
 - OpenAI Responses API provider abstraction；
-- Twilio Verify provider abstraction；
+- SMS123 delivery provider abstraction + Tetamu-owned hashed OTP verification；
 - 独立 WhatsApp connector + queue worker；
 - Analytics、Notification、WhatsApp 分离 worker；
 - S3-compatible private attachment storage foundation；
@@ -208,8 +208,8 @@ Staff App 使用独立 phone OTP architecture：
 
 ```text
 Phone challenge
-→ provider send
-→ provider verify
+→ SMS123 delivery
+→ Tetamu OTP verify
 → employee/business membership selection
 → device/session binding
 → Staff App
@@ -217,7 +217,7 @@ Phone challenge
 
 支持 challenge expiry、one-time use、replay protection、attempt/resend limit、unknown-phone anti-enumeration 和 revoked membership denial。
 
-Local mock OTP 只属于 Local QA，不等于真实 SMS。Twilio Verify adapter 已实现，但当前已知限制仍把真实 Testing SMS 接收验收列为外部/环境阻塞项。
+Local mock OTP 只属于 Local QA，不等于真实 SMS。SMS123 adapter 已实现，但真实 Testing SMS 接收仍需要外部凭证与指定测试号码。
 
 ### 8.5 多工作地点员工
 
@@ -1439,7 +1439,7 @@ Recorded Business Spending
 
 ### 44.1 外部 / Human actions
 
-- Real Twilio Staff SMS 接收验收仍受 Testing provider/account/phone delivery 条件限制；
+- Real SMS123 Staff SMS 接收验收仍受 Testing provider/account/phone delivery 条件限制；
 - WhatsApp live acceptance 依赖真实 connector、session、worker 和 provider状态；
 - OpenAI live provider 依赖 Testing key、Project credit/quota；
 - Statutory human review/sign-off 尚需 authorised reviewer；

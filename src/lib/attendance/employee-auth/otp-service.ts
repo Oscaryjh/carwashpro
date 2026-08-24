@@ -10,8 +10,11 @@ import { writeAuthSecurityEvent } from "@/lib/auth/security";
 import type { EmployeeAuthConfig } from "./config";
 import { getEmployeeAuthConfig } from "./config";
 import {
+  createEmployeeOtp,
   hashEmployeeIdentifier,
+  hashEmployeeOtp,
   safeEqual,
+  verifyEmployeeOtpHash,
 } from "./crypto";
 import {
   bindVerifiedEmployeeDevice,
@@ -26,7 +29,12 @@ import {
   type EligibleEmployeeMembership,
 } from "./membership";
 import type { EmployeeOtpProvider } from "./provider";
-import { createEmployeeOtpProvider } from "./provider";
+import {
+  buildEmployeeOtpMessage,
+  createEmployeeOtpProvider,
+  createEmployeeOtpReferenceId,
+  EmployeeOtpProviderError,
+} from "./provider";
 import {
   acquireEmployeeOtpRateLimitLocks,
   acquireEmployeeOtpVerifyRateLimitLocks,
@@ -44,6 +52,11 @@ import {
 
 export const EMPLOYEE_OTP_REQUEST_MESSAGE =
   "If this phone number is registered, we will send a verification code.";
+
+const EMPLOYEE_AUTH_TRANSACTION_OPTIONS = {
+  maxWait: 5_000,
+  timeout: 20_000,
+} as const;
 
 export type EmployeeMembershipChoice = Readonly<{
   membershipId: string;
@@ -134,6 +147,9 @@ export async function requestEmployeeOtp(
     config.authSecret,
   );
   const challengeId = randomUUID();
+  const otp = config.otp.mockCode ?? createEmployeeOtp();
+  const otpHash = hashEmployeeOtp(challengeId, otp, config.authSecret);
+  const providerReferenceId = createEmployeeOtpReferenceId(challengeId);
   const expiresAt = new Date(
     now.getTime() + config.otp.expiresInSeconds * 1_000,
   );
@@ -233,7 +249,7 @@ export async function requestEmployeeOtp(
           : null,
         phoneNumberNormalized,
         purpose: deviceAccess.purpose,
-        otpHash: null,
+        otpHash,
         provider: config.otp.provider,
         deliveryChannel: config.otp.channel,
         expiresAt,
@@ -246,7 +262,7 @@ export async function requestEmployeeOtp(
     });
     await writeAuthSecurityEvent(
       {
-        eventType: "STAFF_OTP_REQUESTED",
+        eventType: "OTP_REQUESTED",
         surface: "EMPLOYEE_OTP_REQUEST",
         outcome: shouldDeliver ? "SUCCESS" : "DENIED",
         identifierHash: phoneIdentifierHash,
@@ -264,7 +280,7 @@ export async function requestEmployeeOtp(
       shouldDeliver,
       cooldownChallenge: null,
     };
-  });
+  }, EMPLOYEE_AUTH_TRANSACTION_OPTIONS);
 
   if (!creation.created) {
     return creation.cooldownChallenge
@@ -291,9 +307,11 @@ export async function requestEmployeeOtp(
   const deliveryIdentity = creation.identity;
   try {
     const provider = dependencies.provider ?? createEmployeeOtpProvider(config);
-    const accepted = await provider.sendVerification({
+    const accepted = await provider.sendSms({
       challengeId,
-      phoneNumber: phoneNumberNormalized,
+      recipient: phoneNumberNormalized,
+      message: buildEmployeeOtpMessage(otp, config),
+      referenceId: providerReferenceId,
       purpose: creation.purpose,
       expiresAt,
       locale: config.otp.locale,
@@ -306,10 +324,20 @@ export async function requestEmployeeOtp(
         providerReference: null,
       },
       data: {
-        providerReference: accepted.providerReference,
+        providerReference: accepted.providerReferenceId,
+        providerMessageCode: accepted.providerMessageCode,
         deliveryAcceptedAt,
       },
     });
+    await writeAuthSecurityEvent({
+      eventType: "OTP_SEND_SUCCESS",
+      surface: "EMPLOYEE_OTP_REQUEST",
+      outcome: "SUCCESS",
+      identifierHash: phoneIdentifierHash,
+      ipAddressHash,
+      userId: deliveryIdentity.employeeAccountId,
+      createdAt: now,
+    }, database);
     await writeOtpAuditForBusinessIds(
       deliveryIdentity.memberships.map((membership) => membership.businessId),
       deliveryIdentity.employeeAccountId,
@@ -321,6 +349,8 @@ export async function requestEmployeeOtp(
         provider: provider.name,
         channel: provider.channel,
         phoneMasked: maskAttendancePhone(phoneNumberNormalized),
+        providerReferenceId: accepted.providerReferenceId,
+        providerMessageCode: accepted.providerMessageCode,
       },
       input.request?.userAgent ?? null,
       database,
@@ -337,6 +367,8 @@ export async function requestEmployeeOtp(
         channel: provider.channel,
         phoneMasked: maskAttendancePhone(phoneNumberNormalized),
         deliveryAccepted: true,
+        providerReferenceId: accepted.providerReferenceId,
+        providerMessageCode: accepted.providerMessageCode,
       },
       input.request?.userAgent ?? null,
       database,
@@ -351,19 +383,42 @@ export async function requestEmployeeOtp(
       challengeId,
       provider: config.otp.provider,
       errorName: error instanceof Error ? error.name : "UnknownError",
+      providerMessageCode:
+        error instanceof EmployeeOtpProviderError
+          ? error.providerMessageCode
+          : null,
     });
     if (invalidated.count === 1) {
+      await writeAuthSecurityEvent({
+        eventType: "OTP_SEND_FAILED",
+        surface: "EMPLOYEE_OTP_REQUEST",
+        outcome: "FAILURE",
+        identifierHash: phoneIdentifierHash,
+        ipAddressHash,
+        userId: deliveryIdentity.employeeAccountId,
+        reason: "PROVIDER_FAILURE",
+        createdAt: now,
+      }, database);
       await writeOtpAuditForBusinessIds(
         deliveryIdentity.memberships.map((membership) => membership.businessId),
         deliveryIdentity.employeeAccountId,
         challengeId,
         "STAFF_OTP_SEND_FAILED",
         "Staff login verification delivery failed",
-        { provider: config.otp.provider, channel: config.otp.channel },
+        {
+          provider: config.otp.provider,
+          channel: config.otp.channel,
+          providerReferenceId,
+          providerMessageCode:
+            error instanceof EmployeeOtpProviderError
+              ? error.providerMessageCode
+              : null,
+        },
         input.request?.userAgent ?? null,
         database,
       );
     }
+    throw new EmployeeAuthError("OTP_PROVIDER_UNAVAILABLE");
   }
 
   return uniformOtpRequestResult(
@@ -424,6 +479,7 @@ export async function verifyEmployeeOtp(
         purpose: true,
         provider: true,
         providerReference: true,
+        otpHash: true,
         deliveryAcceptedAt: true,
         expiresAt: true,
         attempts: true,
@@ -459,6 +515,7 @@ export async function verifyEmployeeOtp(
       record.employeeAccountId !== null &&
       (record.purpose === "LOGIN" || record.purpose === "REGISTER_DEVICE") &&
       record.provider === config.otp.provider &&
+      record.otpHash !== null &&
       record.providerReference !== null &&
       record.deliveryAcceptedAt !== null &&
       record.verifiedAt === null &&
@@ -471,7 +528,13 @@ export async function verifyEmployeeOtp(
         (record.verificationStartedAt !== null &&
           record.verificationStartedAt.getTime() <= staleClaimBefore.getTime()));
 
-    if (!usable || !record || !record.employeeAccountId || !record.providerReference) {
+    if (
+      !usable ||
+      !record ||
+      !record.employeeAccountId ||
+      !record.providerReference ||
+      !record.otpHash
+    ) {
       const terminalFailure = record
         ? record.expiresAt.getTime() <= now.getTime()
           ? "EXPIRED"
@@ -496,7 +559,11 @@ export async function verifyEmployeeOtp(
       }
       await writeAuthSecurityEvent(
         {
-          eventType: rateLimit.allowed ? "STAFF_OTP_VERIFY_FAILED" : "STAFF_OTP_VERIFY_RATE_LIMITED",
+          eventType: !rateLimit.allowed
+            ? "OTP_RATE_LIMITED"
+            : terminalFailure === "EXPIRED"
+              ? "OTP_EXPIRED"
+              : "OTP_VERIFY_FAILED",
           surface: "EMPLOYEE_OTP_VERIFY",
           outcome: rateLimit.allowed ? "FAILURE" : "RATE_LIMITED",
           identifierHash: phoneIdentifierHash,
@@ -510,7 +577,16 @@ export async function verifyEmployeeOtp(
         },
         transaction,
       );
-      return { ok: false as const, rateLimited: !rateLimit.allowed };
+      return {
+        ok: false as const,
+        code: !rateLimit.allowed
+          ? ("RATE_LIMITED" as const)
+          : terminalFailure === "EXPIRED"
+            ? ("OTP_EXPIRED" as const)
+            : terminalFailure === "MAX_ATTEMPTS"
+              ? ("OTP_LOCKED" as const)
+              : ("OTP_INVALID" as const),
+      };
     }
 
     const claimed = await transaction.employeeOtpChallenge.updateMany({
@@ -527,7 +603,7 @@ export async function verifyEmployeeOtp(
       data: { verificationAttemptId, verificationStartedAt: now },
     });
     if (claimed.count !== 1) {
-      return { ok: false as const, rateLimited: false };
+      return { ok: false as const, code: "OTP_INVALID" as const };
     }
     return {
       ok: true as const,
@@ -536,60 +612,34 @@ export async function verifyEmployeeOtp(
         employeeAccountId: record.employeeAccountId,
         phoneNumberNormalized: record.phoneNumberNormalized,
         providerReference: record.providerReference,
+        otpHash: record.otpHash,
         attempts: record.attempts,
         maxAttempts: record.maxAttempts,
         phoneIdentifierHash,
       },
     };
-  });
+  }, EMPLOYEE_AUTH_TRANSACTION_OPTIONS);
 
   if (!verification.ok) {
-    throw new EmployeeAuthError(verification.rateLimited ? "RATE_LIMITED" : "OTP_INVALID");
+    throw new EmployeeAuthError(verification.code);
   }
 
-  const provider = dependencies.provider ?? createEmployeeOtpProvider(config);
-  let providerCheck;
-  try {
-    providerCheck = await provider.checkVerification({
-      challengeId: verification.record.id,
-      phoneNumber: verification.record.phoneNumberNormalized,
-      providerReference: verification.record.providerReference,
-      code: input.otp,
-    });
-  } catch (error) {
-    await database.employeeOtpChallenge.updateMany({
-      where: {
-        id: verification.record.id,
-        verificationAttemptId,
-        verifiedAt: null,
-        invalidatedAt: null,
-      },
-      data: { verificationAttemptId: null, verificationStartedAt: null },
-    });
-    console.error("[employee-auth] OTP verification provider failed", {
-      challengeId: verification.record.id,
-      provider: provider.name,
-      errorName: error instanceof Error ? error.name : "UnknownError",
-    });
-    throw new EmployeeAuthError("OTP_PROVIDER_UNAVAILABLE");
-  }
+  const providerCheck = verifyEmployeeOtpHash(
+    verification.record.id,
+    input.otp,
+    verification.record.otpHash,
+    config.authSecret,
+  )
+    ? ({ status: "APPROVED" } as const)
+    : ({ status: "REJECTED" } as const);
 
   if (providerCheck.status !== "APPROVED") {
     const terminalFailure = await database.$transaction(async (transaction) => {
-      const keepDevelopmentChallenge =
-        config.otp.developmentFastPath && providerCheck.status === "REJECTED";
-      const nextAttempts = keepDevelopmentChallenge
-        ? verification.record.attempts
-        : verification.record.attempts + 1;
+      const nextAttempts = verification.record.attempts + 1;
       const terminal =
-        keepDevelopmentChallenge
-          ? null
-          : providerCheck.status === "EXPIRED"
-            ? "EXPIRED"
-            : providerCheck.status === "LOCKED" ||
-              nextAttempts >= verification.record.maxAttempts
-            ? "MAX_ATTEMPTS"
-            : null;
+        nextAttempts >= verification.record.maxAttempts
+          ? "MAX_ATTEMPTS"
+          : null;
       await transaction.employeeOtpChallenge.updateMany({
         where: {
           id: verification.record.id,
@@ -598,9 +648,7 @@ export async function verifyEmployeeOtp(
           invalidatedAt: null,
         },
         data: {
-          ...(keepDevelopmentChallenge
-            ? {}
-            : { attempts: { increment: 1 } }),
+          attempts: { increment: 1 },
           verificationAttemptId: null,
           verificationStartedAt: null,
           ...(terminal ? { invalidatedAt: now } : {}),
@@ -608,7 +656,7 @@ export async function verifyEmployeeOtp(
       });
       await writeAuthSecurityEvent(
         {
-          eventType: "STAFF_OTP_VERIFY_FAILED",
+          eventType: "OTP_VERIFY_FAILED",
           surface: "EMPLOYEE_OTP_VERIFY",
           outcome: "FAILURE",
           identifierHash: verification.record.phoneIdentifierHash,
@@ -630,13 +678,9 @@ export async function verifyEmployeeOtp(
         );
       }
       return terminal;
-    });
+    }, EMPLOYEE_AUTH_TRANSACTION_OPTIONS);
     throw new EmployeeAuthError(
-      terminalFailure === "EXPIRED"
-        ? "OTP_EXPIRED"
-        : terminalFailure === "MAX_ATTEMPTS"
-          ? "OTP_LOCKED"
-          : "OTP_INVALID",
+      terminalFailure === "MAX_ATTEMPTS" ? "OTP_LOCKED" : "OTP_INVALID",
     );
   }
 
@@ -657,7 +701,7 @@ export async function verifyEmployeeOtp(
     });
     await writeAuthSecurityEvent(
       {
-        eventType: updated.count === 1 ? "STAFF_OTP_VERIFY_SUCCEEDED" : "STAFF_OTP_VERIFY_FAILED",
+        eventType: updated.count === 1 ? "OTP_VERIFY_SUCCESS" : "OTP_VERIFY_FAILED",
         surface: "EMPLOYEE_OTP_VERIFY",
         outcome: updated.count === 1 ? "SUCCESS" : "FAILURE",
         identifierHash: verification.record.phoneIdentifierHash,
@@ -670,7 +714,7 @@ export async function verifyEmployeeOtp(
       transaction,
     );
     return updated.count === 1;
-  });
+  }, EMPLOYEE_AUTH_TRANSACTION_OPTIONS);
   if (!approved) throw new EmployeeAuthError("OTP_INVALID");
 
   const verificationResult = {
@@ -1021,7 +1065,7 @@ async function completeEmployeeLogin(
       expiresAt: createdSession.expiresAt,
       context: createdSession.context,
     };
-  });
+  }, EMPLOYEE_AUTH_TRANSACTION_OPTIONS);
 }
 
 function uniformOtpRequestResult(

@@ -29,8 +29,8 @@ All items target the `testing` environment only.
 
 ## Provider smoke
 
-- Employee OTP automated regression may use mock only on Local. Online Testing acceptance requires `twilio_verify` + `sms`, Testing-only credentials, an eligible Testing employee, delivery to a real device and successful login with the code received by that human. Never report mock delivery as real OTP acceptance.
-- Confirm invalid/expired/replayed codes, resend cooldown, app verification limits, disabled/revoked membership and provider-unavailable behavior. Confirm no OTP value or provider secret appears in the database, response, logs or browser.
+- Employee OTP automated regression may use mock only on Local. Online Testing acceptance requires `SMS_PROVIDER=sms123` + `OTP_CHANNEL=sms`, Testing-only credentials, an eligible Testing employee, delivery to a real device and successful login with the code received by that human. Never report mock delivery as real OTP acceptance.
+- Confirm invalid/expired/replayed codes, resend cooldown, app verification limits, disabled/revoked membership and provider-unavailable behavior. Confirm no plaintext OTP or provider secret appears in the database, response, logs or browser.
 - WhatsApp: verify Testing mock queue semantics and, when a Testing live session is configured, one controlled outbound message and status reconciliation.
 - OpenAI: keep disabled/mock unless the Testing Project/key and quota acceptance are explicitly in scope; never reuse the key for Production.
 

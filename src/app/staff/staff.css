@@ -3962,10 +3962,43 @@
 
 /* Simplified employee authentication experience */
 .staff-auth-shell {
-  background:
-    radial-gradient(circle at 90% 0%, rgba(8, 127, 118, .11), transparent 24rem),
-    #f7faf9;
+  background: #f7faf9;
+  isolation: isolate;
   padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+.staff-auth-shell .staff-pwa-header {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: #f7faf9;
+  filter: none;
+  opacity: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.staff-auth-shell .staff-pwa-brand,
+.staff-auth-shell .staff-pwa-brand > span,
+.staff-auth-shell .staff-pwa-brand strong,
+.staff-auth-shell .staff-pwa-brand small {
+  filter: none;
+  opacity: 1;
+  text-shadow: none;
+}
+
+.staff-auth-shell .staff-pwa-brand > span {
+  background: #087f76;
+  box-shadow: none;
+}
+
+.staff-auth-shell .staff-pwa-brand strong {
+  color: #132a2a;
+  font-weight: 850;
+  letter-spacing: -0.01em;
+}
+
+.staff-auth-shell .staff-pwa-brand small {
+  color: #536b69;
 }
 
 .staff-auth-shell .staff-login-card {
@@ -4468,14 +4501,14 @@
 
 @media (max-width: 430px) {
   .staff-auth-shell {
-    background: #f8fbfa;
+    background: #f7faf9;
     padding-left: max(16px, env(safe-area-inset-left));
     padding-right: max(16px, env(safe-area-inset-right));
   }
 
   .staff-auth-shell .staff-pwa-header {
-    min-height: 64px;
-    padding: 6px 0;
+    min-height: 60px;
+    padding: 5px 0;
   }
 
   .staff-auth-shell .staff-pwa-brand > span {
@@ -4486,7 +4519,7 @@
   .staff-auth-shell .staff-auth-card.staff-login-card {
     background: transparent;
     box-shadow: none;
-    margin-top: 22px;
+    margin-top: 10px;
   }
 
 
@@ -4498,7 +4531,7 @@
   }
 
   .staff-auth-shell .staff-login-panel {
-    padding: 18px 2px 24px;
+    padding: 12px 2px 24px;
   }
 
   .staff-auth-shell .staff-login-heading h1 {

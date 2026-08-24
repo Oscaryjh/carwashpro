@@ -37,6 +37,29 @@
   padding-top: 8px;
 }
 
+.editProfileAction {
+  display: inline-flex;
+  min-height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid #aed6d1;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--accent-strong, #08786f);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 5px 14px rgb(30 78 73 / 7%);
+}
+
+.editProfileAction:hover {
+  border-color: #08786f;
+  background: #edf8f6;
+}
+
 .eyebrow,
 .header h1,
 .state h2,

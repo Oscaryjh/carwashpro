@@ -1,5 +1,10 @@
 # Staff App Real OTP Authentication Phase 1
 
+> Historical note (2026-08-24): the active Staff OTP flow has migrated from
+> Twilio Verify to SMS123 delivery with Tetamu-owned hashed verification. See
+> `docs/staff-app-sms123-otp-migration.md`. The Twilio details below document
+> the superseded Phase 1 architecture only.
+
 ## Scope and environment
 
 This phase adds Twilio Verify SMS authentication to the existing Staff App identity and session architecture. Development and validation are limited to Local and Online Testing. Production was not accessed, deployed, migrated, configured or validated.

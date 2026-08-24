@@ -3218,12 +3218,13 @@ model EmployeeOtpChallenge {
   employeeAccountId     String?            @map("employee_account_id") @db.Uuid
   phoneNumberNormalized String             @map("phone_number_normalized")
   purpose               EmployeeOtpPurpose
-  // Legacy local-verification rows may retain a hash. New mock and Twilio
-  // Verify challenges keep this null because the provider owns the code.
+  // SMS123 is delivery-only. Tetamu owns verification and stores only a
+  // challenge-bound HMAC. Legacy Twilio Verify rows may keep this null.
   otpHash               String?            @map("otp_hash")
   provider              String             @default("legacy_local")
   deliveryChannel       String             @default("local") @map("delivery_channel")
   providerReference     String?            @map("provider_reference")
+  providerMessageCode   String?            @map("provider_message_code")
   deliveryAcceptedAt    DateTime?          @map("delivery_accepted_at")
   verificationAttemptId String?            @map("verification_attempt_id") @db.Uuid
   verificationStartedAt DateTime?          @map("verification_started_at")
