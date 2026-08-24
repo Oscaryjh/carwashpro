@@ -49,17 +49,20 @@ export function StaffAvatarUpload({
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const source = event.currentTarget.files?.[0];
+    // React clears currentTarget after the first await. Keep the actual input so
+    // mobile browsers can safely reset it after image preparation finishes.
+    const input = event.currentTarget;
+    const source = input.files?.[0];
     setError("");
     if (!source) return;
     if (!source.type.startsWith("image/")) {
       setError("Choose a photo from your camera or photo library.");
-      event.currentTarget.value = "";
+      input.value = "";
       return;
     }
     if (source.size > MAX_SOURCE_BYTES) {
       setError("Choose a photo smaller than 10 MB.");
-      event.currentTarget.value = "";
+      input.value = "";
       return;
     }
 
@@ -73,7 +76,7 @@ export function StaffAvatarUpload({
       setOpen(true);
     } catch {
       setError("This photo could not be prepared. Choose another photo.");
-      event.currentTarget.value = "";
+      input.value = "";
     }
   }
 
@@ -191,17 +194,28 @@ async function prepareAvatar(source: File) {
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Canvas is unavailable.");
     context.drawImage(image, sourceX, sourceY, side, side, 0, 0, 512, 512);
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (result) => result ? resolve(result) : reject(new Error("Image processing failed.")),
-        "image/webp",
-        .84,
-      );
-    });
-    return new File([blob], "staff-profile-photo.webp", { type: "image/webp" });
+    const blob = await canvasToBlob(canvas, "image/webp", .84)
+      ?? await canvasToBlob(canvas, "image/jpeg", .88);
+    if (!blob) throw new Error("Image processing failed.");
+    const isWebp = blob.type === "image/webp";
+    return new File(
+      [blob],
+      isWebp ? "staff-profile-photo.webp" : "staff-profile-photo.jpg",
+      { type: isWebp ? "image/webp" : "image/jpeg" },
+    );
   } finally {
     URL.revokeObjectURL(imageUrl);
   }
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
+  return new Promise<Blob | null>((resolve) => {
+    try {
+      canvas.toBlob(resolve, type, quality);
+    } catch {
+      resolve(null);
+    }
+  });
 }
 
 function loadImage(url: string) {

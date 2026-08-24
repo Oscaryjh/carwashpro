@@ -748,6 +748,9 @@ test("Staff Profile lets an authenticated employee replace their own photo", () 
   assert.match(profileSource, /employee:\s*\{ \.\.\.current\.employee, avatarUrl \}/);
   assert.match(staffAvatarSource, /accept="image\/\*"/);
   assert.match(staffAvatarSource, /prepareAvatar\(source\)/);
+  assert.match(staffAvatarSource, /const input = event\.currentTarget/);
+  assert.doesNotMatch(staffAvatarSource, /event\.currentTarget\.value/);
+  assert.match(staffAvatarSource, /canvasToBlob\(canvas, "image\/webp", \.84\)[\s\S]*?canvasToBlob\(canvas, "image\/jpeg", \.88\)/);
   assert.match(staffAvatarSource, /staffApiFetch<\{ ok: true; avatarUrl: string \}>/);
   assert.match(staffAvatarSource, /"\/api\/employee-auth\/avatar"/);
   assert.match(staffAvatarSource, /aria-modal="true"/);
