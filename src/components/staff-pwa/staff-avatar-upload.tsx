@@ -75,8 +75,15 @@ export function StaffAvatarUpload({
       });
       setOpen(true);
     } catch {
-      setError("This photo could not be prepared. Choose another photo.");
-      input.value = "";
+      // Some Android photo formats can be selected by Chrome but cannot be
+      // decoded by Canvas. Keep the original and let the Node image pipeline
+      // validate, rotate, crop and compress it when the employee saves.
+      setPreparedFile(source);
+      setPreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+      setOpen(true);
     }
   }
 
@@ -142,7 +149,7 @@ export function StaffAvatarUpload({
       />
       {error && !open ? <p className="staff-profile-avatar-inline-error" role="alert">{error}</p> : null}
 
-      {open && previewUrl ? (
+      {open && preparedFile ? (
         <div
           aria-labelledby="staff-avatar-sheet-title"
           aria-modal="true"
@@ -162,11 +169,21 @@ export function StaffAvatarUpload({
               <button aria-label="Close photo editor" disabled={saving} onClick={closeSheet} type="button">×</button>
             </header>
             <div className="staff-avatar-preview">
-              {/* Blob previews cannot use the Next image optimizer. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img alt="New profile photo preview" src={previewUrl} />
+              {previewUrl ? (
+                <>
+                  {/* Blob previews cannot use the Next image optimizer. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img alt="New profile photo preview" src={previewUrl} />
+                </>
+              ) : (
+                <div className="staff-avatar-preview-fallback">
+                  <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8.5 7 10 5h4l1.5 2H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2.5Z" /><circle cx="12" cy="13" r="3" /></svg>
+                  <strong>Photo selected</strong>
+                  <span>It will be prepared securely when you save.</span>
+                </div>
+              )}
             </div>
-            <p>Your photo will be cropped to a square and shown on the Staff App.</p>
+            <p>Your photo will be rotated and cropped to a square for the Staff App.</p>
             {error ? <div className="staff-alert error" role="alert">{error}</div> : null}
             <div className="staff-avatar-actions">
               <button className="staff-secondary-button" disabled={saving} onClick={choosePhoto} type="button">Choose another</button>

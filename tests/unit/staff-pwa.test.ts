@@ -751,18 +751,24 @@ test("Staff Profile lets an authenticated employee replace their own photo", () 
   assert.match(staffAvatarSource, /const input = event\.currentTarget/);
   assert.doesNotMatch(staffAvatarSource, /event\.currentTarget\.value/);
   assert.match(staffAvatarSource, /canvasToBlob\(canvas, "image\/webp", \.84\)[\s\S]*?canvasToBlob\(canvas, "image\/jpeg", \.88\)/);
+  assert.match(staffAvatarSource, /catch \{[\s\S]*?setPreparedFile\(source\)[\s\S]*?setOpen\(true\)/);
+  assert.match(staffAvatarSource, /open && preparedFile/);
+  assert.match(staffAvatarSource, /It will be prepared securely when you save\./);
   assert.match(staffAvatarSource, /staffApiFetch<\{ ok: true; avatarUrl: string \}>/);
   assert.match(staffAvatarSource, /"\/api\/employee-auth\/avatar"/);
   assert.match(staffAvatarSource, /aria-modal="true"/);
   assert.match(staffAvatarRouteSource, /assertEmployeeAuthSameOrigin\(request\)/);
   assert.match(staffAvatarRouteSource, /requireEmployeeSelfServiceAuthContext\(request\)/);
   assert.match(staffAvatarRouteSource, /employeeAccountId:\s*auth\.employeeAccountId/);
+  assert.match(staffAvatarRouteSource, /MAX_AVATAR_BYTES = 10 \* 1024 \* 1024/);
+  assert.match(staffAvatarRouteSource, /"image\/heic"/);
   assert.match(staffAvatarRouteSource, /limitInputPixels:\s*40_000_000/);
   assert.match(staffAvatarRouteSource, /EMPLOYEE_SELF_AVATAR_UPDATED/);
   assert.match(staffAvatarRouteSource, /uploadedAvatarUrl && !avatarPersisted/);
   assert.match(staffAvatarRouteSource, /deleteRuntimeEmployeeAvatarByUrl\(membership\.avatarUrl\)/);
   assert.match(staffCssSource, /\.staff-profile-avatar-button\s*\{[\s\S]*?height:\s*76px;[\s\S]*?width:\s*76px/);
   assert.match(staffCssSource, /\.staff-avatar-sheet\s*\{[\s\S]*?env\(safe-area-inset-bottom\)/);
+  assert.match(staffCssSource, /\.staff-avatar-preview-fallback\s*\{/);
 });
 
 test("Local mobile Staff App can hydrate from the private Wi-Fi subnet", () => {

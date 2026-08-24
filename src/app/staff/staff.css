@@ -2439,6 +2439,37 @@
   width: min(54vw, 220px);
 }
 
+.staff-avatar-preview-fallback {
+  align-items: center;
+  color: var(--staff-ink);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-width: 230px;
+  text-align: center;
+}
+
+.staff-avatar-preview-fallback svg {
+  fill: none;
+  height: 54px;
+  margin-bottom: 4px;
+  stroke: var(--staff-brand);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  width: 54px;
+}
+
+.staff-avatar-preview-fallback strong {
+  font-size: 17px;
+}
+
+.staff-avatar-preview-fallback span {
+  color: var(--staff-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .staff-avatar-sheet > p {
   color: var(--staff-muted);
   font-size: 12px;

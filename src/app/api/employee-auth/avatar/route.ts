@@ -11,8 +11,16 @@ import { deleteRuntimeEmployeeAvatarByUrl, writeRuntimeEmployeeAvatar } from "@/
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const allowedAvatarTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+const allowedAvatarTypes = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+  "image/heic",
+  "image/heif",
+]);
+const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
 
 export async function POST(request: Request) {
   let uploadedAvatarUrl: string | null = null;
@@ -26,10 +34,10 @@ export async function POST(request: Request) {
       throw invalidAvatar("Choose a photo before saving.");
     }
     if (!allowedAvatarTypes.has(file.type)) {
-      throw invalidAvatar("Use a JPG, PNG or WebP photo.");
+      throw invalidAvatar("Use a photo from your camera or photo library.");
     }
     if (file.size > MAX_AVATAR_BYTES) {
-      throw invalidAvatar("The prepared photo must be smaller than 2 MB.");
+      throw invalidAvatar("Choose a photo smaller than 10 MB.");
     }
 
     const membership = await prisma.employeeBusinessMembership.findFirst({
