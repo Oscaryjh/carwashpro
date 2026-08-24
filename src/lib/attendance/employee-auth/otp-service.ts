@@ -535,6 +535,28 @@ export async function verifyEmployeeOtp(
       !record.providerReference ||
       !record.otpHash
     ) {
+      if (config.otp.testingDeployment) {
+        console.warn("[employee-auth] testing OTP challenge is unusable", {
+          rateLimitAllowed: rateLimit.allowed,
+          recordFound: Boolean(record),
+          hasEmployeeAccount: Boolean(record?.employeeAccountId),
+          providerMatches: record?.provider === config.otp.provider,
+          hasOtpHash: Boolean(record?.otpHash),
+          hasProviderReference: Boolean(record?.providerReference),
+          deliveryAccepted: Boolean(record?.deliveryAcceptedAt),
+          alreadyVerified: Boolean(record?.verifiedAt),
+          invalidated: Boolean(record?.invalidatedAt),
+          unexpired: Boolean(record && record.expiresAt.getTime() > now.getTime()),
+          attemptsAvailable: Boolean(
+            record && record.attempts < record.maxAttempts,
+          ),
+          deviceMatches: Boolean(
+            record?.deviceFingerprintHash &&
+              safeEqual(record.deviceFingerprintHash, deviceFingerprintHash),
+          ),
+          mockCodeConfigured: config.otp.mockCode !== null,
+        });
+      }
       const terminalFailure = record
         ? record.expiresAt.getTime() <= now.getTime()
           ? "EXPIRED"
@@ -634,6 +656,15 @@ export async function verifyEmployeeOtp(
     : ({ status: "REJECTED" } as const);
 
   if (providerCheck.status !== "APPROVED") {
+    if (config.otp.testingDeployment) {
+      console.warn("[employee-auth] testing OTP hash did not match", {
+        provider: config.otp.provider,
+        mockCodeConfigured: config.otp.mockCode !== null,
+        submittedCodeMatchesConfigured: Boolean(
+          config.otp.mockCode && safeEqual(input.otp, config.otp.mockCode),
+        ),
+      });
+    }
     const terminalFailure = await database.$transaction(async (transaction) => {
       const nextAttempts = verification.record.attempts + 1;
       const terminal =
