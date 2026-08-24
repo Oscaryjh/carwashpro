@@ -299,8 +299,9 @@ export class Sms123OtpProvider implements EmployeeOtpProvider {
       apiKey,
       recipients: normalizeSms123Recipient(input.phoneNumber),
       messageContent:
-        `RM0.00 Tetamu verification code is ${input.code}. ` +
-        `This code expires in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+        `RM0 Tetamu: Your OTP is ${input.code}. ` +
+        `Valid for ${minutes} minute${minutes === 1 ? "" : "s"}. ` +
+        "Do not share this code.",
       referenceID: input.challengeId,
     }).toString();
 

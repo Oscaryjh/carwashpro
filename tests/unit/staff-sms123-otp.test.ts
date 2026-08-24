@@ -48,7 +48,7 @@ test("SMS123 adapter sends the approved Tetamu SMS using the verified GET integr
   assert.equal(requestUrl.searchParams.get("referenceID"), "challenge-sms123-a");
   assert.equal(
     requestUrl.searchParams.get("messageContent"),
-    "RM0.00 Tetamu verification code is 784571. This code expires in 5 minutes.",
+    "RM0 Tetamu: Your OTP is 784571. Valid for 5 minutes. Do not share this code.",
   );
   assert.equal(result.providerReference, "sms123:sms-reference-1");
 });
