@@ -326,6 +326,8 @@ test("Today renders actions only from the Today API and preserves one idempotenc
 
 test("Today prioritizes shift facts and shows explicit completion and approval states", () => {
   assert.match(todaySource, /label="Clock out"/);
+  assert.match(todaySource, /Current shift/);
+  assert.match(todaySource, /Started at/);
   assert.match(todaySource, /Shift completed/);
   assert.match(todaySource, /Manager approval pending/);
   assert.match(todaySource, /formatBranchDate\(today\.branchLocalTime\)/);

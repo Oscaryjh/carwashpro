@@ -290,10 +290,7 @@ export function StaffToday() {
       setNotice(
         result.data.requiresApproval
           ? "Punch submitted. Pending manager approval."
-          : `${attendanceActionLabel(pending.action)} recorded at ${formatTime(
-              result.data.serverTimestamp,
-              attendance.geofenceRequirements.timezone,
-            )}.`,
+          : "",
       );
       await load(true);
     } catch (caught) {
@@ -433,6 +430,7 @@ export function StaffToday() {
       serverTime: today.serverTime,
     });
   const isCompleted = today.status === "COMPLETED";
+  const isActive = today.status === "OPEN" || today.status === "ON_BREAK";
   return (
     <div className="staff-today-stack">
       <section
@@ -445,16 +443,22 @@ export function StaffToday() {
           </div>
           <span className={`staff-status-chip ${today.status?.toLowerCase() ?? "ready"}`}>
             {today.sessionCount > 1
-              ? `Shift ${today.sessionCount} · ${attendanceStatusLabel(today.status)}`
+              ? `Shift ${today.sessionCount}`
               : attendanceStatusLabel(today.status)}
           </span>
         </div>
-        <div className={`staff-attendance-context${isCompleted ? " is-complete" : ""}`}>
+        <div
+          className={`staff-attendance-context${isCompleted ? " is-complete" : isActive ? " is-active" : ""}`}
+        >
           <div className="staff-shift-summary">
             <span className="staff-shift-summary-icon" aria-hidden="true">
               {isCompleted ? (
                 <svg viewBox="0 0 24 24">
                   <path d="m6 12 4 4 8-9" />
+                </svg>
+              ) : isActive ? (
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" />
                 </svg>
               ) : (
                 <svg viewBox="0 0 24 24">
@@ -466,6 +470,8 @@ export function StaffToday() {
               <small>
                 {isCompleted
                   ? "Shift completed"
+                  : isActive
+                    ? "Current shift"
                   : today.expectedAttendance
                   ? expectedAttendanceLabel(today.expectedAttendance.kind)
                   : "Schedule not available"}
@@ -473,6 +479,8 @@ export function StaffToday() {
               <strong>
                 {isCompleted
                   ? `${today.completedSessionCount} ${today.completedSessionCount === 1 ? "shift" : "shifts"} recorded today`
+                  : isActive
+                    ? `Started at ${today.clockInAt ? formatTime(today.clockInAt, timeZone) : "—"}`
                   : today.expectedAttendance
                   ? expectedAttendanceDetail(today.expectedAttendance)
                   : "Check Schedule or contact your manager for today’s shift."}

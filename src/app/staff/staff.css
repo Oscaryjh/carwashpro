@@ -1793,6 +1793,24 @@
   font-size: 15px;
 }
 
+.staff-attendance-context.is-active {
+  background: #f0f8f6;
+  border-color: #cfe4df;
+}
+
+.staff-attendance-context.is-active .staff-shift-summary-icon {
+  background: #dff3ee;
+  color: var(--staff-brand-dark);
+}
+
+.staff-attendance-context.is-active .staff-shift-summary-copy small {
+  color: var(--staff-brand-dark);
+}
+
+.staff-attendance-context.is-active .staff-shift-summary-copy strong {
+  font-size: 15px;
+}
+
 .staff-card-heading,
 .staff-history-card-header {
   align-items: flex-start;
