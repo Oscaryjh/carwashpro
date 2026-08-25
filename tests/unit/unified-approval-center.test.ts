@@ -9,6 +9,7 @@ import {
   projectCommission,
   projectLeave,
   projectPayroll,
+  projectTimesheet,
   type UnifiedApprovalContext,
 } from "../../src/lib/approvals/service";
 import type { BusinessCapability } from "../../src/lib/business-groups/capabilities";
@@ -58,13 +59,35 @@ test("domain projections use stable identities and expose only minimal review su
   }, "business-id");
 
   assert.equal(attendance.id, "ATTENDANCE:P2:attendance-id");
+  assert.equal(attendance.kind, "APPROVAL");
   assert.equal(attendance.title, "No attendance recorded");
   assert.equal(leave.id, "LEAVE:leave-id");
+  assert.equal(leave.kind, "APPROVAL");
   assert.equal(leave.metadata.attachment, true);
   assert.doesNotMatch(leave.summary, /private-object-key/);
   assert.equal(claim.id, "CLAIM:claim-id");
+  assert.equal(claim.kind, "APPROVAL");
   assert.match(claim.summary, /Receipt attached/);
   assert.doesNotMatch(JSON.stringify(claim), /objectKey|checksum|mimeType|bytes/);
+});
+
+test("approved monthly timesheets are tasks while pre-final approval stays an approval", () => {
+  const now = new Date("2026-08-11T01:00:00.000Z");
+  const base = {
+    id: "timesheet-id",
+    periodStart: new Date("2026-08-01T00:00:00.000Z"),
+    updatedAt: now,
+    approvalRevision: 4,
+  };
+
+  const approval = projectTimesheet({ ...base, status: "DRAFT" }, "business-id");
+  const task = projectTimesheet({ ...base, status: "APPROVED" }, "business-id");
+
+  assert.equal(approval.kind, "APPROVAL");
+  assert.match(approval.title, /^Approve /);
+  assert.equal(task.kind, "TASK");
+  assert.match(task.title, /^Finalize /);
+  assert.equal(task.targetUrl, "/team/attendance/timesheets?month=2026-08");
 });
 
 test("compensation projections remain capability-bound and Payroll advertises its MFA boundary", () => {
@@ -87,7 +110,7 @@ test("compensation projections remain capability-bound and Payroll advertises it
   assert.equal(payroll.targetUrl, "/team/payroll/runs/run-id");
 });
 
-test("Approval Center remains a read model and delegates every mutation", async () => {
+test("Action Center remains a read model and delegates every mutation", async () => {
   const [service, page, payrollPage, permissions, shell] = await Promise.all([
     source("src/lib/approvals/service.ts"),
     source("src/app/(business)/team/approvals/page.tsx"),
@@ -97,13 +120,21 @@ test("Approval Center remains a read model and delegates every mutation", async 
   ]);
   assert.doesNotMatch(service, /genericApproval|approvalItem\.(create|update)|ApprovalStatus/);
   assert.doesNotMatch(page, /"use server"|prisma\.[a-zA-Z]+\.(create|update|delete)|action=\{/);
+  assert.match(page, /<h1>Action Center<\/h1>/);
+  assert.match(page, /Approvals/);
+  assert.match(page, /Tasks/);
   assert.match(page, /item\.targetUrl/);
+  assert.match(page, /formatActivityTime\(item\)/);
+  assert.match(page, /timeZone: "Asia\/Kuala_Lumpur"/);
+  assert.match(page, /Ready to finalize/);
+  assert.match(page, /Finalize timesheet/);
   assert.match(service, /businessId: context\.businessId/);
   assert.match(service, /branchId: \{ in: branchIds \}/);
   assert.match(service, /staffUser: \{ isNot: \{ id: context\.actorUserId \} \}/);
   assert.match(payrollPage, /PayrollHighRiskMfaFields/);
   assert.match(permissions, /pathname === "\/team\/approvals"[\s\S]*return null/);
   assert.match(shell, /href: "\/team\/approvals"/);
+  assert.match(shell, /label: "Action Center"/);
 });
 
 function context(

@@ -78,7 +78,7 @@ test("Leave loader returns separate balance components and safe summaries", asyn
   ]);
 });
 
-test("Leave UI is read-only, bounded, and links to Leave Management", async () => {
+test("Leave UI stays bounded and opens an audited employee balance card", async () => {
   const root = process.cwd();
   const route = await readFile(
     path.join(root, "src/app/(business)/team/people/[personId]/page.tsx"),
@@ -88,13 +88,47 @@ test("Leave UI is read-only, bounded, and links to Leave Management", async () =
     path.join(root, "src/components/employee-profile-leave.tsx"),
     "utf8",
   );
-  assert.match(route, /activeSection === "leave"/);
-  assert.match(component, /Open Leave Management/);
-  assert.match(component, /Up to 20 requests/);
-  assert.match(component, /Entitlement/);
+  const modal = await readFile(
+    path.join(root, "src/components/employee-leave-balance-modal.tsx"),
+    "utf8",
+  );
+  const actions = await readFile(
+    path.join(root, "src/app/(business)/team/leave/actions.ts"),
+    "utf8",
+  );
+  assert.match(route, /activeSection === "time"/);
+  assert.match(route, /activeView === "leave"/);
+  assert.match(route, /ADJUST_LEAVE_BALANCE/);
+  assert.match(route, /query\.manageLeave === "1"/);
+  assert.match(route, /EmployeeLeaveBalanceModal/);
+  assert.match(component, /Adjust balance/);
+  assert.match(component, /section=time&view=leave&manageLeave=1/);
+  assert.match(component, /Leave balances/);
+  assert.doesNotMatch(component, /Up to 20 requests|Available leave/);
+  assert.match(component, /Entitled/);
   assert.match(component, /Carry forward/);
   assert.match(component, /Adjustment/);
+  assert.match(component, /formatPolicyName/);
+  assert.doesNotMatch(component, /Policy entitlement and usage/);
+  assert.doesNotMatch(component, /Balance tracked|Balance not tracked/);
   assert.doesNotMatch(component, /<form|<input|<button|action=/);
+  assert.match(modal, /CatalogFormModal/);
+  assert.match(modal, /updateLeaveBalanceAction/);
+  assert.match(modal, /Adjust leave balance/);
+  assert.match(modal, /name="membershipId" value=\{data\.id\}/);
+  assert.match(modal, /name="returnTarget" value="employee-profile"/);
+  assert.match(modal, /name="direction" type="submit" value="ADD"/);
+  assert.match(modal, /name="direction" type="submit" value="DEDUCT"/);
+  assert.match(modal, /name="reason"/);
+  assert.match(modal, /Reason for correction/);
+  assert.match(modal, /data-tone=\{notice\.tone\}/);
+  assert.doesNotMatch(modal, /name="membershipId"[^>]*<select/);
+  assert.doesNotMatch(modal, /createLeavePolicyAction|\+ New leave type|Create company leave type|Open full Leave Management/);
+  assert.match(actions, /returnTarget === "employee-profile"/);
+  assert.match(actions, /manageLeave: "1"/);
+  assert.match(actions, /redirectLeavePolicyMessage/);
+  assert.match(actions, /query\.set\("newLeaveType", "1"\)/);
+  assert.doesNotMatch(actions, /Leave balance (?:added|deducted) by HR\./);
 
   for (const forbiddenLabel of [
     "Leave reason",

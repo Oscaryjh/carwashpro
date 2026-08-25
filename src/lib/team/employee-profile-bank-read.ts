@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { ResolvedBusinessAccess } from "@/lib/business-groups/business-access";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { toSafeEmployeeBankVersion } from "@/lib/payroll/payment/bank-account-service";
+import type { PaymentCryptoEnvironment } from "@/lib/payroll/payment/bank-account-crypto";
 import { prisma } from "@/lib/prisma";
 
 type EmployeeBankSectionInput = {
@@ -20,7 +21,11 @@ export type EmployeeBankSectionResult =
   | {
       status: "READY";
       data: {
-        bank: ReturnType<typeof toSafeEmployeeBankVersion> | null;
+        bank:
+          | (ReturnType<typeof toSafeEmployeeBankVersion> & {
+              accountNumber: string;
+            })
+          | null;
         canEdit: boolean;
         canVerify: boolean;
         membershipId: string;
@@ -30,6 +35,7 @@ export type EmployeeBankSectionResult =
 export async function loadEmployeeBankSection(
   input: EmployeeBankSectionInput,
   database: PrismaClient = prisma,
+  _environment?: PaymentCryptoEnvironment,
 ): Promise<EmployeeBankSectionResult> {
   if (!hasBusinessCapability(input.access, "VIEW_BANK_ACCOUNT")) {
     return { status: "ACCESS_DENIED", reason: "CAPABILITY" };
@@ -82,7 +88,12 @@ export async function loadEmployeeBankSection(
   return {
     status: "READY",
     data: {
-      bank: bank ? toSafeEmployeeBankVersion(bank) : null,
+      bank: bank
+        ? {
+            ...toSafeEmployeeBankVersion(bank),
+            accountNumber: `•••• ${bank.accountNumberLast4}`,
+          }
+        : null,
       canEdit: hasBusinessCapability(input.access, "EDIT_BANK_ACCOUNT"),
       canVerify: hasBusinessCapability(input.access, "VERIFY_BANK_ACCOUNT"),
       membershipId: membership.id,

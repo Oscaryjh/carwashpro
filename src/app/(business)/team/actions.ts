@@ -56,10 +56,18 @@ const optionalUuidSchema = z.preprocess(
   (value) => (typeof value === "string" && value.trim() ? value.trim() : null),
   z.string().uuid().nullable(),
 );
+const optionalDateOfBirthSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() ? value.trim() : null),
+  z.coerce
+    .date()
+    .max(new Date(), "Date of birth cannot be in the future.")
+    .nullable(),
+);
 const teamMemberShape = {
   attendanceEnabled: z.boolean(),
   branchIds: z.array(z.string().uuid()).min(1, "Select at least one active branch."),
   canClockInBranchIds: z.array(z.string().uuid()),
+  dateOfBirth: optionalDateOfBirthSchema,
   email: z.string().trim().email("Valid email is required.").toLowerCase().optional().or(z.literal("")),
   employeeCode: z.string().trim().min(1, "Employee code is required."),
   employmentType: employmentTypeSchema,
@@ -87,6 +95,7 @@ const teamMemberUpdateShape = {
   attendanceEnabled: teamMemberShape.attendanceEnabled,
   branchIds: teamMemberShape.branchIds,
   canClockInBranchIds: teamMemberShape.canClockInBranchIds,
+  dateOfBirth: teamMemberShape.dateOfBirth,
   email: teamMemberShape.email,
   employeeCode: teamMemberShape.employeeCode,
   employmentType: teamMemberShape.employmentType,
@@ -403,7 +412,11 @@ export async function updateStaffAction(formData: FormData) {
         );
       }
       revalidatePeoplePaths();
-      redirectWithTeamMessage("Staff profile updated successfully.", "success");
+      redirectAfterTeamMemberUpdate(
+        formData,
+        "Staff profile updated successfully.",
+        "success",
+      );
     }
     await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
     await requireBusinessUser("EDIT_COMPENSATION");
@@ -507,7 +520,8 @@ export async function updateStaffAction(formData: FormData) {
         }
 
         revalidatePeoplePaths(created.membership.id);
-        redirectWithTeamMessage(
+        redirectAfterTeamMemberUpdate(
+          formData,
           "Employment profile created successfully.",
           "success",
         );
@@ -575,7 +589,11 @@ export async function updateStaffAction(formData: FormData) {
       }
 
       revalidatePeoplePaths();
-      redirectWithTeamMessage("Staff profile updated successfully.", "success");
+      redirectAfterTeamMemberUpdate(
+        formData,
+        "Staff profile updated successfully.",
+        "success",
+      );
     }
 
     const input = parseTeamMemberForm(formData, true);
@@ -678,13 +696,18 @@ export async function updateStaffAction(formData: FormData) {
     }
 
     revalidatePeoplePaths(updated.membership.id);
-    redirectWithTeamMessage("Team member updated successfully.", "success");
+    redirectAfterTeamMemberUpdate(
+      formData,
+      "Team member updated successfully.",
+      "success",
+    );
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;
     }
 
-    redirectWithTeamMessage(
+    redirectAfterTeamMemberUpdate(
+      formData,
       getErrorMessage(error, "Unable to update team member."),
       "error",
     );
@@ -1276,6 +1299,18 @@ function redirectWithTeamMessage(message: string, type: "success" | "error"): ne
   redirect(`/team?type=${type}&message=${encodeURIComponent(message)}`);
 }
 
+function redirectAfterTeamMemberUpdate(
+  formData: FormData,
+  message: string,
+  type: "success" | "error",
+): never {
+  const returnTo = String(formData.get("returnTo") ?? "");
+  if (/^\/team\/people\/[0-9a-f-]{36}\?section=overview$/i.test(returnTo)) {
+    redirect(`${returnTo}&type=${type}&message=${encodeURIComponent(message)}`);
+  }
+  redirectWithTeamMessage(message, type);
+}
+
 type StaffAccessSnapshot = {
   email: string | null;
   loginEnabled: boolean;
@@ -1389,6 +1424,7 @@ function parseTeamMemberForm(formData: FormData, editing: boolean) {
     canClockInBranchIds: uniqueStrings(
       formData.getAll("canClockInBranchIds"),
     ),
+    dateOfBirth: formData.get("dateOfBirth"),
     email: String(formData.get("email") ?? ""),
     employeeCode: formData.get("employeeCode"),
     employmentType: formData.get("employmentType"),
@@ -1449,6 +1485,7 @@ function parseLegacyStaffUpgradeForm(formData: FormData) {
     canClockInBranchIds: uniqueStrings(
       formData.getAll("canClockInBranchIds"),
     ),
+    dateOfBirth: formData.get("dateOfBirth"),
     email: String(formData.get("email") ?? ""),
     employeeCode: formData.get("employeeCode"),
     employmentType: formData.get("employmentType"),
@@ -1500,6 +1537,7 @@ function buildEmployeeInput(
     attendanceEnabled: boolean;
     branchIds: string[];
     canClockInBranchIds: string[];
+    dateOfBirth: Date | null;
     employeeCode: string;
     employmentType:
       | "FULL_TIME"
@@ -1538,6 +1576,7 @@ function buildEmployeeInput(
           })),
     attendanceEnabled,
     businessId,
+    dateOfBirth: input.dateOfBirth,
     employeeCode: input.employeeCode,
     employmentType: input.employmentType,
     fullName: input.name,

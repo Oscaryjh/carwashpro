@@ -11,12 +11,12 @@
   "fixtureDigest": "6e38d7f844b8b8e3671baf8776b77f3e49b7e94a361c00eddbb137ac6957c2e7",
   "fixtureFileSha256": "93e0f68b3cc13933b20e1fa3c297f3aceba7f229a3f462000f8bfd1e308627d4",
   "fixtureCount": 5,
-  "calculatorVersion": "TETAMU_PCB_2026_1.0.0",
-  "calculatorSourceSha256": "fecd00b033d15dd5b6668c2e89b1ff6fa41a6da3fc6a9f602dbe6374f3fd696c",
+  "calculatorVersion": "TETAMU_PCB_2026_1.1.0",
+  "calculatorSourceSha256": "bf579528584120b8f6d5ef11ef9cacb05aaa9fceb70249710463a9578b9a1158",
   "classificationCandidateId": "malaysia-pcb-2026-signoff-candidate-v1",
   "classificationDigest": "02df2ba360b88adfdba6209bb287ad6d3915a388f4b04926151d10544b0136c6",
-  "requirementsDigest": "fa90b45852f77e8f0a5d70c61a904f0f65dafffa67b8a70c9b9484f9ffc42481",
-  "requirementsCoverage": {"total":28,"implemented":6,"available":1,"implementedWithBlocker":1,"partialClassification":2,"blocked":18},
+  "requirementsDigest": "31b6757cdfbe934e48a07e94b4c7473f2f78bf73121944cac95ce415d444c75b",
+  "requirementsCoverage": {"total":28,"implemented":19,"available":1,"implementedWithBlocker":6,"partialClassification":2,"blocked":0},
   "supportedScopeGoldenResult": "PASS",
   "supportedScopeTestCommand": "npm.cmd exec -- tsx --test tests/unit/payroll-pcb-2026.test.ts",
   "supportedScopeTestCount": 13,
@@ -24,7 +24,7 @@
   "closureStatus": "PARTIAL",
   "hasilSoftwareVerificationStatus": "PENDING",
   "hasilSoftwareVerificationEvidence": null,
-  "reviewedOn": "2026-08-09",
-  "notes": "The five retained expected outputs are independent official specification examples or a captured official calculator result. The separate official 2026 applicant test-question pack publishes scenarios but not expected answers; those questions are not misrepresented as passed goldens. No government submission or software approval occurred.",
-  "recordDigest": "327c316513be4c8ab46edf832f43ae991236499e73293673fec69e66b90ec770"
+  "reviewedOn": "2026-08-21",
+  "notes": "The retained official examples and calculator result pass the supported engineering scope. Tetamu now has a versioned governed PCB profile for TP1, TP3 and religious-travel declarations, a finalized tax-year ledger, official Kt allocation and frozen calculation provenance. Unresolved component classifications, special regimes and HASiL software verification remain explicit production blockers; no government approval or production activation occurred.",
+  "recordDigest": "84a06a9c5368f74ef99f67867585ccbc6bbc4ee23a3a58de502c3a155af2715f"
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 import { getMfaSecurityState } from "@/lib/auth/mfa-service";
 import { requireUser } from "@/lib/auth/session";
 import {
@@ -36,6 +37,12 @@ export default async function SensitiveActionQaPage({ searchParams }: Props) {
   const user = await requireUser();
   if (user.role !== "PLATFORM_ADMIN" || !user.sessionId) redirect("/reports");
   const messages = await searchParams;
+  if (!isMfaFeatureEnabled()) {
+    const returnTo = messages.returnTo;
+    redirect(returnTo?.startsWith("/") && !returnTo.startsWith("//")
+      ? returnTo
+      : "/admin/statutory/rulesets");
+  }
   const requested = messages.action ?? "QA_SENSITIVE_ACTION";
   if (!isSensitiveActionKey(requested) || !SUPPORTED_ACTIONS.has(requested)) {
     redirect("/reports");

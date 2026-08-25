@@ -41,6 +41,7 @@ test("P6B freezes mutually exclusive payroll buckets from locked cross-midnight 
   });
 
   assert.equal(attendance.regularNormalMinutes, 100);
+  assert.equal(attendance.regularDayHundredths, 100);
   assert.equal(attendance.normalOtMinutes, 20);
   assert.equal(attendance.restDayWorkMinutes, 0);
   assert.equal(attendance.restDayOtMinutes, 0);

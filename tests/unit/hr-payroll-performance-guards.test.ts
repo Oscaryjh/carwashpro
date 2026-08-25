@@ -49,10 +49,22 @@ test("optional workers do not enter a rapid startup restart loop", () => {
 });
 
 test("People loads section-only data only when that section needs it", () => {
-  assert.match(peoplePageSource, /staffDataRequired \? prisma\.user\.findMany/);
-  assert.match(peoplePageSource, /serviceDataRequired \? prisma\.service\.findMany/);
-  assert.match(peoplePageSource, /activityDataRequired \? prisma\.auditLog\.findMany/);
-  assert.match(peoplePageSource, /attendanceDataRequired \? prisma\.employeeAttendance\.findMany/);
+  assert.match(
+    peoplePageSource,
+    /staffDataRequired\s*\?\s*prisma\.user\.findMany/,
+  );
+  assert.match(
+    peoplePageSource,
+    /serviceDataRequired\s*\?\s*prisma\.service\.findMany/,
+  );
+  assert.match(
+    peoplePageSource,
+    /activityDataRequired\s*\?\s*prisma\.auditLog\.findMany/,
+  );
+  assert.match(
+    peoplePageSource,
+    /attendanceDataRequired\s*\?\s*prisma\.employeeAttendance\.findMany/,
+  );
 });
 
 test("Attendance overlaps supporting, summary, and table queries", () => {

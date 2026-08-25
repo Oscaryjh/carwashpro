@@ -44,6 +44,7 @@ const run: PayrollDocumentRun = {
       eisEmployee: 4.1,
       lindung24Employee: 0,
       pcb: 12,
+      cp38: 0,
       employerEpf: 260,
       employerSocso: 35.85,
       employerEis: 4.1,

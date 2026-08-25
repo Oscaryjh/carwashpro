@@ -28,6 +28,7 @@ Twilio Verify owns code generation, delivery and verification. Tetamu never requ
 
 - `OTP_PROVIDER=mock`, `OTP_CHANNEL=local`: Local automated regression only.
 - `OTP_PROVIDER=twilio_verify`, `OTP_CHANNEL=sms`: real Online Testing and future Production-owner configuration.
+- `OTP_PROVIDER=sms123`, `OTP_CHANNEL=sms`: Tetamu generates and verifies a six-digit OTP while SMS123 delivers the message. Only a keyed OTP hash is stored.
 - Start verification uses Twilio Verify with an E.164 phone number and the `sms` channel.
 - Verification succeeds only when Twilio returns `approved`.
 - Pending, expired/deleted, max-attempt, timeout, network and provider errors are mapped to safe application outcomes without exposing provider payloads or credentials.
@@ -73,6 +74,7 @@ Real Twilio Testing acceptance requires all of the following in the Testing web 
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_VERIFY_SERVICE_SID`
 - either `TWILIO_AUTH_TOKEN`, or `TWILIO_API_KEY_SID` plus `TWILIO_API_KEY_SECRET`
+- Or, when using SMS123: `OTP_PROVIDER=sms123`, `OTP_CHANNEL=sms`, and server-only `SMS123_API_KEY`
 - an eligible Testing employee phone able to receive the SMS
 
 At the 2026-08-13 closure audit, these Testing variable names were absent. No value was read or printed. No Testing deployment was attempted because it could not produce a valid real-SMS acceptance. The live result is therefore `BLOCKED`, not `PASS`.

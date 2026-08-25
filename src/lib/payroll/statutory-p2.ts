@@ -9,6 +9,7 @@ import type {
   StatutoryScheme,
 } from "@prisma/client";
 import { buildStatutoryDeductionComponents } from "./component-calculation";
+import { CP38_BLOCKERS, resolveCp38ForPeriod } from "./cp38-instruction";
 import type { NormalizedContributionDataset } from "./statutory-artifact-pipeline";
 import { effectiveClassificationTreatment } from "./statutory-classification-policy";
 import {
@@ -24,6 +25,19 @@ import {
   resolveLindung24ParticipationForPeriod,
   type Lindung24ParticipationEvidence,
 } from "./lindung24-participation";
+import { calculatePcb2026, type PCB2026CalculationResult } from "./pcb-2026";
+import {
+  assertPcbRuleCanCalculate,
+  type PcbGovernedRule,
+} from "./pcb-governance";
+import {
+  isGovernedEmployeePcbProfile,
+  parseEmployeePcbProfile,
+} from "./pcb-profile";
+import {
+  buildPcbTaxYearYtd,
+  type PcbTaxYearLedgerRecord,
+} from "./pcb-tax-year-ledger";
 
 export const STATUTORY_P2_BLOCKERS = {
   EPF_RULE_NOT_READY: "EPF_RULE_NOT_READY",
@@ -36,6 +50,14 @@ export const STATUTORY_P2_BLOCKERS = {
   LINDUNG24_SELECTED_EMPLOYER_REQUIRED: LINDUNG24_BLOCKERS.SELECTED_EMPLOYER_REQUIRED,
   PCB_RULE_NOT_READY: "PCB_RULE_NOT_READY",
   PCB_PROFILE_INCOMPLETE: "PCB_PROFILE_INCOMPLETE",
+  PCB_TAX_REGIME_NOT_VERIFIED: "PCB_TAX_REGIME_NOT_VERIFIED",
+  PCB_YTD_LEDGER_INCOMPLETE: "PCB_YTD_LEDGER_INCOMPLETE",
+  PCB_ADDITIONAL_EPF_ALLOCATION_REQUIRED:
+    "PCB_ADDITIONAL_EPF_ALLOCATION_REQUIRED",
+  PCB_RULESET_GOVERNANCE_LINK_INCOMPLETE:
+    "PCB_RULESET_GOVERNANCE_LINK_INCOMPLETE",
+  PCB_RULE_NOT_APPROVED_FOR_PRODUCTION:
+    "PCB_RULE_NOT_APPROVED_FOR_PRODUCTION",
   STATUTORY_PROFILE_INCOMPLETE: "STATUTORY_PROFILE_INCOMPLETE",
   STATUTORY_RULE_NOT_AVAILABLE: "STATUTORY_RULE_NOT_AVAILABLE",
   STATUTORY_CLASSIFICATION_REQUIRED: "STATUTORY_CLASSIFICATION_REQUIRED",
@@ -54,10 +76,33 @@ export type StatutoryRuleCandidate = {
   datasetDigest?: string | null;
   goldenFixtureDigest?: string | null;
   classificationVersion?: string | null;
+  classificationDigest?: string | null;
   parserVersion?: string | null;
   calculatorVersion?: string | null;
   ruleData?: Prisma.JsonValue | null;
+  verificationEvidence?: Prisma.JsonValue | null;
 };
+
+export function pcbRuleSupportsTaxRegime(
+  rule: StatutoryRuleCandidate,
+  taxRegime: string,
+) {
+  if (
+    !rule.verificationEvidence ||
+    typeof rule.verificationEvidence !== "object" ||
+    Array.isArray(rule.verificationEvidence)
+  ) {
+    return false;
+  }
+  const supportedTaxRegimes = (
+    rule.verificationEvidence as Record<string, unknown>
+  ).supportedTaxRegimes;
+  return (
+    Array.isArray(supportedTaxRegimes) &&
+    supportedTaxRegimes.every((value) => typeof value === "string") &&
+    supportedTaxRegimes.includes(taxRegime)
+  );
+}
 
 export type MaterializedStatutoryRuleCandidate = StatutoryRuleCandidate & {
   classifications: Array<{
@@ -67,7 +112,7 @@ export type MaterializedStatutoryRuleCandidate = StatutoryRuleCandidate & {
     treatment: StatutoryComponentTreatment;
     rationale: string;
     reviewDecisions?: Array<{
-      decision: "INCLUDED" | "EXCLUDED" | "KEEP_UNKNOWN";
+      decision: "INCLUDED" | "ADDITIONAL_REMUNERATION" | "EXCLUDED" | "KEEP_UNKNOWN";
       decisionRevision: number;
     }>;
   }>;
@@ -95,6 +140,7 @@ export function resolveApplicableStatutoryRule<T extends StatutoryRuleCandidate>
 export function resolveComponentTreatment(input: {
   componentCode: string;
   componentSourceType: string;
+  componentType?: "EARNING" | "DEDUCTION";
   classifications: ReadonlyArray<{
     id: string;
     componentCode: string;
@@ -102,7 +148,7 @@ export function resolveComponentTreatment(input: {
     treatment: StatutoryComponentTreatment;
     rationale: string;
     reviewDecisions?: ReadonlyArray<{
-      decision: "INCLUDED" | "EXCLUDED" | "KEEP_UNKNOWN";
+      decision: "INCLUDED" | "ADDITIONAL_REMUNERATION" | "EXCLUDED" | "KEEP_UNKNOWN";
       decisionRevision: number;
     }>;
   }>;
@@ -117,6 +163,18 @@ export function resolveComponentTreatment(input: {
       item.componentCode === input.componentCode && item.sourceType === null,
   );
   const matched = exact ?? generic ?? null;
+  if (input.componentType === "DEDUCTION") {
+    return {
+      id: matched?.id ?? null,
+      componentCode: input.componentCode,
+      sourceType: input.componentSourceType,
+      treatment: "EXCLUDED" as const,
+      rationale:
+        matched?.rationale ??
+        "Payroll deductions affect net pay and cannot increase a statutory remuneration base.",
+      reviewDecisions: matched?.reviewDecisions ?? [],
+    };
+  }
   if (!matched) return null;
   const latestDecision = [...(matched.reviewDecisions ?? [])]
     .sort((left, right) => right.decisionRevision - left.decisionRevision)[0]?.decision ?? null;
@@ -138,6 +196,7 @@ type MaterializeDatabase = Pick<
   | "payrollEntryStatutorySnapshot"
   | "payrollEntry"
   | "employeeLindung24ParticipationVersion"
+  | "employeeCp38Instruction"
 >;
 
 type FrozenProfile = {
@@ -153,6 +212,7 @@ type FrozenProfile = {
   statutoryProfileRevision: number;
   taxProfileRevision: number;
   taxIdentificationNumber: string | null;
+  pcbProfile?: Prisma.JsonValue | null;
 };
 
 export function resolveStatutorySchemeEligibility(input: {
@@ -265,14 +325,25 @@ export async function materializeStatutoryP2(
     eisEnabled: input.profile.eisEnabled,
     eisPreviouslyContributed: input.profile.eisPreviouslyContributed,
     lindung24OptIn: input.profile.lindung24OptIn,
+    // Preserve the digest of legacy statutory-profile revisions that predate
+    // the annual PCB profile. Once a PCB profile exists, its frozen payload is
+    // part of the revision digest and cannot change silently.
+    ...(input.profile.pcbProfile === null || input.profile.pcbProfile === undefined
+      ? {}
+      : { pcbProfile: input.profile.pcbProfile }),
   });
+  const pcbProfile = parseEmployeePcbProfile(input.profile.pcbProfile);
+  const frozenProfileRevision = pcbProfile
+    ? input.profile.statutoryProfileRevision * 1_000_000 +
+      input.profile.taxProfileRevision
+    : input.profile.statutoryProfileRevision;
   let profileVersionId: string | null = null;
   if (requiredSchemes.length) {
     const existingProfile = await database.employeeStatutoryProfileVersion.findUnique({
       where: {
         membershipId_revision: {
           membershipId: input.membershipId,
-          revision: input.profile.statutoryProfileRevision,
+          revision: frozenProfileRevision,
         },
       },
     });
@@ -284,7 +355,7 @@ export async function materializeStatutoryP2(
         data: {
           businessId: input.businessId,
           membershipId: input.membershipId,
-          revision: input.profile.statutoryProfileRevision,
+          revision: frozenProfileRevision,
           dateOfBirth: input.profile.dateOfBirth,
           statutoryNationality: input.profile.statutoryNationality,
           epfEnabled: input.profile.epfEnabled,
@@ -295,6 +366,11 @@ export async function materializeStatutoryP2(
           eisPreviouslyContributed: input.profile.eisPreviouslyContributed,
           lindung24OptIn: input.profile.lindung24OptIn,
           taxProfileRevision: input.profile.taxProfileRevision,
+          pcbProfileSnapshot:
+            input.profile.pcbProfile === null ||
+            input.profile.pcbProfile === undefined
+              ? undefined
+              : (input.profile.pcbProfile as Prisma.InputJsonValue),
           sourceDigest: profileDigest,
           createdById: input.actorUserId,
         },
@@ -326,6 +402,23 @@ export async function materializeStatutoryP2(
     },
     orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }],
   });
+  const cp38Records = await database.employeeCp38Instruction.findMany({
+    where: {
+      businessId: input.businessId,
+      membershipId: input.membershipId,
+      status: "ACTIVE",
+      effectiveFromMonth: { lte: input.statutoryPeriod },
+      OR: [
+        { effectiveToMonth: null },
+        { effectiveToMonth: { gte: input.statutoryPeriod } },
+      ],
+    },
+    orderBy: [
+      { instructionReference: "asc" },
+      { revision: "desc" },
+    ],
+  });
+  const cp38Resolution = resolveCp38ForPeriod(cp38Records, input.statutoryPeriod);
 
   await database.payrollComponentStatutoryTreatmentSnapshot.deleteMany({
     where: { businessId: input.businessId, payrollEntryId: input.payrollEntryId },
@@ -346,6 +439,12 @@ export async function materializeStatutoryP2(
   const schemeResults: Partial<
     Record<"EPF" | "SOCSO" | "EIS" | "LINDUNG24", { wageBaseCents: number; calculation: StatutoryTableCalculation | null }>
   > = {};
+  let epfAllocationContext: {
+    dataset: NormalizedContributionDataset;
+    category: EpfContributionCategory;
+    includedComponentIds: ReadonlySet<string>;
+  } | null = null;
+  let pcbResult: Extract<PCB2026CalculationResult, { status: "CALCULATED" }> | null = null;
   for (const scheme of schemes) {
     const applicable = resolveApplicableStatutoryRule(rules, scheme, input.statutoryPeriod);
     const classifications = applicable?.classifications ?? [];
@@ -360,6 +459,7 @@ export async function materializeStatutoryP2(
         ? resolveComponentTreatment({
             componentCode: component.code,
             componentSourceType: component.sourceType,
+            componentType: component.type,
             classifications,
           })
         : null;
@@ -438,19 +538,108 @@ export async function materializeStatutoryP2(
       continue;
     } else if (eligibility?.status === "PROFILE_INCOMPLETE") {
       blocker = STATUTORY_P2_BLOCKERS.STATUTORY_PROFILE_INCOMPLETE;
-    } else if (scheme === "PCB" && input.profile.taxProfileRevision === 0) {
+    } else if (scheme === "PCB" && !pcbProfile) {
       blocker = STATUTORY_P2_BLOCKERS.PCB_PROFILE_INCOMPLETE;
     } else if (!applicable) {
       blocker = STATUTORY_P2_BLOCKERS.STATUTORY_RULE_NOT_AVAILABLE;
     } else if (applicable.readiness !== "CALCULATION_VERIFIED") {
       blocker = ruleNotReadyCode(scheme);
+    } else if (
+      scheme === "PCB" &&
+      pcbProfile &&
+      !pcbRuleSupportsTaxRegime(applicable, pcbProfile.taxRegime)
+    ) {
+      blocker = STATUTORY_P2_BLOCKERS.PCB_TAX_REGIME_NOT_VERIFIED;
     } else if (unknownClassification) {
       blocker = STATUTORY_P2_BLOCKERS.STATUTORY_CLASSIFICATION_REQUIRED;
+    } else if (scheme === "PCB") {
+      let governanceBinding: ReturnType<typeof assertPcbRuleCanCalculate>;
+      try {
+        governanceBinding = assertPcbRuleCanCalculate(applicable as PcbGovernedRule);
+      } catch (error) {
+        blocker = error instanceof Error
+          ? error.message
+          : STATUTORY_P2_BLOCKERS.PCB_RULESET_GOVERNANCE_LINK_INCOMPLETE;
+        governanceBinding = null as never;
+      }
+      if (blocker) {
+        // The common blocked-snapshot path below records the exact governance
+        // blocker and prevents the calculator from running.
+      } else {
+        const totalEpfEmployeeCents =
+          schemeResults.EPF?.calculation?.employeeCents ?? 0;
+        const frozenEpfAllocation = epfAllocationContext;
+        const normalEpfWageCents = frozenEpfAllocation
+          ? treatments.reduce(
+              (total, item) =>
+                total +
+                (item.component.type === "EARNING" &&
+                item.treatment === "INCLUDED" &&
+                frozenEpfAllocation.includedComponentIds.has(item.component.id)
+                  ? moneyToCents(item.component.amount)
+                  : 0),
+              0,
+            )
+          : 0;
+        const normalEpfEmployeeCents = frozenEpfAllocation
+          ? normalEpfWageCents === 0
+            ? 0
+            : calculateEpf({
+                dataset: frozenEpfAllocation.dataset,
+                wageCents: normalEpfWageCents,
+                category: frozenEpfAllocation.category,
+              }).employeeCents
+          : input.profile.epfEnabled
+            ? null
+            : 0;
+        const pcbMaterialization = await calculatePcbForEntry(database, input, {
+          pcbProfile: pcbProfile!,
+          treatments,
+          epfEmployeeCents: totalEpfEmployeeCents,
+          normalEpfEmployeeCents,
+          governanceBinding,
+        });
+        if (pcbMaterialization.status === "BLOCKED") {
+          blocker = pcbMaterialization.blocker;
+        } else {
+          pcbResult = pcbMaterialization.calculation;
+          await createSnapshot(database, input, {
+            scheme,
+            status: "CALCULATED",
+            calculationSource: "CALCULATED",
+            blockerCode: null,
+            rule: applicable,
+            profileVersionId,
+            wageBaseCents: pcbMaterialization.wageBaseCents,
+            employeeContributionCents: pcbResult.amountCents,
+            employerContributionCents: 0,
+            matchedRuleKey: "PCB_2026_MONTHLY_TAX_DEDUCTION",
+            calculationInputDigest: pcbMaterialization.calculationInputDigest,
+            metadata: {
+              ...pcbMaterialization.metadata,
+              cp38: {
+                status: cp38Resolution.status,
+                amountCents:
+                  cp38Resolution.status === "BLOCKED"
+                    ? 0
+                    : cp38Resolution.amountCents,
+                instructions:
+                  cp38Resolution.status === "APPLICABLE"
+                    ? cp38Resolution.instructions
+                    : [],
+              },
+            },
+          });
+          continue;
+        }
+      }
     } else if (scheme === "EPF" || scheme === "SOCSO" || scheme === "EIS" || scheme === "LINDUNG24") {
       const wageBaseCents = treatments.reduce(
         (total, item) =>
           total +
-          (item.component.type === "EARNING" && item.treatment === "INCLUDED"
+          (item.component.type === "EARNING" &&
+          (item.treatment === "INCLUDED" ||
+            item.treatment === "ADDITIONAL_REMUNERATION")
             ? moneyToCents(item.component.amount)
             : 0),
         0,
@@ -475,6 +664,24 @@ export async function materializeStatutoryP2(
           : scheme === "EIS"
           ? calculateEis({ dataset, wageCents: wageBaseCents })
           : calculateLindung24({ dataset, wageCents: wageBaseCents });
+      if (scheme === "EPF") {
+        epfAllocationContext = {
+          dataset,
+          category: requiredEpfCategory(
+            eligibility?.status === "APPLICABLE" ? eligibility.epfCategory : undefined,
+          ),
+          includedComponentIds: new Set(
+            treatments
+              .filter(
+                (item) =>
+                  item.component.type === "EARNING" &&
+                  (item.treatment === "INCLUDED" ||
+                    item.treatment === "ADDITIONAL_REMUNERATION"),
+              )
+              .map((item) => item.component.id),
+          ),
+        };
+      }
       const treatmentDigest = sha256(
         treatments.map((item) => ({
           componentId: item.component.id,
@@ -552,6 +759,11 @@ export async function materializeStatutoryP2(
 
   const blockers = Object.entries(schemeBlockers)
     .map(([scheme, code]) => `${scheme}:${code}`)
+    .concat(
+      cp38Resolution.status === "BLOCKED"
+        ? [`CP38:${CP38_BLOCKERS.AMBIGUOUS_ACTIVE_REVISION}`]
+        : [],
+    )
     .sort();
   const socso = schemeResults.SOCSO;
   const eis = schemeResults.EIS;
@@ -564,7 +776,9 @@ export async function materializeStatutoryP2(
     eisEmployeeCents: eis?.calculation?.employeeCents ?? 0,
     lindung24EmployeeCents:
       schemeResults.LINDUNG24?.calculation?.employeeCents ?? 0,
-    pcbCents: 0,
+    pcbCents: pcbResult?.amountCents ?? 0,
+    cp38Cents:
+      cp38Resolution.status === "APPLICABLE" ? cp38Resolution.amountCents : 0,
   });
   if (statutoryLines.length) {
     await database.payrollEntryComponent.createMany({
@@ -592,8 +806,8 @@ export async function materializeStatutoryP2(
       })),
     });
   }
-  const calculatedRules = (["EPF", "SOCSO", "EIS", "LINDUNG24"] as const)
-    .filter((scheme) => schemeResults[scheme])
+  const calculatedRules = (["EPF", "SOCSO", "EIS", "LINDUNG24", "PCB"] as const)
+    .filter((scheme) => scheme === "PCB" ? pcbResult : schemeResults[scheme])
     .map((scheme) => {
       const rule = resolveApplicableStatutoryRule(rules, scheme, input.statutoryPeriod);
       return `${scheme}:${rule?.version ?? ""}`;
@@ -612,7 +826,10 @@ export async function materializeStatutoryP2(
       lindung24Employee: centsToMoney(
         schemeResults.LINDUNG24?.calculation?.employeeCents ?? 0,
       ),
-      pcb: "0.00",
+      pcb: centsToMoney(pcbResult?.amountCents ?? 0),
+      cp38: centsToMoney(
+        cp38Resolution.status === "APPLICABLE" ? cp38Resolution.amountCents : 0,
+      ),
       statutoryStatus: blockers.length
         ? "REVIEW_REQUIRED"
         : calculatedRules.length
@@ -623,7 +840,280 @@ export async function materializeStatutoryP2(
       statutoryWarning: blockers.join("; ") || null,
     },
   });
-  return { blockers, profileVersionId, schemeResults };
+  return { blockers, cp38Resolution, pcbResult, profileVersionId, schemeResults };
+}
+
+type PcbEntryTreatment = {
+  component: {
+    id: string;
+    type: "EARNING" | "DEDUCTION";
+    amount: { toString(): string };
+  };
+  treatment: StatutoryComponentTreatment;
+};
+
+export async function calculatePcbForEntry(
+  database: MaterializeDatabase,
+  input: Parameters<typeof materializeStatutoryP2>[1],
+  context: {
+    pcbProfile: NonNullable<ReturnType<typeof parseEmployeePcbProfile>>;
+    treatments: readonly PcbEntryTreatment[];
+    epfEmployeeCents: number;
+    normalEpfEmployeeCents: number | null;
+    governanceBinding: ReturnType<typeof assertPcbRuleCanCalculate>;
+  },
+): Promise<
+  | { status: "BLOCKED"; blocker: string }
+  | {
+      status: "CALCULATED";
+      calculation: Extract<PCB2026CalculationResult, { status: "CALCULATED" }>;
+      calculationInputDigest: string;
+      wageBaseCents: number;
+      metadata: Record<string, unknown>;
+    }
+> {
+  const calculationMonth = input.statutoryPeriod.getUTCMonth() + 1;
+  const taxYear = input.statutoryPeriod.getUTCFullYear();
+  if (context.pcbProfile.taxYear !== taxYear) {
+    return { status: "BLOCKED", blocker: STATUTORY_P2_BLOCKERS.PCB_PROFILE_INCOMPLETE };
+  }
+  if (!isGovernedEmployeePcbProfile(context.pcbProfile)) {
+    return {
+      status: "BLOCKED",
+      blocker: STATUTORY_P2_BLOCKERS.PCB_PROFILE_INCOMPLETE,
+    };
+  }
+
+  const currentNormalRemunerationCents = context.treatments.reduce(
+    (total, item) =>
+      total +
+      (item.component.type === "EARNING" && item.treatment === "INCLUDED"
+        ? moneyToCents(item.component.amount)
+        : 0),
+    0,
+  );
+  const currentAdditionalRemunerationCents = context.treatments.reduce(
+    (total, item) =>
+      total +
+      (item.component.type === "EARNING" &&
+      item.treatment === "ADDITIONAL_REMUNERATION"
+        ? moneyToCents(item.component.amount)
+        : 0),
+    0,
+  );
+  if (
+    currentAdditionalRemunerationCents > 0 &&
+    context.normalEpfEmployeeCents === null
+  ) {
+    return {
+      status: "BLOCKED",
+      blocker: STATUTORY_P2_BLOCKERS.PCB_ADDITIONAL_EPF_ALLOCATION_REQUIRED,
+    };
+  }
+  const currentNormalEpfCents = context.normalEpfEmployeeCents ?? 0;
+  if (currentNormalEpfCents > context.epfEmployeeCents) {
+    return {
+      status: "BLOCKED",
+      blocker: STATUTORY_P2_BLOCKERS.PCB_ADDITIONAL_EPF_ALLOCATION_REQUIRED,
+    };
+  }
+  const currentAdditionalEpfCents = Math.max(
+    0,
+    context.epfEmployeeCents - currentNormalEpfCents,
+  );
+
+  const priorSnapshots = await database.payrollEntryStatutorySnapshot.findMany({
+    where: {
+      businessId: input.businessId,
+      membershipId: input.membershipId,
+      scheme: "PCB",
+      status: "CALCULATED",
+      payrollRun: {
+        status: "FINALIZED",
+        periodStart: {
+          gte: new Date(Date.UTC(taxYear, 0, 1)),
+          lt: input.statutoryPeriod,
+        },
+      },
+    },
+    select: {
+      id: true,
+      calculationMetadata: true,
+      sourceDigest: true,
+      payrollRun: { select: { periodStart: true } },
+    },
+  });
+  const records: PcbTaxYearLedgerRecord[] = [];
+  for (const snapshot of priorSnapshots) {
+    const metadata = parsePcbSnapshotLedgerMetadata(snapshot.calculationMetadata);
+    if (!metadata) {
+      return {
+        status: "BLOCKED",
+        blocker: STATUTORY_P2_BLOCKERS.PCB_YTD_LEDGER_INCOMPLETE,
+      };
+    }
+    records.push({
+      sourceId: snapshot.id,
+      sourceRevision: 1,
+      sourceType: "CURRENT_EMPLOYER_FINALIZED_PAYROLL",
+      sourceStatus: "FINALIZED",
+      businessId: input.businessId,
+      membershipId: input.membershipId,
+      taxYear,
+      effectiveMonth: snapshot.payrollRun.periodStart.getUTCMonth() + 1,
+      ...metadata,
+    });
+  }
+
+  const priorEmployerTotal =
+    context.pcbProfile.priorEmployerGrossRemunerationCents +
+    context.pcbProfile.priorEmployerEpfCents +
+    context.pcbProfile.priorEmployerPcbCents +
+    context.pcbProfile.priorEmployerAllowableDeductionsCents +
+    context.pcbProfile.priorEmployerZakatCents;
+  if (priorEmployerTotal > 0) {
+    if (calculationMonth === 1) {
+      return {
+        status: "BLOCKED",
+        blocker: STATUTORY_P2_BLOCKERS.PCB_YTD_LEDGER_INCOMPLETE,
+      };
+    }
+    records.push({
+      sourceId: `TP3:${context.pcbProfile.confirmedAt}`,
+      sourceRevision: 1,
+      sourceType: "PREVIOUS_EMPLOYER_TP3",
+      sourceStatus: "ACCEPTED",
+      businessId: input.businessId,
+      membershipId: input.membershipId,
+      taxYear,
+      effectiveMonth: calculationMonth - 1,
+      normalRemunerationCents:
+        context.pcbProfile.priorEmployerGrossRemunerationCents,
+      additionalRemunerationCents: 0,
+      approvedSchemeContributionCents:
+        context.pcbProfile.priorEmployerEpfCents,
+      pcbCents: context.pcbProfile.priorEmployerPcbCents,
+      allowableDeductionsCents:
+        context.pcbProfile.priorEmployerAllowableDeductionsCents,
+      zakatCents: context.pcbProfile.priorEmployerZakatCents,
+    });
+  }
+
+  const ytd = buildPcbTaxYearYtd({
+    businessId: input.businessId,
+    membershipId: input.membershipId,
+    taxYear,
+    calculationMonth,
+    records,
+  });
+  if (ytd.status === "BLOCKED") {
+    return {
+      status: "BLOCKED",
+      blocker: STATUTORY_P2_BLOCKERS.PCB_YTD_LEDGER_INCOMPLETE,
+    };
+  }
+  const calculationInput = {
+    taxYear,
+    calculationMonth,
+    taxRegime: context.pcbProfile.taxRegime,
+    employeeCategory: context.pcbProfile.employeeCategory,
+    individualDisabled: context.pcbProfile.individualDisabled,
+    spouseDisabled: context.pcbProfile.spouseDisabled,
+    children: context.pcbProfile.children,
+    priorGrossRemunerationCents: ytd.state.grossRemunerationCents,
+    priorEpfCents: ytd.state.approvedSchemeContributionCents,
+    priorPcbCents: ytd.state.pcbCents,
+    accumulatedAllowableDeductionsCents:
+      ytd.state.allowableDeductionsCents,
+    accumulatedZakatCents: ytd.state.zakatCents,
+    currentNormalRemunerationCents,
+    currentNormalEpfCents,
+    currentAdditionalRemunerationCents,
+    currentAdditionalEpfCents,
+    currentAllowableDeductionsCents:
+      context.pcbProfile.currentAllowableDeductionsCents,
+    currentZakatCents: context.pcbProfile.currentZakatCents,
+    currentReligiousTravelLevyCents:
+      context.pcbProfile.currentReligiousTravelLevyCents,
+  } as const;
+  const calculation = calculatePcb2026(calculationInput);
+  if (calculation.status === "BLOCKED") {
+    return {
+      status: "BLOCKED",
+      blocker:
+        calculation.blockers[0] ??
+        STATUTORY_P2_BLOCKERS.STATUTORY_CALCULATION_NOT_READY,
+    };
+  }
+  const calculationInputDigest = sha256({ calculationInput, ytd: ytd.state });
+  return {
+    status: "CALCULATED",
+    calculation,
+    calculationInputDigest,
+    wageBaseCents:
+      currentNormalRemunerationCents + currentAdditionalRemunerationCents,
+    metadata: {
+      taxYear,
+      calculationMonth,
+      taxRegime: context.pcbProfile.taxRegime,
+      employeeCategory: context.pcbProfile.employeeCategory,
+      normalRemunerationCents: currentNormalRemunerationCents,
+      additionalRemunerationCents: currentAdditionalRemunerationCents,
+      currentEmployerYtdRemunerationCents:
+        ytd.state.grossRemunerationCents -
+        context.pcbProfile.priorEmployerGrossRemunerationCents,
+      previousEmployerRemunerationCents:
+        context.pcbProfile.priorEmployerGrossRemunerationCents,
+      previousEmployerEpfCents: context.pcbProfile.priorEmployerEpfCents,
+      previousEmployerPcbCents: context.pcbProfile.priorEmployerPcbCents,
+      ytdPcbCents: ytd.state.pcbCents,
+      approvedSchemeContributionCents: context.epfEmployeeCents,
+      normalEpfCents: currentNormalEpfCents,
+      additionalEpfCents: currentAdditionalEpfCents,
+      pcbCents: calculation.amountCents,
+      allowableDeductionsCents:
+        context.pcbProfile.currentAllowableDeductionsCents,
+      zakatCents: context.pcbProfile.currentZakatCents,
+      religiousTravelLevyCents:
+        context.pcbProfile.currentReligiousTravelLevyCents,
+      ytdDigest: ytd.state.digest,
+      ytdSourceCount: ytd.state.sourceCount,
+      calculatorTrace: calculation.trace,
+      governanceBinding: context.governanceBinding,
+    },
+  };
+}
+
+function parsePcbSnapshotLedgerMetadata(value: Prisma.JsonValue) {
+  if (!value || Array.isArray(value) || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const fields = [
+    "normalRemunerationCents",
+    "additionalRemunerationCents",
+    "approvedSchemeContributionCents",
+    "pcbCents",
+    "allowableDeductionsCents",
+    "zakatCents",
+  ] as const;
+  if (
+    fields.some(
+      (field) =>
+        !Number.isSafeInteger(record[field]) || Number(record[field]) < 0,
+    )
+  ) {
+    return null;
+  }
+  return Object.fromEntries(
+    fields.map((field) => [field, Number(record[field])]),
+  ) as Pick<
+    PcbTaxYearLedgerRecord,
+    | "normalRemunerationCents"
+    | "additionalRemunerationCents"
+    | "approvedSchemeContributionCents"
+    | "pcbCents"
+    | "allowableDeductionsCents"
+    | "zakatCents"
+  >;
 }
 
 function schemeRequired(scheme: StatutoryScheme, profile: FrozenProfile) {
@@ -643,14 +1133,34 @@ function ruleNotReadyCode(scheme: StatutoryScheme) {
   return STATUTORY_P2_BLOCKERS[`${scheme}_RULE_NOT_READY` as keyof typeof STATUTORY_P2_BLOCKERS];
 }
 
-function contributionDatasetFromRule(
+export function contributionDatasetFromRule(
   rule: StatutoryRuleCandidate,
   scheme: "EPF" | "SOCSO" | "EIS" | "LINDUNG24",
 ) {
   if (!rule.ruleData || Array.isArray(rule.ruleData) || typeof rule.ruleData !== "object") {
     throw new Error("STATUTORY_RULE_DATASET_NOT_RETAINED");
   }
-  const dataset = rule.ruleData as unknown as NormalizedContributionDataset;
+  const retained = rule.ruleData as unknown as NormalizedContributionDataset;
+  const dataset: NormalizedContributionDataset = {
+    schemaVersion: retained.schemaVersion,
+    id: retained.id,
+    schemes: retained.schemes,
+    artifactId: retained.artifactId,
+    artifactSha256: retained.artifactSha256,
+    parserName: retained.parserName,
+    parserVersion: retained.parserVersion,
+    extractionMode: retained.extractionMode,
+    verificationStatus: retained.verificationStatus,
+    expectedRowCount: retained.expectedRowCount,
+    calculationMode: retained.calculationMode,
+    formulaAboveCents: retained.formulaAboveCents,
+    categoryRules: retained.categoryRules,
+    rounding: retained.rounding,
+    effectiveFrom: retained.effectiveFrom,
+    effectiveTo: retained.effectiveTo,
+    datasetDigest: retained.datasetDigest,
+    rows: retained.rows,
+  };
   if (
     dataset.datasetDigest !== rule.datasetDigest ||
     dataset.artifactSha256 !== rule.sourceDigest ||

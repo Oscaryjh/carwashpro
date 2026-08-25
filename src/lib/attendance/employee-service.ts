@@ -129,6 +129,7 @@ export async function createAttendanceEmployeeInTransaction(
         fullName: validatedEmployee.fullName,
         phoneNumber: validatedEmployee.phoneNumber,
         phoneNumberNormalized: validatedEmployee.phoneNumber,
+        dateOfBirth: validatedEmployee.dateOfBirth,
         employmentType: validatedEmployee.employmentType,
         status: validatedEmployee.status,
         attendanceEnabled: validatedEmployee.attendanceEnabled,
@@ -407,6 +408,7 @@ export async function updateAttendanceEmployeeInTransaction(
           fullName: employee.fullName,
           phoneNumber: employee.phoneNumber,
           phoneNumberNormalized: employee.phoneNumber,
+          dateOfBirth: employee.dateOfBirth,
           employmentType: employee.employmentType,
           status: employee.status,
           attendanceEnabled: employee.attendanceEnabled,
@@ -1109,6 +1111,7 @@ function employeeAuditSnapshot(
 
   return {
     employeeCode: employee.employeeCode,
+    dateOfBirth: employee.dateOfBirth?.toISOString().slice(0, 10) ?? null,
     fullName: employee.fullName,
     phoneMasked: maskAttendancePhone(employee.phoneNumberNormalized),
     employmentType: employee.employmentType,

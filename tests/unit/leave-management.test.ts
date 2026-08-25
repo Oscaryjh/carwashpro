@@ -105,3 +105,31 @@ test("custom Leave type migration preserves existing policy codes", async () => 
   assert.match(migration, /USING "code"::text/);
   assert.doesNotMatch(migration, /DROP TABLE|DROP COLUMN|TRUNCATE/i);
 });
+
+test("generated Leave entitlement and manual adjustment cannot double-credit the same source", async () => {
+  const schema = await readFile("prisma/schema.prisma", "utf8");
+  const service = await readFile("src/lib/leave/service.ts", "utf8");
+  const migration = await readFile(
+    "prisma/migrations/20260810010000_leave_management_final_closure/migration.sql",
+    "utf8",
+  );
+
+  assert.match(
+    schema,
+    /@@unique\(\[businessId, membershipId, policyId, leaveYearStart\]\)/,
+  );
+  assert.match(schema, /sourceKey\s+String\s+@unique/);
+  assert.match(service, /sourceKey: `leave-entitlement:\$\{entitlement\.id\}`/);
+  assert.match(
+    service,
+    /sourceKey: `leave-adjustment:\$\{input\.businessId\}:\$\{data\.sourceKey\}`/,
+  );
+  assert.match(migration, /employee_leave_entitlements_year_key[^\n]+UNIQUE/i);
+});
+
+test("employee balance deep links keep the selected employee and management workspace", async () => {
+  const page = await readFile("src/app/(business)/team/leave/page.tsx", "utf8");
+  assert.match(page, /employee\.id === params\.balanceEmployee/);
+  assert.match(page, /id="employee-leave-balances"/);
+  assert.match(page, /name="manage" value="balances"/);
+});

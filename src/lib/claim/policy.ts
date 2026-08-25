@@ -49,7 +49,7 @@ export const reviewClaimInputSchema = z.object({
 
 export const claimCategoryRevisionInputSchema = z.object({
   categoryId: z.string().uuid().optional().nullable(),
-  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_]{2,40}$/),
+  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_]{2,40}$/).optional().nullable(),
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().max(500).optional().nullable(),
   nature: z.enum(["GENERAL", "MILEAGE"]),
@@ -58,7 +58,12 @@ export const claimCategoryRevisionInputSchema = z.object({
   descriptionRequired: z.boolean(),
   maxLineAmount: z.union([moneyText, z.literal("")]).optional().nullable(),
   mileageRatePerKm: z.union([z.string(), z.number()]).optional().nullable(),
-  reason: z.string().trim().min(5).max(500),
+  statutoryTreatmentStatus: z.enum(["VERIFIED_NON_WAGE", "REVIEW_REQUIRED"]).default("REVIEW_REQUIRED"),
+  reason: z.string().trim().max(500).optional().nullable(),
+}).superRefine((value, context) => {
+  if (value.categoryId && !value.reason?.trim()) {
+    context.addIssue({ code: "custom", path: ["reason"], message: "Tell us why this policy is changing." });
+  }
 });
 
 export const selectReimbursementChannelInputSchema = z.object({
@@ -76,6 +81,12 @@ export const markOutsidePayrollPaidInputSchema = z.object({
   operationKey: z.string().uuid(),
   paymentReference: z.string().trim().min(2).max(120),
   note: z.string().trim().max(500).optional().nullable(),
+});
+
+export const reevaluateClaimPayrollTreatmentInputSchema = z.object({
+  reimbursementId: z.string().uuid(),
+  snapshotId: z.string().uuid(),
+  expectedSourceDigest: z.string().regex(/^[a-f0-9]{64}$/i),
 });
 
 export function parseMoneyCents(value: string | number) {

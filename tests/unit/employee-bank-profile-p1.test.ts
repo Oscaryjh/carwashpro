@@ -52,8 +52,9 @@ test("Payment P1 rejects branch-only bank reads before membership or bank query"
   assert.equal(protectedQueries, 0);
 });
 
-test("Payment P1 returns only the safe current bank DTO", async () => {
+test("Payment P1 returns only a masked account to an authorised whole-business view", async () => {
   const bankQueries: unknown[] = [];
+  const bankAccountVersionId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
   const database = {
     branch: { findMany: () => Promise.resolve([{ id: "branch-1" }]) },
     employeeBusinessMembership: {
@@ -69,7 +70,7 @@ test("Payment P1 returns only the safe current bank DTO", async () => {
           bankNameSnapshot: "Maybank",
           effectiveFrom: new Date("2026-08-01T00:00:00.000Z"),
           effectiveUntil: null,
-          id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          id: bankAccountVersionId,
           revision: 2,
           status: "ACTIVE",
           verificationStatus: "UNVERIFIED",
@@ -92,6 +93,7 @@ test("Payment P1 returns only the safe current bank DTO", async () => {
   if (result.status !== "READY") return;
   assert.deepEqual(result.data.bank, {
     accountHolderName: "Demo Employee",
+    accountNumber: "•••• 1234",
     bankCode: "MAYBANK",
     bankName: "Maybank",
     effectiveFrom: "2026-08-01T00:00:00.000Z",
@@ -106,10 +108,8 @@ test("Payment P1 returns only the safe current bank DTO", async () => {
   assert.equal(result.data.canVerify, true);
   const query = JSON.stringify(bankQueries[0]);
   assert.match(query, /accountNumberLast4/);
-  assert.doesNotMatch(
-    query,
-    /accountNumberCiphertext|accountNumberIv|accountNumberAuthTag|accountNumberFingerprintHmac|encryptionKeyVersion/,
-  );
+  assert.doesNotMatch(query, /accountNumberCiphertext|accountNumberIv|accountNumberAuthTag|encryptionKeyVersion/);
+  assert.doesNotMatch(query, /accountNumberFingerprintHmac/);
   assert.doesNotMatch(
     JSON.stringify(result),
     /ciphertext|authTag|fingerprint|encryptionKey|accountNumberIv/i,
@@ -118,12 +118,14 @@ test("Payment P1 returns only the safe current bank DTO", async () => {
 
 test("Payment P1 routes every mutation through canonical Payment P0 commands", async () => {
   const root = process.cwd();
-  const [actions, component, editPage, loader, styles] = await Promise.all([
+  const [actions, component, editPage, loader, styles, payrollReadiness, paymentReadiness] = await Promise.all([
     readFile(path.join(root, "src/app/(business)/team/people/[personId]/payroll/actions.ts"), "utf8"),
     readFile(path.join(root, "src/components/employee-profile-payroll.tsx"), "utf8"),
     readFile(path.join(root, "src/app/(business)/team/people/[personId]/payroll/bank/edit/page.tsx"), "utf8"),
     readFile(path.join(root, "src/lib/team/employee-profile-bank-read.ts"), "utf8"),
     readFile(path.join(root, "src/components/employee-profile-shell.module.css"), "utf8"),
+    readFile(path.join(root, "src/lib/payroll/readiness.ts"), "utf8"),
+    readFile(path.join(root, "src/lib/payroll/payment/payment-readiness.ts"), "utf8"),
   ]);
 
   assert.match(actions, /createEmployeeBankVersion\(/);
@@ -134,15 +136,22 @@ test("Payment P1 routes every mutation through canonical Payment P0 commands", a
   assert.doesNotMatch(actions, /prisma\.employeeBankAccountVersion\.(?:create|update|delete|upsert)/);
 
   assert.match(component, /Bank details/i);
-  assert.match(component, /••••/);
-  assert.match(component, /Existing payment batches are not updated automatically/);
-  assert.match(component, /MANUALLY_VERIFIED|manually verified/i);
+  assert.match(component, /bank\.accountNumber/);
+  assert.match(component, /Existing payroll runs and payment batches stay unchanged/);
+  assert.doesNotMatch(component, /Verify bank details|MANUALLY_VERIFIED|manually verified/i);
   assert.match(component, /Deactivate bank account/);
+  assert.match(component, /label=\{replacing \? "Change bank" : "Add bank"\}/);
+  assert.match(component, /variant="button"/);
+  assert.match(component, /name="returnTo" type="hidden" value="profile"/);
   assert.doesNotMatch(component, /accountNumberCiphertext|accountNumberIv|accountNumberAuthTag|Fingerprint|Encryption Key/);
 
   assert.match(editPage, /\/team\/people\/\$\{employee\.id\}\?section=payroll/);
   assert.match(editPage, /name="accountNumber"/);
   assert.match(editPage, /autoComplete="off"/);
+  assert.match(editPage, /name="effectiveFrom" type="hidden"/);
+  assert.doesNotMatch(editPage, /<span>Effective date<\/span>/);
+  assert.match(editPage, /name="reason"[\s\S]*type="hidden"/);
+  assert.doesNotMatch(editPage, /<span>Reason<\/span>/);
   assert.doesNotMatch(editPage, /defaultValue=\{current\?\.accountNumber/);
   assert.match(loader, /VIEW_BANK_ACCOUNT/);
   assert.match(loader, /EDIT_BANK_ACCOUNT/);
@@ -150,6 +159,8 @@ test("Payment P1 routes every mutation through canonical Payment P0 commands", a
   assert.match(styles, /@media \(max-width: 760px\)/);
   assert.match(styles, /@media \(max-width: 360px\)/);
   assert.match(styles, /\.payrollFormGrid\s*\{[\s\S]*grid-template-columns/);
+  assert.match(payrollReadiness, /bankVerificationRequired\s*=\s*isPayrollBankAccountMfaEnabled\(\)/);
+  assert.match(paymentReadiness, /bankVerificationRequired\s*=\s*isPayrollBankAccountMfaEnabled\(\)/);
 });
 
 function input(

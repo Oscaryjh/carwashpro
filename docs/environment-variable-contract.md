@@ -4,13 +4,13 @@ Never place secret values in this document, source control, browser bundles or l
 
 ## Release and database
 
-| Variable                    | Local         | Testing                       | Production                      | Notes                                       |
-| --------------------------- | ------------- | ----------------------------- | ------------------------------- | ------------------------------------------- |
-| `APP_ENVIRONMENT`           | `development` | `testing`                     | `production`                    | Explicit environment boundary               |
-| `APP_RELEASE_SHA`           | optional      | required for handoff identity | required                        | Immutable Git/base commit identity          |
-| `APP_RELEASE_SOURCE_DIGEST` | optional      | required for handoff identity | required, 64 hex                | Digest from `npm run release:source-digest` |
-| `DATABASE_URL`              | loopback DB   | Testing DB                    | dedicated Production DB         | Production localhost is rejected            |
-| `SESSION_SECRET`            | required      | required                      | required, unique and >=32 chars | Server only                                 |
+| Variable | Local | Testing | Production | Notes |
+|---|---|---|---|---|
+| `APP_ENVIRONMENT` | `development` | `testing` | `production` | Explicit environment boundary |
+| `APP_RELEASE_SHA` | optional | required for handoff identity | required | Immutable Git/base commit identity |
+| `APP_RELEASE_SOURCE_DIGEST` | optional | required for handoff identity | required, 64 hex | Digest from `npm run release:source-digest` |
+| `DATABASE_URL` | loopback DB | Testing DB | dedicated Production DB | Production localhost is rejected |
+| `SESSION_SECRET` | required | required | required, unique and >=32 chars | Server only |
 
 ## Platform MFA and payroll payment encryption
 
@@ -24,26 +24,20 @@ All are required in Production, must be Production-specific and must follow the 
 
 ## Employee OTP
 
-- `SMS_PROVIDER`: `mock` for Local automated regression; `sms123` for real Online Testing and future Production.
-- `OTP_PROVIDER`: temporary compatibility alias; new configuration should use `SMS_PROVIDER`.
-- `OTP_CHANNEL`: `local` with mock, `sms` with SMS123.
-- `EMPLOYEE_OTP_SEND_MODE`: legacy compatibility alias.
-- `EMPLOYEE_OTP_TESTING_ENABLED`: permits mock only when explicitly `true` and `RAILWAY_ENVIRONMENT_NAME=testing`.
-- `EMPLOYEE_OTP_MOCK_CODE`: forbidden in the Production deployment; allowed in an explicitly marked Railway Testing deployment.
+- `OTP_PROVIDER`: `mock` for Local automated regression; `twilio_verify` or `sms123` for real SMS.
+- `OTP_CHANNEL`: `local` with mock; `sms` with Twilio Verify or SMS123.
+- `EMPLOYEE_OTP_SEND_MODE`: temporary compatibility alias; new configuration should use `OTP_PROVIDER`.
+- `EMPLOYEE_OTP_MOCK_CODE`: forbidden in Production.
 - `EMPLOYEE_OTP_MOCK_ACCESS_KEY`: Local/Testing only; never expose through an API response.
-- `SMS123_ENABLED`
-- `SMS123_API_KEY`
-- `SMS123_API_BASE_URL`
-- `SMS123_MESSAGE_PREFIX`
-- `OTP_LENGTH`, fixed at `6`
-- `OTP_TTL_SECONDS`
-- `OTP_RESEND_COOLDOWN_SECONDS`
-- `OTP_MAX_VERIFY_ATTEMPTS`
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_VERIFY_SERVICE_SID`
+- `TWILIO_AUTH_TOKEN`, or the preferred `TWILIO_API_KEY_SID` + `TWILIO_API_KEY_SECRET` pair
+- `SMS123_API_KEY` when `OTP_PROVIDER=sms123`
 - `STAFF_OTP_VERIFY_PHONE_HOURLY_LIMIT`
 - `STAFF_OTP_VERIFY_IP_HOURLY_LIMIT`
 - `STAFF_OTP_PROVIDER_TIMEOUT_MS`
 
-Credentials are server-only and must never use a `NEXT_PUBLIC_` prefix. SMS123 only delivers the message. Tetamu generates the code with a cryptographic RNG, stores a challenge-bound HMAC and performs expiry, attempt and one-time verification. Online Testing normally uses separate SMS123 credentials, but may temporarily use the explicit testing-only mock gate while delivery is blocked. Production configuration and smoke remain Production Owner actions.
+Credentials are server-only and must never use a `NEXT_PUBLIC_` prefix. Twilio Verify owns code generation and checking for `twilio_verify`. With `sms123`, Tetamu generates a six-digit code, sends it through SMS123, and stores only a keyed OTP hash; plaintext codes and the SMS123 key are never persisted or logged. Testing and Production credentials must remain separate. Production configuration and smoke remain Production Owner actions.
 
 ## WhatsApp
 

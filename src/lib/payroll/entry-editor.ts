@@ -43,6 +43,7 @@ export type PayrollRunEntryEditorData = {
     socsoEmployee: number;
     eisEmployee: number;
     pcb: number;
+    cp38: number;
     employerEpf: number;
     employerSocso: number;
     employerEis: number;
@@ -91,6 +92,10 @@ export type PayrollRunEntryEditorData = {
       employeeContribution: number;
       employerContribution: number;
       blockerCode: string | null;
+      calculationMetadata: unknown;
+      calculationInputDigest: string | null;
+      sourceDigest: string;
+      calculatedAt: Date;
     }>;
     components: Array<{
       id: string;
@@ -174,6 +179,7 @@ export async function loadPayrollRunEntryEditor(
       socsoEmployee: true,
       eisEmployee: true,
       pcb: true,
+      cp38: true,
       employerEpf: true,
       employerSocso: true,
       employerEis: true,
@@ -215,6 +221,10 @@ export async function loadPayrollRunEntryEditor(
           employeeContribution: true,
           employerContribution: true,
           blockerCode: true,
+          calculationMetadata: true,
+          calculationInputDigest: true,
+          sourceDigest: true,
+          calculatedAt: true,
         },
       },
       components: {
@@ -341,6 +351,7 @@ export async function loadPayrollRunEntryEditor(
       socsoEmployee: money(entry.socsoEmployee),
       eisEmployee: money(entry.eisEmployee),
       pcb: money(entry.pcb),
+      cp38: money(entry.cp38),
       employerEpf: money(entry.employerEpf),
       employerSocso: money(entry.employerSocso),
       employerEis: money(entry.employerEis),
@@ -376,6 +387,10 @@ export async function loadPayrollRunEntryEditor(
         employeeContribution: money(snapshot.employeeContribution),
         employerContribution: money(snapshot.employerContribution),
         blockerCode: snapshot.blockerCode,
+        calculationMetadata: snapshot.calculationMetadata,
+        calculationInputDigest: snapshot.calculationInputDigest,
+        sourceDigest: snapshot.sourceDigest,
+        calculatedAt: snapshot.calculatedAt,
       })),
       components: entry.components.map((component) => ({
         id: component.id,

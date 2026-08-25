@@ -3,6 +3,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { verifyPasswordHash } from "./password-login";
 import { MfaError } from "./mfa-errors";
+import { isMfaFeatureEnabled } from "./mfa-feature";
 import {
   type MfaFactorInput,
   type MfaTransaction,
@@ -464,7 +465,9 @@ export async function consumeSensitiveActionAuthorization(
 ) {
   const policy = getSensitiveActionPolicy(input.actionKey);
   assertScopeMatchesPolicy(input, policy.resourceType);
-  if (!input.rawToken) throw new SensitiveActionError("STEP_UP_REQUIRED");
+  if (!input.rawToken && isMfaFeatureEnabled()) {
+    throw new SensitiveActionError("STEP_UP_REQUIRED");
+  }
   const database = dependencies.database ?? prisma;
   const now = dependencies.now ?? new Date();
   return database.$transaction(
@@ -485,6 +488,13 @@ export async function consumeSensitiveActionAuthorizationInTransaction(
 ) {
   const policy = getSensitiveActionPolicy(input.actionKey);
   assertScopeMatchesPolicy(input, policy.resourceType);
+  if (!isMfaFeatureEnabled()) {
+    return createTemporaryMfaBypassAuthorization(
+      input,
+      transaction,
+      now,
+    );
+  }
   if (!input.rawToken) throw new SensitiveActionError("STEP_UP_REQUIRED");
   const tokenHash = hashSensitiveActionToken(input.rawToken);
   const authorization =
@@ -584,6 +594,83 @@ export async function consumeSensitiveActionAuthorizationInTransaction(
         transaction,
       );
   return { ...authorization, consumedAt: now };
+}
+
+async function createTemporaryMfaBypassAuthorization(
+  input: SensitiveActionScope & {
+    userId: string;
+    sessionId: string;
+    rawToken: string | null | undefined;
+  },
+  transaction: SensitiveActionTransaction,
+  now: Date,
+) {
+  const session = await transaction.authSession.findUnique({
+    where: { id: input.sessionId },
+    include: {
+      user: { select: { id: true, status: true, loginEnabled: true } },
+    },
+  });
+  if (
+    !session ||
+    session.userId !== input.userId ||
+    (input.businessId !== null &&
+      session.activeBusinessId !== input.businessId) ||
+    session.revokedAt ||
+    session.absoluteExpiresAt.getTime() <= now.getTime() ||
+    session.idleExpiresAt.getTime() <= now.getTime() ||
+    session.user.status !== "active" ||
+    !session.user.loginEnabled
+  ) {
+    throw new SensitiveActionError("STEP_UP_SESSION_MISMATCH");
+  }
+
+  const tokenHash = hashSensitiveActionToken(
+    `MFA_TEMPORARILY_DISABLED:${randomBytes(32).toString("base64url")}`,
+  );
+  const expiresAt = new Date(now.getTime() + 1_000);
+  const authorization = await transaction.sensitiveActionAuthorization.create({
+    data: {
+      tokenHash,
+      userId: input.userId,
+      authSessionId: input.sessionId,
+      businessId: input.businessId,
+      actionKey: input.actionKey,
+      resourceType: input.resourceType,
+      resourceId: input.resourceId,
+      verificationMethod: "MFA_TEMPORARILY_DISABLED",
+      assuranceLevel: "MFA",
+      requestFingerprint: normalizeFingerprint(
+        input.requestFingerprint ?? null,
+      ),
+      issuedAt: now,
+      expiresAt,
+      consumedAt: now,
+    },
+    include: {
+      authSession: true,
+      user: { select: { id: true, status: true, loginEnabled: true } },
+    },
+  });
+  await writeAuthSecurityEvent(
+    {
+      eventType: "STEP_UP_CONSUMED",
+      surface: SENSITIVE_ACTION_STEP_UP_SURFACE,
+      outcome: "SUCCESS",
+      userId: input.userId,
+      businessId: input.businessId,
+      sessionId: input.sessionId,
+      reason: "MFA_TEMPORARILY_DISABLED",
+      metadata: {
+        ...eventMetadata(input, "MFA_TEMPORARILY_DISABLED", "MFA"),
+        authorizationId: authorization.id,
+        temporaryBypass: true,
+      },
+      createdAt: now,
+    },
+    transaction,
+  );
+  return authorization;
 }
 
 export function hashSensitiveActionToken(rawToken: string) {

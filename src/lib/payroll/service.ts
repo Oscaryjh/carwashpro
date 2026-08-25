@@ -11,18 +11,15 @@ import {
 import {
   buildAttendancePayrollComponents,
   buildPayrollAttendanceInput,
-  type PayrollAttendanceInput,
 } from "@/lib/payroll/attendance-integration";
 import { buildSystemPayrollEntryComponents } from "@/lib/payroll/component-calculation";
 import { deriveAndPersistEntryAggregates } from "@/lib/payroll/component-service";
 import { resolveEmployeeCompensationVersion } from "@/lib/payroll/compensation-version";
-import { calculateHolidayPayPreview } from "@/lib/payroll/holiday-pay-policy";
+import { calculateCompanyWorkPay } from "@/lib/payroll/company-work-pay";
 import {
   resolveRecurringPayForEmployees,
 } from "@/lib/payroll/recurring-pay";
 import { materializeStatutoryP2 } from "@/lib/payroll/statutory-p2";
-import { materializeSabahWorkPayInTransaction } from "@/lib/payroll/sabah-work-pay-service";
-import { SABAH_WORK_PAY_JURISDICTION } from "@/lib/payroll/sabah-work-pay-rule-pack";
 import {
   assertPayrollRunUsesCurrentLockedTimesheet,
   resolveLockedPayrollTimesheet,
@@ -51,7 +48,10 @@ export const DEFAULT_PAYROLL_SETTING = {
   normalWorkMinutesPerDay: 480,
   breakMinutesPerDay: 60,
   overtimeMultiplier: 1.5,
+  restDayWorkMultiplier: 1,
+  restDayOvertimeMultiplier: 2,
   publicHolidayExtraMultiplier: 2,
+  publicHolidayOvertimeMultiplier: 3,
   publicHolidayPayEnabled: false,
   publicHolidayPayPolicyRevision: 1,
   stateCode: null,
@@ -109,6 +109,7 @@ export async function generatePayrollRun(
           terminatedAt: true,
           employeeCode: true,
           fullName: true,
+          workingDaysPerMonth: true,
           normalWorkMinutesPerDay: true,
           dateOfBirth: true,
           statutoryNationality: true,
@@ -122,6 +123,7 @@ export async function generatePayrollRun(
           statutoryProfileRevision: true,
           taxProfileRevision: true,
           taxIdentificationNumber: true,
+          pcbProfile: true,
         },
       });
     const run = existing
@@ -137,8 +139,13 @@ export async function generatePayrollRun(
             normalWorkMinutesPerDaySnapshot: setting.normalWorkMinutesPerDay,
             breakMinutesPerDaySnapshot: setting.breakMinutesPerDay,
             overtimeMultiplierSnapshot: setting.overtimeMultiplier,
+            restDayWorkMultiplierSnapshot: setting.restDayWorkMultiplier,
+            restDayOvertimeMultiplierSnapshot:
+              setting.restDayOvertimeMultiplier,
             publicHolidayExtraMultiplierSnapshot:
               setting.publicHolidayExtraMultiplier,
+            publicHolidayOvertimeMultiplierSnapshot:
+              setting.publicHolidayOvertimeMultiplier,
             publicHolidayPayEnabledSnapshot: setting.publicHolidayPayEnabled,
             publicHolidayPayPolicyRevisionSnapshot:
               setting.publicHolidayPayPolicyRevision,
@@ -158,8 +165,13 @@ export async function generatePayrollRun(
             normalWorkMinutesPerDaySnapshot: setting.normalWorkMinutesPerDay,
             breakMinutesPerDaySnapshot: setting.breakMinutesPerDay,
             overtimeMultiplierSnapshot: setting.overtimeMultiplier,
+            restDayWorkMultiplierSnapshot: setting.restDayWorkMultiplier,
+            restDayOvertimeMultiplierSnapshot:
+              setting.restDayOvertimeMultiplier,
             publicHolidayExtraMultiplierSnapshot:
               setting.publicHolidayExtraMultiplier,
+            publicHolidayOvertimeMultiplierSnapshot:
+              setting.publicHolidayOvertimeMultiplier,
             publicHolidayPayEnabledSnapshot: setting.publicHolidayPayEnabled,
             publicHolidayPayPolicyRevisionSnapshot:
               setting.publicHolidayPayPolicyRevision,
@@ -220,28 +232,6 @@ export async function generatePayrollRun(
       },
       orderBy: [{ scheme: "asc" }, { effectiveFrom: "desc" }],
     });
-    const activeWorkPayRules = statutoryRules.filter(
-      (rule) =>
-        rule.scheme === "WORK_PAY" &&
-        rule.jurisdictionCode === SABAH_WORK_PAY_JURISDICTION,
-    );
-    const activeWorkPayRule =
-      activeWorkPayRules.length === 1 ? activeWorkPayRules[0] : null;
-    const attendanceBranchIds = [
-      ...new Set(timesheet.p2Segments.map((segment) => segment.branchId)),
-    ];
-    const attendanceBranches = attendanceBranchIds.length
-      ? await transaction.branch.findMany({
-          where: {
-            businessId: context.businessId,
-            id: { in: attendanceBranchIds },
-          },
-          select: { id: true, countryCode: true, stateCode: true },
-        })
-      : [];
-    const attendanceBranchById = new Map(
-      attendanceBranches.map((branch) => [branch.id, branch]),
-    );
     const lindung24Participation = await transaction.employeeLindung24ParticipationVersion.findMany({
       where: {
         businessId: context.businessId,
@@ -261,8 +251,7 @@ export async function generatePayrollRun(
     let attendanceSnapshotCount = 0;
     let attendancePolicyBlockerCount = 0;
     let leaveSnapshotFactCount = 0;
-    let statutoryWorkPayCalculationCount = 0;
-    let statutoryWorkPayComponentCount = 0;
+    let companyWorkPayEmployeeCount = 0;
     for (const membership of memberships) {
       const compensation = await resolveEmployeeCompensationVersion(
         {
@@ -282,8 +271,11 @@ export async function generatePayrollRun(
       const attendance = buildPayrollAttendanceInput({
         membershipId: membership.id,
         payBasis: compensation.payBasis,
-        publicHolidayPayPolicyReady: setting.publicHolidayPayEnabled,
-        statutoryWorkPayPolicyReady: Boolean(activeWorkPayRule),
+        // HR-owned company settings are the canonical work-pay policy used to
+        // generate Payroll.
+        publicHolidayPayPolicyReady: true,
+        statutoryWorkPayPolicyReady: true,
+        monthlyAbsencePolicyReady: true,
         days: timesheet.p2Days.filter(
           (day) => day.membershipId === membership.id,
         ),
@@ -299,24 +291,46 @@ export async function generatePayrollRun(
         periodEnd: period.end,
       });
       const baseRateCents = moneyToCents(compensation.baseRate);
-      const holidayPayPreview = calculateHolidayPayPreview({
+      const workingDaysPerMonth =
+        membership.workingDaysPerMonth ?? setting.workingDaysPerMonth;
+      const companyWorkPay = calculateCompanyWorkPay({
         payBasis: compensation.payBasis,
         baseRateCents,
-        workingDaysPerMonth: setting.workingDaysPerMonth,
+        workingDaysPerMonth,
         normalWorkMinutesPerDay:
           membership.normalWorkMinutesPerDay ??
           setting.normalWorkMinutesPerDay,
-        publicHolidayWorkedMinutes: attendance.publicHolidayWorkedMinutes,
-        publicHolidayExtraMultiplier: Number(
+        normalOtMinutes: attendance.normalOtMinutes,
+        restDayWorkMinutes: attendance.restDayWorkMinutes,
+        restDayOtMinutes: attendance.restDayOtMinutes,
+        publicHolidayWorkMinutes: attendance.publicHolidayWorkMinutes,
+        publicHolidayOtMinutes: attendance.publicHolidayOtMinutes,
+        overtimeMultiplier: Number(setting.overtimeMultiplier),
+        restDayWorkMultiplier: Number(setting.restDayWorkMultiplier),
+        restDayOvertimeMultiplier: Number(
+          setting.restDayOvertimeMultiplier,
+        ),
+        publicHolidayWorkMultiplier: Number(
           setting.publicHolidayExtraMultiplier,
         ),
+        publicHolidayOvertimeMultiplier: Number(
+          setting.publicHolidayOvertimeMultiplier,
+        ),
+        publicHolidayPayEnabled: setting.publicHolidayPayEnabled,
       });
+      if (
+        companyWorkPay.overtimePayCents > 0 ||
+        companyWorkPay.publicHolidayPayCents > 0
+      ) {
+        companyWorkPayEmployeeCount += 1;
+      }
       const previewAttendanceLines = buildAttendancePayrollComponents({
         snapshotId: "00000000-0000-4000-8000-000000000000",
         timesheetRevision: timesheet.revision,
         periodStart: period.start,
         payBasis: compensation.payBasis,
         baseRateCents,
+        workingDaysPerMonth,
         attendance,
       });
       const regularPayCents =
@@ -329,6 +343,10 @@ export async function generatePayrollRun(
       const leavePayCents = componentAmount(previewAttendanceLines, [
         "PAID_LEAVE_PAY",
       ]);
+      const unpaidAbsenceDeductionCents = componentAmount(
+        previewAttendanceLines,
+        ["UNPAID_ABSENCE_DEDUCTION"],
+      );
       const recurringPay = recurringPayByMembership.get(membership.id) ?? [];
       const variablePay =
         p4cSources.variablePayByMembership.get(membership.id) ?? [];
@@ -358,7 +376,8 @@ export async function generatePayrollRun(
           fullNameSnapshot: membership.fullName,
           payBasisSnapshot: compensation.payBasis,
           baseRateSnapshot: centsToMoney(baseRateCents),
-          workingDaysSnapshot: setting.workingDaysPerMonth,
+          workingDaysSnapshot:
+            membership.workingDaysPerMonth ?? setting.workingDaysPerMonth,
           normalWorkMinutesSnapshot:
             membership.normalWorkMinutesPerDay ??
             setting.normalWorkMinutesPerDay,
@@ -370,18 +389,17 @@ export async function generatePayrollRun(
           unpaidLeaveDays: hundredthsToDecimal(attendance.unpaidLeaveDayHundredths),
           basicPay: centsToMoney(regularPayCents),
           leavePay: centsToMoney(leavePayCents),
-          unpaidLeaveDeduction: "0.00",
-          overtimePay: "0.00",
-          publicHolidayPay: "0.00",
-          publicHolidayPayPreview: activeWorkPayRule
-            ? "0.00"
-            : centsToMoney(holidayPayPreview.amountCents),
+          unpaidLeaveDeduction: centsToMoney(unpaidAbsenceDeductionCents),
+          overtimePay: centsToMoney(companyWorkPay.overtimePayCents),
+          publicHolidayPay: centsToMoney(
+            companyWorkPay.publicHolidayPayCents,
+          ),
+          publicHolidayPayPreview: "0.00",
           publicHolidayPayDecisionStatus:
-            activeWorkPayRule || attendance.publicHolidayWorkedMinutes === 0
+            attendance.publicHolidayWorkedMinutes === 0 ||
+            setting.publicHolidayPayEnabled
               ? ("NOT_APPLICABLE" as const)
-              : setting.publicHolidayPayEnabled
-                ? ("PENDING_CONFIRMATION" as const)
-                : ("POLICY_DISABLED" as const),
+              : ("POLICY_DISABLED" as const),
           publicHolidayPayDecisionReason: null,
           publicHolidayPayDecidedById: null,
           publicHolidayPayDecidedAt: null,
@@ -490,8 +508,8 @@ export async function generatePayrollRun(
           basicPayCents:
             compensation.payBasis === "MONTHLY" ? regularPayCents : 0,
           leavePayCents: 0,
-          overtimePayCents: 0,
-          publicHolidayPayCents: 0,
+          overtimePayCents: companyWorkPay.overtimePayCents,
+          publicHolidayPayCents: companyWorkPay.publicHolidayPayCents,
         },
         recurring: recurringPay.map((component) => ({
           componentId: component.componentId,
@@ -510,6 +528,7 @@ export async function generatePayrollRun(
         periodStart: period.start,
         payBasis: compensation.payBasis,
         baseRateCents,
+        workingDaysPerMonth,
         attendance,
       });
       const p4cLines = buildP4CComponentLines({ variablePay, corrections });
@@ -540,43 +559,6 @@ export async function generatePayrollRun(
             createdById: context.actor.userId,
           })),
         });
-      }
-      if (activeWorkPayRule && hasStatutoryWorkPayMinutes(attendance)) {
-        const workPayBranchIds = [
-          ...new Set(
-            attendance.segmentFacts
-              .filter((fact) =>
-                fact.context !== "NORMAL" || fact.approvedOtMinutes > 0,
-              )
-              .map((fact) => fact.branchId),
-          ),
-        ];
-        const workPayMaterialization = await materializeSabahWorkPayInTransaction(transaction, {
-          businessId: context.businessId,
-          payrollRunId: run.id,
-          payrollEntryId: entry.id,
-          membershipId: membership.id,
-          compensationVersionId: compensation.versionId,
-          attendanceInputSnapshotId: attendanceSnapshot.id,
-          payBasis: compensation.payBasis,
-          baseRateCents,
-          normalWorkMinutes:
-            membership.normalWorkMinutesPerDay ??
-            setting.normalWorkMinutesPerDay,
-          period: period.start,
-          jurisdictionCode: resolveWorkPayJurisdiction(
-            workPayBranchIds,
-            attendanceBranchById,
-          ),
-          actorUserId: context.actor.userId,
-          attendance,
-          coverageClass: null,
-          rule: activeWorkPayRule,
-        });
-        if (workPayMaterialization.status === "CREATED") {
-          statutoryWorkPayCalculationCount += 1;
-          statutoryWorkPayComponentCount += workPayMaterialization.calculation.lines.length;
-        }
       }
       await markP4CSourcesApplied(transaction, {
         entryId: entry.id,
@@ -613,6 +595,7 @@ export async function generatePayrollRun(
           statutoryProfileRevision: membership.statutoryProfileRevision,
           taxProfileRevision: membership.taxProfileRevision,
           taxIdentificationNumber: membership.taxIdentificationNumber,
+          pcbProfile: membership.pcbProfile,
         },
       });
       const statutoryEntry = await transaction.payrollEntry.findUniqueOrThrow({
@@ -642,8 +625,9 @@ export async function generatePayrollRun(
           correctionAppliedCount,
           attendanceSnapshotCount,
           attendancePolicyBlockerCount,
-          statutoryWorkPayCalculationCount,
-          statutoryWorkPayComponentCount,
+          companyWorkPayEmployeeCount,
+          companyWorkPayPolicyRevision:
+            setting.publicHolidayPayPolicyRevision,
           attendanceTimesheet: {
             revisionId: timesheet.revisionId,
             revision: timesheet.revision,
@@ -673,23 +657,29 @@ export async function generatePayrollRun(
       },
       transaction,
     );
-    if (statutoryWorkPayCalculationCount > 0) {
+    if (companyWorkPayEmployeeCount > 0) {
       await writeAuditLog(
         {
           businessId: context.businessId,
           actor: context.actor,
           request: context.request,
-          action: "PAYROLL_STATUTORY_WORK_PAY_MATERIALIZED",
+          action: "PAYROLL_COMPANY_WORK_PAY_APPLIED",
           entityType: "PayrollRun",
           entityId: run.id,
-          summary: `${statutoryWorkPayCalculationCount} Sabah statutory work-pay calculations materialized from frozen payroll inputs.`,
+          summary: `${companyWorkPayEmployeeCount} employee work-pay calculations used frozen HR company rules.`,
           metadata: {
             month: period.value,
-            jurisdictionCode: SABAH_WORK_PAY_JURISDICTION,
-            ruleVersion: activeWorkPayRule?.version ?? null,
-            sourceDigest: activeWorkPayRule?.sourceDigest ?? null,
-            calculationCount: statutoryWorkPayCalculationCount,
-            componentCount: statutoryWorkPayComponentCount,
+            employeeCount: companyWorkPayEmployeeCount,
+            overtimeMultiplier: setting.overtimeMultiplier.toString(),
+            restDayWorkMultiplier:
+              setting.restDayWorkMultiplier.toString(),
+            restDayOvertimeMultiplier:
+              setting.restDayOvertimeMultiplier.toString(),
+            publicHolidayWorkMultiplier:
+              setting.publicHolidayExtraMultiplier.toString(),
+            publicHolidayOvertimeMultiplier:
+              setting.publicHolidayOvertimeMultiplier.toString(),
+            publicHolidayPayEnabled: setting.publicHolidayPayEnabled,
           },
         },
         transaction,
@@ -737,7 +727,7 @@ export async function updatePayrollEntry(
   context: PayrollContext & {
     entryId: string;
     expectedRevision: number;
-    values: PayrollEntryManualValues;
+    values: PayrollEntryEditableValues;
   },
   database: PrismaClient = prisma,
 ) {
@@ -752,36 +742,8 @@ export async function updatePayrollEntry(
     if (entry.calculationRevision !== context.expectedRevision) {
       throw new Error("Payroll entry changed after this page was loaded. Reload and try again.");
     }
-    const values = normalizeManualValues(context.values);
-    const currentStatutoryValues = [
-      moneyToCents(entry.epfWageBase),
-      moneyToCents(entry.perkesoWageBase),
-      moneyToCents(entry.lindung24Employee),
-      moneyToCents(entry.epfEmployee),
-      moneyToCents(entry.socsoEmployee),
-      moneyToCents(entry.eisEmployee),
-      moneyToCents(entry.pcb),
-      moneyToCents(entry.employerEpf),
-      moneyToCents(entry.employerSocso),
-      moneyToCents(entry.employerEis),
-    ];
-    const requestedStatutoryValues = [
-      values.epfWageBaseCents,
-      values.perkesoWageBaseCents,
-      values.lindung24EmployeeCents,
-      values.epfEmployeeCents,
-      values.socsoEmployeeCents,
-      values.eisEmployeeCents,
-      values.pcbCents,
-      values.employerEpfCents,
-      values.employerSocsoCents,
-      values.employerEisCents,
-    ];
-    if (requestedStatutoryValues.some((value, index) => value !== currentStatutoryValues[index])) {
-      throw new Error(
-        "Direct statutory amount overrides are disabled. Use a controlled statutory source workflow.",
-      );
-    }
+    assertNoDirectStatutoryEntryValues(context.values);
+    const notes = String(context.values.notes ?? "").trim().slice(0, 500);
     const write = await transaction.payrollEntry.updateMany({
       where: {
         id: entry.id,
@@ -790,7 +752,7 @@ export async function updatePayrollEntry(
         payrollRun: { status: "DRAFT" },
       },
       data: {
-        notes: values.notes || null,
+        notes: notes || null,
       },
     });
     if (write.count !== 1) {
@@ -864,6 +826,7 @@ export async function decidePayrollHolidayPay(
             statutoryProfileRevision: true,
             taxProfileRevision: true,
             taxIdentificationNumber: true,
+            pcbProfile: true,
           },
         },
       },
@@ -881,17 +844,44 @@ export async function decidePayrollHolidayPay(
       throw new Error("No frozen public-holiday worked minutes require a decision.");
     }
 
-    const preview = calculateHolidayPayPreview({
+    const hasDetailedHolidayBuckets =
+      entry.attendanceInputSnapshot.publicHolidayWorkMinutes +
+        entry.attendanceInputSnapshot.publicHolidayOtMinutes >
+      0;
+    const preview = calculateCompanyWorkPay({
       payBasis: entry.payBasisSnapshot,
       baseRateCents: moneyToCents(entry.baseRateSnapshot),
       workingDaysPerMonth: entry.workingDaysSnapshot,
       normalWorkMinutesPerDay: entry.normalWorkMinutesSnapshot,
-      publicHolidayWorkedMinutes:
-        entry.attendanceInputSnapshot.publicHolidayWorkedMinutes,
-      publicHolidayExtraMultiplier: Number(
+      normalOtMinutes: 0,
+      restDayWorkMinutes: 0,
+      restDayOtMinutes: 0,
+      publicHolidayWorkMinutes: hasDetailedHolidayBuckets
+        ? entry.attendanceInputSnapshot.publicHolidayWorkMinutes
+        : entry.attendanceInputSnapshot.publicHolidayWorkedMinutes,
+      publicHolidayOtMinutes: hasDetailedHolidayBuckets
+        ? entry.attendanceInputSnapshot.publicHolidayOtMinutes
+        : 0,
+      overtimeMultiplier: Number(entry.payrollRun.overtimeMultiplierSnapshot),
+      restDayWorkMultiplier: Number(
+        entry.payrollRun.restDayWorkMultiplierSnapshot,
+      ),
+      restDayOvertimeMultiplier: Number(
+        entry.payrollRun.restDayOvertimeMultiplierSnapshot,
+      ),
+      publicHolidayWorkMultiplier: Number(
         entry.payrollRun.publicHolidayExtraMultiplierSnapshot,
       ),
+      publicHolidayOvertimeMultiplier: Number(
+        entry.payrollRun.publicHolidayOvertimeMultiplierSnapshot,
+      ),
+      publicHolidayPayEnabled: true,
     });
+    const previewAmount = centsToMoney(preview.publicHolidayPayCents);
+    const calculationBasis =
+      "Frozen holiday minutes multiplied by the HR company work-pay settings saved with this Payroll Run.";
+    const sourceReason =
+      "Calculated from the Payroll Run's frozen HR company multipliers.";
     const lineKey = "SYSTEM:PUBLIC_HOLIDAY_PAY";
     if (context.decision === "CONFIRMED") {
       await transaction.payrollEntryComponent.upsert({
@@ -910,26 +900,26 @@ export async function decidePayrollHolidayPay(
           type: "EARNING",
           code: "PUBLIC_HOLIDAY_PAY",
           name: "Public Holiday Pay",
-          amount: centsToMoney(preview.amountCents),
+          amount: previewAmount,
           currency: "MYR",
           sourceType: "PAYROLL_CALCULATION",
           sourceId: entry.attendanceInputSnapshot.id,
           sourceVersionId: entry.attendanceInputSnapshot.timesheetRevisionId,
           sourceRevision: entry.attendanceInputSnapshot.timesheetRevision,
           effectiveFromMonth: entry.payrollRun.periodStart,
-          calculationBasis: preview.calculationBasis,
+          calculationBasis,
           origin: "SYSTEM",
-          sourceReason: preview.explanation,
+          sourceReason,
           sortOrder: 400,
           createdById: context.actor.userId,
         },
         update: {
-          amount: centsToMoney(preview.amountCents),
+          amount: previewAmount,
           sourceId: entry.attendanceInputSnapshot.id,
           sourceVersionId: entry.attendanceInputSnapshot.timesheetRevisionId,
           sourceRevision: entry.attendanceInputSnapshot.timesheetRevision,
-          calculationBasis: preview.calculationBasis,
-          sourceReason: preview.explanation,
+          calculationBasis,
+          sourceReason,
         },
       });
     } else {
@@ -951,10 +941,10 @@ export async function decidePayrollHolidayPay(
         payrollRun: { status: "DRAFT" },
       },
       data: {
-        publicHolidayPayPreview: centsToMoney(preview.amountCents),
+        publicHolidayPayPreview: previewAmount,
         publicHolidayPay:
           context.decision === "CONFIRMED"
-            ? centsToMoney(preview.amountCents)
+            ? previewAmount
             : "0.00",
         publicHolidayPayDecisionStatus: context.decision,
         publicHolidayPayDecisionReason: reason || null,
@@ -1348,43 +1338,31 @@ export async function reopenPayrollRun(
   return result.reopened;
 }
 
-type PayrollEntryManualValues = {
-  epfWageBase: unknown;
-  perkesoWageBase: unknown;
-  lindung24Employee: unknown;
-  epfEmployee: unknown;
-  socsoEmployee: unknown;
-  eisEmployee: unknown;
-  pcb: unknown;
-  employerEpf: unknown;
-  employerSocso: unknown;
-  employerEis: unknown;
+type PayrollEntryEditableValues = {
   notes: unknown;
 };
 
-function normalizeManualValues(input: PayrollEntryManualValues) {
-  return {
-    epfWageBaseCents: parseMoneyInput(input.epfWageBase),
-    perkesoWageBaseCents: parseMoneyInput(input.perkesoWageBase),
-    lindung24EmployeeCents: parseMoneyInput(input.lindung24Employee),
-    epfEmployeeCents: parseMoneyInput(input.epfEmployee),
-    socsoEmployeeCents: parseMoneyInput(input.socsoEmployee),
-    eisEmployeeCents: parseMoneyInput(input.eisEmployee),
-    pcbCents: parseMoneyInput(input.pcb),
-    employerEpfCents: parseMoneyInput(input.employerEpf),
-    employerSocsoCents: parseMoneyInput(input.employerSocso),
-    employerEisCents: parseMoneyInput(input.employerEis),
-    notes: String(input.notes ?? "").trim().slice(0, 500),
-  };
-}
-
-export function parseMoneyInput(value: unknown) {
-  const text = String(value ?? "").trim() || "0";
-  if (!/^\d{1,10}(?:\.\d{1,2})?$/.test(text)) {
-    throw new Error("Enter a valid non-negative RM amount with up to 2 decimals.");
+export function assertNoDirectStatutoryEntryValues(
+  values: PayrollEntryEditableValues,
+) {
+  const statutoryFields = [
+    "epfWageBase",
+    "perkesoWageBase",
+    "lindung24Employee",
+    "epfEmployee",
+    "socsoEmployee",
+    "eisEmployee",
+    "pcb",
+    "cp38",
+    "employerEpf",
+    "employerSocso",
+    "employerEis",
+  ] as const;
+  if (statutoryFields.some((field) => Object.hasOwn(values, field))) {
+    throw new Error(
+      "Direct statutory amount overrides are disabled. Use a controlled statutory source workflow.",
+    );
   }
-  const [ringgit, sen = ""] = text.split(".");
-  return Number(ringgit) * 100 + Number(sen.padEnd(2, "0"));
 }
 
 function componentAmount(
@@ -1411,32 +1389,4 @@ function moneyToCents(value: { toString(): string } | number | null) {
 
 function centsToMoney(cents: number) {
   return (cents / 100).toFixed(2);
-}
-
-function hasStatutoryWorkPayMinutes(attendance: PayrollAttendanceInput) {
-  return (
-    attendance.normalOtMinutes +
-      attendance.restDayWorkMinutes +
-      attendance.restDayOtMinutes +
-      attendance.publicHolidayWorkMinutes +
-      attendance.publicHolidayOtMinutes >
-    0
-  );
-}
-
-function resolveWorkPayJurisdiction(
-  branchIds: readonly string[],
-  branches: ReadonlyMap<
-    string,
-    { countryCode: string; stateCode: string | null }
-  >,
-) {
-  if (branchIds.length === 0) return null;
-  const allSabah = branchIds.every((branchId) => {
-    const branch = branches.get(branchId);
-    if (!branch || branch.countryCode.toUpperCase() !== "MY") return false;
-    const stateCode = branch.stateCode?.trim().toUpperCase();
-    return stateCode === "12" || stateCode === "SBH" || stateCode === "SABAH";
-  });
-  return allSabah ? SABAH_WORK_PAY_JURISDICTION : null;
 }

@@ -14,6 +14,7 @@ import {
   type StatutorySubmissionProvider,
 } from "@/lib/payroll/statutory-submission";
 import { statutoryExportStepUpResourceId } from "@/lib/payroll/high-risk-mfa";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 
 export async function GET(request: Request) {
   const context = await requireWholeBusinessPayroll("EXPORT_STATUTORY");
@@ -31,8 +32,14 @@ export async function GET(request: Request) {
 
   const cookieStore = await cookies();
   const rawToken = cookieStore.get(SENSITIVE_ACTION_COOKIE)?.value;
-  if (!rawToken || !context.user.sessionId) {
-    return new Response("MFA verification is required for this statutory export.", { status: 403 });
+  const mfaFeatureEnabled = isMfaFeatureEnabled();
+  if ((!rawToken && mfaFeatureEnabled) || !context.user.sessionId) {
+    return new Response(
+      mfaFeatureEnabled
+        ? "MFA verification is required for this statutory export."
+        : "A valid login session is required for this statutory export.",
+      { status: 403 },
+    );
   }
   let artifact;
   try {
@@ -44,7 +51,10 @@ export async function GET(request: Request) {
       request: await getAuditRequestContext(),
       revision: revision ?? undefined,
       allowCreate: hasBusinessCapability(context.access, "EXPORT_STATUTORY"),
-      stepUp: { rawToken, sessionId: context.user.sessionId },
+      stepUp: {
+        rawToken: rawToken ?? "MFA_TEMPORARILY_DISABLED",
+        sessionId: context.user.sessionId,
+      },
       stepUpResourceId: statutoryExportStepUpResourceId(month, provider, revision),
     });
   } catch (error) {
@@ -52,7 +62,12 @@ export async function GET(request: Request) {
       return new Response(error.message, { status: error.httpStatus });
     }
     if (error instanceof SensitiveActionError) {
-      return new Response("MFA verification is required for this statutory export.", { status: 403 });
+      return new Response(
+        mfaFeatureEnabled
+          ? "MFA verification is required for this statutory export."
+          : "Unable to authorize this statutory export.",
+        { status: 403 },
+      );
     }
     return new Response("Unable to prepare the statutory artifact.", { status: 500 });
   } finally {

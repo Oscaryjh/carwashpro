@@ -149,6 +149,7 @@ test("canonical payroll profile commands are idempotent, scoped, concurrent and 
         commandId: randomUUID(),
         expectedRevision: 0,
         membershipId: fixture.membership.id,
+        workingDaysPerMonth: 24,
         normalWorkMinutesPerDay: 480,
         reasonType: "PAYROLL_POLICY_CHANGE",
         targetBreakMinutes: 60,
@@ -156,6 +157,7 @@ test("canonical payroll profile commands are idempotent, scoped, concurrent and 
     });
     assert.equal(workTarget.affectedDrafts, 1);
     assert.equal(workTarget.newRevision, 1);
+    assert.equal(workTarget.workingDaysPerMonth, 24);
     await assert.rejects(
       updateEmployeePayrollWorkTarget({
         context,
@@ -176,12 +178,14 @@ test("canonical payroll profile commands are idempotent, scoped, concurrent and 
         commandId: randomUUID(),
         expectedRevision: 1,
         membershipId: fixture.membership.id,
+        workingDaysPerMonth: null,
         normalWorkMinutesPerDay: null,
         reasonNote: "Employee override removed; future drafts use company policy.",
         reasonType: "PAYROLL_POLICY_CHANGE",
         targetBreakMinutes: null,
       },
     });
+    assert.equal(cleared.workingDaysPerMonth, null);
     assert.equal(cleared.normalWorkMinutesPerDay, null);
     assert.equal(cleared.targetBreakMinutes, null);
 
@@ -410,12 +414,14 @@ test("canonical payroll profile commands are idempotent, scoped, concurrent and 
       await prisma.employeeBusinessMembership.findUniqueOrThrow({
         where: { id: fixture.membership.id },
         select: {
+          workingDaysPerMonth: true,
           normalWorkMinutesPerDay: true,
           targetBreakMinutes: true,
           workTargetRevision: true,
         },
       }),
       {
+        workingDaysPerMonth: null,
         normalWorkMinutesPerDay: null,
         targetBreakMinutes: null,
         workTargetRevision: 2,
@@ -432,7 +438,7 @@ test("canonical payroll profile commands are idempotent, scoped, concurrent and 
     await assert.rejects(
       prisma.employeeBusinessMembership.update({
         where: { id: fixture.membership.id },
-        data: { targetBreakMinutes: 30 },
+        data: { workingDaysPerMonth: 22 },
       }),
       /canonical command service/i,
     );

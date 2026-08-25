@@ -14,6 +14,7 @@ import {
   getWhatsAppTemplateDescription,
   getWhatsAppTemplateLabel,
 } from "@/lib/whatsapp/template-defaults";
+import styles from "../admin-directory.module.css";
 
 type AdminWhatsAppTemplatesPageProps = {
   searchParams: Promise<{ industryType?: string }>;
@@ -33,14 +34,17 @@ export default async function AdminWhatsAppTemplatesPage({
   const savedByType = new Map(
     savedTemplates.map((template) => [template.messageType, template]),
   );
-  const templates = DEFAULT_WHATSAPP_TEMPLATES_BY_INDUSTRY[selectedIndustry].map(
-    (defaultTemplate, index) => {
+  const templates = DEFAULT_WHATSAPP_TEMPLATES_BY_INDUSTRY[
+    selectedIndustry
+  ].map((defaultTemplate, index) => {
     const savedTemplate = savedByType.get(defaultTemplate.messageType);
     return {
       body:
         savedTemplate?.body ??
-        getDefaultWhatsAppTemplate(defaultTemplate.messageType, selectedIndustry)
-          ?.body ??
+        getDefaultWhatsAppTemplate(
+          defaultTemplate.messageType,
+          selectedIndustry,
+        )?.body ??
         defaultTemplate.body,
       index: index + 1,
       messageType: defaultTemplate.messageType,
@@ -52,26 +56,73 @@ export default async function AdminWhatsAppTemplatesPage({
       ),
       updatedAt: savedTemplate?.updatedAt ?? null,
     };
-    },
-  );
+  });
+  const activeTemplates = templates.filter(
+    (template) => template.status === "ACTIVE",
+  ).length;
 
   return (
     <AppShell user={user}>
-      <section className="content">
-        <div className="page-header">
-          <div>
+      <section className={styles.page}>
+        <header className={styles.hero}>
+          <div className={styles.heroCopy}>
+            <p className={styles.eyebrow}>Customer communication</p>
             <h1>WhatsApp Templates</h1>
-            <p>
-              Manage default WhatsApp automation messages for{" "}
-              {getBusinessIndustryLabel(selectedIndustry)}.
+            <p className={styles.heroDescription}>
+              Review and edit the messages customers receive automatically.
+              Templates are organized by industry so the wording stays relevant.
             </p>
           </div>
-        </div>
+          <span className={styles.countBadge}>
+            {getBusinessIndustryLabel(selectedIndustry)}
+          </span>
+        </header>
 
-        <div className="panel">
-          <form className="template-industry-filter" method="get">
-            <label>
-              <span>Industry</span>
+        <section
+          className={styles.metrics}
+          aria-label="WhatsApp template summary"
+        >
+          <article className={styles.metric}>
+            <span>Templates</span>
+            <strong>{templates.length}</strong>
+            <small>Available for this industry</small>
+          </article>
+          <article className={styles.metric}>
+            <span>Active</span>
+            <strong>{activeTemplates}</strong>
+            <small>Ready for automation</small>
+          </article>
+          <article className={styles.metric}>
+            <span>Customized</span>
+            <strong>{savedTemplates.length}</strong>
+            <small>Saved platform wording</small>
+          </article>
+          <article className={styles.metric}>
+            <span>Using defaults</span>
+            <strong>{templates.length - savedTemplates.length}</strong>
+            <small>Platform copy is unchanged</small>
+          </article>
+        </section>
+
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div>
+              <h2>Message library</h2>
+              <p>
+                Select an industry, then open any message to update its wording
+                or status.
+              </p>
+            </div>
+            <span className={styles.countBadge}>
+              {templates.length} messages
+            </span>
+          </div>
+          <form
+            className={`${styles.toolbar} ${styles.toolbarCompact}`}
+            method="get"
+          >
+            <label className={styles.field}>
+              <span>Business industry</span>
               <select name="industryType" defaultValue={selectedIndustry}>
                 {BUSINESS_INDUSTRY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -80,60 +131,72 @@ export default async function AdminWhatsAppTemplatesPage({
                 ))}
               </select>
             </label>
-            <button type="submit">View templates</button>
+            <button type="submit">Show templates</button>
           </form>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>No.</th>
-                <th>Template</th>
-                <th>Purpose</th>
-                <th>Status</th>
-                <th>Updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {templates.map((template) => (
-                <tr key={template.messageType}>
-                  <td>{template.index}</td>
-                  <td>
-                    <strong>{template.title}</strong>
-                    <div className="muted template-preview">{template.body}</div>
-                  </td>
-                  <td>
-                    <strong>
-                      {getWhatsAppTemplateLabel(
-                        template.messageType,
-                        selectedIndustry,
-                      )}
-                    </strong>
-                    <div className="muted template-purpose">
-                      {template.description}
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`status ${template.status.toLowerCase()}`}>
-                      {template.status.toLowerCase()}
-                    </span>
-                  </td>
-                  <td>
-                    {template.updatedAt
-                      ? template.updatedAt.toLocaleString("en-MY")
-                      : "Default"}
-                  </td>
-                  <td>
-                    <Link
-                      href={"/admin/whatsapp-templates/" + template.messageType + "?industryType=" + selectedIndustry}
-                    >
-                      Edit
-                    </Link>
-                  </td>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Template</th>
+                  <th>Purpose</th>
+                  <th>Status</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {templates.map((template) => (
+                  <tr key={template.messageType}>
+                    <td>{template.index}</td>
+                    <td>
+                      <strong>{template.title}</strong>
+                      <div className={`${styles.subtext} ${styles.preview}`}>
+                        {template.body}
+                      </div>
+                    </td>
+                    <td>
+                      <strong>
+                        {getWhatsAppTemplateLabel(
+                          template.messageType,
+                          selectedIndustry,
+                        )}
+                      </strong>
+                      <div className={styles.subtext}>
+                        {template.description}
+                      </div>
+                    </td>
+                    <td>
+                      <span
+                        className={`${styles.statusBadge} ${template.status === "ACTIVE" ? "" : styles.statusBadgeInactive}`}
+                      >
+                        {template.status === "ACTIVE" ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td>
+                      {template.updatedAt
+                        ? template.updatedAt.toLocaleString("en-MY")
+                        : "Default"}
+                    </td>
+                    <td>
+                      <Link
+                        className={styles.rowAction}
+                        href={
+                          "/admin/whatsapp-templates/" +
+                          template.messageType +
+                          "?industryType=" +
+                          selectedIndustry
+                        }
+                      >
+                        Edit
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </section>
     </AppShell>
   );

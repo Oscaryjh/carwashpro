@@ -229,17 +229,17 @@ export async function loadEmployeeAttendanceSection(
     normalWorkMinutesPerDay,
     normalWorkPolicySource:
       membership.normalWorkMinutesPerDay !== null
-        ? "Employee attendance setting"
+        ? "Employee-specific setting"
         : branchPolicy
-          ? "Primary branch attendance setting"
-          : "Not configured",
+          ? "Primary branch default"
+          : "Not set",
     targetBreakMinutes,
     targetBreakPolicySource:
       membership.targetBreakMinutes !== null
-        ? "Employee attendance setting"
+        ? "Employee-specific setting"
         : branchPolicy
-          ? "Primary branch attendance setting"
-          : "Not configured",
+          ? "Primary branch default"
+          : "Not set",
     clockInBranches: membership.branchAssignments
       .filter((assignment) => assignment.canClockIn)
       .map((assignment) => ({

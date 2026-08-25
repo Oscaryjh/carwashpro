@@ -18,18 +18,27 @@ if (environment === "production") {
   requireValue("PAYROLL_PAYMENT_ENCRYPTION_KEYS", 10);
   requireValue("PAYROLL_PAYMENT_FINGERPRINT_KEY", 32);
 
-  const otpProvider = process.env.SMS_PROVIDER ?? process.env.OTP_PROVIDER ?? process.env.EMPLOYEE_OTP_SEND_MODE;
+  const otpProvider = process.env.OTP_PROVIDER ?? process.env.EMPLOYEE_OTP_SEND_MODE;
   if (otpProvider === "mock" || process.env.EMPLOYEE_OTP_MOCK_CODE) {
     fail("Production Employee OTP mock mode/code is forbidden.");
   }
-  if (otpProvider !== "sms123" || process.env.OTP_CHANNEL !== "sms") {
-    fail('Production Staff OTP requires SMS_PROVIDER="sms123" and OTP_CHANNEL="sms".');
+  if (!new Set(["twilio_verify", "sms123"]).has(otpProvider) || process.env.OTP_CHANNEL !== "sms") {
+    fail('Production Staff OTP requires OTP_PROVIDER="twilio_verify" or "sms123", with OTP_CHANNEL="sms".');
   }
-  if (process.env.SMS123_ENABLED?.trim().toLowerCase() === "false") {
-    fail("Production SMS123 cannot be disabled.");
+  if (otpProvider === "twilio_verify") {
+    requirePattern("TWILIO_ACCOUNT_SID", /^AC[0-9a-f]{32}$/i);
+    requirePattern("TWILIO_VERIFY_SERVICE_SID", /^VA[0-9a-f]{32}$/i);
+    const hasTwilioApiKey =
+      /^SK[0-9a-f]{32}$/i.test(process.env.TWILIO_API_KEY_SID?.trim() ?? "") &&
+      (process.env.TWILIO_API_KEY_SECRET?.trim().length ?? 0) >= 20;
+    const hasTwilioAuthToken = (process.env.TWILIO_AUTH_TOKEN?.trim().length ?? 0) >= 20;
+    if (!hasTwilioApiKey && !hasTwilioAuthToken) {
+      fail("Production Twilio Verify credentials are required.");
+    }
   }
-  requireValue("SMS123_API_KEY", 8);
-  requireHttpsUrl("SMS123_API_BASE_URL");
+  if (otpProvider === "sms123") {
+    requireValue("SMS123_API_KEY", 16);
+  }
 
   const aiEnabled = process.env.AI_GLOBAL_ENABLED !== "false";
   if (aiEnabled && process.env.AI_PROVIDER !== "openai") {
@@ -54,6 +63,11 @@ function requireHexDigest(name) {
   if (!/^[a-f0-9]{64}$/i.test(value)) fail(`${name} must be a 64-character SHA-256 digest in Production.`);
 }
 
+function requirePattern(name, pattern) {
+  const value = process.env[name]?.trim() ?? "";
+  if (!pattern.test(value)) fail(`${name} is invalid or missing in Production.`);
+}
+
 function requireDatabaseUrl() {
   const value = process.env.DATABASE_URL?.trim() ?? "";
   let parsed;
@@ -64,16 +78,6 @@ function requireDatabaseUrl() {
   }
   if (!new Set(["postgres:", "postgresql:"]).has(parsed.protocol)) fail("DATABASE_URL must use PostgreSQL.");
   if (new Set(["localhost", "127.0.0.1", "::1"]).has(parsed.hostname)) fail("Production DATABASE_URL cannot target Localhost.");
-}
-
-function requireHttpsUrl(name) {
-  const value = process.env[name]?.trim() ?? "";
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol !== "https:") throw new Error("HTTPS required");
-  } catch {
-    fail(`${name} must be a valid HTTPS URL in Production.`);
-  }
 }
 
 function fail(message) {

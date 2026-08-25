@@ -4,7 +4,10 @@ import { AppShell } from "@/components/app-shell";
 import { assertRole } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { formatCents } from "@/lib/commercial/money";
-import { getEffectiveCommercialConfiguration, reconcileCommercialState } from "@/lib/commercial/service";
+import {
+  getEffectiveCommercialConfiguration,
+  reconcileCommercialState,
+} from "@/lib/commercial/service";
 import { MODULE_REGISTRY, moduleKeys } from "@/lib/modules/registry";
 import { prisma } from "@/lib/prisma";
 import {
@@ -17,41 +20,774 @@ import {
   createVersionAction,
   renewSubscriptionAction,
 } from "./actions";
+import styles from "../admin-directory.module.css";
 
-export default async function CommercialPage({ searchParams }: { searchParams: Promise<{ type?: string; message?: string; page?: string }> }) {
+export default async function CommercialPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string; message?: string; page?: string }>;
+}) {
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
   const query = await searchParams;
   const page = Math.max(1, Number(query.page) || 1);
   const pageSize = 25;
-  const [plans, subscriptions, subscriptionCount, businesses, groups, promotions] = await Promise.all([
-    prisma.commercialPlan.findMany({ include: { versions: { include: { modules: true, _count: { select: { subscriptionItems: true } } }, orderBy: { version: "desc" } } }, orderBy: [{ scopeType: "asc" }, { planType: "asc" }, { displayName: "asc" }] }),
-    prisma.commercialSubscription.findMany({ include: { business: true, group: true, items: { include: { planVersion: { include: { plan: true } } } }, overrides: { where: { status: "ACTIVE" }, orderBy: { revision: "desc" } } }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+  const [
+    plans,
+    subscriptions,
+    subscriptionCount,
+    businesses,
+    groups,
+    promotions,
+  ] = await Promise.all([
+    prisma.commercialPlan.findMany({
+      include: {
+        versions: {
+          include: {
+            modules: true,
+            _count: { select: { subscriptionItems: true } },
+          },
+          orderBy: { version: "desc" },
+        },
+      },
+      orderBy: [
+        { scopeType: "asc" },
+        { planType: "asc" },
+        { displayName: "asc" },
+      ],
+    }),
+    prisma.commercialSubscription.findMany({
+      include: {
+        business: true,
+        group: true,
+        items: { include: { planVersion: { include: { plan: true } } } },
+        overrides: {
+          where: { status: "ACTIVE" },
+          orderBy: { revision: "desc" },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
     prisma.commercialSubscription.count(),
-    prisma.business.findMany({ where: { status: "active" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.businessGroup.findMany({ where: { status: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.commercialPromotion.findMany({ where: { status: "ACTIVE" }, orderBy: { createdAt: "desc" }, take: 50 }),
+    prisma.business.findMany({
+      where: { status: "active" },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.businessGroup.findMany({
+      where: { status: "ACTIVE" },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.commercialPromotion.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
   ]);
-  const activeVersions = plans.flatMap(plan => plan.versions.filter(version => version.status === "ACTIVE").map(version => ({ ...version, plan })));
-  const summaries = await Promise.all(subscriptions.map(async subscription => ({
-    subscription,
-    effective: await getEffectiveCommercialConfiguration(subscription.businessId ? { businessId: subscription.businessId } : { groupId: subscription.groupId! }),
-    health: await reconcileCommercialState(subscription.businessId ? { businessId: subscription.businessId } : { groupId: subscription.groupId! }),
-  })));
+  const activeVersions = plans.flatMap((plan) =>
+    plan.versions
+      .filter((version) => version.status === "ACTIVE")
+      .map((version) => ({ ...version, plan })),
+  );
+  const summaries = await Promise.all(
+    subscriptions.map(async (subscription) => ({
+      subscription,
+      effective: await getEffectiveCommercialConfiguration(
+        subscription.businessId
+          ? { businessId: subscription.businessId }
+          : { groupId: subscription.groupId! },
+      ),
+      health: await reconcileCommercialState(
+        subscription.businessId
+          ? { businessId: subscription.businessId }
+          : { groupId: subscription.groupId! },
+      ),
+    })),
+  );
 
-  return <AppShell user={user}><section className="content commercial-center">
-    <div className="page-header"><div><h1>Commercial Center</h1><p>Plans, immutable prices, allowances and subscriptions. Commercial configuration is not payment or RBAC.</p></div><div className="form-actions"><Link href="/admin/commercial/billing" className="button-link">Subscription billing</Link><Link href="#new-plan" className="button-link">Create plan</Link></div></div>
-    {query.message ? <p className={`form-message ${query.type === "error" ? "error" : "success"}`}>{query.message}</p> : null}
-    <section className="grid"><div className="panel metric"><span>Plans</span><strong>{plans.length}</strong></div><div className="panel metric"><span>Active versions</span><strong>{activeVersions.length}</strong></div><div className="panel metric"><span>Subscriptions</span><strong>{subscriptions.length}</strong></div><div className="panel metric"><span>Legacy customers</span><strong>{businesses.length - subscriptions.filter(row => row.businessId).length}</strong></div></section>
+  const subscribedBusinesses = new Set(
+    subscriptions.flatMap((row) => (row.businessId ? [row.businessId] : [])),
+  ).size;
+  const legacyCustomers = Math.max(0, businesses.length - subscribedBusinesses);
 
-    <section className="panel" id="new-plan"><h2>Create plan</h2><form action={createPlanAction} className="form-grid"><input type="hidden" name="operationKey" value={`CREATE_PLAN:${randomUUID()}`} /><label>Code<input name="code" required /></label><label>Name<input name="displayName" required /></label><label>Scope<select name="scopeType"><option>BUSINESS</option><option>GROUP</option></select></label><label>Type<select name="planType"><option>BASE</option><option>ADD_ON</option></select></label><label>Description<input name="description" /></label><button>Create draft plan</button></form></section>
+  return (
+    <AppShell user={user}>
+      <section className={styles.page}>
+        <header className={styles.hero}>
+          <div className={styles.heroCopy}>
+            <p className={styles.eyebrow}>Platform commercial</p>
+            <h1>Commercial</h1>
+            <p className={styles.heroDescription}>
+              Manage sellable plans, pricing versions, promotions and customer
+              subscriptions. Billing records are handled separately.
+            </p>
+          </div>
+          <div className={styles.heroActions}>
+            <Link
+              href="/admin/commercial/billing"
+              className={styles.secondaryAction}
+            >
+              Billing records
+            </Link>
+            <Link href="#new-plan" className={styles.primaryAction}>
+              + New plan
+            </Link>
+          </div>
+        </header>
+        {query.message ? (
+          <p
+            className={`${styles.message} ${query.type === "error" ? styles.messageError : styles.messageSuccess}`}
+          >
+            {query.message}
+          </p>
+        ) : null}
+        <section className={styles.metrics} aria-label="Commercial summary">
+          <article className={styles.metric}>
+            <span>Plans</span>
+            <strong>{plans.length}</strong>
+            <small>Base plans and add-ons</small>
+          </article>
+          <article className={styles.metric}>
+            <span>Active versions</span>
+            <strong>{activeVersions.length}</strong>
+            <small>Available to assign</small>
+          </article>
+          <article className={styles.metric}>
+            <span>Subscriptions</span>
+            <strong>{subscriptionCount}</strong>
+            <small>Business and group customers</small>
+          </article>
+          <article className={styles.metric}>
+            <span>Needs plan review</span>
+            <strong>{legacyCustomers}</strong>
+            <small>Active businesses without a subscription</small>
+          </article>
+        </section>
+        <nav className={styles.quickNav} aria-label="Commercial sections">
+          <a href="#plans">Plans</a>
+          <a href="#promotions">Promotions</a>
+          <a href="#assign-subscription">Assign subscription</a>
+          <a href="#subscriptions">Customer subscriptions</a>
+        </nav>
 
-    <section className="panel"><h2>Plans and immutable versions</h2>{plans.length ? plans.map(plan => <details key={plan.id} open><summary><strong>{plan.displayName}</strong> · {plan.code} · {plan.scopeType} {plan.planType}</summary><div className="table-wrap"><table className="table"><thead><tr><th>Version</th><th>Status</th><th>Monthly</th><th>Annual</th><th>Modules</th><th>Allowances</th><th>Used</th><th /></tr></thead><tbody>{plan.versions.map(version => <tr key={version.id}><td>v{version.version}</td><td>{version.status}</td><td>{formatCents(version.monthlyListPriceCents)}</td><td>{formatCents(version.annualListPriceCents)}</td><td>{version.modules.map(row => row.moduleKey).join(", ") || "—"}</td><td>{version.includedBranches ?? "—"} branch · {version.includedEmployees ?? "—"} employee · {version.businessAiAllowance ?? version.groupAiAllowance ?? 0} Ask</td><td>{version._count.subscriptionItems}</td><td>{version.status === "DRAFT" ? <form action={activateVersionAction}><input type="hidden" name="operationKey" value={`ACTIVATE_VERSION:${version.id}`} /><input type="hidden" name="planVersionId" value={version.id} /><button>Activate</button></form> : "Immutable"}</td></tr>)}</tbody></table></div><form action={createVersionAction} className="form-grid"><input type="hidden" name="operationKey" value={`CREATE_VERSION:${randomUUID()}`} /><input type="hidden" name="planId" value={plan.id} /><label>Effective from<input type="date" name="effectiveFrom" required /></label><label>Monthly (RM)<input name="monthlyListPrice" inputMode="decimal" /></label><label>Annual (RM)<input name="annualListPrice" inputMode="decimal" /></label><label>Setup fee (RM)<input name="setupFee" inputMode="decimal" /></label><label>Branches<input type="number" min="0" name="includedBranches" /></label><label>Employees<input type="number" min="0" name="includedEmployees" /></label><label>Business Ask<input type="number" min="0" name="businessAiAllowance" /></label><label>Group Ask<input type="number" min="0" name="groupAiAllowance" /></label><fieldset><legend>Modules</legend>{moduleKeys.filter(key => key !== "CORE").map(key => <label key={key}><input type="checkbox" name="modules" value={key} />{MODULE_REGISTRY[key].label}</label>)}</fieldset><button>Create new draft version</button></form></details>) : <p className="empty-state">No commercial plans yet.</p>}</section>
+        <details className={styles.disclosure} id="new-plan">
+          <summary>
+            <span className={styles.disclosureTitle}>
+              <strong>Create a plan</strong>
+              <span>
+                Start with a draft, then add and activate a priced version.
+              </span>
+            </span>
+          </summary>
+          <div className={styles.disclosureContent}>
+            <form action={createPlanAction} className={styles.formGrid}>
+              <input
+                type="hidden"
+                name="operationKey"
+                value={`CREATE_PLAN:${randomUUID()}`}
+              />
+              <label className={styles.field}>
+                <span>Plan code</span>
+                <input name="code" required />
+              </label>
+              <label className={styles.field}>
+                <span>Display name</span>
+                <input name="displayName" required />
+              </label>
+              <label className={styles.field}>
+                <span>Customer scope</span>
+                <select name="scopeType">
+                  <option value="BUSINESS">Business</option>
+                  <option value="GROUP">Business group</option>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Plan type</span>
+                <select name="planType">
+                  <option value="BASE">Base plan</option>
+                  <option value="ADD_ON">Add-on</option>
+                </select>
+              </label>
+              <label className={`${styles.field} ${styles.wide}`}>
+                <span>Description</span>
+                <input name="description" />
+              </label>
+              <button>Create draft</button>
+            </form>
+          </div>
+        </details>
 
-    <section className="panel"><h2>Promotions</h2><form action={createPromotionAction} className="form-grid"><input type="hidden" name="operationKey" value={`CREATE_PROMOTION:${randomUUID()}`} /><label>Name<input name="name" required /></label><label>Code<input name="code" /></label><label>Type<select name="discountType"><option value="PERCENT">Percent</option><option value="FIXED_AMOUNT">Fixed MYR</option></select></label><label>Value<input name="discountValue" inputMode="decimal" required /></label><label>Effective from<input type="date" name="effectiveFrom" required /></label><label>Effective to<input type="date" name="effectiveTo" /></label><label>Eligible versions<select name="eligiblePlanVersionIds" multiple required>{activeVersions.map(version => <option value={version.id} key={version.id}>{version.plan.displayName} v{version.version}</option>)}</select></label><button>Create promotion</button></form>{promotions.length ? <p>{promotions.map(promotion => `${promotion.name} (${promotion.discountType})`).join(" · ")}</p> : <p className="empty-state">No active promotions.</p>}</section>
+        <section className={styles.panel} id="plans">
+          <div className={styles.panelHeader}>
+            <div>
+              <h2>Plans and pricing versions</h2>
+              <p>
+                Published versions stay unchanged so existing subscriptions
+                remain traceable.
+              </p>
+            </div>
+            <span className={styles.countBadge}>{plans.length} plans</span>
+          </div>
+          <div className={`${styles.panelBody} ${styles.planStack}`}>
+            {plans.length ? (
+              plans.map((plan) => (
+                <details className={styles.planCard} key={plan.id}>
+                  <summary>
+                    <strong>{plan.displayName}</strong>
+                    <span className={styles.subtext}>
+                      {plan.code} ·{" "}
+                      {plan.scopeType === "BUSINESS" ? "Business" : "Group"} ·{" "}
+                      {plan.planType === "BASE" ? "Base plan" : "Add-on"}
+                    </span>
+                  </summary>
+                  <div className={styles.planCardBody}>
+                    <div className={styles.tableWrap}>
+                      <table className={styles.table}>
+                        <thead>
+                          <tr>
+                            <th>Version</th>
+                            <th>Status</th>
+                            <th>Monthly</th>
+                            <th>Annual</th>
+                            <th>Modules</th>
+                            <th>Allowances</th>
+                            <th>Customers</th>
+                            <th />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {plan.versions.map((version) => (
+                            <tr key={version.id}>
+                              <td>v{version.version}</td>
+                              <td>
+                                <span
+                                  className={`${styles.statusBadge} ${version.status === "ACTIVE" ? "" : styles.statusBadgeInactive}`}
+                                >
+                                  {version.status === "ACTIVE"
+                                    ? "Active"
+                                    : "Draft"}
+                                </span>
+                              </td>
+                              <td>
+                                {formatCents(version.monthlyListPriceCents)}
+                              </td>
+                              <td>
+                                {formatCents(version.annualListPriceCents)}
+                              </td>
+                              <td>
+                                {version.modules
+                                  .map(
+                                    (row) =>
+                                      MODULE_REGISTRY[row.moduleKey].label,
+                                  )
+                                  .join(", ") || "Core only"}
+                              </td>
+                              <td>
+                                {version.includedBranches ?? "—"} branches ·{" "}
+                                {version.includedEmployees ?? "—"} employees ·{" "}
+                                {version.businessAiAllowance ??
+                                  version.groupAiAllowance ??
+                                  0}{" "}
+                                Ask
+                              </td>
+                              <td>{version._count.subscriptionItems}</td>
+                              <td>
+                                {version.status === "DRAFT" ? (
+                                  <form action={activateVersionAction}>
+                                    <input
+                                      type="hidden"
+                                      name="operationKey"
+                                      value={`ACTIVATE_VERSION:${version.id}`}
+                                    />
+                                    <input
+                                      type="hidden"
+                                      name="planVersionId"
+                                      value={version.id}
+                                    />
+                                    <button>Activate</button>
+                                  </form>
+                                ) : (
+                                  <span className={styles.subtext}>Locked</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <form
+                      action={createVersionAction}
+                      className={`${styles.formGrid} ${styles.panelBody}`}
+                    >
+                      <input
+                        type="hidden"
+                        name="operationKey"
+                        value={`CREATE_VERSION:${randomUUID()}`}
+                      />
+                      <input type="hidden" name="planId" value={plan.id} />
+                      <label className={styles.field}>
+                        <span>Effective from</span>
+                        <input type="date" name="effectiveFrom" required />
+                      </label>
+                      <label className={styles.field}>
+                        <span>Monthly price (RM)</span>
+                        <input name="monthlyListPrice" inputMode="decimal" />
+                      </label>
+                      <label className={styles.field}>
+                        <span>Annual price (RM)</span>
+                        <input name="annualListPrice" inputMode="decimal" />
+                      </label>
+                      <label className={styles.field}>
+                        <span>Setup fee (RM)</span>
+                        <input name="setupFee" inputMode="decimal" />
+                      </label>
+                      <label className={styles.field}>
+                        <span>Included branches</span>
+                        <input type="number" min="0" name="includedBranches" />
+                      </label>
+                      <label className={styles.field}>
+                        <span>Included employees</span>
+                        <input type="number" min="0" name="includedEmployees" />
+                      </label>
+                      <label className={styles.field}>
+                        <span>Business Ask allowance</span>
+                        <input
+                          type="number"
+                          min="0"
+                          name="businessAiAllowance"
+                        />
+                      </label>
+                      <label className={styles.field}>
+                        <span>Group Ask allowance</span>
+                        <input type="number" min="0" name="groupAiAllowance" />
+                      </label>
+                      <fieldset>
+                        <legend>Included modules</legend>
+                        {moduleKeys
+                          .filter((key) => key !== "CORE")
+                          .map((key) => (
+                            <label key={key}>
+                              <input
+                                type="checkbox"
+                                name="modules"
+                                value={key}
+                              />
+                              {MODULE_REGISTRY[key].label}
+                            </label>
+                          ))}
+                      </fieldset>
+                      <button>Create draft version</button>
+                    </form>
+                  </div>
+                </details>
+              ))
+            ) : (
+              <p className={styles.emptyState}>
+                No commercial plans yet. Create the first draft above.
+              </p>
+            )}
+          </div>
+        </section>
 
-    <section className="panel"><h2>Assign subscription</h2><form action={createSubscriptionAction} className="form-grid"><input type="hidden" name="operationKey" value={`CREATE_SUBSCRIPTION:${randomUUID()}`} /><label>Customer<select name="scopeId" required><optgroup label="Businesses">{businesses.map(business => <option value={business.id} key={business.id}>{business.name}</option>)}</optgroup><optgroup label="Groups">{groups.map(group => <option value={group.id} key={group.id}>{group.name}</option>)}</optgroup></select></label><label>Scope<select name="scopeType"><option>BUSINESS</option><option>GROUP</option></select></label><label>Base version<select name="basePlanVersionId" required>{activeVersions.filter(version => version.plan.planType === "BASE").map(version => <option value={version.id} key={version.id}>{version.plan.displayName} v{version.version}</option>)}</select></label><label>Add-ons<select name="addOnPlanVersionIds" multiple>{activeVersions.filter(version => version.plan.planType === "ADD_ON").map(version => <option value={version.id} key={version.id}>{version.plan.displayName} v{version.version}</option>)}</select></label><label>Promotion<select name="promotionId"><option value="">None</option>{promotions.map(promotion => <option value={promotion.id} key={promotion.id}>{promotion.name}</option>)}</select></label><label>Interval<select name="billingInterval"><option>MONTHLY</option><option>ANNUAL</option></select></label><label>Start<input type="date" name="startDate" required /></label><label>Renewal<input type="date" name="renewalDate" required /></label><button>Assign and project</button></form></section>
+        <details className={styles.disclosure} id="promotions">
+          <summary>
+            <span className={styles.disclosureTitle}>
+              <strong>Promotions</strong>
+              <span>
+                {promotions.length
+                  ? `${promotions.length} active promotions`
+                  : "Create a time-limited discount for selected plan versions."}
+              </span>
+            </span>
+          </summary>
+          <div className={styles.disclosureContent}>
+            <form action={createPromotionAction} className={styles.formGrid}>
+              <input
+                type="hidden"
+                name="operationKey"
+                value={`CREATE_PROMOTION:${randomUUID()}`}
+              />
+              <label className={styles.field}>
+                <span>Name</span>
+                <input name="name" required />
+              </label>
+              <label className={styles.field}>
+                <span>Code</span>
+                <input name="code" />
+              </label>
+              <label className={styles.field}>
+                <span>Discount type</span>
+                <select name="discountType">
+                  <option value="PERCENT">Percentage</option>
+                  <option value="FIXED_AMOUNT">Fixed amount (MYR)</option>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Value</span>
+                <input name="discountValue" inputMode="decimal" required />
+              </label>
+              <label className={styles.field}>
+                <span>Starts</span>
+                <input type="date" name="effectiveFrom" required />
+              </label>
+              <label className={styles.field}>
+                <span>Ends</span>
+                <input type="date" name="effectiveTo" />
+              </label>
+              <label className={`${styles.field} ${styles.wide}`}>
+                <span>Eligible plan versions</span>
+                <select name="eligiblePlanVersionIds" multiple required>
+                  {activeVersions.map((version) => (
+                    <option value={version.id} key={version.id}>
+                      {version.plan.displayName} v{version.version}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button>Create promotion</button>
+            </form>
+            {promotions.length ? (
+              <p className={styles.subtext}>
+                Active:{" "}
+                {promotions.map((promotion) => promotion.name).join(" · ")}
+              </p>
+            ) : null}
+          </div>
+        </details>
 
-    <section className="panel"><h2>Subscriptions</h2><p>Showing {(page - 1) * pageSize + (summaries.length ? 1 : 0)}–{(page - 1) * pageSize + summaries.length} of {subscriptionCount}</p>{summaries.length ? <div className="table-wrap"><table className="table commercial-subscriptions-table"><thead><tr><th>Customer</th><th>Plan</th><th>Price</th><th>Allowances</th><th>Renewal</th><th>Health</th><th>Actions</th></tr></thead><tbody>{summaries.map(({ subscription, effective, health }) => <tr key={subscription.id}><td>{subscription.business?.name ?? subscription.group?.name}</td><td>{subscription.items.filter(item => item.status === "ACTIVE").map(item => `${item.planVersion.plan.displayName} v${item.planVersion.version}`).join(" + ")}</td><td>{effective.price ? <><span>List {formatCents(effective.price.listSubtotalCents)}</span><br />{effective.price.promotionDiscountCents ? <span>Discount -{formatCents(effective.price.promotionDiscountCents)}</span> : null}<br /><strong>Effective {formatCents(effective.price.effectiveRecurringPriceCents)}</strong></> : "Price review required"}</td><td>{effective.allowances ? `${effective.allowances.branches} branches · ${effective.allowances.employees} employees · ${effective.allowances.businessAi || effective.allowances.groupAi} Ask` : "Legacy"}</td><td>{subscription.renewalDate.toLocaleDateString("en-MY")}</td><td>{health.status}{health.issues.length ? `: ${health.issues.join(", ")}` : ""}</td><td><details><summary>Manage</summary><form action={createPriceOverrideAction}><input type="hidden" name="operationKey" value={`OVERRIDE:${randomUUID()}`} /><input type="hidden" name="subscriptionId" value={subscription.id} /><select name="overrideType"><option value="PRICE">Price (MYR)</option><option value="BRANCH_ALLOWANCE">Branch allowance</option><option value="EMPLOYEE_ALLOWANCE">Employee allowance</option><option value={subscription.scopeType === "BUSINESS" ? "BUSINESS_AI_ALLOWANCE" : "GROUP_AI_ALLOWANCE"}>Ask allowance</option></select><input name="value" placeholder="Value" required /><input type="date" name="effectiveFrom" required /><input type="date" name="effectiveTo" /><input name="reason" placeholder="Override reason" minLength={5} required /><button>Apply override</button></form><form action={addSubscriptionItemAction}><input type="hidden" name="operationKey" value={`ADD_ITEM:${randomUUID()}`} /><input type="hidden" name="subscriptionId" value={subscription.id} /><select name="planVersionId" required>{activeVersions.filter(version => version.plan.planType === "ADD_ON" && version.plan.scopeType === subscription.scopeType).map(version => <option value={version.id} key={version.id}>{version.plan.displayName} v{version.version}</option>)}</select><input type="number" name="quantity" min="1" defaultValue="1" /><button>Add add-on</button></form><form action={renewSubscriptionAction}><input type="hidden" name="operationKey" value={`RENEW:${randomUUID()}`} /><input type="hidden" name="subscriptionId" value={subscription.id} /><input type="hidden" name="expectedRevision" value={subscription.revision} /><input type="date" name="renewalDate" required /><input name="reason" minLength={5} placeholder="Renewal reason" required /><button>Renew</button></form></details></td></tr>)}</tbody></table></div> : <p className="empty-state">No subscriptions. Existing businesses remain legacy/review-required and keep their modules.</p>}<nav className="form-actions">{page > 1 ? <Link href={`/admin/commercial?page=${page - 1}`}>Previous</Link> : null}{page * pageSize < subscriptionCount ? <Link href={`/admin/commercial?page=${page + 1}`}>Next</Link> : null}</nav></section>
-  </section></AppShell>;
+        <details className={styles.disclosure} id="assign-subscription">
+          <summary>
+            <span className={styles.disclosureTitle}>
+              <strong>Assign a subscription</strong>
+              <span>
+                Choose a customer, base plan, optional add-ons and billing
+                period.
+              </span>
+            </span>
+          </summary>
+          <div className={styles.disclosureContent}>
+            <form action={createSubscriptionAction} className={styles.formGrid}>
+              <input
+                type="hidden"
+                name="operationKey"
+                value={`CREATE_SUBSCRIPTION:${randomUUID()}`}
+              />
+              <label className={styles.field}>
+                <span>Customer</span>
+                <select name="scopeId" required>
+                  <optgroup label="Businesses">
+                    {businesses.map((business) => (
+                      <option value={business.id} key={business.id}>
+                        {business.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Business groups">
+                    {groups.map((group) => (
+                      <option value={group.id} key={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Customer type</span>
+                <select name="scopeType">
+                  <option value="BUSINESS">Business</option>
+                  <option value="GROUP">Business group</option>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Base plan</span>
+                <select name="basePlanVersionId" required>
+                  {activeVersions
+                    .filter((version) => version.plan.planType === "BASE")
+                    .map((version) => (
+                      <option value={version.id} key={version.id}>
+                        {version.plan.displayName} v{version.version}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Add-ons</span>
+                <select name="addOnPlanVersionIds" multiple>
+                  {activeVersions
+                    .filter((version) => version.plan.planType === "ADD_ON")
+                    .map((version) => (
+                      <option value={version.id} key={version.id}>
+                        {version.plan.displayName} v{version.version}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Promotion</span>
+                <select name="promotionId">
+                  <option value="">No promotion</option>
+                  {promotions.map((promotion) => (
+                    <option value={promotion.id} key={promotion.id}>
+                      {promotion.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Billing interval</span>
+                <select name="billingInterval">
+                  <option value="MONTHLY">Monthly</option>
+                  <option value="ANNUAL">Annual</option>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Start date</span>
+                <input type="date" name="startDate" required />
+              </label>
+              <label className={styles.field}>
+                <span>Renewal date</span>
+                <input type="date" name="renewalDate" required />
+              </label>
+              <button>Assign subscription</button>
+            </form>
+          </div>
+        </details>
+
+        <section className={styles.panel} id="subscriptions">
+          <div className={styles.panelHeader}>
+            <div>
+              <h2>Customer subscriptions</h2>
+              <p>
+                Review the effective plan, price, allowances and renewal status
+                for each customer.
+              </p>
+            </div>
+            <span className={styles.countBadge}>
+              {subscriptionCount} subscriptions
+            </span>
+          </div>
+          {summaries.length ? (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Plan</th>
+                    <th>Effective price</th>
+                    <th>Allowances</th>
+                    <th>Renewal</th>
+                    <th>Health</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {summaries.map(({ subscription, effective, health }) => (
+                    <tr key={subscription.id}>
+                      <td>
+                        <strong>
+                          {subscription.business?.name ??
+                            subscription.group?.name}
+                        </strong>
+                        <div className={styles.subtext}>
+                          {subscription.scopeType === "BUSINESS"
+                            ? "Business"
+                            : "Business group"}
+                        </div>
+                      </td>
+                      <td>
+                        {subscription.items
+                          .filter((item) => item.status === "ACTIVE")
+                          .map(
+                            (item) =>
+                              `${item.planVersion.plan.displayName} v${item.planVersion.version}`,
+                          )
+                          .join(" + ")}
+                      </td>
+                      <td>
+                        {effective.price ? (
+                          <>
+                            <strong>
+                              {formatCents(
+                                effective.price.effectiveRecurringPriceCents,
+                              )}
+                            </strong>
+                            <div className={styles.subtext}>
+                              List{" "}
+                              {formatCents(effective.price.listSubtotalCents)}
+                              {effective.price.promotionDiscountCents
+                                ? ` · Discount -${formatCents(effective.price.promotionDiscountCents)}`
+                                : ""}
+                            </div>
+                          </>
+                        ) : (
+                          "Price review required"
+                        )}
+                      </td>
+                      <td>
+                        {effective.allowances
+                          ? `${effective.allowances.branches} branches · ${effective.allowances.employees} employees · ${effective.allowances.businessAi || effective.allowances.groupAi} Ask`
+                          : "Legacy configuration"}
+                      </td>
+                      <td>
+                        {subscription.renewalDate.toLocaleDateString("en-MY")}
+                      </td>
+                      <td>
+                        <span
+                          className={`${styles.statusBadge} ${health.status === "MATCH" ? "" : styles.statusBadgeInactive}`}
+                        >
+                          {health.status === "MATCH"
+                            ? "Ready"
+                            : health.status
+                                .toLocaleLowerCase()
+                                .replaceAll("_", " ")}
+                        </span>
+                        {health.issues.length ? (
+                          <div className={styles.subtext}>
+                            {health.issues.join(", ")}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td>
+                        <details>
+                          <summary className={styles.rowAction}>Manage</summary>
+                          <form
+                            action={createPriceOverrideAction}
+                            className={styles.inlineForm}
+                          >
+                            <input
+                              type="hidden"
+                              name="operationKey"
+                              value={`OVERRIDE:${randomUUID()}`}
+                            />
+                            <input
+                              type="hidden"
+                              name="subscriptionId"
+                              value={subscription.id}
+                            />
+                            <select name="overrideType">
+                              <option value="PRICE">Price (MYR)</option>
+                              <option value="BRANCH_ALLOWANCE">
+                                Branch allowance
+                              </option>
+                              <option value="EMPLOYEE_ALLOWANCE">
+                                Employee allowance
+                              </option>
+                              <option
+                                value={
+                                  subscription.scopeType === "BUSINESS"
+                                    ? "BUSINESS_AI_ALLOWANCE"
+                                    : "GROUP_AI_ALLOWANCE"
+                                }
+                              >
+                                Ask allowance
+                              </option>
+                            </select>
+                            <input name="value" placeholder="Value" required />
+                            <input type="date" name="effectiveFrom" required />
+                            <input type="date" name="effectiveTo" />
+                            <input
+                              name="reason"
+                              placeholder="Reason"
+                              minLength={5}
+                              required
+                            />
+                            <button>Apply override</button>
+                          </form>
+                          <form
+                            action={addSubscriptionItemAction}
+                            className={styles.inlineForm}
+                          >
+                            <input
+                              type="hidden"
+                              name="operationKey"
+                              value={`ADD_ITEM:${randomUUID()}`}
+                            />
+                            <input
+                              type="hidden"
+                              name="subscriptionId"
+                              value={subscription.id}
+                            />
+                            <select name="planVersionId" required>
+                              {activeVersions
+                                .filter(
+                                  (version) =>
+                                    version.plan.planType === "ADD_ON" &&
+                                    version.plan.scopeType ===
+                                      subscription.scopeType,
+                                )
+                                .map((version) => (
+                                  <option value={version.id} key={version.id}>
+                                    {version.plan.displayName} v
+                                    {version.version}
+                                  </option>
+                                ))}
+                            </select>
+                            <input
+                              type="number"
+                              name="quantity"
+                              min="1"
+                              defaultValue="1"
+                            />
+                            <button>Add add-on</button>
+                          </form>
+                          <form
+                            action={renewSubscriptionAction}
+                            className={styles.inlineForm}
+                          >
+                            <input
+                              type="hidden"
+                              name="operationKey"
+                              value={`RENEW:${randomUUID()}`}
+                            />
+                            <input
+                              type="hidden"
+                              name="subscriptionId"
+                              value={subscription.id}
+                            />
+                            <input
+                              type="hidden"
+                              name="expectedRevision"
+                              value={subscription.revision}
+                            />
+                            <input type="date" name="renewalDate" required />
+                            <input
+                              name="reason"
+                              minLength={5}
+                              placeholder="Renewal reason"
+                              required
+                            />
+                            <button>Renew</button>
+                          </form>
+                        </details>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className={styles.emptyState}>
+              No subscriptions yet. Assign the first one above; existing
+              businesses keep their current modules until then.
+            </p>
+          )}
+          <nav className={styles.pagination}>
+            {page > 1 ? (
+              <Link href={`/admin/commercial?page=${page - 1}`}>Previous</Link>
+            ) : null}
+            <span>
+              Showing {(page - 1) * pageSize + (summaries.length ? 1 : 0)}–
+              {(page - 1) * pageSize + summaries.length} of {subscriptionCount}
+            </span>
+            {page * pageSize < subscriptionCount ? (
+              <Link href={`/admin/commercial?page=${page + 1}`}>Next</Link>
+            ) : null}
+          </nav>
+        </section>
+      </section>
+    </AppShell>
+  );
 }

@@ -163,6 +163,7 @@ export function calculatePayrollTotals(input: {
   eisEmployeeCents: number;
   lindung24EmployeeCents: number;
   pcbCents: number;
+  cp38Cents?: number;
 }) {
   const normalized = { ...input, leavePayCents: input.leavePayCents ?? 0 };
   Object.entries(normalized).forEach(([label, value]) =>
@@ -180,7 +181,8 @@ export function calculatePayrollTotals(input: {
     input.socsoEmployeeCents +
     input.eisEmployeeCents +
     input.lindung24EmployeeCents +
-    input.pcbCents;
+    input.pcbCents +
+    (input.cp38Cents ?? 0);
   return {
     grossPayCents,
     deductionsCents,

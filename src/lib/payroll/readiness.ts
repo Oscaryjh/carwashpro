@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { assertSupportedPayrollProration } from "@/lib/payroll/calculation";
 import { getPayrollRunComponentReconciliationFailures } from "@/lib/payroll/component-service";
+import { isPayrollBankAccountMfaEnabled } from "@/lib/payroll/payment/bank-account-security";
 import { parsePayrollMonth } from "@/lib/payroll/period";
 import { prisma } from "@/lib/prisma";
 
@@ -29,6 +30,9 @@ export type PayrollReadinessCode =
   | "MISSING_SOCSO_PROFILE"
   | "MISSING_EIS_PROFILE"
   | "PCB_PROFILE_INCOMPLETE"
+  | "PCB_YTD_LEDGER_INCOMPLETE"
+  | "PCB_ADDITIONAL_EPF_ALLOCATION_REQUIRED"
+  | "CP38_INSTRUCTION_NOT_READY"
   | "STATUTORY_RULE_NOT_AVAILABLE"
   | "STATUTORY_CLASSIFICATION_REQUIRED"
   | "STATUTORY_CALCULATION_FAILED"
@@ -89,6 +93,7 @@ export async function getPayrollPeriodReadiness(
   database: ReadinessDatabase = prisma,
 ): Promise<PayrollReadiness> {
   const period = parsePayrollMonth(input.month);
+  const bankVerificationRequired = isPayrollBankAccountMfaEnabled();
   const run = input.runId
     ? await database.payrollRun.findFirst({
         where: {
@@ -230,6 +235,8 @@ export async function getPayrollPeriodReadiness(
               membershipId: true,
               compensationVersionId: true,
               payBasisSnapshot: true,
+              statutoryStatus: true,
+              statutoryWarning: true,
               components: {
                 select: {
                   id: true,
@@ -382,10 +389,6 @@ export async function getPayrollPeriodReadiness(
   const activeStatutoryRuleByScheme = new Map(
     activeStatutoryRules.map((rule) => [rule.scheme, rule]),
   );
-  const activeSabahWorkPayRules = activeStatutoryRules.filter(
-    (rule) =>
-      rule.scheme === "WORK_PAY" && rule.jurisdictionCode === "MY-SABAH",
-  );
   const lindung24ParticipationByMembership = new Map(
     lindung24Participation.map((record) => [record.membershipId, record]),
   );
@@ -438,16 +441,27 @@ export async function getPayrollPeriodReadiness(
       add("BLOCKING", "RECONCILIATION_FAILED", "Stored totals do not reconcile with canonical component lines.");
     }
     if (entry) {
+      const cp38Warning = entry.statutoryWarning
+        ?.split("; ")
+        .find((warning) => warning.startsWith("CP38:"));
+      if (cp38Warning) {
+        add(
+          "BLOCKING",
+          "CP38_INSTRUCTION_NOT_READY",
+          `CP38 deduction is not ready: ${cp38Warning.slice("CP38:".length).trim()}`,
+        );
+      }
       for (const snapshot of entry.claimReimbursementSnapshots) {
         if (snapshot.status === "BLOCKED_STATUTORY") {
           add(
-            "BLOCKING",
+            "REVIEW",
             "CLAIM_STATUTORY_TREATMENT_NOT_READY",
-            `Claim ${snapshot.claimNumberSnapshot} reimbursement is blocked until its non-wage statutory treatment is verified.`,
+            `Claim ${snapshot.claimNumberSnapshot} is on hold until its payroll treatment is set. Salary payroll can continue.`,
           );
         }
       }
       for (const snapshot of entry.statutorySnapshots) {
+        const activeRule = activeStatutoryRuleByScheme.get(snapshot.scheme);
         if (
           snapshot.profileRevisionSnapshot !== membership.statutoryProfileRevision ||
           snapshot.taxProfileRevisionSnapshot !== membership.taxProfileRevision
@@ -478,7 +492,7 @@ export async function getPayrollPeriodReadiness(
           snapshot.status === "CALCULATED" &&
           !isStatutorySnapshotSourceCurrent(
             snapshot,
-            activeStatutoryRuleByScheme.get(snapshot.scheme),
+            activeRule,
           )
         ) {
           add(
@@ -488,6 +502,18 @@ export async function getPayrollPeriodReadiness(
           );
         }
         if (snapshot.status !== "BLOCKED") continue;
+        if (
+          run?.status === "DRAFT" &&
+          snapshot.blockerCode === "STATUTORY_RULE_NOT_AVAILABLE" &&
+          activeRule
+        ) {
+          add(
+            "BLOCKING",
+            "STALE_STATUTORY_SOURCE",
+            `${snapshot.scheme} now has an active payroll rule. Refresh this Draft to recalculate it.`,
+          );
+          continue;
+        }
         add(
           "BLOCKING",
           readinessCodeForStatutoryBlocker(snapshot.blockerCode),
@@ -559,64 +585,6 @@ export async function getPayrollPeriodReadiness(
           `Attendance payroll policy is not ready: ${policyCode}.`,
         );
       }
-      if (snapshot && hasStatutoryWorkPayMinutes(snapshot)) {
-        const workPay = entry.workPayCalculationSnapshot;
-        if (!workPay) {
-          add(
-            "BLOCKING",
-            "STATUTORY_WORK_PAY_NOT_READY",
-            "Sabah overtime, Rest Day or Public Holiday work pay has not been materialised from the frozen Attendance facts.",
-          );
-        } else {
-          const blockerCodes = jsonStringArray(workPay.blockerCodes);
-          if (workPay.coverageStatus !== "ELIGIBLE" || blockerCodes.length > 0) {
-            add(
-              "BLOCKING",
-              "STATUTORY_WORK_PAY_REVIEW_REQUIRED",
-              `Sabah statutory work pay requires review: ${blockerCodes.join(", ") || workPay.coverageStatus}.`,
-            );
-          }
-          const activeRule =
-            activeSabahWorkPayRules.length === 1
-              ? activeSabahWorkPayRules[0]
-              : null;
-          if (
-            !activeRule ||
-            workPay.ruleSetId !== activeRule.id ||
-            workPay.ruleVersion !== activeRule.version ||
-            workPay.sourceDigest !== activeRule.sourceDigest
-          ) {
-            add(
-              "BLOCKING",
-              "STALE_STATUTORY_WORK_PAY_SOURCE",
-              "The Sabah statutory work-pay rule or official source changed. Recalculate this Draft payroll.",
-            );
-          }
-          const componentById = new Map(
-            entry.components.map((component) => [component.id, component]),
-          );
-          const lineMismatch =
-            workPay.coverageStatus === "ELIGIBLE" &&
-            (workPay.lines.length === 0 ||
-              workPay.lines.some((line) => {
-                if (!line.payrollComponentId) return true;
-                const component = componentById.get(line.payrollComponentId);
-                return (
-                  !component ||
-                  component.sourceType !== "STATUTORY" ||
-                  component.sourceId !== workPay.id ||
-                  component.amount.toString() !== line.amount.toString()
-                );
-              }));
-          if (lineMismatch) {
-            add(
-              "BLOCKING",
-              "STATUTORY_WORK_PAY_RECONCILIATION_FAILED",
-              "Sabah statutory work-pay calculation lines do not reconcile with canonical payroll components.",
-            );
-          }
-        }
-      }
     }
 
     const entrySources = new Set(
@@ -657,7 +625,10 @@ export async function getPayrollPeriodReadiness(
 
     const bank = bankByMembership.get(membership.id);
     if (!bank) add("REVIEW", "MISSING_BANK_ACCOUNT", "No active primary bank account is configured.");
-    else if (bank.verificationStatus !== "MANUALLY_VERIFIED") {
+    else if (
+      bankVerificationRequired &&
+      bank.verificationStatus !== "MANUALLY_VERIFIED"
+    ) {
       add("REVIEW", "BANK_ACCOUNT_UNVERIFIED", "The primary bank account is not verified.");
     }
     const statutoryIncomplete =
@@ -797,6 +768,9 @@ const READINESS_CODES: PayrollReadinessCode[] = [
   "MISSING_SOCSO_PROFILE",
   "MISSING_EIS_PROFILE",
   "PCB_PROFILE_INCOMPLETE",
+  "PCB_YTD_LEDGER_INCOMPLETE",
+  "PCB_ADDITIONAL_EPF_ALLOCATION_REQUIRED",
+  "CP38_INSTRUCTION_NOT_READY",
   "STATUTORY_RULE_NOT_AVAILABLE",
   "STATUTORY_CLASSIFICATION_REQUIRED",
   "STATUTORY_CALCULATION_FAILED",
@@ -888,7 +862,50 @@ function readinessIssueGuidance(code: PayrollReadinessCode): {
     case "CLAIM_STATUTORY_TREATMENT_NOT_READY":
       return {
         source: "Claims",
-        resolutionHint: "Verify the claim reimbursement statutory treatment before refreshing payroll.",
+        resolutionHint: "Set the claim category as a business reimbursement to include this claim. Only this reimbursement is on hold; salary payroll may continue.",
+      };
+    case "STALE_STATUTORY_SOURCE":
+      return {
+        source: "Statutory Readiness",
+        resolutionHint: "Refresh this Draft to apply the currently active payroll rule.",
+      };
+    case "STATUTORY_RULE_NOT_AVAILABLE":
+      return {
+        source: "Statutory Readiness",
+        resolutionHint: "An approved and active payroll rule is still required for this scheme.",
+      };
+    case "PCB_PROFILE_INCOMPLETE":
+      return {
+        source: "PCB setup",
+        resolutionHint: "Complete and confirm this employee's PCB tax details, then refresh the Draft.",
+      };
+    case "PCB_YTD_LEDGER_INCOMPLETE":
+      return {
+        source: "PCB tax-year totals",
+        resolutionHint: "Review the employee's previous-employer and year-to-date PCB totals, then refresh the Draft.",
+      };
+    case "PCB_ADDITIONAL_EPF_ALLOCATION_REQUIRED":
+      return {
+        source: "PCB additional pay",
+        resolutionHint: "PCB could not reconcile total EPF with the normal-pay EPF allocation. Review this employee's EPF setup, then refresh the payroll draft.",
+      };
+    case "CP38_INSTRUCTION_NOT_READY":
+      return {
+        source: "CP38 instruction",
+        resolutionHint: "Review the employee's active CP38 instruction and effective period, then refresh the payroll Draft.",
+      };
+    case "LINDUNG24_PROFILE_INCOMPLETE":
+    case "LINDUNG24_PARTICIPATION_REQUIRED":
+    case "LINDUNG24_SELECTED_EMPLOYER_REQUIRED":
+    case "STALE_LINDUNG24_PARTICIPATION":
+      return {
+        source: "Statutory Readiness",
+        resolutionHint:
+          code === "LINDUNG24_SELECTED_EMPLOYER_REQUIRED"
+            ? "Select the employee's LINDUNG 24 employer, then refresh this Draft."
+            : code === "STALE_LINDUNG24_PARTICIPATION"
+              ? "Refresh this Draft to apply the latest LINDUNG 24 participation details."
+              : "Complete the employee's LINDUNG 24 participation details, then refresh this Draft.",
       };
     default:
       return {
@@ -905,6 +922,12 @@ function readinessCodeForStatutoryBlocker(
   blockerCode: string | null,
 ): PayrollReadinessCode {
   if (blockerCode === "PCB_PROFILE_INCOMPLETE") return "PCB_PROFILE_INCOMPLETE";
+  if (blockerCode === "PCB_YTD_LEDGER_INCOMPLETE") {
+    return "PCB_YTD_LEDGER_INCOMPLETE";
+  }
+  if (blockerCode === "PCB_ADDITIONAL_EPF_ALLOCATION_REQUIRED") {
+    return "PCB_ADDITIONAL_EPF_ALLOCATION_REQUIRED";
+  }
   if (blockerCode === "LINDUNG24_PROFILE_INCOMPLETE") {
     return "LINDUNG24_PROFILE_INCOMPLETE";
   }
@@ -982,21 +1005,4 @@ function jsonStringArray(value: Prisma.JsonValue | undefined) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
-}
-
-function hasStatutoryWorkPayMinutes(snapshot: {
-  normalOtMinutes: number;
-  restDayWorkMinutes: number;
-  restDayOtMinutes: number;
-  publicHolidayWorkMinutes: number;
-  publicHolidayOtMinutes: number;
-}) {
-  return (
-    snapshot.normalOtMinutes +
-      snapshot.restDayWorkMinutes +
-      snapshot.restDayOtMinutes +
-      snapshot.publicHolidayWorkMinutes +
-      snapshot.publicHolidayOtMinutes >
-    0
-  );
 }

@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { getBranchLocalDateKey } from "@/lib/attendance/work-date";
+import { projectLeaveLedger } from "@/lib/leave/ledger-projection";
 import { resolveLeaveEntitlementDays } from "@/lib/leave/policy";
 import { prisma } from "@/lib/prisma";
 import { buildPeopleMembershipScopeWhere, type PeopleScopeInput } from "@/lib/team/people-scope";
@@ -40,10 +41,17 @@ export async function loadEmployeeLeaveSection(input: EmployeeLeaveSectionInput,
     database.leaveRequest.findMany({ where: requestScope, orderBy: [{ createdAt: "desc" }], take: 20, select: leaveRequestSummarySelect }),
   ]);
   const entitlementByPolicy = new Map(entitlements.map((row) => [row.policyId, Number(row.entitledUnits)]));
-  const eventMap = new Map(ledger.map((row) => [`${row.policyId}:${row.eventType}`, Number(row._sum.units ?? 0)]));
-  const totalByPolicy = new Map<string, number>();
-  for (const row of ledger) totalByPolicy.set(row.policyId, (totalByPolicy.get(row.policyId) ?? 0) + Number(row._sum.units ?? 0));
-  const approvedLeaveDays = Math.abs(ledger.filter((row) => row.eventType === "APPROVED_CONSUMPTION").reduce((sum, row) => sum + Number(row._sum.units ?? 0), 0));
+  const {
+    approvedLeaveDays,
+    balanceByPolicy,
+    carryForwardByPolicy,
+    manualAdjustmentByPolicy,
+    usedByPolicy,
+  } = projectLeaveLedger(ledger.map((row) => ({
+    policyId: row.policyId,
+    eventType: row.eventType,
+    units: Number(row._sum.units ?? 0),
+  })));
 
   return {
     id: membership.id,
@@ -55,9 +63,6 @@ export async function loadEmployeeLeaveSection(input: EmployeeLeaveSectionInput,
       const version = policy.versions[0];
       if (!version) return [];
       const entitlementDays = entitlementByPolicy.get(policy.id) ?? resolveLeaveEntitlementDays(version, membership.joinedAt, year);
-      const carriedForwardDays = eventMap.get(`${policy.id}:CARRY_FORWARD`) ?? 0;
-      const adjustmentDays = eventMap.get(`${policy.id}:MANUAL_ADJUSTMENT`) ?? 0;
-      const usedDays = Math.abs(eventMap.get(`${policy.id}:APPROVED_CONSUMPTION`) ?? 0) - (eventMap.get(`${policy.id}:CANCELLATION_RESTORE`) ?? 0);
       return [{
         id: policy.id,
         code: policy.code,
@@ -66,10 +71,10 @@ export async function loadEmployeeLeaveSection(input: EmployeeLeaveSectionInput,
         countMode: version.countMode,
         balanceTracked: version.balanceTracked,
         entitlementDays,
-        carriedForwardDays,
-        adjustmentDays,
-        usedDays: Math.max(0, usedDays),
-        remainingDays: version.balanceTracked ? totalByPolicy.get(policy.id) ?? 0 : null,
+        carriedForwardDays: carryForwardByPolicy.get(policy.id) ?? 0,
+        adjustmentDays: manualAdjustmentByPolicy.get(policy.id) ?? 0,
+        usedDays: usedByPolicy.get(policy.id) ?? 0,
+        remainingDays: version.balanceTracked ? balanceByPolicy.get(policy.id) ?? 0 : null,
       }];
     }),
     upcomingApprovedLeave: upcomingApprovedLeave.map(toLeaveSummary),

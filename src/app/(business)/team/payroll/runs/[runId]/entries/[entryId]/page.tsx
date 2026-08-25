@@ -309,8 +309,9 @@ export default async function PayrollEntryEditorPage({
               <MoneyField label="EPF employee" name="epfEmployee" readOnly value={data.entry.epfEmployee} />
               <MoneyField label="SOCSO employee" name="socsoEmployee" readOnly value={data.entry.socsoEmployee} />
               <MoneyField label="EIS employee" name="eisEmployee" readOnly value={data.entry.eisEmployee} />
-              <MoneyField label="LINDUNG 24 Jam" name="lindung24Employee" readOnly value={data.entry.lindung24Employee} />
+              <MoneyField label="LINDUNG 24" name="lindung24Employee" readOnly value={data.entry.lindung24Employee} />
               <MoneyField label="PCB" name="pcb" readOnly value={data.entry.pcb} />
+              <MoneyField label="CP38 instruction" name="cp38" readOnly value={data.entry.cp38} />
             </div>
           </fieldset>
 
@@ -377,6 +378,7 @@ function ReadOnlyPayrollEntry({
           <SummaryMetric label="Calculation revision" value={String(data.entry.calculationRevision)} />
         </div>
         <AttendanceSourceSnapshot attendance={data.entry.attendance} />
+        <StatutorySnapshotDetail snapshots={data.entry.statutorySnapshots} />
         <PublicHolidayPayReview
           data={data}
           editable={false}
@@ -572,30 +574,156 @@ function StatutorySnapshotDetail({
 }) {
   return (
     <section className={styles.editorFieldset}>
-      <h3>Statutory calculation snapshots</h3>
-      <p>Scheme-specific results are frozen against the payroll period, profile revision and official rule version.</p>
+      <div className={styles.sectionHeading}>
+        <p className={styles.eyebrow}>Payroll contributions</p>
+        <h3>Calculated contributions for this employee</h3>
+        <p>Amounts below are included in this payroll calculation.</p>
+      </div>
       {snapshots.length ? (
-        <div className={styles.componentList}>
-          {snapshots.map((snapshot) => (
-            <div className={styles.componentRow} key={snapshot.scheme}>
-              <div>
-                <strong>{snapshot.scheme} · {snapshot.status}</strong>
-                <small>
-                  Source {snapshot.calculationSource} · Rule {snapshot.ruleVersion ?? "not available"}
-                  {snapshot.blockerCode ? ` · Blocker ${snapshot.blockerCode}` : ""}
-                </small>
-              </div>
-              <span>
-                Wage {formatMoney(snapshot.wageBase)} · Employee {formatMoney(snapshot.employeeContribution)} · Employer {formatMoney(snapshot.employerContribution)}
-              </span>
+        <>
+          <div className={styles.statutorySnapshotGrid}>
+            {snapshots.map((snapshot) => (
+              <article
+                className={styles.statutorySnapshotCard}
+                data-status={snapshot.status.toLowerCase()}
+                key={snapshot.scheme}
+              >
+                <div className={styles.statutorySnapshotHeading}>
+                  <strong>{friendlyStatutoryScheme(snapshot.scheme)}</strong>
+                  <span>{friendlyStatutoryStatus(snapshot.status)}</span>
+                </div>
+                {snapshot.status === "CALCULATED" ? (
+                  <dl>
+                    <div>
+                      <dt>Pay used</dt>
+                      <dd>{formatMoney(snapshot.wageBase)}</dd>
+                    </div>
+                    <div>
+                      <dt>Employee</dt>
+                      <dd>{formatMoney(snapshot.employeeContribution)}</dd>
+                    </div>
+                    <div>
+                      <dt>Employer</dt>
+                      <dd>{formatMoney(snapshot.employerContribution)}</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p>{friendlyStatutoryBlocker(snapshot.scheme, snapshot.status)}</p>
+                )}
+                {snapshot.scheme === "PCB" ? (
+                  <PcbFrozenBreakdown snapshot={snapshot} />
+                ) : null}
+              </article>
+            ))}
+          </div>
+          <details className={styles.statutoryTechnicalDetails}>
+            <summary>Technical calculation details</summary>
+            <div className={styles.componentList}>
+              {snapshots.map((snapshot) => (
+                <div className={styles.componentRow} key={snapshot.scheme}>
+                  <div>
+                    <strong>{snapshot.scheme} · {snapshot.status}</strong>
+                    <small>
+                      Source {snapshot.calculationSource} · Rule {snapshot.ruleVersion ?? "not available"}
+                      {snapshot.blockerCode ? ` · Blocker ${snapshot.blockerCode}` : ""}
+                    </small>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </details>
+        </>
       ) : (
-        <p>No Statutory P2 snapshot has been materialised. Recalculate this Draft payroll.</p>
+        <p>No contribution calculation is available yet. Refresh this Draft payroll.</p>
       )}
     </section>
   );
+}
+
+function PcbFrozenBreakdown({
+  snapshot,
+}: {
+  snapshot: NonNullable<Awaited<ReturnType<typeof loadPayrollRunEntryEditor>>>["entry"]["statutorySnapshots"][number];
+}) {
+  const metadata = snapshot.calculationMetadata;
+  if (!metadata || Array.isArray(metadata) || typeof metadata !== "object") return null;
+  const value = metadata as Record<string, unknown>;
+  const amount = (key: string) =>
+    Number.isSafeInteger(value[key]) ? formatMoney(Number(value[key]) / 100) : "Not recorded";
+  const trace =
+    value.calculatorTrace && typeof value.calculatorTrace === "object" && !Array.isArray(value.calculatorTrace)
+      ? value.calculatorTrace as Record<string, unknown>
+      : null;
+  const traceAmount = (key: string) =>
+    trace && Number.isSafeInteger(trace[key]) ? formatMoney(Number(trace[key]) / 100) : "Not recorded";
+  const binding =
+    value.governanceBinding && typeof value.governanceBinding === "object" && !Array.isArray(value.governanceBinding)
+      ? value.governanceBinding as Record<string, unknown>
+      : null;
+  return (
+    <details className={styles.statutoryTechnicalDetails}>
+      <summary>View frozen PCB calculation</summary>
+      <dl>
+        <div><dt>Tax year / month</dt><dd>{String(value.taxYear ?? "Not recorded")} · {String(value.calculationMonth ?? "Not recorded")}</dd></div>
+        <div><dt>Tax regime</dt><dd>{String(value.taxRegime ?? trace?.taxRegime ?? "Not recorded")}</dd></div>
+        <div><dt>PCB category</dt><dd>{String(value.employeeCategory ?? trace?.employeeCategory ?? "Not recorded")}</dd></div>
+        <div><dt>Normal monthly pay</dt><dd>{amount("normalRemunerationCents")}</dd></div>
+        <div><dt>Additional pay</dt><dd>{amount("additionalRemunerationCents")}</dd></div>
+        <div><dt>Current-employer YTD pay</dt><dd>{amount("currentEmployerYtdRemunerationCents")}</dd></div>
+        <div><dt>Previous employer / TP3 pay</dt><dd>{amount("previousEmployerRemunerationCents")}</dd></div>
+        <div><dt>Current EPF used</dt><dd>{amount("approvedSchemeContributionCents")}</dd></div>
+        <div><dt>Previous employer / TP3 EPF</dt><dd>{amount("previousEmployerEpfCents")}</dd></div>
+        <div><dt>Individual relief</dt><dd>{traceAmount("baseIndividualReliefCents")}</dd></div>
+        <div><dt>Spouse relief</dt><dd>{traceAmount("spouseReliefCents")}</dd></div>
+        <div><dt>Disability relief</dt><dd>{trace ? formatMoney((Number(trace.individualDisabilityReliefCents ?? 0) + Number(trace.spouseDisabilityReliefCents ?? 0)) / 100) : "Not recorded"}</dd></div>
+        <div><dt>Child relief</dt><dd>{traceAmount("childReliefCents")}</dd></div>
+        <div><dt>Current TP1 deductions</dt><dd>{amount("allowableDeductionsCents")}</dd></div>
+        <div><dt>Accumulated deductions</dt><dd>{traceAmount("accumulatedAllowableDeductionsCents")}</dd></div>
+        <div><dt>Zakat used</dt><dd>{amount("zakatCents")}</dd></div>
+        <div><dt>YTD PCB already deducted</dt><dd>{amount("ytdPcbCents")}</dd></div>
+        <div><dt>Previous employer / TP3 PCB</dt><dd>{amount("previousEmployerPcbCents")}</dd></div>
+        <div><dt>Projected monthly EPF</dt><dd>{traceAmount("normalProjectedEpfCents")}</dd></div>
+        <div><dt>Normal PCB before current rebates</dt><dd>{traceAmount("normalMtdBeforeCurrentRebatesCents")}</dd></div>
+        <div><dt>Additional-pay PCB</dt><dd>{traceAmount("additionalMtdCents")}</dd></div>
+        <div><dt>Calculated PCB</dt><dd>{amount("pcbCents")}</dd></div>
+        <div><dt>Threshold and rounding</dt><dd>RM10 minimum · rounded up to 5 sen</dd></div>
+        {binding ? (
+          <div>
+            <dt>Calculator binding</dt>
+            <dd>{String(binding.calculatorVersion ?? "Not recorded")} · {String(binding.ruleSetVersion ?? "Not recorded")}</dd>
+          </div>
+        ) : null}
+        <div><dt>Snapshot time</dt><dd>{snapshot.calculatedAt.toISOString()}</dd></div>
+        <div><dt>Snapshot identity</dt><dd>{snapshot.calculationInputDigest ?? snapshot.sourceDigest}</dd></div>
+      </dl>
+      <p>This is the stored calculation used by this Payroll Run. It is never recalculated when viewed.</p>
+    </details>
+  );
+}
+
+function friendlyStatutoryScheme(scheme: string) {
+  if (scheme === "EPF") return "EPF / KWSP";
+  if (scheme === "SOCSO") return "SOCSO / PERKESO";
+  if (scheme === "EIS") return "EIS / SIP";
+  if (scheme === "LINDUNG24") return "LINDUNG 24";
+  return scheme;
+}
+
+function friendlyStatutoryStatus(status: string) {
+  if (status === "CALCULATED") return "Calculated";
+  if (status === "NOT_APPLICABLE") return "Not applicable";
+  if (status === "EXCLUDED") return "Not included";
+  return "Setup needed";
+}
+
+function friendlyStatutoryBlocker(scheme: string, status: string) {
+  if (status === "NOT_APPLICABLE") {
+    return `${friendlyStatutoryScheme(scheme)} does not apply to this employee.`;
+  }
+  if (status === "EXCLUDED") {
+    return `${friendlyStatutoryScheme(scheme)} is not included in this payroll.`;
+  }
+  return `Complete the ${friendlyStatutoryScheme(scheme)} setup, then refresh this Draft payroll.`;
 }
 
 function AttendanceSourceSnapshot({

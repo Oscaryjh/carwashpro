@@ -45,6 +45,7 @@ test("P4B aggregates lines with integer cents and keeps statutory snapshots sepa
     eisEmployeeCents: 10,
     lindung24EmployeeCents: 0,
     pcbCents: 50,
+    cp38Cents: 0,
   });
 
   assert.deepEqual(totals, {
@@ -66,6 +67,7 @@ test("P4B reconciliation fails closed on any aggregate mismatch", () => {
     eisEmployeeCents: 0,
     lindung24EmployeeCents: 0,
     pcbCents: 0,
+    cp38Cents: 0,
   };
   const stored = calculatePayrollComponentAggregates(lines, statutory);
   assert.deepEqual(reconcilePayrollEntryComponents(lines, statutory, stored), stored);

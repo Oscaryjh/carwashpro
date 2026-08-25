@@ -10,8 +10,9 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request, context: { params: Promise<{ attachmentId: string }> }) {
   try {
     const { attachmentId } = await context.params;
-    const employee = await getEmployeeSelfServiceAuthContext(request);
-    const attachment = employee
+    const audience = new URL(request.url).searchParams.get("audience");
+    const employee = audience === "business" ? null : await getEmployeeSelfServiceAuthContext(request);
+    const attachment = employee && audience !== "business"
       ? await (async () => {
           await requireEmployeeBusinessModule(employee, "CLAIMS");
           return getAuthorizedClaimAttachment({

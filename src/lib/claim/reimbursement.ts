@@ -7,6 +7,7 @@ import { deriveAndPersistEntryAggregates } from "@/lib/payroll/component-service
 import { prisma } from "@/lib/prisma";
 import {
   markOutsidePayrollPaidInputSchema,
+  reevaluateClaimPayrollTreatmentInputSchema,
   selectReimbursementChannelInputSchema,
 } from "./policy";
 import { appendClaimEvent } from "./service";
@@ -223,6 +224,129 @@ export async function markClaimReimbursementPaidOutsidePayroll(
       metadata: { paymentReferenceRecorded: true, amount: "[REDACTED]" },
     }, transaction);
     return transaction.claimReimbursement.findUniqueOrThrow({ where: { id: reimbursement.id } });
+  }, { isolationLevel: "Serializable" });
+}
+
+export async function reevaluateClaimPayrollTreatment(
+  context: ReimbursementContext,
+  database: PrismaClient = prisma,
+) {
+  const input = reevaluateClaimPayrollTreatmentInputSchema.parse(context.rawInput);
+  return database.$transaction(async (transaction) => {
+    const snapshot = await transaction.payrollClaimReimbursementSnapshot.findFirst({
+      where: {
+        id: input.snapshotId,
+        reimbursementId: input.reimbursementId,
+        businessId: context.businessId,
+      },
+      include: {
+        reimbursement: { include: { claim: { include: { lines: true } } } },
+        payrollEntry: true,
+        payrollRun: { select: { status: true } },
+      },
+    });
+    if (!snapshot || snapshot.reimbursement.status !== "PAYROLL_LINKED" || snapshot.reimbursement.channel !== "PAYROLL") {
+      throw new Error("This reimbursement is no longer linked to payroll.");
+    }
+    if (snapshot.status === "READY" || snapshot.status === "SETTLED") return snapshot;
+    if (snapshot.status !== "BLOCKED_STATUTORY") {
+      throw new Error("This reimbursement can no longer be re-evaluated.");
+    }
+    if (snapshot.sourceDigest !== input.expectedSourceDigest) {
+      throw new Error("The reimbursement changed after this page was loaded. Reload and try again.");
+    }
+    if (snapshot.payrollRun.status !== "DRAFT") {
+      throw new Error("The linked payroll is no longer a draft. Create or select an open payroll draft first.");
+    }
+
+    const today = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
+    const categoryIds = [...new Set(snapshot.reimbursement.claim.lines.map((line) => line.categoryId))];
+    const currentPolicies = await transaction.claimPolicyRevision.findMany({
+      where: {
+        businessId: context.businessId,
+        categoryId: { in: categoryIds },
+        status: "ACTIVE",
+        effectiveFrom: { lte: today },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: today } }],
+      },
+      orderBy: [{ categoryId: "asc" }, { revision: "desc" }],
+    });
+    const policyByCategory = new Map<string, (typeof currentPolicies)[number]>();
+    for (const policy of currentPolicies) {
+      if (!policyByCategory.has(policy.categoryId)) policyByCategory.set(policy.categoryId, policy);
+    }
+    const unresolvedLines = snapshot.reimbursement.claim.lines.filter(
+      (line) => policyByCategory.get(line.categoryId)?.statutoryTreatmentStatus !== "VERIFIED_NON_WAGE",
+    );
+    if (unresolvedLines.length) {
+      const names = [...new Set(unresolvedLines.map((line) => line.categoryNameSnapshot))].join(", ");
+      throw new Error(`Set ${names} to Business reimbursement, then re-evaluate this claim.`);
+    }
+
+    const appliedPolicies = categoryIds.map((categoryId) => {
+      const policy = policyByCategory.get(categoryId);
+      if (!policy) throw new Error("A current category policy could not be found.");
+      return { categoryId, policyRevisionId: policy.id, revision: policy.revision };
+    });
+    const nextSourceDigest = digest({
+      previousSourceDigest: snapshot.sourceDigest,
+      action: "PAYROLL_TREATMENT_REEVALUATED",
+      appliedPolicies,
+    });
+    const changed = await transaction.payrollClaimReimbursementSnapshot.updateMany({
+      where: {
+        id: snapshot.id,
+        businessId: context.businessId,
+        status: "BLOCKED_STATUTORY",
+        sourceDigest: input.expectedSourceDigest,
+      },
+      data: {
+        status: "READY",
+        statutoryTreatmentStatus: "VERIFIED_NON_WAGE",
+        blockerCode: null,
+        sourceDigest: nextSourceDigest,
+      },
+    });
+    if (changed.count !== 1) {
+      throw new Error("The reimbursement changed while it was being re-evaluated. Reload and try again.");
+    }
+
+    await deriveAndPersistEntryAggregates(
+      transaction,
+      snapshot.payrollEntry,
+      snapshot.payrollEntry.calculationRevision,
+    );
+    await appendClaimEvent(transaction, {
+      businessId: context.businessId,
+      claimId: snapshot.claimId,
+      claimRevision: snapshot.reimbursement.claim.revision,
+      type: "PAYROLL_LINKED",
+      actorUserId: context.actor.userId,
+      metadata: {
+        event: "PAYROLL_TREATMENT_REEVALUATED",
+        snapshotId: snapshot.id,
+        previousStatus: snapshot.status,
+        previousSourceDigest: snapshot.sourceDigest,
+        appliedPolicies,
+        grossWageChanged: false,
+      },
+    });
+    await writeAuditLog({
+      businessId: context.businessId,
+      actor: context.actor,
+      request: context.request,
+      action: "CLAIM_REIMBURSEMENT_PAYROLL_TREATMENT_REEVALUATED",
+      entityType: "PayrollClaimReimbursementSnapshot",
+      entityId: snapshot.id,
+      summary: `Claim ${snapshot.claimNumberSnapshot} reimbursement re-evaluated using current category policies.`,
+      metadata: {
+        previousStatus: snapshot.status,
+        appliedPolicies,
+        amount: "[REDACTED]",
+        grossWageChanged: false,
+      },
+    }, transaction);
+    return transaction.payrollClaimReimbursementSnapshot.findUniqueOrThrow({ where: { id: snapshot.id } });
   }, { isolationLevel: "Serializable" });
 }
 

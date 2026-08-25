@@ -126,6 +126,7 @@ export function EmployeeAvatarUpload({
             alt={`${fullName} profile photo`}
             className={styles.avatarImage}
             fill
+            loading="eager"
             sizes="80px"
             src={displayAvatarUrl}
             unoptimized

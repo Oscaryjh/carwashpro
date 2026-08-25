@@ -38,6 +38,9 @@ test("monthly timesheet UI keeps Attendance evidence separate from Payroll calcu
   assert.match(page, /Attendance and approved OT minutes are frozen by local date for Payroll/);
   assert.match(page, /Monetary OT calculation remains deferred to Payroll P6C/);
   assert.match(page, /Final Attendance Result/);
+  assert.match(page, /Finalize \{monthLabel\} timesheet/);
+  assert.match(page, /Finalize timesheet/);
+  assert.match(page, /Finalized versions/);
   assert.doesNotMatch(page, /Payroll Ready/);
   assert.doesNotMatch(page, /Timesheet Ready/);
 });

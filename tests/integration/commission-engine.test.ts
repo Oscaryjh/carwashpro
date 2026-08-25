@@ -33,6 +33,16 @@ test("commission lifecycle is tenant-scoped, immutable, approved-only and Payrol
   const approverContext = context(business.id, approver.id, ["APPROVE_COMMISSION", "ADJUST_COMMISSION", "LINK_COMMISSION_TO_PAYROLL"]);
 
   await createCommissionRule(calculatorContext, { name: "Service 10%", sourceType: "SERVICE", scope: "ALL", ruleType: "PERCENTAGE", basis: "NET_AFTER_DISCOUNT", rateBasisPoints: 1_000, effectiveFrom: "2026-01-01", reason: "Initial QA commission rule." }, prisma);
+  await assert.rejects(createCommissionRule(calculatorContext, {
+    name: "Conflicting service default",
+    sourceType: "SERVICE",
+    scope: "ALL",
+    ruleType: "PERCENTAGE",
+    basis: "NET_AFTER_DISCOUNT",
+    rateBasisPoints: 1_500,
+    effectiveFrom: "2026-08-01",
+    reason: "Parallel overlapping rules must be rejected.",
+  }, prisma), /already covers this same employee or item/i);
   const concurrentCapture = await Promise.allSettled([
     captureCommissionSourceEvents(calculatorContext, {}, prisma),
     captureCommissionSourceEvents(calculatorContext, {}, prisma),
@@ -50,6 +60,10 @@ test("commission lifecycle is tenant-scoped, immutable, approved-only and Payrol
   const statement = await prisma.commissionStatement.findFirstOrThrow({ where: { periodId: period.id, calculationRevision: period.currentRevision } });
   assert.equal(statement.eligibleSalesCents, 9_000);
   assert.equal(statement.finalCommissionCents, 900);
+  await assert.rejects(calculateCommissionPeriod(calculatorContext, {
+    earnedPeriodStart: "2026-08-15",
+    earnedPeriodEnd: "2026-09-15",
+  }, prisma), /overlaps an existing commission period/i);
   await assert.rejects(linkApprovedCommissionToPayroll(approverContext, { statementId: statement.id, targetPayrollMonth: "2026-09" }, prisma), /Only an approved statement/);
 
   await assert.rejects(approveCommissionPeriod(calculatorContext as CommissionWriteContext, { periodId: period.id, expectedRevision: period.currentRevision, reason: "Self approval attempt." }, prisma), /requires APPROVE_COMMISSION/);

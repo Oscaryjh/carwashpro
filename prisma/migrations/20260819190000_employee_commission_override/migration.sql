@@ -1,0 +1,1 @@
+ALTER TYPE "CommissionRuleScope" ADD VALUE IF NOT EXISTS 'MEMBER';

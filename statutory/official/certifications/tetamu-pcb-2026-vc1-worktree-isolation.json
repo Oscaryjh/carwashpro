@@ -1,0 +1,1471 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-21T18:45:00+08:00",
+  "scope": "TETAMU PCB 2026 VC1 dirty-worktree isolation and candidate provenance",
+  "baseCommit": "bdc15f8805b8ff401ff60a5c9da37fb5928fc08a",
+  "commitA": "cd579925b895c9de57b48c8766c6efb33eed109a",
+  "isolatedWorktree": "C:\\CodexTetamuP0-vc1-clean",
+  "mainWorktree": "C:\\CodexTetamuP0",
+  "guarantees": {
+    "productionAccessed": false,
+    "unrelatedUserFilesModifiedForIsolation": false,
+    "destructiveGitOperationUsed": false,
+    "commitAValidatedFromCleanWorktree": true
+  },
+  "classificationDefinitions": {
+    "VC1_REQUIRED": "Direct PCB VC1 implementation, evidence, migration, UI, or regression coverage.",
+    "VC1_DEPENDENCY": "Existing cross-module dependency proven necessary to compile or preserve relevant Payroll behavior.",
+    "UNRELATED": "Existing user work outside PCB VC1 and excluded from candidate commits.",
+    "MIXED_HUNKS": "One path contains both PCB-required and unrelated hunks; only the isolated PCB state is in Commit A.",
+    "UNKNOWN": "Unrecognized untracked artifact, preserved without interpretation."
+  },
+  "counts": {
+    "UNKNOWN": 8,
+    "UNRELATED": 80,
+    "VC1_DEPENDENCY": 15,
+    "VC1_REQUIRED": 76,
+    "MIXED_HUNKS": 1
+  },
+  "entries": [
+    {
+      "path": "({...r",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNKNOWN",
+      "rationale": "Unrecognized untracked filesystem artifact; no evidence ties it to PCB VC1.",
+      "disposition": "Preserved untouched in the main worktree and excluded from both candidate commits."
+    },
+    {
+      "path": "({code",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNKNOWN",
+      "rationale": "Unrecognized untracked filesystem artifact; no evidence ties it to PCB VC1.",
+      "disposition": "Preserved untouched in the main worktree and excluded from both candidate commits."
+    },
+    {
+      "path": ".env.example",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "db.$disconnect())",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNKNOWN",
+      "rationale": "Unrecognized untracked filesystem artifact; no evidence ties it to PCB VC1.",
+      "disposition": "Preserved untouched in the main worktree and excluded from both candidate commits."
+    },
+    {
+      "path": "e.membershipId",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNKNOWN",
+      "rationale": "Unrecognized untracked filesystem artifact; no evidence ties it to PCB VC1.",
+      "disposition": "Preserved untouched in the main worktree and excluded from both candidate commits."
+    },
+    {
+      "path": "p.())",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNKNOWN",
+      "rationale": "Unrecognized untracked filesystem artifact; no evidence ties it to PCB VC1.",
+      "disposition": "Preserved untouched in the main worktree and excluded from both candidate commits."
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "prisma.())",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNKNOWN",
+      "rationale": "Unrecognized untracked filesystem artifact; no evidence ties it to PCB VC1.",
+      "disposition": "Preserved untouched in the main worktree and excluded from both candidate commits."
+    },
+    {
+      "path": "prisma/migrations/20260819190000_employee_commission_override/migration.sql",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "prisma/migrations/20260819220000_employee_item_commission_override/migration.sql",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "prisma/migrations/20260820110000_employee_working_days_override/migration.sql",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "prisma/migrations/20260820111500_employee_working_days_guard/migration.sql",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "prisma/migrations/20260820130000_company_work_pay_rules/migration.sql",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "prisma/migrations/20260821090000_mfa_disabled_authorization/migration.sql",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "prisma/migrations/20260821143000_employee_pcb_profile/migration.sql",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "prisma/migrations/20260821153000_statutory_additional_remuneration_review_decision/migration.sql",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "prisma/migrations/20260821170000_pcb_cp38_engineering_closure/migration.sql",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "prisma/schema.prisma",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "MIXED_HUNKS",
+      "rationale": "PCB 2026 schema additions are required by VC1, while unrelated commission and other user schema hunks remain outside the isolated candidate.",
+      "disposition": "Only the PCB-required schema state was retained in Commit A; unrelated main-worktree hunks remain preserved and uncommitted."
+    },
+    {
+      "path": "scripts/local-oscar-payroll-fixture.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "scripts/run-pcb-vc1-disposable.mjs",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/(business)/team/actions.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/(business)/team/commission/commission.module.css",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/(business)/team/commission/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/(business)/team/leave/actions.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/(business)/team/leave/leave.module.css",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/(business)/team/leave/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/(business)/team/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/(business)/team/payroll/actions.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/(business)/team/payroll/payroll.module.css",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/(business)/team/payroll/runs/[runId]/entries/[entryId]/page.tsx",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/(business)/team/payroll/runs/[runId]/page.tsx",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/(business)/team/payroll/runs/runs.module.css",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/(business)/team/payroll/settings/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/(business)/team/payroll/statutory/export/route.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/(business)/team/payroll/statutory/page.tsx",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/(business)/team/people/[personId]/commission-actions.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/(business)/team/people/[personId]/page.tsx",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/(business)/team/people/[personId]/payroll/actions.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/(business)/team/people/[personId]/payroll/bank/edit/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/admin/admin-directory.module.css",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/admin/business-groups/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/admin/businesses/[businessId]/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/admin/businesses/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/admin/commercial/billing/actions.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/admin/commercial/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/admin/security/sensitive-actions/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/admin/statutory/review/[scheme]/page.tsx",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/admin/statutory/rulesets/[ruleSetId]/approval-checklist.tsx",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/admin/statutory/rulesets/[ruleSetId]/page.tsx",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/admin/statutory/rulesets/actions.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/admin/statutory/rulesets/page.tsx",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/admin/statutory/statutory-admin.module.css",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/app/admin/vehicle-size-defaults/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/admin/whatsapp-templates/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/globals.css",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/app/security/mfa/page.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/app-shell-frame.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/app-shell.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/commercial-mfa-fields.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-avatar-upload.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-leave-balance-modal.module.css",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-leave-balance-modal.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-profile-attendance.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-profile-claims.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-profile-commission.module.css",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-profile-commission.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-profile-leave.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-profile-payroll-dialog.tsx",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/components/employee-profile-payroll.tsx",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/components/employee-profile-personal.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-profile-phase2a.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-profile-shell.module.css",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-profile-shell.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/employee-statutory-settings-fields.tsx",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/components/payroll-high-risk-mfa-fields.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/pwa-register.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/staff-create-modal.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/components/staff-form.tsx",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/lib/attendance/employee-service.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/lib/attendance/employee.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/lib/auth/mfa-feature.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/auth/sensitive-action-service.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/lib/commission/calculation.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/lib/commission/service.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/lib/payroll/attendance-integration.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/calculation.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/company-work-pay.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/component-calculation.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/component-service.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/cp38-instruction.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/documents.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/employee-profile-write/common.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/employee-profile-write/statutory-tax.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/employee-profile-write/tax.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/employee-profile-write/work-target.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/entry-editor.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/export.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/high-risk-mfa.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/lib/payroll/lindung24-participation-service.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/payment/bank-account-security.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/payment/bank-account-service.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/lib/payroll/payment/bank-directory.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/payment/payment-readiness.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/lib/payroll/pcb-declarations.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/pcb-governance.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/pcb-profile.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/readiness.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/recurring-pay.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/service.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/statutory-activation-service.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/statutory-artifact-pipeline.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/statutory-classification-policy.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/statutory-data.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/statutory-evidence-pack.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/statutory-governance-service.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/statutory-p2.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/statutory-readiness-service.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/payroll/statutory-submission.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/team/employee-profile-attendance-read.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/lib/team/employee-profile-bank-read.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/team/employee-profile-commission-read.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/lib/team/employee-profile-compensation-read.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/team/employee-profile-read.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "src/lib/team/employee-profile-statutory-read.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "src/lib/team/employee-profile-tabs.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "statutory/official/certifications/hasil-pcb-2026-technical-verification-v1.json",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "statutory/official/certifications/tetamu-pcb-2026-engineering-closure.json",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "statutory/official/pcb-2026-requirements.json",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "statutory/official/reviews/kwsp-third-schedule-2025-10-source-drift-resolution-2026-08-21.json",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/integration/payroll-canonical-write.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/integration/payroll-pcb-vc1-disposable-e2e.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/integration/payroll-statutory-human-governance.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/integration/sensitive-action-step-up.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/claims-reimbursements-foundation.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/commission-engine.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/employee-bank-profile-p1.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": true,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/employee-payroll-profile-phase4a.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/employee-payroll-profile-phase4b.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/employee-profile-phase2-polish.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/employee-profile-phase2a.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/employee-profile-phase2b.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/employee-profile-phase2c.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/employee-profile-phase2d.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/employee-profile-phase3a.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/employee-profile-phase3b.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/employee-profile-phase3c.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/employee-profile-shell.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/hr-payroll-performance-guards.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/leave-management-modal-ux.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/leave-management.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/mfa-feature.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/payroll-bank-account-security.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/payroll-company-work-pay.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_DEPENDENCY",
+      "rationale": "Proven compile/runtime dependency of the isolated PCB candidate; exclusion breaks TypeScript or relevant Payroll behavior.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-cp38-instruction.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-high-risk-mfa-integration.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/payroll-p4a-recurring-pay.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-p4b-component-calculation.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-p4d-unified-workflow.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-p5-attendance-integration.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-p6b-payroll-snapshot.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-p7-final-readiness-closure.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-pcb-engineering-closure.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-pcb-profile.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-pcb-runtime.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-release.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-statutory-artifact.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-statutory-governance.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-statutory-human-review.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-statutory-p2.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-statutory-p2b-artifacts.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-statutory-p2c.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-statutory-submission.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/payroll-statutory-ui-readiness.test.ts",
+      "presentInCandidate": true,
+      "presentInMainDirtyWorktree": false,
+      "classification": "VC1_REQUIRED",
+      "rationale": "Required by PCB 2026 calculation, governed profile, CP38/CP39, readiness, finalization, statutory evidence, or candidate regression coverage.",
+      "disposition": "Included in Commit A after clean-worktree validation."
+    },
+    {
+      "path": "tests/unit/people-hr-entitlement-ux.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/salary-bank-directory.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/sensitive-action-step-up.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "tests/unit/staff-pwa.test.ts",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNRELATED",
+      "rationale": "Existing user HR/UI/commercial/commission/leave/security/local-fixture work is outside the PCB VC1 freeze scope.",
+      "disposition": "Preserved untouched in the main worktree and excluded from Commit A and Commit B."
+    },
+    {
+      "path": "typeof",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNKNOWN",
+      "rationale": "Unrecognized untracked filesystem artifact; no evidence ties it to PCB VC1.",
+      "disposition": "Preserved untouched in the main worktree and excluded from both candidate commits."
+    },
+    {
+      "path": "{console.error(e)",
+      "presentInCandidate": false,
+      "presentInMainDirtyWorktree": true,
+      "classification": "UNKNOWN",
+      "rationale": "Unrecognized untracked filesystem artifact; no evidence ties it to PCB VC1.",
+      "disposition": "Preserved untouched in the main worktree and excluded from both candidate commits."
+    }
+  ]
+}

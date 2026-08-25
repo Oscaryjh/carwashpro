@@ -374,9 +374,9 @@ test("OTP UI never stores the entered OTP and supports paste plus resend timing"
   assert.match(authSource, /sent to <strong>\{flow\.phoneNumber\}<\/strong>/);
   assert.doesNotMatch(authSource, /sent to <strong>\{flow\.phoneMasked\}<\/strong>/);
   assert.match(authSource, /onClick=\{changePhoneNumber\}/);
-  assert.match(authSource, /<span>Development OTP<\/span>/);
-  assert.match(authSource, /<strong>Ready now<\/strong>/);
-  assert.match(verifyPageSource, /developmentFastPath=\{config\.otp\.developmentFastPath\}/);
+  assert.match(authSource, /<span>Expires in<\/span>/);
+  assert.doesNotMatch(authSource, /Development OTP|Ready now|developmentFastPath/);
+  assert.doesNotMatch(verifyPageSource, /developmentFastPath/);
   assert.match(staffCssSource, /\.staff-auth-shell \.staff-auth-card\.staff-verify-card/);
   assert.match(authSource, /formRef\.current\?\.requestSubmit\(\)/);
   assert.match(authSource, /verificationInFlightRef\.current/);
@@ -433,6 +433,7 @@ test("successful Staff authentication always opens Home instead of More", () => 
 test("Staff manifest is installable and starts inside the isolated Staff scope", () => {
   const manifest = buildStaffManifest();
   assert.equal(manifest.name, "Tetamu Staff App");
+  assert.equal(manifest.id, "/staff");
   assert.equal(manifest.start_url, "/staff");
   assert.equal(manifest.scope, "/staff");
   assert.equal(manifest.display, "standalone");

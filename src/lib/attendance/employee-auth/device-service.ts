@@ -5,7 +5,6 @@ import type {
 } from "@/lib/audit";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import type { EmployeeAuthConfig } from "./config";
 import { EmployeeAuthError } from "./errors";
 
 export type VerifiedEmployeeDeviceInput = Readonly<{
@@ -36,9 +35,7 @@ export type BoundEmployeeDevice = Readonly<{
 export async function bindVerifiedEmployeeDevice(
   input: VerifiedEmployeeDeviceInput,
   transaction: Prisma.TransactionClient,
-  config: Pick<EmployeeAuthConfig, "session">,
 ): Promise<BoundEmployeeDevice> {
-  const allowConcurrentDevices = config.session.allowConcurrentDevices;
   const existing = await transaction.employeeDevice.findUnique({
     where: {
       employeeAccountId_deviceIdentifierHash: {
@@ -70,8 +67,7 @@ export async function bindVerifiedEmployeeDevice(
 
   if (
     existing?.status === "REPLACED" &&
-    input.purpose !== "REGISTER_DEVICE" &&
-    !allowConcurrentDevices
+    input.purpose !== "REGISTER_DEVICE"
   ) {
     throw new EmployeeAuthError(
       "DEVICE_NOT_ALLOWED",
@@ -79,16 +75,14 @@ export async function bindVerifiedEmployeeDevice(
     );
   }
 
-  const activeDevices = allowConcurrentDevices
-    ? []
-    : await transaction.employeeDevice.findMany({
-        where: {
-          employeeAccountId: input.employeeAccountId,
-          status: "ACTIVE",
-          ...(existing ? { id: { not: existing.id } } : {}),
-        },
-        select: { id: true },
-      });
+  const activeDevices = await transaction.employeeDevice.findMany({
+    where: {
+      employeeAccountId: input.employeeAccountId,
+      status: "ACTIVE",
+      ...(existing ? { id: { not: existing.id } } : {}),
+    },
+    select: { id: true },
+  });
   const replacedDeviceIds = activeDevices.map((device) => device.id);
   let revokedSessionScopes: RevokedEmployeeSessionScope[] = [];
 
@@ -169,20 +163,6 @@ export async function bindVerifiedEmployeeDevice(
     });
   }
 
-  if (allowConcurrentDevices) {
-    await transaction.employeeDevice.updateMany({
-      where: {
-        employeeAccountId: input.employeeAccountId,
-        status: "ACTIVE",
-        canPunch: true,
-        ...(existing ? { id: { not: existing.id } } : {}),
-      },
-      data: {
-        canPunch: false,
-      },
-    });
-  }
-
   if (existing) {
     const device = await transaction.employeeDevice.update({
       where: { id: existing.id },
@@ -195,9 +175,7 @@ export async function bindVerifiedEmployeeDevice(
         revokedAt: null,
         revokeReason: null,
         canView: true,
-        ...(allowConcurrentDevices || existing.status === "REPLACED"
-          ? { canPunch: true }
-          : {}),
+        ...(existing.status === "REPLACED" ? { canPunch: true } : {}),
       },
       select: {
         id: true,

@@ -53,6 +53,11 @@ const nullableDateSchema = z.preprocess(
   z.coerce.date().nullable(),
 );
 
+const nullableDateOfBirthSchema = nullableDateSchema.refine(
+  (value) => value === null || value <= new Date(),
+  "Date of birth cannot be in the future.",
+);
+
 const optionalTextSchema = z.preprocess(
   (value) => (typeof value === "string" && value.trim() ? value.trim() : null),
   z.string().max(100).nullable(),
@@ -86,6 +91,7 @@ const employeeInputShape = {
     .min(1, "Employee name is required.")
     .max(120, "Employee name cannot exceed 120 characters."),
   phoneNumber: employeePhoneSchema,
+  dateOfBirth: nullableDateOfBirthSchema.default(null),
   payBasis: employeePayBasisSchema.default("MONTHLY"),
   baseSalary: optionalMoneySchema.default(null),
   normalWorkMinutesPerDay: optionalMinutesSchema.default(null),

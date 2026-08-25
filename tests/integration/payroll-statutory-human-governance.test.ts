@@ -13,6 +13,7 @@ import {
   REVIEW_STATUTORY_CLASSIFICATION,
   completeStatutoryHumanReview,
   recordStatutoryComponentReviewDecision,
+  recordStatutoryComponentReviewDecisions,
   registerCanonicalStatutoryCandidates,
 } from "../../src/lib/payroll/statutory-governance-service";
 
@@ -109,6 +110,107 @@ test("UNKNOWN review decisions are immutable and a legacy step-up reference cann
       await prisma.statutoryRuleSetSignOff.count({ where: { ruleSetId: rule.id } }),
       0,
     );
+  } finally {
+    await cleanupRule(rule.id, reviewer.id);
+  }
+});
+
+test("multiple UNKNOWN decisions save atomically with one human-review revision", async () => {
+  const token = randomUUID();
+  const reviewer = await prisma.user.create({
+    data: {
+      name: "Governance Batch QA Reviewer",
+      email: `governance-batch-reviewer-${token}@test.local`,
+      role: "PLATFORM_ADMIN",
+      permissions: [REVIEW_STATUTORY_CLASSIFICATION],
+    },
+  });
+  const rule = await createRule(token, "BATCH_TEST_ONLY", ["MEAL_ALLOWANCE", "PHONE_ALLOWANCE"]);
+  const actor = reviewActor(reviewer.id, [REVIEW_STATUTORY_CLASSIFICATION]);
+  try {
+    const decisionsByCode = new Map(rule.classifications.map((classification) => [
+      classification.componentCode,
+      classification,
+    ]));
+    const saved = await recordStatutoryComponentReviewDecisions({
+      ruleSetId: rule.id,
+      decisions: [
+        {
+          classificationId: decisionsByCode.get("MEAL_ALLOWANCE")!.id,
+          decision: "INCLUDED",
+          evidenceReference: "QA-EVIDENCE-MEAL-ALLOWANCE",
+          reason: "The isolated fixture includes the meal allowance in one batch.",
+        },
+        {
+          classificationId: decisionsByCode.get("PHONE_ALLOWANCE")!.id,
+          decision: "EXCLUDED",
+          evidenceReference: "QA-EVIDENCE-PHONE-ALLOWANCE",
+          reason: "The isolated fixture excludes the phone allowance in one batch.",
+        },
+      ],
+      expectedEvidenceDigest: await ruleDigest(rule.id),
+      expectedReviewRevision: 0,
+      actor,
+    });
+
+    assert.equal(saved.reviewRevision, 1);
+    assert.deepEqual(saved.decisions.map((decision) => decision.decision).sort(), ["EXCLUDED", "INCLUDED"]);
+    assert.equal(await prisma.statutoryComponentReviewDecision.count({ where: { ruleSetId: rule.id } }), 2);
+    const updated = await prisma.statutoryRuleSet.findUniqueOrThrow({ where: { id: rule.id } });
+    assert.equal(updated.humanReviewRevision, 1);
+    assert.equal(updated.humanReviewStatus, "IN_PROGRESS");
+  } finally {
+    await cleanupRule(rule.id, reviewer.id);
+  }
+});
+
+test("PCB pay-item review can complete before final calculator verification", async () => {
+  const token = randomUUID();
+  const reviewer = await prisma.user.create({
+    data: {
+      name: "PCB Review QA Reviewer",
+      email: `pcb-reviewer-${token}@test.local`,
+      role: "PLATFORM_ADMIN",
+      permissions: [REVIEW_STATUTORY_CLASSIFICATION],
+    },
+  });
+  const created = await createRule(token, "HASIL", ["BASIC_SALARY", "COMMISSION"]);
+  const rule = await prisma.statutoryRuleSet.update({
+    where: { id: created.id },
+    data: {
+      scheme: "PCB",
+      status: "ENGINEERING_VERIFIED",
+      readiness: "DATASET_VERIFIED",
+      ruleData: { id: "QA_PCB_REVIEW_DRAFT", reviewDraft: true },
+    },
+    include: { classifications: { orderBy: { componentCode: "asc" } } },
+  });
+  const actor = reviewActor(reviewer.id, [REVIEW_STATUTORY_CLASSIFICATION]);
+  try {
+    await recordStatutoryComponentReviewDecisions({
+      ruleSetId: rule.id,
+      decisions: rule.classifications.map((classification) => ({
+        classificationId: classification.id,
+        decision: "INCLUDED" as const,
+        evidenceReference: `QA-PCB-${classification.componentCode}`,
+        reason: "The isolated PCB fixture records an evidence-backed pay-item treatment.",
+      })),
+      expectedEvidenceDigest: await ruleDigest(rule.id),
+      expectedReviewRevision: 0,
+      actor,
+    });
+
+    const completed = await completeStatutoryHumanReview({
+      ruleSetId: rule.id,
+      reason: "All PCB pay items have an explicit HR decision.",
+      expectedEvidenceDigest: await ruleDigest(rule.id),
+      expectedReviewRevision: 1,
+      actor,
+    });
+
+    assert.equal(completed.rule.humanReviewStatus, "COMPLETED");
+    assert.equal(completed.rule.status, "ENGINEERING_VERIFIED");
+    assert.equal(completed.rule.readiness, "DATASET_VERIFIED");
   } finally {
     await cleanupRule(rule.id, reviewer.id);
   }
@@ -279,7 +381,7 @@ async function ruleDigest(ruleSetId: string) {
 async function recordDecision(
   ruleSetId: string,
   classificationId: string,
-  decision: "INCLUDED" | "EXCLUDED" | "KEEP_UNKNOWN",
+  decision: "INCLUDED" | "ADDITIONAL_REMUNERATION" | "EXCLUDED" | "KEEP_UNKNOWN",
   revision: number,
   actor: StatutoryHumanActor,
 ) {
@@ -301,10 +403,13 @@ function reviewActor(id: string, capabilities: string[]): StatutoryHumanActor {
 
 async function cleanupRule(ruleSetId: string, userId: string) {
   await prisma.statutoryRuleSet.updateMany({ where: { id: ruleSetId }, data: { status: "RETIRED" } });
-  await prisma.statutoryRuleLifecycleAudit.deleteMany({ where: { ruleSetId } });
-  await prisma.statutoryRuleSetSignOff.deleteMany({ where: { ruleSetId } });
-  await prisma.statutoryComponentReviewDecision.deleteMany({ where: { ruleSetId } });
-  await prisma.statutoryComponentClassification.deleteMany({ where: { ruleSetId } });
-  await prisma.statutoryRuleSet.deleteMany({ where: { id: ruleSetId } });
-  await prisma.user.deleteMany({ where: { id: userId } });
+  await prisma.$transaction(async (transaction) => {
+    await transaction.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+    await transaction.statutoryRuleLifecycleAudit.deleteMany({ where: { ruleSetId } });
+    await transaction.statutoryRuleSetSignOff.deleteMany({ where: { ruleSetId } });
+    await transaction.statutoryComponentReviewDecision.deleteMany({ where: { ruleSetId } });
+    await transaction.statutoryComponentClassification.deleteMany({ where: { ruleSetId } });
+    await transaction.statutoryRuleSet.deleteMany({ where: { id: ruleSetId } });
+    await transaction.user.deleteMany({ where: { id: userId } });
+  });
 }

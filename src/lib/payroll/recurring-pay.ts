@@ -3,6 +3,7 @@ import {
   type EmployeeRecurringPayComponentType,
   type PrismaClient,
 } from "@prisma/client";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import {
@@ -33,7 +34,7 @@ const reservedComponentCodes = new Set([
 const recurringPayCommandSchema = z
   .object({
     amount: z.union([z.string(), z.number(), z.instanceof(Prisma.Decimal)]),
-    code: z.string().trim().toUpperCase(),
+    code: z.string().trim().toUpperCase().optional().default(""),
     commandId: commandIdSchema,
     componentId: z.string().uuid().nullable().optional(),
     effectiveFromMonth: z.coerce.date(),
@@ -81,6 +82,30 @@ export function recurringPayMonthStart(value: Date) {
   return new Date(
     Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1),
   );
+}
+
+export function buildRecurringPayComponentCode(input: {
+  commandId: string;
+  name: string;
+  type: "EARNING" | "DEDUCTION";
+}) {
+  const fallback = input.type === "EARNING"
+    ? "MONTHLY_EARNING"
+    : "MONTHLY_DEDUCTION";
+  const stem = input.name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") || fallback;
+  const suffix = createHash("sha256")
+    .update(input.commandId)
+    .digest("hex")
+    .slice(0, 10)
+    .toUpperCase();
+  const availableStemLength = 64 - "EMP__".length - suffix.length;
+  const trimmedStem = stem.slice(0, availableStemLength).replace(/_+$/g, "") || fallback;
+  return `EMP_${trimmedStem}_${suffix}`;
 }
 
 export async function resolveRecurringPayForEmployee(
@@ -391,6 +416,11 @@ export async function scheduleRecurringPayComponent(input: {
 
 function parseRecurringPayCommand(input: ScheduleRecurringPayCommand) {
   const command = parseCanonicalCommand(recurringPayCommandSchema, input);
+  const code = command.code || buildRecurringPayComponentCode({
+    commandId: command.commandId,
+    name: command.name,
+    type: command.type,
+  });
   const effectiveFromMonth = recurringPayMonthStart(command.effectiveFromMonth);
   if (effectiveFromMonth.getTime() !== command.effectiveFromMonth.getTime()) {
     throw new PayrollProfileWriteError(
@@ -399,9 +429,9 @@ function parseRecurringPayCommand(input: ScheduleRecurringPayCommand) {
     );
   }
   if (
-    !componentCodePattern.test(command.code) ||
-    reservedComponentCodes.has(command.code) ||
-    command.code.startsWith("COMMISSION")
+    !componentCodePattern.test(code) ||
+    reservedComponentCodes.has(code) ||
+    code.startsWith("COMMISSION")
   ) {
     throw new PayrollProfileWriteError(
       "VALIDATION_ERROR",
@@ -420,5 +450,5 @@ function parseRecurringPayCommand(input: ScheduleRecurringPayCommand) {
       "Recurring pay amount must be a positive MYR amount with up to 2 decimals.",
     );
   }
-  return { ...command, amount, effectiveFromMonth };
+  return { ...command, amount, code, effectiveFromMonth };
 }

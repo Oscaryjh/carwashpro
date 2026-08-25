@@ -12,6 +12,7 @@ import {
 
 const source: CommissionSource = {
   id: "source-1",
+  membershipId: "member-a",
   sourceType: "SERVICE",
   branchId: "branch-a",
   sourceItemId: "item-a",
@@ -33,6 +34,7 @@ function rule(overrides: Partial<CommissionRuleCandidate> = {}): CommissionRuleC
     branchId: null,
     scope: "ALL",
     scopeId: null,
+    itemId: null,
     ruleType: "PERCENTAGE",
     basis: "NET_AFTER_DISCOUNT",
     rateBasisPoints: 1_000,
@@ -57,7 +59,48 @@ test("most specific effective rule wins without stacking", () => {
   const wrongBranch = rule({ id: "wrong", scope: "ITEM", scopeId: "item-a", branchId: "branch-b", priority: 99 });
   const resolved = resolveCommissionRule(source, [rule(), category, item, wrongBranch]);
   assert.equal(resolved.rule?.id, "rule-item");
-  assert.equal(resolved.trace.policy, "MOST_SPECIFIC_THEN_BRANCH_THEN_PRIORITY_THEN_REVISION_NO_STACKING");
+  assert.equal(resolved.trace.policy, "MEMBER_ITEM_THEN_MEMBER_THEN_ITEM_THEN_CATEGORY_THEN_ALL_NO_STACKING");
+});
+
+test("employee item override wins over the employee default only for that item", () => {
+  const memberDefault = rule({
+    id: "rule-member-default",
+    scope: "MEMBER",
+    scopeId: "member-a",
+    rateBasisPoints: 1_000,
+  });
+  const memberItem = rule({
+    id: "rule-member-item",
+    scope: "MEMBER",
+    scopeId: "member-a",
+    itemId: "item-a",
+    rateBasisPoints: 2_000,
+  });
+
+  assert.equal(resolveCommissionRule(source, [memberDefault, memberItem]).rule?.id, "rule-member-item");
+  assert.equal(
+    resolveCommissionRule(
+      { ...source, sourceItemId: "item-b" },
+      [memberDefault, memberItem],
+    ).rule?.id,
+    "rule-member-default",
+  );
+});
+
+test("employee override wins over item and company rules without stacking", () => {
+  const item = rule({ id: "rule-item", scope: "ITEM", scopeId: "item-a", priority: 99 });
+  const member = rule({
+    id: "rule-member",
+    scope: "MEMBER",
+    scopeId: "member-a",
+    priority: -99,
+    rateBasisPoints: 1_500,
+  });
+  const otherMember = rule({ id: "rule-other-member", scope: "MEMBER", scopeId: "member-b" });
+  const resolved = resolveCommissionRule(source, [rule(), item, member, otherMember]);
+
+  assert.equal(resolved.rule?.id, "rule-member");
+  assert.equal(calculateCommission(source, resolved.rule!).commissionAmountCents, 1_350);
 });
 
 test("percentage, fixed and whole-period tier calculations use cents and frozen basis", () => {

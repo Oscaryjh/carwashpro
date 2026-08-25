@@ -31,6 +31,7 @@ type OtpRequestResponse = {
   message: string;
   expiresInSeconds: number;
   resendAfterSeconds: number;
+  requestStatus: "CODE_REQUESTED" | "RATE_LIMITED";
 };
 
 type OtpVerifyResponse =
@@ -90,6 +91,11 @@ export function StaffLoginForm({
           body: JSON.stringify({ phoneNumber, deviceIdentifier }),
         },
       );
+      if (result.requestStatus === "RATE_LIMITED") {
+        setMessageTone("error");
+        setMessage(result.message);
+        return;
+      }
       const now = Date.now();
       saveEmployeeAuthFlow({
         challengeId: result.challengeId,
@@ -188,11 +194,7 @@ export function StaffLoginForm({
   );
 }
 
-export function StaffVerifyForm({
-  developmentFastPath = false,
-}: {
-  developmentFastPath?: boolean;
-}) {
+export function StaffVerifyForm() {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
@@ -265,11 +267,11 @@ export function StaffVerifyForm({
       otp.length !== 6 ||
       busy ||
       verificationInFlightRef.current ||
-      (!developmentFastPath && secondsRemaining === 0)
+      secondsRemaining === 0
     ) {
       setMessageTone("error");
       setMessage(
-        !developmentFastPath && secondsRemaining === 0
+        secondsRemaining === 0
           ? "This verification code has expired. Request a new code."
           : "Enter the complete 6-digit verification code.",
       );
@@ -312,7 +314,7 @@ export function StaffVerifyForm({
       inputRefs.current[0]?.focus();
       setMessageTone("error");
       setMessage(
-        !developmentFastPath && nextFailures >= 5
+        nextFailures >= 5
           ? "Verification has been locked for your security. Request a new code or contact your manager."
           : publicAuthMessage(error),
       );
@@ -337,6 +339,11 @@ export function StaffVerifyForm({
           }),
         },
       );
+      if (result.requestStatus === "RATE_LIMITED") {
+        setMessageTone("error");
+        setMessage(result.message);
+        return;
+      }
       const requestedAt = Date.now();
       const nextFlow = {
         ...activeFlow,
@@ -398,17 +405,8 @@ export function StaffVerifyForm({
           ))}
         </div>
         <div className="staff-code-timer">
-          {developmentFastPath ? (
-            <>
-              <span>Development OTP</span>
-              <strong>Ready now</strong>
-            </>
-          ) : (
-            <>
-              <span>Expires in</span>
-              <strong>{formatCountdown(secondsRemaining)}</strong>
-            </>
-          )}
+          <span>Expires in</span>
+          <strong>{formatCountdown(secondsRemaining)}</strong>
         </div>
         <div
           aria-live={otpError ? "assertive" : "polite"}

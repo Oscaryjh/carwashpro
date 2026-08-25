@@ -18,25 +18,18 @@ import {
   verifyEmployeeOtpHash,
 } from "../../src/lib/attendance/employee-auth/crypto";
 import { EmployeeAuthError } from "../../src/lib/attendance/employee-auth/errors";
-import { bindVerifiedEmployeeDevice } from "../../src/lib/attendance/employee-auth/device-service";
 import {
   assertEmployeeAuthSameOrigin,
   readEmployeeAuthJson,
 } from "../../src/lib/attendance/employee-auth/http";
 import {
-  buildEmployeeOtpMessage,
   clearMockEmployeeOtp,
-  createEmployeeOtpReferenceId,
   MockEmployeeOtpProvider,
   readMockEmployeeOtp,
 } from "../../src/lib/attendance/employee-auth/provider";
-import {
-  checkEmployeeOtpRateLimit,
-  checkEmployeeOtpVerifyRateLimit,
-} from "../../src/lib/attendance/employee-auth/rate-limit";
-import { buildEmployeeOtpChallengeInvalidationWhere } from "../../src/lib/attendance/employee-auth/otp-service";
 
-const TEST_SECRET = "phase-1c-test-secret-that-is-longer-than-thirty-two-bytes";
+const TEST_SECRET =
+  "phase-1c-test-secret-that-is-longer-than-thirty-two-bytes";
 
 test("employee auth config is centralized and production mock fails closed", () => {
   const config = testConfig({
@@ -61,12 +54,6 @@ test("employee auth config is centralized and production mock fails closed", () 
   });
   assert.equal(localDevelopmentConfig.otp.sendMode, "mock");
   assert.equal(localDevelopmentConfig.otp.mockCode, "000000");
-  assert.equal(localDevelopmentConfig.otp.developmentFastPath, true);
-  assert.equal(localDevelopmentConfig.otp.expiresInSeconds, 24 * 60 * 60);
-  assert.equal(localDevelopmentConfig.otp.resendCooldownSeconds, 0);
-  assert.equal(localDevelopmentConfig.session.allowConcurrentDevices, true);
-  assert.equal(fixedMockCodeConfig.otp.developmentFastPath, false);
-  assert.equal(fixedMockCodeConfig.session.allowConcurrentDevices, false);
 
   assert.throws(
     () =>
@@ -80,21 +67,18 @@ test("employee auth config is centralized and production mock fails closed", () 
       error.code === "CONFIGURATION_ERROR",
   );
 
-  const railwayTestingConfig = getEmployeeAuthConfig({
-    NODE_ENV: "production",
-    RAILWAY_ENVIRONMENT_NAME: "testing",
-    EMPLOYEE_AUTH_SECRET: TEST_SECRET,
-    EMPLOYEE_OTP_TESTING_ENABLED: "true",
-    OTP_PROVIDER: "mock",
-    OTP_CHANNEL: "local",
-    EMPLOYEE_OTP_MOCK_CODE: "000000",
-  });
-  assert.equal(railwayTestingConfig.otp.testingDeployment, true);
-  assert.equal(railwayTestingConfig.otp.mockCode, "000000");
-  assert.equal(railwayTestingConfig.otp.developmentFastPath, true);
-  assert.equal(railwayTestingConfig.otp.expiresInSeconds, 5 * 60);
-  assert.equal(railwayTestingConfig.otp.resendCooldownSeconds, 0);
-  assert.equal(new MockEmployeeOtpProvider(railwayTestingConfig).name, "mock");
+  assert.throws(
+    () =>
+      getEmployeeAuthConfig({
+        NODE_ENV: "production",
+        RAILWAY_ENVIRONMENT_NAME: "testing",
+        EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+        EMPLOYEE_OTP_TESTING_ENABLED: "true",
+        OTP_PROVIDER: "mock",
+        EMPLOYEE_OTP_MOCK_CODE: "000000",
+      }),
+    /mock mode is not available in production/i,
+  );
 
   assert.throws(
     () =>
@@ -131,7 +115,7 @@ test("employee auth config is centralized and production mock fails closed", () 
         EMPLOYEE_OTP_SEND_MODE: "provider",
         EMPLOYEE_OTP_MOCK_CODE: "000000",
       }),
-    /only in local\/test or the explicit Railway testing deployment/,
+    /only in non-production mock mode/,
   );
 
   assert.throws(
@@ -142,146 +126,8 @@ test("employee auth config is centralized and production mock fails closed", () 
         EMPLOYEE_OTP_SEND_MODE: "provider",
         EMPLOYEE_OTP_MOCK_CODE: "000000",
       }),
-    /only in local\/test or the explicit Railway testing deployment/,
+    /only in non-production mock mode/,
   );
-});
-
-test("development device binding keeps existing devices and sessions active", async () => {
-  const config = getEmployeeAuthConfig({
-    NODE_ENV: "development",
-    EMPLOYEE_AUTH_SECRET: TEST_SECRET,
-  });
-  let searchedForReplacementDevices = false;
-  const deviceWrites: string[] = [];
-
-  const transaction = {
-    employeeDevice: {
-      findUnique: async () => null,
-      findMany: async () => {
-        searchedForReplacementDevices = true;
-        throw new Error(
-          "Development mode must not replace another active device.",
-        );
-      },
-      updateMany: async (args: {
-        where: Record<string, unknown>;
-        data: Record<string, unknown>;
-      }) => {
-        deviceWrites.push("demote-existing-punch-device");
-        assert.deepEqual(args.where, {
-          employeeAccountId: "development-account",
-          status: "ACTIVE",
-          canPunch: true,
-        });
-        assert.deepEqual(args.data, { canPunch: false });
-        return { count: 1 };
-      },
-      create: async () => {
-        assert.deepEqual(deviceWrites, ["demote-existing-punch-device"]);
-        deviceWrites.push("create-current-punch-device");
-        return {
-          id: "development-device-2",
-          canView: true,
-          canPunch: true,
-        };
-      },
-    },
-  } as never;
-
-  const result = await bindVerifiedEmployeeDevice(
-    {
-      employeeAccountId: "development-account",
-      deviceIdentifierHash: "development-device-hash",
-      now: new Date("2026-08-22T00:00:00.000Z"),
-      purpose: "REGISTER_DEVICE",
-    },
-    transaction,
-    config,
-  );
-
-  assert.equal(searchedForReplacementDevices, false);
-  assert.deepEqual(result.replacedDeviceIds, []);
-  assert.deepEqual(result.revokedSessionScopes, []);
-  assert.equal(result.deviceId, "development-device-2");
-  assert.deepEqual(deviceWrites, [
-    "demote-existing-punch-device",
-    "create-current-punch-device",
-  ]);
-});
-
-test("development OTP requests invalidate only the current device challenge", () => {
-  const base = {
-    phoneNumberNormalized: "+601112212259",
-    deviceFingerprintHash: "device-b-hash",
-  };
-
-  assert.deepEqual(
-    buildEmployeeOtpChallengeInvalidationWhere({
-      ...base,
-      developmentFastPath: true,
-    }),
-    {
-      phoneNumberNormalized: "+601112212259",
-      purpose: { in: ["LOGIN", "REGISTER_DEVICE"] },
-      invalidatedAt: null,
-      deviceFingerprintHash: "device-b-hash",
-    },
-  );
-  assert.deepEqual(
-    buildEmployeeOtpChallengeInvalidationWhere({
-      ...base,
-      developmentFastPath: false,
-    }),
-    {
-      phoneNumberNormalized: "+601112212259",
-      purpose: { in: ["LOGIN", "REGISTER_DEVICE"] },
-      invalidatedAt: null,
-    },
-  );
-});
-
-test("development mock OTP is ready immediately without cooldown or rate-limit waiting", async () => {
-  const config = getEmployeeAuthConfig({
-    NODE_ENV: "development",
-    EMPLOYEE_AUTH_SECRET: TEST_SECRET,
-  });
-  const unusedDatabase = new Proxy(
-    {},
-    {
-      get() {
-        throw new Error(
-          "Development fast path must not query rate-limit counters.",
-        );
-      },
-    },
-  );
-
-  const requestLimit = await checkEmployeeOtpRateLimit(
-    {
-      phoneNumberNormalized: "+601122334455",
-      phoneIdentifierHash: "phone-hash",
-      ipAddressHash: "ip-hash",
-      deviceFingerprintHash: "device-hash",
-      purpose: "LOGIN",
-      now: new Date("2026-08-21T00:00:00.000Z"),
-    },
-    config,
-    unusedDatabase as never,
-  );
-  const verifyLimit = await checkEmployeeOtpVerifyRateLimit(
-    {
-      phoneIdentifierHash: "phone-hash",
-      ipAddressHash: "ip-hash",
-      now: new Date("2026-08-21T00:00:00.000Z"),
-    },
-    config,
-    unusedDatabase as never,
-  );
-
-  assert.equal(config.otp.resendCooldownSeconds, 0);
-  assert.equal(requestLimit.requestAllowed, true);
-  assert.equal(requestLimit.cooldownChallenge, null);
-  assert.equal(verifyLimit.allowed, true);
 });
 
 test("employee auth crypto uses domain-separated hashes and one-time secrets", () => {
@@ -293,16 +139,23 @@ test("employee auth crypto uses domain-separated hashes and one-time secrets", (
 
   assert.match(otp, /^\d{6}$/);
   assert.notEqual(sessionTokenA, sessionTokenB);
-  assert.notEqual(
-    sessionTokenA,
-    hashEmployeeSessionToken(sessionTokenA, config.authSecret),
-  );
+  assert.notEqual(sessionTokenA, hashEmployeeSessionToken(sessionTokenA, config.authSecret));
   assert.equal(
-    verifyEmployeeOtpHash("challenge-a", otp, otpHash, config.authSecret),
+    verifyEmployeeOtpHash(
+      "challenge-a",
+      otp,
+      otpHash,
+      config.authSecret,
+    ),
     true,
   );
   assert.equal(
-    verifyEmployeeOtpHash("challenge-b", otp, otpHash, config.authSecret),
+    verifyEmployeeOtpHash(
+      "challenge-b",
+      otp,
+      otpHash,
+      config.authSecret,
+    ),
     false,
   );
   assert.notEqual(
@@ -320,11 +173,10 @@ test("mock OTP is memory-only, access-key protected, and carries locale", async 
   const provider = new MockEmployeeOtpProvider(config);
   const expiresAt = new Date(Date.now() + 60_000);
 
-  await provider.sendSms({
+  await provider.sendOtp({
     challengeId: "challenge-mock",
-    recipient: "+60123456789",
-    message: buildEmployeeOtpMessage("123456", config),
-    referenceId: createEmployeeOtpReferenceId("challenge-mock"),
+    phoneNumber: "+60123456789",
+    otp: "123456",
     purpose: "LOGIN",
     expiresAt,
     locale: "en-MY",
@@ -333,7 +185,8 @@ test("mock OTP is memory-only, access-key protected, and carries locale", async 
   assert.throws(
     () => readMockEmployeeOtp("challenge-mock", "wrong-key", config),
     (error: unknown) =>
-      error instanceof EmployeeAuthError && error.code === "UNAUTHENTICATED",
+      error instanceof EmployeeAuthError &&
+      error.code === "UNAUTHENTICATED",
   );
   assert.equal(
     readMockEmployeeOtp(
@@ -346,31 +199,23 @@ test("mock OTP is memory-only, access-key protected, and carries locale", async 
 
   const fixedConfig = testConfig({ EMPLOYEE_OTP_MOCK_CODE: "000000" });
   const fixedProvider = new MockEmployeeOtpProvider(fixedConfig);
-  await fixedProvider.sendSms({
+  await fixedProvider.sendVerification({
     challengeId: "challenge-fixed",
-    recipient: "+601112212259",
-    message: buildEmployeeOtpMessage("000000", fixedConfig),
-    referenceId: createEmployeeOtpReferenceId("challenge-fixed"),
+    phoneNumber: "+601112212259",
     purpose: "LOGIN",
     expiresAt,
     locale: "en-MY",
   });
-  assert.equal(
-    readMockEmployeeOtp(
-      "challenge-fixed",
-      fixedConfig.otp.mockAccessKey ?? "",
-      fixedConfig,
-    ),
-    "000000",
-  );
   clearMockEmployeeOtp("challenge-fixed", fixedConfig);
-  assert.equal(
-    readMockEmployeeOtp(
-      "challenge-fixed",
-      fixedConfig.otp.mockAccessKey ?? "",
-      fixedConfig,
-    ),
-    null,
+  assert.deepEqual(
+    await new MockEmployeeOtpProvider(fixedConfig).checkVerification({
+      challengeId: "challenge-fixed",
+      phoneNumber: "+601112212259",
+      providerReference: "mock:challenge-fixed",
+      code: "000000",
+    }),
+    { status: "APPROVED" },
+    "fixed Local mock codes must survive isolated Next.js route module instances",
   );
 
   assert.throws(
@@ -433,17 +278,21 @@ test("employee auth HTTP helper enforces same-origin, body limit, and Zod output
   assert.throws(
     () => assertEmployeeAuthSameOrigin(crossSite),
     (error: unknown) =>
-      error instanceof EmployeeAuthError && error.code === "INVALID_REQUEST",
+      error instanceof EmployeeAuthError &&
+      error.code === "INVALID_REQUEST",
   );
 
-  const oversized = new Request("http://localhost/api/employee-auth/example", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "content-length": "2048",
+  const oversized = new Request(
+    "http://localhost/api/employee-auth/example",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": "2048",
+      },
+      body: "{}",
     },
-    body: "{}",
-  });
+  );
   await assert.rejects(
     readEmployeeAuthJson(oversized, z.object({}), 1_024),
     (error: unknown) =>
@@ -489,8 +338,7 @@ test("employee cookie cannot authenticate the admin middleware", async () => {
 
     assert.equal(response.status, 307);
     assert.equal(
-      new URL(response.headers.get("location") ?? "", "http://localhost")
-        .pathname,
+      new URL(response.headers.get("location") ?? "", "http://localhost").pathname,
       "/login",
     );
   } finally {
@@ -523,7 +371,9 @@ test("employee auth route returns structured errors without touching the databas
   assert.equal(typeof body.error.message, "string");
 });
 
-function testConfig(overrides: Partial<NodeJS.ProcessEnv> = {}) {
+function testConfig(
+  overrides: Partial<NodeJS.ProcessEnv> = {},
+) {
   return getEmployeeAuthConfig({
     NODE_ENV: "test",
     EMPLOYEE_AUTH_SECRET: TEST_SECRET,

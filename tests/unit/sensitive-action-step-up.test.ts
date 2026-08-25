@@ -169,3 +169,16 @@ test("step-up migration stores only token hashes and enforces bounded identity f
   assert.match(sql, /verification_method.*PASSWORD_REAUTH/s);
   assert.doesNotMatch(sql, /DROP TABLE|TRUNCATE TABLE/);
 });
+
+test("temporary MFA bypass migration preserves an auditable verification method", () => {
+  const sql = readFileSync(
+    resolve(
+      process.cwd(),
+      "prisma/migrations/20260821090000_mfa_disabled_authorization/migration.sql",
+    ),
+    "utf8",
+  );
+  assert.match(sql, /MFA_TEMPORARILY_DISABLED/);
+  assert.match(sql, /sensitive_action_authorizations_method_check/);
+  assert.doesNotMatch(sql, /DROP TABLE|TRUNCATE TABLE/);
+});

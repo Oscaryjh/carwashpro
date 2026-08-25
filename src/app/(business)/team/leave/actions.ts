@@ -10,6 +10,7 @@ import {
   cancelApprovedLeaveRequest,
   createCompanyLeavePolicy,
   createCompanyLeavePolicyVersion,
+  deactivateCompanyLeavePolicy,
   generateLeaveEntitlementsForYear,
   installCompanyLeaveStarter,
   processDueCarryForwardExpiries,
@@ -77,6 +78,25 @@ export async function createLeavePolicyVersionAction(formData: FormData) {
   } catch (error) {
     if (isRedirectError(error)) throw error;
     redirectWithMessage("error", error instanceof Error ? error.message : "Unable to create Leave policy revision.");
+  }
+}
+
+export async function deactivateLeavePolicyAction(formData: FormData) {
+  const year = String(formData.get("year") ?? "");
+  try {
+    const { user, businessId } = await requireBusinessUser("EDIT_LEAVE_POLICY");
+    await deactivateCompanyLeavePolicy({
+      businessId,
+      policyId: String(formData.get("policyId") ?? ""),
+      reason: String(formData.get("reason") ?? ""),
+      actor: user,
+      request: await getAuditRequestContext(),
+    });
+    revalidateLeavePaths();
+    redirectWithMessage("success", "Leave type deactivated. Past requests and balance history were kept.", { year });
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirectWithMessage("error", error instanceof Error ? error.message : "Unable to deactivate Leave type.", { year });
   }
 }
 
@@ -176,6 +196,11 @@ export async function processLeaveLifecycleAction(formData: FormData) {
 
 export async function createLeavePolicyAction(formData: FormData) {
   const year = String(formData.get("year") ?? "");
+  const balanceEmployee = String(formData.get("membershipId") ?? "");
+  const returnTarget =
+    formData.get("returnTarget") === "employee-profile"
+      ? "employee-profile"
+      : "leave-management";
   try {
     const { user, businessId } = await requireBusinessUser("EDIT_LEAVE_POLICY");
     await createCompanyLeavePolicy({
@@ -187,7 +212,7 @@ export async function createLeavePolicyAction(formData: FormData) {
         name: formData.get("name"),
         payTreatment: formData.get("payTreatment"),
         countMode: formData.get("countMode"),
-        balanceTracked: formData.get("balanceTracked") === "on",
+        balanceTracked: formData.get("allowanceMode") === "FIXED" || formData.get("balanceTracked") === "on",
         defaultEntitlementDays: formData.get("defaultEntitlementDays"),
         requiresDocument: formData.get("requiresDocument") === "on",
         allowNegativeBalance: formData.get("allowNegativeBalance") === "on",
@@ -195,10 +220,21 @@ export async function createLeavePolicyAction(formData: FormData) {
       },
     });
     revalidateLeavePaths();
-    redirectWithMessage("success", "New Leave type created. It is now available for employee balances and requests.", { year });
+    if (returnTarget === "employee-profile" && isUuid(balanceEmployee)) {
+      revalidatePath(`/team/people/${balanceEmployee}`);
+    }
+    redirectLeavePolicyMessage(
+      "success",
+      "New Leave type created. It is now available in employee Leave Management.",
+      { balanceEmployee, returnTarget, year },
+    );
   } catch (error) {
     if (isRedirectError(error)) throw error;
-    redirectWithMessage("error", error instanceof Error ? error.message : "Unable to create Leave type.", { year, newLeaveType: true });
+    redirectLeavePolicyMessage(
+      "error",
+      error instanceof Error ? error.message : "Unable to create Leave type.",
+      { balanceEmployee, returnTarget, year, reopenCreate: true },
+    );
   }
 }
 
@@ -282,6 +318,9 @@ export async function cancelApprovedLeaveAction(formData: FormData) {
 export async function updateLeaveBalanceAction(formData: FormData) {
   const year = String(formData.get("year") ?? "");
   const balanceEmployee = String(formData.get("membershipId") ?? "");
+  const returnTarget = formData.get("returnTarget") === "employee-profile"
+    ? "employee-profile"
+    : "leave-management";
   try {
     const { access, user, businessId } = await requireBusinessUser("ADJUST_LEAVE_BALANCE");
     const scope = await resolveAttendanceScope(access);
@@ -295,6 +334,7 @@ export async function updateLeaveBalanceAction(formData: FormData) {
           ? Math.abs(Number(days))
           : days
     );
+    const adjustmentReason = String(formData.get("reason") ?? "").trim();
     await upsertEmployeeLeaveBalance({
       businessId,
       allowedBranchIds: scope.allowedBranchIds,
@@ -305,15 +345,26 @@ export async function updateLeaveBalanceAction(formData: FormData) {
         policyId: formData.get("policyId"),
         year: formData.get("year"),
         units,
-        reason: formData.get("reason"),
+        reason: adjustmentReason,
         sourceKey: formData.get("sourceKey"),
       },
     });
     revalidateLeavePaths();
-    redirectWithMessage("success", "Leave balance updated. The change was added to the audit history.", { year, balanceEmployee });
+    if (returnTarget === "employee-profile" && isUuid(balanceEmployee)) {
+      revalidatePath(`/team/people/${balanceEmployee}`);
+    }
+    redirectLeaveBalanceMessage(
+      "success",
+      "Leave balance updated. The change was added to the audit history.",
+      { balanceEmployee, returnTarget, year },
+    );
   } catch (error) {
     if (isRedirectError(error)) throw error;
-    redirectWithMessage("error", error instanceof Error ? error.message : "Unable to adjust Leave balance.", { year, balanceEmployee });
+    redirectLeaveBalanceMessage(
+      "error",
+      error instanceof Error ? error.message : "Unable to adjust Leave balance.",
+      { balanceEmployee, returnTarget, year },
+    );
   }
 }
 
@@ -337,4 +388,68 @@ function redirectWithMessage(
   if (/^[0-9a-f-]{36}$/i.test(context?.balanceEmployee ?? "")) query.set("balanceEmployee", context!.balanceEmployee!);
   if (context?.newLeaveType) query.set("newLeaveType", "1");
   redirect(`/team/leave?${query.toString()}`);
+}
+
+function redirectLeaveBalanceMessage(
+  type: "success" | "error",
+  message: string,
+  context: {
+    balanceEmployee: string;
+    returnTarget: "employee-profile" | "leave-management";
+    year: string;
+  },
+): never {
+  if (
+    context.returnTarget === "employee-profile" &&
+    isUuid(context.balanceEmployee)
+  ) {
+    const query = new URLSearchParams({
+      manageLeave: "1",
+      message,
+      section: "leave",
+      type,
+    });
+    redirect(`/team/people/${context.balanceEmployee}?${query.toString()}`);
+  }
+
+  redirectWithMessage(type, message, {
+    balanceEmployee: context.balanceEmployee,
+    year: context.year,
+  });
+}
+
+function redirectLeavePolicyMessage(
+  type: "success" | "error",
+  message: string,
+  context: {
+    balanceEmployee: string;
+    reopenCreate?: boolean;
+    returnTarget: "employee-profile" | "leave-management";
+    year: string;
+  },
+): never {
+  if (
+    context.returnTarget === "employee-profile" &&
+    isUuid(context.balanceEmployee)
+  ) {
+    const query = new URLSearchParams({
+      manageLeave: "1",
+      message,
+      section: "leave",
+      type,
+    });
+    if (context.reopenCreate) query.set("newLeaveType", "1");
+    redirect(`/team/people/${context.balanceEmployee}?${query.toString()}`);
+  }
+
+  redirectWithMessage(type, message, {
+    newLeaveType: context.reopenCreate,
+    year: context.year,
+  });
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }

@@ -68,6 +68,7 @@ export const canonicalMembershipSelect = {
   workTargetRevision: true,
   statutoryProfileRevision: true,
   taxProfileRevision: true,
+  workingDaysPerMonth: true,
   normalWorkMinutesPerDay: true,
   targetBreakMinutes: true,
   dateOfBirth: true,
@@ -85,6 +86,7 @@ export const canonicalMembershipSelect = {
   epfMemberNumber: true,
   socsoMemberNumber: true,
   taxIdentificationNumber: true,
+  pcbProfile: true,
 } satisfies Prisma.EmployeeBusinessMembershipSelect;
 
 export type CanonicalMembership = Prisma.EmployeeBusinessMembershipGetPayload<{

@@ -215,33 +215,42 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
       data: { canClockIn: true },
     });
 
-    let failedChallengeId = "";
-    await assert.rejects(
-      requestEmployeeOtp(
-        {
-          phoneNumber: fixture.single.phone,
-          deviceIdentifier: "single-primary-device-0001",
-          request: requestContext("10.0.0.7"),
-        },
-        {
-          database: prisma,
-          config,
-          provider: {
-            name: "mock",
-            channel: "local",
-            async sendSms(input) {
-              failedChallengeId = input.challengeId;
-              throw new Error("simulated provider failure");
-            },
+    const providerFailureResponse = await requestEmployeeOtp(
+      {
+        phoneNumber: fixture.single.phone,
+        deviceIdentifier: "single-primary-device-0001",
+        request: requestContext("10.0.0.7"),
+      },
+      {
+        database: prisma,
+        config,
+        provider: {
+          name: "mock",
+          channel: "local",
+          verificationMode: "provider",
+          async sendVerification() {
+            throw new Error("simulated provider failure");
           },
-          now: baseTime,
+          async checkVerification() {
+            return { status: "REJECTED" as const };
+          },
         },
-      ),
-      isAuthError("OTP_PROVIDER_UNAVAILABLE"),
+        now: baseTime,
+      },
+    );
+    assert.equal(
+      providerFailureResponse.message,
+      EMPLOYEE_OTP_REQUEST_MESSAGE,
+      "provider failures must keep the uniform public response",
+    );
+    assert.deepEqual(
+      Object.keys(providerFailureResponse).sort(),
+      ["challengeId", "expiresInSeconds", "message", "resendAfterSeconds"],
+      "provider errors must not leak into the public result",
     );
     const providerFailureChallenge =
       await prisma.employeeOtpChallenge.findUniqueOrThrow({
-        where: { id: failedChallengeId },
+        where: { id: providerFailureResponse.challengeId },
       });
     assert.equal(
       providerFailureChallenge.invalidatedAt?.getTime(),
@@ -276,15 +285,18 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
         provider: {
           name: "mock",
           channel: "local",
-          async sendSms(input) {
+          verificationMode: "provider",
+          async sendVerification(input) {
             delayedProviderStarted = true;
             markProviderStarted();
             await providerRelease;
             return {
-              status: "SENT" as const,
-              providerReferenceId: input.referenceId,
-              providerMessageCode: "MOCK_SENT",
+              status: "ACCEPTED" as const,
+              providerReference: `mock:${input.challengeId}`,
             };
+          },
+          async checkVerification() {
+            return { status: "REJECTED" as const };
           },
         },
         now: baseTime,
@@ -325,8 +337,7 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
     assert.equal(singleChallengeBeforeVerify.invalidatedAt, null);
     assert.equal(singleChallengeBeforeVerify.verifiedAt, null);
     assert.equal(singleChallengeBeforeVerify.attempts, 0);
-    assert.match(singleChallengeBeforeVerify.otpHash ?? "", /^[a-f0-9]{64}$/);
-    assert.notEqual(singleChallengeBeforeVerify.otpHash, "000000");
+    assert.equal(singleChallengeBeforeVerify.otpHash, null);
     assert.equal(singleChallengeBeforeVerify.provider, "mock");
     assert.equal(singleChallengeBeforeVerify.deliveryChannel, "local");
     assert.notEqual(singleChallengeBeforeVerify.providerReference, null);
@@ -526,7 +537,7 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
           now: plusSeconds(baseTime, 301),
         },
       ),
-      isAuthError("OTP_EXPIRED"),
+      isAuthError("OTP_INVALID"),
     );
     const expiredChallenge =
       await prisma.employeeOtpChallenge.findUniqueOrThrow({
@@ -1359,98 +1370,6 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
         "Audit must not contain raw phone, OTP, IP, or device identifier",
       );
     }
-  } finally {
-    await cleanupFixture(fixture);
-  }
-});
-
-test("development auth keeps concurrent sessions and transfers punch access to the latest device", async () => {
-  assertLocalDatabase();
-  const fixture = await createFixture();
-  const config = getEmployeeAuthConfig({
-    NODE_ENV: "development",
-    EMPLOYEE_AUTH_SECRET: TEST_SECRET,
-  });
-  const now = new Date(Date.now() - 60_000);
-
-  try {
-    const primaryIdentifier = "development-primary-device-0001";
-    const primaryRequest = await requestWithCapture({
-      phone: fixture.single.phone,
-      deviceIdentifier: primaryIdentifier,
-      ipAddress: "10.6.0.1",
-      now,
-      config,
-    });
-    const primaryLogin = await verifyEmployeeOtp(
-      {
-        challengeId: primaryRequest.result.challengeId,
-        otp: primaryRequest.provider.sent[0].otp,
-        deviceIdentifier: primaryIdentifier,
-        request: requestContext("10.6.0.1"),
-      },
-      { database: prisma, config, now: plusSeconds(now, 1) },
-    );
-    if (primaryLogin.status !== "AUTHENTICATED") {
-      assert.fail("The first development device should authenticate.");
-    }
-
-    const latestIdentifier = "development-latest-device-0002";
-    const latestRequest = await requestWithCapture({
-      phone: fixture.single.phone,
-      deviceIdentifier: latestIdentifier,
-      ipAddress: "10.6.0.2",
-      now: plusSeconds(now, 2),
-      config,
-    });
-    const latestLogin = await verifyEmployeeOtp(
-      {
-        challengeId: latestRequest.result.challengeId,
-        otp: latestRequest.provider.sent[0].otp,
-        deviceIdentifier: latestIdentifier,
-        request: requestContext("10.6.0.2"),
-      },
-      { database: prisma, config, now: plusSeconds(now, 3) },
-    );
-    if (latestLogin.status !== "AUTHENTICATED") {
-      assert.fail("The latest development device should authenticate.");
-    }
-
-    await authenticateEmployeeSessionToken(primaryLogin.token, {
-      database: prisma,
-      config,
-      now: plusSeconds(now, 4),
-    });
-    await authenticateEmployeeSessionToken(latestLogin.token, {
-      database: prisma,
-      config,
-      now: plusSeconds(now, 4),
-      requirePunch: true,
-    });
-
-    const [primaryDevice, latestDevice] = await Promise.all([
-      prisma.employeeDevice.findUniqueOrThrow({
-        where: { id: primaryLogin.context.deviceId },
-      }),
-      prisma.employeeDevice.findUniqueOrThrow({
-        where: { id: latestLogin.context.deviceId },
-      }),
-    ]);
-    assert.equal(primaryDevice.status, "ACTIVE");
-    assert.equal(primaryDevice.canView, true);
-    assert.equal(primaryDevice.canPunch, false);
-    assert.equal(latestDevice.status, "ACTIVE");
-    assert.equal(latestDevice.canView, true);
-    assert.equal(latestDevice.canPunch, true);
-    assert.equal(
-      await prisma.employeeSession.count({
-        where: {
-          employeeAccountId: fixture.single.accountId,
-          revokedAt: null,
-        },
-      }),
-      2,
-    );
   } finally {
     await cleanupFixture(fixture);
   }

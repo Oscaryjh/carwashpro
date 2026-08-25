@@ -8605,14 +8605,6 @@ label {
   margin: 0 auto;
 }
 
-.company-settings-page-actions {
-  display: flex;
-  min-height: 40px;
-  align-items: center;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
 .company-settings-form {
   display: grid;
   gap: 14px;
@@ -8905,11 +8897,6 @@ label {
 }
 
 @media (max-width: 720px) {
-  .company-settings-page-actions {
-    min-height: auto;
-    margin-bottom: 10px;
-  }
-
   .company-settings-hero {
     min-height: 250px;
     padding: 18px 16px 20px;
@@ -14490,6 +14477,11 @@ button.appointment-detail-card:disabled:focus-visible,
   outline: none;
 }
 
+.appointment-detail-menu button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
 .appointment-detail-menu button.danger {
   color: #ef4444;
 }
@@ -14504,6 +14496,118 @@ button.appointment-detail-card:disabled:focus-visible,
   color: currentColor;
   font-size: 11px;
   font-weight: 700;
+}
+
+.appointment-quick-action-feedback,
+.appointment-quick-action-confirmation {
+  margin-bottom: 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  background: #fffaf0;
+  color: #7c2d12;
+  padding: 12px;
+}
+
+.appointment-quick-action-feedback {
+  display: grid;
+  gap: 3px;
+}
+
+.appointment-quick-action-feedback strong {
+  color: #9a3412;
+  font-size: 13px;
+}
+
+.appointment-quick-action-feedback span {
+  color: #7c2d12;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.appointment-quick-action-confirmation.is-danger {
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: #991b1b;
+}
+
+.appointment-quick-action-copy {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.appointment-quick-action-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  background: #ffedd5;
+  color: #c2410c;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.appointment-quick-action-confirmation.is-danger .appointment-quick-action-icon {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.appointment-quick-action-copy strong {
+  display: block;
+  color: #111827;
+  font-size: 13px;
+}
+
+.appointment-quick-action-copy p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.appointment-quick-action-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.appointment-quick-action-buttons button {
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.appointment-quick-action-buttons button.confirm {
+  border-color: #d97706;
+  background: #d97706;
+  color: #ffffff;
+}
+
+.appointment-quick-action-confirmation.is-danger
+  .appointment-quick-action-buttons
+  button.confirm {
+  border-color: #dc2626;
+  background: #dc2626;
+}
+
+.appointment-quick-action-buttons button:hover,
+.appointment-quick-action-buttons button:focus-visible {
+  filter: brightness(0.96);
+  outline: none;
+}
+
+.appointment-quick-action-buttons button:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 @media (max-width: 760px) {
@@ -21787,8 +21891,8 @@ button:disabled,
   align-items: center;
   column-gap: 18px;
   row-gap: 10px;
-  min-height: 112px;
-  padding: 16px;
+  min-height: 96px;
+  padding: 13px 15px;
   border: 1px solid #dce7e5;
   border-radius: 14px;
   background: #fff;
@@ -21848,6 +21952,8 @@ button:disabled,
 
 .team-avatar {
   display: inline-grid;
+  position: relative;
+  overflow: hidden;
   width: 38px;
   height: 38px;
   flex: 0 0 38px;
@@ -21857,6 +21963,10 @@ button:disabled,
   background: #e1f4f1;
   font-size: 12px;
   font-weight: 800;
+}
+
+.team-avatar > img {
+  object-fit: cover;
 }
 
 .team-staff-facts {
@@ -21901,6 +22011,18 @@ button:disabled,
   flex-wrap: wrap;
   gap: 0.5rem;
   grid-area: badges;
+}
+
+.team-member-compact-status {
+  grid-area: badges;
+  margin: 0;
+  color: #8a5a13;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.team-member-compact-status strong {
+  color: #6e4510;
 }
 
 .team-feature-chip {
@@ -22719,6 +22841,7 @@ button:disabled,
     grid-template-areas:
       "summary edit"
       "facts facts"
+      "badges badges"
       "classification classification";
     grid-template-columns: minmax(0, 1fr) auto;
   }

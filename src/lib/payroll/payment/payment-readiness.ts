@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isPayrollBankAccountMfaEnabled } from "./bank-account-security";
 import { assertPaymentAuthorization } from "./payment-command";
 import { PayrollPaymentError, type PayrollPaymentContext } from "./types";
 
@@ -104,6 +105,7 @@ export async function evaluatePayrollPaymentReadinessInTransaction(
   input: { businessId: string; runId: string; excludeBatchId?: string },
   transaction: Prisma.TransactionClient,
 ): Promise<InternalPaymentReadiness> {
+  const bankVerificationRequired = isPayrollBankAccountMfaEnabled();
   const run = await transaction.payrollRun.findFirst({
     where: { businessId: input.businessId, id: input.runId },
     select: {
@@ -176,7 +178,10 @@ export async function evaluatePayrollPaymentReadinessInTransaction(
       } else if (!applicable) {
         status = "BLOCKED";
         blockerCode = classifyMissingBankVersion(versions, paymentDate);
-      } else if (applicable.verificationStatus !== "MANUALLY_VERIFIED") {
+      } else if (
+        bankVerificationRequired &&
+        applicable.verificationStatus !== "MANUALLY_VERIFIED"
+      ) {
         status = "BLOCKED";
         blockerCode = "BANK_ACCOUNT_UNVERIFIED";
       }

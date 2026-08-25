@@ -39,6 +39,7 @@ type StaffFormProps = {
     id: string;
     attendanceEnabled: boolean;
     canClockInBranchIds: string[];
+    dateOfBirth: string;
     employeeCode: string;
     employmentType: string;
     joinedAt: string;
@@ -53,6 +54,7 @@ type StaffFormProps = {
   staffLevels?: Array<{ id: string; name: string }>;
   submitLabel: string;
   suggestedEmployeeCode?: string;
+  returnTo?: string;
 };
 
 type AccessType = "LOGIN" | "NO_LOGIN";
@@ -74,6 +76,7 @@ export function StaffForm({
   staffLevels = [],
   submitLabel,
   suggestedEmployeeCode,
+  returnTo,
 }: StaffFormProps) {
   const isEdit = Boolean(staff);
   const isLegacyEdit = Boolean(staff && !employeeProfile);
@@ -160,6 +163,7 @@ export function StaffForm({
         value={allowHrFields ? "" : "on"}
       />
       {staff ? <input type="hidden" name="userId" value={staff.id} /> : null}
+      {returnTo ? <input name="returnTo" type="hidden" value={returnTo} /> : null}
       <input name="accessType" type="hidden" value={accessType} />
       <input
         name="appointmentBookable"
@@ -258,6 +262,18 @@ export function StaffForm({
                   <option value="HOURLY">Hourly</option>
                 </select>
               </label>
+              <label>
+                <span>Date of birth</span>
+                <input
+                  autoComplete="bday"
+                  defaultValue={employeeProfile?.dateOfBirth ?? ""}
+                  name="dateOfBirth"
+                  type="date"
+                />
+                <small className="form-hint">
+                  Used to check EPF, SOCSO and EIS eligibility automatically.
+                </small>
+              </label>
               {(!isEdit || createEmploymentProfile) && allowPayrollFields ? (
                 <>
                   <label>
@@ -351,7 +367,7 @@ export function StaffForm({
                   <small>
                     Sensitive payroll fields are maintained in the employee&apos;s Payroll Profile with an effective month, reason and audit record.
                   </small>
-                  <Link href={`/team/people/${employeeProfile.id}?section=payroll`}>
+                  <Link href={`/team/people/${employeeProfile.id}?section=compensation&view=payroll`}>
                     Open Payroll Profile
                   </Link>
                 </div>

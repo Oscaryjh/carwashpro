@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth/sensitive-action-service";
 import type { MfaFactorInput } from "@/lib/auth/mfa-service";
 import type { AuthRequestContext } from "@/lib/auth/security";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 import {
   getSensitiveActionPolicy,
   type SensitiveActionKey,
@@ -57,6 +58,12 @@ export async function issuePayrollHighRiskAuthorization(input: {
     throw new Error("MODULE_NOT_ENABLED");
   }
   if (!input.user.sessionId) throw new Error("STEP_UP_SESSION_MISMATCH");
+  if (!isMfaFeatureEnabled()) {
+    return {
+      rawToken: "MFA_TEMPORARILY_DISABLED",
+      sessionId: input.user.sessionId,
+    } satisfies PayrollHighRiskStepUp;
+  }
   const verified = await verifySensitiveActionMfa({
     actionKey: input.actionKey,
     businessId: input.businessId,
@@ -105,6 +112,9 @@ export async function consumePayrollHighRiskAuthorization(input: {
 }
 
 export function payrollMfaFactor(formData: FormData): MfaFactorInput {
+  if (!isMfaFeatureEnabled()) {
+    return { factorType: "TOTP", code: "MFA_TEMPORARILY_DISABLED" };
+  }
   const factorType = required(formData, "stepUpFactorType", 32);
   if (factorType !== "TOTP" && factorType !== "RECOVERY_CODE") {
     throw new Error("MFA_VERIFICATION_FAILED");
@@ -116,6 +126,7 @@ export function payrollMfaFactor(formData: FormData): MfaFactorInput {
 }
 
 export function payrollMfaPassword(formData: FormData) {
+  if (!isMfaFeatureEnabled()) return "MFA_TEMPORARILY_DISABLED";
   return required(formData, "stepUpPassword", 256);
 }
 

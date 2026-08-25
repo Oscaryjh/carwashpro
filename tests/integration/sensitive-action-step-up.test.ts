@@ -20,6 +20,7 @@ const TEST_SECRET = "step-up-integration-secret-0123456789abcdef";
 test("password step-up is session/action/resource bound, short-lived and one-time", async () => {
   assertLocalDatabase();
   const previousSecret = process.env.SESSION_SECRET;
+  const previousMfaEnabled = process.env.TETAMU_MFA_ENABLED;
   process.env.SESSION_SECRET = TEST_SECRET;
   const suffix = randomUUID().slice(0, 8);
   const password = `StepUp-${suffix}-Password!`;
@@ -244,6 +245,19 @@ test("password step-up is session/action/resource bound, short-lived and one-tim
       (error: unknown) => sensitiveCode(error) === "STEP_UP_RATE_LIMITED",
     );
 
+    process.env.TETAMU_MFA_ENABLED = "false";
+    const bypassed = await consumeSensitiveActionAuthorization({
+      ...scope,
+      resourceId: `mfa-disabled-${suffix}`,
+      userId: user.id,
+      sessionId: freshSessionId,
+      rawToken: null,
+    }, { now: new Date(base.getTime() + 70_000) });
+    assert.equal(bypassed.verificationMethod, "MFA_TEMPORARILY_DISABLED");
+    assert.ok(bypassed.consumedAt);
+    assert.ok(bypassed.expiresAt.getTime() > bypassed.issuedAt.getTime());
+    process.env.TETAMU_MFA_ENABLED = previousMfaEnabled;
+
     const events = await prisma.authSecurityEvent.findMany({
       where: { userId: user.id, surface: "SENSITIVE_ACTION_STEP_UP" },
     });
@@ -263,6 +277,7 @@ test("password step-up is session/action/resource bound, short-lived and one-tim
     await prisma.authSession.deleteMany({ where: { id: { in: sessionIds } } });
     await prisma.user.delete({ where: { id: user.id } });
     process.env.SESSION_SECRET = previousSecret;
+    process.env.TETAMU_MFA_ENABLED = previousMfaEnabled;
     await prisma.$disconnect();
   }
 });

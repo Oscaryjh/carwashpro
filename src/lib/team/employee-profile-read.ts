@@ -45,9 +45,9 @@ export async function getEmployeeProfileOverview(
           status: true,
           loginEnabled: true,
           appointmentBookable: true,
-          staffRoleProfile: {
-            select: { name: true },
-          },
+          employeeAccountId: true,
+          employeeBusinessMembershipId: true,
+          teamMemberLinkStatus: true,
           _count: {
             select: {
               serviceStaffAssignments: {
@@ -55,6 +55,19 @@ export async function getEmployeeProfileOverview(
                   businessId: input.businessId,
                 },
               },
+            },
+          },
+        },
+      },
+      employeeAccount: {
+        select: {
+          devices: {
+            orderBy: { lastActiveAt: "desc" },
+            select: {
+              canPunch: true,
+              canView: true,
+              lastActiveAt: true,
+              status: true,
             },
           },
         },
@@ -73,6 +86,7 @@ export async function getEmployeeProfilePersonal(
       id: input.membershipId,
     },
     select: {
+      dateOfBirth: true,
       id: true,
       fullName: true,
       phoneNumber: true,
@@ -100,9 +114,9 @@ export async function getEmployeeProfileEmployment(
     select: {
       id: true,
       employeeCode: true,
+      position: true,
       employmentType: true,
       status: true,
-      position: true,
       joinedAt: true,
       terminatedAt: true,
       business: {
@@ -134,7 +148,15 @@ export async function getEmployeeProfileEmployment(
           status: true,
           loginEnabled: true,
           appointmentBookable: true,
+          employeeAccountId: true,
+          employeeBusinessMembershipId: true,
+          teamMemberLinkStatus: true,
           staffRoleProfile: {
+            select: {
+              name: true,
+            },
+          },
+          staffLevel: {
             select: {
               name: true,
             },

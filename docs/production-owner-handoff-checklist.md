@@ -25,8 +25,8 @@ This is a Production Owner runbook. Development does not execute these actions a
 
 ## 4. Employee OTP
 
-- Provision Production-only SMS123 credentials; do not reuse Online Testing credentials.
-- Configure `SMS_PROVIDER=sms123`, `OTP_CHANNEL=sms`, `SMS123_ENABLED=true`, `SMS123_API_KEY` and the approved HTTPS API base URL.
+- Provision a Production-only OTP provider account; do not reuse Online Testing credentials.
+- Configure either Twilio Verify (`OTP_PROVIDER=twilio_verify` plus its server-only credentials) or SMS123 (`OTP_PROVIDER=sms123` plus `SMS123_API_KEY`), and set `OTP_CHANNEL=sms`.
 - Confirm the approved country, sender, regulatory and fraud-guard policy for the launch markets.
 - Run real-device SMS delivery, expiry, one-time use, replay, resend, rate-limit, provider-failure and session-creation smoke tests with Production-owned QA identities.
 - Keep Staff App disabled until real OTP is operational; never enable mock mode or a fixed OTP.

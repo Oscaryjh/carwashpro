@@ -48,6 +48,9 @@ test("evidence-backed decisions resolve effective treatment without mutating the
   assert.equal(effectiveClassificationTreatment({
     currentTreatment: "UNKNOWN", latestDecision: "EXCLUDED",
   }), "EXCLUDED");
+  assert.equal(effectiveClassificationTreatment({
+    currentTreatment: "UNKNOWN", latestDecision: "ADDITIONAL_REMUNERATION",
+  }), "ADDITIONAL_REMUNERATION");
 });
 
 test("arrears cannot receive a generic included or excluded legal treatment", () => {
@@ -56,6 +59,9 @@ test("arrears cannot receive a generic included or excluded legal treatment", ()
   assert.throws(() => assertArrearsDecision("ARREARS", "EXCLUDED"),
     /ARREARS_STATUTORY_SOURCE_NATURE_REQUIRED/);
   assert.doesNotThrow(() => assertArrearsDecision("ARREARS", "KEEP_UNKNOWN"));
+  assert.throws(() => assertArrearsDecision("SALARY_ARREARS", "ADDITIONAL_REMUNERATION"),
+    /ARREARS_STATUTORY_SOURCE_NATURE_REQUIRED/);
+  assert.doesNotThrow(() => assertArrearsDecision("SALARY_ARREARS", "KEEP_UNKNOWN"));
 });
 
 test("statutory step-up framework is ready without bypassing per-user verification", () => {

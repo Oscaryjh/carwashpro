@@ -11,37 +11,15 @@ export function EmployeeProfileAttendance({ data }: { data: AttendanceData }) {
     <div className={styles.sectionContent}>
       <section className={styles.sectionIntro}>
         <div>
-          <p className={styles.eyebrow}>Attendance</p>
           <h2>Attendance</h2>
-          <p>
-            Read-only clock status, monthly attendance and policy targets from
-            authorized branches. No sensitive or location evidence is included.
-          </p>
+          <p>Clock status, worked time and attendance targets.</p>
         </div>
-        <span className={styles.scopeBadge}>Read only</span>
-      </section>
-
-      <section aria-label="Attendance summary" className={styles.metricGrid}>
-        <AttendanceMetric
-          label="Attendance access"
-          note="Employee attendance setting"
-          value={data.attendanceEnabled ? "Enabled" : "Disabled"}
-        />
-        <AttendanceMetric
-          label="Current clock status"
-          note={data.currentBranchName ?? "No active branch"}
-          value={formatCurrentStatus(data.currentClockStatus)}
-        />
-        <AttendanceMetric
-          label="Worked days this month"
-          note={formatMonth(data.monthKey)}
-          value={String(data.monthlyWorkedDays)}
-        />
-        <AttendanceMetric
-          label="Pending review"
-          note={`${data.pendingApprovalCount} approval(s) / ${data.pendingExceptionCount} exception(s)`}
-          value={String(data.pendingApprovalCount + data.pendingExceptionCount)}
-        />
+        <Link
+          className={styles.leaveBalanceAction}
+          href={`/team/attendance?datePreset=all&month=${data.monthKey}&employeeId=${data.id}`}
+        >
+          View attendance history
+        </Link>
       </section>
 
       <div className={styles.profileGrid}>
@@ -99,20 +77,10 @@ export function EmployeeProfileAttendance({ data }: { data: AttendanceData }) {
               value={String(data.incompleteShiftCount)}
             />
             <AttendanceDetail
-              label="Pending approvals"
-              value={String(data.pendingApprovalCount)}
-            />
-            <AttendanceDetail
-              label="Pending exceptions"
-              value={String(data.pendingExceptionCount)}
+              label="Needs review"
+              value={String(data.pendingApprovalCount + data.pendingExceptionCount)}
             />
           </div>
-          <Link
-            className={styles.inlineLink}
-            href={`/team/attendance?datePreset=all&month=${data.monthKey}&employeeId=${data.id}`}
-          >
-            Open Attendance Management
-          </Link>
         </section>
       </div>
 
@@ -120,44 +88,35 @@ export function EmployeeProfileAttendance({ data }: { data: AttendanceData }) {
         <section className={styles.profilePanel}>
           <div className={styles.panelHeading}>
             <div>
-              <p className={styles.eyebrow}>Attendance policy</p>
-              <h3>Work and break targets</h3>
+              <h3>Expected work &amp; break</h3>
             </div>
           </div>
           <div className={styles.detailList}>
             <AttendanceDetail
-              label="Attendance work target"
-              value={formatOptionalMinutes(data.normalWorkMinutesPerDay)}
-            />
-            <AttendanceDetail
-              label="Work target policy source"
-              value={data.normalWorkPolicySource}
+              label="Daily work target"
+              value={formatTarget(data.normalWorkMinutesPerDay, data.normalWorkPolicySource)}
             />
             <AttendanceDetail
               label="Expected break"
-              value={formatOptionalMinutes(data.targetBreakMinutes)}
-            />
-            <AttendanceDetail
-              label="Break policy source"
-              value={data.targetBreakPolicySource}
+              value={formatTarget(data.targetBreakMinutes, data.targetBreakPolicySource)}
             />
           </div>
           <p className={styles.policyNote}>
-            Targets are shown for attendance context only. Worked time above a
-            target is not classified here.
+            These are attendance targets only. The employee&apos;s actual schedule
+            comes from the published Roster; pay classification is handled
+            separately.
           </p>
         </section>
 
         <section className={styles.profilePanel}>
           <div className={styles.panelHeading}>
             <div>
-              <p className={styles.eyebrow}>Branch access</p>
               <h3>Clock-in branches</h3>
             </div>
-            <span>{data.clockInBranches.length} branch(es)</span>
+            <span>{formatCount(data.clockInBranches.length, "branch")}</span>
           </div>
           {data.clockInBranches.length ? (
-            <div className={styles.assignmentList}>
+            <div className={`${styles.assignmentList} ${styles.compactAssignmentList}`}>
               {data.clockInBranches.map((branch) => (
                 <article key={branch.id}>
                   <div>
@@ -165,10 +124,6 @@ export function EmployeeProfileAttendance({ data }: { data: AttendanceData }) {
                     <small>
                       {branch.isPrimary ? "Primary branch" : "Additional branch"}
                     </small>
-                  </div>
-                  <div>
-                    <span>Attendance permission</span>
-                    <small>Current assignment</small>
                   </div>
                   <StatusBadge status="CLOCK_IN_ALLOWED" />
                 </article>
@@ -186,11 +141,9 @@ export function EmployeeProfileAttendance({ data }: { data: AttendanceData }) {
       <section className={styles.profilePanel}>
         <div className={styles.panelHeading}>
           <div>
-            <p className={styles.eyebrow}>Recent attendance</p>
-            <h3>Recent records</h3>
-            <p>Up to 10 records from authorized branches.</p>
+            <h3>Recent attendance</h3>
           </div>
-          <span>{data.recentAttendance.length} record(s)</span>
+          <span>{formatCount(data.recentAttendance.length, "record")}</span>
         </div>
         {data.recentAttendance.length ? (
           <div className={styles.assignmentList}>
@@ -238,24 +191,6 @@ export function EmployeeProfileAttendance({ data }: { data: AttendanceData }) {
   );
 }
 
-function AttendanceMetric({
-  label,
-  note,
-  value,
-}: {
-  label: string;
-  note: string;
-  value: string;
-}) {
-  return (
-    <article>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{note}</small>
-    </article>
-  );
-}
-
 function AttendanceDetail({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -288,12 +223,6 @@ function AttendanceEmpty({
   );
 }
 
-function formatCurrentStatus(status: string | null) {
-  if (status === "OPEN") return "Clocked in";
-  if (status === "ON_BREAK") return "On break";
-  return "Not clocked in";
-}
-
 function formatStatus(value: string) {
   if (value === "NOT_CLOCKED_IN") return "Not clocked in";
   if (value === "CLOCK_IN_ALLOWED") return "Clock in allowed";
@@ -314,6 +243,15 @@ function formatMinutes(minutes: number) {
 
 function formatOptionalMinutes(minutes: number | null) {
   return minutes === null ? "Not configured" : formatMinutes(minutes);
+}
+
+function formatTarget(minutes: number | null, source: string) {
+  return `${formatOptionalMinutes(minutes)} · ${source}`;
+}
+
+function formatCount(value: number, noun: string) {
+  const suffix = value === 1 ? "" : noun.endsWith("ch") ? "es" : "s";
+  return `${value} ${noun}${suffix}`;
 }
 
 function formatMonth(value: string) {

@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { AppShell } from "@/components/app-shell";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 import { getMfaSecurityState } from "@/lib/auth/mfa-service";
 import { requireUser } from "@/lib/auth/session";
 import { MfaClient } from "./mfa-client";
@@ -11,6 +13,7 @@ type Props = Readonly<{
 
 export default async function MfaSecurityPage({ searchParams }: Props) {
   const user = await requireUser();
+  if (!isMfaFeatureEnabled()) redirect("/reports");
   if (!user.sessionId) throw new Error("MFA_VERIFICATION_FAILED");
   const messages = await searchParams;
   const state = await getMfaSecurityState({

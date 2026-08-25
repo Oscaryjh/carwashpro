@@ -5,7 +5,7 @@ import { PayrollHighRiskMfaFields } from "@/components/payroll-high-risk-mfa-fie
 import { resolvePayrollRunsReadAccess } from "@/lib/payroll/runs-access";
 import { loadPayrollRunDetail, parsePayrollPage, payrollRunBrowsePath } from "@/lib/payroll/runs";
 import { getPayrollPeriodReadiness } from "@/lib/payroll/readiness";
-import type { PayrollReadinessStatus } from "@/lib/payroll/readiness";
+import type { PayrollReadinessIssue, PayrollReadinessStatus } from "@/lib/payroll/readiness";
 import {
   finalizePayrollRunAction,
   generatePayrollRunAction,
@@ -78,6 +78,7 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
   const readinessByMembership = new Map(
     readiness.employees.map((employee) => [employee.membershipId, employee]),
   );
+  const blockerGroups = groupReadinessIssues(readiness.blockers);
 
   const legacyMonth = data.run.periodStart.toISOString().slice(0, 7);
   const returnPath = `/team/payroll/runs/${data.run.id}`;
@@ -151,9 +152,9 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
       <section className={styles.snapshotPanel} aria-labelledby="run-readiness-heading">
         <div className={styles.entriesHeader}>
           <div className={styles.sectionHeading}>
-            <p className={styles.eyebrow}>Canonical readiness</p>
+            <p className={styles.eyebrow}>Payroll readiness</p>
             <h2 id="run-readiness-heading">{readinessHeading(readiness.status)}</h2>
-            <p>Finalize gate and employee readiness are recalculated from canonical sources.</p>
+            <p>See what HR can fix now and what still needs setup before payroll can continue.</p>
           </div>
         </div>
         <dl className={`${styles.heroMetrics} ${styles.readinessMetrics}`}>
@@ -162,16 +163,51 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
           <div><dt>Blocked</dt><dd>{readiness.blockedCount}</dd></div>
           <div><dt>Run status</dt><dd>{readiness.status.replace("_", " ")}</dd></div>
         </dl>
-        {readiness.blockers.length ? (
-          <ul className={styles.issueSummary}>
-            {readiness.blockers.slice(0, 8).map((issue, index) => (
-              <li key={`${issue.code}-${issue.membershipId ?? "run"}-${index}`}>
-                <strong>Blocking · {issue.employeeName ?? "Payroll run"} · {issue.source}</strong>
-                <span>{issue.message}</span>
-                <small>{issue.resolutionHint}</small>
-              </li>
+        {blockerGroups.length ? (
+          <div className={styles.issueGroupList}>
+            {blockerGroups.slice(0, 6).map((group) => (
+              <details className={styles.issueGroup} key={group.key}>
+                <summary className={styles.issueGroupHeader}>
+                  <div className={styles.issueGroupIdentity}>
+                    <span aria-hidden="true">!</span>
+                    <div>
+                      <strong>
+                        Payroll setup incomplete — {group.issues.length} item{group.issues.length === 1 ? "" : "s"}
+                      </strong>
+                      <small>{group.employeeName}</small>
+                    </div>
+                  </div>
+                  <span className={styles.issueCount} aria-hidden="true">
+                    <span className={styles.issueCountClosed}>View fixes</span>
+                    <span className={styles.issueCountOpen}>Hide fixes</span>
+                    <span className={styles.issueChevron}>⌄</span>
+                  </span>
+                </summary>
+                <ul className={styles.issueItems}>
+                  {group.issues.map((issue, index) => {
+                    const display = readinessIssueDisplay(issue);
+                    const fix = readinessIssueFix(issue, legacyMonth, data.run.status);
+                    return (
+                      <li className={styles.issueItem} key={`${issue.code}-${index}`}>
+                        <span className={styles.issueItemIcon} aria-hidden="true">{index + 1}</span>
+                        <div className={styles.issueItemCopy}>
+                          <strong>{display.title}</strong>
+                          <span>{display.description}</span>
+                        </div>
+                        <Link
+                          className={styles.issueItemFix}
+                          href={fix.href}
+                          aria-label={`Fix ${display.title}`}
+                        >
+                          Fix
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </details>
             ))}
-          </ul>
+          </div>
         ) : null}
         {readiness.warnings.length ? (
           <details className={styles.actionDisclosure}>
@@ -215,7 +251,7 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
           ) : null}
 
           {data.run.status === "DRAFT" && access.actions.canCreate ? (
-            <details className={`${styles.actionDisclosure} ${styles.highRiskDisclosure}`}>
+            <details className={`${styles.actionDisclosure} ${styles.highRiskDisclosure}`} id="refresh-draft">
               <summary className={styles.dangerAction}>Refresh draft</summary>
               <div className={styles.actionConfirmation}>
                 <strong>This regenerates system component lines from frozen approved sources.</strong>
@@ -545,6 +581,156 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
 }
 
 type ReadinessFilter = PayrollReadinessStatus | "ALL";
+
+type ReadinessIssueGroup = {
+  key: string;
+  employeeName: string;
+  issues: PayrollReadinessIssue[];
+};
+
+function groupReadinessIssues(issues: PayrollReadinessIssue[]): ReadinessIssueGroup[] {
+  const groups = new Map<string, ReadinessIssueGroup>();
+  for (const issue of issues) {
+    const key = issue.membershipId ?? "run";
+    const existing = groups.get(key);
+    if (existing) {
+      existing.issues.push(issue);
+      continue;
+    }
+    groups.set(key, {
+      key,
+      employeeName: issue.employeeName ?? "Payroll run",
+      issues: [issue],
+    });
+  }
+  return [...groups.values()];
+}
+
+function readinessIssueDisplay(issue: PayrollReadinessIssue) {
+  const scheme = statutorySchemeFromMessage(issue.message);
+  switch (issue.code) {
+    case "STALE_STATUTORY_SOURCE":
+      return {
+        title: `${scheme} is ready to recalculate`,
+        description: "The approved rule became active after this Draft was created.",
+      };
+    case "STATUTORY_RULE_NOT_AVAILABLE":
+      return {
+        title: `${scheme} payroll rule is not active`,
+        description: `${scheme} cannot be calculated until its rule has been reviewed, approved and turned on.`,
+      };
+    case "LINDUNG24_PROFILE_INCOMPLETE":
+    case "LINDUNG24_PARTICIPATION_REQUIRED":
+      return {
+        title: "Complete LINDUNG 24 participation",
+        description: "Participation evidence is missing from this employee's statutory profile.",
+      };
+    case "LINDUNG24_SELECTED_EMPLOYER_REQUIRED":
+      return {
+        title: "Select the LINDUNG 24 employer",
+        description: "Choose the employer covered by the employee's participation record.",
+      };
+    case "PCB_PROFILE_INCOMPLETE":
+      return {
+        title: "Complete PCB tax details",
+        description: "PCB cannot be calculated until this employee's required tax details are complete.",
+      };
+    case "PCB_YTD_LEDGER_INCOMPLETE":
+      return {
+        title: "Review PCB year-to-date totals",
+        description: "Previous-employer or finalized payroll totals needed for this tax year are incomplete.",
+      };
+    case "PCB_ADDITIONAL_EPF_ALLOCATION_REQUIRED":
+      return {
+        title: "Confirm EPF for additional pay",
+        description: "PCB needs the EPF amount attributable to this additional payment before it can be calculated safely.",
+      };
+    case "STATUTORY_PROFILE_INCOMPLETE":
+      return {
+        title: `${scheme} employee details are incomplete`,
+        description: `Complete the employee information required to calculate ${scheme}.`,
+      };
+    case "STATUTORY_CLASSIFICATION_REQUIRED":
+      return {
+        title: `${scheme} classification needs review`,
+        description: `Confirm how ${scheme} applies to this employee before payroll is recalculated.`,
+      };
+    default:
+      return {
+        title: issueTitle(issue),
+        description: stripTechnicalErrorCode(issue.message),
+      };
+  }
+}
+
+function statutorySchemeFromMessage(message: string) {
+  return message.match(/^([A-Z][A-Z0-9/ ]{1,20})\b/)?.[1].trim() ?? "Statutory rule";
+}
+
+function issueTitle(issue: PayrollReadinessIssue) {
+  return issue.code
+    .toLowerCase()
+    .split("_")
+    .map((word) => word[0]?.toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function stripTechnicalErrorCode(message: string) {
+  return message
+    .replace(/:\s*[A-Z][A-Z0-9_]+\.?$/u, ".")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function readinessIssueFix(
+  issue: PayrollReadinessIssue,
+  month: string,
+  runStatus: "DRAFT" | "REVIEW" | "FINALIZED",
+) {
+  if (issue.code === "STALE_STATUTORY_SOURCE" && runStatus === "DRAFT") {
+    return { href: "#refresh-draft" };
+  }
+  if (
+    issue.code === "STATUTORY_RULE_NOT_AVAILABLE" ||
+    issue.code === "STATUTORY_CLASSIFICATION_REQUIRED" ||
+    issue.code === "STATUTORY_CALCULATION_FAILED"
+  ) {
+    return { href: "/admin/statutory/rulesets" };
+  }
+  if (
+    issue.code === "STATUTORY_PROFILE_INCOMPLETE" ||
+    issue.code === "PCB_PROFILE_INCOMPLETE" ||
+    issue.code === "PCB_YTD_LEDGER_INCOMPLETE" ||
+    issue.code === "PCB_ADDITIONAL_EPF_ALLOCATION_REQUIRED" ||
+    issue.code.startsWith("LINDUNG24_") ||
+    issue.code === "STALE_LINDUNG24_PARTICIPATION"
+  ) {
+    return { href: issue.membershipId ? `/team/people/${issue.membershipId}?section=statutory` : "/team" };
+  }
+  if (
+    issue.code === "MISSING_COMPENSATION" ||
+    issue.code === "PRORATION_NOT_SUPPORTED" ||
+    issue.code === "FUTURE_COMPENSATION_CHANGE" ||
+    issue.code === "MISSING_BANK_ACCOUNT" ||
+    issue.code === "BANK_ACCOUNT_UNVERIFIED"
+  ) {
+    return { href: issue.membershipId ? `/team/people/${issue.membershipId}?section=payroll` : "/team/payroll" };
+  }
+  if (
+    issue.code === "MISSING_LOCKED_TIMESHEET" ||
+    issue.code === "STALE_ATTENDANCE_SOURCE" ||
+    issue.code === "TIMESHEET_REVISION_INVALID" ||
+    issue.code === "APPROVED_ATTENDANCE_INPUT_NOT_MATERIALISED" ||
+    issue.code === "ATTENDANCE_PAY_POLICY_NOT_READY" ||
+    issue.code === "OVERTIME_APPROVAL_SOURCE_NOT_READY"
+  ) {
+    return { href: `/team/attendance/timesheets?month=${month}` };
+  }
+  if (issue.code === "CLAIM_STATUTORY_TREATMENT_NOT_READY" && issue.membershipId) {
+    return { href: `/team/people/${issue.membershipId}?section=claims` };
+  }
+  return { href: issue.membershipId ? `/team/people/${issue.membershipId}` : `/team/payroll/settings?month=${month}` };
+}
 
 function parseReadinessFilter(value?: string): ReadinessFilter {
   return value === "READY" || value === "REVIEW_REQUIRED" || value === "BLOCKED"

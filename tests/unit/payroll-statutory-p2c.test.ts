@@ -368,6 +368,19 @@ test("controlled activation requires explicit platform actor, reason and exact s
     }),
     /STATUTORY_REVIEWER_ACTIVATOR_SEPARATION_REQUIRED/,
   );
+  const highestAuthorityActivation = prepareControlledActivation({
+    actorId: "reviewer",
+    actorRole: "PLATFORM_ADMIN",
+    actorType: "HUMAN_USER",
+    actorCapabilities: ["SIGN_OFF_STATUTORY_RULESET", "ACTIVATE_STATUTORY_RULESET"],
+    reviewerActorId: "reviewer",
+    reason: "Highest authority approved payroll activation",
+    expectedScheme: "SOCSO",
+    expectedRuleVersion: evidence.ruleVersion,
+    expectedEffectiveFrom: evidence.effectiveFrom,
+    evidence,
+  });
+  assert.match(highestAuthorityActivation.evidenceDigest, /^[a-f0-9]{64}$/);
 });
 
 test("human sign-off migration is additive, immutable and capability separated", () => {

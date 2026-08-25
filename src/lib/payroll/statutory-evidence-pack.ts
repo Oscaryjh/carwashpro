@@ -15,7 +15,7 @@ import {
   type OfficialArtifactManifestEntry,
 } from "./statutory-artifact-pipeline";
 
-export type EvidencePackScheme = "EPF" | "SOCSO" | "EIS" | "LINDUNG24";
+export type EvidencePackScheme = "EPF" | "SOCSO" | "EIS" | "LINDUNG24" | "PCB";
 export type EvidencePackBlocker =
   | "OFFICIAL_ARTIFACT_NOT_RETAINED"
   | "ARTIFACT_HASH_MISMATCH"
@@ -69,6 +69,53 @@ type ClassificationCandidate = {
   unresolvedComponents: string[];
   classifications: Array<Record<string, unknown> & { componentCode: string }>;
   activation: { allowed: boolean };
+};
+
+type PcbRequirementsInventory = {
+  schemaVersion: 2;
+  ruleVersion: string;
+  artifactId: string;
+  artifactSha256: string;
+  status: "PARTIAL" | "COMPLETE";
+  requirements: Array<{
+    requirement: string;
+    officialSection: string;
+    status: string;
+  }>;
+  remainingBlockers: string[];
+};
+
+type PcbTechnicalVerification = {
+  id: string;
+  ruleVersion: string;
+  fixtureCount: number;
+  calculatorVersion: string;
+  supportedScopeTestCount: number;
+  closureGateResult: "PASS" | "FAIL";
+  closureStatus: "COMPLETE" | "PARTIAL";
+  hasilSoftwareVerificationStatus: "APPROVED" | "PENDING";
+  requirementsDigest: string;
+  recordDigest: string;
+};
+
+type PcbClassificationCandidate = {
+  id: string;
+  scheme: "PCB";
+  ruleVersion: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  status: string;
+  classificationDigest: string;
+  classifications: Array<{
+    componentCode: string;
+    businessMeaning: string;
+    pcbTreatment: string;
+    officialBasis: string;
+    technicalStatus: string;
+    humanReviewRequired: boolean;
+  }>;
+  unresolvedUnknowns: string[];
+  activationAllowed: boolean;
 };
 
 export type StatutoryEvidencePackInput = {
@@ -187,7 +234,7 @@ export async function loadStatutoryHumanReviewPackages(
   root = process.cwd(),
 ): Promise<StatutoryHumanReviewPackage[]> {
   const inputs = await loadStatutoryEvidencePackInputs(root);
-  return inputs.map((input) => {
+  const contributionPackages: StatutoryHumanReviewPackage[] = inputs.map((input) => {
     const result = evaluateStatutoryEvidencePack(input);
     const verificationById = new Map(result.artifacts.map((item) => [item.id, item.verified]));
     return {
@@ -253,6 +300,184 @@ export async function loadStatutoryHumanReviewPackages(
       knownLimitations: result.knownLimitations,
     };
   });
+  return [...contributionPackages, await loadPcbHumanReviewPackage(root)];
+}
+
+async function loadPcbHumanReviewPackage(
+  root: string,
+): Promise<StatutoryHumanReviewPackage> {
+  const artifactIds = [
+    "hasil-pcb-computerised-spec-2026",
+    "hasil-mtd-testing-questions-2026",
+    "hasil-pcb-tp1-2026-bm",
+    "hasil-pcb-tp3-2026-bm",
+    "hasil-pcb-tp1-explanatory-notes-2026",
+    "hasil-pcb-tp3-explanatory-notes-2026",
+  ];
+  const [manifest, requirements, fixtures, verification, classification] = await Promise.all([
+    readJson<OfficialArtifactManifest>(resolve(root, "statutory/official/manifest.json")),
+    readJson<PcbRequirementsInventory>(
+      resolve(root, "statutory/official/pcb-2026-requirements.json"),
+    ),
+    readJson<GoldenFixtureSet>(
+      resolve(root, "statutory/official/fixtures/hasil-pcb-2026-official-golden-v1.json"),
+    ),
+    readJson<PcbTechnicalVerification>(
+      resolve(
+        root,
+        "statutory/official/certifications/hasil-pcb-2026-technical-verification-v1.json",
+      ),
+    ),
+    readJson<PcbClassificationCandidate>(
+      resolve(
+        root,
+        "statutory/official/classifications/malaysia-pcb-2026-signoff-candidate-v1.json",
+      ),
+    ),
+  ]);
+
+  const artifacts = await Promise.all(artifactIds.map(async (id) => {
+    const artifact = manifest.artifacts.find((item) => item.id === id);
+    if (!artifact) throw new Error(`PCB_OFFICIAL_ARTIFACT_MISSING_${id}`);
+    const bytes = artifact.retainedPath
+      ? await readFile(resolve(root, artifact.retainedPath)).catch(() => null)
+      : null;
+    const verified = Boolean(
+      bytes &&
+      artifact.verificationStatus === "VERIFIED" &&
+      verifyArtifactBytes(artifact, bytes, artifact.mimeType).ok &&
+      (artifact.artifactType !== "PDF" || hasPdfSignature(bytes)),
+    );
+    return {
+      id: artifact.id,
+      role: artifact.role,
+      authority: artifact.authority,
+      title: artifact.title,
+      version: artifact.version,
+      retainedPath: artifact.retainedPath ?? null,
+      sourceUrl: artifact.sourceUrl,
+      sha256: artifact.sha256,
+      verified,
+    };
+  }));
+
+  if (goldenFixtureDigest(fixtures) !== fixtures.fixtureDigest) {
+    throw new Error("PCB_GOLDEN_FIXTURE_DIGEST_MISMATCH");
+  }
+  if (canonicalDigest(requirements) !== verification.requirementsDigest) {
+    throw new Error("PCB_REQUIREMENTS_DIGEST_MISMATCH");
+  }
+  const { recordDigest, ...verificationRecord } = verification;
+  if (canonicalDigest(verificationRecord) !== recordDigest) {
+    throw new Error("PCB_VERIFICATION_DIGEST_MISMATCH");
+  }
+
+  const engineeringReady =
+    requirements.status === "COMPLETE" &&
+    requirements.remainingBlockers.length === 0 &&
+    verification.closureGateResult === "PASS" &&
+    verification.closureStatus === "COMPLETE" &&
+    verification.hasilSoftwareVerificationStatus === "APPROVED" &&
+    classification.activationAllowed === true &&
+    artifacts.every((artifact) => artifact.verified);
+  const implementedRequirements = requirements.requirements.filter(
+    (item) => item.status !== "BLOCKED",
+  ).length;
+  const knownLimitations = requirements.remainingBlockers.map(friendlyPcbBlocker);
+  const entries: StatutoryClassificationReviewEntry[] = classification.classifications.map(
+    (item) => ({
+      componentCode: item.componentCode,
+      displayName: item.businessMeaning,
+      treatments: { PCB: item.pcbTreatment },
+      officialEvidence: [item.officialBasis],
+      technicalRecommendation: item.pcbTreatment,
+      humanDecisionRequired: item.humanReviewRequired,
+      humanReviewStatus: item.technicalStatus,
+      reason: item.officialBasis,
+    }),
+  );
+
+  return {
+    scheme: "PCB",
+    effectiveFrom: classification.effectiveFrom,
+    effectiveTo: classification.effectiveTo,
+    evidencePack: engineeringReady ? "COMPLETE" : "INCOMPLETE",
+    engineering: engineeringReady ? "READY" : "PARTIAL",
+    humanReview: "NOT_EXECUTED",
+    humanSignOff: "NOT_EXECUTED",
+    activation: engineeringReady ? "BLOCKED_HUMAN_SIGNOFF" : "BLOCKED_ENGINEERING",
+    evidenceDigest: canonicalDigest({
+      scheme: "PCB",
+      ruleVersion: requirements.ruleVersion,
+      artifacts: artifacts.map((artifact) => ({ id: artifact.id, sha256: artifact.sha256 })),
+      requirementsDigest: verification.requirementsDigest,
+      fixtureDigest: fixtures.fixtureDigest,
+      verificationDigest: verification.recordDigest,
+      classificationDigest: classification.classificationDigest,
+      blockers: requirements.remainingBlockers,
+    }),
+    artifacts,
+    dataset: {
+      id: "hasil-pcb-2026-requirements",
+      digest: verification.requirementsDigest,
+      parserName: "hasil-pcb-requirements-inventory",
+      parserVersion: "2.0.0",
+      verificationStatus: requirements.status,
+      expectedRowCount: requirements.requirements.length,
+      actualRowCount: implementedRequirements,
+      calculationMode: "Official formula",
+      formulaAboveCents: null,
+      categoryRules: null,
+      rounding: "Integer cents with final five-sen rounding",
+    },
+    independentReview: {
+      id: verification.id,
+      method: "Official HASiL worked examples and retained calculator result",
+      reviewerType: "TECHNICAL_VERIFICATION",
+      rowsChecked: verification.fixtureCount,
+      ranges: [{ from: "Official example 1", to: `Official example ${verification.fixtureCount}`, sourcePages: [46, 47, 48, 49, 50, 51, 52] }],
+      mismatchCount: requirements.remainingBlockers.length,
+      status: verification.closureStatus,
+      digest: verification.recordDigest,
+    },
+    calculator: {
+      version: verification.calculatorVersion,
+      testDigest: fixtures.fixtureDigest,
+    },
+    fixtures: fixtures.fixtures,
+    fixtureDigest: fixtures.fixtureDigest,
+    fixtureCertificationDigest: verification.recordDigest,
+    fixtureProvenance: {
+      OFFICIAL_BACKED: fixtures.fixtures.length,
+      INDEPENDENT_DERIVED: 0,
+      ENGINEERING_REGRESSION: 0,
+      MISSING: 0,
+    },
+    classification: {
+      version: classification.id,
+      digest: classification.classificationDigest,
+      status: classification.status,
+      approvalStatus: "NOT_SIGNED_OFF",
+      entries,
+    },
+    unknownComponents: [...classification.unresolvedUnknowns],
+    knownLimitations,
+  };
+}
+
+function friendlyPcbBlocker(blocker: string) {
+  const labels: Record<string, string> = {
+    PCB_TAX_PROFILE_INCOMPLETE: "Employee tax profile inputs are not complete enough for an official PCB calculation.",
+    PCB_TP1_DOMAIN_NOT_AVAILABLE: "TP1 relief declarations are not yet available as governed payroll inputs.",
+    PCB_TP3_DOMAIN_NOT_AVAILABLE: "Previous-employer TP3 amounts are not yet available as governed payroll inputs.",
+    PCB_YTD_LEDGER_INCOMPLETE: "The tax-year ledger does not yet provide every finalized year-to-date input required by PCB.",
+    PCB_CLASSIFICATION_REQUIRED: "Several pay items still need an evidence-backed PCB treatment decision.",
+    PCB_SNAPSHOT_NOT_AVAILABLE: "A complete, frozen PCB calculation snapshot is not yet available for payroll audit.",
+    PCB_SPECIAL_REGIME_PROFILE_REQUIRED: "Approved special tax regimes cannot yet be evidenced in the employee profile.",
+    PCB_NON_RESIDENT_CLASSIFICATION_REQUIRED: "Non-resident and exempt-income treatment is not yet fully classified.",
+    HASIL_SOFTWARE_VERIFICATION_REQUIRED: "HASiL software verification has not been completed for this calculator version.",
+  };
+  return labels[blocker] ?? blocker.replaceAll("_", " ").toLowerCase();
 }
 
 export async function loadStatutoryOfficialEvidencePacks(
@@ -530,7 +755,7 @@ function hasPdfSignature(bytes: Uint8Array) {
 }
 
 function classificationTreatment(item: Record<string, unknown>, scheme: EvidencePackScheme) {
-  return item.treatment ?? item[scheme];
+  return scheme === "PCB" ? item.pcbTreatment : item.treatment ?? item[scheme];
 }
 
 function normalizeClassificationEntry(
@@ -541,6 +766,7 @@ function normalizeClassificationEntry(
     if (typeof item[scheme] === "string") treatments[scheme] = item[scheme];
   }
   if (typeof item.treatment === "string") treatments.LINDUNG24 = item.treatment;
+  if (typeof item.pcbTreatment === "string") treatments.PCB = item.pcbTreatment;
   const officialBasis = Array.isArray(item.officialBasis)
     ? item.officialBasis.filter((value): value is string => typeof value === "string")
     : [];

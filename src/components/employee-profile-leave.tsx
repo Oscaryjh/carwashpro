@@ -6,75 +6,95 @@ type LeaveData = NonNullable<
   Awaited<ReturnType<typeof loadEmployeeLeaveSection>>
 >;
 
-export function EmployeeProfileLeave({ data }: { data: LeaveData }) {
+export function EmployeeProfileLeave({
+  canAdjustBalance,
+  data,
+}: {
+  canAdjustBalance: boolean;
+  data: LeaveData;
+}) {
   return (
     <div className={styles.sectionContent}>
       <section className={styles.sectionIntro}>
         <div>
-          <p className={styles.eyebrow}>Leave</p>
           <h2>Leave</h2>
-          <p>
-            Read-only balances and request status for the current leave year.
-            Only authorized branch records are included.
-          </p>
+          <p>Balances and requests for {data.year}.</p>
         </div>
-        <span className={styles.scopeBadge}>Read only</span>
       </section>
 
-      <section aria-label="Leave summary" className={styles.metricGrid}>
-        <LeaveMetric
-          label="Current leave year"
-          note="Business local calendar"
-          value={String(data.year)}
-        />
-        <LeaveMetric
-          label="Applicable policies"
-          note="Active company leave types"
-          value={String(data.applicablePolicyCount)}
-        />
+      <section
+        aria-label="Leave summary"
+        className={`${styles.metricGrid} ${styles.metricGridCompact}`}
+      >
         <LeaveMetric
           label="Pending requests"
-          note="Inside authorized branch scope"
+          note="Awaiting a decision"
           value={String(data.pendingRequestCount)}
         />
         <LeaveMetric
-          label="Approved this year"
-          note="Approved leave days"
+          label="Approved leave"
+          note={`${data.year} total`}
           value={formatDays(data.approvedLeaveDays)}
         />
       </section>
 
-      <section className={styles.profilePanel}>
+      <section className={`${styles.profilePanel} ${styles.leaveBalancePanel}`}>
         <div className={styles.panelHeading}>
           <div>
-            <p className={styles.eyebrow}>Leave balances</p>
-            <h3>Policy entitlement and usage</h3>
-            <p>
-              Entitlement, carry forward, adjustments and approved usage for {data.year}.
-            </p>
+            <h3>Leave balances</h3>
           </div>
-          <span>{data.policies.length} policy(s)</span>
+          {canAdjustBalance ? (
+            <Link
+              aria-haspopup="dialog"
+              className={styles.leaveBalanceAction}
+              href={`/team/people/${data.id}?section=time&view=leave&manageLeave=1`}
+            >
+              Adjust balance
+            </Link>
+          ) : null}
         </div>
         {data.policies.length ? (
-          <div className={styles.assignmentList}>
+          <div className={styles.leaveBalanceList}>
             {data.policies.map((policy) => (
-              <article key={policy.id}>
-                <div>
-                  <strong>{policy.name}</strong>
-                  <small>{formatEnum(policy.code)} · {formatCountMode(policy.countMode)}</small>
-                </div>
-                <div>
-                  <span>
-                    Entitlement {formatDays(policy.entitlementDays)} · Carry forward {formatDays(policy.carriedForwardDays)} · Adjustment {formatSignedDays(policy.adjustmentDays)}
-                  </span>
-                  <small>
-                    Used {formatDays(policy.usedDays)} · Remaining {policy.remainingDays === null ? "Not tracked" : formatDays(policy.remainingDays)}
-                  </small>
-                </div>
-                <div>
+              <article className={styles.leaveBalanceItem} key={policy.id}>
+                <div className={styles.leaveBalanceIdentity}>
+                  <strong>{formatPolicyName(policy.name)}</strong>
                   <StatusBadge status={policy.payTreatment} />
-                  <small>{policy.balanceTracked ? "Balance tracked" : "Balance not tracked"}</small>
                 </div>
+                <div className={styles.leaveBalanceAvailable}>
+                  <strong>
+                    {policy.remainingDays === null
+                      ? "Not tracked"
+                      : formatDays(policy.remainingDays)}
+                  </strong>
+                  <span>
+                    {policy.remainingDays === null ? "No balance limit" : "Available"}
+                  </span>
+                </div>
+                <dl className={styles.leaveBalanceStats}>
+                  {policy.balanceTracked ? (
+                    <div>
+                      <dt>Entitled</dt>
+                      <dd>{formatDays(policy.entitlementDays)}</dd>
+                    </div>
+                  ) : null}
+                  <div>
+                    <dt>Used</dt>
+                    <dd>{formatDays(policy.usedDays)}</dd>
+                  </div>
+                  {policy.carriedForwardDays !== 0 ? (
+                    <div>
+                      <dt>Carry forward</dt>
+                      <dd>{formatDays(policy.carriedForwardDays)}</dd>
+                    </div>
+                  ) : null}
+                  {policy.adjustmentDays !== 0 ? (
+                    <div>
+                      <dt>Adjustment</dt>
+                      <dd>{formatSignedDays(policy.adjustmentDays)}</dd>
+                    </div>
+                  ) : null}
+                </dl>
               </article>
             ))}
           </div>
@@ -84,20 +104,15 @@ export function EmployeeProfileLeave({ data }: { data: LeaveData }) {
             description="No active company leave policy is available for this employee."
           />
         )}
-        <Link className={styles.inlineLink} href={`/team/leave?year=${data.year}`}>
-          Open Leave Management
-        </Link>
       </section>
 
       <div className={styles.profileGrid}>
         <section className={styles.profilePanel}>
           <div className={styles.panelHeading}>
             <div>
-              <p className={styles.eyebrow}>Upcoming approved leave</p>
-              <h3>Approved schedule</h3>
-              <p>Current and upcoming approved requests.</p>
+              <h3>Upcoming leave</h3>
             </div>
-            <span>{data.upcomingApprovedLeave.length} record(s)</span>
+            <span>{formatCount(data.upcomingApprovedLeave.length, "request")}</span>
           </div>
           {data.upcomingApprovedLeave.length ? (
             <LeaveRequestList requests={data.upcomingApprovedLeave} />
@@ -112,11 +127,9 @@ export function EmployeeProfileLeave({ data }: { data: LeaveData }) {
         <section className={styles.profilePanel}>
           <div className={styles.panelHeading}>
             <div>
-              <p className={styles.eyebrow}>Recent leave history</p>
               <h3>Recent requests</h3>
-              <p>Up to 20 requests, showing dates, type and status only.</p>
             </div>
-            <span>{data.recentLeaveHistory.length} record(s)</span>
+            <span>{formatCount(data.recentLeaveHistory.length, "request")}</span>
           </div>
           {data.recentLeaveHistory.length ? (
             <LeaveRequestList requests={data.recentLeaveHistory} />
@@ -207,8 +220,12 @@ function formatSignedDays(value: number) {
   return `${rounded > 0 ? "+" : ""}${formatDays(rounded)}`;
 }
 
-function formatCountMode(value: string) {
-  return value === "WEEKDAYS" ? "Weekdays" : "Calendar days";
+function formatPolicyName(value: string) {
+  return value.replace(/\s*\(company policy\)\s*$/i, "").trim();
+}
+
+function formatCount(value: number, noun: string) {
+  return `${value} ${noun}${value === 1 ? "" : "s"}`;
 }
 
 function formatDateRange(startsOn: Date, endsOn: Date) {

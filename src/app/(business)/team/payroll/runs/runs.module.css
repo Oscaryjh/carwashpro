@@ -67,6 +67,33 @@
 .issueSummary li { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid #ead7cf; border-radius: 8px; background: #fff9f6; }
 .issueSummary span { color: #667584; font-size: 10px; }
 .issueSummary small { color: #7a5d4f; font-size: 9px; line-height: 1.45; }
+.issueGroupList { display: grid; gap: 12px; margin-top: 14px; }
+.issueGroup { overflow: hidden; border: 1px solid #ead7cf; border-radius: 12px; background: #fff; }
+.issueGroupHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; background: #fff9f6; cursor: pointer; list-style: none; }
+.issueGroupHeader::-webkit-details-marker { display: none; }
+.issueGroupHeader:focus { outline: none; }
+.issueGroupHeader:focus-visible { outline: 2px solid #159486; outline-offset: -2px; }
+.issueGroup[open] .issueGroupHeader { border-bottom: 1px solid #f0dfd9; }
+.issueGroupIdentity { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.issueGroupIdentity > span { display: grid; flex: 0 0 32px; height: 32px; place-items: center; border-radius: 9px; color: #9d3d2f; background: #fde7df; font-size: 15px; font-weight: 900; }
+.issueGroupIdentity > div { display: grid; gap: 2px; min-width: 0; }
+.issueGroupIdentity strong { overflow: hidden; color: #1d2a3d; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.issueGroupIdentity small { color: #7b655e; font-size: 11px; }
+.issueCount { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 999px; color: #9a3f30; background: #fde7df; font-size: 10px; font-weight: 850; }
+.issueCountOpen { display: none; }
+.issueGroup[open] .issueCountClosed { display: none; }
+.issueGroup[open] .issueCountOpen { display: inline; }
+.issueChevron { display: inline-block; font-size: 13px; line-height: 1; transition: transform 160ms ease; }
+.issueGroup[open] .issueChevron { transform: rotate(180deg); }
+.issueItems { display: grid; margin: 0; padding: 4px 16px; list-style: none; }
+.issueItem { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid #e8edef; }
+.issueItem:last-child { border-bottom: 0; }
+.issueItemIcon { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; color: #087469; background: #e4f4f1; font-size: 10px; font-weight: 900; }
+.issueItemCopy { display: grid; gap: 3px; }
+.issueItemCopy strong { color: #263449; font-size: 12px; }
+.issueItemCopy span { color: #68778a; font-size: 11px; line-height: 1.5; }
+.issueItemFix { display: inline-flex; min-width: 58px; min-height: 34px; align-items: center; justify-content: center; padding: 0 12px; border: 1px solid #087d71; border-radius: 8px; color: #087267; background: #fff; font-size: 10px; font-weight: 850; text-decoration: none; }
+.issueItemFix:hover { color: #fff; background: #087d71; }
 .readinessMetrics { margin-top: 14px; }
 .readinessFilters { display: flex; flex-wrap: wrap; gap: 8px; }
 .readinessFilters a { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid #c9dcde; border-radius: 999px; color: #476071; background: #fff; font-size: 10px; font-weight: 800; text-decoration: none; }
@@ -133,6 +160,21 @@
 .editorForm { display: grid; gap: 18px; }
 .editorFieldset { display: grid; gap: 12px; margin: 0; padding: 15px; border: 1px solid #dce6e8; border-radius: 10px; }
 .editorFieldset legend { padding: 0 6px; color: #263449; font-size: 11px; font-weight: 850; }
+.statutorySnapshotGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.statutorySnapshotCard { display: grid; gap: 12px; padding: 13px; border: 1px solid #dce6e8; border-radius: 10px; background: #fbfcfc; }
+.statutorySnapshotCard[data-status="calculated"] { border-color: #c7e3df; background: #f5fbfa; }
+.statutorySnapshotHeading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.statutorySnapshotHeading strong { color: #1d2a3d; font-size: 11px; }
+.statutorySnapshotHeading span { padding: 4px 7px; border-radius: 999px; color: #7b4e14; background: #fff0cc; font-size: 8px; font-weight: 850; }
+.statutorySnapshotCard[data-status="calculated"] .statutorySnapshotHeading span { color: #087267; background: #dff2ed; }
+.statutorySnapshotCard dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin: 0; }
+.statutorySnapshotCard dl > div { display: grid; gap: 3px; }
+.statutorySnapshotCard dt { color: #718092; font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.statutorySnapshotCard dd { margin: 0; color: #1d2a3d; font-size: 10px; font-weight: 850; }
+.statutorySnapshotCard > p { margin: 0; color: #6f6046; font-size: 9px; line-height: 1.5; }
+.statutoryTechnicalDetails { padding-top: 3px; border-top: 1px solid #e5ebed; }
+.statutoryTechnicalDetails summary { padding-top: 9px; color: #087267; cursor: pointer; font-size: 9px; font-weight: 800; }
+.statutoryTechnicalDetails .componentList { margin-top: 9px; }
 .editorGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
 .moneyInput { display: grid; grid-template-columns: auto 1fr; }
 .moneyInput > b { display: grid; min-width: 38px; place-items: center; border: 1px solid #c9d9dc; border-right: 0; border-radius: 8px 0 0 8px; color: #6d7a8d; background: #f4f7f7; font-size: 9px; }
@@ -178,6 +220,9 @@
   .pagination { grid-template-columns: 84px 1fr 84px; }
   .readOnlyNote small { width: 100%; margin-left: 0; }
   .editorSummary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .statutorySnapshotGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .issueGroupHeader { align-items: stretch; flex-direction: column; }
+  .issueCount { align-self: flex-start; }
 }
 
 @media (max-width: 480px) {
@@ -193,5 +238,7 @@
   .pagination { grid-template-columns: 1fr 1fr; }
   .pagination strong { grid-column: 1 / -1; grid-row: 1; }
   .createForm, .editorFooter { align-items: stretch; flex-direction: column; }
-  .editorGrid, .editorSummary { grid-template-columns: 1fr; }
+  .editorGrid, .editorSummary, .statutorySnapshotGrid { grid-template-columns: 1fr; }
+  .issueItem { grid-template-columns: 26px minmax(0, 1fr); }
+  .issueItemFix { grid-column: 2; justify-self: start; }
 }

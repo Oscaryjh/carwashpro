@@ -42,6 +42,7 @@ import {
   leaveReviewInputSchema,
   resolveLeaveEntitlementDays,
 } from "./policy";
+import { projectLeaveLedger } from "./ledger-projection";
 
 type LeaveTransaction = Prisma.TransactionClient;
 
@@ -181,9 +182,15 @@ export async function createCompanyLeavePolicyVersion(input: {
 }) {
   const data = leavePolicyVersionInputSchema.parse(input.rawInput);
   const effectiveFrom = new Date(`${data.effectiveFrom}T00:00:00.000Z`);
+  const tomorrow = new Date();
+  tomorrow.setUTCHours(0, 0, 0, 0);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  if (effectiveFrom < tomorrow) {
+    throw new Error("Policy changes must take effect on a future date. Earlier leave records keep their original policy.");
+  }
   return prisma.$transaction(async (tx) => {
     await lockLeaveKey(tx, `policy:${input.businessId}:${data.policyId}`);
-    const policy = await tx.leavePolicy.findFirst({ where: { id: data.policyId, businessId: input.businessId } });
+    const policy = await tx.leavePolicy.findFirst({ where: { id: data.policyId, businessId: input.businessId, active: true } });
     if (!policy) throw new Error("Leave type is outside your business scope.");
     const statutoryCategory = data.statutoryCategory || null;
     const statutoryEvidence = statutoryCategory
@@ -286,6 +293,47 @@ export async function createCompanyLeavePolicyVersion(input: {
   }, { isolationLevel: "Serializable" });
 }
 
+export async function deactivateCompanyLeavePolicy(input: {
+  businessId: string;
+  policyId: string;
+  reason: string;
+  actor: AppSession;
+  request?: AuditRequestContext;
+}) {
+  const reason = input.reason.trim();
+  if (reason.length < 3 || reason.length > 500) {
+    throw new Error("Enter a short reason for deactivating this leave type.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await lockLeaveKey(tx, `policy:${input.businessId}:${input.policyId}`);
+    const policy = await tx.leavePolicy.findFirst({
+      where: { id: input.policyId, businessId: input.businessId },
+      select: { id: true, name: true, active: true },
+    });
+    if (!policy) throw new Error("Leave type is outside your business scope.");
+    if (!policy.active) return policy;
+
+    const deactivated = await tx.leavePolicy.update({
+      where: { id: policy.id },
+      data: { active: false },
+      select: { id: true, name: true, active: true },
+    });
+    await writeAuditLog({
+      businessId: input.businessId,
+      actor: input.actor,
+      request: input.request,
+      action: "LEAVE_POLICY_DEACTIVATED",
+      entityType: "LeavePolicy",
+      entityId: policy.id,
+      summary: `${policy.name} deactivated. Historical Leave records remain unchanged.`,
+      before: { active: true },
+      after: { active: false, reason },
+    }, tx);
+    return deactivated;
+  }, { isolationLevel: "Serializable" });
+}
+
 export async function getEmployeeLeaveOverview(auth: EmployeeAuthContext) {
   const year = new Date().getUTCFullYear();
   const from = new Date(Date.UTC(year, 0, 1));
@@ -373,20 +421,13 @@ export async function getEmployeeLeaveOverview(auth: EmployeeAuthContext) {
     expiresAt: bucket.expiresAt ? utcDateToDateValue(bucket.expiresAt) : null,
   }));
   const entitlementByPolicy = new Map(entitlements.map((row) => [row.policyId, Number(row.entitledUnits)]));
-  const balanceByPolicy = new Map<string, number>();
-  const usedByPolicy = new Map<string, number>();
-  const manualAdjustmentByPolicy = new Map<string, number>();
-  for (const row of ledger) {
-    const units = Number(row._sum.units ?? 0);
-    balanceByPolicy.set(row.policyId, (balanceByPolicy.get(row.policyId) ?? 0) + units);
-    if (row.eventType === "APPROVED_CONSUMPTION") {
-      usedByPolicy.set(row.policyId, (usedByPolicy.get(row.policyId) ?? 0) + Math.abs(units));
-    } else if (row.eventType === "CANCELLATION_RESTORE") {
-      usedByPolicy.set(row.policyId, Math.max(0, (usedByPolicy.get(row.policyId) ?? 0) - units));
-    } else if (row.eventType === "MANUAL_ADJUSTMENT") {
-      manualAdjustmentByPolicy.set(row.policyId, (manualAdjustmentByPolicy.get(row.policyId) ?? 0) + units);
-    }
-  }
+  const { balanceByPolicy, usedByPolicy, manualAdjustmentByPolicy } = projectLeaveLedger(
+    ledger.map((row) => ({
+      policyId: row.policyId,
+      eventType: row.eventType,
+      units: Number(row._sum.units ?? 0),
+    })),
+  );
   const pendingByPolicy = new Map(pending.map((row) => [row.policyId, Number(row._sum.requestedDays ?? 0)]));
 
   return {

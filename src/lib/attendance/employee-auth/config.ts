@@ -3,7 +3,7 @@ import { EmployeeAuthError } from "./errors";
 export const EMPLOYEE_SESSION_COOKIE = "tetamu_employee_session";
 export const EMPLOYEE_OTP_DIGITS = 6;
 
-export type EmployeeOtpProviderName = "mock" | "sms123";
+export type EmployeeOtpProviderName = "mock" | "twilio_verify" | "sms123";
 export type EmployeeOtpChannel = "local" | "sms";
 export type EmployeeOtpSendMode = "mock" | "provider";
 
@@ -26,16 +26,19 @@ export type EmployeeAuthConfig = Readonly<{
     verifyIpAttemptsPerHour: number;
     providerTimeoutMs: number;
     sendMode: EmployeeOtpSendMode;
-    developmentFastPath: boolean;
     testingDeployment: boolean;
     locale: string;
     mockAccessKey: string | null;
     mockCode: string | null;
+    twilio: Readonly<{
+      accountSid: string | null;
+      verifyServiceSid: string | null;
+      apiKeySid: string | null;
+      apiKeySecret: string | null;
+      authToken: string | null;
+    }>;
     sms123: Readonly<{
       apiKey: string | null;
-      baseUrl: string;
-      enabled: boolean;
-      messagePrefix: string;
     }>;
   }>;
   session: Readonly<{
@@ -44,7 +47,6 @@ export type EmployeeAuthConfig = Readonly<{
     selectionExpiresInSeconds: number;
     activityTouchIntervalSeconds: number;
     secureCookie: boolean;
-    allowConcurrentDevices: boolean;
   }>;
 }>;
 
@@ -63,22 +65,14 @@ export function getEmployeeAuthConfig(
   }
 
   const provider = normalizeProvider(
-    env.SMS_PROVIDER ?? env.OTP_PROVIDER ?? env.EMPLOYEE_OTP_SEND_MODE,
+    env.OTP_PROVIDER ?? env.EMPLOYEE_OTP_SEND_MODE,
     environment,
   );
   const channel = normalizeChannel(env.OTP_CHANNEL, provider);
   const sendMode: EmployeeOtpSendMode =
     provider === "mock" ? "mock" : "provider";
-  const localDevelopmentFastPath =
-    environment === "development" && sendMode === "mock";
-  const developmentFastPath =
-    localDevelopmentFastPath || (testingDeployment && sendMode === "mock");
 
-  if (
-    environment === "production" &&
-    provider === "mock" &&
-    !testingDeployment
-  ) {
+  if (environment === "production" && provider === "mock") {
     throw new EmployeeAuthError(
       "CONFIGURATION_ERROR",
       "OTP mock mode is not available in production.",
@@ -89,10 +83,9 @@ export function getEmployeeAuthConfig(
     env.EMPLOYEE_OTP_MOCK_CODE,
     environment,
     sendMode,
-    testingDeployment,
   );
-  assertOtpLength(env.OTP_LENGTH);
-  const sms123 = readSms123Config(env, provider, environment);
+  const twilio = readTwilioConfig(env, provider);
+  const sms123 = readSms123Config(env, provider);
 
   return {
     authSecret,
@@ -109,32 +102,26 @@ export function getEmployeeAuthConfig(
       provider,
       channel,
       expiresInSeconds: readInteger(
-        env.OTP_TTL_SECONDS ?? env.EMPLOYEE_OTP_EXPIRES_SECONDS,
-        localDevelopmentFastPath ? 24 * 60 * 60 : 5 * 60,
+        env.EMPLOYEE_OTP_EXPIRES_SECONDS,
+        5 * 60,
         60,
-        localDevelopmentFastPath ? 24 * 60 * 60 : 15 * 60,
-        "OTP_TTL_SECONDS",
+        15 * 60,
+        "EMPLOYEE_OTP_EXPIRES_SECONDS",
       ),
       maxAttempts: readInteger(
-        env.OTP_MAX_VERIFY_ATTEMPTS ?? env.EMPLOYEE_OTP_MAX_ATTEMPTS,
+        env.EMPLOYEE_OTP_MAX_ATTEMPTS,
         5,
         1,
         10,
-        "OTP_MAX_VERIFY_ATTEMPTS",
+        "EMPLOYEE_OTP_MAX_ATTEMPTS",
       ),
-      resendCooldownSeconds:
-        developmentFastPath &&
-        !env.OTP_RESEND_COOLDOWN_SECONDS &&
-        !env.EMPLOYEE_OTP_RESEND_SECONDS
-          ? 0
-          : readInteger(
-              env.OTP_RESEND_COOLDOWN_SECONDS ??
-                env.EMPLOYEE_OTP_RESEND_SECONDS,
-              60,
-              10,
-              10 * 60,
-              "OTP_RESEND_COOLDOWN_SECONDS",
-            ),
+      resendCooldownSeconds: readInteger(
+        env.EMPLOYEE_OTP_RESEND_SECONDS,
+        60,
+        10,
+        10 * 60,
+        "EMPLOYEE_OTP_RESEND_SECONDS",
+      ),
       phoneRequestsPerHour: readInteger(
         env.EMPLOYEE_OTP_PHONE_HOURLY_LIMIT,
         5,
@@ -185,16 +172,15 @@ export function getEmployeeAuthConfig(
         "STAFF_OTP_PROVIDER_TIMEOUT_MS",
       ),
       sendMode,
-      developmentFastPath,
       testingDeployment,
       locale: readLocale(env.EMPLOYEE_OTP_LOCALE),
       mockAccessKey: env.EMPLOYEE_OTP_MOCK_ACCESS_KEY?.trim() || null,
       mockCode,
+      twilio,
       sms123,
     },
     session: {
       cookieName: EMPLOYEE_SESSION_COOKIE,
-      allowConcurrentDevices: environment === "development",
       expiresInSeconds: readInteger(
         env.EMPLOYEE_SESSION_EXPIRES_SECONDS,
         7 * 24 * 60 * 60,
@@ -225,7 +211,6 @@ function readMockCode(
   value: string | undefined,
   environment: EmployeeAuthConfig["environment"],
   sendMode: EmployeeOtpSendMode,
-  testingDeployment: boolean,
 ) {
   const code = value?.trim() ?? "";
 
@@ -236,12 +221,12 @@ function readMockCode(
   }
 
   if (
-    (environment === "production" && !testingDeployment) ||
+    environment === "production" ||
     sendMode !== "mock"
   ) {
     throw new EmployeeAuthError(
       "CONFIGURATION_ERROR",
-      "EMPLOYEE_OTP_MOCK_CODE is available only in local/test or the explicit Railway testing deployment.",
+      "EMPLOYEE_OTP_MOCK_CODE is available only in non-production mock mode.",
     );
   }
 
@@ -272,20 +257,26 @@ function normalizeProvider(
   const normalized = value?.trim().toLowerCase();
 
   if (!normalized) {
-    return environment === "production" ? "sms123" : "mock";
+    return environment === "production"
+      ? "twilio_verify"
+      : "mock";
   }
 
   if (normalized === "mock") {
     return "mock";
   }
 
-  if (normalized === "sms123" || normalized === "provider") {
+  if (normalized === "twilio_verify" || normalized === "provider") {
+    return "twilio_verify";
+  }
+
+  if (normalized === "sms123") {
     return "sms123";
   }
 
   throw new EmployeeAuthError(
     "CONFIGURATION_ERROR",
-    "SMS_PROVIDER must be either mock or sms123.",
+    "OTP_PROVIDER must be mock, twilio_verify, or sms123.",
   );
 }
 
@@ -302,7 +293,7 @@ function normalizeChannel(
       "CONFIGURATION_ERROR",
       provider === "mock"
         ? "OTP_CHANNEL must be local when OTP_PROVIDER=mock."
-        : "OTP_CHANNEL must be sms when SMS_PROVIDER=sms123.",
+        : `OTP_CHANNEL must be sms when OTP_PROVIDER=${provider}.`,
     );
   }
 
@@ -312,79 +303,71 @@ function normalizeChannel(
 function readSms123Config(
   env: NodeJS.ProcessEnv,
   provider: EmployeeOtpProviderName,
-  environment: EmployeeAuthConfig["environment"],
 ) {
   const apiKey = env.SMS123_API_KEY?.trim() || null;
-  const enabledValue = env.SMS123_ENABLED?.trim().toLowerCase();
-  if (enabledValue && enabledValue !== "true" && enabledValue !== "false") {
-    throw new EmployeeAuthError(
-      "CONFIGURATION_ERROR",
-      "SMS123_ENABLED must be true or false when provided.",
-    );
-  }
-  const enabled = enabledValue !== "false";
-  const baseUrl = normalizeSms123BaseUrl(
-    env.SMS123_API_BASE_URL?.trim() || "https://www.sms123.net/api",
-    environment,
-  );
-  const messagePrefix = normalizeMessagePrefix(
-    env.SMS123_MESSAGE_PREFIX?.trim() || "RM0",
-  );
 
-  if (provider === "sms123" && (!enabled || !apiKey)) {
+  if (provider === "sms123" && (!apiKey || apiKey.length < 16)) {
     throw new EmployeeAuthError(
       "CONFIGURATION_ERROR",
-      enabled
-        ? "SMS123_API_KEY is required when SMS_PROVIDER=sms123."
-        : "SMS123 is disabled while SMS_PROVIDER=sms123.",
+      "SMS123_API_KEY is required when OTP_PROVIDER=sms123.",
     );
   }
 
-  return { apiKey, baseUrl, enabled, messagePrefix } as const;
+  return { apiKey } as const;
 }
 
-function normalizeSms123BaseUrl(
-  value: string,
-  environment: EmployeeAuthConfig["environment"],
+function readTwilioConfig(
+  env: NodeJS.ProcessEnv,
+  provider: EmployeeOtpProviderName,
 ) {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new EmployeeAuthError(
-      "CONFIGURATION_ERROR",
-      "SMS123_API_BASE_URL must be a valid URL.",
-    );
-  }
-  if (environment === "production" && url.protocol !== "https:") {
-    throw new EmployeeAuthError(
-      "CONFIGURATION_ERROR",
-      "SMS123_API_BASE_URL must use HTTPS in production.",
-    );
-  }
-  url.pathname = url.pathname.replace(/\/$/, "");
-  url.search = "";
-  url.hash = "";
-  return url.toString().replace(/\/$/, "");
-}
+  const accountSid = env.TWILIO_ACCOUNT_SID?.trim() || null;
+  const verifyServiceSid = env.TWILIO_VERIFY_SERVICE_SID?.trim() || null;
+  const apiKeySid = env.TWILIO_API_KEY_SID?.trim() || null;
+  const apiKeySecret = env.TWILIO_API_KEY_SECRET?.trim() || null;
+  const authToken = env.TWILIO_AUTH_TOKEN?.trim() || null;
 
-function normalizeMessagePrefix(value: string) {
-  if (!/^[A-Za-z0-9]{1,12}$/.test(value)) {
-    throw new EmployeeAuthError(
-      "CONFIGURATION_ERROR",
-      "SMS123_MESSAGE_PREFIX must contain 1 to 12 letters or digits.",
-    );
+  if (provider === "twilio_verify") {
+    if (!accountSid || !/^AC[0-9a-fA-F]{32}$/.test(accountSid)) {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "TWILIO_ACCOUNT_SID is required for Twilio Verify.",
+      );
+    }
+    if (!verifyServiceSid || !/^VA[0-9a-fA-F]{32}$/.test(verifyServiceSid)) {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "TWILIO_VERIFY_SERVICE_SID is required for Twilio Verify.",
+      );
+    }
+    const hasApiKey = Boolean(apiKeySid && apiKeySecret);
+    const hasAuthToken = Boolean(authToken);
+    if (!hasApiKey && !hasAuthToken) {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "Twilio Verify credentials are not configured.",
+      );
+    }
+    if ((apiKeySid && !apiKeySecret) || (!apiKeySid && apiKeySecret)) {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "TWILIO_API_KEY_SID and TWILIO_API_KEY_SECRET must be configured together.",
+      );
+    }
+    if (apiKeySid && !/^SK[0-9a-fA-F]{32}$/.test(apiKeySid)) {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "TWILIO_API_KEY_SID is invalid.",
+      );
+    }
   }
-  return value;
-}
 
-function assertOtpLength(value: string | undefined) {
-  if (value !== undefined && value.trim() !== String(EMPLOYEE_OTP_DIGITS)) {
-    throw new EmployeeAuthError(
-      "CONFIGURATION_ERROR",
-      `OTP_LENGTH must be ${EMPLOYEE_OTP_DIGITS}.`,
-    );
-  }
+  return {
+    accountSid,
+    verifyServiceSid,
+    apiKeySid,
+    apiKeySecret,
+    authToken,
+  } as const;
 }
 
 function readTestingDeployment(env: NodeJS.ProcessEnv) {

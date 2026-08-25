@@ -22,7 +22,7 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
     });
   }
   if (hasAnyCapability(access, ["APPROVE_LEAVE", "REVIEW_CLAIM", "APPROVE_PAYROLL", "MODIFY_ATTENDANCE_EMPLOYEES"])) {
-    items.push({ href: "/team/approvals", label: "Approvals", icon: "approvals" });
+    items.push({ href: "/team/approvals", label: "Action Center", shortLabel: "Actions", icon: "approvals" });
   }
   if (enabled.has("HR") && hasBusinessCapability(access, "VIEW_ATTENDANCE_EMPLOYEES")) {
     items.push({
@@ -47,6 +47,14 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
   }
   if (enabled.has("PAYROLL") && hasBusinessCapability(access, "VIEW_PAYROLL_RUN")) {
     items.push({ href: "/team/payroll", label: "Payroll", icon: "payroll" });
+  }
+  if (hasBusinessCapability(access, "VIEW_TEAM_DIRECTORY")) {
+    items.push({
+      href: "/team?section=activity",
+      label: "Team activity",
+      icon: "activity",
+      activeQuery: { name: "section", value: "activity" },
+    });
   }
 
   return (

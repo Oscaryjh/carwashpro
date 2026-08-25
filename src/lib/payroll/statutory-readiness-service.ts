@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 import { prisma } from "@/lib/prisma";
 import { statutoryRuleEvidenceDigest } from "./statutory-activation-service";
 import { classificationBlockingScope } from "./statutory-classification-policy";
@@ -73,7 +74,10 @@ export async function getStatutoryActivationReadiness(
     blockers.add("SIGN_OFF_STALE");
   }
   const stepUp = statutoryStepUpReadiness(rule);
-  if (stepUp.blocker) blockers.add("STATUTORY_STEP_UP_AUTH_NOT_READY");
+  const effectiveStepUp = isMfaFeatureEnabled()
+    ? stepUp
+    : { status: "READY" as const, blocker: null };
+  if (effectiveStepUp.blocker) blockers.add("STATUTORY_STEP_UP_AUTH_NOT_READY");
 
   const overlap = await database.statutoryRuleSet.findFirst({
     where: {
@@ -108,7 +112,7 @@ export async function getStatutoryActivationReadiness(
         : rule.humanReviewStatus === "IN_PROGRESS" ? "IN_PROGRESS" as const : "PENDING" as const,
       humanSignOff: latestApproval && latestDecision?.decision === "APPROVED"
         ? "EXECUTED" as const : "NOT_EXECUTED" as const,
-      stepUp: stepUp.status,
+      stepUp: effectiveStepUp.status,
       activation: rule.status === "ACTIVE" ? "ACTIVE" as const : "NOT_ACTIVE" as const,
     },
   };
@@ -117,7 +121,7 @@ export async function getStatutoryActivationReadiness(
 function latestDecisionByClassification<T extends {
   classificationId: string;
   decisionRevision: number;
-  decision: "INCLUDED" | "EXCLUDED" | "KEEP_UNKNOWN";
+  decision: "INCLUDED" | "ADDITIONAL_REMUNERATION" | "EXCLUDED" | "KEEP_UNKNOWN";
 }>(decisions: T[]) {
   const latest = new Map<string, T>();
   for (const decision of decisions) {

@@ -298,6 +298,7 @@ type EntryAmounts = {
   eisEmployee: { toString(): string };
   lindung24Employee: { toString(): string };
   pcb: { toString(): string };
+  cp38: { toString(): string };
 };
 
 async function loadEditableEntry(
@@ -323,6 +324,7 @@ function statutoryFromEntry(entry: EntryAmounts) {
     eisEmployeeCents: moneyToCents(entry.eisEmployee),
     lindung24EmployeeCents: moneyToCents(entry.lindung24Employee),
     pcbCents: moneyToCents(entry.pcb),
+    cp38Cents: moneyToCents(entry.cp38),
   };
 }
 
