@@ -1762,6 +1762,32 @@
   border-top: 3px solid var(--staff-brand);
 }
 
+.staff-attendance-card.is-complete {
+  border-top-color: #32a477;
+}
+
+.staff-attendance-card.is-complete .staff-card-heading h2 {
+  font-size: 18px;
+}
+
+.staff-attendance-context.is-complete {
+  background: linear-gradient(135deg, #edf8f4 0%, #f7fbf9 100%);
+  border-color: #cfe8df;
+}
+
+.staff-attendance-context.is-complete .staff-shift-summary-icon {
+  background: #d8f3e8;
+  color: #176540;
+}
+
+.staff-attendance-context.is-complete .staff-shift-summary-copy small {
+  color: #176540;
+}
+
+.staff-attendance-context.is-complete .staff-shift-summary-copy strong {
+  font-size: 15px;
+}
+
 .staff-card-heading,
 .staff-history-card-header {
   align-items: flex-start;

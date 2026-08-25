@@ -432,9 +432,12 @@ export function StaffToday() {
       lastBreakEndedAt: today.lastBreakEndedAt,
       serverTime: today.serverTime,
     });
+  const isCompleted = today.status === "COMPLETED";
   return (
     <div className="staff-today-stack">
-      <section className="staff-page-card staff-attendance-card">
+      <section
+        className={`staff-page-card staff-attendance-card${isCompleted ? " is-complete" : ""}`}
+      >
         <div className="staff-card-heading">
           <div>
             <p className="staff-kicker">TODAY&apos;S ATTENDANCE</p>
@@ -446,21 +449,31 @@ export function StaffToday() {
               : attendanceStatusLabel(today.status)}
           </span>
         </div>
-        <div className="staff-attendance-context">
+        <div className={`staff-attendance-context${isCompleted ? " is-complete" : ""}`}>
           <div className="staff-shift-summary">
             <span className="staff-shift-summary-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M7 3v3M17 3v3M4.5 9h15M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
-              </svg>
+              {isCompleted ? (
+                <svg viewBox="0 0 24 24">
+                  <path d="m6 12 4 4 8-9" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24">
+                  <path d="M7 3v3M17 3v3M4.5 9h15M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+                </svg>
+              )}
             </span>
             <div className="staff-shift-summary-copy">
               <small>
-                {today.expectedAttendance
+                {isCompleted
+                  ? "Shift completed"
+                  : today.expectedAttendance
                   ? expectedAttendanceLabel(today.expectedAttendance.kind)
                   : "Schedule not available"}
               </small>
               <strong>
-                {today.expectedAttendance
+                {isCompleted
+                  ? `${today.completedSessionCount} ${today.completedSessionCount === 1 ? "shift" : "shifts"} recorded today`
+                  : today.expectedAttendance
                   ? expectedAttendanceDetail(today.expectedAttendance)
                   : "Check Schedule or contact your manager for today’s shift."}
               </strong>
@@ -607,19 +620,8 @@ export function StaffToday() {
           </div>
         ) : null}
 
-        {!exceptionPrompt ? (
+        {!exceptionPrompt && (today.allowedActions.length > 0 || !isCompleted) ? (
           <div className="staff-action-grid">
-            {today.status === "COMPLETED" ? (
-              <div className="staff-completed-message">
-                <span aria-hidden="true">✓</span>
-                <strong>Shift completed</strong>
-                <small>
-                  {today.completedSessionCount}{" "}
-                  {today.completedSessionCount === 1 ? "shift" : "shifts"} completed today
-                </small>
-                <Link href="/staff/history">View shifts in History</Link>
-              </div>
-            ) : null}
             {today.allowedActions.map((action) => {
               const isAdditionalShift =
                 action === "CLOCK_IN" &&
@@ -789,14 +791,14 @@ function Metric({ label, value }: { label: string; value: string }) {
 function attendanceHeadline(today: AttendanceToday) {
   if (today.status === "OPEN") return "You are currently working";
   if (today.status === "ON_BREAK") return "Your break is in progress";
-  if (today.status === "COMPLETED") return "You have clocked out for today";
+  if (today.status === "COMPLETED") return "Workday complete";
   return "Ready to start your day";
 }
 
 function attendanceStatusLabel(status: AttendanceToday["status"]) {
   if (status === "OPEN") return "Working";
   if (status === "ON_BREAK") return "On break";
-  if (status === "COMPLETED") return "Shift done";
+  if (status === "COMPLETED") return "Completed";
   return "Ready";
 }
 
