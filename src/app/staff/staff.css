@@ -158,11 +158,16 @@
 
 .staff-pwa-header {
   align-items: center;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: #f3f8f7;
   display: flex;
+  filter: none;
   justify-content: space-between;
   margin: 0 auto;
   max-width: 760px;
   min-height: 64px;
+  opacity: 1;
   padding: 8px 0;
 }
 
@@ -2548,7 +2553,7 @@
   }
 }
 
-@media (max-width: 430px) {
+@media (max-width: 600px) {
   .staff-pwa-shell {
     padding-left: 12px;
     padding-right: 12px;
@@ -2570,6 +2575,13 @@
   .staff-app-shell > .staff-pwa-header,
   .staff-app-shell > .staff-pwa-main {
     width: 100%;
+  }
+
+  .staff-app-shell > .staff-pwa-header {
+    background: #f3f8f7;
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 2;
   }
 
   .staff-app-shell > .staff-pwa-main {
@@ -2636,6 +2648,12 @@
 
   .staff-pwa-brand {
     flex: 0 0 40px;
+    filter: none;
+    opacity: 1;
+  }
+
+  .staff-pwa-brand > span {
+    box-shadow: none;
   }
 
   .staff-pwa-brand strong {
@@ -2643,7 +2661,10 @@
   }
 
   .staff-current-workplace {
+    box-shadow: none;
     flex: 1 1 auto;
+    filter: none;
+    opacity: 1;
     padding-left: 10px;
     padding-right: 43px;
   }

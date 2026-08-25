@@ -1,4 +1,4 @@
-const CACHE_NAME = "tetamu-pos-static-v3";
+const CACHE_NAME = "tetamu-pos-static-v4";
 const APP_ASSETS = [
   "/manifest.webmanifest",
   "/staff/manifest.webmanifest",

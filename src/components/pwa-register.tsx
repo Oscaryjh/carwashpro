@@ -45,19 +45,38 @@ export function PwaRegister() {
       return;
     }
 
+    let reloadingForUpdate = false;
+    function reloadForUpdatedWorker() {
+      if (reloadingForUpdate) return;
+      reloadingForUpdate = true;
+      window.location.reload();
+    }
+
+    navigator.serviceWorker.addEventListener(
+      "controllerchange",
+      reloadForUpdatedWorker,
+    );
+
     function registerServiceWorker() {
       void navigator.serviceWorker
-        .register("/sw.js", { scope: "/" })
+        .register("/sw.js", { scope: "/", updateViaCache: "none" })
+        .then((registration) => registration.update())
         .catch(() => undefined);
     }
 
     if (document.readyState === "complete") {
       registerServiceWorker();
-      return;
+    } else {
+      window.addEventListener("load", registerServiceWorker, { once: true });
     }
 
-    window.addEventListener("load", registerServiceWorker, { once: true });
-    return () => window.removeEventListener("load", registerServiceWorker);
+    return () => {
+      window.removeEventListener("load", registerServiceWorker);
+      navigator.serviceWorker.removeEventListener(
+        "controllerchange",
+        reloadForUpdatedWorker,
+      );
+    };
   }, []);
 
   return null;
