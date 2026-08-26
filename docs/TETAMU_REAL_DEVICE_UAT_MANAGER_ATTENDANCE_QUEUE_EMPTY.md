@@ -70,6 +70,20 @@ Functional source commit:
 
 `fd4157b fix(staff): include pending attendance exceptions`
 
+## Testing deployment
+
+| Field | Value |
+| --- | --- |
+| Service | `tetamu-staff-app` |
+| Environment | `testing` |
+| URL | `https://tetamu-staff-app-testing.up.railway.app` |
+| Deployment ID | `50b876fd-98cb-46f5-ab6e-826b122bd7b6` |
+| Deployment status | `SUCCESS` |
+| Health endpoint | HTTP 200 |
+| Database health | `ready` |
+
+No Production service or Production data was touched.
+
 ## Scope and security verification
 
 | Control | Result |
