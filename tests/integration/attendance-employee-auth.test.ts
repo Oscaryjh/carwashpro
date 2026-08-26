@@ -245,8 +245,19 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
     );
     assert.deepEqual(
       Object.keys(providerFailureResponse).sort(),
-      ["challengeId", "expiresInSeconds", "message", "resendAfterSeconds"],
+      [
+        "challengeId",
+        "expiresInSeconds",
+        "message",
+        "requestStatus",
+        "resendAfterSeconds",
+      ],
       "provider errors must not leak into the public result",
+    );
+    assert.equal(
+      providerFailureResponse.requestStatus,
+      "CODE_REQUESTED",
+      "provider failures must keep the same public request status",
     );
     const providerFailureChallenge =
       await prisma.employeeOtpChallenge.findUniqueOrThrow({

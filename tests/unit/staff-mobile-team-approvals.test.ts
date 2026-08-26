@@ -8,17 +8,18 @@ const files = {
   detail: "src/app/staff/approvals/[domain]/[requestId]/page.tsx",
   actions: "src/app/staff/approvals/actions.ts",
   home: "src/components/staff-pwa/staff-home-overview.tsx",
+  requests: "src/app/staff/requests/page.tsx",
   css: "src/app/staff/staff.css",
 };
 
 test("mobile Team Approvals is capability-based and limited to Leave and Claims", async () => {
-  const [adapter, home, inbox] = await Promise.all([readFile(files.adapter, "utf8"), readFile(files.home, "utf8"), readFile(files.inbox, "utf8")]);
+  const [adapter, home, requests, inbox] = await Promise.all([readFile(files.adapter, "utf8"), readFile(files.home, "utf8"), readFile(files.requests, "utf8"), readFile(files.inbox, "utf8")]);
   assert.match(adapter, /canDirectStaff\(user\.permissions, capability\)/);
   assert.match(adapter, /APPROVE_LEAVE/);
   assert.match(adapter, /REVIEW_CLAIM/);
   assert.match(adapter, /MobileApprovalDomain = "LEAVE" \| "CLAIMS"/);
   assert.doesNotMatch(home, /bottom navigation|More menu/i);
-  assert.match(home, /Team Approvals/);
+  assert.match(requests, /Team approvals/i);
   assert.match(inbox, /query\.domain === "LEAVE" \|\| query\.domain === "CLAIMS"/);
 });
 
@@ -71,10 +72,10 @@ test("mobile approval documents use protected scoped routes", async () => {
 });
 
 test("mobile UI has compact filters, loading state and 44px touch targets", async () => {
-  const [inbox, detail, form, home, css, loading] = await Promise.all([readFile(files.inbox, "utf8"), readFile(files.detail, "utf8"), readFile("src/components/staff-pwa/mobile-approval-form.tsx", "utf8"), readFile(files.home, "utf8"), readFile(files.css, "utf8"), readFile("src/app/staff/approvals/loading.tsx", "utf8")]);
+  const [inbox, detail, form, requests, css, loading] = await Promise.all([readFile(files.inbox, "utf8"), readFile(files.detail, "utf8"), readFile("src/components/staff-pwa/mobile-approval-form.tsx", "utf8"), readFile(files.requests, "utf8"), readFile(files.css, "utf8"), readFile("src/app/staff/approvals/loading.tsx", "utf8")]);
   assert.match(inbox, /staff-approval-tabs/);
-  assert.match(home, /canReviewLeave/);
-  assert.match(home, /canReviewClaims/);
+  assert.match(requests, /getStaffTeamApprovalSummary/);
+  assert.match(requests, /href="\/staff\/approvals"/);
   assert.match(detail, /Current balance/);
   assert.match(form, /Reason for rejection \(required when rejecting\)/);
   assert.ok(form.indexOf('decision="REJECTED"') < form.indexOf('decision="APPROVED"'));

@@ -233,8 +233,12 @@ test("Employee cookie drives the complete Attendance route flow with tenant isol
   assert.equal(historyResponse.status, 200);
   const historyResult = (await historyResponse.json()).data;
   assert.equal(historyResult.items.length, 1);
-  assert.equal(historyResult.items[0].id, clockInResult.attendanceSessionId);
-  assert.equal(historyResult.items[0].status, "COMPLETED");
+  assert.equal(
+    historyResult.items[0].sessions[0].id,
+    clockInResult.attendanceSessionId,
+  );
+  assert.equal(historyResult.items[0].sessions[0].punchStatus, "COMPLETED");
+  assert.equal(historyResult.items[0].primaryStatus.key, "RESOLVED");
   assert.equal(historyResult.pagination.total, 1);
 
   const previousPunchLimit =

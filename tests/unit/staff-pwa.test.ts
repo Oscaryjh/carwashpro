@@ -444,15 +444,15 @@ test("Staff manifest is installable and starts inside the isolated Staff scope",
 
 test("Staff navigation follows module entitlement without overcrowding the mobile bar", () => {
   const posOnly = buildStaffNavigation(["CORE", "POS", "SALON"]);
-  assert.deepEqual(posOnly.primary.map((item) => item.label), ["Home", "Appointments"]);
+  assert.deepEqual(posOnly.primary.map((item) => item.label), ["Home"]);
   assert.deepEqual(posOnly.more.map((item) => item.label), ["Profile"]);
 
   const hrOnly = buildStaffNavigation(["CORE", "HR"]);
-  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance"]);
+  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Time", "Requests"]);
   assert.deepEqual(hrOnly.more.map((item) => item.label), ["Profile"]);
 
   const full = buildStaffNavigation(["CORE", "SALON", "HR", "CLAIMS", "COMMISSION", "PAYROLL"]);
-  assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Attendance", "Appointments"]);
+  assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Time", "Requests", "Pay"]);
   assert.deepEqual(full.more.map((item) => item.label), ["Profile"]);
   assert.deepEqual(full.more.filter((item) => item.section === "ACCOUNT").map((item) => item.label), ["Profile"]);
   assert.ok(full.primary.length + full.more.length <= 5, "primary navigation plus Profile must fit five mobile slots");

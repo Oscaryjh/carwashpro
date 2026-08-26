@@ -52,6 +52,11 @@ export const EMPLOYEE_OTP_REQUEST_MESSAGE =
 export const EMPLOYEE_OTP_RATE_LIMIT_MESSAGE =
   "Too many verification requests. Please wait before trying again.";
 
+const EMPLOYEE_AUTH_TRANSACTION_OPTIONS = {
+  maxWait: 5_000,
+  timeout: 20_000,
+} as const;
+
 export type EmployeeOtpRequestResult = Readonly<{
   challengeId: string;
   message: string;
@@ -287,7 +292,7 @@ export async function requestEmployeeOtp(
       cooldownChallenge: null,
       rateLimited: !rateLimit.providerAllowed,
     };
-  });
+  }, EMPLOYEE_AUTH_TRANSACTION_OPTIONS);
 
   if (!creation.created) {
     return creation.cooldownChallenge
@@ -571,7 +576,7 @@ export async function verifyEmployeeOtp(
         phoneIdentifierHash,
       },
     };
-  });
+  }, EMPLOYEE_AUTH_TRANSACTION_OPTIONS);
 
   if (!verification.ok) {
     throw new EmployeeAuthError(verification.rateLimited ? "RATE_LIMITED" : "OTP_INVALID");
@@ -653,7 +658,7 @@ export async function verifyEmployeeOtp(
         );
       }
       return terminal;
-    });
+    }, EMPLOYEE_AUTH_TRANSACTION_OPTIONS);
     throw new EmployeeAuthError(
       terminalFailure === "EXPIRED"
         ? "OTP_EXPIRED"
@@ -693,7 +698,7 @@ export async function verifyEmployeeOtp(
       transaction,
     );
     return updated.count === 1;
-  });
+  }, EMPLOYEE_AUTH_TRANSACTION_OPTIONS);
   if (!approved) throw new EmployeeAuthError("OTP_INVALID");
 
   const verificationResult = {
@@ -1043,7 +1048,7 @@ async function completeEmployeeLogin(
       expiresAt: createdSession.expiresAt,
       context: createdSession.context,
     };
-  });
+  }, EMPLOYEE_AUTH_TRANSACTION_OPTIONS);
 }
 
 function uniformOtpRequestResult(

@@ -1377,6 +1377,173 @@
   }
 }
 
+/* Unified Staff Requests and Pay hubs. Canonical domain pages remain the source of truth. */
+.staff-hub-page {
+  display: grid;
+  gap: 12px;
+  padding: 4px 0 18px;
+}
+
+.staff-hub-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.staff-hub-card,
+.staff-manager-approval-link {
+  background: var(--staff-card);
+  border: 1px solid var(--staff-line);
+  border-radius: 18px;
+  color: var(--staff-ink);
+  min-width: 0;
+  text-decoration: none;
+}
+
+.staff-hub-card {
+  display: grid;
+  gap: 5px;
+  min-height: 150px;
+  padding: 16px;
+}
+
+.staff-hub-card > small,
+.staff-manager-approval-link small,
+.staff-request-activity header small {
+  color: var(--staff-brand);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .11em;
+}
+
+.staff-hub-card > strong { font-size: 18px; }
+.staff-hub-card > span { color: var(--staff-muted); font-size: 11px; line-height: 1.45; }
+.staff-hub-card > b { align-self: end; color: var(--staff-brand-dark); font-size: 11px; }
+
+.staff-manager-approval-link {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  min-height: 70px;
+  padding: 13px 15px;
+}
+
+.staff-manager-approval-link > span { display: grid; gap: 3px; }
+.staff-manager-approval-link strong { font-size: 14px; }
+.staff-manager-approval-link > b { background: var(--staff-soft); border-radius: 999px; color: var(--staff-brand-dark); font-size: 10px; padding: 7px 9px; }
+
+.staff-hub-note {
+  background: #f0f7f5;
+  border-left: 3px solid var(--staff-brand);
+  border-radius: 12px;
+  display: grid;
+  gap: 3px;
+  padding: 11px 13px;
+}
+
+.staff-hub-note strong { font-size: 11px; }
+.staff-hub-note span { color: var(--staff-muted); font-size: 10px; line-height: 1.45; }
+
+.staff-request-activity {
+  background: var(--staff-card);
+  border: 1px solid var(--staff-line);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.staff-request-activity > header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 15px;
+}
+
+.staff-request-activity > header > div { display: grid; gap: 2px; }
+.staff-request-activity h2 { font-size: 15px; margin: 0; }
+.staff-request-activity > header > span { color: var(--staff-muted); font-size: 9px; }
+.staff-request-activity > a {
+  align-items: center;
+  border-top: 1px solid var(--staff-line);
+  color: var(--staff-ink);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  min-height: 74px;
+  padding: 10px 13px;
+  text-decoration: none;
+}
+
+.staff-request-domain { align-items: center; background: var(--staff-soft); border-radius: 10px; color: var(--staff-brand-dark); display: flex; font-size: 9px; font-weight: 900; height: 32px; justify-content: center; width: 32px; }
+.staff-request-copy { display: grid; gap: 1px; min-width: 0; }
+.staff-request-copy small { color: var(--staff-muted); font-size: 8px; }
+.staff-request-copy strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.staff-request-copy > span { color: var(--staff-muted); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.staff-request-status { border-radius: 999px; font-size: 8px; padding: 6px 7px; white-space: nowrap; }
+.staff-request-status.pending { background: #fff2cf; color: #8c5b00; }
+.staff-request-status.approved { background: #e4f5ec; color: #23683e; }
+.staff-request-status.rejected { background: #fff0ed; color: #9b382d; }
+.staff-request-status.cancelled { background: #eef2f1; color: #61716f; }
+.staff-request-status.action { background: #ffeadf; color: #9a431d; }
+.staff-hub-empty { border-top: 1px solid var(--staff-line); display: grid; gap: 4px; padding: 24px 16px; text-align: center; }
+.staff-hub-empty strong { font-size: 12px; }
+.staff-hub-empty span { color: var(--staff-muted); font-size: 10px; }
+
+.staff-approval-page,
+.staff-approval-detail { display: grid; gap: 16px; min-width: 0; }
+.staff-approval-header,
+.staff-approval-detail > header { align-items: start; background: linear-gradient(145deg, #f3fffc, #fff); border: 1px solid var(--staff-line); border-radius: 24px; display: flex; gap: 14px; justify-content: space-between; padding: 20px; }
+.staff-approval-header h1,
+.staff-approval-header p,
+.staff-approval-detail header h1,
+.staff-approval-detail header p { margin: 0; }
+.staff-approval-header > div,
+.staff-approval-detail header > div { display: grid; gap: 5px; min-width: 0; }
+.staff-approval-header > span,
+.staff-approval-detail header > span { background: #e2f5f1; border-radius: 999px; color: #075f59; flex: 0 0 auto; font-size: 12px; font-weight: 850; padding: 8px 11px; }
+.staff-approval-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.staff-approval-tabs::-webkit-scrollbar { display: none; }
+.staff-approval-tabs a { align-items: center; background: #fff; border: 1px solid var(--staff-line); border-radius: 14px; color: var(--staff-muted); display: inline-flex; flex: 0 0 auto; font-size: 13px; font-weight: 800; gap: 8px; min-height: 44px; padding: 0 14px; text-decoration: none; }
+.staff-approval-tabs a.active { background: #e9f8f5; border-color: #8bcfc6; color: #075f59; }
+.staff-approval-tabs b { background: #edf2f2; border-radius: 999px; color: inherit; min-width: 23px; padding: 3px 6px; text-align: center; }
+.staff-approval-list { display: grid; gap: 10px; }
+.staff-approval-row { align-items: center; background: #fff; border: 1px solid var(--staff-line); border-radius: 19px; color: var(--staff-ink); display: grid; gap: 12px; grid-template-columns: 42px minmax(0, 1fr) 18px; min-height: 112px; padding: 14px; text-decoration: none; }
+.staff-approval-domain { align-items: center; align-self: start; background: #e1f4f0; border-radius: 13px; color: #08766e; display: inline-flex; font-size: 11px; font-weight: 900; height: 42px; justify-content: center; width: 42px; }
+.staff-approval-domain.claims { background: #eef1fb; color: #425a9d; }
+.staff-approval-copy { display: grid; gap: 4px; min-width: 0; }
+.staff-approval-copy small,
+.staff-approval-copy time,
+.staff-approval-copy > span { color: var(--staff-muted); font-size: 11px; }
+.staff-approval-copy strong { font-size: 16px; }
+.staff-approval-copy > span { font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.staff-approval-chevron { color: var(--staff-brand); font-size: 26px; }
+.staff-approval-empty { display: grid; gap: 7px; padding: 24px; text-align: center; }
+.staff-approval-back { align-items: center; color: var(--staff-brand-dark); display: inline-flex; font-size: 13px; font-weight: 850; min-height: 44px; text-decoration: none; width: fit-content; }
+.staff-approval-facts,
+.staff-approval-lines,
+.staff-approval-decision-form { background: #fff; border: 1px solid var(--staff-line); border-radius: 20px; }
+.staff-approval-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding: 4px 16px; }
+.staff-approval-facts > div { border-bottom: 1px solid var(--staff-line); display: grid; gap: 4px; padding: 14px 4px; }
+.staff-approval-facts .wide { grid-column: 1 / -1; }
+.staff-approval-facts dt { color: var(--staff-muted); font-size: 11px; }
+.staff-approval-facts dd { font-size: 14px; font-weight: 800; margin: 0; overflow-wrap: anywhere; }
+.staff-approval-lines,
+.staff-approval-decision-form { display: grid; gap: 13px; padding: 16px; }
+.staff-approval-decision-form textarea { border: 1px solid #c8d8d6; border-radius: 13px; font: inherit; min-height: 74px; padding: 12px; resize: vertical; width: 100%; }
+.staff-approval-actions { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+.staff-approval-actions button { border-radius: 13px; font: inherit; font-size: 14px; font-weight: 850; min-height: 48px; }
+.staff-approval-approve { background: var(--staff-brand); border: 1px solid var(--staff-brand); color: #fff; }
+.staff-approval-reject { background: #fff; border: 1px solid #d9958e; color: #a8372c; }
+
+@media (max-width: 430px) {
+  .staff-approval-header,
+  .staff-approval-detail > header { padding: 16px; }
+  .staff-approval-facts { grid-template-columns: 1fr; }
+  .staff-hub-grid { grid-template-columns: 1fr; }
+  .staff-hub-card { min-height: 126px; }
+  .staff-request-activity > a { gap: 8px; grid-template-columns: 30px minmax(0, 1fr) auto; padding-left: 10px; padding-right: 10px; }
+  .staff-request-status { max-width: 86px; overflow: hidden; text-overflow: ellipsis; }
+}
+
 .staff-otp-inputs {
   display: grid;
   gap: clamp(5px, 2vw, 8px);

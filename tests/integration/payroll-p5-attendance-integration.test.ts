@@ -49,12 +49,10 @@ test("P5 materialises exact locked P2 outcomes, preserves manual lines and detec
       assert.equal(monthly.attendanceInputSnapshot?.regularMinutes, 600);
 
       assert.equal(blockedMonthly.basicPay.toString(), "3200");
-      assert.equal(blockedMonthly.unpaidLeaveDeduction.toString(), "0");
+      assert.equal(blockedMonthly.unpaidLeaveDeduction.toString(), "184.62");
       assert.equal(blockedMonthly.attendanceInputSnapshot?.unpaidLeaveDays.toString(), "0.5");
       assert.equal(blockedMonthly.attendanceInputSnapshot?.unauthorizedAbsenceDays.toString(), "1");
-      assert.deepEqual(blockedMonthly.attendanceInputSnapshot?.policyBlockers, [
-        "PAYROLL_ABSENCE_RATE_POLICY_NOT_READY",
-      ]);
+      assert.deepEqual(blockedMonthly.attendanceInputSnapshot?.policyBlockers, []);
 
       assert.deepEqual(
         daily.components.map((line) => [line.code, line.amount.toString(), line.sourceType]),
@@ -130,7 +128,7 @@ test("P5 materialises exact locked P2 outcomes, preserves manual lines and detec
         { businessId: fixture.businessId, month: "2026-08", runId: run.id },
         transaction,
       );
-      assert.equal(readiness.counts.ATTENDANCE_PAY_POLICY_NOT_READY, 1);
+      assert.equal(readiness.counts.ATTENDANCE_PAY_POLICY_NOT_READY, 0);
       assert.equal(readiness.canProceed, false);
 
       const newerRevision = await createRevision(

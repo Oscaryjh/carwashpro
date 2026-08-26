@@ -24,6 +24,7 @@ import { prisma } from "../../src/lib/prisma";
 import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 
 Object.assign(process.env, { NODE_ENV: "test" });
+process.env.PAYROLL_BANK_ACCOUNT_MFA_ENABLED = "true";
 process.env.PAYROLL_PAYMENT_ACTIVE_KEY_VERSION = "integration-v1";
 process.env.PAYROLL_PAYMENT_ENCRYPTION_KEYS = JSON.stringify({
   "integration-v1": randomBytes(32).toString("base64"),

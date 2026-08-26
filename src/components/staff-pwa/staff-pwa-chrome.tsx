@@ -240,12 +240,12 @@ export function StaffPwaChrome({
         {showNavigation ? (
           <nav aria-label="Staff navigation" className="staff-pwa-nav">
             {navigation.primary.map((item) => (
-              <Link aria-current={isActive(currentPath, item.href) ? "page" : undefined} className={isActive(currentPath, item.href) ? "active" : ""} href={item.href} key={item.href}>
+              <Link aria-current={isActive(currentPath, item) ? "page" : undefined} className={isActive(currentPath, item) ? "active" : ""} href={item.href} key={item.href}>
                 <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>{item.label}
               </Link>
             ))}
             {navigation.more.map((item) => (
-              <Link aria-current={isActive(currentPath, item.href) ? "page" : undefined} className={isActive(currentPath, item.href) ? "active" : ""} href={item.href} key={item.href}>
+              <Link aria-current={isActive(currentPath, item) ? "page" : undefined} className={isActive(currentPath, item) ? "active" : ""} href={item.href} key={item.href}>
                 <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>{item.label}
               </Link>
             ))}
@@ -264,7 +264,8 @@ function StaffNavIcon({ name }: { name: StaffNavigationIcon }) {
   const paths: Record<StaffNavigationIcon, React.ReactNode> = {
     home: <><path d="m3.5 11 8.5-7 8.5 7" /><path d="M5.5 10v10h13V10M9.5 20v-6h5v6" /></>,
     attendance: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3.5 2" /></>,
-    appointments: <><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16" /><path d="M8 14h3M8 17h5" /></>,
+    requests: <><path d="M6 3h12v18H6z" /><path d="M9 3.5h6M9 9h6M9 13h6M9 17h4" /><path d="m4 9 1 1 2-2" /></>,
+    pay: <><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h3" /><circle cx="17" cy="15" r="1" /></>,
     leave: <><path d="M5 20c8 0 14-5 14-15C9 5 5 11 5 20Z" /><path d="M6 18c3-4 6-7 11-10" /></>,
     schedule: <><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16M8 14h3M13 14h3" /></>,
     timesheet: <><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></>,
@@ -296,8 +297,12 @@ function OfflineBanner() {
   return <div className="staff-pwa-offline" role="alert">Staff App requires a network connection. Connect to the internet and try again.</div>;
 }
 
-function isActive(currentPath: string, href: string) {
-  if (href === "/staff") return currentPath === href;
-  if (href === "/staff/profile") return currentPath === href || currentPath === "/staff/device";
-  return currentPath === href || currentPath.startsWith(`${href}/`);
+function isActive(
+  currentPath: string,
+  item: { href: string; activePrefixes?: readonly string[] },
+) {
+  if (item.href === "/staff") return currentPath === item.href;
+  if (item.href === "/staff/profile") return currentPath === item.href || currentPath === "/staff/device";
+  const prefixes = item.activePrefixes ?? [item.href];
+  return prefixes.some((prefix) => currentPath === prefix || currentPath.startsWith(`${prefix}/`));
 }
