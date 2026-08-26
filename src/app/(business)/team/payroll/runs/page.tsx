@@ -44,10 +44,10 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
   return (
     <main className={`content hr-module-page ${styles.page}`}>
       <PageHeader
-        title="Payroll Runs"
-        description="Create, review and continue monthly payroll calculation runs."
+        title="Calculate and review payroll"
+        description="Create a monthly payroll draft, review its calculation and continue it through approval and finalization."
       >
-        <Link href="/team/payroll/workspace">Payroll workspace</Link>
+        <Link href="/team/payroll/workspace">Prepare payroll</Link>
         <Link href={`/team/payroll/settings?month=${currentMonth}`}>Payroll settings</Link>
       </PageHeader>
 
@@ -90,7 +90,7 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
       <section className={styles.introPanel} aria-labelledby="runs-heading">
         <div>
           <p className={styles.eyebrow}>Calculation history</p>
-          <h2 id="runs-heading">Monthly payroll runs</h2>
+          <h2 id="runs-heading">Monthly payroll</h2>
           <p>Calculation status is separate from payslip, payment and statutory submission status.</p>
         </div>
         <div className={styles.totalMetric}>

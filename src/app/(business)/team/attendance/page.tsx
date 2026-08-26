@@ -338,6 +338,8 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
   else exportParams.set("date", dateFilter);
   if (requestedBranchId) exportParams.set("branchId", requestedBranchId);
   if (statusFilter !== "ALL") exportParams.set("status", statusFilter);
+  const exportQuery = exportParams.toString();
+  const exportHref = `/team/attendance/export${exportQuery ? `?${exportQuery}` : ""}`;
   function attendanceHref(targetPage = page) {
     const query = new URLSearchParams(exportParams);
     query.set("month", monthRange.month);
@@ -354,6 +356,11 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
           <span className={`hr-module-eyebrow ${styles.eyebrow}`}>HR &amp; PAYROLL</span>
           <h1>Staff Attendance</h1>
           <p>See who is working now and review clock-in records for your current branch.</p>
+        </div>
+        <div className={styles.headerActions}>
+          <Link className="btn btn-secondary" href={exportHref}>
+            Export CSV
+          </Link>
         </div>
       </header>
 

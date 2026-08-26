@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { reviewAttendanceExceptionAction } from "../actions";
 import { decideAttendanceP2ResolutionAction, decideAttendanceResolutionAction } from "./actions";
 import { loadAttendanceResolutionQueue } from "@/lib/attendance/resolution-read-service";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
@@ -17,6 +18,7 @@ type PageProps = {
     page?: string;
     type?: string;
     message?: string;
+    focus?: string;
   }>;
 };
 
@@ -66,6 +68,43 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
     orderBy: [{ workDate: "asc" }, { detectedAt: "asc" }],
     take: 100,
   });
+  const pendingExceptions = status === "ACTION_REQUIRED"
+    ? await prisma.attendanceException.findMany({
+        where: {
+          businessId,
+          branchId: { in: branchId ? [branchId] : [...scope.allowedBranchIds] },
+          status: "PENDING",
+          ...(params.employee
+            ? {
+                employee: {
+                  OR: [
+                    { fullName: { contains: params.employee, mode: "insensitive" } },
+                    { employeeCode: { contains: params.employee, mode: "insensitive" } },
+                  ],
+                },
+              }
+            : {}),
+        },
+        include: {
+          employee: { select: { id: true, fullName: true, employeeCode: true } },
+          branch: {
+            select: {
+              name: true,
+              attendanceSetting: { select: { timezone: true } },
+            },
+          },
+          attendanceSession: {
+            select: {
+              id: true,
+              status: true,
+              resolutionCase: { select: { id: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+        take: 100,
+      }).then((items) => items.filter((item) => !item.attendanceSession?.resolutionCase))
+    : [];
   const [p2Members, p2Corrections] = await Promise.all([
     prisma.employeeBusinessMembership.findMany({
       where: { businessId, id: { in: p2Issues.map((item) => item.membershipId) } },
@@ -129,16 +168,77 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
           <h2>{status === "ACTION_REQUIRED" ? "Cases requiring attention" : formatStatus(status)}</h2>
           <p>Final Results are immutable; corrections create a new version.</p>
         </div>
-        <span>{result.pagination.total} cases</span>
+        <span>{result.pagination.total + p2Issues.length + pendingExceptions.length} cases</span>
       </div>
+
+      {pendingExceptions.length ? (
+        <div className={styles.caseList}>
+          {pendingExceptions.map((exception) => {
+            const timezone = exception.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur";
+            return (
+              <article className={styles.caseCard} id={`attendance-exception-${exception.id}`} key={exception.id}>
+                <div className={styles.caseHeader}>
+                  <div>
+                    {canViewPeople ? (
+                      <Link href={`/team/people/${exception.employee.id}`}>
+                        {exception.employee.fullName}
+                      </Link>
+                    ) : (
+                      <strong>{exception.employee.fullName}</strong>
+                    )}
+                    <small>{exception.employee.employeeCode} · {exception.branch.name}</small>
+                  </div>
+                  <div className={styles.badges}>
+                    <span className={`${styles.payrollState} ${styles.blocked}`}>Attendance incomplete</span>
+                    <span className={styles.status}>Pending review</span>
+                  </div>
+                </div>
+
+                <div className={styles.facts}>
+                  <Fact label="Issue" value={formatStatus(exception.type)} />
+                  <Fact label="Requested clock-in" value={exception.requestedClockInAt ? formatLocal(exception.requestedClockInAt, timezone) : "Not provided"} />
+                  <Fact label="Requested clock-out" value={exception.requestedClockOutAt ? formatLocal(exception.requestedClockOutAt, timezone) : "Not provided"} />
+                  <Fact label="Submitted" value={formatLocal(exception.createdAt, timezone)} />
+                  <Fact label="Shift" value={exception.attendanceSession ? formatStatus(exception.attendanceSession.status) : "Will be created"} />
+                </div>
+
+                <div className={styles.submission}>
+                  <span>Employee correction request</span>
+                  <p>{exception.reason}</p>
+                  <small>{exception.attendanceSession ? "Approving completes the existing Attendance session through the controlled workflow." : "Approving creates the missing Attendance session through the controlled workflow."}</small>
+                </div>
+
+                {canModify ? (
+                  <div className={styles.actions}>
+                    <form action={reviewAttendanceExceptionAction} className={styles.decisionForm}>
+                      <input name="exceptionId" type="hidden" value={exception.id} />
+                      <label>
+                        <span>Review note (optional)</span>
+                        <textarea maxLength={500} name="reviewNote" rows={2} />
+                      </label>
+                      <div className={styles.actionButtons}>
+                        <button name="decision" type="submit" value="APPROVED">Approve correction</button>
+                        <button className={styles.danger} name="decision" type="submit" value="REJECTED">Reject request</button>
+                      </div>
+                    </form>
+                  </div>
+                ) : (
+                  <div className={styles.readOnly}>Read-only access</div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
 
       {p2Issues.length ? (
         <div className={styles.caseList}>
           {p2Issues.map((issue) => {
             const member = p2MemberById.get(issue.membershipId);
             const correction = p2CorrectionByIssue.get(issue.id);
+            const resolutionOptions = p2ResolutionOptions(issue.type);
             return (
-              <article className={styles.caseCard} key={issue.id}>
+              <article className={styles.caseCard} id={`attendance-p2-${issue.id}`} key={issue.id}>
                 <div className={styles.caseHeader}>
                   <div><strong>{member?.fullName ?? "Scoped employee"}</strong><small>{member?.employeeCode ?? ""} · {issue.workDate.toISOString().slice(0, 10)}</small></div>
                   <div className={styles.badges}><span className={`${styles.payrollState} ${styles.blocked}`}>Timesheet blocked</span><span className={styles.status}>{formatStatus(issue.type)}</span></div>
@@ -154,7 +254,7 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
                   <form action={decideAttendanceP2ResolutionAction} className={styles.decisionForm}>
                     <input name="exceptionId" type="hidden" value={issue.id} />
                     <input name="expectedRevision" type="hidden" value={issue.revision} />
-                    <label><span>Resolution</span><select name="resolutionType" required><option value="AUTHORIZED">Authorized</option><option value="UNAUTHORIZED">Unauthorized</option><option value="CORRECTED">Approve correction</option><option value="SCHEDULE_ERROR">Schedule error</option><option value="NOT_SCHEDULED">Not scheduled</option><option value="APPROVED_LEAVE">Use approved Leave record</option><option value="EXCLUDED">Exclude</option></select></label>
+                    <label><span>Resolution</span><select name="resolutionType" required>{resolutionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                     <label><span>Corrected clock-in (optional)</span><input name="correctedClockInAt" type="datetime-local" /></label>
                     <label><span>Corrected clock-out (optional)</span><input name="correctedClockOutAt" type="datetime-local" /></label>
                     <label><span>Corrected break minutes</span><input min={0} name="correctedBreakMinutes" type="number" /></label>
@@ -181,7 +281,7 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
             const correctionBaseline =
               item.currentFinalResult ?? item.attendanceSession;
             return (
-              <article className={styles.caseCard} key={item.id}>
+              <article className={styles.caseCard} id={`attendance-case-${item.id}`} key={item.id}>
                 <div className={styles.caseHeader}>
                   <div>
                     {canViewPeople ? (
@@ -304,7 +404,7 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
             );
           })}
         </div>
-      ) : (
+      ) : p2Issues.length || pendingExceptions.length ? null : (
         <div className={styles.empty}>
           <strong>No attendance issues found</strong>
           <span>Try another status or employee filter.</span>
@@ -340,4 +440,27 @@ function formatLocal(value: Date, timezone: string) {
 
 function formatStatus(value: string) {
   return value.toLocaleLowerCase().replaceAll("_", " ").replace(/^./, (character) => character.toLocaleUpperCase());
+}
+
+const p2OptionLabels = {
+  AUTHORIZED: "Authorized",
+  UNAUTHORIZED: "Unauthorized",
+  CORRECTED: "Approve correction",
+  SCHEDULE_ERROR: "Schedule error",
+  NOT_SCHEDULED: "Not scheduled",
+  APPROVED_LEAVE: "Use approved Leave record",
+  EXCLUDED: "Exclude",
+} as const;
+
+function p2ResolutionOptions(exceptionType: string) {
+  const allowed: Record<string, readonly (keyof typeof p2OptionLabels)[]> = {
+    MISSING_CLOCK_IN: ["CORRECTED", "AUTHORIZED", "EXCLUDED"],
+    MISSING_CLOCK_OUT: ["CORRECTED", "AUTHORIZED", "EXCLUDED"],
+    LATE_ARRIVAL: ["AUTHORIZED", "UNAUTHORIZED", "CORRECTED", "SCHEDULE_ERROR", "EXCLUDED"],
+    EARLY_DEPARTURE: ["AUTHORIZED", "UNAUTHORIZED", "CORRECTED", "SCHEDULE_ERROR", "EXCLUDED"],
+    NO_ATTENDANCE_RECORDED: ["AUTHORIZED", "UNAUTHORIZED", "NOT_SCHEDULED", "SCHEDULE_ERROR", "APPROVED_LEAVE", "EXCLUDED"],
+    SUSPECTED_NO_SHOW: ["AUTHORIZED", "UNAUTHORIZED", "NOT_SCHEDULED", "SCHEDULE_ERROR", "APPROVED_LEAVE", "EXCLUDED"],
+    LEAVE_ATTENDANCE_CONFLICT: ["CORRECTED", "APPROVED_LEAVE", "EXCLUDED"],
+  };
+  return (allowed[exceptionType] ?? []).map((value) => ({ value, label: p2OptionLabels[value] }));
 }

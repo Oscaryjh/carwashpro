@@ -244,7 +244,7 @@ export function StaffPwaChrome({
         {showNavigation ? (
           <nav aria-label="Staff navigation" className="staff-pwa-nav">
             {navigation.primary.map((item) => (
-              <Link aria-current={isActive(currentPath, item.href) ? "page" : undefined} className={isActive(currentPath, item.href) ? "active" : ""} href={item.href} key={item.href}>
+              <Link aria-current={isActive(currentPath, item.href, item.activePrefixes) ? "page" : undefined} className={isActive(currentPath, item.href, item.activePrefixes) ? "active" : ""} href={item.href} key={item.href}>
                 <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>{item.label}
               </Link>
             ))}
@@ -277,6 +277,8 @@ function StaffNavIcon({ name }: { name: StaffNavigationIcon }) {
     commission: <><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5c-.8-.7-1.9-1-3.2-1-1.8 0-3 .8-3 2.1 0 3.2 6.1 1.6 6.1 4.9 0 1.3-1.2 2.1-3.2 2.1-1.5 0-2.8-.5-3.7-1.4M12 5.5v13" /></>,
     payslip: <><path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21V3Z" /><path d="M9 8h6M9 12h6M9 16h4" /></>,
     profile: <><circle cx="12" cy="8" r="4" /><path d="M4.5 21c.8-4.5 3.3-6.7 7.5-6.7s6.7 2.2 7.5 6.7" /></>,
+    requests: <><path d="M7 3h10l3 3v15H4V3z" /><path d="M8 9h8M8 13h5" /><path d="m9 17 1.5 1.5L14 15" /></>,
+    pay: <><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h4" /></>,
   };
   return (
     <svg className="staff-nav-icon" fill="none" viewBox="0 0 24 24">
@@ -301,7 +303,10 @@ function OfflineBanner() {
   return <div className="staff-pwa-offline" role="alert">Staff App requires a network connection. Connect to the internet and try again.</div>;
 }
 
-function isActive(currentPath: string, href: string) {
+function isActive(currentPath: string, href: string, activePrefixes?: readonly string[]) {
+  if (activePrefixes?.some((prefix) => currentPath === prefix || currentPath.startsWith(`${prefix}/`))) {
+    return true;
+  }
   if (href === "/staff") return currentPath === href;
   if (href === "/staff/profile") return currentPath === href || currentPath === "/staff/device";
   return currentPath === href || currentPath.startsWith(`${href}/`);

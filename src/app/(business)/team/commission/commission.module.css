@@ -223,6 +223,7 @@
   border: 1px solid #dbe6e3;
   border-radius: 0.9rem;
   overflow: hidden;
+  scroll-margin-top: 7rem;
 }
 .periodHeader {
   align-items: center;

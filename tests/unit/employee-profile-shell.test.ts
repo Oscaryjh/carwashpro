@@ -112,6 +112,39 @@ test("People uses the canonical shell while legacy edit routes remain available"
   assert.equal(routePermission("/team/people/employee-1"), "TEAM");
 });
 
+test("employee profile exposes an edit action for linked and employee-only records", async () => {
+  const root = process.cwd();
+  const profilePage = await readFile(
+    path.join(root, "src/app/(business)/team/people/[personId]/page.tsx"),
+    "utf8",
+  );
+  const shell = await readFile(
+    path.join(root, "src/components/employee-profile-shell.tsx"),
+    "utf8",
+  );
+
+  assert.match(profilePage, /const profileEditHref = linkedStaffId/);
+  assert.match(profilePage, /`\/team\/employees\/\$\{membership\.id\}`/);
+  assert.match(profilePage, /canManageTeam \|\|/);
+  assert.match(profilePage, /"MODIFY_ATTENDANCE_EMPLOYEES"/);
+  assert.match(shell, /Edit details/);
+
+  const employeeEditor = await readFile(
+    path.join(
+      root,
+      "src/app/(business)/team/employees/[employeeId]/page.tsx",
+    ),
+    "utf8",
+  );
+  const employeeActions = await readFile(
+    path.join(root, "src/app/(business)/team/employees/actions.ts"),
+    "utf8",
+  );
+  assert.match(employeeEditor, /requireBusinessUserWithAnyCapability/);
+  assert.match(employeeActions, /requireBusinessUserWithAnyCapability/);
+  assert.match(employeeEditor, /"MODIFY_TEAM"/);
+});
+
 test("People directory reuses the uploaded employee avatar with initials fallback", async () => {
   const root = process.cwd();
   const peoplePage = await readFile(

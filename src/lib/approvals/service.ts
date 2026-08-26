@@ -659,7 +659,7 @@ export function projectAttendanceP2(row: any, businessId: string): ApprovalInbox
     amount: null,
     units: row.exceptionMinutes,
     requiredCapability: "MODIFY_ATTENDANCE_EMPLOYEES",
-    targetUrl: `/team/attendance/resolutions?employee=${encodeURIComponent(row.membership.employeeCode)}`,
+    targetUrl: `/team/attendance/resolutions?employee=${encodeURIComponent(row.membership.employeeCode)}&focus=p2-${row.id}#attendance-p2-${row.id}`,
     revision: row.revision,
     metadata: { exceptionType: row.type, workDate: dateValue(row.workDate) },
   };
@@ -688,7 +688,7 @@ export function projectAttendanceCase(row: any, businessId: string): ApprovalInb
     amount: null,
     units: null,
     requiredCapability: "MODIFY_ATTENDANCE_EMPLOYEES",
-    targetUrl: `/team/attendance/resolutions?employee=${encodeURIComponent(row.employee.employeeCode)}`,
+    targetUrl: `/team/attendance/resolutions?employee=${encodeURIComponent(row.employee.employeeCode)}&focus=case-${row.id}#attendance-case-${row.id}`,
     revision: row.updatedAt.toISOString(),
     metadata: { caseStatus: row.status },
   };
@@ -749,7 +749,7 @@ export function projectLeave(row: any, businessId: string, approvalStage?: "LEVE
     amount: null,
     units: Number(row.requestedDays),
     requiredCapability: "APPROVE_LEAVE",
-    targetUrl: `/team/leave?year=${new Date(row.startsOn).getUTCFullYear()}&employee=${encodeURIComponent(row.membership.employeeCode)}&status=PENDING`,
+    targetUrl: `/team/leave?year=${new Date(row.startsOn).getUTCFullYear()}&employee=${encodeURIComponent(row.membership.employeeCode)}&queue=pending&request=${row.id}#leave-request-${row.id}`,
     revision: row.revision,
     metadata: {
       attachment: Boolean(row.documentReference),
@@ -785,7 +785,7 @@ export function projectClaim(row: any, businessId: string, approvalStage?: "LEVE
     amount: Number(row.submittedTotal),
     units: row.lines.length,
     requiredCapability: "REVIEW_CLAIM",
-    targetUrl: `/team/claims?employee=${encodeURIComponent(row.membership.employeeCode)}&status=SUBMITTED`,
+    targetUrl: `/team/claims?stage=NEEDS_REVIEW&employee=${encodeURIComponent(row.membership.employeeCode)}&status=SUBMITTED&claim=${row.id}#claim-${row.id}`,
     revision: row.revision,
     metadata: { receiptAttached, duplicateWarning: row.duplicateWarning, approvalStage: approvalStage ?? "LEVEL_ONE" },
   };
@@ -819,7 +819,7 @@ export function projectCommission(row: any, businessId: string): ApprovalInboxIt
     amount: totals.commission / 100,
     units: row.statements.length,
     requiredCapability: "APPROVE_COMMISSION",
-    targetUrl: "/team/commission",
+    targetUrl: `/team/commission?period=${row.id}#commission-period-${row.id}`,
     revision: row.currentRevision,
     metadata: { finalCommission: totals.commission / 100 },
   };

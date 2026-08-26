@@ -687,6 +687,14 @@ test("management routes are restricted to the permissions that protect them", ()
     "ATTENDANCE_EMPLOYEE_READ",
   );
   assert.equal(
+    routePermission("/team/attendance/resolutions"),
+    "ATTENDANCE_EMPLOYEE_READ",
+  );
+  assert.equal(
+    routePermission("/team/attendance/timesheets"),
+    "ATTENDANCE_EMPLOYEE_READ",
+  );
+  assert.equal(
     routePermission("/team/attendance-settings"),
     "ATTENDANCE_SETTINGS_READ",
   );

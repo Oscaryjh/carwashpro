@@ -14,7 +14,7 @@
 .queueHeading h2 { font-size: 18px; }
 .queueHeading > span { background: #e6f6f2; border-radius: 999px; color: #087267; font-size: 11px; font-weight: 800; padding: 7px 10px; }
 .caseList { display: grid; gap: 14px; }
-.caseCard { background: #fff; border: 1px solid #dfe7ec; border-radius: 12px; box-shadow: 0 3px 14px rgba(15, 23, 42, .04); display: grid; gap: 15px; padding: 18px; }
+.caseCard { background: #fff; border: 1px solid #dfe7ec; border-radius: 12px; box-shadow: 0 3px 14px rgba(15, 23, 42, .04); display: grid; gap: 15px; padding: 18px; scroll-margin-top: 7rem; }
 .caseHeader { align-items: flex-start; display: flex; gap: 14px; justify-content: space-between; }
 .caseHeader > div { display: grid; gap: 4px; }
 .caseHeader a, .caseHeader strong { color: #142033; font-size: 16px; font-weight: 800; text-decoration: none; }

@@ -38,23 +38,21 @@ test("P5 materialises exact locked P2 outcomes, preserves manual lines and detec
       });
       const byCode = new Map(entries.map((entry) => [entry.employeeCodeSnapshot, entry]));
       const monthly = byCode.get("P5-MONTHLY");
-      const blockedMonthly = byCode.get("P5-BLOCKED");
+      const absenceMonthly = byCode.get("P5-BLOCKED");
       const daily = byCode.get("P5-DAILY");
       const hourly = byCode.get("P5-HOURLY");
-      assert.ok(monthly && blockedMonthly && daily && hourly);
+      assert.ok(monthly && absenceMonthly && daily && hourly);
 
       assert.equal(monthly.basicPay.toString(), "3500");
       assert.equal(monthly.overtimeMinutes, 0);
       assert.deepEqual(monthly.components.map((line) => line.code), ["BASIC_SALARY"]);
       assert.equal(monthly.attendanceInputSnapshot?.regularMinutes, 600);
 
-      assert.equal(blockedMonthly.basicPay.toString(), "3200");
-      assert.equal(blockedMonthly.unpaidLeaveDeduction.toString(), "0");
-      assert.equal(blockedMonthly.attendanceInputSnapshot?.unpaidLeaveDays.toString(), "0.5");
-      assert.equal(blockedMonthly.attendanceInputSnapshot?.unauthorizedAbsenceDays.toString(), "1");
-      assert.deepEqual(blockedMonthly.attendanceInputSnapshot?.policyBlockers, [
-        "PAYROLL_ABSENCE_RATE_POLICY_NOT_READY",
-      ]);
+      assert.equal(absenceMonthly.basicPay.toString(), "3200");
+      assert.equal(absenceMonthly.unpaidLeaveDeduction.toString(), "184.62");
+      assert.equal(absenceMonthly.attendanceInputSnapshot?.unpaidLeaveDays.toString(), "0.5");
+      assert.equal(absenceMonthly.attendanceInputSnapshot?.unauthorizedAbsenceDays.toString(), "1");
+      assert.deepEqual(absenceMonthly.attendanceInputSnapshot?.policyBlockers, []);
 
       assert.deepEqual(
         daily.components.map((line) => [line.code, line.amount.toString(), line.sourceType]),
@@ -130,7 +128,7 @@ test("P5 materialises exact locked P2 outcomes, preserves manual lines and detec
         { businessId: fixture.businessId, month: "2026-08", runId: run.id },
         transaction,
       );
-      assert.equal(readiness.counts.ATTENDANCE_PAY_POLICY_NOT_READY, 1);
+      assert.equal(readiness.counts.ATTENDANCE_PAY_POLICY_NOT_READY, 0);
       assert.equal(readiness.canProceed, false);
 
       const newerRevision = await createRevision(

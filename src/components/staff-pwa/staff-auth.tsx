@@ -32,6 +32,7 @@ type OtpRequestResponse = {
   message: string;
   expiresInSeconds: number;
   resendAfterSeconds: number;
+  requestStatus: "CODE_REQUESTED" | "RATE_LIMITED";
 };
 
 type OtpVerifyResponse =
@@ -82,6 +83,10 @@ export function StaffLoginForm({ initialMessage = "", testingMode = false }: { i
           body: JSON.stringify({ phoneNumber, deviceIdentifier }),
         },
       );
+      if (result.requestStatus === "RATE_LIMITED") {
+        setMessage(result.message);
+        return;
+      }
       const now = Date.now();
       saveEmployeeAuthFlow({
         challengeId: result.challengeId,
@@ -307,6 +312,11 @@ export function StaffVerifyForm() {
           }),
         },
       );
+      if (result.requestStatus === "RATE_LIMITED") {
+        setMessageKind("error");
+        setMessage(result.message);
+        return;
+      }
       const requestedAt = Date.now();
       const nextFlow = {
         ...activeFlow,

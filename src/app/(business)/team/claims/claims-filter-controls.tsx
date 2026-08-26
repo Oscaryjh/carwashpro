@@ -14,12 +14,17 @@ const claimStatuses = [
 ] as const;
 
 type Props = {
+  stage: string;
   employee?: string;
   status?: string;
+  category?: string;
+  from?: string;
+  to?: string;
+  categories: Array<{ id: string; name: string }>;
   activeFilterCount: number;
 };
 
-export function ClaimsFilterControls({ employee, status, activeFilterCount }: Props) {
+export function ClaimsFilterControls({ stage, employee, status, category, from, to, categories, activeFilterCount }: Props) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
@@ -30,9 +35,16 @@ export function ClaimsFilterControls({ employee, status, activeFilterCount }: Pr
     const formData = new FormData(event.currentTarget);
     const nextEmployee = String(formData.get("employee") ?? "").trim();
     const nextStatus = String(formData.get("status") ?? "").trim();
+    const nextCategory = String(formData.get("category") ?? "").trim();
+    const nextFrom = String(formData.get("from") ?? "").trim();
+    const nextTo = String(formData.get("to") ?? "").trim();
     const query = new URLSearchParams();
+    query.set("stage", stage);
     if (nextEmployee) query.set("employee", nextEmployee);
     if (nextStatus) query.set("status", nextStatus);
+    if (nextCategory) query.set("filterCategory", nextCategory);
+    if (nextFrom) query.set("from", nextFrom);
+    if (nextTo) query.set("to", nextTo);
 
     setConfirmation("");
     startTransition(() => {
@@ -62,9 +74,12 @@ export function ClaimsFilterControls({ employee, status, activeFilterCount }: Pr
       {isOpen ? (
         <form className={styles.filters} onSubmit={applyFilters}>
           <label>Employee<input name="employee" defaultValue={employee} placeholder="Name or employee code" /></label>
+          <label>Category<select name="category" defaultValue={category ?? ""}><option value="">All categories</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label>Status<select name="status" defaultValue={status ?? ""}><option value="">All statuses</option>{claimStatuses.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label>From<input name="from" type="date" defaultValue={from} /></label>
+          <label>To<input name="to" type="date" defaultValue={to} /></label>
           <button type="submit" disabled={isPending}>{isPending ? "Applying…" : "Show results"}</button>
-          {activeFilterCount ? <Link href="/team/claims">Clear all</Link> : null}
+          {activeFilterCount ? <Link href={`/team/claims?stage=${stage}`}>Clear all</Link> : null}
         </form>
       ) : null}
     </div>

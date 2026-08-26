@@ -77,6 +77,7 @@ export async function getEmployeeClaimOverview(
         nature: category.nature,
         policyRevisionId: policy.id,
         receiptRequired: policy.receiptRequired,
+        descriptionRequired: policy.descriptionRequired,
         maxLineAmount: policy.maxLineAmount?.toString() ?? null,
         mileageRatePerKm: policy.mileageRatePerKm?.toString() ?? null,
       }] : [];

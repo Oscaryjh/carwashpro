@@ -69,18 +69,18 @@ test("Claims manager UI exposes compact reimbursement workflow and category-leve
     readFile("src/lib/payroll/readiness.ts", "utf8"),
     readFile("src/app/(business)/team/claims/claims.module.css", "utf8"),
   ]);
-  assert.match(page, /Claims waiting for a decision/);
-  assert.match(page, /Choose how to reimburse/);
+  assert.match(page, /Waiting for an HR decision/);
+  assert.match(page, /How should this claim be paid/);
   assert.match(page, /Reject claim/);
   assert.match(page, /Through payroll/);
   assert.match(page, /Pay separately/);
   assert.match(page, /No eligible draft/);
-  assert.match(page, /not included in an open payroll draft/);
+  assert.match(page, /not included in the selected payroll draft/);
   assert.match(service, /eligibleMembershipIds/);
-  assert.match(form, /Maximum claim amount \(RM\)/);
-  assert.match(form, /Saving creates a new policy version/);
-  assert.match(form, /Business reimbursement/);
-  assert.match(form, /Needs payroll review/);
+  assert.match(form, /Per-claim limit \(RM\)/);
+  assert.match(form, /Changes apply to claims submitted/);
+  assert.match(form, /Standard business reimbursement/);
+  assert.match(form, /Review before adding to payroll/);
   assert.match(page, /The employee's salary can continue/);
   assert.match(page, /Re-evaluate reimbursement/);
   assert.match(reimbursement, /PAYROLL_TREATMENT_REEVALUATED/);

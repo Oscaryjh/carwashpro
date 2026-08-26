@@ -1,3 +1,8 @@
+const configuredStaffAppOrigin = process.env.STAFF_APP_ORIGIN?.trim().replace(/\/+$/, "");
+const staffAppOrigin =
+  configuredStaffAppOrigin ||
+  (process.env.NODE_ENV === "development" ? "http://localhost:3100" : null);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Permit phones on the current private Wi-Fi subnet to hydrate the Local
@@ -15,6 +20,17 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "3mb",
     },
+  },
+  async redirects() {
+    if (!staffAppOrigin) return [];
+
+    return [
+      {
+        source: "/staff/:path*",
+        destination: `${staffAppOrigin}/staff/:path*`,
+        permanent: false,
+      },
+    ];
   },
   async headers() {
     return [

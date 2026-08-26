@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
+import { HrPayrollIssue } from "@/components/hr-payroll-issue";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
@@ -37,6 +38,7 @@ type Props = {
     newLeaveType?: string;
     manage?: "menu" | "balances" | "types" | "policy" | "compliance" | "maintenance";
     policyId?: string;
+    request?: string;
   }>;
 };
 
@@ -146,10 +148,17 @@ export default async function LeavePage({ searchParams }: Props) {
         </div>
       </header>
 
-      {noticeMessage ? (
-        <div className={params.type === "error" ? styles.error : styles.success} role="status">
-          {noticeMessage}
-        </div>
+      {noticeMessage ? params.type === "error" ? (
+        <HrPayrollIssue
+          affected="The leave request, balance or policy action you just attempted"
+          impact="No leave request or employee balance was changed."
+          nextAction={{ href: canEditPolicy ? `/team/leave?year=${year}&manage=menu` : `/team/leave?year=${year}`, label: canEditPolicy ? "Open leave settings" : "Review leave" }}
+          title="Leave action needs attention"
+          tone="error"
+          whatHappened={noticeMessage}
+        />
+      ) : (
+        <div className={styles.success} role="status">{noticeMessage}</div>
       ) : null}
 
       <section className={styles.summary} aria-label="Leave overview">
@@ -273,7 +282,7 @@ export default async function LeavePage({ searchParams }: Props) {
                 : "Approved requests will appear here automatically."}</p> : null}
             </div>
           ) : filteredRequests.map((request) => (
-            <article className={styles.request} key={request.id}>
+            <article className={styles.request} id={`leave-request-${request.id}`} key={request.id}>
               <div className={styles.requestMain}>
                 <div className={styles.avatar} aria-hidden="true">{initials(request.employee.fullName)}</div>
                 <div className={styles.requestCopy}>
@@ -302,7 +311,7 @@ export default async function LeavePage({ searchParams }: Props) {
                 <span className={`${styles.badge} ${styles[request.status.toLowerCase()]}`}>{statusLabel(request.status)}</span>
               </div>
 
-              <details className={styles.requestDetails}>
+              <details className={styles.requestDetails} open={params.request === request.id}>
                 <summary>
                   <span>{requestQueue === "pending" ? "Review request" : "View details"}</span>
                   <small>{request.supportingDocuments.length > 0 ? `${request.supportingDocuments.length} supporting ${request.supportingDocuments.length === 1 ? "document" : "documents"}` : "Employee note and balance details"}</small>

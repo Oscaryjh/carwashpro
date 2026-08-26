@@ -12,6 +12,14 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
   const enabled = moduleContext.enabledModules;
   const items: HrPayrollWorkspaceItem[] = [];
 
+  if (hasAnyCapability(access, ["APPROVE_LEAVE", "REVIEW_CLAIM", "APPROVE_PAYROLL", "MODIFY_ATTENDANCE_EMPLOYEES"])) {
+    items.push({
+      href: "/team/approvals",
+      label: "Overview",
+      icon: "overview",
+      activePrefixes: ["/team/approvals"],
+    });
+  }
   if (hasBusinessCapability(access, "VIEW_TEAM_DIRECTORY")) {
     items.push({
       href: "/team",
@@ -21,20 +29,22 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
       activePrefixes: ["/team/employees", "/team/people", "/team/new"],
     });
   }
-  if (hasAnyCapability(access, ["APPROVE_LEAVE", "REVIEW_CLAIM", "APPROVE_PAYROLL", "MODIFY_ATTENDANCE_EMPLOYEES"])) {
-    items.push({ href: "/team/approvals", label: "Action Center", shortLabel: "Actions", icon: "approvals" });
-  }
-  if (enabled.has("HR") && hasBusinessCapability(access, "VIEW_ATTENDANCE_EMPLOYEES")) {
+  if (
+    enabled.has("HR") &&
+    hasAnyCapability(access, ["VIEW_ATTENDANCE_EMPLOYEES", "VIEW_ROSTER"])
+  ) {
     items.push({
-      href: "/team/attendance",
-      label: "Attendance",
+      href: "/team/time",
+      label: "Time",
       icon: "attendance",
-      activePrefixes: ["/team/attendance-settings"],
+      activePrefixes: [
+        "/team/attendance",
+        "/team/attendance-settings",
+        "/team/roster",
+        "/team/holidays",
+        "/team/time",
+      ],
     });
-  }
-  if (enabled.has("HR") && hasBusinessCapability(access, "VIEW_ROSTER")) {
-    items.push({ href: "/team/roster", label: "Roster", icon: "roster" });
-    items.push({ href: "/team/holidays", label: "Public Holidays", shortLabel: "Holidays", icon: "holiday" });
   }
   if (enabled.has("HR") && hasBusinessCapability(access, "VIEW_LEAVE")) {
     items.push({ href: "/team/leave", label: "Leave", icon: "leave" });
@@ -42,18 +52,12 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
   if (enabled.has("CLAIMS") && hasBusinessCapability(access, "VIEW_CLAIM")) {
     items.push({ href: "/team/claims", label: "Claims", icon: "claims" });
   }
-  if (enabled.has("COMMISSION") && hasBusinessCapability(access, "VIEW_COMMISSION")) {
-    items.push({ href: "/team/commission", label: "Commission", shortLabel: "Commission", icon: "commission" });
-  }
   if (enabled.has("PAYROLL") && hasBusinessCapability(access, "VIEW_PAYROLL_RUN")) {
-    items.push({ href: "/team/payroll", label: "Payroll", icon: "payroll" });
-  }
-  if (hasBusinessCapability(access, "VIEW_TEAM_DIRECTORY")) {
     items.push({
-      href: "/team?section=activity",
-      label: "Team activity",
-      icon: "activity",
-      activeQuery: { name: "section", value: "activity" },
+      href: "/team/payroll",
+      label: "Payroll",
+      icon: "payroll",
+      activePrefixes: ["/team/payroll", "/team/commission"],
     });
   }
 

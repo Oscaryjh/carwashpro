@@ -705,6 +705,85 @@
   border-color: #ecd8a7;
 }
 
+.staff-hub-page,
+.staff-hub-heading {
+  display: grid;
+  gap: 16px;
+}
+
+.staff-hub-heading {
+  gap: 5px;
+}
+
+.staff-hub-heading h1,
+.staff-hub-heading p,
+.staff-hub-heading span {
+  margin: 0;
+}
+
+.staff-hub-heading h1 {
+  font-size: clamp(30px, 8vw, 42px);
+  line-height: 1.05;
+}
+
+.staff-hub-heading > span {
+  color: var(--staff-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.staff-hub-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.staff-hub-card {
+  background: var(--staff-card);
+  border: 1px solid var(--staff-line);
+  border-radius: 20px;
+  color: var(--staff-ink);
+  display: grid;
+  gap: 8px;
+  min-height: 190px;
+  padding: 20px;
+  text-decoration: none;
+}
+
+.staff-hub-card small {
+  color: var(--staff-brand);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.staff-hub-card > strong {
+  font-size: 24px;
+}
+
+.staff-hub-card > span {
+  color: var(--staff-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.staff-hub-card > b {
+  align-self: end;
+  color: var(--staff-brand-dark);
+  font-size: 13px;
+}
+
+@media (max-width: 520px) {
+  .staff-hub-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-hub-card {
+    min-height: 156px;
+  }
+}
+
 .staff-team-approvals-entry {
   align-items: center;
   background: linear-gradient(135deg, #075f59, #0b8d82);
@@ -1796,22 +1875,34 @@
 }
 
 .staff-confirm-backdrop {
+  --staff-ink: #132a2a;
+  --staff-muted: #607473;
+  --staff-brand: #087f76;
+  --staff-brand-dark: #05645d;
+  --staff-brand-soft: #e5f5f2;
+  --staff-line: #d8e4e2;
   align-items: flex-end;
   background: rgba(9, 28, 27, 0.5);
   display: flex;
   inset: 0;
   justify-content: center;
-  padding: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 16px max(16px, env(safe-area-inset-bottom));
   position: fixed;
-  z-index: 80;
+  z-index: 200;
 }
 
 .staff-confirm-dialog {
   background: #fff;
   border-radius: 24px;
   box-shadow: 0 20px 70px rgba(0, 0, 0, 0.25);
+  max-height: calc(100dvh - max(32px, env(safe-area-inset-top)) - max(16px, env(safe-area-inset-bottom)));
   max-width: 480px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px;
+  -webkit-overflow-scrolling: touch;
   width: 100%;
 }
 

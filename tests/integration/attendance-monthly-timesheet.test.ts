@@ -248,6 +248,50 @@ test("A3 keeps unresolved sessions blocked and enforces branch scope", async () 
   });
 });
 
+test("A3 materializes roster-backed P2 coverage before a branch can be marked ready", async () => {
+  await withRollback(async (transaction) => {
+    const fixture = await createFixture(transaction);
+    const workDate = new Date("2026-08-08T00:00:00.000Z");
+    await transaction.attendanceExpectedDay.create({
+      data: {
+        businessId: fixture.business.id,
+        branchId: fixture.branchA.id,
+        membershipId: fixture.membership.id,
+        workDate,
+        kind: "WORKDAY",
+        source: "ROSTER",
+        expectedStartAt: new Date("2026-08-08T01:00:00.000Z"),
+        expectedEndAt: new Date("2026-08-08T09:00:00.000Z"),
+        timezoneSnapshot: "Asia/Kuala_Lumpur",
+        createdById: fixture.owner.id,
+      },
+    });
+    const database = transactionDatabase(transaction);
+    const context = timesheetContext(fixture, true, [fixture.branchA.id]);
+
+    await assert.rejects(
+      markAttendanceTimesheetBranchReady({
+        context,
+        month: "2026-08",
+        branchId: fixture.branchA.id,
+        database,
+      }),
+      (error: unknown) =>
+        error instanceof Error && "code" in error && error.code === "BLOCKERS_REMAIN",
+    );
+    assert.equal(await transaction.attendanceP2Exception.count({
+      where: {
+        businessId: fixture.business.id,
+        membershipId: fixture.membership.id,
+        workDate,
+        type: "SUSPECTED_NO_SHOW",
+        status: "OPEN",
+      },
+    }), 1);
+    return fixture.business.id;
+  });
+});
+
 test("P6B locks local-date segments and Payroll freezes the exact six buckets", async () => {
   await withRollback(async (transaction) => {
     const fixture = await createFixture(transaction);

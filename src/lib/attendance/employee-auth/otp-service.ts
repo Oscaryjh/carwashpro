@@ -49,6 +49,16 @@ import {
 
 export const EMPLOYEE_OTP_REQUEST_MESSAGE =
   "If this phone number is registered, we will send a verification code.";
+export const EMPLOYEE_OTP_RATE_LIMIT_MESSAGE =
+  "Too many verification requests. Please wait before trying again.";
+
+export type EmployeeOtpRequestResult = Readonly<{
+  challengeId: string;
+  message: string;
+  expiresInSeconds: number;
+  resendAfterSeconds: number;
+  requestStatus: "CODE_REQUESTED" | "RATE_LIMITED";
+}>;
 
 export type EmployeeMembershipChoice = Readonly<{
   membershipId: string;
@@ -107,7 +117,7 @@ type EmployeeAuthServiceDependencies = Readonly<{
 export async function requestEmployeeOtp(
   input: RequestEmployeeOtpServiceInput,
   dependencies: EmployeeAuthServiceDependencies = {},
-) {
+): Promise<EmployeeOtpRequestResult> {
   const database = dependencies.database ?? prisma;
   const config = dependencies.config ?? getEmployeeAuthConfig();
   const provider = dependencies.provider ?? createEmployeeOtpProvider(config);
@@ -218,6 +228,7 @@ export async function requestEmployeeOtp(
         purpose: deviceAccess.purpose,
         shouldDeliver: false,
         cooldownChallenge: rateLimit.cooldownChallenge,
+        rateLimited: !rateLimit.cooldownChallenge,
       };
     }
 
@@ -274,6 +285,7 @@ export async function requestEmployeeOtp(
       purpose: deviceAccess.purpose,
       shouldDeliver,
       cooldownChallenge: null,
+      rateLimited: !rateLimit.providerAllowed,
     };
   });
 
@@ -284,11 +296,19 @@ export async function requestEmployeeOtp(
           secondsUntil(creation.cooldownChallenge.expiresAt, now),
           secondsUntil(creation.cooldownChallenge.resendAvailableAt, now),
         )
-      : uniformOtpRequestResult(
+      : rateLimitedOtpRequestResult(
           challengeId,
           config.otp.expiresInSeconds,
           config.otp.resendCooldownSeconds,
         );
+  }
+
+  if (creation.rateLimited) {
+    return rateLimitedOtpRequestResult(
+      challengeId,
+      config.otp.expiresInSeconds,
+      config.otp.resendCooldownSeconds,
+    );
   }
 
   if (!creation.shouldDeliver || !creation.identity) {
@@ -1030,12 +1050,27 @@ function uniformOtpRequestResult(
   challengeId: string,
   expiresInSeconds: number,
   resendAfterSeconds: number,
-) {
+): EmployeeOtpRequestResult {
   return {
     challengeId,
     message: EMPLOYEE_OTP_REQUEST_MESSAGE,
     expiresInSeconds,
     resendAfterSeconds,
+    requestStatus: "CODE_REQUESTED",
+  };
+}
+
+function rateLimitedOtpRequestResult(
+  challengeId: string,
+  expiresInSeconds: number,
+  resendAfterSeconds: number,
+): EmployeeOtpRequestResult {
+  return {
+    challengeId,
+    message: EMPLOYEE_OTP_RATE_LIMIT_MESSAGE,
+    expiresInSeconds,
+    resendAfterSeconds,
+    requestStatus: "RATE_LIMITED",
   };
 }
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { HrPayrollIssue } from "@/components/hr-payroll-issue";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { requireUser } from "@/lib/auth/session";
 import {
@@ -96,25 +97,30 @@ export default async function ActionCenterPage({ searchParams }: PageProps) {
     <main className={`content hr-module-page ${styles.page}`}>
       <header className={styles.header}>
         <div className={styles.headerCopy}>
-          <p className={styles.eyebrow}>People &amp; HR</p>
+          <p className={styles.eyebrow}>HR &amp; Payroll overview</p>
           <div className={styles.titleRow}>
-            <h1>Action Center</h1>
+            <h1>Overview</h1>
             <span className={styles.pendingPill} aria-label={`${attentionCount} need attention`}>
               <strong>{attentionCount}</strong>
               <span>{attentionCount === 1 ? "needs" : "need"} attention</span>
             </span>
           </div>
-          <p>Review decisions and tasks that need your attention.</p>
+          <p>See approvals, payroll blockers and follow-up work in one place.</p>
         </div>
       </header>
 
       {inbox.unavailableDomains.length ? (
-        <div className={styles.warning} role="alert">
-          Some work could not be loaded: {inbox.unavailableDomains.map((item) => domainLabels[item]).join(", ")}. Refresh to try again.
-        </div>
+        <HrPayrollIssue
+          affected={inbox.unavailableDomains.map((item) => domainLabels[item]).join(", ")}
+          impact="Items from these areas may be missing from the Action Center until they load successfully."
+          nextAction={{ href: "/team/approvals", label: "Try again" }}
+          title="Some work is temporarily unavailable"
+          tone="error"
+          whatHappened="Tetamu could not load one or more HR & Payroll work queues. No records were changed."
+        />
       ) : null}
 
-      <nav className={styles.summary} aria-label="Action Center item types">
+      <nav className={styles.summary} aria-label="Overview item types">
         <Link
           className={!kind ? styles.activeSummary : styles.summaryCard}
           href={filterHref(params, { kind: undefined, page: undefined })}
@@ -134,10 +140,10 @@ export default async function ActionCenterPage({ searchParams }: PageProps) {
         ))}
       </nav>
 
-      <section className={styles.panel}>
+      <section className={styles.panel} aria-label="Action Center">
         <div className={styles.panelHeading}>
           <div>
-            <h2>Needs your attention</h2>
+            <h2>Action Center</h2>
             <p>{inbox.pagination.total === 1 ? "One item is ready for you." : `${inbox.pagination.total} items are ready for you.`}</p>
           </div>
         </div>

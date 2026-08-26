@@ -61,14 +61,17 @@ test("domain projections use stable identities and expose only minimal review su
   assert.equal(attendance.id, "ATTENDANCE:P2:attendance-id");
   assert.equal(attendance.kind, "APPROVAL");
   assert.equal(attendance.title, "No attendance recorded");
+  assert.equal(attendance.targetUrl, "/team/attendance/resolutions?employee=QA-1&focus=p2-attendance-id#attendance-p2-attendance-id");
   assert.equal(leave.id, "LEAVE:leave-id");
   assert.equal(leave.kind, "APPROVAL");
   assert.equal(leave.metadata.attachment, true);
   assert.doesNotMatch(leave.summary, /private-object-key/);
+  assert.equal(leave.targetUrl, "/team/leave?year=2026&employee=QA-1&queue=pending&request=leave-id#leave-request-leave-id");
   assert.equal(claim.id, "CLAIM:claim-id");
   assert.equal(claim.kind, "APPROVAL");
   assert.match(claim.summary, /Receipt attached/);
   assert.doesNotMatch(JSON.stringify(claim), /objectKey|checksum|mimeType|bytes/);
+  assert.equal(claim.targetUrl, "/team/claims?stage=NEEDS_REVIEW&employee=QA-1&status=SUBMITTED&claim=claim-id#claim-claim-id");
 });
 
 test("approved monthly timesheets are tasks while pre-final approval stays an approval", () => {
@@ -104,6 +107,7 @@ test("compensation projections remain capability-bound and Payroll advertises it
 
   assert.equal(commission.requiredCapability, "APPROVE_COMMISSION");
   assert.equal(commission.amount, 9);
+  assert.equal(commission.targetUrl, "/team/commission?period=period-id#commission-period-period-id");
   assert.equal(payroll.requiredCapability, "APPROVE_PAYROLL");
   assert.equal(payroll.status, "BLOCKED");
   assert.equal(payroll.metadata.mfaBoundary, true);
@@ -120,7 +124,7 @@ test("Action Center remains a read model and delegates every mutation", async ()
   ]);
   assert.doesNotMatch(service, /genericApproval|approvalItem\.(create|update)|ApprovalStatus/);
   assert.doesNotMatch(page, /"use server"|prisma\.[a-zA-Z]+\.(create|update|delete)|action=\{/);
-  assert.match(page, /<h1>Action Center<\/h1>/);
+  assert.match(page, /<h1>Overview<\/h1>/);
   assert.match(page, /Approvals/);
   assert.match(page, /Tasks/);
   assert.match(page, /item\.targetUrl/);
@@ -134,7 +138,7 @@ test("Action Center remains a read model and delegates every mutation", async ()
   assert.match(payrollPage, /PayrollHighRiskMfaFields/);
   assert.match(permissions, /pathname === "\/team\/approvals"[\s\S]*return null/);
   assert.match(shell, /href: "\/team\/approvals"/);
-  assert.match(shell, /label: "Action Center"/);
+  assert.match(shell, /label: "Overview"/);
 });
 
 function context(

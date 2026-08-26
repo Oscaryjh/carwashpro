@@ -32,6 +32,7 @@ export async function POST(request: Request) {
         message: result.message,
         expiresInSeconds: result.expiresInSeconds,
         resendAfterSeconds: result.resendAfterSeconds,
+        requestStatus: result.requestStatus,
       },
       { status: 202 },
     );

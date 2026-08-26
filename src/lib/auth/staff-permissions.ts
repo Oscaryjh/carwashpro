@@ -39,8 +39,8 @@ const claimCapabilityPermissions = [
   ["VIEW_CLAIM", "View employee claims"],
   ["REVIEW_CLAIM", "Review employee claims"],
   ["VERIFY_CLAIM", "Verify employee claims as Finance"],
-  ["MANAGE_CLAIM_SETTINGS", "Manage claim categories and policy (not available yet)"],
-  ["LINK_CLAIM_TO_PAYROLL", "Schedule verified claims for payroll (not available yet)"],
+  ["MANAGE_CLAIM_SETTINGS", "Manage claim categories and reimbursement policies"],
+  ["LINK_CLAIM_TO_PAYROLL", "Add approved reimbursements to eligible payroll drafts"],
 ] as const;
 
 const commissionCapabilityPermissions = [
@@ -640,6 +640,13 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
   if (
     pathname === "/team/employees" ||
     pathname.startsWith("/team/employees/")
+  ) {
+    return "ATTENDANCE_EMPLOYEE_READ";
+  }
+
+  if (
+    pathname === "/team/attendance" ||
+    pathname.startsWith("/team/attendance/")
   ) {
     return "ATTENDANCE_EMPLOYEE_READ";
   }

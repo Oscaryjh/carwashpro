@@ -4,6 +4,7 @@ export type StaffNavigationItem = {
   href: string;
   label: string;
   icon: StaffNavigationIcon;
+  activePrefixes?: readonly string[];
 };
 
 export type StaffNavigationIcon =
@@ -15,7 +16,9 @@ export type StaffNavigationIcon =
   | "claims"
   | "commission"
   | "payslip"
-  | "profile";
+  | "profile"
+  | "requests"
+  | "pay";
 
 export type StaffNavigation = {
   primary: StaffNavigationItem[];
@@ -29,28 +32,32 @@ export function buildStaffNavigation(
   const primary: StaffNavigationItem[] = [
     { href: "/staff", label: "Home", icon: "home" },
   ];
-  const more: StaffNavigationItem[] = [];
 
   if (modules.has("HR")) {
-    primary.push(
-      { href: "/staff/history", label: "Attendance", icon: "attendance" },
-      { href: "/staff/leave", label: "Leave", icon: "leave" },
-      { href: "/staff/timesheet", label: "Timesheet", icon: "timesheet" },
-    );
-    more.push(
-      { href: "/staff/roster", label: "My Schedule", icon: "schedule" },
-    );
+    primary.push({
+      href: "/staff/history",
+      label: "Time",
+      icon: "attendance",
+      activePrefixes: ["/staff/history", "/staff/roster", "/staff/timesheet"],
+    });
   }
-  if (modules.has("CLAIMS")) {
-    more.push({ href: "/staff/claims", label: "My Claims", icon: "claims" });
+  if (modules.has("HR") || modules.has("CLAIMS")) {
+    primary.push({
+      href: "/staff/requests",
+      label: "Requests",
+      icon: "requests",
+      activePrefixes: ["/staff/leave", "/staff/claims", "/staff/approvals"],
+    });
   }
-  if (modules.has("COMMISSION")) {
-    more.push({ href: "/staff/commission", label: "My Commission", icon: "commission" });
-  }
-  if (modules.has("PAYROLL")) {
-    more.push({ href: "/staff/payslips", label: "My Payslips", icon: "payslip" });
+  if (modules.has("PAYROLL") || modules.has("COMMISSION")) {
+    primary.push({
+      href: "/staff/pay",
+      label: "Pay",
+      icon: "pay",
+      activePrefixes: ["/staff/payslips", "/staff/commission"],
+    });
   }
 
-  more.push({ href: "/staff/profile", label: "My Profile", icon: "profile" });
-  return { primary, more };
+  primary.push({ href: "/staff/profile", label: "Profile", icon: "profile" });
+  return { primary, more: [] };
 }

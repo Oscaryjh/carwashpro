@@ -118,6 +118,17 @@ export async function AppShell({ user, access, children }: AppShellProps) {
       : []),
   ];
   const teamWorkspaceItems: NavItem[] = [
+    ...(approvalNavigationVisible
+      ? [
+          {
+            href: "/team/approvals",
+            label: "Overview",
+            shortLabel: "Overview",
+            icon: "reports" as const,
+            ...(approvalBadgeCount !== null ? { badgeCount: approvalBadgeCount } : {}),
+          },
+        ]
+      : []),
     ...(isStoreUser &&
     (canSeeCapability("TEAM", "VIEW_TEAM_DIRECTORY") ||
       (moduleEnabled("HR") && canSeeCapability(
@@ -135,42 +146,24 @@ export async function AppShell({ user, access, children }: AppShellProps) {
           },
         ]
       : []),
-    ...(approvalNavigationVisible
-      ? [
-          {
-            href: "/team/approvals",
-            label: "Action Center",
-            shortLabel: "Actions",
-            icon: "reports" as const,
-            ...(approvalBadgeCount !== null ? { badgeCount: approvalBadgeCount } : {}),
-          },
-        ]
-      : []),
     ...(isStoreUser &&
-    moduleEnabled("HR") && canSeeCapability(
-      "ATTENDANCE_EMPLOYEE_READ",
-      "VIEW_ATTENDANCE_EMPLOYEES",
-    )
+    moduleEnabled("HR") &&
+    (canSeeCapability("ATTENDANCE_EMPLOYEE_READ", "VIEW_ATTENDANCE_EMPLOYEES") ||
+      canSeeCapability("ROSTER_VIEW", "VIEW_ROSTER"))
       ? [
           {
-            href: "/team/attendance",
-            label: "Attendance",
-            shortLabel: "Attend",
+            href: "/team/time",
+            label: "Time",
+            shortLabel: "Time",
             icon: "reports" as const,
           },
         ]
-      : []),
-    ...(isStoreUser && moduleEnabled("HR") && canSeeCapability("ROSTER_VIEW", "VIEW_ROSTER")
-      ? [{ href: "/team/roster", label: "Roster", shortLabel: "Roster", icon: "reports" as const }]
       : []),
     ...(isStoreUser && moduleEnabled("HR") && canSeeCapability("VIEW_LEAVE", "VIEW_LEAVE")
       ? [{ href: "/team/leave", label: "Leave", shortLabel: "Leave", icon: "team" as const }]
       : []),
     ...(isStoreUser && moduleEnabled("CLAIMS") && canSeeCapability("VIEW_CLAIM", "VIEW_CLAIM")
       ? [{ href: "/team/claims", label: "Claims", shortLabel: "Claims", icon: "reports" as const }]
-      : []),
-    ...(isStoreUser && moduleEnabled("COMMISSION") && canSeeCapability("VIEW_COMMISSION", "VIEW_COMMISSION")
-      ? [{ href: "/team/commission", label: "Commission", shortLabel: "Comm", icon: "reports" as const }]
       : []),
     ...(isStoreUser &&
     moduleEnabled("PAYROLL") && canSeeCapability("VIEW_PAYROLL_RUN", "VIEW_PAYROLL_RUN")
@@ -179,22 +172,6 @@ export async function AppShell({ user, access, children }: AppShellProps) {
             href: "/team/payroll",
             label: "Payroll",
             shortLabel: "Pay",
-            icon: "reports" as const,
-          },
-        ]
-      : []),
-    ...(isStoreUser &&
-    moduleEnabled("STATUTORY") && canSeeCapability(
-      "VIEW_STATUTORY_SUBMISSION",
-      "VIEW_STATUTORY_SUBMISSION",
-    ) &&
-    canSeeCapability("VIEW_STATUTORY_PROFILE", "VIEW_STATUTORY_PROFILE") &&
-    canSeeCapability("VIEW_TAX_PROFILE", "VIEW_TAX_PROFILE")
-      ? [
-          {
-            href: "/team/payroll/statutory",
-            label: "Statutory",
-            shortLabel: "Stat",
             icon: "reports" as const,
           },
         ]

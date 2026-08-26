@@ -116,6 +116,11 @@ test("Staff verification formats the full Malaysian number for confirmation", ()
   assert.equal(formatPhoneForConfirmation("+60123456789"), "+60 12 345 6789");
 });
 
+test("Staff OTP rate limiting never opens a fake verification countdown", () => {
+  assert.match(authSource, /result\.requestStatus === "RATE_LIMITED"/);
+  assert.match(authSource, /setMessage\(result\.message\)/);
+});
+
 test("Staff PWA creates secure identifiers without requiring randomUUID", () => {
   let nextByte = 0;
   const insecureContextCrypto = {
@@ -287,6 +292,7 @@ test("successful Staff authentication always opens Home instead of More", () => 
 test("Staff manifest is installable and starts inside the isolated Staff scope", () => {
   const manifest = buildStaffManifest();
   assert.equal(manifest.name, "Tetamu Staff App");
+  assert.equal(manifest.id, "/staff");
   assert.equal(manifest.start_url, "/staff");
   assert.equal(manifest.scope, "/staff");
   assert.equal(manifest.display, "standalone");
@@ -295,16 +301,17 @@ test("Staff manifest is installable and starts inside the isolated Staff scope",
 
 test("Staff navigation follows module entitlement without overcrowding the mobile bar", () => {
   const posOnly = buildStaffNavigation(["CORE", "POS", "SALON"]);
-  assert.deepEqual(posOnly.primary.map((item) => item.label), ["Home"]);
-  assert.deepEqual(posOnly.more.map((item) => item.label), ["My Profile"]);
+  assert.deepEqual(posOnly.primary.map((item) => item.label), ["Home", "Profile"]);
+  assert.deepEqual(posOnly.more, []);
 
   const hrOnly = buildStaffNavigation(["CORE", "HR"]);
-  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Attendance", "Leave", "Timesheet"]);
-  assert.deepEqual(hrOnly.more.map((item) => item.label), ["My Schedule", "My Profile"]);
+  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Time", "Requests", "Profile"]);
+  assert.deepEqual(hrOnly.more, []);
 
   const full = buildStaffNavigation(["CORE", "HR", "CLAIMS", "COMMISSION", "PAYROLL"]);
-  assert.deepEqual(full.more.map((item) => item.label), ["My Schedule", "My Claims", "My Commission", "My Payslips", "My Profile"]);
-  assert.ok(full.primary.length + 1 <= 5, "primary navigation plus More must fit five mobile slots");
+  assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Time", "Requests", "Pay", "Profile"]);
+  assert.deepEqual(full.more, []);
+  assert.equal(full.primary.length, 5, "Staff navigation is fixed to five mobile destinations");
 });
 
 test("Staff navigation refreshes live employee module entitlement after login", () => {
@@ -358,6 +365,13 @@ test("POS middleware does not treat Staff PWA as a POS user route", () => {
   const matcher = middlewareSource.slice(middlewareSource.indexOf("matcher:"));
   assert.doesNotMatch(matcher, /"\/staff/);
   assert.match(matcher, /"\/team\/:path\*"/);
+});
+
+test("the main system retires Staff pages in favour of the standalone Staff App", () => {
+  assert.match(nextConfigSource, /process\.env\.STAFF_APP_ORIGIN/);
+  assert.match(nextConfigSource, /source:\s*"\/staff\/:path\*"/);
+  assert.match(nextConfigSource, /destination:\s*`\$\{staffAppOrigin\}\/staff\/:path\*`/);
+  assert.match(nextConfigSource, /"http:\/\/localhost:3100"/);
 });
 
 test("Staff PWA owns vertical scrolling when the POS body is locked", () => {

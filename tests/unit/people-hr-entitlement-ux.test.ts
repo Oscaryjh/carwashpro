@@ -165,7 +165,26 @@ test("People navigation keeps one HR workspace entry and hides legacy availabili
   assert.match(commissionPage, /\/team\?section=roles&focus=levels/);
 });
 
-test("Team activity sits after Payroll in the workspace navigation and is paginated at ten records", async () => {
+test("People list exposes clear profile and permission-gated staff editing actions", async () => {
+  const teamPage = await readFile(
+    path.join(process.cwd(), "src/app/(business)/team/page.tsx"),
+    "utf8",
+  );
+
+  assert.match(teamPage, /<span>Profile<\/span>/);
+  assert.match(teamPage, /<span>Edit staff<\/span>/);
+  assert.match(
+    teamPage,
+    /href=\{`\/team\?section=people&modal=edit&staffId=\$\{member\.id\}`\}/,
+  );
+  assert.match(
+    teamPage,
+    /href=\{`\/team\/employees\/\$\{employee\.id\}`\}/,
+  );
+  assert.match(teamPage, /\{canManageTeam \? \(/);
+});
+
+test("Team activity stays available without occupying the six-item HR navigation", async () => {
   const root = process.cwd();
   const teamPage = await readFile(
     path.join(root, "src/app/(business)/team/page.tsx"),
@@ -193,11 +212,8 @@ test("Team activity sits after Payroll in the workspace navigation and is pagina
     /section === "activity" && !params\.modal[\s\S]*ariaLabel="Team activity"/,
   );
   assert.doesNotMatch(teamPage, /team-activity-header-link/);
-  assert.match(
-    teamLayout,
-    /label: "Payroll"[\s\S]*href: "\/team\?section=activity"[\s\S]*label: "Team activity"/,
-  );
-  assert.match(teamLayout, /activeQuery: \{ name: "section", value: "activity" \}/);
+  assert.match(teamLayout, /label: "Overview"[\s\S]*label: "People"[\s\S]*label: "Time"[\s\S]*label: "Leave"[\s\S]*label: "Claims"[\s\S]*label: "Payroll"/);
+  assert.doesNotMatch(teamLayout, /label: "Team activity"/);
   assert.match(workspaceNav, /\| "activity"/);
   assert.match(workspaceNav, /queryActiveItem/);
   assert.doesNotMatch(teamPage, /aria-label="People tools"/);

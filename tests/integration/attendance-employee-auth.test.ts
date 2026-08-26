@@ -10,6 +10,7 @@ import { revokeEmployeeDevice } from "../../src/lib/attendance/employee-auth/dev
 import { EmployeeAuthError } from "../../src/lib/attendance/employee-auth/errors";
 import {
   EMPLOYEE_OTP_REQUEST_MESSAGE,
+  EMPLOYEE_OTP_RATE_LIMIT_MESSAGE,
   requestEmployeeOtp,
   selectEmployeeMembership,
   verifyEmployeeOtp,
@@ -245,7 +246,13 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
     );
     assert.deepEqual(
       Object.keys(providerFailureResponse).sort(),
-      ["challengeId", "expiresInSeconds", "message", "resendAfterSeconds"],
+      [
+        "challengeId",
+        "expiresInSeconds",
+        "message",
+        "requestStatus",
+        "resendAfterSeconds",
+      ],
       "provider errors must not leak into the public result",
     );
     const providerFailureChallenge =
@@ -1400,7 +1407,7 @@ async function exerciseRateLimits(
       now,
     },
   );
-  await requestEmployeeOtp(
+  const phoneLimitedResponse = await requestEmployeeOtp(
     {
       phoneNumber: fixture.single.phone,
       deviceIdentifier: "rate-phone-device-0001",
@@ -1414,6 +1421,8 @@ async function exerciseRateLimits(
     },
   );
   assert.equal(phoneProvider.sent.length, 1);
+  assert.equal(phoneLimitedResponse.requestStatus, "RATE_LIMITED");
+  assert.equal(phoneLimitedResponse.message, EMPLOYEE_OTP_RATE_LIMIT_MESSAGE);
 
   await clearAllFixtureChallenges(fixture);
   const ipLimited = authConfig({
@@ -1431,7 +1440,7 @@ async function exerciseRateLimits(
     },
     { database: prisma, config: ipLimited, provider: ipProvider, now },
   );
-  await requestEmployeeOtp(
+  const ipLimitedResponse = await requestEmployeeOtp(
     {
       phoneNumber: fixture.rate.phone,
       deviceIdentifier: "rate-ip-device-b-0001",
@@ -1445,6 +1454,7 @@ async function exerciseRateLimits(
     },
   );
   assert.equal(ipProvider.sent.length, 1);
+  assert.equal(ipLimitedResponse.requestStatus, "RATE_LIMITED");
 
   await clearAllFixtureChallenges(fixture);
   const deviceLimited = authConfig({
@@ -1467,7 +1477,7 @@ async function exerciseRateLimits(
       now,
     },
   );
-  await requestEmployeeOtp(
+  const deviceLimitedResponse = await requestEmployeeOtp(
     {
       phoneNumber: fixture.rate.phone,
       deviceIdentifier: "shared-rate-device-0001",
@@ -1481,6 +1491,7 @@ async function exerciseRateLimits(
     },
   );
   assert.equal(deviceProvider.sent.length, 1);
+  assert.equal(deviceLimitedResponse.requestStatus, "RATE_LIMITED");
 
   await clearAllFixtureChallenges(fixture);
   const providerLimited = authConfig({
@@ -1506,7 +1517,7 @@ async function exerciseRateLimits(
       now: providerNow,
     },
   );
-  await requestEmployeeOtp(
+  const providerLimitedResponse = await requestEmployeeOtp(
     {
       phoneNumber: fixture.rate.phone,
       deviceIdentifier: "provider-rate-device-b",
@@ -1520,6 +1531,7 @@ async function exerciseRateLimits(
     },
   );
   assert.equal(globalProvider.sent.length, 1);
+  assert.equal(providerLimitedResponse.requestStatus, "RATE_LIMITED");
   await clearAllFixtureChallenges(fixture);
 }
 

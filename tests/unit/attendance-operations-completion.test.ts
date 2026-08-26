@@ -64,7 +64,7 @@ test("manager Attendance operations use the Resolution Queue, export, and pagina
   assert.match(resolutionQueuePage, /APPLY_CORRECTION/);
   assert.match(resolutionQueuePage, /RETURN_TO_EMPLOYEE/);
   assert.match(resolutionQueuePage, /EXCLUDE/);
-  assert.match(attendanceLayout, /Export CSV/);
+  assert.match(managerPage, /Export CSV/);
   assert.match(managerPage, /const pageSize = 25/);
   assert.match(managerPage, /skip: \(page - 1\) \* pageSize/);
   assert.match(managerPage, /Page \{page\} of \{totalPages\}/);

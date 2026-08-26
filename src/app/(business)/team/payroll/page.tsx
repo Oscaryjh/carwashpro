@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { parsePayrollMonth } from "@/lib/payroll/service";
 import { prisma } from "@/lib/prisma";
-import PayrollWorkspacePage from "./workspace/page";
 
 type LegacyPayrollPageProps = {
   searchParams: Promise<{
@@ -23,7 +22,7 @@ export default async function LegacyPayrollPage({
   const params = await searchParams;
 
   if (!params.month) {
-    return PayrollWorkspacePage();
+    redirect(withNotice("/team/payroll/workspace", params));
   }
 
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(params.month)) {

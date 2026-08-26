@@ -9,25 +9,19 @@ async function source(relativePath: string) {
   return readFile(path.join(root, relativePath), "utf8");
 }
 
-test("HR navigation gates Payroll and Statutory independently", async () => {
-  const appShell = await source("src/components/app-shell.tsx");
+test("HR navigation keeps statutory work nested under Payroll", async () => {
+  const [appShell, payrollNav] = await Promise.all([
+    source("src/components/app-shell.tsx"),
+    source("src/components/payroll-workspace-nav.tsx"),
+  ]);
 
   assert.match(
     appShell,
     /canSeeCapability\("VIEW_PAYROLL_RUN", "VIEW_PAYROLL_RUN"\)/,
   );
-  assert.match(
-    appShell,
-    /canSeeCapability\(\s*"VIEW_STATUTORY_SUBMISSION",\s*"VIEW_STATUTORY_SUBMISSION"/,
-  );
-  assert.match(
-    appShell,
-    /canSeeCapability\("VIEW_STATUTORY_PROFILE", "VIEW_STATUTORY_PROFILE"\)/,
-  );
-  assert.match(
-    appShell,
-    /canSeeCapability\("VIEW_TAX_PROFILE", "VIEW_TAX_PROFILE"\)/,
-  );
+  assert.doesNotMatch(appShell, /label: "Statutory & tax"/);
+  assert.match(payrollNav, /href: "\/team\/payroll\/statutory"/);
+  assert.match(payrollNav, /label: "Statutory"/);
 });
 
 test("attendance modules use capabilities instead of role-name UI checks", async () => {
@@ -48,24 +42,63 @@ test("attendance modules use capabilities instead of role-name UI checks", async
   assert.match(settings, /canManage \?/);
 });
 
-test("Attendance Settings stays inside the Attendance workspace navigation", async () => {
-  const [appShell, attendanceLayout, settingsLayout] = await Promise.all([
+test("Attendance Settings stays inside the unified Time workspace navigation", async () => {
+  const [appShell, attendanceLayout, settingsLayout, timeNav] = await Promise.all([
     source("src/components/app-shell.tsx"),
     source("src/app/(business)/team/attendance/layout.tsx"),
     source("src/app/(business)/team/attendance-settings/layout.tsx"),
+    source("src/components/time-workspace-nav.tsx"),
   ]);
 
   assert.doesNotMatch(appShell, /label: "Attendance Settings"/);
   assert.match(
-    attendanceLayout,
+    timeNav,
     /href: "\/team\/attendance-settings", label: "Settings"/,
   );
+  assert.match(attendanceLayout, /TimeWorkspaceNav/);
+  assert.match(settingsLayout, /TimeWorkspaceNav/);
   assert.doesNotMatch(settingsLayout, /Expected work|Resolution queue/);
-  assert.match(settingsLayout, /label: "Export CSV"/);
   assert.doesNotMatch(
     await source("src/app/(business)/team/attendance-settings/page.tsx"),
     />People<|>Attendance<|Attendance API enforcement/,
   );
+});
+
+test("Time overview presents the canonical monthly attendance-to-payroll handoff", async () => {
+  const page = await source("src/app/(business)/team/time/page.tsx");
+
+  assert.match(page, /loadMonthlyAttendanceTimesheet/);
+  assert.match(page, /Attendance captured/);
+  assert.match(page, /Exceptions to resolve/);
+  assert.match(page, /Stores confirmed/);
+  assert.match(page, /Payroll handoff/);
+  assert.doesNotMatch(page, /prisma\./);
+});
+
+test("Payroll navigation uses workflow language instead of internal route names", async () => {
+  const payrollNav = await source("src/components/payroll-workspace-nav.tsx");
+
+  assert.match(payrollNav, /label: "Prepare payroll"/);
+  assert.match(payrollNav, /label: "Calculate and review payroll"/);
+  assert.match(payrollNav, /shortLabel: "Pay inputs"/);
+  assert.match(payrollNav, /shortLabel: "Pay"/);
+  assert.doesNotMatch(payrollNav, /label: "Workspace"/);
+  assert.doesNotMatch(payrollNav, /label: "Runs"/);
+});
+
+test("Leave and Claims use the shared HR issue presentation for failed actions", async () => {
+  const [leave, claims, issue] = await Promise.all([
+    source("src/app/(business)/team/leave/page.tsx"),
+    source("src/app/(business)/team/claims/page.tsx"),
+    source("src/components/hr-payroll-issue.tsx"),
+  ]);
+
+  assert.match(leave, /HrPayrollIssue/);
+  assert.match(claims, /HrPayrollIssue/);
+  assert.match(issue, /What happened/);
+  assert.match(issue, /Why it matters/);
+  assert.match(issue, /Affected/);
+  assert.match(issue, /Technical details/);
 });
 
 test("employee names use the unified profile route when directory access exists", async () => {

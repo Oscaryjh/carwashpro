@@ -203,6 +203,16 @@ export default async function EmployeeProfilePage({
     activeSection === "overview" && query.edit === "profile" && canManageTeam;
   const linkedStaffId = membership?.staffUser?.id ?? staff?.id ?? null;
   const profilePath = `/team/people/${person.id}?section=overview`;
+  const canEditEmployeeRecord =
+    canManageTeam ||
+    hasBusinessCapability(context.access, "MODIFY_ATTENDANCE_EMPLOYEES");
+  const profileEditHref = linkedStaffId
+    ? canManageTeam
+      ? `${profilePath}&edit=profile`
+      : undefined
+    : membership && canEditEmployeeRecord
+      ? `/team/employees/${membership.id}`
+      : undefined;
 
   let sectionContent = null;
   let leaveData: Awaited<ReturnType<typeof loadEmployeeLeaveSection>> = null;
@@ -588,8 +598,8 @@ export default async function EmployeeProfilePage({
         }
         authorized={sectionAuthorized}
         editHref={
-          activeSection === "overview" && canManageTeam && linkedStaffId
-            ? `${profilePath}&edit=profile`
+          activeSection === "overview"
+            ? profileEditHref
             : undefined
         }
         notice={parseProfileUpdateNotice(query)}

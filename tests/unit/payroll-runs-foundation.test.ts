@@ -249,7 +249,7 @@ test("Phase 4C retires the legacy monthly page without removing settings", async
 
   assert.match(legacy, /Compatibility route/);
   assert.match(legacy, /`\/team\/payroll\/runs\/\$\{run\.id\}`/);
-  assert.match(legacy, /PayrollWorkspacePage/);
+  assert.match(legacy, /\/team\/payroll\/workspace/);
   assert.doesNotMatch(legacy, /payrollSetting|payrollHoliday|entries:/);
 
   assert.match(settings, /savePayrollSettingAction/);

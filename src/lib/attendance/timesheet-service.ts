@@ -12,7 +12,10 @@ import {
 } from "@/lib/attendance/overtime-service";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { getAttendancePeriodReadiness } from "@/lib/attendance/p2-service";
+import {
+  getAttendancePeriodReadiness,
+  materializeAttendanceP2DayInTransaction,
+} from "@/lib/attendance/p2-service";
 import { getBranchLocalDateKey } from "@/lib/attendance/work-date";
 import {
   AttendanceSegmentationError,
@@ -338,6 +341,31 @@ export async function markAttendanceTimesheetBranchReady(args: {
   database?: PrismaClient;
 }) {
   const database = args.database ?? prisma;
+  // Commit roster/leave-backed P2 materialization before the readiness check.
+  // If blockers are detected, the following transaction intentionally rejects
+  // while these canonical exception records remain available for resolution.
+  await database.$transaction(async (transaction) => {
+    const initialSnapshot = await loadMonthlyAttendanceTimesheet({
+      businessId: args.context.businessId,
+      allowedBranchIds: args.context.allowedBranchIds,
+      month: args.month,
+      database: transaction,
+    });
+    const initialBranch = initialSnapshot.branches.find((item) => item.branchId === args.branchId);
+    if (!initialBranch) {
+      throw new AttendanceTimesheetError("BRANCH_NOT_FOUND", "Branch is outside the authorized Attendance scope.");
+    }
+    if (initialSnapshot.timesheet?.status === "LOCKED" || initialSnapshot.timesheet?.status === "APPROVED") {
+      throw new AttendanceTimesheetError("TIMESHEET_LOCKED", "Start a controlled revision before changing a locked Timesheet.");
+    }
+    await materializeBranchP2Coverage({
+      context: args.context,
+      branchId: args.branchId,
+      periodStart: initialSnapshot.period.periodStart,
+      periodEndExclusive: initialSnapshot.period.periodEndExclusive,
+      transaction,
+    });
+  }, transactionOptions);
   return database.$transaction(async (transaction) => {
     const snapshot = await loadMonthlyAttendanceTimesheet({
       businessId: args.context.businessId,
@@ -401,6 +429,51 @@ export async function markAttendanceTimesheetBranchReady(args: {
     }, transaction);
     return { timesheetId: timesheet.id, branchId: branch.branchId };
   }, transactionOptions);
+}
+
+async function materializeBranchP2Coverage(args: {
+  context: AttendanceTimesheetContext;
+  branchId: string;
+  periodStart: Date;
+  periodEndExclusive: Date;
+  transaction: Prisma.TransactionClient;
+}) {
+  const [expectedDays, leaveDays] = await Promise.all([
+    args.transaction.attendanceExpectedDay.findMany({
+      where: {
+        businessId: args.context.businessId,
+        branchId: args.branchId,
+        workDate: { gte: args.periodStart, lt: args.periodEndExclusive },
+        status: "CURRENT",
+      },
+      select: { membershipId: true, workDate: true },
+    }),
+    args.transaction.leaveRequestDay.findMany({
+      where: {
+        businessId: args.context.businessId,
+        leaveDate: { gte: args.periodStart, lt: args.periodEndExclusive },
+        leaveRequest: { status: "APPROVED", branchId: args.branchId },
+      },
+      select: { membershipId: true, leaveDate: true },
+    }),
+  ]);
+  const coverage = new Map<string, { membershipId: string; workDate: Date }>();
+  for (const item of expectedDays) {
+    coverage.set(`${item.membershipId}:${dateKey(item.workDate)}`, item);
+  }
+  for (const item of leaveDays) {
+    coverage.set(`${item.membershipId}:${dateKey(item.leaveDate)}`, {
+      membershipId: item.membershipId,
+      workDate: item.leaveDate,
+    });
+  }
+  for (const item of coverage.values()) {
+    await materializeAttendanceP2DayInTransaction({
+      context: args.context,
+      membershipId: item.membershipId,
+      workDate: item.workDate,
+    }, args.transaction);
+  }
 }
 
 export async function lockMonthlyAttendanceTimesheet(args: {

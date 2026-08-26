@@ -15,7 +15,7 @@ import {
 import { CommissionRuleBuilder } from "./commission-rule-builder";
 import styles from "./commission.module.css";
 
-type Props = { searchParams: Promise<{ type?: string; message?: string; view?: string }> };
+type Props = { searchParams: Promise<{ type?: string; message?: string; view?: string; period?: string }> };
 type Dashboard = Awaited<ReturnType<typeof getCommissionManagerDashboard>>;
 type DashboardRule = Dashboard["rules"][number];
 type DashboardPeriod = Dashboard["periods"][number];
@@ -91,12 +91,12 @@ export default async function CommissionPage({ searchParams }: Props) {
         <div className={styles.periods}>{data.periods.length ? data.periods.map((period) => {
           const statements = currentStatements(period);
           const periodTotal = statements.reduce((total, statement) => total + statement.finalCommissionCents, 0);
-          return <article key={period.id} className={styles.period}>
+          return <article key={period.id} className={styles.period} id={`commission-period-${period.id}`}>
             <header className={styles.periodHeader}>
               <div><strong>{formatPeriod(period.earnedPeriodStart, period.earnedPeriodEnd)}</strong><span>{period.branch?.name ?? "All branches"} · {statements.length} employee{statements.length === 1 ? "" : "s"}</span></div>
               <div><b>{money(periodTotal)}</b><span className={styles.status} data-status={period.status}>{statusLabels[period.status] ?? humanize(period.status)}</span></div>
             </header>
-            <details className={styles.periodReview}>
+            <details className={styles.periodReview} open={params.period === period.id}>
               <summary>{period.status === "CALCULATED" ? "Review period" : "View statement"}</summary>
               <div className={styles.statements}>{statements.map((statement) => {
                 const totals = sourceTotals(statement.accruals);

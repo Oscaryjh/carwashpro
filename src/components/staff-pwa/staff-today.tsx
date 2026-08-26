@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   attendanceActionLabel,
   attendanceConfirmation,
@@ -709,7 +710,7 @@ export function StaffToday() {
         </section>
       ) : null}
 
-      {confirmAction ? (
+      {confirmAction ? createPortal(
         <div className="staff-confirm-backdrop" role="presentation">
           <div
             aria-labelledby="staff-confirm-title"
@@ -793,7 +794,8 @@ export function StaffToday() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );

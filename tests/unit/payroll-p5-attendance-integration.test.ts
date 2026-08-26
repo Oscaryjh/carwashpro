@@ -73,6 +73,31 @@ test("P5 hourly pay uses approved integer minutes with deterministic rounding", 
   assert.equal(attendance.approvedOvertimeMinutes, 0);
 });
 
+test("P5 blocks hourly paid leave until an approved hourly leave-unit policy exists", () => {
+  const attendance = buildPayrollAttendanceInput({
+    membershipId: "member-hourly-paid-leave",
+    payBasis: "HOURLY",
+    days: [day("hourly-paid-leave", "APPROVED_PAID_LEAVE", 0, "WORKDAY", 1)],
+  });
+
+  assert.ok(
+    attendance.policyBlockers.includes(
+      "HOURLY_PAID_LEAVE_UNIT_POLICY_NOT_READY",
+    ),
+  );
+  assert.deepEqual(
+    buildAttendancePayrollComponents({
+      snapshotId: "10000000-0000-4000-8000-000000000022",
+      timesheetRevision: 1,
+      periodStart,
+      payBasis: "HOURLY",
+      baseRateCents: 1_500,
+      attendance,
+    }),
+    [],
+  );
+});
+
 test("P5 blocks potential overtime until Attendance freezes an approved overtime source", () => {
   const attendance = buildPayrollAttendanceInput({
     membershipId: "member-overtime",
