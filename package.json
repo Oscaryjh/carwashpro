@@ -31,7 +31,7 @@
     "notification:worker": "node scripts/validate-release-environment.mjs notification && node --use-system-ca --import tsx scripts/notification-queue-worker.ts",
     "whatsapp:worker": "node scripts/validate-release-environment.mjs whatsapp && node --use-system-ca scripts/run-whatsapp-worker.mjs",
     "next:clean": "node scripts/clean-next-cache.mjs",
-    "build": "node scripts/guard-next-build.mjs && next build --webpack",
+    "build": "prisma generate && node scripts/guard-next-build.mjs && next build --webpack",
     "start": "node scripts/run-staff-app.mjs start",
     "start:staff": "node scripts/run-staff-app.mjs start",
     "lint": "eslint .",
