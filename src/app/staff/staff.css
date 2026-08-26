@@ -2788,6 +2788,10 @@
     width: 0;
   }
 
+  .staff-app-shell.staff-task-modal-open > .staff-pwa-main {
+    overflow: hidden;
+  }
+
   .staff-pwa-nav {
     border-bottom: 0;
     border-left: 0;
@@ -4517,6 +4521,12 @@
   width: 100%;
 }
 
+.staff-correction-task-sheet {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .staff-correction-sheet::-webkit-scrollbar {
   display: none;
 }
@@ -4548,6 +4558,42 @@
 .staff-correction-sheet .staff-history-filters {
   gap: 14px;
   margin-top: 14px;
+}
+
+.staff-correction-form {
+  flex: 1 1 auto;
+  grid-template-columns: 1fr;
+  min-height: 0;
+}
+
+.staff-correction-body {
+  -webkit-overflow-scrolling: touch;
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: 1px 3px 4px;
+  scrollbar-width: none;
+}
+
+.staff-correction-body::-webkit-scrollbar {
+  display: none;
+}
+
+.staff-correction-footer {
+  background: var(--staff-card);
+  border-top: 1px solid var(--staff-line);
+  display: grid;
+  flex: 0 0 auto;
+  gap: 8px;
+  margin: 0 -3px -3px;
+  padding: 12px 3px 3px;
+}
+
+.staff-correction-footer .staff-primary-button {
+  min-height: 52px;
+  width: 100%;
 }
 
 .staff-correction-field-grid {
@@ -4692,6 +4738,10 @@
     padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
   }
 
+  .staff-correction-task-sheet {
+    padding-bottom: 0;
+  }
+
   .staff-correction-sheet::before {
     background: #c6d5d2;
     border-radius: 999px;
@@ -4711,6 +4761,16 @@
     grid-column: auto;
     min-height: 52px;
     width: 100%;
+  }
+
+  .staff-correction-footer {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding:
+      12px
+      max(16px, env(safe-area-inset-right))
+      calc(14px + env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
   }
 
   .staff-filter-sheet .staff-history-filters > .staff-primary-button {

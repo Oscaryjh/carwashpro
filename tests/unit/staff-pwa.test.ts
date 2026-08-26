@@ -573,7 +573,7 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(historyComponentSource, /aria-expanded=\{filtersOpen\}/);
   assert.match(historyComponentSource, /setCorrectionOpen\(true\)/);
   assert.match(historyComponentSource, /aria-modal="true"/);
-  assert.match(historyComponentSource, /className="staff-page-card staff-correction-sheet"/);
+  assert.match(historyComponentSource, /className="staff-page-card staff-correction-sheet(?: staff-correction-task-sheet)?"/);
   assert.match(historyComponentSource, /className="staff-page-card staff-correction-sheet staff-filter-sheet"/);
   assert.match(historyComponentSource, /setDraftFrom\(from\)/);
   assert.match(historyComponentSource, /id="staff-history-filters"/);
@@ -582,6 +582,13 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(historyComponentSource, /Choose up to 31 days\./);
   assert.match(historyComponentSource, /staff-correction-field-grid/);
   assert.match(historyComponentSource, /staff-correction-time-grid/);
+  assert.match(historyComponentSource, /className="staff-page-card staff-correction-sheet staff-correction-task-sheet"/);
+  assert.match(historyComponentSource, /className="staff-correction-body"/);
+  assert.match(historyComponentSource, /<footer className="staff-correction-footer">/);
+  assert.match(historyComponentSource, /setTaskNavigationHidden\(correctionOpen \|\| filtersOpen\)/);
+  assert.match(historyComponentSource, /return \(\) => setTaskNavigationHidden\(false\)/);
+  assert.match(chromeSource, /showNavigation && !taskNavigationHidden/);
+  assert.match(chromeSource, /taskNavigationHidden \? " staff-task-modal-open" : ""/);
   assert.match(historyComponentSource, /Finalized timesheet records stay locked\./);
   assert.doesNotMatch(historyComponentSource, />\s*Branch\s*</);
   assert.doesNotMatch(historyComponentSource, /Select branch|All branches/);
@@ -593,6 +600,17 @@ test("Staff App keeps key employee journeys compact and iPhone-first", () => {
   assert.match(historyComponentSource, /Employee requested a missing clock-out correction\./);
   assert.match(staffCssSource, /@media \(max-width: 640px\)[\s\S]*?\.staff-correction-backdrop\s*\{[\s\S]*?align-items:\s*flex-end/);
   assert.match(staffCssSource, /\.staff-correction-sheet\s*\{[\s\S]*?max-height:\s*calc\(100dvh - 32px\);[\s\S]*?overflow-y:\s*auto/);
+  assert.match(staffCssSource, /\.staff-correction-task-sheet\s*\{[\s\S]*?display:\s*flex;[\s\S]*?flex-direction:\s*column;[\s\S]*?overflow:\s*hidden/);
+  assert.match(staffCssSource, /\.staff-correction-body\s*\{[\s\S]*?overflow-y:\s*auto;[\s\S]*?overscroll-behavior-y:\s*contain/);
+  assert.match(staffCssSource, /\.staff-correction-footer\s*\{[\s\S]*?flex:\s*0 0 auto/);
+  assert.match(staffCssSource, /@media \(max-width: 640px\)[\s\S]*?\.staff-correction-footer\s*\{[\s\S]*?calc\(14px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(staffCssSource, /\.staff-app-shell\.staff-task-modal-open > \.staff-pwa-main\s*\{[\s\S]*?overflow:\s*hidden/);
+  for (const mobileViewportWidth of [375, 390, 430]) {
+    assert.ok(
+      mobileViewportWidth <= 640,
+      `${mobileViewportWidth}px must use the mobile correction sheet with a reachable action footer`,
+    );
+  }
   assert.match(staffCssSource, /\.staff-filter-field-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(staffCssSource, /\.staff-correction-field-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(staffCssSource, /\.staff-correction-action-grid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);

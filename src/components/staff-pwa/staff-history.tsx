@@ -13,9 +13,11 @@ import type {
   AttendanceHistoryItem,
 } from "@/lib/staff-pwa/types";
 import { StaffLoading } from "./staff-auth";
+import { useStaffShell } from "./staff-pwa-chrome";
 
 export function StaffHistory() {
   const router = useRouter();
+  const { setTaskNavigationHidden } = useStaffShell();
   const defaults = useMemo(() => defaultRange(), []);
   const [history, setHistory] = useState<AttendanceHistory | null>(null);
   const [from, setFrom] = useState(defaults.from);
@@ -85,6 +87,11 @@ export function StaffHistory() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [correctionOpen, correctionSubmitting, filtersOpen]);
+
+  useEffect(() => {
+    setTaskNavigationHidden(correctionOpen || filtersOpen);
+    return () => setTaskNavigationHidden(false);
+  }, [correctionOpen, filtersOpen, setTaskNavigationHidden]);
 
   function filter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -201,7 +208,7 @@ export function StaffHistory() {
           <section
             aria-labelledby="staff-correction-heading"
             aria-modal="true"
-            className="staff-page-card staff-correction-sheet"
+            className="staff-page-card staff-correction-sheet staff-correction-task-sheet"
             id="staff-correction-sheet"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
@@ -222,85 +229,89 @@ export function StaffHistory() {
                 <span aria-hidden="true">×</span>
               </button>
             </div>
-            <form className="staff-history-filters" onSubmit={submitCorrection}>
-              <div className="staff-correction-field-grid staff-correction-action-grid">
-                <label>
-                  Missing action
-                  <select
-                    onChange={(event) =>
-                      setCorrectionType(
-                        event.target.value as
-                          | "FORGOT_CLOCK_IN"
-                          | "FORGOT_CLOCK_OUT",
-                      )
-                    }
-                    value={correctionType}
-                  >
-                    <option value="FORGOT_CLOCK_OUT">Forgot clock out</option>
-                    <option value="FORGOT_CLOCK_IN">Forgot clock in</option>
-                  </select>
-                </label>
-              </div>
-              <div className="staff-correction-field-grid staff-correction-time-grid">
-                {correctionType === "FORGOT_CLOCK_OUT" ? (
+            <form className="staff-history-filters staff-correction-form" onSubmit={submitCorrection}>
+              <div className="staff-correction-body">
+                <div className="staff-correction-field-grid staff-correction-action-grid">
                   <label>
-                    Attendance shift
+                    Missing action
                     <select
-                      onChange={(event) => setCorrectionSessionId(event.target.value)}
-                      required
-                      value={correctionSessionId}
+                      onChange={(event) =>
+                        setCorrectionType(
+                          event.target.value as
+                            | "FORGOT_CLOCK_IN"
+                            | "FORGOT_CLOCK_OUT",
+                        )
+                      }
+                      value={correctionType}
                     >
-                      <option value="">Select shift</option>
-                      {(history?.items ?? [])
-                        .flatMap((item) => item.sessions
-                          .filter((session) =>
-                            !item.locked &&
-                            !session.clockOutAt &&
-                            session.punchStatus !== "COMPLETED" &&
-                            session.punchStatus !== "CANCELLED",
-                          )
-                          .map((session) => (
-                            <option key={session.id} value={session.id}>
-                              {item.workDate} / In progress
-                            </option>
-                          ))) }
+                      <option value="FORGOT_CLOCK_OUT">Forgot clock out</option>
+                      <option value="FORGOT_CLOCK_IN">Forgot clock in</option>
                     </select>
                   </label>
-                ) : (
+                </div>
+                <div className="staff-correction-field-grid staff-correction-time-grid">
+                  {correctionType === "FORGOT_CLOCK_OUT" ? (
+                    <label>
+                      Attendance shift
+                      <select
+                        onChange={(event) => setCorrectionSessionId(event.target.value)}
+                        required
+                        value={correctionSessionId}
+                      >
+                        <option value="">Select shift</option>
+                        {(history?.items ?? [])
+                          .flatMap((item) => item.sessions
+                            .filter((session) =>
+                              !item.locked &&
+                              !session.clockOutAt &&
+                              session.punchStatus !== "COMPLETED" &&
+                              session.punchStatus !== "CANCELLED",
+                            )
+                            .map((session) => (
+                              <option key={session.id} value={session.id}>
+                                {item.workDate} / In progress
+                              </option>
+                            ))) }
+                      </select>
+                    </label>
+                  ) : (
+                    <label>
+                      Requested clock in
+                      <input
+                        onChange={(event) => setRequestedClockInAt(event.target.value)}
+                        required
+                        type="datetime-local"
+                        value={requestedClockInAt}
+                      />
+                    </label>
+                  )}
                   <label>
-                    Requested clock in
+                    Requested clock out
                     <input
-                      onChange={(event) => setRequestedClockInAt(event.target.value)}
-                      required
+                      onChange={(event) => setRequestedClockOutAt(event.target.value)}
+                      required={correctionType === "FORGOT_CLOCK_OUT"}
                       type="datetime-local"
-                      value={requestedClockInAt}
+                      value={requestedClockOutAt}
                     />
                   </label>
-                )}
-                <label>
-                  Requested clock out
-                  <input
-                    onChange={(event) => setRequestedClockOutAt(event.target.value)}
-                    required={correctionType === "FORGOT_CLOCK_OUT"}
-                    type="datetime-local"
-                    value={requestedClockOutAt}
-                  />
-                </label>
+                </div>
+                {correctionType === "FORGOT_CLOCK_OUT" && (history?.items ?? []).some((item) => item.locked) ? (
+                  <p className="staff-correction-note">
+                    <span aria-hidden="true">i</span>
+                    Finalized timesheet records stay locked.
+                  </p>
+                ) : null}
               </div>
-              {correctionType === "FORGOT_CLOCK_OUT" && (history?.items ?? []).some((item) => item.locked) ? (
-                <p className="staff-correction-note">
-                  <span aria-hidden="true">i</span>
-                  Finalized timesheet records stay locked.
-                </p>
-              ) : null}
-              <button
-                className="staff-primary-button"
-                disabled={correctionSubmitting}
-                type="submit"
-              >
-                {correctionSubmitting ? "Submitting…" : "Submit for review"}
-              </button>
-              {correctionMessage ? <small className="staff-correction-message" role="status">{correctionMessage}</small> : null}
+              <footer className="staff-correction-footer">
+                <button
+                  className="staff-primary-button"
+                  disabled={correctionSubmitting}
+                  type="submit"
+                >
+                  {correctionSubmitting ? "Submitting…" : "Submit for review"}
+                </button>
+                {correctionMessage ? <small className="staff-correction-message" role="status">{correctionMessage}</small> : null}
+              </footer>
             </form>
           </section>
         </div>

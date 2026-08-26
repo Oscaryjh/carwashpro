@@ -32,6 +32,7 @@ type StaffShellContextValue = {
   workplaces: readonly EmployeeWorkplaceChoice[];
   openWorkplaceSwitcher: () => void;
   logout: () => Promise<void>;
+  setTaskNavigationHidden: (hidden: boolean) => void;
   switching: boolean;
 };
 
@@ -62,6 +63,7 @@ export function StaffPwaChrome({
   const [liveModules, setLiveModules] = useState<readonly string[]>(enabledModules);
   const navigation = buildStaffNavigation(liveModules);
   const [workplacesOpen, setWorkplacesOpen] = useState(false);
+  const [taskNavigationHidden, setTaskNavigationHidden] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState("");
   const currentWorkplace = workplaces.find((workplace) => workplace.current);
@@ -153,13 +155,14 @@ export function StaffPwaChrome({
     workplaces,
     openWorkplaceSwitcher,
     logout,
+    setTaskNavigationHidden,
     switching,
   };
 
   return (
     <StaffShellContext.Provider value={shellValue}>
       <div
-        className={`staff-pwa-shell ${showNavigation ? "staff-app-shell" : "staff-auth-shell"}`}
+        className={`staff-pwa-shell ${showNavigation ? "staff-app-shell" : "staff-auth-shell"}${taskNavigationHidden ? " staff-task-modal-open" : ""}`}
         ref={shellRef}
       >
         <OfflineBanner />
@@ -237,7 +240,7 @@ export function StaffPwaChrome({
           </div>
         ) : null}
 
-        {showNavigation ? (
+        {showNavigation && !taskNavigationHidden ? (
           <nav aria-label="Staff navigation" className="staff-pwa-nav">
             {navigation.primary.map((item) => (
               <Link aria-current={isActive(currentPath, item) ? "page" : undefined} className={isActive(currentPath, item) ? "active" : ""} href={item.href} key={item.href}>
