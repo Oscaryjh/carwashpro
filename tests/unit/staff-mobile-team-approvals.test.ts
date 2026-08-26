@@ -12,14 +12,16 @@ const files = {
   css: "src/app/staff/staff.css",
 };
 
-test("mobile Team Approvals is capability-based and limited to Leave and Claims", async () => {
+test("mobile Team Approvals is capability-based while attendance uses its canonical queue", async () => {
   const [adapter, home, requests, inbox] = await Promise.all([readFile(files.adapter, "utf8"), readFile(files.home, "utf8"), readFile(files.requests, "utf8"), readFile(files.inbox, "utf8")]);
   assert.match(adapter, /canDirectStaff\(user\.permissions, capability\)/);
   assert.match(adapter, /APPROVE_LEAVE/);
   assert.match(adapter, /REVIEW_CLAIM/);
+  assert.match(adapter, /MODIFY_ATTENDANCE_EMPLOYEES/);
   assert.match(adapter, /MobileApprovalDomain = "LEAVE" \| "CLAIMS"/);
   assert.doesNotMatch(home, /bottom navigation|More menu/i);
   assert.match(requests, /Team approvals/i);
+  assert.match(requests, /\/staff\/requests\/attendance-corrections/);
   assert.match(inbox, /query\.domain === "LEAVE" \|\| query\.domain === "CLAIMS"/);
 });
 
@@ -75,7 +77,7 @@ test("mobile UI has compact filters, loading state and 44px touch targets", asyn
   const [inbox, detail, form, requests, css, loading] = await Promise.all([readFile(files.inbox, "utf8"), readFile(files.detail, "utf8"), readFile("src/components/staff-pwa/mobile-approval-form.tsx", "utf8"), readFile(files.requests, "utf8"), readFile(files.css, "utf8"), readFile("src/app/staff/approvals/loading.tsx", "utf8")]);
   assert.match(inbox, /staff-approval-tabs/);
   assert.match(requests, /getStaffTeamApprovalSummary/);
-  assert.match(requests, /href="\/staff\/approvals"/);
+  assert.match(requests, /managerWorkspaceHref/);
   assert.match(detail, /Current balance/);
   assert.match(form, /Reason for rejection \(required when rejecting\)/);
   assert.ok(form.indexOf('decision="REJECTED"') < form.indexOf('decision="APPROVED"'));

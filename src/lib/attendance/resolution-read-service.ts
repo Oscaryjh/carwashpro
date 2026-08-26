@@ -95,6 +95,7 @@ export async function loadAttendanceResolutionQueue(args: {
     | "RESOLVED";
   branchId?: string;
   employeeQuery?: string;
+  excludedStaffUserId?: string;
   database?: PrismaClient;
 }) {
   const database = args.database ?? prisma;
@@ -112,13 +113,20 @@ export async function loadAttendanceResolutionQueue(args: {
     businessId: args.scope.businessId,
     branchId: { in: branchIds },
     status: { in: [...statuses] },
-    ...(query
+    ...(query || args.excludedStaffUserId
       ? {
           employee: {
-            OR: [
-              { fullName: { contains: query, mode: "insensitive" as const } },
-              { employeeCode: { contains: query, mode: "insensitive" as const } },
-            ],
+            ...(query
+              ? {
+                  OR: [
+                    { fullName: { contains: query, mode: "insensitive" as const } },
+                    { employeeCode: { contains: query, mode: "insensitive" as const } },
+                  ],
+                }
+              : {}),
+            ...(args.excludedStaffUserId
+              ? { staffUser: { isNot: { id: args.excludedStaffUserId } } }
+              : {}),
           },
         }
       : {}),

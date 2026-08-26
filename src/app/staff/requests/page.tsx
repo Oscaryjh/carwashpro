@@ -70,6 +70,16 @@ export default async function StaffRequestsPage() {
     redirect("/staff/module-not-enabled?module=HR");
   }
 
+  const attendanceHref = approvals?.canReviewAttendance
+    ? "/staff/requests/attendance-corrections"
+    : "/staff/history";
+  const managerWorkspaceHref = approvals?.canReviewLeave || approvals?.canReviewClaims
+    ? "/staff/approvals"
+    : attendanceHref;
+  const managerWorkspaceCount = approvals?.canReviewLeave || approvals?.canReviewClaims
+    ? (approvals?.leave ?? 0) + (approvals?.claims ?? 0)
+    : approvals?.attendance ?? 0;
+
   return (
     <section className="staff-hub-page" aria-labelledby="staff-requests-heading">
       <header className="staff-section-hero">
@@ -79,16 +89,16 @@ export default async function StaffRequestsPage() {
       </header>
 
       {approvals ? (
-        <Link className="staff-manager-approval-link" href="/staff/approvals">
+        <Link className="staff-manager-approval-link" href={managerWorkspaceHref}>
           <span><small>MANAGER WORKSPACE</small><strong>Team approvals</strong></span>
-          <b>{approvals.total ? `${approvals.total} waiting` : "All clear"}</b>
+          <b>{managerWorkspaceCount ? `${managerWorkspaceCount} waiting` : "All clear"}</b>
         </Link>
       ) : null}
 
       <div className="staff-hub-grid">
         {enabledModules.has("HR") ? <RequestCard href="/staff/leave" eyebrow="TIME AWAY" title="Leave" detail="Request leave and review balances or decisions." /> : null}
         {enabledModules.has("CLAIMS") ? <RequestCard href="/staff/claims" eyebrow="EXPENSES" title="Claims" detail="Submit expenses, receipts and track reimbursement." /> : null}
-        {enabledModules.has("HR") ? <RequestCard href="/staff/history" eyebrow="TIME RECORDS" title="Attendance corrections" detail="Review missing punches and requests that need action." /> : null}
+        {enabledModules.has("HR") ? <RequestCard href={attendanceHref} eyebrow="TIME RECORDS" title="Attendance corrections" detail={approvals?.canReviewAttendance ? "Review employee time corrections waiting in your branch." : "Review your missing punches and submitted corrections."} /> : null}
       </div>
 
       {enabledModules.has("HR") ? (
