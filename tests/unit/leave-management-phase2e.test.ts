@@ -5,7 +5,12 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { validateClaimAttachment } from "../../src/lib/claim/attachment-policy";
-import { FileSystemClaimPrivateAttachmentStore } from "../../src/lib/claim/private-attachment-storage";
+import { AttendanceApiError } from "../../src/lib/attendance/api-error";
+import {
+  ClaimPrivateStorageConfigurationError,
+  FileSystemClaimPrivateAttachmentStore,
+} from "../../src/lib/claim/private-attachment-storage";
+import { normalizeEmployeeLeaveApiError } from "../../src/lib/leave/api-error";
 import {
   prepareLeaveDocuments,
   serializeLeaveDocument,
@@ -16,6 +21,20 @@ const minimalPng = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
 test("Optional Leave evidence does not initialise private storage when no files were selected", async () => {
   assert.deepEqual(await prepareLeaveDocuments([]), []);
+});
+
+test("Leave upload configuration failures use a Leave-specific retry response", () => {
+  const cause = new ClaimPrivateStorageConfigurationError(
+    "Claim private storage is not configured.",
+  );
+  const mapped = normalizeEmployeeLeaveApiError(cause);
+
+  assert.ok(mapped instanceof AttendanceApiError);
+  assert.equal(mapped.code, "INTERNAL_ERROR");
+  assert.equal(mapped.status, 503);
+  assert.equal(mapped.cause, cause);
+  assert.match(mapped.message, /Supporting document upload is temporarily unavailable/);
+  assert.doesNotMatch(mapped.message, /attendance/i);
 });
 
 test("Leave evidence reuses strict signature validation and stays in the private leave namespace", async () => {

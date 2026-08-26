@@ -4,6 +4,7 @@ import { employeeAttendanceErrorResponse, employeeAttendanceJson } from "@/lib/a
 import { leaveCancelInputSchema, leaveRequestInputSchema } from "@/lib/leave/policy";
 import { cancelEmployeeLeave, getEmployeeLeaveOverview, submitEmployeeLeave } from "@/lib/leave/service";
 import { prepareLeaveDocuments } from "@/lib/leave/document-service";
+import { normalizeEmployeeLeaveApiError } from "@/lib/leave/api-error";
 import type { LeaveSupportingDocumentType } from "@prisma/client";
 import { requireEmployeeBusinessModule } from "@/lib/modules/employee-access";
 
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
     await requireEmployeeBusinessModule(auth, "HR");
     return employeeAttendanceJson({ ok: true, data: await getEmployeeLeaveOverview(auth) });
   } catch (error) {
-    return employeeAttendanceErrorResponse(error);
+    return employeeAttendanceErrorResponse(normalizeEmployeeLeaveApiError(error));
   }
 }
 
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
     const result = await submitEmployeeLeave(auth, payload, prepared);
     return employeeAttendanceJson({ ok: true, data: result }, { status: 201 });
   } catch (error) {
-    return employeeAttendanceErrorResponse(error);
+    return employeeAttendanceErrorResponse(normalizeEmployeeLeaveApiError(error));
   }
 }
 

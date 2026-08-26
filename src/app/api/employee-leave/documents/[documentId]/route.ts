@@ -8,6 +8,7 @@ import {
   replaceOwnLeaveDocument,
 } from "@/lib/leave/document-service";
 import { requireEmployeeBusinessModule } from "@/lib/modules/employee-access";
+import { normalizeEmployeeLeaveApiError } from "@/lib/leave/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export async function GET(request: Request, context: { params: Promise<{ documen
     });
     return privateDocumentResponse(document);
   } catch (error) {
-    return employeeAttendanceErrorResponse(error);
+    return employeeAttendanceErrorResponse(normalizeEmployeeLeaveApiError(error));
   }
 }
 
@@ -36,7 +37,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ docu
     const { documentId } = await context.params;
     return employeeAttendanceJson({ ok: true, data: await removeOwnLeaveDocument(auth, documentId) });
   } catch (error) {
-    return employeeAttendanceErrorResponse(error);
+    return employeeAttendanceErrorResponse(normalizeEmployeeLeaveApiError(error));
   }
 }
 
@@ -60,7 +61,7 @@ export async function PUT(request: Request, context: { params: Promise<{ documen
     }]);
     return employeeAttendanceJson({ ok: true, data: await replaceOwnLeaveDocument(auth, documentId, prepared) });
   } catch (error) {
-    return employeeAttendanceErrorResponse(error);
+    return employeeAttendanceErrorResponse(normalizeEmployeeLeaveApiError(error));
   }
 }
 

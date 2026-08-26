@@ -7,6 +7,7 @@ import {
 } from "@/lib/leave/document-service";
 import { requireEmployeeBusinessModule } from "@/lib/modules/employee-access";
 import type { LeaveSupportingDocumentType } from "@prisma/client";
+import { normalizeEmployeeLeaveApiError } from "@/lib/leave/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ export async function POST(request: Request, context: { params: Promise<{ reques
     const result = await attachOwnLeaveDocuments(auth, requestId, prepared);
     return employeeAttendanceJson({ ok: true, data: result }, { status: 201 });
   } catch (error) {
-    return employeeAttendanceErrorResponse(error);
+    return employeeAttendanceErrorResponse(normalizeEmployeeLeaveApiError(error));
   }
 }
 
