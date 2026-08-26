@@ -3,7 +3,10 @@ import Link from "next/link";
 import { requireEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee-auth";
 import { formatBranchLocalDateTime } from "@/lib/attendance/work-date";
 import { getStaffAttendanceCorrectionQueue } from "@/lib/staff-pwa/team-approvals";
-import { reviewMobileAttendanceCorrectionAction } from "./actions";
+import {
+  reviewMobileAttendanceCorrectionAction,
+  reviewMobilePendingAttendanceExceptionAction,
+} from "./actions";
 
 export const metadata: Metadata = { title: "Attendance Corrections" };
 export const dynamic = "force-dynamic";
@@ -42,7 +45,7 @@ export default async function StaffAttendanceCorrectionQueuePage({
           <h1 id="attendance-corrections-heading">Attendance corrections</h1>
           <p>Review employee-submitted time corrections in your authorized branch.</p>
         </div>
-        <span>{queue.pagination.total} waiting</span>
+        <span>{queue.totalWaiting} waiting</span>
       </header>
 
       {message ? <div className={`staff-alert ${messageType}`} role="status">{message}</div> : null}
@@ -52,7 +55,52 @@ export default async function StaffAttendanceCorrectionQueuePage({
       </div>
 
       <div className="staff-attendance-approval-list">
-        {queue.items.length ? queue.items.map((item) => {
+        {queue.pendingExceptions.map((item) => {
+          const timezone = item.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur";
+          const workDate = item.attendanceSession?.workDate ?? item.createdAt;
+          return (
+            <article className="staff-attendance-approval-card" id={`correction-${item.id}`} key={item.id}>
+              <header>
+                <span className="staff-approval-domain attendance">AT</span>
+                <div>
+                  <small>{item.branch.name} · {formatWorkDate(workDate)}</small>
+                  <strong>{item.employee.fullName}</strong>
+                  <span>{item.employee.employeeCode} · {formatReason(item.type)}</span>
+                </div>
+                <b>Pending review</b>
+              </header>
+              <dl>
+                <div><dt>Recorded clock-in</dt><dd>{item.attendanceSession?.clockInAt ? formatLocal(item.attendanceSession.clockInAt, timezone) : "Not recorded"}</dd></div>
+                <div><dt>Recorded clock-out</dt><dd>{item.attendanceSession?.clockOutAt ? formatLocal(item.attendanceSession.clockOutAt, timezone) : "Missing"}</dd></div>
+                <div><dt>Submitted</dt><dd>{formatLocal(item.createdAt, timezone)}</dd></div>
+              </dl>
+              <div className="staff-attendance-approval-request">
+                <small>EMPLOYEE REQUEST</small>
+                <p>{item.reason}</p>
+                {item.requestedClockInAt || item.requestedClockOutAt ? (
+                  <span>Requested time: {item.requestedClockInAt ? formatLocal(item.requestedClockInAt, timezone) : "—"} → {item.requestedClockOutAt ? formatLocal(item.requestedClockOutAt, timezone) : "—"}</span>
+                ) : null}
+              </div>
+              <details className="staff-attendance-approval-actions">
+                <summary>Review and decide <span aria-hidden="true">⌄</span></summary>
+                <form action={reviewMobilePendingAttendanceExceptionAction}>
+                  <input name="exceptionId" type="hidden" value={item.id} />
+                  <input name="decision" type="hidden" value="APPROVED" />
+                  <label><span>Decision note (optional)</span><input maxLength={500} name="reviewNote" placeholder="Add context for the attendance record" /></label>
+                  <p className="staff-form-hint">Approving applies the employee&apos;s requested time through the canonical Attendance workflow. It does not run Payroll.</p>
+                  <button className="staff-primary-button" type="submit">Approve correction</button>
+                </form>
+                <form action={reviewMobilePendingAttendanceExceptionAction} className="staff-attendance-return-form">
+                  <input name="exceptionId" type="hidden" value={item.id} />
+                  <input name="decision" type="hidden" value="REJECTED" />
+                  <label><span>Why is this request rejected?</span><textarea maxLength={500} name="reviewNote" placeholder="Optional review note" rows={2} /></label>
+                  <button className="staff-secondary-button" type="submit">Reject request</button>
+                </form>
+              </details>
+            </article>
+          );
+        })}
+        {queue.items.map((item) => {
           const timezone = item.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur";
           const submission = item.events.find((event) => event.type === "EMPLOYEE_SUBMITTED");
           const correctionClockIn = submission?.proposedClockInAt ?? item.attendanceSession.clockInAt;
@@ -109,19 +157,20 @@ export default async function StaffAttendanceCorrectionQueuePage({
               </details>
             </article>
           );
-        }) : (
+        })}
+        {!queue.totalWaiting ? (
           <div className="staff-page-card staff-approval-empty">
             <strong>No attendance corrections waiting</strong>
             <span>New employee submissions in your authorized branch will appear here.</span>
           </div>
-        )}
+        ) : null}
       </div>
 
-      {queue.pagination.totalPages > 1 ? (
+      {queue.totalPages > 1 ? (
         <nav className="staff-approval-pagination" aria-label="Attendance correction pages">
-          {queue.pagination.page > 1 ? <Link href={`?page=${queue.pagination.page - 1}`}>Previous</Link> : <span />}
-          <small>Page {queue.pagination.page} of {queue.pagination.totalPages}</small>
-          {queue.pagination.page < queue.pagination.totalPages ? <Link href={`?page=${queue.pagination.page + 1}`}>Next</Link> : <span />}
+          {queue.currentPage > 1 ? <Link href={`?page=${queue.currentPage - 1}`}>Previous</Link> : <span />}
+          <small>Page {queue.currentPage} of {queue.totalPages}</small>
+          {queue.currentPage < queue.totalPages ? <Link href={`?page=${queue.currentPage + 1}`}>Next</Link> : <span />}
         </nav>
       ) : null}
     </section>

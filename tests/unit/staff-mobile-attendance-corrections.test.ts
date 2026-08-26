@@ -32,9 +32,12 @@ test("manager queue is server scoped to business, branches, pending cases and an
   assert.match(adapter, /businessId: access\.businessId/);
   assert.match(adapter, /allowedBranchIds: access\.allowedBranchIds/);
   assert.match(adapter, /status: "UNDER_REVIEW"/);
-  assert.match(adapter, /excludedStaffUserId: access\.actor\.userId/);
+  assert.match(adapter, /loadPendingAttendanceExceptionQueue/);
+  assert.match(adapter, /excludedMembershipId: access\.actorMembershipId/);
   assert.match(reader, /branchId: \{ in: branchIds \}/);
-  assert.match(reader, /staffUser: \{ isNot: \{ id: args\.excludedStaffUserId \} \}/);
+  assert.match(reader, /employeeId: \{ not: args\.excludedMembershipId \}/);
+  assert.match(reader, /status: "PENDING" as const/);
+  assert.match(reader, /resolutionCase: \{ is: null \}/);
 });
 
 test("manager decision reuses canonical resolution workflow and its self/cross-branch guards", async () => {
@@ -44,10 +47,13 @@ test("manager decision reuses canonical resolution workflow and its self/cross-b
     readFile(files.action, "utf8"),
   ]);
   assert.match(adapter, /applyManagerAttendanceResolution\(/);
+  assert.match(adapter, /reviewAttendanceException\(/);
   assert.match(workflow, /SELF_RESOLUTION_FORBIDDEN/);
   assert.match(workflow, /allowedBranchIds/);
   assert.match(action, /APPLY_CORRECTION/);
   assert.match(action, /RETURN_TO_EMPLOYEE/);
+  assert.match(action, /APPROVED/);
+  assert.match(action, /REJECTED/);
   assert.doesNotMatch(action, /prisma\.attendanceResolutionCase\.(update|create)/);
 });
 
@@ -60,6 +66,8 @@ test("attendance correction page has explicit mobile states and safe touch layou
   assert.match(queue, /No attendance corrections waiting/);
   assert.match(queue, /Manager access required/);
   assert.match(queue, /Pending review/);
+  assert.match(queue, /queue\.pendingExceptions\.map/);
+  assert.match(queue, /queue\.totalWaiting/);
   assert.match(loading, /aria-busy="true"/);
   assert.match(css, /\.staff-attendance-approval-page/);
   assert.match(css, /@media \(max-width: 430px\)/);

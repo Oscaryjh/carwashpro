@@ -5,7 +5,35 @@ import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { requireEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee-auth";
 import { getAuditRequestContext } from "@/lib/audit";
-import { reviewStaffAttendanceCorrection } from "@/lib/staff-pwa/team-approvals";
+import {
+  reviewStaffAttendanceCorrection,
+  reviewStaffPendingAttendanceException,
+} from "@/lib/staff-pwa/team-approvals";
+
+export async function reviewMobilePendingAttendanceExceptionAction(formData: FormData) {
+  try {
+    const decision = String(formData.get("decision") ?? "");
+    if (decision !== "APPROVED" && decision !== "REJECTED") {
+      throw new Error("Choose an attendance correction decision.");
+    }
+    const auth = await requireEmployeeSelfServiceAuthContext();
+    await reviewStaffPendingAttendanceException({
+      auth,
+      exceptionId: String(formData.get("exceptionId") ?? ""),
+      decision,
+      reviewNote: String(formData.get("reviewNote") ?? "").trim() || null,
+      request: await getAuditRequestContext(),
+    });
+    revalidatePath("/staff/requests");
+    revalidatePath("/staff/requests/attendance-corrections");
+    complete(decision === "APPROVED"
+      ? "Attendance correction approved."
+      : "Attendance correction rejected.");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    failed(error);
+  }
+}
 
 export async function reviewMobileAttendanceCorrectionAction(formData: FormData) {
   try {

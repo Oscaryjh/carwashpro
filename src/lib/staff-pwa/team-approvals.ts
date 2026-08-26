@@ -8,7 +8,11 @@ import {
 } from "@/lib/business-groups/capabilities";
 import { getManagerClaimDashboard, reviewEmployeeClaim } from "@/lib/claim/service";
 import { getManagerLeaveDashboard, reviewLeaveRequest } from "@/lib/leave/service";
-import { loadAttendanceResolutionQueue } from "@/lib/attendance/resolution-read-service";
+import {
+  loadAttendanceResolutionQueue,
+  loadPendingAttendanceExceptionQueue,
+} from "@/lib/attendance/resolution-read-service";
+import { reviewAttendanceException } from "@/lib/attendance/management-service";
 import {
   applyManagerAttendanceResolution,
   type AttendanceManagerResolutionAction,
@@ -26,6 +30,7 @@ export type MobileApprovalDomain = "LEAVE" | "CLAIMS";
 export type StaffTeamApprovalAccess = Readonly<{
   actor: AppSession;
   actorLevel: HrApprovalActorLevel;
+  actorMembershipId: string;
   businessId: string;
   allowedBranchIds: readonly string[];
   wholeBusinessScope: boolean;
@@ -96,6 +101,7 @@ export async function resolveStaffTeamApprovalAccess(
   return {
     actor,
     actorLevel,
+    actorMembershipId: auth.membershipId,
     businessId: auth.businessId,
     allowedBranchIds,
     wholeBusinessScope,
@@ -141,18 +147,59 @@ export async function getStaffAttendanceCorrectionQueue(input: {
   const access = await resolveStaffTeamApprovalAccess(input.auth, database);
   if (!access?.canReviewAttendance || !access.allowedBranchIds.length) return null;
 
-  const queue = await loadAttendanceResolutionQueue({
-    scope: {
-      businessId: access.businessId,
-      allowedBranchIds: access.allowedBranchIds,
+  const scope = {
+    businessId: access.businessId,
+    allowedBranchIds: access.allowedBranchIds,
+  };
+  const [queue, pendingExceptions] = await Promise.all([
+    loadAttendanceResolutionQueue({
+      scope,
+      page: input.page ?? 1,
+      pageSize: 20,
+      status: "UNDER_REVIEW",
+      excludedMembershipId: access.actorMembershipId,
+      database,
+    }),
+    loadPendingAttendanceExceptionQueue({
+      scope,
+      page: input.page ?? 1,
+      pageSize: 20,
+      excludedMembershipId: access.actorMembershipId,
+      database,
+    }),
+  ]);
+  return {
+    ...queue,
+    pendingExceptions: pendingExceptions.items,
+    totalWaiting: queue.pagination.total + pendingExceptions.pagination.total,
+    totalPages: Math.max(queue.pagination.totalPages, pendingExceptions.pagination.totalPages),
+    currentPage: Math.max(queue.pagination.page, pendingExceptions.pagination.page),
+    access,
+  };
+}
+
+export async function reviewStaffPendingAttendanceException(input: {
+  auth: EmployeeAuthContext;
+  exceptionId: string;
+  decision: "APPROVED" | "REJECTED";
+  reviewNote?: string | null;
+  request?: AuditRequestContext;
+}) {
+  const access = await resolveStaffTeamApprovalAccess(input.auth);
+  if (!access?.canReviewAttendance) {
+    throw new Error("You do not have permission to review Attendance corrections in this workplace.");
+  }
+  return reviewAttendanceException({
+    businessId: access.businessId,
+    allowedBranchIds: access.allowedBranchIds,
+    actor: access.actor,
+    request: input.request,
+    input: {
+      exceptionId: input.exceptionId,
+      decision: input.decision,
+      reviewNote: input.reviewNote ?? "",
     },
-    page: input.page ?? 1,
-    pageSize: 20,
-    status: "UNDER_REVIEW",
-    excludedStaffUserId: access.actor.userId,
-    database,
   });
-  return { ...queue, access };
 }
 
 export async function reviewStaffAttendanceCorrection(input: {

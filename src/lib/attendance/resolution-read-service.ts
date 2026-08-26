@@ -96,6 +96,7 @@ export async function loadAttendanceResolutionQueue(args: {
   branchId?: string;
   employeeQuery?: string;
   excludedStaffUserId?: string;
+  excludedMembershipId?: string;
   database?: PrismaClient;
 }) {
   const database = args.database ?? prisma;
@@ -113,6 +114,9 @@ export async function loadAttendanceResolutionQueue(args: {
     businessId: args.scope.businessId,
     branchId: { in: branchIds },
     status: { in: [...statuses] },
+    ...(args.excludedMembershipId
+      ? { employeeId: { not: args.excludedMembershipId } }
+      : {}),
     ...(query || args.excludedStaffUserId
       ? {
           employee: {
@@ -203,5 +207,86 @@ export async function loadAttendanceResolutionQueue(args: {
   return {
     items,
     pagination: { page, pageSize, total, totalPages },
+  };
+}
+
+export async function loadPendingAttendanceExceptionQueue(args: {
+  scope: AttendanceScope;
+  page: number;
+  pageSize?: number;
+  excludedMembershipId?: string;
+  database?: PrismaClient;
+}) {
+  const database = args.database ?? prisma;
+  const pageSize = Math.min(50, Math.max(1, args.pageSize ?? 20));
+  const requestedPage = Math.max(1, Math.floor(args.page));
+  const where = buildPendingAttendanceExceptionQueueWhere({
+    scope: args.scope,
+    excludedMembershipId: args.excludedMembershipId,
+  });
+  const total = await database.attendanceException.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+  const items = await database.attendanceException.findMany({
+    where,
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+    select: {
+      id: true,
+      type: true,
+      reason: true,
+      status: true,
+      requestedClockInAt: true,
+      requestedClockOutAt: true,
+      createdAt: true,
+      employee: {
+        select: { id: true, fullName: true, employeeCode: true },
+      },
+      branch: {
+        select: {
+          id: true,
+          name: true,
+          attendanceSetting: { select: { timezone: true } },
+        },
+      },
+      attendanceSession: {
+        select: {
+          id: true,
+          workDate: true,
+          status: true,
+          clockInAt: true,
+          clockOutAt: true,
+          totalBreakMinutes: true,
+        },
+      },
+    },
+  });
+
+  return {
+    items,
+    pagination: { page, pageSize, total, totalPages },
+  };
+}
+
+export function buildPendingAttendanceExceptionQueueWhere(args: {
+  scope: AttendanceScope;
+  excludedMembershipId?: string;
+}): Prisma.AttendanceExceptionWhereInput {
+  return {
+    businessId: args.scope.businessId,
+    branchId: { in: [...args.scope.allowedBranchIds] },
+    status: "PENDING" as const,
+    ...(args.excludedMembershipId
+      ? { employeeId: { not: args.excludedMembershipId } }
+      : {}),
+    OR: [
+      { attendanceSessionId: null },
+      {
+        attendanceSession: {
+          is: { resolutionCase: { is: null } },
+        },
+      },
+    ],
   };
 }
