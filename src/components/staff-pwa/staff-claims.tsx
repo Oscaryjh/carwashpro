@@ -5,6 +5,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createBrowserUuid, isEmployeeSessionError, staffApiFetch, StaffApiError } from "@/lib/staff-pwa/client";
 import styles from "./staff-claims.module.css";
 
+const CLAIMS_API_OPTIONS = {
+  networkErrorMessage:
+    "Claims requires a network connection. Connect to the internet and try again.",
+} as const;
+
 type Overview = {
   employee: { fullName: string; employeeCode: string };
   categories: Array<{
@@ -55,7 +60,11 @@ export function StaffClaims() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await staffApiFetch<{ ok: true; data: Overview }>("/api/employee-claims");
+      const response = await staffApiFetch<{ ok: true; data: Overview }>(
+        "/api/employee-claims",
+        undefined,
+        CLAIMS_API_OPTIONS,
+      );
       setData(response.data);
       setSelectedCategoryId((current) => current || response.data.categories[0]?.id || "");
       setError(null);
@@ -99,7 +108,11 @@ export function StaffClaims() {
     setError(null);
     setSubmitting(true);
     try {
-      await staffApiFetch("/api/employee-claims", { method: "POST", body });
+      await staffApiFetch(
+        "/api/employee-claims",
+        { method: "POST", body },
+        CLAIMS_API_OPTIONS,
+      );
       formElement.reset();
       setMessage("Claim submitted for manager review.");
       await load();
@@ -117,7 +130,7 @@ export function StaffClaims() {
       await staffApiFetch("/api/employee-claims", {
         method: "DELETE",
         body: JSON.stringify({ claimId, expectedRevision, reason }),
-      });
+      }, CLAIMS_API_OPTIONS);
       setMessage("Claim withdrawn. Its immutable history remains available.");
       await load();
     } catch (value) {
