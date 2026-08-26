@@ -51,6 +51,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1101.0",
+    "@next/env": "16.3.0",
     "@prisma/client": "^6.10.1",
     "bcryptjs": "^3.0.2",
     "jose": "^5.9.6",
