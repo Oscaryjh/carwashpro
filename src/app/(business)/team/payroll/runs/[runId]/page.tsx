@@ -116,6 +116,19 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
         <Link href={`/team/payroll/settings?month=${legacyMonth}`}>Payroll settings</Link>
       </PageHeader>
 
+      {data.run.hasSyntheticStatutoryEvidence ? (
+        <section className={styles.snapshotPanel} aria-label="Testing statutory fixture notice">
+          <div className={styles.sectionHeading}>
+            <p className={styles.eyebrow}>Testing fixture</p>
+            <h2>Non-production statutory evidence is in use</h2>
+            <p>
+              This payroll can support Testing payslip UAT, but official statutory
+              export and submission are disabled by the server.
+            </p>
+          </div>
+        </section>
+      ) : null}
+
       {notice ? (
         <div
           className={`${styles.notice} ${queryParams.type === "error" ? styles.noticeError : styles.noticeSuccess}`}
@@ -621,14 +634,31 @@ function readinessIssueDisplay(issue: PayrollReadinessIssue) {
       };
     case "LINDUNG24_PROFILE_INCOMPLETE":
     case "LINDUNG24_PARTICIPATION_REQUIRED":
+    case "LINDUNG24_APPLICABILITY_INCOMPLETE":
       return {
-        title: "Complete LINDUNG 24 participation",
-        description: "Participation evidence is missing from this employee's statutory profile.",
+        title: "Complete LINDUNG 24 applicability details",
+        description: "Confirm statutory nationality and Act 4 coverage before payroll decides whether LINDUNG 24 applies.",
+      };
+    case "LINDUNG24_LOCAL_PARTICIPATION_DECISION_REQUIRED":
+      return {
+        title: "Record the employee's LINDUNG 24 decision",
+        description: "Local participation is voluntary. Record official participation or opt-out evidence; payroll will not assume either choice.",
       };
     case "LINDUNG24_SELECTED_EMPLOYER_REQUIRED":
+    case "LINDUNG24_MULTIPLE_EMPLOYER_SELECTION_REQUIRED":
       return {
         title: "Select the LINDUNG 24 employer",
         description: "Choose the employer covered by the employee's participation record.",
+      };
+    case "LINDUNG24_FOREIGN_MANDATORY_PROFILE_INCOMPLETE":
+      return {
+        title: "Complete mandatory foreign-worker coverage",
+        description: "Confirm the foreign worker's statutory eligibility and mandatory LINDUNG 24 evidence before recalculating payroll.",
+      };
+    case "LINDUNG24_POLICY_TRANSITION_REVIEW_REQUIRED":
+      return {
+        title: "Review the July 2026 LINDUNG 24 transition",
+        description: "The official policy changed during this month. HR must confirm the effective treatment from retained PERKESO evidence.",
       };
     case "PCB_PROFILE_INCOMPLETE":
       return {

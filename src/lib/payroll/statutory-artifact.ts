@@ -20,6 +20,8 @@ import {
   type StatutorySubmissionProvider,
 } from "@/lib/payroll/statutory-submission";
 import { parsePayrollMonth } from "@/lib/payroll/service";
+import { assertPayrollRunOfficialStatutoryExportEligible } from "@/lib/payroll/statutory-export-eligibility";
+import { SYNTHETIC_STATUTORY_EVIDENCE_NOT_EXPORTABLE } from "@/lib/payroll/statutory-evidence";
 import {
   consumePayrollHighRiskAuthorization,
   type PayrollHighRiskAuditLink,
@@ -92,6 +94,25 @@ export async function downloadOrCreateStatutoryArtifact(
               },
             },
           });
+          if (artifactIndex) {
+            try {
+              await assertPayrollRunOfficialStatutoryExportEligible(
+                { businessId: input.businessId, payrollRunId: artifactIndex.id },
+                transaction,
+              );
+            } catch (error) {
+              if (
+                error instanceof Error &&
+                error.message === SYNTHETIC_STATUTORY_EVIDENCE_NOT_EXPORTABLE
+              ) {
+                throw new StatutoryArtifactError(
+                  SYNTHETIC_STATUTORY_EVIDENCE_NOT_EXPORTABLE,
+                  409,
+                );
+              }
+              throw error;
+            }
+          }
           const latest = artifactIndex?.statutorySubmissions[0];
           if (input.revision && !latest) {
             throw new StatutoryArtifactError("The retained statutory artifact revision was not found.", 404);
@@ -302,6 +323,23 @@ export async function createStatutoryCorrectionRevision(
       include: { artifact: { select: { id: true } } },
     });
     if (!source) throw new StatutoryArtifactError("Exported or rejected statutory submission was not found.");
+    try {
+      await assertPayrollRunOfficialStatutoryExportEligible(
+        { businessId: input.businessId, payrollRunId: source.payrollRunId },
+        transaction,
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === SYNTHETIC_STATUTORY_EVIDENCE_NOT_EXPORTABLE
+      ) {
+        throw new StatutoryArtifactError(
+          SYNTHETIC_STATUTORY_EVIDENCE_NOT_EXPORTABLE,
+          409,
+        );
+      }
+      throw error;
+    }
     if (!source.artifact || source.integrityStatus !== "VERIFIED") {
       throw new StatutoryArtifactError(
         "Legacy unverified submissions cannot create an artifact-backed correction revision.",

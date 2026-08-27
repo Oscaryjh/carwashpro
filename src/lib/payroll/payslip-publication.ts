@@ -32,6 +32,19 @@ export async function publishPayrollPayslips(
           orderBy: [{ fullNameSnapshot: "asc" }, { id: "asc" }],
           include: {
             components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] },
+            statutorySnapshots: {
+              select: {
+                evidenceNature: true,
+                evidenceEnvironment: true,
+                fixturePurpose: true,
+                officialExportEligible: true,
+                scheme: true,
+                status: true,
+                blockerCode: true,
+                employeeContribution: true,
+                employerContribution: true,
+              },
+            },
             payslipPublication: { select: { id: true } },
           },
         },

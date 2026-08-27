@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
+import { isProductionRuntime } from "@/lib/release/environment";
 import { EmployeeProfileProtectedSubmit } from "@/components/employee-profile-protected-submit";
 import { EmployeeStatutorySettingsFields } from "@/components/employee-statutory-settings-fields";
 import {
@@ -1132,6 +1133,14 @@ function StatutoryPanel({
         {currentLindung24 ? (
           <div className={styles.lindungCoverageFacts}>
             <div>
+              <span>Employee classification</span>
+              <strong>{lindung24EmployeeClassification(data.nationality)}</strong>
+            </div>
+            <div>
+              <span>Participation requirement</span>
+              <strong>{lindung24ParticipationRequirement(data.nationality)}</strong>
+            </div>
+            <div>
               <span>Applies from</span>
               <strong>{formatMonth(currentLindung24.effectiveFromMonth)}</strong>
             </div>
@@ -1143,8 +1152,47 @@ function StatutoryPanel({
               <span>Act 4 coverage</span>
               <strong>{currentLindung24.act4Covered ? "Covered" : "Not covered"}</strong>
             </div>
+            <div>
+              <span>Evidence nature</span>
+              <strong>
+                {currentLindung24.evidenceNature === "SYNTHETIC_TESTING"
+                  ? "Testing fixture"
+                  : "Official / real evidence"}
+              </strong>
+            </div>
+            <div>
+              <span>Official export</span>
+              <strong>
+                {currentLindung24.officialExportEligible
+                  ? "Eligible"
+                  : "Disabled for this fixture"}
+              </strong>
+            </div>
+            <div>
+              <span>Evidence source</span>
+              <strong>{formatLindung24Source(currentLindung24.sourceType)}</strong>
+            </div>
+            <div>
+              <span>Evidence reference</span>
+              <strong>{currentLindung24.sourceReference ?? "Not applicable to testing fixture"}</strong>
+            </div>
+            <div>
+              <span>Official acknowledgement</span>
+              <strong>{formatLindung24Acknowledgement(currentLindung24.officialSubmittedAt)}</strong>
+            </div>
           </div>
-        ) : null}
+        ) : (
+          <div className={styles.lindungCoverageFacts}>
+            <div>
+              <span>Employee classification</span>
+              <strong>{lindung24EmployeeClassification(data.nationality)}</strong>
+            </div>
+            <div>
+              <span>Participation requirement</span>
+              <strong>{lindung24ParticipationRequirement(data.nationality)}</strong>
+            </div>
+          </div>
+        )}
         {data.lindung24ParticipationHistory.length ? (
           <details className={styles.lindungTechnicalDetails}>
             <summary>History &amp; technical details</summary>
@@ -1154,7 +1202,7 @@ function StatutoryPanel({
                   <strong>{formatMonth(record.effectiveFromMonth)}</strong>
                   <span>
                     {formatLindung24Status(record.status)} · {formatNullableEnum(record.employerContext)} · revision {record.revision}
-                    {record.sourceReference.startsWith("LOCAL_PAYROLL_UAT") ? " · UAT test record" : ""}
+                    {record.evidenceNature === "SYNTHETIC_TESTING" ? " · testing fixture" : ""}
                   </span>
                 </p>
               ))}
@@ -1489,9 +1537,16 @@ function Lindung24ParticipationForm({
     { status: "READY" }
   >["data"];
 }) {
+  const isForeign = data.nationality === "NON_MALAYSIAN";
+  const hasClassification = Boolean(data.nationality);
+  const syntheticFixtureAvailable = !isProductionRuntime();
   return (
     <EmployeeProfilePayrollDialog
-      description="Choose how LINDUNG 24 applies to this employee."
+      description={
+        isForeign
+          ? "Foreign workers are mandatory when the official eligibility evidence is complete."
+          : "Local participation is voluntary. Record participation or official opt-out evidence."
+      }
       dialogId={`lindung24-participation-${data.membershipId}`}
       eyebrow="Statutory & tax"
       label="Edit coverage"
@@ -1505,12 +1560,51 @@ function Lindung24ParticipationForm({
         <input name="membershipId" type="hidden" value={data.membershipId} />
         <div className={styles.payrollFormGrid}>
           <label>
+            <span>Evidence nature</span>
+            <select defaultValue="REAL" name="evidenceNature" required>
+              <option value="REAL">Official / real evidence</option>
+              {syntheticFixtureAvailable ? (
+                <option value="SYNTHETIC_TESTING">
+                  Non-production payroll &amp; payslip fixture
+                </option>
+              ) : null}
+            </select>
+            <small>Testing fixtures can never be officially exported or submitted.</small>
+          </label>
+          {syntheticFixtureAvailable ? (
+            <>
+              <label>
+                <span>Fixture environment</span>
+                <select defaultValue="TESTING" name="evidenceEnvironment">
+                  <option value="TESTING">Railway Testing</option>
+                  <option value="LOCAL">Local development</option>
+                </select>
+              </label>
+              <input name="fixturePurpose" type="hidden" value="PAYROLL_PAYSLIP_UAT" />
+              <label>
+                <span>Fixture statutory nationality</span>
+                <select defaultValue={data.nationality ?? ""} name="statutoryNationalitySnapshot">
+                  <option value="">Select for a testing fixture</option>
+                  <option value="MALAYSIAN">Malaysian</option>
+                  <option value="PERMANENT_RESIDENT">Permanent resident</option>
+                  <option value="NON_MALAYSIAN">Non-Malaysian</option>
+                </select>
+                <small>This snapshot does not change the employee profile.</small>
+              </label>
+            </>
+          ) : null}
+          <label>
             <span>Coverage status</span>
             <select name="status" required>
-              <option value="MANDATORY">Required by PERKESO</option>
-              <option value="DEFAULT_PARTICIPATING">Included by default</option>
-              <option value="VOLUNTARY_OPT_IN">Employee joined voluntarily</option>
-              <option value="VOLUNTARY_OPT_OUT">Employee opted out</option>
+              {!hasClassification ? <option value="">Set statutory nationality first</option> : null}
+              {isForeign ? <option value="MANDATORY">Mandatory foreign-worker coverage</option> : null}
+              {hasClassification && !isForeign ? (
+                <>
+                  <option value="DEFAULT_PARTICIPATING">Participating under transition default</option>
+                  <option value="VOLUNTARY_OPT_IN">Employee joined voluntarily</option>
+                  <option value="VOLUNTARY_OPT_OUT">Employee opted out with evidence</option>
+                </>
+              ) : null}
             </select>
           </label>
           <label>
@@ -1541,7 +1635,8 @@ function Lindung24ParticipationForm({
           </label>
           <label>
             <span>How was this confirmed?</span>
-            <select name="sourceType" required>
+            <select name="sourceType">
+              <option value="">Not applicable to a testing fixture</option>
               <option value="OFFICIAL_TRANSITION">PERKESO official record</option>
               <option value="EMPLOYEE_OPT_IN">Employee confirmed joining</option>
               <option value="EMPLOYEE_OPT_OUT">Employee confirmed opting out</option>
@@ -1551,18 +1646,24 @@ function Lindung24ParticipationForm({
             </select>
           </label>
           <label>
-            <span>Reference number (optional)</span>
+            <span>Official acknowledgement date</span>
+            <input name="officialSubmittedAt" type="date" />
+            <small>Required for voluntary join or opt-out evidence.</small>
+          </label>
+          <label>
+            <span>Evidence reference</span>
             <input
               name="sourceReference"
-              placeholder="For example, a PERKESO reference number"
+              placeholder="PERKESO record, notice or acknowledgement reference"
               type="text"
             />
           </label>
           <label>
-            <span>Notes (optional)</span>
+            <span>HR record note</span>
             <textarea
               name="reason"
-              placeholder="Add anything HR should know about this coverage"
+              placeholder="Briefly record what HR verified"
+              required
               rows={3}
             />
           </label>
@@ -2407,7 +2508,7 @@ function lindung24CoverageDescription(
   if (!record) {
     return legacyOptIn
       ? "An older opt-in record exists. Confirm the current payroll coverage."
-      : "Set the participation details before payroll can calculate this contribution.";
+      : "Applicability information and the employee's participation decision have not been recorded.";
   }
   if (record.selectedEmployer === "PERKESO_SELECTION_PENDING") {
     return "The responsible payroll employer still needs confirmation.";
@@ -2416,6 +2517,37 @@ function lindung24CoverageDescription(
     return "Payroll will not calculate a LINDUNG 24 contribution for this employee.";
   }
   return "Payroll will calculate the employee contribution using the active rule.";
+}
+
+function lindung24EmployeeClassification(nationality: string | null) {
+  if (nationality === "NON_MALAYSIAN") return "Foreign worker";
+  if (nationality === "MALAYSIAN" || nationality === "PERMANENT_RESIDENT") {
+    return "Local employee";
+  }
+  return "Not determined";
+}
+
+function lindung24ParticipationRequirement(nationality: string | null) {
+  if (nationality === "NON_MALAYSIAN") return "Mandatory when eligible";
+  if (nationality === "MALAYSIAN" || nationality === "PERMANENT_RESIDENT") {
+    return "Voluntary — decision required";
+  }
+  return "Applicability information incomplete";
+}
+
+function formatLindung24Source(source: Lindung24ProfileRecord["sourceType"]) {
+  if (!source) return "Synthetic testing fixture";
+  if (source === "OFFICIAL_TRANSITION") return "PERKESO official record";
+  if (source === "EMPLOYEE_OPT_IN") return "Employee opt-in acknowledgement";
+  if (source === "EMPLOYEE_OPT_OUT") return "Employee opt-out notice";
+  if (source === "PERKESO_EMPLOYER_SELECTION") return "PERKESO employer selection";
+  if (source === "EMPLOYMENT_CHANGE") return "Employment eligibility evidence";
+  return "Legacy record requiring review";
+}
+
+function formatLindung24Acknowledgement(value: string | null) {
+  if (!value) return "Not recorded";
+  return new Intl.DateTimeFormat("en-MY", { dateStyle: "medium" }).format(new Date(value));
 }
 
 function formatLindung24Status(status: Lindung24ProfileRecord["status"]) {

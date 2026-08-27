@@ -33,6 +33,19 @@ export async function loadPayrollDocumentRun(
         orderBy: [{ fullNameSnapshot: "asc" }],
         include: {
           components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] },
+          statutorySnapshots: {
+            select: {
+              evidenceNature: true,
+              evidenceEnvironment: true,
+              fixturePurpose: true,
+              officialExportEligible: true,
+              scheme: true,
+              status: true,
+              blockerCode: true,
+              employeeContribution: true,
+              employerContribution: true,
+            },
+          },
           claimReimbursementSnapshots: { where: { status: { in: ["READY", "SETTLED"] } }, orderBy: { createdAt: "asc" } },
         },
       },
@@ -59,6 +72,19 @@ export async function loadPayrollPayslip(
     where: { id: entryId, businessId },
     include: {
       components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] },
+      statutorySnapshots: {
+        select: {
+          evidenceNature: true,
+          evidenceEnvironment: true,
+          fixturePurpose: true,
+          officialExportEligible: true,
+          scheme: true,
+          status: true,
+          blockerCode: true,
+          employeeContribution: true,
+          employerContribution: true,
+        },
+      },
       claimReimbursementSnapshots: { where: { status: { in: ["READY", "SETTLED"] } }, orderBy: { createdAt: "asc" } },
       payrollRun: {
         include: { business: { select: businessDocumentSelect } },
@@ -84,8 +110,22 @@ export function payrollDocumentEntry(
   entry: PayrollEntry & {
     components?: Array<{ amount: { toString(): string }; name: string; type: "EARNING" | "DEDUCTION" }>;
     claimReimbursementSnapshots?: Array<{ amount: { toString(): string }; claimNumberSnapshot: string }>;
+    statutorySnapshots?: Array<{
+      evidenceNature: "REAL" | "SYNTHETIC_TESTING";
+      evidenceEnvironment: "LOCAL" | "TESTING" | null;
+      fixturePurpose: "PAYROLL_PAYSLIP_UAT" | null;
+      officialExportEligible: boolean;
+      scheme: "EPF" | "SOCSO" | "EIS" | "LINDUNG24" | "PCB" | "WORK_PAY";
+      status: "CALCULATED" | "MANUAL" | "BLOCKED" | "NOT_APPLICABLE";
+      blockerCode: string | null;
+      employeeContribution: { toString(): string };
+      employerContribution: { toString(): string };
+    }>;
   },
 ): PayrollDocumentEntry {
+  const syntheticSnapshot = entry.statutorySnapshots?.find(
+    (snapshot) => snapshot.evidenceNature === "SYNTHETIC_TESTING",
+  );
   return {
     id: entry.id,
     employeeCode: entry.employeeCodeSnapshot,
@@ -122,6 +162,20 @@ export function payrollDocumentEntry(
       amount: Number(component.amount.toString()),
       name: component.name,
       type: component.type,
+    })),
+    statutoryEvidenceNature: syntheticSnapshot ? "SYNTHETIC_TESTING" : "REAL",
+    statutoryEvidenceEnvironment: syntheticSnapshot?.evidenceEnvironment ?? null,
+    statutoryFixturePurpose: syntheticSnapshot?.fixturePurpose ?? null,
+    officialStatutoryExportEligible:
+      entry.statutorySnapshots?.every(
+        (snapshot) => snapshot.officialExportEligible,
+      ) ?? true,
+    statutorySnapshots: entry.statutorySnapshots?.map((snapshot) => ({
+      scheme: snapshot.scheme,
+      status: snapshot.status,
+      blockerCode: snapshot.blockerCode,
+      employeeContribution: Number(snapshot.employeeContribution.toString()),
+      employerContribution: Number(snapshot.employerContribution.toString()),
     })),
   };
 }

@@ -30,6 +30,7 @@ import {
   statutoryExportStepUpResourceId,
 } from "@/lib/payroll/high-risk-mfa";
 import { parsePayrollMonth } from "@/lib/payroll/service";
+import { assertPayrollRunOfficialStatutoryExportEligible } from "@/lib/payroll/statutory-export-eligibility";
 import { prisma } from "@/lib/prisma";
 
 const optionalText = (max: number) => z.string().trim().max(max).optional();
@@ -138,6 +139,10 @@ export async function authorizeStatutoryExportAction(formData: FormData) {
   if (!run || run.status !== "FINALIZED") {
     throw new Error("Only finalized payroll can produce official submission files.");
   }
+  await assertPayrollRunOfficialStatutoryExportEligible(
+    { businessId: context.businessId, payrollRunId: run.id },
+    prisma,
+  );
   if (input.revision) {
     const retained = await prisma.payrollStatutorySubmission.count({
       where: {
@@ -211,6 +216,13 @@ export async function updateStatutorySubmissionStatusAction(formData: FormData) 
       ) {
         throw new Error("Only an artifact-backed statutory revision can advance submission status.");
       }
+      await assertPayrollRunOfficialStatutoryExportEligible(
+        {
+          businessId: context.businessId,
+          payrollRunId: beforeStepUp.payrollRunId,
+        },
+        prisma,
+      );
       const latest = await prisma.payrollStatutorySubmission.findFirst({
         where: {
           businessId: context.businessId,
@@ -247,6 +259,10 @@ export async function updateStatutorySubmissionStatusAction(formData: FormData) 
         },
       });
       if (!before) throw new Error("Statutory submission record was not found.");
+      await assertPayrollRunOfficialStatutoryExportEligible(
+        { businessId: context.businessId, payrollRunId: before.payrollRunId },
+        transaction,
+      );
       if (before.payrollRun.status !== "FINALIZED") throw new Error("Only finalized payroll can update statutory submissions.");
       if (before.integrityStatus !== "VERIFIED" || !before.artifact) {
         throw new Error("Only an artifact-backed statutory revision can advance submission status.");

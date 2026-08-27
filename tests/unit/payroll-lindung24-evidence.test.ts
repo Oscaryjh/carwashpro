@@ -66,6 +66,82 @@ test("participation source register, classification and golden certification are
   assert.equal(certification.certificationDigest, digestWithout(certification, "certificationDigest"));
 });
 
+test("current-policy alignment manifest is official-source bound and cannot activate production", () => {
+  const alignment = readJson<{
+    authority: string;
+    ruleVersion: string;
+    engineeringStatus: string;
+    legalHumanSignOffStatus: string;
+    productionActivationStatus: string;
+    effectiveDateConfidence: string;
+    effectiveDateInterpretation: {
+      schemeCommenced: string;
+      currentPolicyStatedEffective: string;
+      transitionOptOutOpened: string;
+      transitionOptOutClosed: string;
+      currentPolicyFirstUnambiguousMonthlyPeriod: string;
+      interpretation: string;
+      historicalRewriteAllowed: boolean;
+    };
+    sourceConflict: { status: string; engineeringTreatment: string };
+    sources: Array<{ id: string; sha256: string; effectiveFrom: string }>;
+    contribution: {
+      phase1: { rate: string; effectiveFrom: string; effectiveTo: string };
+      borneBy: string;
+      employerContribution: string;
+      basis: string;
+      wageCeiling: string;
+    };
+    activation: {
+      testingRulePackActivationPerformed: boolean;
+      productionRulePackActivationPerformed: boolean;
+      productionAllowed: boolean;
+    };
+  }>("statutory/official/lindung24/current-policy-alignment-manifest-v1.json");
+
+  assert.equal(alignment.authority, "PERKESO");
+  assert.equal(alignment.ruleVersion, "PERKESO_LINDUNG24_CURRENT_POLICY_ALIGNMENT_2026_08_V1");
+  assert.equal(alignment.engineeringStatus, "READY_FOR_HUMAN_SIGN_OFF");
+  assert.equal(alignment.legalHumanSignOffStatus, "REQUIRED");
+  assert.equal(alignment.productionActivationStatus, "NOT_ACTIVE");
+  assert.equal(alignment.effectiveDateConfidence, "REVIEW_REQUIRED");
+  assert.deepEqual(alignment.effectiveDateInterpretation, {
+    schemeCommenced: "2026-06-01",
+    currentPolicyStatedEffective: "2026-07-08",
+    transitionOptOutOpened: "2026-07-13",
+    transitionOptOutClosed: "2026-08-31T15:59:59.999Z",
+    currentPolicyFirstUnambiguousMonthlyPeriod: "2026-08-01",
+    interpretation: alignment.effectiveDateInterpretation.interpretation,
+    historicalRewriteAllowed: false,
+  });
+  assert.equal(alignment.sourceConflict.status, "HUMAN_LEGAL_SIGN_OFF_REQUIRED");
+  assert.match(alignment.sourceConflict.engineeringTreatment, /LOCAL_TRANSITION_REVIEW/);
+  assert.equal(alignment.contribution.phase1.rate, "0.75%");
+  assert.equal(alignment.contribution.phase1.effectiveFrom, "2026-06-01");
+  assert.equal(alignment.contribution.phase1.effectiveTo, "2028-05-31");
+  assert.equal(alignment.contribution.borneBy, "EMPLOYEE");
+  assert.equal(alignment.contribution.employerContribution, "0");
+  assert.equal(alignment.contribution.basis, "OFFICIAL_FIXED_CONTRIBUTION_TABLE");
+  assert.equal(alignment.contribution.wageCeiling, "MYR 6000.00");
+  assert.equal(alignment.activation.testingRulePackActivationPerformed, false);
+  assert.equal(alignment.activation.productionRulePackActivationPerformed, false);
+  assert.equal(alignment.activation.productionAllowed, false);
+
+  const hashes = new Map(alignment.sources.map((source) => [source.id, source.sha256]));
+  assert.equal(
+    hashes.get("perkeso-lindung24-faq-2026-06-v2.1"),
+    "a7b212187d5a66934e9dc5f0369d1bf45ff97d81adeac1031600358957b87fab",
+  );
+  assert.equal(
+    hashes.get("perkeso-lindung24-schedule-2026-06"),
+    "e76b2a03740f6da4a305919c677d4935a05e9166502e5f06afe1030b7407caa1",
+  );
+  assert.equal(
+    hashes.get("perkeso-lindung24-opt-out-notice-v2.1"),
+    "95a1ae1549eeca7ee24a9d61fb154f420fad52fdd2d5ffe88766bd3a404d303e",
+  );
+});
+
 test("LINDUNG24 migration is additive and protects version, tenant and refund history", () => {
   const sql = readFileSync(
     "prisma/migrations/20260809130000_lindung24_participation_closure/migration.sql",

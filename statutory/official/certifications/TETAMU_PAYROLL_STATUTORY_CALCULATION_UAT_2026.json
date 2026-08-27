@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "certificationId": "tetamu-payroll-statutory-calculation-uat-2026-except-pcb",
+  "generatedOn": "2026-08-27",
+  "environment": "TESTING_DISPOSABLE_AUTOMATION",
+  "employeeFixture": "UAT-PAYROLL-001",
+  "payrollMonth": "2026-08",
+  "testWageCents": 300000,
+  "evidenceNature": "SYNTHETIC_TESTING",
+  "fixturePurpose": "PAYROLL_PAYSLIP_UAT",
+  "officialExportEligible": false,
+  "paymentExecuted": false,
+  "statutorySubmissionExecuted": false,
+  "productionTouched": false,
+  "finalVerdict": "READY_EXCEPT_PCB",
+  "pcb": {
+    "certified": false,
+    "status": "DEFERRED",
+    "canonicalSnapshotStatus": "BLOCKED",
+    "blockerCode": "PCB_PROFILE_INCOMPLETE",
+    "reason": "Application/configuration pending",
+    "includedInNet": false,
+    "presentation": "Pending configuration (not included in net pay)"
+  },
+  "datasets": [
+    {
+      "scheme": "EPF",
+      "dataset": "statutory/official/datasets/kwsp-third-schedule-2025-10.json",
+      "version": "KWSP_THIRD_SCHEDULE_2025_10",
+      "effectiveFrom": "2025-10-01",
+      "artifactSha256": "c4904e44f0cb15a251a59e4f34c11a1ededa0868b962b2ebd9b81270285358b1",
+      "datasetSha256": "17c6787a8b28fb0e1b30f9c350a70491a0f882e833b7cf17a3d1251acc45a4b3",
+      "sourceUrl": "https://www.kwsp.gov.my/documents/d/guest/third_schedule_from_-1-october-2025",
+      "status": "VERIFIED"
+    },
+    {
+      "scheme": "SOCSO",
+      "dataset": "statutory/official/datasets/perkeso-act4-lindung24-2026-06.json",
+      "version": "PERKESO_ACT4_SKBBK_2026_06",
+      "effectiveFrom": "2026-06-01",
+      "artifactSha256": "e76b2a03740f6da4a305919c677d4935a05e9166502e5f06afe1030b7407caa1",
+      "datasetSha256": "1e1b17a332e2b596b1efa85c075428c54b16d059730726e3f67cef710f334460",
+      "sourceUrl": "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/NewContributionRateIncludingSKBBK.pdf",
+      "status": "VERIFIED"
+    },
+    {
+      "scheme": "EIS",
+      "dataset": "statutory/official/datasets/perkeso-act800-2024-10.review.json",
+      "version": "PERKESO_ACT800_2024_10",
+      "effectiveFrom": "2024-10-01",
+      "artifactSha256": "3499fec4271b45ae3e3055b2071075f96f65dc451775ed23adf39f9deec5376a",
+      "datasetSha256": "ca14f3decb605af4df4c837f281666a6816699947d1658614bbd336f809ae08e",
+      "sourceUrl": "https://www.perkeso.gov.my/images/dokumen/101024%20-%20Kadar%20Caruman%20Akta%20800.pdf",
+      "status": "VERIFIED"
+    },
+    {
+      "scheme": "LINDUNG24",
+      "dataset": "statutory/official/datasets/perkeso-act4-lindung24-2026-06.json",
+      "version": "PERKESO_LINDUNG24_PHASE1_2026_06",
+      "effectiveFrom": "2026-06-01",
+      "effectiveTo": "2028-06-01",
+      "artifactSha256": "e76b2a03740f6da4a305919c677d4935a05e9166502e5f06afe1030b7407caa1",
+      "datasetSha256": "1e1b17a332e2b596b1efa85c075428c54b16d059730726e3f67cef710f334460",
+      "sourceUrl": "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/NewContributionRateIncludingSKBBK.pdf",
+      "status": "VERIFIED"
+    }
+  ],
+  "baseline": [
+    {
+      "scheme": "EPF_EMPLOYEE",
+      "matchedRuleKey": "EPF-151",
+      "officialExpectedCents": 33000,
+      "engineActualCents": 33000,
+      "status": "PASS"
+    },
+    {
+      "scheme": "EPF_EMPLOYER",
+      "matchedRuleKey": "EPF-151",
+      "officialExpectedCents": 39000,
+      "engineActualCents": 39000,
+      "status": "PASS"
+    },
+    {
+      "scheme": "SOCSO_EMPLOYEE",
+      "matchedRuleKey": "ACT4-34",
+      "officialExpectedCents": 1475,
+      "engineActualCents": 1475,
+      "status": "PASS"
+    },
+    {
+      "scheme": "SOCSO_EMPLOYER",
+      "matchedRuleKey": "ACT4-34",
+      "officialExpectedCents": 5165,
+      "engineActualCents": 5165,
+      "status": "PASS"
+    },
+    {
+      "scheme": "EIS_EMPLOYEE",
+      "matchedRuleKey": "ACT800-34",
+      "officialExpectedCents": 590,
+      "engineActualCents": 590,
+      "status": "PASS"
+    },
+    {
+      "scheme": "EIS_EMPLOYER",
+      "matchedRuleKey": "ACT800-34",
+      "officialExpectedCents": 590,
+      "engineActualCents": 590,
+      "status": "PASS"
+    },
+    {
+      "scheme": "LINDUNG24_EMPLOYEE_BASELINE_OPT_OUT",
+      "matchedRuleKey": null,
+      "officialExpectedCents": 0,
+      "engineActualCents": 0,
+      "status": "PASS"
+    },
+    {
+      "scheme": "LINDUNG24_EMPLOYER",
+      "matchedRuleKey": null,
+      "officialExpectedCents": 0,
+      "engineActualCents": 0,
+      "status": "PASS"
+    },
+    {
+      "scheme": "PCB",
+      "officialExpected": "DEFERRED",
+      "engineActual": "DEFERRED",
+      "status": "PASS"
+    }
+  ],
+  "reconciliation": {
+    "grossCents": 300000,
+    "employeeDeductionsExcludingPcbCents": 35065,
+    "netExcludingPcbCents": 264935,
+    "employerStatutoryCostCents": 44755,
+    "status": "PASS"
+  },
+  "boundaryCases": [
+    {
+      "wageCents": 299999,
+      "epf": { "row": "EPF-151", "employeeCents": 33000, "employerCents": 39000 },
+      "socso": { "row": "ACT4-34", "employeeCents": 1475, "employerCents": 5165 },
+      "eis": { "row": "ACT800-34", "employeeCents": 590, "employerCents": 590 },
+      "lindung24OptIn": { "row": "ACT4-34", "employeeCents": 2215, "employerCents": 0 }
+    },
+    {
+      "wageCents": 300000,
+      "epf": { "row": "EPF-151", "employeeCents": 33000, "employerCents": 39000 },
+      "socso": { "row": "ACT4-34", "employeeCents": 1475, "employerCents": 5165 },
+      "eis": { "row": "ACT800-34", "employeeCents": 590, "employerCents": 590 },
+      "lindung24OptIn": { "row": "ACT4-34", "employeeCents": 2215, "employerCents": 0 }
+    },
+    {
+      "wageCents": 300001,
+      "epf": { "row": "EPF-152", "employeeCents": 33300, "employerCents": 39300 },
+      "socso": { "row": "ACT4-35", "employeeCents": 1525, "employerCents": 5335 },
+      "eis": { "row": "ACT800-35", "employeeCents": 610, "employerCents": 610 },
+      "lindung24OptIn": { "row": "ACT4-35", "employeeCents": 2285, "employerCents": 0 }
+    },
+    {
+      "wageCents": 600000,
+      "socso": { "row": "ACT4-64", "employeeCents": 2975, "employerCents": 10415 },
+      "eis": { "row": "ACT800-64", "employeeCents": 1190, "employerCents": 1190 },
+      "lindung24OptIn": { "row": "ACT4-64", "employeeCents": 4465, "employerCents": 0 }
+    },
+    {
+      "wageCents": 600001,
+      "socso": { "row": "ACT4-65", "employeeCents": 2975, "employerCents": 10415 },
+      "eis": { "row": "ACT800-65", "employeeCents": 1190, "employerCents": 1190 },
+      "lindung24OptIn": { "row": "ACT4-65", "employeeCents": 4465, "employerCents": 0 }
+    },
+    {
+      "wageCents": 2000000,
+      "epf": { "row": "EPF-401", "employeeCents": 220000, "employerCents": 240000 }
+    },
+    {
+      "wageCents": 2000001,
+      "epf": { "row": "EPF-PART_A-FORMULA", "employeeCents": 220100, "employerCents": 240100 }
+    }
+  ],
+  "lindung24Scenarios": [
+    { "scenario": "LOCAL_VOLUNTARY_OPT_OUT", "resolution": "NO_CONTRIBUTION", "employeeCents": 0, "status": "PASS" },
+    { "scenario": "LOCAL_VOLUNTARY_OPT_IN", "resolution": "CONTRIBUTION_REQUIRED", "employeeCents": 2215, "status": "PASS" },
+    { "scenario": "FOREIGN_MANDATORY", "resolution": "CONTRIBUTION_REQUIRED", "employeeCents": 2215, "status": "PASS" },
+    { "scenario": "MULTIPLE_EMPLOYER_OTHER_EMPLOYER", "resolution": "NO_CONTRIBUTION", "employeeCents": 0, "status": "PASS" }
+  ],
+  "verification": {
+    "officialEvidencePacks": "PASS",
+    "p2cVerification": "PASS",
+    "boundaryTests": "PASS",
+    "payslipPresentation": "PASS",
+    "calculatedZeroVsNotConfigured": "PASS",
+    "syntheticOfficialExport": "DENY",
+    "existingFinalizedAugustRunModified": false
+  }
+}

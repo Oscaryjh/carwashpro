@@ -48,6 +48,15 @@ export const STATUTORY_P2_BLOCKERS = {
   LINDUNG24_PROFILE_INCOMPLETE: LINDUNG24_BLOCKERS.PROFILE_INCOMPLETE,
   LINDUNG24_PARTICIPATION_REQUIRED: LINDUNG24_BLOCKERS.PARTICIPATION_REQUIRED,
   LINDUNG24_SELECTED_EMPLOYER_REQUIRED: LINDUNG24_BLOCKERS.SELECTED_EMPLOYER_REQUIRED,
+  LINDUNG24_APPLICABILITY_INCOMPLETE: LINDUNG24_BLOCKERS.APPLICABILITY_INCOMPLETE,
+  LINDUNG24_LOCAL_PARTICIPATION_DECISION_REQUIRED:
+    LINDUNG24_BLOCKERS.LOCAL_PARTICIPATION_DECISION_REQUIRED,
+  LINDUNG24_FOREIGN_MANDATORY_PROFILE_INCOMPLETE:
+    LINDUNG24_BLOCKERS.FOREIGN_MANDATORY_PROFILE_INCOMPLETE,
+  LINDUNG24_MULTIPLE_EMPLOYER_SELECTION_REQUIRED:
+    LINDUNG24_BLOCKERS.SELECTED_EMPLOYER_REQUIRED,
+  LINDUNG24_POLICY_TRANSITION_REVIEW_REQUIRED:
+    LINDUNG24_BLOCKERS.POLICY_TRANSITION_REVIEW_REQUIRED,
   PCB_RULE_NOT_READY: "PCB_RULE_NOT_READY",
   PCB_PROFILE_INCOMPLETE: "PCB_PROFILE_INCOMPLETE",
   PCB_TAX_REGIME_NOT_VERIFIED: "PCB_TAX_REGIME_NOT_VERIFIED",
@@ -492,6 +501,7 @@ export async function materializeStatutoryP2(
           membershipId: input.membershipId,
           statutoryPeriod: input.statutoryPeriod,
           statutoryNationality: input.profile.statutoryNationality,
+          act4Covered: input.profile.socsoEnabled,
           records: lindung24Participation,
         })
       : null;
@@ -1233,6 +1243,23 @@ async function createSnapshot(
     calculationInputDigest?: string;
   },
 ) {
+  const evidenceProvenance = snapshot.lindung24Participation
+    ? {
+        evidenceNature: snapshot.lindung24Participation.evidenceNature,
+        evidenceEnvironment: snapshot.lindung24Participation.evidenceEnvironment,
+        fixturePurpose: snapshot.lindung24Participation.fixturePurpose,
+        officialExportEligible:
+          snapshot.lindung24Participation.officialExportEligible,
+        statutoryNationalitySnapshot:
+          snapshot.lindung24Participation.statutoryNationalitySnapshot,
+      }
+    : {
+        evidenceNature: "REAL" as const,
+        evidenceEnvironment: null,
+        fixturePurpose: null,
+        officialExportEligible: true,
+        statutoryNationalitySnapshot: input.profile.statutoryNationality,
+      };
   const sourceDigest = sha256({
     entryId: input.payrollEntryId,
     scheme: snapshot.scheme,
@@ -1251,6 +1278,7 @@ async function createSnapshot(
     lindung24ParticipationVersionId: snapshot.lindung24Participation?.id ?? null,
     lindung24ParticipationRevision: snapshot.lindung24Participation?.revision ?? null,
     lindung24SelectedEmployer: snapshot.lindung24Participation?.selectedEmployer ?? null,
+    ...evidenceProvenance,
     metadata: snapshot.metadata,
   });
   return database.payrollEntryStatutorySnapshot.create({
@@ -1286,6 +1314,7 @@ async function createSnapshot(
         snapshot.lindung24Participation?.revision ?? null,
       lindung24EmployerSelectionSnapshot:
         snapshot.lindung24Participation?.selectedEmployer ?? null,
+      ...evidenceProvenance,
       profileRevisionSnapshot: input.profile.statutoryProfileRevision,
       taxProfileRevisionSnapshot: input.profile.taxProfileRevision,
       wageBase: centsToMoney(snapshot.wageBaseCents ?? 0),

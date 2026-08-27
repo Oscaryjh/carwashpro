@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "id": "perkeso-lindung24-current-policy-alignment-2026-08-v1",
+  "scheme": "LINDUNG24",
+  "authority": "PERKESO",
+  "retrievedAt": "2026-08-26T00:00:00.000+08:00",
+  "ruleVersion": "PERKESO_LINDUNG24_CURRENT_POLICY_ALIGNMENT_2026_08_V1",
+  "engineeringStatus": "READY_FOR_HUMAN_SIGN_OFF",
+  "legalHumanSignOffStatus": "REQUIRED",
+  "productionActivationStatus": "NOT_ACTIVE",
+  "runtimeNetworkDependency": false,
+  "effectiveDateConfidence": "REVIEW_REQUIRED",
+  "effectiveDateInterpretation": {
+    "schemeCommenced": "2026-06-01",
+    "currentPolicyStatedEffective": "2026-07-08",
+    "transitionOptOutOpened": "2026-07-13",
+    "transitionOptOutClosed": "2026-08-31T15:59:59.999Z",
+    "currentPolicyFirstUnambiguousMonthlyPeriod": "2026-08-01",
+    "interpretation": "June 2026 remains the initial mandatory period. The FAQ states the local-voluntary/foreign-mandatory policy effective 8 July 2026, which falls inside a monthly payroll period. Tetamu therefore fails closed for local July payroll pending human legal transition sign-off and applies the current policy to unambiguous monthly periods from August 2026.",
+    "historicalRewriteAllowed": false
+  },
+  "sourceConflict": {
+    "status": "HUMAN_LEGAL_SIGN_OFF_REQUIRED",
+    "initialSource": "perkeso-lindung24-employer-circular-3-2026",
+    "currentSource": "perkeso-lindung24-faq-2026-06-v2.1",
+    "issue": "The initial June materials describe mandatory participation, while the later FAQ and current official scheme page state local voluntary and foreign mandatory treatment effective 8 July 2026. The exact treatment of a monthly July payroll period and formal supersession status require human legal confirmation.",
+    "engineeringTreatment": "LOCAL_TRANSITION_REVIEW for July 2026; no automatic deduction and no automatic opt-out."
+  },
+  "sources": [
+    {
+      "id": "perkeso-lindung24-current-scheme-page-2026-08-26",
+      "role": "CURRENT_POLICY_PAGE",
+      "title": "Skim Kemalangan Bukan Bencana Kerja (LINDUNG 24 Jam)",
+      "publicationOrUpdateDate": null,
+      "effectiveFrom": "2026-07-08",
+      "retrievedAt": "2026-08-26T00:00:00.000+08:00",
+      "url": "https://www.perkeso.gov.my/skim-kemalangan-bukan-bencana-kerja-lindung-24-jam.html",
+      "sha256": "f74d5a9e729b3654f456a8c6939fcd3b5ff5bd282bf208ab3875737fc8221eb8",
+      "retainedPath": null,
+      "supersedes": "Initial all-employee mandatory participation description for current policy interpretation",
+      "supersededBy": null,
+      "evidence": [
+        "Local participation is voluntary",
+        "Foreign-worker participation is mandatory",
+        "Employee bears the full contribution",
+        "Phase rates are 0.75%, 1.00% and 1.25%"
+      ]
+    },
+    {
+      "id": "perkeso-lindung24-faq-2026-06-v2.1",
+      "role": "CURRENT_ELIGIBILITY_AND_TRANSITION_GUIDANCE",
+      "title": "FAQ Perluasan Perlindungan Keselamatan Sosial di bawah LINDUNG 24 Jam v2.1",
+      "publicationOrUpdateDate": null,
+      "effectiveFrom": "2026-07-08",
+      "retrievedAt": "2026-08-08T00:00:00.000+08:00",
+      "url": "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/faq-2.1.pdf",
+      "sha256": "a7b212187d5a66934e9dc5f0369d1bf45ff97d81adeac1031600358957b87fab",
+      "retainedPath": "statutory/official/artifacts/perkeso-lindung24-faq-v2.1.pdf",
+      "supersedes": "Initial mandatory treatment for local employees from the stated effective date",
+      "supersededBy": null
+    },
+    {
+      "id": "perkeso-lindung24-employer-circular-3-2026",
+      "role": "INITIAL_POLICY_AND_EMPLOYER_SELECTION",
+      "title": "Employer Circular No. 3 of 2026 - LINDUNG24 and Employer Selection",
+      "publicationOrUpdateDate": "2026",
+      "effectiveFrom": "2026-06-01",
+      "retrievedAt": "2026-08-08T00:00:00.000+08:00",
+      "url": "https://www.perkeso.gov.my/images/arahan/PEKELILING%20MAJIKAN%20BILANGAN%203_%202026_PELAKSANAAN%20SKIM%20LINDUNG%2024%20JAM%20DAN%20PEMILIHAN%20MAJIKAN%20BAGI%20MAKSUD%20PEMBAYARAN%20CARUMAN.pdf",
+      "sha256": "26e594d31266f79af14d7b69c6a7185f9e03bdfce2590435ac5a64df092cb6ab",
+      "retainedPath": "statutory/official/artifacts/perkeso-employer-circular-3-2026-lindung24.pdf",
+      "supersedes": null,
+      "supersededBy": "FAQ v2.1 for current local-participation treatment; formal legal supersession remains subject to sign-off"
+    },
+    {
+      "id": "perkeso-lindung24-schedule-2026-06",
+      "role": "OFFICIAL_CONTRIBUTION_TABLE",
+      "title": "Non-Employment Injury Security Scheme Contribution Schedule",
+      "publicationOrUpdateDate": null,
+      "effectiveFrom": "2026-06-01",
+      "effectiveTo": "2028-05-31",
+      "retrievedAt": "2026-08-08T00:00:00.000+08:00",
+      "url": "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/JadualCarumanBaharuTermasukSKBBK.pdf",
+      "sha256": "e76b2a03740f6da4a305919c677d4935a05e9166502e5f06afe1030b7407caa1",
+      "retainedPath": "statutory/official/artifacts/perkeso-lindung24-amount-schedule-2026-06.pdf",
+      "datasetPath": "statutory/official/datasets/perkeso-act4-lindung24-2026-06.json",
+      "datasetDigest": "1e1b17a332e2b596b1efa85c075428c54b16d059730726e3f67cef710f334460",
+      "supersedes": null,
+      "supersededBy": null
+    },
+    {
+      "id": "perkeso-lindung24-opt-out-notice-v2.1",
+      "role": "OFFICIAL_OPT_OUT_EVIDENCE",
+      "title": "LINDUNG24 Release of Liability Notice",
+      "publicationOrUpdateDate": "2026-07-31",
+      "effectiveFrom": "2026-07-08",
+      "retrievedAt": "2026-08-08T00:00:00.000+08:00",
+      "url": "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/Notis%20Pelepasan%20Liabiliti%20LINDUNG%2024%20Jam_31Julai2026.pdf",
+      "sha256": "95a1ae1549eeca7ee24a9d61fb154f420fad52fdd2d5ffe88766bd3a404d303e",
+      "retainedPath": "statutory/official/artifacts/perkeso-lindung24-opt-out-notice-v2.1.pdf",
+      "supersedes": null,
+      "supersededBy": null
+    },
+    {
+      "id": "perkeso-lindung24-participation-form-2026",
+      "role": "PARTICIPATION_AND_EMPLOYER_SELECTION_EVIDENCE",
+      "title": "LINDUNG24 Participation, Existing Employer Update and Employer Selection Form",
+      "publicationOrUpdateDate": null,
+      "effectiveFrom": "2026-06-01",
+      "retrievedAt": "2026-08-08T00:00:00.000+08:00",
+      "url": "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/penyertaan.pdf",
+      "sha256": "67ba5f24eb9929f0a7c7aa626c30e224d0705766e6b3063bf10f4fcb83db121f",
+      "retainedPath": "statutory/official/artifacts/perkeso-lindung24-participation-form-2026.pdf",
+      "supersedes": null,
+      "supersededBy": null
+    },
+    {
+      "id": "perkeso-foreign-worker-protection-page-2026-08-26",
+      "role": "FOREIGN_WORKER_ELIGIBILITY_GUIDANCE",
+      "title": "Foreign Workers Social Security Protection",
+      "publicationOrUpdateDate": null,
+      "effectiveFrom": "2026-06-01",
+      "retrievedAt": "2026-08-26T00:00:00.000+08:00",
+      "url": "https://www.perkeso.gov.my/perkhidmatan-kami/perlindungan/pekerja-asing.html",
+      "sha256": "268ab3356056c3992277274c498e8b2c148772c7b9ec02548227ab5b22824a73",
+      "retainedPath": null,
+      "supersedes": null,
+      "supersededBy": null,
+      "evidence": ["Valid passport", "Valid work permit or pass", "Mandatory foreign-worker coverage"]
+    }
+  ],
+  "contribution": {
+    "phase1": { "rate": "0.75%", "effectiveFrom": "2026-06-01", "effectiveTo": "2028-05-31" },
+    "phase2": { "rate": "1.00%", "effectiveFrom": "2028-06-01", "effectiveTo": "2031-05-31", "scheduleStatus": "FUTURE_RULE_PACK_REQUIRED" },
+    "phase3": { "rate": "1.25%", "effectiveFrom": "2031-06-01", "effectiveTo": null, "scheduleStatus": "FUTURE_RULE_PACK_REQUIRED" },
+    "borneBy": "EMPLOYEE",
+    "employerContribution": "0",
+    "basis": "OFFICIAL_FIXED_CONTRIBUTION_TABLE",
+    "wageCeiling": "MYR 6000.00",
+    "rounding": "USE_TABLE_AMOUNT_NO_PERCENTAGE_APPROXIMATION"
+  },
+  "activation": {
+    "testingRulePackActivationPerformed": false,
+    "productionRulePackActivationPerformed": false,
+    "productionAllowed": false,
+    "requiredBeforeActivation": [
+      "Human legal sign-off on source conflict and July transition treatment",
+      "Human confirmation of foreign-worker passport/work-pass evidence mapping",
+      "Explicit statutory rule lifecycle approval and activation"
+    ]
+  }
+}

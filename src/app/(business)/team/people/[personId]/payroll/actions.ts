@@ -129,10 +129,20 @@ const lindung24ParticipationSchema = z.object({
   membershipId: z.string().uuid(),
   officialSubmittedAt: z.preprocess(
     (value) => value === null || (typeof value === "string" && value.trim() === "")
-      ? new Date()
+      ? null
       : value,
-    z.coerce.date(),
+    z.coerce.date().nullable(),
   ),
+  evidenceNature: z.preprocess(
+    (value) => value === null || value === "" ? "REAL" : value,
+    z.enum(["REAL", "SYNTHETIC_TESTING"]),
+  ),
+  evidenceEnvironment: z.enum(["LOCAL", "TESTING"]).nullable().default(null),
+  fixturePurpose: z.enum(["PAYROLL_PAYSLIP_UAT"]).nullable().default(null),
+  statutoryNationalitySnapshot: z
+    .enum(["MALAYSIAN", "PERMANENT_RESIDENT", "NON_MALAYSIAN"])
+    .nullable()
+    .default(null),
   reason: z.preprocess(
     (value) => typeof value !== "string" || value.trim() === ""
       ? "LINDUNG 24 coverage updated from the employee profile."
@@ -142,18 +152,18 @@ const lindung24ParticipationSchema = z.object({
   selectedEmployer: z.enum(["CURRENT_BUSINESS", "OTHER_EMPLOYER", "PERKESO_SELECTION_PENDING"]),
   sourceReference: z.preprocess(
     (value) => typeof value !== "string" || value.trim() === ""
-      ? "HR-confirmed LINDUNG 24 coverage"
+      ? null
       : value,
-    z.string().trim().min(5).max(500),
+    z.string().trim().min(5).max(500).nullable(),
   ),
-  sourceType: z.enum([
+  sourceType: z.preprocess((value) => value === "" ? null : value, z.enum([
     "OFFICIAL_TRANSITION",
     "EMPLOYEE_OPT_IN",
     "EMPLOYEE_OPT_OUT",
     "PERKESO_EMPLOYER_SELECTION",
     "EMPLOYMENT_CHANGE",
     "LEGACY_REVIEW",
-  ]),
+  ]).nullable()),
   status: z.enum(["MANDATORY", "DEFAULT_PARTICIPATING", "VOLUNTARY_OPT_IN", "VOLUNTARY_OPT_OUT"]),
 });
 
@@ -720,7 +730,14 @@ export async function recordEmployeeLindung24ParticipationAction(formData: FormD
     const command = lindung24ParticipationSchema.parse({
       act4Covered: formData.get("act4Covered"),
       effectiveFromMonth: formData.get("effectiveFromMonth"),
-      employerContext: formData.get("employerContext"),
+        employerContext: formData.get("employerContext"),
+        evidenceNature: formData.get("evidenceNature"),
+        evidenceEnvironment: optionalFormValue(formData, "evidenceEnvironment"),
+        fixturePurpose: optionalFormValue(formData, "fixturePurpose"),
+        statutoryNationalitySnapshot: optionalFormValue(
+          formData,
+          "statutoryNationalitySnapshot",
+        ),
       expectedRevision: formData.get("expectedRevision"),
       membershipId: formData.get("membershipId"),
       officialSubmittedAt: formData.get("officialSubmittedAt"),

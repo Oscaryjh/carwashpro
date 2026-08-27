@@ -486,6 +486,20 @@ enum StatutorySnapshotStatus {
   NOT_APPLICABLE
 }
 
+enum StatutoryEvidenceNature {
+  REAL
+  SYNTHETIC_TESTING
+}
+
+enum StatutoryEvidenceEnvironment {
+  LOCAL
+  TESTING
+}
+
+enum StatutoryFixturePurpose {
+  PAYROLL_PAYSLIP_UAT
+}
+
 enum Lindung24ParticipationStatus {
   MANDATORY
   DEFAULT_PARTICIPATING
@@ -5091,25 +5105,30 @@ model EmployeeStatutoryProfileVersion {
 }
 
 model EmployeeLindung24ParticipationVersion {
-  id                  String                           @id @default(uuid()) @db.Uuid
-  businessId          String                           @map("business_id") @db.Uuid
-  membershipId        String                           @map("membership_id") @db.Uuid
-  revision            Int
-  effectiveFromMonth  DateTime                         @map("effective_from_month") @db.Date
-  effectiveToMonth    DateTime?                        @map("effective_to_month") @db.Date
-  status              Lindung24ParticipationStatus
-  employerContext     Lindung24EmployerContext         @map("employer_context")
-  selectedEmployer    Lindung24SelectedEmployer        @map("selected_employer")
-  act4Covered         Boolean                          @map("act_4_covered")
-  officialSubmittedAt DateTime?                        @map("official_submitted_at") @db.Timestamptz(3)
-  sourceType          Lindung24ParticipationSourceType @map("source_type")
-  sourceReference     String                           @map("source_reference") @db.VarChar(500)
-  reason              String                           @db.VarChar(500)
-  sourceDigest        String                           @map("source_digest") @db.Char(64)
-  recordedById        String                           @map("recorded_by_id") @db.Uuid
-  recordedAt          DateTime                         @default(now()) @map("recorded_at") @db.Timestamptz(3)
-  supersedesVersionId String?                          @unique @map("supersedes_version_id") @db.Uuid
-  supersededAt        DateTime?                        @map("superseded_at") @db.Timestamptz(3)
+  id                           String                            @id @default(uuid()) @db.Uuid
+  businessId                   String                            @map("business_id") @db.Uuid
+  membershipId                 String                            @map("membership_id") @db.Uuid
+  revision                     Int
+  effectiveFromMonth           DateTime                          @map("effective_from_month") @db.Date
+  effectiveToMonth             DateTime?                         @map("effective_to_month") @db.Date
+  status                       Lindung24ParticipationStatus
+  employerContext              Lindung24EmployerContext          @map("employer_context")
+  selectedEmployer             Lindung24SelectedEmployer         @map("selected_employer")
+  act4Covered                  Boolean                           @map("act_4_covered")
+  officialSubmittedAt          DateTime?                         @map("official_submitted_at") @db.Timestamptz(3)
+  sourceType                   Lindung24ParticipationSourceType? @map("source_type")
+  sourceReference              String?                           @map("source_reference") @db.VarChar(500)
+  evidenceNature               StatutoryEvidenceNature           @default(REAL) @map("evidence_nature")
+  evidenceEnvironment          StatutoryEvidenceEnvironment?     @map("evidence_environment")
+  fixturePurpose               StatutoryFixturePurpose?          @map("fixture_purpose")
+  officialExportEligible       Boolean                           @default(true) @map("official_export_eligible")
+  statutoryNationalitySnapshot EmployeeStatutoryNationality?     @map("statutory_nationality_snapshot")
+  reason                       String                            @db.VarChar(500)
+  sourceDigest                 String                            @map("source_digest") @db.Char(64)
+  recordedById                 String                            @map("recorded_by_id") @db.Uuid
+  recordedAt                   DateTime                          @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  supersedesVersionId          String?                           @unique @map("supersedes_version_id") @db.Uuid
+  supersededAt                 DateTime?                         @map("superseded_at") @db.Timestamptz(3)
 
   business            Business                               @relation(fields: [businessId], references: [id], onDelete: Restrict)
   membership          EmployeeBusinessMembership             @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
@@ -5150,37 +5169,42 @@ model EmployeeLindung24RefundEvent {
 }
 
 model PayrollEntryStatutorySnapshot {
-  id                                     String                     @id @default(uuid()) @db.Uuid
-  businessId                             String                     @map("business_id") @db.Uuid
-  payrollRunId                           String                     @map("payroll_run_id") @db.Uuid
-  payrollEntryId                         String                     @map("payroll_entry_id") @db.Uuid
-  membershipId                           String                     @map("membership_id") @db.Uuid
+  id                                     String                        @id @default(uuid()) @db.Uuid
+  businessId                             String                        @map("business_id") @db.Uuid
+  payrollRunId                           String                        @map("payroll_run_id") @db.Uuid
+  payrollEntryId                         String                        @map("payroll_entry_id") @db.Uuid
+  membershipId                           String                        @map("membership_id") @db.Uuid
   scheme                                 StatutoryScheme
   status                                 StatutorySnapshotStatus
-  calculationSource                      StatutoryCalculationSource @map("calculation_source")
-  ruleSetId                              String?                    @map("rule_set_id") @db.Uuid
-  ruleVersionSnapshot                    String?                    @map("rule_version_snapshot") @db.VarChar(100)
-  artifactDigestSnapshot                 String?                    @map("artifact_digest_snapshot") @db.Char(64)
-  datasetDigestSnapshot                  String?                    @map("dataset_digest_snapshot") @db.Char(64)
-  fixtureDigestSnapshot                  String?                    @map("fixture_digest_snapshot") @db.Char(64)
-  classificationVersionSnapshot          String?                    @map("classification_version_snapshot") @db.VarChar(100)
-  parserVersionSnapshot                  String?                    @map("parser_version_snapshot") @db.VarChar(40)
-  calculatorVersionSnapshot              String?                    @map("calculator_version_snapshot") @db.VarChar(40)
-  matchedRuleKey                         String?                    @map("matched_rule_key") @db.VarChar(120)
-  calculationInputDigest                 String?                    @map("calculation_input_digest") @db.Char(64)
-  profileVersionId                       String?                    @map("profile_version_id") @db.Uuid
-  lindung24ParticipationVersionId        String?                    @map("lindung24_participation_version_id") @db.Uuid
-  lindung24ParticipationRevisionSnapshot Int?                       @map("lindung24_participation_revision_snapshot")
-  lindung24EmployerSelectionSnapshot     Lindung24SelectedEmployer? @map("lindung24_employer_selection_snapshot")
-  profileRevisionSnapshot                Int                        @map("profile_revision_snapshot")
-  taxProfileRevisionSnapshot             Int                        @map("tax_profile_revision_snapshot")
-  wageBase                               Decimal                    @default(0) @map("wage_base") @db.Decimal(12, 2)
-  employeeContribution                   Decimal                    @default(0) @map("employee_contribution") @db.Decimal(12, 2)
-  employerContribution                   Decimal                    @default(0) @map("employer_contribution") @db.Decimal(12, 2)
-  blockerCode                            String?                    @map("blocker_code") @db.VarChar(100)
-  calculationMetadata                    Json                       @default("{}") @map("calculation_metadata")
-  sourceDigest                           String                     @map("source_digest") @db.Char(64)
-  calculatedAt                           DateTime                   @default(now()) @map("calculated_at")
+  calculationSource                      StatutoryCalculationSource    @map("calculation_source")
+  ruleSetId                              String?                       @map("rule_set_id") @db.Uuid
+  ruleVersionSnapshot                    String?                       @map("rule_version_snapshot") @db.VarChar(100)
+  artifactDigestSnapshot                 String?                       @map("artifact_digest_snapshot") @db.Char(64)
+  datasetDigestSnapshot                  String?                       @map("dataset_digest_snapshot") @db.Char(64)
+  fixtureDigestSnapshot                  String?                       @map("fixture_digest_snapshot") @db.Char(64)
+  classificationVersionSnapshot          String?                       @map("classification_version_snapshot") @db.VarChar(100)
+  parserVersionSnapshot                  String?                       @map("parser_version_snapshot") @db.VarChar(40)
+  calculatorVersionSnapshot              String?                       @map("calculator_version_snapshot") @db.VarChar(40)
+  matchedRuleKey                         String?                       @map("matched_rule_key") @db.VarChar(120)
+  calculationInputDigest                 String?                       @map("calculation_input_digest") @db.Char(64)
+  profileVersionId                       String?                       @map("profile_version_id") @db.Uuid
+  lindung24ParticipationVersionId        String?                       @map("lindung24_participation_version_id") @db.Uuid
+  lindung24ParticipationRevisionSnapshot Int?                          @map("lindung24_participation_revision_snapshot")
+  lindung24EmployerSelectionSnapshot     Lindung24SelectedEmployer?    @map("lindung24_employer_selection_snapshot")
+  evidenceNature                         StatutoryEvidenceNature       @default(REAL) @map("evidence_nature")
+  evidenceEnvironment                    StatutoryEvidenceEnvironment? @map("evidence_environment")
+  fixturePurpose                         StatutoryFixturePurpose?      @map("fixture_purpose")
+  officialExportEligible                 Boolean                       @default(true) @map("official_export_eligible")
+  statutoryNationalitySnapshot           EmployeeStatutoryNationality? @map("statutory_nationality_snapshot")
+  profileRevisionSnapshot                Int                           @map("profile_revision_snapshot")
+  taxProfileRevisionSnapshot             Int                           @map("tax_profile_revision_snapshot")
+  wageBase                               Decimal                       @default(0) @map("wage_base") @db.Decimal(12, 2)
+  employeeContribution                   Decimal                       @default(0) @map("employee_contribution") @db.Decimal(12, 2)
+  employerContribution                   Decimal                       @default(0) @map("employer_contribution") @db.Decimal(12, 2)
+  blockerCode                            String?                       @map("blocker_code") @db.VarChar(100)
+  calculationMetadata                    Json                          @default("{}") @map("calculation_metadata")
+  sourceDigest                           String                        @map("source_digest") @db.Char(64)
+  calculatedAt                           DateTime                      @default(now()) @map("calculated_at")
 
   payrollRun                    PayrollRun                             @relation(fields: [payrollRunId, businessId], references: [id, businessId], onDelete: Restrict)
   payrollEntry                  PayrollEntry                           @relation(fields: [payrollEntryId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Cascade)

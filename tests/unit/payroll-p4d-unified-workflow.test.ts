@@ -9,6 +9,8 @@ import {
 import {
   assertPayrollReadinessCanProceed,
   createPayrollReadinessIssue,
+  hasOnlyNonProductionDeferredPcbBlocker,
+  isNonProductionDeferredPcbSnapshot,
   summarizePayrollReadiness,
 } from "../../src/lib/payroll/readiness";
 
@@ -65,6 +67,44 @@ test("P4D blockers fail closed with a concrete employee reason", () => {
   assert.throws(
     () => assertPayrollReadinessCanProceed(readiness),
     /Aina: No verified compensation/,
+  );
+});
+
+test("non-production UAT may proceed only when PCB configuration is the sole statutory blocker", () => {
+  const resolved = (scheme: "EPF" | "SOCSO" | "EIS" | "LINDUNG24") => ({
+    scheme,
+    status: "CALCULATED" as const,
+    blockerCode: null,
+    evidenceNature: "SYNTHETIC_TESTING" as const,
+    evidenceEnvironment: "TESTING" as const,
+    fixturePurpose: "PAYROLL_PAYSLIP_UAT" as const,
+    officialExportEligible: false,
+  });
+  const deferredPcb = {
+    scheme: "PCB" as const,
+    status: "BLOCKED" as const,
+    blockerCode: "PCB_PROFILE_INCOMPLETE",
+    evidenceNature: "SYNTHETIC_TESTING" as const,
+    evidenceEnvironment: "TESTING" as const,
+    fixturePurpose: "PAYROLL_PAYSLIP_UAT" as const,
+    officialExportEligible: false,
+  };
+  const snapshots = [resolved("EPF"), resolved("SOCSO"), resolved("EIS"), resolved("LINDUNG24"), deferredPcb];
+  assert.equal(isNonProductionDeferredPcbSnapshot(deferredPcb), true);
+  assert.equal(hasOnlyNonProductionDeferredPcbBlocker(snapshots), true);
+  assert.equal(
+    hasOnlyNonProductionDeferredPcbBlocker([
+      ...snapshots,
+      { ...resolved("SOCSO"), status: "BLOCKED", blockerCode: "STATUTORY_CALCULATION_FAILED" },
+    ]),
+    false,
+  );
+  assert.equal(
+    hasOnlyNonProductionDeferredPcbBlocker([
+      ...snapshots.slice(0, -1),
+      { ...deferredPcb, evidenceNature: "REAL" },
+    ]),
+    false,
   );
 });
 

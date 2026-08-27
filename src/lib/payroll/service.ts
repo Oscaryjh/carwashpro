@@ -34,6 +34,7 @@ import { parsePayrollMonth } from "@/lib/payroll/period";
 import {
   assertPayrollReadinessCanProceed,
   getPayrollPeriodReadiness,
+  hasOnlyNonProductionDeferredPcbBlocker,
 } from "@/lib/payroll/readiness";
 import {
   consumePayrollHighRiskAuthorization,
@@ -1013,6 +1014,17 @@ export async function submitPayrollRunForReview(
           select: {
             statutoryStatus: true,
             publicHolidayPayDecisionStatus: true,
+            statutorySnapshots: {
+              select: {
+                scheme: true,
+                status: true,
+                blockerCode: true,
+                evidenceNature: true,
+                evidenceEnvironment: true,
+                fixturePurpose: true,
+                officialExportEligible: true,
+              },
+            },
           },
         },
         _count: { select: { entries: true } },
@@ -1037,7 +1049,8 @@ export async function submitPayrollRunForReview(
     );
     assertPayrollReadinessCanProceed(readiness);
     const reviewRequired = run.entries.filter(
-      (entry) => entry.statutoryStatus === "REVIEW_REQUIRED",
+      (entry) => entry.statutoryStatus === "REVIEW_REQUIRED" &&
+        !hasOnlyNonProductionDeferredPcbBlocker(entry.statutorySnapshots),
     ).length;
     if (reviewRequired) {
       throw new Error(

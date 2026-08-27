@@ -338,9 +338,13 @@ test("Phase 3B query isolation remains intact after controlled edit entry migrat
   assert.match(component, /dialogId={`lindung24-participation-/);
   assert.match(component, /title="Edit LINDUNG 24 coverage"/);
   assert.match(component, /automatically refreshes any eligible Draft payroll/);
-  assert.doesNotMatch(component, /Official submission timestamp/);
+  assert.match(component, /Official acknowledgement date/);
+  assert.match(component, /Local participation is voluntary/);
+  assert.match(component, /Mandatory foreign-worker coverage/);
+  assert.match(component, /Participation requirement/);
   assert.match(payrollActions, /LINDUNG 24 coverage updated from the employee profile/);
-  assert.match(payrollActions, /HR-confirmed LINDUNG 24 coverage/);
+  assert.match(payrollActions, /evidenceNature: formData\.get\("evidenceNature"\)/);
+  assert.match(payrollActions, /sourceReference: formData\.get\("sourceReference"\)/);
   assert.match(component, /dialogId={`tax-submission-identity-edit-/);
   assert.match(component, /title="Tax & government IDs"/);
   assert.match(component, /Government account numbers/);
@@ -373,7 +377,10 @@ test("Phase 3B query isolation remains intact after controlled edit entry migrat
   assert.match(component, /"Not enrolled"/);
   assert.match(component, /"Not applicable"/);
   assert.doesNotMatch(component, /Ready for submission/);
-  assert.doesNotMatch(loader, /bankAccount|paymentBatch|payrollEntry|payslip/i);
+  assert.doesNotMatch(
+    loader,
+    /database\.(?:bankAccount|paymentBatch|payrollEntry|payslip)/i,
+  );
 });
 
 function buildAccess(permissions: string[]): ResolvedBusinessAccess {

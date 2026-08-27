@@ -4,6 +4,7 @@ import { writeAuditLog } from "@/lib/audit";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { generatePayrollRun } from "@/lib/payroll/service";
 import { prisma } from "@/lib/prisma";
+import type { RuntimeEnvironmentMap } from "@/lib/release/environment";
 import type { PayrollProfileWriteContext } from "./employee-profile-write/types";
 import {
   LINDUNG24_BLOCKERS,
@@ -12,6 +13,10 @@ import {
   validateLindung24ParticipationChange,
   type Lindung24ParticipationEvidence,
 } from "./lindung24-participation";
+import {
+  assertStatutoryEvidenceWriteAllowed,
+  validateStatutoryEvidenceProvenance,
+} from "./statutory-evidence";
 
 const commandSchema = z.object({
   act4Covered: z.boolean(),
@@ -20,13 +25,20 @@ const commandSchema = z.object({
   expectedRevision: z.coerce.number().int().min(0),
   membershipId: z.string().uuid(),
   officialSubmittedAt: z.coerce.date().nullable(),
+  evidenceNature: z.enum(["REAL", "SYNTHETIC_TESTING"]).default("REAL"),
+  evidenceEnvironment: z.enum(["LOCAL", "TESTING"]).nullable().default(null),
+  fixturePurpose: z.enum(["PAYROLL_PAYSLIP_UAT"]).nullable().default(null),
+  statutoryNationalitySnapshot: z
+    .enum(["MALAYSIAN", "PERMANENT_RESIDENT", "NON_MALAYSIAN"])
+    .nullable()
+    .default(null),
   reason: z.string().trim().min(5).max(500),
   selectedEmployer: z.enum([
     "CURRENT_BUSINESS",
     "OTHER_EMPLOYER",
     "PERKESO_SELECTION_PENDING",
   ]),
-  sourceReference: z.string().trim().min(5).max(500),
+  sourceReference: z.string().trim().min(5).max(500).nullable().default(null),
   sourceType: z.enum([
     "OFFICIAL_TRANSITION",
     "EMPLOYEE_OPT_IN",
@@ -34,7 +46,7 @@ const commandSchema = z.object({
     "PERKESO_EMPLOYER_SELECTION",
     "EMPLOYMENT_CHANGE",
     "LEGACY_REVIEW",
-  ]),
+  ]).nullable().default(null),
   status: z.enum([
     "MANDATORY",
     "DEFAULT_PARTICIPATING",
@@ -44,6 +56,8 @@ const commandSchema = z.object({
 });
 
 export type RecordLindung24ParticipationCommand = z.input<typeof commandSchema>;
+
+type ParticipationWriteDatabase = PrismaClient | Prisma.TransactionClient;
 
 export async function recordEmployeeLindung24ParticipationAndRefreshDrafts(
   input: {
@@ -95,9 +109,11 @@ export async function recordEmployeeLindung24Participation(
     command: RecordLindung24ParticipationCommand;
     context: PayrollProfileWriteContext;
   },
-  database: PrismaClient = prisma,
+  database: ParticipationWriteDatabase = prisma,
+  options: { environment?: RuntimeEnvironmentMap } = {},
 ) {
   const command = commandSchema.parse(input.command);
+  assertStatutoryEvidenceWriteAllowed(command.evidenceNature, options.environment);
   if (
     !hasBusinessCapability(input.context.access, "VIEW_STATUTORY_PROFILE") ||
     !hasBusinessCapability(input.context.access, "EDIT_STATUTORY_PROFILE")
@@ -116,16 +132,34 @@ export async function recordEmployeeLindung24Participation(
     );
   if (!hasWholeBusinessScope) throw new Error("LINDUNG24_WHOLE_BUSINESS_SCOPE_REQUIRED");
 
-  return database.$transaction(
-    async (transaction) => {
+  const writeParticipation = async (transaction: Prisma.TransactionClient) => {
       const membership = await transaction.employeeBusinessMembership.findFirst({
         where: { id: command.membershipId, businessId: input.context.businessId },
         select: { id: true, businessId: true, statutoryNationality: true },
       });
       if (!membership) throw new Error("LINDUNG24_MEMBERSHIP_NOT_FOUND");
-      if (!membership.statutoryNationality) {
+      if (command.evidenceNature === "REAL" && !membership.statutoryNationality) {
         throw new Error(LINDUNG24_BLOCKERS.PROFILE_INCOMPLETE);
       }
+
+      const statutoryNationalitySnapshot =
+        command.evidenceNature === "SYNTHETIC_TESTING"
+          ? command.statutoryNationalitySnapshot
+          : membership.statutoryNationality;
+      const provenance = {
+        evidenceNature: command.evidenceNature,
+        evidenceEnvironment:
+          command.evidenceNature === "SYNTHETIC_TESTING"
+            ? command.evidenceEnvironment
+            : null,
+        fixturePurpose:
+          command.evidenceNature === "SYNTHETIC_TESTING"
+            ? command.fixturePurpose
+            : null,
+        officialExportEligible: command.evidenceNature === "REAL",
+        statutoryNationalitySnapshot,
+      } as const;
+      validateStatutoryEvidenceProvenance(provenance);
 
       const previous = await transaction.employeeLindung24ParticipationVersion.findFirst({
         where: {
@@ -146,12 +180,22 @@ export async function recordEmployeeLindung24Participation(
         effectiveFromMonth,
         effectiveToMonth: null,
         employerContext: command.employerContext,
+        ...provenance,
         membershipId: membership.id,
-        officialSubmittedAt: command.officialSubmittedAt,
+        officialSubmittedAt:
+          command.evidenceNature === "SYNTHETIC_TESTING"
+            ? null
+            : command.officialSubmittedAt,
         reason: command.reason,
         selectedEmployer: command.selectedEmployer,
-        sourceReference: command.sourceReference,
-        sourceType: command.sourceType,
+        sourceReference:
+          command.evidenceNature === "SYNTHETIC_TESTING"
+            ? null
+            : command.sourceReference,
+        sourceType:
+          command.evidenceNature === "SYNTHETIC_TESTING"
+            ? null
+            : command.sourceType,
         status: command.status,
       };
       const hasPriorCalculatedContribution = Boolean(
@@ -170,7 +214,7 @@ export async function recordEmployeeLindung24Participation(
         previous: previous as Lindung24ParticipationEvidence | null,
         hasPriorCalculatedContribution,
         employeeCategory:
-          membership.statutoryNationality === "NON_MALAYSIAN" ? "FOREIGN" : "LOCAL",
+          statutoryNationalitySnapshot === "NON_MALAYSIAN" ? "FOREIGN" : "LOCAL",
       });
 
       const revision = (previous?.revision ?? 0) + 1;
@@ -199,7 +243,10 @@ export async function recordEmployeeLindung24Participation(
           businessId: input.context.businessId,
           actor: input.context.actor,
           request: input.context.request,
-          action: "EMPLOYEE_LINDUNG24_PARTICIPATION_RECORDED",
+          action:
+            created.evidenceNature === "SYNTHETIC_TESTING"
+              ? "STATUTORY_TEST_FIXTURE_CREATED"
+              : "EMPLOYEE_LINDUNG24_PARTICIPATION_RECORDED",
           entityType: "EmployeeLindung24ParticipationVersion",
           entityId: created.id,
           summary: "Effective-dated LINDUNG24 participation evidence recorded.",
@@ -210,6 +257,11 @@ export async function recordEmployeeLindung24Participation(
             status: created.status,
             employerContext: created.employerContext,
             selectedEmployer: created.selectedEmployer,
+            evidenceNature: created.evidenceNature,
+            evidenceEnvironment: created.evidenceEnvironment,
+            fixturePurpose: created.fixturePurpose,
+            officialExportEligible: created.officialExportEligible,
+            statutoryNationalitySnapshot: created.statutoryNationalitySnapshot,
             sourceType: created.sourceType,
             sourceDigest,
             supersedesVersionId: previous?.id ?? null,
@@ -218,7 +270,12 @@ export async function recordEmployeeLindung24Participation(
         transaction,
       );
       return created;
-    },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-  );
+    };
+
+  if ("$transaction" in database) {
+    return database.$transaction(writeParticipation, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+  }
+  return writeParticipation(database);
 }

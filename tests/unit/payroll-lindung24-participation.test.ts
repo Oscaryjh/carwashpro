@@ -6,6 +6,7 @@ import {
   lindung24ParticipationDigest,
   resolveLindung24Eligibility,
   resolveLindung24ParticipationForPeriod,
+  resolveLindung24PolicyEra,
   validateLindung24ParticipationChange,
   type Lindung24ParticipationEvidence,
 } from "../../src/lib/payroll/lindung24-participation";
@@ -37,14 +38,29 @@ test("LINDUNG24 eligibility uses Act 4 and employment facts without age or ident
   );
 });
 
-test("June, local transition and foreign mandatory participation resolve deterministically", () => {
+test("policy chronology keeps June, July transition and August current policy distinct", () => {
+  assert.equal(resolveLindung24PolicyEra(new Date("2026-05-01T00:00:00.000Z")), "NOT_STARTED");
+  assert.equal(resolveLindung24PolicyEra(new Date("2026-06-01T00:00:00.000Z")), "INITIAL_MANDATORY");
+  assert.equal(resolveLindung24PolicyEra(new Date("2026-07-01T00:00:00.000Z")), "LOCAL_TRANSITION_REVIEW");
+  assert.equal(
+    resolveLindung24PolicyEra(new Date("2026-08-01T00:00:00.000Z")),
+    "CURRENT_LOCAL_VOLUNTARY_FOREIGN_MANDATORY",
+  );
+
   const june = resolve("2026-06-01", "MALAYSIAN", record({ status: "MANDATORY", effectiveFromMonth: "2026-06-01" }));
   assert.equal(june.status, "CONTRIBUTION_REQUIRED");
 
-  const local = resolve("2026-07-01", "MALAYSIAN", record({ status: "DEFAULT_PARTICIPATING" }));
+  const julyLocal = resolve("2026-07-01", "MALAYSIAN", record({ status: "DEFAULT_PARTICIPATING" }));
+  assert.deepEqual(
+    { status: julyLocal.status, blocker: julyLocal.status === "BLOCKED" ? julyLocal.blockerCode : null },
+    { status: "BLOCKED", blocker: LINDUNG24_BLOCKERS.POLICY_TRANSITION_REVIEW_REQUIRED },
+  );
+
+  const local = resolve("2026-08-01", "MALAYSIAN", record({ status: "DEFAULT_PARTICIPATING", effectiveFromMonth: "2026-08-01" }));
   assert.equal(local.status, "CONTRIBUTION_REQUIRED");
 
-  const optedOut = resolve("2026-07-01", "MALAYSIAN", record({
+  const optedOut = resolve("2026-08-01", "MALAYSIAN", record({
+    effectiveFromMonth: "2026-08-01",
     status: "VOLUNTARY_OPT_OUT",
     sourceType: "EMPLOYEE_OPT_OUT",
     officialSubmittedAt: new Date("2026-07-13T01:30:00.000Z"),
@@ -54,7 +70,8 @@ test("June, local transition and foreign mandatory participation resolve determi
     { status: "NO_CONTRIBUTION", reason: "OFFICIAL_LOCAL_EMPLOYEE_OPT_OUT" },
   );
 
-  const foreignInvalid = resolve("2026-07-01", "NON_MALAYSIAN", record({
+  const foreignInvalid = resolve("2026-08-01", "NON_MALAYSIAN", record({
+    effectiveFromMonth: "2026-08-01",
     status: "VOLUNTARY_OPT_OUT",
     sourceType: "EMPLOYEE_OPT_OUT",
     officialSubmittedAt: new Date("2026-07-13T01:30:00.000Z"),
@@ -65,21 +82,74 @@ test("June, local transition and foreign mandatory participation resolve determi
   );
 });
 
+test("current policy distinguishes applicability, local decision and foreign mandatory profile", () => {
+  const applicability = resolveLindung24ParticipationForPeriod({
+    businessId: BUSINESS_ID,
+    membershipId: MEMBERSHIP_ID,
+    statutoryPeriod: new Date("2026-08-01T00:00:00.000Z"),
+    statutoryNationality: "MALAYSIAN",
+    records: [],
+  });
+  assert.equal(
+    applicability.status === "BLOCKED" ? applicability.blockerCode : null,
+    LINDUNG24_BLOCKERS.APPLICABILITY_INCOMPLETE,
+  );
+
+  const localDecision = resolveLindung24ParticipationForPeriod({
+    businessId: BUSINESS_ID,
+    membershipId: MEMBERSHIP_ID,
+    statutoryPeriod: new Date("2026-08-01T00:00:00.000Z"),
+    statutoryNationality: "MALAYSIAN",
+    act4Covered: true,
+    records: [],
+  });
+  assert.equal(
+    localDecision.status === "BLOCKED" ? localDecision.blockerCode : null,
+    LINDUNG24_BLOCKERS.LOCAL_PARTICIPATION_DECISION_REQUIRED,
+  );
+
+  const foreignProfile = resolveLindung24ParticipationForPeriod({
+    businessId: BUSINESS_ID,
+    membershipId: MEMBERSHIP_ID,
+    statutoryPeriod: new Date("2026-08-01T00:00:00.000Z"),
+    statutoryNationality: "NON_MALAYSIAN",
+    act4Covered: true,
+    records: [],
+  });
+  assert.equal(
+    foreignProfile.status === "BLOCKED" ? foreignProfile.blockerCode : null,
+    LINDUNG24_BLOCKERS.FOREIGN_MANDATORY_PROFILE_INCOMPLETE,
+  );
+
+  const notCovered = resolveLindung24ParticipationForPeriod({
+    businessId: BUSINESS_ID,
+    membershipId: MEMBERSHIP_ID,
+    statutoryPeriod: new Date("2026-08-01T00:00:00.000Z"),
+    statutoryNationality: "NON_MALAYSIAN",
+    act4Covered: false,
+    records: [],
+  });
+  assert.equal(notCovered.status, "NOT_APPLICABLE");
+});
+
 test("multiple employment never guesses the current tenant", () => {
-  const pending = resolve("2026-07-01", "MALAYSIAN", record({
+  const pending = resolve("2026-08-01", "MALAYSIAN", record({
+    effectiveFromMonth: "2026-08-01",
     employerContext: "MULTIPLE_EMPLOYER",
     selectedEmployer: "PERKESO_SELECTION_PENDING",
   }));
   assert.equal(pending.status, "BLOCKED");
   assert.equal(pending.status === "BLOCKED" ? pending.blockerCode : null, LINDUNG24_BLOCKERS.SELECTED_EMPLOYER_REQUIRED);
 
-  const other = resolve("2026-07-01", "MALAYSIAN", record({
+  const other = resolve("2026-08-01", "MALAYSIAN", record({
+    effectiveFromMonth: "2026-08-01",
     employerContext: "MULTIPLE_EMPLOYER",
     selectedEmployer: "OTHER_EMPLOYER",
   }));
   assert.equal(other.status, "NO_CONTRIBUTION");
 
-  const current = resolve("2026-07-01", "MALAYSIAN", record({
+  const current = resolve("2026-08-01", "MALAYSIAN", record({
+    effectiveFromMonth: "2026-08-01",
     employerContext: "MULTIPLE_EMPLOYER",
     selectedEmployer: "CURRENT_BUSINESS",
   }));
@@ -87,9 +157,15 @@ test("multiple employment never guesses the current tenant", () => {
 });
 
 test("legacy evidence, overlap and once-in-always-in fail closed", () => {
-  const legacy = resolve("2026-07-01", "MALAYSIAN", record({ sourceType: "LEGACY_REVIEW" }));
+  const legacy = resolve("2026-08-01", "MALAYSIAN", record({
+    effectiveFromMonth: "2026-08-01",
+    sourceType: "LEGACY_REVIEW",
+  }));
   assert.equal(legacy.status, "BLOCKED");
-  assert.equal(legacy.status === "BLOCKED" ? legacy.blockerCode : null, LINDUNG24_BLOCKERS.LEGACY_REVIEW_REQUIRED);
+  assert.equal(
+    legacy.status === "BLOCKED" ? legacy.blockerCode : null,
+    LINDUNG24_BLOCKERS.LOCAL_PARTICIPATION_DECISION_REQUIRED,
+  );
 
   const overlapping = resolveLindung24ParticipationForPeriod({
     businessId: BUSINESS_ID,
@@ -130,6 +206,38 @@ test("verified Phase 1 schedule produces employee-only contribution across offic
     assert.equal(calculation.employerCents, 0);
     assert.equal(calculation.matchedRowKey, row);
   }
+  const monthlySalary = calculateLindung24({ dataset, wageCents: 300_000 });
+  assert.equal(monthlySalary.employeeCents, 2_215);
+  assert.equal(monthlySalary.employerCents, 0);
+});
+
+test("current local mandatory and foreign voluntary opt-out states are rejected", () => {
+  assert.throws(
+    () => validateLindung24ParticipationChange({
+      previous: null,
+      next: withoutIdentity(record({
+        effectiveFromMonth: "2026-08-01",
+        status: "MANDATORY",
+      })),
+      hasPriorCalculatedContribution: false,
+      employeeCategory: "LOCAL",
+    }),
+    /LINDUNG24_PARTICIPATION_INVALID/,
+  );
+  assert.throws(
+    () => validateLindung24ParticipationChange({
+      previous: null,
+      next: withoutIdentity(record({
+        effectiveFromMonth: "2026-08-01",
+        status: "VOLUNTARY_OPT_OUT",
+        sourceType: "EMPLOYEE_OPT_OUT",
+        officialSubmittedAt: new Date("2026-08-01T00:00:00.000Z"),
+      })),
+      hasPriorCalculatedContribution: false,
+      employeeCategory: "FOREIGN",
+    }),
+    /LINDUNG24_PARTICIPATION_INVALID/,
+  );
 });
 
 test("participation digest changes with revision and selected employer", () => {
@@ -140,6 +248,11 @@ test("participation digest changes with revision and selected employer", () => {
     effectiveFromMonth: base.effectiveFromMonth,
     effectiveToMonth: base.effectiveToMonth,
     employerContext: base.employerContext,
+    evidenceNature: base.evidenceNature,
+    evidenceEnvironment: base.evidenceEnvironment,
+    fixturePurpose: base.fixturePurpose,
+    officialExportEligible: base.officialExportEligible,
+    statutoryNationalitySnapshot: base.statutoryNationalitySnapshot,
     membershipId: base.membershipId,
     officialSubmittedAt: base.officialSubmittedAt,
     reason: "Official evidence reviewed",
@@ -260,11 +373,19 @@ function record(overrides: Partial<Omit<Lindung24ParticipationEvidence, "effecti
     sourceType: "OFFICIAL_TRANSITION",
     sourceReference: "PERKESO FAQ v2.1",
     sourceDigest: "a".repeat(64),
+    evidenceNature: "REAL",
+    evidenceEnvironment: null,
+    fixturePurpose: null,
+    officialExportEligible: true,
+    statutoryNationalitySnapshot: "MALAYSIAN",
     ...rest,
   };
 }
 
 function withoutIdentity(value: Lindung24ParticipationEvidence) {
-  const { id: _id, revision: _revision, sourceDigest: _sourceDigest, ...result } = value;
+  const { id, revision, sourceDigest, ...result } = value;
+  void id;
+  void revision;
+  void sourceDigest;
   return result;
 }

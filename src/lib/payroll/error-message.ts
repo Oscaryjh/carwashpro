@@ -55,6 +55,9 @@ const PUBLIC_PAYROLL_ERROR_PREFIXES = [
   "Tax Identification Number must contain exactly 11 digits.",
   "Passport holders require a 2-letter LHDN country code.",
   "Employee code must be 1 to 10 letters or digits for CP39.",
+  "Synthetic statutory evidence is forbidden in production.",
+  "Synthetic statutory evidence cannot be used for official statutory export or submission.",
+  "Statutory evidence provenance is incomplete or inconsistent.",
 ] as const;
 
 const INTERNAL_ERROR_PATTERN =

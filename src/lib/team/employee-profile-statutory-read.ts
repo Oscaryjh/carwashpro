@@ -54,8 +54,13 @@ type StatutorySection =
           officialSubmittedAt: string | null;
           revision: number;
           selectedEmployer: "CURRENT_BUSINESS" | "OTHER_EMPLOYER" | "PERKESO_SELECTION_PENDING";
-          sourceReference: string;
-          sourceType: string;
+          sourceReference: string | null;
+          sourceType: string | null;
+          evidenceNature: "REAL" | "SYNTHETIC_TESTING";
+          evidenceEnvironment: "LOCAL" | "TESTING" | null;
+          fixturePurpose: "PAYROLL_PAYSLIP_UAT" | null;
+          officialExportEligible: boolean;
+          statutoryNationalitySnapshot: "MALAYSIAN" | "PERMANENT_RESIDENT" | "NON_MALAYSIAN" | null;
           status: "MANDATORY" | "DEFAULT_PARTICIPATING" | "VOLUNTARY_OPT_IN" | "VOLUNTARY_OPT_OUT";
         }>;
         profileUpdatedAt: string | null;
@@ -194,6 +199,11 @@ export async function loadEmployeeStatutoryProfileSection(
             effectiveFromMonth: true,
             effectiveToMonth: true,
             employerContext: true,
+            evidenceNature: true,
+            evidenceEnvironment: true,
+            fixturePurpose: true,
+            officialExportEligible: true,
+            statutoryNationalitySnapshot: true,
             officialSubmittedAt: true,
             revision: true,
             selectedEmployer: true,

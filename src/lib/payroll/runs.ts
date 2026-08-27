@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 type RunsDatabase = Pick<
   PrismaClient,
-  "attendanceMonthlyTimesheet" | "payrollRun" | "payrollEntry"
+  "attendanceMonthlyTimesheet" | "payrollRun" | "payrollEntry" | "payrollEntryStatutorySnapshot"
 >;
 
 export const PAYROLL_RUNS_PAGE_SIZE = 12;
@@ -70,6 +70,7 @@ export type PayrollRunDetailData = {
     finalizedAt: Date | null;
     hasStatutorySubmissions: boolean;
     publishedPayslipCount: number;
+    hasSyntheticStatutoryEvidence: boolean;
     attendanceSource: "LEGACY_OPERATIONAL_SESSION" | "LOCKED_TIMESHEET_REVISION";
     attendanceTimesheetRevision: number | null;
     attendanceTimesheetLockedAt: Date | null;
@@ -201,13 +202,20 @@ export async function loadPayrollRunDetail(
         }
       : {}),
   };
-  const [allTotals, totalEntries] = await Promise.all([
+  const [allTotals, totalEntries, syntheticStatutoryEvidenceCount] = await Promise.all([
     database.payrollEntry.aggregate({
       where: { businessId, payrollRunId: runId },
       _count: { _all: true },
       _sum: { grossPay: true, netPay: true },
     }),
     database.payrollEntry.count({ where: entryWhere }),
+    database.payrollEntryStatutorySnapshot.count({
+      where: {
+        businessId,
+        payrollRunId: runId,
+        evidenceNature: "SYNTHETIC_TESTING",
+      },
+    }),
   ]);
   const totalPages = pageCount(totalEntries, PAYROLL_ENTRIES_PAGE_SIZE);
   const page = clampPage(requestedPage, totalPages);
@@ -258,6 +266,7 @@ export async function loadPayrollRunDetail(
       finalizedAt: run.finalizedAt,
       hasStatutorySubmissions: run._count.statutorySubmissions > 0,
       publishedPayslipCount: run._count.payslipPublications,
+      hasSyntheticStatutoryEvidence: syntheticStatutoryEvidenceCount > 0,
       attendanceSource: run.attendanceSource,
       attendanceTimesheetRevision: run.attendanceTimesheetRevisionSnapshot,
       attendanceTimesheetLockedAt: run.attendanceTimesheetLockedAtSnapshot,

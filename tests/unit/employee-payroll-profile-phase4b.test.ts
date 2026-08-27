@@ -49,7 +49,10 @@ test("Phase 4B forms reveal identity and TIN only through the authorized tax edi
   assert.match(loader, /EDIT_STATUTORY_PROFILE/);
   assert.match(loader, /EDIT_TAX_PROFILE/);
   assert.match(loader, /expectedRevision/);
-  assert.doesNotMatch(loader, /bankAccount|paymentBatch|payrollEntry|payslip/i);
+  assert.doesNotMatch(
+    loader,
+    /database\.(?:bankAccount|paymentBatch|payrollEntry|payslip)/i,
+  );
 
   for (const field of ["epfMemberNumber", "socsoMemberNumber"]) {
     assert.doesNotMatch(

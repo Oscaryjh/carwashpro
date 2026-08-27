@@ -3,8 +3,17 @@ import {
   buildTabularXlsx,
   buildTextPdf,
 } from "@/lib/business-groups/group-report-export";
+import { isProductionRuntime } from "@/lib/release/environment";
 
 export type PayrollDocumentStatus = "DRAFT" | "REVIEW" | "FINALIZED";
+
+export type PayrollDocumentStatutorySnapshot = {
+  scheme: "EPF" | "SOCSO" | "EIS" | "LINDUNG24" | "PCB" | "WORK_PAY";
+  status: "CALCULATED" | "MANUAL" | "BLOCKED" | "NOT_APPLICABLE";
+  blockerCode: string | null;
+  employeeContribution: number;
+  employerContribution: number;
+};
 
 export type PayrollDocumentEntry = {
   id: string;
@@ -40,6 +49,11 @@ export type PayrollDocumentEntry = {
     type: "EARNING" | "DEDUCTION";
     amount: number;
   }>;
+  statutoryEvidenceNature?: "REAL" | "SYNTHETIC_TESTING";
+  statutoryEvidenceEnvironment?: "LOCAL" | "TESTING" | null;
+  statutoryFixturePurpose?: "PAYROLL_PAYSLIP_UAT" | null;
+  officialStatutoryExportEligible?: boolean;
+  statutorySnapshots?: PayrollDocumentStatutorySnapshot[];
 };
 
 export type PayrollDocumentRun = {
@@ -73,6 +87,7 @@ export function buildStatutoryExport(
   run: PayrollDocumentRun,
   format: "csv" | "xlsx",
 ) {
+  assertDocumentStatutoryExportEligible(run);
   const rows = statutoryRows(run);
   return format === "csv"
     ? buildTabularCsv(rows)
@@ -83,6 +98,12 @@ export function buildPayslipPdf(
   run: Omit<PayrollDocumentRun, "entries">,
   entry: PayrollDocumentEntry,
 ) {
+  if (
+    entry.statutoryEvidenceNature === "SYNTHETIC_TESTING" &&
+    isProductionRuntime()
+  ) {
+    throw new Error("SYNTHETIC_STATUTORY_EVIDENCE_FORBIDDEN_IN_PRODUCTION");
+  }
   const employeeDeductions =
     entry.otherDeductions +
     entry.epfEmployee +
@@ -102,6 +123,13 @@ export function buildPayslipPdf(
     [run.business.phone, run.business.email].filter(Boolean).join(" | "),
     "",
     "PAYSLIP",
+    ...(entry.statutoryEvidenceNature === "SYNTHETIC_TESTING"
+      ? [
+          "TESTING / NON-PRODUCTION STATUTORY FIXTURE",
+          `Fixture environment: ${entry.statutoryEvidenceEnvironment ?? "Not recorded"}`,
+          `Fixture purpose: ${entry.statutoryFixturePurpose ?? "Not recorded"}`,
+        ]
+      : []),
     `Pay period: ${formatPayrollPeriod(run.periodStart)}`,
     `Document status: ${formatStatus(run.status)}`,
     run.finalizedAt
@@ -135,11 +163,16 @@ export function buildPayslipPdf(
     ...(componentDeductions.length
       ? componentDeductions.map((component) => moneyLine(component.name, component.amount))
       : [moneyLine("Other deductions", entry.otherDeductions)]),
-    moneyLine("EPF employee", entry.epfEmployee),
-    moneyLine("SOCSO employee", entry.socsoEmployee),
-    moneyLine("EIS employee", entry.eisEmployee),
-    moneyLine("LINDUNG 24 Jam", entry.lindung24Employee),
-    moneyLine("PCB", entry.pcb),
+    statutoryPayslipLine(entry, "EPF", "EPF employee", entry.epfEmployee),
+    statutoryPayslipLine(entry, "SOCSO", "SOCSO employee", entry.socsoEmployee),
+    statutoryPayslipLine(entry, "EIS", "EIS employee", entry.eisEmployee),
+    statutoryPayslipLine(
+      entry,
+      "LINDUNG24",
+      "LINDUNG 24 (employee deduction)",
+      entry.lindung24Employee,
+    ),
+    statutoryPayslipLine(entry, "PCB", "PCB", entry.pcb),
     moneyLine("CP38 instruction", entry.cp38),
     moneyLine("Total deductions", employeeDeductions),
     "",
@@ -153,9 +186,9 @@ export function buildPayslipPdf(
     moneyLine("NET PAY", entry.netPay),
     "",
     "EMPLOYER CONTRIBUTIONS",
-    moneyLine("Employer EPF", entry.employerEpf),
-    moneyLine("Employer SOCSO", entry.employerSocso),
-    moneyLine("Employer EIS", entry.employerEis),
+    statutoryPayslipLine(entry, "EPF", "Employer EPF", entry.employerEpf, "employer"),
+    statutoryPayslipLine(entry, "SOCSO", "Employer SOCSO", entry.employerSocso, "employer"),
+    statutoryPayslipLine(entry, "EIS", "Employer EIS", entry.employerEis, "employer"),
     moneyLine("Total employer contributions", employerContributions),
     "",
     `Statutory status: ${formatStatus(entry.statutoryStatus)}`,
@@ -166,6 +199,44 @@ export function buildPayslipPdf(
     "",
     "This is a computer-generated payroll document.",
   ]);
+}
+
+function statutoryPayslipLine(
+  entry: PayrollDocumentEntry,
+  scheme: PayrollDocumentStatutorySnapshot["scheme"],
+  label: string,
+  fallbackAmount: number,
+  contribution: "employee" | "employer" = "employee",
+) {
+  const snapshot = entry.statutorySnapshots?.find((item) => item.scheme === scheme);
+  if (!snapshot) return moneyLine(label, fallbackAmount);
+  if (snapshot.status === "CALCULATED" || snapshot.status === "MANUAL") {
+    return moneyLine(
+      label,
+      contribution === "employee"
+        ? snapshot.employeeContribution
+        : snapshot.employerContribution,
+    );
+  }
+  if (snapshot.status === "NOT_APPLICABLE") {
+    return `${label}: Not applicable`;
+  }
+  if (scheme === "PCB") {
+    return `${label}: Pending configuration (not included in net pay)`;
+  }
+  return `${label}: Not calculated - review required${snapshot.blockerCode ? ` (${snapshot.blockerCode})` : ""}`;
+}
+
+export function assertDocumentStatutoryExportEligible(run: PayrollDocumentRun) {
+  if (
+    run.entries.some(
+      (entry) =>
+        entry.statutoryEvidenceNature === "SYNTHETIC_TESTING" ||
+        entry.officialStatutoryExportEligible === false,
+    )
+  ) {
+    throw new Error("SYNTHETIC_STATUTORY_EVIDENCE_NOT_EXPORTABLE");
+  }
 }
 
 export function payrollExportFileName(

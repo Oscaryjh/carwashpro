@@ -5,7 +5,123 @@ import test from "node:test";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../src/lib/prisma";
 import { materializeStatutoryP2 } from "../../src/lib/payroll/statutory-p2";
+import { recordEmployeeLindung24Participation } from "../../src/lib/payroll/lindung24-participation-service";
 import type { NormalizedContributionDataset } from "../../src/lib/payroll/statutory-artifact-pipeline";
+
+test("synthetic statutory fixture uses canonical write, audit and supersession contracts", async () => {
+  await assert.rejects(
+    prisma.$transaction(async (transaction) => {
+      const fixture = await createMinimalFixture(transaction);
+      const context = {
+        access: {
+          actorRole: "BUSINESS_OWNER" as const,
+          branchId: null,
+          businessId: fixture.business.id,
+          capability: null,
+          effectiveBusinessRole: "BUSINESS_OWNER" as const,
+          granted: true as const,
+          groupId: null,
+          groupUserId: null,
+          homeBusinessId: fixture.business.id,
+          identityRole: "BUSINESS_OWNER" as const,
+          industryType: "GENERAL_SERVICE" as const,
+          permissions: [],
+          source: "DIRECT_BUSINESS" as const,
+          userId: fixture.owner.id,
+        },
+        actor: {
+          email: fixture.owner.email!,
+          name: fixture.owner.name,
+          userId: fixture.owner.id,
+        },
+        allowedBranchIds: [fixture.branch.id],
+        businessId: fixture.business.id,
+        caller: "SYSTEM" as const,
+        request: { ipAddress: "127.0.0.1", userAgent: "integration-test" },
+      };
+      const baseCommand = {
+        act4Covered: true,
+        employerContext: "SINGLE_EMPLOYER" as const,
+        membershipId: fixture.membership.id,
+        officialSubmittedAt: null,
+        evidenceNature: "SYNTHETIC_TESTING" as const,
+        evidenceEnvironment: "TESTING" as const,
+        fixturePurpose: "PAYROLL_PAYSLIP_UAT" as const,
+        statutoryNationalitySnapshot: "NON_MALAYSIAN" as const,
+        reason: "Isolated non-production payroll and payslip UAT fixture",
+        selectedEmployer: "CURRENT_BUSINESS" as const,
+        sourceReference: null,
+        sourceType: null,
+        status: "MANDATORY" as const,
+      };
+
+      const first = await recordEmployeeLindung24Participation(
+        {
+          command: {
+            ...baseCommand,
+            effectiveFromMonth: new Date("2026-08-01T00:00:00.000Z"),
+            expectedRevision: 0,
+          },
+          context,
+        },
+        transaction,
+        { environment: { APP_ENVIRONMENT: "testing" } },
+      );
+      assert.equal(first.evidenceNature, "SYNTHETIC_TESTING");
+      assert.equal(first.officialExportEligible, false);
+      assert.equal(first.sourceType, null);
+      assert.equal(first.sourceReference, null);
+
+      const audit = await transaction.auditLog.findFirstOrThrow({
+        where: {
+          businessId: fixture.business.id,
+          entityId: first.id,
+          action: "STATUTORY_TEST_FIXTURE_CREATED",
+        },
+      });
+      assert.match(JSON.stringify(audit.metadata), /PAYROLL_PAYSLIP_UAT/);
+
+      await assert.rejects(
+        recordEmployeeLindung24Participation(
+          {
+            command: {
+              ...baseCommand,
+              effectiveFromMonth: new Date("2026-09-01T00:00:00.000Z"),
+              expectedRevision: 0,
+              membershipId: fixture.otherMembership.id,
+            },
+            context,
+          },
+          transaction,
+          { environment: { APP_ENVIRONMENT: "testing" } },
+        ),
+        /LINDUNG24_MEMBERSHIP_NOT_FOUND/,
+      );
+
+      const second = await recordEmployeeLindung24Participation(
+        {
+          command: {
+            ...baseCommand,
+            effectiveFromMonth: new Date("2026-09-01T00:00:00.000Z"),
+            expectedRevision: 1,
+          },
+          context,
+        },
+        transaction,
+        { environment: { APP_ENVIRONMENT: "testing" } },
+      );
+      assert.equal(second.revision, 2);
+      assert.equal(second.supersedesVersionId, first.id);
+      const retainedFirst = await transaction.employeeLindung24ParticipationVersion.findUniqueOrThrow({
+        where: { id: first.id },
+      });
+      assert.equal(retainedFirst.effectiveToMonth?.toISOString().slice(0, 10), "2026-09-01");
+      assert.equal(retainedFirst.evidenceNature, "SYNTHETIC_TESTING");
+      throw new Error("ROLLBACK_SYNTHETIC_STATUTORY_FIXTURE_INTEGRATION");
+    }),
+    /ROLLBACK_SYNTHETIC_STATUTORY_FIXTURE_INTEGRATION/,
+  );
+});
 
 test("LINDUNG24 participation history is additive, tenant-bound and overlap-safe", async () => {
   await assert.rejects(
@@ -30,7 +146,7 @@ test("LINDUNG24 participation history is additive, tenant-bound and overlap-safe
         },
       });
       const membership = await createMembership(transaction, business.id, `A-${token}`, "MALAYSIAN");
-      const otherMembership = await createMembership(transaction, otherBusiness.id, `B-${token}`, "MALAYSIAN");
+      await createMembership(transaction, otherBusiness.id, `B-${token}`, "MALAYSIAN");
 
       const initial = await transaction.employeeLindung24ParticipationVersion.create({
         data: {
@@ -172,7 +288,10 @@ test("LINDUNG24 payroll dry run freezes participation, rule, wage and employee-o
     prisma.$transaction(async (transaction) => {
       const fixture = await createMinimalFixture(transaction);
       const participation = await transaction.employeeLindung24ParticipationVersion.create({
-        data: participationData(fixture, { revision: 1 }),
+        data: participationData(fixture, {
+          effectiveFromMonth: new Date("2026-08-01T00:00:00.000Z"),
+          revision: 1,
+        }),
       });
       const run = await transaction.payrollRun.create({
         data: {
@@ -182,8 +301,8 @@ test("LINDUNG24 payroll dry run freezes participation, rule, wage and employee-o
           createdById: fixture.owner.id,
           normalWorkMinutesPerDaySnapshot: 480,
           overtimeMultiplierSnapshot: "1.50",
-          periodEnd: new Date("2026-08-01T00:00:00.000Z"),
-          periodStart: new Date("2026-07-01T00:00:00.000Z"),
+          periodEnd: new Date("2026-09-01T00:00:00.000Z"),
+          periodStart: new Date("2026-08-01T00:00:00.000Z"),
           publicHolidayExtraMultiplierSnapshot: "2.00",
           workingDaysPerMonthSnapshot: 26,
         },
@@ -344,7 +463,7 @@ async function createMinimalFixture(transaction: Prisma.TransactionClient) {
   });
   const membership = await createMembership(transaction, business.id, `A-${token}`, "MALAYSIAN");
   const otherMembership = await createMembership(transaction, otherBusiness.id, `B-${token}`, "MALAYSIAN");
-  return { business, membership, otherMembership, owner };
+  return { branch, business, membership, otherMembership, owner };
 }
 
 function participationData(

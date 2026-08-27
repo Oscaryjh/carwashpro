@@ -9,6 +9,53 @@ type ReadinessDatabase = PrismaClient | Prisma.TransactionClient;
 
 export type PayrollReadinessSeverity = "BLOCKING" | "REVIEW" | "INFO";
 export type PayrollReadinessStatus = "READY" | "REVIEW_REQUIRED" | "BLOCKED";
+
+type PayrollStatutoryReadinessSnapshot = {
+  scheme: "EPF" | "SOCSO" | "EIS" | "LINDUNG24" | "PCB" | "WORK_PAY";
+  status: "CALCULATED" | "MANUAL" | "BLOCKED" | "NOT_APPLICABLE";
+  blockerCode: string | null;
+  evidenceNature: "REAL" | "SYNTHETIC_TESTING";
+  evidenceEnvironment: "LOCAL" | "TESTING" | null;
+  fixturePurpose: "PAYROLL_PAYSLIP_UAT" | null;
+  officialExportEligible: boolean;
+};
+
+const REQUIRED_STATUTORY_UAT_SCHEMES = [
+  "EPF",
+  "SOCSO",
+  "EIS",
+  "LINDUNG24",
+  "PCB",
+] as const;
+
+export function isNonProductionDeferredPcbSnapshot(
+  snapshot: PayrollStatutoryReadinessSnapshot,
+) {
+  return snapshot.scheme === "PCB" &&
+    snapshot.status === "BLOCKED" &&
+    snapshot.blockerCode === "PCB_PROFILE_INCOMPLETE" &&
+    snapshot.evidenceNature === "SYNTHETIC_TESTING" &&
+    (snapshot.evidenceEnvironment === "LOCAL" ||
+      snapshot.evidenceEnvironment === "TESTING") &&
+    snapshot.fixturePurpose === "PAYROLL_PAYSLIP_UAT" &&
+    snapshot.officialExportEligible === false;
+}
+
+export function hasOnlyNonProductionDeferredPcbBlocker(
+  snapshots: PayrollStatutoryReadinessSnapshot[],
+) {
+  const byScheme = new Map(snapshots.map((snapshot) => [snapshot.scheme, snapshot]));
+  if (
+    REQUIRED_STATUTORY_UAT_SCHEMES.some((scheme) => !byScheme.has(scheme)) ||
+    !isNonProductionDeferredPcbSnapshot(byScheme.get("PCB")!)
+  ) {
+    return false;
+  }
+  return snapshots.every(
+    (snapshot) => snapshot.status !== "BLOCKED" ||
+      isNonProductionDeferredPcbSnapshot(snapshot),
+  );
+}
 export type PayrollReadinessCode =
   | "MISSING_COMPENSATION"
   | "RECONCILIATION_FAILED"
@@ -41,6 +88,11 @@ export type PayrollReadinessCode =
   | "LINDUNG24_PROFILE_INCOMPLETE"
   | "LINDUNG24_PARTICIPATION_REQUIRED"
   | "LINDUNG24_SELECTED_EMPLOYER_REQUIRED"
+  | "LINDUNG24_APPLICABILITY_INCOMPLETE"
+  | "LINDUNG24_LOCAL_PARTICIPATION_DECISION_REQUIRED"
+  | "LINDUNG24_FOREIGN_MANDATORY_PROFILE_INCOMPLETE"
+  | "LINDUNG24_MULTIPLE_EMPLOYER_SELECTION_REQUIRED"
+  | "LINDUNG24_POLICY_TRANSITION_REVIEW_REQUIRED"
   | "STALE_LINDUNG24_PARTICIPATION"
   | "PENDING_VARIABLE_PAY"
   | "FUTURE_COMPENSATION_CHANGE"
@@ -281,6 +333,10 @@ export async function getPayrollPeriodReadiness(
               },
               statutorySnapshots: {
                 select: {
+                  evidenceNature: true,
+                  evidenceEnvironment: true,
+                  fixturePurpose: true,
+                  officialExportEligible: true,
                   scheme: true,
                   status: true,
                   blockerCode: true,
@@ -502,6 +558,14 @@ export async function getPayrollPeriodReadiness(
           );
         }
         if (snapshot.status !== "BLOCKED") continue;
+        if (isNonProductionDeferredPcbSnapshot(snapshot)) {
+          add(
+            "REVIEW",
+            "PCB_PROFILE_INCOMPLETE",
+            "PCB is pending configuration for this non-production payroll UAT and is not included in net pay.",
+          );
+          continue;
+        }
         if (
           run?.status === "DRAFT" &&
           snapshot.blockerCode === "STATUTORY_RULE_NOT_AVAILABLE" &&
@@ -779,6 +843,11 @@ const READINESS_CODES: PayrollReadinessCode[] = [
   "LINDUNG24_PROFILE_INCOMPLETE",
   "LINDUNG24_PARTICIPATION_REQUIRED",
   "LINDUNG24_SELECTED_EMPLOYER_REQUIRED",
+  "LINDUNG24_APPLICABILITY_INCOMPLETE",
+  "LINDUNG24_LOCAL_PARTICIPATION_DECISION_REQUIRED",
+  "LINDUNG24_FOREIGN_MANDATORY_PROFILE_INCOMPLETE",
+  "LINDUNG24_MULTIPLE_EMPLOYER_SELECTION_REQUIRED",
+  "LINDUNG24_POLICY_TRANSITION_REVIEW_REQUIRED",
   "STALE_LINDUNG24_PARTICIPATION",
   "PENDING_VARIABLE_PAY",
   "FUTURE_COMPENSATION_CHANGE",
@@ -897,12 +966,26 @@ function readinessIssueGuidance(code: PayrollReadinessCode): {
     case "LINDUNG24_PROFILE_INCOMPLETE":
     case "LINDUNG24_PARTICIPATION_REQUIRED":
     case "LINDUNG24_SELECTED_EMPLOYER_REQUIRED":
+    case "LINDUNG24_APPLICABILITY_INCOMPLETE":
+    case "LINDUNG24_LOCAL_PARTICIPATION_DECISION_REQUIRED":
+    case "LINDUNG24_FOREIGN_MANDATORY_PROFILE_INCOMPLETE":
+    case "LINDUNG24_MULTIPLE_EMPLOYER_SELECTION_REQUIRED":
+    case "LINDUNG24_POLICY_TRANSITION_REVIEW_REQUIRED":
     case "STALE_LINDUNG24_PARTICIPATION":
       return {
         source: "Statutory Readiness",
         resolutionHint:
-          code === "LINDUNG24_SELECTED_EMPLOYER_REQUIRED"
+          code === "LINDUNG24_SELECTED_EMPLOYER_REQUIRED" ||
+          code === "LINDUNG24_MULTIPLE_EMPLOYER_SELECTION_REQUIRED"
             ? "Select the employee's LINDUNG 24 employer, then refresh this Draft."
+            : code === "LINDUNG24_APPLICABILITY_INCOMPLETE"
+              ? "Record statutory nationality and Act 4 coverage before deciding whether LINDUNG 24 applies."
+            : code === "LINDUNG24_LOCAL_PARTICIPATION_DECISION_REQUIRED"
+              ? "Record the local employee's participation or official opt-out evidence, then refresh this Draft."
+            : code === "LINDUNG24_FOREIGN_MANDATORY_PROFILE_INCOMPLETE"
+              ? "Complete the mandatory foreign-worker eligibility and LINDUNG 24 evidence, then refresh this Draft."
+            : code === "LINDUNG24_POLICY_TRANSITION_REVIEW_REQUIRED"
+              ? "July 2026 spans the official policy transition. Complete the statutory transition review before payroll."
             : code === "STALE_LINDUNG24_PARTICIPATION"
               ? "Refresh this Draft to apply the latest LINDUNG 24 participation details."
               : "Complete the employee's LINDUNG 24 participation details, then refresh this Draft.",
@@ -930,6 +1013,21 @@ function readinessCodeForStatutoryBlocker(
   }
   if (blockerCode === "LINDUNG24_PROFILE_INCOMPLETE") {
     return "LINDUNG24_PROFILE_INCOMPLETE";
+  }
+  if (blockerCode === "LINDUNG24_APPLICABILITY_INCOMPLETE") {
+    return "LINDUNG24_APPLICABILITY_INCOMPLETE";
+  }
+  if (blockerCode === "LINDUNG24_LOCAL_PARTICIPATION_DECISION_REQUIRED") {
+    return "LINDUNG24_LOCAL_PARTICIPATION_DECISION_REQUIRED";
+  }
+  if (blockerCode === "LINDUNG24_FOREIGN_MANDATORY_PROFILE_INCOMPLETE") {
+    return "LINDUNG24_FOREIGN_MANDATORY_PROFILE_INCOMPLETE";
+  }
+  if (blockerCode === "LINDUNG24_MULTIPLE_EMPLOYER_SELECTION_REQUIRED") {
+    return "LINDUNG24_MULTIPLE_EMPLOYER_SELECTION_REQUIRED";
+  }
+  if (blockerCode === "LINDUNG24_POLICY_TRANSITION_REVIEW_REQUIRED") {
+    return "LINDUNG24_POLICY_TRANSITION_REVIEW_REQUIRED";
   }
   if (
     blockerCode === "LINDUNG24_PARTICIPATION_REQUIRED" ||

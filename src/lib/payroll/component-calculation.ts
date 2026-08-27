@@ -122,7 +122,7 @@ export function buildStatutoryDeductionComponents(input: {
     ["EPF_EMPLOYEE", "EPF / KWSP", input.epfEmployeeCents],
     ["SOCSO_EMPLOYEE", "SOCSO Employee", input.socsoEmployeeCents],
     ["EIS_EMPLOYEE", "EIS Employee", input.eisEmployeeCents],
-    ["LINDUNG24_EMPLOYEE", "LINDUNG 24 Employee", input.lindung24EmployeeCents],
+    ["LINDUNG24_EMPLOYEE", "LINDUNG 24", input.lindung24EmployeeCents],
     ["PCB", "Monthly Tax Deduction (PCB)", input.pcbCents],
     ["CP38", "CP38 tax instruction", input.cp38Cents],
   ] as const;
