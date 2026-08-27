@@ -15,7 +15,7 @@ import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { prisma } from "@/lib/prisma";
 
-export type PerformanceRange = "today" | "yesterday" | "this_week" | "last_week" | "month" | "last_month" | "custom";
+export type PerformanceRange = "today" | "7days" | "yesterday" | "this_week" | "last_week" | "month" | "last_month" | "custom";
 
 export type PerformanceReadModel = Awaited<ReturnType<typeof getBusinessPerformanceReadModel>>;
 
@@ -126,7 +126,8 @@ export function resolvePerformancePeriods(input: { range?: string; from?: string
   const today = getCurrentBusinessDateValue(input.now, input.timezone, input.businessDayCutoffTime);
   const range = normalizeRange(input.range);
   let from = today; let to = today;
-  if (range === "yesterday") from = to = addDaysToDateValue(today, -1);
+  if (range === "7days") from = addDaysToDateValue(today, -6);
+  else if (range === "yesterday") from = to = addDaysToDateValue(today, -1);
   else if (range === "this_week") from = weekStart(today);
   else if (range === "last_week") { to = addDaysToDateValue(weekStart(today), -1); from = addDaysToDateValue(to, -6); }
   else if (range === "month") from = startOfBusinessMonth(today);
@@ -141,7 +142,7 @@ export function comparePeriods(current: number, previous: number) {
   return { kind: "PERCENT" as const, percentage: Math.round(((current - previous) / Math.abs(previous)) * 1000) / 10 };
 }
 
-function normalizeRange(value?: string): PerformanceRange { return ["yesterday", "this_week", "last_week", "month", "last_month", "custom"].includes(value ?? "") ? value as PerformanceRange : "today"; }
+function normalizeRange(value?: string): PerformanceRange { return ["7days", "yesterday", "this_week", "last_week", "month", "last_month", "custom"].includes(value ?? "") ? value as PerformanceRange : "today"; }
 function weekStart(value: string) { const date = dateValueToUtcDate(value); const day = date.getUTCDay(); return addDaysToDateValue(value, day === 0 ? -6 : 1 - day); }
 function inPeriod(value: Date, from: Date, to: Date) { return value >= from && value < to; }
 function moneyToCents(value: unknown) { return Math.round(Number(value ?? 0) * 100); }
@@ -152,7 +153,7 @@ function salesForPeriod(invoices: SalesInvoiceRow[], payments: SalesPaymentRow[]
     payments: payments.filter((row) => inPeriod(row.paidAt, from, to)).map((row) => ({ amountCents: moneyToCents(row.amount), isPackage: false })),
     refunds: refunds.filter((row) => inPeriod(row.refundedAt, from, to)).map((row) => ({ amountCents: moneyToCents(row.amount), isPackage: false })),
   });
-  return { grossSalesCents: metrics.grossSalesCents, netSalesCents: metrics.netSalesCents, refundsCents: metrics.refundsCents, transactions: metrics.transactionCount, averageTransactionValueCents: metrics.averageTransactionValueCents ?? 0 };
+  return { grossSalesCents: metrics.grossSalesCents, netSalesCents: metrics.netSalesCents, paymentsCollectedCents: metrics.netCollectionsCents, refundsCents: metrics.refundsCents, transactions: metrics.transactionCount, averageTransactionValueCents: metrics.averageTransactionValueCents ?? 0 };
 }
 function buildSalesTrend(invoices: SalesInvoiceRow[], refunds: SalesRefundRow[], from: string, to: string, timezone: string, businessDayCutoffTime: string) {
   const points = []; for (let day = from; day <= to; day = addDaysToDateValue(day, 1)) {

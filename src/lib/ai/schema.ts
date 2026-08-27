@@ -1,10 +1,12 @@
 import { z } from "zod";
+import { AI_INTENTS } from "./intent";
 
-export const AI_PROMPT_VERSION = "business-analyst/1.0.1";
-export const AI_CONTEXT_VERSION = "business-performance/1.0.0";
+export const AI_PROMPT_VERSION = "business-assistant/1.1.0";
+export const AI_CONTEXT_VERSION = "business-performance/1.1.0";
 
 export const allowedMetricKeys = [
   "NET_SALES",
+  "PAYMENTS_COLLECTED",
   "GROSS_SALES",
   "REFUNDS",
   "TRANSACTIONS",
@@ -24,6 +26,17 @@ export const allowedMetricKeys = [
   "AP_DUE_SOON",
   "AP_OVERDUE",
   "AP_OPEN_BILLS",
+  "ACTIVE_EMPLOYEES",
+  "INACTIVE_EMPLOYEES",
+  "APPOINTMENTS_TOTAL",
+  "APPOINTMENTS_SCHEDULED",
+  "APPOINTMENTS_COMPLETED",
+  "APPOINTMENTS_CANCELLED",
+  "APPOINTMENTS_NO_SHOW",
+  "PAYMENTS_CASH",
+  "PAYMENTS_CARD",
+  "PAYMENTS_DUITNOW",
+  "PAYMENTS_BANK_TRANSFER",
 ] as const;
 
 export type AllowedAiMetricKey = (typeof allowedMetricKeys)[number];
@@ -39,6 +52,9 @@ export const aiEvidenceSchema = z.object({
 });
 
 export const aiAnalysisSchema = z.object({
+  intent: z.enum(AI_INTENTS),
+  language: z.enum(["en", "zh"]),
+  temporalSemantics: z.enum(["PERIOD", "SNAPSHOT"]),
   summary: z.string().min(1).max(4000),
   evidence: z.array(aiEvidenceSchema).max(12),
   caveats: z.array(z.string().min(1).max(600)).max(10),
@@ -51,8 +67,11 @@ export type AiAnalysis = z.infer<typeof aiAnalysisSchema>;
 export const AI_ANALYSIS_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["summary", "evidence", "caveats", "recommendations", "followUpQuestions"],
+  required: ["intent", "language", "temporalSemantics", "summary", "evidence", "caveats", "recommendations", "followUpQuestions"],
   properties: {
+    intent: { type: "string", enum: AI_INTENTS },
+    language: { type: "string", enum: ["en", "zh"] },
+    temporalSemantics: { type: "string", enum: ["PERIOD", "SNAPSHOT"] },
     summary: { type: "string" },
     evidence: {
       type: "array",

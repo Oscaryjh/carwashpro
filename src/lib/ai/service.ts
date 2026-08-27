@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AiScopeType } from "@prisma/client";
+import { getBusinessDayRange } from "@/lib/business-day";
 import { getBusinessPerformanceReadModel } from "@/lib/business-performance/read-model";
 import { resolveExpenseReadScope } from "@/lib/expense/access";
 import { resolveAuthorizedGroupReportingScope } from "@/lib/business-groups/all-stores-access";
@@ -7,9 +8,11 @@ import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 import { prisma } from "@/lib/prisma";
 import type { AppSession } from "@/lib/auth/session";
 import type { ResolvedBusinessAccess } from "@/lib/business-groups/business-access";
-import { buildBusinessAiContext, buildGroupAiContext } from "./context";
+import { aiMetric, buildBusinessAiContext, buildGroupAiContext } from "./context";
+import { classifyAiQuestion, type AiIntentClassification } from "./intent";
 import { createAiProvider, getAiConfiguration, type AiProvider } from "./provider";
 import { AI_CONTEXT_VERSION, AI_PROMPT_VERSION } from "./schema";
+import { sourceDomainsForIntent, type AiScopeSnapshot } from "./presentation";
 import {
   AiCommercialError,
   assertAiAllowanceConfigured,
@@ -46,6 +49,7 @@ export async function askTetamuAi(input: {
   if (!question || question.length > 2000) throw new AiServiceError("AI_QUESTION_INVALID");
   if (!isUuid(input.clientRequestId)) throw new AiServiceError("AI_REQUEST_ID_INVALID");
   const now = dependencies.now ?? new Date();
+  const classification = classifyAiQuestion(question);
   const config = getAiConfiguration();
   const commercialConfig = getAiCommercialConfiguration();
   if (!commercialConfig.enabled) throw new AiServiceError("AI_GLOBALLY_DISABLED");
@@ -134,20 +138,32 @@ export async function askTetamuAi(input: {
   const started = Date.now();
   try {
     const [safeContext, recentMessages] = await Promise.all([
-      buildAuthorizedContext({ ...input, scopeIdentity, now }),
+      buildAuthorizedContext({ ...input, scopeIdentity, now, classification }),
       prisma.aiMessage.findMany({
         where: { conversationId: conversation.id, id: { not: userMessage.id } },
         orderBy: { createdAt: "desc" }, take: 8,
         select: { role: true, content: true },
       }),
     ]);
+    await prisma.aiMessage.update({
+      where: { id: userMessage.id },
+      data: { structuredMetadata: { scopeSnapshot: safeContext.scopeSnapshot } },
+    });
     if (safeContext.approximateInputTokens > commercialConfig.maxContextTokens) throw new AiServiceError("AI_CONTEXT_TOO_LARGE");
     const result = await (dependencies.provider ?? createAiProvider()).analyze({
       question,
+      intent: classification.intent,
+      language: classification.language,
+      temporalSemantics: classification.temporalSemantics,
       context: safeContext.payload,
       recentMessages: recentMessages.reverse(),
     });
-    const groundedAnalysis = removeUnavailableEvidence(result.analysis, safeContext.payload);
+    const groundedAnalysis = removeUnavailableEvidence({
+      ...result.analysis,
+      intent: classification.intent,
+      language: classification.language,
+      temporalSemantics: classification.temporalSemantics,
+    }, safeContext.payload);
     assertGroundedEvidence(groundedAnalysis, safeContext.payload);
     const latencyMs = Date.now() - started;
     await finalizeAiSuccess({
@@ -169,7 +185,11 @@ export async function askTetamuAi(input: {
         conversationId: conversation.id,
         role: "ASSISTANT",
         content: groundedAnalysis.summary,
-        structuredMetadata: groundedAnalysis,
+        structuredMetadata: {
+          ...groundedAnalysis,
+          scopeSnapshot: safeContext.scopeSnapshot,
+          sourceDomains: sourceDomainsForIntent(classification.intent),
+        },
         provider: result.provider,
         model: result.model,
         promptVersion: AI_PROMPT_VERSION,
@@ -249,12 +269,41 @@ async function authorizeScope(user: AppSession, scope: Scope) {
   return { key: `GROUP:${scope.groupId}`, businessId: null, groupId: scope.groupId, group };
 }
 
-async function buildAuthorizedContext(input: Parameters<typeof askTetamuAi>[0] & { scopeIdentity: Awaited<ReturnType<typeof authorizeScope>>; now: Date }) {
+async function buildAuthorizedContext(input: Parameters<typeof askTetamuAi>[0] & {
+  scopeIdentity: Awaited<ReturnType<typeof authorizeScope>>;
+  now: Date;
+  classification: AiIntentClassification;
+}) {
   if (input.scope.type === "BUSINESS") {
     const readScope = await resolveExpenseReadScope({ access: input.scope.access, businessId: input.scope.businessId, user: input.scope.user });
-    const selected = input.scope.selectedBranchId && readScope.allowedBranchIds?.includes(input.scope.selectedBranchId) ? input.scope.selectedBranchId : null;
+    if (input.scope.selectedBranchId && !readScope.allowedBranchIds?.includes(input.scope.selectedBranchId)) {
+      throw new AiServiceError("AI_SCOPE_DENIED");
+    }
+    const selected = input.scope.selectedBranchId ?? null;
     const model = await getBusinessPerformanceReadModel({ businessId: input.scope.businessId, allowedBranchIds: readScope.allowedBranchIds ?? [], includeBusinessWide: Boolean(readScope.includeBusinessWide), selectedBranchId: selected, range: input.range ?? "month", from: input.from, to: input.to, now: input.now });
-    return buildBusinessAiContext(model);
+    const supplementalMetrics = await loadIntentMetrics({
+      businessId: input.scope.businessId,
+      branchIds: model.scope.branchIds,
+      model,
+      classification: input.classification,
+      now: input.now,
+    });
+    const context = buildBusinessAiContext(model, { classification: input.classification, supplementalMetrics });
+    const selectedBranch = readScope.branches.find((branch) => branch.id === selected) ?? null;
+    const scopeSnapshot: AiScopeSnapshot = {
+      scopeType: "BUSINESS",
+      businessId: input.scope.businessId,
+      businessName: model.scope.businessName,
+      selectedBranchId: selected,
+      selectedBranchName: selectedBranch?.name ?? null,
+      authorisedBranches: readScope.branches.map((branch) => ({ id: branch.id, name: branch.name })),
+      range: model.dateRange.range,
+      from: model.dateRange.from,
+      to: model.dateRange.to,
+      timezone: model.dateRange.timezone,
+      businessDayCutoffTime: model.dateRange.businessDayCutoffTime,
+    };
+    return { ...context, scopeSnapshot };
   }
   const group = "group" in input.scopeIdentity ? input.scopeIdentity.group : null;
   if (!group) throw new AiServiceError("AI_GROUP_SCOPE_DENIED");
@@ -262,9 +311,100 @@ async function buildAuthorizedContext(input: Parameters<typeof askTetamuAi>[0] &
     if (!(await isBusinessModuleEnabled(business.id, "AI"))) return null;
     const branches = await prisma.branch.findMany({ where: { businessId: business.id, status: "ACTIVE" }, select: { id: true } });
     const model = await getBusinessPerformanceReadModel({ businessId: business.id, allowedBranchIds: branches.map((branch) => branch.id), includeBusinessWide: true, range: input.range ?? "month", from: input.from, to: input.to, now: input.now });
-    return { name: business.name, context: buildBusinessAiContext(model) };
+    const supplementalMetrics = await loadIntentMetrics({
+      businessId: business.id,
+      branchIds: model.scope.branchIds,
+      model,
+      classification: input.classification,
+      now: input.now,
+    });
+    return { name: business.name, context: buildBusinessAiContext(model, { classification: input.classification, supplementalMetrics }) };
   }));
-  return buildGroupAiContext({ groupName: group.groupName, businesses: contexts.filter((item): item is NonNullable<typeof item> => Boolean(item)) });
+  const availableContexts = contexts.filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const context = buildGroupAiContext({ groupName: group.groupName, businesses: availableContexts });
+  const firstPeriod = availableContexts[0]?.context.payload.period;
+  const scopeSnapshot: AiScopeSnapshot = {
+    scopeType: "GROUP",
+    businessName: group.groupName,
+    range: firstPeriod?.range ?? input.range ?? "month",
+    from: firstPeriod?.from ?? input.from ?? "",
+    to: firstPeriod?.to ?? input.to ?? "",
+    timezone: firstPeriod?.timezone ?? "Business timezone",
+    businessDayCutoffTime: firstPeriod?.businessDayCutoffTime ?? "Business setting",
+  };
+  return { ...context, scopeSnapshot };
+}
+
+async function loadIntentMetrics(input: {
+  businessId: string;
+  branchIds: string[];
+  model: Awaited<ReturnType<typeof getBusinessPerformanceReadModel>>;
+  classification: AiIntentClassification;
+  now: Date;
+}) {
+  const branchIds = input.branchIds.length ? input.branchIds : ["00000000-0000-0000-0000-000000000000"];
+  if (input.classification.intent === "PEOPLE") {
+    const visibleBranch = { branchAssignments: { some: { branchId: { in: branchIds } } } };
+    const activeBranch = {
+      branchAssignments: {
+        some: {
+          branchId: { in: branchIds },
+          status: "ACTIVE" as const,
+          effectiveFrom: { lte: input.now },
+          OR: [{ effectiveUntil: null }, { effectiveUntil: { gte: input.now } }],
+        },
+      },
+    };
+    const activeWhere = {
+      businessId: input.businessId,
+      status: "ACTIVE" as const,
+      joinedAt: { lte: input.now },
+      OR: [{ terminatedAt: null }, { terminatedAt: { gt: input.now } }],
+      employeeAccount: { status: "ACTIVE" as const },
+      ...activeBranch,
+    };
+    const [active, visible] = await Promise.all([
+      prisma.employeeBusinessMembership.count({ where: activeWhere }),
+      prisma.employeeBusinessMembership.count({ where: { businessId: input.businessId, ...visibleBranch } }),
+    ]);
+    return [aiMetric("ACTIVE_EMPLOYEES", active), aiMetric("INACTIVE_EMPLOYEES", Math.max(visible - active, 0))];
+  }
+  const period = getBusinessDayRange({
+    fromDateValue: input.model.dateRange.from,
+    toDateValue: input.model.dateRange.to,
+    timezone: input.model.dateRange.timezone,
+    businessDayCutoffTime: input.model.dateRange.businessDayCutoffTime,
+  });
+  if (input.classification.intent === "APPOINTMENTS" || input.classification.intent === "GENERAL_BUSINESS") {
+    const rows = await prisma.appointment.groupBy({
+      by: ["status"],
+      where: { businessId: input.businessId, branchId: { in: branchIds }, scheduledAt: { gte: period.fromDate, lt: period.toDateExclusive } },
+      _count: { _all: true },
+    });
+    const count = (statuses: string[]) => rows.filter((row) => statuses.includes(row.status)).reduce((sum, row) => sum + row._count._all, 0);
+    return [
+      aiMetric("APPOINTMENTS_TOTAL", count(rows.map((row) => row.status))),
+      aiMetric("APPOINTMENTS_SCHEDULED", count(["SCHEDULED", "CONFIRMED", "ARRIVED", "IN_SERVICE"])),
+      aiMetric("APPOINTMENTS_COMPLETED", count(["COMPLETED", "CONVERTED_TO_JOB"])),
+      aiMetric("APPOINTMENTS_CANCELLED", count(["CANCELLED"])),
+      aiMetric("APPOINTMENTS_NO_SHOW", count(["NO_SHOW"])),
+    ];
+  }
+  if (input.classification.intent === "PAYMENTS") {
+    const rows = await prisma.payment.groupBy({
+      by: ["method"],
+      where: { businessId: input.businessId, branchId: { in: branchIds }, status: "ACTIVE", paidAt: { gte: period.fromDate, lt: period.toDateExclusive } },
+      _sum: { amount: true },
+    });
+    const amount = (method: string) => rows.find((row) => row.method === method)?._sum.amount?.toFixed(2) ?? "0.00";
+    return [
+      aiMetric("PAYMENTS_CASH", amount("CASH")),
+      aiMetric("PAYMENTS_CARD", amount("CARD")),
+      aiMetric("PAYMENTS_DUITNOW", amount("DUITNOW")),
+      aiMetric("PAYMENTS_BANK_TRANSFER", amount("BANK_TRANSFER")),
+    ];
+  }
+  return [];
 }
 
 async function resolveConversation(input: { conversationId?: string | null; createdById: string; scopeType: AiScopeType; businessId: string | null; groupId: string | null; title: string }) {

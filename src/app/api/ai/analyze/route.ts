@@ -52,13 +52,11 @@ export async function POST(request: Request) {
 }
 
 function friendly(code: string) {
-  if (code === "AI_RATE_LIMITED") return "Too many AI requests. Please wait a moment and try again.";
-  if (code === "AI_QUOTA_EXCEEDED") return "This AI allowance has been used for the current period. Existing conversations remain available.";
-  if (code === "AI_QUOTA_NOT_CONFIGURED") return "AI allowance is not configured for this scope. Contact Tetamu support.";
-  if (code === "AI_QUOTA_SUSPENDED") return "AI access is temporarily suspended for this scope.";
-  if (code === "AI_GLOBALLY_DISABLED") return "AI analysis is temporarily disabled.";
-  if (code === "AI_MODULE_DISABLED") return "AI Business Analysis is not enabled for this business.";
-  if (code.includes("DENIED")) return "You do not have access to this AI analysis scope.";
-  if (code === "AI_PROVIDER_UNAVAILABLE") return "AI analysis is not configured for this environment.";
-  return "Analysis is temporarily unavailable. No business data was changed.";
+  if (code === "AI_RATE_LIMITED") return "Please wait a moment before asking another question.";
+  if (code === "AI_QUOTA_EXCEEDED") return "You've reached this month's Ask Tetamu limit.";
+  if (code === "AI_QUOTA_NOT_CONFIGURED" || code === "AI_MODULE_DISABLED") return "Ask Tetamu is not enabled for this business.";
+  if (code === "AI_QUOTA_SUSPENDED" || code === "AI_GLOBALLY_DISABLED") return "Ask Tetamu is temporarily unavailable. Please try again later.";
+  if (code.includes("DENIED")) return "You don't have access to the requested business or branch.";
+  if (code === "AI_PROVIDER_UNAVAILABLE") return "Ask Tetamu is temporarily unavailable. Please try again.";
+  return "Ask Tetamu is temporarily unavailable. Please try again.";
 }

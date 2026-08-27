@@ -11,7 +11,7 @@ import { canDirectStaff } from "@/lib/business-groups/capabilities";
 const model = {
   scope: { businessId: "b", businessName: "Safe Salon", branchIds: ["x"], selectedBranchId: null },
   dateRange: { range: "month", from: "2026-08-01", to: "2026-08-31", previousFrom: "2026-07-01", previousTo: "2026-07-31", timezone: "Asia/Kuala_Lumpur", businessDayCutoffTime: "00:00" },
-  sales: { grossSalesCents: 120000, netSalesCents: 100000, refundsCents: 20000, transactions: 10, averageTransactionValueCents: 10000, previousNetSalesCents: 125000, change: { kind: "PERCENT", percentage: -20 }, trend: [{ date: "2026-08-01", netSalesCents: 100000 }] },
+  sales: { grossSalesCents: 120000, netSalesCents: 100000, paymentsCollectedCents: 90000, refundsCents: 20000, transactions: 10, averageTransactionValueCents: 10000, previousNetSalesCents: 125000, change: { kind: "PERCENT", percentage: -20 }, trend: [{ date: "2026-08-01", netSalesCents: 100000 }] },
   businessSpending: { recorded: "400.00", previousRecorded: "350.00", incomeVsRecordedSpending: "600.00", bySource: [{ sourceType: "MANUAL", amount: "100.00", count: 1 }, { sourceType: "PAYROLL", amount: "300.00", count: 1 }], byBranch: [] },
   inventory: { trackedProducts: 4, lowStock: 2, outOfStock: 1, sellingValue: "500.00" },
   accountsPayable: { totalOutstanding: "70.00", dueSoon: 1, overdue: 0, openBills: 1 },
@@ -41,7 +41,7 @@ test("AI context contains canonical aggregates, coverage and no sensitive PII", 
 });
 
 test("system prompt locks read-only accounting and injection boundaries", () => {
-  assert.equal(AI_PROMPT_VERSION, "business-analyst/1.0.1");
+  assert.equal(AI_PROMPT_VERSION, "business-assistant/1.1.0");
   assert.match(TETAMU_BUSINESS_ANALYST_SYSTEM_PROMPT, /NOT net profit/i);
   assert.match(TETAMU_BUSINESS_ANALYST_SYSTEM_PROMPT, /NOT COGS/i);
   assert.match(TETAMU_BUSINESS_ANALYST_SYSTEM_PROMPT, /no tools/i);
@@ -103,6 +103,7 @@ test("OpenAI request uses Responses API, strict schema, store false and no tools
         captured = request;
         return {
           output_text: JSON.stringify({
+            intent: "UNSUPPORTED", language: "en", temporalSemantics: "PERIOD",
             summary: "Insufficient data.", evidence: [], caveats: ["Missing data is not zero."],
             recommendations: [], followUpQuestions: [],
           }),
@@ -147,6 +148,6 @@ test("mock provider aggregates only the already-authorised group contexts", asyn
     context: { businesses: [{ name: "A", ...contextA.payload }, { name: "B", ...contextB.payload }] },
     recentMessages: [],
   });
-  assert.equal(result.analysis.evidence.find((item) => item.metricKey === "NET_SALES")?.value, "RM 2000");
+  assert.equal(result.analysis.evidence.find((item) => item.metricKey === "NET_SALES")?.value, "RM2,000.00");
   assert.match(result.analysis.caveats.join(" "), /not accounting net profit/i);
 });
