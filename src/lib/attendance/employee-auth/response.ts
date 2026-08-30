@@ -21,6 +21,7 @@ export function employeeAuthErrorResponse(error: unknown) {
   if (!isEmployeeAuthError(error)) {
     console.error("[employee-auth] Request failed", {
       errorName: error instanceof Error ? error.name : "UnknownError",
+      errorCode: readSafeDatabaseErrorCode(error),
     });
   } else if (error.code === "CONFIGURATION_ERROR") {
     console.error("[employee-auth] Configuration unavailable", {
@@ -38,4 +39,10 @@ export function employeeAuthErrorResponse(error: unknown) {
     },
     { status: normalized.status },
   );
+}
+
+function readSafeDatabaseErrorCode(error: unknown) {
+  if (!error || typeof error !== "object" || !("code" in error)) return null;
+  const code = error.code;
+  return typeof code === "string" && /^P\d{4}$/.test(code) ? code : null;
 }
