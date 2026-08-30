@@ -882,14 +882,529 @@
 @media (max-width: 430px) {
   .staff-approval-header,
   .staff-approval-detail > header { padding: 16px; }
+  .staff-approval-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
+  }
+  .staff-approval-tabs a {
+    justify-content: center;
+    min-width: 0;
+    padding: 0 8px;
+  }
   .staff-approval-facts { grid-template-columns: 1fr; }
   .staff-approval-facts > div:nth-last-child(-n+2) { border-bottom: 1px solid var(--staff-line); }
   .staff-approval-facts > div:last-child { border-bottom: 0; }
 }
 
+/* Staff P2 timesheet: employee-first result, reason and next-action hierarchy. */
+.staff-timesheet-page {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.staff-timesheet-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.staff-timesheet-heading > div,
+.staff-timesheet-day,
+.staff-timesheet-explanation span {
+  min-width: 0;
+}
+
+.staff-timesheet-heading span,
+.staff-section-heading > span {
+  color: var(--staff-muted);
+  display: block;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.staff-timesheet-state {
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 7px 10px;
+  text-align: center;
+}
+
+.staff-timesheet-state.action { background: #fff0df; color: #934b12; }
+.staff-timesheet-state.waiting { background: #fff6d8; color: #795700; }
+.staff-timesheet-state.final { background: #e3f5ee; color: #086947; }
+.staff-timesheet-state.current { background: #e5f3f1; color: #086b63; }
+
+.staff-timesheet-day .staff-history-card-header {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.staff-timesheet-explanation {
+  background: #f4f8f7;
+  border: 1px solid #e0ebe9;
+  border-radius: 14px;
+  display: grid;
+  gap: 1px;
+}
+
+.staff-timesheet-explanation span {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+}
+
+.staff-timesheet-explanation span + span {
+  border-top: 1px solid #e0ebe9;
+}
+
+.staff-timesheet-explanation small {
+  color: var(--staff-brand-dark);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.staff-timesheet-explanation strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 430px) {
+  .staff-timesheet-page { gap: 14px; }
+  .staff-timesheet-heading { align-items: flex-start; }
+  .staff-timesheet-heading h1 { font-size: 28px; }
+  .staff-timesheet-state { max-width: 125px; }
+}
+
+.staff-overtime-page {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.staff-overtime-header {
+  align-items: start;
+  background: linear-gradient(145deg, #effbf8, #fff);
+  border: 1px solid var(--staff-line);
+  border-radius: 24px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 20px;
+}
+
+.staff-overtime-header > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.staff-overtime-header h1,
+.staff-overtime-header p {
+  margin: 0;
+}
+
+.staff-overtime-header > span,
+.staff-overtime-status {
+  background: #e2f5f1;
+  border-radius: 999px;
+  color: #075f59;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 850;
+  padding: 7px 10px;
+}
+
+.staff-overtime-month-nav {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--staff-line);
+  border-radius: 16px;
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  min-height: 50px;
+  text-align: center;
+}
+
+.staff-overtime-month-nav a {
+  align-items: center;
+  color: var(--staff-brand-dark);
+  display: inline-flex;
+  font-size: 28px;
+  height: 48px;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.staff-overtime-boundary {
+  background: #f2f7f6;
+  border-left: 3px solid #5f8e89;
+  border-radius: 13px;
+  color: var(--staff-muted);
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 0;
+  padding: 13px 14px;
+}
+
+.staff-overtime-list {
+  display: grid;
+  gap: 10px;
+}
+
+.staff-overtime-row {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--staff-line);
+  border-radius: 19px;
+  color: var(--staff-ink);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  min-width: 0;
+  padding: 14px;
+  text-decoration: none;
+}
+
+.staff-overtime-avatar {
+  align-items: center;
+  align-self: start;
+  background: #e1f4f0;
+  border-radius: 13px;
+  color: #08766e;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.staff-overtime-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.staff-overtime-copy small {
+  color: var(--staff-brand);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.staff-overtime-copy strong {
+  font-size: 16px;
+}
+
+.staff-overtime-copy > span,
+.staff-overtime-empty span {
+  color: var(--staff-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.staff-overtime-copy b {
+  color: var(--staff-brand-dark);
+  font-size: 11px;
+}
+
+.staff-overtime-status.rejected { background: #fff0ee; color: #a8372c; }
+.staff-overtime-status.approved { background: #e7f7ee; color: #207245; }
+.staff-overtime-status.adjusted { background: #eef1fb; color: #425a9d; }
+
+.staff-overtime-empty {
+  display: grid;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+}
+
+.staff-overtime-empty button {
+  background: var(--staff-brand);
+  border: 0;
+  border-radius: 12px;
+  color: #fff;
+  font: inherit;
+  font-weight: 850;
+  justify-self: center;
+  min-height: 44px;
+  padding: 0 18px;
+}
+
+.staff-overtime-facts {
+  background: #fff;
+  border: 1px solid var(--staff-line);
+  border-radius: 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 4px 16px;
+}
+
+.staff-overtime-facts > div {
+  border-bottom: 1px solid var(--staff-line);
+  display: grid;
+  gap: 4px;
+  padding: 14px 4px;
+}
+
+.staff-overtime-facts dt { color: var(--staff-muted); font-size: 11px; }
+.staff-overtime-facts dd { font-size: 14px; font-weight: 800; margin: 0; overflow-wrap: anywhere; }
+
+.staff-overtime-actions {
+  background: #fff;
+  border: 1px solid var(--staff-line);
+  border-radius: 20px;
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+.staff-overtime-actions form,
+.staff-overtime-actions details[open] {
+  display: grid;
+  gap: 12px;
+}
+
+.staff-overtime-actions summary {
+  align-items: center;
+  color: var(--staff-brand-dark);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  font-weight: 850;
+  min-height: 44px;
+}
+
+.staff-overtime-actions label {
+  display: grid;
+  gap: 7px;
+}
+
+.staff-overtime-actions label span { font-size: 12px; font-weight: 800; }
+.staff-overtime-actions input,
+.staff-overtime-actions textarea {
+  border: 1px solid #c8d8d6;
+  border-radius: 13px;
+  font: inherit;
+  min-height: 48px;
+  padding: 12px;
+  width: 100%;
+}
+.staff-overtime-actions textarea { min-height: 76px; resize: vertical; }
+.staff-overtime-actions button {
+  border-radius: 13px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 850;
+  min-height: 50px;
+  width: 100%;
+}
+.staff-overtime-primary { background: var(--staff-brand); border: 1px solid var(--staff-brand); color: #fff; }
+.staff-overtime-secondary { background: #fff; border: 1px solid var(--staff-brand); color: var(--staff-brand-dark); }
+.staff-overtime-danger { background: #fff; border: 1px solid #d9958e; color: #a8372c; }
+
+@media (max-width: 430px) {
+  .staff-overtime-page { max-width: 100%; overflow-x: clip; }
+  .staff-overtime-header { padding: 16px; }
+  .staff-overtime-row {
+    align-items: start;
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+  .staff-overtime-status {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .staff-overtime-facts { grid-template-columns: 1fr; }
+  .staff-overtime-actions { margin-bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
+
 .staff-core-only-state {
   display: grid;
   gap: 9px;
+}
+
+/* Staff App Phase 1: calm, role-aware information hierarchy. */
+.staff-approval-summary,
+.staff-pay-summary,
+.staff-recent-activity {
+  background: #fff;
+  border: 1px solid var(--staff-line);
+  border-radius: 22px;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px;
+}
+
+.staff-approval-summary {
+  background: linear-gradient(145deg, #e9f8f5, #fff 62%);
+  border-color: #addbd5;
+}
+
+.staff-approval-summary-heading,
+.staff-pay-summary-heading,
+.staff-section-heading,
+.staff-approval-summary-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.staff-approval-summary-heading h2,
+.staff-approval-summary-heading small,
+.staff-pay-summary-heading h2,
+.staff-pay-summary-heading small,
+.staff-section-heading h2,
+.staff-section-heading small {
+  margin: 0;
+}
+
+.staff-approval-summary-heading small,
+.staff-pay-summary-heading small,
+.staff-section-heading small {
+  color: var(--staff-brand);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.staff-approval-summary-heading strong {
+  color: var(--staff-brand-dark);
+  font-size: 28px;
+  white-space: nowrap;
+}
+.staff-approval-summary-heading strong span { font-size: 12px; }
+
+.staff-approval-summary-counts,
+.staff-money-summary {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.staff-approval-summary-counts > span,
+.staff-money-summary > span {
+  background: #f3f8f7;
+  border-radius: 14px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.staff-approval-summary-counts small,
+.staff-money-summary small { color: var(--staff-muted); font-size: 11px; }
+.staff-approval-summary-counts b { color: var(--staff-brand-dark); font-size: 20px; }
+.staff-approval-summary > p { color: var(--staff-muted); font-size: 11px; line-height: 1.5; margin: 0; }
+
+.staff-primary-link,
+.staff-secondary-link {
+  align-items: center;
+  border-radius: 13px;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 850;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 16px;
+  text-decoration: none;
+}
+.staff-primary-link { background: var(--staff-brand); color: #fff; }
+.staff-secondary-link { border: 1px solid var(--staff-brand); color: var(--staff-brand-dark); }
+
+.staff-recent-activity > a {
+  align-items: center;
+  border-bottom: 1px solid var(--staff-line);
+  color: var(--staff-ink);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 2px 0 13px;
+  text-decoration: none;
+}
+.staff-recent-activity > a:last-child { border-bottom: 0; padding-bottom: 0; }
+.staff-recent-activity > a > span { display: grid; gap: 3px; min-width: 0; }
+.staff-recent-activity > a small { color: var(--staff-muted); overflow-wrap: anywhere; }
+.staff-recent-activity > a b { color: var(--staff-brand-dark); flex: 0 0 auto; font-size: 12px; }
+
+.staff-attendance-primary-card {
+  border-color: #81c8c0;
+  box-shadow: 0 14px 34px rgba(5, 95, 87, .1);
+  order: -1;
+}
+.staff-clock-action {
+  box-shadow: 0 10px 24px rgba(0, 122, 113, .22);
+  font-size: 18px;
+  min-height: 62px;
+}
+.staff-home-grid-compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.staff-team-approvals-compact { margin-top: 2px; }
+
+.staff-time-navigation {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 8px 0;
+  width: 100%;
+}
+.staff-time-navigation a {
+  background: #f3f8f7;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: var(--staff-ink);
+  display: grid;
+  gap: 3px;
+  min-height: 58px;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+.staff-time-navigation a.active { background: #e5f5f2; border-color: #9bd4cd; }
+.staff-time-navigation small { color: var(--staff-muted); font-size: 10px; }
+.staff-time-navigation strong { font-size: 12px; }
+
+.staff-pay-summary-heading > span {
+  background: #e7f7ee;
+  border-radius: 999px;
+  color: #207245;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 7px 10px;
+}
+.staff-money-summary strong { font-size: 15px; overflow-wrap: anywhere; }
+.staff-money-summary .net { background: var(--staff-brand); color: #fff; }
+.staff-money-summary .net small { color: #d8f4f0; }
+.staff-money-summary .net strong { font-size: 19px; }
+.staff-pay-summary .staff-primary-link { justify-self: stretch; }
+.staff-payslip-inline-summary { color: var(--staff-muted); display: block; font-size: 11px; line-height: 1.45; margin-top: 5px; }
+.staff-payslip-inline-summary b { color: var(--staff-brand-dark); }
+
+.staff-security-details { border-top: 1px solid var(--staff-line); margin-top: 14px; padding-top: 8px; }
+.staff-security-details summary { color: var(--staff-brand-dark); cursor: pointer; font-size: 13px; font-weight: 800; min-height: 44px; padding: 13px 0; }
+
+@media (max-width: 430px) {
+  .staff-home-grid-compact { grid-template-columns: 1fr; }
+  .staff-approval-summary-counts,
+  .staff-money-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .staff-approval-summary-actions { align-items: stretch; flex-direction: column; }
+  .staff-approval-summary-actions a { width: 100%; }
+  .staff-approval-summary,
+  .staff-pay-summary,
+  .staff-recent-activity { border-radius: 18px; padding: 15px; }
+  .staff-money-summary > span { padding: 10px 8px; }
+  .staff-money-summary strong { font-size: 12px; }
+  .staff-money-summary .net strong { font-size: 15px; }
 }
 
 .staff-core-only-state span {
@@ -2013,6 +2528,57 @@
 .staff-history-flags span.adjusted {
   background: #fff1cc;
   color: #775512;
+}
+
+.staff-history-actions {
+  align-items: center;
+  background: #f2f8f7;
+  border: 1px solid #d6e7e4;
+  border-radius: 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 13px;
+  padding: 12px;
+}
+
+.staff-history-actions > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.staff-history-actions strong {
+  color: var(--staff-ink);
+  font-size: 13px;
+}
+
+.staff-history-actions small {
+  color: var(--staff-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.staff-history-actions .staff-secondary-button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 10px 14px;
+}
+
+.staff-history-actions.pending {
+  background: #fff8df;
+  border-color: #eadb9e;
+}
+
+@media (max-width: 430px) {
+  .staff-history-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .staff-history-actions .staff-secondary-button {
+    width: 100%;
+  }
 }
 
 .staff-empty-state {

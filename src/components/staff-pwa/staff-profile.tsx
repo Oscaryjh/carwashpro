@@ -9,11 +9,12 @@ import {
 } from "@/lib/staff-pwa/client";
 import type { EmployeeProfile } from "@/lib/staff-pwa/types";
 import { StaffLoading } from "./staff-auth";
+import { StaffAvatarUpload } from "./staff-avatar-upload";
 import { useStaffShell } from "./staff-pwa-chrome";
 
 export function StaffProfile({ deviceVerified = false }: { deviceVerified?: boolean }) {
   const router = useRouter();
-  const { workplaces, openWorkplaceSwitcher, logout, switching } = useStaffShell();
+  const { logout, switching } = useStaffShell();
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [error, setError] = useState("");
 
@@ -55,11 +56,22 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
     <div className="staff-profile-stack">
       {deviceVerified ? (
         <div className="staff-alert success" role="status">
-          This device is verified and your Employee Session is active.
+          This phone is verified. You can continue securely.
         </div>
       ) : null}
       <section className="staff-profile-hero">
-        <span>{initials(profile.employee.fullName)}</span>
+        <StaffAvatarUpload
+          avatarUrl={profile.employee.avatarUrl}
+          fullName={profile.employee.fullName}
+          initials={initials(profile.employee.fullName)}
+          onUpdated={(avatarUrl) => {
+            setProfile((current) => current ? {
+              ...current,
+              employee: { ...current.employee, avatarUrl },
+            } : current);
+            router.refresh();
+          }}
+        />
         <div className="staff-profile-identity">
           <p className="staff-kicker">EMPLOYEE PROFILE</p>
           <h1>{profile.employee.fullName}</h1>
@@ -73,7 +85,7 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
       <section className="staff-page-card">
         <div className="staff-card-heading">
           <div>
-            <p className="staff-kicker">WORKPLACE</p>
+            <p className="staff-kicker">CURRENT WORKPLACE</p>
             <h2>{profile.workplace.businessName}</h2>
           </div>
           <span className="staff-status-chip active">ACTIVE</span>
@@ -100,55 +112,25 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
         </div>
       </section>
 
-      {workplaces.length > 1 ? (
-        <section className="staff-page-card">
-          <div className="staff-card-heading">
-            <div>
-              <p className="staff-kicker">MY WORKPLACES</p>
-              <h2>{workplaces.length} active employers</h2>
-            </div>
-            <button className="staff-inline-action" onClick={openWorkplaceSwitcher} type="button">
-              Switch
-            </button>
-          </div>
-          <div className="staff-profile-workplaces">
-            {workplaces.map((workplace) => (
-              <button
-                disabled={switching || workplace.current}
-                key={workplace.membershipId}
-                onClick={openWorkplaceSwitcher}
-                type="button"
-              >
-                <span><strong>{workplace.businessName}</strong><small>{workplace.primaryBranchName}</small></span>
-                <b>{workplace.current ? "Current" : "Choose"}</b>
-              </button>
-            ))}
-          </div>
-          <p className="staff-form-hint">Each employer has a separate secure Staff Session and separate data.</p>
-        </section>
-      ) : null}
-
       <section className="staff-page-card">
         <div className="staff-card-heading">
           <div>
-            <p className="staff-kicker">CURRENT DEVICE</p>
-            <h2>{profile.device.displayName || "Verified device"}</h2>
+            <p className="staff-kicker">THIS PHONE</p>
+            <h2>Signed in</h2>
           </div>
           <span className={`staff-status-chip ${profile.device.status.toLowerCase()}`}>
-            {profile.device.status}
+            {profile.device.status === "ACTIVE" ? "Signed in" : humanize(profile.device.status)}
           </span>
         </div>
-        <div className="staff-device-details">
-          <Detail label="Platform" value={profile.device.platform || "Unknown"} />
-          <Detail label="Browser" value={profile.device.browser || "Unknown"} />
-          <Detail label="First verified" value={formatDateTime(profile.device.firstVerifiedAt)} />
-          <Detail label="Last active" value={formatDateTime(profile.device.lastActiveAt)} />
-          <Detail label="Can view" value={profile.capabilities.canView ? "Yes" : "No"} />
-          <Detail label="Can punch" value={profile.capabilities.canPunch ? "Yes" : "No"} />
-        </div>
-        <p className="staff-form-hint">
-          Additional clock-in devices must be verified through the secure OTP flow.
-        </p>
+        <p className="staff-form-hint">You may be asked for a one-time code when signing in on a new phone.</p>
+        <details className="staff-security-details">
+          <summary>About this phone</summary>
+          <div className="staff-device-details">
+            <Detail label="This phone" value={profile.device.displayName || profile.device.platform || "Verified phone"} />
+            <Detail label="Signed in" value={formatDateTime(profile.device.firstVerifiedAt)} />
+            <Detail label="Last active" value={formatDateTime(profile.device.lastActiveAt)} />
+          </div>
+        </details>
       </section>
 
       {deviceVerified ? (
@@ -157,7 +139,7 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
         </button>
       ) : null}
       <button className="staff-danger-button" disabled={switching} onClick={() => void logout()} type="button">
-        {switching ? "Signing out…" : "Sign out of Staff App"}
+        {switching ? "Signing out…" : "Sign out"}
       </button>
     </div>
   );

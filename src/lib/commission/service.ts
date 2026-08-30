@@ -483,7 +483,6 @@ export async function captureCommissionRefundAdjustments(
           select: {
             id: true,
             paidAmount: true,
-            refunds: { select: { amount: true } },
           },
         },
       },
@@ -492,13 +491,12 @@ export async function captureCommissionRefundAdjustments(
     let inserted = 0;
     for (const refund of refunds) {
       if (!refund.invoice) continue;
-      // Invoice.paidAmount is the remaining paid balance after refunds. Restore
-      // the original settled amount so every refund is proportional to the
-      // same immutable earning basis, including full and sequential refunds.
-      const originalSettledCents = moneyToCents(refund.invoice.paidAmount) +
-        refund.invoice.refunds.reduce((sum, item) => sum + moneyToCents(item.amount), 0);
-      if (originalSettledCents <= 0) continue;
-      const refundCents = Math.min(originalSettledCents, moneyToCents(refund.amount));
+      // Invoice.paidAmount is the contractual obligation already settled by
+      // customer payments. Refunds are cash-flow events and must not be added
+      // back to (or subtracted from) this immutable commission basis.
+      const settledObligationCents = moneyToCents(refund.invoice.paidAmount);
+      if (settledObligationCents <= 0) continue;
+      const refundCents = Math.min(settledObligationCents, moneyToCents(refund.amount));
       const accruals = await transaction.commissionAccrual.findMany({
         where: {
           businessId: context.businessId,
@@ -510,8 +508,8 @@ export async function captureCommissionRefundAdjustments(
         (candidate) =>
           candidate.calculationRevision === candidate.statement.period.currentRevision,
       )) {
-        const eligibleAmountCents = -Math.floor((accrual.eligibleAmountCents * refundCents + Math.floor(originalSettledCents / 2)) / originalSettledCents);
-        const commissionAmountCents = -Math.floor((accrual.commissionAmountCents * refundCents + Math.floor(originalSettledCents / 2)) / originalSettledCents);
+        const eligibleAmountCents = -Math.floor((accrual.eligibleAmountCents * refundCents + Math.floor(settledObligationCents / 2)) / settledObligationCents);
+        const commissionAmountCents = -Math.floor((accrual.commissionAmountCents * refundCents + Math.floor(settledObligationCents / 2)) / settledObligationCents);
         const created = await transaction.commissionAdjustment.createMany({
           data: [{
             businessId: context.businessId,

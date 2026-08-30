@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getEmployeeClaimStatus } from "@/lib/claim/presentation";
-import { isEmployeeSessionError, staffApiFetch, StaffApiError } from "@/lib/staff-pwa/client";
+import { createBrowserUuid, isEmployeeSessionError, staffApiFetch, StaffApiError } from "@/lib/staff-pwa/client";
 import styles from "./staff-claims.module.css";
 
 type Overview = {
@@ -75,7 +75,7 @@ export function StaffClaims() {
     if (!selected) return;
     const note = draft.note.trim() || `${selected.name} expense`;
     const payload = {
-      clientRequestId: crypto.randomUUID(), purpose: note, currency: "MYR",
+      clientRequestId: createBrowserUuid(), purpose: note, currency: "MYR",
       lines: [{ lineNumber: 1, categoryId: selected.id, expenseDate: draft.expenseDate, merchant: draft.merchant.trim() || null, description: note, amount: selected.nature === "MILEAGE" ? "0.01" : draft.amount, mileageKm: selected.nature === "MILEAGE" ? draft.mileageKm : null }],
     };
     const body = new FormData();
@@ -84,8 +84,10 @@ export function StaffClaims() {
     setMessage(null); setError(null); setSubmitting(true);
     try {
       await staffApiFetch("/api/employee-claims", { method: "POST", body });
+      const submittedAmount = selected.nature === "MILEAGE" ? calculatedMileage : Number(draft.amount).toFixed(2);
+      const submittedDate = formatDate(draft.expenseDate);
       setDraft({ ...emptyDraft, categoryId: data?.categories[0]?.id ?? "" }); setReceipt(null); setStep(1);
-      setMessage("Claim submitted. You can track its progress below.");
+      setMessage(`Submitted · RM ${submittedAmount ?? "0.00"} · ${selected.name} · ${submittedDate}. Next: Waiting for review.`);
       await load();
     } catch (value) {
       setError(value instanceof Error ? value.message : "Claim could not be submitted. Check the details and try again.");
@@ -112,6 +114,7 @@ export function StaffClaims() {
       {!data?.categories.length ? <p>Your workplace has not added claim categories yet. Contact HR.</p> : <form onSubmit={submit} className={styles.form}>
         {step === 1 ? <div className={styles.stepPanel}>
           <label>Category<select required value={draft.categoryId} onChange={(event) => update("categoryId", event.target.value)}>{data.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+          {selected ? <div className={styles.policyHint} role="status"><strong>{selected.receiptRequired ? "Receipt required" : "Receipt optional"}</strong><span>{selected.nature === "MILEAGE" ? `Company rate: RM ${selected.mileageRatePerKm ?? "—"} / km` : selected.maxLineAmount ? `Maximum claim: RM ${selected.maxLineAmount}` : "No category amount limit"}</span></div> : null}
           <label>Expense date<input type="date" required value={draft.expenseDate} onChange={(event) => update("expenseDate", event.target.value)} /></label>
           <div className={styles.stepActions}><button type="button" onClick={continueFromStepOne}>Continue</button></div>
         </div> : null}

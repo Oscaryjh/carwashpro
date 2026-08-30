@@ -10,6 +10,7 @@ import {
   StaffApiError,
   staffApiFetch,
 } from "@/lib/staff-pwa/client";
+import { getMissingClockOutCorrectionState } from "@/lib/staff-pwa/attendance-correction-eligibility";
 import type {
   AttendanceHistory,
   AttendanceHistoryItem,
@@ -39,7 +40,13 @@ export function StaffHistory() {
   const [correctionSubmitting, setCorrectionSubmitting] = useState(false);
   const [correctionMessage, setCorrectionMessage] = useState("");
   const [knownBranches, setKnownBranches] = useState<Array<{ id: string; name: string }>>([]);
+  const availableBranches = history?.availableBranches.length ? history.availableBranches : knownBranches;
+  const hasSingleBranch = availableBranches.length === 1;
+  const hasMultipleBranches = availableBranches.length > 1;
 
+  useEffect(() => {
+    if (window.location.hash === "#attendance-correction") setCorrectionOpen(true);
+  }, []);
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -57,6 +64,9 @@ export function StaffHistory() {
         `/api/employee-attendance/history?${params.toString()}`,
       );
       setHistory(result.data);
+      if (result.data.availableBranches.length === 1) {
+        setCorrectionBranchId(result.data.availableBranches[0]?.id ?? "");
+      }
       setKnownBranches((current) => {
         const map = new Map(
           [...current, ...result.data.availableBranches].map((branch) => [
@@ -95,6 +105,22 @@ export function StaffHistory() {
     } else {
       setPage(1);
     }
+  }
+
+  function openMissingClockOutCorrection(item: AttendanceHistoryItem) {
+    setCorrectionType("FORGOT_CLOCK_OUT");
+    setCorrectionSessionId(item.id);
+    setCorrectionBranchId(item.branch.id);
+    setRequestedClockOutAt("");
+    setCorrectionMessage("");
+    setCorrectionOpen(true);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById("attendance-correction")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
   }
 
   async function submitCorrection(event: FormEvent<HTMLFormElement>) {
@@ -165,9 +191,15 @@ export function StaffHistory() {
   return (
     <div className="staff-history-stack">
       <section className="staff-page-title">
-        <p className="staff-kicker">MY ATTENDANCE</p>
-        <h1>My Attendance</h1>
-        <p>Only your own Attendance records are shown.</p>
+        <p className="staff-kicker">MY TIME</p>
+        <h1>Time</h1>
+        <p>See today, your schedule, attendance history and monthly results.</p>
+        <nav className="staff-time-navigation" aria-label="Time sections">
+          <a href="/staff"><small>Today</small><strong>Current attendance</strong></a>
+          <a href="/staff/roster"><small>Schedule</small><strong>Published roster</strong></a>
+          <a className="active" href="/staff/history"><small>History</small><strong>Past attendance</strong></a>
+          <a href="/staff/timesheet"><small>Monthly</small><strong>Timesheet &amp; overtime</strong></a>
+        </nav>
         <button
           className="staff-secondary-button"
           onClick={() => setCorrectionOpen((current) => !current)}
@@ -178,11 +210,11 @@ export function StaffHistory() {
       </section>
 
       {correctionOpen ? (
-        <section className="staff-page-card">
+        <section className="staff-page-card" id="attendance-correction">
           <div className="staff-card-heading">
             <div>
               <p className="staff-kicker">ATTENDANCE CORRECTION</p>
-              <h2>Report a missing punch</h2>
+              <h2>Request an attendance correction</h2>
             </div>
           </div>
           <form className="staff-history-filters" onSubmit={submitCorrection}>
@@ -202,19 +234,21 @@ export function StaffHistory() {
                 <option value="FORGOT_CLOCK_IN">Forgot clock in</option>
               </select>
             </label>
-            <label>
-              Branch
-              <select
-                onChange={(event) => setCorrectionBranchId(event.target.value)}
-                required
-                value={correctionBranchId}
-              >
-                <option value="">Select branch</option>
-                {(history?.availableBranches ?? knownBranches).map((branch) => (
-                  <option key={branch.id} value={branch.id}>{branch.name}</option>
-                ))}
-              </select>
-            </label>
+            {!hasSingleBranch ? (
+              <label>
+                Branch
+                <select
+                  onChange={(event) => setCorrectionBranchId(event.target.value)}
+                  required
+                  value={correctionBranchId}
+                >
+                  <option value="">Select branch</option>
+                  {availableBranches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>{branch.name}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {correctionType === "FORGOT_CLOCK_OUT" ? (
               <label>
                 Attendance shift
@@ -227,13 +261,11 @@ export function StaffHistory() {
                   {(history?.items ?? [])
                     .filter(
                       (item) =>
-                        !item.clockOutAt &&
-                        item.status !== "COMPLETED" &&
-                        item.status !== "CANCELLED",
+                        getMissingClockOutCorrectionState(item) === "ACTIONABLE",
                     )
                     .map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.workDate} / {item.branch.name} / {humanize(item.status)}
+                        {formatWorkDate(item.workDate)} · {item.branch.name} · {humanize(item.status)}
                       </option>
                     ))}
                 </select>
@@ -290,15 +322,17 @@ export function StaffHistory() {
             To
             <input onChange={(event) => setTo(event.target.value)} type="date" value={to} />
           </label>
-          <label>
-            Branch
-            <select onChange={(event) => setBranchId(event.target.value)} value={branchId}>
-              <option value="">All branches</option>
-              {knownBranches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-            </select>
-          </label>
+          {hasMultipleBranches ? (
+            <label>
+              Branch
+              <select onChange={(event) => setBranchId(event.target.value)} value={branchId}>
+                <option value="">All branches</option>
+                {availableBranches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.name}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
             Status
             <select onChange={(event) => setStatus(event.target.value)} value={status}>
@@ -320,8 +354,14 @@ export function StaffHistory() {
 
       {history ? (
         <>
-          <section className="staff-history-list" aria-busy={loading}>
-            {history.items.map((item) => <HistoryCard item={item} key={item.id} />)}
+          <section className="staff-history-list" aria-busy={loading} aria-label="Attendance history">
+            {history.items.map((item) => (
+              <HistoryCard
+                item={item}
+                key={item.id}
+                onSubmitCorrection={openMissingClockOutCorrection}
+              />
+            ))}
             {!history.items.length ? (
               <div className="staff-empty-state">
                 <span aria-hidden="true">◷</span>
@@ -330,7 +370,7 @@ export function StaffHistory() {
               </div>
             ) : null}
           </section>
-          <div className="staff-pagination">
+          {history.pagination.totalPages > 1 ? <div className="staff-pagination">
             <button
               disabled={loading || history.pagination.page <= 1}
               onClick={() => setPage((current) => Math.max(1, current - 1))}
@@ -352,14 +392,22 @@ export function StaffHistory() {
             >
               Next
             </button>
-          </div>
+          </div> : null}
         </>
       ) : null}
     </div>
   );
 }
 
-function HistoryCard({ item }: { item: AttendanceHistoryItem }) {
+function HistoryCard({
+  item,
+  onSubmitCorrection,
+}: {
+  item: AttendanceHistoryItem;
+  onSubmitCorrection: (item: AttendanceHistoryItem) => void;
+}) {
+  const correctionState = getMissingClockOutCorrectionState(item);
+
   return (
     <article className="staff-history-card">
       <div className="staff-history-card-header">
@@ -382,6 +430,29 @@ function HistoryCard({ item }: { item: AttendanceHistoryItem }) {
         <span>{item.requiresApproval ? `Approval: ${humanize(item.approvalStatus)}` : "No approval required"}</span>
         {item.adjusted ? <span className="adjusted">Adjusted</span> : null}
       </div>
+      {correctionState === "ACTIONABLE" ? (
+        <div className="staff-history-actions">
+          <div>
+            <strong>Missing clock out</strong>
+            <small>Add the correct clock-out time for manager review.</small>
+          </div>
+          <button
+            className="staff-secondary-button"
+            onClick={() => onSubmitCorrection(item)}
+            type="button"
+          >
+            Submit correction
+          </button>
+        </div>
+      ) : null}
+      {correctionState === "PENDING" ? (
+        <div className="staff-history-actions pending" role="status">
+          <div>
+            <strong>Correction pending</strong>
+            <small>Your manager has this request for review.</small>
+          </div>
+        </div>
+      ) : null}
     </article>
   );
 }

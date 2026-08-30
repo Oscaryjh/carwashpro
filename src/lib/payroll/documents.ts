@@ -33,6 +33,9 @@ export async function loadPayrollDocumentRun(
         orderBy: [{ fullNameSnapshot: "asc" }],
         include: {
           components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] },
+          attendanceInputSnapshot: {
+            select: { unauthorizedAbsenceDays: true },
+          },
           statutorySnapshots: {
             select: {
               evidenceNature: true,
@@ -72,6 +75,9 @@ export async function loadPayrollPayslip(
     where: { id: entryId, businessId },
     include: {
       components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] },
+      attendanceInputSnapshot: {
+        select: { unauthorizedAbsenceDays: true },
+      },
       statutorySnapshots: {
         select: {
           evidenceNature: true,
@@ -108,7 +114,15 @@ export async function loadPayrollPayslip(
 
 export function payrollDocumentEntry(
   entry: PayrollEntry & {
-    components?: Array<{ amount: { toString(): string }; name: string; type: "EARNING" | "DEDUCTION" }>;
+    components?: Array<{
+      amount: { toString(): string };
+      name: string;
+      type: "EARNING" | "DEDUCTION";
+      sourceType: string;
+    }>;
+    attendanceInputSnapshot?: {
+      unauthorizedAbsenceDays: { toString(): string };
+    } | null;
     claimReimbursementSnapshots?: Array<{ amount: { toString(): string }; claimNumberSnapshot: string }>;
     statutorySnapshots?: Array<{
       evidenceNature: "REAL" | "SYNTHETIC_TESTING";
@@ -135,6 +149,11 @@ export function payrollDocumentEntry(
     regularMinutes: entry.regularMinutes,
     overtimeMinutes: entry.overtimeMinutes,
     publicHolidayMinutes: entry.publicHolidayMinutes,
+    unpaidLeaveDays: Number(entry.unpaidLeaveDays),
+    unauthorizedAbsenceDays: entry.attendanceInputSnapshot
+      ? Number(entry.attendanceInputSnapshot.unauthorizedAbsenceDays.toString())
+      : undefined,
+    unpaidLeaveDeduction: Number(entry.unpaidLeaveDeduction),
     basicPay: Number(entry.basicPay),
     overtimePay: Number(entry.overtimePay),
     publicHolidayPay: Number(entry.publicHolidayPay),
@@ -162,6 +181,7 @@ export function payrollDocumentEntry(
       amount: Number(component.amount.toString()),
       name: component.name,
       type: component.type,
+      sourceType: component.sourceType,
     })),
     statutoryEvidenceNature: syntheticSnapshot ? "SYNTHETIC_TESTING" : "REAL",
     statutoryEvidenceEnvironment: syntheticSnapshot?.evidenceEnvironment ?? null,

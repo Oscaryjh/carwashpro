@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -40,7 +41,7 @@ type PendingPunch = {
   breakExceptionReason?: string | null;
 };
 
-export function StaffToday() {
+export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode }) {
   const router = useRouter();
   const mounted = useRef(true);
   const [today, setToday] = useState<AttendanceToday | null>(null);
@@ -88,7 +89,7 @@ export function StaffToday() {
   }
   if (!today) {
     return (
-      <section className="staff-page-card">
+      <section className="staff-page-card staff-attendance-primary-card">
         <div className="staff-alert error" role="alert">{error || "Unable to load Attendance."}</div>
         <button className="staff-primary-button" onClick={() => load()} type="button">
           Try again
@@ -636,7 +637,7 @@ export function StaffToday() {
                 <button
                   className={
                     action === "CLOCK_IN" || action === "CLOCK_OUT"
-                      ? "staff-primary-button"
+                      ? "staff-primary-button staff-clock-action"
                       : "staff-secondary-button"
                   }
                   disabled={busy}
@@ -664,26 +665,27 @@ export function StaffToday() {
         ) : null}
       </section>
 
-      <section className="staff-page-card staff-schedule-card" aria-labelledby="staff-schedule-heading">
+      {afterAttendance}
+
+      <section
+        className={`staff-page-card staff-schedule-card${today.expectedAttendance ? "" : " is-empty"}`}
+        aria-labelledby="staff-schedule-heading"
+      >
         <div className="staff-card-heading">
           <div>
-            <p className="staff-kicker">EXPECTED ATTENDANCE</p>
-            <h2 id="staff-schedule-heading">Today&apos;s published evidence</h2>
+            <p className="staff-kicker">SCHEDULE</p>
+            <h2 id="staff-schedule-heading">Today&apos;s schedule</h2>
           </div>
-          {today.expectedAttendance ? (
-            <span className="staff-status-chip">Revision {today.expectedAttendance.revision}</span>
-          ) : null}
         </div>
         {today.expectedAttendance ? (
           <div className="staff-schedule-evidence">
             <strong>{expectedAttendanceLabel(today.expectedAttendance.kind)}</strong>
             <span>{expectedAttendanceDetail(today.expectedAttendance)}</span>
-            <small>Source: {today.expectedAttendance.source.replaceAll("_", " ").toLowerCase()}</small>
           </div>
         ) : (
           <div className="staff-schedule-empty" role="status">
-            <strong>No published schedule available</strong>
-            <span>No expected-attendance evidence exists for today. Tetamu will not infer that this is an off day.</span>
+            <strong>No schedule yet</strong>
+            <span>Check with your manager for today&apos;s shift. This is not shown as a rest day.</span>
           </div>
         )}
       </section>
@@ -1045,18 +1047,18 @@ function formatTime(value: string, timeZone?: string) {
 }
 
 function expectedAttendanceLabel(kind: NonNullable<AttendanceToday["expectedAttendance"]>["kind"]) {
-  if (kind === "WORKDAY") return "Published workday";
-  if (kind === "REST_DAY") return "Published rest day";
-  if (kind === "PUBLIC_HOLIDAY") return "Published public holiday";
-  return "Published as not scheduled";
+  if (kind === "WORKDAY") return "Today's shift";
+  if (kind === "REST_DAY") return "Rest day";
+  if (kind === "PUBLIC_HOLIDAY") return "Public holiday";
+  return "Not scheduled";
 }
 
 function expectedAttendanceDetail(expected: NonNullable<AttendanceToday["expectedAttendance"]>) {
   if (expected.kind !== "WORKDAY") {
-    return "This status comes from explicit expected-attendance evidence.";
+    return "No work shift is scheduled for today.";
   }
   if (!expected.expectedStartAt || !expected.expectedEndAt) {
-    return "Published workday evidence is incomplete. Contact your manager.";
+    return "Shift times are not available yet. Contact your manager.";
   }
   const start = formatTime(expected.expectedStartAt, expected.timezone);
   const end = formatTime(expected.expectedEndAt, expected.timezone);

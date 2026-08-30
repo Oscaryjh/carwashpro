@@ -471,6 +471,21 @@ enum StatutoryComponentTreatment {
   UNKNOWN
 }
 
+enum PcbStatutoryComponentNature {
+  NORMAL_TAXABLE
+  ADDITIONAL_TAXABLE
+  PCB_ONLY_BIK
+  PCB_ONLY_VOLA
+  TAX_EXEMPT
+  EXCLUDED
+  UNKNOWN
+}
+
+enum PcbStatutoryClassificationReviewStatus {
+  REVIEWED
+  NEEDS_EVIDENCE
+}
+
 enum StatutoryCalculationSource {
   CALCULATED
   MANUAL_OFFICIAL_PORTAL
@@ -494,6 +509,19 @@ enum StatutoryEvidenceNature {
 enum StatutoryEvidenceEnvironment {
   LOCAL
   TESTING
+}
+
+enum StatutoryParticipationStatus {
+  PARTICIPATING
+  NOT_PARTICIPATING
+}
+
+enum StatutoryParticipationSourceType {
+  OFFICIAL_RECORD
+  EMPLOYMENT_CHANGE
+  EMPLOYEE_DECLARATION
+  LEGACY_REVIEW
+  OTHER
 }
 
 enum StatutoryFixturePurpose {
@@ -1835,6 +1863,8 @@ model Business {
   slug                    String           @unique
   industryType            BusinessIndustry @default(AUTO_DETAILING) @map("industry_type")
   logoUrl                 String?          @map("logo_url")
+  staffAppLogoUrl         String?          @map("staff_app_logo_url")
+  staffAppAppearance      Json?            @map("staff_app_appearance")
   companyNo               String?          @map("company_no")
   phone                   String?
   email                   String?
@@ -1937,6 +1967,7 @@ model Business {
   staffTimeOff                   StaffTimeOff[]
   appointmentReminderSetting     AppointmentReminderSetting?
   employeeMemberships            EmployeeBusinessMembership[]
+  statutoryParticipationPeriods  EmployeeStatutoryParticipationPeriod[]
   lindung24ParticipationVersions EmployeeLindung24ParticipationVersion[]
   lindung24RefundEvents          EmployeeLindung24RefundEvent[]
   payrollSetting                 PayrollSetting?
@@ -2675,6 +2706,8 @@ model User {
   recurringPayVersionsCreated    EmployeeRecurringPayComponentVersion[]  @relation("RecurringPayVersionCreatedBy")
   recurringPayVersionsSuperseded EmployeeRecurringPayComponentVersion[]  @relation("RecurringPayVersionSupersededBy")
   payrollProfileCommands         PayrollProfileCommandRecord[]           @relation("PayrollProfileCommandActor")
+  statutoryParticipationRecorded EmployeeStatutoryParticipationPeriod[]  @relation("StatutoryParticipationRecordedBy")
+  statutoryParticipationConfirmed EmployeeStatutoryParticipationPeriod[] @relation("StatutoryParticipationConfirmedBy")
   lindung24ParticipationRecorded EmployeeLindung24ParticipationVersion[] @relation("Lindung24ParticipationRecordedBy")
   lindung24RefundEventsRecorded  EmployeeLindung24RefundEvent[]          @relation("Lindung24RefundEventRecordedBy")
   bankAccountVersionsCreated     EmployeeBankAccountVersion[]            @relation("EmployeeBankVersionCreatedBy")
@@ -3390,6 +3423,7 @@ model EmployeeBusinessMembership {
   payrollWorkPaySnapshots        PayrollWorkPayCalculationSnapshot[]
   payrollWorkPayLines            PayrollWorkPayCalculationLine[]
   statutoryProfileVersions       EmployeeStatutoryProfileVersion[]
+  statutoryParticipationPeriods  EmployeeStatutoryParticipationPeriod[]
   lindung24ParticipationVersions EmployeeLindung24ParticipationVersion[]
   lindung24RefundEvents          EmployeeLindung24RefundEvent[]
   payrollStatutorySnapshots      PayrollEntryStatutorySnapshot[]
@@ -5028,21 +5062,29 @@ model StatutoryRuleLifecycleAudit {
 }
 
 model StatutoryComponentClassification {
-  id            String                           @id @default(uuid()) @db.Uuid
-  ruleSetId     String                           @map("rule_set_id") @db.Uuid
-  scheme        StatutoryScheme
-  componentCode String                           @map("component_code") @db.VarChar(64)
-  sourceType    PayrollEntryComponentSourceType? @map("source_type")
-  treatment     StatutoryComponentTreatment
-  rationale     String                           @db.VarChar(500)
-  authorityRef  String                           @map("authority_ref") @db.VarChar(500)
-  createdAt     DateTime                         @default(now()) @map("created_at")
+  id                String                                  @id @default(uuid()) @db.Uuid
+  ruleSetId         String                                  @map("rule_set_id") @db.Uuid
+  scheme            StatutoryScheme
+  componentCode     String                                  @map("component_code") @db.VarChar(64)
+  sourceType        PayrollEntryComponentSourceType?        @map("source_type")
+  treatment         StatutoryComponentTreatment
+  rationale         String                                  @db.VarChar(500)
+  authorityRef      String                                  @map("authority_ref") @db.VarChar(500)
+  pcbNature         PcbStatutoryComponentNature?            @map("pcb_nature")
+  effectiveFrom     DateTime?                               @map("effective_from") @db.Date
+  effectiveTo       DateTime?                               @map("effective_to") @db.Date
+  evidenceStatus    PcbStatutoryClassificationReviewStatus? @map("evidence_status")
+  evidenceReference String?                                 @map("evidence_reference") @db.VarChar(1000)
+  semanticMetadata  Json?                                   @map("semantic_metadata")
+  revision          Int                                     @default(1)
+  createdAt         DateTime                                @default(now()) @map("created_at")
 
   ruleSet         StatutoryRuleSet                   @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
   reviewDecisions StatutoryComponentReviewDecision[]
 
   @@unique([ruleSetId, scheme, componentCode, sourceType])
   @@index([scheme, componentCode, sourceType])
+  @@index([ruleSetId, scheme, effectiveFrom, effectiveTo])
   @@map("statutory_component_classifications")
 }
 
@@ -5102,6 +5144,40 @@ model EmployeeStatutoryProfileVersion {
   @@unique([membershipId, revision])
   @@index([businessId, membershipId, createdAt])
   @@map("employee_statutory_profile_versions")
+}
+
+model EmployeeStatutoryParticipationPeriod {
+  id                  String                           @id @default(uuid()) @db.Uuid
+  businessId          String                           @map("business_id") @db.Uuid
+  membershipId        String                           @map("membership_id") @db.Uuid
+  scheme              StatutoryScheme
+  revision            Int
+  effectiveFromMonth  DateTime                         @map("effective_from_month") @db.Date
+  effectiveToMonth    DateTime?                        @map("effective_to_month") @db.Date
+  status              StatutoryParticipationStatus
+  sourceType          StatutoryParticipationSourceType @map("source_type")
+  sourceReference     String?                          @map("source_reference") @db.VarChar(500)
+  reason              String                           @db.VarChar(500)
+  sourceDigest        String                           @map("source_digest") @db.Char(64)
+  recordedById        String                           @map("recorded_by_id") @db.Uuid
+  recordedAt          DateTime                         @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  confirmedById       String                           @map("confirmed_by_id") @db.Uuid
+  confirmedAt         DateTime                         @map("confirmed_at") @db.Timestamptz(3)
+  supersedesPeriodId  String?                          @unique @map("supersedes_period_id") @db.Uuid
+  supersededAt        DateTime?                        @map("superseded_at") @db.Timestamptz(3)
+
+  business            Business                              @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  membership          EmployeeBusinessMembership            @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  recordedBy          User                                  @relation("StatutoryParticipationRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  confirmedBy         User                                  @relation("StatutoryParticipationConfirmedBy", fields: [confirmedById], references: [id], onDelete: Restrict)
+  supersedesPeriod    EmployeeStatutoryParticipationPeriod? @relation("StatutoryParticipationSupersedes", fields: [supersedesPeriodId], references: [id], onDelete: Restrict)
+  supersededByPeriod  EmployeeStatutoryParticipationPeriod? @relation("StatutoryParticipationSupersedes")
+  payrollSnapshots    PayrollEntryStatutorySnapshot[]
+
+  @@unique([id, businessId, membershipId])
+  @@unique([membershipId, scheme, revision])
+  @@index([businessId, membershipId, scheme, effectiveFromMonth, effectiveToMonth])
+  @@map("employee_statutory_participation_periods")
 }
 
 model EmployeeLindung24ParticipationVersion {
@@ -5188,6 +5264,12 @@ model PayrollEntryStatutorySnapshot {
   matchedRuleKey                         String?                       @map("matched_rule_key") @db.VarChar(120)
   calculationInputDigest                 String?                       @map("calculation_input_digest") @db.Char(64)
   profileVersionId                       String?                       @map("profile_version_id") @db.Uuid
+  statutoryParticipationPeriodId         String?                       @map("statutory_participation_period_id") @db.Uuid
+  statutoryParticipationStatusSnapshot   StatutoryParticipationStatus? @map("statutory_participation_status_snapshot")
+  statutoryParticipationFromSnapshot     DateTime?                     @map("statutory_participation_from_snapshot") @db.Date
+  statutoryParticipationToSnapshot       DateTime?                     @map("statutory_participation_to_snapshot") @db.Date
+  statutoryParticipationRevisionSnapshot Int?                          @map("statutory_participation_revision_snapshot")
+  statutoryParticipationSourceSnapshot   String?                       @map("statutory_participation_source_snapshot") @db.VarChar(500)
   lindung24ParticipationVersionId        String?                       @map("lindung24_participation_version_id") @db.Uuid
   lindung24ParticipationRevisionSnapshot Int?                          @map("lindung24_participation_revision_snapshot")
   lindung24EmployerSelectionSnapshot     Lindung24SelectedEmployer?    @map("lindung24_employer_selection_snapshot")
@@ -5211,6 +5293,7 @@ model PayrollEntryStatutorySnapshot {
   membership                    EmployeeBusinessMembership             @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
   ruleSet                       StatutoryRuleSet?                      @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
   profileVersion                EmployeeStatutoryProfileVersion?       @relation(fields: [profileVersionId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Restrict)
+  statutoryParticipationPeriod  EmployeeStatutoryParticipationPeriod?  @relation(fields: [statutoryParticipationPeriodId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Restrict)
   lindung24ParticipationVersion EmployeeLindung24ParticipationVersion? @relation(fields: [lindung24ParticipationVersionId, businessId, membershipId], references: [id, businessId, membershipId], onDelete: Restrict)
 
   @@unique([payrollEntryId, scheme])

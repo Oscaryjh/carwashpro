@@ -17,6 +17,7 @@ import {
 import { writeAuditLog, type AuditRequestContext } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { ANALYTICS_BUSINESS_DAY_DEFINITION_VERSION, ANALYTICS_METRIC_DEFINITION_VERSION } from "@/lib/analytics/constants";
+import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
 
 export type ExpenseActor = Readonly<{ userId: string; name: string; email: string }>;
 export type ExpenseReceiptInput = Readonly<{
@@ -771,9 +772,13 @@ async function recordExpenseDrawerPayout(tx: Prisma.TransactionClient, input: {
 
   const shift = await tx.cashierShift.findFirst({
     where: { branchId: input.branchId, businessId: input.businessId, id: input.cashierShiftId, status: "OPEN" },
-    select: { id: true, openingFloat: true },
+    select: { id: true, openingFloat: true, startedAt: true },
   });
   if (!shift) throw new ExpenseDomainError("The selected POS shift is closed or outside this expense branch.", "EXPENSE_DRAWER_SHIFT_INVALID");
+  const shiftActivity = await assertCashierShiftAcceptsActivity(tx, {
+    businessId: input.businessId,
+    shift,
+  });
 
   const [cashPayments, cashRefunds, priorPayouts] = await Promise.all([
     tx.payment.aggregate({ where: { businessId: input.businessId, method: "CASH", shiftId: shift.id, status: "ACTIVE" }, _sum: { amount: true } }),
@@ -793,6 +798,7 @@ async function recordExpenseDrawerPayout(tx: Prisma.TransactionClient, input: {
       businessId: input.businessId,
       createdById: input.actorUserId,
       paymentEventId: input.paymentEventId,
+      occurredAt: shiftActivity.activityAt,
       shiftId: shift.id,
     },
   });

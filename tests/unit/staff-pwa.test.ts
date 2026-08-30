@@ -30,6 +30,46 @@ const profileSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-profile.tsx", import.meta.url),
   "utf8",
 );
+const requestsSource = readFileSync(
+  new URL("../../src/app/staff/requests/page.tsx", import.meta.url),
+  "utf8",
+);
+const paySource = readFileSync(
+  new URL("../../src/app/staff/pay/page.tsx", import.meta.url),
+  "utf8",
+);
+const historySource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-history.tsx", import.meta.url),
+  "utf8",
+);
+const employeeTimesheetSource = readFileSync(
+  new URL("../../src/lib/attendance/employee-timesheet.ts", import.meta.url),
+  "utf8",
+);
+const timesheetPageSource = readFileSync(
+  new URL("../../src/app/staff/timesheet/page.tsx", import.meta.url),
+  "utf8",
+);
+const homeOverviewSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-home-overview.tsx", import.meta.url),
+  "utf8",
+);
+const leaveSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-leave.tsx", import.meta.url),
+  "utf8",
+);
+const claimsSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-claims.tsx", import.meta.url),
+  "utf8",
+);
+const payslipsSource = readFileSync(
+  new URL("../../src/app/staff/payslips/page.tsx", import.meta.url),
+  "utf8",
+);
+const commissionSource = readFileSync(
+  new URL("../../src/app/staff/commission/page.tsx", import.meta.url),
+  "utf8",
+);
 const chromeSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-pwa-chrome.tsx", import.meta.url),
   "utf8",
@@ -249,8 +289,8 @@ test("Today offers an additional shift after a completed session", () => {
 });
 
 test("Today shows only explicit expected-attendance evidence and never guesses an off day", () => {
-  assert.match(todaySource, /No published schedule available/);
-  assert.match(todaySource, /will not infer that this is an off day/);
+  assert.match(todaySource, /No schedule yet/);
+  assert.match(todaySource, /not shown as a rest day/);
   assert.match(todaySource, /expectedAttendance\.kind/);
   assert.doesNotMatch(todaySource, /!today\.expectedAttendance[^\n]*Off Day/i);
 });
@@ -314,20 +354,99 @@ test("Staff navigation follows module entitlement without overcrowding the mobil
   assert.equal(full.primary.length, 5, "Staff navigation is fixed to five mobile destinations");
 });
 
+test("Staff Requests separates employee self-service from role-aware manager approvals", () => {
+  assert.match(requestsSource, /Team approvals/);
+  assert.match(requestsSource, /getStaffTeamApprovalSummary/);
+  assert.match(requestsSource, /getStaffOvertimeSummary/);
+  assert.match(requestsSource, /MY REQUESTS/);
+  assert.match(requestsSource, /Attendance correction/);
+  assert.match(requestsSource, /href="\/staff\/history"[^\n]*Attendance corrections/);
+  assert.doesNotMatch(requestsSource, /Review employee time corrections waiting/);
+  assert.doesNotMatch(requestsSource, /canonical workflow/);
+  assert.doesNotMatch(requestsSource, /Submit OT|Request overtime/);
+  assert.match(leaveSource, /Supporting document required/);
+  assert.match(leaveSource, /Supporting document optional/);
+  assert.doesNotMatch(leaveSource, /readinessCode \?/);
+  assert.match(claimsSource, /Receipt required/);
+  assert.match(claimsSource, /Next: Waiting for review/);
+  assert.match(claimsSource, /createBrowserUuid\(\)/);
+});
+
+test("Staff Home makes Clock In and Clock Out the dominant daily action", () => {
+  assert.match(todaySource, /staff-attendance-primary-card/);
+  assert.match(todaySource, /staff-primary-button staff-clock-action/);
+});
+
+test("Staff Time groups schedule, attendance, correction, timesheet and overtime", () => {
+  assert.match(historySource, /staff-time-navigation/);
+  assert.match(historySource, /Published roster/);
+  assert.match(historySource, /Past attendance/);
+  assert.match(historySource, /Timesheet &amp; overtime/);
+  assert.match(historySource, /attendance-correction/);
+  assert.match(historySource, /hasSingleBranch/);
+  assert.match(historySource, /hasMultipleBranches/);
+});
+
+test("Staff monthly timesheet keeps attendance results and exceptions inside the displayed month", () => {
+  assert.equal(
+    employeeTimesheetSource.match(/workDate: \{ gte: monthStart, lt: monthEndExclusive \}/g)?.length,
+    2,
+  );
+  assert.match(timesheetPageSource, /formatMonth\(monthStart\)/);
+  assert.match(timesheetPageSource, /Action needed/);
+  assert.match(timesheetPageSource, /Waiting for manager/);
+  assert.match(timesheetPageSource, />Final</);
+  assert.match(timesheetPageSource, />RESULT</);
+  assert.match(timesheetPageSource, />WHY</);
+  assert.match(timesheetPageSource, />NEXT ACTION</);
+  assert.doesNotMatch(timesheetPageSource, /final attendance results|snapshot|materialization|Submit OT|Request overtime/);
+});
+
+test("Staff Pay shows the latest available Gross, Deductions and Net pay summary", () => {
+  assert.match(paySource, />Gross</);
+  assert.match(paySource, />Deductions</);
+  assert.match(paySource, />Net pay</);
+  assert.match(paySource, /View payslip/);
+  assert.match(paySource, />Available</);
+  assert.match(paySource, /Not available yet/);
+  assert.doesNotMatch(paySource, />Published</);
+  assert.match(payslipsSource, /Available since/);
+  assert.match(commissionSource, /separate earnings statement/);
+  assert.match(commissionSource, /not necessarily included in your current payslip/);
+});
+
+test("Staff Profile avoids a duplicate workplace switcher and hides device metadata by default", () => {
+  assert.match(profileSource, /CURRENT WORKPLACE/);
+  assert.doesNotMatch(profileSource, /SWITCH WORKPLACE/);
+  assert.match(chromeSource, /openWorkplaceSwitcher/);
+  assert.match(profileSource, /<details className="staff-security-details">/);
+  assert.match(profileSource, /THIS PHONE/);
+  assert.match(profileSource, /<h2>Signed in<\/h2>/);
+  assert.match(profileSource, /label="Last active"/);
+  assert.doesNotMatch(profileSource, /label="Browser"|label="Can view"|label="Can punch"/);
+});
+
 test("Staff navigation refreshes live employee module entitlement after login", () => {
   assert.match(moduleRouteSource, /requireEmployeeSelfServiceAuthContext/);
   assert.match(moduleRouteSource, /loadBusinessModuleContext\(auth\.businessId\)/);
   assert.match(moduleRouteSource, /enabledModules: \[\.\.\.context\.enabledModules\]/);
 });
 
-test("Staff Home delegates summaries to canonical domain readers", () => {
-  assert.match(homeSource, /getEmployeeLeaveOverview/);
-  assert.match(homeSource, /getEmployeeClaimOverview/);
-  assert.match(homeSource, /getEmployeeCommissionStatements/);
-  assert.match(homeSource, /getEmployeeTimesheetOverview/);
-  assert.match(homeSource, /loadPublishedPayslipsForEmployee/);
-  assert.doesNotMatch(homeSource, /prisma\./);
-  assert.match(homeSource, /Temporarily unavailable/);
+test("Staff Home stays lightweight and delegates schedule and appointments to canonical readers", () => {
+  assert.match(homeSource, /getEmployeePublishedRoster/);
+  assert.match(homeSource, /getStaffAppointmentDay/);
+  assert.match(homeSource, /loadStaffAppAppearance/);
+  assert.match(homeSource, /modules\.has\("SALON"\)/);
+  assert.doesNotMatch(homeOverviewSource, /<p>\{businessName\}<\/p>/);
+  assert.doesNotMatch(homeOverviewSource, /staff-welcome-branch/);
+  assert.match(homeSource, /domain: "APPOINTMENTS"/);
+  assert.match(homeSource, /domain: "ROSTER"/);
+  assert.match(homeSource, /domain: "LEAVE"/);
+  assert.doesNotMatch(homeSource, /items\.push\(\{ domain: "TIMESHEET"/);
+  assert.doesNotMatch(homeSource, /items\.push\(\{ domain: "CLAIMS"/);
+  assert.doesNotMatch(homeSource, /items\.push\(\{ domain: "COMMISSION"/);
+  assert.doesNotMatch(homeSource, /items\.push\(\{ domain: "PAYSLIP"/);
+  assert.match(homeSource, /Schedule temporarily unavailable/);
   assert.match(homeSource, /showWelcome: true/);
 });
 
@@ -338,7 +457,7 @@ test("Staff workplace switching is server-scoped and performs a hard tenant rese
   assert.doesNotMatch(switchWorkplaceRouteSource, /businessId/);
   assert.match(chromeSource, /clearStaffTenantClientState\(\)/);
   assert.match(chromeSource, /window\.location\.replace\("\/staff"\)/);
-  assert.match(chromeSource, /Choose where you are working/);
+  assert.match(chromeSource, /Choose workplace/);
 });
 
 test("every employee Attendance mutation rechecks the HR module server-side", () => {
@@ -367,11 +486,10 @@ test("POS middleware does not treat Staff PWA as a POS user route", () => {
   assert.match(matcher, /"\/team\/:path\*"/);
 });
 
-test("the main system retires Staff pages in favour of the standalone Staff App", () => {
-  assert.match(nextConfigSource, /process\.env\.STAFF_APP_ORIGIN/);
-  assert.match(nextConfigSource, /source:\s*"\/staff\/:path\*"/);
-  assert.match(nextConfigSource, /destination:\s*`\$\{staffAppOrigin\}\/staff\/:path\*`/);
-  assert.match(nextConfigSource, /"http:\/\/localhost:3100"/);
+test("port 3000 owns the canonical Staff routes without a 3100 redirect", () => {
+  assert.doesNotMatch(nextConfigSource, /STAFF_APP_ORIGIN/);
+  assert.doesNotMatch(nextConfigSource, /source:\s*"\/staff\/:path\*"/);
+  assert.doesNotMatch(nextConfigSource, /localhost:3100/);
 });
 
 test("Staff PWA owns vertical scrolling when the POS body is locked", () => {
@@ -391,6 +509,9 @@ test("Staff Profile keeps long employee identifiers inside the mobile card", () 
   assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-profile-stack \.staff-device-details/);
 });
 
-test("Local mobile Staff App can hydrate from the private Wi-Fi subnet", () => {
-  assert.match(nextConfigSource, /allowedDevOrigins:\s*\["192\.168\.1\.\*"\]/);
+test("Local mobile Staff App can hydrate from loopback and the private Wi-Fi subnet", () => {
+  assert.match(
+    nextConfigSource,
+    /allowedDevOrigins:\s*\["127\.0\.0\.1",\s*"192\.168\.1\.\*"\]/,
+  );
 });

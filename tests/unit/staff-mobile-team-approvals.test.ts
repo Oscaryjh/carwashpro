@@ -11,21 +11,30 @@ const files = {
   css: "src/app/staff/staff.css",
 };
 
-test("mobile Team Approvals is capability-based and limited to Leave and Claims", async () => {
+test("mobile Approval Center is capability-based and projects every canonical review domain", async () => {
   const [adapter, home, inbox] = await Promise.all([readFile(files.adapter, "utf8"), readFile(files.home, "utf8"), readFile(files.inbox, "utf8")]);
   assert.match(adapter, /canDirectStaff\(user\.permissions, capability\)/);
+  assert.match(adapter, /MODIFY_ATTENDANCE_EMPLOYEES/);
   assert.match(adapter, /APPROVE_LEAVE/);
   assert.match(adapter, /REVIEW_CLAIM/);
   assert.match(adapter, /MobileApprovalDomain = "LEAVE" \| "CLAIMS"/);
   assert.doesNotMatch(home, /bottom navigation|More menu/i);
-  assert.match(home, /Team Approvals/);
-  assert.match(inbox, /query\.domain === "LEAVE" \|\| query\.domain === "CLAIMS"/);
+  assert.match(home, /Approval Center/);
+  assert.match(inbox, /domain === "ATTENDANCE"/);
+  assert.match(inbox, /domain === "OT"/);
+  assert.match(inbox, /staff\/requests\/attendance-corrections/);
+  assert.match(inbox, /title="Attendance"/);
+  assert.match(inbox, /staff\/requests\/overtime/);
+  assert.doesNotMatch(inbox, /Canonical queue/);
+  assert.match(inbox, /Review requests from your team/);
 });
 
 test("mobile inbox reuses the canonical unified approval reader and oldest-first ordering", async () => {
   const [adapter, service] = await Promise.all([readFile(files.adapter, "utf8"), readFile("src/lib/approvals/service.ts", "utf8")]);
   assert.match(adapter, /getUnifiedApprovalInbox\(access\.unified/);
   assert.match(adapter, /getUnifiedApprovalCounts\(access\.unified/);
+  assert.match(adapter, /domains: \["LEAVE", "CLAIMS"\]/);
+  assert.match(adapter, /loadStaffAttendanceTaskProjection/);
   assert.match(service, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
   assert.match(service, /orderBy: \[\{ submittedAt: "asc" \}, \{ id: "asc" \}\]/);
 });

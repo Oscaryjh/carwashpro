@@ -6,7 +6,7 @@ import {
 } from "../employee-form";
 import styles from "../employee.module.css";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserWithAnyCapability } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
 
 type AttendanceEmployeeDetailsPageProps = {
@@ -37,7 +37,10 @@ export default async function AttendanceEmployeeDetailsPage({
   params,
   searchParams,
 }: AttendanceEmployeeDetailsPageProps) {
-  const context = await requireBusinessUser("MODIFY_ATTENDANCE_EMPLOYEES");
+  const context = await requireBusinessUserWithAnyCapability([
+    "MODIFY_TEAM",
+    "MODIFY_ATTENDANCE_EMPLOYEES",
+  ]);
   const scope = await resolveAttendanceScope(context.access);
   const { employeeId } = await params;
   const pageMessage = await searchParams;

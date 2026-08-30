@@ -11,7 +11,10 @@ import {
   createAttendanceEmployee,
   updateAttendanceEmployee,
 } from "@/lib/attendance/employee-service";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import {
+  requireBusinessUser,
+  requireBusinessUserWithAnyCapability,
+} from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
 
 export type AttendanceEmployeeActionState = {
@@ -30,9 +33,11 @@ export async function createAttendanceEmployeeAction(
   formData: FormData,
 ): Promise<AttendanceEmployeeActionState> {
   try {
-    const { access, user, businessId } = await requireBusinessUser(
-      "MODIFY_ATTENDANCE_EMPLOYEES",
-    );
+    const { access, user, businessId } =
+      await requireBusinessUserWithAnyCapability([
+        "MODIFY_TEAM",
+        "MODIFY_ATTENDANCE_EMPLOYEES",
+      ]);
     const scope = await resolveAttendanceScope(access);
     const request = await getAuditRequestContext();
     const input = buildEmployeeInput(formData, businessId);

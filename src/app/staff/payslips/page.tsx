@@ -17,7 +17,7 @@ export default async function StaffPayslipsPage() {
       <div className="staff-payslip-heading">
         <p>Payroll documents</p>
         <h1 id="staff-payslip-heading">My payslips</h1>
-        <span>Only payslips published to your own employee account appear here.</span>
+        <span>Only payslips made available to your employee account appear here.</span>
       </div>
       {payslips.length ? (
         <div className="staff-payslip-list">
@@ -25,20 +25,27 @@ export default async function StaffPayslipsPage() {
             <article key={payslip.id}>
               <div>
                 <strong>{formatMonth(payslip.payrollRun.periodStart)}</strong>
-                <small>Published {formatDate(payslip.publishedAt)}</small>
+                <small>Available since {formatDate(payslip.publishedAt)}</small>
+                <span className="staff-payslip-inline-summary">
+                  Gross {money(payslip.payrollEntry.grossPay)} · Deductions {money(Number(payslip.payrollEntry.grossPay) - Number(payslip.payrollEntry.netPay))} · <b>Net {money(payslip.payrollEntry.netPay)}</b>
+                </span>
               </div>
-              <Link href={`/staff/payslips/${payslip.id}`}>Download PDF</Link>
+              <Link href={`/staff/payslips/${payslip.id}`}>View payslip</Link>
             </article>
           ))}
         </div>
       ) : (
         <div className="staff-payslip-empty" role="status">
-          <strong>No published payslips</strong>
-          <span>Your employer has not published a payslip to this account yet.</span>
+          <strong>Not available yet</strong>
+          <span>Your employer has not made a payslip available to this account yet.</span>
         </div>
       )}
     </section>
   );
+}
+
+function money(value: number | { toString(): string }) {
+  return new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(Number(value));
 }
 
 function formatMonth(value: Date) {

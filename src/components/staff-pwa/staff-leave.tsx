@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { isEmployeeSessionError, staffApiFetch, StaffApiError } from "@/lib/staff-pwa/client";
+import { createBrowserUuid, isEmployeeSessionError, staffApiFetch, StaffApiError } from "@/lib/staff-pwa/client";
+import { StaffDatePicker } from "./staff-date-picker";
 import styles from "./staff-leave.module.css";
 
 type Overview = {
@@ -58,13 +60,17 @@ type Overview = {
   }>;
 };
 
-export function StaffLeave() {
+export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-request" }) {
   const router = useRouter();
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedPolicyId, setSelectedPolicyId] = useState("");
+  const [startsOn, setStartsOn] = useState("");
+  const [endsOn, setEndsOn] = useState("");
+  const [cameraDocumentNames, setCameraDocumentNames] = useState<string[]>([]);
+  const [uploadedDocumentNames, setUploadedDocumentNames] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -97,9 +103,10 @@ export function StaffLeave() {
       const files = form.getAll("supportingDocument").filter((value): value is File => value instanceof File && value.size > 0);
       if (files.length > 5) throw new Error("Upload up to 5 supporting documents.");
       if (selectedPolicy?.requiresDocument && files.length === 0) throw new Error("Add a supporting document before submitting this Leave request.");
+      if (!startsOn || !endsOn) throw new Error("Choose the start and end dates for this Leave request.");
       const outgoing = new FormData();
       outgoing.set("payload", JSON.stringify({
-        clientRequestId: crypto.randomUUID(),
+        clientRequestId: createBrowserUuid(),
         policyId: selectedPolicyId,
         startsOn: form.get("startsOn"),
         endsOn: form.get("endsOn"),
@@ -114,6 +121,10 @@ export function StaffLeave() {
         body: outgoing,
       });
       formElement.reset();
+      setStartsOn("");
+      setEndsOn("");
+      setCameraDocumentNames([]);
+      setUploadedDocumentNames([]);
       setMessage("Leave application submitted for manager approval.");
       await load();
     } catch (value) {
@@ -185,20 +196,85 @@ export function StaffLeave() {
   }
 
   if (loading && !data) return <section className={styles.state}>Loading Leave...</section>;
+
+  const selectedDocumentNames = [...cameraDocumentNames, ...uploadedDocumentNames];
+
+  const requestForm = !data?.policies.length ? <p>Your company has not enabled Leave policies yet. Contact HR.</p> : (
+    <form onSubmit={submit} className={styles.form}>
+      <div className={styles.requestFields}>
+        <label>Leave type<select required value={selectedPolicyId} onChange={(event) => setSelectedPolicyId(event.target.value)}><option value="" disabled>Select a leave type</option>{data.policies.map((policy) => <option value={policy.id} key={policy.id} disabled={!policy.applicationReady}>{friendlyPolicyName(policy.name)}</option>)}</select></label>
+        {selectedPolicy ? (
+          <div className={styles.policySummary} role="status">
+            <div><strong>{friendlyPolicyName(selectedPolicy.name)}</strong><span>{selectedPolicy.payTreatment === "PAID" ? "Paid" : "Unpaid"}</span></div>
+            <small>{selectedPolicy.requiresDocument ? "Supporting document required" : "Supporting document optional"}</small>
+          </div>
+        ) : null}
+        <div className={styles.dateRange}>
+          <StaffDatePicker label="From" name="startsOn" value={startsOn} onChange={(value) => { setStartsOn(value); if (endsOn && endsOn < value) setEndsOn(""); }} />
+          <StaffDatePicker label="To" min={startsOn || undefined} name="endsOn" value={endsOn} onChange={setEndsOn} />
+        </div>
+        <label>Duration<select name="leaveUnit"><option value="FULL_DAY">Full day / days</option><option value="HALF_DAY_AM">Half day · AM</option><option value="HALF_DAY_PM">Half day · PM</option></select></label>
+        <label>Reason<textarea name="reason" minLength={3} maxLength={500} required placeholder="Tell your manager why you need Leave" /></label>
+      </div>
+      <details className={styles.documents} key={selectedPolicyId} open={selectedPolicy?.requiresDocument ? true : undefined}>
+        <summary>Supporting documents {selectedPolicy?.requiresDocument ? <span>Required</span> : <small>Optional</small>}</summary>
+        <p>Private HR evidence. PDF, JPG, PNG or WEBP · up to 10 MB each · maximum 5 files.</p>
+        <label>Document type<select name="documentType" defaultValue={selectedPolicy?.name.toLowerCase().includes("medical") ? "MEDICAL_CERTIFICATE" : "SUPPORTING_DOCUMENT"}><option value="SUPPORTING_DOCUMENT">Supporting document</option><option value="MEDICAL_CERTIFICATE">Medical certificate</option><option value="HOSPITALISATION_SUPPORT">Hospitalisation support</option><option value="MATERNITY_SUPPORT">Maternity support</option><option value="PATERNITY_SUPPORT">Paternity support</option><option value="OTHER">Other evidence</option></select></label>
+        <div className={styles.documentButtons}>
+          <label className={styles.fileButton}>{cameraDocumentNames.length ? "Retake photo" : "Take photo"}<input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => setCameraDocumentNames(Array.from(event.currentTarget.files ?? [], (file) => file.name))} /></label>
+          <label className={styles.fileButtonSecondary}>{uploadedDocumentNames.length ? "Change files" : "Upload files"}<input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple onChange={(event) => setUploadedDocumentNames(Array.from(event.currentTarget.files ?? [], (file) => file.name))} /></label>
+        </div>
+        {selectedDocumentNames.length ? (
+          <div className={styles.selectedFiles} role="status" aria-live="polite">
+            <span aria-hidden="true">&#10003;</span>
+            <div><strong>{selectedDocumentNames.length} {selectedDocumentNames.length === 1 ? "file" : "files"} ready</strong><small>{selectedDocumentNames.join(", ")}</small></div>
+          </div>
+        ) : null}
+        <small>Files are stored privately. There is no public attachment link.</small>
+      </details>
+      <p>{selectedPolicy?.countMode === "CALENDAR_DAYS" ? "This company policy counts calendar days." : "Only explicit expected workdays are counted; rest days and public holidays are excluded."}</p>
+      <button type="submit" disabled={!selectedPolicy?.applicationReady}>Submit for approval</button>
+    </form>
+  );
+
+  if (view === "new-request") {
+    return (
+      <div className={`${styles.page} ${styles.requestPage}`}>
+        <section className={styles.requestHero}>
+          <Link className={styles.backButton} href="/staff/leave" aria-label="Back to Leave">
+            <span aria-hidden="true">&#8249;</span>
+          </Link>
+          <div><p>TIME OFF</p><h1>New request</h1><span>Complete the details for your manager to review.</span></div>
+        </section>
+        {message ? <div className={styles.success} role="status">{message}</div> : null}
+        {error ? <div className={styles.error} role="alert">{error}</div> : null}
+        <section className={`${styles.card} ${styles.requestCard}`} aria-label="New leave request">
+          {requestForm}
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.page}>
-      <section className={styles.hero}><p>TIME OFF</p><h1>My Leave</h1><span>You choose the Leave type; your manager approves or rejects it without changing its treatment.</span></section>
+      <section className={styles.hero}>
+        <div><p>LEAVE</p><h1>Time off</h1><span>Check balances and submit a request.</span></div>
+        <Link className={styles.heroAction} href="/staff/leave/new">
+          <span aria-hidden="true">+</span>
+          New request
+        </Link>
+      </section>
       {message ? <div className={styles.success} role="status">{message}</div> : null}
       {error ? <div className={styles.error} role="alert">{error}</div> : null}
 
       {data?.policies.length ? (
         <section className={styles.card}>
-          <h2>{data.year} balances</h2>
+          <h2>Balances · {data.year}</h2>
           <div className={styles.balances}>
             {data.policies.filter((policy) => policy.balanceTracked).map((policy) => (
               <article className={styles.balanceCard} key={policy.id}>
                 <div className={styles.balanceHeading}>
-                  <div><span>LEAVE BALANCE</span><h3>{policy.name}</h3></div>
+                  <div><span>LEAVE BALANCE</span><h3>{friendlyPolicyName(policy.name)}</h3><small>{policy.payTreatment === "PAID" ? "Paid" : "Unpaid"}</small></div>
                   <div className={styles.remaining}><strong>{formatDays(policy.remainingDays ?? 0)}</strong><small>days remaining</small></div>
                 </div>
                 <dl className={styles.balanceFacts}>
@@ -219,49 +295,51 @@ export function StaffLeave() {
         </section>
       ) : null}
 
-      <section className={styles.card}>
-        <h2>Apply for Leave</h2>
-        {!data?.policies.length ? <p>Your company has not enabled Leave policies yet. Contact HR.</p> : (
-          <form onSubmit={submit} className={styles.form}>
-            <label>Leave type<select required value={selectedPolicyId} onChange={(event) => setSelectedPolicyId(event.target.value)}><option value="" disabled>Select a ready Leave type</option>{data.policies.map((policy) => <option value={policy.id} key={policy.id} disabled={!policy.applicationReady}>{policy.name} · {policy.payTreatment === "PAID" ? "Paid" : "Unpaid"}{policy.readinessCode ? ` · ${policy.readinessCode}` : ""}</option>)}</select></label>
-            <div><label>From<input name="startsOn" type="date" required /></label><label>To<input name="endsOn" type="date" required /></label></div>
-            <label>Duration<select name="leaveUnit"><option value="FULL_DAY">Full day / days</option><option value="HALF_DAY_AM">Half day · AM</option><option value="HALF_DAY_PM">Half day · PM</option></select></label>
-            <label>Reason<textarea name="reason" minLength={3} maxLength={500} required placeholder="Tell your manager why you need Leave" /></label>
-            <fieldset className={styles.documents}>
-              <legend>Supporting documents {selectedPolicy?.requiresDocument ? <span>Required</span> : <small>Optional</small>}</legend>
-              <p>Private HR evidence. PDF, JPG, PNG or WEBP · up to 10 MB each · maximum 5 files.</p>
-              <label>Document type<select name="documentType" defaultValue={selectedPolicy?.name.toLowerCase().includes("medical") ? "MEDICAL_CERTIFICATE" : "SUPPORTING_DOCUMENT"}><option value="SUPPORTING_DOCUMENT">Supporting document</option><option value="MEDICAL_CERTIFICATE">Medical certificate</option><option value="HOSPITALISATION_SUPPORT">Hospitalisation support</option><option value="MATERNITY_SUPPORT">Maternity support</option><option value="PATERNITY_SUPPORT">Paternity support</option><option value="OTHER">Other evidence</option></select></label>
-              <div className={styles.documentButtons}>
-                <label className={styles.fileButton}>Take photo<input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" /></label>
-                <label className={styles.fileButtonSecondary}>Upload files<input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple /></label>
-              </div>
-              <small>Files are stored privately. There is no public attachment link.</small>
-            </fieldset>
-            <p>{selectedPolicy?.countMode === "CALENDAR_DAYS" ? "This company policy counts calendar days." : "Only explicit expected workdays are counted; rest days and public holidays are excluded."}</p>
-            <button type="submit" disabled={!selectedPolicy?.applicationReady}>Submit for approval</button>
-          </form>
-        )}
-      </section>
-
-      <section className={styles.card}>
-        <h2>My applications</h2>
+      <section className={`${styles.card} ${styles.historySection}`}>
+        <h2>Request history</h2>
         <div className={styles.requests}>
-          {data?.requests.length ? data.requests.map((request) => (
-            <article key={request.id} className={styles.requestCard}>
-              <div className={styles.requestSummary}>
-                <strong>{request.policyNameSnapshot}</strong>
-                <span>{formatDateValue(request.startsOn)} — {formatDateValue(request.endsOn)} · {request.requestedDays} day(s) · {request.leaveUnit.replaceAll("_", " ")}</span>
-                <small>{request.cancellationReason ? `Cancellation: ${request.cancellationReason}` : request.reviewNote ? `Manager note: ${request.reviewNote}` : request.reason}</small>
-              </div>
-              <div className={styles.requestStatus}>
-                <b className={styles[request.status.toLowerCase()]}>{request.status}</b>
-                {request.status === "PENDING" ? <button type="button" onClick={() => void withdraw(request.id, request.revision)}>Withdraw</button> : null}
-              </div>
+          {data?.requests.length ? data.requests.map((request) => {
+            const note = requestNote(request);
+            const showEvidence = request.supportingEvidenceRequired
+              || request.supportingDocuments.length > 0
+              || request.status === "PENDING";
 
-              <div className={styles.requestDocuments}>
+            return (
+              <article key={request.id} className={styles.historyRequestCard}>
+                <header className={styles.requestHeader}>
+                  <div className={styles.requestTitle}>
+                    <span>Leave request</span>
+                    <strong>{friendlyPolicyName(request.policyNameSnapshot)}</strong>
+                  </div>
+                  <div className={styles.requestStatus}>
+                    <b className={styles[request.status.toLowerCase()]}>{requestStatusLabel(request.status)}</b>
+                    {request.status === "PENDING" ? <button type="button" onClick={() => void withdraw(request.id, request.revision)}>Withdraw</button> : null}
+                  </div>
+                </header>
+
+                <div className={styles.requestFacts}>
+                  <div>
+                    <span>Dates</span>
+                    <strong>{formatDateValue(request.startsOn)} — {formatDateValue(request.endsOn)}</strong>
+                  </div>
+                  <div>
+                    <span>Duration</span>
+                    <strong>{formatRequestedDays(request.requestedDays)} · {leaveUnitLabel(request.leaveUnit)}</strong>
+                  </div>
+                </div>
+
+                {note ? (
+                  <div className={styles.requestNote}>
+                    <span>{note.label}</span>
+                    <strong>{note.value}</strong>
+                  </div>
+                ) : null}
+
+                {showEvidence ? (
+                  <div className={styles.requestDocuments}>
                 <div className={styles.requestDocumentsHeading}>
                   <strong>Supporting evidence</strong>
-                  <span>{evidenceStatusLabel(request.supportingEvidenceStatus)}</span>
+                  <span>{request.supportingDocuments.length > 0 || request.supportingEvidenceRequired ? evidenceStatusLabel(request.supportingEvidenceStatus) : "Optional"}</span>
                 </div>
                 {request.supportingEvidenceRequired && request.supportingDocuments.length === 0 ? (
                   <p className={styles.documentWarning}>A supporting document is required before this request can be approved.</p>
@@ -299,9 +377,11 @@ export function StaffLeave() {
                     <button type="submit">Add document</button>
                   </form>
                 ) : null}
-              </div>
-            </article>
-          )) : <p>No Leave applications yet.</p>}
+                  </div>
+                ) : null}
+              </article>
+            );
+          }) : <p>No requests yet.</p>}
         </div>
       </section>
     </div>
@@ -312,13 +392,39 @@ function formatDays(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
+function formatRequestedDays(value: number) {
+  return `${formatDays(value)} ${value === 1 ? "day" : "days"}`;
+}
+
+function leaveUnitLabel(value: string) {
+  return ({
+    FULL_DAY: "Full day",
+    HALF_DAY_AM: "Morning half day",
+    HALF_DAY_PM: "Afternoon half day",
+  } as Record<string, string>)[value] ?? documentTypeLabel(value);
+}
+
+function requestStatusLabel(value: string) {
+  return documentTypeLabel(value);
+}
+
+function requestNote(request: Overview["requests"][number]) {
+  if (request.cancellationReason) return { label: "Cancellation", value: request.cancellationReason };
+  if (request.reviewNote) return { label: "Manager note", value: request.reviewNote };
+  if (request.reason) return { label: "Reason", value: request.reason };
+  return null;
+}
+
 function formatSignedDays(value: number) {
   return `${value > 0 ? "+" : ""}${formatDays(value)}`;
 }
 
 function formatDateValue(value: string) {
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
+  return new Intl.DateTimeFormat("en-MY", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${value.slice(0, 10)}T00:00:00`));
+}
+
+function friendlyPolicyName(value: string) {
+  return value.replace(/\s*\([^)]*\bpolicy\b[^)]*\)\s*/gi, " ").replace(/\s+/g, " ").trim();
 }
 
 function evidenceStatusLabel(value: string) {

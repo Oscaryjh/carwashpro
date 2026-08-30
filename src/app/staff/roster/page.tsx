@@ -5,75 +5,303 @@ import { requireEmployeeModulePage } from "@/lib/modules/employee-access";
 import { prisma } from "@/lib/prisma";
 import { addDays, dateValue, startOfIsoWeek } from "@/lib/roster/domain";
 import { getEmployeePublishedRoster } from "@/lib/roster/service";
+import {
+  buildStaffScheduleDay,
+  type StaffScheduleAssignment,
+  type StaffScheduleHoliday,
+  type StaffScheduleLeave,
+} from "@/lib/staff-pwa/schedule";
 
 type Props = { searchParams: Promise<{ week?: string }> };
+type AssignmentRow = Awaited<ReturnType<typeof getEmployeePublishedRoster>>[number];
 
-export const metadata: Metadata = { title: "My schedule" };
+export const metadata: Metadata = { title: "Schedule" };
 export const dynamic = "force-dynamic";
 
 export default async function StaffRosterPage({ searchParams }: Props) {
-  const [auth, params] = await Promise.all([requireEmployeeModulePage("HR"), searchParams]);
-  const business = await prisma.business.findUniqueOrThrow({ where: { id: auth.businessId }, select: { timezone: true } });
+  const [auth, params] = await Promise.all([
+    requireEmployeeModulePage("HR"),
+    searchParams,
+  ]);
+  const business = await prisma.business.findUniqueOrThrow({
+    where: { id: auth.businessId },
+    select: { timezone: true },
+  });
   const today = localDate(new Date(), business.timezone);
   const selected = parseDate(params.week) ?? today;
   const weekStart = startOfIsoWeek(selected);
   const weekEnd = addDays(weekStart, 6);
+  const todayInWeek = today >= weekStart && today <= weekEnd;
+  const assignmentRangeStart = today < weekStart ? today : weekStart;
+  const assignmentRangeEnd = today > weekEnd ? today : weekEnd;
   const activeBranchId = auth.attendanceBranchId ?? auth.primaryBranchId;
-  const [schedule, leaveDays, holidays] = await Promise.all([
-    getEmployeePublishedRoster({ businessId: auth.businessId, membershipId: auth.membershipId, branchId: activeBranchId, from: weekStart, to: weekEnd }),
-    prisma.leaveRequestDay.findMany({ where: { businessId: auth.businessId, membershipId: auth.membershipId, leaveDate: { gte: weekStart, lte: weekEnd }, leaveRequest: { branchId: activeBranchId, status: "APPROVED" } }, include: { leaveRequest: { select: { policyNameSnapshot: true } } } }),
-    resolveBranchHolidays({ businessId: auth.businessId, branchId: activeBranchId, from: weekStart, to: weekEnd }),
+  const assignedBranches = await prisma.employeeBranchAssignment.findMany({
+    where: {
+      businessId: auth.businessId,
+      membershipId: auth.membershipId,
+      status: "ACTIVE",
+      effectiveFrom: { lt: addDays(assignmentRangeEnd, 1) },
+      OR: [{ effectiveUntil: null }, { effectiveUntil: { gte: assignmentRangeStart } }],
+      branch: { status: "ACTIVE" },
+    },
+    select: { branch: { select: { id: true, name: true } } },
+  });
+  const branches = uniqueBranches([
+    { id: activeBranchId, name: "" },
+    ...assignedBranches.map((assignment) => assignment.branch),
   ]);
-  const byDate = new Map(schedule.map((item) => [dateValue(item.workDate), item]));
-  const leaveByDate = new Map(leaveDays.map((item) => [dateValue(item.leaveDate), item]));
-  const holidayByDate = new Map(holidays.map((item) => [dateValue(item.workDate), item]));
+  const selectedWeekData = await loadScheduleRange({
+    businessId: auth.businessId,
+    membershipId: auth.membershipId,
+    branchIds: branches.map((branch) => branch.id),
+    from: weekStart,
+    to: weekEnd,
+  });
+  const todayData = todayInWeek
+    ? selectedWeekData
+    : await loadScheduleRange({
+        businessId: auth.businessId,
+        membershipId: auth.membershipId,
+        branchIds: branches.map((branch) => branch.id),
+        from: today,
+        to: today,
+      });
   const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
-  const todayAssignment = byDate.get(dateValue(today));
-  const todayLeave = leaveByDate.get(dateValue(today));
-  const todayHoliday = holidayByDate.get(dateValue(today));
+  const todayView = dayView(today, todayData);
+  const hasWeekFacts = selectedWeekData.assignments.length > 0 ||
+    selectedWeekData.leaves.length > 0 ||
+    selectedWeekData.holidays.length > 0;
 
   return (
     <section className="staff-roster-page" aria-labelledby="staff-roster-heading">
-      <header className="staff-page-title">
+      <header className="staff-page-title staff-section-hero">
         <p>My roster</p>
-        <h1 id="staff-roster-heading">My schedule</h1>
-        <span>See when you work, rest, or have approved leave.</span>
+        <h1 id="staff-roster-heading">Schedule</h1>
+        <span>Your published shifts and approved time away.</span>
       </header>
-      <section className="staff-page-card staff-roster-today">
-        <small>Today</small>
-        {todayLeave ? <Leave label={todayLeave.leaveRequest.policyNameSnapshot} /> : todayAssignment ? <Assignment assignment={todayAssignment} holiday={todayHoliday?.name} prominent /> : <div title="No effective schedule available · Unspecified · not an Off Day">{todayHoliday ? <span className="staff-roster-holiday">Public holiday · {todayHoliday.name}</span> : null}<strong>No work shift scheduled</strong><span>This is not automatically an Off Day.</span></div>}
+
+      <TodayCard view={todayView} />
+
+      <section className="staff-roster-week" aria-labelledby="staff-roster-week-heading">
+        <header className="staff-roster-week-header">
+          <div>
+            <small>This week</small>
+            <h2 id="staff-roster-week-heading">{weekLabel(weekStart, weekEnd)}</h2>
+          </div>
+          <nav className="staff-roster-nav" aria-label="Schedule week">
+            <Link aria-label="Previous week" href={`/staff/roster?week=${dateValue(addDays(weekStart, -7))}`}>
+              <span aria-hidden="true">‹</span> Previous
+            </Link>
+            <Link aria-label="Next week" href={`/staff/roster?week=${dateValue(addDays(weekStart, 7))}`}>
+              Next <span aria-hidden="true">›</span>
+            </Link>
+          </nav>
+        </header>
+
+        {hasWeekFacts ? (
+          <div className="staff-roster-list">
+            {days.map((day) => {
+              const isToday = dateValue(day) === dateValue(today);
+              return (
+                <ScheduleDay
+                  day={day}
+                  isToday={isToday}
+                  key={dateValue(day)}
+                  view={dayView(day, selectedWeekData)}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <div className="staff-roster-empty-week">
+            <span aria-hidden="true">○</span>
+            <strong>No schedule yet</strong>
+            <p>Your upcoming shifts will appear here once your manager publishes the roster.</p>
+          </div>
+        )}
       </section>
-      <nav className="staff-roster-nav" aria-label="Schedule week">
-        <Link href={`/staff/roster?week=${dateValue(addDays(weekStart, -7))}`}>Previous</Link>
-        <span>{weekLabel(weekStart, weekEnd)}</span>
-        <Link href={`/staff/roster?week=${dateValue(addDays(weekStart, 7))}`}>Next</Link>
-      </nav>
-      <div className="staff-roster-list">
-        {days.map((day) => {
-          const assignment = byDate.get(dateValue(day));
-          const leave = leaveByDate.get(dateValue(day));
-          const holiday = holidayByDate.get(dateValue(day));
-          return <article className="staff-page-card staff-roster-day" key={dateValue(day)}><div className="staff-roster-date"><strong>{day.toLocaleDateString("en-MY", { weekday: "long", timeZone: "UTC" })}</strong><small>{day.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}</small></div>{leave ? <Leave label={leave.leaveRequest.policyNameSnapshot} /> : assignment ? <Assignment assignment={assignment} holiday={holiday?.name} /> : <div className="staff-roster-empty" title="No effective schedule available · Unspecified · not an Off Day">{holiday ? <span className="staff-roster-holiday">Public holiday · {holiday.name}</span> : null}<strong>No work shift scheduled</strong><small>Not automatically an Off Day</small></div>}</article>;
-        })}
+      <p className="staff-roster-note">Schedule shows planned work only. Attendance records the hours you actually work.</p>
+    </section>
+  );
+}
+function TodayCard({ view }: { view: ReturnType<typeof buildStaffScheduleDay> }) {
+  const singleShift = view.status === "SHIFT" && view.shifts.length === 1
+    ? view.shifts[0]
+    : null;
+  return (
+    <section className={`staff-page-card staff-roster-today status-${view.status.toLowerCase()}`} aria-labelledby="staff-roster-today-heading">
+      <small>Today</small>
+      <div>
+        <h2 id="staff-roster-today-heading">{view.title}</h2>
+        {view.timeLabel ? <strong className="staff-roster-time">{view.timeLabel}</strong> : null}
+        {view.holidayLabel && view.status !== "PUBLIC_HOLIDAY" ? (
+          <span className="staff-roster-holiday">Public holiday · {view.holidayLabel}</span>
+        ) : null}
+        {view.supportingLabel ? <p>{view.supportingLabel}</p> : null}
+        {singleShift?.breakLabel ? <p>{singleShift.breakLabel} break</p> : null}
       </div>
-      <p className="staff-roster-note">This is your planned schedule. Use Attendance to record the hours you actually work.</p>
     </section>
   );
 }
 
-type AssignmentRow = Awaited<ReturnType<typeof getEmployeePublishedRoster>>[number];
-function Assignment({ assignment, holiday, prominent = false }: { assignment: AssignmentRow; holiday?: string; prominent?: boolean }) {
-  const label = assignment.kind === "WORK_SHIFT" ? assignment.shiftNameSnapshot ?? "Custom Shift" : assignment.kind === "REST_DAY" ? "Rest Day" : "Not Scheduled";
-  const overnight = assignment.startAt && assignment.endAt
-    ? localDayKey(assignment.startAt, assignment.timezoneSnapshot) !== localDayKey(assignment.endAt, assignment.timezoneSnapshot)
-    : false;
-  return <div className={prominent ? "staff-roster-assignment prominent" : "staff-roster-assignment"}>{holiday ? <span className="staff-roster-holiday">PH · {holiday}</span> : null}<strong>{label}</strong>{assignment.startAt && assignment.endAt ? <span>{time(assignment.startAt, assignment.timezoneSnapshot)} – {time(assignment.endAt, assignment.timezoneSnapshot)}</span> : null}{overnight && assignment.startAt && assignment.endAt ? <span>Overnight shift · {shortDate(assignment.startAt, assignment.timezoneSnapshot)}–{shortDate(assignment.endAt, assignment.timezoneSnapshot)}</span> : null}<small>{assignment.branch.name}{assignment.breakMinutes ? ` · ${humanDuration(assignment.breakMinutes)} ${assignment.breakPaidSnapshot ? "paid" : "unpaid"} break` : ""}</small></div>;
+function ScheduleDay({
+  day,
+  isToday,
+  view,
+}: {
+  day: Date;
+  isToday: boolean;
+  view: ReturnType<typeof buildStaffScheduleDay>;
+}) {
+  return (
+    <details className={`staff-roster-day status-${view.status.toLowerCase()}${isToday ? " is-today" : ""}`}>
+      <summary aria-current={isToday ? "date" : undefined}>
+        <span className="staff-roster-date">
+          <strong>{day.toLocaleDateString("en-MY", { weekday: "short", timeZone: "UTC" }).toUpperCase()}</strong>
+          <b>{day.getUTCDate()}</b>
+          {isToday ? <em>Today</em> : null}
+        </span>
+        <span className="staff-roster-row-copy">
+          {view.timeLabel ? <strong className="staff-roster-time">{view.timeLabel}</strong> : <strong>{view.title}</strong>}
+          {view.timeLabel ? <small>{view.title}</small> : view.supportingLabel ? <small>{view.supportingLabel}</small> : null}
+          {view.holidayLabel && view.status !== "PUBLIC_HOLIDAY" ? <small>Public holiday · {view.holidayLabel}</small> : null}
+          {view.supportingLabel && view.status === "SHIFT" ? <small className="staff-roster-branch">{view.supportingLabel}</small> : null}
+        </span>
+        <span className="staff-roster-disclosure" aria-hidden="true">⌄</span>
+      </summary>
+      <DayDetail day={day} view={view} />
+    </details>
+  );
 }
-function Leave({ label }: { label: string }) { return <div className="staff-roster-assignment staff-roster-leave"><span>Approved Leave</span><strong>{label}</strong><small>Your manager approved this leave.</small></div>; }
-function localDate(now: Date, timezone: string) { const value = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now); return new Date(`${value}T00:00:00.000Z`); }
-function parseDate(value?: string) { return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : null; }
-function time(value: Date, timezone: string) { return value.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timezone }); }
-function localDayKey(value: Date, timezone: string) { return new Intl.DateTimeFormat("en-CA", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: timezone }).format(value); }
-function shortDate(value: Date, timezone: string) { return value.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", timeZone: timezone }); }
-function humanDuration(minutes: number) { return minutes % 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes / 60}h`; }
-function weekLabel(from: Date, to: Date) { const sameMonth = from.getUTCMonth() === to.getUTCMonth(); return sameMonth ? `${from.getUTCDate()}–${to.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}` : `${from.toLocaleDateString("en-MY", { day: "numeric", month: "short", timeZone: "UTC" })} – ${to.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`; }
+
+function DayDetail({ day, view }: { day: Date; view: ReturnType<typeof buildStaffScheduleDay> }) {
+  return (
+    <div className="staff-roster-detail">
+      <h3>{day.toLocaleDateString("en-MY", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" })}</h3>
+      {view.status === "SHIFT" && view.shifts.length ? view.shifts.map((shift) => (
+        <section key={shift.id}>
+          <div className="staff-roster-detail-shift">
+            <strong>{shift.label}</strong>
+            <span>{shift.timeLabel}</span>
+            {shift.overnight ? <small>Overnight shift</small> : null}
+          </div>
+          <dl>
+            <div><dt>Branch</dt><dd>{shift.branchName}</dd></div>
+            <div><dt>Break</dt><dd>{shift.breakLabel ? `${shift.breakLabel} break` : "No scheduled break"}</dd></div>
+            <div><dt>Expected Working Time</dt><dd>{shift.expectedWorkingTime}</dd></div>
+          </dl>
+        </section>
+      )) : (
+        <div className="staff-roster-detail-status">
+          <strong>{view.title}</strong>
+          {view.supportingLabel ? <span>{view.supportingLabel}</span> : null}
+        </div>
+      )}
+      {view.holidayLabel ? <p className="staff-roster-detail-holiday">Public Holiday · {view.holidayLabel}</p> : null}
+    </div>
+  );
+}
+
+type ScheduleRangeData = {
+  assignments: AssignmentRow[];
+  leaves: Array<{ leaveDate: Date; label: string }>;
+  holidays: Array<{ workDate: Date; name: string; branchName: string }>;
+};
+
+async function loadScheduleRange(input: {
+  businessId: string;
+  membershipId: string;
+  branchIds: string[];
+  from: Date;
+  to: Date;
+}): Promise<ScheduleRangeData> {
+  const [scheduleByBranch, leaveDays, holidayByBranch] = await Promise.all([
+    Promise.all(input.branchIds.map((branchId) => getEmployeePublishedRoster({
+      businessId: input.businessId,
+      membershipId: input.membershipId,
+      branchId,
+      from: input.from,
+      to: input.to,
+    }))),
+    prisma.leaveRequestDay.findMany({
+      where: {
+        businessId: input.businessId,
+        membershipId: input.membershipId,
+        leaveDate: { gte: input.from, lte: input.to },
+        leaveRequest: { branchId: { in: input.branchIds }, status: "APPROVED" },
+      },
+      include: { leaveRequest: { select: { policyNameSnapshot: true } } },
+    }),
+    Promise.all(input.branchIds.map(async (branchId) => {
+      const [branch, holidays] = await Promise.all([
+        prisma.branch.findUnique({ where: { id: branchId }, select: { name: true } }),
+        resolveBranchHolidays({
+          businessId: input.businessId,
+          branchId,
+          from: input.from,
+          to: input.to,
+        }),
+      ]);
+      return holidays.map((holiday) => ({
+        workDate: holiday.workDate,
+        name: holiday.name,
+        branchName: branch?.name ?? "",
+      }));
+    })),
+  ]);
+  return {
+    assignments: uniqueAssignments(scheduleByBranch.flat()),
+    leaves: leaveDays.map((leave) => ({
+      leaveDate: leave.leaveDate,
+      label: leave.leaveRequest.policyNameSnapshot,
+    })),
+    holidays: uniqueHolidays(holidayByBranch.flat()),
+  };
+}
+
+function dayView(day: Date, data: ScheduleRangeData) {
+  const key = dateValue(day);
+  return buildStaffScheduleDay({
+    assignments: data.assignments.filter((assignment) => dateValue(assignment.workDate) === key) as StaffScheduleAssignment[],
+    leaves: data.leaves.filter((leave) => dateValue(leave.leaveDate) === key).map((leave): StaffScheduleLeave => ({ label: leave.label })),
+    holidays: data.holidays.filter((holiday) => dateValue(holiday.workDate) === key).map((holiday): StaffScheduleHoliday => ({ name: holiday.name, branchName: holiday.branchName })),
+  });
+}
+
+function uniqueAssignments(assignments: AssignmentRow[]) {
+  return [...new Map(assignments.map((assignment) => [assignment.id, assignment])).values()];
+}
+
+function uniqueHolidays(holidays: ScheduleRangeData["holidays"]) {
+  return [...new Map(holidays.map((holiday) => [
+    `${dateValue(holiday.workDate)}:${holiday.name.toLocaleLowerCase()}:${holiday.branchName}`,
+    holiday,
+  ])).values()];
+}
+
+function uniqueBranches(branches: Array<{ id: string; name: string }>) {
+  return [...new Map(branches.map((branch) => [branch.id, branch])).values()];
+}
+
+function localDate(now: Date, timezone: string) {
+  const value = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function parseDate(value?: string) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00.000Z`)
+    : null;
+}
+
+function weekLabel(from: Date, to: Date) {
+  const sameMonth = from.getUTCMonth() === to.getUTCMonth();
+  return sameMonth
+    ? `${from.getUTCDate()} – ${to.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`
+    : `${from.toLocaleDateString("en-MY", { day: "numeric", month: "short", timeZone: "UTC" })} – ${to.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`;
+}

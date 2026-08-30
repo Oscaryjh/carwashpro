@@ -24,6 +24,9 @@ export type PayrollDocumentEntry = {
   regularMinutes: number;
   overtimeMinutes: number;
   publicHolidayMinutes: number;
+  unpaidLeaveDays?: number;
+  unauthorizedAbsenceDays?: number;
+  unpaidLeaveDeduction?: number;
   basicPay: number;
   overtimePay: number;
   publicHolidayPay: number;
@@ -48,6 +51,7 @@ export type PayrollDocumentEntry = {
     name: string;
     type: "EARNING" | "DEDUCTION";
     amount: number;
+    sourceType?: string;
   }>;
   statutoryEvidenceNature?: "REAL" | "SYNTHETIC_TESTING";
   statutoryEvidenceEnvironment?: "LOCAL" | "TESTING" | null;
