@@ -51,6 +51,6 @@ test("History card exposes contextual CTA through the canonical exception route"
   assert.match(history, /setCorrectionSessionId\(item\.id\)/);
   assert.match(history, /setCorrectionBranchId\(item\.branch\.id\)/);
   assert.match(history, /\/api\/employee-attendance\/exception/);
-  assert.match(history, /This request is already pending/);
+  assert.match(history, /already waiting for your manager/);
   assert.doesNotMatch(history, /\/api\/employee-attendance\/p2-corrections/);
 });

@@ -310,6 +310,42 @@
 .emptyState strong { color: var(--staff-v2-ink); font-size: 14px; }
 .emptyState span { font-size: 12px; line-height: 1.4; }
 
+.filterChip {
+  align-items: center;
+  background: var(--staff-v2-surface);
+  border: 1px solid var(--staff-v2-line);
+  border-radius: 999px;
+  color: var(--staff-v2-brand-strong);
+  display: inline-flex;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 6px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 13px;
+}
+.filterChip > span { font-size: 14px; line-height: 1; }
+.filterChip:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--staff-v2-brand) 42%, transparent);
+  outline-offset: 2px;
+}
+
+.formSection {
+  background: var(--staff-v2-surface);
+  border: 1px solid var(--staff-v2-line);
+  border-radius: var(--staff-v2-radius-row);
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+}
+.formSection h3 {
+  color: var(--staff-v2-ink);
+  font-size: 13px;
+  margin: 0;
+}
+
 .periodNavigator {
   align-items: center;
   display: grid;

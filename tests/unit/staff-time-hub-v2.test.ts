@@ -79,8 +79,8 @@ test("Time Hub keeps stable destinations and moves the archive to its child rout
   assert.match(hub, /href="\/staff\/history\/records"/);
   assert.match(hub, /href="\/staff\/timesheet"/);
   assert.match(recordsPage, /<StaffHistory/);
-  assert.match(history, /staff-history-filters/);
-  assert.doesNotMatch(hub, /staff-history-filters/);
+  assert.match(history, /StaffV2FilterChip/);
+  assert.doesNotMatch(hub, /StaffV2FilterChip/);
 });
 
 test("legacy correction deep links safely continue to the contextual History flow", () => {

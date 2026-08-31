@@ -225,3 +225,33 @@ export function StaffV2EmptyState({ title, description }: { title: string; descr
     </div>
   );
 }
+
+export function StaffV2FilterChip({
+  children,
+  onClick,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button className={styles.filterChip} onClick={onClick} type="button">
+      <span aria-hidden="true">≡</span>
+      {children}
+    </button>
+  );
+}
+
+export function StaffV2FormSection({
+  title,
+  children,
+}: {
+  title?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className={styles.formSection}>
+      {title ? <h3>{title}</h3> : null}
+      {children}
+    </section>
+  );
+}

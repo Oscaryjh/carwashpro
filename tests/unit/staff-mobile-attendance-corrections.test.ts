@@ -19,7 +19,7 @@ test("manager attendance route is separate from employee self-service history", 
     readFile(files.approvals, "utf8"),
     readFile(files.queue, "utf8"),
   ]);
-  assert.match(requests, /href="\/staff\/history"[^\n]*Attendance corrections/);
+  assert.match(requests, /href="\/staff\/history\/records"[^\n]*Attendance corrections/);
   assert.doesNotMatch(requests, /href="\/staff\/requests\/attendance-corrections"/);
   assert.match(approvals, /href="\/staff\/requests\/attendance-corrections"/);
   assert.match(approvals, /title="Attendance"/);
