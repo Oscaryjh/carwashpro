@@ -29,6 +29,11 @@ export type StaffTimesheetV2Summary = Readonly<{
   state: "ACTION_NEEDED" | "WAITING_FOR_MANAGER" | "FINAL" | "UP_TO_DATE";
 }>;
 
+export type StaffTimesheetV2SummaryItem = Readonly<{
+  label: string;
+  value: string;
+}>;
+
 export function buildStaffTimesheetV2Rows(input: {
   days: readonly EmployeeTimesheetDay[];
   overtime: readonly StaffTimesheetV2Overtime[];
@@ -83,6 +88,55 @@ export function summarizeStaffTimesheetV2(
           ? "FINAL"
           : "UP_TO_DATE",
   };
+}
+
+export function staffTimesheetSummaryItems(
+  summary: StaffTimesheetV2Summary,
+): StaffTimesheetV2SummaryItem[] {
+  if (!summary.action && !summary.waiting) {
+    return [{
+      label: summary.state === "FINAL" ? "Final" : "Up to date",
+      value: workdayCount(summary.rows),
+    }];
+  }
+
+  return [
+    ...(summary.action ? [{
+      label: "Attention",
+      value: `${itemCount(summary.action)} ${summary.action === 1 ? "needs" : "need"} attention`,
+    }] : []),
+    ...(summary.waiting ? [{
+      label: "Manager review",
+      value: `${itemCount(summary.waiting)} awaiting manager review`,
+    }] : []),
+    ...(summary.final ? [{
+      label: "Final",
+      value: workdayCount(summary.final),
+    }] : []),
+  ];
+}
+
+export function staffTimesheetNextAction(row: StaffTimesheetV2Row) {
+  if (row.status === "ACTION_NEEDED") {
+    if (row.day?.actionableException?.type === "MISSING_CLOCK_IN") {
+      return "Fix your missing clock in.";
+    }
+    if (row.day?.actionableException?.type === "MISSING_CLOCK_OUT") {
+      return "Fix your missing clock out.";
+    }
+    return "Fix the missing attendance time and send it for manager review.";
+  }
+
+  if (row.status === "WAITING_FOR_MANAGER") {
+    if (row.day?.status === "WAITING_FOR_MANAGER") {
+      return "No action — your manager needs to review this day.";
+    }
+    if (row.overtime?.status === "PENDING_REVIEW") {
+      return "No action — your manager is reviewing the overtime.";
+    }
+  }
+
+  return null;
 }
 
 export function parseStaffTimesheetMonth(
@@ -149,4 +203,12 @@ function monthStart(value: Date) {
 
 function employeeDateKey(membershipId: string, workDate: Date) {
   return `${membershipId}:${workDate.toISOString().slice(0, 10)}`;
+}
+
+function itemCount(count: number) {
+  return `${count} item${count === 1 ? "" : "s"}`;
+}
+
+function workdayCount(count: number) {
+  return `${count} workday${count === 1 ? "" : "s"}`;
 }

@@ -7,7 +7,9 @@ import {
   parseStaffTimesheetMonth,
   staffTimesheetDuration,
   staffTimesheetMonthHref,
+  staffTimesheetNextAction,
   staffTimesheetOvertimeLine,
+  staffTimesheetSummaryItems,
   summarizeStaffTimesheetV2,
   type StaffTimesheetV2Overtime,
 } from "@/lib/staff-pwa/timesheet-v2";
@@ -75,7 +77,60 @@ test("draft month with no open actions is Up to date and locked month is Final",
   const rows = buildStaffTimesheetV2Rows({ days: [day()], overtime: [] });
   assert.equal(summarizeStaffTimesheetV2(rows, "DRAFT").state, "UP_TO_DATE");
   assert.equal(summarizeStaffTimesheetV2(rows, "LOCKED").state, "FINAL");
-  assert.match(component, /!summary\.action && !summary\.waiting/);
+});
+
+test("normal month summary is one natural employee summary with singular/plural grammar", () => {
+  assert.deepEqual(
+    staffTimesheetSummaryItems({ action: 0, waiting: 0, final: 1, rows: 1, state: "FINAL" }),
+    [{ label: "Final", value: "1 workday" }],
+  );
+  assert.deepEqual(
+    staffTimesheetSummaryItems({ action: 0, waiting: 0, final: 2, rows: 2, state: "UP_TO_DATE" }),
+    [{ label: "Up to date", value: "2 workdays" }],
+  );
+});
+
+test("open-issue month keeps useful unique-date counters and natural grammar", () => {
+  assert.deepEqual(
+    staffTimesheetSummaryItems({ action: 1, waiting: 2, final: 3, rows: 6, state: "ACTION_NEEDED" }),
+    [
+      { label: "Attention", value: "1 item needs attention" },
+      { label: "Manager review", value: "2 items awaiting manager review" },
+      { label: "Final", value: "3 workdays" },
+    ],
+  );
+  assert.deepEqual(
+    staffTimesheetSummaryItems({ action: 2, waiting: 1, final: 0, rows: 3, state: "ACTION_NEEDED" }),
+    [
+      { label: "Attention", value: "2 items need attention" },
+      { label: "Manager review", value: "1 item awaiting manager review" },
+    ],
+  );
+});
+
+test("collapsed Final remains visible while expanded Final detail does not repeat its badge", () => {
+  assert.match(component, /<StaffV2StatusBadge tone=\{tone\}>\{statusLabel\}<\/StaffV2StatusBadge>/);
+  assert.match(component, /row\.status !== "FINAL" \? \(/);
+});
+
+test("Next action appears only when it explains an exception or manager wait", () => {
+  const finalRow = buildStaffTimesheetV2Rows({ days: [day()], overtime: [] })[0];
+  const actionRow = buildStaffTimesheetV2Rows({
+    days: [day({ status: "ACTION_NEEDED", actionableException: { id: "ex-1", type: "MISSING_CLOCK_OUT" } })],
+    overtime: [],
+  })[0];
+  const waitingRow = buildStaffTimesheetV2Rows({
+    days: [day({ status: "WAITING_FOR_MANAGER" })],
+    overtime: [],
+  })[0];
+  const pendingOtRow = buildStaffTimesheetV2Rows({ days: [day()], overtime: [ot()] })[0];
+
+  assert.equal(staffTimesheetNextAction(finalRow!), null);
+  assert.equal(staffTimesheetNextAction(actionRow!), "Fix your missing clock out.");
+  assert.equal(staffTimesheetNextAction(waitingRow!), "No action — your manager needs to review this day.");
+  assert.equal(staffTimesheetNextAction(pendingOtRow!), "No action — your manager is reviewing the overtime.");
+  assert.doesNotMatch(component, /No action needed\./);
+  assert.match(component, /\{nextActionCopy \? \(/);
 });
 
 test("employee-actionable missing time links to canonical Attendance correction flow", () => {
@@ -90,7 +145,10 @@ test("non-self-correctable review gets no employee CTA", () => {
     overtime: [],
   });
   assert.equal(rows[0]?.status, "WAITING_FOR_MANAGER");
-  assert.match(component, /No action — your manager needs to review this day/);
+  assert.equal(
+    staffTimesheetNextAction(rows[0]!),
+    "No action — your manager needs to review this day.",
+  );
 });
 
 test("pending, approved, adjusted and rejected OT use employee-safe copy", () => {
@@ -124,6 +182,7 @@ test("Result Why and Next action are detail-only and paid leave has no dash metr
 test("locked snapshot wording stays final and payroll-safe", () => {
   assert.match(page, /overview\.timesheetStatus === "LOCKED"/);
   assert.match(component, /This record will be used for payroll/);
+  assert.match(component, /StaffV2DetailSection title="Payroll"/);
   assert.doesNotMatch(component, /snapshot|revision|digest|materialization/i);
 });
 

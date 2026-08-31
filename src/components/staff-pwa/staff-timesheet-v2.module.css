@@ -156,13 +156,15 @@
 }
 
 .reasons li,
-.nextAction {
+.nextAction,
+.payrollMessage {
   font-size: 11px;
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
-.nextAction {
+.nextAction,
+.payrollMessage {
   color: var(--staff-v2-ink);
   margin: 0;
 }

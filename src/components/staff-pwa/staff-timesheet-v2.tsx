@@ -2,8 +2,10 @@ import Link from "next/link";
 import type { EmployeeTimesheetDay } from "@/lib/attendance/employee-timesheet";
 import {
   staffTimesheetDuration,
+  staffTimesheetNextAction,
   staffTimesheetOvertimeLine,
   staffTimesheetStatusLabel,
+  staffTimesheetSummaryItems,
   type StaffTimesheetV2Row,
   type StaffTimesheetV2Summary,
 } from "@/lib/staff-pwa/timesheet-v2";
@@ -55,7 +57,7 @@ export function StaffTimesheetV2({
         previousLabel={`View ${formatMonth(monthStart, -1)}`}
       />
 
-      <StaffV2CompactSummary items={summaryItems(summary)} />
+      <StaffV2CompactSummary items={staffTimesheetSummaryItems(summary)} />
 
       <section aria-labelledby="timesheet-workdays-heading" className={styles.results}>
         <StaffV2SectionLabel id="timesheet-workdays-heading">Workdays</StaffV2SectionLabel>
@@ -91,6 +93,7 @@ function TimesheetRow({
   const result = rowResult(row);
   const range = row.day ? attendanceRange(row.day) : null;
   const overtimeLine = staffTimesheetOvertimeLine(row.overtime);
+  const nextActionCopy = staffTimesheetNextAction(row);
   const meta = [result, range].filter(Boolean).join(" · ");
   const tone = row.status === "ACTION_NEEDED"
     ? "danger"
@@ -119,7 +122,9 @@ function TimesheetRow({
         <div className={styles.detail}>
           <header>
             <strong>{formatFullDate(row.workDate)}</strong>
-            <StaffV2StatusBadge tone={tone}>{statusLabel}</StaffV2StatusBadge>
+            {row.status !== "FINAL" ? (
+              <StaffV2StatusBadge tone={tone}>{statusLabel}</StaffV2StatusBadge>
+            ) : null}
           </header>
 
           {row.day && hasAttendanceFacts(row.day) ? (
@@ -136,9 +141,14 @@ function TimesheetRow({
           <StaffV2DetailSection title="Result">
             <dl className={styles.facts}>
               <Fact label="Outcome" value={result || "Overtime result"} />
-              {locked ? <Fact label="Payroll" value="This record will be used for payroll." /> : null}
             </dl>
           </StaffV2DetailSection>
+
+          {locked ? (
+            <StaffV2DetailSection title="Payroll">
+              <p className={styles.payrollMessage}>This record will be used for payroll.</p>
+            </StaffV2DetailSection>
+          ) : null}
 
           {row.day?.issues.length ? (
             <StaffV2DetailSection title="Why">
@@ -161,9 +171,11 @@ function TimesheetRow({
             </StaffV2DetailSection>
           ) : null}
 
-          <StaffV2DetailSection title="Next action">
-            <p className={styles.nextAction}>{nextAction(row)}</p>
-          </StaffV2DetailSection>
+          {nextActionCopy ? (
+            <StaffV2DetailSection title="Next action">
+              <p className={styles.nextAction}>{nextActionCopy}</p>
+            </StaffV2DetailSection>
+          ) : null}
         </div>
       </details>
 
@@ -178,20 +190,6 @@ function TimesheetRow({
       ) : null}
     </article>
   );
-}
-
-function summaryItems(summary: StaffTimesheetV2Summary) {
-  if (!summary.action && !summary.waiting) {
-    return [
-      { label: "Status", value: summary.state === "FINAL" ? "Final" : "Up to date" },
-      ...(summary.rows ? [{ label: "Workdays", value: summary.rows }] : []),
-    ];
-  }
-  return [
-    ...(summary.action ? [{ label: "Need attention", value: summary.action }] : []),
-    ...(summary.waiting ? [{ label: "Awaiting manager", value: summary.waiting }] : []),
-    ...(summary.final ? [{ label: "Final", value: summary.final }] : []),
-  ];
 }
 
 function Fact({ label, value }: { label: string; value: string }) {
@@ -229,12 +227,6 @@ function issueReason(issue: EmployeeTimesheetDay["issues"][number]) {
   if (issue.type === "SUSPECTED_NO_SHOW") return "The scheduled workday has no completed attendance.";
   if (issue.type === "LEAVE_ATTENDANCE_CONFLICT") return "Attendance and approved leave overlap.";
   return "The recorded attendance needs review.";
-}
-
-function nextAction(row: StaffTimesheetV2Row) {
-  if (row.status === "ACTION_NEEDED") return "Fix the missing attendance time and send it for manager review.";
-  if (row.status === "WAITING_FOR_MANAGER") return "No action — your manager needs to review this day.";
-  return "No action needed.";
 }
 
 function overtimeStatus(status: string) {
