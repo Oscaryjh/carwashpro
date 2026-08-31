@@ -191,15 +191,9 @@ export function StaffHistory() {
   return (
     <div className="staff-history-stack">
       <section className="staff-page-title">
-        <p className="staff-kicker">MY TIME</p>
-        <h1>Time</h1>
-        <p>See today, your schedule, attendance history and monthly results.</p>
-        <nav className="staff-time-navigation" aria-label="Time sections">
-          <a href="/staff"><small>Today</small><strong>Current attendance</strong></a>
-          <a href="/staff/roster"><small>Schedule</small><strong>Published roster</strong></a>
-          <a className="active" href="/staff/history"><small>History</small><strong>Past attendance</strong></a>
-          <a href="/staff/timesheet"><small>Monthly</small><strong>Timesheet &amp; overtime</strong></a>
-        </nav>
+        <p className="staff-kicker">ATTENDANCE</p>
+        <h1>Attendance history</h1>
+        <p>Review your actual clock-ins, hours and attendance status.</p>
         <button
           className="staff-secondary-button"
           onClick={() => setCorrectionOpen((current) => !current)}
@@ -398,7 +392,6 @@ export function StaffHistory() {
     </div>
   );
 }
-
 function HistoryCard({
   item,
   onSubmitCorrection,
@@ -409,7 +402,7 @@ function HistoryCard({
   const correctionState = getMissingClockOutCorrectionState(item);
 
   return (
-    <article className="staff-history-card">
+    <article className="staff-history-card" id={`attendance-record-${item.id}`}>
       <div className="staff-history-card-header">
         <div>
           <strong>{formatWorkDate(item.workDate)}</strong>

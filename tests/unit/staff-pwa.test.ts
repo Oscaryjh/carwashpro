@@ -42,6 +42,10 @@ const historySource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-history.tsx", import.meta.url),
   "utf8",
 );
+const timeHubSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-time-hub.tsx", import.meta.url),
+  "utf8",
+);
 const employeeTimesheetSource = readFileSync(
   new URL("../../src/lib/attendance/employee-timesheet.ts", import.meta.url),
   "utf8",
@@ -127,7 +131,6 @@ test("Staff PWA action labels and confirmation copy cover the API action set", (
   assert.match(attendanceConfirmation("CLOCK_IN"), /current branch/i);
   assert.match(attendanceConfirmation("CLOCK_OUT"), /ending today/i);
 });
-
 test("Staff PWA warns only when another break starts shortly after the previous one", () => {
   assert.equal(wasBreakEndedRecently({
     lastBreakEndedAt: "2026-08-15T01:10:02.000Z",
@@ -357,13 +360,12 @@ test("Staff navigation follows module entitlement without overcrowding the mobil
 });
 
 test("Staff Requests separates employee self-service from role-aware manager approvals", () => {
-  assert.match(requestsSource, /<strong>Approvals<\/strong>/);
-  assert.match(requestsSource, /View approval history/);
+  assert.match(requestsSource, /Team approvals/);
   assert.match(requestsSource, /getStaffTeamApprovalSummary/);
   assert.match(requestsSource, /getStaffOvertimeSummary/);
   assert.match(requestsSource, /MY REQUESTS/);
   assert.match(requestsSource, /Attendance correction/);
-  assert.match(requestsSource, /href="\/staff\/history"[^\n]*Attendance corrections/);
+  assert.match(requestsSource, /href="\/staff\/history\/records"[^\n]*Attendance corrections/);
   assert.doesNotMatch(requestsSource, /Review employee time corrections waiting/);
   assert.doesNotMatch(requestsSource, /canonical workflow/);
   assert.doesNotMatch(requestsSource, /Submit OT|Request overtime/);
@@ -380,11 +382,12 @@ test("Staff Home makes Clock In and Clock Out the dominant daily action", () => 
   assert.match(todaySource, /staff-primary-button staff-clock-action/);
 });
 
-test("Staff Time groups schedule, attendance, correction, timesheet and overtime", () => {
-  assert.match(historySource, /staff-time-navigation/);
-  assert.match(historySource, /Published roster/);
-  assert.match(historySource, /Past attendance/);
-  assert.match(historySource, /Timesheet &amp; overtime/);
+test("Staff Time Hub groups personal time destinations while History owns the archive", () => {
+  assert.match(timeHubSource, /title="Schedule"/);
+  assert.match(timeHubSource, /title="Attendance history"/);
+  assert.match(timeHubSource, /title="Timesheet & overtime"/);
+  assert.match(timeHubSource, /href="\/staff\/history\/records"/);
+  assert.doesNotMatch(timeHubSource, /Approval Center|Team approvals/);
   assert.match(historySource, /attendance-correction/);
   assert.match(historySource, /hasSingleBranch/);
   assert.match(historySource, /hasMultipleBranches/);

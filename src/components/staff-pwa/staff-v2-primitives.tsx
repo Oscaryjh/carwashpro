@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
-import styles from "./staff-home-v2.module.css";
+import styles from "./staff-v2.module.css";
 
-export { styles as staffHomeV2Styles };
+export { styles as staffV2Styles };
 
 export function StaffV2PageHeader({
   leading,
@@ -14,7 +14,7 @@ export function StaffV2PageHeader({
   meta?: ReactNode;
 }) {
   return (
-    <header className={styles.pageHeader}>
+    <header className={`${styles.pageHeader} ${leading ? "" : styles.pageHeaderNoLeading}`}>
       {leading ? <span className={styles.pageHeaderLeading}>{leading}</span> : null}
       <div className={styles.pageHeaderCopy}>
         <h1>{title}</h1>
@@ -29,7 +29,7 @@ export function StaffV2StatusBadge({
   tone = "neutral",
 }: {
   children: ReactNode;
-  tone?: "neutral" | "success" | "warning" | "danger";
+  tone?: "neutral" | "success" | "warning" | "danger" | "info";
 }) {
   const toneClass = tone === "success"
     ? styles.badgeSuccess
@@ -37,6 +37,8 @@ export function StaffV2StatusBadge({
       ? styles.badgeWarning
       : tone === "danger"
         ? styles.badgeDanger
+        : tone === "info"
+          ? styles.badgeInfo
         : "";
   return <span className={`${styles.badge} ${toneClass}`}>{children}</span>;
 }
@@ -91,6 +93,7 @@ export function StaffV2ListRow({
   kicker,
   title,
   meta,
+  trailing,
   ariaLabel,
 }: {
   href?: string;
@@ -98,6 +101,7 @@ export function StaffV2ListRow({
   kicker?: string;
   title: ReactNode;
   meta?: ReactNode;
+  trailing?: ReactNode;
   ariaLabel?: string;
 }) {
   const content = (
@@ -108,13 +112,13 @@ export function StaffV2ListRow({
         <strong>{title}</strong>
         {meta ? <span>{meta}</span> : null}
       </span>
-      {href ? <i className={styles.rowTrailing} aria-hidden="true">›</i> : null}
+      {trailing ?? (href ? <i className={styles.rowTrailing} aria-hidden="true">›</i> : null)}
     </>
   );
   if (href) {
-    return <Link aria-label={ariaLabel} className={styles.listRow} href={href}>{content}</Link>;
+    return <Link aria-label={ariaLabel} className={styles.listRow} href={href} role="listitem">{content}</Link>;
   }
-  return <div className={styles.listRow}>{content}</div>;
+  return <div className={styles.listRow} role="listitem">{content}</div>;
 }
 
 export function StaffV2ActionRow({
@@ -124,6 +128,7 @@ export function StaffV2ActionRow({
   title,
   meta,
   count,
+  trailing,
   ariaLabel,
 }: {
   href: string;
@@ -132,6 +137,7 @@ export function StaffV2ActionRow({
   title: ReactNode;
   meta?: ReactNode;
   count?: number;
+  trailing?: ReactNode;
   ariaLabel?: string;
 }) {
   return (
@@ -142,9 +148,23 @@ export function StaffV2ActionRow({
         <strong>{title}</strong>
         {meta ? <span>{meta}</span> : null}
       </span>
-      <i className={styles.rowTrailing} aria-hidden="true">{count ?? "›"}</i>
+      <i className={styles.rowTrailing} aria-hidden="true">{trailing ?? count ?? "›"}</i>
     </Link>
   );
+}
+
+export function StaffV2RowGroup({
+  children,
+  ariaLabel,
+}: {
+  children: ReactNode;
+  ariaLabel: string;
+}) {
+  return <div aria-label={ariaLabel} className={styles.rowGroup} role="list">{children}</div>;
+}
+
+export function StaffV2SectionLabel({ children, id }: { children: ReactNode; id?: string }) {
+  return <p className={styles.sectionLabel} id={id}>{children}</p>;
 }
 
 export function StaffV2EmptyState({ title, description }: { title: string; description: string }) {

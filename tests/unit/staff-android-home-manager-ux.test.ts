@@ -13,7 +13,7 @@ const today = read("src/components/staff-pwa/staff-today.tsx");
 const homeReader = read("src/lib/staff-pwa/home.ts");
 const consolidationCss = read("src/app/staff/staff-consolidation.css");
 const staffCss = read("src/app/staff/staff.css");
-const homeV2Css = read("src/components/staff-pwa/staff-home-v2.module.css");
+const homeV2Css = read("src/components/staff-pwa/staff-v2.module.css");
 
 test("manager approval priority appears after Attendance only when actionable work exists", () => {
   assert.match(homePage, /approvalSummary && approvalSummary\.total > 0/);
@@ -27,7 +27,6 @@ test("manager approval priority appears after Attendance only when actionable wo
   assert.match(today.slice(0, attendanceEnd), /StaffV2HeroStatus/);
   assert.doesNotMatch(today.slice(attendanceEnd), /staff-schedule-card/);
 });
-
 test("empty upcoming schedule is omitted while useful and unavailable states remain supported", () => {
   assert.match(homeOverview, /overview\.upNext && overview\.upNext\.status !== "EMPTY"/);
   assert.match(homeReader, /status: "EMPTY"/);

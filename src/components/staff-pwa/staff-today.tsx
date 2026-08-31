@@ -29,9 +29,9 @@ import {
   StaffV2HeroStatus,
   StaffV2ListRow,
   StaffV2StatusBadge,
-  staffHomeV2Styles as homeStyles,
+  staffV2Styles as homeStyles,
   type StaffV2SummaryItem,
-} from "./staff-home-v2-primitives";
+} from "./staff-v2-primitives";
 import { StaffResolutionCases } from "./staff-resolution-cases";
 
 type GpsEvidence = {
@@ -633,7 +633,7 @@ export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode })
           <div className={homeStyles.actionGrid}>
             {today.status === "COMPLETED" ? (
               <StaffV2ListRow
-                href="/staff/history"
+                href="/staff/history/records"
                 kicker="Shift done"
                 meta={`${today.completedSessionCount} ${today.completedSessionCount === 1 ? "shift" : "shifts"} completed today`}
                 title="View attendance history"
@@ -695,7 +695,7 @@ export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode })
             </span>
           </div>
           <p>{approvalDescription(reviewStatus)}</p>
-          <Link className="staff-approval-history-link" href="/staff/history">
+          <Link className="staff-approval-history-link" href="/staff/history/records">
             View attendance history
           </Link>
         </section>
@@ -791,7 +791,6 @@ export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode })
     </div>
   );
 }
-
 function formatBranchDate(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T/.exec(value);
   if (!match) return "TODAY";

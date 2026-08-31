@@ -9,8 +9,8 @@ import {
   StaffV2EmptyState,
   StaffV2ListRow,
   StaffV2PageHeader,
-  staffHomeV2Styles as styles,
-} from "./staff-home-v2-primitives";
+  staffV2Styles as styles,
+} from "./staff-v2-primitives";
 
 export type TeamApprovalSummary = {
   total: number;
@@ -54,7 +54,7 @@ export function StaffHomeOverview({ overview, children }: {
     : null;
 
   return (
-    <section aria-label="Staff home" className={styles.home}>
+    <section aria-label="Staff home" className={styles.scope}>
       <StaffV2PageHeader
         leading={overview.profile.employee.avatarUrl ? (
           <Image
@@ -124,7 +124,6 @@ export function StaffHomeOverview({ overview, children }: {
     </section>
   );
 }
-
 export function StaffManagerApprovalEntry({ summary }: {
   summary: TeamApprovalSummary;
 }) {

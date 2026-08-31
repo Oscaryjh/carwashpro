@@ -63,7 +63,7 @@ export default async function StaffRequestsPage() {
       detail: `${formatDateValue(item.workDate)} · ${item.branch.name}`,
       status: item.status === "RETURNED_FOR_CORRECTION" ? "Needs action" : "Under review",
       tone: "action" as const,
-      href: "/staff/history",
+      href: "/staff/history/records",
       timestamp: item.updatedAt,
     })),
   ].sort((left, right) => right.timestamp.localeCompare(left.timestamp)).slice(0, 12);
@@ -87,15 +87,15 @@ export default async function StaffRequestsPage() {
 
       {approvals || overtime?.canReviewOvertime ? (
         <Link className="staff-manager-approval-link" href="/staff/approvals">
-          <span><small>MANAGER</small><strong>Approvals</strong><em>{managerWorkspaceCount ? `${managerWorkspaceCount} request${managerWorkspaceCount === 1 ? "" : "s"} need your review` : "You’re all caught up · View approval history"}</em></span>
-          <b>{managerWorkspaceCount ? `${managerWorkspaceCount} pending` : "History"}</b>
+          <span><small>MANAGER WORKSPACE</small><strong>Team approvals</strong></span>
+          <b>{managerWorkspaceCount ? `${managerWorkspaceCount} waiting` : "All clear"}</b>
         </Link>
       ) : null}
 
       <div className="staff-hub-grid">
         {enabledModules.has("HR") ? <RequestCard href="/staff/leave" eyebrow="TIME AWAY" title="Leave" detail="Request leave and review balances or decisions." /> : null}
         {enabledModules.has("CLAIMS") ? <RequestCard href="/staff/claims" eyebrow="EXPENSES" title="Claims" detail="Submit expenses, receipts and track reimbursement." /> : null}
-        {enabledModules.has("HR") ? <RequestCard href="/staff/history" eyebrow="TIME RECORDS" title="Attendance corrections" detail="Review your missing punches and submitted corrections." /> : null}
+        {enabledModules.has("HR") ? <RequestCard href="/staff/history/records" eyebrow="TIME RECORDS" title="Attendance corrections" detail="Review your missing punches and submitted corrections." /> : null}
       </div>
 
       {enabledModules.has("HR") ? (
@@ -115,7 +115,6 @@ export default async function StaffRequestsPage() {
     </section>
   );
 }
-
 function RequestCard({ href, eyebrow, title, detail }: { href: string; eyebrow: string; title: string; detail: string }) {
   return <Link className="staff-hub-card" href={href}><small>{eyebrow}</small><strong>{title}</strong><span>{detail}</span><b>Open <span aria-hidden="true">→</span></b></Link>;
 }

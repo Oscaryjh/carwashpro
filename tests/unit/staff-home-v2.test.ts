@@ -10,10 +10,10 @@ const read = (path: string) => readFileSync(
 
 const overview = read("src/components/staff-pwa/staff-home-overview.tsx");
 const attendanceView = read("src/components/staff-pwa/staff-home-attendance-view.ts");
-const primitives = read("src/components/staff-pwa/staff-home-v2-primitives.tsx");
+const primitives = read("src/components/staff-pwa/staff-v2-primitives.tsx");
 const today = read("src/components/staff-pwa/staff-today.tsx");
 const chrome = read("src/components/staff-pwa/staff-pwa-chrome.tsx");
-const css = read("src/components/staff-pwa/staff-home-v2.module.css");
+const css = read("src/components/staff-pwa/staff-v2.module.css");
 const staffCss = read("src/app/staff/staff.css");
 const navigation = read("src/lib/staff-pwa/navigation.ts");
 
@@ -33,7 +33,6 @@ test("Home V2 provides the approved reusable primitive family", () => {
   assert.match(css, /--staff-v2-ink:/);
   assert.match(css, /--staff-v2-brand:/);
 });
-
 test("Home V2 removes the welcome hero and keeps Attendance as its only hero", () => {
   assert.doesNotMatch(overview, /staff-welcome-card/);
   assert.match(overview, /StaffV2PageHeader/);
@@ -157,5 +156,5 @@ test("Home V2 mobile contract prevents horizontal overflow and preserves nav cle
   assert.match(css, /overflow-wrap: anywhere/);
   assert.match(css, /@media \(max-width: 380px\)/);
   assert.match(css, /min-height: 48px/);
-  assert.match(css, /padding-bottom: 12px/);
+  assert.match(css, /padding-bottom: var\(--staff-v2-bottom-clearance\)/);
 });
