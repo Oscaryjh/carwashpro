@@ -4,6 +4,8 @@ import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth/session
 import { normalizeAttendancePhone } from "@/lib/attendance/phone";
 import { prisma } from "@/lib/prisma";
 import {
+  decideStaffOvertime,
+  getStaffOvertimeDetail,
   getStaffOvertimeQueue,
   getStaffOvertimeSummary,
   resolveStaffOvertimeAccess,
@@ -12,13 +14,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  if (process.env.RAILWAY_ENVIRONMENT_NAME !== "testing") {
-    return Response.json({ error: "Not found" }, { status: 404 });
-  }
-
-  const expectedToken = process.env.OT_DIAGNOSTIC_TOKEN;
-  const suppliedToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  if (!expectedToken || !constantTimeEqual(expectedToken, suppliedToken)) {
+  if (!isAuthorizedTestingDiagnostic(request)) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -220,6 +216,280 @@ export async function GET(request: Request) {
   });
 }
 
+export async function POST(request: Request) {
+  if (!isAuthorizedTestingDiagnostic(request)) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+  const body = await request.json().catch(() => null) as { action?: string } | null;
+  if (body?.action !== "repair-live-ot-identity-collision") {
+    return Response.json({ error: "Invalid action" }, { status: 400 });
+  }
+
+  const result = await repairLiveOtIdentityCollision();
+  return Response.json(result, {
+    headers: {
+      "Cache-Control": "private, no-store, max-age=0",
+      Pragma: "no-cache",
+    },
+  });
+}
+
+const LIVE_OT_FIXTURE = {
+  businessId: "611b0c19-ebf7-4548-8a48-a3b6a7af8a81",
+  branchId: "41575966-238f-46ab-a114-22bbee4949c5",
+  currentAccountId: "7260972a-e431-4ea1-bc69-b604a997ef0a",
+  currentMembershipId: "72f21dad-66d0-45fc-a326-2a8c5f55ffdb",
+  legacyAccountId: "f0db56e5-79a8-4521-b1c5-12cc25c3863c",
+  legacyMembershipId: "3ed1909b-f624-49cb-9457-efecec9e776a",
+  expectedDayId: "dc95ad1a-73e4-4db3-b964-17e3f1dc1e3b",
+  finalResultId: "cd04940c-3179-4dde-9033-4ed55ea47155",
+  workDate: new Date("2026-08-21T00:00:00.000Z"),
+  month: "2026-08",
+} as const;
+
+async function repairLiveOtIdentityCollision() {
+  const fixture = LIVE_OT_FIXTURE;
+  const repair = await prisma.$transaction(async (transaction) => {
+    const [currentMembership, legacyMembership, expectedDay, finalResult, existingReview, snapshot, timesheet] =
+      await Promise.all([
+        transaction.employeeBusinessMembership.findUnique({
+          where: { id: fixture.currentMembershipId },
+          select: {
+            id: true,
+            businessId: true,
+            employeeAccountId: true,
+            fullName: true,
+            status: true,
+            branchAssignments: {
+              where: { branchId: fixture.branchId, status: "ACTIVE" },
+              select: { id: true },
+            },
+          },
+        }),
+        transaction.employeeBusinessMembership.findUnique({
+          where: { id: fixture.legacyMembershipId },
+          select: {
+            id: true,
+            businessId: true,
+            employeeAccountId: true,
+            fullName: true,
+            status: true,
+          },
+        }),
+        transaction.attendanceExpectedDay.findUnique({ where: { id: fixture.expectedDayId } }),
+        transaction.attendanceP2FinalResult.findUnique({ where: { id: fixture.finalResultId } }),
+        transaction.attendanceOvertimeReview.findFirst({
+          where: {
+            businessId: fixture.businessId,
+            OR: [
+              { finalResultId: fixture.finalResultId },
+              { membershipId: fixture.legacyMembershipId, workDate: fixture.workDate },
+              { membershipId: fixture.currentMembershipId, workDate: fixture.workDate },
+            ],
+          },
+          select: { id: true, status: true },
+        }),
+        transaction.attendanceTimesheetP2DaySnapshot.findFirst({
+          where: { businessId: fixture.businessId, finalResultId: fixture.finalResultId },
+          select: { id: true, revisionId: true },
+        }),
+        transaction.attendanceMonthlyTimesheet.findUnique({
+          where: {
+            businessId_periodStart: {
+              businessId: fixture.businessId,
+              periodStart: new Date("2026-08-01T00:00:00.000Z"),
+            },
+          },
+          select: { id: true, status: true, currentRevisionId: true },
+        }),
+      ]);
+
+    if (
+      !currentMembership ||
+      currentMembership.businessId !== fixture.businessId ||
+      currentMembership.employeeAccountId !== fixture.currentAccountId ||
+      currentMembership.status !== "ACTIVE" ||
+      currentMembership.branchAssignments.length !== 1
+    ) {
+      throw new Error("CURRENT_MANAGER_MEMBERSHIP_CONTRACT_MISMATCH");
+    }
+    if (
+      !legacyMembership ||
+      legacyMembership.businessId !== fixture.businessId ||
+      legacyMembership.employeeAccountId !== fixture.legacyAccountId ||
+      legacyMembership.status !== "ACTIVE"
+    ) {
+      throw new Error("LEGACY_MANAGER_MEMBERSHIP_CONTRACT_MISMATCH");
+    }
+    if (currentMembership.fullName !== legacyMembership.fullName) {
+      throw new Error("MANAGER_PERSONA_NAME_COLLISION_NO_LONGER_EXISTS");
+    }
+    if (!expectedDay || expectedDay.businessId !== fixture.businessId || expectedDay.branchId !== fixture.branchId) {
+      throw new Error("EXPECTED_DAY_CONTRACT_MISMATCH");
+    }
+    if (!finalResult || finalResult.businessId !== fixture.businessId || finalResult.branchId !== fixture.branchId) {
+      throw new Error("P2_FINAL_RESULT_CONTRACT_MISMATCH");
+    }
+    if (
+      expectedDay.workDate.getTime() !== fixture.workDate.getTime() ||
+      finalResult.workDate.getTime() !== fixture.workDate.getTime() ||
+      finalResult.expectedDayId !== expectedDay.id
+    ) {
+      throw new Error("OT_FIXTURE_DATE_OR_EXPECTED_DAY_MISMATCH");
+    }
+    if (existingReview) throw new Error("OT_FIXTURE_ALREADY_HAS_REVIEW");
+    if (snapshot) throw new Error("OT_FIXTURE_ALREADY_IN_TIMESHEET_SNAPSHOT");
+    if (timesheet?.status === "LOCKED") throw new Error("AUGUST_TIMESHEET_IS_LOCKED");
+
+    const alreadyApplied =
+      expectedDay.membershipId === fixture.currentMembershipId &&
+      finalResult.membershipId === fixture.currentMembershipId;
+    const legacyState =
+      expectedDay.membershipId === fixture.legacyMembershipId &&
+      finalResult.membershipId === fixture.legacyMembershipId;
+    if (!alreadyApplied && !legacyState) {
+      throw new Error("OT_FIXTURE_HAS_PARTIAL_OR_UNKNOWN_IDENTITY_STATE");
+    }
+
+    if (!alreadyApplied) {
+      const [conflictingExpectedDay, conflictingFinalResult] = await Promise.all([
+        transaction.attendanceExpectedDay.findFirst({
+          where: {
+            businessId: fixture.businessId,
+            membershipId: fixture.currentMembershipId,
+            workDate: fixture.workDate,
+          },
+          select: { id: true },
+        }),
+        transaction.attendanceP2FinalResult.findFirst({
+          where: {
+            businessId: fixture.businessId,
+            membershipId: fixture.currentMembershipId,
+            workDate: fixture.workDate,
+          },
+          select: { id: true },
+        }),
+      ]);
+      if (conflictingExpectedDay || conflictingFinalResult) {
+        throw new Error("CURRENT_MANAGER_ALREADY_HAS_21_AUG_ATTENDANCE_EVIDENCE");
+      }
+      await transaction.attendanceExpectedDay.update({
+        where: { id: fixture.expectedDayId },
+        data: { membershipId: fixture.currentMembershipId },
+      });
+      await transaction.attendanceP2FinalResult.update({
+        where: { id: fixture.finalResultId },
+        data: { membershipId: fixture.currentMembershipId },
+      });
+    }
+
+    return {
+      applied: !alreadyApplied,
+      alreadyApplied,
+      beforeMembershipId: alreadyApplied ? fixture.currentMembershipId : fixture.legacyMembershipId,
+      afterMembershipId: fixture.currentMembershipId,
+      timesheet: timesheet ?? null,
+      reviewPresent: false,
+      snapshotPresent: false,
+    };
+  });
+
+  const currentSession = await prisma.employeeSession.findFirst({
+    where: {
+      employeeAccountId: fixture.currentAccountId,
+      membershipId: fixture.currentMembershipId,
+      businessId: fixture.businessId,
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { lastActiveAt: "desc" },
+  });
+  const currentMembership = await prisma.employeeBusinessMembership.findUniqueOrThrow({
+    where: { id: fixture.currentMembershipId },
+    select: { staffUser: { select: { id: true } } },
+  });
+  const legacyMembership = await prisma.employeeBusinessMembership.findUniqueOrThrow({
+    where: { id: fixture.legacyMembershipId },
+    select: { staffUser: { select: { id: true } } },
+  });
+  if (!currentSession || !currentMembership.staffUser || !legacyMembership.staffUser) {
+    throw new Error("POST_REPAIR_REVIEWER_CONTEXT_UNAVAILABLE");
+  }
+  const currentAuth: EmployeeAuthContext = {
+    sessionId: currentSession.id,
+    employeeAccountId: fixture.currentAccountId,
+    membershipId: fixture.currentMembershipId,
+    businessId: fixture.businessId,
+    primaryBranchId: fixture.branchId,
+    attendanceBranchId: fixture.branchId,
+    deviceId: currentSession.employeeDeviceId ?? "diagnostic-current-reviewer",
+  };
+  const otherReviewerAuth: EmployeeAuthContext = {
+    sessionId: "diagnostic-other-reviewer",
+    employeeAccountId: fixture.legacyAccountId,
+    membershipId: fixture.legacyMembershipId,
+    businessId: fixture.businessId,
+    primaryBranchId: fixture.branchId,
+    attendanceBranchId: fixture.branchId,
+    deviceId: "diagnostic-other-reviewer",
+  };
+  const [currentQueue, currentSummary, currentDetail, otherReviewerQueue] = await Promise.all([
+    getStaffOvertimeQueue({ auth: currentAuth, month: fixture.month }),
+    getStaffOvertimeSummary(currentAuth),
+    getStaffOvertimeDetail(currentAuth, fixture.finalResultId),
+    getStaffOvertimeQueue({ auth: otherReviewerAuth, month: fixture.month }),
+  ]);
+  const writeGuardResults = await Promise.all(
+    (["APPROVE", "ADJUST", "REJECT"] as const).map(async (decision) => {
+      try {
+        await decideStaffOvertime({
+          auth: currentAuth,
+          finalResultId: fixture.finalResultId,
+          expectedRevision: 0,
+          decision,
+          approvedMinutes: decision === "ADJUST" ? 60 : undefined,
+          reason: decision === "APPROVE" ? undefined : "Testing-only self-review guard verification",
+        });
+        return { decision, blocked: false, errorCode: null, errorMessage: null };
+      } catch (error) {
+        const value = error as { code?: string; message?: string };
+        return {
+          decision,
+          blocked: true,
+          errorCode: value.code ?? null,
+          errorMessage: value.message ?? String(error),
+        };
+      }
+    }),
+  );
+  const persistedReview = await prisma.attendanceOvertimeReview.findFirst({
+    where: {
+      businessId: fixture.businessId,
+      membershipId: fixture.currentMembershipId,
+      workDate: fixture.workDate,
+    },
+    select: { id: true, status: true, revision: true },
+  });
+
+  return {
+    capturedAt: new Date(),
+    deploymentId: process.env.RAILWAY_DEPLOYMENT_ID ?? null,
+    repair,
+    currentReviewer: {
+      queuePending: currentQueue?.pending ?? null,
+      queueContainsFixture: currentQueue?.items.some((item) => item.finalResultId === fixture.finalResultId) ?? null,
+      summary: currentSummary,
+      detailVisible: Boolean(currentDetail),
+      writeGuardResults,
+      persistedReview,
+    },
+    otherReviewer: {
+      queuePending: otherReviewerQueue?.pending ?? null,
+      queueContainsFixture: otherReviewerQueue?.items.some((item) => item.finalResultId === fixture.finalResultId) ?? null,
+    },
+  };
+}
+
 async function loadIdentityCollisionAudit(input: {
   accountId: string;
   businessId: string;
@@ -377,4 +647,11 @@ function constantTimeEqual(expected: string, supplied: string) {
   const expectedBuffer = Buffer.from(expected);
   const suppliedBuffer = Buffer.from(supplied);
   return expectedBuffer.length === suppliedBuffer.length && timingSafeEqual(expectedBuffer, suppliedBuffer);
+}
+
+function isAuthorizedTestingDiagnostic(request: Request) {
+  if (process.env.RAILWAY_ENVIRONMENT_NAME !== "testing") return false;
+  const expectedToken = process.env.OT_DIAGNOSTIC_TOKEN;
+  const suppliedToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  return Boolean(expectedToken && constantTimeEqual(expectedToken, suppliedToken));
 }
