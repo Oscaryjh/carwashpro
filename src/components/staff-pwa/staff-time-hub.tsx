@@ -30,7 +30,9 @@ export function StaffTimeHub({ model }: { model: StaffTimeHubModel }) {
             leading={<StaffAppIcon name="clock" />}
             meta={model.today.meta}
             title={model.today.title}
-            trailing={<StaffV2StatusBadge tone={model.today.tone}>{model.today.badge}</StaffV2StatusBadge>}
+            trailing={model.today.badge
+              ? <StaffV2StatusBadge tone={model.today.tone}>{model.today.badge}</StaffV2StatusBadge>
+              : null}
           />
         ) : (
           <div className={styles.inlineError} role="alert">

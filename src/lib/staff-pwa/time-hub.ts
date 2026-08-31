@@ -16,7 +16,7 @@ export type StaffTimeHubModel = Readonly<{
   today: Readonly<{
     title: string;
     meta: string | null;
-    badge: string;
+    badge: string | null;
     tone: "neutral" | "success" | "warning";
   }> | null;
   todayError: boolean;
@@ -97,10 +97,18 @@ function summarizeToday(
     };
   }
   if (today.status === "COMPLETED") {
+    const completedRange = today.sessionCount === 1
+      && today.currentSession?.clockInAt
+      && today.currentSession.clockOutAt
+      ? `${formatCompactTime(today.currentSession.clockInAt, timezone)}–${formatCompactTime(today.currentSession.clockOutAt, timezone)}`
+      : null;
+    const worked = today.currentWorkedMinutes > 0
+      ? `Worked ${formatDuration(today.currentWorkedMinutes)}`
+      : null;
     return {
       title: "Shift completed",
-      meta: today.currentWorkedMinutes > 0 ? `Worked ${formatDuration(today.currentWorkedMinutes)}` : null,
-      badge: "Done",
+      meta: [completedRange, worked].filter(Boolean).join(" · ") || null,
+      badge: null,
       tone: "success",
     };
   }
@@ -186,9 +194,9 @@ function summarizeTimesheet(
   return {
     month: formatMonth(overview.monthStart),
     summary: actionCount
-      ? `${actionCount} need attention`
+      ? `${actionCount} ${actionCount === 1 ? "item needs" : "items need"} attention`
       : waitingCount
-        ? `${waitingCount} waiting for manager`
+        ? `${waitingCount} ${waitingCount === 1 ? "item" : "items"} awaiting manager review`
         : overview.timesheetStatus === "LOCKED"
           ? "Final"
           : "Up to date",
@@ -209,6 +217,15 @@ function formatTime(value: string, timezone: string) {
   return new Intl.DateTimeFormat("en-MY", {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: timezone,
+  }).format(new Date(value));
+}
+
+function formatCompactTime(value: string, timezone: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
     timeZone: timezone,
   }).format(new Date(value));
 }

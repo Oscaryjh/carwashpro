@@ -48,10 +48,30 @@ test("one canonical actionable Attendance summary is shown and pending items get
 
 test("Schedule summary reuses the canonical schedule projector and never guesses Rest Day", () => {
   assert.match(loader, /buildStaffScheduleDay/);
+  assert.match(loader, /getEmployeePublishedRoster/);
+  assert.match(loader, /membershipId: auth\.membershipId/);
   assert.match(loader, /view\.status === "REST_DAY"/);
   assert.match(loader, /view\.status === "NOT_SCHEDULED"/);
   assert.match(loader, /No schedule today/);
   assert.doesNotMatch(loader, /!assignments\.length[^\n]*Rest day/i);
+  assert.doesNotMatch(loader, /operatingHours|businessHours|openingHours/);
+});
+
+test("completed Today state removes the redundant badge and shows only canonical facts", () => {
+  assert.match(loader, /today\.sessionCount === 1/);
+  assert.match(loader, /today\.currentSession\?\.clockInAt/);
+  assert.match(loader, /today\.currentSession\.clockOutAt/);
+  assert.match(loader, /badge: null/);
+  assert.doesNotMatch(loader, /badge: "Done"/);
+  assert.match(hub, /model\.today\.badge\s*\?/);
+});
+
+test("Timesheet count names the counted unit and review state", () => {
+  assert.match(loader, /item needs/);
+  assert.match(loader, /items need/);
+  assert.match(loader, /item.*awaiting manager review/);
+  assert.match(loader, /items.*awaiting manager review/);
+  assert.doesNotMatch(loader, /waiting for manager/);
 });
 
 test("Time Hub keeps stable destinations and moves the archive to its child route", () => {
