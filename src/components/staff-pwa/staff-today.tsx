@@ -465,7 +465,9 @@ export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode })
   return (
     <div className={homeStyles.stack}>
       <StaffV2HeroStatus
-        badge={<StaffV2StatusBadge tone={viewState.tone}>{viewState.statusLabel}</StaffV2StatusBadge>}
+        badge={viewState.badgeLabel ? (
+          <StaffV2StatusBadge tone={viewState.tone}>{viewState.badgeLabel}</StaffV2StatusBadge>
+        ) : undefined}
         eyebrow="Attendance"
         title={viewState.headline}
       >
@@ -477,10 +479,12 @@ export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode })
               <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
             </svg>
           )}
-          meta={`${formatBranchDate(today.branchLocalTime)} · ${today.branch.name}`}
+          meta={today.expectedAttendance
+            ? `${formatBranchDate(today.branchLocalTime)} · ${today.branch.name}`
+            : undefined}
           title={today.expectedAttendance
             ? expectedAttendanceDetail(today.expectedAttendance)
-            : "Check Schedule or contact your manager for today’s shift."}
+            : "Check Schedule or ask your manager."}
         />
 
         <div>

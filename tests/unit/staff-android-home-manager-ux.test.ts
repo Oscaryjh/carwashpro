@@ -35,7 +35,7 @@ test("empty upcoming schedule is omitted while useful and unavailable states rem
   assert.match(homeReader, /status: "UNAVAILABLE"/);
   assert.match(today, /kicker=\{today\.expectedAttendance \? expectedAttendanceLabel/);
   assert.match(today, /Schedule not available/);
-  assert.match(today, /Check Schedule or contact your manager/);
+  assert.match(today, /Check Schedule or ask your manager/);
   assert.doesNotMatch(today, /staff-schedule-card/);
 });
 

@@ -18,7 +18,7 @@
   --staff-v2-radius-row: 16px;
   --staff-v2-shadow-hero: 0 12px 30px rgba(16, 67, 62, 0.08);
   display: grid;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
   padding-bottom: 12px;
 }
@@ -39,12 +39,12 @@
   border-radius: 50%;
   color: var(--staff-v2-brand-strong);
   display: flex;
-  font-size: 15px;
-  font-weight: 850;
-  height: 44px;
+  font-size: 12px;
+  font-weight: 700;
+  height: 32px;
   justify-content: center;
   overflow: hidden;
-  width: 44px;
+  width: 32px;
 }
 
 .pageHeaderLeading img {
@@ -56,8 +56,9 @@
 .pageHeaderCopy { min-width: 0; }
 .pageHeaderCopy h1 {
   color: var(--staff-v2-ink);
-  font-size: clamp(20px, 5.8vw, 25px);
-  line-height: 1.15;
+  font-size: clamp(17px, 4.8vw, 20px);
+  font-weight: 700;
+  line-height: 1.2;
   margin: 0;
   overflow-wrap: anywhere;
 }
@@ -71,7 +72,7 @@
 .sectionLabel {
   color: var(--staff-v2-brand-strong);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: .13em;
   margin: 0 4px 6px;
   text-transform: uppercase;
@@ -97,7 +98,8 @@
 }
 .heroHeader h2 {
   color: var(--staff-v2-ink);
-  font-size: clamp(20px, 5.9vw, 25px);
+  font-size: clamp(20px, 5.9vw, 24px);
+  font-weight: 700;
   line-height: 1.15;
   margin: 2px 0 0;
   overflow-wrap: anywhere;
@@ -105,7 +107,7 @@
 .heroEyebrow {
   color: var(--staff-v2-brand-strong);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: .13em;
   margin: 0;
   text-transform: uppercase;
@@ -118,7 +120,7 @@
   color: var(--staff-v2-muted);
   display: inline-flex;
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 700;
   line-height: 1.15;
   max-width: 124px;
   min-height: 28px;
@@ -168,7 +170,7 @@
 .rowCopy small {
   color: var(--staff-v2-brand-strong);
   font-size: 9px;
-  font-weight: 850;
+  font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -223,7 +225,7 @@
 .summary dd {
   color: var(--staff-v2-ink);
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 700;
   margin: 0;
   overflow-wrap: anywhere;
 }
@@ -237,8 +239,11 @@
 .actionGrid button,
 .actionGrid a { min-height: 48px; }
 
-.branchSwitch { display: grid; gap: 5px; }
-.branchSwitch > span { color: var(--staff-v2-muted); font-size: 10px; font-weight: 750; }
+.branchSwitch {
+  display: grid;
+  gap: 5px;
+}
+.branchSwitch > span { color: var(--staff-v2-muted); font-size: 10px; font-weight: 700; }
 .branchSwitch select {
   background: #fff;
   border: 1px solid var(--staff-v2-line);
@@ -286,11 +291,24 @@
   text-align: center;
   text-decoration: none;
 }
-.quickAction img,
-.quickAction svg { height: 28px; object-fit: contain; width: 28px; }
+.quickAction > span:first-child {
+  align-items: center;
+  background: var(--staff-v2-brand-soft);
+  border-radius: 10px;
+  color: var(--staff-v2-brand-strong);
+  display: flex;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+.quickAction svg { height: 24px; width: 24px; }
+.quickAction:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--staff-v2-brand) 42%, transparent);
+  outline-offset: 2px;
+}
 .quickAction span:last-child {
-  font-size: 10px;
-  font-weight: 850;
+  font-size: 11px;
+  font-weight: 700;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -313,8 +331,6 @@
   .heroHeader .badge { justify-self: start; max-width: none; }
   .quickGrid { gap: 6px; }
   .quickAction { padding: 5px; }
-  .quickAction img,
-  .quickAction svg { height: 25px; width: 25px; }
   .actionGrid { grid-template-columns: 1fr; }
   .actionGrid > :only-child { grid-column: auto; }
 }

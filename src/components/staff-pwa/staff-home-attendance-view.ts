@@ -5,7 +5,7 @@ export type StaffHomeAttendanceFact = "clockIn" | "clockOut" | "break" | "worked
 
 export type StaffHomeAttendanceViewState = {
   headline: string;
-  statusLabel: string;
+  badgeLabel: string | null;
   tone: StaffHomeAttendanceTone;
   facts: StaffHomeAttendanceFact[];
 };
@@ -27,15 +27,8 @@ export function getStaffHomeAttendanceViewState(
   if (today.status || today.totalCompletedBreakMinutes > 0) facts.push("break");
   if (today.status || today.currentWorkedMinutes > 0) facts.push("worked");
 
-  const baseStatus = today.status === "OPEN"
-    ? "Working"
-    : today.status === "ON_BREAK"
-      ? "On break"
-      : today.status === "COMPLETED"
-        ? "Shift done"
-        : "Ready";
-
   return {
+    badgeLabel: today.sessionCount > 1 ? `Shift ${today.sessionCount}` : null,
     facts,
     headline: today.status === "OPEN"
       ? "You are currently working"
@@ -44,9 +37,6 @@ export function getStaffHomeAttendanceViewState(
         : today.status === "COMPLETED"
           ? "You have clocked out for today"
           : "Ready to start your day",
-    statusLabel: today.sessionCount > 1
-      ? `Shift ${today.sessionCount} · ${baseStatus}`
-      : baseStatus,
     tone: today.status === "ON_BREAK"
       ? "warning"
       : today.status === "OPEN" || today.status === "COMPLETED"

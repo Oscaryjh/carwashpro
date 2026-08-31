@@ -33,6 +33,15 @@
   box-shadow: none;
 }
 
+.staff-home-v2-shell .staff-pwa-header {
+  background: #f4f7f6;
+}
+
+.staff-home-v2-shell .staff-pwa-brand > span {
+  background: #07877e;
+  box-shadow: none;
+}
+
 .staff-pwa-shell *,
 .staff-pwa-shell *::before,
 .staff-pwa-shell *::after {

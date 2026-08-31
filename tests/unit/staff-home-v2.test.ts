@@ -62,7 +62,7 @@ test("Home attendance view state covers ready, working, break and completed geom
   } as const;
   const ready = getStaffHomeAttendanceViewState(base);
   assert.deepEqual(ready.facts, []);
-  assert.equal(ready.statusLabel, "Ready");
+  assert.equal(ready.badgeLabel, null);
 
   const openInput = {
     ...base,
@@ -76,7 +76,7 @@ test("Home attendance view state covers ready, working, break and completed geom
 
   const onBreak = getStaffHomeAttendanceViewState({ ...openInput, status: "ON_BREAK" });
   assert.equal(onBreak.tone, "warning");
-  assert.equal(onBreak.statusLabel, "On break");
+  assert.equal(onBreak.badgeLabel, null);
 
   const completed = getStaffHomeAttendanceViewState({
     ...openInput,
@@ -92,7 +92,7 @@ test("Home attendance view state covers ready, working, break and completed geom
     sessionCount: 2,
     status: "COMPLETED",
   });
-  assert.equal(completed.statusLabel, "Shift 2 · Shift done");
+  assert.equal(completed.badgeLabel, "Shift 2");
   assert.deepEqual(completed.facts, ["clockIn", "clockOut", "break", "worked"]);
 });
 
@@ -113,6 +113,28 @@ test("Home V2 presents one relevant next row and only approved quick actions", (
   assert.match(css, /min-height: 60px/);
 });
 
+test("Home V2 final polish removes duplicate state and mixed quick action artwork", () => {
+  assert.match(attendanceView, /badgeLabel: today\.sessionCount > 1 \? `Shift \$\{today\.sessionCount\}` : null/);
+  assert.match(today, /viewState\.badgeLabel \? \(/);
+  assert.doesNotMatch(today, />Ready<|>Working<|>On break<|>Shift done</);
+  assert.match(overview, /APPOINTMENTS: "clock"/);
+  assert.match(overview, /ROSTER: "calendar"/);
+  assert.match(overview, /LEAVE: "leaf"/);
+  assert.doesNotMatch(overview, /quickAccessIcons\[item\.domain\]/);
+  assert.match(css, /\.quickAction > span:first-child/);
+  assert.match(css, /\.quickAction svg \{ height: 24px; width: 24px; \}/);
+  assert.match(css, /\.quickAction:focus-visible/);
+  assert.match(css, /font-size: 11px/);
+});
+
+test("Home V2 final polish keeps identity and no-schedule guidance compact", () => {
+  assert.match(overview, /height=\{32\}/);
+  assert.match(overview, /width=\{32\}/);
+  assert.match(css, /\.pageHeaderLeading[\s\S]*height: 32px;[\s\S]*width: 32px;/);
+  assert.match(today, /"Check Schedule or ask your manager\."/);
+  assert.match(today, /meta=\{today\.expectedAttendance/);
+});
+
 test("manager approval entry remains capability-result driven and hidden at zero", () => {
   assert.match(overview, /if \(!summary \|\| summary\.total <= 0\) return null/);
   assert.match(overview, /href="\/staff\/approvals"/);
@@ -122,6 +144,8 @@ test("manager approval entry remains capability-result driven and hidden at zero
 test("Home-only shell is solid and canonical navigation remains unchanged", () => {
   assert.match(chrome, /currentPath === "\/staff" \? " staff-home-v2-shell"/);
   assert.match(staffCss, /staff-pwa-shell\.staff-home-v2-shell/);
+  assert.match(staffCss, /staff-home-v2-shell \.staff-pwa-header/);
+  assert.match(staffCss, /staff-home-v2-shell \.staff-pwa-brand > span/);
   assert.doesNotMatch(css, /radial-gradient|linear-gradient|backdrop-filter/);
   for (const label of ["Home", "Time", "Requests", "Pay", "Profile"]) {
     assert.match(navigation, new RegExp(`label: "${label}"`));

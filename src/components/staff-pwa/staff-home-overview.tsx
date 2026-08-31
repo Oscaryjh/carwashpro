@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { StaffAppIcon } from "@/components/staff-pwa/staff-app-icon";
+import type { StaffAppDomain, StaffAppIconName } from "@/lib/staff-pwa/appearance-config";
 import type { AwaitedReturn } from "@/lib/staff-pwa/home-types";
 import {
   StaffV2ActionRow,
@@ -23,6 +24,12 @@ export type TeamApprovalSummary = {
   canReviewClaims: boolean;
   canReviewOvertime: boolean;
 } | null;
+
+const homeQuickActionIcons: Partial<Record<StaffAppDomain, StaffAppIconName>> = {
+  APPOINTMENTS: "clock",
+  ROSTER: "calendar",
+  LEAVE: "leaf",
+};
 
 export function StaffHomeOverview({ overview, children }: {
   overview: AwaitedReturn;
@@ -52,11 +59,11 @@ export function StaffHomeOverview({ overview, children }: {
         leading={overview.profile.employee.avatarUrl ? (
           <Image
             alt=""
-            height={44}
-            sizes="44px"
+            height={32}
+            sizes="32px"
             src={overview.profile.employee.avatarUrl}
             unoptimized
-            width={44}
+            width={32}
           />
         ) : <span aria-hidden="true">{initials || "T"}</span>}
         meta={today}
@@ -101,7 +108,7 @@ export function StaffHomeOverview({ overview, children }: {
                 key={item.domain}
               >
                 <span aria-hidden="true">
-                  <StaffAppIcon name={overview.appearance.quickAccessIcons[item.domain]} />
+                  <StaffAppIcon name={homeQuickActionIcons[item.domain] ?? "calendar"} />
                 </span>
                 <span>{item.label}</span>
               </Link>
