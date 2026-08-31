@@ -69,13 +69,14 @@ test("Roster, Staff App and locked Timesheets consume the same holiday context",
   const roster = readFileSync("src/lib/roster/service.ts", "utf8");
   const rosterPage = readFileSync("src/app/(business)/team/roster/page.tsx", "utf8");
   const staffPage = readFileSync("src/app/staff/roster/page.tsx", "utf8");
+  const staffSchedule = readFileSync("src/components/staff-pwa/staff-schedule-v2.tsx", "utf8");
   const timesheet = readFileSync("src/lib/attendance/timesheet-service.ts", "utf8");
   const schema = readFileSync("prisma/schema.prisma", "utf8");
   assert.match(roster, /resolveBranchHolidays/);
   assert.match(roster, /payrollEffect:\s*"NONE"/);
   assert.match(rosterPage, /MonthlyRosterView[\s\S]*holidays=/);
   assert.match(rosterPage, /DayRosterPanel[\s\S]*holidays=/);
-  assert.match(staffPage, /Public holiday/);
+  assert.match(`${staffPage}\n${staffSchedule}`, /Public Holiday/i);
   assert.match(timesheet, /holidayContextSnapshot/);
   assert.match(schema, /holidayContextSnapshot/);
 });

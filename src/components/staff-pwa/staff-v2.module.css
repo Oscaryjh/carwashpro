@@ -310,6 +310,74 @@
 .emptyState strong { color: var(--staff-v2-ink); font-size: 14px; }
 .emptyState span { font-size: 12px; line-height: 1.4; }
 
+.periodNavigator {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  min-width: 0;
+}
+.periodControl {
+  align-items: center;
+  background: var(--staff-v2-surface);
+  border: 1px solid var(--staff-v2-line);
+  border-radius: 14px;
+  color: var(--staff-v2-brand-strong);
+  display: flex;
+  font-size: 24px;
+  font-weight: 700;
+  height: 44px;
+  justify-content: center;
+  text-decoration: none;
+  width: 44px;
+}
+.periodLabel {
+  align-items: center;
+  color: var(--staff-v2-ink);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+  justify-content: center;
+  min-width: 0;
+  text-align: center;
+}
+.periodLabel strong {
+  font-size: 14px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.periodLabel a {
+  color: var(--staff-v2-brand-strong);
+  font-size: 11px;
+  font-weight: 700;
+  min-height: 24px;
+  padding: 4px;
+  text-decoration: none;
+}
+.periodControl:focus-visible,
+.periodLabel a:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--staff-v2-brand) 42%, transparent);
+  outline-offset: 2px;
+}
+
+.detailSection {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.detailSection + .detailSection {
+  border-top: 1px solid var(--staff-v2-line);
+  padding-top: 12px;
+}
+.detailSection h3 {
+  color: var(--staff-v2-ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .inlineError {
   align-items: center;
   background: var(--staff-v2-danger-soft);

@@ -1,30 +1,28 @@
 "use client";
 
 import { useEffect } from "react";
+import { StaffV2PageHeader, staffV2Styles } from "@/components/staff-pwa/staff-v2-primitives";
+import styles from "@/components/staff-pwa/staff-schedule-v2.module.css";
 
 export default function StaffRosterError({
   error,
-  retry,
+  reset,
 }: {
   error: Error & { digest?: string };
-  retry: () => void;
+  reset: () => void;
 }) {
   useEffect(() => {
     console.error("[staff-schedule] Unable to load schedule", error);
   }, [error]);
 
   return (
-    <section className="staff-roster-page">
-      <header className="staff-page-title staff-section-hero">
-        <p>My roster</p>
-        <h1>Schedule</h1>
-      </header>
-      <div className="staff-roster-error-card staff-page-card" role="alert">
+    <section className={`${staffV2Styles.scope} ${styles.page}`}>
+      <StaffV2PageHeader title="Schedule" meta="Your expected work and approved time away." />
+      <div className={styles.errorState} role="alert">
         <strong>Unable to load schedule</strong>
         <p>Check your connection and try again.</p>
-        <button className="staff-roster-retry" onClick={retry} type="button">Try again</button>
+        <button onClick={reset} type="button">Try again</button>
       </div>
     </section>
   );
 }
-

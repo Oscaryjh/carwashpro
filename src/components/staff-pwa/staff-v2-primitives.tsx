@@ -156,11 +156,61 @@ export function StaffV2ActionRow({
 export function StaffV2RowGroup({
   children,
   ariaLabel,
+  className,
 }: {
   children: ReactNode;
   ariaLabel: string;
+  className?: string;
 }) {
-  return <div aria-label={ariaLabel} className={styles.rowGroup} role="list">{children}</div>;
+  return <div aria-label={ariaLabel} className={`${styles.rowGroup} ${className ?? ""}`} role="list">{children}</div>;
+}
+
+export function StaffV2PeriodNavigator({
+  label,
+  previousHref,
+  previousLabel,
+  nextHref,
+  nextLabel,
+  todayHref,
+  todayLabel,
+}: {
+  label: string;
+  previousHref: string;
+  previousLabel: string;
+  nextHref: string;
+  nextLabel: string;
+  todayHref?: string;
+  todayLabel?: string;
+}) {
+  return (
+    <nav aria-label="Schedule period" className={styles.periodNavigator}>
+      <Link aria-label={previousLabel} className={styles.periodControl} href={previousHref}>
+        <span aria-hidden="true">‹</span>
+      </Link>
+      <span className={styles.periodLabel}>
+        <strong>{label}</strong>
+        {todayHref ? <Link aria-label={todayLabel} href={todayHref}>Today</Link> : null}
+      </span>
+      <Link aria-label={nextLabel} className={styles.periodControl} href={nextHref}>
+        <span aria-hidden="true">›</span>
+      </Link>
+    </nav>
+  );
+}
+
+export function StaffV2DetailSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className={styles.detailSection}>
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
 }
 
 export function StaffV2SectionLabel({ children, id }: { children: ReactNode; id?: string }) {
