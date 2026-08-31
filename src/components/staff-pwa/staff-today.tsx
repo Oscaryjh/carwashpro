@@ -23,6 +23,15 @@ import type {
   AttendanceToday,
 } from "@/lib/staff-pwa/types";
 import { StaffLoading } from "./staff-auth";
+import { getStaffHomeAttendanceViewState } from "./staff-home-attendance-view";
+import {
+  StaffV2CompactSummary,
+  StaffV2HeroStatus,
+  StaffV2ListRow,
+  StaffV2StatusBadge,
+  staffHomeV2Styles as homeStyles,
+  type StaffV2SummaryItem,
+} from "./staff-home-v2-primitives";
 import { StaffResolutionCases } from "./staff-resolution-cases";
 
 type GpsEvidence = {
@@ -433,28 +442,50 @@ export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode })
       lastBreakEndedAt: today.lastBreakEndedAt,
       serverTime: today.serverTime,
     });
+  const viewState = getStaffHomeAttendanceViewState(today);
+  const summaryItems: StaffV2SummaryItem[] = [];
+  if (viewState.facts.includes("clockIn") && today.clockInAt) {
+    summaryItems.push({ label: "Clock in", value: formatTime(today.clockInAt, timeZone) });
+  }
+  if (viewState.facts.includes("clockOut") && today.currentSession?.clockOutAt) {
+    summaryItems.push({
+      label: "Clock out",
+      value: formatTime(today.currentSession.clockOutAt, timeZone),
+    });
+  }
+  if (viewState.facts.includes("break")) {
+    summaryItems.push({ label: "Break", value: `${today.totalCompletedBreakMinutes} min` });
+  }
+  if (viewState.facts.includes("worked")) {
+    summaryItems.push({
+      label: "Worked",
+      value: formatMinutesAsHours(today.currentWorkedMinutes),
+    });
+  }
   return (
-    <div className="staff-today-stack">
-      <section className="staff-page-card">
-        <div className="staff-card-heading">
-          <div>
-            <p className="staff-kicker">ATTENDANCE</p>
-            <h2>{attendanceHeadline(today)}</h2>
-          </div>
-          <span className={`staff-status-chip ${today.status?.toLowerCase() ?? "ready"}`}>
-            {today.sessionCount > 1
-              ? `Shift ${today.sessionCount} · ${attendanceStatusLabel(today.status)}`
-              : attendanceStatusLabel(today.status)}
-          </span>
-        </div>
-        <div className="staff-attendance-context">
-          <div>
-            <small>{formatBranchDate(today.branchLocalTime)}</small>
-            <strong>Working at: {today.branch.name}</strong>
-            <span>{today.business.name}</span>
-          </div>
+    <div className={homeStyles.stack}>
+      <StaffV2HeroStatus
+        badge={<StaffV2StatusBadge tone={viewState.tone}>{viewState.statusLabel}</StaffV2StatusBadge>}
+        eyebrow="Attendance"
+        title={viewState.headline}
+      >
+        <StaffV2ListRow
+          kicker={today.expectedAttendance ? expectedAttendanceLabel(today.expectedAttendance.kind) : "Schedule not available"}
+          leading={(
+            <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+              <rect height="16" rx="2" stroke="currentColor" strokeWidth="1.8" width="16" x="4" y="5" />
+              <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+            </svg>
+          )}
+          meta={`${formatBranchDate(today.branchLocalTime)} · ${today.branch.name}`}
+          title={today.expectedAttendance
+            ? expectedAttendanceDetail(today.expectedAttendance)
+            : "Check Schedule or contact your manager for today’s shift."}
+        />
+
+        <div>
           {today.availableBranches.length > 1 ? (
-            <label className="staff-branch-switch">
+            <label className={homeStyles.branchSwitch}>
               <span>Attendance branch</span>
               <select
                 disabled={busy || today.status === "OPEN" || today.status === "ON_BREAK"}
@@ -470,28 +501,6 @@ export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode })
               ) : null}
             </label>
           ) : null}
-        </div>
-        <div className="staff-metrics">
-          <Metric
-            label="Clock in"
-            value={today.clockInAt ? formatTime(today.clockInAt, timeZone) : "—"}
-          />
-          <Metric
-            label="Clock out"
-            value={
-              today.currentSession?.clockOutAt
-                ? formatTime(today.currentSession.clockOutAt, timeZone)
-                : "—"
-            }
-          />
-          <Metric
-            label="Break today"
-            value={`${today.totalCompletedBreakMinutes} min`}
-          />
-          <Metric
-            label="Worked today"
-            value={formatMinutesAsHours(today.currentWorkedMinutes)}
-          />
         </div>
 
         {showLocationStatus ? (
@@ -617,17 +626,14 @@ export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode })
         ) : null}
 
         {!exceptionPrompt ? (
-          <div className="staff-action-grid">
+          <div className={homeStyles.actionGrid}>
             {today.status === "COMPLETED" ? (
-              <div className="staff-completed-message">
-                <span aria-hidden="true">✓</span>
-                <strong>Shift completed</strong>
-                <small>
-                  {today.completedSessionCount}{" "}
-                  {today.completedSessionCount === 1 ? "shift" : "shifts"} completed today
-                </small>
-                <Link href="/staff/history">View shifts in History</Link>
-              </div>
+              <StaffV2ListRow
+                href="/staff/history"
+                kicker="Shift done"
+                meta={`${today.completedSessionCount} ${today.completedSessionCount === 1 ? "shift" : "shifts"} completed today`}
+                title="View attendance history"
+              />
             ) : null}
             {today.allowedActions.map((action) => {
               const isAdditionalShift =
@@ -663,32 +669,11 @@ export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode })
         {today.status === "ON_BREAK" ? (
           <p className="staff-form-hint">End the current break before clocking out.</p>
         ) : null}
-      </section>
+
+        <StaffV2CompactSummary items={summaryItems} />
+      </StaffV2HeroStatus>
 
       {afterAttendance}
-
-      <section
-        className={`staff-page-card staff-schedule-card${today.expectedAttendance ? "" : " is-empty"}`}
-        aria-labelledby="staff-schedule-heading"
-      >
-        <div className="staff-card-heading">
-          <div>
-            <p className="staff-kicker">SCHEDULE</p>
-            <h2 id="staff-schedule-heading">Today&apos;s schedule</h2>
-          </div>
-        </div>
-        {today.expectedAttendance ? (
-          <div className="staff-schedule-evidence">
-            <strong>{expectedAttendanceLabel(today.expectedAttendance.kind)}</strong>
-            <span>{expectedAttendanceDetail(today.expectedAttendance)}</span>
-          </div>
-        ) : (
-          <div className="staff-schedule-empty" role="status">
-            <strong>No schedule yet</strong>
-            <span>Check with your manager for today&apos;s shift. This is not shown as a rest day.</span>
-          </div>
-        )}
-      </section>
 
       <StaffResolutionCases />
 
@@ -801,29 +786,6 @@ export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode })
       ) : null}
     </div>
   );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <span>
-      <small>{label}</small>
-      <strong>{value}</strong>
-    </span>
-  );
-}
-
-function attendanceHeadline(today: AttendanceToday) {
-  if (today.status === "OPEN") return "You are currently working";
-  if (today.status === "ON_BREAK") return "Your break is in progress";
-  if (today.status === "COMPLETED") return "You have clocked out for today";
-  return "Ready to start your day";
-}
-
-function attendanceStatusLabel(status: AttendanceToday["status"]) {
-  if (status === "OPEN") return "Working";
-  if (status === "ON_BREAK") return "On break";
-  if (status === "COMPLETED") return "Shift done";
-  return "Ready";
 }
 
 function formatBranchDate(value: string) {

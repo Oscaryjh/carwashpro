@@ -12,18 +12,20 @@ const homeOverview = read("src/components/staff-pwa/staff-home-overview.tsx");
 const today = read("src/components/staff-pwa/staff-today.tsx");
 const homeReader = read("src/lib/staff-pwa/home.ts");
 const consolidationCss = read("src/app/staff/staff-consolidation.css");
+const staffCss = read("src/app/staff/staff.css");
+const homeV2Css = read("src/components/staff-pwa/staff-home-v2.module.css");
 
 test("manager approval priority appears after Attendance only when actionable work exists", () => {
   assert.match(homePage, /approvalSummary && approvalSummary\.total > 0/);
   assert.match(homePage, /<StaffToday[\s\S]*afterAttendance=/);
   assert.match(homeOverview, /if \(!summary \|\| summary\.total <= 0\) return null/);
-  assert.match(homeOverview, /NEEDS MY APPROVAL/);
-  assert.match(homeOverview, />Review</);
+  assert.match(homeOverview, /Needs my approval/);
+  assert.match(homeOverview, /Review pending staff requests/);
 
   const attendanceEnd = today.indexOf("{afterAttendance}");
-  const scheduleStart = today.indexOf('className={`staff-page-card staff-schedule-card');
   assert.ok(attendanceEnd > 0);
-  assert.ok(scheduleStart > attendanceEnd, "manager priority must render before Schedule");
+  assert.match(today.slice(0, attendanceEnd), /StaffV2HeroStatus/);
+  assert.doesNotMatch(today.slice(attendanceEnd), /staff-schedule-card/);
 });
 
 test("empty upcoming schedule is omitted while useful and unavailable states remain supported", () => {
@@ -31,9 +33,10 @@ test("empty upcoming schedule is omitted while useful and unavailable states rem
   assert.match(homeReader, /status: "EMPTY"/);
   assert.match(homeReader, /status: "READY"/);
   assert.match(homeReader, /status: "UNAVAILABLE"/);
-  assert.match(today, /staff-schedule-card\$\{today\.expectedAttendance \? "" : " is-empty"\}/);
-  assert.match(today, />No schedule yet</);
-  assert.match(today, /This is not shown as a rest day/);
+  assert.match(today, /kicker=\{today\.expectedAttendance \? expectedAttendanceLabel/);
+  assert.match(today, /Schedule not available/);
+  assert.match(today, /Check Schedule or contact your manager/);
+  assert.doesNotMatch(today, /staff-schedule-card/);
 });
 
 test("mobile Staff shell reserves fixed nav, safe-area and comfortable scroll clearance", () => {
@@ -54,4 +57,12 @@ test("Quick Access remains limited to Appointments, Schedule and Leave", () => {
   assert.match(homeReader, /domain: "LEAVE", label: "Leave"/);
   assert.doesNotMatch(homeReader, /domain: "CLAIMS", label:/);
   assert.doesNotMatch(homeReader, /domain: "TIMESHEET", label:/);
+});
+
+test("Home V2 reserves a solid mobile canvas and compact actions", () => {
+  assert.match(homeV2Css, /--staff-v2-canvas:/);
+  assert.match(staffCss, /staff-pwa-shell\.staff-home-v2-shell/);
+  assert.doesNotMatch(homeV2Css, /radial-gradient|backdrop-filter/);
+  assert.match(homeV2Css, /\.quickAction \{[\s\S]*?min-height: 60px/);
+  assert.match(homeV2Css, /@media \(max-width: 380px\)/);
 });

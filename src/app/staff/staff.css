@@ -24,6 +24,15 @@
     max(16px, env(safe-area-inset-left));
 }
 
+.staff-pwa-shell.staff-home-v2-shell {
+  background: #f4f7f6;
+}
+
+.staff-home-v2-shell .staff-current-workplace {
+  background: #fff;
+  box-shadow: none;
+}
+
 .staff-pwa-shell *,
 .staff-pwa-shell *::before,
 .staff-pwa-shell *::after {

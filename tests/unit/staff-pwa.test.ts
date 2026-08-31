@@ -273,11 +273,13 @@ test("Today renders actions only from the Today API and preserves one idempotenc
 });
 
 test("Today prioritizes shift facts and shows explicit completion and approval states", () => {
-  assert.match(todaySource, /label="Clock out"/);
-  assert.match(todaySource, /Shift completed/);
+  assert.match(todaySource, /label: "Clock out"/);
+  assert.match(todaySource, /kicker="Shift done"/);
   assert.match(todaySource, /Manager approval pending/);
   assert.match(todaySource, /formatBranchDate\(today\.branchLocalTime\)/);
-  assert.match(todaySource, /Working at: \{today\.branch\.name\}/);
+  assert.match(todaySource, /StaffV2CompactSummary items=\{summaryItems\}/);
+  assert.match(todaySource, /meta=\{`\$\{formatBranchDate\(today\.branchLocalTime\)\} · \$\{today\.branch\.name\}`\}/);
+  assert.doesNotMatch(todaySource, /staff-metrics/);
   assert.doesNotMatch(todaySource, /label="GPS"/);
   assert.doesNotMatch(todaySource, /<section className="staff-time-card">/);
 });
@@ -289,8 +291,8 @@ test("Today offers an additional shift after a completed session", () => {
 });
 
 test("Today shows only explicit expected-attendance evidence and never guesses an off day", () => {
-  assert.match(todaySource, /No schedule yet/);
-  assert.match(todaySource, /not shown as a rest day/);
+  assert.match(todaySource, /Schedule not available/);
+  assert.match(todaySource, /Check Schedule or contact your manager/);
   assert.match(todaySource, /expectedAttendance\.kind/);
   assert.doesNotMatch(todaySource, /!today\.expectedAttendance[^\n]*Off Day/i);
 });

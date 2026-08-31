@@ -161,7 +161,7 @@ export function StaffPwaChrome({
   return (
     <StaffShellContext.Provider value={shellValue}>
       <div
-        className={`staff-pwa-shell ${showNavigation ? "staff-app-shell" : "staff-auth-shell"}${taskNavigationHidden ? " staff-task-modal-open" : ""}`}
+        className={`staff-pwa-shell ${showNavigation ? "staff-app-shell" : "staff-auth-shell"}${currentPath === "/staff" ? " staff-home-v2-shell" : ""}${taskNavigationHidden ? " staff-task-modal-open" : ""}`}
         ref={shellRef}
       >
         <OfflineBanner />
