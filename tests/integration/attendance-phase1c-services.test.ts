@@ -14,7 +14,11 @@ import {
   getEmployeeAttendanceToday,
 } from "../../src/lib/attendance/read-service";
 import { getAttendanceWorkDate } from "../../src/lib/attendance/work-date";
-import { getStaffOvertimeQueue } from "../../src/lib/staff-pwa/overtime-approvals";
+import {
+  getStaffOvertimeDetail,
+  getStaffOvertimeQueue,
+  getStaffOvertimeSummary,
+} from "../../src/lib/staff-pwa/overtime-approvals";
 
 process.env.EMPLOYEE_AUTH_SECRET =
   process.env.EMPLOYEE_AUTH_SECRET ??
@@ -558,6 +562,58 @@ test("Clock Out projects the completed legacy session into one P2 day and OT can
   });
 });
 
+test("Staff OT queue, counts and detail exclude the actor by canonical membership", async () => {
+  assertLocalDatabase();
+
+  await withRollback(async (transaction) => {
+    const fixture = await createFixture(transaction);
+    const database = transaction as unknown as PrismaClient;
+    const actor = await createOvertimeManager(transaction, fixture.businessA.id, fixture.branchA.id, "Actor");
+    const otherReviewer = await createOvertimeManager(transaction, fixture.businessA.id, fixture.branchA.id, "Other reviewer");
+    const subjectA = await createOvertimeSubject(transaction, fixture.businessA.id, "Louis stylist");
+    const subjectB = await createOvertimeSubject(transaction, fixture.businessA.id, "test");
+    const ownResult = await createOvertimeFinalResult(transaction, {
+      businessId: fixture.businessA.id,
+      branchId: fixture.branchA.id,
+      membershipId: actor.auth.membershipId,
+      workDate: "2026-08-21",
+      createdById: fixture.actorId,
+    });
+    await createOvertimeFinalResult(transaction, {
+      businessId: fixture.businessA.id,
+      branchId: fixture.branchA.id,
+      membershipId: subjectA.id,
+      workDate: "2026-08-22",
+      createdById: fixture.actorId,
+    });
+    await createOvertimeFinalResult(transaction, {
+      businessId: fixture.businessA.id,
+      branchId: fixture.branchA.id,
+      membershipId: subjectB.id,
+      workDate: "2026-08-20",
+      createdById: fixture.actorId,
+    });
+
+    const actorQueue = await getStaffOvertimeQueue({ auth: actor.auth, month: "2026-08", database });
+    assert.equal(actorQueue?.pending, 2);
+    assert.equal(actorQueue?.items.length, 2);
+    assert.deepEqual(new Set(actorQueue?.items.map((item) => item.membershipId)), new Set([subjectA.id, subjectB.id]));
+    assert.ok(actorQueue?.items.every((item) => item.membershipId !== actor.auth.membershipId));
+
+    const summary = await getStaffOvertimeSummary(actor.auth, database);
+    assert.equal(summary?.pending, actorQueue?.pending, "Home/All/OT must use the same filtered count as the queue");
+    assert.equal(await getStaffOvertimeDetail(actor.auth, ownResult.id, database), null, "direct self-detail must fail closed");
+    assert.ok(await getStaffOvertimeDetail(actor.auth, actorQueue!.items[0]!.finalResultId, database));
+
+    const otherQueue = await getStaffOvertimeQueue({ auth: otherReviewer.auth, month: "2026-08", database });
+    assert.equal(otherQueue?.pending, 3);
+    assert.ok(otherQueue?.items.some((item) => item.membershipId === actor.auth.membershipId));
+    assert.ok(await getStaffOvertimeDetail(otherReviewer.auth, ownResult.id, database));
+
+    assert.equal(await transaction.attendanceOvertimeReview.count({ where: { finalResultId: ownResult.id } }), 0);
+  });
+});
+
 test("Clock Out preserves the P2 full-day Leave conflict and creates no OT candidate", async () => {
   assertLocalDatabase();
 
@@ -753,6 +809,112 @@ test("Clock In snapshots the published Roster break and Staff App uses the Roste
     });
   });
 });
+
+async function createOvertimeManager(
+  transaction: Prisma.TransactionClient,
+  businessId: string,
+  branchId: string,
+  label: string,
+) {
+  const token = randomUUID();
+  const phone = `+601${randomInt(10_000_000, 99_999_999)}`;
+  const account = await transaction.employeeAccount.create({
+    data: { phoneNumber: phone, phoneNormalized: phone, name: `OT ${label}`, status: "ACTIVE" },
+  });
+  const membership = await transaction.employeeBusinessMembership.create({
+    data: {
+      employeeAccountId: account.id,
+      businessId,
+      employeeCode: `OT-${label.toUpperCase().replaceAll(" ", "-")}-${token.slice(0, 8)}`,
+      fullName: `OT ${label}`,
+      phoneNumber: phone,
+      phoneNumberNormalized: phone,
+      status: "ACTIVE",
+      attendanceEnabled: true,
+    },
+  });
+  const user = await transaction.user.create({
+    data: {
+      businessId,
+      branchId,
+      employeeAccountId: account.id,
+      employeeBusinessMembershipId: membership.id,
+      teamMemberLinkStatus: "LINKED",
+      teamMemberLinkedAt: new Date("2026-08-01T00:00:00.000Z"),
+      name: `OT ${label}`,
+      email: `ot-${token}@test.local`,
+      role: "STAFF",
+      permissions: ["ATTENDANCE_EMPLOYEE_MANAGE"],
+      status: "active",
+    },
+  });
+  return {
+    user,
+    auth: {
+      sessionId: randomUUID(),
+      employeeAccountId: account.id,
+      membershipId: membership.id,
+      businessId,
+      primaryBranchId: branchId,
+      attendanceBranchId: branchId,
+      deviceId: randomUUID(),
+    } satisfies EmployeeAuthContext,
+  };
+}
+
+async function createOvertimeSubject(
+  transaction: Prisma.TransactionClient,
+  businessId: string,
+  fullName: string,
+) {
+  const token = randomUUID();
+  const phone = `+601${randomInt(10_000_000, 99_999_999)}`;
+  const account = await transaction.employeeAccount.create({
+    data: { phoneNumber: phone, phoneNormalized: phone, name: fullName, status: "ACTIVE" },
+  });
+  return transaction.employeeBusinessMembership.create({
+    data: {
+      employeeAccountId: account.id,
+      businessId,
+      employeeCode: `OT-SUBJECT-${token.slice(0, 8)}`,
+      fullName,
+      phoneNumber: phone,
+      phoneNumberNormalized: phone,
+      status: "ACTIVE",
+      attendanceEnabled: true,
+    },
+  });
+}
+
+function createOvertimeFinalResult(
+  transaction: Prisma.TransactionClient,
+  input: {
+    businessId: string;
+    branchId: string;
+    membershipId: string;
+    workDate: string;
+    createdById: string;
+  },
+) {
+  return transaction.attendanceP2FinalResult.create({
+    data: {
+      businessId: input.businessId,
+      branchId: input.branchId,
+      membershipId: input.membershipId,
+      workDate: new Date(`${input.workDate}T00:00:00.000Z`),
+      version: 1,
+      outcome: "PRESENT",
+      expectedDayKindSnapshot: "NOT_SCHEDULED",
+      actualClockInAt: new Date(`${input.workDate}T01:00:00.000Z`),
+      actualClockOutAt: new Date(`${input.workDate}T02:00:00.000Z`),
+      totalBreakMinutes: 0,
+      totalWorkedMinutes: 60,
+      sourceDigest: "a".repeat(64),
+      resolutionDigest: "b".repeat(64),
+      createdById: input.createdById,
+    },
+  });
+}
 
 async function createFixture(transaction: Prisma.TransactionClient) {
   const suffix = randomUUID().slice(0, 8);

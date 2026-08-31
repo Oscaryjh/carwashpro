@@ -110,16 +110,22 @@ export async function listAttendanceOvertimeCandidates(args: {
   periodStart: Date;
   periodEndExclusive: Date;
   membershipId?: string;
+  excludedMembershipId?: string;
   database?: OvertimeDatabase;
 }): Promise<OvertimeCandidate[]> {
   const database = args.database ?? prisma;
   if (!args.allowedBranchIds.length) return [];
+  if (args.membershipId && args.membershipId === args.excludedMembershipId) return [];
 
   const finalRows = await database.attendanceP2FinalResult.findMany({
     where: {
       businessId: args.businessId,
       branchId: { in: [...args.allowedBranchIds] },
-      ...(args.membershipId ? { membershipId: args.membershipId } : {}),
+      ...(args.membershipId
+        ? { membershipId: args.membershipId }
+        : args.excludedMembershipId
+          ? { membershipId: { not: args.excludedMembershipId } }
+          : {}),
       workDate: { gte: args.periodStart, lt: args.periodEndExclusive },
     },
     select: finalResultSelect,
@@ -215,6 +221,7 @@ export async function listAttendanceOvertimeCandidates(args: {
 
 export async function decideAttendanceOvertime(args: {
   context: AttendanceServiceContext;
+  actorMembershipId?: string;
   finalResultId: string;
   expectedRevision: number;
   input: z.input<typeof decisionSchema>;
@@ -233,6 +240,9 @@ export async function decideAttendanceOvertime(args: {
     }
     if (!args.context.allowedBranchIds.includes(finalResult.branchId)) {
       throw new AttendanceOvertimeError("OUTSIDE_BRANCH_SCOPE", "This employee is outside your authorized branch scope.");
+    }
+    if (args.actorMembershipId && finalResult.membershipId === args.actorMembershipId) {
+      throw new AttendanceOvertimeError("SELF_APPROVAL_NOT_ALLOWED", "Employees cannot approve their own OT.");
     }
     const periodStart = new Date(Date.UTC(
       finalResult.workDate.getUTCFullYear(),

@@ -15,6 +15,7 @@ type OvertimeApprovalDatabase = PrismaClient;
 
 export type StaffOvertimeAccess = Readonly<{
   actor: AppSession;
+  actorMembershipId: string;
   businessId: string;
   allowedBranchIds: readonly string[];
   wholeBusinessScope: boolean;
@@ -83,25 +84,24 @@ export async function resolveStaffOvertimeAccess(
       permissions: user.permissions,
       status: user.status,
     },
+    actorMembershipId: auth.membershipId,
     businessId: auth.businessId,
     allowedBranchIds,
     wholeBusinessScope,
   };
 }
 
-export async function getStaffOvertimeSummary(auth: EmployeeAuthContext) {
-  const access = await resolveStaffOvertimeAccess(auth);
+export async function getStaffOvertimeSummary(
+  auth: EmployeeAuthContext,
+  database: OvertimeApprovalDatabase = prisma,
+) {
+  const access = await resolveStaffOvertimeAccess(auth, database);
   if (!access) return null;
   const period = overtimeMonthPeriod(currentMonthValue());
-  const candidates = await listAttendanceOvertimeCandidates({
-    businessId: access.businessId,
-    allowedBranchIds: access.allowedBranchIds,
-    ...period,
-  });
+  const candidates = await listVisibleStaffOvertimeCandidates(access, period, database);
   return {
     canReviewOvertime: true as const,
     pending: candidates.filter((candidate) =>
-      candidate.employeeUserId !== access.actor.userId &&
       candidate.effectiveStatus === "PENDING_REVIEW"
     ).length,
   };
@@ -117,13 +117,7 @@ export async function getStaffOvertimeQueue(input: {
   if (!access) return null;
   const month = validMonth(input.month) ? input.month : currentMonthValue();
   const period = overtimeMonthPeriod(month);
-  const candidates = await listAttendanceOvertimeCandidates({
-    businessId: access.businessId,
-    allowedBranchIds: access.allowedBranchIds,
-    ...period,
-    database,
-  });
-  const visible = candidates.filter((candidate) => candidate.employeeUserId !== access.actor.userId);
+  const visible = await listVisibleStaffOvertimeCandidates(access, period, database);
   const facts = await loadFinalResultFacts(visible.map((candidate) => candidate.finalResultId), access, database);
   const factById = new Map(facts.map((fact) => [fact.id, fact]));
   const items = visible.flatMap((candidate) => {
@@ -186,8 +180,10 @@ export async function decideStaffOvertime(input: {
   approvedMinutes?: number;
   reason?: string;
   request?: AuditRequestContext;
+  database?: OvertimeApprovalDatabase;
 }) {
-  const access = await resolveStaffOvertimeAccess(input.auth);
+  const database = input.database ?? prisma;
+  const access = await resolveStaffOvertimeAccess(input.auth, database);
   if (!access) throw new Error("You do not have permission to review overtime in this workplace.");
   const context: AttendanceServiceContext = {
     businessId: access.businessId,
@@ -198,6 +194,7 @@ export async function decideStaffOvertime(input: {
   };
   return decideAttendanceOvertime({
     context,
+    actorMembershipId: access.actorMembershipId,
     finalResultId: input.finalResultId,
     expectedRevision: input.expectedRevision,
     input: input.decision === "REJECT"
@@ -205,7 +202,25 @@ export async function decideStaffOvertime(input: {
       : input.decision === "ADJUST"
         ? { decision: "ADJUST", approvedMinutes: input.approvedMinutes ?? Number.NaN, reason: input.reason ?? "" }
         : { decision: "APPROVE" },
+    database,
   });
+}
+
+async function listVisibleStaffOvertimeCandidates(
+  access: StaffOvertimeAccess,
+  period: ReturnType<typeof overtimeMonthPeriod>,
+  database: OvertimeApprovalDatabase,
+) {
+  const candidates = await listAttendanceOvertimeCandidates({
+    businessId: access.businessId,
+    allowedBranchIds: access.allowedBranchIds,
+    excludedMembershipId: access.actorMembershipId,
+    ...period,
+    database,
+  });
+  // Keep a membership-level defense at this Staff boundary even when a mocked
+  // or alternate reader does not apply the database exclusion itself.
+  return candidates.filter((candidate) => candidate.membershipId !== access.actorMembershipId);
 }
 
 function loadFinalResultFacts(

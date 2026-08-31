@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import type { PrismaClient } from "@prisma/client";
+import {
+  AttendanceOvertimeError,
+  decideAttendanceOvertime,
+} from "../../src/lib/attendance/overtime-service";
 
 const files = {
   adapter: "src/lib/staff-pwa/overtime-approvals.ts",
@@ -33,9 +38,23 @@ test("mobile OT queue is scoped by tenant and authorized branches and hides self
   const adapter = await readFile(files.adapter, "utf8");
   assert.match(adapter, /businessId: access\.businessId/);
   assert.match(adapter, /allowedBranchIds: access\.allowedBranchIds/);
-  assert.match(adapter, /candidate\.employeeUserId !== access\.actor\.userId/);
+  assert.match(adapter, /actorMembershipId: auth\.membershipId/);
+  assert.match(adapter, /excludedMembershipId: access\.actorMembershipId/);
+  assert.match(adapter, /candidate\.membershipId !== access\.actorMembershipId/);
   assert.match(adapter, /branchId: \{ in: \[\.\.\.access\.allowedBranchIds\] \}/);
   assert.match(adapter, /listAttendanceOvertimeCandidates\(/);
+});
+
+test("Home, Approval Center and OT queue reuse one membership-filtered candidate reader", async () => {
+  const adapter = await readFile(files.adapter, "utf8");
+  assert.equal(adapter.match(/listVisibleStaffOvertimeCandidates\(/g)?.length, 3);
+  assert.doesNotMatch(adapter, /employeeUserId !== access\.actor\.userId/);
+});
+
+test("direct OT detail resolves only through the membership-filtered queue", async () => {
+  const adapter = await readFile(files.adapter, "utf8");
+  assert.match(adapter, /const queue = await getStaffOvertimeQueue\(\{ auth, month, database \}\)/);
+  assert.match(adapter, /if \(!item\) return null/);
 });
 
 test("mobile OT decisions reuse canonical approve, adjust and reject service", async () => {
@@ -45,6 +64,7 @@ test("mobile OT decisions reuse canonical approve, adjust and reject service", a
     readFile(files.detail, "utf8"),
   ]);
   assert.match(adapter, /decideAttendanceOvertime\(/);
+  assert.match(adapter, /actorMembershipId: access\.actorMembershipId/);
   assert.match(detail, /value="APPROVE"/);
   assert.match(detail, /value="ADJUST"/);
   assert.match(detail, /value="REJECT"/);
@@ -59,11 +79,61 @@ test("canonical OT guards self approval, branch scope, locked Timesheet and conc
   const overtime = await readFile(files.overtime, "utf8");
   assert.match(overtime, /OUTSIDE_BRANCH_SCOPE/);
   assert.match(overtime, /SELF_APPROVAL_NOT_ALLOWED/);
+  assert.match(overtime, /finalResult\.membershipId === args\.actorMembershipId/);
   assert.match(overtime, /TIMESHEET_LOCKED/);
   assert.match(overtime, /CONCURRENT_CHANGE/);
   assert.match(overtime, /existing\?\.revision \?\? 0/);
   assert.match(overtime, /review\.sourceDigest !== derived\.sourceDigest/);
 });
+
+for (const scenario of [
+  { name: "approve", input: { decision: "APPROVE" as const } },
+  { name: "adjust", input: { decision: "ADJUST" as const, approvedMinutes: 30, reason: "Manager adjustment" } },
+  { name: "reject", input: { decision: "REJECT" as const, reason: "Manager rejection" } },
+]) {
+  test(`canonical ${scenario.name} action rejects membership-level self review before any write`, async () => {
+    let writeAttempted = false;
+    const transaction = {
+      attendanceP2FinalResult: {
+        findUnique: async () => ({
+          id: "11111111-1111-4111-8111-111111111111",
+          businessId: "22222222-2222-4222-8222-222222222222",
+          branchId: "33333333-3333-4333-8333-333333333333",
+          membershipId: "44444444-4444-4444-8444-444444444444",
+        }),
+      },
+      attendanceOvertimeReview: {
+        create: async () => { writeAttempted = true; },
+        updateMany: async () => { writeAttempted = true; },
+      },
+    };
+    const database = {
+      $transaction: async (callback: (tx: typeof transaction) => unknown) => callback(transaction),
+    } as unknown as PrismaClient;
+
+    await assert.rejects(
+      decideAttendanceOvertime({
+        context: {
+          businessId: "22222222-2222-4222-8222-222222222222",
+          allowedBranchIds: ["33333333-3333-4333-8333-333333333333"],
+          wholeBusinessScope: false,
+          actor: {
+            userId: "55555555-5555-4555-8555-555555555555",
+            name: "Self reviewer",
+            email: "self-reviewer@test.local",
+          },
+        },
+        actorMembershipId: "44444444-4444-4444-8444-444444444444",
+        finalResultId: "11111111-1111-4111-8111-111111111111",
+        expectedRevision: 0,
+        input: scenario.input,
+        database,
+      }),
+      (error: unknown) => error instanceof AttendanceOvertimeError && error.code === "SELF_APPROVAL_NOT_ALLOWED",
+    );
+    assert.equal(writeAttempted, false);
+  });
+}
 
 test("employee overtime remains read-only and payroll keeps the approved-only frozen boundary", async () => {
   const [employee, payroll] = await Promise.all([
