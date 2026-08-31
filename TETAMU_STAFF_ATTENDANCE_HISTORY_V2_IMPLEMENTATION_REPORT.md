@@ -1,8 +1,10 @@
 # TETAMU STAFF ATTENDANCE HISTORY V2 IMPLEMENTATION REPORT
 
-Scope: Staff 3000 only  
-Environment: LOCAL / RAILWAY TESTING ONLY  
-Feature commit: `5b9cdd1`  
+Scope: Staff 3000 only
+
+Environment: LOCAL / RAILWAY TESTING ONLY
+
+Feature commit: `5b9cdd1`
 
 ## 1. FINAL VERDICT
 
@@ -209,9 +211,12 @@ Confirmed: **NO NEW MIGRATION**. Prisma schema and migration directories are unc
 
 ## 30. TESTING DEPLOYMENT
 
-Commit: `5b9cdd1`  
-Deployment ID: `ee1a09b6-6569-43e6-8a1d-b1ebfb82e5f7`  
-Status: `SUCCESS`  
+Commit: `5b9cdd1`
+
+Deployment ID: `ee1a09b6-6569-43e6-8a1d-b1ebfb82e5f7`
+
+Status: `SUCCESS`
+
 Target: `testing / tetamu-staff-app / Southeast Asia`
 
 Post-deployment smoke:
@@ -222,8 +227,10 @@ Post-deployment smoke:
 
 ## 31. PRODUCTION STATUS
 
-**TESTING ONLY**  
-**PRODUCTION NOT ACCESSED**  
+**TESTING ONLY**
+
+**PRODUCTION NOT ACCESSED**
+
 **PRODUCTION NOT MODIFIED**
 
 Stop rule observed: implementation stops at Attendance History V2. Timesheet V2, Requests V2, Pay V2 and Profile V2 were not started.
