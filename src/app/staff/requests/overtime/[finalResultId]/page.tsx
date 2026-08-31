@@ -48,9 +48,7 @@ export default async function StaffOvertimeDetailPage({
         <Fact label="OT context" value={humanize(item.context)} />
         <Fact label="Potential overtime" value={durationLabel(item.potentialOtMinutes)} />
         <Fact label="Approved overtime" value={durationLabel(item.review?.approvedOtMinutes ?? 0)} />
-        <Fact label="Review revision" value={String(item.review?.revision ?? 0)} />
-        <Fact label="Timesheet" value={`${humanize(detail.timesheetStatus)} · revision ${detail.timesheetRevision}`} />
-        <Fact label="Reason" value={item.review?.reason || "No decision note"} />
+        <Fact label="Decision note" value={item.review?.reason || "No note added"} />
       </dl>
       <p className="staff-overtime-boundary">
         This review does not change clock records or generate overtime. It records the Manager decision against the latest final Attendance result.
@@ -62,10 +60,11 @@ export default async function StaffOvertimeDetailPage({
             <button className="staff-overtime-primary" name="decision" value="APPROVE">Approve {durationLabel(item.potentialOtMinutes)}</button>
           </form>
           <details>
-            <summary>Adjust approved minutes</summary>
+            <summary>Adjust approved overtime</summary>
             <form action={decideMobileOvertimeAction}>
               <DecisionFields item={item} month={detail.month} />
-              <label><span>Approved minutes</span><input inputMode="numeric" max={item.potentialOtMinutes} min="0" name="approvedMinutes" required type="number" /></label>
+              <div className="staff-overtime-duration-input"><label><span>Hours</span><input defaultValue="0" inputMode="numeric" min="0" name="approvedHours" required type="number" /></label><label><span>Minutes</span><input defaultValue="0" inputMode="numeric" max="59" min="0" name="approvedMinuteRemainder" required type="number" /></label></div>
+              <small className="staff-overtime-limit">Maximum available: {durationLabel(item.potentialOtMinutes)}</small>
               <label><span>Reason for adjustment</span><textarea maxLength={500} minLength={3} name="reason" required /></label>
               <button className="staff-overtime-secondary" name="decision" value="ADJUST">Save adjustment</button>
             </form>

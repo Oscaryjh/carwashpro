@@ -380,3 +380,54 @@
 @media (prefers-reduced-motion: reduce) {
   .staff-roster-disclosure { transition:none; }
 }
+
+/* Approval Center V2: manager-only pending work plus immutable reviewer history. */
+.staff-manager-approval-link { align-items:center; background:#fff; border:1px solid var(--staff-line); border-radius:18px; color:var(--staff-ink); display:flex; gap:12px; justify-content:space-between; min-height:76px; padding:14px 16px; text-decoration:none; }
+.staff-manager-approval-link > span { display:grid; gap:2px; min-width:0; }
+.staff-manager-approval-link small { color:var(--staff-brand); font-size:10px; font-weight:900; letter-spacing:.11em; }
+.staff-manager-approval-link strong { font-size:17px; }
+.staff-manager-approval-link em { color:var(--staff-muted); font-size:11px; font-style:normal; line-height:1.4; }
+.staff-manager-approval-link > b { background:var(--staff-brand-soft); border-radius:999px; color:var(--staff-brand-dark); flex:0 0 auto; font-size:11px; padding:8px 10px; }
+.staff-approval-view-tabs { background:#e8f1ef; border-radius:14px; display:grid; grid-template-columns:1fr 1fr; padding:4px; }
+.staff-approval-view-tabs a { align-items:center; border-radius:11px; color:var(--staff-muted); display:flex; font-size:13px; font-weight:850; gap:7px; justify-content:center; min-height:44px; text-decoration:none; }
+.staff-approval-view-tabs a.active { background:#fff; box-shadow:0 2px 8px rgba(15,74,69,.09); color:var(--staff-brand-dark); }
+.staff-approval-view-tabs b { background:var(--staff-brand-soft); border-radius:999px; font-size:10px; min-width:22px; padding:3px 6px; text-align:center; }
+.staff-approval-history-filters { background:#fff; border:1px solid var(--staff-line); border-radius:18px; display:grid; gap:10px; grid-template-columns:1fr 1fr; padding:14px; }
+.staff-approval-history-filters label { display:grid; gap:6px; min-width:0; }
+.staff-approval-history-filters label span { color:var(--staff-muted); font-size:11px; font-weight:800; }
+.staff-approval-history-filters input,.staff-approval-history-filters select { background:#f8fbfa; border:1px solid #c8d8d6; border-radius:12px; color:var(--staff-ink); font:inherit; font-size:14px; min-height:44px; min-width:0; padding:0 11px; width:100%; }
+.staff-approval-history-filters button { background:var(--staff-brand); border:0; border-radius:12px; color:#fff; font:inherit; font-size:13px; font-weight:850; grid-column:1/-1; min-height:44px; }
+.staff-approval-history-scope { color:var(--staff-muted); font-size:11px; margin:-5px 2px 0; }
+.staff-approval-history-row { grid-template-columns:42px minmax(0,1fr) auto; }
+.staff-approval-history-status { align-self:start; background:#e8f6ee; border-radius:999px; color:#187148; font-size:10px; font-weight:900; padding:6px 8px; white-space:nowrap; }
+.staff-approval-history-status.rejected { background:#fff0ee; color:#a8372c; }
+.staff-approval-history-status.adjusted,.staff-approval-history-status.returned { background:#fff7e3; color:#936212; }
+.staff-approval-empty-icon { align-items:center; align-self:center; background:var(--staff-brand-soft); border-radius:50%; color:var(--staff-brand); display:flex; font-size:18px; height:42px; justify-content:center; justify-self:center; width:42px; }
+.staff-approval-empty a { color:var(--staff-brand-dark); font-size:12px; font-weight:850; min-height:44px; padding-top:12px; }
+.staff-approval-decision-summary { background:#fff; border:1px solid var(--staff-line); border-left:4px solid var(--staff-brand); border-radius:18px; display:grid; gap:5px; padding:15px; }
+.staff-approval-decision-summary small { color:var(--staff-brand); font-size:10px; font-weight:900; letter-spacing:.1em; }
+.staff-approval-decision-summary strong { font-size:20px; }
+.staff-approval-decision-summary span,.staff-approval-decision-summary time { color:var(--staff-muted); font-size:12px; }
+.staff-approval-decision-summary p { background:#f5f9f8; border-radius:11px; font-size:13px; line-height:1.5; margin:5px 0 0; padding:10px; }
+.staff-approval-decision-form > p { color:var(--staff-muted); font-size:12px; margin:0; }
+.staff-approval-actions form,.staff-approval-actions form button { min-width:0; width:100%; }
+.staff-approval-sheet-backdrop { align-items:end; background:rgba(9,32,30,.42); display:flex; inset:0; justify-content:center; padding:18px 12px 0; position:fixed; z-index:120; }
+.staff-approval-sheet { background:#fff; border-radius:26px 26px 0 0; display:grid; gap:13px; max-width:560px; padding:8px 18px calc(18px + env(safe-area-inset-bottom)); width:100%; }
+.staff-approval-sheet-handle { background:#bfd0cd; border-radius:999px; height:4px; justify-self:center; width:46px; }
+.staff-approval-sheet > header { align-items:start; display:flex; justify-content:space-between; }
+.staff-approval-sheet h2,.staff-approval-sheet p { margin:0; }
+.staff-approval-sheet > header button { background:var(--staff-brand-soft); border:0; border-radius:50%; color:var(--staff-brand-dark); font-size:24px; height:44px; width:44px; }
+.staff-approval-sheet > p { color:var(--staff-muted); font-size:13px; }
+.staff-approval-sheet form { display:grid; gap:12px; }
+.staff-approval-sheet form > button { border-radius:13px; font:inherit; font-size:14px; font-weight:850; min-height:48px; }
+.staff-overtime-duration-input { display:grid; gap:10px; grid-template-columns:1fr 1fr; }
+.staff-overtime-limit { color:var(--staff-muted); display:block; font-size:11px; margin-top:-4px; }
+
+@media (max-width:430px) {
+  .staff-approval-tabs { display:flex; gap:7px; overflow-x:auto; }
+  .staff-approval-tabs a { flex:0 0 auto; min-width:72px; }
+  .staff-approval-history-filters { grid-template-columns:1fr; }
+  .staff-approval-history-filters button { grid-column:auto; }
+  .staff-approval-history-row { grid-template-columns:38px minmax(0,1fr); }
+  .staff-approval-history-row .staff-approval-history-status { grid-column:2; justify-self:start; }
+}

@@ -87,8 +87,8 @@ export default async function StaffRequestsPage() {
 
       {approvals || overtime?.canReviewOvertime ? (
         <Link className="staff-manager-approval-link" href="/staff/approvals">
-          <span><small>MANAGER WORKSPACE</small><strong>Team approvals</strong></span>
-          <b>{managerWorkspaceCount ? `${managerWorkspaceCount} waiting` : "All clear"}</b>
+          <span><small>MANAGER</small><strong>Approvals</strong><em>{managerWorkspaceCount ? `${managerWorkspaceCount} request${managerWorkspaceCount === 1 ? "" : "s"} need your review` : "You’re all caught up · View approval history"}</em></span>
+          <b>{managerWorkspaceCount ? `${managerWorkspaceCount} pending` : "History"}</b>
         </Link>
       ) : null}
 

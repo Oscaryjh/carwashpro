@@ -20,7 +20,7 @@ test("Staff Attendance parent count and child total share one actionable project
   assert.match(adapter, /const attendanceCount = attendance\?\.totalActionable \?\? 0/);
   assert.match(adapter, /totalActionable: corrections\.pagination\.total \+ pendingExceptions\.pagination\.total/);
   assert.match(adapter, /totalWaiting: projection\.totalActionable/);
-  assert.match(approvals, /count=\{attendanceCount\}/);
+  assert.match(approvals, /count=\{counts\.ATTENDANCE\}/);
   assert.match(attendance, /\{queue\.totalActionable\} need attention/);
 });
 

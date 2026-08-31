@@ -355,7 +355,8 @@ test("Staff navigation follows module entitlement without overcrowding the mobil
 });
 
 test("Staff Requests separates employee self-service from role-aware manager approvals", () => {
-  assert.match(requestsSource, /Team approvals/);
+  assert.match(requestsSource, /<strong>Approvals<\/strong>/);
+  assert.match(requestsSource, /View approval history/);
   assert.match(requestsSource, /getStaffTeamApprovalSummary/);
   assert.match(requestsSource, /getStaffOvertimeSummary/);
   assert.match(requestsSource, /MY REQUESTS/);

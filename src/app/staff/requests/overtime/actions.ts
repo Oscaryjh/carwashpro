@@ -15,13 +15,20 @@ export async function decideMobileOvertimeAction(formData: FormData) {
     const auth = await requireEmployeeSelfServiceAuthContext();
     const decision = decisionValue(formData);
     const rawMinutes = String(formData.get("approvedMinutes") ?? "").trim();
+    const rawHours = String(formData.get("approvedHours") ?? "").trim();
+    const rawMinuteRemainder = String(formData.get("approvedMinuteRemainder") ?? "").trim();
+    const approvedMinutes = rawMinutes
+      ? Number(rawMinutes)
+      : rawHours || rawMinuteRemainder
+        ? Number(rawHours || 0) * 60 + Number(rawMinuteRemainder || 0)
+        : undefined;
     const reason = String(formData.get("reason") ?? "").trim();
     await decideStaffOvertime({
       auth,
       finalResultId,
       expectedRevision: Number(formData.get("expectedRevision") ?? 0),
       decision,
-      approvedMinutes: rawMinutes ? Number(rawMinutes) : undefined,
+      approvedMinutes,
       reason,
       request: await getAuditRequestContext(),
     });

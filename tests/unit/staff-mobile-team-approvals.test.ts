@@ -26,7 +26,7 @@ test("mobile Approval Center is capability-based and projects every canonical re
   assert.match(inbox, /title="Attendance"/);
   assert.match(inbox, /staff\/requests\/overtime/);
   assert.doesNotMatch(inbox, /Canonical queue/);
-  assert.match(inbox, /Review requests from your team/);
+  assert.match(inbox, /Review pending work and your past decisions/);
 });
 
 test("mobile inbox reuses the canonical unified approval reader and oldest-first ordering", async () => {
@@ -85,8 +85,11 @@ test("mobile UI has compact filters, loading state and 44px touch targets", asyn
   assert.match(home, /canReviewLeave/);
   assert.match(home, /canReviewClaims/);
   assert.match(detail, /Current balance/);
-  assert.match(form, /Reason for rejection \(required when rejecting\)/);
-  assert.ok(form.indexOf('decision="REJECTED"') < form.indexOf('decision="APPROVED"'));
+  assert.match(form, /Reject request\?/);
+  assert.match(form, /aria-modal="true"/);
+  assert.match(form, /A reason is required/);
+  assert.match(form, /decision="REJECTED"/);
+  assert.match(form, /decision="APPROVED"/);
   assert.match(css, /min-height: 44px/);
   assert.match(css, /@media \(max-width: 430px\)/);
   assert.match(css, /overflow-x: auto/);
