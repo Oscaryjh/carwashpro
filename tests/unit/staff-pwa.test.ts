@@ -54,6 +54,14 @@ const timesheetPageSource = readFileSync(
   new URL("../../src/app/staff/timesheet/page.tsx", import.meta.url),
   "utf8",
 );
+const timesheetV2Source = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-timesheet-v2.tsx", import.meta.url),
+  "utf8",
+);
+const timesheetV2ModelSource = readFileSync(
+  new URL("../../src/lib/staff-pwa/timesheet-v2.ts", import.meta.url),
+  "utf8",
+);
 const homeOverviewSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-home-overview.tsx", import.meta.url),
   "utf8",
@@ -398,14 +406,15 @@ test("Staff monthly timesheet keeps attendance results and exceptions inside the
     employeeTimesheetSource.match(/workDate: \{ gte: monthStart, lt: monthEndExclusive \}/g)?.length,
     2,
   );
-  assert.match(timesheetPageSource, /formatMonth\(monthStart\)/);
-  assert.match(timesheetPageSource, /Action needed/);
-  assert.match(timesheetPageSource, /Waiting for manager/);
-  assert.match(timesheetPageSource, />Final</);
-  assert.match(timesheetPageSource, />RESULT</);
-  assert.match(timesheetPageSource, />WHY</);
-  assert.match(timesheetPageSource, />NEXT ACTION</);
-  assert.doesNotMatch(timesheetPageSource, /final attendance results|snapshot|materialization|Submit OT|Request overtime/);
+  assert.match(timesheetPageSource, /parseStaffTimesheetMonth\(query\.month\)/);
+  assert.match(timesheetPageSource, /getEmployeeTimesheetOverview\(auth, \{ now: monthStart \}\)/);
+  assert.match(timesheetV2ModelSource, /Action needed/);
+  assert.match(timesheetV2ModelSource, /Waiting for manager/);
+  assert.match(timesheetV2ModelSource, /Final/);
+  assert.match(timesheetV2Source, /StaffV2DetailSection title="Result"/);
+  assert.match(timesheetV2Source, /StaffV2DetailSection title="Why"/);
+  assert.match(timesheetV2Source, /StaffV2DetailSection title="Next action"/);
+  assert.doesNotMatch(timesheetV2Source, /final attendance results|snapshot|materialization|Submit OT|Request overtime/);
 });
 
 test("Staff Pay shows the latest available Gross, Deductions and Net pay summary", () => {

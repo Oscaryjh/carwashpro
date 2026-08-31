@@ -166,6 +166,7 @@ export function StaffV2RowGroup({
 }
 
 export function StaffV2PeriodNavigator({
+  ariaLabel = "Schedule period",
   label,
   previousHref,
   previousLabel,
@@ -174,6 +175,7 @@ export function StaffV2PeriodNavigator({
   todayHref,
   todayLabel,
 }: {
+  ariaLabel?: string;
   label: string;
   previousHref: string;
   previousLabel: string;
@@ -183,7 +185,7 @@ export function StaffV2PeriodNavigator({
   todayLabel?: string;
 }) {
   return (
-    <nav aria-label="Schedule period" className={styles.periodNavigator}>
+    <nav aria-label={ariaLabel} className={styles.periodNavigator}>
       <Link aria-label={previousLabel} className={styles.periodControl} href={previousHref}>
         <span aria-hidden="true">‹</span>
       </Link>
