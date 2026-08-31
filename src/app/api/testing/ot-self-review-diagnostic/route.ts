@@ -1,9 +1,6 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { AttendanceServiceContext } from "@/lib/attendance/employee-service";
-import {
-  materializeAttendanceP2Day,
-  recordExpectedAttendance,
-} from "@/lib/attendance/p2-service";
+import { recordExpectedAttendance } from "@/lib/attendance/p2-service";
 import { listAttendanceOvertimeCandidates } from "@/lib/attendance/overtime-service";
 import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
 import { normalizeAttendancePhone } from "@/lib/attendance/phone";
@@ -483,15 +480,63 @@ async function repairLiveOtIdentityCollision() {
   });
   if (
     legacyLatestResult?.expectedDayId !== legacyCurrentExpected.id ||
-    legacyLatestResult.outcome !== "NOT_SCHEDULED"
+    legacyLatestResult.outcome !== "NOT_SCHEDULED" ||
+    legacyLatestResult.totalWorkedMinutes !== 0 ||
+    legacyLatestResult.actualClockInAt !== null ||
+    legacyLatestResult.actualClockOutAt !== null
   ) {
-    const projection = await materializeAttendanceP2Day({
-      context,
-      membershipId: fixture.legacyMembershipId,
-      workDate: fixture.workDate,
+    legacyLatestResult = await prisma.$transaction(async (transaction) => {
+      const prior = await transaction.attendanceP2FinalResult.findFirstOrThrow({
+        where: {
+          businessId: fixture.businessId,
+          membershipId: fixture.legacyMembershipId,
+          workDate: fixture.workDate,
+        },
+        orderBy: { version: "desc" },
+      });
+      const sourceDigest = createHash("sha256").update(JSON.stringify({
+        kind: "NOT_SCHEDULED",
+        expectedDayId: legacyCurrentExpected.id,
+        membershipId: fixture.legacyMembershipId,
+        workDate: "2026-08-21",
+        testingFixtureRetired: true,
+      })).digest("hex");
+      const created = await transaction.attendanceP2FinalResult.create({
+        data: {
+          businessId: fixture.businessId,
+          branchId: fixture.branchId,
+          membershipId: fixture.legacyMembershipId,
+          workDate: fixture.workDate,
+          version: prior.version + 1,
+          outcome: "NOT_SCHEDULED",
+          expectedDayKindSnapshot: "NOT_SCHEDULED",
+          expectedDayId: legacyCurrentExpected.id,
+          graceMinutesSnapshot: 0,
+          totalBreakMinutes: 0,
+          totalWorkedMinutes: 0,
+          sourceDigest,
+          resolutionDigest: createHash("sha256").update("[]").digest("hex"),
+          supersedesResultId: prior.id,
+          createdById: projectionActor.id,
+        },
+      });
+      await writeAuditLog({
+        businessId: fixture.businessId,
+        branchId: fixture.branchId,
+        actor: context.actor,
+        action: "ATTENDANCE_TESTING_FIXTURE_RETIRED",
+        entityType: "AttendanceP2FinalResult",
+        entityId: created.id,
+        summary: "Testing-only stale duplicate-persona OT evidence was retired by an immutable superseding result.",
+        metadata: {
+          supersedesResultId: prior.id,
+          legacyMembershipId: fixture.legacyMembershipId,
+          canonicalMembershipId: fixture.currentMembershipId,
+          workDate: "2026-08-21",
+        },
+      }, transaction);
+      return created;
     });
-    if (!projection.finalResult) throw new Error("LEGACY_FIXTURE_RETIREMENT_DID_NOT_MATERIALIZE");
-    legacyLatestResult = projection.finalResult;
   }
 
   const repair = {
