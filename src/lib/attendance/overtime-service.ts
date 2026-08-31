@@ -131,9 +131,15 @@ export async function listAttendanceOvertimeCandidates(args: {
     select: finalResultSelect,
     orderBy: [{ membershipId: "asc" }, { workDate: "asc" }, { version: "desc" }],
   });
-  const latestResults = [...new Map(
-    finalRows.map((row) => [`${row.membershipId}:${dateKey(row.workDate)}`, row]),
-  ).values()];
+  // Rows are sorted newest-first. Keep the first row for each employee/day;
+  // Map construction would overwrite it with the oldest immutable version.
+  const seenEmployeeDays = new Set<string>();
+  const latestResults = finalRows.filter((row) => {
+    const employeeDay = `${row.membershipId}:${dateKey(row.workDate)}`;
+    if (seenEmployeeDays.has(employeeDay)) return false;
+    seenEmployeeDays.add(employeeDay);
+    return true;
+  });
   if (!latestResults.length) return [];
 
   const membershipIds = [...new Set(latestResults.map((row) => row.membershipId))];

@@ -1,7 +1,13 @@
 import { timingSafeEqual } from "node:crypto";
+import type { AttendanceServiceContext } from "@/lib/attendance/employee-service";
+import {
+  materializeAttendanceP2Day,
+  recordExpectedAttendance,
+} from "@/lib/attendance/p2-service";
 import { listAttendanceOvertimeCandidates } from "@/lib/attendance/overtime-service";
 import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
 import { normalizeAttendancePhone } from "@/lib/attendance/phone";
+import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import {
   decideStaffOvertime,
@@ -241,158 +247,265 @@ const LIVE_OT_FIXTURE = {
   currentMembershipId: "72f21dad-66d0-45fc-a326-2a8c5f55ffdb",
   legacyAccountId: "f0db56e5-79a8-4521-b1c5-12cc25c3863c",
   legacyMembershipId: "3ed1909b-f624-49cb-9457-efecec9e776a",
-  expectedDayId: "dc95ad1a-73e4-4db3-b964-17e3f1dc1e3b",
-  finalResultId: "cd04940c-3179-4dde-9033-4ed55ea47155",
+  legacyExpectedDayId: "dc95ad1a-73e4-4db3-b964-17e3f1dc1e3b",
+  legacyFinalResultId: "cd04940c-3179-4dde-9033-4ed55ea47155",
   workDate: new Date("2026-08-21T00:00:00.000Z"),
   month: "2026-08",
 } as const;
 
 async function repairLiveOtIdentityCollision() {
   const fixture = LIVE_OT_FIXTURE;
-  const repair = await prisma.$transaction(async (transaction) => {
-    const [currentMembership, legacyMembership, expectedDay, finalResult, existingReview, snapshot, timesheet] =
-      await Promise.all([
-        transaction.employeeBusinessMembership.findUnique({
-          where: { id: fixture.currentMembershipId },
-          select: {
-            id: true,
-            businessId: true,
-            employeeAccountId: true,
-            fullName: true,
-            status: true,
-            branchAssignments: {
-              where: { branchId: fixture.branchId, status: "ACTIVE" },
-              select: { id: true },
-            },
+  const [currentMembership, legacyMembership, legacyExpectedDay, legacyResult, existingReview, snapshot, timesheet] =
+    await Promise.all([
+      prisma.employeeBusinessMembership.findUnique({
+        where: { id: fixture.currentMembershipId },
+        select: {
+          id: true,
+          businessId: true,
+          employeeAccountId: true,
+          fullName: true,
+          status: true,
+          staffUser: { select: { id: true } },
+          branchAssignments: {
+            where: { branchId: fixture.branchId, status: "ACTIVE" },
+            select: { id: true },
           },
-        }),
-        transaction.employeeBusinessMembership.findUnique({
-          where: { id: fixture.legacyMembershipId },
-          select: {
-            id: true,
-            businessId: true,
-            employeeAccountId: true,
-            fullName: true,
-            status: true,
-          },
-        }),
-        transaction.attendanceExpectedDay.findUnique({ where: { id: fixture.expectedDayId } }),
-        transaction.attendanceP2FinalResult.findUnique({ where: { id: fixture.finalResultId } }),
-        transaction.attendanceOvertimeReview.findFirst({
-          where: {
+        },
+      }),
+      prisma.employeeBusinessMembership.findUnique({
+        where: { id: fixture.legacyMembershipId },
+        select: {
+          id: true,
+          businessId: true,
+          employeeAccountId: true,
+          fullName: true,
+          status: true,
+          staffUser: { select: { id: true } },
+        },
+      }),
+      prisma.attendanceExpectedDay.findUnique({ where: { id: fixture.legacyExpectedDayId } }),
+      prisma.attendanceP2FinalResult.findUnique({ where: { id: fixture.legacyFinalResultId } }),
+      prisma.attendanceOvertimeReview.findFirst({
+        where: {
+          businessId: fixture.businessId,
+          OR: [
+            { finalResultId: fixture.legacyFinalResultId },
+            { membershipId: fixture.legacyMembershipId, workDate: fixture.workDate },
+            { membershipId: fixture.currentMembershipId, workDate: fixture.workDate },
+          ],
+        },
+        select: { id: true, status: true },
+      }),
+      prisma.attendanceTimesheetP2DaySnapshot.findFirst({
+        where: { businessId: fixture.businessId, finalResultId: fixture.legacyFinalResultId },
+        select: { id: true, revisionId: true },
+      }),
+      prisma.attendanceMonthlyTimesheet.findUnique({
+        where: {
+          businessId_periodStart: {
             businessId: fixture.businessId,
-            OR: [
-              { finalResultId: fixture.finalResultId },
-              { membershipId: fixture.legacyMembershipId, workDate: fixture.workDate },
-              { membershipId: fixture.currentMembershipId, workDate: fixture.workDate },
-            ],
+            periodStart: new Date("2026-08-01T00:00:00.000Z"),
           },
-          select: { id: true, status: true },
-        }),
-        transaction.attendanceTimesheetP2DaySnapshot.findFirst({
-          where: { businessId: fixture.businessId, finalResultId: fixture.finalResultId },
-          select: { id: true, revisionId: true },
-        }),
-        transaction.attendanceMonthlyTimesheet.findUnique({
-          where: {
-            businessId_periodStart: {
-              businessId: fixture.businessId,
-              periodStart: new Date("2026-08-01T00:00:00.000Z"),
-            },
-          },
-          select: { id: true, status: true, currentRevisionId: true },
-        }),
-      ]);
+        },
+        select: { id: true, status: true, currentRevisionId: true },
+      }),
+    ]);
 
-    if (
-      !currentMembership ||
-      currentMembership.businessId !== fixture.businessId ||
-      currentMembership.employeeAccountId !== fixture.currentAccountId ||
-      currentMembership.status !== "ACTIVE" ||
-      currentMembership.branchAssignments.length !== 1
-    ) {
-      throw new Error("CURRENT_MANAGER_MEMBERSHIP_CONTRACT_MISMATCH");
-    }
-    if (
-      !legacyMembership ||
-      legacyMembership.businessId !== fixture.businessId ||
-      legacyMembership.employeeAccountId !== fixture.legacyAccountId ||
-      legacyMembership.status !== "ACTIVE"
-    ) {
-      throw new Error("LEGACY_MANAGER_MEMBERSHIP_CONTRACT_MISMATCH");
-    }
-    if (currentMembership.fullName !== legacyMembership.fullName) {
-      throw new Error("MANAGER_PERSONA_NAME_COLLISION_NO_LONGER_EXISTS");
-    }
-    if (!expectedDay || expectedDay.businessId !== fixture.businessId || expectedDay.branchId !== fixture.branchId) {
-      throw new Error("EXPECTED_DAY_CONTRACT_MISMATCH");
-    }
-    if (!finalResult || finalResult.businessId !== fixture.businessId || finalResult.branchId !== fixture.branchId) {
-      throw new Error("P2_FINAL_RESULT_CONTRACT_MISMATCH");
-    }
-    if (
-      expectedDay.workDate.getTime() !== fixture.workDate.getTime() ||
-      finalResult.workDate.getTime() !== fixture.workDate.getTime() ||
-      finalResult.expectedDayId !== expectedDay.id
-    ) {
-      throw new Error("OT_FIXTURE_DATE_OR_EXPECTED_DAY_MISMATCH");
-    }
-    if (existingReview) throw new Error("OT_FIXTURE_ALREADY_HAS_REVIEW");
-    if (snapshot) throw new Error("OT_FIXTURE_ALREADY_IN_TIMESHEET_SNAPSHOT");
-    if (timesheet?.status === "LOCKED") throw new Error("AUGUST_TIMESHEET_IS_LOCKED");
+  if (
+    !currentMembership ||
+    currentMembership.businessId !== fixture.businessId ||
+    currentMembership.employeeAccountId !== fixture.currentAccountId ||
+    currentMembership.status !== "ACTIVE" ||
+    currentMembership.branchAssignments.length !== 1 ||
+    !currentMembership.staffUser
+  ) throw new Error("CURRENT_MANAGER_MEMBERSHIP_CONTRACT_MISMATCH");
+  if (
+    !legacyMembership ||
+    legacyMembership.businessId !== fixture.businessId ||
+    legacyMembership.employeeAccountId !== fixture.legacyAccountId ||
+    legacyMembership.status !== "ACTIVE" ||
+    !legacyMembership.staffUser
+  ) throw new Error("LEGACY_MANAGER_MEMBERSHIP_CONTRACT_MISMATCH");
+  if (currentMembership.fullName !== legacyMembership.fullName) {
+    throw new Error("MANAGER_PERSONA_NAME_COLLISION_NO_LONGER_EXISTS");
+  }
+  if (
+    !legacyExpectedDay ||
+    legacyExpectedDay.businessId !== fixture.businessId ||
+    legacyExpectedDay.branchId !== fixture.branchId ||
+    legacyExpectedDay.membershipId !== fixture.legacyMembershipId ||
+    legacyExpectedDay.workDate.getTime() !== fixture.workDate.getTime()
+  ) throw new Error("LEGACY_EXPECTED_DAY_CONTRACT_MISMATCH");
+  if (
+    !legacyResult ||
+    legacyResult.businessId !== fixture.businessId ||
+    legacyResult.branchId !== fixture.branchId ||
+    legacyResult.membershipId !== fixture.legacyMembershipId ||
+    legacyResult.workDate.getTime() !== fixture.workDate.getTime() ||
+    legacyResult.expectedDayId !== legacyExpectedDay.id
+  ) throw new Error("LEGACY_P2_FINAL_RESULT_CONTRACT_MISMATCH");
+  if (existingReview) throw new Error("OT_FIXTURE_ALREADY_HAS_REVIEW");
+  if (snapshot) throw new Error("OT_FIXTURE_ALREADY_IN_TIMESHEET_SNAPSHOT");
+  if (timesheet?.status === "LOCKED") throw new Error("AUGUST_TIMESHEET_IS_LOCKED");
 
-    const alreadyApplied =
-      expectedDay.membershipId === fixture.currentMembershipId &&
-      finalResult.membershipId === fixture.currentMembershipId;
-    const legacyState =
-      expectedDay.membershipId === fixture.legacyMembershipId &&
-      finalResult.membershipId === fixture.legacyMembershipId;
-    if (!alreadyApplied && !legacyState) {
-      throw new Error("OT_FIXTURE_HAS_PARTIAL_OR_UNKNOWN_IDENTITY_STATE");
-    }
-
-    if (!alreadyApplied) {
-      const [conflictingExpectedDay, conflictingFinalResult] = await Promise.all([
-        transaction.attendanceExpectedDay.findFirst({
-          where: {
-            businessId: fixture.businessId,
-            membershipId: fixture.currentMembershipId,
-            workDate: fixture.workDate,
-          },
-          select: { id: true },
-        }),
-        transaction.attendanceP2FinalResult.findFirst({
-          where: {
-            businessId: fixture.businessId,
-            membershipId: fixture.currentMembershipId,
-            workDate: fixture.workDate,
-          },
-          select: { id: true },
-        }),
-      ]);
-      if (conflictingExpectedDay || conflictingFinalResult) {
-        throw new Error("CURRENT_MANAGER_ALREADY_HAS_21_AUG_ATTENDANCE_EVIDENCE");
-      }
-      await transaction.attendanceExpectedDay.update({
-        where: { id: fixture.expectedDayId },
-        data: { membershipId: fixture.currentMembershipId },
-      });
-      await transaction.attendanceP2FinalResult.update({
-        where: { id: fixture.finalResultId },
-        data: { membershipId: fixture.currentMembershipId },
-      });
-    }
-
-    return {
-      applied: !alreadyApplied,
-      alreadyApplied,
-      beforeMembershipId: alreadyApplied ? fixture.currentMembershipId : fixture.legacyMembershipId,
-      afterMembershipId: fixture.currentMembershipId,
-      timesheet: timesheet ?? null,
-      reviewPresent: false,
-      snapshotPresent: false,
-    };
+  const projectionActor = await prisma.user.findFirst({
+    where: { id: legacyResult.createdById, businessId: fixture.businessId },
+    select: { id: true, name: true, email: true },
   });
+  if (!projectionActor) throw new Error("FIXTURE_PROJECTION_ACTOR_NOT_AVAILABLE");
+  const context: AttendanceServiceContext = {
+    businessId: fixture.businessId,
+    allowedBranchIds: [fixture.branchId],
+    wholeBusinessScope: false,
+    actor: {
+      userId: projectionActor.id,
+      name: projectionActor.name,
+      email: projectionActor.email ?? "",
+    },
+  };
+
+  let currentExpected = await prisma.attendanceExpectedDay.findFirst({
+    where: {
+      businessId: fixture.businessId,
+      membershipId: fixture.currentMembershipId,
+      workDate: fixture.workDate,
+      status: "CURRENT",
+    },
+    orderBy: { revision: "desc" },
+  });
+  if (!currentExpected) {
+    currentExpected = await recordExpectedAttendance({
+      context,
+      input: {
+        branchId: fixture.branchId,
+        membershipId: fixture.currentMembershipId,
+        workDate: fixture.workDate,
+        kind: legacyExpectedDay.kind,
+        source: "MANUAL_EVIDENCE",
+        expectedStartAt: legacyExpectedDay.expectedStartAt,
+        expectedEndAt: legacyExpectedDay.expectedEndAt,
+        graceMinutes: legacyExpectedDay.graceMinutes,
+        timezoneSnapshot: legacyExpectedDay.timezoneSnapshot,
+        policySnapshot: legacyExpectedDay.policySnapshot,
+        evidenceReference: "STAFF 3000 LIVE OT SELF-REVIEW FIXTURE RECONCILIATION",
+      },
+    });
+  }
+
+  let currentResult = await prisma.attendanceP2FinalResult.findFirst({
+    where: {
+      businessId: fixture.businessId,
+      membershipId: fixture.currentMembershipId,
+      workDate: fixture.workDate,
+    },
+    orderBy: { version: "desc" },
+  });
+  if (!currentResult) {
+    currentResult = await prisma.$transaction(async (transaction) => {
+      const created = await transaction.attendanceP2FinalResult.create({
+        data: {
+          businessId: fixture.businessId,
+          branchId: fixture.branchId,
+          membershipId: fixture.currentMembershipId,
+          workDate: fixture.workDate,
+          version: 1,
+          outcome: legacyResult.outcome,
+          expectedDayKindSnapshot: currentExpected.kind,
+          expectedDayId: currentExpected.id,
+          leaveRequestId: legacyResult.leaveRequestId,
+          leaveDayFractionSnapshot: legacyResult.leaveDayFractionSnapshot,
+          expectedStartAt: legacyResult.expectedStartAt,
+          expectedEndAt: legacyResult.expectedEndAt,
+          graceMinutesSnapshot: legacyResult.graceMinutesSnapshot,
+          actualClockInAt: legacyResult.actualClockInAt,
+          actualClockOutAt: legacyResult.actualClockOutAt,
+          totalBreakMinutes: legacyResult.totalBreakMinutes,
+          totalWorkedMinutes: legacyResult.totalWorkedMinutes,
+          sourceDigest: legacyResult.sourceDigest,
+          resolutionDigest: legacyResult.resolutionDigest,
+          createdById: projectionActor.id,
+        },
+      });
+      await writeAuditLog({
+        businessId: fixture.businessId,
+        branchId: fixture.branchId,
+        actor: context.actor,
+        action: "ATTENDANCE_TESTING_FIXTURE_RECONCILED",
+        entityType: "AttendanceP2FinalResult",
+        entityId: created.id,
+        summary: "Testing-only OT evidence was assigned to the authenticated canonical employee identity without mutating legacy facts.",
+        metadata: {
+          sourceFinalResultId: legacyResult.id,
+          sourceMembershipId: fixture.legacyMembershipId,
+          canonicalMembershipId: fixture.currentMembershipId,
+          workDate: "2026-08-21",
+        },
+      }, transaction);
+      return created;
+    });
+  }
+
+  let legacyCurrentExpected = await prisma.attendanceExpectedDay.findFirst({
+    where: {
+      businessId: fixture.businessId,
+      membershipId: fixture.legacyMembershipId,
+      workDate: fixture.workDate,
+      status: "CURRENT",
+    },
+    orderBy: { revision: "desc" },
+  });
+  if (legacyCurrentExpected?.kind !== "NOT_SCHEDULED") {
+    legacyCurrentExpected = await recordExpectedAttendance({
+      context,
+      input: {
+        branchId: fixture.branchId,
+        membershipId: fixture.legacyMembershipId,
+        workDate: fixture.workDate,
+        kind: "NOT_SCHEDULED",
+        source: "MANUAL_EVIDENCE",
+        expectedStartAt: null,
+        expectedEndAt: null,
+        graceMinutes: 0,
+        timezoneSnapshot: legacyExpectedDay.timezoneSnapshot,
+        evidenceReference: "STAFF 3000 LIVE OT DUPLICATE PERSONA RETIREMENT",
+      },
+    });
+  }
+  if (!legacyCurrentExpected) throw new Error("LEGACY_EXPECTED_DAY_RETIREMENT_FAILED");
+
+  let legacyLatestResult = await prisma.attendanceP2FinalResult.findFirst({
+    where: {
+      businessId: fixture.businessId,
+      membershipId: fixture.legacyMembershipId,
+      workDate: fixture.workDate,
+    },
+    orderBy: { version: "desc" },
+  });
+  if (
+    legacyLatestResult?.expectedDayId !== legacyCurrentExpected.id ||
+    legacyLatestResult.outcome !== "NOT_SCHEDULED"
+  ) {
+    const projection = await materializeAttendanceP2Day({
+      context,
+      membershipId: fixture.legacyMembershipId,
+      workDate: fixture.workDate,
+    });
+    if (!projection.finalResult) throw new Error("LEGACY_FIXTURE_RETIREMENT_DID_NOT_MATERIALIZE");
+    legacyLatestResult = projection.finalResult;
+  }
+
+  const repair = {
+    applied: true,
+    immutableLegacyExpectedDayId: legacyExpectedDay.id,
+    immutableLegacyFinalResultId: legacyResult.id,
+    canonicalExpectedDayId: currentExpected.id,
+    canonicalFinalResultId: currentResult.id,
+    retiringExpectedDayId: legacyCurrentExpected.id,
+    retiringFinalResultId: legacyLatestResult.id,
+    timesheet: timesheet ?? null,
+    reviewPresent: false,
+    snapshotPresent: false,
+  };
 
   const currentSession = await prisma.employeeSession.findFirst({
     where: {
@@ -403,14 +516,6 @@ async function repairLiveOtIdentityCollision() {
       expiresAt: { gt: new Date() },
     },
     orderBy: { lastActiveAt: "desc" },
-  });
-  const currentMembership = await prisma.employeeBusinessMembership.findUniqueOrThrow({
-    where: { id: fixture.currentMembershipId },
-    select: { staffUser: { select: { id: true } } },
-  });
-  const legacyMembership = await prisma.employeeBusinessMembership.findUniqueOrThrow({
-    where: { id: fixture.legacyMembershipId },
-    select: { staffUser: { select: { id: true } } },
   });
   if (!currentSession || !currentMembership.staffUser || !legacyMembership.staffUser) {
     throw new Error("POST_REPAIR_REVIEWER_CONTEXT_UNAVAILABLE");
@@ -436,7 +541,7 @@ async function repairLiveOtIdentityCollision() {
   const [currentQueue, currentSummary, currentDetail, otherReviewerQueue] = await Promise.all([
     getStaffOvertimeQueue({ auth: currentAuth, month: fixture.month }),
     getStaffOvertimeSummary(currentAuth),
-    getStaffOvertimeDetail(currentAuth, fixture.finalResultId),
+    getStaffOvertimeDetail(currentAuth, currentResult.id),
     getStaffOvertimeQueue({ auth: otherReviewerAuth, month: fixture.month }),
   ]);
   const writeGuardResults = await Promise.all(
@@ -444,7 +549,7 @@ async function repairLiveOtIdentityCollision() {
       try {
         await decideStaffOvertime({
           auth: currentAuth,
-          finalResultId: fixture.finalResultId,
+          finalResultId: currentResult.id,
           expectedRevision: 0,
           decision,
           approvedMinutes: decision === "ADJUST" ? 60 : undefined,
@@ -477,7 +582,7 @@ async function repairLiveOtIdentityCollision() {
     repair,
     currentReviewer: {
       queuePending: currentQueue?.pending ?? null,
-      queueContainsFixture: currentQueue?.items.some((item) => item.finalResultId === fixture.finalResultId) ?? null,
+      queueContainsFixture: currentQueue?.items.some((item) => item.finalResultId === currentResult.id) ?? null,
       summary: currentSummary,
       detailVisible: Boolean(currentDetail),
       writeGuardResults,
@@ -485,7 +590,7 @@ async function repairLiveOtIdentityCollision() {
     },
     otherReviewer: {
       queuePending: otherReviewerQueue?.pending ?? null,
-      queueContainsFixture: otherReviewerQueue?.items.some((item) => item.finalResultId === fixture.finalResultId) ?? null,
+      queueContainsFixture: otherReviewerQueue?.items.some((item) => item.finalResultId === currentResult.id) ?? null,
     },
   };
 }

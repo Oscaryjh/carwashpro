@@ -614,6 +614,47 @@ test("Staff OT queue, counts and detail exclude the actor by canonical membershi
   });
 });
 
+test("Staff OT uses the newest immutable P2 result version for each employee day", async () => {
+  assertLocalDatabase();
+
+  await withRollback(async (transaction) => {
+    const fixture = await createFixture(transaction);
+    const database = transaction as unknown as PrismaClient;
+    const reviewer = await createOvertimeManager(transaction, fixture.businessA.id, fixture.branchA.id, "Latest version reviewer");
+    const subject = await createOvertimeSubject(transaction, fixture.businessA.id, "Superseded OT subject");
+    const first = await createOvertimeFinalResult(transaction, {
+      businessId: fixture.businessA.id,
+      branchId: fixture.branchA.id,
+      membershipId: subject.id,
+      workDate: "2026-08-21",
+      createdById: fixture.actorId,
+    });
+    const current = await transaction.attendanceP2FinalResult.create({
+      data: {
+        businessId: fixture.businessA.id,
+        branchId: fixture.branchA.id,
+        membershipId: subject.id,
+        workDate: new Date("2026-08-21T00:00:00.000Z"),
+        version: 2,
+        outcome: "NOT_SCHEDULED",
+        expectedDayKindSnapshot: "NOT_SCHEDULED",
+        totalBreakMinutes: 0,
+        totalWorkedMinutes: 0,
+        sourceDigest: "c".repeat(64),
+        resolutionDigest: "d".repeat(64),
+        supersedesResultId: first.id,
+        createdById: fixture.actorId,
+      },
+    });
+
+    const queue = await getStaffOvertimeQueue({ auth: reviewer.auth, month: "2026-08", database });
+    assert.equal(queue?.pending, 0);
+    assert.equal(queue?.items.length, 0);
+    assert.equal(await getStaffOvertimeDetail(reviewer.auth, first.id, database), null);
+    assert.equal(await getStaffOvertimeDetail(reviewer.auth, current.id, database), null);
+  });
+});
+
 test("Clock Out preserves the P2 full-day Leave conflict and creates no OT candidate", async () => {
   assertLocalDatabase();
 
