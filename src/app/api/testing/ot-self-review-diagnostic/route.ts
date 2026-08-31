@@ -188,6 +188,18 @@ export async function GET(request: Request) {
     };
   }));
 
+  const royalSalonMembership = account.memberships.find(
+    (membership) => membership.business.name === "Royal Salon",
+  );
+  const identityCollisionAudit = royalSalonMembership
+    ? await loadIdentityCollisionAudit({
+        accountId: account.id,
+        businessId: royalSalonMembership.businessId,
+        currentMembershipId: royalSalonMembership.id,
+        displayName: royalSalonMembership.fullName,
+      })
+    : null;
+
   return Response.json({
     capturedAt: now,
     deploymentId: process.env.RAILWAY_DEPLOYMENT_ID ?? null,
@@ -199,12 +211,166 @@ export async function GET(request: Request) {
       active: !session.revokedAt && session.expiresAt > now,
     })),
     sessionDiagnostics,
+    identityCollisionAudit,
   }, {
     headers: {
       "Cache-Control": "private, no-store, max-age=0",
       Pragma: "no-cache",
     },
   });
+}
+
+async function loadIdentityCollisionAudit(input: {
+  accountId: string;
+  businessId: string;
+  currentMembershipId: string;
+  displayName: string;
+}) {
+  const memberships = await prisma.employeeBusinessMembership.findMany({
+    where: {
+      businessId: input.businessId,
+      fullName: input.displayName,
+    },
+    select: {
+      id: true,
+      employeeAccountId: true,
+      employeeCode: true,
+      fullName: true,
+      status: true,
+      joinedAt: true,
+      terminatedAt: true,
+      employeeAccount: { select: { id: true, status: true, name: true } },
+      staffUser: {
+        select: {
+          id: true,
+          status: true,
+          loginEnabled: true,
+          role: true,
+          permissions: true,
+          staffRoleProfile: {
+            select: { id: true, name: true, permissions: true, active: true },
+          },
+        },
+      },
+      branchAssignments: {
+        select: {
+          branchId: true,
+          status: true,
+          isPrimary: true,
+          branch: { select: { id: true, name: true, status: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  const membershipIds = memberships.map((membership) => membership.id);
+  const accountIds = [...new Set(memberships.map((membership) => membership.employeeAccountId))];
+  const [sessions, finalResults, expectedDays, exceptions, reviews, snapshots, rosterAssignments] =
+    await Promise.all([
+      prisma.employeeSession.findMany({
+        where: { employeeAccountId: { in: accountIds }, businessId: input.businessId },
+        select: {
+          id: true,
+          employeeAccountId: true,
+          membershipId: true,
+          primaryBranchId: true,
+          attendanceBranchId: true,
+          createdAt: true,
+          lastActiveAt: true,
+          expiresAt: true,
+          revokedAt: true,
+          revokeReason: true,
+        },
+        orderBy: { lastActiveAt: "desc" },
+      }),
+      prisma.attendanceP2FinalResult.findMany({
+        where: {
+          businessId: input.businessId,
+          membershipId: { in: membershipIds },
+          workDate: {
+            gte: new Date("2026-08-01T00:00:00.000Z"),
+            lt: new Date("2026-09-01T00:00:00.000Z"),
+          },
+        },
+        orderBy: [{ workDate: "asc" }, { version: "asc" }],
+      }),
+      prisma.attendanceExpectedDay.findMany({
+        where: {
+          businessId: input.businessId,
+          membershipId: { in: membershipIds },
+          workDate: {
+            gte: new Date("2026-08-01T00:00:00.000Z"),
+            lt: new Date("2026-09-01T00:00:00.000Z"),
+          },
+        },
+        orderBy: [{ workDate: "asc" }, { revision: "asc" }],
+      }),
+      prisma.attendanceP2Exception.findMany({
+        where: {
+          businessId: input.businessId,
+          membershipId: { in: membershipIds },
+          workDate: {
+            gte: new Date("2026-08-01T00:00:00.000Z"),
+            lt: new Date("2026-09-01T00:00:00.000Z"),
+          },
+        },
+        orderBy: [{ workDate: "asc" }, { detectedAt: "asc" }],
+      }),
+      prisma.attendanceOvertimeReview.findMany({
+        where: {
+          businessId: input.businessId,
+          membershipId: { in: membershipIds },
+          workDate: {
+            gte: new Date("2026-08-01T00:00:00.000Z"),
+            lt: new Date("2026-09-01T00:00:00.000Z"),
+          },
+        },
+        include: { events: { orderBy: { reviewRevision: "asc" } } },
+        orderBy: { workDate: "asc" },
+      }),
+      prisma.attendanceTimesheetP2DaySnapshot.findMany({
+        where: {
+          businessId: input.businessId,
+          membershipId: { in: membershipIds },
+          workDate: {
+            gte: new Date("2026-08-01T00:00:00.000Z"),
+            lt: new Date("2026-09-01T00:00:00.000Z"),
+          },
+        },
+        orderBy: { workDate: "asc" },
+      }),
+      prisma.rosterPublishedAssignment.findMany({
+        where: {
+          businessId: input.businessId,
+          membershipId: { in: membershipIds },
+          workDate: {
+            gte: new Date("2026-08-01T00:00:00.000Z"),
+            lt: new Date("2026-09-01T00:00:00.000Z"),
+          },
+        },
+        orderBy: { workDate: "asc" },
+      }),
+    ]);
+  const correctionRequests = exceptions.length
+    ? await prisma.attendanceCorrectionRequest.findMany({
+        where: { exceptionId: { in: exceptions.map((exception) => exception.id) } },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+
+  return {
+    currentAccountId: input.accountId,
+    currentMembershipId: input.currentMembershipId,
+    memberships,
+    sessions,
+    finalResults,
+    expectedDays,
+    exceptions,
+    correctionRequests,
+    reviews,
+    snapshots,
+    rosterAssignments,
+  };
 }
 
 function constantTimeEqual(expected: string, supplied: string) {
