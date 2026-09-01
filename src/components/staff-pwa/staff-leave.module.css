@@ -140,13 +140,33 @@
 .error { align-items: center; background: var(--staff-v2-danger-soft); color: var(--staff-v2-danger); display: flex; gap: 10px; justify-content: space-between; }
 .error button { background: transparent; border: 0; color: inherit; font: inherit; font-weight: 700; min-height: 44px; padding: 0 4px; }
 
-.requestPage { margin: 0 auto; max-width: 560px; width: 100%; }
-.form { display: grid; gap: 20px; min-width: 0; }
+.page.requestPage {
+  margin: 0 auto;
+  max-width: 560px;
+  padding-bottom: calc(82px + var(--staff-v2-safe-bottom));
+  width: 100%;
+}
+.requestHeader { padding: 4px 0 2px; }
+.requestHeader > header { gap: 12px; padding-inline: 1px; }
+.requestHeader > header > span:first-child { height: 38px; width: 38px; }
+.requestHeader h1 { font-size: clamp(20px, 5.6vw, 24px); letter-spacing: -.025em; }
+.requestHeader p { margin-top: 4px; max-width: 36ch; }
+.form { min-width: 0; }
+.formBody { display: grid; gap: 13px; min-width: 0; }
+.formBody > section {
+  background: rgba(255, 255, 255, .9);
+  border: 1px solid var(--staff-v2-line);
+  border-radius: 17px;
+  box-shadow: 0 5px 16px rgba(16, 67, 62, .035);
+  gap: 10px;
+  padding: 15px;
+}
+.formBody > section > h3 { font-size: 10px; letter-spacing: .14em; }
 .field { color: var(--staff-v2-ink); display: grid; font-size: 11px; font-weight: 700; gap: 6px; min-width: 0; }
 .field select,
 .field textarea,
 .addDocumentForm select {
-  background: var(--staff-v2-surface);
+  background: #fbfdfc;
   border: 1px solid var(--staff-v2-line);
   border-radius: 13px;
   color: var(--staff-v2-ink);
@@ -156,7 +176,7 @@
   padding: 0 13px;
   width: 100%;
 }
-.field textarea { line-height: 1.45; min-height: 96px; padding-block: 12px; resize: vertical; }
+.field textarea { line-height: 1.5; min-height: 112px; padding-block: 13px; resize: vertical; }
 .field select:focus-visible,
 .field textarea:focus-visible,
 .addDocumentForm select:focus-visible { border-color: var(--staff-v2-brand); outline: 3px solid rgba(7, 135, 126, .15); }
@@ -169,7 +189,7 @@
   gap: 8px;
   justify-content: space-between;
   margin: 0;
-  padding: 10px 11px;
+  padding: 10px 12px;
 }
 .policyHint strong { color: var(--staff-v2-ink); font-size: 11px; }
 .policyHint span { color: var(--staff-v2-muted); font-size: 10px; text-align: right; }
@@ -190,13 +210,14 @@
   justify-content: center;
   min-height: 46px;
 }
-.segmented input:checked + span { background: var(--staff-v2-brand-soft); border-color: #8cc8c1; color: var(--staff-v2-brand-strong); }
+.segmented input:checked + span { background: var(--staff-v2-brand-soft); border-color: #71bcb4; box-shadow: inset 0 0 0 1px rgba(7, 135, 126, .08); color: var(--staff-v2-brand-strong); }
 .segmented input:focus-visible + span { outline: 3px solid rgba(7, 135, 126, .25); outline-offset: 2px; }
-.durationSummary { background: var(--staff-v2-surface-subtle); border-radius: 13px; display: grid; gap: 3px; padding: 10px 11px; }
+.durationSummary { background: var(--staff-v2-surface-subtle); border: 1px solid transparent; border-radius: 13px; display: grid; gap: 3px; padding: 10px 12px; }
 .durationSummary span { color: var(--staff-v2-muted); font-size: 9px; }
 .durationSummary strong { color: var(--staff-v2-ink); font-size: 13px; }
 .durationSummary small { color: var(--staff-v2-muted); font-size: 10px; line-height: 1.4; }
 
+.documentControls { display: grid; gap: 10px; min-width: 0; }
 .documentButtons { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .fileButton,
 .fileButtonSecondary,
@@ -214,14 +235,14 @@
   position: relative;
   text-align: center;
 }
-.fileButton { background: var(--staff-v2-brand); color: #fff; }
+.fileButton { background: var(--staff-v2-brand-soft); border: 1px solid #afd8d3; color: var(--staff-v2-brand-strong); }
 .fileButtonSecondary,
-.inlineFile { background: var(--staff-v2-surface); border: 1px solid #8dc1bb; color: var(--staff-v2-brand-strong); }
+.inlineFile { background: #fbfdfc; border: 1px solid var(--staff-v2-line); color: var(--staff-v2-brand-strong); }
 .fileButton input,
 .fileButtonSecondary input,
 .inlineFile input { cursor: pointer; inset: 0; opacity: 0; position: absolute; }
-.privateNote { color: var(--staff-v2-muted); font-size: 10px; line-height: 1.4; }
-.submitButton { background: var(--staff-v2-brand); border: 0; border-radius: 14px; color: #fff; font-size: 13px; font-weight: 700; min-height: 50px; width: 100%; }
+.privateNote { color: var(--staff-v2-muted); font-size: 10px; line-height: 1.45; padding-inline: 2px; }
+.submitButton { background: var(--staff-v2-brand); border: 0; border-radius: 14px; box-shadow: 0 8px 18px rgba(7, 126, 117, .18); color: #fff; font-size: 13px; font-weight: 750; min-height: 50px; width: 100%; }
 .submitButton:disabled { background: #cedbd9; color: #738481; }
 
 .addDocumentForm { display: grid; gap: 7px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
@@ -254,6 +275,11 @@
   .requestDetails > summary { align-items: start; grid-template-columns: minmax(0, 1fr) 15px; }
   .requestDetails > summary > span:nth-child(2) { grid-column: 1; justify-self: start; }
   .requestDetails > summary > i { grid-column: 2; grid-row: 1; }
+}
+
+@media (max-width: 369px) {
+  .formBody > section { padding: 13px; }
+  .requestHeader h1 { font-size: 20px; }
 }
 
 @media (max-width: 430px) {

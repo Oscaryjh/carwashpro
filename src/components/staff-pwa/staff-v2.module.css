@@ -387,14 +387,18 @@
 .attachmentAction label { min-height: 44px; }
 
 .stickyActionBar {
-  background: color-mix(in srgb, var(--staff-v2-canvas) 95%, transparent);
+  background: var(--staff-v2-canvas);
+  border-top: 1px solid var(--staff-v2-line);
   bottom: 0;
   display: grid;
-  margin: 2px -2px calc(-1 * var(--staff-v2-safe-bottom));
-  padding: 10px 2px calc(10px + var(--staff-v2-safe-bottom));
-  position: sticky;
-  z-index: 20;
+  box-shadow: 0 -10px 28px rgba(16, 67, 62, .08);
+  left: 0;
+  padding: 10px max(16px, env(safe-area-inset-right)) calc(10px + var(--staff-v2-safe-bottom)) max(16px, env(safe-area-inset-left));
+  position: fixed;
+  right: 0;
+  z-index: 40;
 }
+.stickyActionBar > * { margin-inline: auto; max-width: 560px; }
 
 .periodNavigator {
   align-items: center;

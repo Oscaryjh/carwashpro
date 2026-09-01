@@ -170,9 +170,36 @@ test("Leave V2 mobile CSS keeps task actions and long content inside the viewpor
   assert.match(css, /grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(css, /overflow-wrap: anywhere/);
   assert.match(sharedCss, /env\(safe-area-inset-bottom/);
-  assert.match(sharedCss, /position: sticky/);
+  assert.match(sharedCss, /position: fixed/);
   assert.match(sharedCss, /min-height: 44px/);
   assert.match(sharedCss, /prefers-reduced-motion/);
+});
+
+test("New Leave polish keeps supporting documents before one fixed final action", () => {
+  const supportingDocuments = leave.indexOf('title="Supporting documents"');
+  const stickyAction = leave.indexOf("<StaffV2StickyActionBar>");
+  assert.ok(supportingDocuments >= 0);
+  assert.ok(stickyAction > supportingDocuments);
+  assert.match(leave, /className=\{styles\.formBody\}/);
+  assert.match(leave, /className=\{styles\.documentControls\}/);
+  assert.match(leave, /Take photo/);
+  assert.match(leave, /Upload files/);
+  assert.equal(leave.match(/Submit request/g)?.length, 1);
+  assert.match(css, /padding-bottom: calc\(82px \+ var\(--staff-v2-safe-bottom\)\)/);
+  assert.match(css, /\.page\.requestPage/);
+  assert.match(sharedCss, /border-top: 1px solid var\(--staff-v2-line\)/);
+  assert.match(sharedCss, /position: fixed/);
+  assert.match(sharedCss, /env\(safe-area-inset-right\)/);
+  assert.match(sharedCss, /env\(safe-area-inset-left\)/);
+});
+
+test("New Leave polish keeps upload actions secondary to the submit CTA", () => {
+  assert.match(css, /\.fileButton \{ background: var\(--staff-v2-brand-soft\)/);
+  assert.match(css, /\.submitButton \{ background: var\(--staff-v2-brand\)/);
+  assert.match(css, /\.formBody > section/);
+  assert.match(css, /@media \(max-width: 369px\)/);
+  assert.match(leave, /MAX_LEAVE_DOCUMENTS/);
+  assert.match(leave, /MAX_LEAVE_DOCUMENT_BYTES/);
 });
 
 test("Leave V2 adds shared detail, form, attachment and sticky-action primitives", () => {

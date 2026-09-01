@@ -255,11 +255,13 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
   if (view === "new-request") {
     return (
       <section aria-label="New leave request" className={`${staffV2Styles.scope} ${styles.page} ${styles.requestPage}`}>
-        <StaffV2PageHeader
-          leading={<Link className={styles.backAction} href="/staff/leave" aria-label="Back to Leave">‹</Link>}
-          title="New leave request"
-          meta="Complete the details for your manager to review."
-        />
+        <div className={styles.requestHeader}>
+          <StaffV2PageHeader
+            leading={<Link className={styles.backAction} href="/staff/leave" aria-label="Back to Leave">‹</Link>}
+            title="New leave request"
+            meta="Complete the details for your manager to review."
+          />
+        </div>
         <Feedback message={message} error={error} retry={error === "Leave couldn't load." ? load : undefined} />
         {renderRequestForm()}
       </section>
@@ -339,6 +341,7 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
     }
     return (
       <form className={styles.form} onSubmit={submit}>
+        <div className={styles.formBody}>
         <StaffV2FormSection flat title="Leave type">
           <label className={styles.field}>Leave type
             <select required value={selectedPolicyId} onChange={(event) => setSelectedPolicyId(event.target.value)}>
@@ -396,27 +399,30 @@ export function StaffLeave({ view = "overview" }: { view?: "overview" | "new-req
           title="Supporting documents"
           description={`PDF, JPG, PNG or WEBP · up to 10 MB each · maximum ${MAX_LEAVE_DOCUMENTS} files.`}
         >
-          <label className={styles.field}>Document type
-            <select name="documentType" defaultValue={selectedPolicy?.name.toLowerCase().includes("medical") ? "MEDICAL_CERTIFICATE" : "SUPPORTING_DOCUMENT"}>
-              <option value="SUPPORTING_DOCUMENT">Supporting document</option>
-              <option value="MEDICAL_CERTIFICATE">Medical certificate</option>
-              <option value="HOSPITALISATION_SUPPORT">Hospitalisation support</option>
-              <option value="MATERNITY_SUPPORT">Maternity support</option>
-              <option value="PATERNITY_SUPPORT">Paternity support</option>
-              <option value="OTHER">Other evidence</option>
-            </select>
-          </label>
-          <div className={styles.documentButtons}>
-            <label className={styles.fileButton}>{cameraDocumentNames.length ? "Retake photo" : "Take photo"}
-              <input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => setCameraDocumentNames(Array.from(event.currentTarget.files ?? [], (file) => file.name))} />
+          <div className={styles.documentControls}>
+            <label className={styles.field}>Document type
+              <select name="documentType" defaultValue={selectedPolicy?.name.toLowerCase().includes("medical") ? "MEDICAL_CERTIFICATE" : "SUPPORTING_DOCUMENT"}>
+                <option value="SUPPORTING_DOCUMENT">Supporting document</option>
+                <option value="MEDICAL_CERTIFICATE">Medical certificate</option>
+                <option value="HOSPITALISATION_SUPPORT">Hospitalisation support</option>
+                <option value="MATERNITY_SUPPORT">Maternity support</option>
+                <option value="PATERNITY_SUPPORT">Paternity support</option>
+                <option value="OTHER">Other evidence</option>
+              </select>
             </label>
-            <label className={styles.fileButtonSecondary}>{uploadedDocumentNames.length ? "Change files" : "Upload files"}
-              <input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple onChange={(event) => setUploadedDocumentNames(Array.from(event.currentTarget.files ?? [], (file) => file.name))} />
-            </label>
+            <div className={styles.documentButtons}>
+              <label className={styles.fileButton}>{cameraDocumentNames.length ? "Retake photo" : "Take photo"}
+                <input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => setCameraDocumentNames(Array.from(event.currentTarget.files ?? [], (file) => file.name))} />
+              </label>
+              <label className={styles.fileButtonSecondary}>{uploadedDocumentNames.length ? "Change files" : "Upload files"}
+                <input name="supportingDocument" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple onChange={(event) => setUploadedDocumentNames(Array.from(event.currentTarget.files ?? [], (file) => file.name))} />
+              </label>
+            </div>
+            {selectedDocumentNames.map((fileName) => <StaffV2AttachmentRow fileName={fileName} key={fileName} status="Selected" />)}
+            <small className={styles.privateNote}>Files are stored privately and are available only to authorized reviewers.</small>
           </div>
-          {selectedDocumentNames.map((fileName) => <StaffV2AttachmentRow fileName={fileName} key={fileName} status="Selected" />)}
-          <small className={styles.privateNote}>Files are stored privately and are available only to authorized reviewers.</small>
         </StaffV2FormSection>
+        </div>
 
         <StaffV2StickyActionBar>
           <button className={styles.submitButton} disabled={!selectedPolicy?.applicationReady || submitting} type="submit">
