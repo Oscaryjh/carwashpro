@@ -7,7 +7,12 @@ export const metadata: Metadata = {
   title: "Profile",
 };
 
-export default async function StaffProfilePage() {
+type StaffProfilePageProps = {
+  searchParams: Promise<{ device?: string | string[] }>;
+};
+
+export default async function StaffProfilePage({ searchParams }: StaffProfilePageProps) {
   if (!(await getEmployeeSelfServiceAuthContext())) redirect("/staff/login");
-  return <StaffProfile />;
+  const { device } = await searchParams;
+  return <StaffProfile deviceVerified={device === "verified"} />;
 }

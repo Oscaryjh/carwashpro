@@ -61,6 +61,16 @@ async function resolveLocalToken(request: NextRequest) {
   if (explicitToken) return explicitToken;
   const persona = request.nextUrl.searchParams.get("persona")?.trim();
   if (!persona) return null;
+  if (request.nextUrl.searchParams.get("flow") === "profile-v2") {
+    const fixture = JSON.parse(
+      await readFile(
+        join(process.cwd(), ".tmp", "staff-profile-v2-visual-fixtures.json"),
+        "utf8",
+      ),
+    ) as Record<string, { sessionToken?: string } | string | boolean>;
+    const entry = fixture[persona];
+    return typeof entry === "object" && entry !== null ? entry.sessionToken : null;
+  }
   if (request.nextUrl.searchParams.get("flow") === "fresh") {
     const fresh = JSON.parse(
       await readFile(

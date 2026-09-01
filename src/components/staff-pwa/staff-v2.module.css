@@ -171,6 +171,18 @@
   padding: 10px 12px;
   text-decoration: none;
 }
+.buttonActionRow {
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+}
+.buttonActionRow:disabled { cursor: wait; opacity: .7; }
+.buttonActionRowDanger { border-color: #efc9c5; }
+.buttonActionRowDanger .rowCopy strong,
+.buttonActionRowDanger .rowTrailing { color: var(--staff-v2-danger); }
+.buttonActionRowDanger .rowLeading,
+.buttonActionRowDanger .rowTrailing { background: var(--staff-v2-danger-soft); }
 .hero .listRow {
   background: var(--staff-v2-surface-subtle);
   border: 0;
@@ -245,7 +257,8 @@
 }
 .rowGroup .listRow:last-child { border-bottom: 0; }
 .listRow:focus-visible,
-.actionRow:focus-visible {
+.actionRow:focus-visible,
+.buttonActionRow:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--staff-v2-brand) 42%, transparent);
   outline-offset: -3px;
 }

@@ -1,0 +1,125 @@
+{
+  "baseUrl": "http://localhost:3200",
+  "capturedAt": "2026-09-01T16:26:08.723Z",
+  "results": [
+    {
+      "name": "normal-390x844",
+      "h1": "Profile",
+      "h1Count": 1,
+      "innerHeight": 844,
+      "innerWidth": 391,
+      "minActionHeight": 52,
+      "navBottom": 844,
+      "pageBottom": 885,
+      "scrollHeight": 844,
+      "scrollWidth": 391,
+      "switchCount": 0
+    },
+    {
+      "name": "normal-360x800",
+      "avatarHeight": 56,
+      "h1Count": 1,
+      "innerHeight": 801,
+      "innerWidth": 361,
+      "scrollWidth": 361,
+      "shellClientWidth": 346,
+      "shellScrollWidth": 346,
+      "switchVisible": false
+    },
+    {
+      "name": "normal-412x915",
+      "h1Count": 1,
+      "innerHeight": 915,
+      "innerWidth": 412,
+      "minButtonHeight": 56,
+      "scrollWidth": 412,
+      "shellClientWidth": 397,
+      "shellScrollWidth": 397
+    },
+    {
+      "name": "manager-390x844",
+      "approvalCopy": false,
+      "h1Count": 1,
+      "innerWidth": 391,
+      "permissionsCopy": false,
+      "position": true,
+      "scrollWidth": 391
+    },
+    {
+      "name": "multi-employer-390x844",
+      "inactiveVisible": false,
+      "innerWidth": 391,
+      "scrollWidth": 391,
+      "switchCount": 1,
+      "chooser": {
+        "activeText": "Close",
+        "dialogRole": "staff-workplace-dialog-title",
+        "inactiveVisible": false,
+        "optionCount": 2
+      },
+      "restoredFocus": "Switch workplace from Royal Salon Group A"
+    },
+    {
+      "name": "long-names-360x800",
+      "clipped": 0,
+      "innerWidth": 361,
+      "nameHeight": 73,
+      "scrollWidth": 361,
+      "shellClientWidth": 346,
+      "shellScrollWidth": 346
+    },
+    {
+      "name": "device-expanded-390x844",
+      "authorizedOn": true,
+      "detailsOpen": true,
+      "innerWidth": 391,
+      "internalId": false,
+      "lastSignedInMisuse": false,
+      "scrollWidth": 391,
+      "signedInMisuse": false
+    },
+    {
+      "name": "verified-redirect-390x844",
+      "url": "http://localhost:3200/staff/profile?device=verified",
+      "noticeVisible": true
+    },
+    {
+      "name": "nullable-position-platform",
+      "avatarImage": false,
+      "dashPlaceholder": false,
+      "identityParagraphs": 1,
+      "notSpecified": false,
+      "platformRow": false
+    },
+    {
+      "name": "avatar-available",
+      "accessibleName": "Change profile photo",
+      "avatarImage": true
+    },
+    {
+      "name": "long-names-text-zoom",
+      "clipped": 0,
+      "innerWidth": 391,
+      "scrollWidth": 391,
+      "shellClientWidth": 376,
+      "shellScrollWidth": 376
+    },
+    {
+      "name": "bottom-clearance-390x844",
+      "actionBottom": 728,
+      "actionTop": 660,
+      "actionVisible": true,
+      "clearance": 51,
+      "navTop": 779,
+      "shellClientHeight": 844,
+      "shellScrollHeight": 981,
+      "shellScrollTop": 138
+    },
+    {
+      "name": "workplace-focus-trap",
+      "shiftTabTarget": "Royal Salon Group BSalon BSwitch",
+      "tabTarget": "Close",
+      "focusReturn": "Switch workplace from Royal Salon Group A"
+    }
+  ]
+}

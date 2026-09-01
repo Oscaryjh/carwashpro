@@ -30,6 +30,14 @@ const profileSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-profile.tsx", import.meta.url),
   "utf8",
 );
+const profileCssSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-profile-v2.module.css", import.meta.url),
+  "utf8",
+);
+const devicePageSource = readFileSync(
+  new URL("../../src/app/staff/device/page.tsx", import.meta.url),
+  "utf8",
+);
 const requestsSource = readFileSync(
   new URL("../../src/app/staff/requests/page.tsx", import.meta.url),
   "utf8",
@@ -440,15 +448,16 @@ test("Staff Pay shows the latest available Gross and Net without inferred deduct
   assert.match(commissionSource, /Payroll linkage does not prove payslip publication or salary settlement/);
 });
 
-test("Staff Profile avoids a duplicate workplace switcher and hides device metadata by default", () => {
-  assert.match(profileSource, /CURRENT WORKPLACE/);
-  assert.doesNotMatch(profileSource, /SWITCH WORKPLACE/);
+test("Staff Profile V2 keeps one canonical workplace switch path and safe device semantics", () => {
+  assert.match(profileSource, />Current workplace</);
+  assert.match(profileSource, /workplaces\.length > 1/);
   assert.match(chromeSource, /openWorkplaceSwitcher/);
-  assert.match(profileSource, /<details className="staff-security-details">/);
-  assert.match(profileSource, /THIS PHONE/);
-  assert.match(profileSource, /<h2>Signed in<\/h2>/);
+  assert.match(profileSource, /<details className=\{styles\.details\}>/);
+  assert.match(profileSource, />This phone</);
+  assert.match(profileSource, /Authorized on/);
   assert.match(profileSource, /label="Last active"/);
-  assert.doesNotMatch(profileSource, /label="Browser"|label="Can view"|label="Can punch"/);
+  assert.doesNotMatch(profileSource, /Signed in|Last signed in|displayName|Can view|Can punch/);
+  assert.match(devicePageSource, /redirect\(verified === "1" \? "\/staff\/profile\?device=verified" : "\/staff\/profile"\)/);
 });
 
 test("Staff navigation refreshes live employee module entitlement after login", () => {
@@ -526,12 +535,13 @@ test("Staff PWA owns vertical scrolling when the POS body is locked", () => {
   assert.match(shellRule, /-webkit-overflow-scrolling:\s*touch/);
 });
 
-test("Staff Profile keeps long employee identifiers inside the mobile card", () => {
-  assert.match(profileSource, /className="staff-profile-identity"/);
-  assert.match(profileSource, /className="staff-profile-meta"/);
-  assert.match(staffCssSource, /\.staff-profile-identity\s*\{[\s\S]*?min-width:\s*0/);
-  assert.match(staffCssSource, /\.staff-profile-meta code\s*\{[\s\S]*?overflow-wrap:\s*anywhere/);
-  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-profile-stack \.staff-device-details/);
+test("Staff Profile V2 contains long identity and workplace labels on narrow phones", () => {
+  assert.match(profileSource, /className=\{styles\.identityCopy\}/);
+  assert.match(profileSource, /className=\{styles\.workplaceCopy\}/);
+  assert.match(profileCssSource, /\.identityCopy\s*\{\s*min-width:\s*0/);
+  assert.match(profileCssSource, /\.workplaceCopy\s*\{[\s\S]*?min-width:\s*0/);
+  assert.match(profileCssSource, /overflow-wrap:\s*anywhere/);
+  assert.match(profileCssSource, /@media \(max-width: 380px\)/);
 });
 
 test("Local mobile Staff App can hydrate from loopback and the private Wi-Fi subnet", () => {
