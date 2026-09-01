@@ -57,19 +57,20 @@ test("a non-wage reimbursement changes net but never gross or canonical deductio
 });
 
 test("employee commission read model enforces period current revision and safe statuses", async () => {
-  const [reader, page] = await Promise.all([
+  const [reader, page, presentation] = await Promise.all([
     readFile("src/lib/commission/read.ts", "utf8"),
     readFile("src/app/staff/commission/page.tsx", "utf8"),
+    readFile("src/lib/staff-pwa/commission-v2.ts", "utf8"),
   ]);
 
   assert.match(reader, /statement\."calculation_revision" = period\."current_revision"/);
   assert.match(reader, /businessId: input\.businessId/);
   assert.match(reader, /membershipId: input\.membershipId/);
   assert.match(reader, /"CALCULATED", "APPROVED", "APPLIED_TO_PAYROLL"/);
-  assert.doesNotMatch(page, /\bPaid\b/);
-  assert.match(page, /Estimated · pending review/);
-  assert.match(page, /Approved · frozen/);
-  assert.match(page, /Approved · sent to Payroll/);
+  assert.doesNotMatch(`${page}\n${presentation}`, /\bPaid\b/);
+  assert.match(presentation, /CALCULATED[^]*Awaiting review/);
+  assert.match(presentation, /APPROVED[^]*Approved/);
+  assert.match(presentation, /Added to payroll/);
 });
 
 test("payslip download keeps self-service auth, ownership, module and private response guards", async () => {

@@ -177,25 +177,37 @@ export function StaffV2PeriodNavigator({
 }: {
   ariaLabel?: string;
   label: string;
-  previousHref: string;
+  previousHref: string | null;
   previousLabel: string;
-  nextHref: string;
+  nextHref: string | null;
   nextLabel: string;
   todayHref?: string;
   todayLabel?: string;
 }) {
   return (
     <nav aria-label={ariaLabel} className={styles.periodNavigator}>
-      <Link aria-label={previousLabel} className={styles.periodControl} href={previousHref}>
-        <span aria-hidden="true">‹</span>
-      </Link>
+      {previousHref ? (
+        <Link aria-label={previousLabel} className={styles.periodControl} href={previousHref}>
+          <span aria-hidden="true">‹</span>
+        </Link>
+      ) : (
+        <span aria-disabled="true" aria-label={previousLabel} className={`${styles.periodControl} ${styles.periodControlDisabled}`} role="link">
+          <span aria-hidden="true">‹</span>
+        </span>
+      )}
       <span className={styles.periodLabel}>
         <strong>{label}</strong>
         {todayHref ? <Link aria-label={todayLabel} href={todayHref}>Today</Link> : null}
       </span>
-      <Link aria-label={nextLabel} className={styles.periodControl} href={nextHref}>
-        <span aria-hidden="true">›</span>
-      </Link>
+      {nextHref ? (
+        <Link aria-label={nextLabel} className={styles.periodControl} href={nextHref}>
+          <span aria-hidden="true">›</span>
+        </Link>
+      ) : (
+        <span aria-disabled="true" aria-label={nextLabel} className={`${styles.periodControl} ${styles.periodControlDisabled}`} role="link">
+          <span aria-hidden="true">›</span>
+        </span>
+      )}
     </nav>
   );
 }

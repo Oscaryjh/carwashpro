@@ -429,6 +429,11 @@
   text-decoration: none;
   width: 44px;
 }
+.periodControlDisabled {
+  color: var(--staff-v2-muted);
+  cursor: not-allowed;
+  opacity: .46;
+}
 .periodLabel {
   align-items: center;
   color: var(--staff-v2-ink);

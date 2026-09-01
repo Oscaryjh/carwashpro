@@ -86,10 +86,10 @@ const payslipsSource = [
   readFileSync(new URL("../../src/app/staff/payslips/page.tsx", import.meta.url), "utf8"),
   readFileSync(new URL("../../src/components/staff-pwa/staff-payslips-v2.tsx", import.meta.url), "utf8"),
 ].join("\n");
-const commissionSource = readFileSync(
-  new URL("../../src/app/staff/commission/page.tsx", import.meta.url),
-  "utf8",
-);
+const commissionSource = [
+  readFileSync(new URL("../../src/app/staff/commission/page.tsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../../src/components/staff-pwa/staff-commission-v2.tsx", import.meta.url), "utf8"),
+].join("\n");
 const chromeSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-pwa-chrome.tsx", import.meta.url),
   "utf8",
@@ -436,8 +436,8 @@ test("Staff Pay shows the latest available Gross and Net without inferred deduct
   assert.match(payHubSource, /Payslip not available yet/);
   assert.doesNotMatch(payHubSource, />Published</);
   assert.match(payslipsSource, /Available since/);
-  assert.match(commissionSource, /separate earnings statement/);
-  assert.match(commissionSource, /not necessarily included in your current payslip/);
+  assert.match(commissionSource, /Your commission statements/);
+  assert.match(commissionSource, /Payroll linkage does not prove payslip publication or salary settlement/);
 });
 
 test("Staff Profile avoids a duplicate workplace switcher and hides device metadata by default", () => {
