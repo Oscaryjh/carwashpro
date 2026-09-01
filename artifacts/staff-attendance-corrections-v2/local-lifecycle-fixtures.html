@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Attendance corrections V2 local lifecycle fixtures</title>
+  <link rel="stylesheet" href="../../src/components/staff-pwa/staff-v2.module.css">
+  <link rel="stylesheet" href="../../src/components/staff-pwa/staff-attendance-corrections-v2.module.css">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body { background: #f4f7f6; color: #102d2b; font-family: Arial, sans-serif; }
+    main { margin: 0 auto; max-width: 430px; min-height: 100vh; padding: 14px 10px 36px; }
+    .fixture-note { color: #627875; font-size: 10px; margin: -6px 4px 0; }
+  </style>
+</head>
+<body>
+  <main class="scope" aria-label="Local-only attendance correction lifecycle fixtures">
+    <header class="pageHeader pageHeaderNoLeading">
+      <div class="pageHeaderCopy">
+        <h1>Attendance corrections</h1>
+        <p>Local-only lifecycle presentation fixtures.</p>
+      </div>
+    </header>
+    <p class="fixture-note">No Testing or Production records are used on this page.</p>
+    <section aria-labelledby="fixture-heading">
+      <p class="sectionLabel" id="fixture-heading">Lifecycle states</p>
+      <div class="correctionList" role="list">
+        <article class="correctionItem" role="listitem">
+          <details>
+            <summary aria-label="30 Aug 2026. Missing clock out. Waiting for manager. Open correction details.">
+              <time datetime="2026-08-30">30 Aug</time>
+              <span class="rowCopy"><strong>Missing clock out</strong><small>Requested clock out 6:15 pm</small></span>
+              <span class="rowStatus"><span class="badge badgeWarning">Waiting for manager</span></span>
+              <i class="chevron" aria-hidden="true">›</i>
+            </summary>
+          </details>
+        </article>
+
+        <article class="correctionItem" role="listitem">
+          <details>
+            <summary aria-label="28 Aug 2026. Clock-out correction. Returned for update. Open correction details.">
+              <time datetime="2026-08-28">28 Aug</time>
+              <span class="rowCopy"><strong>Clock-out correction</strong><small>Requested clock out 7:30 pm</small></span>
+              <span class="rowStatus"><span class="badge badgeWarning">Returned for update</span></span>
+              <i class="chevron" aria-hidden="true">›</i>
+            </summary>
+          </details>
+          <div class="actionState">
+            <span><strong>Action needed</strong><small>Review the manager note and update your existing response.</small></span>
+            <a href="#returned-detail">Update correction</a>
+          </div>
+        </article>
+
+        <article class="correctionItem" role="listitem">
+          <details>
+            <summary aria-label="26 Aug 2026. Clock-in correction. Approved. Open correction details.">
+              <time datetime="2026-08-26">26 Aug</time>
+              <span class="rowCopy"><strong>Clock-in correction</strong><small>Requested clock in 9:05 am</small></span>
+              <span class="rowStatus"><span class="badge badgeSuccess">Approved</span></span>
+              <i class="chevron" aria-hidden="true">›</i>
+            </summary>
+          </details>
+        </article>
+
+        <article class="correctionItem" role="listitem">
+          <details>
+            <summary aria-label="24 Aug 2026. Attendance correction. Rejected. Open correction details.">
+              <time datetime="2026-08-24">24 Aug</time>
+              <span class="rowCopy"><strong>Attendance correction</strong><small>Requested clock in and clock out</small></span>
+              <span class="rowStatus"><span class="badge badgeDanger">Rejected</span></span>
+              <i class="chevron" aria-hidden="true">›</i>
+            </summary>
+          </details>
+        </article>
+
+        <article class="correctionItem" role="listitem">
+          <details open>
+            <summary aria-label="22 Aug 2026. Missing clock out. Approved. Open correction details.">
+              <time datetime="2026-08-22">22 Aug</time>
+              <span class="rowCopy"><strong>Missing clock out</strong><small>Requested clock out 8:45 pm</small></span>
+              <span class="rowStatus"><span class="badge badgeSuccess">Approved</span></span>
+              <i class="chevron" aria-hidden="true">›</i>
+            </summary>
+            <div class="correctionDetail">
+              <section class="detailSection">
+                <h3>Request</h3>
+                <dl class="detailFacts">
+                  <div><dt>Date</dt><dd>22 Aug 2026</dd></div>
+                  <div><dt>Correction type</dt><dd>Missing clock out</dd></div>
+                  <div><dt>Reason</dt><dd>I completed the closing checklist with the final customer and forgot to clock out before leaving the branch.</dd></div>
+                </dl>
+              </section>
+              <section class="detailSection">
+                <h3>Manager review</h3>
+                <p class="longCopy">Verified against the closing handover. Please remember to clock out before leaving; this request is approved for the recorded shift.</p>
+              </section>
+              <section class="detailSection">
+                <h3>Timeline</h3>
+                <ol class="timeline">
+                  <li><strong>Submitted</strong><time datetime="2026-08-23T09:05:00+08:00">23 Aug, 9:05 am</time></li>
+                  <li><strong>Returned by manager</strong><time datetime="2026-08-23T11:20:00+08:00">23 Aug, 11:20 am</time></li>
+                  <li><strong>Updated</strong><time datetime="2026-08-23T11:35:00+08:00">23 Aug, 11:35 am</time></li>
+                  <li><strong>Approved</strong><time datetime="2026-08-23T12:10:00+08:00">23 Aug, 12:10 pm</time></li>
+                </ol>
+              </section>
+              <section class="detailSection">
+                <h3>Result</h3>
+                <p class="resultCopy">Included in attendance result</p>
+              </section>
+            </div>
+          </details>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
