@@ -213,6 +213,16 @@ test("candidate scope mismatch fails without returning foreign employee metadata
     }),
     /Unable to read the employee attendance correction archive/,
   );
+  assert.throws(
+    () => paginateEmployeeCorrectionArchiveCandidates({
+      auth,
+      candidates: [candidate({
+        id: uuid(2),
+        businessId: "10000000-0000-4000-8000-000000000002",
+      })],
+    }),
+    /Unable to read the employee attendance correction archive/,
+  );
 });
 
 test("archive service is scoped, linked-source deduped and read-only", async () => {
@@ -271,6 +281,7 @@ function resolutionStatus(
 
 function candidate(input: {
   id: string;
+  businessId?: string;
   sourceType?: EmployeeCorrectionSourceType;
   status?: EmployeeCorrectionStatus;
   orderAt?: Date;
@@ -287,7 +298,7 @@ function candidate(input: {
   const item: EmployeeCorrectionArchiveItem = {
     sourceKey: `${prefix}:${input.id}`,
     sourceType,
-    businessId,
+    businessId: input.businessId ?? businessId,
     employeeMembershipId: input.employeeMembershipId ?? membershipId,
     branchId: "30000000-0000-4000-8000-000000000001",
     branchName: "Salon Online",

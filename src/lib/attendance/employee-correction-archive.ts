@@ -556,7 +556,7 @@ function normalizeResolutionCaseCandidate(
         exceptionType: primaryException?.type ?? null,
       }),
       submittedAt: latestEmployeeSubmission?.createdAt.toISOString() ?? null,
-      requestedAt: latestEmployeeSubmission?.createdAt.toISOString() ?? null,
+      requestedAt: null,
       reviewedAt: latestManagerEvent?.createdAt.toISOString() ?? null,
       resolvedAt: row.resolvedAt?.toISOString() ?? null,
       requestedClockIn:
@@ -622,7 +622,7 @@ function normalizeStandaloneExceptionCandidate(
       workDate: workDateValue(workDate),
       employeeStatus: mapStandaloneExceptionEmployeeStatus(row.status),
       correctionType: exceptionCorrectionType(row.type),
-      submittedAt: row.createdAt.toISOString(),
+      submittedAt: null,
       requestedAt: row.createdAt.toISOString(),
       reviewedAt: row.reviewedAt?.toISOString() ?? null,
       resolvedAt: null,
@@ -771,7 +771,7 @@ function normalizeP2CorrectionCandidate(args: {
       employeeStatus: mapP2CorrectionEmployeeStatus(args.request.status),
       correctionType: p2CorrectionType(args.exception.type),
       submittedAt: args.request.createdAt.toISOString(),
-      requestedAt: args.request.createdAt.toISOString(),
+      requestedAt: null,
       reviewedAt: args.request.reviewedAt?.toISOString() ?? null,
       resolvedAt: args.exception.resolvedAt?.toISOString() ?? null,
       requestedClockIn:
