@@ -11,8 +11,10 @@ import { getManagerLeaveDashboard, reviewLeaveRequest } from "@/lib/leave/servic
 import {
   loadAttendanceResolutionQueue,
   loadPendingAttendanceExceptionQueue,
+  loadPendingAttendanceP2CorrectionQueue,
 } from "@/lib/attendance/resolution-read-service";
 import { reviewAttendanceException } from "@/lib/attendance/management-service";
+import { resolveAttendanceP2Exception } from "@/lib/attendance/p2-service";
 import {
   applyManagerAttendanceResolution,
   type AttendanceManagerResolutionAction,
@@ -162,56 +164,163 @@ export async function getStaffAttendanceCorrectionQueue(input: {
     database,
   });
   return {
-    ...projection.corrections,
-    pendingExceptions: projection.pendingExceptions.items,
+    items: projection.items,
     totalActionable: projection.totalActionable,
     // Compatibility alias for existing callers while the route becomes the
     // canonical Staff Attendance task center.
     totalWaiting: projection.totalActionable,
-    totalPages: Math.max(
-      projection.corrections.pagination.totalPages,
-      projection.pendingExceptions.pagination.totalPages,
-    ),
-    currentPage: Math.max(
-      projection.corrections.pagination.page,
-      projection.pendingExceptions.pagination.page,
-    ),
+    totalPages: projection.totalPages,
+    currentPage: projection.currentPage,
     access,
   };
 }
 
-async function loadStaffAttendanceTaskProjection(input: {
+export async function loadStaffAttendanceTaskProjection(input: {
   access: StaffTeamApprovalAccess;
   page: number;
   database: ApprovalDatabase;
 }) {
   const { access, database } = input;
+  const pageSize = 20;
+  const requestedPage = Math.min(100, Math.max(1, Math.floor(input.page)));
+  const candidateLimit = requestedPage * pageSize;
   const scope = {
     businessId: access.businessId,
     allowedBranchIds: access.allowedBranchIds,
   };
-  const [corrections, pendingExceptions] = await Promise.all([
+  const [corrections, pendingExceptions, p2Corrections] = await Promise.all([
     loadAttendanceResolutionQueue({
       scope,
-      page: input.page,
-      pageSize: 20,
+      page: 1,
+      pageSize: candidateLimit,
       status: "UNDER_REVIEW",
       excludedMembershipId: access.actorMembershipId,
       database,
     }),
     loadPendingAttendanceExceptionQueue({
       scope,
-      page: input.page,
-      pageSize: 20,
+      page: 1,
+      pageSize: candidateLimit,
+      excludedMembershipId: access.actorMembershipId,
+      database,
+    }),
+    loadPendingAttendanceP2CorrectionQueue({
+      scope,
+      page: 1,
+      pageSize: candidateLimit,
       excludedMembershipId: access.actorMembershipId,
       database,
     }),
   ]);
+  const totalActionable = corrections.pagination.total +
+    pendingExceptions.pagination.total +
+    p2Corrections.pagination.total;
+  const totalPages = Math.max(1, Math.ceil(totalActionable / pageSize));
+  const currentPage = Math.min(requestedPage, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const candidates = [
+    ...corrections.items.map((item) => ({
+      sourceType: "RESOLUTION_CASE" as const,
+      sourceId: item.id,
+      requestedAt: item.updatedAt,
+      item,
+    })),
+    ...pendingExceptions.items.map((item) => ({
+      sourceType: "STANDALONE_EXCEPTION" as const,
+      sourceId: item.id,
+      requestedAt: item.createdAt,
+      item,
+    })),
+    ...p2Corrections.items.map((item) => ({
+      sourceType: "P2_CORRECTION_REQUEST" as const,
+      sourceId: item.id,
+      requestedAt: item.createdAt,
+      item,
+    })),
+  ].sort((left, right) =>
+    left.requestedAt.getTime() - right.requestedAt.getTime() ||
+    `${left.sourceType}:${left.sourceId}`.localeCompare(`${right.sourceType}:${right.sourceId}`)
+  );
   return {
-    corrections,
-    pendingExceptions,
-    totalActionable: corrections.pagination.total + pendingExceptions.pagination.total,
+    items: candidates.slice(start, start + pageSize),
+    totalActionable,
+    totalPages,
+    currentPage,
   };
+}
+
+export async function reviewStaffAttendanceP2Correction(input: {
+  auth: EmployeeAuthContext;
+  correctionRequestId: string;
+  expectedRevision: number;
+  decision: "APPROVED" | "REJECTED";
+  reason: string;
+  request?: AuditRequestContext;
+  database?: ApprovalDatabase;
+}) {
+  const database = input.database ?? prisma;
+  const access = await resolveStaffTeamApprovalAccess(input.auth, database);
+  if (!access?.canReviewAttendance) {
+    throw new Error("You do not have permission to review Attendance corrections in this workplace.");
+  }
+  const correction = await database.attendanceCorrectionRequest.findFirst({
+    where: {
+      id: input.correctionRequestId,
+      businessId: access.businessId,
+      status: "PENDING",
+      membershipId: { not: access.actorMembershipId },
+    },
+  });
+  if (!correction) {
+    throw new Error("This attendance correction has already been reviewed or is outside your approval scope.");
+  }
+  const issue = await database.attendanceP2Exception.findFirst({
+    where: {
+      id: correction.exceptionId,
+      businessId: access.businessId,
+      branchId: { in: [...access.allowedBranchIds] },
+      membershipId: correction.membershipId,
+      status: "PENDING_MANAGER",
+      currentResolutionId: null,
+      type: { in: ["MISSING_CLOCK_IN", "MISSING_CLOCK_OUT"] },
+    },
+    select: {
+      id: true,
+      type: true,
+      revision: true,
+    },
+  });
+  if (!issue) {
+    throw new Error("This attendance correction is no longer available in your approval scope.");
+  }
+  if (issue.revision !== input.expectedRevision) {
+    throw new Error("This attendance correction changed after you opened it. Refresh before deciding.");
+  }
+  if (
+    input.decision === "APPROVED" &&
+    ((issue.type === "MISSING_CLOCK_IN" && !correction.requestedClockInAt) ||
+      (issue.type === "MISSING_CLOCK_OUT" && !correction.requestedClockOutAt))
+  ) {
+    throw new Error("The employee did not provide the missing time required to approve this correction.");
+  }
+  return resolveAttendanceP2Exception({
+    context: {
+      businessId: access.businessId,
+      allowedBranchIds: access.allowedBranchIds,
+      actor: access.actor,
+      request: input.request,
+    },
+    input: {
+      exceptionId: issue.id,
+      expectedRevision: input.expectedRevision,
+      type: input.decision === "APPROVED" ? "CORRECTED" : "EXCLUDED",
+      reason: input.reason,
+      correctedClockInAt: input.decision === "APPROVED" ? correction.requestedClockInAt : null,
+      correctedClockOutAt: input.decision === "APPROVED" ? correction.requestedClockOutAt : null,
+      correctedBreakMinutes: null,
+    },
+    database,
+  });
 }
 
 export async function reviewStaffPendingAttendanceException(input: {

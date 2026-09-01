@@ -6,6 +6,7 @@ import { getStaffAttendanceCorrectionQueue } from "@/lib/staff-pwa/team-approval
 import {
   reviewMobileAttendanceCorrectionAction,
   reviewMobilePendingAttendanceExceptionAction,
+  reviewMobileP2AttendanceCorrectionAction,
 } from "./actions";
 
 export const metadata: Metadata = { title: "Attendance Review" };
@@ -55,11 +56,65 @@ export default async function StaffAttendanceCorrectionQueuePage({
       </div>
 
       <div className="staff-attendance-approval-list">
-        {queue.pendingExceptions.map((item) => {
-          const timezone = item.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur";
-          const workDate = item.attendanceSession?.workDate ?? item.createdAt;
-          return (
-            <article className="staff-attendance-approval-card" id={`correction-${item.id}`} key={item.id}>
+        {queue.items.map((source) => {
+          if (source.sourceType === "P2_CORRECTION_REQUEST") {
+            const item = source.item;
+            const timezone = item.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur";
+            const requestedTime = item.exceptionType === "MISSING_CLOCK_IN"
+              ? item.requestedClockInAt
+              : item.requestedClockOutAt;
+            const canApprove = Boolean(requestedTime);
+            return (
+              <article className="staff-attendance-approval-card" id={`correction-${item.id}`} key={source.sourceId}>
+                <header>
+                  <span className="staff-approval-domain attendance">AT</span>
+                  <div>
+                    <small>{formatReason(item.exceptionType)} · {item.branch.name} · {formatWorkDate(item.workDate)}</small>
+                    <strong>{item.employee.fullName}</strong>
+                    <span>{item.employee.employeeCode}</span>
+                  </div>
+                  <b>Pending review</b>
+                </header>
+                <dl>
+                  <div><dt>Recorded clock-in</dt><dd>{item.actualClockInAt ? formatLocal(item.actualClockInAt, timezone) : "Missing"}</dd></div>
+                  <div><dt>Recorded clock-out</dt><dd>{item.actualClockOutAt ? formatLocal(item.actualClockOutAt, timezone) : "Missing"}</dd></div>
+                  <div><dt>Submitted</dt><dd>{formatLocal(item.createdAt, timezone)}</dd></div>
+                </dl>
+                <div className="staff-attendance-approval-request">
+                  <small>EMPLOYEE REQUEST</small>
+                  <p>{item.reason}</p>
+                  <span>Requested {item.exceptionType === "MISSING_CLOCK_IN" ? "clock-in" : "clock-out"}: {requestedTime ? formatLocal(requestedTime, timezone) : "Not provided"}</span>
+                </div>
+                <details className="staff-attendance-approval-actions">
+                  <summary>Review and decide <span aria-hidden="true">⌄</span></summary>
+                  {canApprove ? (
+                    <form action={reviewMobileP2AttendanceCorrectionAction}>
+                      <P2HiddenFields item={item} />
+                      <input name="decision" type="hidden" value="APPROVED" />
+                      <label><span>Decision reason</span><input defaultValue="Approved employee attendance correction." maxLength={500} minLength={3} name="reason" required /></label>
+                      <p className="staff-form-hint">Approving applies the employee&apos;s requested time through the Attendance workflow. It does not run Payroll.</p>
+                      <button className="staff-primary-button" type="submit">Approve correction</button>
+                    </form>
+                  ) : (
+                    <div className="staff-alert warning">The employee did not provide the missing time required for approval. You may reject this request with a reason.</div>
+                  )}
+                  <form action={reviewMobileP2AttendanceCorrectionAction} className="staff-attendance-return-form">
+                    <P2HiddenFields item={item} />
+                    <input name="decision" type="hidden" value="REJECTED" />
+                    <label><span>Why is this request rejected?</span><textarea maxLength={500} minLength={3} name="reason" placeholder="Add a clear, helpful reason" required rows={2} /></label>
+                    <button className="staff-secondary-button" type="submit">Reject request</button>
+                  </form>
+                </details>
+              </article>
+            );
+          }
+
+          if (source.sourceType === "STANDALONE_EXCEPTION") {
+            const item = source.item;
+            const timezone = item.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur";
+            const workDate = item.attendanceSession?.workDate ?? item.createdAt;
+            return (
+              <article className="staff-attendance-approval-card" id={`correction-${item.id}`} key={source.sourceId}>
               <header>
                 <span className="staff-approval-domain attendance">AT</span>
                 <div>
@@ -97,10 +152,11 @@ export default async function StaffAttendanceCorrectionQueuePage({
                   <button className="staff-secondary-button" type="submit">Reject request</button>
                 </form>
               </details>
-            </article>
-          );
-        })}
-        {queue.items.map((item) => {
+              </article>
+            );
+          }
+
+          const item = source.item;
           const timezone = item.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur";
           const submission = item.events.find((event) => event.type === "EMPLOYEE_SUBMITTED");
           const correctionClockIn = submission?.proposedClockInAt ?? item.attendanceSession.clockInAt;
@@ -108,7 +164,7 @@ export default async function StaffAttendanceCorrectionQueuePage({
           const correctionBreak = submission?.proposedBreakMinutes ?? item.attendanceSession.totalBreakMinutes;
           const canApproveCorrection = Boolean(correctionClockIn && correctionClockOut);
           return (
-            <article className="staff-attendance-approval-card" id={`correction-${item.id}`} key={item.id}>
+            <article className="staff-attendance-approval-card" id={`correction-${item.id}`} key={source.sourceId}>
               <header>
                 <span className="staff-approval-domain attendance">AT</span>
                 <div>
@@ -174,6 +230,15 @@ export default async function StaffAttendanceCorrectionQueuePage({
         </nav>
       ) : null}
     </section>
+  );
+}
+
+function P2HiddenFields({ item }: { item: { id: string; exceptionRevision: number } }) {
+  return (
+    <>
+      <input name="correctionRequestId" type="hidden" value={item.id} />
+      <input name="expectedRevision" type="hidden" value={item.exceptionRevision} />
+    </>
   );
 }
 

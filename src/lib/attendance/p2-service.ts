@@ -42,7 +42,8 @@ export class AttendanceP2Error extends Error {
       | "INVALID_STATE"
       | "INVALID_RESOLUTION"
       | "CONCURRENT_CHANGE"
-      | "SELF_APPROVAL_FORBIDDEN",
+      | "SELF_APPROVAL_FORBIDDEN"
+      | "TIMESHEET_LOCKED",
     message: string,
   ) {
     super(message);
@@ -430,6 +431,17 @@ export async function resolveAttendanceP2Exception(args: {
       throw new AttendanceP2Error("SELF_APPROVAL_FORBIDDEN", "Employees cannot approve their own Attendance exception.");
     }
     validateResolution(issue.type, input.type);
+    const periodStart = new Date(Date.UTC(issue.workDate.getUTCFullYear(), issue.workDate.getUTCMonth(), 1));
+    const timesheet = await transaction.attendanceMonthlyTimesheet.findUnique({
+      where: { businessId_periodStart: { businessId: issue.businessId, periodStart } },
+      select: { status: true },
+    });
+    if (timesheet?.status === "APPROVED" || timesheet?.status === "LOCKED") {
+      throw new AttendanceP2Error(
+        "TIMESHEET_LOCKED",
+        "Reopen the approved or locked monthly Timesheet before reviewing this Attendance correction.",
+      );
+    }
     const leave = await transaction.leaveRequestDay.findFirst({
       where: { businessId: issue.businessId, membershipId: issue.membershipId, leaveDate: issue.workDate, leaveRequest: { status: "APPROVED" } },
       include: { leaveRequest: { select: { id: true } } },

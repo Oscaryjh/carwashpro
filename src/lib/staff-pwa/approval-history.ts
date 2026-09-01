@@ -269,7 +269,7 @@ async function loadAttendanceHistory(input: {
   employee: string;
   database: ApprovalHistoryDatabase;
 }) {
-  const [resolutionEvents, exceptionAudits] = await Promise.all([
+  const [resolutionEvents, exceptionAudits, p2Items] = await Promise.all([
     input.database.attendanceResolutionEvent.findMany({
       where: {
         businessId: input.access.businessId,
@@ -313,6 +313,7 @@ async function loadAttendanceHistory(input: {
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     }),
+    loadP2AttendanceHistory(input),
   ]);
 
   const exceptionIds = exceptionAudits.flatMap((audit) => audit.entityId ? [audit.entityId] : []);
@@ -370,7 +371,113 @@ async function loadAttendanceHistory(input: {
       currentStatus: exception.status,
     }] : [];
   });
-  return [...resolutionItems, ...exceptionItems];
+  return [...resolutionItems, ...exceptionItems, ...p2Items];
+}
+
+async function loadP2AttendanceHistory(input: {
+  access: StaffTeamApprovalAccess;
+  range?: { gte: Date; lt: Date };
+  sourceId?: string;
+  employee: string;
+  database: ApprovalHistoryDatabase;
+}): Promise<StaffApprovalHistoryItem[]> {
+  const sourceRequestId = input.sourceId?.startsWith("p2:")
+    ? input.sourceId.slice("p2:".length)
+    : null;
+  if (input.sourceId && !sourceRequestId) return [];
+  const requests = await input.database.attendanceCorrectionRequest.findMany({
+    where: {
+      businessId: input.access.businessId,
+      reviewedById: input.access.actor.userId,
+      status: { in: ["APPROVED", "REJECTED"] },
+      ...(sourceRequestId ? { id: sourceRequestId } : {}),
+      ...(input.range ? { reviewedAt: input.range } : {}),
+    },
+    select: {
+      id: true,
+      exceptionId: true,
+      membershipId: true,
+      status: true,
+      requestedClockInAt: true,
+      requestedClockOutAt: true,
+      reviewReason: true,
+      reviewedAt: true,
+    },
+    orderBy: [{ reviewedAt: "desc" }, { id: "desc" }],
+  });
+  if (!requests.length) return [];
+  const exceptionIds = [...new Set(requests.map((request) => request.exceptionId))];
+  const exceptions = await input.database.attendanceP2Exception.findMany({
+    where: {
+      id: { in: exceptionIds },
+      businessId: input.access.businessId,
+      branchId: { in: [...input.access.allowedBranchIds] },
+      status: "RESOLVED",
+      currentResolutionId: { not: null },
+    },
+    select: {
+      id: true,
+      branchId: true,
+      membershipId: true,
+      workDate: true,
+      type: true,
+      status: true,
+      currentResolutionId: true,
+    },
+  });
+  if (!exceptions.length) return [];
+  const membershipIds = [...new Set(exceptions.map((issue) => issue.membershipId))];
+  const resolutionIds = exceptions.flatMap((issue) => issue.currentResolutionId ? [issue.currentResolutionId] : []);
+  const [memberships, branches, resolutions] = await Promise.all([
+    input.database.employeeBusinessMembership.findMany({
+      where: {
+        businessId: input.access.businessId,
+        id: { in: membershipIds },
+        ...(input.employee ? { fullName: { contains: input.employee, mode: "insensitive" } } : {}),
+      },
+      select: { id: true, fullName: true },
+    }),
+    input.database.branch.findMany({
+      where: { businessId: input.access.businessId, id: { in: [...new Set(exceptions.map((issue) => issue.branchId))] } },
+      select: { id: true, name: true },
+    }),
+    input.database.attendanceP2Resolution.findMany({
+      where: {
+        id: { in: resolutionIds },
+        businessId: input.access.businessId,
+        createdById: input.access.actor.userId,
+      },
+      select: { id: true, exceptionId: true, type: true, reason: true, createdAt: true },
+    }),
+  ]);
+  const requestByException = new Map(requests.map((request) => [request.exceptionId, request]));
+  const memberById = new Map(memberships.map((membership) => [membership.id, membership]));
+  const branchById = new Map(branches.map((branch) => [branch.id, branch]));
+  const resolutionById = new Map(resolutions.map((resolution) => [resolution.id, resolution]));
+
+  return exceptions.flatMap((issue) => {
+    const request = requestByException.get(issue.id);
+    const membership = memberById.get(issue.membershipId);
+    const branch = branchById.get(issue.branchId);
+    const resolution = issue.currentResolutionId ? resolutionById.get(issue.currentResolutionId) : null;
+    if (!request || !membership || !branch || !resolution || !request.reviewedAt) return [];
+    const requestedTime = request.requestedClockOutAt ?? request.requestedClockInAt;
+    return [{
+      id: `ATTENDANCE:p2:${request.id}`,
+      sourceId: `p2:${request.id}`,
+      domain: "ATTENDANCE" as const,
+      subjectId: issue.id,
+      employeeName: membership.fullName,
+      branchName: branch.name,
+      title: "Attendance correction",
+      summary: `${formatUtcDate(issue.workDate)} · ${humanize(issue.type)}`,
+      decision: request.status === "APPROVED" ? "APPROVED" as const : "REJECTED" as const,
+      decisionDetail: requestedTime ? `Requested time ${formatMalaysiaTime(requestedTime)}` : null,
+      reviewedAt: resolution.createdAt,
+      reviewNote: resolution.reason,
+      currentStatus: request.status,
+    }];
+  });
 }
 
 async function loadOvertimeHistory(input: {

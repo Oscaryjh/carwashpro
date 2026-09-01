@@ -38,6 +38,7 @@ test("manager queue is server scoped to business, branches, pending cases and an
   assert.match(adapter, /allowedBranchIds: access\.allowedBranchIds/);
   assert.match(adapter, /status: "UNDER_REVIEW"/);
   assert.match(adapter, /loadPendingAttendanceExceptionQueue/);
+  assert.match(adapter, /loadPendingAttendanceP2CorrectionQueue/);
   assert.match(adapter, /excludedMembershipId: access\.actorMembershipId/);
   assert.match(reader, /branchId: \{ in: branchIds \}/);
   assert.match(reader, /employeeId: \{ not: args\.excludedMembershipId \}/);
@@ -77,7 +78,8 @@ test("attendance correction page has explicit mobile states and safe touch layou
   assert.match(queue, /No attendance items need your review/);
   assert.match(queue, /Manager access required/);
   assert.match(queue, /Pending review/);
-  assert.match(queue, /queue\.pendingExceptions\.map/);
+  assert.match(queue, /queue\.items\.map/);
+  assert.match(queue, /source\.sourceType === "P2_CORRECTION_REQUEST"/);
   assert.match(queue, /queue\.totalActionable/);
   assert.match(loading, /aria-busy="true"/);
   assert.match(css, /\.staff-attendance-approval-page/);
