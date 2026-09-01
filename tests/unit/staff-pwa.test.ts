@@ -378,7 +378,7 @@ test("Staff Requests separates employee self-service from role-aware manager app
   assert.match(requestsSource, /loadRequestsApprovalEntry/);
   assert.match(requestsSource, /My requests/);
   assert.match(requestsSource, /Attendance correction/);
-  assert.match(requestsSource, /href="\/staff\/history\/records"/);
+  assert.match(requestsSource, /href="\/staff\/history\/corrections"/);
   assert.match(requestsSource, /title="Attendance corrections"/);
   assert.doesNotMatch(requestsSource, /Review employee time corrections waiting/);
   assert.doesNotMatch(requestsSource, /canonical workflow/);

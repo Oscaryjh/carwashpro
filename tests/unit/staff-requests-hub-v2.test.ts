@@ -45,7 +45,7 @@ test("Requests Hub V2 keeps the approved employee copy and safe destinations", a
   assert.match(page, /Missing or incorrect attendance/);
   assert.match(page, /href="\/staff\/leave"/);
   assert.match(page, /href="\/staff\/claims"/);
-  assert.match(page, /href="\/staff\/history\/records"/);
+  assert.match(page, /href="\/staff\/history\/corrections"/);
   assert.doesNotMatch(page, /href="\/staff\/requests\/attendance-corrections"/);
   assert.doesNotMatch(page, /Overtime request|Submit OT|Request overtime|staff\/requests\/overtime/);
 });

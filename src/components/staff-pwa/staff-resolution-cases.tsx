@@ -35,7 +35,7 @@ export function StaffResolutionCases() {
 
   if (loading) {
     return (
-      <section className="staff-page-card staff-resolution-card" aria-busy="true">
+      <section className="staff-page-card staff-resolution-card" aria-busy="true" id="attendance-issues">
         <p className="staff-kicker">ATTENDANCE ISSUES</p>
         <p>Checking whether a response is needed…</p>
       </section>
@@ -43,7 +43,7 @@ export function StaffResolutionCases() {
   }
   if (error) {
     return (
-      <section className="staff-page-card staff-resolution-card">
+      <section className="staff-page-card staff-resolution-card" id="attendance-issues">
         <div className="staff-alert error" role="alert">{error}</div>
         <button className="staff-secondary-button" onClick={() => void load()} type="button">
           Try again
@@ -54,7 +54,7 @@ export function StaffResolutionCases() {
   if (!cases.length) return null;
 
   return (
-    <section className="staff-page-card staff-resolution-card">
+    <section className="staff-page-card staff-resolution-card" id="attendance-issues">
       <div className="staff-card-heading">
         <div>
           <p className="staff-kicker">ATTENDANCE ISSUES</p>
