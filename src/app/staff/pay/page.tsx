@@ -59,7 +59,6 @@ export default async function StaffPayPage() {
             </div>
             <div className="staff-money-summary">
               <span><small>Gross</small><strong>{money(latestPayslip.payrollEntry.grossPay)}</strong></span>
-              <span><small>Deductions</small><strong>{money(Number(latestPayslip.payrollEntry.grossPay) - Number(latestPayslip.payrollEntry.netPay))}</strong></span>
               <span className="net"><small>Net pay</small><strong>{money(latestPayslip.payrollEntry.netPay)}</strong></span>
             </div>
             <Link className="staff-primary-link" href={`/staff/payslips/${latestPayslip.id}`}>View payslip <span aria-hidden="true">→</span></Link>

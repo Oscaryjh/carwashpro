@@ -423,9 +423,9 @@ test("Staff monthly timesheet keeps attendance results and exceptions inside the
   assert.doesNotMatch(timesheetV2Source, /final attendance results|snapshot|materialization|Submit OT|Request overtime/);
 });
 
-test("Staff Pay shows the latest available Gross, Deductions and Net pay summary", () => {
+test("Staff Pay shows the latest available Gross and Net without inferred deductions", () => {
   assert.match(paySource, />Gross</);
-  assert.match(paySource, />Deductions</);
+  assert.doesNotMatch(paySource, />Deductions</);
   assert.match(paySource, />Net pay</);
   assert.match(paySource, /View payslip/);
   assert.match(paySource, />Available</);

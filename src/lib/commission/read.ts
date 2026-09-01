@@ -1,3 +1,4 @@
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export async function getCommissionManagerDashboard(input: {
@@ -137,15 +138,31 @@ export async function getCommissionManagerDashboard(input: {
 export async function getEmployeeCommissionStatements(input: {
   businessId: string;
   membershipId: string;
-}) {
-  return prisma.commissionStatement.findMany({
+}, database: PrismaClient = prisma) {
+  const currentStatements = await database.$queryRaw<Array<{ id: string }>>(
+    Prisma.sql`
+      SELECT statement."id"
+      FROM "commission_statements" AS statement
+      INNER JOIN "commission_periods" AS period
+        ON period."id" = statement."period_id"
+       AND period."business_id" = statement."business_id"
+      WHERE statement."business_id" = CAST(${input.businessId} AS uuid)
+        AND statement."membership_id" = CAST(${input.membershipId} AS uuid)
+        AND statement."calculation_revision" = period."current_revision"
+    `,
+  );
+
+  if (!currentStatements.length) return [];
+
+  return database.commissionStatement.findMany({
     where: {
+      id: { in: currentStatements.map((statement) => statement.id) },
       businessId: input.businessId,
       membershipId: input.membershipId,
       status: { in: ["CALCULATED", "APPROVED", "APPLIED_TO_PAYROLL"] },
     },
     include: {
-      period: { select: { earnedPeriodStart: true, earnedPeriodEnd: true, approvedAt: true } },
+      period: { select: { earnedPeriodStart: true, earnedPeriodEnd: true, approvedAt: true, currentRevision: true } },
       accruals: {
         include: { sourceEvent: { select: { sourceType: true, businessDate: true, grossAmountCents: true, netAmountCents: true } } },
         orderBy: { createdAt: "asc" },

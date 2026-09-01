@@ -27,7 +27,7 @@ export default async function StaffPayslipsPage() {
                 <strong>{formatMonth(payslip.payrollRun.periodStart)}</strong>
                 <small>Available since {formatDate(payslip.publishedAt)}</small>
                 <span className="staff-payslip-inline-summary">
-                  Gross {money(payslip.payrollEntry.grossPay)} · Deductions {money(Number(payslip.payrollEntry.grossPay) - Number(payslip.payrollEntry.netPay))} · <b>Net {money(payslip.payrollEntry.netPay)}</b>
+                  Gross {money(payslip.payrollEntry.grossPay)} · <b>Net {money(payslip.payrollEntry.netPay)}</b>
                 </span>
               </div>
               <Link href={`/staff/payslips/${payslip.id}`}>View payslip</Link>
