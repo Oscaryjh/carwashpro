@@ -10,6 +10,7 @@ const files = {
   approvals: "src/app/staff/approvals/page.tsx",
   queue: "src/app/staff/requests/attendance-corrections/page.tsx",
   action: "src/app/staff/requests/attendance-corrections/actions.ts",
+  attendanceManagement: "src/lib/attendance/management-service.ts",
   css: "src/app/staff/staff-consolidation.css",
 };
 
@@ -44,10 +45,12 @@ test("manager queue is server scoped to business, branches, pending cases and an
 });
 
 test("manager decision reuses canonical resolution workflow and its self/cross-branch guards", async () => {
-  const [adapter, workflow, action] = await Promise.all([
+  const [adapter, workflow, action, queue, attendanceManagement] = await Promise.all([
     readFile(files.adapter, "utf8"),
     readFile(files.workflow, "utf8"),
     readFile(files.action, "utf8"),
+    readFile(files.queue, "utf8"),
+    readFile(files.attendanceManagement, "utf8"),
   ]);
   assert.match(adapter, /applyManagerAttendanceResolution\(/);
   assert.match(adapter, /reviewAttendanceException\(/);
@@ -58,6 +61,10 @@ test("manager decision reuses canonical resolution workflow and its self/cross-b
   assert.match(action, /APPROVED/);
   assert.match(action, /REJECTED/);
   assert.doesNotMatch(action, /prisma\.attendanceResolutionCase\.(update|create)/);
+  assert.match(queue, /name="reviewNote"[^>]*required/);
+  assert.doesNotMatch(queue, /Optional review note/);
+  assert.match(attendanceManagement, /decision === "REJECTED" && value\.reviewNote\.length < 3/);
+  assert.match(attendanceManagement, /A rejection reason is required\./);
 });
 
 test("attendance correction page has explicit mobile states and safe touch layout", async () => {

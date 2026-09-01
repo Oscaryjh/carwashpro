@@ -93,7 +93,7 @@ export default async function StaffAttendanceCorrectionQueuePage({
                 <form action={reviewMobilePendingAttendanceExceptionAction} className="staff-attendance-return-form">
                   <input name="exceptionId" type="hidden" value={item.id} />
                   <input name="decision" type="hidden" value="REJECTED" />
-                  <label><span>Why is this request rejected?</span><textarea maxLength={500} name="reviewNote" placeholder="Optional review note" rows={2} /></label>
+                  <label><span>Why is this request rejected?</span><textarea maxLength={500} minLength={3} name="reviewNote" placeholder="Add a clear, helpful reason" required rows={2} /></label>
                   <button className="staff-secondary-button" type="submit">Reject request</button>
                 </form>
               </details>

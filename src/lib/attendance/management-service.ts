@@ -21,6 +21,14 @@ const reviewInputSchema = z.object({
     .trim()
     .max(500, "Review note cannot exceed 500 characters.")
     .default(""),
+}).superRefine((value, context) => {
+  if (value.decision === "REJECTED" && value.reviewNote.length < 3) {
+    context.addIssue({
+      code: "custom",
+      path: ["reviewNote"],
+      message: "A rejection reason is required.",
+    });
+  }
 });
 
 const adjustmentInputSchema = z.object({

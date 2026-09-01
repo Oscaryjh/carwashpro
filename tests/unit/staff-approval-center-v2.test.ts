@@ -42,8 +42,9 @@ test("history defaults to current month, supports twelve months and employee fil
 test("Requests keeps a permanent capability-gated Manager approval entry at zero pending", async () => {
   const requests = await read("src/app/staff/requests/page.tsx");
   assert.match(requests, /approvals \|\| overtime\?\.canReviewOvertime/);
-  assert.match(requests, /You’re all caught up · View approval history/);
-  assert.match(requests, /managerWorkspaceCount \? `\$\{managerWorkspaceCount\} pending` : "History"/);
+  assert.match(requests, /<strong>Approvals<\/strong>/);
+  assert.match(requests, /managerWorkspaceCount \? `\$\{managerWorkspaceCount\} waiting for you` : "All clear"/);
+  assert.doesNotMatch(requests, /Team approvals|You’re all caught up · View approval history/);
 });
 
 test("approval decisions use a required rejection bottom sheet and direct approve action", async () => {
