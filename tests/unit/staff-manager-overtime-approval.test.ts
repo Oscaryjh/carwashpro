@@ -9,6 +9,7 @@ import {
 
 const files = {
   adapter: "src/lib/staff-pwa/overtime-approvals.ts",
+  requestsModel: "src/lib/staff-pwa/requests-hub.ts",
   requests: "src/app/staff/requests/page.tsx",
   approvals: "src/app/staff/approvals/page.tsx",
   queue: "src/app/staff/requests/overtime/page.tsx",
@@ -21,14 +22,17 @@ const files = {
 };
 
 test("Approval Center shows Overtime only through the attendance management capability", async () => {
-  const [adapter, requests, approvals] = await Promise.all([
+  const [adapter, requests, requestsModel, approvals] = await Promise.all([
     readFile(files.adapter, "utf8"),
     readFile(files.requests, "utf8"),
+    readFile(files.requestsModel, "utf8"),
     readFile(files.approvals, "utf8"),
   ]);
   assert.match(adapter, /canDirectStaff\(user\.permissions, "MODIFY_ATTENDANCE_EMPLOYEES"\)/);
   assert.match(adapter, /moduleContext\.enabledModules\.has\("HR"\)/);
-  assert.match(requests, /overtime\?\.canReviewOvertime/);
+  assert.match(requests, /loadRequestsApprovalEntry/);
+  assert.match(requestsModel, /resolveStaffOvertimeAccess/);
+  assert.match(requestsModel, /overtimeCapability === "capable"/);
   assert.match(requests, /href="\/staff\/approvals"/);
   assert.match(approvals, /href="\/staff\/requests\/overtime"/);
   assert.doesNotMatch(requests, /employee OT request|submit overtime/i);

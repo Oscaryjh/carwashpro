@@ -335,12 +335,6 @@
 }
 
 /* Approval Center V2: manager-only pending work plus immutable reviewer history. */
-.staff-manager-approval-link { align-items:center; background:#fff; border:1px solid var(--staff-line); border-radius:18px; color:var(--staff-ink); display:flex; gap:12px; justify-content:space-between; min-height:76px; padding:14px 16px; text-decoration:none; }
-.staff-manager-approval-link > span { display:grid; gap:2px; min-width:0; }
-.staff-manager-approval-link small { color:var(--staff-brand); font-size:10px; font-weight:900; letter-spacing:.11em; }
-.staff-manager-approval-link strong { font-size:17px; }
-.staff-manager-approval-link em { color:var(--staff-muted); font-size:11px; font-style:normal; line-height:1.4; }
-.staff-manager-approval-link > b { background:var(--staff-brand-soft); border-radius:999px; color:var(--staff-brand-dark); flex:0 0 auto; font-size:11px; padding:8px 10px; }
 .staff-approval-view-tabs { background:#e8f1ef; border-radius:14px; display:grid; grid-template-columns:1fr 1fr; padding:4px; }
 .staff-approval-view-tabs a { align-items:center; border-radius:11px; color:var(--staff-muted); display:flex; font-size:13px; font-weight:850; gap:7px; justify-content:center; min-height:44px; text-decoration:none; }
 .staff-approval-view-tabs a.active { background:#fff; box-shadow:0 2px 8px rgba(15,74,69,.09); color:var(--staff-brand-dark); }

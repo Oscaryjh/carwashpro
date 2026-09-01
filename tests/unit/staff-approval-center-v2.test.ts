@@ -40,11 +40,20 @@ test("history defaults to current month, supports twelve months and employee fil
 });
 
 test("Requests keeps a permanent capability-gated Manager approval entry at zero pending", async () => {
-  const requests = await read("src/app/staff/requests/page.tsx");
-  assert.match(requests, /approvals \|\| overtime\?\.canReviewOvertime/);
-  assert.match(requests, /<strong>Approvals<\/strong>/);
-  assert.match(requests, /managerWorkspaceCount \? `\$\{managerWorkspaceCount\} waiting for you` : "All clear"/);
-  assert.doesNotMatch(requests, /Team approvals|You’re all caught up · View approval history/);
+  const [requests, model] = await Promise.all([
+    read("src/app/staff/requests/page.tsx"),
+    read("src/lib/staff-pwa/requests-hub.ts"),
+  ]);
+  assert.match(requests, /loadRequestsApprovalEntry/);
+  assert.match(model, /hasKnownCapability/);
+  assert.match(model, /resolveStaffTeamApprovalAccess/);
+  assert.match(model, /resolveStaffOvertimeAccess/);
+  assert.match(requests, /title="Approvals"/);
+  assert.match(model, /pending > 0/);
+  assert.match(model, /`\$\{pending\} waiting for you`/);
+  assert.match(model, /"All clear"/);
+  assert.doesNotMatch(requests, /Team approvals/);
+  assert.doesNotMatch(requests, /You’re all caught up · View approval history/);
 });
 
 test("approval decisions use a required rejection bottom sheet and direct approve action", async () => {

@@ -34,6 +34,10 @@ const requestsSource = readFileSync(
   new URL("../../src/app/staff/requests/page.tsx", import.meta.url),
   "utf8",
 );
+const requestsModelSource = readFileSync(
+  new URL("../../src/lib/staff-pwa/requests-hub.ts", import.meta.url),
+  "utf8",
+);
 const paySource = readFileSync(
   new URL("../../src/app/staff/pay/page.tsx", import.meta.url),
   "utf8",
@@ -368,15 +372,14 @@ test("Staff navigation follows module entitlement without overcrowding the mobil
 });
 
 test("Staff Requests separates employee self-service from role-aware manager approvals", () => {
-  assert.match(requestsSource, /<strong>Approvals<\/strong>/);
-  assert.match(requestsSource, /waiting for you/);
-  assert.match(requestsSource, /All clear/);
-  assert.doesNotMatch(requestsSource, /Team approvals/);
-  assert.match(requestsSource, /getStaffTeamApprovalSummary/);
-  assert.match(requestsSource, /getStaffOvertimeSummary/);
-  assert.match(requestsSource, /MY REQUESTS/);
+  assert.match(requestsSource, /title="Approvals"/);
+  assert.match(requestsModelSource, /waiting for you/);
+  assert.match(requestsModelSource, /All clear/);
+  assert.match(requestsSource, /loadRequestsApprovalEntry/);
+  assert.match(requestsSource, /My requests/);
   assert.match(requestsSource, /Attendance correction/);
-  assert.match(requestsSource, /href="\/staff\/history\/records"[^\n]*Attendance corrections/);
+  assert.match(requestsSource, /href="\/staff\/history\/records"/);
+  assert.match(requestsSource, /title="Attendance corrections"/);
   assert.doesNotMatch(requestsSource, /Review employee time corrections waiting/);
   assert.doesNotMatch(requestsSource, /canonical workflow/);
   assert.doesNotMatch(requestsSource, /Submit OT|Request overtime/);
