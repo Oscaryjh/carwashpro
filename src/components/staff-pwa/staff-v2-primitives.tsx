@@ -245,15 +245,44 @@ export function StaffV2FilterChip({
 
 export function StaffV2FormSection({
   title,
+  description,
+  flat = false,
   children,
 }: {
   title?: string;
+  description?: string;
+  flat?: boolean;
   children: ReactNode;
 }) {
   return (
-    <section className={styles.formSection}>
+    <section className={`${styles.formSection} ${flat ? styles.formSectionFlat : ""}`}>
       {title ? <h3>{title}</h3> : null}
+      {description ? <p>{description}</p> : null}
       {children}
     </section>
   );
+}
+
+export function StaffV2AttachmentRow({
+  fileName,
+  status,
+  action,
+}: {
+  fileName: string;
+  status: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className={styles.attachmentRow}>
+      <span className={styles.attachmentCopy} title={fileName}>
+        <strong>{fileName}</strong>
+        <small>{status}</small>
+      </span>
+      {action ? <span className={styles.attachmentAction}>{action}</span> : null}
+    </div>
+  );
+}
+
+export function StaffV2StickyActionBar({ children }: { children: ReactNode }) {
+  return <div className={styles.stickyActionBar}>{children}</div>;
 }

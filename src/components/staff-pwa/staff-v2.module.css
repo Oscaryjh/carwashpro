@@ -345,6 +345,56 @@
   font-size: 13px;
   margin: 0;
 }
+.formSection > p { color: var(--staff-v2-muted); font-size: 11px; line-height: 1.4; margin: 0; }
+.formSectionFlat {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  gap: 9px;
+  padding: 0;
+}
+.formSectionFlat h3 {
+  color: var(--staff-v2-brand-strong);
+  font-size: 10px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.attachmentRow {
+  align-items: center;
+  background: var(--staff-v2-surface-subtle);
+  border: 1px solid var(--staff-v2-line);
+  border-radius: 13px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 56px;
+  min-width: 0;
+  padding: 9px 11px;
+}
+.attachmentCopy { display: grid; gap: 3px; min-width: 0; }
+.attachmentCopy strong {
+  color: var(--staff-v2-ink);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attachmentCopy small { color: var(--staff-v2-muted); font-size: 10px; line-height: 1.35; }
+.attachmentAction { align-items: center; display: flex; gap: 5px; }
+.attachmentAction a,
+.attachmentAction button,
+.attachmentAction label { min-height: 44px; }
+
+.stickyActionBar {
+  background: color-mix(in srgb, var(--staff-v2-canvas) 95%, transparent);
+  bottom: 0;
+  display: grid;
+  margin: 2px -2px calc(-1 * var(--staff-v2-safe-bottom));
+  padding: 10px 2px calc(10px + var(--staff-v2-safe-bottom));
+  position: sticky;
+  z-index: 20;
+}
 
 .periodNavigator {
   align-items: center;
@@ -429,8 +479,11 @@
 .inlineError > span { display: grid; gap: 2px; min-width: 0; }
 .inlineError strong { color: var(--staff-v2-ink); font-size: 14px; }
 .inlineError small { font-size: 11px; line-height: 1.35; }
-.inlineError a {
+.inlineError a,
+.inlineError button {
   align-items: center;
+  background: transparent;
+  border: 0;
   color: var(--staff-v2-danger);
   display: inline-flex;
   font-size: 12px;
