@@ -42,6 +42,10 @@ const paySource = readFileSync(
   new URL("../../src/app/staff/pay/page.tsx", import.meta.url),
   "utf8",
 );
+const payHubSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-pay-hub-v2.tsx", import.meta.url),
+  "utf8",
+);
 const historySource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-history.tsx", import.meta.url),
   "utf8",
@@ -424,13 +428,13 @@ test("Staff monthly timesheet keeps attendance results and exceptions inside the
 });
 
 test("Staff Pay shows the latest available Gross and Net without inferred deductions", () => {
-  assert.match(paySource, />Gross</);
-  assert.doesNotMatch(paySource, />Deductions</);
-  assert.match(paySource, />Net pay</);
-  assert.match(paySource, /View payslip/);
-  assert.match(paySource, />Available</);
-  assert.match(paySource, /Not available yet/);
-  assert.doesNotMatch(paySource, />Published</);
+  assert.match(payHubSource, /Gross pay/);
+  assert.doesNotMatch(`${paySource}\n${payHubSource}`, /Deductions/);
+  assert.match(payHubSource, />Net pay</);
+  assert.match(payHubSource, /Download PDF/);
+  assert.match(payHubSource, />Available</);
+  assert.match(payHubSource, /Payslip not available yet/);
+  assert.doesNotMatch(payHubSource, />Published</);
   assert.match(payslipsSource, /Available since/);
   assert.match(commissionSource, /separate earnings statement/);
   assert.match(commissionSource, /not necessarily included in your current payslip/);

@@ -1,0 +1,120 @@
+{
+  "baseUrl": "http://localhost:3200",
+  "capturedAt": "2026-09-01T13:04:55.859Z",
+  "results": [
+    {
+      "name": "published-360x800",
+      "state": "normal",
+      "width": 360,
+      "height": 800,
+      "expect": "Download PDF",
+      "metrics": {
+        "innerWidth": 360,
+        "innerHeight": 800,
+        "scrollWidth": 360,
+        "scrollHeight": 800,
+        "h1": "Pay",
+        "expectedCopyVisible": true,
+        "bottomClearancePx": 157,
+        "minimumTouchWidthPx": 69,
+        "minimumTouchHeightPx": 52,
+        "clippedTargets": []
+      }
+    },
+    {
+      "name": "published-390x844",
+      "state": "normal",
+      "width": 390,
+      "height": 844,
+      "expect": "Download PDF",
+      "metrics": {
+        "innerWidth": 390,
+        "innerHeight": 844,
+        "scrollWidth": 390,
+        "scrollHeight": 844,
+        "h1": "Pay",
+        "expectedCopyVisible": true,
+        "bottomClearancePx": 176,
+        "minimumTouchWidthPx": 75,
+        "minimumTouchHeightPx": 52,
+        "clippedTargets": []
+      }
+    },
+    {
+      "name": "published-412x915",
+      "state": "normal",
+      "width": 412,
+      "height": 915,
+      "expect": "Download PDF",
+      "metrics": {
+        "innerWidth": 412,
+        "innerHeight": 915,
+        "scrollWidth": 412,
+        "scrollHeight": 915,
+        "h1": "Pay",
+        "expectedCopyVisible": true,
+        "bottomClearancePx": 244,
+        "minimumTouchWidthPx": 80,
+        "minimumTouchHeightPx": 52,
+        "clippedTargets": []
+      }
+    },
+    {
+      "name": "no-publication-390x844",
+      "state": "noPublication",
+      "width": 390,
+      "height": 844,
+      "expect": "Payslip not available yet.",
+      "metrics": {
+        "innerWidth": 390,
+        "innerHeight": 844,
+        "scrollWidth": 390,
+        "scrollHeight": 844,
+        "h1": "Pay",
+        "expectedCopyVisible": true,
+        "bottomClearancePx": 367,
+        "minimumTouchWidthPx": 75,
+        "minimumTouchHeightPx": 52,
+        "clippedTargets": []
+      }
+    },
+    {
+      "name": "manager-as-employee-390x844",
+      "state": "longLarge",
+      "width": 390,
+      "height": 844,
+      "expect": "RM 123,456.78",
+      "metrics": {
+        "innerWidth": 390,
+        "innerHeight": 844,
+        "scrollWidth": 390,
+        "scrollHeight": 844,
+        "h1": "Pay",
+        "expectedCopyVisible": true,
+        "bottomClearancePx": 176,
+        "minimumTouchWidthPx": 75,
+        "minimumTouchHeightPx": 52,
+        "clippedTargets": []
+      }
+    },
+    {
+      "name": "long-large-amount-360x800",
+      "state": "longLarge",
+      "width": 360,
+      "height": 800,
+      "expect": "RM 123,456.78",
+      "metrics": {
+        "innerWidth": 360,
+        "innerHeight": 800,
+        "scrollWidth": 360,
+        "scrollHeight": 800,
+        "h1": "Pay",
+        "expectedCopyVisible": true,
+        "bottomClearancePx": 157,
+        "minimumTouchWidthPx": 69,
+        "minimumTouchHeightPx": 52,
+        "clippedTargets": []
+      }
+    }
+  ]
+}
