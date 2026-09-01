@@ -4,19 +4,21 @@ import test from "node:test";
 import { calculatePayrollComponentAggregates } from "../../src/lib/payroll/component-calculation";
 
 test("Staff Pay surfaces never derive deductions from gross minus net", async () => {
-  const [payPage, payslipsPage] = await Promise.all([
+  const [payPage, payslipsPage, payslipsView] = await Promise.all([
     readFile("src/app/staff/pay/page.tsx", "utf8"),
     readFile("src/app/staff/payslips/page.tsx", "utf8"),
+    readFile("src/components/staff-pwa/staff-payslips-v2.tsx", "utf8"),
   ]);
 
-  for (const source of [payPage, payslipsPage]) {
+  for (const source of [payPage, payslipsPage, payslipsView]) {
     assert.doesNotMatch(source, /Deductions/i);
     assert.doesNotMatch(source, /grossPay\)[\s\S]{0,120}-\s*Number\([^)]*netPay/);
   }
   assert.match(payPage, /payrollEntry\.grossPay/);
   assert.match(payPage, /payrollEntry\.netPay/);
-  assert.match(payslipsPage, /payrollEntry\.grossPay/);
   assert.match(payslipsPage, /payrollEntry\.netPay/);
+  assert.doesNotMatch(payslipsPage, /payrollEntry\.grossPay/);
+  assert.doesNotMatch(payslipsView, /Gross pay|grossPay/);
 });
 
 test("a non-wage reimbursement changes net but never gross or canonical deductions", () => {

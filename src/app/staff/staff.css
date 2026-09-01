@@ -1402,9 +1402,6 @@
 .staff-money-summary .net small { color: #d8f4f0; }
 .staff-money-summary .net strong { font-size: 19px; }
 .staff-pay-summary .staff-primary-link { justify-self: stretch; }
-.staff-payslip-inline-summary { color: var(--staff-muted); display: block; font-size: 11px; line-height: 1.45; margin-top: 5px; }
-.staff-payslip-inline-summary b { color: var(--staff-brand-dark); }
-
 .staff-security-details { border-top: 1px solid var(--staff-line); margin-top: 14px; padding-top: 8px; }
 .staff-security-details summary { color: var(--staff-brand-dark); cursor: pointer; font-size: 13px; font-weight: 800; min-height: 44px; padding: 13px 0; }
 
@@ -2772,11 +2769,6 @@
     animation-duration: 1.6s;
   }
 }
-.staff-payslip-page {
-  display: grid;
-  gap: 18px;
-}
-
 .staff-payslip-heading,
 .staff-payslip-heading > span,
 .staff-payslip-list article > div,

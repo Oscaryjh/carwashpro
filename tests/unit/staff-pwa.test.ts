@@ -82,10 +82,10 @@ const claimsSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-claims.tsx", import.meta.url),
   "utf8",
 );
-const payslipsSource = readFileSync(
-  new URL("../../src/app/staff/payslips/page.tsx", import.meta.url),
-  "utf8",
-);
+const payslipsSource = [
+  readFileSync(new URL("../../src/app/staff/payslips/page.tsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../../src/components/staff-pwa/staff-payslips-v2.tsx", import.meta.url), "utf8"),
+].join("\n");
 const commissionSource = readFileSync(
   new URL("../../src/app/staff/commission/page.tsx", import.meta.url),
   "utf8",

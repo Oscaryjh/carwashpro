@@ -1,0 +1,138 @@
+{
+  "baseUrl": "http://localhost:3200",
+  "capturedAt": "2026-09-01T13:27:07.665Z",
+  "results": [
+    {
+      "name": "populated-360x800",
+      "state": "multipleMonths",
+      "width": 360,
+      "height": 800,
+      "expect": "June 2026",
+      "rows": 3,
+      "metrics": {
+        "innerWidth": 360,
+        "innerHeight": 800,
+        "scrollWidth": 360,
+        "scrollHeight": 800,
+        "h1Count": 1,
+        "h1": "Payslips",
+        "expectedCopyVisible": true,
+        "rowCount": 3,
+        "oneAnchorPerRow": true,
+        "minimumRowHeightPx": 76,
+        "clippedRows": 0,
+        "bottomClearancePx": 417
+      }
+    },
+    {
+      "name": "populated-390x844",
+      "state": "multipleMonths",
+      "width": 390,
+      "height": 844,
+      "expect": "June 2026",
+      "rows": 3,
+      "metrics": {
+        "innerWidth": 390,
+        "innerHeight": 844,
+        "scrollWidth": 390,
+        "scrollHeight": 844,
+        "h1Count": 1,
+        "h1": "Payslips",
+        "expectedCopyVisible": true,
+        "rowCount": 3,
+        "oneAnchorPerRow": true,
+        "minimumRowHeightPx": 76,
+        "clippedRows": 0,
+        "bottomClearancePx": 455
+      }
+    },
+    {
+      "name": "populated-412x915",
+      "state": "multipleMonths",
+      "width": 412,
+      "height": 915,
+      "expect": "June 2026",
+      "rows": 3,
+      "metrics": {
+        "innerWidth": 412,
+        "innerHeight": 915,
+        "scrollWidth": 412,
+        "scrollHeight": 915,
+        "h1Count": 1,
+        "h1": "Payslips",
+        "expectedCopyVisible": true,
+        "rowCount": 3,
+        "oneAnchorPerRow": true,
+        "minimumRowHeightPx": 76,
+        "clippedRows": 0,
+        "bottomClearancePx": 525
+      }
+    },
+    {
+      "name": "empty-390x844",
+      "state": "noPayslips",
+      "width": 390,
+      "height": 844,
+      "expect": "No payslips available yet.",
+      "rows": 0,
+      "metrics": {
+        "innerWidth": 390,
+        "innerHeight": 844,
+        "scrollWidth": 390,
+        "scrollHeight": 844,
+        "h1Count": 1,
+        "h1": "Payslips",
+        "expectedCopyVisible": true,
+        "rowCount": 0,
+        "oneAnchorPerRow": true,
+        "minimumRowHeightPx": null,
+        "clippedRows": 0,
+        "bottomClearancePx": 593
+      }
+    },
+    {
+      "name": "large-net-360x800",
+      "state": "largeNet",
+      "width": 360,
+      "height": 800,
+      "expect": "123,456.78",
+      "rows": 1,
+      "metrics": {
+        "innerWidth": 360,
+        "innerHeight": 800,
+        "scrollWidth": 360,
+        "scrollHeight": 800,
+        "h1Count": 1,
+        "h1": "Payslips",
+        "expectedCopyVisible": true,
+        "rowCount": 1,
+        "oneAnchorPerRow": true,
+        "minimumRowHeightPx": 76,
+        "clippedRows": 0,
+        "bottomClearancePx": 569
+      }
+    },
+    {
+      "name": "manager-as-employee-390x844",
+      "state": "managerAsEmployee",
+      "width": 390,
+      "height": 844,
+      "expect": "123,456.78",
+      "rows": 1,
+      "metrics": {
+        "innerWidth": 390,
+        "innerHeight": 844,
+        "scrollWidth": 390,
+        "scrollHeight": 844,
+        "h1Count": 1,
+        "h1": "Payslips",
+        "expectedCopyVisible": true,
+        "rowCount": 1,
+        "oneAnchorPerRow": true,
+        "minimumRowHeightPx": 76,
+        "clippedRows": 0,
+        "bottomClearancePx": 607
+      }
+    }
+  ]
+}
