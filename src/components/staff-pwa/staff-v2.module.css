@@ -1,4 +1,5 @@
-.scope {
+.scope,
+.portalScope {
   --staff-v2-canvas: #f4f7f6;
   --staff-v2-surface: #ffffff;
   --staff-v2-surface-muted: #f2f7f6;
@@ -35,6 +36,9 @@
   --staff-v2-bottom-clearance: 12px;
   --staff-v2-shell-bottom-clearance: calc(84px + var(--staff-v2-safe-bottom));
   --staff-v2-shadow-hero: 0 12px 30px rgba(16, 67, 62, 0.08);
+}
+
+.scope {
   display: grid;
   gap: 14px;
   min-width: 0;
@@ -399,6 +403,10 @@
   z-index: 40;
 }
 .stickyActionBar > * { margin-inline: auto; max-width: 560px; }
+.stickyActionBarAboveNavigation {
+  bottom: calc(64px + var(--staff-v2-safe-bottom));
+  padding-bottom: 10px;
+}
 
 .periodNavigator {
   align-items: center;

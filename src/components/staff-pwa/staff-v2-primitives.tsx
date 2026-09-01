@@ -283,6 +283,16 @@ export function StaffV2AttachmentRow({
   );
 }
 
-export function StaffV2StickyActionBar({ children }: { children: ReactNode }) {
-  return <div className={styles.stickyActionBar}>{children}</div>;
+export function StaffV2StickyActionBar({
+  children,
+  aboveNavigation = false,
+}: {
+  children: ReactNode;
+  aboveNavigation?: boolean;
+}) {
+  return (
+    <div className={`${styles.stickyActionBar} ${aboveNavigation ? styles.stickyActionBarAboveNavigation : ""}`}>
+      {children}
+    </div>
+  );
 }

@@ -14,11 +14,12 @@ const files = {
   approvals: "src/app/staff/approvals/page.tsx",
   queue: "src/app/staff/requests/overtime/page.tsx",
   detail: "src/app/staff/requests/overtime/[finalResultId]/page.tsx",
+  form: "src/components/staff-pwa/mobile-overtime-approval-form.tsx",
   actions: "src/app/staff/requests/overtime/actions.ts",
   overtime: "src/lib/attendance/overtime-service.ts",
   employee: "src/lib/attendance/employee-timesheet.ts",
   payroll: "src/lib/attendance/timesheet-service.ts",
-  css: "src/app/staff/staff.css",
+  css: "src/components/staff-pwa/staff-approval-center-v2.module.css",
 };
 
 test("Approval Center shows Overtime only through the attendance management capability", async () => {
@@ -62,19 +63,20 @@ test("direct OT detail resolves only through the membership-filtered queue", asy
 });
 
 test("mobile OT decisions reuse canonical approve, adjust and reject service", async () => {
-  const [adapter, actions, detail] = await Promise.all([
+  const [adapter, actions, detail, form] = await Promise.all([
     readFile(files.adapter, "utf8"),
     readFile(files.actions, "utf8"),
     readFile(files.detail, "utf8"),
+    readFile(files.form, "utf8"),
   ]);
   assert.match(adapter, /decideAttendanceOvertime\(/);
   assert.match(adapter, /actorMembershipId: access\.actorMembershipId/);
-  assert.match(detail, /value="APPROVE"/);
-  assert.match(detail, /value="ADJUST"/);
-  assert.match(detail, /value="REJECT"/);
-  assert.match(detail, /expectedRevision/);
-  assert.match(detail, /Reason for adjustment/);
-  assert.match(detail, /Reason for rejection/);
+  assert.match(form, /decision="APPROVE"/);
+  assert.match(form, /decision="ADJUST"/);
+  assert.match(form, /decision="REJECT"/);
+  assert.match(form, /expectedRevision/);
+  assert.match(form, /Reason/);
+  assert.match(detail, /StaffV2DetailSection title="Overtime"/);
   assert.match(actions, /requireEmployeeSelfServiceAuthContext/);
   assert.match(actions, /getAuditRequestContext/);
 });
@@ -160,9 +162,9 @@ test("mobile OT surface covers compact widths, loading/error states and safe act
   ]);
   assert.match(queue, /No overtime to review/);
   assert.match(detail, /monthly Timesheet is locked/);
-  assert.match(css, /@media \(max-width: 430px\)/);
+  assert.match(css, /@media \(max-width: 380px\)/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
-  assert.match(css, /overflow-x: clip/);
+  assert.match(css, /overflow-x: auto/);
   assert.match(loading, /aria-busy="true"/);
   assert.match(error, /No decision was changed/);
 });

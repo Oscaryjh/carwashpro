@@ -1,3 +1,12 @@
+import styles from "@/components/staff-pwa/staff-approval-center-v2.module.css";
+import { staffV2Styles } from "@/components/staff-pwa/staff-v2-primitives";
+
 export default function StaffOvertimeLoading() {
-  return <section className="staff-overtime-page" aria-busy="true"><div className="staff-approval-skeleton wide" /><div className="staff-approval-skeleton" /><div className="staff-approval-skeleton" /></section>;
+  return (
+    <section aria-busy="true" aria-label="Loading overtime approvals" className={`${staffV2Styles.scope} ${styles.page}`}>
+      <div className={`${staffV2Styles.skeleton} ${styles.skeletonHeader}`} />
+      <div className={`${staffV2Styles.skeleton} ${styles.skeletonTabs}`} />
+      {[0, 1, 2].map((item) => <div className={`${staffV2Styles.skeleton} ${styles.skeletonRow}`} key={item} />)}
+    </section>
+  );
 }

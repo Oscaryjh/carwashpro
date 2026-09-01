@@ -24,7 +24,7 @@ test("Staff Attendance parent count and child total share one actionable project
   assert.match(adapter, /totalActionable,/);
   assert.match(adapter, /totalWaiting: projection\.totalActionable/);
   assert.match(approvals, /count=\{counts\.ATTENDANCE\}/);
-  assert.match(attendance, /\{queue\.totalActionable\} need attention/);
+  assert.match(attendance, /\{queue\.totalActionable\} waiting/);
 });
 
 test("Staff Attendance count excludes OT and business-only monthly Timesheet work", async () => {
@@ -56,10 +56,10 @@ test("Attendance projection is tenant, branch, self-review and capability scoped
 
 test("Attendance task taxonomy and zero state are manager-readable", async () => {
   const attendance = await readFile(files.attendance, "utf8");
-  assert.match(attendance, /Missing punch ·/);
-  assert.match(attendance, /Attendance correction ·/);
+  assert.match(attendance, /formatReason\(item\.type\)/);
+  assert.match(attendance, /formatReason\(item\.openedReason\)/);
   assert.match(attendance, /formatReason\(item\.exceptionType\)/);
-  assert.match(attendance, /No attendance items need your review/);
+  assert.match(attendance, /No approvals waiting/);
   assert.doesNotMatch(attendance, />0 waiting</);
   assert.doesNotMatch(attendance, />\s*(?:P2|AttendanceCorrectionRequest|Resolution Case|Materialization|Canonical Task)\s*</);
 });

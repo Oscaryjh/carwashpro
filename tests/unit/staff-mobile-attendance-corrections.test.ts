@@ -11,7 +11,7 @@ const files = {
   queue: "src/app/staff/requests/attendance-corrections/page.tsx",
   action: "src/app/staff/requests/attendance-corrections/actions.ts",
   attendanceManagement: "src/lib/attendance/management-service.ts",
-  css: "src/app/staff/staff-consolidation.css",
+  css: "src/components/staff-pwa/staff-approval-center-v2.module.css",
 };
 
 test("manager attendance route is separate from employee self-service history", async () => {
@@ -24,7 +24,7 @@ test("manager attendance route is separate from employee self-service history", 
   assert.match(requests, /title="Attendance corrections"/);
   assert.doesNotMatch(requests, /href="\/staff\/requests\/attendance-corrections"/);
   assert.match(approvals, /href="\/staff\/requests\/attendance-corrections"/);
-  assert.match(approvals, /title="Attendance"/);
+  assert.match(approvals, /domain="ATTENDANCE"/);
   assert.match(queue, /Manager access required/);
 });
 
@@ -75,15 +75,15 @@ test("attendance correction page has explicit mobile states and safe touch layou
     readFile(files.css, "utf8"),
     readFile("src/app/staff/requests/attendance-corrections/loading.tsx", "utf8"),
   ]);
-  assert.match(queue, /No attendance items need your review/);
+  assert.match(queue, /No approvals waiting/);
   assert.match(queue, /Manager access required/);
-  assert.match(queue, /Pending review/);
+  assert.match(queue, /Review details and decide/);
   assert.match(queue, /queue\.items\.map/);
   assert.match(queue, /source\.sourceType === "P2_CORRECTION_REQUEST"/);
   assert.match(queue, /queue\.totalActionable/);
   assert.match(loading, /aria-busy="true"/);
-  assert.match(css, /\.staff-attendance-approval-page/);
-  assert.match(css, /@media \(max-width: 430px\)/);
+  assert.match(css, /\.queueItem/);
+  assert.match(css, /@media \(max-width: 380px\)/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
   assert.match(css, /min-height: 44px/);
 });
