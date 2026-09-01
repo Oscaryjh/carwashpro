@@ -12,6 +12,7 @@ import {
 } from "../../src/lib/attendance/timesheet-service";
 import { materializeAttendanceResolutionFoundationInTransaction, resolveAttendanceCaseInTransaction } from "../../src/lib/attendance/resolution-service";
 import { deriveOvertimeCandidate } from "../../src/lib/attendance/overtime-service";
+import { materializeAttendanceP2DayInTransaction } from "../../src/lib/attendance/p2-service";
 import { generatePayrollRun, submitPayrollRunForReview } from "../../src/lib/payroll/service";
 
 const prisma = new PrismaClient();
@@ -388,27 +389,13 @@ test("P6B locks local-date segments and Payroll freezes the exact six buckets", 
         createdById: fixture.owner.id,
       },
     });
-    const finalResult = await transaction.attendanceP2FinalResult.create({
-      data: {
-        businessId: fixture.business.id,
-        branchId: fixture.branchA.id,
-        membershipId: fixture.membership.id,
-        workDate,
-        version: 1,
-        outcome: "PRESENT",
-        expectedDayKindSnapshot: "WORKDAY",
-        expectedDayId: normalExpectedDay.id,
-        expectedStartAt: clockInAt,
-        expectedEndAt,
-        actualClockInAt: clockInAt,
-        actualClockOutAt: clockOutAt,
-        totalBreakMinutes: 30,
-        totalWorkedMinutes: 450,
-        sourceDigest: "a".repeat(64),
-        resolutionDigest: "b".repeat(64),
-        createdById: fixture.owner.id,
-      },
-    });
+    const materializedDay = await materializeAttendanceP2DayInTransaction({
+      context,
+      membershipId: fixture.membership.id,
+      workDate,
+    }, transaction);
+    assert.ok(materializedDay.finalResult);
+    const finalResult = materializedDay.finalResult;
     const overtime = deriveOvertimeCandidate(finalResult, timezone);
     assert.equal(overtime.potentialOtMinutes, 120);
     await transaction.attendanceOvertimeReview.create({
