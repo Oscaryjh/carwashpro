@@ -722,7 +722,7 @@ async function createFixture(transaction: Prisma.TransactionClient) {
       attendanceBranchId: branch.id,
       employeeDeviceId: device.id,
       refreshTokenHash: randomUUID().replaceAll("-", ""),
-      expiresAt: new Date("2026-09-01T00:00:00.000Z"),
+      expiresAt: new Date("2030-09-01T00:00:00.000Z"),
     },
   });
   return {
