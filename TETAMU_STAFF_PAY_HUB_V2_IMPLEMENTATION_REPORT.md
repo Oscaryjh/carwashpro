@@ -1,8 +1,11 @@
 # TETAMU STAFF 3000 — PAY HUB V2 IMPLEMENTATION REPORT
 
-Scope: **Staff 3000 only**  
-Environment: **LOCAL / RAILWAY TESTING ONLY**  
-Implementation commit: `18057f6`  
+Scope: **Staff 3000 only**
+
+Environment: **LOCAL / RAILWAY TESTING ONLY**
+
+Implementation commit: `18057f6`
+
 Railway Testing deployment: `ed4cadcb-e55b-4b19-87b9-8cc106586258`
 
 ## 1. FINAL VERDICT
@@ -260,8 +263,10 @@ Post-deploy public/unauthenticated smoke PASS。Existing browser Staff session �
 
 ## 34. PRODUCTION STATUS
 
-**TESTING ONLY**  
-**PRODUCTION NOT ACCESSED**  
+**TESTING ONLY**
+
+**PRODUCTION NOT ACCESSED**
+
 **PRODUCTION NOT MODIFIED**
 
 本轮在 Pay Hub V2 停止。没有继续 Payslips V2、HTML Payslip Detail、Commission V2 或 Profile V2。
