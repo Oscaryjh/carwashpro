@@ -1,4 +1,5 @@
 export const STAFF_APP_DOMAINS = [
+  "APPOINTMENTS",
   "ROSTER",
   "TIMESHEET",
   "LEAVE",
@@ -31,6 +32,7 @@ export const STAFF_APP_ICON_OPTIONS = [
 export type StaffAppIconName = (typeof STAFF_APP_ICON_OPTIONS)[number]["value"];
 
 export const DEFAULT_STAFF_APP_ICONS: Readonly<Record<StaffAppDomain, StaffAppIconName>> = {
+  APPOINTMENTS: "calendar",
   ROSTER: "schedule-3d",
   TIMESHEET: "timesheets-3d",
   LEAVE: "leave-3d",
@@ -40,6 +42,7 @@ export const DEFAULT_STAFF_APP_ICONS: Readonly<Record<StaffAppDomain, StaffAppIc
 };
 
 export const STAFF_APP_DOMAIN_LABELS: Readonly<Record<StaffAppDomain, string>> = {
+  APPOINTMENTS: "Appointments",
   ROSTER: "Schedule",
   TIMESHEET: "Timesheets",
   LEAVE: "Leave",

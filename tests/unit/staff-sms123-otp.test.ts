@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { getEmployeeAuthConfig } from "../../src/lib/attendance/employee-auth/config";
 import { hashEmployeeOtp } from "../../src/lib/attendance/employee-auth/crypto";
@@ -149,6 +149,47 @@ test("SMS123 configuration and database constraint fail closed", () => {
     /"provider" = 'sms123'[\s\S]*?"delivery_channel" = 'sms'[\s\S]*?"otp_hash" IS NOT NULL/,
   );
   assert.doesNotMatch(migration, /DROP TABLE|TRUNCATE|DELETE FROM/i);
+});
+
+test("forward OTP hardening extends the Testing schema without resurrecting legacy migrations", () => {
+  const migration = readFileSync(
+    "prisma/migrations/20260902120000_staff_otp_forward_hardening/migration.sql",
+    "utf8",
+  );
+
+  assert.match(
+    migration,
+    /ADD COLUMN IF NOT EXISTS "provider_message_code" TEXT/,
+  );
+  assert.match(
+    migration,
+    /ADD CONSTRAINT "employee_otp_challenges_provider_message_code_check"/,
+  );
+  assert.match(
+    migration,
+    /CREATE OR REPLACE FUNCTION "enforce_employee_otp_challenge_lifecycle"/,
+  );
+  assert.match(
+    migration,
+    /Employee OTP provider message code is immutable/,
+  );
+  assert.doesNotMatch(
+    migration,
+    /employee_otp_challenges_provider_check|invalidate_previous_employee_otp_challenges/,
+  );
+  assert.doesNotMatch(migration, /UPDATE\s+"employee_otp_challenges"/i);
+
+  for (const legacyId of [
+    "20260822010000_staff_app_appearance",
+    "20260822023000_development_concurrent_otp_challenges",
+    "20260824130000_staff_app_sms123_otp",
+  ]) {
+    assert.equal(
+      existsSync(`prisma/migrations/${legacyId}/migration.sql`),
+      false,
+      `${legacyId} must not re-enter the canonical first-release history`,
+    );
+  }
 });
 
 function sms123Config() {

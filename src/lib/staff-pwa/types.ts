@@ -249,6 +249,18 @@ export type AttendanceHistoryItem = {
   flags: string[];
   locked: boolean;
   sessions: AttendanceHistorySession[];
+  /** Compatibility projection for the approved Attendance History V2 view. */
+  clockInAt: string | null;
+  clockOutAt: string | null;
+  totalBreakMinutes: number;
+  totalWorkedMinutes: number;
+  status: "OPEN" | "ON_BREAK" | "COMPLETED" | "INCOMPLETE" | "CANCELLED";
+  geofenceStatus: string | null;
+  geofenceEvidence: AttendanceHistorySession["geofenceEvidence"];
+  approvalStatus: "NOT_REQUIRED" | "PENDING" | "APPROVED" | "REJECTED";
+  requiresApproval: boolean;
+  adjusted: boolean;
+  correctionSessionId: string | null;
 };
 
 export type AttendanceHistory = {

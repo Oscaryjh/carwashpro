@@ -5,21 +5,20 @@ export type StaffNavigationItem = {
   label: string;
   icon: StaffNavigationIcon;
   activePrefixes?: readonly string[];
-  section?: "ACCOUNT";
 };
 
 export type StaffNavigationIcon =
   | "home"
   | "attendance"
-  | "requests"
-  | "pay"
   | "leave"
   | "schedule"
   | "timesheet"
   | "claims"
   | "commission"
   | "payslip"
-  | "profile";
+  | "profile"
+  | "requests"
+  | "pay";
 
 export type StaffNavigation = {
   primary: StaffNavigationItem[];
@@ -33,14 +32,13 @@ export function buildStaffNavigation(
   const primary: StaffNavigationItem[] = [
     { href: "/staff", label: "Home", icon: "home" },
   ];
-  const more: StaffNavigationItem[] = [];
 
   if (modules.has("HR")) {
     primary.push({
       href: "/staff/history",
       label: "Time",
       icon: "attendance",
-      activePrefixes: ["/staff/history", "/staff/roster", "/staff/timesheet"],
+      activePrefixes: ["/staff/history", "/staff/roster", "/staff/timesheet", "/staff/appointments"],
     });
   }
   if (modules.has("HR") || modules.has("CLAIMS")) {
@@ -59,6 +57,7 @@ export function buildStaffNavigation(
       activePrefixes: ["/staff/pay", "/staff/payslips", "/staff/commission"],
     });
   }
-  more.push({ href: "/staff/profile", label: "Profile", icon: "profile", section: "ACCOUNT" });
-  return { primary, more };
+
+  primary.push({ href: "/staff/profile", label: "Profile", icon: "profile" });
+  return { primary, more: [] };
 }

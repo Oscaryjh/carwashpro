@@ -1,0 +1,264 @@
+.page {
+  min-width: 0;
+}
+
+.results {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.group {
+  overflow: hidden;
+}
+
+.row {
+  background: var(--staff-v2-surface);
+  border-bottom: 1px solid var(--staff-v2-line);
+  min-width: 0;
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row details {
+  min-width: 0;
+}
+
+.row summary {
+  align-items: center;
+  cursor: pointer;
+  display: grid;
+  gap: 11px;
+  grid-template-columns: 58px minmax(0, 1fr) 18px;
+  list-style: none;
+  min-height: 76px;
+  padding: 10px 12px;
+}
+
+.row summary::-webkit-details-marker {
+  display: none;
+}
+
+.row summary:focus-visible,
+.action a:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--staff-v2-brand) 42%, transparent);
+  outline-offset: -3px;
+}
+
+.row summary > time {
+  color: var(--staff-v2-ink);
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.row summary > time strong {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.row summary > time span {
+  color: var(--staff-v2-muted);
+  font-size: 10px;
+}
+
+.rowCopy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.rowCopy > span:not(:first-child),
+.rowCopy > small {
+  color: var(--staff-v2-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.rowCopy > small {
+  color: var(--staff-v2-brand-strong);
+  font-weight: 700;
+}
+
+.chevron {
+  color: var(--staff-v2-brand-strong);
+  font-size: 21px;
+  font-weight: 700;
+  transform: rotate(0deg);
+  transition: transform 150ms ease;
+}
+
+.row details[open] .chevron {
+  transform: rotate(90deg);
+}
+
+.detail {
+  border-top: 1px solid var(--staff-v2-line);
+  display: grid;
+  gap: 12px;
+  margin: 0 12px;
+  padding: 13px 0 15px;
+}
+
+.detail > header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.detail > header > strong {
+  color: var(--staff-v2-ink);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.facts > div {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(86px, .7fr) minmax(0, 1.3fr);
+}
+
+.facts dt,
+.facts dd {
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.facts dt {
+  color: var(--staff-v2-muted);
+}
+
+.facts dd {
+  color: var(--staff-v2-ink);
+  font-weight: 700;
+}
+
+.reasons {
+  color: var(--staff-v2-ink);
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.reasons li,
+.nextAction,
+.payrollMessage {
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.nextAction,
+.payrollMessage {
+  color: var(--staff-v2-ink);
+  margin: 0;
+}
+
+.action {
+  align-items: center;
+  background: var(--staff-v2-danger-soft);
+  border-top: 1px solid color-mix(in srgb, var(--staff-v2-danger) 20%, transparent);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px 12px;
+}
+
+.action > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.action strong {
+  color: var(--staff-v2-ink);
+  font-size: 11px;
+}
+
+.action small {
+  color: var(--staff-v2-muted);
+  font-size: 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.action a {
+  align-items: center;
+  background: var(--staff-v2-brand);
+  border-radius: 12px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  text-decoration: none;
+}
+
+.retry {
+  background: transparent;
+  border: 0;
+  color: var(--staff-v2-danger);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 44px;
+  padding: 0 4px;
+}
+
+.retry:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--staff-v2-danger) 35%, transparent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 380px) {
+  .row summary {
+    gap: 8px;
+    grid-template-columns: 52px minmax(0, 1fr) 16px;
+    min-height: 72px;
+    padding: 9px 10px;
+  }
+
+  .detail {
+    margin: 0 10px;
+  }
+
+  .action {
+    grid-template-columns: 1fr;
+  }
+
+  .action a {
+    width: 100%;
+  }
+}
+
+@media (min-width: 381px) and (max-width: 430px) {
+  .row,
+  .rowCopy,
+  .detail {
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}

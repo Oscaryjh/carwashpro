@@ -44,8 +44,10 @@ test("Shift-based roster contract uses default schedules plus weekly exceptions"
   assert.match(scheduleService, /NO_DEFAULT_SCHEDULE/);
   assert.match(scheduleService, /addEmployeeRecurringRestDay/);
   assert.match(scheduleService, /EMPLOYEE_RECURRING_REST_DAY_ADDED/);
-  assert.match(staffPage, /status: "APPROVED"/);
-  assert.match(staffPage, /branchIds: branches\.map/);
+  assert.match(staffPage, /leaveRequest: \{ branchId: \{ in: input\.branchIds \}, status: "APPROVED" \}/);
+  assert.match(staffPage, /input\.branchIds\.map\(\(branchId\) => getEmployeePublishedRoster/);
+  assert.match(staffPage, /activeBranchId/);
+  assert.match(staffPage, /employeeBranchAssignment\.findMany/);
 });
 
 test("Roster assignment validation supports overnight work but rejects unsafe duration and non-work times", () => {
@@ -110,15 +112,15 @@ test("Roster retrospective review only considers assignments changed by the curr
 
 test("Roster contract keeps Draft, published history, Staff visibility and Attendance boundaries explicit", () => {
   const service = readFileSync("src/lib/roster/service.ts", "utf8");
-  const staffPage = readFileSync("src/app/staff/roster/page.tsx", "utf8");
+  const staffSchedule = readFileSync("src/components/staff-pwa/staff-schedule-v2.tsx", "utf8");
   const schema = readFileSync("prisma/schema.prisma", "utf8");
   assert.match(service, /RETROSPECTIVE_REVIEW_REQUIRED/);
   assert.match(service, /TIMESHEET_REOPEN_REQUIRED/);
   assert.match(service, /source: "ROSTER"/);
   assert.match(service, /payrollEffect: "NONE"/);
   assert.match(service, /publicationRevision/);
-  assert.match(staffPage, /No schedule yet/);
-  assert.match(staffPage, /Schedule shows planned work only/);
+  assert.match(staffSchedule, /No schedule this week/);
+  assert.match(staffSchedule, /Schedule shows expected work\. Attendance shows what you actually worked\./);
   assert.match(service, /ensureEffectiveRosterExpectedDayInTransaction/);
   assert.match(schema, /model RosterPublishedAssignment/);
   assert.match(schema, /evidenceDisposition\s+RosterEvidenceDisposition/);

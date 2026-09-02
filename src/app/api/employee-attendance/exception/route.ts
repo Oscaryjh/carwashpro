@@ -10,7 +10,6 @@ import {
   employeeAttendanceJson,
 } from "@/lib/attendance/response";
 import { requireEmployeeBusinessModule } from "@/lib/modules/employee-access";
-import { z } from "zod";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,17 +21,7 @@ export async function POST(request: Request) {
     await requireEmployeeBusinessModule(auth, "HR");
     const input = await readEmployeeAuthJson(
       request,
-      z.preprocess(
-        (value) =>
-          value && typeof value === "object" && !Array.isArray(value)
-            ? {
-                ...value,
-                branchId:
-                  auth.attendanceBranchId ?? auth.primaryBranchId,
-              }
-            : value,
-        attendanceExceptionInputSchema,
-      ),
+      attendanceExceptionInputSchema,
     );
     const result = await submitAttendanceException({
       auth,

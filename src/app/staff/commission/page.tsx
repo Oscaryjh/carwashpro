@@ -1,57 +1,18 @@
 import type { Metadata } from "next";
+import { StaffCommissionV2 } from "@/components/staff-pwa/staff-commission-v2";
 import { getEmployeeCommissionStatements } from "@/lib/commission/read";
 import { requireEmployeeModulePage } from "@/lib/modules/employee-access";
 
 export const metadata: Metadata = { title: "Commission" };
 export const dynamic = "force-dynamic";
 
-export default async function StaffCommissionPage() {
+export default async function StaffCommissionPage({ searchParams }: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const query = await searchParams;
   const auth = await requireEmployeeModulePage("COMMISSION");
   const statements = await getEmployeeCommissionStatements({ businessId: auth.businessId, membershipId: auth.membershipId });
-  const latest = statements.at(0);
-  return (
-    <section className="staff-commission-page" aria-labelledby="staff-commission-heading">
-      <div className="staff-payslip-heading staff-section-hero">
-        <p>Commission</p>
-        <h1 id="staff-commission-heading">Earnings</h1>
-        <span>View calculated and approved statements.</span>
-      </div>
-      {latest ? (
-        <div className="staff-commission-summary">
-          <small>Latest statement</small>
-          <strong>RM {(latest.finalCommissionCents / 100).toFixed(2)}</strong>
-          <span>{commissionPeriod(latest.period.earnedPeriodStart, latest.period.earnedPeriodEnd)} · {humanize(latest.status)}</span>
-        </div>
-      ) : null}
-      {statements.length ? (
-        <div className="staff-payslip-list">
-          {statements.map((statement) => (
-            <article key={statement.id}>
-              <div>
-                <strong>{commissionPeriod(statement.period.earnedPeriodStart, statement.period.earnedPeriodEnd)}</strong>
-                <small>{statement.accruals.length} source line(s) · {humanize(statement.status)}</small>
-              </div>
-              <strong>RM {(statement.finalCommissionCents / 100).toFixed(2)}</strong>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="staff-commission-empty">
-          <span className="staff-commission-empty-icon" aria-hidden="true">↗</span>
-          <p>NO STATEMENTS YET</p>
-          <strong>Approved earnings will appear here</strong>
-          <span>Statements are added automatically when they are ready.</span>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function commissionPeriod(from: Date, to: Date) {
-  const format = new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-  return `${format.format(from)} – ${format.format(to)}`;
-}
-
-function humanize(value: string) {
-  return value.toLowerCase().replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
+  const requestedPeriodId = typeof query.period === "string" ? query.period : null;
+  const selectedIndex = Math.max(0, statements.findIndex((statement) => statement.period.id === requestedPeriodId));
+  return <StaffCommissionV2 selectedIndex={selectedIndex} statements={statements} />;
 }

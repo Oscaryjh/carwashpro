@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   clearEmployeeAuthFlow,
+  formatPhoneForConfirmation,
   getDeviceMetadata,
   getOrCreateDeviceIdentifier,
   maskPhoneForDisplay,
@@ -47,19 +48,10 @@ type OtpVerifyResponse =
       memberships: EmployeeMembershipChoice[];
     };
 
-export function StaffLoginForm({
-  initialMessage = "",
-  initialMessageTone = "error",
-  testingMode = false,
-}: {
-  initialMessage?: string;
-  initialMessageTone?: "error" | "success";
-  testingMode?: boolean;
-}) {
+export function StaffLoginForm({ initialMessage = "", testingMode = false }: { initialMessage?: string; testingMode?: boolean }) {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState("");
   const [message, setMessage] = useState(initialMessage);
-  const [messageTone, setMessageTone] = useState<"error" | "success">(initialMessageTone);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -92,7 +84,6 @@ export function StaffLoginForm({
         },
       );
       if (result.requestStatus === "RATE_LIMITED") {
-        setMessageTone("error");
         setMessage(result.message);
         return;
       }
@@ -107,7 +98,6 @@ export function StaffLoginForm({
       });
       router.push("/staff/verify");
     } catch (error) {
-      setMessageTone("error");
       setMessage(publicAuthMessage(error));
     } finally {
       setBusy(false);
@@ -151,11 +141,11 @@ export function StaffLoginForm({
               <path d="M12 15v2" />
             </svg>
           </span>
-          <p className="staff-kicker">STAFF SIGN IN</p>
-          <h1>Welcome back</h1>
-          <p>Use the mobile number registered by your workplace.</p>
+          <p className="staff-kicker">EMPLOYEE ACCESS</p>
+          <h1>Sign in to Staff App</h1>
+          <p>Enter the mobile number registered by your HR administrator.</p>
         </div>
-        <form className="staff-form-stack" onSubmit={submit} suppressHydrationWarning>
+        <form className="staff-form-stack" onSubmit={submit}>
           <label>
             Mobile number
             <div className="staff-phone-input">
@@ -167,27 +157,27 @@ export function StaffLoginForm({
                 onChange={(event) => setPhoneNumber(event.target.value)}
                 placeholder="012 345 6789"
                 required
-                suppressHydrationWarning
                 value={phoneNumber}
               />
             </div>
-            <small className="staff-input-hint">Malaysian local and +60 formats are accepted.</small>
+            <small className="staff-input-hint">
+              Malaysian local and +60 formats are accepted.
+            </small>
           </label>
-          {message ? <div className={`staff-alert ${messageTone}`} role="status">{message}</div> : null}
+          {message ? <div className="staff-alert error" role="alert">{message}</div> : null}
           <button className="staff-primary-button" disabled={busy} type="submit">
-            <span>{busy ? "Requesting code…" : "Continue"}</span>
+            <span>{busy ? "Requesting code…" : "Request verification code"}</span>
             {!busy ? <b aria-hidden="true">→</b> : null}
           </button>
         </form>
         <p className="staff-security-note">
           <span aria-hidden="true">✓</span>
-          Employee accounts are created by your workplace.
+          No self-registration. Contact your manager if your employee access is not enabled.
         </p>
         {testingMode ? (
-          <details className="staff-testing-note">
-            <summary>Testing mode</summary>
-            <p>Mock OTP is enabled. This is not a Production OTP provider.</p>
-          </details>
+          <p className="staff-alert warning" role="note">
+            Local / Testing mock OTP is enabled. It is not a Production OTP provider.
+          </p>
         ) : null}
       </div>
     </section>
@@ -196,15 +186,13 @@ export function StaffLoginForm({
 
 export function StaffVerifyForm() {
   const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
-  const verificationInFlightRef = useRef(false);
   const [flow, setFlow] = useState<EmployeeAuthFlow | null>(null);
   const [digits, setDigits] = useState(["", "", "", "", "", ""]);
   const [busy, setBusy] = useState(false);
   const [failures, setFailures] = useState(0);
   const [message, setMessage] = useState("");
-  const [messageTone, setMessageTone] = useState<"error" | "success">("error");
+  const [messageKind, setMessageKind] = useState<"error" | "success">("error");
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -218,11 +206,6 @@ export function StaffVerifyForm() {
     return () => window.clearInterval(timer);
   }, [router]);
 
-  useEffect(() => {
-    if (busy || digits.some((digit) => !digit)) return;
-    formRef.current?.requestSubmit();
-  }, [busy, digits]);
-
   if (!flow) {
     return <StaffLoading label="Loading secure verification…" />;
   }
@@ -230,11 +213,10 @@ export function StaffVerifyForm() {
 
   const secondsRemaining = Math.max(0, Math.ceil((flow.expiresAt - now) / 1_000));
   const resendSeconds = Math.max(0, Math.ceil((flow.resendAt - now) / 1_000));
-  const otpError = messageTone === "error" ? message : "";
 
   function updateDigit(index: number, value: string) {
     const nextValue = value.replace(/\D/g, "").slice(-1);
-    setMessage("");
+    if (messageKind === "error") setMessage("");
     setDigits((current) => {
       const next = [...current];
       next[index] = nextValue;
@@ -255,7 +237,6 @@ export function StaffVerifyForm() {
     const value = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
     if (!value) return;
     event.preventDefault();
-    setMessage("");
     setDigits(Array.from({ length: 6 }, (_, index) => value[index] ?? ""));
     inputRefs.current[Math.min(value.length, 6) - 1]?.focus();
   }
@@ -263,13 +244,8 @@ export function StaffVerifyForm() {
   async function verify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const otp = digits.join("");
-    if (
-      otp.length !== 6 ||
-      busy ||
-      verificationInFlightRef.current ||
-      secondsRemaining === 0
-    ) {
-      setMessageTone("error");
+    if (otp.length !== 6 || busy || secondsRemaining === 0) {
+      setMessageKind("error");
       setMessage(
         secondsRemaining === 0
           ? "This verification code has expired. Request a new code."
@@ -277,7 +253,6 @@ export function StaffVerifyForm() {
       );
       return;
     }
-    verificationInFlightRef.current = true;
     setBusy(true);
     setMessage("");
 
@@ -294,7 +269,6 @@ export function StaffVerifyForm() {
           }),
         },
       );
-      setDigits(["", "", "", "", "", ""]);
       if (result.status === "MEMBERSHIP_SELECTION_REQUIRED") {
         const nextFlow = {
           ...activeFlow,
@@ -312,14 +286,13 @@ export function StaffVerifyForm() {
       setFailures(nextFailures);
       setDigits(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
-      setMessageTone("error");
+      setMessageKind("error");
       setMessage(
         nextFailures >= 5
           ? "Verification has been locked for your security. Request a new code or contact your manager."
           : publicAuthMessage(error),
       );
     } finally {
-      verificationInFlightRef.current = false;
       setBusy(false);
     }
   }
@@ -340,7 +313,7 @@ export function StaffVerifyForm() {
         },
       );
       if (result.requestStatus === "RATE_LIMITED") {
-        setMessageTone("error");
+        setMessageKind("error");
         setMessage(result.message);
         return;
       }
@@ -356,10 +329,13 @@ export function StaffVerifyForm() {
       setNow(requestedAt);
       setDigits(["", "", "", "", "", ""]);
       setFailures(0);
-      setMessageTone("success");
-      setMessage(result.message);
+      setMessageKind("success");
+      setMessage(
+        `A new code was sent to ${formatPhoneForConfirmation(activeFlow.phoneNumber)}.`,
+      );
+      inputRefs.current[0]?.focus();
     } catch (error) {
-      setMessageTone("error");
+      setMessageKind("error");
       setMessage(publicAuthMessage(error));
     } finally {
       setBusy(false);
@@ -367,22 +343,39 @@ export function StaffVerifyForm() {
   }
 
   function changePhoneNumber() {
+    if (busy) return;
     clearEmployeeAuthFlow();
     router.replace("/staff/login");
   }
 
   return (
     <section className="staff-auth-card staff-verify-card">
-      <div className="staff-auth-heading staff-verify-heading">
-        <p className="staff-kicker">SECURE SIGN IN</p>
-        <h1>Check your phone</h1>
-        <p>Enter the 6-digit code sent to <strong>{flow.phoneNumber}</strong>.</p>
+      <div className="staff-auth-heading">
+        <p className="staff-kicker">SECURE VERIFICATION</p>
+        <h1>Enter your 6-digit code</h1>
+        <p>Enter the SMS code sent to the mobile number below.</p>
       </div>
-      <form
-        className="staff-form-stack staff-verify-form"
-        onSubmit={verify}
-        ref={formRef}
-      >
+      <div className="staff-phone-confirmation" role="note">
+        <span className="staff-phone-confirmation-icon" aria-hidden="true">
+          <svg fill="none" viewBox="0 0 24 24">
+            <rect height="18" rx="3" width="12" x="6" y="3" />
+            <path d="M10 6h4M11 18h2" />
+          </svg>
+        </span>
+        <span className="staff-phone-confirmation-copy">
+          <small>Mobile number</small>
+          <strong>
+            {activeFlow.phoneNumber
+              ? formatPhoneForConfirmation(activeFlow.phoneNumber)
+              : activeFlow.phoneMasked}
+          </strong>
+          <span>Check the full number before entering your code.</span>
+        </span>
+        <button disabled={busy} onClick={changePhoneNumber} type="button">
+          Change
+        </button>
+      </div>
+      <form className="staff-form-stack" onSubmit={verify}>
         <div
           aria-label="Verification code"
           className="staff-otp-inputs"
@@ -392,6 +385,7 @@ export function StaffVerifyForm() {
             <input
               aria-label={`Digit ${index + 1}`}
               autoComplete={index === 0 ? "one-time-code" : "off"}
+              autoFocus={index === 0}
               inputMode="numeric"
               key={index}
               maxLength={1}
@@ -405,42 +399,32 @@ export function StaffVerifyForm() {
           ))}
         </div>
         <div className="staff-code-timer">
-          <span>Expires in</span>
-          <strong>{formatCountdown(secondsRemaining)}</strong>
-        </div>
-        <div
-          aria-live={otpError ? "assertive" : "polite"}
-          className={`staff-otp-auto-status ${busy ? "is-checking" : ""} ${otpError ? "is-error" : ""}`}
-          role={otpError ? "alert" : "status"}
-        >
-          <span aria-hidden="true" />
-          <strong>
-            {busy ? "Checking code…" : otpError ? "Code not accepted" : "Code checks automatically"}
+          <span>{secondsRemaining > 0 ? "Code expires in" : "Code expired"}</span>
+          <strong className={secondsRemaining === 0 ? "expired" : undefined}>
+            {formatCountdown(secondsRemaining)}
           </strong>
-          <small>
-            {busy ? "Please wait" : otpError || "Enter all 6 digits to continue"}
-          </small>
         </div>
-        {message && messageTone === "success" ? (
-          <div className="staff-alert success" role="status">{message}</div>
+        {message ? (
+          <div className={`staff-alert ${messageKind}`} role="alert">
+            {message}
+          </div>
         ) : null}
-        <div className="staff-verify-actions">
+        <button
+          className="staff-primary-button"
+          disabled={busy || digits.join("").length !== 6 || secondsRemaining === 0}
+          type="submit"
+        >
+          {busy ? "Verifying…" : "Verify and continue"}
+        </button>
+        <div className="staff-resend-row">
+          <span>Didn’t receive the SMS?</span>
           <button
             className="staff-link-button"
             disabled={busy || resendSeconds > 0}
             onClick={resend}
             type="button"
           >
-            {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : "Resend code"}
-          </button>
-          <span aria-hidden="true">·</span>
-          <button
-            className="staff-link-button"
-            disabled={busy}
-            onClick={changePhoneNumber}
-            type="button"
-          >
-            Change number
+            {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : "Send a new code"}
           </button>
         </div>
       </form>
@@ -453,8 +437,6 @@ export function StaffWorkplaceSelector() {
   const [flow, setFlow] = useState<EmployeeAuthFlow | null>(null);
   const [busyId, setBusyId] = useState("");
   const [message, setMessage] = useState("");
-  const [temporaryError, setTemporaryError] = useState(false);
-  const [retryMembershipId, setRetryMembershipId] = useState("");
 
   useEffect(() => {
     const stored = readEmployeeAuthFlow();
@@ -473,8 +455,6 @@ export function StaffWorkplaceSelector() {
     if (!flow?.selectionToken || busyId) return;
     setBusyId(membership.membershipId);
     setMessage("");
-    setTemporaryError(false);
-    setRetryMembershipId("");
     try {
       await staffApiFetch<{ ok: true; status: "AUTHENTICATED"; expiresAt: string }>(
         "/api/employee-auth/select-membership",
@@ -492,18 +472,9 @@ export function StaffWorkplaceSelector() {
       window.location.replace("/staff");
     } catch (error) {
       setMessage(publicAuthMessage(error));
-      setTemporaryError(isTemporaryAuthError(error));
-      setRetryMembershipId(membership.membershipId);
     } finally {
       setBusyId("");
     }
-  }
-
-  function retry() {
-    const membership = flow?.memberships?.find(
-      (item) => item.membershipId === retryMembershipId,
-    );
-    if (membership) void select(membership);
   }
 
   return (
@@ -514,41 +485,23 @@ export function StaffWorkplaceSelector() {
         <p>Select the employer for this secure Staff Session.</p>
       </div>
       <div className="staff-workplace-list">
-        {flow.memberships.map((membership) => {
-          const showBranchName = normalizeLabel(membership.primaryBranchName)
-            !== normalizeLabel(membership.businessName);
-
-          return (
-            <button
-              disabled={Boolean(busyId)}
-              key={membership.membershipId}
-              onClick={() => select(membership)}
-              type="button"
-            >
-              <span className="staff-workplace-mark" aria-hidden="true">T</span>
-              <span>
-                <strong>{membership.businessName}</strong>
-                {showBranchName ? <small>{membership.primaryBranchName}</small> : null}
-              </span>
-              <b>{busyId === membership.membershipId ? "…" : "›"}</b>
-            </button>
-          );
-        })}
-      </div>
-      {message && temporaryError ? (
-        <div className="staff-auth-service-alert" role="alert">
-          <span className="staff-auth-service-icon" aria-hidden="true">↻</span>
-          <div>
-            <strong>Connection interrupted</strong>
-            <p>{message}</p>
-          </div>
-          <button disabled={Boolean(busyId)} onClick={retry} type="button">
-            {busyId ? "Trying…" : "Try again"}
+        {flow.memberships.map((membership) => (
+          <button
+            disabled={Boolean(busyId)}
+            key={membership.membershipId}
+            onClick={() => select(membership)}
+            type="button"
+          >
+            <span className="staff-workplace-mark" aria-hidden="true">T</span>
+            <span>
+              <strong>{membership.businessName}</strong>
+              <small>{membership.primaryBranchName} · {membership.employeeCode}</small>
+            </span>
+            <b>{busyId === membership.membershipId ? "…" : "›"}</b>
           </button>
-        </div>
-      ) : message ? (
-        <div className="staff-alert error" role="alert">{message}</div>
-      ) : null}
+        ))}
+      </div>
+      {message ? <div className="staff-alert error" role="alert">{message}</div> : null}
     </section>
   );
 }
@@ -572,7 +525,7 @@ function publicAuthMessage(error: unknown) {
       return "Your employee profile is not enabled. Please contact your administrator.";
     }
     if (error.code === "OTP_INVALID") {
-      return "Incorrect OTP. Please try again.";
+      return "The verification code is invalid.";
     }
     if (error.code === "OTP_EXPIRED") {
       return "This verification code has expired. Request a new code.";
@@ -581,36 +534,17 @@ function publicAuthMessage(error: unknown) {
       return "Too many invalid attempts. Request a new verification code.";
     }
     if (error.code === "OTP_PROVIDER_UNAVAILABLE") {
-      return "Unable to send OTP. Please try again.";
+      return "Verification service is temporarily unavailable. Please try again later.";
     }
     if (error.code === "RATE_LIMITED") {
       return "Too many attempts. Please wait before trying again.";
-    }
-    if (error.code === "CONFIGURATION_ERROR" || error.code === "REQUEST_FAILED") {
-      return "We can’t connect to the Staff service right now. Your account is safe—please try again.";
-    }
-    if (error.code === "NETWORK_ERROR") {
-      return "Check your internet connection, then try again.";
     }
     return error.message;
   }
   return "Unable to continue. Please try again.";
 }
 
-function isTemporaryAuthError(error: unknown) {
-  return error instanceof StaffApiError && [
-    "CONFIGURATION_ERROR",
-    "NETWORK_ERROR",
-    "OTP_PROVIDER_UNAVAILABLE",
-    "REQUEST_FAILED",
-  ].includes(error.code);
-}
-
 function formatCountdown(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
-function normalizeLabel(value: string) {
-  return value.trim().toLocaleLowerCase();
 }

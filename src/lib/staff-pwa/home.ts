@@ -15,7 +15,7 @@ import { loadStaffAppAppearance } from "./appearance";
 import { getStaffAppointmentDay } from "./appointments";
 
 export type StaffHomeQuickAccess = Readonly<{
-  domain: "ROSTER" | "LEAVE" | "TIMESHEET" | "CLAIMS" | "COMMISSION" | "PAYSLIP";
+  domain: "APPOINTMENTS" | "ROSTER" | "LEAVE" | "TIMESHEET" | "CLAIMS" | "COMMISSION" | "PAYSLIP";
   label: string;
   href: string;
 }>;
@@ -60,19 +60,12 @@ export async function getStaffHomeOverview(
 
 function buildQuickAccess(modules: ReadonlySet<ModuleKey>): StaffHomeQuickAccess[] {
   const items: StaffHomeQuickAccess[] = [];
+  if (modules.has("SALON")) {
+    items.push({ domain: "APPOINTMENTS", label: "Appointments", href: "/staff/appointments" });
+  }
   if (modules.has("HR")) {
     items.push({ domain: "ROSTER", label: "Schedule", href: "/staff/roster" });
     items.push({ domain: "LEAVE", label: "Leave", href: "/staff/leave" });
-    items.push({ domain: "TIMESHEET", label: "Timesheets", href: "/staff/timesheet" });
-  }
-  if (modules.has("CLAIMS")) {
-    items.push({ domain: "CLAIMS", label: "Claims", href: "/staff/claims" });
-  }
-  if (modules.has("COMMISSION")) {
-    items.push({ domain: "COMMISSION", label: "Commission", href: "/staff/commission" });
-  }
-  if (modules.has("PAYROLL")) {
-    items.push({ domain: "PAYSLIP", label: "Payslips", href: "/staff/payslips" });
   }
   return items;
 }

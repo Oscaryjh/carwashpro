@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -22,6 +23,15 @@ import type {
   AttendanceToday,
 } from "@/lib/staff-pwa/types";
 import { StaffLoading } from "./staff-auth";
+import { getStaffHomeAttendanceViewState } from "./staff-home-attendance-view";
+import {
+  StaffV2CompactSummary,
+  StaffV2HeroStatus,
+  StaffV2ListRow,
+  StaffV2StatusBadge,
+  staffV2Styles as homeStyles,
+  type StaffV2SummaryItem,
+} from "./staff-v2-primitives";
 import { StaffResolutionCases } from "./staff-resolution-cases";
 
 type GpsEvidence = {
@@ -40,7 +50,7 @@ type PendingPunch = {
   breakExceptionReason?: string | null;
 };
 
-export function StaffToday() {
+export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode }) {
   const router = useRouter();
   const mounted = useRef(true);
   const [today, setToday] = useState<AttendanceToday | null>(null);
@@ -88,7 +98,7 @@ export function StaffToday() {
   }
   if (!today) {
     return (
-      <section className="staff-page-card">
+      <section className="staff-page-card staff-attendance-primary-card">
         <div className="staff-alert error" role="alert">{error || "Unable to load Attendance."}</div>
         <button className="staff-primary-button" onClick={() => load()} type="button">
           Try again
@@ -290,7 +300,10 @@ export function StaffToday() {
       setNotice(
         result.data.requiresApproval
           ? "Punch submitted. Pending manager approval."
-          : "",
+          : `${attendanceActionLabel(pending.action)} recorded at ${formatTime(
+              result.data.serverTimestamp,
+              attendance.geofenceRequirements.timezone,
+            )}.`,
       );
       await load(true);
     } catch (caught) {
@@ -429,67 +442,54 @@ export function StaffToday() {
       lastBreakEndedAt: today.lastBreakEndedAt,
       serverTime: today.serverTime,
     });
-  const isCompleted = today.status === "COMPLETED";
-  const isActive = today.status === "OPEN" || today.status === "ON_BREAK";
+  const viewState = getStaffHomeAttendanceViewState(today);
+  const summaryItems: StaffV2SummaryItem[] = [];
+  if (viewState.facts.includes("clockIn") && today.clockInAt) {
+    summaryItems.push({ label: "Clock in", value: formatTime(today.clockInAt, timeZone) });
+  }
+  if (viewState.facts.includes("clockOut") && today.currentSession?.clockOutAt) {
+    summaryItems.push({
+      label: "Clock out",
+      value: formatTime(today.currentSession.clockOutAt, timeZone),
+    });
+  }
+  if (viewState.facts.includes("break")) {
+    summaryItems.push({ label: "Break", value: `${today.totalCompletedBreakMinutes} min` });
+  }
+  if (viewState.facts.includes("worked")) {
+    summaryItems.push({
+      label: "Worked",
+      value: formatMinutesAsHours(today.currentWorkedMinutes),
+    });
+  }
   return (
-    <div className="staff-today-stack">
-      <section
-        className={`staff-page-card staff-attendance-card${isCompleted ? " is-complete" : ""}`}
+    <div className={homeStyles.stack}>
+      <StaffV2HeroStatus
+        badge={viewState.badgeLabel ? (
+          <StaffV2StatusBadge tone={viewState.tone}>{viewState.badgeLabel}</StaffV2StatusBadge>
+        ) : undefined}
+        eyebrow="Attendance"
+        title={viewState.headline}
       >
-        <div className="staff-card-heading">
-          <div>
-            <p className="staff-kicker">TODAY&apos;S ATTENDANCE</p>
-            <h2>{attendanceHeadline(today)}</h2>
-          </div>
-          <span className={`staff-status-chip ${today.status?.toLowerCase() ?? "ready"}`}>
-            {today.sessionCount > 1
-              ? `Shift ${today.sessionCount}`
-              : attendanceStatusLabel(today.status)}
-          </span>
-        </div>
-        <div
-          className={`staff-attendance-context${isCompleted ? " is-complete" : isActive ? " is-active" : ""}`}
-        >
-          <div className="staff-shift-summary">
-            <span className="staff-shift-summary-icon" aria-hidden="true">
-              {isCompleted ? (
-                <svg viewBox="0 0 24 24">
-                  <path d="m6 12 4 4 8-9" />
-                </svg>
-              ) : isActive ? (
-                <svg viewBox="0 0 24 24">
-                  <path d="M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24">
-                  <path d="M7 3v3M17 3v3M4.5 9h15M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
-                </svg>
-              )}
-            </span>
-            <div className="staff-shift-summary-copy">
-              <small>
-                {isCompleted
-                  ? "Shift completed"
-                  : isActive
-                    ? "Current shift"
-                  : today.expectedAttendance
-                  ? expectedAttendanceLabel(today.expectedAttendance.kind)
-                  : "Schedule not available"}
-              </small>
-              <strong>
-                {isCompleted
-                  ? `${today.completedSessionCount} ${today.completedSessionCount === 1 ? "shift" : "shifts"} recorded today`
-                  : isActive
-                    ? `Started at ${today.clockInAt ? formatTime(today.clockInAt, timeZone) : "—"}`
-                  : today.expectedAttendance
-                  ? expectedAttendanceDetail(today.expectedAttendance)
-                  : "Check Schedule or contact your manager for today’s shift."}
-              </strong>
-              <span>{formatBranchDate(today.branchLocalTime)} · {today.branch.name}</span>
-            </div>
-          </div>
+        <StaffV2ListRow
+          kicker={today.expectedAttendance ? expectedAttendanceLabel(today.expectedAttendance.kind) : "Schedule not available"}
+          leading={(
+            <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+              <rect height="16" rx="2" stroke="currentColor" strokeWidth="1.8" width="16" x="4" y="5" />
+              <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+            </svg>
+          )}
+          meta={today.expectedAttendance
+            ? `${formatBranchDate(today.branchLocalTime)} · ${today.branch.name}`
+            : undefined}
+          title={today.expectedAttendance
+            ? expectedAttendanceDetail(today.expectedAttendance)
+            : "Check Schedule or ask your manager."}
+        />
+
+        <div>
           {today.availableBranches.length > 1 ? (
-            <label className="staff-branch-switch">
+            <label className={homeStyles.branchSwitch}>
               <span>Attendance branch</span>
               <select
                 disabled={busy || today.status === "OPEN" || today.status === "ON_BREAK"}
@@ -506,6 +506,7 @@ export function StaffToday() {
             </label>
           ) : null}
         </div>
+
         {showLocationStatus ? (
           <div className="staff-gps-panel">
             <span aria-hidden="true">⌖</span>
@@ -628,8 +629,16 @@ export function StaffToday() {
           </div>
         ) : null}
 
-        {!exceptionPrompt && (today.allowedActions.length > 0 || !isCompleted) ? (
-          <div className="staff-action-grid">
+        {!exceptionPrompt ? (
+          <div className={homeStyles.actionGrid}>
+            {today.status === "COMPLETED" ? (
+              <StaffV2ListRow
+                href="/staff/history/records"
+                kicker="Shift done"
+                meta={`${today.completedSessionCount} ${today.completedSessionCount === 1 ? "shift" : "shifts"} completed today`}
+                title="View attendance history"
+              />
+            ) : null}
             {today.allowedActions.map((action) => {
               const isAdditionalShift =
                 action === "CLOCK_IN" &&
@@ -638,7 +647,7 @@ export function StaffToday() {
                 <button
                   className={
                     action === "CLOCK_IN" || action === "CLOCK_OUT"
-                      ? "staff-primary-button"
+                      ? "staff-primary-button staff-clock-action"
                       : "staff-secondary-button"
                   }
                   disabled={busy}
@@ -661,40 +670,36 @@ export function StaffToday() {
             ) : null}
           </div>
         ) : null}
-        <div className="staff-metrics" aria-label="Today's attendance summary">
-          <Metric
-            label="Clock in"
-            value={today.clockInAt ? formatTime(today.clockInAt, timeZone) : "—"}
-          />
-          <Metric
-            label="Clock out"
-            value={
-              today.currentSession?.clockOutAt
-                ? formatTime(today.currentSession.clockOutAt, timeZone)
-                : "—"
-            }
-          />
-          <Metric
-            label="Break today"
-            value={`${today.totalCompletedBreakMinutes} min`}
-          />
-          <Metric
-            label="Worked today"
-            value={formatMinutesAsHours(today.currentWorkedMinutes)}
-          />
-        </div>
-        {reviewStatus ? (
-          <div className={`staff-attendance-review-state ${approvalTone(reviewStatus)}`}>
-            <span><strong>{approvalHeadline(reviewStatus)}</strong><small>{approvalDescription(reviewStatus)}</small></span>
-            <Link href="/staff/history">History</Link>
-          </div>
-        ) : null}
         {today.status === "ON_BREAK" ? (
           <p className="staff-form-hint">End the current break before clocking out.</p>
         ) : null}
-      </section>
+
+        <StaffV2CompactSummary items={summaryItems} />
+      </StaffV2HeroStatus>
+
+      {afterAttendance}
 
       <StaffResolutionCases />
+
+      {reviewStatus ? (
+        <section
+          className={`staff-page-card staff-approval-card ${reviewStatus.toLowerCase()}`}
+        >
+          <div className="staff-card-heading">
+            <div>
+              <p className="staff-kicker">ATTENDANCE REVIEW</p>
+              <h2>{approvalHeadline(reviewStatus)}</h2>
+            </div>
+            <span className={`staff-status-chip ${approvalTone(reviewStatus)}`}>
+              {approvalLabel(reviewStatus)}
+            </span>
+          </div>
+          <p>{approvalDescription(reviewStatus)}</p>
+          <Link className="staff-approval-history-link" href="/staff/history/records">
+            View attendance history
+          </Link>
+        </section>
+      ) : null}
 
       {confirmAction ? createPortal(
         <div className="staff-confirm-backdrop" role="presentation">
@@ -786,30 +791,6 @@ export function StaffToday() {
     </div>
   );
 }
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <span>
-      <small>{label}</small>
-      <strong>{value}</strong>
-    </span>
-  );
-}
-
-function attendanceHeadline(today: AttendanceToday) {
-  if (today.status === "OPEN") return "You are currently working";
-  if (today.status === "ON_BREAK") return "Your break is in progress";
-  if (today.status === "COMPLETED") return "Workday complete";
-  return "Ready to start your day";
-}
-
-function attendanceStatusLabel(status: AttendanceToday["status"]) {
-  if (status === "OPEN") return "Working";
-  if (status === "ON_BREAK") return "On break";
-  if (status === "COMPLETED") return "Completed";
-  return "Ready";
-}
-
 function formatBranchDate(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T/.exec(value);
   if (!match) return "TODAY";
@@ -831,6 +812,14 @@ function approvalHeadline(
   if (status === "APPROVED") return "Attendance exception approved";
   if (status === "REJECTED") return "Attendance exception rejected";
   return "Manager approval pending";
+}
+
+function approvalLabel(
+  status: NonNullable<AttendanceToday["currentSession"]>["approvalStatus"],
+) {
+  if (status === "APPROVED") return "Approved";
+  if (status === "REJECTED") return "Rejected";
+  return "Pending";
 }
 
 function approvalTone(
@@ -1017,12 +1006,13 @@ function formatTime(value: string, timeZone?: string) {
   return new Intl.DateTimeFormat("en-MY", {
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
     timeZone,
   }).format(new Date(value));
 }
 
 function expectedAttendanceLabel(kind: NonNullable<AttendanceToday["expectedAttendance"]>["kind"]) {
-  if (kind === "WORKDAY") return "Today’s shift";
+  if (kind === "WORKDAY") return "Today's shift";
   if (kind === "REST_DAY") return "Rest day";
   if (kind === "PUBLIC_HOLIDAY") return "Public holiday";
   return "Not scheduled";
@@ -1030,16 +1020,12 @@ function expectedAttendanceLabel(kind: NonNullable<AttendanceToday["expectedAtte
 
 function expectedAttendanceDetail(expected: NonNullable<AttendanceToday["expectedAttendance"]>) {
   if (expected.kind !== "WORKDAY") {
-    return expected.kind === "REST_DAY"
-      ? "No shift is scheduled for today."
-      : expected.kind === "PUBLIC_HOLIDAY"
-        ? "Today is marked as a public holiday."
-        : "No shift is scheduled for today.";
+    return "No work shift is scheduled for today.";
   }
   if (!expected.expectedStartAt || !expected.expectedEndAt) {
-    return "Shift time is not available. Contact your manager.";
+    return "Shift times are not available yet. Contact your manager.";
   }
   const start = formatTime(expected.expectedStartAt, expected.timezone);
   const end = formatTime(expected.expectedEndAt, expected.timezone);
-  return `${start} – ${end}`;
+  return `${start} – ${end}${expected.graceMinutes ? ` · ${expected.graceMinutes} minute grace` : ""}`;
 }

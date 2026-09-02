@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -32,6 +33,7 @@ type StaffShellContextValue = {
   workplaces: readonly EmployeeWorkplaceChoice[];
   openWorkplaceSwitcher: () => void;
   logout: () => Promise<void>;
+  setTaskNavigationHidden: (hidden: boolean) => void;
   switching: boolean;
 };
 
@@ -42,7 +44,6 @@ export function useStaffShell() {
   if (!value) throw new Error("Staff shell is unavailable.");
   return value;
 }
-
 export function StaffPwaChrome({
   children,
   appearance,
@@ -59,12 +60,24 @@ export function StaffPwaChrome({
   const showNavigation = !authRoutes.has(currentPath);
   const showBrandHeader = authRoutes.has(currentPath) || currentPath === "/staff";
   const shellRef = useRef<HTMLDivElement>(null);
+  const workplaceDialogRef = useRef<HTMLElement>(null);
+  const workplaceCloseRef = useRef<HTMLButtonElement>(null);
+  const workplaceFocusReturnRef = useRef<HTMLElement | null>(null);
   const [liveModules, setLiveModules] = useState<readonly string[]>(enabledModules);
   const navigation = buildStaffNavigation(liveModules);
   const [workplacesOpen, setWorkplacesOpen] = useState(false);
+  const [taskNavigationHidden, setTaskNavigationHidden] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState("");
   const currentWorkplace = workplaces.find((workplace) => workplace.current);
+
+  const closeWorkplaceSwitcher = useCallback(() => {
+    if (switching) return;
+    setWorkplacesOpen(false);
+    const returnTarget = workplaceFocusReturnRef.current;
+    workplaceFocusReturnRef.current = null;
+    window.requestAnimationFrame(() => returnTarget?.focus());
+  }, [switching]);
 
   useEffect(() => {
     setWorkplacesOpen(false);
@@ -72,14 +85,30 @@ export function StaffPwaChrome({
   }, [currentPath]);
   useEffect(() => {
     if (!workplacesOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
+    workplaceCloseRef.current?.focus();
+    const manageDialogKeyboard = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !switching) {
-        setWorkplacesOpen(false);
+        closeWorkplaceSwitcher();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = workplaceDialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [switching, workplacesOpen]);
+    window.addEventListener("keydown", manageDialogKeyboard);
+    return () => window.removeEventListener("keydown", manageDialogKeyboard);
+  }, [closeWorkplaceSwitcher, switching, workplacesOpen]);
   useEffect(() => {
     let active = true;
     setLiveModules(enabledModules);
@@ -98,6 +127,9 @@ export function StaffPwaChrome({
 
   function openWorkplaceSwitcher() {
     setSwitchError("");
+    workplaceFocusReturnRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
     setWorkplacesOpen(true);
   }
 
@@ -153,13 +185,14 @@ export function StaffPwaChrome({
     workplaces,
     openWorkplaceSwitcher,
     logout,
+    setTaskNavigationHidden,
     switching,
   };
 
   return (
     <StaffShellContext.Provider value={shellValue}>
       <div
-        className={`staff-pwa-shell ${showNavigation ? "staff-app-shell" : "staff-auth-shell"}`}
+        className={`staff-pwa-shell ${showNavigation ? "staff-app-shell" : "staff-auth-shell"}${currentPath === "/staff" ? " staff-home-v2-shell" : ""}${taskNavigationHidden ? " staff-task-modal-open" : ""}`}
         ref={shellRef}
       >
         <OfflineBanner />
@@ -195,11 +228,11 @@ export function StaffPwaChrome({
         <main className="staff-pwa-main">{children}</main>
 
         {showNavigation && workplacesOpen ? (
-          <div className="staff-more-backdrop staff-workplace-backdrop" role="presentation" onClick={() => !switching && setWorkplacesOpen(false)}>
-            <section aria-label="Choose workplace" aria-modal="true" className="staff-more-sheet staff-workplace-sheet" onClick={(event) => event.stopPropagation()} role="dialog">
+          <div className="staff-more-backdrop staff-workplace-backdrop" role="presentation" onClick={closeWorkplaceSwitcher}>
+            <section aria-labelledby="staff-workplace-dialog-title" aria-modal="true" className="staff-more-sheet staff-workplace-sheet" onClick={(event) => event.stopPropagation()} ref={workplaceDialogRef} role="dialog">
               <div className="staff-more-heading">
-                <div><small>MY WORKPLACES</small><strong>Choose workplace</strong></div>
-                <button disabled={switching} onClick={() => setWorkplacesOpen(false)} type="button">Close</button>
+                <div><small>MY WORKPLACES</small><strong id="staff-workplace-dialog-title">Choose workplace</strong></div>
+                <button disabled={switching} onClick={closeWorkplaceSwitcher} ref={workplaceCloseRef} type="button">Close</button>
               </div>
               <p className="staff-workplace-help">Your Staff App will switch to the selected workplace.</p>
               {switchError ? <div className="staff-alert error" role="alert">{switchError}</div> : null}
@@ -237,7 +270,7 @@ export function StaffPwaChrome({
           </div>
         ) : null}
 
-        {showNavigation ? (
+        {showNavigation && !taskNavigationHidden ? (
           <nav aria-label="Staff navigation" className="staff-pwa-nav">
             {navigation.primary.map((item) => (
               <Link aria-current={isActive(currentPath, item) ? "page" : undefined} className={isActive(currentPath, item) ? "active" : ""} href={item.href} key={item.href}>

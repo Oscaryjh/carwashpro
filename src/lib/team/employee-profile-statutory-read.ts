@@ -54,8 +54,8 @@ type StatutorySection =
           officialSubmittedAt: string | null;
           revision: number;
           selectedEmployer: "CURRENT_BUSINESS" | "OTHER_EMPLOYER" | "PERKESO_SELECTION_PENDING";
-          sourceReference: string;
-          sourceType: string;
+          sourceReference: string | null;
+          sourceType: string | null;
           status: "MANDATORY" | "DEFAULT_PARTICIPATING" | "VOLUNTARY_OPT_IN" | "VOLUNTARY_OPT_OUT";
         }>;
         profileUpdatedAt: string | null;

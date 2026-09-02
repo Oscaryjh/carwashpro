@@ -723,6 +723,48 @@ export async function getEmployeeAttendanceHistory(args: {
           adjusted && primaryStatus.key !== "ADJUSTED" ? "Adjusted" : null,
           orderedSessions.length > 1 ? `${orderedSessions.length} sessions` : null,
         ].filter((flag): flag is string => Boolean(flag)).slice(0, 2);
+        const correctionSession = orderedSessions.find(
+          (session) =>
+            !session.clockOutAt &&
+            session.status !== "COMPLETED" &&
+            session.status !== "CANCELLED",
+        ) ?? null;
+        const approvalStatuses = orderedSessions.map(
+          (session) => session.approvalStatus,
+        );
+        const approvalStatus = approvalStatuses.includes("PENDING")
+          ? "PENDING"
+          : approvalStatuses.includes("REJECTED")
+            ? "REJECTED"
+            : approvalStatuses.includes("APPROVED")
+              ? "APPROVED"
+              : "NOT_REQUIRED";
+        const compatibilityStatus = primaryStatus.key === "IN_PROGRESS"
+          ? orderedSessions.some((session) => session.status === "ON_BREAK")
+            ? "ON_BREAK"
+            : "OPEN"
+          : primaryStatus.key === "CANCELLED"
+            ? "CANCELLED"
+            : primaryStatus.key === "MISSING_PUNCH" ||
+                primaryStatus.key === "NEEDS_REVIEW"
+              ? "INCOMPLETE"
+              : "COMPLETED";
+        const geofenceEvidence = orderedSessions.flatMap((session) =>
+          session.punches.map((punch) => ({
+            punchId: punch.id,
+            type: punch.type,
+            serverTimestamp: punch.serverTimestamp.toISOString(),
+            geofenceStatus: punch.geofenceStatus,
+            insideGeofence: punch.insideGeofence,
+            accuracyMeters:
+              punch.accuracyMeters === null
+                ? null
+                : Number(punch.accuracyMeters),
+          })),
+        );
+        const firstLocationEvidence = geofenceEvidence.find(
+          (evidence) => evidence.type === "CLOCK_IN",
+        ) ?? geofenceEvidence[0] ?? null;
 
         return {
           id: `${group.workDate}-${group.branchId}`,
@@ -739,6 +781,19 @@ export async function getEmployeeAttendanceHistory(args: {
           finalOutcome,
           flags,
           locked,
+          clockInAt: actual.clockInAt,
+          clockOutAt: actual.clockOutAt,
+          totalBreakMinutes: actual.totalBreakMinutes,
+          totalWorkedMinutes: actual.totalWorkedMinutes,
+          status: compatibilityStatus,
+          geofenceStatus: firstLocationEvidence?.geofenceStatus ?? null,
+          geofenceEvidence,
+          approvalStatus,
+          requiresApproval: orderedSessions.some(
+            (session) => session.requiresApproval,
+          ),
+          adjusted,
+          correctionSessionId: correctionSession?.id ?? null,
           sessions: orderedSessions.map((session) => ({
             id: session.id,
             clockInAt: session.clockInAt.toISOString(),

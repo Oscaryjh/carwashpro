@@ -29,8 +29,11 @@ export type Lindung24ParticipationEvidence = {
   selectedEmployer: Lindung24SelectedEmployer;
   act4Covered: boolean;
   officialSubmittedAt: Date | null;
-  sourceType: Lindung24ParticipationSourceType;
-  sourceReference: string;
+  // Testing's canonical fixture-evidence migration permits these fields to be
+  // null only for explicitly synthetic evidence. The legacy payroll reader
+  // does not consume synthetic evidence, so nullable rows must fail closed.
+  sourceType: Lindung24ParticipationSourceType | null;
+  sourceReference: string | null;
   sourceDigest: string;
 };
 
@@ -98,6 +101,13 @@ export function resolveLindung24ParticipationForPeriod(input: {
   }
   if (!participation) {
     return { status: "BLOCKED", blockerCode: LINDUNG24_BLOCKERS.PARTICIPATION_REQUIRED, participation: null };
+  }
+  if (!participation.sourceType || !participation.sourceReference?.trim()) {
+    return {
+      status: "BLOCKED",
+      blockerCode: LINDUNG24_BLOCKERS.PARTICIPATION_INVALID,
+      participation,
+    };
   }
   if (participation.sourceType === "LEGACY_REVIEW") {
     return { status: "BLOCKED", blockerCode: LINDUNG24_BLOCKERS.LEGACY_REVIEW_REQUIRED, participation };
@@ -168,8 +178,8 @@ export function lindung24ParticipationDigest(input: {
   selectedEmployer: Lindung24SelectedEmployer;
   act4Covered: boolean;
   officialSubmittedAt: Date | null;
-  sourceType: Lindung24ParticipationSourceType;
-  sourceReference: string;
+  sourceType: Lindung24ParticipationSourceType | null;
+  sourceReference: string | null;
   reason: string;
 }) {
   return createHash("sha256")

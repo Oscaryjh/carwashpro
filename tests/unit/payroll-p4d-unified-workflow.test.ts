@@ -194,7 +194,7 @@ test("P4D wiring keeps domain logic server-side and publication immutable", asyn
   assert.match(entryPage, /Finalized payroll is immutable/);
   assert.match(staffRoute, /membershipId: auth\.membershipId/);
   assert.match(staffLoading, /aria-busy="true"/);
-  assert.match(staffError, /No stale or unpublished payroll document is shown/);
+  assert.match(staffError, /No stale or unpublished (?:payroll document|payslip) is shown/);
   assert.match(schema, /model PayrollPayslipPublication/);
   assert.match(migration, /Published payslips are immutable/);
   assert.match(migration, /run_status IS DISTINCT FROM 'FINALIZED'/);

@@ -24,11 +24,6 @@ const errorSource = readFileSync(
   new URL("../../src/app/staff/timesheet/error.tsx", import.meta.url),
   "utf8",
 );
-const cssSource = readFileSync(
-  new URL("../../src/app/staff/staff.css", import.meta.url),
-  "utf8",
-);
-
 function day(overrides: Partial<StaffTimesheetDay> = {}): StaffTimesheetDay {
   return {
     id: "day-1",
@@ -118,32 +113,24 @@ test("Monthly summary uses canonical worked and approved values", () => {
 });
 
 test("Employee Timesheet read model is month-bounded and locked-snapshot first", () => {
-  assert.match(serviceSource, /workDate: \{ gte: period\.periodStart, lt: period\.periodEndExclusive \}/);
-  assert.match(serviceSource, /timesheet\?\.status === "LOCKED"/);
+  assert.match(serviceSource, /workDate: \{ gte: monthStart, lt: monthEndExclusive \}/);
+  assert.match(serviceSource, /timesheet\?\.status === "LOCKED" && timesheet\.currentRevisionId/);
   assert.match(serviceSource, /attendanceTimesheetP2DaySnapshot\.findMany/);
   assert.match(serviceSource, /revisionId: timesheet\.currentRevisionId/);
-  assert.match(serviceSource, /exceptions: \[\]/);
-  const lockedBranch = serviceSource.slice(
-    serviceSource.indexOf("if (timesheet?.status === \"LOCKED\"") ,
-    serviceSource.indexOf("const [rows, exceptions, overtime]"),
-  );
-  assert.doesNotMatch(lockedBranch, /attendanceP2FinalResult\.findMany/);
+  assert.match(serviceSource, /issues: \[\]/);
+  assert.match(serviceSource, /projectEmployeeTimesheetDays\(\{/);
+  assert.match(serviceSource, /timesheetStatus: timesheet\?\.status \?\? "DRAFT"/);
 });
 
 test("Timesheet page is compact, navigable and has meaningful system states", () => {
-  assert.match(pageSource, /Monthly work record/);
-  assert.match(pageSource, /Needs attention/);
-  assert.match(pageSource, /<details className=\{`staff-timesheet-day/);
-  assert.match(pageSource, /No work records yet/);
-  assert.match(pageSource, /IN PROGRESS/);
-  assert.match(pageSource, /LOCKED/);
+  assert.match(pageSource, /<StaffTimesheetV2/);
+  assert.match(pageSource, /summarizeStaffTimesheetV2/);
+  assert.match(pageSource, /overview\.timesheetStatus === "LOCKED"/);
   assert.doesNotMatch(pageSource, /null.*Unauthorized absence|Unauthorized absence.*null/s);
-  assert.match(loadingSource, /staff-timesheet-skeleton-summary/);
-  assert.match(errorSource, /Unable to load work records/);
-  assert.match(errorSource, /reset: \(\) => void/);
-  assert.match(errorSource, /onClick=\{reset\}/);
-  assert.match(serviceSource, /effectiveStatus === "APPROVED" \|\| overtimeItem\.effectiveStatus === "ADJUSTED"/);
-  assert.match(cssSource, /\.staff-timesheet-page\s*\{[\s\S]*?overflow-x:\s*clip/);
-  assert.match(cssSource, /\.staff-timesheet-day summary\s*\{[\s\S]*?min-height:\s*58px/);
-  assert.match(cssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-timesheet-day summary/);
+  assert.match(loadingSource, /aria-busy="true"/);
+  assert.match(errorSource, /Timesheet couldn&apos;t load/);
+  assert.match(errorSource, /retry: \(\) => void/);
+  assert.match(errorSource, /onClick=\{retry\}/);
+  assert.match(pageSource, /status: item\.effectiveStatus/);
+  assert.match(pageSource, /StaffTimesheetV2/);
 });

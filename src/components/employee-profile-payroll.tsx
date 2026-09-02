@@ -1154,7 +1154,7 @@ function StatutoryPanel({
                   <strong>{formatMonth(record.effectiveFromMonth)}</strong>
                   <span>
                     {formatLindung24Status(record.status)} · {formatNullableEnum(record.employerContext)} · revision {record.revision}
-                    {record.sourceReference.startsWith("LOCAL_PAYROLL_UAT") ? " · UAT test record" : ""}
+                    {record.sourceReference?.startsWith("LOCAL_PAYROLL_UAT") ? " · UAT test record" : ""}
                   </span>
                 </p>
               ))}

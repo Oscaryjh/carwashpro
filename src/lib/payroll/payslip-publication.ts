@@ -105,6 +105,7 @@ export async function loadPublishedPayslipsForEmployee(
       id: true,
       publishedAt: true,
       payrollRun: { select: { periodStart: true } },
+      payrollEntry: { select: { grossPay: true, netPay: true } },
     },
   });
 }

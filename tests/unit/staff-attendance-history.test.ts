@@ -20,7 +20,7 @@ const exceptionServiceSource = readFileSync(
   "utf8",
 );
 const cssSource = readFileSync(
-  new URL("../../src/app/staff/staff.css", import.meta.url),
+  new URL("../../src/components/staff-pwa/staff-attendance-history-v2.module.css", import.meta.url),
   "utf8",
 );
 
@@ -104,13 +104,13 @@ test("history read model preserves scheduled evidence, canonical totals, multipl
   assert.match(readServiceSource, /orderedSessions\.length > 1/);
   assert.match(readServiceSource, /timezoneSnapshot/);
   assert.match(historySource, /timeZone: timezone/);
-  assert.match(historySource, /staff-session-list/);
+  assert.match(historySource, /styles\.sessionList/);
 });
 
 test("GPS and adjustment are detail evidence with specific employee wording", () => {
-  assert.match(historySource, /LOCATION EVIDENCE/);
-  assert.match(historySource, /Low GPS accuracy/);
-  assert.match(historySource, /Punch recorded/);
+  assert.match(historySource, /Location evidence/);
+  assert.match(historySource, /Location accuracy was insufficient/);
+  assert.match(historySource, /Punch status:/);
   assert.match(readServiceSource, /Adjustment approved/);
   assert.doesNotMatch(historySource, /Approval:\s*\{/);
 });
@@ -124,8 +124,8 @@ test("locked attendance remains readable and correction writes cannot bypass the
 });
 
 test("iPhone history layout is compact and clips horizontal overflow", () => {
-  assert.match(cssSource, /\.staff-history-stack\s*\{[\s\S]*?overflow-x:\s*clip/);
-  assert.match(cssSource, /\.staff-attendance-day summary\s*\{[\s\S]*?min-height:\s*76px/);
-  assert.match(cssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-attendance-day summary/);
+  assert.match(cssSource, /\.page\s*\{[\s\S]*?min-width:\s*0/);
+  assert.match(cssSource, /\.record summary\s*\{[\s\S]*?min-height:\s*68px/);
+  assert.match(cssSource, /@media \(max-width: 380px\)[\s\S]*?\.record summary/);
   assert.match(historySource, /history\.pagination\.totalPages > 1/);
 });

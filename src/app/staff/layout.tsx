@@ -8,6 +8,7 @@ import {
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import { loadStaffAppAppearance } from "@/lib/staff-pwa/appearance";
 import "./staff.css";
+import "./staff-consolidation.css";
 
 export const metadata: Metadata = {
   title: { default: "Tetamu Staff App", template: "%s · Tetamu Staff App" },

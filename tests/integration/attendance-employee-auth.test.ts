@@ -32,6 +32,92 @@ after(async () => {
   await prisma.$disconnect();
 });
 
+test("canonical OTP schema applies forward message-code hardening without changing provider or trigger topology", async () => {
+  assertLocalDatabase();
+
+  const columns = await prisma.$queryRawUnsafe<
+    Array<{
+      data_type: string;
+      is_nullable: string;
+      column_default: string | null;
+    }>
+  >(`
+    SELECT data_type, is_nullable, column_default
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'employee_otp_challenges'
+      AND column_name = 'provider_message_code'
+  `);
+  assert.deepEqual(columns, [
+    { data_type: "text", is_nullable: "YES", column_default: null },
+  ]);
+
+  const constraints = await prisma.$queryRawUnsafe<
+    Array<{ name: string; definition: string }>
+  >(`
+    SELECT c.conname AS name, pg_get_constraintdef(c.oid, true) AS definition
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    WHERE n.nspname = 'public'
+      AND t.relname = 'employee_otp_challenges'
+      AND c.conname IN (
+        'employee_otp_challenges_provider_check',
+        'employee_otp_challenges_provider_message_code_check'
+      )
+    ORDER BY c.conname
+  `);
+  assert.equal(constraints.length, 2);
+  assert.match(
+    constraints.find((item) =>
+      item.name.endsWith("provider_message_code_check"),
+    )?.definition ?? "",
+    /provider_message_code IS NULL[\s\S]*provider_reference IS NOT NULL[\s\S]*delivery_accepted_at IS NOT NULL/,
+  );
+  const providerConstraint =
+    constraints.find((item) => item.name.endsWith("provider_check"))
+      ?.definition ?? "";
+  assert.match(providerConstraint, /provider = 'mock'/);
+  assert.match(providerConstraint, /provider = 'sms123'/);
+
+  const functions = await prisma.$queryRawUnsafe<
+    Array<{ definition: string }>
+  >(`
+    SELECT pg_get_functiondef(p.oid) AS definition
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'enforce_employee_otp_challenge_lifecycle'
+  `);
+  assert.equal(functions.length, 1);
+  assert.match(
+    functions[0]?.definition ?? "",
+    /OLD\."provider_message_code" IS NOT NULL/,
+  );
+  assert.match(
+    functions[0]?.definition ?? "",
+    /Employee OTP provider message code is immutable/,
+  );
+
+  const triggers = await prisma.$queryRawUnsafe<Array<{ name: string }>>(`
+    SELECT tg.tgname AS name
+    FROM pg_trigger tg
+    JOIN pg_class t ON t.oid = tg.tgrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    WHERE n.nspname = 'public'
+      AND t.relname = 'employee_otp_challenges'
+      AND NOT tg.tgisinternal
+    ORDER BY tg.tgname
+  `);
+  assert.deepEqual(
+    triggers.map((item) => item.name),
+    [
+      "employee_otp_challenges_10_invalidate_previous",
+      "employee_otp_challenges_20_lifecycle_guard",
+    ],
+  );
+});
+
 test("Phase 1C employee auth enforces OTP, membership, device, session, and tenant safety", async () => {
   assertLocalDatabase();
   const baseTime = new Date(Date.now() - 3 * 60_000);

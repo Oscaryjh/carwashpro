@@ -35,16 +35,15 @@ export function StaffResolutionCases() {
 
   if (loading) {
     return (
-      <section className="staff-home-attention is-loading" aria-busy="true">
-        <p className="staff-kicker">NEEDS YOUR ATTENTION</p>
-        <span>Checking for items that need you…</span>
+      <section className="staff-page-card staff-resolution-card" aria-busy="true" id="attendance-issues">
+        <p className="staff-kicker">ATTENDANCE ISSUES</p>
+        <p>Checking whether a response is needed…</p>
       </section>
     );
   }
   if (error) {
     return (
-      <section className="staff-home-attention has-error">
-        <p className="staff-kicker">NEEDS YOUR ATTENTION</p>
+      <section className="staff-page-card staff-resolution-card" id="attendance-issues">
         <div className="staff-alert error" role="alert">{error}</div>
         <button className="staff-secondary-button" onClick={() => void load()} type="button">
           Try again
@@ -52,22 +51,23 @@ export function StaffResolutionCases() {
       </section>
     );
   }
-  const actionableCases = cases.filter((item) => (
-    item.status === "OPEN" || item.status === "RETURNED_FOR_CORRECTION" || item.canCancel
-  ));
-  if (!actionableCases.length) return null;
+  if (!cases.length) return null;
 
   return (
-    <section className="staff-home-attention has-items">
-      <div className="staff-home-attention-heading">
+    <section className="staff-page-card staff-resolution-card" id="attendance-issues">
+      <div className="staff-card-heading">
         <div>
-          <p className="staff-kicker">NEEDS YOUR ATTENTION</p>
-          <h2>Review attendance</h2>
+          <p className="staff-kicker">ATTENDANCE ISSUES</p>
+          <h2>Resolution required</h2>
         </div>
-        <span>{actionableCases.length}</span>
+        <span className="staff-status-chip warning">{cases.length}</span>
       </div>
+      <p className="staff-resolution-intro">
+        Respond to returned or incomplete attendance records. Your manager will
+        make the final decision.
+      </p>
       <div className="staff-resolution-list">
-        {actionableCases.map((item) => (
+        {cases.map((item) => (
           <ResolutionCaseCard item={item} key={item.id} onSubmitted={load} />
         ))}
       </div>
@@ -149,30 +149,30 @@ function ResolutionCaseCard({
   }
 
   return (
-    <details className="staff-resolution-item">
-      <summary className="staff-resolution-summary">
+    <article className="staff-resolution-item">
+      <div className="staff-resolution-summary">
         <div>
           <strong>{formatReason(item.openedReason)}</strong>
           <small>{item.workDate} · {item.branch.name}</small>
         </div>
-        <span>{needsResponse ? "Review" : "Manage"}</span>
-        <b aria-hidden="true">⌄</b>
-      </summary>
-      <div className="staff-resolution-detail">
-        {item.status === "RETURNED_FOR_CORRECTION" && item.latestEvent ? (
-          <div className="staff-alert warning">
-            <strong>Manager returned this case</strong>
-            <span>{item.latestEvent.reason}</span>
-          </div>
-        ) : null}
-        {item.latestEvent?.type === "EMPLOYEE_CANCELLED" ? (
-          <div className="staff-alert success">
-            <strong>Previous request cancelled</strong>
-            <span>Submit a new response when you are ready.</span>
-          </div>
-        ) : null}
-        {needsResponse ? (
-          <div className="staff-resolution-form">
+        <span className={`staff-status-chip ${item.status === "UNDER_REVIEW" ? "approved" : "warning"}`}>
+          {item.status === "UNDER_REVIEW" ? "Under review" : "Response needed"}
+        </span>
+      </div>
+      {item.status === "RETURNED_FOR_CORRECTION" && item.latestEvent ? (
+        <div className="staff-alert warning">
+          <strong>Manager returned this case</strong>
+          <span>{item.latestEvent.reason}</span>
+        </div>
+      ) : null}
+      {item.latestEvent?.type === "EMPLOYEE_CANCELLED" ? (
+        <div className="staff-alert success">
+          <strong>Previous request cancelled</strong>
+          <span>Submit a new response when you are ready.</span>
+        </div>
+      ) : null}
+      {needsResponse ? (
+        <div className="staff-resolution-form">
           <label>
             <span>Explanation</span>
             <textarea
@@ -213,25 +213,24 @@ function ResolutionCaseCard({
           <button className="staff-primary-button" disabled={busy || reason.trim().length < 3} onClick={() => void submit()} type="button">
             {busy ? "Submitting…" : "Submit to manager"}
           </button>
-          </div>
-        ) : (
-          <div className="staff-resolution-pending">
-            <p className="staff-form-hint">Your response is waiting for manager review.</p>
-            {item.canCancel ? (
-              <button
-                className="staff-cancel-button"
-                disabled={busy}
-                onClick={() => void cancelPending()}
-                type="button"
-              >
-                {busy ? "Cancelling..." : "Cancel pending request"}
-              </button>
-            ) : null}
-            {error ? <div className="staff-alert error" role="alert">{error}</div> : null}
-          </div>
-        )}
-      </div>
-    </details>
+        </div>
+      ) : (
+        <div className="staff-resolution-pending">
+          <p className="staff-form-hint">Your response is waiting for manager review.</p>
+          {item.canCancel ? (
+            <button
+              className="staff-cancel-button"
+              disabled={busy}
+              onClick={() => void cancelPending()}
+              type="button"
+            >
+              {busy ? "Cancelling..." : "Cancel pending request"}
+            </button>
+          ) : null}
+          {error ? <div className="staff-alert error" role="alert">{error}</div> : null}
+        </div>
+      )}
+    </article>
   );
 }
 

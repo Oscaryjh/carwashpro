@@ -1,14 +1,41 @@
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { StaffAppIcon } from "@/components/staff-pwa/staff-app-icon";
+import type { StaffAppDomain, StaffAppIconName } from "@/lib/staff-pwa/appearance-config";
 import type { AwaitedReturn } from "@/lib/staff-pwa/home-types";
+import {
+  StaffV2ActionRow,
+  StaffV2EmptyState,
+  StaffV2ListRow,
+  StaffV2PageHeader,
+  staffV2Styles as styles,
+} from "./staff-v2-primitives";
 
-export function StaffHomeOverview({ overview, children }: { overview: AwaitedReturn; children?: ReactNode }) {
+export type TeamApprovalSummary = {
+  total: number;
+  attendance: number;
+  leave: number;
+  claims: number;
+  overtime: number;
+  complete: boolean;
+  canReviewAttendance: boolean;
+  canReviewLeave: boolean;
+  canReviewClaims: boolean;
+  canReviewOvertime: boolean;
+} | null;
+
+const homeQuickActionIcons: Partial<Record<StaffAppDomain, StaffAppIconName>> = {
+  APPOINTMENTS: "clock",
+  ROSTER: "calendar",
+  LEAVE: "leaf",
+};
+
+export function StaffHomeOverview({ overview, children }: {
+  overview: AwaitedReturn;
+  children?: ReactNode;
+}) {
   const displayName = formatDisplayName(overview.profile.employee.fullName);
-  const businessName = overview.profile.workplace.businessName;
-  const branchName = overview.profile.workplace.primaryBranchName;
-  const showBranchName = normalizeLabel(branchName) !== normalizeLabel(businessName);
   const initials = overview.profile.employee.fullName
     .split(/\s+/)
     .filter(Boolean)
@@ -18,109 +45,100 @@ export function StaffHomeOverview({ overview, children }: { overview: AwaitedRet
   const today = new Intl.DateTimeFormat("en-MY", {
     day: "numeric",
     month: "short",
-    weekday: "short",
+    weekday: "long",
     timeZone: "Asia/Kuala_Lumpur",
   }).format(new Date());
+  const nextAppointment = overview.appointmentDay?.nextAppointment ?? null;
+  const usefulUpNext = overview.upNext && overview.upNext.status !== "EMPTY"
+    ? overview.upNext
+    : null;
 
   return (
-    <section aria-label="Staff home" className="staff-home-overview">
-      {overview.showWelcome ? (
-        <section className="staff-welcome-card">
-          <div className="staff-welcome-identity">
-            <span className="staff-welcome-avatar">
-              {overview.profile.employee.avatarUrl ? (
-                <Image
-                  alt={`${overview.profile.employee.fullName} profile photo`}
-                  height={80}
-                  sizes="80px"
-                  src={overview.profile.employee.avatarUrl}
-                  unoptimized
-                  width={80}
-                />
-              ) : (
-                <span aria-hidden="true">{initials || "T"}</span>
-              )}
-            </span>
-            <div>
-              <p className="staff-kicker">TODAY</p>
-              <h1>{displayName}</h1>
-              <p>{businessName}</p>
-              {showBranchName ? <span className="staff-welcome-branch">{branchName}</span> : null}
-            </div>
-          </div>
-          <div className="staff-welcome-meta">
-            <time dateTime={new Date().toISOString().slice(0, 10)}>{today}</time>
-            <span className="staff-state-orb ready"><i aria-hidden="true" /> Ready</span>
-          </div>
-        </section>
-      ) : null}
+    <section aria-label="Staff home" className={styles.scope}>
+      <StaffV2PageHeader
+        leading={overview.profile.employee.avatarUrl ? (
+          <Image
+            alt=""
+            height={32}
+            sizes="32px"
+            src={overview.profile.employee.avatarUrl}
+            unoptimized
+            width={32}
+          />
+        ) : <span aria-hidden="true">{initials || "T"}</span>}
+        meta={today}
+        title={displayName}
+      />
+
       {children}
-      {overview.appointmentDay?.nextAppointment ? (
-        <section className="staff-home-next-appointment" aria-labelledby="staff-home-next-appointment-heading">
-          <header className="staff-home-section-heading">
-            <p className="staff-kicker" id="staff-home-next-appointment-heading">NEXT APPOINTMENT</p>
-            <Link href="/staff/appointments">View all</Link>
-          </header>
-          <Link className="staff-home-next-appointment-card" href={`/staff/appointments?date=${overview.appointmentDay.date}`}>
-            <time dateTime={overview.appointmentDay.nextAppointment.scheduledAt}>{overview.appointmentDay.nextAppointment.timeLabel}</time>
-            <div>
-              <strong>{overview.appointmentDay.nextAppointment.customerName}</strong>
-              <small>{overview.appointmentDay.nextAppointment.serviceSummary}</small>
-              <span>{overview.appointmentDay.nextAppointment.durationLabel} · {overview.appointmentDay.nextAppointment.branchName}</span>
-            </div>
-            <i aria-hidden="true">›</i>
-          </Link>
-          <small className="staff-home-appointment-count">{overview.appointmentDay.remainingCount} appointment{overview.appointmentDay.remainingCount === 1 ? "" : "s"} remaining today</small>
+
+      {nextAppointment ? (
+        <section aria-labelledby="staff-home-next-heading">
+          <p className={styles.sectionLabel} id="staff-home-next-heading">Next appointment</p>
+          <StaffV2ListRow
+            ariaLabel={`Open appointment with ${nextAppointment.customerName}`}
+            href={`/staff/appointments?date=${overview.appointmentDay?.date}`}
+            kicker={nextAppointment.timeLabel}
+            meta={`${nextAppointment.serviceSummary} · ${nextAppointment.durationLabel} · ${nextAppointment.branchName}`}
+            title={nextAppointment.customerName}
+          />
+        </section>
+      ) : usefulUpNext ? (
+        <section aria-labelledby="staff-home-next-heading">
+          <p className={styles.sectionLabel} id="staff-home-next-heading">Up next</p>
+          <StaffV2ListRow
+            href={usefulUpNext.href}
+            kicker={usefulUpNext.dateLabel}
+            leading={<StaffAppIcon name={overview.appearance.quickAccessIcons.ROSTER} />}
+            meta={[usefulUpNext.timeLabel, usefulUpNext.branchName].filter(Boolean).join(" · ")}
+            title={usefulUpNext.title}
+          />
         </section>
       ) : null}
-      {overview.upNext ? (
-        <section className="staff-home-up-next" aria-labelledby="staff-home-up-next-heading">
-          <header className="staff-home-section-heading">
-            <p className="staff-kicker" id="staff-home-up-next-heading">UPCOMING SCHEDULE</p>
-          </header>
-          <Link className={`staff-home-up-next-card ${overview.upNext.status.toLowerCase()}`} href={overview.upNext.href}>
-            <span className="staff-home-up-next-icon" aria-hidden="true">
-              <StaffAppIcon name={overview.appearance.quickAccessIcons.ROSTER} />
-            </span>
-            <span>
-              <small>{overview.upNext.dateLabel}</small>
-              <strong>{overview.upNext.title}</strong>
-              {overview.upNext.timeLabel ? <b>{overview.upNext.timeLabel}</b> : null}
-              {overview.upNext.branchName ? <em>{overview.upNext.branchName}</em> : null}
-            </span>
-            <i aria-hidden="true">›</i>
-          </Link>
-        </section>
-      ) : null}
-      <section className="staff-home-quick-access" aria-labelledby="staff-home-quick-access-heading">
-        <header className="staff-home-section-heading">
-          <p className="staff-kicker" id="staff-home-quick-access-heading">QUICK ACCESS</p>
-        </header>
-      {overview.quickAccess.length ? (
-        <div className="staff-home-grid">
-          {overview.quickAccess.map((item) => (
-            <Link
-              aria-label={`Open ${item.label}`}
-              className="staff-home-card"
-              href={item.href}
-              key={item.domain}
-            >
-              <span className="staff-home-card-icon" aria-hidden="true">
-                <StaffAppIcon name={overview.appearance.quickAccessIcons[item.domain]} />
-              </span>
-              <small>{item.label}</small>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <div className="staff-page-card staff-core-only-state" role="status">
-          <strong>Profile and account access are available</strong>
-          <span>This business has not enabled HR self-service modules. Tetamu will not show an empty Attendance workspace.</span>
-          <Link href="/staff/profile">Open my profile</Link>
-        </div>
-      )}
+
+      <section className={styles.quickActions} aria-labelledby="staff-home-quick-access-heading">
+        <p className={styles.sectionLabel} id="staff-home-quick-access-heading">Quick actions</p>
+        {overview.quickAccess.length ? (
+          <div className={`${styles.quickGrid} ${overview.quickAccess.length === 2 ? styles.two : ""}`}>
+            {overview.quickAccess.map((item) => (
+              <Link
+                aria-label={`Open ${item.label}`}
+                className={styles.quickAction}
+                href={item.href}
+                key={item.domain}
+              >
+                <span aria-hidden="true">
+                  <StaffAppIcon name={homeQuickActionIcons[item.domain] ?? "calendar"} />
+                </span>
+                <span>{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <StaffV2EmptyState
+            description="This workplace has not enabled staff self-service modules."
+            title="No quick actions available"
+          />
+        )}
       </section>
     </section>
+  );
+}
+export function StaffManagerApprovalEntry({ summary }: {
+  summary: TeamApprovalSummary;
+}) {
+  if (!summary || summary.total <= 0) return null;
+
+  return (
+    <StaffV2ActionRow
+      ariaLabel={`Open Approval Center. Review ${summary.total} pending approval${summary.total === 1 ? "" : "s"}`}
+      count={summary.total}
+      href="/staff/approvals"
+      kicker="Needs my approval"
+      leading={<span aria-hidden="true">✓</span>}
+      meta="Review pending staff requests"
+      title={`${summary.total} pending`}
+    />
   );
 }
 
@@ -134,8 +152,4 @@ function formatDisplayName(fullName: string) {
         : part,
     )
     .join(" ");
-}
-
-function normalizeLabel(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-MY");
 }

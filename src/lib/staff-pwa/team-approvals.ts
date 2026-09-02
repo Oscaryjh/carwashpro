@@ -8,6 +8,17 @@ import {
 } from "@/lib/business-groups/capabilities";
 import { getManagerClaimDashboard, reviewEmployeeClaim } from "@/lib/claim/service";
 import { getManagerLeaveDashboard, reviewLeaveRequest } from "@/lib/leave/service";
+import {
+  loadAttendanceResolutionQueue,
+  loadPendingAttendanceExceptionQueue,
+  loadPendingAttendanceP2CorrectionQueue,
+} from "@/lib/attendance/resolution-read-service";
+import { reviewAttendanceException } from "@/lib/attendance/management-service";
+import { resolveAttendanceP2Exception } from "@/lib/attendance/p2-service";
+import {
+  applyManagerAttendanceResolution,
+  type AttendanceManagerResolutionAction,
+} from "@/lib/attendance/resolution-workflow-service";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import { getUnifiedApprovalCounts, getUnifiedApprovalInbox, type UnifiedApprovalContext } from "@/lib/approvals/service";
 import { getHrApprovalStages, type HrApprovalActorLevel } from "@/lib/approvals/policy-service";
@@ -21,9 +32,11 @@ export type MobileApprovalDomain = "LEAVE" | "CLAIMS";
 export type StaffTeamApprovalAccess = Readonly<{
   actor: AppSession;
   actorLevel: HrApprovalActorLevel;
+  actorMembershipId: string;
   businessId: string;
   allowedBranchIds: readonly string[];
   wholeBusinessScope: boolean;
+  canReviewAttendance: boolean;
   canReviewLeave: boolean;
   canReviewClaims: boolean;
   unified: UnifiedApprovalContext;
@@ -66,9 +79,10 @@ export async function resolveStaffTeamApprovalAccess(
   const allowed = (capability: BusinessCapability) =>
     user.role === "BUSINESS_OWNER" || (user.role === "STAFF" && canDirectStaff(user.permissions, capability));
   const moduleContext = await loadBusinessModuleContext(auth.businessId, { database });
+  const canReviewAttendance = moduleContext.enabledModules.has("HR") && allowed("MODIFY_ATTENDANCE_EMPLOYEES");
   const canReviewLeave = moduleContext.enabledModules.has("HR") && allowed("APPROVE_LEAVE");
   const canReviewClaims = moduleContext.enabledModules.has("HR") && moduleContext.enabledModules.has("CLAIMS") && allowed("REVIEW_CLAIM");
-  if (!canReviewLeave && !canReviewClaims) return null;
+  if (!canReviewAttendance && !canReviewLeave && !canReviewClaims) return null;
   const capabilities = new Set(
     businessCapabilities.filter((capability) => allowed(capability)),
   );
@@ -89,9 +103,11 @@ export async function resolveStaffTeamApprovalAccess(
   return {
     actor,
     actorLevel,
+    actorMembershipId: auth.membershipId,
     businessId: auth.businessId,
     allowedBranchIds,
     wholeBusinessScope,
+    canReviewAttendance,
     canReviewLeave,
     canReviewClaims,
     unified: {
@@ -106,18 +122,265 @@ export async function resolveStaffTeamApprovalAccess(
   };
 }
 
-export async function getStaffTeamApprovalSummary(auth: EmployeeAuthContext) {
-  const access = await resolveStaffTeamApprovalAccess(auth);
+export async function getStaffTeamApprovalSummary(
+  auth: EmployeeAuthContext,
+  database: ApprovalDatabase = prisma,
+) {
+  const access = await resolveStaffTeamApprovalAccess(auth, database);
   if (!access) return null;
-  const result = await getUnifiedApprovalCounts(access.unified);
+  const [result, attendance] = await Promise.all([
+    getUnifiedApprovalCounts(access.unified, database, { domains: ["LEAVE", "CLAIMS"] }),
+    access.canReviewAttendance
+      ? loadStaffAttendanceTaskProjection({ access, page: 1, database })
+      : Promise.resolve(null),
+  ]);
+  const attendanceCount = attendance?.totalActionable ?? 0;
   return {
+    attendance: attendanceCount,
     leave: access.canReviewLeave ? result.counts.LEAVE : 0,
     claims: access.canReviewClaims ? result.counts.CLAIMS : 0,
-    total: (access.canReviewLeave ? result.counts.LEAVE : 0) + (access.canReviewClaims ? result.counts.CLAIMS : 0),
+    total: attendanceCount +
+      (access.canReviewLeave ? result.counts.LEAVE : 0) +
+      (access.canReviewClaims ? result.counts.CLAIMS : 0),
     complete: result.complete,
+    canReviewAttendance: access.canReviewAttendance,
     canReviewLeave: access.canReviewLeave,
     canReviewClaims: access.canReviewClaims,
   };
+}
+
+export async function getStaffAttendanceCorrectionQueue(input: {
+  auth: EmployeeAuthContext;
+  page?: number;
+  database?: ApprovalDatabase;
+}) {
+  const database = input.database ?? prisma;
+  const access = await resolveStaffTeamApprovalAccess(input.auth, database);
+  if (!access?.canReviewAttendance || !access.allowedBranchIds.length) return null;
+
+  const projection = await loadStaffAttendanceTaskProjection({
+    access,
+    page: input.page ?? 1,
+    database,
+  });
+  return {
+    items: projection.items,
+    totalActionable: projection.totalActionable,
+    // Compatibility alias for existing callers while the route becomes the
+    // canonical Staff Attendance task center.
+    totalWaiting: projection.totalActionable,
+    totalPages: projection.totalPages,
+    currentPage: projection.currentPage,
+    access,
+  };
+}
+
+export async function loadStaffAttendanceTaskProjection(input: {
+  access: StaffTeamApprovalAccess;
+  page: number;
+  database: ApprovalDatabase;
+}) {
+  const { access, database } = input;
+  const pageSize = 20;
+  const requestedPage = Math.min(100, Math.max(1, Math.floor(input.page)));
+  const candidateLimit = requestedPage * pageSize;
+  const scope = {
+    businessId: access.businessId,
+    allowedBranchIds: access.allowedBranchIds,
+  };
+  const [corrections, pendingExceptions, p2Corrections] = await Promise.all([
+    loadAttendanceResolutionQueue({
+      scope,
+      page: 1,
+      pageSize: candidateLimit,
+      status: "UNDER_REVIEW",
+      excludedMembershipId: access.actorMembershipId,
+      database,
+    }),
+    loadPendingAttendanceExceptionQueue({
+      scope,
+      page: 1,
+      pageSize: candidateLimit,
+      excludedMembershipId: access.actorMembershipId,
+      database,
+    }),
+    loadPendingAttendanceP2CorrectionQueue({
+      scope,
+      page: 1,
+      pageSize: candidateLimit,
+      excludedMembershipId: access.actorMembershipId,
+      database,
+    }),
+  ]);
+  const totalActionable = corrections.pagination.total +
+    pendingExceptions.pagination.total +
+    p2Corrections.pagination.total;
+  const totalPages = Math.max(1, Math.ceil(totalActionable / pageSize));
+  const currentPage = Math.min(requestedPage, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const candidates = [
+    ...corrections.items.map((item) => ({
+      sourceType: "RESOLUTION_CASE" as const,
+      sourceId: item.id,
+      requestedAt: item.updatedAt,
+      item,
+    })),
+    ...pendingExceptions.items.map((item) => ({
+      sourceType: "STANDALONE_EXCEPTION" as const,
+      sourceId: item.id,
+      requestedAt: item.createdAt,
+      item,
+    })),
+    ...p2Corrections.items.map((item) => ({
+      sourceType: "P2_CORRECTION_REQUEST" as const,
+      sourceId: item.id,
+      requestedAt: item.createdAt,
+      item,
+    })),
+  ].sort((left, right) =>
+    left.requestedAt.getTime() - right.requestedAt.getTime() ||
+    `${left.sourceType}:${left.sourceId}`.localeCompare(`${right.sourceType}:${right.sourceId}`)
+  );
+  return {
+    items: candidates.slice(start, start + pageSize),
+    totalActionable,
+    totalPages,
+    currentPage,
+  };
+}
+
+export async function reviewStaffAttendanceP2Correction(input: {
+  auth: EmployeeAuthContext;
+  correctionRequestId: string;
+  expectedRevision: number;
+  decision: "APPROVED" | "REJECTED";
+  reason: string;
+  request?: AuditRequestContext;
+  database?: ApprovalDatabase;
+}) {
+  const database = input.database ?? prisma;
+  const access = await resolveStaffTeamApprovalAccess(input.auth, database);
+  if (!access?.canReviewAttendance) {
+    throw new Error("You do not have permission to review Attendance corrections in this workplace.");
+  }
+  const correction = await database.attendanceCorrectionRequest.findFirst({
+    where: {
+      id: input.correctionRequestId,
+      businessId: access.businessId,
+      status: "PENDING",
+      membershipId: { not: access.actorMembershipId },
+    },
+  });
+  if (!correction) {
+    throw new Error("This attendance correction has already been reviewed or is outside your approval scope.");
+  }
+  const issue = await database.attendanceP2Exception.findFirst({
+    where: {
+      id: correction.exceptionId,
+      businessId: access.businessId,
+      branchId: { in: [...access.allowedBranchIds] },
+      membershipId: correction.membershipId,
+      status: "PENDING_MANAGER",
+      currentResolutionId: null,
+      type: { in: ["MISSING_CLOCK_IN", "MISSING_CLOCK_OUT"] },
+    },
+    select: {
+      id: true,
+      type: true,
+      revision: true,
+    },
+  });
+  if (!issue) {
+    throw new Error("This attendance correction is no longer available in your approval scope.");
+  }
+  if (issue.revision !== input.expectedRevision) {
+    throw new Error("This attendance correction changed after you opened it. Refresh before deciding.");
+  }
+  if (
+    input.decision === "APPROVED" &&
+    ((issue.type === "MISSING_CLOCK_IN" && !correction.requestedClockInAt) ||
+      (issue.type === "MISSING_CLOCK_OUT" && !correction.requestedClockOutAt))
+  ) {
+    throw new Error("The employee did not provide the missing time required to approve this correction.");
+  }
+  return resolveAttendanceP2Exception({
+    context: {
+      businessId: access.businessId,
+      allowedBranchIds: access.allowedBranchIds,
+      actor: access.actor,
+      request: input.request,
+    },
+    input: {
+      exceptionId: issue.id,
+      expectedRevision: input.expectedRevision,
+      type: input.decision === "APPROVED" ? "CORRECTED" : "EXCLUDED",
+      reason: input.reason,
+      correctedClockInAt: input.decision === "APPROVED" ? correction.requestedClockInAt : null,
+      correctedClockOutAt: input.decision === "APPROVED" ? correction.requestedClockOutAt : null,
+      correctedBreakMinutes: null,
+    },
+    database,
+  });
+}
+
+export async function reviewStaffPendingAttendanceException(input: {
+  auth: EmployeeAuthContext;
+  exceptionId: string;
+  decision: "APPROVED" | "REJECTED";
+  reviewNote?: string | null;
+  request?: AuditRequestContext;
+}) {
+  const access = await resolveStaffTeamApprovalAccess(input.auth);
+  if (!access?.canReviewAttendance) {
+    throw new Error("You do not have permission to review Attendance corrections in this workplace.");
+  }
+  return reviewAttendanceException({
+    businessId: access.businessId,
+    allowedBranchIds: access.allowedBranchIds,
+    actor: access.actor,
+    request: input.request,
+    input: {
+      exceptionId: input.exceptionId,
+      decision: input.decision,
+      reviewNote: input.reviewNote ?? "",
+    },
+  });
+}
+
+export async function reviewStaffAttendanceCorrection(input: {
+  auth: EmployeeAuthContext;
+  resolutionCaseId: string;
+  action: AttendanceManagerResolutionAction;
+  reason: string;
+  correctedClockInLocal?: string | null;
+  correctedClockOutLocal?: string | null;
+  correctedBreakMinutes?: number | null;
+  expectedUpdatedAt: string;
+  expectedCurrentResultId?: string | null;
+  request?: AuditRequestContext;
+}) {
+  const access = await resolveStaffTeamApprovalAccess(input.auth);
+  if (!access?.canReviewAttendance) {
+    throw new Error("You do not have permission to review Attendance corrections in this workplace.");
+  }
+  return applyManagerAttendanceResolution({
+    context: {
+      businessId: access.businessId,
+      allowedBranchIds: access.allowedBranchIds,
+      actor: access.actor,
+      request: input.request,
+    },
+    input: {
+      resolutionCaseId: input.resolutionCaseId,
+      action: input.action,
+      reason: input.reason,
+      correctedClockInLocal: input.correctedClockInLocal ?? null,
+      correctedClockOutLocal: input.correctedClockOutLocal ?? null,
+      correctedBreakMinutes: input.correctedBreakMinutes ?? null,
+      expectedUpdatedAt: input.expectedUpdatedAt,
+      expectedCurrentResultId: input.expectedCurrentResultId ?? null,
+    },
+  });
 }
 
 export async function getStaffTeamApprovalInbox(input: {
@@ -127,6 +390,7 @@ export async function getStaffTeamApprovalInbox(input: {
 }) {
   const access = await resolveStaffTeamApprovalAccess(input.auth);
   if (!access) return null;
+  if (!access.canReviewLeave && !access.canReviewClaims) return null;
   if (input.domain === "LEAVE" && !access.canReviewLeave) return null;
   if (input.domain === "CLAIMS" && !access.canReviewClaims) return null;
   const inbox = await getUnifiedApprovalInbox(access.unified, {
@@ -139,6 +403,7 @@ export async function getStaffTeamApprovalInbox(input: {
     items: inbox.items.filter((item) => item.domain === "LEAVE" || item.domain === "CLAIMS"),
     canReviewLeave: access.canReviewLeave,
     canReviewClaims: access.canReviewClaims,
+    canReviewAttendance: access.canReviewAttendance,
   };
 }
 

@@ -1,38 +1,13 @@
 BEGIN;
 
--- SMS123 delivers the message only. Tetamu owns OTP generation and
--- verification, so every new mock/SMS123 challenge stores a challenge-bound
--- HMAC while legacy Twilio Verify rows remain readable until they expire.
+-- Forward-only reconciliation from the canonical Railway Testing schema.
+-- Historical challenges legitimately have no provider message code, so the
+-- column remains nullable and no synthetic backfill is performed.
 ALTER TABLE "employee_otp_challenges"
-    ADD COLUMN "provider_message_code" TEXT;
-
--- Provider-owned mock challenges cannot be converted because their plaintext
--- code was intentionally never persisted. Retire them so a fresh Tetamu-owned
--- challenge must be requested after this migration.
-UPDATE "employee_otp_challenges"
-SET "invalidated_at" = COALESCE(
-    "invalidated_at",
-    (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
-)
-WHERE "provider" = 'mock'
-  AND "otp_hash" IS NULL;
+    ADD COLUMN IF NOT EXISTS "provider_message_code" TEXT;
 
 ALTER TABLE "employee_otp_challenges"
-    DROP CONSTRAINT IF EXISTS "employee_otp_challenges_provider_check",
-    ADD CONSTRAINT "employee_otp_challenges_provider_check"
-        CHECK (
-            ("provider" = 'legacy_local' AND "delivery_channel" = 'local' AND "otp_hash" IS NOT NULL)
-            OR (
-                "provider" = 'mock'
-                AND "delivery_channel" = 'local'
-                AND (
-                    "otp_hash" IS NOT NULL
-                    OR "invalidated_at" IS NOT NULL
-                )
-            )
-            OR ("provider" = 'sms123' AND "delivery_channel" = 'sms' AND "otp_hash" IS NOT NULL)
-            OR ("provider" = 'twilio_verify' AND "delivery_channel" = 'sms' AND "otp_hash" IS NULL)
-        ),
+    DROP CONSTRAINT IF EXISTS "employee_otp_challenges_provider_message_code_check",
     ADD CONSTRAINT "employee_otp_challenges_provider_message_code_check"
         CHECK (
             "provider_message_code" IS NULL
@@ -41,8 +16,15 @@ ALTER TABLE "employee_otp_challenges"
                 AND "delivery_accepted_at" IS NOT NULL
                 AND char_length("provider_message_code") BETWEEN 1 AND 64
             )
-        );
+        ) NOT VALID;
 
+ALTER TABLE "employee_otp_challenges"
+    VALIDATE CONSTRAINT "employee_otp_challenges_provider_message_code_check";
+
+-- Preserve the existing Testing lifecycle contract and extend it only with
+-- provider-message insert/immutability guards. Provider and mock behavior,
+-- phone-wide invalidation, existing triggers, and accepted provider values are
+-- intentionally unchanged.
 CREATE OR REPLACE FUNCTION "enforce_employee_otp_challenge_lifecycle"()
 RETURNS trigger AS $$
 BEGIN
