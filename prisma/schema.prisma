@@ -3277,6 +3277,9 @@ model EmployeeOtpChallenge {
   provider              String             @default("legacy_local")
   deliveryChannel       String             @default("local") @map("delivery_channel")
   providerReference     String?            @map("provider_reference")
+  // Optional provider delivery metadata. Historical challenges remain valid
+  // without it; forward hardening constrains it when a provider code exists.
+  providerMessageCode   String?            @map("provider_message_code")
   deliveryAcceptedAt    DateTime?          @map("delivery_accepted_at")
   verificationAttemptId String?            @map("verification_attempt_id") @db.Uuid
   verificationStartedAt DateTime?          @map("verification_started_at")
