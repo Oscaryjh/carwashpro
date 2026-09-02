@@ -1496,7 +1496,7 @@ async function ensureFixtureData(prisma: PrismaClient) {
             payrollRunId,
             payrollEntryId,
             membershipId: STAFF_MEMBERSHIP_ID,
-            lineKey: fixtureMarker("payroll-component.staff.basic"),
+            lineKey: "SYSTEM:BASIC_SALARY",
             type: "EARNING",
             code: "BASIC_SALARY",
             name: "Basic salary",

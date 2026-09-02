@@ -285,4 +285,9 @@ test("basic salary fixture line references the payroll entry compensation versio
     source,
     /sourceType:\s*"BASIC_SALARY",\s*\n\s*sourceVersionId:\s*compensationVersionId/,
   );
+  assert.match(source, /lineKey:\s*"SYSTEM:BASIC_SALARY"/);
+  assert.doesNotMatch(
+    source,
+    /lineKey:\s*fixtureMarker\("payroll-component\.staff\.basic"\)/,
+  );
 });
