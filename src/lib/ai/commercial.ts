@@ -290,14 +290,17 @@ export async function getAiCommercialSummary(scope: AiCommercialScope, now = new
   if (!policy) return { configured: false as const, status: "NOT_CONFIGURED" as const };
   const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + monthOffset, 15, 12));
   const bounds = getCalendarMonthBounds(target, policy.timezone);
-  const [period, tokenUsage] = await Promise.all([
-    prisma.aiAllowancePeriod.findUnique({ where: { scopeKey_periodStart: { scopeKey: scope.scopeKey, periodStart: bounds.start } } }),
-    prisma.aiUsageEvent.aggregate({ where: {
-      scopeKey: scope.scopeKey,
+  const period = await prisma.aiAllowancePeriod.findUnique({
+    where: { scopeKey_periodStart: { scopeKey: scope.scopeKey, periodStart: bounds.start } },
+  });
+  const tokenUsage = await prisma.aiUsageEvent.aggregate({
+    where: {
+      periodId: period?.id ?? "__NO_ALLOWANCE_PERIOD__",
       eventType: "SUCCEEDED",
-      createdAt: { gte: bounds.start, lt: bounds.end },
-    }, _sum: { inputTokens: true, outputTokens: true, totalTokens: true } }),
-  ]);
+      commerciallyCounted: true,
+    },
+    _sum: { inputTokens: true, outputTokens: true, totalTokens: true },
+  });
   const used = period?.consumedRequests ?? 0;
   const reserved = period?.reservedRequests ?? 0;
   const requestLimit = period?.requestLimitSnapshot ?? policy.requestLimit;
