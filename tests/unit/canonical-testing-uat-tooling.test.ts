@@ -267,3 +267,12 @@ test("canonical UAT memberships persist both phone fields in E.164 form", () => 
     /phoneNumber:\s*"0(?:128793848|1112212259)"/,
   );
 });
+
+test("geofence-disabled fixture punches satisfy the canonical inside-status constraint", () => {
+  const source = readFileSync("scripts/prepare-testing-canonical-uat.ts", "utf8");
+  const disabledPunches = source.matchAll(
+    /insideGeofence:\s*(true|false),\s*\n\s*geofenceStatus:\s*"GEOFENCE_DISABLED"/g,
+  );
+  const statuses = [...disabledPunches].map((match) => match[1]);
+  assert.deepEqual(statuses, ["false", "false", "false"]);
+});
