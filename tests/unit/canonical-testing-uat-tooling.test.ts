@@ -256,3 +256,14 @@ test("canonical UAT treats CORE as implicit rather than an entitlement row", () 
   assert.doesNotMatch(prepareSource, /moduleKey:\s*"CORE"/);
   assert.match(auditSource, /"CORE" as const/);
 });
+
+test("canonical UAT memberships persist both phone fields in E.164 form", () => {
+  const source = readFileSync("scripts/prepare-testing-canonical-uat.ts", "utf8");
+  const membershipSource = source.slice(source.indexOf("employeeBusinessMembership.upsert"));
+  assert.match(membershipSource, /phoneNumber:\s*MANAGER_PHONE/);
+  assert.match(membershipSource, /phoneNumber:\s*STAFF_PHONE/);
+  assert.doesNotMatch(
+    membershipSource,
+    /phoneNumber:\s*"0(?:128793848|1112212259)"/,
+  );
+});
