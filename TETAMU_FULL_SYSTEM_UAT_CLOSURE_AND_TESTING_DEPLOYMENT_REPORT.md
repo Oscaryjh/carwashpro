@@ -190,8 +190,9 @@ The repository-wide result is **FAIL**. The Staff line is substantially healthie
 
 | Item | Value |
 |---|---|
-| Previous local/remote main SHA | `86ae5f4c00b63582e882ef4690d9b7b0587b0294` |
-| Final local/remote main SHA | `86ae5f4c00b63582e882ef4690d9b7b0587b0294` |
+| Local `main` ref | **NOT PRESENT** in this Windows clone |
+| Previous `origin/main` SHA | `86ae5f4c00b63582e882ef4690d9b7b0587b0294` |
+| Final `origin/main` SHA | `86ae5f4c00b63582e882ef4690d9b7b0587b0294` |
 | Main changed | **NO** |
 | Final canonical main SHA | **NOT ESTABLISHED** |
 | GitHub preservation synchronized | **YES** |
@@ -417,8 +418,9 @@ Local-only source code: **NO**
 Unpushed commits: **NO**  
 All important source pushed: **YES, to preservation/release branches**  
 Canonical branch: **NOT ESTABLISHED**  
-Previous main SHA: `86ae5f4c00b63582e882ef4690d9b7b0587b0294`  
-Final canonical SHA: **NOT ESTABLISHED; main unchanged**  
+Local main SHA: **N/A; local `main` ref is absent**  
+Previous `origin/main` SHA: `86ae5f4c00b63582e882ef4690d9b7b0587b0294`  
+Final canonical SHA: **NOT ESTABLISHED; `origin/main` unchanged**  
 GitHub synchronized: **Preserved source YES; canonical main NO**
 
 ### BRANCH CLOSURE
