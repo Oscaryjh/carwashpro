@@ -346,6 +346,38 @@ test("employee cookie cannot authenticate the admin middleware", async () => {
   }
 });
 
+test("back-office login remains public while Staff surface redirects it", async () => {
+  const previousSurface = process.env.TETAMU_APP_SURFACE;
+
+  try {
+    delete process.env.TETAMU_APP_SURFACE;
+    const posResponse = await middleware(
+      new NextRequest("http://localhost:3000/login"),
+    );
+
+    assert.equal(posResponse.status, 200);
+    assert.equal(posResponse.headers.get("location"), null);
+
+    process.env.TETAMU_APP_SURFACE = "staff";
+    const staffResponse = await middleware(
+      new NextRequest("http://localhost:3000/login"),
+    );
+
+    assert.equal(staffResponse.status, 307);
+    assert.equal(
+      new URL(staffResponse.headers.get("location") ?? "", "http://localhost")
+        .pathname,
+      "/staff/login",
+    );
+  } finally {
+    if (previousSurface === undefined) {
+      delete process.env.TETAMU_APP_SURFACE;
+    } else {
+      process.env.TETAMU_APP_SURFACE = previousSurface;
+    }
+  }
+});
+
 test("employee auth route returns structured errors without touching the database", async () => {
   const response = await requestOtpRoute(
     jsonRequest(

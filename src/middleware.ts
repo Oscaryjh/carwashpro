@@ -27,6 +27,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/staff/login", request.url));
   }
 
+  // The back-office login page must remain reachable without a session. It is
+  // included in the matcher so the dedicated Staff surface can redirect it to
+  // /staff/login above, but the POS surface must not redirect /login to itself.
+  if (pathname === "/login") {
+    return NextResponse.next();
+  }
+
   const secret = getSecret();
   const token = request.cookies.get(SESSION_COOKIE)?.value;
 
