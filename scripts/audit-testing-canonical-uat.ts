@@ -87,10 +87,14 @@ export async function auditCanonicalUat(prisma: PrismaClient) {
     (membership) => membership.employeeCode === "UAT-STAFF",
   );
   const managerUser = business?.users.find((user) => user.name === "Canonical UAT Manager");
-  const enabledModules =
-    business?.moduleEntitlements
-      .filter((entitlement) => entitlement.status === "ENABLED")
-      .map((entitlement) => entitlement.moduleKey) ?? [];
+  const enabledModules = business
+    ? [
+        "CORE" as const,
+        ...business.moduleEntitlements
+          .filter((entitlement) => entitlement.status === "ENABLED")
+          .map((entitlement) => entitlement.moduleKey),
+      ]
+    : [];
 
   const sameDateMultiSession =
     businessId && staff

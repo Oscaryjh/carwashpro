@@ -249,3 +249,10 @@ test("canonical UAT branches use the bounded Kuala Lumpur state code", () => {
   assert.match(source, /stateCode:\s*"KUL"/);
   assert.doesNotMatch(source, /stateCode:\s*"W\.P\. KUALA LUMPUR"/);
 });
+
+test("canonical UAT treats CORE as implicit rather than an entitlement row", () => {
+  const prepareSource = readFileSync("scripts/prepare-testing-canonical-uat.ts", "utf8");
+  const auditSource = readFileSync("scripts/audit-testing-canonical-uat.ts", "utf8");
+  assert.doesNotMatch(prepareSource, /moduleKey:\s*"CORE"/);
+  assert.match(auditSource, /"CORE" as const/);
+});

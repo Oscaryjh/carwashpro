@@ -57,7 +57,6 @@ const MANAGER_PERMISSIONS = [
   "REVIEW_CLAIM",
 ] as const;
 const ENABLED_MODULES: BusinessModuleKey[] = [
-  "CORE",
   "POS",
   "SALON",
   "INVENTORY",
@@ -279,22 +278,6 @@ async function ensureFixtureData(prisma: PrismaClient) {
           },
         });
       }
-      await tx.businessModuleEntitlement.upsert({
-        where: {
-          businessId_moduleKey: { businessId: ISOLATION_BUSINESS_ID, moduleKey: "CORE" },
-        },
-        create: {
-          id: stableFixtureId("module.isolation.core"),
-          businessId: ISOLATION_BUSINESS_ID,
-          moduleKey: "CORE",
-          status: "ENABLED",
-          enabledFrom: utcDate(-365),
-          source: "MANUAL",
-          planCode: fixtureMarker("module.isolation.core"),
-        },
-        update: { status: "ENABLED", enabledUntil: null },
-      });
-
       await tx.user.upsert({
         where: { id: OWNER_ID },
         create: {

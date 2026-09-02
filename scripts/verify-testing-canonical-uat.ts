@@ -136,7 +136,7 @@ export async function verifyCanonicalUat(prisma: PrismaClient) {
         prisma.businessModuleEntitlement.count({
           where: { planCode: { contains: markerNeedle } },
         }),
-        11,
+        9,
       ],
       ["customer", prisma.customer.count({ where: { notes: { contains: markerNeedle } } }), 2],
       ["vehicle", prisma.vehicle.count({ where: { notes: { contains: markerNeedle } } }), 1],
