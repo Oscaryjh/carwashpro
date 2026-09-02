@@ -32,6 +32,8 @@ const ISOLATION_BUSINESS_ID = stableFixtureId("business.isolation");
 const MAIN_BRANCH_ID = stableFixtureId("branch.main");
 const SECOND_BRANCH_ID = stableFixtureId("branch.second");
 const ISOLATION_BRANCH_ID = stableFixtureId("branch.isolation");
+const MAIN_ATTENDANCE_SETTING_ID = stableFixtureId("attendance-setting.main");
+const SECOND_ATTENDANCE_SETTING_ID = stableFixtureId("attendance-setting.second");
 const OWNER_ID = stableFixtureId("user.owner");
 const MANAGER_MEMBERSHIP_ID = stableFixtureId("membership.manager");
 const STAFF_MEMBERSHIP_ID = stableFixtureId("membership.staff");
@@ -185,7 +187,7 @@ async function ensureFixtureData(prisma: PrismaClient) {
   const upcomingDay = utcDate(2, 10);
   const weekStart = startOfIsoWeek(new Date());
   const periodStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 1, 1));
-  const periodEnd = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 0));
+  const periodEnd = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
 
   return prisma.$transaction(
     async (tx) => {
@@ -254,6 +256,57 @@ async function ensureFixtureData(prisma: PrismaClient) {
             status: "ACTIVE",
             stateCode: "KUL",
             address: fixtureMarker(markerKey),
+          },
+        });
+      }
+
+      for (const [id, branchId] of [
+        [MAIN_ATTENDANCE_SETTING_ID, MAIN_BRANCH_ID],
+        [SECOND_ATTENDANCE_SETTING_ID, SECOND_BRANCH_ID],
+      ] as const) {
+        const existing = await tx.branchAttendanceSetting.findUnique({
+          where: { branchId },
+        });
+        if (existing && existing.id !== id) {
+          throw new CanonicalTestingGuardError(
+            "Canonical branch Attendance setting belongs to a non-canonical record.",
+          );
+        }
+        await tx.branchAttendanceSetting.upsert({
+          where: { branchId },
+          create: {
+            id,
+            businessId: PRIMARY_BUSINESS_ID,
+            branchId,
+            latitude: new Prisma.Decimal("3.139000"),
+            longitude: new Prisma.Decimal("101.686900"),
+            geofenceRadiusMeters: 100,
+            minimumAccuracyMeters: 80,
+            requireGeofence: false,
+            allowOutsideGeofenceRequest: true,
+            requirePhoto: false,
+            breakPolicy: "MANUAL_PUNCH",
+            targetBreakMinutes: 60,
+            normalWorkMinutesPerDay: 480,
+            shiftSpanMinutes: 540,
+            timezone: "Asia/Singapore",
+            isEnabled: true,
+          },
+          update: {
+            businessId: PRIMARY_BUSINESS_ID,
+            latitude: new Prisma.Decimal("3.139000"),
+            longitude: new Prisma.Decimal("101.686900"),
+            geofenceRadiusMeters: 100,
+            minimumAccuracyMeters: 80,
+            requireGeofence: false,
+            allowOutsideGeofenceRequest: true,
+            requirePhoto: false,
+            breakPolicy: "MANUAL_PUNCH",
+            targetBreakMinutes: 60,
+            normalWorkMinutesPerDay: 480,
+            shiftSpanMinutes: 540,
+            timezone: "Asia/Singapore",
+            isEnabled: true,
           },
         });
       }
@@ -1449,6 +1502,10 @@ async function ensureFixtureData(prisma: PrismaClient) {
           createdById: OWNER_ID,
           },
         });
+      } else if (payrollRun.periodEnd.getTime() !== periodEnd.getTime()) {
+        throw new CanonicalTestingGuardError(
+          "Existing canonical payroll boundary requires the guarded Phase 2 repair tool.",
+        );
       }
       const payrollEntryId = stableFixtureId("payroll-entry.staff");
       let payrollEntry = await tx.payrollEntry.findUnique({ where: { id: payrollEntryId } });
@@ -1563,15 +1620,15 @@ async function ensureFixtureData(prisma: PrismaClient) {
         );
         await tx.payrollPayslipPublication.create({
           data: {
-          id: payslipId,
-          businessId: PRIMARY_BUSINESS_ID,
-          payrollRunId,
-          payrollEntryId,
-          membershipId: STAFF_MEMBERSHIP_ID,
-          documentBytes,
-          documentSha256: sha256(documentBytes),
-          publishedAt: periodEnd,
-          publishedById: OWNER_ID,
+            id: payslipId,
+            businessId: PRIMARY_BUSINESS_ID,
+            payrollRunId,
+            payrollEntryId,
+            membershipId: STAFF_MEMBERSHIP_ID,
+            documentBytes,
+            documentSha256: sha256(documentBytes),
+            publishedAt: periodEnd,
+            publishedById: OWNER_ID,
           },
         });
       }

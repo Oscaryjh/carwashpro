@@ -19,12 +19,23 @@ export async function auditCanonicalUat(prisma: PrismaClient) {
     prisma.business.findUnique({
       where: { slug: CANONICAL_UAT_BUSINESS_SLUG },
       include: {
-        branches: { orderBy: { name: "asc" } },
+        branches: {
+          orderBy: { name: "asc" },
+          include: { attendanceSetting: true },
+        },
         moduleEntitlements: { orderBy: { moduleKey: "asc" } },
-        users: { orderBy: { name: "asc" } },
+        users: {
+          orderBy: { name: "asc" },
+          include: { employeeAccount: { select: { name: true } } },
+        },
         employeeMemberships: {
           orderBy: { employeeCode: "asc" },
-          include: { branchAssignments: true },
+          include: {
+            branchAssignments: true,
+            employeeAccount: {
+              select: { name: true, memberships: { select: { businessId: true } } },
+            },
+          },
         },
       },
     }),
@@ -105,6 +116,18 @@ export async function auditCanonicalUat(prisma: PrismaClient) {
           having: { id: { _count: { gte: 2 } } },
         })
       : [];
+  const expectedPeriodStart = new Date(
+    Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 1, 1),
+  );
+  const expectedPeriodEnd = new Date(
+    Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1),
+  );
+  const payrollRun = businessId
+    ? await prisma.payrollRun.findUnique({
+        where: { id: stableFixtureId("payroll-run.primary") },
+        select: { businessId: true, periodStart: true, periodEnd: true, status: true },
+      })
+    : null;
   const ownPending =
     businessId && manager
       ? {
@@ -167,9 +190,39 @@ export async function auditCanonicalUat(prisma: PrismaClient) {
   }
   if (!mainBranch) missingFixtures.push("branch:UAT MAIN BRANCH");
   if (!secondBranch) missingFixtures.push("branch:UAT SECOND BRANCH");
+  if (
+    mainBranch?.attendanceSetting?.id !== stableFixtureId("attendance-setting.main") ||
+    mainBranch.attendanceSetting.isEnabled !== true
+  ) {
+    missingFixtures.push("attendance-setting:UAT MAIN BRANCH");
+  }
+  if (
+    secondBranch?.attendanceSetting?.id !== stableFixtureId("attendance-setting.second") ||
+    secondBranch.attendanceSetting.isEnabled !== true
+  ) {
+    missingFixtures.push("attendance-setting:UAT SECOND BRANCH");
+  }
   if (!manager) missingFixtures.push("membership:UAT-MANAGER");
   if (!staff) missingFixtures.push("membership:UAT-STAFF");
   if (sameDateMultiSession.length === 0) missingFixtures.push("attendance:same-date-multi-session");
+  if (
+    !payrollRun ||
+    payrollRun.businessId !== businessId ||
+    payrollRun.periodStart.getTime() !== expectedPeriodStart.getTime() ||
+    payrollRun.periodEnd.getTime() !== expectedPeriodEnd.getTime()
+  ) {
+    missingFixtures.push("payroll:exclusive-period-boundary");
+  }
+  if (
+    manager?.fullName !== "Canonical UAT Manager" ||
+    managerUser?.name !== "Canonical UAT Manager"
+  ) {
+    missingFixtures.push("identity:canonical-manager");
+  }
+  const staffUser = business?.users.find((user) => user.id === stableFixtureId("user.staff"));
+  if (staff?.fullName !== "Canonical UAT Staff" || staffUser?.name !== "Canonical UAT Staff") {
+    missingFixtures.push("identity:canonical-staff");
+  }
 
   const managerPermissions = managerUser?.permissions ?? [];
   const security = {
@@ -221,7 +274,13 @@ export async function auditCanonicalUat(prisma: PrismaClient) {
           status: isolationBusiness.status,
         }
       : null,
-    branches: business?.branches.map(({ id, name, status }) => ({ id, name, status })) ?? [],
+    branches:
+      business?.branches.map(({ id, name, status, attendanceSetting }) => ({
+        id,
+        name,
+        status,
+        attendanceConfigured: attendanceSetting?.isEnabled === true,
+      })) ?? [],
     identities:
       business?.users.map(({ id, name, role, permissions, status }) => ({
         id,
@@ -237,7 +296,29 @@ export async function auditCanonicalUat(prisma: PrismaClient) {
         fullName: membership.fullName,
         status: membership.status,
         branchIds: membership.branchAssignments.map((assignment) => assignment.branchId),
+        sharedEmployeeAccount:
+          membership.employeeAccount.memberships.some(
+            (linked) => linked.businessId !== business?.id,
+          ),
       })) ?? [],
+    peopleContract: {
+      ownerExcludedFromPeopleDirectory:
+        business?.users.some(
+          (user) =>
+            user.id === stableFixtureId("user.owner") &&
+            user.role === "BUSINESS_OWNER" &&
+            user.employeeBusinessMembershipId === null,
+        ) ?? false,
+      directoryRoleFilter: "STAFF",
+    },
+    payrollBoundary: payrollRun
+      ? {
+          status: payrollRun.status,
+          periodStart: payrollRun.periodStart.toISOString(),
+          periodEnd: payrollRun.periodEnd.toISOString(),
+          exclusiveEndValid: payrollRun.periodEnd.getTime() === expectedPeriodEnd.getTime(),
+        }
+      : null,
     enabledModules,
     counts,
     security,

@@ -16,9 +16,16 @@ export async function verifyCanonicalUat(prisma: PrismaClient) {
   const business = await prisma.business.findUniqueOrThrow({
     where: { slug: CANONICAL_UAT_BUSINESS_SLUG },
     include: {
-      branches: true,
+      branches: { include: { attendanceSetting: true } },
       users: true,
-      employeeMemberships: { include: { branchAssignments: true } },
+      employeeMemberships: {
+        include: {
+          branchAssignments: true,
+          employeeAccount: {
+            select: { name: true, memberships: { select: { businessId: true } } },
+          },
+        },
+      },
       customers: true,
     },
   });
@@ -38,8 +45,17 @@ export async function verifyCanonicalUat(prisma: PrismaClient) {
   const staffUser = business.users.find((user) => user.id === stableFixtureId("user.staff"));
   const mainBranchId = stableFixtureId("branch.main");
   const secondBranchId = stableFixtureId("branch.second");
+  const mainBranch = business.branches.find((branch) => branch.id === mainBranchId);
+  const secondBranch = business.branches.find((branch) => branch.id === secondBranchId);
+  const ownerUser = business.users.find((user) => user.id === stableFixtureId("user.owner"));
+  const expectedPeriodStart = new Date(
+    Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 1, 1),
+  );
+  const expectedPeriodEnd = new Date(
+    Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1),
+  );
 
-  const [multiSession, pendingAttendance, pendingLeave, pendingClaim, managerOwnLeave, managerOwnClaim] =
+  const [multiSession, pendingAttendance, pendingLeave, pendingClaim, managerOwnLeave, managerOwnClaim, payrollRun] =
     await Promise.all([
       staff
         ? prisma.employeeAttendance.groupBy({
@@ -88,6 +104,10 @@ export async function verifyCanonicalUat(prisma: PrismaClient) {
           membershipId: manager?.id,
           status: "SUBMITTED",
         },
+      }),
+      prisma.payrollRun.findUnique({
+        where: { id: stableFixtureId("payroll-run.primary") },
+        select: { businessId: true, periodStart: true, periodEnd: true, status: true },
       }),
     ]);
 
@@ -256,6 +276,14 @@ export async function verifyCanonicalUat(prisma: PrismaClient) {
       isolationBusiness.branches.some(
         (branch) => branch.id === stableFixtureId("branch.isolation"),
       ),
+    mainBranchAttendanceConfiguration:
+      mainBranch?.attendanceSetting?.id === stableFixtureId("attendance-setting.main") &&
+      mainBranch.attendanceSetting.businessId === business.id &&
+      mainBranch.attendanceSetting.isEnabled === true,
+    secondBranchAttendanceConfiguration:
+      secondBranch?.attendanceSetting?.id === stableFixtureId("attendance-setting.second") &&
+      secondBranch.attendanceSetting.businessId === business.id &&
+      secondBranch.attendanceSetting.isEnabled === true,
     managerMainBranchOnly:
       Boolean(manager) &&
       manager?.branchAssignments.some((assignment) => assignment.branchId === mainBranchId) &&
@@ -270,6 +298,21 @@ export async function verifyCanonicalUat(prisma: PrismaClient) {
         (permission) => managerUser?.permissions.includes(permission),
       ),
     normalStaffPermissions: staffUser?.permissions.length === 0,
+    ownerPeopleContract:
+      ownerUser?.role === "BUSINESS_OWNER" &&
+      ownerUser.employeeBusinessMembershipId === null,
+    managerCanonicalIdentity:
+      manager?.fullName === "Canonical UAT Manager" &&
+      managerUser?.name === "Canonical UAT Manager" &&
+      manager.employeeAccount.memberships.some(
+        (membership) => membership.businessId !== business.id,
+      ),
+    staffCanonicalIdentity:
+      staff?.fullName === "Canonical UAT Staff" &&
+      staffUser?.name === "Canonical UAT Staff" &&
+      staff.employeeAccount.memberships.some(
+        (membership) => membership.businessId !== business.id,
+      ),
     multiSessionAttendance: multiSession.length > 0,
     attendanceApprovalFixture: pendingAttendance === 1,
     subordinateOtApprovalFixture: Boolean(
@@ -288,6 +331,11 @@ export async function verifyCanonicalUat(prisma: PrismaClient) {
       Boolean(staffPayslip && staff) &&
       staffPayslip?.membershipId === staff?.id &&
       staffPayslip?.payrollEntry.membershipId === staff?.id,
+    payrollExclusivePeriodBoundary:
+      payrollRun?.businessId === business.id &&
+      payrollRun.status === "FINALIZED" &&
+      payrollRun.periodStart.getTime() === expectedPeriodStart.getTime() &&
+      payrollRun.periodEnd.getTime() === expectedPeriodEnd.getTime(),
     payslipIntegrity:
       Boolean(staffPayslip) &&
       Buffer.from(staffPayslip?.documentBytes ?? []).subarray(0, 4).toString("ascii") === "%PDF" &&

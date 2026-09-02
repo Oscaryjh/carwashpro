@@ -244,6 +244,66 @@ test("prepare source has no destructive DB API or external provider dependency",
   assert.doesNotMatch(source, /fetch\s*\(/);
 });
 
+test("Phase 2 repair is guarded, transaction-wrapped and free of destructive or external operations", () => {
+  const source = readFileSync("scripts/repair-testing-canonical-uat-phase2.ts", "utf8");
+  assert.match(source, /assertCanonicalTestingContext\(process\.env\)/);
+  assert.match(source, /assertCanonicalTestingDatabase\(prisma\)/);
+  assert.match(source, /prisma\.\$transaction\(/);
+  assert.match(source, /mode === "DRY_RUN"/);
+  assert.doesNotMatch(source, /\.(?:delete|deleteMany)\s*\(/);
+  assert.doesNotMatch(source, /\$(?:executeRawUnsafe|queryRawUnsafe)/);
+  assert.match(source, /SELECT set_config\('tetamu\.payroll_reopen'/);
+  assert.doesNotMatch(source, /from\s+["'][^"']*(?:sms123|twilio|whatsapp|email|webhook)[^"']*["']/i);
+  assert.doesNotMatch(source, /fetch\s*\(/);
+});
+
+test("canonical fixture creates enabled stable Attendance settings for both UAT branches", () => {
+  const source = readFileSync("scripts/prepare-testing-canonical-uat.ts", "utf8");
+  const repair = readFileSync("scripts/repair-testing-canonical-uat-phase2.ts", "utf8");
+  for (const key of ["attendance-setting.main", "attendance-setting.second"]) {
+    assert.match(source, new RegExp(`stableFixtureId\\(\"${key}\\"\\)`));
+    assert.match(repair, new RegExp(`stableFixtureId\\(\"${key}\\"\\)`));
+  }
+  assert.match(source, /requireGeofence:\s*false/);
+  assert.match(source, /timezone:\s*"Asia\/Singapore"/);
+  assert.match(source, /isEnabled:\s*true/);
+});
+
+test("canonical payroll fixture uses an exclusive period end and Phase 2 preserves the immutable payslip", () => {
+  const source = readFileSync("scripts/prepare-testing-canonical-uat.ts", "utf8");
+  const repair = readFileSync("scripts/repair-testing-canonical-uat-phase2.ts", "utf8");
+  assert.match(
+    source,
+    /periodEnd = new Date\(Date\.UTC\(new Date\(\)\.getUTCFullYear\(\), new Date\(\)\.getUTCMonth\(\), 1\)\)/,
+  );
+  assert.match(repair, /data:\s*\{ periodEnd: period\.end \}/);
+  assert.match(repair, /SELECT set_config\('tetamu\.payroll_reopen'/);
+  assert.match(repair, /status:\s*"DRAFT"/);
+  assert.match(repair, /status:\s*"FINALIZED"/);
+  assert.doesNotMatch(repair, /payrollPayslipPublication\.update/);
+  assert.match(repair, /id:\s*\{ not: PAYROLL_RUN_ID \}/);
+});
+
+test("Phase 2 preserves shared phone accounts and records the intentional Owner People contract", () => {
+  const source = readFileSync("scripts/repair-testing-canonical-uat-phase2.ts", "utf8");
+  assert.match(source, /phone account is shared and must not be renamed/);
+  assert.match(source, /EXPECTED PRODUCT CONTRACT/);
+  assert.match(source, /owner\.employeeBusinessMembershipId === null/);
+  assert.doesNotMatch(source, /employeeAccount\.(?:update|upsert)\s*\(/);
+});
+
+test("canonical audit and verify enforce Phase 2 fixture invariants", () => {
+  const audit = readFileSync("scripts/audit-testing-canonical-uat.ts", "utf8");
+  const verify = readFileSync("scripts/verify-testing-canonical-uat.ts", "utf8");
+  assert.match(audit, /attendance-setting:UAT MAIN BRANCH/);
+  assert.match(audit, /attendance-setting:UAT SECOND BRANCH/);
+  assert.match(audit, /payroll:exclusive-period-boundary/);
+  assert.match(verify, /mainBranchAttendanceConfiguration/);
+  assert.match(verify, /secondBranchAttendanceConfiguration/);
+  assert.match(verify, /payrollExclusivePeriodBoundary/);
+  assert.match(verify, /ownerPeopleContract/);
+});
+
 test("canonical UAT branches use the bounded Kuala Lumpur state code", () => {
   const source = readFileSync("scripts/prepare-testing-canonical-uat.ts", "utf8");
   assert.match(source, /stateCode:\s*"KUL"/);

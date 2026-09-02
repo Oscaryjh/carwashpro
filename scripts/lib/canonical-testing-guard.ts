@@ -13,6 +13,8 @@ export const CANONICAL_FIXTURE_KEYS = [
   "branch.main",
   "branch.second",
   "branch.isolation",
+  "attendance-setting.main",
+  "attendance-setting.second",
   "user.owner",
   "account.manager",
   "account.staff",

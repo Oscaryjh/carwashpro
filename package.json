@@ -41,6 +41,7 @@
     "uat:pos-core:fresh-run": "node scripts/with-embedded-postgres.mjs tsx scripts/prepare-pos-core-uat-fixtures.ts fresh-run",
     "uat:canonical:audit": "tsx scripts/audit-testing-canonical-uat.ts",
     "uat:canonical:prepare": "tsx scripts/prepare-testing-canonical-uat.ts",
+    "uat:canonical:repair:phase2": "tsx scripts/repair-testing-canonical-uat-phase2.ts",
     "uat:canonical:verify": "tsx scripts/verify-testing-canonical-uat.ts",
     "refunds:audit-local": "node scripts/with-embedded-postgres.mjs tsx scripts/audit-refund-receivables.ts",
     "refunds:repair-local": "node scripts/with-embedded-postgres.mjs tsx scripts/audit-refund-receivables.ts --apply",
