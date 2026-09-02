@@ -32,6 +32,10 @@ export async function publishPayrollPayslips(
           orderBy: [{ fullNameSnapshot: "asc" }, { id: "asc" }],
           include: {
             components: { orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }] },
+            claimReimbursementSnapshots: {
+              where: { status: { in: ["READY", "SETTLED"] } },
+              orderBy: { createdAt: "asc" },
+            },
             payslipPublication: { select: { id: true } },
           },
         },

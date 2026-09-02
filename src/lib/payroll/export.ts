@@ -1,8 +1,8 @@
 import {
   buildTabularCsv,
   buildTabularXlsx,
-  buildTextPdf,
 } from "@/lib/business-groups/group-report-export";
+import { buildProfessionalPayslipPdf } from "@/lib/payroll/payslip-pdf-v2";
 
 export type PayrollDocumentStatus = "DRAFT" | "REVIEW" | "FINALIZED";
 
@@ -83,89 +83,7 @@ export function buildPayslipPdf(
   run: Omit<PayrollDocumentRun, "entries">,
   entry: PayrollDocumentEntry,
 ) {
-  const employeeDeductions =
-    entry.otherDeductions +
-    entry.epfEmployee +
-    entry.socsoEmployee +
-    entry.eisEmployee +
-    entry.lindung24Employee +
-    entry.pcb +
-    entry.cp38;
-  const employerContributions =
-    entry.employerEpf + entry.employerSocso + entry.employerEis;
-  const componentEarnings = entry.components?.filter((component) => component.type === "EARNING") ?? [];
-  const componentDeductions = entry.components?.filter((component) => component.type === "DEDUCTION") ?? [];
-  return buildTextPdf([
-    run.business.name.toUpperCase(),
-    run.business.companyNo ? `Company No: ${run.business.companyNo}` : "",
-    run.business.address ?? "",
-    [run.business.phone, run.business.email].filter(Boolean).join(" | "),
-    "",
-    "PAYSLIP",
-    `Pay period: ${formatPayrollPeriod(run.periodStart)}`,
-    `Document status: ${formatStatus(run.status)}`,
-    run.finalizedAt
-      ? `Finalized: ${formatDateTime(run.finalizedAt)}`
-      : run.submittedAt
-        ? `Submitted for review: ${formatDateTime(run.submittedAt)}`
-        : "Draft preview - not finalized",
-    "",
-    `Employee: ${entry.fullName}`,
-    `Employee code: ${entry.employeeCode}`,
-    `Pay basis: ${formatPayBasis(entry.payBasis)}`,
-    "",
-    "ATTENDANCE",
-    `Days worked: ${entry.attendanceDays}`,
-    `Regular hours: ${formatMinutes(entry.regularMinutes)}`,
-    `Overtime hours: ${formatMinutes(entry.overtimeMinutes)}`,
-    `Public holiday hours: ${formatMinutes(entry.publicHolidayMinutes)}`,
-    "",
-    "EARNINGS",
-    ...(componentEarnings.length
-      ? componentEarnings.map((component) => moneyLine(component.name, component.amount))
-      : [
-          moneyLine("Basic pay", entry.basicPay),
-          moneyLine("Overtime pay", entry.overtimePay),
-          moneyLine("Public holiday pay", entry.publicHolidayPay),
-          moneyLine("Allowances", entry.allowances),
-        ]),
-    moneyLine("Gross pay", entry.grossPay),
-    "",
-    "EMPLOYEE DEDUCTIONS",
-    ...(componentDeductions.length
-      ? componentDeductions.map((component) => moneyLine(component.name, component.amount))
-      : [moneyLine("Other deductions", entry.otherDeductions)]),
-    moneyLine("EPF employee", entry.epfEmployee),
-    moneyLine("SOCSO employee", entry.socsoEmployee),
-    moneyLine("EIS employee", entry.eisEmployee),
-    moneyLine("LINDUNG 24 Jam", entry.lindung24Employee),
-    moneyLine("PCB", entry.pcb),
-    moneyLine("CP38 instruction", entry.cp38),
-    moneyLine("Total deductions", employeeDeductions),
-    "",
-    ...(entry.claimReimbursements?.length
-      ? [
-          "REIMBURSEMENTS (NON-WAGE)",
-          ...entry.claimReimbursements.map((item) => moneyLine(`Claim ${item.claimNumber}`, item.amount)),
-          "",
-        ]
-      : []),
-    moneyLine("NET PAY", entry.netPay),
-    "",
-    "EMPLOYER CONTRIBUTIONS",
-    moneyLine("Employer EPF", entry.employerEpf),
-    moneyLine("Employer SOCSO", entry.employerSocso),
-    moneyLine("Employer EIS", entry.employerEis),
-    moneyLine("Total employer contributions", employerContributions),
-    "",
-    `Statutory status: ${formatStatus(entry.statutoryStatus)}`,
-    entry.statutoryRuleVersion
-      ? `Rule version: ${entry.statutoryRuleVersion}`
-      : "Rule version: Not recorded",
-    entry.notes ? `Notes: ${entry.notes}` : "",
-    "",
-    "This is a computer-generated payroll document.",
-  ]);
+  return buildProfessionalPayslipPdf(run, entry);
 }
 
 export function payrollExportFileName(
@@ -285,42 +203,8 @@ function payrollMonth(value: Date) {
   return value.toISOString().slice(0, 7);
 }
 
-function formatPayrollPeriod(value: Date) {
-  return new Intl.DateTimeFormat("en-MY", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(value);
-}
-
-function formatDateTime(value: Date) {
-  return new Intl.DateTimeFormat("en-MY", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Kuala_Lumpur",
-  }).format(value);
-}
-
-function formatMinutes(value: number) {
-  return `${Math.floor(value / 60)}h ${String(value % 60).padStart(2, "0")}m`;
-}
-
 function hours(value: number) {
   return Number((value / 60).toFixed(2));
-}
-
-function moneyLine(label: string, value: number) {
-  return `${label}: RM ${value.toFixed(2)}`;
-}
-
-function formatPayBasis(value: string) {
-  return value.charAt(0) + value.slice(1).toLowerCase();
-}
-
-function formatStatus(value: string) {
-  return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) =>
-    letter.toUpperCase(),
-  );
 }
 
 function safeFilePart(value: string) {
