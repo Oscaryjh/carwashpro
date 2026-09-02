@@ -293,14 +293,16 @@ export async function getAiCommercialSummary(scope: AiCommercialScope, now = new
   const period = await prisma.aiAllowancePeriod.findUnique({
     where: { scopeKey_periodStart: { scopeKey: scope.scopeKey, periodStart: bounds.start } },
   });
-  const tokenUsage = await prisma.aiUsageEvent.aggregate({
-    where: {
-      periodId: period?.id ?? "__NO_ALLOWANCE_PERIOD__",
-      eventType: "SUCCEEDED",
-      commerciallyCounted: true,
-    },
-    _sum: { inputTokens: true, outputTokens: true, totalTokens: true },
-  });
+  const tokenUsage = period
+    ? await prisma.aiUsageEvent.aggregate({
+        where: {
+          periodId: period.id,
+          eventType: "SUCCEEDED",
+          commerciallyCounted: true,
+        },
+        _sum: { inputTokens: true, outputTokens: true, totalTokens: true },
+      })
+    : { _sum: { inputTokens: null, outputTokens: null, totalTokens: null } };
   const used = period?.consumedRequests ?? 0;
   const reserved = period?.reservedRequests ?? 0;
   const requestLimit = period?.requestLimitSnapshot ?? policy.requestLimit;
