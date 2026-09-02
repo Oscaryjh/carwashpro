@@ -153,6 +153,46 @@ export function StaffV2ActionRow({
   );
 }
 
+export function StaffV2ButtonActionRow({
+  leading,
+  kicker,
+  title,
+  meta,
+  trailing = "›",
+  ariaLabel,
+  disabled = false,
+  tone = "default",
+  onClick,
+}: {
+  leading?: ReactNode;
+  kicker?: string;
+  title: ReactNode;
+  meta?: ReactNode;
+  trailing?: ReactNode;
+  ariaLabel?: string;
+  disabled?: boolean;
+  tone?: "default" | "danger";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-label={ariaLabel}
+      className={`${styles.actionRow} ${styles.buttonActionRow} ${tone === "danger" ? styles.buttonActionRowDanger : ""}`}
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
+      {leading ? <span className={styles.rowLeading}>{leading}</span> : null}
+      <span className={styles.rowCopy}>
+        {kicker ? <small>{kicker}</small> : null}
+        <strong>{title}</strong>
+        {meta ? <span>{meta}</span> : null}
+      </span>
+      <i className={styles.rowTrailing} aria-hidden="true">{trailing}</i>
+    </button>
+  );
+}
+
 export function StaffV2RowGroup({
   children,
   ariaLabel,
@@ -177,25 +217,37 @@ export function StaffV2PeriodNavigator({
 }: {
   ariaLabel?: string;
   label: string;
-  previousHref: string;
+  previousHref: string | null;
   previousLabel: string;
-  nextHref: string;
+  nextHref: string | null;
   nextLabel: string;
   todayHref?: string;
   todayLabel?: string;
 }) {
   return (
     <nav aria-label={ariaLabel} className={styles.periodNavigator}>
-      <Link aria-label={previousLabel} className={styles.periodControl} href={previousHref}>
-        <span aria-hidden="true">‹</span>
-      </Link>
+      {previousHref ? (
+        <Link aria-label={previousLabel} className={styles.periodControl} href={previousHref}>
+          <span aria-hidden="true">‹</span>
+        </Link>
+      ) : (
+        <span aria-disabled="true" aria-label={previousLabel} className={`${styles.periodControl} ${styles.periodControlDisabled}`} role="link">
+          <span aria-hidden="true">‹</span>
+        </span>
+      )}
       <span className={styles.periodLabel}>
         <strong>{label}</strong>
         {todayHref ? <Link aria-label={todayLabel} href={todayHref}>Today</Link> : null}
       </span>
-      <Link aria-label={nextLabel} className={styles.periodControl} href={nextHref}>
-        <span aria-hidden="true">›</span>
-      </Link>
+      {nextHref ? (
+        <Link aria-label={nextLabel} className={styles.periodControl} href={nextHref}>
+          <span aria-hidden="true">›</span>
+        </Link>
+      ) : (
+        <span aria-disabled="true" aria-label={nextLabel} className={`${styles.periodControl} ${styles.periodControlDisabled}`} role="link">
+          <span aria-hidden="true">›</span>
+        </span>
+      )}
     </nav>
   );
 }
@@ -283,6 +335,16 @@ export function StaffV2AttachmentRow({
   );
 }
 
-export function StaffV2StickyActionBar({ children }: { children: ReactNode }) {
-  return <div className={styles.stickyActionBar}>{children}</div>;
+export function StaffV2StickyActionBar({
+  children,
+  aboveNavigation = false,
+}: {
+  children: ReactNode;
+  aboveNavigation?: boolean;
+}) {
+  return (
+    <div className={`${styles.stickyActionBar} ${aboveNavigation ? styles.stickyActionBarAboveNavigation : ""}`}>
+      {children}
+    </div>
+  );
 }

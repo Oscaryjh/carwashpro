@@ -791,7 +791,6 @@ export function StaffToday({ afterAttendance }: { afterAttendance?: ReactNode })
     </div>
   );
 }
-
 function formatBranchDate(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T/.exec(value);
   if (!match) return "TODAY";

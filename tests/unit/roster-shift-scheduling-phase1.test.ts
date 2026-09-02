@@ -112,15 +112,15 @@ test("Roster retrospective review only considers assignments changed by the curr
 
 test("Roster contract keeps Draft, published history, Staff visibility and Attendance boundaries explicit", () => {
   const service = readFileSync("src/lib/roster/service.ts", "utf8");
-  const staffPage = readFileSync("src/app/staff/roster/page.tsx", "utf8");
+  const staffSchedule = readFileSync("src/components/staff-pwa/staff-schedule-v2.tsx", "utf8");
   const schema = readFileSync("prisma/schema.prisma", "utf8");
   assert.match(service, /RETROSPECTIVE_REVIEW_REQUIRED/);
   assert.match(service, /TIMESHEET_REOPEN_REQUIRED/);
   assert.match(service, /source: "ROSTER"/);
   assert.match(service, /payrollEffect: "NONE"/);
   assert.match(service, /publicationRevision/);
-  assert.match(staffPage, /No schedule yet/);
-  assert.match(staffPage, /Schedule shows planned work only\. Attendance records the hours you actually work\./);
+  assert.match(staffSchedule, /No schedule this week/);
+  assert.match(staffSchedule, /Schedule shows expected work\. Attendance shows what you actually worked\./);
   assert.match(service, /ensureEffectiveRosterExpectedDayInTransaction/);
   assert.match(schema, /model RosterPublishedAssignment/);
   assert.match(schema, /evidenceDisposition\s+RosterEvidenceDisposition/);

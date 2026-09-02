@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { StaffPayslipsV2 } from "@/components/staff-pwa/staff-payslips-v2";
 import { loadPublishedPayslipsForEmployee } from "@/lib/payroll/payslip-publication";
 import { requireEmployeeModulePage } from "@/lib/modules/employee-access";
 
@@ -12,55 +12,10 @@ export default async function StaffPayslipsPage() {
     businessId: auth.businessId,
     membershipId: auth.membershipId,
   });
-  return (
-    <section className="staff-payslip-page" aria-labelledby="staff-payslip-heading">
-      <div className="staff-payslip-heading">
-        <p>Payroll documents</p>
-        <h1 id="staff-payslip-heading">My payslips</h1>
-        <span>Only payslips made available to your employee account appear here.</span>
-      </div>
-      {payslips.length ? (
-        <div className="staff-payslip-list">
-          {payslips.map((payslip) => (
-            <article key={payslip.id}>
-              <div>
-                <strong>{formatMonth(payslip.payrollRun.periodStart)}</strong>
-                <small>Available since {formatDate(payslip.publishedAt)}</small>
-                <span className="staff-payslip-inline-summary">
-                  Gross {money(payslip.payrollEntry.grossPay)} · <b>Net {money(payslip.payrollEntry.netPay)}</b>
-                </span>
-              </div>
-              <Link href={`/staff/payslips/${payslip.id}`}>View payslip</Link>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="staff-payslip-empty" role="status">
-          <strong>Not available yet</strong>
-          <span>Your employer has not made a payslip available to this account yet.</span>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function money(value: number | { toString(): string }) {
-  return new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(Number(value));
-}
-
-function formatMonth(value: Date) {
-  return new Intl.DateTimeFormat("en-MY", {
-    month: "long",
-    year: "numeric",
-    timeZone: "Asia/Kuala_Lumpur",
-  }).format(value);
-}
-
-function formatDate(value: Date) {
-  return new Intl.DateTimeFormat("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "Asia/Kuala_Lumpur",
-  }).format(value);
+  return <StaffPayslipsV2 payslips={payslips.map((payslip) => ({
+    id: payslip.id,
+    netPay: payslip.payrollEntry.netPay,
+    periodStart: payslip.payrollRun.periodStart,
+    publishedAt: payslip.publishedAt,
+  }))} />;
 }

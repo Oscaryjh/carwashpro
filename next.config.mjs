@@ -1,3 +1,12 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const chrome87CompatibilityLoader = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "scripts",
+  "chrome-87-compat-loader.cjs",
+);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Permit phones on the current private Wi-Fi subnet to hydrate the Local
@@ -15,6 +24,16 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "3mb",
     },
+  },
+  webpack(config, { isServer }) {
+    if (!isServer) {
+      config.module.rules.unshift({
+        test: /[\\/]next[\\/]dist[\\/]client[\\/]components[\\/](?:catch-error|error-boundary)\.js$/,
+        use: [chrome87CompatibilityLoader],
+      });
+    }
+
+    return config;
   },
   async headers() {
     return [

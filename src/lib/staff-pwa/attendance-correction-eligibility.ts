@@ -6,16 +6,40 @@ export type MissingClockOutCorrectionState =
   | "NOT_ACTIONABLE";
 
 export function getMissingClockOutCorrectionState(
-  item: Pick<
-    AttendanceHistoryItem,
-    "approvalStatus" | "clockOutAt" | "requiresApproval" | "status"
-  >,
+  item: Pick<AttendanceHistoryItem, "locked" | "primaryStatus" | "sessions"> & {
+    approvalStatus?: string;
+    clockOutAt?: string | null;
+    requiresApproval?: boolean;
+    status?: string;
+  },
 ): MissingClockOutCorrectionState {
-  if (item.clockOutAt || item.status !== "INCOMPLETE") {
+  if (item.locked) {
     return "NOT_ACTIONABLE";
   }
 
-  if (item.requiresApproval && item.approvalStatus === "PENDING") {
+  const missingClockOutSession = item.sessions.find(
+    (session) =>
+      !session.clockOutAt &&
+      session.punchStatus !== "COMPLETED" &&
+      session.punchStatus !== "CANCELLED",
+  );
+
+  const compatibilityMissingClockOut =
+    item.status === "INCOMPLETE" && !item.clockOutAt;
+
+  const canonicalMissingClockOut = Boolean(missingClockOutSession) &&
+    (item.primaryStatus.key === "MISSING_PUNCH" ||
+      item.primaryStatus.key === "NEEDS_REVIEW");
+
+  if (!canonicalMissingClockOut && !compatibilityMissingClockOut) {
+    return "NOT_ACTIONABLE";
+  }
+
+  const approvalLabel = missingClockOutSession?.approvalLabel?.toLowerCase();
+  if (
+    approvalLabel?.includes("pending") ||
+    (item.requiresApproval === true && item.approvalStatus === "PENDING")
+  ) {
     return "PENDING";
   }
 

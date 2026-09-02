@@ -162,14 +162,26 @@ export async function getEmployeeCommissionStatements(input: {
       status: { in: ["CALCULATED", "APPROVED", "APPLIED_TO_PAYROLL"] },
     },
     include: {
-      period: { select: { earnedPeriodStart: true, earnedPeriodEnd: true, approvedAt: true, currentRevision: true } },
+      period: { select: { id: true, earnedPeriodStart: true, earnedPeriodEnd: true, approvedAt: true, currentRevision: true } },
       accruals: {
-        include: { sourceEvent: { select: { sourceType: true, businessDate: true, grossAmountCents: true, netAmountCents: true } } },
+        select: {
+          eligibleAmountCents: true,
+          commissionAmountCents: true,
+          status: true,
+          sourceEvent: { select: { sourceType: true, businessDate: true, grossAmountCents: true, netAmountCents: true } },
+        },
         orderBy: { createdAt: "asc" },
       },
-      originatingAdjustments: { orderBy: { createdAt: "asc" } },
-      appliedAdjustments: { orderBy: { createdAt: "asc" } },
+      appliedAdjustments: {
+        select: {
+          type: true,
+          eligibleAmountCents: true,
+          commissionAmountCents: true,
+          reason: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ period: { earnedPeriodStart: "desc" } }, { createdAt: "desc" }],
   });
 }

@@ -18,4 +18,3 @@ export const loadStaffAppAppearance = cache(async (businessId: string) => {
     business?.staffAppLogoUrl ?? null,
   );
 });
-

@@ -11,7 +11,7 @@ const files = {
   queue: "src/app/staff/requests/attendance-corrections/page.tsx",
   action: "src/app/staff/requests/attendance-corrections/actions.ts",
   attendanceManagement: "src/lib/attendance/management-service.ts",
-  css: "src/app/staff/staff-consolidation.css",
+  css: "src/components/staff-pwa/staff-approval-center-v2.module.css",
 };
 
 test("manager attendance route is separate from employee self-service history", async () => {
@@ -20,11 +20,11 @@ test("manager attendance route is separate from employee self-service history", 
     readFile(files.approvals, "utf8"),
     readFile(files.queue, "utf8"),
   ]);
-  assert.match(requests, /href="\/staff\/history\/records"/);
+  assert.match(requests, /href="\/staff\/history\/corrections"/);
   assert.match(requests, /title="Attendance corrections"/);
   assert.doesNotMatch(requests, /href="\/staff\/requests\/attendance-corrections"/);
   assert.match(approvals, /href="\/staff\/requests\/attendance-corrections"/);
-  assert.match(approvals, /title="Attendance"/);
+  assert.match(approvals, /domain="ATTENDANCE"/);
   assert.match(queue, /Manager access required/);
 });
 
@@ -38,6 +38,7 @@ test("manager queue is server scoped to business, branches, pending cases and an
   assert.match(adapter, /allowedBranchIds: access\.allowedBranchIds/);
   assert.match(adapter, /status: "UNDER_REVIEW"/);
   assert.match(adapter, /loadPendingAttendanceExceptionQueue/);
+  assert.match(adapter, /loadPendingAttendanceP2CorrectionQueue/);
   assert.match(adapter, /excludedMembershipId: access\.actorMembershipId/);
   assert.match(reader, /branchId: \{ in: branchIds \}/);
   assert.match(reader, /employeeId: \{ not: args\.excludedMembershipId \}/);
@@ -74,14 +75,15 @@ test("attendance correction page has explicit mobile states and safe touch layou
     readFile(files.css, "utf8"),
     readFile("src/app/staff/requests/attendance-corrections/loading.tsx", "utf8"),
   ]);
-  assert.match(queue, /No attendance items need your review/);
+  assert.match(queue, /No approvals waiting/);
   assert.match(queue, /Manager access required/);
-  assert.match(queue, /Pending review/);
-  assert.match(queue, /queue\.pendingExceptions\.map/);
+  assert.match(queue, /Review details and decide/);
+  assert.match(queue, /queue\.items\.map/);
+  assert.match(queue, /source\.sourceType === "P2_CORRECTION_REQUEST"/);
   assert.match(queue, /queue\.totalActionable/);
   assert.match(loading, /aria-busy="true"/);
-  assert.match(css, /\.staff-attendance-approval-page/);
-  assert.match(css, /@media \(max-width: 430px\)/);
+  assert.match(css, /\.queueItem/);
+  assert.match(css, /@media \(max-width: 380px\)/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
   assert.match(css, /min-height: 44px/);
 });

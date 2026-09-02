@@ -19,7 +19,6 @@ export class StaffApiError extends Error {
     this.status = status;
   }
 }
-
 type StaffApiFetchOptions = Readonly<{
   networkErrorMessage?: string;
 }>;
@@ -299,4 +298,3 @@ declare global {
     };
   }
 }
-

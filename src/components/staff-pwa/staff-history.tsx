@@ -1,34 +1,72 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   formatMinutesAsHours,
   getOrCreateDeviceIdentifier,
-  gpsStatusLabel,
   isEmployeeSessionError,
   StaffApiError,
   staffApiFetch,
 } from "@/lib/staff-pwa/client";
+import {
+  attendanceHistoryPeriodLabel,
+  attendanceHistoryStatusFilterLabel,
+  getAttendanceHistoryV2Status,
+} from "@/lib/staff-pwa/attendance-history-v2";
 import { getMissingClockOutCorrectionState } from "@/lib/staff-pwa/attendance-correction-eligibility";
 import type {
   AttendanceHistory,
   AttendanceHistoryItem,
 } from "@/lib/staff-pwa/types";
-import { StaffLoading } from "./staff-auth";
+import {
+  StaffV2EmptyState,
+  StaffV2FilterChip,
+  StaffV2FormSection,
+  StaffV2PageHeader,
+  StaffV2RowGroup,
+  StaffV2StatusBadge,
+  staffV2Styles,
+} from "./staff-v2-primitives";
+import { useStaffShell } from "./staff-pwa-chrome";
+import styles from "./staff-attendance-history-v2.module.css";
+
+type HistoryFilters = {
+  from: string;
+  to: string;
+  branchId: string;
+  status: string;
+};
 
 export function StaffHistory() {
   const router = useRouter();
+  const { setTaskNavigationHidden } = useStaffShell();
   const defaults = useMemo(() => defaultRange(), []);
+  const initialFilters = useMemo<HistoryFilters>(() => ({
+    ...defaults,
+    branchId: "",
+    status: "",
+  }), [defaults]);
   const [history, setHistory] = useState<AttendanceHistory | null>(null);
-  const [from, setFrom] = useState(defaults.from);
-  const [to, setTo] = useState(defaults.to);
-  const [branchId, setBranchId] = useState("");
-  const [status, setStatus] = useState("");
+  const [filters, setFilters] = useState<HistoryFilters>(initialFilters);
+  const [draftFilters, setDraftFilters] = useState<HistoryFilters>(initialFilters);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterError, setFilterError] = useState("");
+  const filterDialogRef = useRef<HTMLDialogElement>(null);
+  const correctionDialogRef = useRef<HTMLDialogElement>(null);
   const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correctionContextual, setCorrectionContextual] = useState(false);
   const [correctionType, setCorrectionType] = useState<
     "FORGOT_CLOCK_IN" | "FORGOT_CLOCK_OUT"
   >("FORGOT_CLOCK_OUT");
@@ -38,26 +76,50 @@ export function StaffHistory() {
   const [requestedClockOutAt, setRequestedClockOutAt] = useState("");
   const [correctionReason, setCorrectionReason] = useState("");
   const [correctionSubmitting, setCorrectionSubmitting] = useState(false);
-  const [correctionMessage, setCorrectionMessage] = useState("");
-  const [knownBranches, setKnownBranches] = useState<Array<{ id: string; name: string }>>([]);
-  const availableBranches = history?.availableBranches.length ? history.availableBranches : knownBranches;
+  const [correctionError, setCorrectionError] = useState("");
+  const availableBranches = history?.availableBranches ?? [];
   const hasSingleBranch = availableBranches.length === 1;
   const hasMultipleBranches = availableBranches.length > 1;
+  const actionableSessions = (history?.items ?? []).filter(
+    (item) => getMissingClockOutCorrectionState(item) === "ACTIONABLE",
+  );
+  const selectedCorrectionSession = (history?.items ?? []).find(
+    (item) =>
+      (item.correctionSessionId ?? item.id) === correctionSessionId,
+  );
 
   useEffect(() => {
-    if (window.location.hash === "#attendance-correction") setCorrectionOpen(true);
+    if (window.location.hash === "#attendance-correction") {
+      setCorrectionContextual(false);
+      setCorrectionOpen(true);
+    }
   }, []);
+
+  useEffect(() => {
+    syncDialog(filterDialogRef.current, filterOpen);
+  }, [filterOpen]);
+
+  useEffect(() => {
+    syncDialog(correctionDialogRef.current, correctionOpen);
+  }, [correctionOpen]);
+
+  useEffect(() => {
+    const modalOpen = filterOpen || correctionOpen;
+    setTaskNavigationHidden(modalOpen);
+    return () => setTaskNavigationHidden(false);
+  }, [correctionOpen, filterOpen, setTaskNavigationHidden]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     const params = new URLSearchParams({
-      from,
-      to,
+      from: filters.from,
+      to: filters.to,
       page: String(page),
       pageSize: "12",
     });
-    if (branchId) params.set("branchId", branchId);
-    if (status) params.set("status", status);
+    if (filters.branchId) params.set("branchId", filters.branchId);
+    if (filters.status) params.set("status", filters.status);
 
     try {
       const result = await staffApiFetch<{ ok: true; data: AttendanceHistory }>(
@@ -67,74 +129,82 @@ export function StaffHistory() {
       if (result.data.availableBranches.length === 1) {
         setCorrectionBranchId(result.data.availableBranches[0]?.id ?? "");
       }
-      setKnownBranches((current) => {
-        const map = new Map(
-          [...current, ...result.data.availableBranches].map((branch) => [
-            branch.id,
-            branch,
-          ]),
-        );
-        for (const item of result.data.items) {
-          map.set(item.branch.id, item.branch);
-        }
-        return [...map.values()].sort((left, right) => left.name.localeCompare(right.name));
-      });
     } catch (caught) {
       if (caught instanceof StaffApiError && isEmployeeSessionError(caught.code)) {
         router.replace("/staff/login?reason=session-expired");
         return;
       }
-      setError(
-        caught instanceof StaffApiError
-          ? caught.message
-          : "Unable to load attendance history.",
-      );
+      setError("Attendance couldn't load. Try again.");
     } finally {
       setLoading(false);
     }
-  }, [branchId, from, page, router, status, to]);
+  }, [filters, page, router]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  function filter(event: FormEvent<HTMLFormElement>) {
+  function openFilters() {
+    setDraftFilters(filters);
+    setFilterError("");
+    setFilterOpen(true);
+  }
+
+  function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (page === 1) {
-      void load();
-    } else {
-      setPage(1);
+    const validation = validateHistoryRange(draftFilters.from, draftFilters.to);
+    if (validation) {
+      setFilterError(validation);
+      return;
     }
+    setFilterError("");
+    setPage(1);
+    setFilters(draftFilters);
+    setFilterOpen(false);
+  }
+
+  function resetFilters() {
+    setFilterError("");
+    setDraftFilters(initialFilters);
+    setPage(1);
+    setFilters(initialFilters);
+    setFilterOpen(false);
   }
 
   function openMissingClockOutCorrection(item: AttendanceHistoryItem) {
+    setCorrectionContextual(true);
     setCorrectionType("FORGOT_CLOCK_OUT");
-    setCorrectionSessionId(item.id);
+    setCorrectionSessionId(item.correctionSessionId ?? item.id);
     setCorrectionBranchId(item.branch.id);
+    setRequestedClockInAt("");
     setRequestedClockOutAt("");
-    setCorrectionMessage("");
+    setCorrectionReason("");
+    setCorrectionError("");
+    setSuccessMessage("");
     setCorrectionOpen(true);
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        document
-          .getElementById("attendance-correction")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    });
+  }
+
+  function openGenericCorrection() {
+    setCorrectionContextual(false);
+    setCorrectionType("FORGOT_CLOCK_OUT");
+    setCorrectionSessionId("");
+    setCorrectionBranchId(availableBranches[0]?.id ?? "");
+    setRequestedClockInAt("");
+    setRequestedClockOutAt("");
+    setCorrectionReason("");
+    setCorrectionError("");
+    setSuccessMessage("");
+    setCorrectionOpen(true);
   }
 
   async function submitCorrection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCorrectionSubmitting(true);
-    setCorrectionMessage("");
-    setError("");
+    setCorrectionError("");
+    setSuccessMessage("");
     try {
-      const requestedClockIn = requestedClockInAt
-        ? new Date(requestedClockInAt)
-        : null;
-      const requestedClockOut = requestedClockOutAt
-        ? new Date(requestedClockOutAt)
-        : null;
+      const requestedClockIn = requestedClockInAt ? new Date(requestedClockInAt) : null;
+      const requestedClockOut = requestedClockOutAt ? new Date(requestedClockOutAt) : null;
       const result = await staffApiFetch<{
         ok: true;
         data: { duplicate: boolean };
@@ -142,313 +212,502 @@ export function StaffHistory() {
         method: "POST",
         body: JSON.stringify({
           branchId: correctionBranchId,
-          attendanceSessionId:
-            correctionType === "FORGOT_CLOCK_OUT"
-              ? correctionSessionId
-              : null,
+          attendanceSessionId: correctionType === "FORGOT_CLOCK_OUT" ? correctionSessionId : null,
           attendancePunchId: null,
           type: correctionType,
           requestedClockInAt:
-            correctionType === "FORGOT_CLOCK_IN" &&
-            requestedClockIn &&
-            Number.isFinite(requestedClockIn.getTime())
+            correctionType === "FORGOT_CLOCK_IN" && requestedClockIn && Number.isFinite(requestedClockIn.getTime())
               ? requestedClockIn.toISOString()
               : null,
           requestedClockOutAt:
-            requestedClockOut &&
-            Number.isFinite(requestedClockOut.getTime())
+            requestedClockOut && Number.isFinite(requestedClockOut.getTime())
               ? requestedClockOut.toISOString()
               : null,
           reason: correctionReason,
           deviceIdentifier: getOrCreateDeviceIdentifier(),
         }),
       });
-      setCorrectionMessage(
+      setSuccessMessage(
         result.data.duplicate
-          ? "This request is already pending."
-          : "Request submitted for manager review.",
+          ? "This correction is already waiting for your manager."
+          : "Correction sent to your manager.",
       );
+      setCorrectionOpen(false);
       setCorrectionReason("");
       await load();
     } catch (caught) {
-      if (
-        caught instanceof StaffApiError &&
-        isEmployeeSessionError(caught.code)
-      ) {
+      if (caught instanceof StaffApiError && isEmployeeSessionError(caught.code)) {
         router.replace("/staff/login?reason=session-expired");
         return;
       }
-      setError(
+      setCorrectionError(
         caught instanceof StaffApiError
           ? caught.message
-          : "Unable to submit the correction request.",
+          : "Unable to submit the correction. Try again.",
       );
     } finally {
       setCorrectionSubmitting(false);
     }
   }
 
-  return (
-    <div className="staff-history-stack">
-      <section className="staff-page-title">
-        <p className="staff-kicker">ATTENDANCE</p>
-        <h1>Attendance history</h1>
-        <p>Review your actual clock-ins, hours and attendance status.</p>
-        <button
-          className="staff-secondary-button"
-          onClick={() => setCorrectionOpen((current) => !current)}
-          type="button"
-        >
-          {correctionOpen ? "Close request" : "Report a missing punch"}
-        </button>
-      </section>
+  const periodLabel = attendanceHistoryPeriodLabel(filters.from, filters.to);
 
-      {correctionOpen ? (
-        <section className="staff-page-card" id="attendance-correction">
-          <div className="staff-card-heading">
-            <div>
-              <p className="staff-kicker">ATTENDANCE CORRECTION</p>
-              <h2>Request an attendance correction</h2>
-            </div>
-          </div>
-          <form className="staff-history-filters" onSubmit={submitCorrection}>
-            <label>
-              Missing action
-              <select
-                onChange={(event) =>
-                  setCorrectionType(
-                    event.target.value as
-                      | "FORGOT_CLOCK_IN"
-                      | "FORGOT_CLOCK_OUT",
-                  )
-                }
-                value={correctionType}
-              >
-                <option value="FORGOT_CLOCK_OUT">Forgot clock out</option>
-                <option value="FORGOT_CLOCK_IN">Forgot clock in</option>
-              </select>
-            </label>
-            {!hasSingleBranch ? (
-              <label>
-                Branch
-                <select
-                  onChange={(event) => setCorrectionBranchId(event.target.value)}
-                  required
-                  value={correctionBranchId}
-                >
-                  <option value="">Select branch</option>
-                  {availableBranches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>{branch.name}</option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-            {correctionType === "FORGOT_CLOCK_OUT" ? (
-              <label>
-                Attendance shift
-                <select
-                  onChange={(event) => setCorrectionSessionId(event.target.value)}
-                  required
-                  value={correctionSessionId}
-                >
-                  <option value="">Select shift</option>
-                  {(history?.items ?? [])
-                    .filter(
-                      (item) =>
-                        getMissingClockOutCorrectionState(item) === "ACTIONABLE",
-                    )
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {formatWorkDate(item.workDate)} · {item.branch.name} · {humanize(item.status)}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            ) : (
-              <label>
-                Requested clock in
-                <input
-                  onChange={(event) => setRequestedClockInAt(event.target.value)}
-                  required
-                  type="datetime-local"
-                  value={requestedClockInAt}
-                />
-              </label>
-            )}
-            <label>
-              Requested clock out
-              <input
-                onChange={(event) => setRequestedClockOutAt(event.target.value)}
-                required={correctionType === "FORGOT_CLOCK_OUT"}
-                type="datetime-local"
-                value={requestedClockOutAt}
-              />
-            </label>
-            <label>
-              Reason
-              <input
-                maxLength={500}
-                minLength={3}
-                onChange={(event) => setCorrectionReason(event.target.value)}
-                required
-                value={correctionReason}
-              />
-            </label>
-            <button
-              className="staff-primary-button"
-              disabled={correctionSubmitting}
-              type="submit"
-            >
-              {correctionSubmitting ? "Submitting…" : "Submit for review"}
-            </button>
-            {correctionMessage ? <small>{correctionMessage}</small> : null}
-          </form>
-        </section>
+  return (
+    <section className={`${staffV2Styles.scope} ${styles.page}`} aria-label="Attendance history">
+      <StaffV2PageHeader title="Attendance history" meta="Your actual clock-ins and worked time." />
+
+      <div className={styles.periodBar}>
+        <div>
+          <strong>{periodLabel}</strong>
+          {filters.branchId ? (
+            <small>{availableBranches.find((branch) => branch.id === filters.branchId)?.name}</small>
+          ) : null}
+        </div>
+        <StaffV2FilterChip onClick={openFilters}>
+          {attendanceHistoryStatusFilterLabel(filters.status)}
+        </StaffV2FilterChip>
+      </div>
+
+      {successMessage ? <div className={styles.success} role="status">{successMessage}</div> : null}
+      {error ? (
+        <div className={staffV2Styles.inlineError} role="alert">
+          <span><strong>Attendance couldn&apos;t load.</strong><small>Please check your connection and try again.</small></span>
+          <button className={styles.textButton} onClick={() => void load()} type="button">Try again</button>
+        </div>
       ) : null}
 
-      <section className="staff-page-card">
-        <form className="staff-history-filters" onSubmit={filter}>
-          <label>
-            From
-            <input onChange={(event) => setFrom(event.target.value)} type="date" value={from} />
-          </label>
-          <label>
-            To
-            <input onChange={(event) => setTo(event.target.value)} type="date" value={to} />
-          </label>
-          {hasMultipleBranches ? (
-            <label>
-              Branch
-              <select onChange={(event) => setBranchId(event.target.value)} value={branchId}>
-                <option value="">All branches</option>
-                {availableBranches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>{branch.name}</option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          <label>
-            Status
-            <select onChange={(event) => setStatus(event.target.value)} value={status}>
-              <option value="">All statuses</option>
-              <option value="OPEN">Open</option>
-              <option value="ON_BREAK">On break</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="INCOMPLETE">Incomplete</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
-          </label>
-          <button className="staff-secondary-button" type="submit">Apply filters</button>
-          <small>Date ranges are limited to 31 days.</small>
-        </form>
-      </section>
-
-      {error ? <div className="staff-alert error" role="alert">{error}</div> : null}
-      {loading && !history ? <StaffLoading label="Loading attendance history…" /> : null}
+      {loading && !history ? <HistorySkeleton /> : null}
 
       {history ? (
         <>
-          <section className="staff-history-list" aria-busy={loading} aria-label="Attendance history">
-            {history.items.map((item) => (
-              <HistoryCard
-                item={item}
-                key={item.id}
-                onSubmitCorrection={openMissingClockOutCorrection}
+          <section aria-busy={loading} aria-label="Attendance records" className={styles.records}>
+            {history.items.length ? (
+              <StaffV2RowGroup ariaLabel="Attendance records" className={styles.recordGroup}>
+                {history.items.map((item) => (
+                  <HistoryRow
+                    hasMultipleBranches={hasMultipleBranches}
+                    item={item}
+                    key={item.id}
+                    onSubmitCorrection={openMissingClockOutCorrection}
+                  />
+                ))}
+              </StaffV2RowGroup>
+            ) : (
+              <StaffV2EmptyState
+                title="No attendance records in this period."
+                description="Try another date range."
               />
-            ))}
-            {!history.items.length ? (
-              <div className="staff-empty-state">
-                <span aria-hidden="true">◷</span>
-                <h2>No attendance records</h2>
-                <p>No records match this date range and filters.</p>
-              </div>
-            ) : null}
+            )}
           </section>
-          {history.pagination.totalPages > 1 ? <div className="staff-pagination">
-            <button
-              disabled={loading || history.pagination.page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              type="button"
-            >
-              Previous
-            </button>
-            <span>
-              Page {history.pagination.page} of {Math.max(1, history.pagination.totalPages)}
-              <small>{history.pagination.total} records</small>
-            </span>
-            <button
-              disabled={
-                loading ||
-                history.pagination.page >= Math.max(1, history.pagination.totalPages)
-              }
-              onClick={() => setPage((current) => current + 1)}
-              type="button"
-            >
-              Next
-            </button>
-          </div> : null}
+
+          {history.pagination.totalPages > 1 ? (
+            <nav aria-label="Attendance history pages" className={styles.pagination}>
+              <button
+                disabled={loading || history.pagination.page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                type="button"
+              >Previous</button>
+              <span aria-live="polite">{history.pagination.page} / {history.pagination.totalPages}</span>
+              <button
+                disabled={loading || history.pagination.page >= history.pagination.totalPages}
+                onClick={() => setPage((current) => current + 1)}
+                type="button"
+              >Next</button>
+            </nav>
+          ) : null}
+
+          <button className={styles.fallbackAction} onClick={openGenericCorrection} type="button">
+            Report another missing punch
+          </button>
         </>
       ) : null}
+
+      <dialog
+        aria-labelledby="attendance-history-filter-title"
+        className={styles.dialog}
+        onCancel={() => setFilterOpen(false)}
+        onClose={() => setFilterOpen(false)}
+        onClick={(event) => {
+          if (event.currentTarget === event.target) setFilterOpen(false);
+        }}
+        ref={filterDialogRef}
+      >
+        <section className={styles.sheet}>
+          <SheetHeading
+            id="attendance-history-filter-title"
+            kicker="ATTENDANCE"
+            onClose={() => setFilterOpen(false)}
+            title="Filter history"
+          />
+          <form className={styles.form} onSubmit={applyFilters}>
+            <StaffV2FormSection>
+              <div className={styles.dateFields}>
+                <label>
+                  From
+                  <input
+                    aria-describedby="history-range-hint history-filter-error"
+                    onChange={(event) => setDraftFilters((current) => ({ ...current, from: event.target.value }))}
+                    required
+                    type="date"
+                    value={draftFilters.from}
+                  />
+                </label>
+                <label>
+                  To
+                  <input
+                    aria-describedby="history-range-hint history-filter-error"
+                    onChange={(event) => setDraftFilters((current) => ({ ...current, to: event.target.value }))}
+                    required
+                    type="date"
+                    value={draftFilters.to}
+                  />
+                </label>
+              </div>
+              <label>
+                Status
+                <select
+                  onChange={(event) => setDraftFilters((current) => ({ ...current, status: event.target.value }))}
+                  value={draftFilters.status}
+                >
+                  <option value="">All statuses</option>
+                  <option value="OPEN">In progress</option>
+                  <option value="ON_BREAK">On break</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="INCOMPLETE">Incomplete records</option>
+                  <option value="CANCELLED">Cancelled records</option>
+                </select>
+              </label>
+              {hasMultipleBranches ? (
+                <label>
+                  Branch
+                  <select
+                    onChange={(event) => setDraftFilters((current) => ({ ...current, branchId: event.target.value }))}
+                    value={draftFilters.branchId}
+                  >
+                    <option value="">All branches</option>
+                    {availableBranches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <small id="history-range-hint">Choose up to 31 days.</small>
+              {filterError ? <p className={styles.fieldError} id="history-filter-error" role="alert">{filterError}</p> : null}
+            </StaffV2FormSection>
+            <div className={styles.sheetActions}>
+              <button className={styles.primaryButton} type="submit">Apply filters</button>
+              <button className={styles.secondaryButton} onClick={resetFilters} type="button">Reset</button>
+            </div>
+          </form>
+        </section>
+      </dialog>
+
+      <dialog
+        aria-labelledby="attendance-correction-title"
+        className={styles.dialog}
+        id="attendance-correction"
+        onCancel={() => !correctionSubmitting && setCorrectionOpen(false)}
+        onClose={() => setCorrectionOpen(false)}
+        onClick={(event) => {
+          if (event.currentTarget === event.target && !correctionSubmitting) setCorrectionOpen(false);
+        }}
+        ref={correctionDialogRef}
+      >
+        <section className={styles.sheet}>
+          <SheetHeading
+            id="attendance-correction-title"
+            kicker="ATTENDANCE CORRECTION"
+            onClose={() => setCorrectionOpen(false)}
+            title={correctionContextual ? "Correct attendance" : "Report a missing punch"}
+          />
+          <form className={styles.form} onSubmit={submitCorrection}>
+            <StaffV2FormSection>
+              {correctionContextual && selectedCorrectionSession ? (
+                <div className={styles.correctionContext}>
+                  <strong>{formatWorkDate(selectedCorrectionSession.workDate)}</strong>
+                  <span>Clocked in {formatTime(selectedCorrectionSession.clockInAt)}</span>
+                  <span>Clock out missing</span>
+                </div>
+              ) : (
+                <label>
+                  Missing action
+                  <select
+                    onChange={(event) => {
+                      setCorrectionType(event.target.value as "FORGOT_CLOCK_IN" | "FORGOT_CLOCK_OUT");
+                      setCorrectionSessionId("");
+                      setRequestedClockInAt("");
+                      setRequestedClockOutAt("");
+                    }}
+                    value={correctionType}
+                  >
+                    <option value="FORGOT_CLOCK_OUT">Forgot clock out</option>
+                    <option value="FORGOT_CLOCK_IN">Forgot clock in</option>
+                  </select>
+                </label>
+              )}
+
+              {!hasSingleBranch ? (
+                <label>
+                  Branch
+                  <select
+                    onChange={(event) => setCorrectionBranchId(event.target.value)}
+                    required
+                    value={correctionBranchId}
+                  >
+                    <option value="">Select branch</option>
+                    {availableBranches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              {correctionType === "FORGOT_CLOCK_OUT" && !correctionContextual ? (
+                <label>
+                  Attendance record
+                  <select
+                    onChange={(event) => {
+                      const item = actionableSessions.find(
+                        (session) =>
+                          (session.correctionSessionId ?? session.id) ===
+                          event.target.value,
+                      );
+                      setCorrectionSessionId(event.target.value);
+                      if (item) setCorrectionBranchId(item.branch.id);
+                    }}
+                    required
+                    value={correctionSessionId}
+                  >
+                    <option value="">Select attendance record</option>
+                    {actionableSessions.map((item) => (
+                      <option
+                        key={item.id}
+                        value={item.correctionSessionId ?? item.id}
+                      >
+                        {formatWorkDate(item.workDate)} · {formatTime(item.clockInAt)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              {correctionType === "FORGOT_CLOCK_IN" ? (
+                <label>
+                  Requested clock-in time
+                  <input
+                    onChange={(event) => setRequestedClockInAt(event.target.value)}
+                    required
+                    type="datetime-local"
+                    value={requestedClockInAt}
+                  />
+                </label>
+              ) : null}
+
+              <label>
+                Requested clock-out time
+                <input
+                  onChange={(event) => setRequestedClockOutAt(event.target.value)}
+                  required={correctionType === "FORGOT_CLOCK_OUT"}
+                  type="datetime-local"
+                  value={requestedClockOutAt}
+                />
+              </label>
+              <label>
+                Reason
+                <textarea
+                  aria-describedby="attendance-correction-reason-hint"
+                  maxLength={500}
+                  minLength={3}
+                  onChange={(event) => setCorrectionReason(event.target.value)}
+                  required
+                  rows={3}
+                  value={correctionReason}
+                />
+              </label>
+              <small id="attendance-correction-reason-hint">Briefly explain the missing time.</small>
+              {correctionError ? <p className={styles.fieldError} role="alert">{correctionError}</p> : null}
+            </StaffV2FormSection>
+            <button className={styles.primaryButton} disabled={correctionSubmitting} type="submit">
+              {correctionSubmitting ? "Submitting…" : "Submit correction"}
+            </button>
+          </form>
+        </section>
+      </dialog>
+    </section>
+  );
+}
+
+function HistoryRow({
+  item,
+  hasMultipleBranches,
+  onSubmitCorrection,
+}: {
+  item: AttendanceHistoryItem;
+  hasMultipleBranches: boolean;
+  onSubmitCorrection: (item: AttendanceHistoryItem) => void;
+}) {
+  const status = getAttendanceHistoryV2Status(item);
+  const timezone = item.branch.timezone;
+  const missingClockOut = !item.clockOutAt && item.status === "INCOMPLETE";
+  const meta = missingClockOut
+    ? status.correctionState === "PENDING"
+      ? "Missing clock out correction"
+      : `Missing clock out · Clocked in ${formatTime(item.clockInAt, timezone)}`
+    : `${formatClockRange(item, timezone)} · Worked ${formatMinutesAsHours(item.totalWorkedMinutes)}`;
+
+  return (
+    <article className={styles.record} id={`attendance-record-${item.id}`} role="listitem">
+      <details>
+        <summary aria-label={`${formatWorkDate(item.workDate)}. ${status.label}. ${meta}. Open attendance details.`}>
+          <time dateTime={item.workDate}>{formatShortDate(item.workDate)}</time>
+          <span className={styles.recordCopy}>
+            <StaffV2StatusBadge tone={status.tone}>{status.label}</StaffV2StatusBadge>
+            <span>{meta}</span>
+            {hasMultipleBranches ? <small>{item.branch.name}</small> : null}
+          </span>
+          <span aria-hidden="true" className={styles.chevron}>›</span>
+        </summary>
+        <div className={styles.recordDetail}>
+          <div className={styles.detailHeading}>
+            <strong>{formatWorkDate(item.workDate)}</strong>
+            <StaffV2StatusBadge tone={status.tone}>{status.label}</StaffV2StatusBadge>
+          </div>
+          <section>
+            <h3>Attendance</h3>
+            <dl>
+              <div><dt>Clock in</dt><dd>{formatTime(item.actual.clockInAt, timezone)}</dd></div>
+              <div><dt>Clock out</dt><dd>{item.actual.clockOutAt ? formatTime(item.actual.clockOutAt, timezone) : "Missing"}</dd></div>
+              <div><dt>Break</dt><dd>{item.totalBreakMinutes} min</dd></div>
+              <div><dt>Worked</dt><dd>{formatMinutesAsHours(item.totalWorkedMinutes)}</dd></div>
+              <div><dt>Branch</dt><dd>{item.branch.name}</dd></div>
+            </dl>
+          </section>
+          {item.scheduled ? (
+            <section>
+              <h3>Schedule</h3>
+              <dl>
+                <div><dt>Expected day</dt><dd>{scheduledKindLabel(item.scheduled.kind)}</dd></div>
+                {item.scheduled.startAt && item.scheduled.endAt ? (
+                  <div>
+                    <dt>Scheduled time</dt>
+                    <dd>{formatTime(item.scheduled.startAt, timezone)} – {formatTime(item.scheduled.endAt, timezone)}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </section>
+          ) : null}
+          {item.sessions.length > 1 ? (
+            <section>
+              <h3>Sessions</h3>
+              <ul className={styles.sessionList}>
+                {item.sessions.map((session, index) => (
+                  <li key={session.id}>
+                    <span>Session {index + 1}</span>
+                    <strong>{formatTime(session.clockInAt, timezone)} – {formatTime(session.clockOutAt, timezone)}</strong>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {missingClockOut || item.adjusted || item.geofenceStatus ? (
+            <section>
+              <h3>Attendance details</h3>
+              <dl>
+                {missingClockOut ? (
+                  <div><dt>Clock out</dt><dd>{status.correctionState === "PENDING" ? "Waiting for manager" : "Missing"}</dd></div>
+                ) : null}
+                {item.adjusted ? <div><dt>Adjustment</dt><dd>Recorded</dd></div> : null}
+                {item.geofenceStatus ? <div><dt>Clock-in location</dt><dd>{geofenceDetail(item.geofenceStatus)}</dd></div> : null}
+              </dl>
+            </section>
+          ) : null}
+          {item.geofenceEvidence.length ? (
+            <section>
+              <h3>Location evidence</h3>
+              <ul className={styles.evidenceList}>
+                {item.geofenceEvidence.map((evidence) => (
+                  <li key={evidence.punchId}>
+                    <span>{humanize(evidence.type)}</span>
+                    <strong>{geofenceDetail(evidence.geofenceStatus)}</strong>
+                    {evidence.accuracyMeters !== null ? (
+                      <small>Accuracy {Math.round(evidence.accuracyMeters)} m</small>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {item.sessions.length ? (
+            <p className={styles.punchStatus}>
+              Punch status: {item.sessions.map((session) => humanize(session.punchStatus)).join(", ")}
+            </p>
+          ) : null}
+          {item.locked ? (
+            <p className={styles.lockedNote}>
+              This attendance record belongs to a finalized timesheet. Contact your manager if a correction is required.
+            </p>
+          ) : null}
+        </div>
+      </details>
+      {status.correctionState === "ACTIONABLE" ? (
+        <div className={styles.recordAction}>
+          <span><strong>Missing clock out</strong><small>Add the correct time for manager review.</small></span>
+          <button onClick={() => onSubmitCorrection(item)} type="button">Submit correction</button>
+        </div>
+      ) : null}
+      {status.correctionState === "PENDING" ? (
+        <p className={styles.pendingNote}>No action needed — your manager is reviewing this correction.</p>
+      ) : null}
+    </article>
+  );
+}
+
+function SheetHeading({
+  id,
+  kicker,
+  onClose,
+  title,
+}: {
+  id: string;
+  kicker: string;
+  onClose: () => void;
+  title: string;
+}) {
+  return (
+    <header className={styles.sheetHeading}>
+      <div><small>{kicker}</small><h2 id={id}>{title}</h2></div>
+      <button aria-label={`Close ${title}`} onClick={onClose} type="button">×</button>
+    </header>
+  );
+}
+
+export function HistorySkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading attendance history" className={styles.loading} role="status">
+      <span className={styles.periodSkeleton} />
+      <span className={styles.rowSkeleton} />
+      <span className={styles.rowSkeleton} />
+      <span className={styles.rowSkeleton} />
+      <span className={staffV2Styles.srOnly}>Loading attendance history…</span>
     </div>
   );
 }
 
-function HistoryCard({
-  item,
-  onSubmitCorrection,
-}: {
-  item: AttendanceHistoryItem;
-  onSubmitCorrection: (item: AttendanceHistoryItem) => void;
-}) {
-  const correctionState = getMissingClockOutCorrectionState(item);
+function syncDialog(dialog: HTMLDialogElement | null, open: boolean) {
+  if (!dialog) return;
+  if (open && !dialog.open) dialog.showModal();
+  if (!open && dialog.open) dialog.close();
+}
 
-  return (
-    <article className="staff-history-card" id={`attendance-record-${item.id}`}>
-      <div className="staff-history-card-header">
-        <div>
-          <strong>{formatWorkDate(item.workDate)}</strong>
-          <small>{item.branch.name}</small>
-        </div>
-        <span className={`staff-status-chip ${item.status.toLowerCase()}`}>
-          {humanize(item.status)}
-        </span>
-      </div>
-      <div className="staff-history-times">
-        <span><small>Clock in</small><strong>{formatTime(item.clockInAt)}</strong></span>
-        <span><small>Clock out</small><strong>{item.clockOutAt ? formatTime(item.clockOutAt) : "—"}</strong></span>
-        <span><small>Break</small><strong>{item.totalBreakMinutes} min</strong></span>
-        <span><small>Worked</small><strong>{formatMinutesAsHours(item.totalWorkedMinutes)}</strong></span>
-      </div>
-      <div className="staff-history-flags">
-        <span>{gpsStatusLabel(item.geofenceStatus)}</span>
-        <span>{item.requiresApproval ? `Approval: ${humanize(item.approvalStatus)}` : "No approval required"}</span>
-        {item.adjusted ? <span className="adjusted">Adjusted</span> : null}
-      </div>
-      {correctionState === "ACTIONABLE" ? (
-        <div className="staff-history-actions">
-          <div>
-            <strong>Missing clock out</strong>
-            <small>Add the correct clock-out time for manager review.</small>
-          </div>
-          <button
-            className="staff-secondary-button"
-            onClick={() => onSubmitCorrection(item)}
-            type="button"
-          >
-            Submit correction
-          </button>
-        </div>
-      ) : null}
-      {correctionState === "PENDING" ? (
-        <div className="staff-history-actions pending" role="status">
-          <div>
-            <strong>Correction pending</strong>
-            <small>Your manager has this request for review.</small>
-          </div>
-        </div>
-      ) : null}
-    </article>
-  );
+function validateHistoryRange(from: string, to: string) {
+  const fromDate = new Date(`${from}T00:00:00.000Z`);
+  const toDate = new Date(`${to}T00:00:00.000Z`);
+  if (!Number.isFinite(fromDate.getTime()) || !Number.isFinite(toDate.getTime())) {
+    return "Choose a valid From and To date.";
+  }
+  if (fromDate > toDate) return "From date must be before To date.";
+  const days = Math.floor((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1;
+  return days > 31 ? "Choose a date range of 31 days or less." : "";
 }
 
 function defaultRange() {
@@ -460,6 +719,14 @@ function defaultRange() {
   };
 }
 
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("en-MY", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00.000Z`));
+}
+
 function formatWorkDate(value: string) {
   return new Intl.DateTimeFormat("en-MY", {
     day: "numeric",
@@ -469,11 +736,37 @@ function formatWorkDate(value: string) {
   }).format(new Date(`${value}T00:00:00.000Z`));
 }
 
-function formatTime(value: string) {
+function formatTime(value: string | null, timezone = "Asia/Kuala_Lumpur") {
+  if (!value) return "—";
   return new Intl.DateTimeFormat("en-MY", {
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
+    timeZone: timezone,
   }).format(new Date(value));
+}
+
+function formatClockRange(item: AttendanceHistoryItem, timezone: string) {
+  if (!item.clockInAt) return "No clock-in recorded";
+  return item.clockOutAt
+    ? `${formatTime(item.clockInAt, timezone)} – ${formatTime(item.clockOutAt, timezone)}`
+    : `Clocked in ${formatTime(item.clockInAt, timezone)}`;
+}
+
+function scheduledKindLabel(kind: string) {
+  if (kind === "WORKDAY") return "Published workday";
+  if (kind === "REST_DAY") return "Rest day";
+  if (kind === "PUBLIC_HOLIDAY") return "Public holiday";
+  if (kind === "NOT_SCHEDULED") return "Not scheduled";
+  return "Expected attendance";
+}
+
+function geofenceDetail(status: string) {
+  if (status === "INSIDE") return "Within workplace area";
+  if (status === "OUTSIDE") return "Outside workplace area";
+  if (status === "GPS_INACCURATE") return "Location accuracy was insufficient";
+  if (status === "GPS_UNAVAILABLE") return "Location was unavailable";
+  if (status === "GEOFENCE_DISABLED") return "Location check was not required";
+  return "Location evidence recorded";
 }
 
 function humanize(value: string) {

@@ -38,4 +38,3 @@ export function StaffAppIcon({ name }: { name: StaffAppIconName }) {
     </svg>
   );
 }
-

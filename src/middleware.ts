@@ -15,6 +15,18 @@ function getSecret() {
 }
 
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // The dedicated Staff App deployment shares the codebase but not the
+  // back-office surface. Keep staff APIs available while redirecting any
+  // accidentally opened back-office page to the Staff App login.
+  if (
+    process.env.TETAMU_APP_SURFACE === "staff" &&
+    !pathname.startsWith("/staff")
+  ) {
+    return NextResponse.redirect(new URL("/staff/login", request.url));
+  }
+
   const secret = getSecret();
   const token = request.cookies.get(SESSION_COOKIE)?.value;
 
@@ -56,7 +68,6 @@ export async function middleware(request: NextRequest) {
     ) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-    const pathname = request.nextUrl.pathname;
     const industryType =
       typeof verified.payload.industryType === "string"
         ? verified.payload.industryType
@@ -131,11 +142,12 @@ function nullableString(value: unknown) {
 
 export const config = {
   matcher: [
+    "/",
     "/admin/:path*",
     "/appointments/:path*",
     "/ai/:path*",
     "/branches/:path*",
-    "/business/settings",
+    "/business/settings/:path*",
     "/business-context/:path*",
     "/cashier/:path*",
     "/closing/:path*",
@@ -143,6 +155,8 @@ export const config = {
     "/dashboard/:path*",
     "/groups/:path*",
     "/invoices/:path*",
+    "/login",
+    "/logout",
     "/loyalty/:path*",
     "/packages/:path*",
     "/pos/:path*",

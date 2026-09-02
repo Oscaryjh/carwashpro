@@ -94,10 +94,11 @@ export async function resolveStaffOvertimeAccess(
 export async function getStaffOvertimeSummary(
   auth: EmployeeAuthContext,
   database: OvertimeApprovalDatabase = prisma,
+  now = new Date(),
 ) {
   const access = await resolveStaffOvertimeAccess(auth, database);
   if (!access) return null;
-  const period = overtimeMonthPeriod(currentMonthValue());
+  const period = overtimeMonthPeriod(currentMonthValue(now));
   const candidates = await listVisibleStaffOvertimeCandidates(access, period, database);
   return {
     canReviewOvertime: true as const,

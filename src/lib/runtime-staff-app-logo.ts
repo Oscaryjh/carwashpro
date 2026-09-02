@@ -86,4 +86,3 @@ function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
     (error as NodeJS.ErrnoException).code === "ENOENT"
   );
 }
-

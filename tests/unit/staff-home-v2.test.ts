@@ -33,7 +33,6 @@ test("Home V2 provides the approved reusable primitive family", () => {
   assert.match(css, /--staff-v2-ink:/);
   assert.match(css, /--staff-v2-brand:/);
 });
-
 test("Home V2 removes the welcome hero and keeps Attendance as its only hero", () => {
   assert.doesNotMatch(overview, /staff-welcome-card/);
   assert.match(overview, /StaffV2PageHeader/);

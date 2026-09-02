@@ -1,14 +1,11 @@
+import styles from "@/components/staff-pwa/staff-approval-center-v2.module.css";
+import { staffV2Styles } from "@/components/staff-pwa/staff-v2-primitives";
+
 export default function AttendanceCorrectionQueueLoading() {
   return (
-    <section className="staff-attendance-approval-page" aria-busy="true">
-      <header className="staff-approval-header">
-        <div><p className="staff-kicker">TEAM ATTENDANCE</p><h1>Attendance</h1></div>
-      </header>
-      <div className="staff-attendance-approval-loading">
-        <span />
-        <span />
-        <span />
-      </div>
+    <section className={`${staffV2Styles.scope} ${styles.page}`} aria-busy="true" aria-label="Loading Attendance approvals">
+      <div className={`${staffV2Styles.skeleton} ${styles.skeletonHeader}`} />
+      {[0, 1, 2].map((item) => <div className={`${staffV2Styles.skeleton} ${styles.skeletonRow}`} key={item} />)}
     </section>
   );
 }

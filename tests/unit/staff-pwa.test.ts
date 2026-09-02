@@ -30,6 +30,14 @@ const profileSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-profile.tsx", import.meta.url),
   "utf8",
 );
+const profileCssSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-profile-v2.module.css", import.meta.url),
+  "utf8",
+);
+const devicePageSource = readFileSync(
+  new URL("../../src/app/staff/device/page.tsx", import.meta.url),
+  "utf8",
+);
 const requestsSource = readFileSync(
   new URL("../../src/app/staff/requests/page.tsx", import.meta.url),
   "utf8",
@@ -40,6 +48,10 @@ const requestsModelSource = readFileSync(
 );
 const paySource = readFileSync(
   new URL("../../src/app/staff/pay/page.tsx", import.meta.url),
+  "utf8",
+);
+const payHubSource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-pay-hub-v2.tsx", import.meta.url),
   "utf8",
 );
 const historySource = readFileSync(
@@ -58,6 +70,14 @@ const timesheetPageSource = readFileSync(
   new URL("../../src/app/staff/timesheet/page.tsx", import.meta.url),
   "utf8",
 );
+const timesheetV2Source = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-timesheet-v2.tsx", import.meta.url),
+  "utf8",
+);
+const timesheetV2ModelSource = readFileSync(
+  new URL("../../src/lib/staff-pwa/timesheet-v2.ts", import.meta.url),
+  "utf8",
+);
 const homeOverviewSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-home-overview.tsx", import.meta.url),
   "utf8",
@@ -70,14 +90,14 @@ const claimsSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-claims.tsx", import.meta.url),
   "utf8",
 );
-const payslipsSource = readFileSync(
-  new URL("../../src/app/staff/payslips/page.tsx", import.meta.url),
-  "utf8",
-);
-const commissionSource = readFileSync(
-  new URL("../../src/app/staff/commission/page.tsx", import.meta.url),
-  "utf8",
-);
+const payslipsSource = [
+  readFileSync(new URL("../../src/app/staff/payslips/page.tsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../../src/components/staff-pwa/staff-payslips-v2.tsx", import.meta.url), "utf8"),
+].join("\n");
+const commissionSource = [
+  readFileSync(new URL("../../src/app/staff/commission/page.tsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../../src/components/staff-pwa/staff-commission-v2.tsx", import.meta.url), "utf8"),
+].join("\n");
 const chromeSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-pwa-chrome.tsx", import.meta.url),
   "utf8",
@@ -135,7 +155,6 @@ test("Staff PWA action labels and confirmation copy cover the API action set", (
   assert.match(attendanceConfirmation("CLOCK_IN"), /current branch/i);
   assert.match(attendanceConfirmation("CLOCK_OUT"), /ending today/i);
 });
-
 test("Staff PWA warns only when another break starts shortly after the previous one", () => {
   assert.equal(wasBreakEndedRecently({
     lastBreakEndedAt: "2026-08-15T01:10:02.000Z",
@@ -371,7 +390,7 @@ test("Staff Requests separates employee self-service from role-aware manager app
   assert.match(requestsSource, /loadRequestsApprovalEntry/);
   assert.match(requestsSource, /My requests/);
   assert.match(requestsSource, /Attendance correction/);
-  assert.match(requestsSource, /href="\/staff\/history\/records"/);
+  assert.match(requestsSource, /href="\/staff\/history\/corrections"/);
   assert.match(requestsSource, /title="Attendance corrections"/);
   assert.doesNotMatch(requestsSource, /Review employee time corrections waiting/);
   assert.doesNotMatch(requestsSource, /canonical workflow/);
@@ -405,38 +424,40 @@ test("Staff monthly timesheet keeps attendance results and exceptions inside the
     employeeTimesheetSource.match(/workDate: \{ gte: monthStart, lt: monthEndExclusive \}/g)?.length,
     2,
   );
-  assert.match(timesheetPageSource, /formatMonth\(monthStart\)/);
-  assert.match(timesheetPageSource, /Action needed/);
-  assert.match(timesheetPageSource, /Waiting for manager/);
-  assert.match(timesheetPageSource, />Final</);
-  assert.match(timesheetPageSource, />RESULT</);
-  assert.match(timesheetPageSource, />WHY</);
-  assert.match(timesheetPageSource, />NEXT ACTION</);
-  assert.doesNotMatch(timesheetPageSource, /final attendance results|snapshot|materialization|Submit OT|Request overtime/);
+  assert.match(timesheetPageSource, /parseStaffTimesheetMonth\(query\.month\)/);
+  assert.match(timesheetPageSource, /getEmployeeTimesheetOverview\(auth, \{ now: monthStart \}\)/);
+  assert.match(timesheetV2ModelSource, /Action needed/);
+  assert.match(timesheetV2ModelSource, /Waiting for manager/);
+  assert.match(timesheetV2ModelSource, /Final/);
+  assert.match(timesheetV2Source, /StaffV2DetailSection title="Result"/);
+  assert.match(timesheetV2Source, /StaffV2DetailSection title="Why"/);
+  assert.match(timesheetV2Source, /StaffV2DetailSection title="Next action"/);
+  assert.doesNotMatch(timesheetV2Source, /final attendance results|snapshot|materialization|Submit OT|Request overtime/);
 });
 
 test("Staff Pay shows the latest available Gross and Net without inferred deductions", () => {
-  assert.match(paySource, />Gross</);
-  assert.doesNotMatch(paySource, />Deductions</);
-  assert.match(paySource, />Net pay</);
-  assert.match(paySource, /View payslip/);
-  assert.match(paySource, />Available</);
-  assert.match(paySource, /Not available yet/);
-  assert.doesNotMatch(paySource, />Published</);
+  assert.match(payHubSource, /Gross pay/);
+  assert.doesNotMatch(`${paySource}\n${payHubSource}`, /Deductions/);
+  assert.match(payHubSource, />Net pay</);
+  assert.match(payHubSource, /Download PDF/);
+  assert.match(payHubSource, />Available</);
+  assert.match(payHubSource, /Payslip not available yet/);
+  assert.doesNotMatch(payHubSource, />Published</);
   assert.match(payslipsSource, /Available since/);
-  assert.match(commissionSource, /separate earnings statement/);
-  assert.match(commissionSource, /not necessarily included in your current payslip/);
+  assert.match(commissionSource, /Your commission statements/);
+  assert.match(commissionSource, /Payroll linkage does not prove payslip publication or salary settlement/);
 });
 
-test("Staff Profile avoids a duplicate workplace switcher and hides device metadata by default", () => {
-  assert.match(profileSource, /CURRENT WORKPLACE/);
-  assert.doesNotMatch(profileSource, /SWITCH WORKPLACE/);
+test("Staff Profile V2 keeps one canonical workplace switch path and safe device semantics", () => {
+  assert.match(profileSource, />Current workplace</);
+  assert.match(profileSource, /workplaces\.length > 1/);
   assert.match(chromeSource, /openWorkplaceSwitcher/);
-  assert.match(profileSource, /<details className="staff-security-details">/);
-  assert.match(profileSource, /THIS PHONE/);
-  assert.match(profileSource, /<h2>Signed in<\/h2>/);
+  assert.match(profileSource, /<details className=\{styles\.details\}>/);
+  assert.match(profileSource, />This phone</);
+  assert.match(profileSource, /Authorized on/);
   assert.match(profileSource, /label="Last active"/);
-  assert.doesNotMatch(profileSource, /label="Browser"|label="Can view"|label="Can punch"/);
+  assert.doesNotMatch(profileSource, /Signed in|Last signed in|displayName|Can view|Can punch/);
+  assert.match(devicePageSource, /redirect\(verified === "1" \? "\/staff\/profile\?device=verified" : "\/staff\/profile"\)/);
 });
 
 test("Staff navigation refreshes live employee module entitlement after login", () => {
@@ -514,12 +535,13 @@ test("Staff PWA owns vertical scrolling when the POS body is locked", () => {
   assert.match(shellRule, /-webkit-overflow-scrolling:\s*touch/);
 });
 
-test("Staff Profile keeps long employee identifiers inside the mobile card", () => {
-  assert.match(profileSource, /className="staff-profile-identity"/);
-  assert.match(profileSource, /className="staff-profile-meta"/);
-  assert.match(staffCssSource, /\.staff-profile-identity\s*\{[\s\S]*?min-width:\s*0/);
-  assert.match(staffCssSource, /\.staff-profile-meta code\s*\{[\s\S]*?overflow-wrap:\s*anywhere/);
-  assert.match(staffCssSource, /@media \(max-width: 430px\)[\s\S]*?\.staff-profile-stack \.staff-device-details/);
+test("Staff Profile V2 contains long identity and workplace labels on narrow phones", () => {
+  assert.match(profileSource, /className=\{styles\.identityCopy\}/);
+  assert.match(profileSource, /className=\{styles\.workplaceCopy\}/);
+  assert.match(profileCssSource, /\.identityCopy\s*\{\s*min-width:\s*0/);
+  assert.match(profileCssSource, /\.workplaceCopy\s*\{[\s\S]*?min-width:\s*0/);
+  assert.match(profileCssSource, /overflow-wrap:\s*anywhere/);
+  assert.match(profileCssSource, /@media \(max-width: 380px\)/);
 });
 
 test("Local mobile Staff App can hydrate from loopback and the private Wi-Fi subnet", () => {

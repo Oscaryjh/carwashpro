@@ -10,8 +10,8 @@ test("Approval Center V2 has Pending and manager-owned History without a duplica
     read("src/lib/staff-pwa/approval-history.ts"),
     read("prisma/schema.prisma"),
   ]);
-  assert.match(page, />Pending /);
-  assert.match(page, />My History</);
+  assert.match(page, /Pending <b>/);
+  assert.match(page, /My History/);
   assert.match(page, /HISTORY_PAGE_SIZE|pagination\.totalPages|Page \{page\} of/);
   assert.match(history, /const HISTORY_PAGE_SIZE = 20/);
   assert.match(history, /const HISTORY_MONTHS = 12/);
@@ -57,19 +57,21 @@ test("Requests keeps a permanent capability-gated Manager approval entry at zero
 });
 
 test("approval decisions use a required rejection bottom sheet and direct approve action", async () => {
-  const [form, css] = await Promise.all([read("src/components/staff-pwa/mobile-approval-form.tsx"), read("src/app/staff/staff-consolidation.css")]);
-  assert.match(form, /staff-approval-sheet-backdrop/);
-  assert.match(form, /aria-modal="true"/);
+  const [form, sheet, css] = await Promise.all([read("src/components/staff-pwa/mobile-approval-form.tsx"), read("src/components/staff-pwa/staff-approval-sheet.tsx"), read("src/components/staff-pwa/staff-approval-center-v2.module.css")]);
+  assert.match(form, /StaffApprovalSheet/);
+  assert.match(sheet, /aria-modal="true"/);
+  assert.match(sheet, /event\.key !== "Tab"/);
   assert.match(form, /minLength=\{3\}/);
   assert.match(form, /decision="APPROVED"/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
-  assert.match(css, /min-height:44px/);
+  assert.match(css, /min-height: 44px/);
 });
 
 test("OT adjustment is human-friendly while the backend still receives canonical minutes", async () => {
-  const [detail, action] = await Promise.all([read("src/app/staff/requests/overtime/[finalResultId]/page.tsx"), read("src/app/staff/requests/overtime/actions.ts")]);
-  assert.match(detail, /name="approvedHours"/);
-  assert.match(detail, /name="approvedMinuteRemainder"/);
+  const [form, detail, action] = await Promise.all([read("src/components/staff-pwa/mobile-overtime-approval-form.tsx"), read("src/app/staff/requests/overtime/[finalResultId]/page.tsx"), read("src/app/staff/requests/overtime/actions.ts")]);
+  assert.match(form, /name="approvedHours"/);
+  assert.match(form, /name="approvedMinuteRemainder"/);
+  assert.match(form, /Adjust overtime/);
   assert.doesNotMatch(detail, /Review revision/);
   assert.doesNotMatch(detail, /revision \$\{detail\.timesheetRevision\}/);
   assert.match(action, /Number\(rawHours \|\| 0\) \* 60 \+ Number\(rawMinuteRemainder \|\| 0\)/);

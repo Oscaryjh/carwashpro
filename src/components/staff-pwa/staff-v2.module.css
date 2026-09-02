@@ -1,4 +1,5 @@
-.scope {
+.scope,
+.portalScope {
   --staff-v2-canvas: #f4f7f6;
   --staff-v2-surface: #ffffff;
   --staff-v2-surface-muted: #f2f7f6;
@@ -35,6 +36,9 @@
   --staff-v2-bottom-clearance: 12px;
   --staff-v2-shell-bottom-clearance: calc(84px + var(--staff-v2-safe-bottom));
   --staff-v2-shadow-hero: 0 12px 30px rgba(16, 67, 62, 0.08);
+}
+
+.scope {
   display: grid;
   gap: 14px;
   min-width: 0;
@@ -167,6 +171,18 @@
   padding: 10px 12px;
   text-decoration: none;
 }
+.buttonActionRow {
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+}
+.buttonActionRow:disabled { cursor: wait; opacity: .7; }
+.buttonActionRowDanger { border-color: #efc9c5; }
+.buttonActionRowDanger .rowCopy strong,
+.buttonActionRowDanger .rowTrailing { color: var(--staff-v2-danger); }
+.buttonActionRowDanger .rowLeading,
+.buttonActionRowDanger .rowTrailing { background: var(--staff-v2-danger-soft); }
 .hero .listRow {
   background: var(--staff-v2-surface-subtle);
   border: 0;
@@ -241,7 +257,8 @@
 }
 .rowGroup .listRow:last-child { border-bottom: 0; }
 .listRow:focus-visible,
-.actionRow:focus-visible {
+.actionRow:focus-visible,
+.buttonActionRow:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--staff-v2-brand) 42%, transparent);
   outline-offset: -3px;
 }
@@ -399,6 +416,10 @@
   z-index: 40;
 }
 .stickyActionBar > * { margin-inline: auto; max-width: 560px; }
+.stickyActionBarAboveNavigation {
+  bottom: calc(64px + var(--staff-v2-safe-bottom));
+  padding-bottom: 10px;
+}
 
 .periodNavigator {
   align-items: center;
@@ -420,6 +441,11 @@
   justify-content: center;
   text-decoration: none;
   width: 44px;
+}
+.periodControlDisabled {
+  color: var(--staff-v2-muted);
+  cursor: not-allowed;
+  opacity: .46;
 }
 .periodLabel {
   align-items: center;

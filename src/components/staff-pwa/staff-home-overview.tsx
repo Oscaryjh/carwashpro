@@ -124,7 +124,6 @@ export function StaffHomeOverview({ overview, children }: {
     </section>
   );
 }
-
 export function StaffManagerApprovalEntry({ summary }: {
   summary: TeamApprovalSummary;
 }) {

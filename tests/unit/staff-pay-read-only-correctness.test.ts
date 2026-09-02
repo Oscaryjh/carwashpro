@@ -4,19 +4,21 @@ import test from "node:test";
 import { calculatePayrollComponentAggregates } from "../../src/lib/payroll/component-calculation";
 
 test("Staff Pay surfaces never derive deductions from gross minus net", async () => {
-  const [payPage, payslipsPage] = await Promise.all([
+  const [payPage, payslipsPage, payslipsView] = await Promise.all([
     readFile("src/app/staff/pay/page.tsx", "utf8"),
     readFile("src/app/staff/payslips/page.tsx", "utf8"),
+    readFile("src/components/staff-pwa/staff-payslips-v2.tsx", "utf8"),
   ]);
 
-  for (const source of [payPage, payslipsPage]) {
+  for (const source of [payPage, payslipsPage, payslipsView]) {
     assert.doesNotMatch(source, /Deductions/i);
     assert.doesNotMatch(source, /grossPay\)[\s\S]{0,120}-\s*Number\([^)]*netPay/);
   }
   assert.match(payPage, /payrollEntry\.grossPay/);
   assert.match(payPage, /payrollEntry\.netPay/);
-  assert.match(payslipsPage, /payrollEntry\.grossPay/);
   assert.match(payslipsPage, /payrollEntry\.netPay/);
+  assert.doesNotMatch(payslipsPage, /payrollEntry\.grossPay/);
+  assert.doesNotMatch(payslipsView, /Gross pay|grossPay/);
 });
 
 test("a non-wage reimbursement changes net but never gross or canonical deductions", () => {
@@ -55,19 +57,20 @@ test("a non-wage reimbursement changes net but never gross or canonical deductio
 });
 
 test("employee commission read model enforces period current revision and safe statuses", async () => {
-  const [reader, page] = await Promise.all([
+  const [reader, page, presentation] = await Promise.all([
     readFile("src/lib/commission/read.ts", "utf8"),
     readFile("src/app/staff/commission/page.tsx", "utf8"),
+    readFile("src/lib/staff-pwa/commission-v2.ts", "utf8"),
   ]);
 
   assert.match(reader, /statement\."calculation_revision" = period\."current_revision"/);
   assert.match(reader, /businessId: input\.businessId/);
   assert.match(reader, /membershipId: input\.membershipId/);
   assert.match(reader, /"CALCULATED", "APPROVED", "APPLIED_TO_PAYROLL"/);
-  assert.doesNotMatch(page, /\bPaid\b/);
-  assert.match(page, /Estimated · pending review/);
-  assert.match(page, /Approved · frozen/);
-  assert.match(page, /Approved · sent to Payroll/);
+  assert.doesNotMatch(`${page}\n${presentation}`, /\bPaid\b/);
+  assert.match(presentation, /CALCULATED[^]*Awaiting review/);
+  assert.match(presentation, /APPROVED[^]*Approved/);
+  assert.match(presentation, /Added to payroll/);
 });
 
 test("payslip download keeps self-service auth, ownership, module and private response guards", async () => {

@@ -72,7 +72,7 @@ export default async function StaffRequestsPage() {
           {hasHr ? (
             <StaffV2ListRow
               ariaLabel="Open Attendance corrections for missing or incorrect attendance"
-              href="/staff/history/records"
+              href="/staff/history/corrections"
               leading={<StaffAppIcon name="clock" />}
               meta="Missing or incorrect attendance"
               title="Attendance corrections"

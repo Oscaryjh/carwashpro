@@ -243,4 +243,3 @@ function loadImage(url: string) {
     image.src = url;
   });
 }
-

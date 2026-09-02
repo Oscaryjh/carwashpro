@@ -142,4 +142,3 @@ function monthLabel(value: Date) {
 function fullDateLabel(value: Date) {
   return value.toLocaleDateString("en-MY", { day: "numeric", month: "long", weekday: "long", year: "numeric" });
 }
-

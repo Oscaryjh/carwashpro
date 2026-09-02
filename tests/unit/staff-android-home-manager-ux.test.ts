@@ -27,7 +27,6 @@ test("manager approval priority appears after Attendance only when actionable wo
   assert.match(today.slice(0, attendanceEnd), /StaffV2HeroStatus/);
   assert.doesNotMatch(today.slice(attendanceEnd), /staff-schedule-card/);
 });
-
 test("empty upcoming schedule is omitted while useful and unavailable states remain supported", () => {
   assert.match(homeOverview, /overview\.upNext && overview\.upNext\.status !== "EMPTY"/);
   assert.match(homeReader, /status: "EMPTY"/);

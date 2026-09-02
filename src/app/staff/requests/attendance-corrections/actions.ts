@@ -7,6 +7,7 @@ import { requireEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee
 import { getAuditRequestContext } from "@/lib/audit";
 import {
   reviewStaffAttendanceCorrection,
+  reviewStaffAttendanceP2Correction,
   reviewStaffPendingAttendanceException,
 } from "@/lib/staff-pwa/team-approvals";
 
@@ -66,6 +67,36 @@ export async function reviewMobileAttendanceCorrectionAction(formData: FormData)
   }
 }
 
+export async function reviewMobileP2AttendanceCorrectionAction(formData: FormData) {
+  try {
+    const decision = String(formData.get("decision") ?? "");
+    if (decision !== "APPROVED" && decision !== "REJECTED") {
+      throw new Error("Choose an attendance correction decision.");
+    }
+    const auth = await requireEmployeeSelfServiceAuthContext();
+    await reviewStaffAttendanceP2Correction({
+      auth,
+      correctionRequestId: String(formData.get("correctionRequestId") ?? ""),
+      expectedRevision: Number(formData.get("expectedRevision")),
+      decision,
+      reason: String(formData.get("reason") ?? "").trim(),
+      request: await getAuditRequestContext(),
+    });
+    revalidatePath("/staff/approvals");
+    revalidatePath("/staff/approvals/history");
+    revalidatePath("/staff/requests");
+    revalidatePath("/staff/requests/attendance-corrections");
+    revalidatePath("/staff/history/corrections");
+    revalidatePath("/staff/timesheet");
+    complete(decision === "APPROVED"
+      ? "Attendance correction approved."
+      : "Attendance correction rejected.");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    failed(error);
+  }
+}
+
 function complete(message: string): never {
   redirect(`/staff/requests/attendance-corrections?type=success&message=${encodeURIComponent(message)}`);
 }
@@ -79,6 +110,8 @@ function failed(error: unknown): never {
     message = "You cannot review your own attendance correction.";
   } else if (/changed|Reload before deciding|CONCURRENT_CHANGE/i.test(technicalMessage)) {
     message = "This request changed after you opened it. Refresh and review the latest details.";
+  } else if (/approved or locked monthly Timesheet|TIMESHEET_LOCKED/i.test(technicalMessage)) {
+    message = "This correction cannot be reviewed while its monthly Timesheet is approved or locked. Reopen the Timesheet first.";
   } else if (/reason|at least 3 characters/i.test(technicalMessage)) {
     message = "Add a short decision note before continuing.";
   } else if (/clock-in|clock-out|break minutes|correction/i.test(technicalMessage)) {
@@ -86,4 +119,3 @@ function failed(error: unknown): never {
   }
   redirect(`/staff/requests/attendance-corrections?type=error&message=${encodeURIComponent(message)}`);
 }
-

@@ -170,4 +170,3 @@ test("Staff appointment surface is read-only, tenant-scoped and does not expose 
   assert.match(route, /requireEmployeeSelfServiceAuthContext/);
   assert.match(route, /requireEmployeeBusinessModule\(auth, "SALON"\)/);
 });
-

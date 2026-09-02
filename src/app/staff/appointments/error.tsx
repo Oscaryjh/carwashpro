@@ -12,4 +12,3 @@ export default function StaffAppointmentsError({ reset }: { reset: () => void })
     </section>
   );
 }
-
