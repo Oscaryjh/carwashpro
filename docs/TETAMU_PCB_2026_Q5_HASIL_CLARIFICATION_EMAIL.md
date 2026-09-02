@@ -18,7 +18,7 @@ We would like to follow the intended HASiL testing scenario exactly rather than 
 
 Thank you.
 
-Regards,  
+Regards,
 Tetamu Payroll Team
 
 ---
@@ -31,3 +31,19 @@ Tetamu Payroll Team
 - The TP1 form contains a deduction month/year and employer approval month/year. Its explanatory note says TP1 is submitted when an employee wishes to claim deductions and rebates “dalam bulan berkenaan” (in the relevant month). The official Q5 page supplies an annual RM6,000 amount but no claim/approval month.
 - The official question pack's submission requirements specify Q5 Calculation Detail for January and February 2026.
 - No email has been sent by Codex.
+
+## HASiL response retained - 28 August 2026
+
+Sender: **NURSAIDATUL AIN BINTI MD ISA, HASiL**
+
+Exact written clarification:
+
+> The loan interest relief should be claimed and
+> proportionately allocated across 12 months
+> (January - December 2026).
+
+Governed resolution record:
+
+`statutory/official/certifications/pcb-2026-p2/q5/hasil-clarification-resolution.json`
+
+The response resolves only the Q5 input-timing question. It is not an official expected PCB answer and does not represent HASiL software approval. The canonical certification treatment is RM500 per month from January through December 2026, totalling RM6,000.

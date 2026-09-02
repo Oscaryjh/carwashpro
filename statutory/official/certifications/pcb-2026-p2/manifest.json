@@ -1,18 +1,75 @@
 {
   "certification": "TETAMU PCB 2026 P2 FORMULA & PROFILE CERTIFICATION",
-  "verdict": "PARTIAL",
+  "verdict": "READY",
   "claimOfHasilApproval": false,
   "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
-  "generatedAt": "2026-08-27T07:09:22.655Z",
+  "generatedAt": "2026-08-28T16:24:57.417Z",
   "officialSources": {
     "computerisedSpecification2026Sha256": "a1618051c858393d92d868c9975c183309d3d07e48f0e4f0cdef589f45f5800c",
-    "testingQuestions2026Sha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517"
+    "testingQuestions2026Sha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+    "hasilQ5ClarificationSha256": "cecef469dd30e0abd6bc42d17254ab82ac03d476a486dde612ed1d0b5cd675cf"
   },
-  "fixtureSha256": "ff8a0263505d81cc3cd4be347dca80d5ebb91c67282c0a0022477166f5720430",
+  "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
   "tetamuCalculatorVersion": "TETAMU_PCB_2026_1.2.0",
   "tetamuCalculatorSourceSha256": "d885da7ddd35795e679df0579d9274442e12d04fb7e5b3b12c34105a271d3487",
   "independentVerifierVersion": "HASIL_2026_P2_INDEPENDENT_1.0.0",
-  "independentVerifierSourceSha256": "6165a22cb9bc3cf31d3ba7fb945b4bfc14a18c368127338e51ffe102df56f5be",
+  "independentVerifierSourceSha256": "3f5667d4aadab13fc9e1f147575dc91e5e8716e92d5ea2ec28e286d8bfa52d19",
+  "q5HousingLoanInterestAllocation": {
+    "annualAmountCents": 600000,
+    "monthlyAmountCents": 50000,
+    "months": [
+      {
+        "month": "2026-01",
+        "amountCents": 50000
+      },
+      {
+        "month": "2026-02",
+        "amountCents": 50000
+      },
+      {
+        "month": "2026-03",
+        "amountCents": 50000
+      },
+      {
+        "month": "2026-04",
+        "amountCents": 50000
+      },
+      {
+        "month": "2026-05",
+        "amountCents": 50000
+      },
+      {
+        "month": "2026-06",
+        "amountCents": 50000
+      },
+      {
+        "month": "2026-07",
+        "amountCents": 50000
+      },
+      {
+        "month": "2026-08",
+        "amountCents": 50000
+      },
+      {
+        "month": "2026-09",
+        "amountCents": 50000
+      },
+      {
+        "month": "2026-10",
+        "amountCents": 50000
+      },
+      {
+        "month": "2026-11",
+        "amountCents": 50000
+      },
+      {
+        "month": "2026-12",
+        "amountCents": 50000
+      }
+    ],
+    "allocationDigest": "2f360a17d5480176b5691eb32736a3ae1a27b6ad5ff20180701dbe083ba12868",
+    "clarificationReferencePath": "statutory/official/certifications/pcb-2026-p2/q5/hasil-clarification-resolution.json"
+  },
   "questions": [
     {
       "question": "Q1",
@@ -28,6 +85,8 @@
       "tetamuResultDigest": "5946d0ff836f17a97cf802ef676e3086b50a0f2ca30017c7e4777c7eb02c3e0d",
       "independentResultDigest": "5946d0ff836f17a97cf802ef676e3086b50a0f2ca30017c7e4777c7eb02c3e0d",
       "difference": "RM0.00",
+      "inputDigest": "04988ec347f6f217dea705c7821b2f4d28892b71d779e642c0830f0ed8fca4fa",
+      "allocationDigest": null,
       "openAmbiguity": null
     },
     {
@@ -42,6 +101,8 @@
       "tetamuResultDigest": "3dc56c837edf509124ece782fe6dd350cead83f4b810a034bd12d342668680ca",
       "independentResultDigest": "3dc56c837edf509124ece782fe6dd350cead83f4b810a034bd12d342668680ca",
       "difference": "RM0.00",
+      "inputDigest": "a2ba73a90fd23758e55e672adb64b1132d79c85dfb65ad3472d8090df0c12f6b",
+      "allocationDigest": null,
       "openAmbiguity": null
     },
     {
@@ -56,6 +117,8 @@
       "tetamuResultDigest": "4e4cfaae2c869987308b406b84ea7201bfa981201e6abe5a9a0a80a6eb60d553",
       "independentResultDigest": "4e4cfaae2c869987308b406b84ea7201bfa981201e6abe5a9a0a80a6eb60d553",
       "difference": "RM0.00",
+      "inputDigest": "41a48b47ab1c7edc6230dd601b55d38641ff3ef6f25c4428d4c0efe24413dbfd",
+      "allocationDigest": null,
       "openAmbiguity": null
     },
     {
@@ -71,22 +134,34 @@
       "tetamuResultDigest": "8d8e4fe7b979462690b752127c8c7251884752c150de025d018fb8f3ced78505",
       "independentResultDigest": "8d8e4fe7b979462690b752127c8c7251884752c150de025d018fb8f3ced78505",
       "difference": "RM0.00",
+      "inputDigest": "acbb563dd8494bf65d0c032392b9ff18f1e50e47b2ed7ef3c2046a9dd8bc103e",
+      "allocationDigest": null,
       "openAmbiguity": null
     },
     {
       "question": "Q5",
-      "result": "BLOCKED",
-      "monthsCertified": [],
-      "tetamuResultDigest": null,
-      "independentResultDigest": null,
-      "difference": null,
-      "openAmbiguity": "The official question states RM6,000 annual housing-loan interest but does not state the month(s) in which TP1 relief is claimed; January/February MTD therefore cannot be frozen without HASiL clarification."
+      "result": "CERTIFIED",
+      "monthsCertified": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "tetamuResultDigest": "465b7e569537f04122071ba89e765cd470894946e6480c3818f7967cf1b09307",
+      "independentResultDigest": "465b7e569537f04122071ba89e765cd470894946e6480c3818f7967cf1b09307",
+      "difference": "RM0.00",
+      "inputDigest": "dd9c42b5b943a1a3e027476193d1b72e4bda7653900551b7bcf33d33645dfdb8",
+      "allocationDigest": "2f360a17d5480176b5691eb32736a3ae1a27b6ad5ff20180701dbe083ba12868",
+      "openAmbiguity": null
     }
   ],
-  "openAmbiguities": [
-    {
-      "question": "Q5",
-      "ambiguity": "The official question states RM6,000 annual housing-loan interest but does not state the month(s) in which TP1 relief is claimed; January/February MTD therefore cannot be frozen without HASiL clarification."
-    }
-  ]
+  "openAmbiguities": []
 }

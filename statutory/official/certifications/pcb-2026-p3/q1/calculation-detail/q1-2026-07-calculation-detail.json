@@ -1,0 +1,63 @@
+{
+  "artifactType": "CALCULATION_DETAIL",
+  "status": "CERTIFICATION_READY",
+  "questionId": "Q1",
+  "employeeLabel": "Employee A",
+  "month": "2026-07",
+  "source": {
+    "officialTestingQuestionSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+    "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+    "p2InputDigest": "e4bd75dde6bae71c0e180ebfb2788cac26fb6cb394bf5a576eea6525d26e0322",
+    "p2TraceDigest": "6193b697ec66cb657812bd165c3fa57366b2de239c2bb28ea3efa0f0fb1711e3",
+    "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+    "ruleVersion": "HASIL_MTD_SPEC_2026"
+  },
+  "facts": {
+    "taxRegime": "C_SUITE_NON_CITIZEN",
+    "employeeCategory": "CATEGORY_2",
+    "normalRemunerationCents": 2000000,
+    "additionalRemunerationCents": 0,
+    "nonCashOrExemptContext": [
+      "RM500 travel allowance within remaining RM2,400 annual exemption"
+    ],
+    "currentEmployerYtdBeforeCurrentCents": 0,
+    "previousEmployerRemunerationCents": 6000000,
+    "previousEmployerEpfCents": 660000,
+    "previousEmployerPcbCents": 300000,
+    "currentNormalEpfCents": 220000,
+    "currentAdditionalEpfCents": 0,
+    "accumulatedTp1DeductionsCents": 0,
+    "currentTp1DeductionsCents": 50000,
+    "housingLoanInterestReliefCents": 0,
+    "spouseReliefCents": 400000,
+    "childReliefCents": 1800000,
+    "chargeableIncomeCents": 14450000,
+    "bracketMCents": 0,
+    "taxRatePercent": 15,
+    "bracketBCents": 0,
+    "annualTaxCents": 2167500,
+    "accumulatedZakatCents": 0,
+    "currentZakatCents": 100000,
+    "currentReligiousTravelLevyCents": 0,
+    "normalPcbBeforeCurrentRebatesCents": 311250,
+    "normalPcbAfterCurrentRebatesCents": 211250,
+    "additionalPcbCents": 0,
+    "finalPcbCents": 211250
+  },
+  "rounding": {
+    "rawNumeratorCents": 1867500,
+    "divisor": 6,
+    "truncatedToSenCents": 311250,
+    "minimumThresholdApplied": false,
+    "roundedUpToFiveSenCents": 311250,
+    "postZakatAndLevyCents": 211250,
+    "additional": null
+  },
+  "officialSections": [
+    "Computerised Specification 2026: Resident Non-Citizen Holding C Suite Position",
+    "Computerised Specification 2026: Terms and Conditions"
+  ],
+  "generatedAt": "2026-09-02T10:18:58.793Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

@@ -1,5 +1,8 @@
 # TETAMU PCB 2026 P2 — Formula & Profile Certification
 
+> **Current certification status (29 August 2026): READY.**
+> Historical PARTIAL statements remain below as the original P2 record and are superseded by the Q5 resolution addendum after section 37.
+
 ## 1. Executive Summary
 
 PCB 2026 P2 is **PARTIAL**. Tetamu calculator `TETAMU_PCB_2026_1.2.0` and the certification-only verifier `HASIL_2026_P2_INDEPENDENT_1.0.0` independently reconcile Q1–Q4 to RM0.00 at every calculated month and intermediate stage. Q5 is deliberately blocked: the official question gives RM6,000 annual first-home interest but does not identify the TP1 claim month, so January and February cannot be frozen without inventing a fact.
@@ -203,3 +206,33 @@ This addendum closes the technical build gap recorded in section 34 without rewr
 - P2: **PARTIAL**. A clean build does not upgrade P2 while Q5 remains unresolved.
 
 No formula, expected result, official artifact, Testing data or Production data was changed. No email was sent. The next permitted step is for a human to send the prepared clarification request and retain HASiL's written response as evidence.
+
+## Addendum - HASiL Q5 clarification and final P2 closure (29 August 2026)
+
+HASiL clarification was received in writing on 28 August 2026 from NURSAIDATUL AIN BINTI MD ISA. Exact wording:
+
+> The loan interest relief should be claimed and
+> proportionately allocated across 12 months
+> (January - December 2026).
+
+The governed evidence record is `statutory/official/certifications/pcb-2026-p2/q5/hasil-clarification-resolution.json`. It is clarification of input treatment, not an official expected PCB answer.
+
+Q5 now uses RM500 (50,000 sen) in every month from January through December. The annual allocation is RM6,000 (600,000 sen); no lump sum, duplicate claim, missing month or front-loading is present. Other Q5 facts remain unchanged, including January food-waste grinder, February residential CCTV, excluded business-premise CCTV, March parent medical, gym C6 cap and monthly internet subscription.
+
+January reconciliation:
+
+- Tetamu PCB: **RM2,508.50**
+- Independent PCB: **RM2,508.50**
+- Difference: **RM0.00**
+- Intermediate reconciliation: **PASS**
+
+February reconciliation:
+
+- Tetamu PCB: **RM2,487.80**
+- Independent PCB: **RM2,487.80**
+- Difference: **RM0.00**
+- YTD/intermediate reconciliation: **PASS**
+
+All 12 Q5 months reconcile independently at RM0.00. Q5 is **CERTIFIED**. Q1-Q4 remain **CERTIFIED**. Therefore PCB 2026 P2 Formula & Profile Certification is **READY**.
+
+The broader C-Suite path below the retained Table 4 band remains uncertified. It is outside official Q1-Q5 certification scope and does not block P2 closure. HASiL submission remains **NO** and HASiL approval remains **PENDING**.

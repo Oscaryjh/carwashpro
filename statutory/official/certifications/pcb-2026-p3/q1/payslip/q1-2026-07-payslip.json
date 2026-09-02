@@ -1,0 +1,15 @@
+{
+  "questionId": "Q1",
+  "employeeLabel": "Employee A",
+  "month": "2026-07",
+  "grossCents": 2050000,
+  "epfCents": 220000,
+  "zakatCents": 100000,
+  "pcbCents": 211250,
+  "netCents": 1518750,
+  "p2TraceDigest": "6193b697ec66cb657812bd165c3fa57366b2de239c2bb28ea3efa0f0fb1711e3",
+  "notes": "RM500 travel allowance is cash paid but exempt for PCB in this month. Previous-employer TP3 facts are not current earnings.",
+  "renderer": "CANONICAL_PAYSLIP_RENDERER_2026",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

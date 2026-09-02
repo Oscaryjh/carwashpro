@@ -1,0 +1,136 @@
+{
+  "questionId": "Q5",
+  "employeeLabel": "Employee E",
+  "officialSourceSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+  "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+  "p2CertificationDigest": "e3211a39b9994398460ccf62f8ff2c14924e9a280fd12176f7abd36fe76b622c",
+  "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+  "independentVerifierVersion": "HASIL_2026_P2_INDEPENDENT_1.0.0",
+  "requiredArtifacts": {
+    "calculationDetail": [
+      "2026-01",
+      "2026-02"
+    ],
+    "payslip": [
+      "2026-01"
+    ],
+    "ea": false,
+    "pcb2ii": false,
+    "textFile": []
+  },
+  "identitySource": "statutory/official/fixtures/pcb-2026-p3a-submission-identity.json",
+  "identityInputSha256": "e5841b5c64a2363db13e9be9c43684826c0077cc43c449594eb01960404ee905",
+  "identityStatus": "NOT_REQUIRED",
+  "requiredIdentityFields": [],
+  "unresolvedIdentityInputs": [],
+  "generatedArtifacts": [
+    {
+      "type": "CALCULATION_DETAIL",
+      "month": "2026-01",
+      "status": "CERTIFICATION_READY",
+      "pcbCents": 250850,
+      "inputDigest": "53e5bd969c82b9e8ccbb7a8eac1165edfa100dff4e355751099fb4092b53cda8",
+      "generatorVersion": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0",
+      "files": [
+        "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-01-calculation-detail.json",
+        "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-01-calculation-detail.pdf"
+      ]
+    },
+    {
+      "type": "CALCULATION_DETAIL",
+      "month": "2026-02",
+      "status": "CERTIFICATION_READY",
+      "pcbCents": 248780,
+      "inputDigest": "f9f34de4476d1a09fbb9692f8397aaeac7307bc3b2fddc6e596e568313e840a7",
+      "generatorVersion": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0",
+      "files": [
+        "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-02-calculation-detail.json",
+        "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-02-calculation-detail.pdf"
+      ]
+    },
+    {
+      "type": "PAYSLIP",
+      "month": "2026-01",
+      "status": "CERTIFICATION_READY",
+      "pcbCents": 250850,
+      "inputDigest": "53e5bd969c82b9e8ccbb7a8eac1165edfa100dff4e355751099fb4092b53cda8",
+      "generatorVersion": "CANONICAL_PAYSLIP_RENDERER_2026",
+      "files": [
+        "statutory/official/certifications/pcb-2026-p3/q5/payslip/q5-2026-01-payslip.json",
+        "statutory/official/certifications/pcb-2026-p3/q5/payslip/q5-2026-01-payslip.pdf"
+      ]
+    }
+  ],
+  "artifactSha256": [
+    {
+      "filename": "q5-2026-01-calculation-detail.json",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-01-calculation-detail.json",
+      "bytes": 2309,
+      "sha256": "efc0e11431b69f1ae093f54528391aaa8d508a3d3a0893c724ecbb7bd4dd6ffb",
+      "artifactType": "CALCULATION_DETAIL",
+      "month": "2026-01",
+      "status": "CERTIFICATION_READY",
+      "inputDigest": "53e5bd969c82b9e8ccbb7a8eac1165edfa100dff4e355751099fb4092b53cda8",
+      "generatorVersion": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0"
+    },
+    {
+      "filename": "q5-2026-01-calculation-detail.pdf",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-01-calculation-detail.pdf",
+      "bytes": 3014,
+      "sha256": "b23ef0b9e1c05f26ef3c989c0740dc74aa5294aa81f8d25b7f4f183db714e90f",
+      "artifactType": "CALCULATION_DETAIL",
+      "month": "2026-01",
+      "status": "CERTIFICATION_READY",
+      "inputDigest": "53e5bd969c82b9e8ccbb7a8eac1165edfa100dff4e355751099fb4092b53cda8",
+      "generatorVersion": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0"
+    },
+    {
+      "filename": "q5-2026-02-calculation-detail.json",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-02-calculation-detail.json",
+      "bytes": 2358,
+      "sha256": "65d0971de5bb050029e1fd77f4813719611434dda2dff733b6ed0f6a1aae2eb5",
+      "artifactType": "CALCULATION_DETAIL",
+      "month": "2026-02",
+      "status": "CERTIFICATION_READY",
+      "inputDigest": "f9f34de4476d1a09fbb9692f8397aaeac7307bc3b2fddc6e596e568313e840a7",
+      "generatorVersion": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0"
+    },
+    {
+      "filename": "q5-2026-02-calculation-detail.pdf",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-02-calculation-detail.pdf",
+      "bytes": 3066,
+      "sha256": "1297cc3c6d6926371dab9eac0bb33be59bce566d37d25db8d3740c668c0afc78",
+      "artifactType": "CALCULATION_DETAIL",
+      "month": "2026-02",
+      "status": "CERTIFICATION_READY",
+      "inputDigest": "f9f34de4476d1a09fbb9692f8397aaeac7307bc3b2fddc6e596e568313e840a7",
+      "generatorVersion": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0"
+    },
+    {
+      "filename": "q5-2026-01-payslip.json",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/payslip/q5-2026-01-payslip.json",
+      "bytes": 518,
+      "sha256": "ae74c8b7d9c9f46eb2709699409f4e5d53cf4ca22bc09dd4310eeaa3659d29d8",
+      "artifactType": "PAYSLIP",
+      "month": "2026-01",
+      "status": "CERTIFICATION_READY",
+      "inputDigest": "53e5bd969c82b9e8ccbb7a8eac1165edfa100dff4e355751099fb4092b53cda8",
+      "generatorVersion": "CANONICAL_PAYSLIP_RENDERER_2026"
+    },
+    {
+      "filename": "q5-2026-01-payslip.pdf",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/payslip/q5-2026-01-payslip.pdf",
+      "bytes": 2873,
+      "sha256": "807585ce525f677d7765b0dd3a2f833b5a8e2692f07ef51c9eaa4871f50b58e9",
+      "artifactType": "PAYSLIP",
+      "month": "2026-01",
+      "status": "CERTIFICATION_READY",
+      "inputDigest": "53e5bd969c82b9e8ccbb7a8eac1165edfa100dff4e355751099fb4092b53cda8",
+      "generatorVersion": "CANONICAL_PAYSLIP_RENDERER_2026"
+    }
+  ],
+  "generationTimestamp": "2026-09-02T10:18:58.793Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false,
+  "verdict": "READY"
+}

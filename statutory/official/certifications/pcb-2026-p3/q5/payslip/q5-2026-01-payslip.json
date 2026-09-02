@@ -1,0 +1,15 @@
+{
+  "questionId": "Q5",
+  "employeeLabel": "Employee E",
+  "month": "2026-01",
+  "grossCents": 1800000,
+  "epfCents": 198000,
+  "zakatCents": 0,
+  "pcbCents": 250850,
+  "netCents": 1351150,
+  "p2TraceDigest": "a4e510af3eac1bfbc622b8733c7f9cfa2218b4fc99238d6c2eb5ea3416cd7f7b",
+  "notes": "RM500 housing-loan interest is a certified monthly relief input and is not a payroll deduction.",
+  "renderer": "CANONICAL_PAYSLIP_RENDERER_2026",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

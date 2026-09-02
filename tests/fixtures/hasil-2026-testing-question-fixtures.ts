@@ -36,6 +36,13 @@ export type Hasil2026TestingQuestionFixture = Readonly<{
       month: string;
       canonicalCategory: Pcb2026Tp1Category | null;
     }>[];
+    housingLoanInterestRelief?: Readonly<{
+      annualAmountCents: number;
+      monthlyAmountCents: number;
+      allocation: readonly MonthlyAmount[];
+      clarificationIssueId: string;
+      clarificationReceivedOn: string;
+    }>;
   }>;
 }>;
 
@@ -520,12 +527,29 @@ export const hasil2026Question4Fixture: Hasil2026TestingQuestionFixture = {
   },
 };
 
+export const HASIL_2026_Q5_HOUSING_INTEREST_ANNUAL_CENTS = 600_000;
+export const HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS = 50_000;
+export const hasil2026Question5HousingInterestAllocation = Object.freeze([
+  { month: "2026-01", amountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS },
+  { month: "2026-02", amountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS },
+  { month: "2026-03", amountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS },
+  { month: "2026-04", amountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS },
+  { month: "2026-05", amountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS },
+  { month: "2026-06", amountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS },
+  { month: "2026-07", amountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS },
+  { month: "2026-08", amountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS },
+  { month: "2026-09", amountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS },
+  { month: "2026-10", amountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS },
+  { month: "2026-11", amountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS },
+  { month: "2026-12", amountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS },
+] as const);
+
 const q5Entries = [
   tp1Entry("C1", 80_000, 7),
   tp1Entry("C5", 144_000, 7),
   tp1Entry("C6", 100_000, 7),
   tp1Entry("C15", 220_000, 7),
-  tp1Entry("C16", 600_000, 7),
+  tp1Entry("C16", HASIL_2026_Q5_HOUSING_INTEREST_ANNUAL_CENTS, 7),
 ];
 
 export const hasil2026Question5Fixture: Hasil2026TestingQuestionFixture = {
@@ -563,12 +587,24 @@ export const hasil2026Question5Fixture: Hasil2026TestingQuestionFixture = {
     epf: [{ month: "2026-01/12", amountCents: 11 }],
     reliefEvidence: [
       { label: "Parents medical examinations", amountCents: 80_000, month: "Mar", canonicalCategory: "C1" },
-      { label: "First-home loan interest", amountCents: 600_000, month: "2026", canonicalCategory: "C16" },
+      {
+        label: "First-home loan interest",
+        amountCents: HASIL_2026_Q5_HOUSING_INTEREST_ANNUAL_CENTS,
+        month: "Jan-Dec, RM500/month per written HASiL clarification received 28 Aug 2026",
+        canonicalCategory: "C16",
+      },
       { label: "Food-waste grinder and residence CCTV", amountCents: 220_000, month: "Jan/Feb", canonicalCategory: "C15" },
       { label: "Business-premise CCTV (not personal relief)", amountCents: 70_000, month: "Feb", canonicalCategory: null },
       { label: "Gym membership", amountCents: 240_000, month: "Monthly", canonicalCategory: "C6" },
       { label: "Internet subscription", amountCents: 144_000, month: "Monthly", canonicalCategory: "C5" },
     ],
+    housingLoanInterestRelief: {
+      annualAmountCents: HASIL_2026_Q5_HOUSING_INTEREST_ANNUAL_CENTS,
+      monthlyAmountCents: HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS,
+      allocation: hasil2026Question5HousingInterestAllocation,
+      clarificationIssueId: "PCB2026-Q5-HOUSING-LOAN-INTEREST-ALLOCATION",
+      clarificationReceivedOn: "2026-08-28",
+    },
   },
 };
 

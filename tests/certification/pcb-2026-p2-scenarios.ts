@@ -14,6 +14,7 @@ export type P2MonthFact = Readonly<{
   additionalCents: number;
   additionalEpfCents: number;
   deductionsCents: number;
+  housingLoanInterestReliefCents?: number;
   zakatCents: number;
   levyCents?: number;
   tags: readonly string[];
@@ -171,9 +172,22 @@ export const pcb2026P2Questions: readonly P2QuestionDefinition[] = [
     individualDisabled: false,
     spouseDisabled: false,
     opening: { grossCents: 0, epfCents: 0, pcbCents: 0, deductionsCents: 0, zakatCents: 0 },
-    months: [],
+    months: [
+      { month: 1, taxRegime: "KNOWLEDGE_WORKER", normalCents: 1_800_000, normalEpfCents: 198_000, additionalCents: 0, additionalEpfCents: 0, deductionsCents: 232_000, housingLoanInterestReliefCents: 50_000, zakatCents: 0, tags: ["RM500 monthly housing-loan interest", "food-waste grinder", "gym", "internet"] },
+      { month: 2, taxRegime: "KNOWLEDGE_WORKER", normalCents: 1_800_000, normalEpfCents: 198_000, additionalCents: 0, additionalEpfCents: 0, deductionsCents: 152_000, housingLoanInterestReliefCents: 50_000, zakatCents: 0, tags: ["RM500 monthly housing-loan interest", "residential CCTV", "business-premise CCTV excluded", "gym", "internet"] },
+      { month: 3, taxRegime: "KNOWLEDGE_WORKER", normalCents: 1_800_000, normalEpfCents: 198_000, additionalCents: 0, additionalEpfCents: 0, deductionsCents: 162_000, housingLoanInterestReliefCents: 50_000, zakatCents: 0, tags: ["RM500 monthly housing-loan interest", "parent medical", "gym", "internet"] },
+      { month: 4, taxRegime: "KNOWLEDGE_WORKER", normalCents: 1_800_000, normalEpfCents: 198_000, additionalCents: 0, additionalEpfCents: 0, deductionsCents: 82_000, housingLoanInterestReliefCents: 50_000, zakatCents: 0, tags: ["RM500 monthly housing-loan interest", "gym", "internet"] },
+      { month: 5, taxRegime: "KNOWLEDGE_WORKER", normalCents: 1_800_000, normalEpfCents: 198_000, additionalCents: 0, additionalEpfCents: 0, deductionsCents: 82_000, housingLoanInterestReliefCents: 50_000, zakatCents: 0, tags: ["RM500 monthly housing-loan interest", "gym reaches annual C6 cap", "internet"] },
+      { month: 6, taxRegime: "KNOWLEDGE_WORKER", normalCents: 1_800_000, normalEpfCents: 198_000, additionalCents: 0, additionalEpfCents: 0, deductionsCents: 62_000, housingLoanInterestReliefCents: 50_000, zakatCents: 0, tags: ["RM500 monthly housing-loan interest", "internet"] },
+      { month: 7, taxRegime: "KNOWLEDGE_WORKER", normalCents: 1_800_000, normalEpfCents: 198_000, additionalCents: 0, additionalEpfCents: 0, deductionsCents: 62_000, housingLoanInterestReliefCents: 50_000, zakatCents: 0, tags: ["RM500 monthly housing-loan interest", "internet"] },
+      { month: 8, taxRegime: "KNOWLEDGE_WORKER", normalCents: 1_800_000, normalEpfCents: 198_000, additionalCents: 0, additionalEpfCents: 0, deductionsCents: 62_000, housingLoanInterestReliefCents: 50_000, zakatCents: 0, tags: ["RM500 monthly housing-loan interest", "internet"] },
+      { month: 9, taxRegime: "KNOWLEDGE_WORKER", normalCents: 1_800_000, normalEpfCents: 198_000, additionalCents: 0, additionalEpfCents: 0, deductionsCents: 62_000, housingLoanInterestReliefCents: 50_000, zakatCents: 0, tags: ["RM500 monthly housing-loan interest", "internet"] },
+      { month: 10, taxRegime: "KNOWLEDGE_WORKER", normalCents: 1_800_000, normalEpfCents: 198_000, additionalCents: 0, additionalEpfCents: 0, deductionsCents: 62_000, housingLoanInterestReliefCents: 50_000, zakatCents: 0, tags: ["RM500 monthly housing-loan interest", "internet"] },
+      { month: 11, taxRegime: "KNOWLEDGE_WORKER", normalCents: 1_800_000, normalEpfCents: 198_000, additionalCents: 0, additionalEpfCents: 0, deductionsCents: 62_000, housingLoanInterestReliefCents: 50_000, zakatCents: 0, tags: ["RM500 monthly housing-loan interest", "internet"] },
+      { month: 12, taxRegime: "KNOWLEDGE_WORKER", normalCents: 1_800_000, normalEpfCents: 198_000, additionalCents: 0, additionalEpfCents: 0, deductionsCents: 62_000, housingLoanInterestReliefCents: 50_000, zakatCents: 0, tags: ["RM500 monthly housing-loan interest", "internet"] },
+    ],
     requiredMonths: [1, 2],
-    openAmbiguity: "The official question states RM6,000 annual housing-loan interest but does not state the month(s) in which TP1 relief is claimed; January/February MTD therefore cannot be frozen without HASiL clarification.",
+    openAmbiguity: null,
   },
 ] as const;
 

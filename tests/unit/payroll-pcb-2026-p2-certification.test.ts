@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   PCB_2026_CALCULATOR_VERSION,
@@ -10,6 +11,7 @@ import {
 import {
   PCB_2026_INDEPENDENT_VERIFIER_VERSION,
   independentEmptyChildren,
+  independentlyAllocateAnnualReliefCents,
   independentlyVerifyPcb2026,
   type IndependentPcbInput,
 } from "../certification/pcb-2026-independent-verifier";
@@ -23,6 +25,9 @@ import {
   hasil2026Question1Fixture,
   hasil2026Question3Fixture,
   hasil2026Question5Fixture,
+  HASIL_2026_Q5_HOUSING_INTEREST_ANNUAL_CENTS,
+  HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS,
+  hasil2026Question5HousingInterestAllocation,
 } from "../fixtures/hasil-2026-testing-question-fixtures";
 
 function production(input: IndependentPcbInput) {
@@ -77,6 +82,28 @@ function base(overrides: Partial<IndependentPcbInput> = {}): IndependentPcbInput
 test("P2 verifier is explicitly independent and versioned", () => {
   assert.equal(PCB_2026_CALCULATOR_VERSION, "TETAMU_PCB_2026_1.2.0");
   assert.equal(PCB_2026_INDEPENDENT_VERIFIER_VERSION, "HASIL_2026_P2_INDEPENDENT_1.0.0");
+  const verifierSource = readFileSync("tests/certification/pcb-2026-independent-verifier.ts", "utf8");
+  assert.doesNotMatch(verifierSource, /from\s+["'][^"']*src\/lib\/payroll/);
+  assert.doesNotMatch(verifierSource, /import\s*\([^)]*src\/lib\/payroll/);
+});
+
+test("Q5 governed evidence retains the exact written HASiL clarification", () => {
+  const evidence = JSON.parse(readFileSync(
+    "statutory/official/certifications/pcb-2026-p2/q5/hasil-clarification-resolution.json",
+    "utf8",
+  )) as {
+    issueId: string;
+    status: string;
+    receivedOn: string;
+    clarificationExactQuote: string;
+  };
+  assert.equal(evidence.issueId, "PCB2026-Q5-HOUSING-LOAN-INTEREST-ALLOCATION");
+  assert.equal(evidence.status, "RESOLVED_BY_HASIL");
+  assert.equal(evidence.receivedOn, "2026-08-28");
+  assert.equal(
+    evidence.clarificationExactQuote,
+    "The loan interest relief should be claimed and\nproportionately allocated across 12 months\n(January - December 2026).",
+  );
 });
 
 test("Q1 raw sports evidence remains RM1,350 while TP1 C6 is capped to RM1,000", () => {
@@ -107,12 +134,60 @@ for (const question of pcb2026P2Questions.filter((item) => item.question !== "Q5
   });
 }
 
-test("Q5 fails closed because the official pack does not date the annual housing-loan TP1 claim", () => {
+test("Q5 applies written HASiL clarification as RM500 per month from January to December", () => {
   const q5 = pcb2026P2Questions.find((item) => item.question === "Q5");
   assert.ok(q5);
-  assert.deepEqual(q5.months, []);
+  assert.equal(HASIL_2026_Q5_HOUSING_INTEREST_ANNUAL_CENTS, 600_000);
+  assert.equal(HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS, 50_000);
+  assert.equal(hasil2026Question5HousingInterestAllocation.length, 12);
+  assert.deepEqual(
+    hasil2026Question5HousingInterestAllocation.map((item) => item.month),
+    Array.from({ length: 12 }, (_, index) => `2026-${String(index + 1).padStart(2, "0")}`),
+  );
+  assert.ok(hasil2026Question5HousingInterestAllocation.every(
+    (item) => item.amountCents === HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS,
+  ));
+  assert.equal(
+    hasil2026Question5HousingInterestAllocation.reduce((total, item) => total + item.amountCents, 0),
+    HASIL_2026_Q5_HOUSING_INTEREST_ANNUAL_CENTS,
+  );
+  assert.deepEqual(
+    independentlyAllocateAnnualReliefCents(HASIL_2026_Q5_HOUSING_INTEREST_ANNUAL_CENTS, 12),
+    Array(12).fill(HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS),
+  );
+  assert.equal(q5.months.length, 12);
+  assert.ok(q5.months.every(
+    (month) => month.housingLoanInterestReliefCents === HASIL_2026_Q5_HOUSING_INTEREST_MONTHLY_CENTS,
+  ));
+  assert.ok(q5.months.every((month) => month.housingLoanInterestReliefCents !== 600_000));
+  assert.ok(q5.months.every((month) => month.housingLoanInterestReliefCents !== 300_000));
   assert.deepEqual(q5.requiredMonths, [1, 2]);
-  assert.match(q5.openAmbiguity ?? "", /does not state the month/);
+  assert.equal(q5.openAmbiguity, null);
+});
+
+test("Q5 full-year ledger independently reconciles without duplicate or missing relief", () => {
+  const q5 = pcb2026P2Questions.find((item) => item.question === "Q5");
+  assert.ok(q5);
+  const ledger = openLedger(q5);
+  const results = [];
+  for (const month of q5.months) {
+    const input = monthInput(q5, month, ledger);
+    const result = assertIndependentMatch(input, `Q5-${String(month.month).padStart(2, "0")}`);
+    results.push({ month: month.month, amountCents: result.amountCents });
+    advanceLedger(ledger, month, result.amountCents);
+  }
+  assert.equal(results.length, 12);
+  assert.ok(results.some((item) => item.month === 1));
+  assert.ok(results.some((item) => item.month === 2));
+  assert.equal(
+    q5.months.reduce((total, month) => total + (month.housingLoanInterestReliefCents ?? 0), 0),
+    HASIL_2026_Q5_HOUSING_INTEREST_ANNUAL_CENTS,
+  );
+  assert.equal(
+    q5.months.reduce((total, month) => total + month.deductionsCents, 0),
+    hasil2026Question5Fixture.profile.currentAllowableDeductionsCents,
+  );
+  assert.equal(ledger.deductionsCents, hasil2026Question5Fixture.profile.currentAllowableDeductionsCents);
 });
 
 test("official resident bracket boundaries reconcile independently", () => {

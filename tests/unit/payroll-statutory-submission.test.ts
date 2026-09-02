@@ -126,3 +126,20 @@ test("draft payroll never produces an official file", () => {
   assert.equal(result.errors[0]?.code, "RUN_NOT_FINALIZED");
   assert.throws(() => buildOfficialSubmissionFile("EPF", profile, draft), /Only finalized payroll/);
 });
+
+test("CP39 blocks identity normalization or truncation instead of silently changing official identifiers", () => {
+  const invalid = structuredClone(run);
+  invalid.entries[0].employeeCode = "EMP-001";
+  invalid.entries[0].membership.taxIdentificationNumber = "123-45678901";
+  invalid.entries[0].membership.statutoryIdentityType = "PASSPORT";
+  invalid.entries[0].membership.statutoryIdentityNumber = "P123456789012";
+  invalid.entries[0].membership.statutoryCountryCode = "MY";
+  invalid.entries[0].fullName = "A".repeat(61);
+  const result = validateStatutorySubmission("PCB", profile, invalid);
+  assert.equal(result.ready, false);
+  assert.deepEqual(
+    new Set(result.errors.map((item) => item.code)),
+    new Set(["TIN_INVALID", "PASSPORT_INVALID", "EMPLOYEE_CODE_INVALID", "EMPLOYEE_NAME_TOO_LONG"]),
+  );
+  assert.throws(() => buildOfficialSubmissionFile("PCB", profile, invalid), /Tax Identification Number/);
+});

@@ -7,6 +7,23 @@
 
 export const PCB_2026_INDEPENDENT_VERIFIER_VERSION = "HASIL_2026_P2_INDEPENDENT_1.0.0" as const;
 
+export function independentlyAllocateAnnualReliefCents(
+  annualAmountCents: number,
+  monthCount: number,
+) {
+  if (!Number.isSafeInteger(annualAmountCents) || annualAmountCents < 0) {
+    throw new Error("Annual relief must be a non-negative safe integer in sen.");
+  }
+  if (!Number.isSafeInteger(monthCount) || monthCount <= 0) {
+    throw new Error("Month count must be a positive safe integer.");
+  }
+  if (annualAmountCents % monthCount !== 0) {
+    throw new Error("Annual relief does not divide evenly across the required months.");
+  }
+  const monthlyAmountCents = annualAmountCents / monthCount;
+  return Object.freeze(Array.from({ length: monthCount }, () => monthlyAmountCents));
+}
+
 export type IndependentTaxRegime =
   | "RESIDENT_STANDARD"
   | "NON_RESIDENT"

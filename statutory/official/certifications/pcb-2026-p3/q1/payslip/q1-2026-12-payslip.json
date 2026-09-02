@@ -1,0 +1,15 @@
+{
+  "questionId": "Q1",
+  "employeeLabel": "Employee A",
+  "month": "2026-12",
+  "grossCents": 2050000,
+  "epfCents": 220000,
+  "zakatCents": 100000,
+  "pcbCents": 176225,
+  "netCents": 1553775,
+  "p2TraceDigest": "fa161c3b3ac871b9bd65af934753b771ee412e933815488f061ff7fe585670a7",
+  "notes": "RM500 travel allowance is cash paid and taxable for PCB in this month. TP1 self-paid relief is not a payroll deduction.",
+  "renderer": "CANONICAL_PAYSLIP_RENDERER_2026",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

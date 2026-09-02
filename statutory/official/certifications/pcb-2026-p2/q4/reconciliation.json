@@ -4,7 +4,7 @@
   "employee": "Employee D",
   "sourcePage": 6,
   "sourceSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
-  "fixtureSha256": "ff8a0263505d81cc3cd4be347dca80d5ebb91c67282c0a0022477166f5720430",
+  "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
   "requiredMonths": [
     8,
     10,
@@ -42,6 +42,8 @@
         "RM1,000 VOLA",
         "EPF off"
       ],
+      "housingLoanInterestReliefCents": 0,
+      "otherAllowableDeductionsCents": 0,
       "intermediate": {
         "normalRemunerationCents": {
           "tetamu": 1100000,
@@ -185,6 +187,8 @@
         "RM1,000 VOLA",
         "EPF off"
       ],
+      "housingLoanInterestReliefCents": 0,
+      "otherAllowableDeductionsCents": 0,
       "intermediate": {
         "normalRemunerationCents": {
           "tetamu": 1100000,
@@ -328,6 +332,8 @@
         "RM1,000 VOLA",
         "EPF off"
       ],
+      "housingLoanInterestReliefCents": 0,
+      "otherAllowableDeductionsCents": 0,
       "intermediate": {
         "normalRemunerationCents": {
           "tetamu": 1100000,
@@ -474,6 +480,8 @@
         "study",
         "medical insurance"
       ],
+      "housingLoanInterestReliefCents": 0,
+      "otherAllowableDeductionsCents": 355000,
       "intermediate": {
         "normalRemunerationCents": {
           "tetamu": 1650000,
@@ -622,6 +630,8 @@
         "lifestyle capped at RM2,500",
         "medical insurance"
       ],
+      "housingLoanInterestReliefCents": 0,
+      "otherAllowableDeductionsCents": 305000,
       "intermediate": {
         "normalRemunerationCents": {
           "tetamu": 1650000,
@@ -747,6 +757,7 @@
       }
     }
   ],
+  "hasilClarification": null,
   "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
-  "generatedAt": "2026-08-27T07:09:22.655Z"
+  "generatedAt": "2026-08-28T16:24:57.417Z"
 }

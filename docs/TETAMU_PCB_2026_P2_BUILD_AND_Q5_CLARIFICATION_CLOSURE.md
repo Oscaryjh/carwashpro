@@ -1,5 +1,8 @@
 # TETAMU PCB 2026 P2 — Build Gate and Q5 Clarification Closure
 
+> **Current operational status (29 August 2026): HASiL CLARIFICATION RECEIVED.**
+> The original PARTIAL/AWAITING sections below are preserved as historical execution evidence and are superseded by section 13.
+
 ## 1. Executive Summary
 
 The local clean-build gate is closed. The port 3000 process was proven to be the Tetamu repository's Next.js development tree, stopped, and followed by successful Prisma generation and `pnpm build`. The minimum static gates also pass.
@@ -64,8 +67,8 @@ The question supplies an annual amount but no month in which Employee E submits 
 
 Tetamu will not choose January, February, March, spread the amount monthly, or apply any other default. The certification scenario keeps `months: []`, requires months `[1, 2]`, and remains fail-closed.
 
-Q5 calculation status: **BLOCKED**.  
-Assumption used: **NONE**.  
+Q5 calculation status: **BLOCKED**.
+Assumption used: **NONE**.
 Formula changed: **NO**.
 
 ## 8. HASiL Clarification Draft
@@ -82,10 +85,10 @@ Machine-readable record:
 
 `statutory/official/certifications/pcb-2026-p2/q5/hasil-clarification-request.json`
 
-Issue ID: `PCB2026-Q5-TP1-HOUSING-INTEREST-CLAIM-MONTH`  
-Status: `AWAITING_HASIL_CLARIFICATION`  
-Current calculation status: `BLOCKED`  
-Impact: January/February PCB cannot be frozen as certified results.  
+Issue ID: `PCB2026-Q5-TP1-HOUSING-INTEREST-CLAIM-MONTH`
+Status: `AWAITING_HASIL_CLARIFICATION`
+Current calculation status: `BLOCKED`
+Impact: January/February PCB cannot be frozen as certified results.
 Assumption used: `NONE`.
 
 ## 10. P2 Updated Status
@@ -115,8 +118,34 @@ Do not start P3, generate EA or PCB 2(II), generate final PDFs, or submit a HASi
 
 **PARTIAL — AWAITING HASiL Q5 CLARIFICATION**
 
-Build: **PASS**.  
-Q1–Q4: **CERTIFIED**.  
-Q5: **BLOCKED**.  
-Production touched: **NO**.  
+Build: **PASS**.
+Q1–Q4: **CERTIFIED**.
+Q5: **BLOCKED**.
+Production touched: **NO**.
 HASiL email sent: **NO**.
+
+## 13. HASiL clarification received - operational closure
+
+Written clarification was received on 28 August 2026 from NURSAIDATUL AIN BINTI MD ISA, HASiL:
+
+> The loan interest relief should be claimed and
+> proportionately allocated across 12 months
+> (January - December 2026).
+
+The exact wording and provenance are retained in `statutory/official/certifications/pcb-2026-p2/q5/hasil-clarification-resolution.json`. Q5 now applies RM500 per month for January-December, with integer-sen equality `50000 x 12 = 600000`.
+
+Tetamu and the independent certification verifier separately reconciled all 12 months. January is RM2,508.50 versus RM2,508.50; February is RM2,487.80 versus RM2,487.80. Both differences are RM0.00, all intermediate comparisons pass, and full-year allocation totals RM6,000 without duplication or front-loading.
+
+Current status:
+
+- Q1: **CERTIFIED**
+- Q2: **CERTIFIED**
+- Q3: **CERTIFIED**
+- Q4: **CERTIFIED**
+- Q5: **CERTIFIED**
+- PCB 2026 P2: **READY**
+- Formula changed: **NO**
+- HASiL submission: **NO**
+- HASiL approval: **PENDING**
+
+Final closure: `docs/TETAMU_PCB_2026_P2_FINAL_CLOSURE.md`.

@@ -1,0 +1,10 @@
+{
+  "questionId": "Q4",
+  "employeeLabel": "Employee D",
+  "officialSourceSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+  "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+  "p2CertificationDigest": "e3211a39b9994398460ccf62f8ff2c14924e9a280fd12176f7abd36fe76b622c",
+  "sourcePath": "statutory/official/certifications/pcb-2026-p2/q4/reconciliation.json",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

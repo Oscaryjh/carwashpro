@@ -24,6 +24,7 @@ const root = resolve(process.cwd());
 const outputRoot = resolve(root, "statutory/official/certifications/pcb-2026-p2");
 const generatedAt = new Date().toISOString();
 const officialSpecificationSha256 = "a1618051c858393d92d868c9975c183309d3d07e48f0e4f0cdef589f45f5800c";
+const hasilQ5ClarificationPath = "statutory/official/certifications/pcb-2026-p2/q5/hasil-clarification-resolution.json";
 
 function digest(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -40,8 +41,21 @@ async function fileSha(path: string) {
 const fixtureSha256 = await fileSha(resolve(root, "tests/fixtures/hasil-2026-testing-question-fixtures.ts"));
 const calculatorSourceSha256 = await fileSha(resolve(root, "src/lib/payroll/pcb-2026.ts"));
 const verifierSourceSha256 = await fileSha(resolve(root, "tests/certification/pcb-2026-independent-verifier.ts"));
+const hasilQ5ClarificationSha256 = await fileSha(resolve(root, hasilQ5ClarificationPath));
+const q5Definition = pcb2026P2Questions.find((question) => question.question === "Q5");
+if (!q5Definition) throw new Error("Q5 certification definition is missing");
+const q5HousingAllocation = q5Definition.months.map((month) => ({
+  month: `2026-${String(month.month).padStart(2, "0")}`,
+  amountCents: month.housingLoanInterestReliefCents ?? 0,
+}));
+const q5HousingAllocationDigest = digest(q5HousingAllocation);
 const allReconciliations: unknown[] = [];
-const questionManifests: unknown[] = [];
+const questionManifests: Array<{
+  question: string;
+  result: string;
+  openAmbiguity: string | null;
+  [key: string]: unknown;
+}> = [];
 
 await mkdir(outputRoot, { recursive: true });
 await mkdir(resolve(outputRoot, "reconciliation"), { recursive: true });
@@ -119,6 +133,8 @@ for (const question of pcb2026P2Questions) {
       tetamuTraceDigest: digest(tetamu.trace),
       independentTraceDigest: digest(independent.trace),
       tags: month.tags,
+      housingLoanInterestReliefCents: month.housingLoanInterestReliefCents ?? 0,
+      otherAllowableDeductionsCents: month.deductionsCents - (month.housingLoanInterestReliefCents ?? 0),
       intermediate,
       tetamuTrace: tetamu.trace,
       independentTrace: independent.trace,
@@ -140,6 +156,15 @@ for (const question of pcb2026P2Questions) {
     monthsCertified: records.map((record) => record.month),
     finalDifference: records.every((record) => record.differenceCents === 0) ? "RM0.00" : "NON_ZERO",
     records,
+    hasilClarification: question.question === "Q5" ? {
+      status: "RESOLVED_BY_HASIL",
+      receivedOn: "2026-08-28",
+      referencePath: hasilQ5ClarificationPath,
+      sha256: hasilQ5ClarificationSha256,
+      annualAmountCents: 600_000,
+      monthlyAmountCents: 50_000,
+      allocationDigest: q5HousingAllocationDigest,
+    } : null,
     environment: "LOCAL_DISPOSABLE_CERTIFICATION",
     generatedAt,
   };
@@ -151,6 +176,8 @@ for (const question of pcb2026P2Questions) {
     tetamuResultDigest: digest(records.map((record) => record.tetamuPcbCents)),
     independentResultDigest: digest(records.map((record) => record.independentPcbCents)),
     difference: payload.finalDifference,
+    inputDigest: digest(records.map((record) => record.inputDigest)),
+    allocationDigest: question.question === "Q5" ? q5HousingAllocationDigest : null,
     openAmbiguity: null,
   });
 }
@@ -162,23 +189,31 @@ await writeFile(
 
 const manifest = {
   certification: "TETAMU PCB 2026 P2 FORMULA & PROFILE CERTIFICATION",
-  verdict: "PARTIAL",
+  verdict: questionManifests.every((item) => item.result === "CERTIFIED") ? "READY" : "PARTIAL",
   claimOfHasilApproval: false,
   environment: "LOCAL_DISPOSABLE_CERTIFICATION",
   generatedAt,
   officialSources: {
     computerisedSpecification2026Sha256: officialSpecificationSha256,
     testingQuestions2026Sha256: pcb2026P2Questions[0]?.officialSourceSha256,
+    hasilQ5ClarificationSha256,
   },
   fixtureSha256,
   tetamuCalculatorVersion: PCB_2026_CALCULATOR_VERSION,
   tetamuCalculatorSourceSha256: calculatorSourceSha256,
   independentVerifierVersion: PCB_2026_INDEPENDENT_VERIFIER_VERSION,
   independentVerifierSourceSha256: verifierSourceSha256,
+  q5HousingLoanInterestAllocation: {
+    annualAmountCents: 600_000,
+    monthlyAmountCents: 50_000,
+    months: q5HousingAllocation,
+    allocationDigest: q5HousingAllocationDigest,
+    clarificationReferencePath: hasilQ5ClarificationPath,
+  },
   questions: questionManifests,
   openAmbiguities: questionManifests
-    .filter((item) => (item as { openAmbiguity: string | null }).openAmbiguity)
-    .map((item) => ({ question: (item as { question: string }).question, ambiguity: (item as { openAmbiguity: string }).openAmbiguity })),
+    .filter((item) => item.openAmbiguity)
+    .map((item) => ({ question: item.question, ambiguity: item.openAmbiguity })),
 };
 
 await writeFile(resolve(outputRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);

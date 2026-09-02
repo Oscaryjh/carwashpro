@@ -1,0 +1,15 @@
+{
+  "questionId": "Q3",
+  "employeeLabel": "Employee C",
+  "month": "2026-09",
+  "grossCents": 1050000,
+  "epfCents": 110000,
+  "zakatCents": 0,
+  "pcbCents": 96020,
+  "netCents": 843980,
+  "p2TraceDigest": "8a8b480bd71bc813a60af3afd94d176ec05fb05d24a8e0744a7c3f491268667b",
+  "notes": "RM500 allocated BIK is non-cash taxable remuneration and is not included in cash gross or net pay.",
+  "renderer": "CANONICAL_PAYSLIP_RENDERER_2026",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

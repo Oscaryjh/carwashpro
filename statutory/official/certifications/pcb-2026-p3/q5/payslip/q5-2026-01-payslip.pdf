@@ -1,0 +1,151 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 1502 >>
+stream
+BT /F1 9 Tf 42 800 Td
+(TETAMU PAYROLL - PCB 2026 CERTIFICATION) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(Local certification evidence) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(PAYSLIP) Tj
+0 -17 Td
+(TESTING / NON-PRODUCTION STATUTORY FIXTURE) Tj
+0 -17 Td
+(Fixture environment: LOCAL) Tj
+0 -17 Td
+(Fixture purpose: PAYROLL_PAYSLIP_UAT) Tj
+0 -17 Td
+(Pay period: January 2026) Tj
+0 -17 Td
+(Document status: Finalized) Tj
+0 -17 Td
+(Finalized: 29 Aug 2026, 8:00 am) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(Employee: Employee E) Tj
+0 -17 Td
+(Employee code: Q5) Tj
+0 -17 Td
+(Pay basis: Monthly) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(ATTENDANCE) Tj
+0 -17 Td
+(Days worked: 0) Tj
+0 -17 Td
+(Regular hours: 0h 00m) Tj
+0 -17 Td
+(Overtime hours: 0h 00m) Tj
+0 -17 Td
+(Public holiday hours: 0h 00m) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(EARNINGS) Tj
+0 -17 Td
+(Basic salary: RM18,000.00) Tj
+0 -17 Td
+(Gross pay: RM18,000.00) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(EMPLOYEE DEDUCTIONS) Tj
+0 -17 Td
+(Other deductions: RM0.00) Tj
+0 -17 Td
+(EPF employee: RM1,980.00) Tj
+0 -17 Td
+(SOCSO employee: RM0.00) Tj
+0 -17 Td
+(EIS employee: RM0.00) Tj
+0 -17 Td
+(LINDUNG 24 \(employee deduction\): RM0.00) Tj
+0 -17 Td
+(PCB / MTD: RM2,508.50) Tj
+0 -17 Td
+(CP38 instruction: RM0.00) Tj
+0 -17 Td
+(Total deductions: RM4,488.50) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(NET PAY: RM13,511.50) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(EMPLOYER CONTRIBUTIONS) Tj
+0 -17 Td
+(Employer EPF: RM0.00) Tj
+0 -17 Td
+(Employer SOCSO: RM0.00) Tj
+0 -17 Td
+(Employer EIS: RM0.00) Tj
+0 -17 Td
+(Total employer contributions: RM0.00) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 602 >>
+stream
+BT /F1 9 Tf 42 800 Td
+(Employer contributions are paid by the employer and do not reduce employee net pay.) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(Statutory status: Certification Evidence) Tj
+0 -17 Td
+(Rule version\(s\):) Tj
+0 -17 Td
+(- HASIL_MTD_SPEC_2026) Tj
+0 -17 Td
+(Notes: RM500 housing-loan interest is a certified monthly relief input and is not a payroll) Tj
+0 -17 Td
+(deduction. SOCSO/EIS/employer contributions are not supplied by the official question and are shown) Tj
+0 -17 Td
+(as RM0.00, not certified contributions.) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(This is a computer-generated payroll document.) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000191 00000 n 
+0000000317 00000 n 
+0000001871 00000 n 
+0000001997 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+2650
+%%EOF

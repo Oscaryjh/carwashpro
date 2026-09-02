@@ -1,8 +1,8 @@
 # TETAMU PCB 2026 P1A — Effective-Dated Statutory Participation Closure
 
-Date: 27 August 2026  
-Environment: Local and disposable PostgreSQL only  
-Production touched: **NO**  
+Date: 27 August 2026
+Environment: Local and disposable PostgreSQL only
+Production touched: **NO**
 PCB formula changed: **NO**
 
 ## 1. Executive Summary
@@ -206,6 +206,6 @@ Q1–Q5 fixture representability and database guards all passed their specified
 regression gates. The project may proceed to PCB P2 without changing the PCB
 formula in this closure.
 
-HASiL submission: **NO**  
-HASiL approval: **PENDING**  
+HASiL submission: **NO**
+HASiL approval: **PENDING**
 Production touched: **NO**

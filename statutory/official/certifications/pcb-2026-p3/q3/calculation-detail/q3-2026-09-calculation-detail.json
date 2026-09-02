@@ -1,0 +1,66 @@
+{
+  "artifactType": "CALCULATION_DETAIL",
+  "status": "CERTIFICATION_READY",
+  "questionId": "Q3",
+  "employeeLabel": "Employee C",
+  "month": "2026-09",
+  "source": {
+    "officialTestingQuestionSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+    "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+    "p2InputDigest": "0b6ed6a4319c68e98949672b3fb4d7cb6c09c1fd03abdb46f0a0b1f3f2c8f59f",
+    "p2TraceDigest": "8a8b480bd71bc813a60af3afd94d176ec05fb05d24a8e0744a7c3f491268667b",
+    "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+    "ruleVersion": "HASIL_MTD_SPEC_2026"
+  },
+  "facts": {
+    "taxRegime": "RETURNING_EXPERT_PROGRAM",
+    "employeeCategory": "CATEGORY_3",
+    "normalRemunerationCents": 1100000,
+    "additionalRemunerationCents": 0,
+    "nonCashOrExemptContext": [
+      "RM500 BIK allocation",
+      "life insurance",
+      "taekwondo",
+      "SOCSO"
+    ],
+    "currentEmployerYtdBeforeCurrentCents": 0,
+    "previousEmployerRemunerationCents": 0,
+    "previousEmployerEpfCents": 0,
+    "previousEmployerPcbCents": 0,
+    "currentNormalEpfCents": 110000,
+    "currentAdditionalEpfCents": 0,
+    "accumulatedTp1DeductionsCents": 0,
+    "currentTp1DeductionsCents": 72800,
+    "housingLoanInterestReliefCents": 0,
+    "spouseReliefCents": 0,
+    "childReliefCents": 200000,
+    "chargeableIncomeCents": 2827202,
+    "bracketMCents": 0,
+    "taxRatePercent": 15,
+    "bracketBCents": 0,
+    "annualTaxCents": 424080,
+    "accumulatedZakatCents": 0,
+    "currentZakatCents": 0,
+    "currentReligiousTravelLevyCents": 0,
+    "normalPcbBeforeCurrentRebatesCents": 96020,
+    "normalPcbAfterCurrentRebatesCents": 96020,
+    "additionalPcbCents": 0,
+    "finalPcbCents": 96020
+  },
+  "rounding": {
+    "rawNumeratorCents": 384080,
+    "divisor": 4,
+    "truncatedToSenCents": 96020,
+    "minimumThresholdApplied": false,
+    "roundedUpToFiveSenCents": 96020,
+    "postZakatAndLevyCents": 96020,
+    "additional": null
+  },
+  "officialSections": [
+    "Computerised Specification 2026: Approved Individual Under REP",
+    "Computerised Specification 2026: Terms and Conditions"
+  ],
+  "generatedAt": "2026-09-02T10:18:58.793Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

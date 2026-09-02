@@ -199,8 +199,8 @@ PCB 2026 P1 is closed as **READY** for its stated scope. The recommended next ph
 
 **PCB 2026 P2 — Formula and Profile Certification**
 
-HASiL submission: **NO**  
-HASiL approval: **PENDING**  
+HASiL submission: **NO**
+HASiL approval: **PENDING**
 Production touched: **NO**
 
 ## P1A addendum — effective-dated statutory participation (27 August 2026)

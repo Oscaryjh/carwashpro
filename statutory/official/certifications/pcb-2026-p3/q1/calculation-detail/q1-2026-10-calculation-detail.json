@@ -1,0 +1,67 @@
+{
+  "artifactType": "CALCULATION_DETAIL",
+  "status": "CERTIFICATION_READY",
+  "questionId": "Q1",
+  "employeeLabel": "Employee A",
+  "month": "2026-10",
+  "source": {
+    "officialTestingQuestionSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+    "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+    "p2InputDigest": "f9a10e1a42647eb0d684c1c166b3cfcf177ee989fd093ac1c46fbd76915766b0",
+    "p2TraceDigest": "b19c760508b9dca7252b9ce01edc2a58fda4489b5df0f2fdb9f60187cb425dd9",
+    "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+    "ruleVersion": "HASIL_MTD_SPEC_2026"
+  },
+  "facts": {
+    "taxRegime": "C_SUITE_NON_CITIZEN",
+    "employeeCategory": "CATEGORY_2",
+    "normalRemunerationCents": 2000000,
+    "additionalRemunerationCents": 0,
+    "nonCashOrExemptContext": [
+      "dental",
+      "transit",
+      "books",
+      "SOCSO",
+      "travel exempt"
+    ],
+    "currentEmployerYtdBeforeCurrentCents": 6000000,
+    "previousEmployerRemunerationCents": 6000000,
+    "previousEmployerEpfCents": 660000,
+    "previousEmployerPcbCents": 300000,
+    "currentNormalEpfCents": 220000,
+    "currentAdditionalEpfCents": 0,
+    "accumulatedTp1DeductionsCents": 150000,
+    "currentTp1DeductionsCents": 258000,
+    "housingLoanInterestReliefCents": 0,
+    "spouseReliefCents": 400000,
+    "childReliefCents": 1800000,
+    "chargeableIncomeCents": 14092000,
+    "bracketMCents": 0,
+    "taxRatePercent": 15,
+    "bracketBCents": 0,
+    "annualTaxCents": 2113800,
+    "accumulatedZakatCents": 300000,
+    "currentZakatCents": 100000,
+    "currentReligiousTravelLevyCents": 0,
+    "normalPcbBeforeCurrentRebatesCents": 294975,
+    "normalPcbAfterCurrentRebatesCents": 194975,
+    "additionalPcbCents": 0,
+    "finalPcbCents": 194975
+  },
+  "rounding": {
+    "rawNumeratorCents": 884925,
+    "divisor": 3,
+    "truncatedToSenCents": 294975,
+    "minimumThresholdApplied": false,
+    "roundedUpToFiveSenCents": 294975,
+    "postZakatAndLevyCents": 194975,
+    "additional": null
+  },
+  "officialSections": [
+    "Computerised Specification 2026: Resident Non-Citizen Holding C Suite Position",
+    "Computerised Specification 2026: Terms and Conditions"
+  ],
+  "generatedAt": "2026-09-02T10:18:58.793Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}
