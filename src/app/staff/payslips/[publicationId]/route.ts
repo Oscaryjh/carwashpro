@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getEmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
+import { getEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee-auth/session";
 import { loadOwnPublishedPayslip } from "@/lib/payroll/payslip-publication";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 
@@ -7,7 +7,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ publicationId: string }> },
 ) {
-  const auth = await getEmployeeAuthContext(request);
+  const auth = await getEmployeeSelfServiceAuthContext(request);
   if (!auth) return new Response("Payslip not found.", { status: 404 });
   if (!(await isBusinessModuleEnabled(auth.businessId, "PAYROLL"))) {
     return Response.json({ ok: false, error: { code: "MODULE_NOT_ENABLED", message: "Payroll is not enabled for this business." } }, { status: 403 });

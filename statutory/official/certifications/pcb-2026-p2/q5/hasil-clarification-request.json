@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "issueId": "PCB2026-Q5-TP1-HOUSING-INTEREST-CLAIM-MONTH",
+  "question": 5,
+  "employee": "Employee E",
+  "amount": "RM6,000",
+  "amountCents": 600000,
+  "status": "AWAITING_HASIL_CLARIFICATION",
+  "currentCalculationStatus": "BLOCKED",
+  "reason": "Claim/processing month is not specified in the official Testing Question.",
+  "officialSource": {
+    "title": "MTD Testing Questions 2026",
+    "path": "statutory/official/artifacts/hasil-mtd-testing-questions-2026.pdf",
+    "questionPage": 7,
+    "submissionRequirementsPage": 2,
+    "sha256": "D6523266B8B23DACA956BE0F61EC52879EAB364736A9FEB5668D7F039AE33517",
+    "facts": {
+      "taxYear": 2026,
+      "spaDate": "2025-05-10",
+      "purchasePrice": "RM480,000",
+      "housingLoanInterest": "RM6,000",
+      "requiredCalculationDetailMonths": [
+        "2026-01",
+        "2026-02"
+      ]
+    }
+  },
+  "timingEvidence": [
+    {
+      "title": "Form PCB/TP1 (1/2026)",
+      "path": "statutory/official/artifacts/hasil-pcb-tp1-2026-bm.pdf",
+      "pages": [1, 2],
+      "sha256": "28F84EEA1EC9842AD3BCE766215917CBC739CA7CBB1B8A5BD0B7438DEFA3166E",
+      "observation": "The form records a deduction month/year and an employer-approved deduction month/year."
+    },
+    {
+      "title": "TP1 Explanatory Notes 2026",
+      "path": "statutory/official/artifacts/hasil-pcb-tp1-explanatory-notes-2026.pdf",
+      "pages": [1, 10, 11],
+      "sha256": "1C6CCB4E75CF605D47416405E5D0B341D267252B4F3AC4BE960EC0AEE9EC6CDE",
+      "observation": "TP1 is submitted when the employee wishes to claim deductions and rebates in the relevant month; C16 describes eligibility but does not supply Q5's claim month."
+    }
+  ],
+  "impact": "January and February 2026 PCB cannot be frozen as certified results.",
+  "assumptionUsed": "NONE",
+  "formulaChanged": false,
+  "emailSent": false,
+  "preparedOn": "2026-08-27"
+}

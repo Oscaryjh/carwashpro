@@ -127,8 +127,12 @@ test("Payroll truthfully distinguishes locked calculations from payment completi
     payroll,
     /Finalized does not mean paid[\s\S]*Payments and statutory submissions remain separate/,
   );
-  assert.match(payroll, /access\.actions\.canViewPayslip && data\.run\.status === "FINALIZED"/);
-  assert.match(payslip, /document\.run\.status !== "FINALIZED"/);
+  assert.match(payroll, /access\.actions\.canViewPayslip/);
+  assert.match(payroll, /Open draft payslip preview/);
+  assert.match(payroll, /Download finalized payslip/);
+  assert.match(payslip, /requireWholeBusinessPayroll\("VIEW_PAYSLIP"\)/);
+  assert.match(payslip, /PAYSLIP_PREVIEWED/);
+  assert.match(payslip, /const disposition = isFinalized \? "attachment" : "inline"/);
 });
 
 test("current and unavailable payroll modules are labelled honestly", async () => {

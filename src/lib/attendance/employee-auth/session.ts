@@ -33,6 +33,7 @@ export type EmployeeAuthContext = Readonly<{
 export type EmployeeAuthProfile = Readonly<{
   employee: Readonly<{
     fullName: string;
+    avatarUrl: string | null;
     employeeCode: string;
     position: string | null;
     employmentType: string;
@@ -414,6 +415,7 @@ export async function getEmployeeAuthProfile(
       },
       select: {
         fullName: true,
+        avatarUrl: true,
         employeeCode: true,
         position: true,
         employmentType: true,
@@ -469,6 +471,7 @@ export async function getEmployeeAuthProfile(
   return {
     employee: {
       fullName: membership.fullName,
+      avatarUrl: membership.avatarUrl,
       employeeCode: membership.employeeCode,
       position: membership.position,
       employmentType: membership.employmentType,

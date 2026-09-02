@@ -39,6 +39,8 @@ export type InvoiceModalSummary = {
   total: number;
   paidAmount: number;
   balance: number;
+  refundedAmount?: number;
+  netCollectedAmount?: number;
   packageVoucherAmount?: number;
   cashPaidAmount?: number;
   canManagePayments?: boolean;
@@ -106,7 +108,11 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
   );
   const packageVoucherAmount = invoice.packageVoucherAmount ?? 0;
   const cashPaidAmount = invoice.cashPaidAmount ?? invoice.paidAmount;
+  const refundedAmount = invoice.refundedAmount ?? 0;
+  const netCollectedAmount = invoice.netCollectedAmount ?? invoice.paidAmount;
   const hasPackageVoucher = packageVoucherAmount > 0;
+  const hasRefund = refundedAmount > 0;
+  const fullyRefunded = hasRefund && refundedAmount >= invoice.paidAmount;
   const handleManagementComplete = () => {
     setManagementAction(null);
     (onDone ?? onClose)();
@@ -193,10 +199,23 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
               </div>
             </>
           ) : (
-            <div><span>Paid</span><strong>RM{invoice.paidAmount.toFixed(2)}</strong></div>
+            <div><span>Settled</span><strong>RM{invoice.paidAmount.toFixed(2)}</strong></div>
           )}
+          {hasRefund ? (
+            <>
+              <div><span>Refunded</span><strong>-RM{refundedAmount.toFixed(2)}</strong></div>
+              <div><span>Net collected</span><strong>RM{netCollectedAmount.toFixed(2)}</strong></div>
+              <div>
+                <span>Refund status</span>
+                <strong>{fullyRefunded ? "Fully refunded" : "Partially refunded"}</strong>
+              </div>
+            </>
+          ) : null}
           {!hasPackageVoucher && invoice.balance > 0 ? (
             <div className="is-balance"><span>Balance</span><strong>RM{invoice.balance.toFixed(2)}</strong></div>
+          ) : null}
+          {!hasPackageVoucher && hasRefund ? (
+            <div><span>Outstanding</span><strong>RM{invoice.balance.toFixed(2)}</strong></div>
           ) : null}
         </div>
 

@@ -24,6 +24,9 @@ export type PayrollDocumentEntry = {
   regularMinutes: number;
   overtimeMinutes: number;
   publicHolidayMinutes: number;
+  unpaidLeaveDays?: number;
+  unauthorizedAbsenceDays?: number;
+  unpaidLeaveDeduction?: number;
   basicPay: number;
   overtimePay: number;
   publicHolidayPay: number;
@@ -48,6 +51,7 @@ export type PayrollDocumentEntry = {
     name: string;
     type: "EARNING" | "DEDUCTION";
     amount: number;
+    sourceType?: string;
   }>;
   statutoryEvidenceNature?: "REAL" | "SYNTHETIC_TESTING";
   statutoryEvidenceEnvironment?: "LOCAL" | "TESTING" | null;
@@ -115,14 +119,19 @@ export function buildPayslipPdf(
   const employerContributions =
     entry.employerEpf + entry.employerSocso + entry.employerEis;
   const componentEarnings = entry.components?.filter((component) => component.type === "EARNING") ?? [];
-  const componentDeductions = entry.components?.filter((component) => component.type === "DEDUCTION") ?? [];
+  const componentDeductions = entry.components?.filter(
+    (component) => component.type === "DEDUCTION" && component.sourceType !== "STATUTORY",
+  ) ?? [];
+  const pcb = pcbPayslipPresentation(run.status, entry);
+  const isProvisional = run.status !== "FINALIZED" || pcb.pending;
+  const unpaidAbsenceDays = entry.unauthorizedAbsenceDays ?? entry.unpaidLeaveDays ?? 0;
   return buildTextPdf([
     run.business.name.toUpperCase(),
     run.business.companyNo ? `Company No: ${run.business.companyNo}` : "",
     run.business.address ?? "",
     [run.business.phone, run.business.email].filter(Boolean).join(" | "),
     "",
-    "PAYSLIP",
+    run.status === "FINALIZED" ? "PAYSLIP" : "DRAFT PAYSLIP PREVIEW",
     ...(entry.statutoryEvidenceNature === "SYNTHETIC_TESTING"
       ? [
           "TESTING / NON-PRODUCTION STATUTORY FIXTURE",
@@ -136,7 +145,7 @@ export function buildPayslipPdf(
       ? `Finalized: ${formatDateTime(run.finalizedAt)}`
       : run.submittedAt
         ? `Submitted for review: ${formatDateTime(run.submittedAt)}`
-        : "Draft preview - not finalized",
+        : "Draft preview - figures may change before payroll is finalized",
     "",
     `Employee: ${entry.fullName}`,
     `Employee code: ${entry.employeeCode}`,
@@ -147,6 +156,9 @@ export function buildPayslipPdf(
     `Regular hours: ${formatMinutes(entry.regularMinutes)}`,
     `Overtime hours: ${formatMinutes(entry.overtimeMinutes)}`,
     `Public holiday hours: ${formatMinutes(entry.publicHolidayMinutes)}`,
+    ...(unpaidAbsenceDays > 0
+      ? [`Unpaid absence: ${formatDays(unpaidAbsenceDays)}`]
+      : []),
     "",
     "EARNINGS",
     ...(componentEarnings.length
@@ -172,10 +184,18 @@ export function buildPayslipPdf(
       "LINDUNG 24 (employee deduction)",
       entry.lindung24Employee,
     ),
-    statutoryPayslipLine(entry, "PCB", "PCB", entry.pcb),
+    `PCB / MTD: ${pcb.value}`,
     moneyLine("CP38 instruction", entry.cp38),
-    moneyLine("Total deductions", employeeDeductions),
+    moneyLine(isProvisional ? "Current deductions (excludes pending PCB)" : "Total deductions", employeeDeductions),
     "",
+    ...(pcb.pending
+      ? [
+          `PCB / MTD status: ${pcb.value}.`,
+          "PCB is not included in the current deductions or estimated net pay.",
+          "This is not the final amount payable.",
+          "",
+        ]
+      : []),
     ...(entry.claimReimbursements?.length
       ? [
           "REIMBURSEMENTS (NON-WAGE)",
@@ -183,22 +203,54 @@ export function buildPayslipPdf(
           "",
         ]
       : []),
-    moneyLine("NET PAY", entry.netPay),
+    moneyLine(isProvisional ? "ESTIMATED NET PAY (BEFORE PCB)" : "NET PAY", entry.netPay),
     "",
     "EMPLOYER CONTRIBUTIONS",
     statutoryPayslipLine(entry, "EPF", "Employer EPF", entry.employerEpf, "employer"),
     statutoryPayslipLine(entry, "SOCSO", "Employer SOCSO", entry.employerSocso, "employer"),
     statutoryPayslipLine(entry, "EIS", "Employer EIS", entry.employerEis, "employer"),
     moneyLine("Total employer contributions", employerContributions),
+    "Employer contributions are paid by the employer and do not reduce employee net pay.",
     "",
     `Statutory status: ${formatStatus(entry.statutoryStatus)}`,
-    entry.statutoryRuleVersion
-      ? `Rule version: ${entry.statutoryRuleVersion}`
-      : "Rule version: Not recorded",
+    ...(entry.statutoryRuleVersion
+      ? [
+          "Rule version(s):",
+          ...entry.statutoryRuleVersion
+            .split("|")
+            .flatMap((version) => wrapPdfText(version, 74).map((line, index) => `${index ? "  " : "- "}${line}`)),
+        ]
+      : ["Rule version: Not recorded"]),
     entry.notes ? `Notes: ${entry.notes}` : "",
     "",
     "This is a computer-generated payroll document.",
   ]);
+}
+
+export function pcbPayslipPresentation(
+  runStatus: PayrollDocumentStatus,
+  entry: Pick<PayrollDocumentEntry, "pcb" | "statutorySnapshots">,
+) {
+  const snapshot = entry.statutorySnapshots?.find((item) => item.scheme === "PCB");
+  if (snapshot?.status === "CALCULATED" || snapshot?.status === "MANUAL") {
+    return { pending: false, value: formatMoney(snapshot.employeeContribution) };
+  }
+  if (snapshot?.status === "NOT_APPLICABLE") {
+    return { pending: false, value: formatMoney(0) };
+  }
+  if (snapshot?.status === "BLOCKED") {
+    const needsConfiguration = /PROFILE|TAX_REGIME|RESIDEN|CITIZEN|PARTICIPATION/.test(
+      snapshot.blockerCode ?? "",
+    );
+    return {
+      pending: true,
+      value: needsConfiguration ? "Pending configuration" : "Review required",
+    };
+  }
+  if (runStatus === "FINALIZED" || entry.pcb !== 0) {
+    return { pending: false, value: formatMoney(entry.pcb) };
+  }
+  return { pending: true, value: "Pending configuration" };
 }
 
 function statutoryPayslipLine(
@@ -376,12 +428,34 @@ function formatMinutes(value: number) {
   return `${Math.floor(value / 60)}h ${String(value % 60).padStart(2, "0")}m`;
 }
 
+function formatDays(value: number) {
+  return `${value.toFixed(Number.isInteger(value) ? 0 : 2)} day${value === 1 ? "" : "s"}`;
+}
+
+function wrapPdfText(value: string, limit: number) {
+  const text = value.trim();
+  if (!text) return [""];
+  const lines: string[] = [];
+  for (let index = 0; index < text.length; index += limit) {
+    lines.push(text.slice(index, index + limit));
+  }
+  return lines;
+}
+
 function hours(value: number) {
   return Number((value / 60).toFixed(2));
 }
 
 function moneyLine(label: string, value: number) {
-  return `${label}: RM ${value.toFixed(2)}`;
+  return `${label}: ${formatMoney(value)}`;
+}
+
+function formatMoney(value: number) {
+  return `RM${value.toLocaleString("en-MY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: true,
+  })}`;
 }
 
 function formatPayBasis(value: string) {

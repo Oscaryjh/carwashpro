@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import {
   buildInvoiceReceiptPdf,
   invoicePdfFileName,
@@ -16,7 +17,8 @@ type InvoicePdfRouteProps = {
 };
 
 export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
-  const { businessId } = await requireBusinessUser("VIEW_INVOICES");
+  const { businessId, user } = await requireBusinessUser("VIEW_INVOICES");
+  const operationalBranchWhere = authorizedOperationalBranchWhere(user);
   const { invoiceId } = await params;
   const isReceipt = new URL(request.url).searchParams.get("format") === "receipt";
   const buildPdfDocument = buildInvoiceReceiptPdf;
@@ -24,6 +26,7 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
     where: {
       businessId,
       id: invoiceId,
+      ...operationalBranchWhere,
     },
     include: {
       business: {
@@ -40,6 +43,7 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
           customer: true,
           items: { orderBy: { createdAt: "asc" } },
           payments: {
+            where: operationalBranchWhere,
             include: {
               customerPackage: {
                 include: {
@@ -60,8 +64,10 @@ export async function GET(request: Request, { params }: InvoicePdfRouteProps) {
       },
       items: { orderBy: { createdAt: "asc" } },
       payments: {
-        where: { status: "ACTIVE" },
-        include: { refunds: true },
+        where: { status: "ACTIVE", ...operationalBranchWhere },
+        include: {
+          refunds: { where: operationalBranchWhere },
+        },
         orderBy: { paidAt: "desc" },
       },
       customer: true,

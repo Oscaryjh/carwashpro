@@ -4,6 +4,8 @@ import type { WhatsAppMessageType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
+import type { AppSession } from "@/lib/auth/session";
+import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import {
   formatInvoicePaymentStatus,
@@ -33,7 +35,7 @@ export async function openWhatsAppDeepLinkAction(input: OpenWhatsAppInput) {
   try {
     const senderPhone = await resolveSenderPhone(businessId, user.userId);
 
-    const draft = await buildMessageDraft(input, businessId);
+    const draft = await buildMessageDraft(input, businessId, user);
     const recipientPhone = normalizeMalaysiaWhatsAppPhone(draft.recipientPhone);
 
     if (!recipientPhone) {
@@ -80,7 +82,7 @@ export async function openWhatsAppDeepLinkAction(input: OpenWhatsAppInput) {
 export async function markWhatsAppMessageSentAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP");
-  const message = await getBusinessMessage(formData, businessId);
+  const message = await getBusinessMessage(formData, businessId, user);
   const now = new Date();
 
   const updatedMessage = await prisma.whatsAppMessage.update({
@@ -102,7 +104,7 @@ export async function markWhatsAppMessageSentAction(formData: FormData) {
 export async function cancelWhatsAppMessageAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP");
-  const message = await getBusinessMessage(formData, businessId);
+  const message = await getBusinessMessage(formData, businessId, user);
 
   await prisma.whatsAppMessage.update({
     where: { id: message.id },
@@ -141,14 +143,19 @@ async function resolveSenderPhone(businessId: string, userId: string) {
     : "";
 }
 
-async function buildMessageDraft(input: OpenWhatsAppInput, businessId: string) {
+async function buildMessageDraft(
+  input: OpenWhatsAppInput,
+  businessId: string,
+  user: Pick<AppSession, "branchId" | "role">,
+) {
+  const operationalBranchWhere = authorizedOperationalBranchWhere(user);
   if (input.invoiceId || input.messageType === "INVOICE_SENT") {
     if (!input.invoiceId) {
       throw new Error("Invoice id is required.");
     }
 
     const invoice = await prisma.invoice.findFirstOrThrow({
-      where: { id: input.invoiceId, businessId },
+      where: { id: input.invoiceId, businessId, ...operationalBranchWhere },
       include: {
         business: true,
         workOrder: {
@@ -230,7 +237,7 @@ async function buildMessageDraft(input: OpenWhatsAppInput, businessId: string) {
 
   if (input.workOrderId) {
     const workOrder = await prisma.workOrder.findFirstOrThrow({
-      where: { id: input.workOrderId, businessId },
+      where: { id: input.workOrderId, businessId, ...operationalBranchWhere },
       include: {
         business: true,
         customer: true,
@@ -347,7 +354,11 @@ async function buildMessageDraft(input: OpenWhatsAppInput, businessId: string) {
   throw new Error("Unable to build WhatsApp message.");
 }
 
-async function getBusinessMessage(formData: FormData, businessId: string) {
+async function getBusinessMessage(
+  formData: FormData,
+  businessId: string,
+  user: Pick<AppSession, "branchId" | "role">,
+) {
   const messageId = formData.get("messageId")?.toString();
 
   if (!messageId) {
@@ -358,6 +369,7 @@ async function getBusinessMessage(formData: FormData, businessId: string) {
     where: {
       id: messageId,
       businessId,
+      ...authorizedOperationalBranchWhere(user),
     },
   });
 }

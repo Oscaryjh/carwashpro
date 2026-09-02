@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { notFound } from "next/navigation";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { buildInvoicePdf } from "@/lib/invoices/invoice-pdf";
 import { prisma } from "@/lib/prisma";
@@ -14,10 +15,21 @@ type CreditNotePdfRouteProps = {
 };
 
 export async function GET(_request: Request, { params }: CreditNotePdfRouteProps) {
-  const { businessId } = await requireBusinessUser("VIEW_INVOICES");
+  const { businessId, user } = await requireBusinessUser("VIEW_INVOICES");
+  const operationalBranchWhere = authorizedOperationalBranchWhere(user);
   const { invoiceId, creditNoteId } = await params;
   const creditNote = await prisma.creditNote.findFirst({
-    where: { id: creditNoteId, invoiceId, businessId },
+    where: {
+      id: creditNoteId,
+      invoiceId,
+      businessId,
+      invoice: {
+        is: {
+          businessId,
+          ...operationalBranchWhere,
+        },
+      },
+    },
     include: {
       business: {
         select: {

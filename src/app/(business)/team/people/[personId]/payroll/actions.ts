@@ -7,6 +7,12 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { pcbProfileDataSchema, type EmployeePcbProfile } from "@/lib/payroll/pcb-profile";
 import {
+  pcbComponentClassificationFactSchema,
+  type PcbComponentClassificationFact,
+  type PcbNonCashRemunerationFact,
+  type PcbTaxRegimePeriod,
+} from "@/lib/payroll/pcb-correctness-foundation";
+import {
   PCB_2026_TP1_CATEGORIES,
   PCB_2026_TP3_CATEGORIES,
   type Pcb2026Tp1Category,
@@ -49,6 +55,7 @@ import { updateEmployeeStatutoryProfile } from "@/lib/payroll/employee-profile-w
 import { updateEmployeeStatutoryAndTaxProfiles } from "@/lib/payroll/employee-profile-write/statutory-tax";
 import { updateEmployeeTaxProfile } from "@/lib/payroll/employee-profile-write/tax";
 import { recordEmployeeLindung24ParticipationAndRefreshDrafts } from "@/lib/payroll/lindung24-participation-service";
+import { recordEmployeeStatutoryParticipationAndRefreshDrafts } from "@/lib/payroll/statutory-participation-service";
 
 const reasonSchema = z.object({
   reasonNote: z.string().trim().min(5, "Enter a reason of at least 5 characters.").max(500),
@@ -167,6 +174,29 @@ const lindung24ParticipationSchema = z.object({
   status: z.enum(["MANDATORY", "DEFAULT_PARTICIPATING", "VOLUNTARY_OPT_IN", "VOLUNTARY_OPT_OUT"]),
 });
 
+const epfParticipationSchema = z.object({
+  effectiveFromMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  effectiveToMonth: z.preprocess(
+    (value) => value === null || value === "" ? null : value,
+    z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).nullable(),
+  ),
+  expectedRevision: z.coerce.number().int().min(0),
+  membershipId: z.string().uuid(),
+  reason: z.string().trim().min(5).max(500),
+  sourceReference: z.preprocess(
+    (value) => typeof value !== "string" || value.trim() === "" ? null : value,
+    z.string().trim().min(3).max(500).nullable(),
+  ),
+  sourceType: z.enum([
+    "OFFICIAL_RECORD",
+    "EMPLOYMENT_CHANGE",
+    "EMPLOYEE_DECLARATION",
+    "LEGACY_REVIEW",
+    "OTHER",
+  ]),
+  status: z.enum(["PARTICIPATING", "NOT_PARTICIPATING"]),
+});
+
 const replacementIdentifier = z
   .string()
   .trim()
@@ -215,6 +245,62 @@ const pcbFormSchema = z.object({
   pcbPriorEmployerEpf: z.coerce.number().min(0),
   pcbPriorEmployerPcb: z.coerce.number().min(0),
   pcbPriorEmployerZakat: z.coerce.number().min(0),
+  pcbPriorEmployerReligiousTravelLevy: z.coerce.number().min(0).optional().default(0),
+  pcbPriorEmployerReligiousTravelLevyReference: z.string().trim().max(240).optional().default(""),
+  pcbTp3ExemptAmount: z.coerce.number().min(0).optional().default(0),
+  pcbTp3ExemptCategory: z.enum([
+    "EXEMPT_ALLOWANCE",
+    "EXEMPT_PERQUISITE",
+    "EXEMPT_BENEFIT_IN_KIND",
+    "OTHER_EXEMPT_INCOME",
+  ]).optional().default("EXEMPT_ALLOWANCE"),
+  pcbTp3ExemptDescription: z.string().trim().max(240).optional().default(""),
+  pcbTp3ExemptReference: z.string().trim().max(240).optional().default(""),
+  pcbTp3EmploymentStart: z.string().trim().optional().default(""),
+  pcbTp3EmploymentEnd: z.string().trim().optional().default(""),
+  pcbTp3EmployerReference: z.string().trim().max(240).optional().default(""),
+  pcbTaxEffectiveFrom: z.string().trim().optional().default("2026-01-01"),
+  pcbTaxEffectiveTo: z.string().trim().optional().default("2026-12-31"),
+  pcbTaxOfficialSourceReference: z.string().trim().max(500).optional().default(""),
+  pcbTaxEvidenceReference: z.string().trim().max(500).optional().default(""),
+  pcbTaxApprovalReference: z.string().trim().max(500).optional().default(""),
+  pcbTaxApprovedCompany: z.string().trim().max(240).optional().default(""),
+  pcbTaxApprovedActivity: z.string().trim().max(240).optional().default(""),
+  pcbTaxApprovedPosition: z.string().trim().max(240).optional().default(""),
+  pcbTaxRegime2: z.enum([
+    "RESIDENT_STANDARD",
+    "NON_RESIDENT",
+    "RETURNING_EXPERT_PROGRAM",
+    "KNOWLEDGE_WORKER",
+    "C_SUITE_NON_CITIZEN",
+  ]).optional().default("RESIDENT_STANDARD"),
+  pcbTaxEffectiveFrom2: z.string().trim().optional().default(""),
+  pcbTaxEffectiveTo2: z.string().trim().optional().default(""),
+  pcbTaxOfficialSourceReference2: z.string().trim().max(500).optional().default(""),
+  pcbTaxEvidenceReference2: z.string().trim().max(500).optional().default(""),
+  pcbTaxApprovalReference2: z.string().trim().max(500).optional().default(""),
+  pcbTaxApprovedCompany2: z.string().trim().max(240).optional().default(""),
+  pcbTaxApprovedActivity2: z.string().trim().max(240).optional().default(""),
+  pcbTaxApprovedPosition2: z.string().trim().max(240).optional().default(""),
+  pcbNonCashKind: z.enum([
+    "BIK", "VOLA", "EXEMPT_ALLOWANCE", "EXEMPT_PERQUISITE", "EXEMPT_BENEFIT",
+  ]).optional().default("BIK"),
+  pcbNonCashInputBasis: z.enum(["MONTHLY_VALUE", "ANNUAL_VALUE"]).optional().default("MONTHLY_VALUE"),
+  pcbNonCashValue: z.coerce.number().min(0).optional().default(0),
+  pcbNonCashEffectiveFrom: z.string().trim().optional().default(""),
+  pcbNonCashEffectiveTo: z.string().trim().optional().default(""),
+  pcbNonCashSourceReference: z.string().trim().max(500).optional().default(""),
+  pcbNonCashEvidenceReference: z.string().trim().max(500).optional().default(""),
+  pcbNonCashKind2: z.enum([
+    "BIK", "VOLA", "EXEMPT_ALLOWANCE", "EXEMPT_PERQUISITE", "EXEMPT_BENEFIT",
+  ]).optional().default("VOLA"),
+  pcbNonCashInputBasis2: z.enum(["MONTHLY_VALUE", "ANNUAL_VALUE"]).optional().default("MONTHLY_VALUE"),
+  pcbNonCashValue2: z.coerce.number().min(0).optional().default(0),
+  pcbNonCashEffectiveFrom2: z.string().trim().optional().default(""),
+  pcbNonCashEffectiveTo2: z.string().trim().optional().default(""),
+  pcbNonCashSourceReference2: z.string().trim().max(500).optional().default(""),
+  pcbNonCashEvidenceReference2: z.string().trim().max(500).optional().default(""),
+  pcbComponentClassificationFactsJson: z.string().trim().max(100_000).optional().default("[]"),
   pcbReligiousTravelLevy: z.coerce.number().min(0),
   pcbTp1Reference: z.string().trim().max(240).optional().default(""),
   pcbTp3Reference: z.string().trim().max(240).optional().default(""),
@@ -247,6 +333,8 @@ function pcbProfileFromForm(
     tp3Status === "CONFIRMED" ? cents(value.pcbPriorEmployerPcb) : 0;
   const priorEmployerZakatCents =
     tp3Status === "CONFIRMED" ? cents(value.pcbPriorEmployerZakat) : 0;
+  const priorEmployerReligiousTravelLevyCents =
+    tp3Status === "CONFIRMED" ? cents(value.pcbPriorEmployerReligiousTravelLevy) : 0;
   const currentReligiousTravelLevyCents =
     religiousTravelLevyStatus === "CONFIRMED"
       ? cents(value.pcbReligiousTravelLevy)
@@ -291,11 +379,115 @@ function pcbProfileFromForm(
     .reduce((total, entry) => total + entry.amountCents, 0);
   const structuredPriorDeductionsCents = tp3Entries
     .reduce((total, entry) => total + entry.amountCents, 0);
+  const revision = value.pcbProfileRevision + 1;
+  const officialSource = (source: string) =>
+    source || "HASiL PCB Computerised Calculation Specification 2026";
+  const specialRegime = (regime: typeof value.pcbTaxRegime) =>
+    regime === "RETURNING_EXPERT_PROGRAM" ||
+    regime === "KNOWLEDGE_WORKER" ||
+    regime === "C_SUITE_NON_CITIZEN";
+  const taxRegimeTimeline: PcbTaxRegimePeriod[] = [{
+    taxYear: 2026 as const,
+    regime: value.pcbTaxRegime,
+    effectiveFrom: value.pcbTaxEffectiveFrom || "2026-01-01",
+    effectiveTo: value.pcbTaxEffectiveTo || null,
+    approvalStatus: specialRegime(value.pcbTaxRegime) ? "CONFIRMED" as const : "NOT_REQUIRED" as const,
+    officialSourceReference: officialSource(value.pcbTaxOfficialSourceReference),
+    evidenceReference: value.pcbTaxEvidenceReference || null,
+    approvalReference: value.pcbTaxApprovalReference || null,
+    approvedCompany: value.pcbTaxApprovedCompany || null,
+    approvedActivity: value.pcbTaxApprovedActivity || null,
+    approvedPosition: value.pcbTaxApprovedPosition || null,
+    reviewedByUserId: null,
+    confirmedAt,
+    revision,
+  }];
+  if (formData.has("pcbTaxSecondPeriod")) {
+    taxRegimeTimeline.push({
+      taxYear: 2026 as const,
+      regime: value.pcbTaxRegime2,
+      effectiveFrom: value.pcbTaxEffectiveFrom2,
+      effectiveTo: value.pcbTaxEffectiveTo2 || null,
+      approvalStatus: specialRegime(value.pcbTaxRegime2) ? "CONFIRMED" as const : "NOT_REQUIRED" as const,
+      officialSourceReference: officialSource(value.pcbTaxOfficialSourceReference2),
+      evidenceReference: value.pcbTaxEvidenceReference2 || null,
+      approvalReference: value.pcbTaxApprovalReference2 || null,
+      approvedCompany: value.pcbTaxApprovedCompany2 || null,
+      approvedActivity: value.pcbTaxApprovedActivity2 || null,
+      approvedPosition: value.pcbTaxApprovedPosition2 || null,
+      reviewedByUserId: null,
+      confirmedAt,
+      revision,
+    });
+  }
+  const tp3ExemptIncomeItems = tp3Status === "CONFIRMED" && value.pcbTp3ExemptAmount > 0
+    ? [{
+        taxYear: 2026 as const,
+        category: value.pcbTp3ExemptCategory,
+        description: value.pcbTp3ExemptDescription,
+        amountCents: cents(value.pcbTp3ExemptAmount),
+        sourceReference: value.pcbTp3ExemptReference || value.pcbTp3Reference,
+        reviewStatus: "REVIEWED" as const,
+        revision,
+      }]
+    : [];
+  const previousEmploymentPeriods = tp3Status === "CONFIRMED" && value.pcbTp3EmploymentStart
+    ? [{
+        taxYear: 2026 as const,
+        employmentStart: value.pcbTp3EmploymentStart,
+        employmentEnd: value.pcbTp3EmploymentEnd,
+        employerReference: value.pcbTp3EmployerReference || null,
+        sourceReference: value.pcbTp3Reference,
+        reviewStatus: "REVIEWED" as const,
+        revision,
+      }]
+    : [];
+  const nonCashRemunerationFacts: PcbNonCashRemunerationFact[] = [];
+  if (formData.has("pcbNonCashFact") && value.pcbNonCashValue > 0) {
+    nonCashRemunerationFacts.push({
+      id: `PCB-FACT-1-R${revision}`,
+      taxYear: 2026 as const,
+      kind: value.pcbNonCashKind,
+      inputBasis: value.pcbNonCashInputBasis,
+      valueCents: cents(value.pcbNonCashValue),
+      effectiveFrom: value.pcbNonCashEffectiveFrom,
+      effectiveTo: value.pcbNonCashEffectiveTo || null,
+      officialSourceReference: officialSource(value.pcbNonCashSourceReference),
+      evidenceReference: value.pcbNonCashEvidenceReference,
+      reviewStatus: "REVIEWED" as const,
+      revision,
+    });
+  }
+  if (formData.has("pcbNonCashFact2") && value.pcbNonCashValue2 > 0) {
+    nonCashRemunerationFacts.push({
+      id: `PCB-FACT-2-R${revision}`,
+      taxYear: 2026 as const,
+      kind: value.pcbNonCashKind2,
+      inputBasis: value.pcbNonCashInputBasis2,
+      valueCents: cents(value.pcbNonCashValue2),
+      effectiveFrom: value.pcbNonCashEffectiveFrom2,
+      effectiveTo: value.pcbNonCashEffectiveTo2 || null,
+      officialSourceReference: officialSource(value.pcbNonCashSourceReference2),
+      evidenceReference: value.pcbNonCashEvidenceReference2,
+      reviewStatus: "REVIEWED" as const,
+      revision,
+    });
+  }
+  let componentClassificationFacts: PcbComponentClassificationFact[];
+  try {
+    componentClassificationFacts = z.array(pcbComponentClassificationFactSchema)
+      .parse(JSON.parse(value.pcbComponentClassificationFactsJson));
+  } catch {
+    throw new Error("Saved PCB component classifications are invalid. Refresh the page and try again.");
+  }
   return pcbProfileDataSchema.parse({
-    version: 3,
-    profileRevision: value.pcbProfileRevision + 1,
+    version: 4,
+    profileRevision: revision,
     taxYear: value.pcbTaxYear,
     taxRegime: value.pcbTaxRegime,
+    taxRegimeTimeline,
+    nonCashRemunerationFacts,
+    componentClassificationFacts,
     employeeCategory: value.pcbEmployeeCategory,
     individualDisabled: formData.has("pcbIndividualDisabled"),
     spouseDisabled: formData.has("pcbSpouseDisabled"),
@@ -335,6 +527,13 @@ function pcbProfileFromForm(
       epfCents: priorEmployerEpfCents,
       pcbCents: priorEmployerPcbCents,
       zakatCents: priorEmployerZakatCents,
+      religiousTravelLevyCents: priorEmployerReligiousTravelLevyCents,
+      religiousTravelLevySourceReference:
+        priorEmployerReligiousTravelLevyCents > 0
+          ? value.pcbPriorEmployerReligiousTravelLevyReference || null
+          : null,
+      exemptIncomeItems: tp3ExemptIncomeItems,
+      previousEmploymentPeriods,
       entries: tp3Entries,
       sourceReference:
         tp3Status === "CONFIRMED" ? value.pcbTp3Reference || null : null,
@@ -774,6 +973,61 @@ export async function recordEmployeeLindung24ParticipationAction(formData: FormD
           : result.refreshedDrafts === result.draftCount
             ? `LINDUNG 24 coverage saved. ${result.refreshedDrafts} draft payroll${result.refreshedDrafts === 1 ? "" : "s"} refreshed.`
             : "LINDUNG 24 coverage saved. Refresh any open draft payroll that could not be updated.",
+      newRevision: result.participation.revision,
+      status: "success",
+    }));
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirect(profileNoticeUrl(membershipId, {
+      kind: "statutory",
+      message: publicWriteError(error),
+      status: "error",
+    }));
+  }
+}
+
+export async function recordEmployeeEpfParticipationAction(formData: FormData) {
+  let membershipId = safeMembershipId(formData.get("membershipId"));
+  try {
+    const command = epfParticipationSchema.parse({
+      effectiveFromMonth: formData.get("effectiveFromMonth"),
+      effectiveToMonth: formData.get("effectiveToMonth"),
+      expectedRevision: formData.get("expectedRevision"),
+      membershipId: formData.get("membershipId"),
+      reason: formData.get("reason"),
+      sourceReference: formData.get("sourceReference"),
+      sourceType: formData.get("sourceType"),
+      status: formData.get("status"),
+    });
+    membershipId = command.membershipId;
+    const context = await requireWholeBusinessPayroll("EDIT_STATUTORY_PROFILE");
+    const request = await getAuditRequestContext();
+    const result = await recordEmployeeStatutoryParticipationAndRefreshDrafts({
+      command: {
+        ...command,
+        scheme: "EPF",
+        effectiveFromMonth: new Date(`${command.effectiveFromMonth}-01T00:00:00.000Z`),
+        effectiveToMonth: command.effectiveToMonth
+          ? new Date(`${command.effectiveToMonth}-01T00:00:00.000Z`)
+          : null,
+      },
+      context: {
+        access: context.access,
+        actor: context.user,
+        allowedBranchIds: context.allowedBranchIds,
+        businessId: context.businessId,
+        caller: "STATUTORY_ACTION",
+        request,
+      },
+    });
+    revalidatePayrollProfile(membershipId);
+    redirect(profileNoticeUrl(membershipId, {
+      affectedDrafts: result.refreshedDrafts,
+      kind: "statutory",
+      message:
+        result.draftCount === 0
+          ? "EPF participation period saved. It will apply by payroll month."
+          : `EPF participation period saved. ${result.refreshedDrafts} draft payroll${result.refreshedDrafts === 1 ? "" : "s"} refreshed.`,
       newRevision: result.participation.revision,
       status: "success",
     }));

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { getSession, type AppSession } from "@/lib/auth/session";
+import { authorizedCustomerPackageBranchWhere } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import {
   customerPhoneSearchVariants,
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
       businessId: user.businessId,
       phone: { in: customerPhoneSearchVariants(parsed.data.phone) },
     },
-    select: customerPickerSelect,
+    select: customerPickerSelect(user),
   });
 
   if (existingCustomer) {
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
       phone: parsed.data.phone,
       notes: parsed.data.notes || null,
     },
-    select: customerPickerSelect,
+    select: customerPickerSelect(user),
   });
 
   await sendNewCustomerWelcomeIfConnected({
@@ -78,34 +79,41 @@ export async function POST(request: Request) {
   });
 }
 
-const customerPickerSelect = {
-  id: true,
-  name: true,
-  phone: true,
-  vehicles: {
-    orderBy: { updatedAt: "desc" as const },
-    select: {
-      brand: true,
-      model: true,
-      plateNumber: true,
-    },
-    take: 4,
-  },
-  membership: {
-    select: {
-      pointsBalance: true,
-      status: true,
-    },
-  },
-  _count: {
-    select: {
-      customerPackages: {
-        where: { status: "ACTIVE" as const },
+function customerPickerSelect(
+  user: Pick<AppSession, "branchId" | "role">,
+) {
+  return {
+    id: true,
+    name: true,
+    phone: true,
+    vehicles: {
+      orderBy: { updatedAt: "desc" as const },
+      select: {
+        brand: true,
+        model: true,
+        plateNumber: true,
       },
-      vehicles: true,
+      take: 4,
     },
-  },
-};
+    membership: {
+      select: {
+        pointsBalance: true,
+        status: true,
+      },
+    },
+    _count: {
+      select: {
+        customerPackages: {
+          where: {
+            status: "ACTIVE" as const,
+            ...authorizedCustomerPackageBranchWhere(user),
+          },
+        },
+        vehicles: true,
+      },
+    },
+  } as const;
+}
 
 function toCustomerPickerOption(customer: {
   id: string;

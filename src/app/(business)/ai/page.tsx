@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AiBusinessChat } from "@/components/ai-business-chat";
+import { ArchiveConversationButton, RestoreConversationButton } from "@/components/ai-conversation-actions";
 import styles from "@/components/ask-tetamu.module.css";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { requireBusinessUserForModule } from "@/lib/auth/business-user";
@@ -18,19 +19,32 @@ import { getAiWorkspace } from "@/lib/ai/service";
 import { prisma } from "@/lib/prisma";
 import type { AiAnswerLanguage, AiIntent, AiTemporalSemantics } from "@/lib/ai/intent";
 
-type SearchParams = { conversationId?: string; range?: string; from?: string; to?: string };
+type SearchParams = { conversationId?: string; range?: string; from?: string; to?: string; view?: string };
 type Props = { searchParams: Promise<SearchParams> };
 
 export default async function AiPage({ searchParams }: Props) {
   const context = await requireBusinessUserForModule("AI", "VIEW_AI_ANALYSIS");
   if (context.access.source === "DIRECT_BUSINESS") assertStaffPermission(context.user, "AI_ANALYSIS_VIEW");
   const params = await searchParams;
-  const [workspace, business] = await Promise.all([
+  const showArchived = params.view === "archived";
+  const [workspace, business, archivedConversations] = await Promise.all([
     getAiWorkspace({ userId: context.user.userId, businessId: context.businessId }),
     prisma.business.findUniqueOrThrow({ where: { id: context.businessId }, select: { name: true } }),
+    prisma.aiConversation.findMany({
+      where: {
+        createdById: context.user.userId,
+        businessId: context.businessId,
+        groupId: null,
+        archivedAt: { not: null },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 30,
+      include: { messages: { orderBy: { createdAt: "asc" }, take: 50 } },
+    }),
   ]);
+  const visibleConversations = showArchived ? archivedConversations : workspace.conversations;
   const current = params.conversationId
-    ? workspace.conversations.find((item) => item.id === params.conversationId) ?? null
+    ? visibleConversations.find((item) => item.id === params.conversationId) ?? null
     : null;
   const range = normalizeAiRange(params.range);
   const allowance = workspace.allowance;
@@ -40,8 +54,9 @@ export default async function AiPage({ searchParams }: Props) {
   const sidebar = (
     <ConversationList
       currentId={current?.id}
-      conversations={workspace.conversations}
+      conversations={visibleConversations}
       params={{ ...params, range }}
+      archivedMode={showArchived}
     />
   );
 
@@ -53,7 +68,7 @@ export default async function AiPage({ searchParams }: Props) {
       </header>
 
       <details className={styles.mobileConversations}>
-        <summary>Conversations <span>{workspace.conversations.length}</span></summary>
+        <summary>{showArchived ? "Archived conversations" : "Conversations"} <span>{visibleConversations.length}</span></summary>
         {sidebar}
       </details>
 
@@ -97,6 +112,11 @@ export default async function AiPage({ searchParams }: Props) {
                   </article>
                 ))}
               </div>
+            ) : showArchived ? (
+              <div className={styles.emptyConversation}>
+                <span aria-hidden="true">↺</span>
+                <div><h2>Archived conversations</h2><p>Choose a conversation to review it or restore it to your active list.</p></div>
+              </div>
             ) : (
               <div className={styles.emptyConversation}>
                 <span aria-hidden="true">?</span>
@@ -104,7 +124,12 @@ export default async function AiPage({ searchParams }: Props) {
               </div>
             )}
 
-            <AiBusinessChat
+            {showArchived ? (
+              <section className={styles.archivedConversationNotice}>
+                <div><strong>{current ? "This conversation is archived" : "Archive view"}</strong><p>{current ? "Restore it to continue the conversation." : "Archived conversations are retained until you restore them."}</p></div>
+                {current ? <RestoreConversationButton conversationId={current.id} /> : null}
+              </section>
+            ) : <AiBusinessChat
               scopeType="BUSINESS"
               conversationId={current?.id}
               range={range}
@@ -114,8 +139,9 @@ export default async function AiPage({ searchParams }: Props) {
               disabledReason={disabledReason}
               disabledTitle={usageNotice?.kind === "EXHAUSTED" ? "Monthly limit reached" : undefined}
               usageWarning={usageNotice?.kind === "LOW" ? usageNotice.message : undefined}
+              remainingRequests={allowance.remainingRequests}
               showSuggestions={!current || current.messages.length === 0}
-            />
+            />}
           </section>
           <p className={styles.readOnlyNotice}>Ask Tetamu is read-only. Verify important figures against source reports.</p>
         </main>
@@ -124,16 +150,29 @@ export default async function AiPage({ searchParams }: Props) {
   );
 }
 
-function ConversationList({ currentId, conversations, params }: {
+function ConversationList({ currentId, conversations, params, archivedMode }: {
   currentId?: string;
   conversations: Awaited<ReturnType<typeof getAiWorkspace>>["conversations"];
   params: SearchParams;
+  archivedMode: boolean;
 }) {
   return <div className={styles.conversationList}>
-    <div className={styles.sidebarHeading}><div><h2>Conversations</h2><small>Recent questions</small></div><Link href={newConversationHref(params)} aria-label="Start a new conversation">+ New</Link></div>
+    <div className={styles.sidebarHeading}><div><h2>{archivedMode ? "Archived" : "Conversations"}</h2><small>{archivedMode ? "Removed from your list" : "Recent questions"}</small></div>{archivedMode ? null : <Link href={newConversationHref(params)} aria-label="Start a new conversation">+ New</Link>}</div>
     <nav aria-label="Ask Tetamu conversations">
-      {conversations.length ? conversations.map((conversation) => <Link className={currentId === conversation.id ? styles.activeConversation : ""} key={conversation.id} href={conversationHref(conversation.id, params)}><strong>{conversation.title ?? "Business question"}</strong><small>{conversation.updatedAt.toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" })}</small></Link>) : <div className={styles.emptySidebar}><strong>No conversations yet</strong><p>Ask Tetamu a question to start your first conversation.</p></div>}
+      {conversations.length ? conversations.map((conversation) => {
+        const title = conversation.title ?? "Business question";
+        return <div className={styles.conversationRow} key={conversation.id}>
+          <Link className={currentId === conversation.id ? styles.activeConversation : ""} href={conversationHref(conversation.id, params)}><strong>{title}</strong><small>{conversation.updatedAt.toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" })}</small></Link>
+          {archivedMode ? <RestoreConversationButton conversationId={conversation.id} iconOnly /> : <ArchiveConversationButton conversationId={conversation.id} title={title} />}
+        </div>;
+      }) : <div className={styles.emptySidebar}><strong>{archivedMode ? "No archived conversations" : "No conversations yet"}</strong><p>{archivedMode ? "Conversations you remove will appear here." : "Ask Tetamu a question to start your first conversation."}</p></div>}
     </nav>
+    <footer className={styles.conversationListFooter}>
+      <Link href={archivedMode ? activeConversationsHref(params) : archivedConversationsHref(params)}>
+        <span aria-hidden="true">{archivedMode ? "←" : "↺"}</span>
+        {archivedMode ? "Back to conversations" : "Archived conversations"}
+      </Link>
+    </footer>
   </div>;
 }
 
@@ -179,8 +218,10 @@ function domainsFromEvidence(evidence: Array<{ metricKey: string }>): AiSourceDo
 
 function conversationHref(id: string, params: SearchParams) { const query = buildContextQuery(params); query.set("conversationId", id); return `/ai?${query}`; }
 function newConversationHref(params: SearchParams) { const query = buildContextQuery(params); query.delete("conversationId"); return `/ai?${query}`; }
+function archivedConversationsHref(params: SearchParams) { const query = buildContextQuery(params); query.set("view", "archived"); query.delete("conversationId"); return `/ai?${query}`; }
+function activeConversationsHref(params: SearchParams) { const query = buildContextQuery(params); query.delete("view"); query.delete("conversationId"); return `/ai?${query}`; }
 function rangeHref(range: string, params: SearchParams) { const query = buildContextQuery(params); query.set("range", range); if (range !== "custom") { query.delete("from"); query.delete("to"); } return `/ai?${query}`; }
-function buildContextQuery(params: SearchParams) { const query = new URLSearchParams({ range: normalizeAiRange(params.range) }); if (params.from) query.set("from", params.from); if (params.to) query.set("to", params.to); if (params.conversationId) query.set("conversationId", params.conversationId); return query; }
+function buildContextQuery(params: SearchParams) { const query = new URLSearchParams({ range: normalizeAiRange(params.range) }); if (params.from) query.set("from", params.from); if (params.to) query.set("to", params.to); if (params.conversationId) query.set("conversationId", params.conversationId); if (params.view === "archived") query.set("view", "archived"); return query; }
 
 function quotaMessage(
   allowance: Awaited<ReturnType<typeof getAiWorkspace>>["allowance"],

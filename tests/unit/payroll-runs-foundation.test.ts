@@ -222,7 +222,7 @@ test("P4D entry detail is tenant-scoped, state-locked and separately authorized"
   assert.match(actions, /finish\("success", "Payroll entry updated\."[\s\S]*returnPath/);
 });
 
-test("W2C exposes payroll exports and finalized payslips only through their capabilities", async () => {
+test("W2C exposes payroll exports plus capability-gated draft previews and final payslips", async () => {
   const [access, detail, exportRoute, payslipRoute] = await Promise.all([
     source("src/lib/payroll/runs-access.ts"),
     source("src/app/(business)/team/payroll/runs/[runId]/page.tsx"),
@@ -235,10 +235,12 @@ test("W2C exposes payroll exports and finalized payslips only through their capa
   assert.match(detail, /access\.actions\.canExportPayroll/);
   assert.match(detail, /kind=payroll&format=csv/);
   assert.match(detail, /kind=payroll&format=xlsx/);
-  assert.match(detail, /access\.actions\.canViewPayslip && data\.run\.status === "FINALIZED"/);
+  assert.match(detail, /access\.actions\.canViewPayslip/);
+  assert.match(detail, /Open draft payslip preview/);
   assert.match(exportRoute, /requireWholeBusinessPayroll\([\s\S]*"EXPORT_PAYROLL"/);
   assert.match(payslipRoute, /requireWholeBusinessPayroll\("VIEW_PAYSLIP"\)/);
-  assert.match(payslipRoute, /document\.run\.status !== "FINALIZED"/);
+  assert.match(payslipRoute, /PAYSLIP_PREVIEWED/);
+  assert.match(payslipRoute, /isFinalized \? "attachment" : "inline"/);
 });
 
 test("Phase 4C retires the legacy monthly page without removing settings", async () => {

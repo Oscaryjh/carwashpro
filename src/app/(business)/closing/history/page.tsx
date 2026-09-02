@@ -138,8 +138,8 @@ export default async function ClosingHistoryPage({
                   <tr>
                     <th>Business date</th>
                     <th>Branch</th>
-                    <th>Expected cash</th>
-                    <th>Actual cash</th>
+                    <th>Expected Net Cash Movement</th>
+                    <th>Actual Net Cash Movement</th>
                     <th>Difference</th>
                     <th>WhatsApp</th>
                     <th>Closed by</th>

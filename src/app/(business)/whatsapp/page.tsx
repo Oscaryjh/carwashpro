@@ -4,6 +4,7 @@ import {
   assertStaffPermission,
   hasStaffPermission,
 } from "@/lib/auth/staff-permissions";
+import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 import { createWhatsAppDeepLink, normalizeWhatsAppPhone } from "@/lib/whatsapp/deep-link";
@@ -16,8 +17,9 @@ export default async function WhatsAppPage() {
   const { user, businessId } = await requireBusinessUserForModule("WHATSAPP");
   assertStaffPermission(user, "WHATSAPP");
   const canManageWhatsAppSession = hasStaffPermission(user, "WHATSAPP_SESSION");
+  const operationalBranchWhere = authorizedOperationalBranchWhere(user);
   const messages = await prisma.whatsAppMessage.findMany({
-    where: { businessId },
+    where: { businessId, ...operationalBranchWhere },
     include: {
       customer: true,
       workOrder: true,

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { BackButton } from "@/components/back-button";
 import { SalonAppointmentCheckoutModal } from "@/components/salon-appointment-checkout-modal";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import {
   formatDateValue,
   toBusinessDateValue,
@@ -37,14 +38,13 @@ export default async function AppointmentDetailPage({
     "VIEW_APPOINTMENTS",
   );
   const { appointmentId } = await params;
+  const operationalBranchWhere = authorizedOperationalBranchWhere(user);
   const { legacy } = await searchParams;
   const appointment = await prisma.appointment.findFirst({
     where: {
       id: appointmentId,
       businessId,
-      ...(user.role === "BUSINESS_OWNER"
-        ? {}
-        : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
+      ...operationalBranchWhere,
     },
     include: {
       business: {

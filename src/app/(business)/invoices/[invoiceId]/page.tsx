@@ -4,6 +4,7 @@ import { BackButton } from "@/components/back-button";
 import { RefundPaymentForm } from "@/components/refund-payment-form";
 import { SendWhatsAppButton } from "@/components/send-whatsapp-button";
 import { VoidInvoiceForm } from "@/components/void-invoice-form";
+import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { getInvoicePaymentSummary } from "@/lib/invoices/payment-summary";
@@ -22,11 +23,13 @@ export default async function InvoiceDetailsPage({
 }: InvoiceDetailsPageProps) {
   const context = await requireBusinessIndustryContext("VIEW_INVOICES");
   const { businessId } = context;
+  const operationalBranchWhere = authorizedOperationalBranchWhere(context.user);
   const { invoiceId } = await params;
   const invoice = await prisma.invoice.findFirst({
     where: {
       id: invoiceId,
       businessId,
+      ...operationalBranchWhere,
     },
     include: {
       business: true,
@@ -38,9 +41,14 @@ export default async function InvoiceDetailsPage({
             orderBy: { createdAt: "asc" },
           },
           payments: {
+            where: operationalBranchWhere,
             orderBy: { paidAt: "desc" },
             include: {
+              businessPaymentMethod: {
+                select: { label: true },
+              },
               refunds: {
+                where: operationalBranchWhere,
                 orderBy: { refundedAt: "desc" },
                 include: {
                   processedBy: {
@@ -75,9 +83,14 @@ export default async function InvoiceDetailsPage({
         },
       },
       payments: {
+        where: operationalBranchWhere,
         orderBy: { paidAt: "desc" },
         include: {
+          businessPaymentMethod: {
+            select: { label: true },
+          },
           refunds: {
+            where: operationalBranchWhere,
             orderBy: { refundedAt: "desc" },
             include: {
               processedBy: {
@@ -114,14 +127,19 @@ export default async function InvoiceDetailsPage({
       !invoice.appointmentId &&
       (invoice.customerPackage || invoice.items.some((item) => item.customerPackage)),
   );
-  const appointmentRefunds = invoice.payments
+  const invoicePaymentRefunds = invoice.payments
     .flatMap((payment) =>
       payment.refunds.map((refund) => ({
         ...refund,
         originalPaymentMethod: payment.method,
+        originalPaymentLabel:
+          payment.businessPaymentMethod?.label ??
+          payment.paymentMethodLabel ??
+          formatStatus(payment.method),
       })),
     )
     .sort((left, right) => right.refundedAt.getTime() - left.refundedAt.getTime());
+  const invoicePaymentSummary = getInvoicePaymentSummary(invoice.payments);
   const appointmentRefundablePayments = invoice.payments
     .filter((payment) => payment.status === "ACTIVE")
     .map((payment) => ({
@@ -215,8 +233,12 @@ export default async function InvoiceDetailsPage({
               {Number(invoice.tipAmount) > 0 ? <div><span>Tip</span><strong>RM{Number(invoice.tipAmount).toFixed(2)}</strong></div> : null}
               <div className="is-total"><span>Total</span><strong>RM{Number(invoice.total).toFixed(2)}</strong></div>
               {Number(invoice.depositAmount) > 0 ? <div><span>Deposit</span><strong>RM{Number(invoice.depositAmount).toFixed(2)}</strong></div> : null}
-              <div><span>Paid</span><strong>RM{Number(invoice.paidAmount).toFixed(2)}</strong></div>
-              <div className="is-balance"><span>Balance</span><strong>RM{Number(invoice.balance).toFixed(2)}</strong></div>
+              <InvoiceSettlementRows
+                balanceClassName="is-balance"
+                outstanding={Number(invoice.balance)}
+                settled={Number(invoice.paidAmount)}
+                summary={invoicePaymentSummary}
+              />
             </div>
             {invoice.payments.length ? (
               <div className="pos-payment-history">
@@ -225,26 +247,25 @@ export default async function InvoiceDetailsPage({
                   <div className="pos-history-row" key={payment.id}>
                     <span>{payment.paidAt.toLocaleString("en-MY")}</span>
                     <strong>RM{Number(payment.amount).toFixed(2)}</strong>
-                    <small>{formatStatus(payment.method)}</small>
+                    <small>{payment.businessPaymentMethod?.label ?? payment.paymentMethodLabel ?? formatStatus(payment.method)}</small>
                   </div>
                 ))}
               </div>
             ) : null}
-            {appointmentRefunds.length ? (
+            {invoicePaymentRefunds.length ? (
               <div className="pos-refund-history">
                 <h3>Refund history</h3>
-                {appointmentRefunds.map((refund) => (
+                {invoicePaymentRefunds.map((refund) => (
                   <div className="pos-refund-row" key={refund.id}>
                     <div>
                       <strong>-RM{Number(refund.amount).toFixed(2)}</strong>
-                      <span>
-                        {formatStatus(refund.method)} - {refund.reason}
-                      </span>
+                      <span>Method: {refund.originalPaymentLabel}</span>
+                      <span>Reason: {refund.reason}</span>
                     </div>
                     <div>
                       <span>{refund.refundedAt.toLocaleString("en-MY")}</span>
                       <small>
-                        {refund.processedBy?.name ?? "Owner"}
+                        Processed by: {refund.processedBy?.name ?? "Owner"}
                         {refund.packageUsesRestored
                           ? ` - ${refund.packageUsesRestored} package use restored`
                           : ""}
@@ -396,10 +417,40 @@ export default async function InvoiceDetailsPage({
               {Number(invoice.tipAmount) > 0 ? <div><span>Tip</span><strong>RM{Number(invoice.tipAmount).toFixed(2)}</strong></div> : null}
               <div className="is-total"><span>Total</span><strong>RM{Number(invoice.total).toFixed(2)}</strong></div>
               {Number(invoice.depositAmount) > 0 ? <div><span>Deposit</span><strong>RM{Number(invoice.depositAmount).toFixed(2)}</strong></div> : null}
-              <div><span>Paid</span><strong>RM{Number(invoice.paidAmount).toFixed(2)}</strong></div>
-              <div className="balance-row"><span>Balance</span><strong>RM{Number(invoice.balance).toFixed(2)}</strong></div>
+              <InvoiceSettlementRows
+                balanceClassName="balance-row"
+                outstanding={Number(invoice.balance)}
+                settled={Number(invoice.paidAmount)}
+                summary={invoicePaymentSummary}
+              />
             </div>
           </div>
+          {invoicePaymentRefunds.length ? (
+            <div className="panel pos-refund-history">
+              <div className="section-header">
+                <div>
+                  <h2>Refund history</h2>
+                  <p className="muted">Refunds recorded against {formatInvoiceNumber(invoice.invoiceNumber)}.</p>
+                </div>
+              </div>
+              {invoicePaymentRefunds.map((refund) => (
+                <div className="pos-refund-row" key={refund.id}>
+                  <div>
+                    <strong>-RM{Number(refund.amount).toFixed(2)}</strong>
+                    <span>Method: {refund.originalPaymentLabel}</span>
+                    <span>Reason: {refund.reason}</span>
+                  </div>
+                  <div>
+                    <span>{refund.refundedAt.toLocaleString("en-MY")}</span>
+                    <small>
+                      Processed by: {refund.processedBy?.name ?? "Owner"}
+                      {refund.reference ? ` · Reference: ${refund.reference}` : ""}
+                    </small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {invoice.creditNotes.length ? (
             <div className="panel invoice-correction-panel danger-zone">
               <div className="section-header">
@@ -481,6 +532,10 @@ export default async function InvoiceDetailsPage({
       payment.refunds.map((refund) => ({
         ...refund,
         originalPaymentMethod: payment.method,
+        originalPaymentLabel:
+          payment.businessPaymentMethod?.label ??
+          payment.paymentMethodLabel ??
+          formatStatus(payment.method),
       })),
     )
     .sort((left, right) => right.refundedAt.getTime() - left.refundedAt.getTime());
@@ -599,35 +654,13 @@ export default async function InvoiceDetailsPage({
               <span>Total</span>
               <strong>RM{Number(invoice.total).toFixed(2)}</strong>
             </div>
-            {paymentSummary.hasPackageVoucher ? (
-              <>
-                <div>
-                  <span>Package voucher</span>
-                  <strong>-RM{paymentSummary.packageVoucherAmount.toFixed(2)}</strong>
-                </div>
-                <div>
-                  <span>Cash paid</span>
-                  <strong>RM{paymentSummary.cashPaidAmount.toFixed(2)}</strong>
-                </div>
-              </>
-            ) : (
-              <div>
-                <span>Paid</span>
-                <strong>RM{Number(invoice.paidAmount).toFixed(2)}</strong>
-              </div>
-            )}
-            {paymentSummary.totalRefundedAmount > 0 ? (
-              <div className="is-refund-total">
-                <span>Refunded</span>
-                <strong>
-                  RM{paymentSummary.totalRefundedAmount.toFixed(2)}
-                </strong>
-              </div>
-            ) : null}
-            <div className="is-balance">
-              <span>Balance</span>
-              <strong>RM{Number(invoice.balance).toFixed(2)}</strong>
-            </div>
+            <InvoiceSettlementRows
+              balanceClassName="is-balance"
+              outstanding={Number(invoice.balance)}
+              settled={Number(invoice.paidAmount)}
+              showPackageBreakdown
+              summary={paymentSummary}
+            />
           </div>
 
           {packagePayments.length ? (
@@ -661,7 +694,7 @@ export default async function InvoiceDetailsPage({
                   <small>
                     {payment.method === "PACKAGE"
                       ? `${payment.customerPackage?.package.name ?? "Package"} - ${payment.packageUses} ${context.industry.industryType === "SALON_BEAUTY" ? "service use" : "wash"}`
-                      : formatStatus(payment.method)}
+                      : payment.businessPaymentMethod?.label ?? payment.paymentMethodLabel ?? formatStatus(payment.method)}
                     {payment.status === "VOID" ? " - Void" : ""}
                     {payment.refunds.length
                       ? ` - Refunded RM${payment.refunds
@@ -684,14 +717,13 @@ export default async function InvoiceDetailsPage({
                 <div className="pos-refund-row" key={refund.id}>
                   <div>
                     <strong>-RM{Number(refund.amount).toFixed(2)}</strong>
-                    <span>
-                      {formatStatus(refund.method)} - {refund.reason}
-                    </span>
+                    <span>Method: {refund.originalPaymentLabel}</span>
+                    <span>Reason: {refund.reason}</span>
                   </div>
                   <div>
                     <span>{refund.refundedAt.toLocaleString("en-MY")}</span>
                     <small>
-                      {refund.processedBy?.name ?? "Owner"}
+                      Processed by: {refund.processedBy?.name ?? "Owner"}
                       {refund.reference ? ` - ${refund.reference}` : ""}
                       {refund.packageUsesRestored
                         ? ` - ${refund.packageUsesRestored} package use restored`
@@ -825,6 +857,68 @@ function formatStatus(status: string) {
     .toLowerCase()
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function InvoiceSettlementRows({
+  balanceClassName,
+  outstanding,
+  settled,
+  showPackageBreakdown = false,
+  summary,
+}: {
+  balanceClassName: string;
+  outstanding: number;
+  settled: number;
+  showPackageBreakdown?: boolean;
+  summary: ReturnType<typeof getInvoicePaymentSummary>;
+}) {
+  const hasRefund = summary.totalRefundedAmount > 0;
+  const refundStatus =
+    summary.grossPaidAmount > 0 &&
+    summary.totalRefundedAmount >= summary.grossPaidAmount
+      ? "Fully refunded"
+      : "Partially refunded";
+
+  return (
+    <>
+      <div>
+        <span>Settled</span>
+        <strong>RM{settled.toFixed(2)}</strong>
+      </div>
+      {showPackageBreakdown && summary.hasPackageVoucher ? (
+        <>
+          <div>
+            <span>Package voucher</span>
+            <strong>-RM{summary.packageVoucherAmount.toFixed(2)}</strong>
+          </div>
+          <div>
+            <span>Money collected</span>
+            <strong>RM{summary.grossMonetaryCollectionAmount.toFixed(2)}</strong>
+          </div>
+        </>
+      ) : null}
+      {hasRefund ? (
+        <>
+          <div className="is-refund-total">
+            <span>Refunded</span>
+            <strong>RM{summary.totalRefundedAmount.toFixed(2)}</strong>
+          </div>
+          <div>
+            <span>Net collected</span>
+            <strong>RM{summary.netCollectedAmount.toFixed(2)}</strong>
+          </div>
+          <div>
+            <span>Refund status</span>
+            <strong>{refundStatus}</strong>
+          </div>
+        </>
+      ) : null}
+      <div className={balanceClassName}>
+        <span>Outstanding</span>
+        <strong>RM{outstanding.toFixed(2)}</strong>
+      </div>
+    </>
+  );
 }
 
 function vehicleDetails(vehicle: {

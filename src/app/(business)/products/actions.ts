@@ -18,6 +18,7 @@ import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
 import { applyInventoryMovement, recordSaleInventory, runInventorySerializable } from "@/lib/inventory/service";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
+import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
 
 export type DeleteProductState = {
   status: "idle" | "success" | "error";
@@ -349,7 +350,7 @@ export async function sellProductAction(formData: FormData) {
       execute: async (tx) => {
       const shift = await tx.cashierShift.findFirst({
         where: { businessId, cashierId: user.userId, status: "OPEN" },
-        select: { id: true, branchId: true },
+        select: { id: true, branchId: true, startedAt: true },
       });
 
       if (!shift) {
@@ -359,6 +360,7 @@ export async function sellProductAction(formData: FormData) {
       if (shift.branchId !== branchId) {
         throw new Error("This product sale does not belong to the current shift branch.");
       }
+      const shiftActivity = await assertCashierShiftAcceptsActivity(tx, { businessId, shift });
 
       const customer = input.customerId
         ? await tx.customer.findFirst({
@@ -435,6 +437,7 @@ export async function sellProductAction(formData: FormData) {
           businessId,
           branchId,
           cashierId: user.userId,
+          paidAt: shiftActivity.activityAt,
           shiftId: shift.id,
           invoiceId: invoice.id,
           amount: fromCents(Math.round(tax.total * 100)),

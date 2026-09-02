@@ -5,6 +5,7 @@ import {
   buildPayrollExport,
   buildPayslipPdf,
   buildStatutoryExport,
+  pcbPayslipPresentation,
   payslipFileName,
   type PayrollDocumentRun,
 } from "../../src/lib/payroll/export";
@@ -80,6 +81,72 @@ test("payslip PDF contains payroll identity and has a safe filename", () => {
   );
 });
 
+test("draft payslip keeps blocked PCB out of final net-pay semantics", () => {
+  const entry = {
+    ...run.entries[0],
+    fullName: "Oscar Yong",
+    basicPay: 2000,
+    overtimePay: 129.81,
+    grossPay: 2129.81,
+    otherDeductions: 76.92,
+    unpaidLeaveDeduction: 76.92,
+    unauthorizedAbsenceDays: 1,
+    epfEmployee: 220,
+    socsoEmployee: 10.75,
+    eisEmployee: 4.3,
+    lindung24Employee: 16.15,
+    pcb: 0,
+    netPay: 1801.69,
+    employerEpf: 260,
+    employerSocso: 37.65,
+    employerEis: 4.3,
+    components: [
+      { name: "Basic Salary", type: "EARNING" as const, amount: 2000, sourceType: "BASIC_SALARY" },
+      { name: "Overtime Pay", type: "EARNING" as const, amount: 129.81, sourceType: "PAYROLL_CALCULATION" },
+      { name: "Unpaid Absence Deduction", type: "DEDUCTION" as const, amount: 76.92, sourceType: "ATTENDANCE" },
+      { name: "EPF / KWSP", type: "DEDUCTION" as const, amount: 220, sourceType: "STATUTORY" },
+    ],
+    statutorySnapshots: [
+      { scheme: "EPF" as const, status: "CALCULATED" as const, blockerCode: null, employeeContribution: 220, employerContribution: 260 },
+      { scheme: "SOCSO" as const, status: "CALCULATED" as const, blockerCode: null, employeeContribution: 10.75, employerContribution: 37.65 },
+      { scheme: "EIS" as const, status: "CALCULATED" as const, blockerCode: null, employeeContribution: 4.3, employerContribution: 4.3 },
+      { scheme: "LINDUNG24" as const, status: "CALCULATED" as const, blockerCode: null, employeeContribution: 16.15, employerContribution: 0 },
+      { scheme: "PCB" as const, status: "BLOCKED" as const, blockerCode: "PCB_TAX_REGIME_NOT_VERIFIED", employeeContribution: 0, employerContribution: 0 },
+    ],
+  };
+  const { entries, ...runHeader } = run;
+  assert.ok(entries.length > 0);
+  const pdf = buildPayslipPdf({ ...runHeader, status: "DRAFT", finalizedAt: null }, entry).toString("latin1");
+  assert.match(pdf, /DRAFT PAYSLIP PREVIEW/);
+  assert.match(pdf, /Unpaid absence: 1 day/);
+  assert.ok(pdf.includes("Current deductions \\(excludes pending PCB\\): RM328.12"));
+  assert.ok(pdf.includes("ESTIMATED NET PAY \\(BEFORE PCB\\): RM1,801.69"));
+  assert.match(pdf, /PCB \/ MTD: Pending configuration/);
+  assert.doesNotMatch(pdf, /PCB \/ MTD: RM0\.00/);
+  assert.equal(pdf.match(/EPF \/ KWSP/g)?.length, undefined);
+  assert.equal(pdf.match(/EPF employee/g)?.length, 1);
+});
+
+test("PCB presentation distinguishes pending review, calculated zero and not applicable", () => {
+  const base = { pcb: 0, statutorySnapshots: [] };
+  assert.deepEqual(pcbPayslipPresentation("DRAFT", base), {
+    pending: true,
+    value: "Pending configuration",
+  });
+  assert.deepEqual(pcbPayslipPresentation("DRAFT", {
+    pcb: 0,
+    statutorySnapshots: [{ scheme: "PCB", status: "BLOCKED", blockerCode: "PCB_RULE_SOURCE_UNVERIFIED", employeeContribution: 0, employerContribution: 0 }],
+  }), { pending: true, value: "Review required" });
+  assert.deepEqual(pcbPayslipPresentation("FINALIZED", {
+    pcb: 0,
+    statutorySnapshots: [{ scheme: "PCB", status: "CALCULATED", blockerCode: null, employeeContribution: 0, employerContribution: 0 }],
+  }), { pending: false, value: "RM0.00" });
+  assert.deepEqual(pcbPayslipPresentation("FINALIZED", {
+    pcb: 0,
+    statutorySnapshots: [{ scheme: "PCB", status: "NOT_APPLICABLE", blockerCode: null, employeeContribution: 0, employerContribution: 0 }],
+  }), { pending: false, value: "RM0.00" });
+});
+
 test("payroll and statutory exports contain finalized contribution data", () => {
   const payrollCsv = buildPayrollExport(run, "csv").toString("utf8");
   const statutoryCsv = buildStatutoryExport(run, "csv").toString("utf8");
@@ -104,4 +171,21 @@ test("payroll release migration adds review audit fields safely", () => {
   assert.match(sql, /ADD COLUMN "submitted_by_id" UUID/);
   assert.match(sql, /ON DELETE SET NULL/);
   assert.match(sql, /current_setting\('tetamu\.payroll_reopen'/);
+});
+
+test("payroll run exposes a read-only draft preview while final download semantics stay explicit", () => {
+  const runPage = readFileSync(
+    "src/app/(business)/team/payroll/runs/[runId]/page.tsx",
+    "utf8",
+  );
+  const payslipRoute = readFileSync(
+    "src/app/(business)/team/payroll/payslips/[entryId]/route.ts",
+    "utf8",
+  );
+  assert.match(runPage, /Open draft payslip preview/);
+  assert.match(runPage, /Download finalized payslip/);
+  assert.match(runPage, /Before pending PCB \/ MTD/);
+  assert.match(payslipRoute, /PAYSLIP_PREVIEWED/);
+  assert.match(payslipRoute, /const disposition = isFinalized \? "attachment" : "inline"/);
+  assert.doesNotMatch(payslipRoute, /status !== "FINALIZED"[\s\S]{0,100}404/);
 });

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
-import { getBranchLocalDateKey, parseBranchLocalDateTime } from "@/lib/attendance/work-date";
+import { parseBranchLocalDateTime } from "@/lib/attendance/work-date";
 import { writeAuditLog, type AuditRequestContext } from "@/lib/audit";
 import type { AppSession } from "@/lib/auth/session";
 import { holidayContext } from "@/lib/holidays/domain";
@@ -21,6 +21,10 @@ import {
   type RosterAssignmentInput,
 } from "./domain";
 import { resolveRosterWeek } from "./employee-schedule-service";
+import {
+  isRosterAssignmentRetrospective,
+  rosterAssignmentDayKey,
+} from "./retrospective-classification";
 
 export type RosterServiceContext = Readonly<{
   businessId: string;
@@ -509,7 +513,6 @@ export async function publishRoster(args: {
       throw new RosterError("PUBLISHED_AMENDMENT_FORBIDDEN", "Publishing a new revision requires the amend-roster capability.");
     }
     const branch = await getRosterBranch(transaction, args.context.businessId, period.branchId);
-    const localToday = getBranchLocalDateKey(now, branch.timezone);
     const priorPublication = period.publicationRevision > 0
       ? await transaction.rosterPublication.findUnique({
           where: { rosterPeriodId_revision: { rosterPeriodId: period.id, revision: period.publicationRevision } },
@@ -528,11 +531,12 @@ export async function publishRoster(args: {
       throw new RosterError("VARIABLE_REST_REQUIRED", `Roster requires attention. Assign the required variable Rest Days before publishing: ${employeeNames}.`);
     }
     const resolvedAssignments = resolution.assignments;
-    const historicalDates = new Set<string>();
+    const historicalAssignmentKeys = new Set<string>();
     for (const assignment of resolvedAssignments) {
       validateRosterAssignment(assignment);
-      const day = dateValue(assignment.workDate);
-      if (day < localToday || (day === localToday && (!assignment.startAt || assignment.startAt <= now))) historicalDates.add(day);
+      if (isRosterAssignmentRetrospective(assignment, now, branch.timezone)) {
+        historicalAssignmentKeys.add(rosterAssignmentDayKey(assignment));
+      }
     }
     for (const assignment of period.assignments) {
       validateRosterAssignment(assignment);
@@ -566,18 +570,22 @@ export async function publishRoster(args: {
         });
         await assertNoApprovedFullDayLeave(transaction, args.context.businessId, assignment.membershipId, assignment.workDate);
       }
-      const day = dateValue(assignment.workDate);
-      if (day < localToday || (day === localToday && (!assignment.startAt || assignment.startAt <= now))) historicalDates.add(day);
+      if (isRosterAssignmentRetrospective(assignment, now, branch.timezone)) {
+        historicalAssignmentKeys.add(rosterAssignmentDayKey(assignment));
+      }
     }
     for (const prior of priorPublication?.assignments ?? []) {
-      if (dateValue(prior.workDate) < localToday) historicalDates.add(dateValue(prior.workDate));
+      if (isRosterAssignmentRetrospective(prior, now, branch.timezone)) {
+        historicalAssignmentKeys.add(rosterAssignmentDayKey(prior));
+      }
     }
     const changedAssignments = priorPublication
       ? changedRosterAssignments(resolvedAssignments, priorPublication.assignments)
       : period.assignments;
     const retrospectiveChangeDates = new Set(changedAssignments.flatMap((assignment) => {
-      const day = dateValue(assignment.workDate);
-      return day < localToday || (day === localToday && (!assignment.startAt || assignment.startAt <= now)) ? [day] : [];
+      return isRosterAssignmentRetrospective(assignment, now, branch.timezone)
+        ? [dateValue(assignment.workDate)]
+        : [];
     }));
     if (retrospectiveChangeDates.size && (!args.context.canManageRetrospective || !input.reason)) {
       throw new RosterError(
@@ -637,7 +645,7 @@ export async function publishRoster(args: {
     const currentAssignmentKeys = new Set(resolvedAssignments.map((item) => `${item.membershipId}:${dateValue(item.workDate)}`));
     for (const prior of priorPublication?.assignments ?? []) {
       const key = `${prior.membershipId}:${dateValue(prior.workDate)}`;
-      if (currentAssignmentKeys.has(key) || historicalDates.has(dateValue(prior.workDate))) continue;
+      if (currentAssignmentKeys.has(key) || historicalAssignmentKeys.has(key)) continue;
       const current = currentByMemberDate.get(key);
       if (current?.source === "ROSTER" && current.evidenceReference === prior.evidenceReference) {
         await transaction.attendanceExpectedDay.update({ where: { id: current.id }, data: { status: "SUPERSEDED" } });
@@ -647,7 +655,7 @@ export async function publishRoster(args: {
     const snapshots = [];
     for (const assignment of resolvedAssignments) {
       const key = `${assignment.membershipId}:${dateValue(assignment.workDate)}`;
-      const retrospective = historicalDates.has(dateValue(assignment.workDate));
+      const retrospective = historicalAssignmentKeys.has(key);
       const snapshotId = randomUUID();
       const evidenceReference = retrospective ? null : `roster:${publication.id}:${snapshotId}:r${revision}`;
       const snapshot = await transaction.rosterPublishedAssignment.create({
@@ -742,10 +750,10 @@ export async function publishRoster(args: {
       branchId: period.branchId,
       actor: args.context.actor,
       request: args.context.request,
-      action: historicalDates.size ? "ROSTER_RETROSPECTIVE_REVISION_PUBLISHED" : "ROSTER_PUBLISHED",
+      action: historicalAssignmentKeys.size ? "ROSTER_RETROSPECTIVE_REVISION_PUBLISHED" : "ROSTER_PUBLISHED",
       entityType: "RosterPublication",
       entityId: publication.id,
-      summary: historicalDates.size
+      summary: historicalAssignmentKeys.size
         ? "Roster revision published with retrospective dates isolated from automatic Attendance evidence."
         : "Roster revision published and expected Attendance evidence versioned atomically.",
       metadata: {
@@ -753,7 +761,10 @@ export async function publishRoster(args: {
         revision,
         sourceDigest,
         assignmentCount: snapshots.length,
-        retrospectiveDates: [...historicalDates],
+        retrospectiveAssignmentKeys: [...historicalAssignmentKeys],
+        retrospectiveDates: [...new Set(
+          [...historicalAssignmentKeys].map((key) => key.slice(key.lastIndexOf(":") + 1)),
+        )],
       },
     }, transaction);
     return { publication: { ...publication, assignments: snapshots }, idempotent: false };

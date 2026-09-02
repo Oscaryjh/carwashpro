@@ -8,6 +8,7 @@ import {
   scheduleEmployeeCompensationChangeAction,
   scheduleEmployeeRecurringPayAction,
   deactivateEmployeeBankVersionAction,
+  recordEmployeeEpfParticipationAction,
   recordEmployeeLindung24ParticipationAction,
   updateEmployeeStatutoryAndTaxProfilesAction,
   updateEmployeeStatutoryProfileAction,
@@ -1046,6 +1047,7 @@ function StatutoryPanel({
   }
 
   const { data } = result;
+  const currentEpfParticipation = data.epfParticipationHistory.at(-1) ?? null;
   const currentLindung24 = data.lindung24ParticipationHistory.at(-1) ?? null;
   return (
     <section className={styles.profilePanel}>
@@ -1063,7 +1065,11 @@ function StatutoryPanel({
         />
         <PayrollDetail
           label="EPF / KWSP"
-          value={formatParticipation(data.epfEnabled)}
+          value={
+            data.epfParticipationHistory.length
+              ? "Effective-dated participation"
+              : `${formatParticipation(data.epfEnabled)} (legacy)`
+          }
         />
         <PayrollDetail
           label="KWSP member number"
@@ -1116,6 +1122,79 @@ function StatutoryPanel({
           }
         />
       </div>
+      <section className={styles.lindungCoverageCard} data-state="configured">
+        <div className={styles.lindungCoverageHeading}>
+          <div>
+            <span className={styles.lindungCoverageIcon}>EPF</span>
+            <div>
+              <h4>EPF participation timeline</h4>
+              <p>
+                Payroll resolves participation by remuneration month. A future
+                period never applies early.
+              </p>
+            </div>
+          </div>
+          <span>
+            {currentEpfParticipation
+              ? `${data.epfParticipationHistory.length} period${data.epfParticipationHistory.length === 1 ? "" : "s"}`
+              : "Legacy setting"}
+          </span>
+        </div>
+        {currentEpfParticipation ? (
+          <div className={styles.lindungCoverageFacts}>
+            <div>
+              <span>Latest recorded status</span>
+              <strong>
+                {currentEpfParticipation.status === "PARTICIPATING"
+                  ? "Participating"
+                  : "Not participating"}
+              </strong>
+            </div>
+            <div>
+              <span>Latest period starts</span>
+              <strong>{formatMonth(currentEpfParticipation.effectiveFromMonth)}</strong>
+            </div>
+            <div>
+              <span>Latest period ends</span>
+              <strong>
+                {currentEpfParticipation.effectiveToMonth
+                  ? formatMonth(currentEpfParticipation.effectiveToMonth)
+                  : "Open ended"}
+              </strong>
+            </div>
+            <div>
+              <span>Evidence reference</span>
+              <strong>{currentEpfParticipation.sourceReference ?? "Legacy review"}</strong>
+            </div>
+          </div>
+        ) : (
+          <p className={styles.policyNote}>
+            No governed timeline exists. Payroll uses the current legacy EPF
+            setting only for static, unambiguous scenarios.
+          </p>
+        )}
+        {data.epfParticipationHistory.length ? (
+          <details className={styles.lindungTechnicalDetails}>
+            <summary>Participation history</summary>
+            <div>
+              {data.epfParticipationHistory.map((record) => (
+                <p key={`${record.effectiveFromMonth}:${record.revision}`}>
+                  <strong>
+                    {formatMonth(record.effectiveFromMonth)} – {record.effectiveToMonth
+                      ? formatMonth(record.effectiveToMonth)
+                      : "open"}
+                  </strong>
+                  <span>
+                    {record.status === "PARTICIPATING" ? "Participating" : "Not participating"}
+                    {` · revision ${record.revision}`}
+                  </span>
+                </p>
+              ))}
+            </div>
+          </details>
+        ) : null}
+        {data.canEdit ? <EpfParticipationForm data={data} /> : null}
+      </section>
       <section
         className={styles.lindungCoverageCard}
         data-state={lindung24CoverageState(currentLindung24, data.lindung24OptIn)}
@@ -1529,6 +1608,87 @@ function StatutoryEditForm({
   );
 }
 
+function EpfParticipationForm({
+  data,
+}: {
+  data: Extract<
+    Extract<EmployeeStatutoryProfileResult, { status: "READY" }>["statutory"],
+    { status: "READY" }
+  >["data"];
+}) {
+  return (
+    <EmployeeProfilePayrollDialog
+      description="Add the next confirmed EPF participation period. Existing payroll snapshots stay unchanged."
+      dialogId={`epf-participation-${data.membershipId}`}
+      eyebrow="Statutory & tax"
+      label="Manage EPF periods"
+      size="compact"
+      title="Add EPF participation period"
+      triggerClassName={styles.compactProfileAction}
+      variant="button"
+    >
+      <form action={recordEmployeeEpfParticipationAction} className={styles.payrollEditForm}>
+        <input
+          name="expectedRevision"
+          type="hidden"
+          value={data.epfParticipationExpectedRevision}
+        />
+        <input name="membershipId" type="hidden" value={data.membershipId} />
+        <div className={styles.payrollFormGrid}>
+          <label>
+            <span>Scheme</span>
+            <input disabled value="EPF / KWSP" />
+          </label>
+          <label>
+            <span>Participation status</span>
+            <select name="status" required>
+              <option value="PARTICIPATING">Participating</option>
+              <option value="NOT_PARTICIPATING">Not participating</option>
+            </select>
+          </label>
+          <label>
+            <span>Effective from</span>
+            <input name="effectiveFromMonth" required type="month" />
+          </label>
+          <label>
+            <span>Effective to (optional)</span>
+            <input name="effectiveToMonth" type="month" />
+            <small>The end month is exclusive. Leave blank for open ended.</small>
+          </label>
+          <label>
+            <span>Evidence type</span>
+            <select name="sourceType" required>
+              <option value="OFFICIAL_RECORD">Official record</option>
+              <option value="EMPLOYMENT_CHANGE">Employment / contract change</option>
+              <option value="EMPLOYEE_DECLARATION">Employee declaration</option>
+              <option value="LEGACY_REVIEW">Confirmed legacy setting</option>
+              <option value="OTHER">Other retained evidence</option>
+            </select>
+          </label>
+          <label>
+            <span>Evidence reference</span>
+            <input
+              name="sourceReference"
+              placeholder="Document, contract or official reference"
+            />
+          </label>
+        </div>
+        <label>
+          <span>Reason</span>
+          <input
+            name="reason"
+            placeholder="Why this participation period applies"
+            required
+          />
+        </label>
+        <div className={styles.statutoryDialogActions}>
+          <button type="submit">Save EPF period</button>
+        </div>
+      </form>
+    </EmployeeProfilePayrollDialog>
+  );
+}
+
 function Lindung24ParticipationForm({
   data,
 }: {
@@ -1799,8 +1959,15 @@ function PcbProfileFields({ profile }: { profile: EmployeePcbProfile | null }) {
   const money = (cents: number | undefined) => ((cents ?? 0) / 100).toFixed(2);
   const count = (key: keyof EmployeePcbProfile["children"]) =>
     profile?.children[key] ?? 0;
-  const governedProfile = profile?.version === 2 || profile?.version === 3 ? profile : null;
-  const structuredProfile = profile?.version === 3 ? profile : null;
+  const governedProfile = profile?.version === 2 || profile?.version === 3 || profile?.version === 4
+    ? profile
+    : null;
+  const structuredProfile = profile?.version === 3 || profile?.version === 4 ? profile : null;
+  const v4Profile = profile?.version === 4 ? profile : null;
+  const primaryTaxPeriod = v4Profile?.taxRegimeTimeline[0] ?? null;
+  const secondTaxPeriod = v4Profile?.taxRegimeTimeline[1] ?? null;
+  const firstNonCashFact = v4Profile?.nonCashRemunerationFacts[0] ?? null;
+  const secondNonCashFact = v4Profile?.nonCashRemunerationFacts[1] ?? null;
   const declaredAmount = (
     declaration: "tp1Declaration" | "tp3Declaration",
     code: string,
@@ -1857,6 +2024,11 @@ function PcbProfileFields({ profile }: { profile: EmployeePcbProfile | null }) {
           value={structuredProfile?.profileRevision ?? 0}
         />
         <input
+          name="pcbComponentClassificationFactsJson"
+          type="hidden"
+          value={JSON.stringify(v4Profile?.componentClassificationFacts ?? [])}
+        />
+        <input
           defaultChecked={Boolean(profile)}
           name="pcbProfileMode"
           type="checkbox"
@@ -1876,7 +2048,7 @@ function PcbProfileFields({ profile }: { profile: EmployeePcbProfile | null }) {
         </label>
         <label>
           <span>Tax treatment</span>
-          <select defaultValue={profile?.taxRegime ?? "RESIDENT_STANDARD"} name="pcbTaxRegime">
+          <select defaultValue={primaryTaxPeriod?.regime ?? profile?.taxRegime ?? "RESIDENT_STANDARD"} name="pcbTaxRegime">
             <option value="RESIDENT_STANDARD">Malaysia tax resident</option>
             <option value="NON_RESIDENT">Non-resident</option>
             <option value="RETURNING_EXPERT_PROGRAM">Returning Expert Programme</option>
@@ -1893,6 +2065,169 @@ function PcbProfileFields({ profile }: { profile: EmployeePcbProfile | null }) {
           </select>
         </label>
       </div>
+      <details className={styles.taxPcbDetails} open={Boolean(secondTaxPeriod)}>
+        <summary>Effective tax treatment and approval evidence</summary>
+        <p>
+          PCB resolves the treatment using the payroll month. Special programmes require
+          an approval and evidence reference; overlapping periods are rejected.
+        </p>
+        <div className={styles.payrollFormGrid}>
+          <label>
+            <span>Effective from</span>
+            <input
+              defaultValue={primaryTaxPeriod?.effectiveFrom ?? "2026-01-01"}
+              name="pcbTaxEffectiveFrom"
+              type="date"
+            />
+          </label>
+          <label>
+            <span>Effective to</span>
+            <input
+              defaultValue={primaryTaxPeriod?.effectiveTo ?? "2026-12-31"}
+              name="pcbTaxEffectiveTo"
+              type="date"
+            />
+          </label>
+          <label>
+            <span>Official source</span>
+            <input
+              defaultValue={primaryTaxPeriod?.officialSourceReference ?? "HASiL PCB Computerised Calculation Specification 2026"}
+              maxLength={500}
+              name="pcbTaxOfficialSourceReference"
+            />
+          </label>
+          <label>
+            <span>Evidence reference</span>
+            <input
+              defaultValue={primaryTaxPeriod?.evidenceReference ?? ""}
+              maxLength={500}
+              name="pcbTaxEvidenceReference"
+              placeholder="Required for REP, Knowledge Worker or C-Suite"
+            />
+          </label>
+          <label>
+            <span>Approval reference</span>
+            <input
+              defaultValue={primaryTaxPeriod?.approvalReference ?? ""}
+              maxLength={500}
+              name="pcbTaxApprovalReference"
+              placeholder="Official approval number or retained record"
+            />
+          </label>
+          <label><span>Approved company</span><input defaultValue={primaryTaxPeriod?.approvedCompany ?? ""} maxLength={240} name="pcbTaxApprovedCompany" placeholder="When stated in the approval" /></label>
+          <label><span>Approved activity / region</span><input defaultValue={primaryTaxPeriod?.approvedActivity ?? ""} maxLength={240} name="pcbTaxApprovedActivity" placeholder="For example, approved activity or specified region" /></label>
+          <label><span>Approved position</span><input defaultValue={primaryTaxPeriod?.approvedPosition ?? ""} maxLength={240} name="pcbTaxApprovedPosition" placeholder="When stated in the approval" /></label>
+        </div>
+        <label className={styles.taxPcbDeclarationToggle}>
+          <input defaultChecked={Boolean(secondTaxPeriod)} name="pcbTaxSecondPeriod" type="checkbox" />
+          <span>
+            <strong>Add a second 2026 tax-treatment period</strong>
+            <small>Use this for a governed mid-year residence or special-regime transition.</small>
+          </span>
+        </label>
+        <div className={styles.payrollFormGrid}>
+          <label>
+            <span>Second-period treatment</span>
+            <select defaultValue={secondTaxPeriod?.regime ?? "RESIDENT_STANDARD"} name="pcbTaxRegime2">
+              <option value="RESIDENT_STANDARD">Malaysia tax resident</option>
+              <option value="NON_RESIDENT">Non-resident</option>
+              <option value="RETURNING_EXPERT_PROGRAM">Returning Expert Programme</option>
+              <option value="KNOWLEDGE_WORKER">Approved knowledge worker</option>
+              <option value="C_SUITE_NON_CITIZEN">Non-citizen C-suite employee</option>
+            </select>
+          </label>
+          <label><span>Second period from</span><input defaultValue={secondTaxPeriod?.effectiveFrom ?? ""} name="pcbTaxEffectiveFrom2" type="date" /></label>
+          <label><span>Second period to</span><input defaultValue={secondTaxPeriod?.effectiveTo ?? ""} name="pcbTaxEffectiveTo2" type="date" /></label>
+          <label><span>Second-period official source</span><input defaultValue={secondTaxPeriod?.officialSourceReference ?? ""} maxLength={500} name="pcbTaxOfficialSourceReference2" /></label>
+          <label><span>Second-period evidence</span><input defaultValue={secondTaxPeriod?.evidenceReference ?? ""} maxLength={500} name="pcbTaxEvidenceReference2" /></label>
+          <label><span>Second-period approval</span><input defaultValue={secondTaxPeriod?.approvalReference ?? ""} maxLength={500} name="pcbTaxApprovalReference2" /></label>
+          <label><span>Second-period approved company</span><input defaultValue={secondTaxPeriod?.approvedCompany ?? ""} maxLength={240} name="pcbTaxApprovedCompany2" /></label>
+          <label><span>Second-period approved activity / region</span><input defaultValue={secondTaxPeriod?.approvedActivity ?? ""} maxLength={240} name="pcbTaxApprovedActivity2" /></label>
+          <label><span>Second-period approved position</span><input defaultValue={secondTaxPeriod?.approvedPosition ?? ""} maxLength={240} name="pcbTaxApprovedPosition2" /></label>
+        </div>
+      </details>
+      <details
+        className={styles.taxPcbDetails}
+        open={Boolean(firstNonCashFact || secondNonCashFact)}
+      >
+        <summary>Benefits in kind, living accommodation and exempt benefits</summary>
+        <p>
+          BIK and value of living accommodation are added to PCB normal remuneration only.
+          They do not increase cash salary or payslip gross pay. Annual values are allocated
+          over the remaining working months, including the effective month, and truncated to
+          whole ringgit as required by the retained 2026 specification.
+        </p>
+        <div className={styles.taxPcbDeclaration}>
+          <label className={styles.taxPcbDeclarationToggle}>
+            <input defaultChecked={Boolean(firstNonCashFact)} name="pcbNonCashFact" type="checkbox" />
+            <span>
+              <strong>Add a governed non-cash or exempt-benefit fact</strong>
+              <small>Keep the official source and employee evidence with the effective period.</small>
+            </span>
+          </label>
+          <div className={styles.taxPcbDeclarationFields}>
+            <div className={styles.payrollFormGrid}>
+              <label>
+                <span>Benefit treatment</span>
+                <select defaultValue={firstNonCashFact?.kind ?? "BIK"} name="pcbNonCashKind">
+                  <option value="BIK">Benefit in kind (PCB only)</option>
+                  <option value="VOLA">Living accommodation (PCB only)</option>
+                  <option value="EXEMPT_ALLOWANCE">Tax-exempt allowance</option>
+                  <option value="EXEMPT_PERQUISITE">Tax-exempt perquisite</option>
+                  <option value="EXEMPT_BENEFIT">Tax-exempt benefit in kind</option>
+                </select>
+              </label>
+              <label>
+                <span>Value basis</span>
+                <select defaultValue={firstNonCashFact?.inputBasis ?? "MONTHLY_VALUE"} name="pcbNonCashInputBasis">
+                  <option value="MONTHLY_VALUE">Monthly value</option>
+                  <option value="ANNUAL_VALUE">Annual value</option>
+                </select>
+              </label>
+              <PcbMoney name="pcbNonCashValue" label="Declared value" value={money(firstNonCashFact?.valueCents)} />
+              <label><span>Effective from</span><input defaultValue={firstNonCashFact?.effectiveFrom ?? ""} name="pcbNonCashEffectiveFrom" type="date" /></label>
+              <label><span>Effective to</span><input defaultValue={firstNonCashFact?.effectiveTo ?? ""} name="pcbNonCashEffectiveTo" type="date" /></label>
+              <label><span>Official source</span><input defaultValue={firstNonCashFact?.officialSourceReference ?? ""} maxLength={500} name="pcbNonCashSourceReference" /></label>
+              <label><span>Employee evidence</span><input defaultValue={firstNonCashFact?.evidenceReference ?? ""} maxLength={500} name="pcbNonCashEvidenceReference" /></label>
+            </div>
+          </div>
+        </div>
+        <div className={styles.taxPcbDeclaration}>
+          <label className={styles.taxPcbDeclarationToggle}>
+            <input defaultChecked={Boolean(secondNonCashFact)} name="pcbNonCashFact2" type="checkbox" />
+            <span>
+              <strong>Add a second governed benefit fact</strong>
+              <small>Use a separate fact when the treatment or effective period differs.</small>
+            </span>
+          </label>
+          <div className={styles.taxPcbDeclarationFields}>
+            <div className={styles.payrollFormGrid}>
+              <label>
+                <span>Benefit treatment</span>
+                <select defaultValue={secondNonCashFact?.kind ?? "VOLA"} name="pcbNonCashKind2">
+                  <option value="BIK">Benefit in kind (PCB only)</option>
+                  <option value="VOLA">Living accommodation (PCB only)</option>
+                  <option value="EXEMPT_ALLOWANCE">Tax-exempt allowance</option>
+                  <option value="EXEMPT_PERQUISITE">Tax-exempt perquisite</option>
+                  <option value="EXEMPT_BENEFIT">Tax-exempt benefit in kind</option>
+                </select>
+              </label>
+              <label>
+                <span>Value basis</span>
+                <select defaultValue={secondNonCashFact?.inputBasis ?? "MONTHLY_VALUE"} name="pcbNonCashInputBasis2">
+                  <option value="MONTHLY_VALUE">Monthly value</option>
+                  <option value="ANNUAL_VALUE">Annual value</option>
+                </select>
+              </label>
+              <PcbMoney name="pcbNonCashValue2" label="Declared value" value={money(secondNonCashFact?.valueCents)} />
+              <label><span>Effective from</span><input defaultValue={secondNonCashFact?.effectiveFrom ?? ""} name="pcbNonCashEffectiveFrom2" type="date" /></label>
+              <label><span>Effective to</span><input defaultValue={secondNonCashFact?.effectiveTo ?? ""} name="pcbNonCashEffectiveTo2" type="date" /></label>
+              <label><span>Official source</span><input defaultValue={secondNonCashFact?.officialSourceReference ?? ""} maxLength={500} name="pcbNonCashSourceReference2" /></label>
+              <label><span>Employee evidence</span><input defaultValue={secondNonCashFact?.evidenceReference ?? ""} maxLength={500} name="pcbNonCashEvidenceReference2" /></label>
+            </div>
+          </div>
+        </div>
+      </details>
       <div className={styles.taxPcbChecks}>
         <label><input defaultChecked={profile?.individualDisabled} name="pcbIndividualDisabled" type="checkbox" /> Employee has disability relief</label>
         <label><input defaultChecked={profile?.spouseDisabled} name="pcbSpouseDisabled" type="checkbox" /> Spouse has disability relief</label>
@@ -1926,6 +2261,44 @@ function PcbProfileFields({ profile }: { profile: EmployeePcbProfile | null }) {
               <PcbMoney name="pcbPriorEmployerEpf" label="EPF contributed" value={money(profile?.priorEmployerEpfCents)} />
               <PcbMoney name="pcbPriorEmployerPcb" label="PCB already deducted" value={money(profile?.priorEmployerPcbCents)} />
               <PcbMoney name="pcbPriorEmployerZakat" label="Zakat paid" value={money(profile?.priorEmployerZakatCents)} />
+              <PcbMoney
+                name="pcbPriorEmployerReligiousTravelLevy"
+                label="Religious-travel levy (TP3 C4(ii))"
+                value={money(v4Profile?.tp3Declaration.religiousTravelLevyCents)}
+              />
+              <label>
+                <span>TP3 C4(ii) evidence reference</span>
+                <input
+                  defaultValue={v4Profile?.tp3Declaration.religiousTravelLevySourceReference ?? ""}
+                  maxLength={240}
+                  name="pcbPriorEmployerReligiousTravelLevyReference"
+                  placeholder="Official TP3 or retained payment evidence"
+                />
+              </label>
+              <label>
+                <span>Previous employment started</span>
+                <input
+                  defaultValue={v4Profile?.tp3Declaration.previousEmploymentPeriods[0]?.employmentStart ?? ""}
+                  name="pcbTp3EmploymentStart"
+                  type="date"
+                />
+              </label>
+              <label>
+                <span>Previous employment ended</span>
+                <input
+                  defaultValue={v4Profile?.tp3Declaration.previousEmploymentPeriods[0]?.employmentEnd ?? ""}
+                  name="pcbTp3EmploymentEnd"
+                  type="date"
+                />
+              </label>
+              <label>
+                <span>Previous employer reference</span>
+                <input
+                  defaultValue={v4Profile?.tp3Declaration.previousEmploymentPeriods[0]?.employerReference ?? ""}
+                  maxLength={240}
+                  name="pcbTp3EmployerReference"
+                />
+              </label>
               <label>
                 <span>TP3 reference</span>
                 <input
@@ -1936,6 +2309,28 @@ function PcbProfileFields({ profile }: { profile: EmployeePcbProfile | null }) {
                   type="text"
                 />
               </label>
+            </div>
+            <h4>TP3 C2 · Exempt previous-employer income</h4>
+            <div className={styles.payrollFormGrid}>
+              <label>
+                <span>Exempt category</span>
+                <select
+                  defaultValue={v4Profile?.tp3Declaration.exemptIncomeItems[0]?.category ?? "EXEMPT_ALLOWANCE"}
+                  name="pcbTp3ExemptCategory"
+                >
+                  <option value="EXEMPT_ALLOWANCE">Exempt allowance</option>
+                  <option value="EXEMPT_PERQUISITE">Exempt perquisite</option>
+                  <option value="EXEMPT_BENEFIT_IN_KIND">Exempt benefit in kind</option>
+                  <option value="OTHER_EXEMPT_INCOME">Other exempt income</option>
+                </select>
+              </label>
+              <PcbMoney
+                name="pcbTp3ExemptAmount"
+                label="Exempt amount"
+                value={money(v4Profile?.tp3Declaration.exemptIncomeItems[0]?.amountCents)}
+              />
+              <label><span>Description</span><input defaultValue={v4Profile?.tp3Declaration.exemptIncomeItems[0]?.description ?? ""} maxLength={240} name="pcbTp3ExemptDescription" /></label>
+              <label><span>C2 evidence reference</span><input defaultValue={v4Profile?.tp3Declaration.exemptIncomeItems[0]?.sourceReference ?? ""} maxLength={240} name="pcbTp3ExemptReference" /></label>
             </div>
             <PcbDeclarationEntryFields
               categories={PCB_2026_TP3_CATEGORIES}

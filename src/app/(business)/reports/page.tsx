@@ -1,13 +1,39 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { PaymentMethod, Prisma } from "@prisma/client";
+import { ReportDrawerShell } from "@/components/report-drawer-shell";
+import {
+  ReportFilterPanel,
+  type ReportFilterRange,
+} from "@/components/report-filter-panel";
 import {
   assertStaffPermission,
   hasStaffPermission,
 } from "@/lib/auth/staff-permissions";
 import { branchWhere, getActiveBranches } from "@/lib/branches";
+import {
+  getBusinessDayRange,
+  getCurrentBusinessDateValue,
+} from "@/lib/business-day";
+import {
+  addDaysToDateValue,
+  formatDateValue,
+  startOfBusinessMonth,
+} from "@/lib/business-time";
 import { getExpenseDashboard } from "@/lib/expense/service";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import { prisma } from "@/lib/prisma";
+import {
+  getDailySalesReport,
+  resolveReportBranchScope,
+  type DailySalesReport,
+} from "@/lib/reports/daily-sales";
+import {
+  formatPaymentShare,
+  formatReportMoney as money,
+  getVisibleDailySalesDays,
+  normalizeReportDateRange,
+} from "@/lib/reports/presentation";
 import { requireBusinessContext } from "@/lib/tenant";
 import { fromCents, toCents } from "@/lib/validation/pos";
 
@@ -17,10 +43,13 @@ type ReportsPageProps = {
     range?: string;
     from?: string;
     to?: string;
+    day?: string;
+    paymentMethod?: string;
+    showEmpty?: string;
   }>;
 };
 
-type ReportRange = "today" | "7days" | "month" | "custom";
+type ReportRange = ReportFilterRange;
 
 const NO_BRANCH_ACCESS_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -47,15 +76,61 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
 
   const businessId = context.businessId;
   const params = await searchParams;
-  const selectedRange = getReportRange(params.range);
-  const { defaultFrom, defaultTo } = getDefaultDateRange(selectedRange);
-  const hasCustomDates = isDateInput(params.from) || isDateInput(params.to);
-  const activeRange: ReportRange = hasCustomDates ? "custom" : selectedRange;
-  const fromValue = getDateInput(params.from, defaultFrom);
-  const toValue = getDateInput(params.to, defaultTo);
-  const { fromDate, toDateExclusive } = getDateRange(fromValue, toValue);
+  const [business, branches] = await Promise.all([
+    prisma.business.findUnique({ where: { id: businessId } }),
+    getActiveBranches(businessId),
+  ]);
+  if (!business) {
+    return (
+      <section className="content">
+        <div className="panel">
+          <h1>Business not found, please login again</h1>
+          <Link href="/login">Back to login</Link>
+        </div>
+      </section>
+    );
+  }
 
-  const branches = await getActiveBranches(businessId);
+  const selectedRange = getReportRange(params.range);
+  const showEmptyDays = params.showEmpty === "1";
+  const currentBusinessDateValue = getCurrentBusinessDateValue(
+    new Date(),
+    business.timezone,
+    business.businessDayCutoffTime,
+  );
+  const { defaultFrom, defaultTo } = getDefaultDateRange(
+    selectedRange === "custom" ? "today" : selectedRange,
+    currentBusinessDateValue,
+  );
+  const hasCustomDates = isDateInput(params.from) || isDateInput(params.to);
+  const activeRange: ReportRange =
+    selectedRange === "custom" || hasCustomDates ? "custom" : selectedRange;
+  const requestedFromValue = getDateInput(params.from, defaultFrom);
+  const requestedToValue = getDateInput(params.to, defaultTo);
+  const { fromValue, toValue } = normalizeReportDateRange(
+    requestedFromValue,
+    requestedToValue,
+  );
+  if (
+    activeRange === "custom" &&
+    (fromValue !== requestedFromValue || toValue !== requestedToValue)
+  ) {
+    const normalizedParams = new URLSearchParams({
+      from: fromValue,
+      to: toValue,
+    });
+    if (params.branchId) normalizedParams.set("branchId", params.branchId);
+    if (params.showEmpty === "1") normalizedParams.set("showEmpty", "1");
+    redirect(`/reports?${normalizedParams.toString()}`);
+  }
+  const businessDayRange = getBusinessDayRange({
+    fromDateValue: fromValue,
+    toDateValue: toValue,
+    timezone: business.timezone,
+    businessDayCutoffTime: business.businessDayCutoffTime,
+  });
+  const { fromDate, toDateExclusive } = businessDayRange;
+
   const canViewAllBranches =
     context.access.source === "GROUP_ACCESS" ||
     hasStaffPermission(context.user, "ALL_BRANCHES");
@@ -63,24 +138,26 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
     ? branches.find((branch) => branch.id === context.user.branchId)
     : null;
   const selectableBranches = canViewAllBranches ? branches : staffBranch ? [staffBranch] : [];
-  const selectedBranch = canViewAllBranches
-    ? branches.find((branch) => branch.id === params.branchId)
-    : staffBranch;
-  const selectedBranchId = canViewAllBranches
-    ? selectedBranch?.id ?? null
-    : staffBranch?.id ?? NO_BRANCH_ACCESS_ID;
+  const branchScope = resolveReportBranchScope({
+    canViewAllBranches,
+    requestedBranchId: params.branchId,
+    staffBranchId: context.user.branchId,
+    activeBranchIds: branches.map((branch) => branch.id),
+  });
+  const selectedBranchId = branchScope.hasAccess
+    ? branchScope.branchId
+    : NO_BRANCH_ACCESS_ID;
+  const selectedBranch = branchScope.branchId
+    ? branches.find((branch) => branch.id === branchScope.branchId) ?? null
+    : null;
   const selectedBranchWhere = branchWhere(selectedBranchId);
 
   const [
-    business,
-    totalSales,
-    totalRefunds,
+    dailySalesReport,
     serviceSales,
     serviceRefunds,
     packageUses,
     packageUseRefunds,
-    paymentMethods,
-    refundMethods,
     voidedPayments,
     jobsByStatus,
     invoicesByStatus,
@@ -93,27 +170,12 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
     taxSummary,
     creditNoteTaxSummary,
   ] = await Promise.all([
-    prisma.business.findUnique({ where: { id: businessId } }),
-    prisma.payment.aggregate({
-      where: {
-        businessId,
-        ...selectedBranchWhere,
-        status: "ACTIVE",
-        method: { not: "PACKAGE" },
-        paidAt: { gte: fromDate, lt: toDateExclusive },
-      },
-      _count: true,
-      _sum: { amount: true },
-    }),
-    prisma.paymentRefund.aggregate({
-      where: {
-        businessId,
-        ...selectedBranchWhere,
-        method: { not: "PACKAGE" },
-        refundedAt: { gte: fromDate, lt: toDateExclusive },
-      },
-      _count: true,
-      _sum: { amount: true },
+    getDailySalesReport({
+      businessId,
+      branchId: selectedBranchId,
+      range: businessDayRange,
+      selectedDay: isDateInput(params.day) ? params.day : undefined,
+      selectedPaymentMethod: getSafeTextParam(params.paymentMethod),
     }),
     prisma.payment.aggregate({
       where: {
@@ -158,31 +220,6 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       },
       _count: true,
       _sum: { amount: true, packageUsesRestored: true },
-    }),
-    prisma.payment.groupBy({
-      by: ["method"],
-      where: {
-        businessId,
-        ...selectedBranchWhere,
-        status: "ACTIVE",
-        method: { not: "PACKAGE" },
-        paidAt: { gte: fromDate, lt: toDateExclusive },
-      },
-      _count: true,
-      _sum: { amount: true },
-      orderBy: { _sum: { amount: "desc" } },
-    }),
-    prisma.paymentRefund.groupBy({
-      by: ["method"],
-      where: {
-        businessId,
-        ...selectedBranchWhere,
-        method: { not: "PACKAGE" },
-        refundedAt: { gte: fromDate, lt: toDateExclusive },
-      },
-      _count: true,
-      _sum: { amount: true },
-      orderBy: { _sum: { amount: "desc" } },
     }),
     prisma.payment.aggregate({
       where: {
@@ -308,12 +345,21 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       include: {
         payment: {
           include: {
+            businessPaymentMethod: {
+              select: { label: true },
+            },
             customerPackage: {
               include: {
                 customer: true,
                 package: true,
               },
             },
+          },
+        },
+        invoice: {
+          select: {
+            invoiceNumber: true,
+            customer: { select: { name: true } },
           },
         },
         processedBy: {
@@ -362,9 +408,6 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
     (total, row) => total + Number(row._sum.balance ?? 0),
     0,
   );
-  const grossSalesCents = toCents(totalSales._sum.amount ?? 0);
-  const refundedSalesCents = toCents(totalRefunds._sum.amount ?? 0);
-  const netSalesCents = grossSalesCents - refundedSalesCents;
   const taxCollectedCents = Math.max(
     0,
     toCents(taxSummary._sum.taxAmount ?? 0) -
@@ -379,28 +422,6 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const netPackageUses =
     Number(packageUses._sum.packageUses ?? 0) -
     Number(packageUseRefunds._sum.packageUsesRestored ?? 0);
-  const refundMethodByMethod = new Map(
-    refundMethods.map((row) => [row.method, row]),
-  );
-  const paymentMethodSummary = Array.from(
-    new Set([...paymentMethods.map((row) => row.method), ...refundMethods.map((row) => row.method)]),
-  )
-    .map((method) => {
-      const payment = paymentMethods.find((row) => row.method === method);
-      const refund = refundMethodByMethod.get(method);
-      const grossCents = toCents(payment?._sum.amount ?? 0);
-      const refundCents = toCents(refund?._sum.amount ?? 0);
-
-      return {
-        count: payment?._count ?? 0,
-        grossCents,
-        method,
-        netCents: grossCents - refundCents,
-        refundCents,
-      };
-    })
-    .sort((left, right) => right.netCents - left.netCents);
-
   const salonReport =
     context.industryType === "SALON_BEAUTY"
       ? await getSalonReportData({
@@ -420,19 +441,6 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
     includeBusinessWide: canViewAllBranches && !selectedBranchId,
   }) : null;
 
-  if (!business) {
-    return (
-      <>
-        <section className="content">
-          <div className="panel">
-            <h1>Business not found, please login again</h1>
-            <Link href="/login">Back to login</Link>
-          </div>
-        </section>
-      </>
-    );
-  }
-
   return (
     <>
       <section className="content report-content">
@@ -448,80 +456,50 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
           </div>
           <div className="report-period">
             <span>Period</span>
-            <strong>
-              {formatDisplayDate(fromDate)} - {formatDisplayDate(addDays(toDateExclusive, -1))}
-            </strong>
+            <strong>{formatReportPeriod(fromValue, toValue)}</strong>
           </div>
         </div>
 
-        <div className="panel report-filter-panel">
-          <div className="filter-tabs report-range-tabs">
-            {[
-              { label: "Today", value: "today" },
-              { label: "7 days", value: "7days" },
-              { label: "Month", value: "month" },
-            ].map((range) => (
-              <Link
-                key={range.value}
-                className={activeRange === range.value ? "active" : ""}
-                href={reportRangeHref(range.value, selectedBranchId)}
-              >
-                {range.label}
-              </Link>
-            ))}
-            {activeRange === "custom" ? <span className="custom-range-chip">Custom</span> : null}
-          </div>
-          <form className="report-filter-form" action="/reports">
-            <label>
-              <span>From</span>
-              <input type="date" name="from" defaultValue={fromValue} />
-            </label>
-            <label>
-              <span>To</span>
-              <input type="date" name="to" defaultValue={toValue} />
-            </label>
-            {canViewAllBranches ? (
-              <label>
-                <span>Branch</span>
-                <select name="branchId" defaultValue={selectedBranchId ?? ""}>
-                  <option value="">All branches</option>
-                  {selectableBranches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <label>
-                <span>Branch</span>
-                <div className="report-branch-lock">
-                  {staffBranch?.name ?? "No active branch assigned"}
-                </div>
-              </label>
-            )}
-            <button type="submit">Run report</button>
-          </form>
-        </div>
+        <ReportFilterPanel
+          activeRange={activeRange}
+          fromValue={fromValue}
+          selectedBranchId={selectedBranchId}
+          toValue={toValue}
+        />
+
+        <ReportSummary
+          dailySales={dailySalesReport}
+          salon={salonReport}
+        />
+
+        <DailySalesSection
+          report={dailySalesReport}
+          branchId={selectedBranchId}
+          range={activeRange}
+          fromValue={fromValue}
+          toValue={toValue}
+          showEmptyDays={showEmptyDays}
+        />
+
+        <PaymentsCollectedSection
+          branchId={selectedBranchId}
+          fromValue={fromValue}
+          range={activeRange}
+          report={dailySalesReport}
+          showEmptyDays={showEmptyDays}
+          toValue={toValue}
+        />
 
         {salonReport ? <SalonReportSections data={salonReport} /> : null}
 
-        {!salonReport ? <div className="report-kpis">
-          <Metric label="Gross Sales" value={money(fromCents(grossSalesCents))} />
-          <Metric label="Refunds" value={money(fromCents(refundedSalesCents))} />
-          <Metric label="Net Sales" value={money(fromCents(netSalesCents))} />
+        {!salonReport ? <div className="report-kpis report-secondary-kpis">
           <Metric label="Service Sales" value={money(fromCents(netServiceSalesCents))} />
           <Metric label="SST / Tax" value={money(fromCents(taxCollectedCents))} />
           <Metric
             label="Package Sales"
             value={`${packageSales._count} / ${money(fromCents(netPackageSalesCents))}`}
           />
-          <Metric
-            label="Package Uses"
-            value={`${netPackageUses} uses`}
-          />
-          <Metric label="Payments" value={totalSales._count} />
-          <Metric label="Refund Transactions" value={totalRefunds._count} />
+          <Metric label="Package Uses" value={`${netPackageUses} uses`} />
           <Metric label="Jobs" value={jobCount} />
           <Metric label="Invoices" value={invoiceCount} />
           <Metric label="Outstanding" value={money(outstanding)} />
@@ -531,57 +509,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
           />
         </div> : null}
 
-        {expenseSummary ? <section className="report-grid" aria-label="Business performance and expense settlement">
-          <ReportCard title="Business Performance">
-            <div className="report-kpis">
-              <Metric label="Net Sales" value={money(fromCents(netSalesCents))} />
-              <Metric label="Confirmed Expenses" value={money(expenseSummary.recorded)} />
-              <Metric label="Simple Operating Balance" value={money(Number(fromCents(netSalesCents)) - Number(expenseSummary.recorded))} />
-              <Metric label="One-off Expenses" value={money(expenseSummary.oneOff)} />
-              <Metric label="Recurring Expenses" value={money(expenseSummary.recurring)} />
-            </div>
-            <p className="report-note">Confirmed expenses follow Expense Date. Simple Operating Balance is not accounting profit.</p>
-          </ReportCard>
-          <ReportCard title="Expense Settlement">
-            <div className="report-kpis">
-              <Metric label="Payments in Period" value={money(expenseSummary.paymentsInPeriod)} />
-              <Metric label="Paid against selected expenses" value={money(expenseSummary.paid)} />
-              <Metric label="Outstanding selected expenses" value={money(expenseSummary.unpaid)} />
-            </div>
-            <p className="report-note">Payments follow Payment Date and do not recognise spending again. Cash does not imply POS drawer funding.</p>
-          </ReportCard>
-        </section> : null}
-
         {!salonReport ? <section className="report-grid">
-          <ReportCard title="Payment Methods">
-            {paymentMethodSummary.length ? (
-              <table className="table compact-table">
-                <thead>
-                  <tr>
-                    <th>Method</th>
-                    <th>Count</th>
-                    <th>Gross</th>
-                    <th>Refunds</th>
-                    <th>Net</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paymentMethodSummary.map((row) => (
-                    <tr key={row.method}>
-                      <td>{paymentMethodLabels[row.method]}</td>
-                      <td>{row.count}</td>
-                      <td>{money(fromCents(row.grossCents))}</td>
-                      <td>{money(fromCents(row.refundCents))}</td>
-                      <td>{money(fromCents(row.netCents))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="empty-state">No payments in this period.</p>
-            )}
-          </ReportCard>
-
           <ReportCard title="Jobs by Status">
             {jobsByStatus.length ? (
               <table className="table compact-table">
@@ -773,15 +701,16 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
                     <tr key={refund.id}>
                       <td>{formatDateTime(refund.refundedAt)}</td>
                       <td>
-                        {refund.workOrder?.customer.name ??
+                        {refund.invoice?.customer?.name ??
+                          refund.workOrder?.customer.name ??
                           refund.payment.customerPackage?.customer.name ??
                           "No customer"}
                         <div className="muted">{refund.reason}</div>
                       </td>
                       <td>
-                        {refund.workOrder && refund.invoiceId ? (
+                        {refund.invoiceId ? (
                           <Link href={`/invoices/${refund.invoiceId}`}>
-                            {refund.workOrder.vehicle.plateNumber}
+                            {refund.invoice?.invoiceNumber ?? "View invoice"}
                           </Link>
                         ) : refund.workOrder ? (
                           <Link href={`/work-orders/${refund.workOrder.id}`}>
@@ -797,7 +726,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
                           "Refund"
                         )}
                       </td>
-                      <td>{paymentMethodLabels[refund.method]}</td>
+                      <td>{refund.payment.businessPaymentMethod?.label ?? refund.payment.paymentMethodLabel ?? paymentMethodLabels[refund.method]}</td>
                       <td>
                         {refund.method === "PACKAGE"
                           ? `${refund.packageUsesRestored} use${refund.packageUsesRestored === 1 ? "" : "s"} restored`
@@ -813,8 +742,454 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
             )}
           </ReportCard>
         </section> : null}
+
+        {expenseSummary ? <section className="report-grid report-last-section" aria-label="Business performance and expense settlement">
+          <ReportCard title="Business Performance">
+            <MetricList items={[
+              { label: "Net Sales", value: money(fromCents(dailySalesReport.summary.netSalesCents)) },
+              { label: "Confirmed Expenses", value: money(expenseSummary.recorded) },
+              { label: "Simple Operating Balance", value: money(Number(fromCents(dailySalesReport.summary.netSalesCents)) - Number(expenseSummary.recorded)) },
+              { label: "One-off Expenses", value: money(expenseSummary.oneOff) },
+              { label: "Recurring Expenses", value: money(expenseSummary.recurring) },
+            ]} />
+            <p className="report-note">Confirmed expenses follow Expense Date. Simple Operating Balance is not accounting profit.</p>
+          </ReportCard>
+          <ReportCard title="Expense Settlement">
+            <MetricList items={[
+              { label: "Payments in Period", value: money(expenseSummary.paymentsInPeriod) },
+              { label: "Paid against selected expenses", value: money(expenseSummary.paid) },
+              { label: "Outstanding selected expenses", value: money(expenseSummary.unpaid) },
+            ]} />
+            <p className="report-note">Payments follow Payment Date and do not recognise spending again. Cash does not imply POS drawer funding.</p>
+          </ReportCard>
+        </section> : null}
+
+        {dailySalesReport.selectedDay ? (
+          <DayTransactionsDrawer
+            report={dailySalesReport}
+            closeHref={buildReportHref({
+              range: activeRange,
+              branchId: selectedBranchId,
+              fromValue,
+              toValue,
+              showEmptyDays,
+            })}
+            timezone={business.timezone}
+          />
+        ) : dailySalesReport.selectedPaymentMethod ? (
+          <PaymentMethodDrawer
+            closeHref={buildReportHref({
+              range: activeRange,
+              branchId: selectedBranchId,
+              fromValue,
+              toValue,
+              showEmptyDays,
+            })}
+            report={dailySalesReport}
+            timezone={business.timezone}
+          />
+        ) : null}
       </section>
     </>
+  );
+}
+
+function ReportSummary({
+  dailySales,
+  salon,
+}: {
+  dailySales: DailySalesReport;
+  salon: SalonReportData | null;
+}) {
+  return (
+    <section className="report-summary" aria-labelledby="report-summary-title">
+      <div className="report-section-heading">
+        <div>
+          <span className="report-eyebrow">Sales overview</span>
+          <h2 id="report-summary-title">Summary</h2>
+        </div>
+        <p>Sales follow invoice date; refunds follow refund date.</p>
+      </div>
+      <div className="report-summary-group">
+        <h3>Sales Summary</h3>
+        <div className="report-kpis report-summary-primary">
+          <Metric label="Net Sales" value={money(fromCents(dailySales.summary.netSalesCents))} />
+          <Metric label="Transactions" value={dailySales.summary.transactionCount} />
+          <Metric label="Average Sale" value={money(fromCents(dailySales.summary.averageSaleCents))} />
+          <Metric label="Refunds" value={money(fromCents(dailySales.summary.refundsCents))} />
+          <Metric label="Discounts" value={money(fromCents(dailySales.summary.discountsCents))} />
+        </div>
+      </div>
+      {salon ? (
+        <div className="report-summary-group report-summary-appointments">
+          <h3>Appointment Summary</h3>
+          <div className="report-kpis report-summary-secondary">
+            <Metric label="Appointments" value={salon.totalAppointments} />
+            <Metric label="Completed" value={salon.completedAppointments} />
+            <Metric label="Cancelled" value={salon.cancelledAppointments} />
+            <Metric label="No-show" value={salon.noShowAppointments} />
+            <Metric label="Repeat Visits" value={salon.repeatCustomers} />
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function DailySalesSection({
+  report,
+  branchId,
+  range,
+  fromValue,
+  toValue,
+  showEmptyDays,
+}: {
+  report: DailySalesReport;
+  branchId: string | null;
+  range: ReportRange;
+  fromValue: string;
+  toValue: string;
+  showEmptyDays: boolean;
+}) {
+  const visibleDays = getVisibleDailySalesDays(report.days, showEmptyDays);
+  const toggleHref = buildReportHref({
+    range,
+    branchId,
+    fromValue,
+    toValue,
+    showEmptyDays: !showEmptyDays,
+  });
+
+  return (
+    <section className="panel report-feature-card" aria-labelledby="daily-sales-title">
+      <div className="report-section-heading report-section-heading-bordered">
+        <div>
+          <span className="report-eyebrow">Business-day view</span>
+          <h2 id="daily-sales-title">Daily Sales</h2>
+        </div>
+        <div className="report-section-actions">
+          <p>Select a day to review its invoices and payment mix.</p>
+          <Link
+            aria-checked={showEmptyDays}
+            className={`report-empty-days-toggle${showEmptyDays ? " is-active" : ""}`}
+            href={toggleHref}
+            role="switch"
+          >
+            <span aria-hidden="true">{showEmptyDays ? "✓" : ""}</span>
+            Show empty days
+          </Link>
+        </div>
+      </div>
+      {visibleDays.length ? (
+        <>
+          <div className="report-table-shell report-desktop-table">
+            <table className="table report-daily-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Net Sales</th>
+                  <th>Transactions</th>
+                  <th>Avg Sale</th>
+                  <th>Refunds</th>
+                  <th>Discounts</th>
+                  <th>Payment Mix</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleDays.map((row) => {
+                  const dayHref = buildReportHref({
+                    range,
+                    branchId,
+                    fromValue,
+                    toValue,
+                    day: row.dateValue,
+                    showEmptyDays,
+                  });
+                  return (
+                    <tr key={row.dateValue}>
+                      <td>
+                        <Link className="report-day-cell-link report-day-link" href={dayHref}>
+                          <strong>{formatReportDate(row.dateValue)}</strong>
+                        </Link>
+                      </td>
+                      <td><Link className="report-day-cell-link" href={dayHref}>{money(fromCents(row.netSalesCents))}</Link></td>
+                      <td><Link className="report-day-cell-link" href={dayHref}>{row.transactionCount}</Link></td>
+                      <td><Link className="report-day-cell-link" href={dayHref}>{money(fromCents(row.averageSaleCents))}</Link></td>
+                      <td><Link className="report-day-cell-link" href={dayHref}>{money(fromCents(row.refundsCents))}</Link></td>
+                      <td><Link className="report-day-cell-link" href={dayHref}>{money(fromCents(row.discountsCents))}</Link></td>
+                      <td className="report-payment-mix-cell">
+                        <Link className="report-day-cell-link" href={dayHref}>
+                          {formatPaymentMix(row.paymentMethods)}
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Total</th>
+                  <th>{money(fromCents(report.summary.netSalesCents))}</th>
+                  <th>{report.summary.transactionCount}</th>
+                  <th>{money(fromCents(report.summary.averageSaleCents))}</th>
+                  <th>{money(fromCents(report.summary.refundsCents))}</th>
+                  <th>{money(fromCents(report.summary.discountsCents))}</th>
+                  <th aria-label="Payment mix total">—</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div className="report-mobile-list" aria-label="Daily sales mobile list">
+            {visibleDays.map((row) => (
+              <Link
+                className="report-mobile-day-card"
+                href={buildReportHref({
+                  range,
+                  branchId,
+                  fromValue,
+                  toValue,
+                  day: row.dateValue,
+                  showEmptyDays,
+                })}
+                key={row.dateValue}
+              >
+                <div>
+                  <strong>{formatReportDate(row.dateValue)}</strong>
+                  <span>{row.transactionCount} transaction{row.transactionCount === 1 ? "" : "s"}</span>
+                </div>
+                <b>{money(fromCents(row.netSalesCents))}</b>
+                <dl>
+                  <div><dt>Average</dt><dd>{money(fromCents(row.averageSaleCents))}</dd></div>
+                  {row.refundsCents ? <div className="report-negative-metric"><dt>Refunds</dt><dd>{money(fromCents(row.refundsCents))}</dd></div> : null}
+                  {row.discountsCents ? <div className="report-negative-metric"><dt>Discounts</dt><dd>{money(fromCents(row.discountsCents))}</dd></div> : null}
+                </dl>
+                <div className="report-mobile-payment-mix">
+                  <span>Payment</span>
+                  <strong>{formatPaymentMix(row.paymentMethods)}</strong>
+                </div>
+                <small className="report-mobile-detail-link">View details →</small>
+              </Link>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="report-empty-state">
+          <span aria-hidden="true">▤</span>
+          <strong>No sales in this period</strong>
+          <p>Try another date range.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PaymentsCollectedSection({
+  branchId,
+  fromValue,
+  range,
+  report,
+  showEmptyDays,
+  toValue,
+}: {
+  branchId: string | null;
+  fromValue: string;
+  range: ReportRange;
+  report: DailySalesReport;
+  showEmptyDays: boolean;
+  toValue: string;
+}) {
+  return (
+    <section className="panel report-feature-card" aria-labelledby="payments-collected-title">
+      <div className="report-section-heading report-section-heading-bordered">
+        <div>
+          <span className="report-eyebrow">Payment view</span>
+          <h2 id="payments-collected-title">Payments Collected</h2>
+        </div>
+        <div className="report-collected-total">
+          <span>Net collected</span>
+          <strong>{money(fromCents(report.summary.netCollectionsCents))}</strong>
+        </div>
+      </div>
+      <p className="report-note report-definition-note">
+        Sales are recognised from invoices. Collections show when money was received, including split payments and refunds.
+      </p>
+      {report.paymentMethods.length ? (
+        <div className="report-payment-grid">
+          {report.paymentMethods.map((method) => {
+            const displayShare = report.summary.netCollectionsCents > 0
+              ? (method.netCents / report.summary.netCollectionsCents) * 100
+              : 0;
+            const displayShareLabel = formatPaymentShare(displayShare);
+            return (
+            <Link
+              aria-label={`View ${method.label} payment details`}
+              className="report-payment-card"
+              href={buildReportHref({
+                range,
+                branchId,
+                fromValue,
+                toValue,
+                paymentMethod: method.label,
+                showEmptyDays,
+              })}
+              key={method.label}
+            >
+              <div className="report-payment-card-heading">
+                <strong>{method.label}</strong>
+                <b>{money(fromCents(method.netCents))}</b>
+              </div>
+              <div className="report-payment-card-meta">
+                <span>{method.paymentCount} payment{method.paymentCount === 1 ? "" : "s"}</span>
+                <span>{displayShareLabel}</span>
+              </div>
+              <div className="report-payment-share" aria-label={`${displayShareLabel} of net collections`}>
+                <span style={{ width: `${displayShare < 0.1 ? 0 : Math.max(0, Math.min(100, displayShare))}%` }} />
+              </div>
+              <small>Gross {money(fromCents(method.grossCents))}{method.refundCents ? ` · Refunds ${money(fromCents(method.refundCents))}` : ""}</small>
+              <span className="report-payment-card-action">View payments →</span>
+            </Link>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="report-empty-state report-empty-state-compact">
+          <strong>No payments collected</strong>
+          <p>There are no monetary payments in this period.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DayTransactionsDrawer({
+  report,
+  closeHref,
+  timezone,
+}: {
+  report: DailySalesReport;
+  closeHref: string;
+  timezone: string;
+}) {
+  const selectedDay = report.selectedDay!;
+  const day = report.days.find((row) => row.dateValue === selectedDay.dateValue);
+  return (
+    <ReportDrawerShell ariaLabelledBy="day-detail-title" closeHref={closeHref}>
+        <header>
+          <div>
+            <span className="report-eyebrow">Daily transactions</span>
+            <h2 id="day-detail-title">{formatReportDate(selectedDay.dateValue)}</h2>
+            <p>{day?.transactionCount ?? 0} transaction{day?.transactionCount === 1 ? "" : "s"} · {money(fromCents(day?.netSalesCents ?? 0))} net sales</p>
+          </div>
+          <Link className="report-drawer-close" href={closeHref} aria-label="Close">×</Link>
+        </header>
+        <dl className="report-drawer-summary">
+          <div><dt>Net Sales</dt><dd>{money(fromCents(day?.netSalesCents ?? 0))}</dd></div>
+          <div><dt>Transactions</dt><dd>{day?.transactionCount ?? 0}</dd></div>
+          <div><dt>Refunds</dt><dd>{money(fromCents(day?.refundsCents ?? 0))}</dd></div>
+          <div><dt>Discounts</dt><dd>{money(fromCents(day?.discountsCents ?? 0))}</dd></div>
+        </dl>
+        {selectedDay.transactions.length ? (
+          <>
+            <div className="report-table-shell report-desktop-table">
+              <table className="table report-transaction-table">
+                <thead><tr><th>Time</th><th>Invoice</th><th>Customer</th><th>Staff</th><th>Subtotal</th><th>Discount</th><th>Net</th><th>Payment</th><th>Status</th></tr></thead>
+                <tbody>
+                  {selectedDay.transactions.map((transaction) => (
+                    <tr key={transaction.id}>
+                      <td>{formatTimeInZone(transaction.issuedAt, timezone)}</td>
+                      <td><Link href={`/invoices/${transaction.id}`}>{transaction.invoiceNumber}</Link></td>
+                      <td>{transaction.customerName}</td>
+                      <td>{transaction.staffName}</td>
+                      <td>{money(fromCents(transaction.subtotalCents))}</td>
+                      <td>{transaction.discountCents ? `-${money(fromCents(transaction.discountCents))}` : money(0)}</td>
+                      <td>{money(fromCents(transaction.totalCents))}</td>
+                      <td>{transaction.paymentLabel}</td>
+                      <td><span className="status">{formatStatus(transaction.status)}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="report-mobile-list">
+              {selectedDay.transactions.map((transaction) => (
+                <article className="report-mobile-transaction" key={transaction.id}>
+                  <div><Link href={`/invoices/${transaction.id}`}>{transaction.invoiceNumber}</Link><b>{money(fromCents(transaction.totalCents))}</b></div>
+                  <p>{formatTimeInZone(transaction.issuedAt, timezone)} · {transaction.customerName}</p>
+                  <small>Subtotal {money(fromCents(transaction.subtotalCents))} · Discount {transaction.discountCents ? `-${money(fromCents(transaction.discountCents))}` : money(0)}</small>
+                  <small>{transaction.staffName} · {transaction.paymentLabel} · {formatStatus(transaction.status)}</small>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="report-empty-state"><strong>No invoices for this day</strong><p>Sales may be empty even when a later refund was recorded.</p></div>
+        )}
+    </ReportDrawerShell>
+  );
+}
+
+function PaymentMethodDrawer({
+  closeHref,
+  report,
+  timezone,
+}: {
+  closeHref: string;
+  report: DailySalesReport;
+  timezone: string;
+}) {
+  const method = report.selectedPaymentMethod!;
+  return (
+    <ReportDrawerShell ariaLabelledBy="payment-detail-title" closeHref={closeHref}>
+      <header>
+        <div>
+          <span className="report-eyebrow">Payment details</span>
+          <h2 id="payment-detail-title">{method.label}</h2>
+          <p>{method.paymentCount} payment{method.paymentCount === 1 ? "" : "s"} in this period</p>
+        </div>
+        <Link className="report-drawer-close" href={closeHref} aria-label="Close">×</Link>
+      </header>
+      <dl className="report-drawer-summary report-payment-drawer-summary">
+        <div><dt>Gross collected</dt><dd>{money(fromCents(method.grossCents))}</dd></div>
+        <div><dt>Refunds</dt><dd>{money(fromCents(method.refundCents))}</dd></div>
+        <div><dt>Net collected</dt><dd>{money(fromCents(method.netCents))}</dd></div>
+      </dl>
+      {method.rows.length ? (
+        <>
+          <div className="report-table-shell report-desktop-table">
+            <table className="table report-payment-detail-table">
+              <thead><tr><th>Time</th><th>Invoice</th><th>Customer</th><th>Gross</th><th>Refund</th><th>Net</th></tr></thead>
+              <tbody>
+                {method.rows.map((row) => (
+                  <tr key={`${row.kind}-${row.id}`}>
+                    <td>{formatTimeInZone(row.occurredAt, timezone)}</td>
+                    <td>{row.invoiceId ? <Link href={`/invoices/${row.invoiceId}`}>{row.invoiceNumber ?? "View invoice"}</Link> : "—"}</td>
+                    <td>{row.customerName}</td>
+                    <td>{money(fromCents(row.grossCents))}</td>
+                    <td>{row.refundCents ? `-${money(fromCents(row.refundCents))}` : money(0)}</td>
+                    <td className={row.netCents < 0 ? "report-negative-value" : undefined}>{row.netCents < 0 ? `-${money(fromCents(Math.abs(row.netCents)))}` : money(fromCents(row.netCents))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="report-mobile-list">
+            {method.rows.map((row) => (
+              <article className="report-mobile-transaction" key={`${row.kind}-${row.id}`}>
+                <div>
+                  {row.invoiceId ? <Link href={`/invoices/${row.invoiceId}`}>{row.invoiceNumber ?? "View invoice"}</Link> : <strong>{row.kind === "REFUND" ? "Refund" : "Payment"}</strong>}
+                  <b className={row.netCents < 0 ? "report-negative-value" : undefined}>{row.netCents < 0 ? `-${money(fromCents(Math.abs(row.netCents)))}` : money(fromCents(row.netCents))}</b>
+                </div>
+                <p>{formatTimeInZone(row.occurredAt, timezone)} · {row.customerName}</p>
+                <small>Gross {money(fromCents(row.grossCents))} · Refund {row.refundCents ? `-${money(fromCents(row.refundCents))}` : money(0)}</small>
+                {row.reason ? <small>Reason: {row.reason}{row.processorName ? ` · Processed by ${row.processorName}` : ""}</small> : null}
+              </article>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="report-empty-state"><strong>No payment records</strong><p>No matching payment or refund records were found in this period.</p></div>
+      )}
+    </ReportDrawerShell>
   );
 }
 
@@ -837,13 +1212,6 @@ type SalonStatusReportRow = {
 };
 
 type SalonReportData = {
-  grossRevenueCents: number;
-  refundCents: number;
-  netRevenueCents: number;
-  discountCents: number;
-  depositCents: number;
-  tipCents: number;
-  sstCollectedCents: number;
   totalAppointments: number;
   completedAppointments: number;
   cancelledAppointments: number;
@@ -885,10 +1253,6 @@ async function getSalonReportData({
   const [
     appointmentsByStatus,
     repeatCustomerGroups,
-    paymentTotals,
-    refundTotals,
-    taxSummary,
-    creditNoteTaxSummary,
     invoices,
     staffAppointmentGroups,
   ] = await Promise.all([
@@ -903,44 +1267,6 @@ async function getSalonReportData({
       where: validAppointmentWhere,
       _count: true,
     }),
-    prisma.payment.aggregate({
-      where: {
-        businessId,
-        ...branchFilter,
-        status: "ACTIVE",
-        method: { not: "PACKAGE" },
-        paidAt: { gte: fromDate, lt: toDateExclusive },
-      },
-      _sum: { amount: true },
-    }),
-    prisma.paymentRefund.aggregate({
-      where: {
-        businessId,
-        ...branchFilter,
-        method: { not: "PACKAGE" },
-        refundedAt: { gte: fromDate, lt: toDateExclusive },
-      },
-      _sum: { amount: true },
-    }),
-    prisma.invoice.aggregate({
-      where: {
-        businessId,
-        ...branchFilter,
-        ...salonInvoiceLink,
-        status: { not: "VOID" },
-        issuedAt: { gte: fromDate, lt: toDateExclusive },
-      },
-      _sum: { taxAmount: true },
-    }),
-    prisma.creditNote.aggregate({
-      where: {
-        businessId,
-        ...branchFilter,
-        invoice: salonInvoiceLink,
-        issuedAt: { gte: fromDate, lt: toDateExclusive },
-      },
-      _sum: { taxAmount: true },
-    }),
     prisma.invoice.findMany({
       where: {
         businessId,
@@ -950,9 +1276,6 @@ async function getSalonReportData({
         issuedAt: { gte: fromDate, lt: toDateExclusive },
       },
       select: {
-        discountAmount: true,
-        depositAmount: true,
-        tipAmount: true,
         items: {
           select: { name: true, quantity: true, lineTotal: true },
         },
@@ -984,13 +1307,7 @@ async function getSalonReportData({
 
   const serviceMap = new Map<string, { quantity: number; amount: number }>();
   const staffAmountMap = new Map<string, { name: string; amount: number }>();
-  let discountCents = 0;
-  let depositCents = 0;
-  let tipCents = 0;
   for (const invoice of invoices) {
-    discountCents += toCents(invoice.discountAmount);
-    depositCents += toCents(invoice.depositAmount);
-    tipCents += toCents(invoice.tipAmount);
     const staffId = invoice.appointment?.assignedStaffId ?? "unassigned";
     const staffName =
       invoice.appointment?.assignedStaff?.name ?? staffNames.get(staffId) ?? "Unassigned";
@@ -1042,22 +1359,7 @@ async function getSalonReportData({
   const countForStatus = (status: string) =>
     statusRows.find((row) => row.status === status)?.appointments ?? 0;
   const totalAppointments = statusRows.reduce((total, row) => total + row.appointments, 0);
-  const grossRevenueCents = toCents(paymentTotals._sum.amount ?? 0);
-  const refundCents = toCents(refundTotals._sum.amount ?? 0);
-  const sstCollectedCents = Math.max(
-    0,
-    toCents(taxSummary._sum.taxAmount ?? 0) -
-      toCents(creditNoteTaxSummary._sum.taxAmount ?? 0),
-  );
-
   return {
-    grossRevenueCents,
-    refundCents,
-    netRevenueCents: grossRevenueCents - refundCents,
-    discountCents,
-    depositCents,
-    tipCents,
-    sstCollectedCents,
     totalAppointments,
     completedAppointments: countForStatus("COMPLETED"),
     cancelledAppointments: countForStatus("CANCELLED"),
@@ -1074,23 +1376,7 @@ async function getSalonReportData({
 
 function SalonReportSections({ data }: { data: SalonReportData }) {
   return (
-    <>
-      <div className="report-kpis salon-report-kpis">
-        <Metric label="Revenue" value={money(fromCents(data.grossRevenueCents))} />
-        <Metric label="Refunds" value={money(fromCents(data.refundCents))} />
-        <Metric label="Net revenue" value={money(fromCents(data.netRevenueCents))} />
-        <Metric label="SST / Tax" value={money(fromCents(data.sstCollectedCents))} />
-        <Metric label="Discounts" value={money(fromCents(data.discountCents))} />
-        <Metric label="Deposits" value={money(fromCents(data.depositCents))} />
-        <Metric label="Tips" value={money(fromCents(data.tipCents))} />
-        <Metric label="Appointments" value={data.totalAppointments} />
-        <Metric label="Completed" value={data.completedAppointments} />
-        <Metric label="Cancelled" value={data.cancelledAppointments} />
-        <Metric label="No-show" value={data.noShowAppointments} />
-        <Metric label="Repeat customers" value={data.repeatCustomers} />
-      </div>
-
-      <section className="report-grid">
+      <section className="report-grid report-operational-grid">
         <ReportCard title="Service Sales">
           {data.serviceSales.length ? (
             <table className="table compact-table">
@@ -1116,14 +1402,14 @@ function SalonReportSections({ data }: { data: SalonReportData }) {
           )}
         </ReportCard>
 
-        <ReportCard title="Staff Sales">
+        <ReportCard title="Staff Activity">
           {data.staffSales.length ? (
             <table className="table compact-table">
               <thead>
                 <tr>
                   <th>Staff</th>
                   <th>Appointments</th>
-                  <th>Amount</th>
+                  <th>Attributed Sales</th>
                 </tr>
               </thead>
               <tbody>
@@ -1166,7 +1452,6 @@ function SalonReportSections({ data }: { data: SalonReportData }) {
           )}
         </ReportCard>
       </section>
-    </>
   );
 }
 
@@ -1176,6 +1461,23 @@ function Metric({ label, value }: { label: string; value: string | number }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function MetricList({
+  items,
+}: {
+  items: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <dl className="report-metric-list">
+      {items.map((item) => (
+        <div key={item.label}>
+          <dt>{item.label}</dt>
+          <dd>{item.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -1196,61 +1498,27 @@ function ReportCard({
   );
 }
 
-function getReportRange(value: string | undefined): Exclude<ReportRange, "custom"> {
-  if (value === "today" || value === "7days" || value === "month") {
+function getReportRange(value: string | undefined): ReportRange {
+  if (value === "today" || value === "7days" || value === "month" || value === "custom") {
     return value;
   }
 
   return "today";
 }
 
-function getDefaultDateRange(range: Exclude<ReportRange, "custom">) {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const fromDate =
-    range === "today" ? today : range === "7days" ? addDays(today, -6) : monthStart;
-
+function getDefaultDateRange(
+  range: Exclude<ReportRange, "custom">,
+  todayValue: string,
+) {
   return {
-    defaultFrom: formatDateInput(fromDate),
-    defaultTo: formatDateInput(today),
+    defaultFrom:
+      range === "today"
+        ? todayValue
+        : range === "7days"
+          ? addDaysToDateValue(todayValue, -6)
+          : startOfBusinessMonth(todayValue),
+    defaultTo: todayValue,
   };
-}
-
-function reportRangeHref(range: string, branchId: string | null) {
-  const params = new URLSearchParams({ range });
-
-  if (branchId) {
-    params.set("branchId", branchId);
-  }
-
-  return `/reports?${params.toString()}`;
-}
-
-function getDateRange(fromValue: string, toValue: string) {
-  const fromDate = parseDateInput(fromValue);
-  const toDateExclusive = parseDateInput(toValue);
-  toDateExclusive.setDate(toDateExclusive.getDate() + 1);
-
-  if (fromDate > toDateExclusive) {
-    return {
-      fromDate: parseDateInput(toValue),
-      toDateExclusive: addDays(parseDateInput(toValue), 1),
-    };
-  }
-
-  return { fromDate, toDateExclusive };
-}
-
-function parseDateInput(value: string) {
-  return new Date(`${value}T00:00:00`);
-}
-
-function formatDateInput(value: Date) {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 function isDateInput(value: string | undefined) {
@@ -1261,18 +1529,53 @@ function getDateInput(value: string | undefined, fallback: string) {
   return isDateInput(value) ? value ?? fallback : fallback;
 }
 
-function addDays(date: Date, days: number) {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-}
-
-function money(value: unknown) {
-  return `RM${Number(value ?? 0).toFixed(2)}`;
+function buildReportHref({
+  range,
+  branchId,
+  fromValue,
+  toValue,
+  day,
+  paymentMethod,
+  showEmptyDays,
+}: {
+  range: ReportRange;
+  branchId: string | null;
+  fromValue: string;
+  toValue: string;
+  day?: string;
+  paymentMethod?: string;
+  showEmptyDays?: boolean;
+}) {
+  const params = new URLSearchParams();
+  if (range === "custom") {
+    params.set("from", fromValue);
+    params.set("to", toValue);
+  } else {
+    params.set("range", range);
+  }
+  if (branchId && branchId !== NO_BRANCH_ACCESS_ID) {
+    params.set("branchId", branchId);
+  }
+  if (day) {
+    params.set("day", day);
+  }
+  if (paymentMethod) {
+    params.set("paymentMethod", paymentMethod);
+  }
+  if (showEmptyDays) {
+    params.set("showEmpty", "1");
+  }
+  return `/reports?${params.toString()}`;
 }
 
 function formatStatus(status: string) {
-  return status.toLowerCase().replaceAll("_", " ");
+  const normalized = status.toLowerCase().replaceAll("_", "-");
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function getSafeTextParam(value: string | undefined) {
+  const normalized = value?.trim();
+  return normalized && normalized.length <= 100 ? normalized : undefined;
 }
 
 function formatDateTime(value: Date) {
@@ -1284,10 +1587,40 @@ function formatDateTime(value: Date) {
   });
 }
 
-function formatDisplayDate(value: Date) {
-  return value.toLocaleDateString("en-MY", {
+function formatReportDate(value: string) {
+  return formatDateValue(value, {
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
+}
+
+function formatReportPeriod(fromValue: string, toValue: string) {
+  return fromValue === toValue
+    ? formatReportDate(fromValue)
+    : `${formatReportDate(fromValue)} - ${formatReportDate(toValue)}`;
+}
+
+function formatPaymentMix(
+  methods: readonly DailySalesReport["days"][number]["paymentMethods"][number][],
+) {
+  if (!methods.length) {
+    return "—";
+  }
+
+  const visibleMethods = methods.slice(0, 2);
+  const hiddenCount = methods.length - visibleMethods.length;
+  const visibleLabel = visibleMethods
+    .map((method) => `${method.label} ${money(fromCents(method.netCents))}`)
+    .join(" · ");
+  return hiddenCount > 0 ? `${visibleLabel} · +${hiddenCount} more` : visibleLabel;
+}
+
+function formatTimeInZone(value: Date, timezone: string) {
+  return new Intl.DateTimeFormat("en-MY", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: timezone,
+  }).format(value);
 }

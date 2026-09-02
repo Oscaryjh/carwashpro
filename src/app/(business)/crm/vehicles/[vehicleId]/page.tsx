@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackButton } from "@/components/back-button";
 import { requireCrmUser } from "@/lib/auth/crm";
+import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 
@@ -14,7 +15,8 @@ type VehicleDetailsPageProps = {
 export default async function VehicleDetailsPage({
   params,
 }: VehicleDetailsPageProps) {
-  const { businessId } = await requireCrmUser();
+  const { businessId, user } = await requireCrmUser();
+  const operationalBranchWhere = authorizedOperationalBranchWhere(user);
   const { vehicleId } = await params;
 
   const vehicle = await prisma.vehicle.findFirst({
@@ -26,6 +28,7 @@ export default async function VehicleDetailsPage({
       branch: true,
       customer: true,
       ownershipHistories: {
+        where: operationalBranchWhere,
         include: {
           previousCustomer: true,
           newCustomer: true,
@@ -33,16 +36,19 @@ export default async function VehicleDetailsPage({
         orderBy: { transferredAt: "desc" },
       },
       workOrders: {
+        where: operationalBranchWhere,
         include: {
           customer: true,
           invoice: true,
           whatsappMessages: {
+            where: operationalBranchWhere,
             orderBy: { createdAt: "desc" },
           },
         },
         orderBy: { createdAt: "desc" },
       },
       whatsappMessages: {
+        where: operationalBranchWhere,
         include: {
           workOrder: true,
           invoice: true,

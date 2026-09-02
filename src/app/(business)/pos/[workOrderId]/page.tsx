@@ -5,6 +5,10 @@ import { BackButton } from "@/components/back-button";
 import { PosPaymentPanel } from "@/components/pos-payment-panel";
 import { PosReceiptTotalsPreview } from "@/components/pos-payment-preview";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import {
+  authorizedCustomerPackageBranchWhere,
+  authorizedOperationalBranchWhere,
+} from "@/lib/branches";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 import { calculateTax } from "@/lib/tax/calculator";
@@ -22,13 +26,13 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
     "PROCESS_CASHIER_PAYMENT",
   );
   const { workOrderId } = await params;
+  const operationalBranchWhere = authorizedOperationalBranchWhere(user);
+  const packageBranchWhere = authorizedCustomerPackageBranchWhere(user);
   const workOrder = await prisma.workOrder.findFirst({
     where: {
       id: workOrderId,
       businessId,
-      ...(user.role === "BUSINESS_OWNER"
-        ? {}
-        : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
+      ...operationalBranchWhere,
     },
     include: {
       business: true,
@@ -88,6 +92,7 @@ export default async function PosCheckoutPage({ params }: PosCheckoutPageProps) 
       remainingUses: {
         gt: 0,
       },
+      ...packageBranchWhere,
     },
     include: {
       branch: true,

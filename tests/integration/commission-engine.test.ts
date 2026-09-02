@@ -152,7 +152,7 @@ test("commission lifecycle is tenant-scoped, immutable, approved-only and Payrol
   });
   await prisma.invoice.update({
     where: { id: invoice.id },
-    data: { paidAmount: 50, balance: 40, status: "PARTIAL" },
+    data: { paidAmount: 90, balance: 0, status: "PAID" },
   });
   const refundCapture = await captureCommissionRefundAdjustments(approverContext, prisma);
   const refundReplay = await captureCommissionRefundAdjustments(approverContext, prisma);

@@ -62,6 +62,69 @@ test("calculates sales, gross and net collections, refunds, and outstanding", ()
   });
 });
 
+test("refunds reduce collections without creating outstanding on a settled invoice", () => {
+  const partialRefund = calculateFinancialMetrics({
+    invoices: [
+      {
+        balanceCents: 0,
+        discountCents: 0,
+        loyaltyDiscountCents: 0,
+        packageVoucherCents: 0,
+        status: "PAID",
+        tipCents: 0,
+        totalCents: 13_500,
+      },
+    ],
+    payments: [{ amountCents: 13_500, isPackage: false }],
+    refunds: [{ amountCents: 3_500, isPackage: false }],
+  });
+  const fullRefund = calculateFinancialMetrics({
+    invoices: [
+      {
+        balanceCents: 0,
+        discountCents: 0,
+        loyaltyDiscountCents: 0,
+        packageVoucherCents: 0,
+        status: "REFUNDED",
+        tipCents: 0,
+        totalCents: 13_500,
+      },
+    ],
+    payments: [{ amountCents: 13_500, isPackage: false }],
+    refunds: [{ amountCents: 13_500, isPackage: false }],
+  });
+
+  assert.equal(partialRefund.grossCollectionsCents, 13_500);
+  assert.equal(partialRefund.refundsCents, 3_500);
+  assert.equal(partialRefund.netCollectionsCents, 10_000);
+  assert.equal(partialRefund.outstandingCents, 0);
+  assert.equal(fullRefund.netCollectionsCents, 0);
+  assert.equal(fullRefund.outstandingCents, 0);
+});
+
+test("partial-payment refund preserves the original contractual outstanding", () => {
+  const metrics = calculateFinancialMetrics({
+    invoices: [
+      {
+        balanceCents: 10_000,
+        discountCents: 0,
+        loyaltyDiscountCents: 0,
+        packageVoucherCents: 0,
+        status: "PARTIAL",
+        tipCents: 0,
+        totalCents: 20_000,
+      },
+    ],
+    payments: [{ amountCents: 10_000, isPackage: false }],
+    refunds: [{ amountCents: 3_000, isPackage: false }],
+  });
+
+  assert.equal(metrics.grossCollectionsCents, 10_000);
+  assert.equal(metrics.refundsCents, 3_000);
+  assert.equal(metrics.netCollectionsCents, 7_000);
+  assert.equal(metrics.outstandingCents, 10_000);
+});
+
 test("Group KPI and Daily Closing produce the same sales and refund values", () => {
   const periods = getBusinessDayRangeWithPrevious({
     fromDateValue: "2026-07-01",

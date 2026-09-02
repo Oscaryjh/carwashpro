@@ -20,9 +20,14 @@ export class StaffApiError extends Error {
   }
 }
 
+type StaffApiFetchOptions = Readonly<{
+  networkErrorMessage?: string;
+}>;
+
 export async function staffApiFetch<T>(
   input: RequestInfo | URL,
   init?: RequestInit,
+  options: StaffApiFetchOptions = {},
 ): Promise<T> {
   let response: Response;
   try {
@@ -40,7 +45,8 @@ export async function staffApiFetch<T>(
   } catch {
     throw new StaffApiError(
       "NETWORK_ERROR",
-      "Attendance requires a network connection. Connect to the internet and try again.",
+      options.networkErrorMessage ??
+        "The Staff App cannot reach the server. Check your connection and try again.",
       0,
     );
   }
@@ -293,3 +299,4 @@ declare global {
     };
   }
 }
+

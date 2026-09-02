@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Prisma } from "@prisma/client";
 import { InvoiceViewButton } from "@/components/invoice-view-button";
+import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { getInvoicePaymentSummary } from "@/lib/invoices/payment-summary";
@@ -19,12 +20,14 @@ const PAGE_SIZE = 10;
 export default async function InvoicesPage({ searchParams }: InvoicesPageProps) {
   const context = await requireBusinessIndustryContext("VIEW_INVOICES");
   const { businessId } = context;
+  const operationalBranchWhere = authorizedOperationalBranchWhere(context.user);
   const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const currentPage = Math.max(Number(params.page) || 1, 1);
   const where: Prisma.InvoiceWhereInput = {
     businessId,
+    ...operationalBranchWhere,
     ...(query
       ? {
           OR: [
@@ -72,12 +75,14 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
           orderBy: { createdAt: "asc" },
         },
         payments: {
+          where: operationalBranchWhere,
           select: {
             id: true,
             amount: true,
             method: true,
             status: true,
             refunds: {
+              where: operationalBranchWhere,
               select: { amount: true },
             },
           },
@@ -289,6 +294,8 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                           total: Number(invoice.total),
                           paidAmount: Number(invoice.paidAmount),
                           balance: Number(invoice.balance),
+                          refundedAmount: paymentSummary.monetaryRefundedAmount,
+                          netCollectedAmount: paymentSummary.netCollectedAmount,
                           packageVoucherAmount: paymentSummary.packageVoucherAmount,
                           cashPaidAmount: paymentSummary.cashPaidAmount,
                           canManagePayments,

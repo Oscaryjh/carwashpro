@@ -9,10 +9,10 @@
   "hasilExternalVerificationPerformed": false,
   "hasilApprovalEvidence": null,
   "calculator": {
-    "version": "TETAMU_PCB_2026_1.1.0",
+    "version": "TETAMU_PCB_2026_1.2.0",
     "ruleVersion": "HASIL_MTD_SPEC_2026",
     "sourcePath": "src/lib/payroll/pcb-2026.ts",
-    "sourceSha256": "bf579528584120b8f6d5ef11ef9cacb05aaa9fceb70249710463a9578b9a1158",
+    "sourceSha256": "d885da7ddd35795e679df0579d9274442e12d04fb7e5b3b12c34105a271d3487",
     "arithmetic": "INTEGER_SEN",
     "rounding": "ROUND_UP_TO_5_SEN",
     "manualFallback": false

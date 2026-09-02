@@ -1,0 +1,92 @@
+{
+  "certification": "TETAMU PCB 2026 P2 FORMULA & PROFILE CERTIFICATION",
+  "verdict": "PARTIAL",
+  "claimOfHasilApproval": false,
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "generatedAt": "2026-08-27T07:09:22.655Z",
+  "officialSources": {
+    "computerisedSpecification2026Sha256": "a1618051c858393d92d868c9975c183309d3d07e48f0e4f0cdef589f45f5800c",
+    "testingQuestions2026Sha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517"
+  },
+  "fixtureSha256": "ff8a0263505d81cc3cd4be347dca80d5ebb91c67282c0a0022477166f5720430",
+  "tetamuCalculatorVersion": "TETAMU_PCB_2026_1.2.0",
+  "tetamuCalculatorSourceSha256": "d885da7ddd35795e679df0579d9274442e12d04fb7e5b3b12c34105a271d3487",
+  "independentVerifierVersion": "HASIL_2026_P2_INDEPENDENT_1.0.0",
+  "independentVerifierSourceSha256": "6165a22cb9bc3cf31d3ba7fb945b4bfc14a18c368127338e51ffe102df56f5be",
+  "questions": [
+    {
+      "question": "Q1",
+      "result": "CERTIFIED",
+      "monthsCertified": [
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "tetamuResultDigest": "5946d0ff836f17a97cf802ef676e3086b50a0f2ca30017c7e4777c7eb02c3e0d",
+      "independentResultDigest": "5946d0ff836f17a97cf802ef676e3086b50a0f2ca30017c7e4777c7eb02c3e0d",
+      "difference": "RM0.00",
+      "openAmbiguity": null
+    },
+    {
+      "question": "Q2",
+      "result": "CERTIFIED",
+      "monthsCertified": [
+        "2026-03",
+        "2026-06",
+        "2026-09",
+        "2026-12"
+      ],
+      "tetamuResultDigest": "3dc56c837edf509124ece782fe6dd350cead83f4b810a034bd12d342668680ca",
+      "independentResultDigest": "3dc56c837edf509124ece782fe6dd350cead83f4b810a034bd12d342668680ca",
+      "difference": "RM0.00",
+      "openAmbiguity": null
+    },
+    {
+      "question": "Q3",
+      "result": "CERTIFIED",
+      "monthsCertified": [
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "tetamuResultDigest": "4e4cfaae2c869987308b406b84ea7201bfa981201e6abe5a9a0a80a6eb60d553",
+      "independentResultDigest": "4e4cfaae2c869987308b406b84ea7201bfa981201e6abe5a9a0a80a6eb60d553",
+      "difference": "RM0.00",
+      "openAmbiguity": null
+    },
+    {
+      "question": "Q4",
+      "result": "CERTIFIED",
+      "monthsCertified": [
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "tetamuResultDigest": "8d8e4fe7b979462690b752127c8c7251884752c150de025d018fb8f3ced78505",
+      "independentResultDigest": "8d8e4fe7b979462690b752127c8c7251884752c150de025d018fb8f3ced78505",
+      "difference": "RM0.00",
+      "openAmbiguity": null
+    },
+    {
+      "question": "Q5",
+      "result": "BLOCKED",
+      "monthsCertified": [],
+      "tetamuResultDigest": null,
+      "independentResultDigest": null,
+      "difference": null,
+      "openAmbiguity": "The official question states RM6,000 annual housing-loan interest but does not state the month(s) in which TP1 relief is claimed; January/February MTD therefore cannot be frozen without HASiL clarification."
+    }
+  ],
+  "openAmbiguities": [
+    {
+      "question": "Q5",
+      "ambiguity": "The official question states RM6,000 annual housing-loan interest but does not state the month(s) in which TP1 relief is claimed; January/February MTD therefore cannot be frozen without HASiL clarification."
+    }
+  ]
+}

@@ -21,6 +21,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "tmp/**",
+    ".tmp/**",
     "next-env.d.ts",
     "whatsapp-connector/dist/**",
   ]),

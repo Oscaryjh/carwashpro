@@ -5,7 +5,11 @@ import { CrmEditCustomerModal } from "@/components/crm-edit-customer-modal";
 import { CrmEditNotesModal } from "@/components/crm-edit-notes-modal";
 import { CrmNewCustomerModal } from "@/components/crm-new-customer-modal";
 import type { InvoiceModalSummary } from "@/components/appointment-invoice-modal";
-import { getActiveBranches } from "@/lib/branches";
+import {
+  authorizedCustomerPackageBranchWhere,
+  authorizedOperationalBranchWhere,
+  getActiveBranches,
+} from "@/lib/branches";
 import {
   formatDateValue,
   toBusinessDateValue,
@@ -105,6 +109,8 @@ const MAX_ACTIVITY_LIMIT = 50;
 export default async function CrmPage({ searchParams }: CrmPageProps) {
   const context = await requireBusinessIndustryContext("VIEW_CRM");
   const { businessId } = context;
+  const operationalBranchWhere = authorizedOperationalBranchWhere(context.user);
+  const packageBranchWhere = authorizedCustomerPackageBranchWhere(context.user);
   const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
@@ -158,12 +164,16 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
         _count: {
           select: {
             customerPackages: {
-              where: { status: "ACTIVE", remainingUses: { gt: 0 } },
+              where: {
+                status: "ACTIVE",
+                remainingUses: { gt: 0 },
+                ...packageBranchWhere,
+              },
             },
           },
         },
         appointments: {
-          where: { status: "COMPLETED" },
+          where: { status: "COMPLETED", ...operationalBranchWhere },
           orderBy: { scheduledAt: "desc" },
           take: 1,
           select: { scheduledAt: true },
@@ -182,6 +192,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
         include: {
           membership: true,
           appointments: {
+            where: operationalBranchWhere,
             include: {
               service: true,
               assignedStaff: true,
@@ -191,10 +202,14 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             take: 20,
           },
           invoices: {
+            where: operationalBranchWhere,
             include: {
               items: { orderBy: { createdAt: "asc" } },
               payments: {
-                include: { refunds: true },
+                where: operationalBranchWhere,
+                include: {
+                  refunds: { where: operationalBranchWhere },
+                },
                 orderBy: { paidAt: "desc" },
               },
             },
@@ -202,6 +217,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             take: 20,
           },
           customerPackages: {
+            where: packageBranchWhere,
             include: {
               package: true,
               serviceBalances: {
@@ -213,12 +229,16 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             take: 20,
           },
           whatsappMessages: {
+            where: operationalBranchWhere,
             include: {
               invoice: {
                 include: {
                   items: { orderBy: { createdAt: "asc" } },
                   payments: {
-                    include: { refunds: true },
+                    where: operationalBranchWhere,
+                    include: {
+                      refunds: { where: operationalBranchWhere },
+                    },
                     orderBy: { paidAt: "desc" },
                   },
                 },
@@ -239,6 +259,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
     ? await prisma.payment.findMany({
         where: {
           businessId,
+          ...operationalBranchWhere,
           invoice: { customerId: customer.id },
         },
         include: {
@@ -246,14 +267,17 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             include: {
               items: { orderBy: { createdAt: "asc" } },
               payments: {
-                include: { refunds: true },
+                where: operationalBranchWhere,
+                include: {
+                  refunds: { where: operationalBranchWhere },
+                },
                 orderBy: { paidAt: "desc" },
               },
             },
           },
           customerPackage: { include: { package: true } },
           customerPackageServiceBalance: { include: { service: true } },
-          refunds: true,
+          refunds: { where: operationalBranchWhere },
         },
         orderBy: { paidAt: "desc" },
         take: activityLimit + 1,
@@ -270,6 +294,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             businessId,
             customerId: customer.id,
             status: { not: "VOID" },
+            ...operationalBranchWhere,
           },
           _sum: { paidAmount: true },
         }),
@@ -279,6 +304,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             customerId: customer.id,
             status: "ACTIVE",
             remainingUses: { gt: 0 },
+            ...packageBranchWhere,
           },
         }),
         prisma.appointment.findFirst({
@@ -286,6 +312,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             businessId,
             customerId: customer.id,
             status: "COMPLETED",
+            ...operationalBranchWhere,
           },
           orderBy: { scheduledAt: "desc" },
           select: { scheduledAt: true },

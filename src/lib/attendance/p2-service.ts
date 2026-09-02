@@ -129,6 +129,75 @@ export async function materializeAttendanceP2Day(args: {
   );
 }
 
+/**
+ * Projects a completed Staff App punch into the canonical P2 day model.
+ *
+ * Staff App sessions are employee-authenticated and therefore do not have a
+ * back-office User actor. The current Expected Day is the governed roster
+ * evidence for the day, so its creator is retained as the projection actor.
+ * The actual P2 calculation remains in materializeAttendanceP2DayInTransaction.
+ */
+export async function materializeAttendanceP2DayFromCompletedPunch(args: {
+  businessId: string;
+  branchId: string;
+  membershipId: string;
+  workDate: Date;
+  database?: PrismaClient;
+}) {
+  const database = args.database ?? prisma;
+  return database.$transaction(async (transaction) => {
+    const workDate = dateOnly(args.workDate);
+    const expected = await transaction.attendanceExpectedDay.findFirst({
+      where: {
+        businessId: args.businessId,
+        branchId: args.branchId,
+        membershipId: args.membershipId,
+        workDate,
+        status: "CURRENT",
+      },
+      orderBy: { revision: "desc" },
+      select: { createdById: true },
+    });
+    if (!expected) {
+      throw new AttendanceP2Error(
+        "INVALID_STATE",
+        "Completed Attendance cannot be projected without a current Expected Day.",
+      );
+    }
+
+    const projectionActor = await transaction.user.findFirst({
+      where: {
+        id: expected.createdById,
+        businessId: args.businessId,
+      },
+      select: { id: true, name: true, email: true },
+    });
+    if (!projectionActor) {
+      throw new AttendanceP2Error(
+        "INVALID_STATE",
+        "The current Expected Day has no valid business-scoped projection actor.",
+      );
+    }
+
+    return materializeAttendanceP2DayInTransaction(
+      {
+        context: {
+          businessId: args.businessId,
+          allowedBranchIds: [args.branchId],
+          actor: {
+            userId: projectionActor.id,
+            name: projectionActor.name,
+            email: projectionActor.email ?? "",
+          },
+        },
+        membershipId: args.membershipId,
+        workDate,
+      },
+      transaction,
+    );
+  }, transactionOptions);
+}
+
 export async function materializeAttendanceP2DayInTransaction(
   args: { context: AttendanceServiceContext; membershipId: string; workDate: Date },
   transaction: Prisma.TransactionClient,

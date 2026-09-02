@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import { makeCreditNoteNumber } from "@/lib/invoices/credit-note-number";
 import {
   restoreRedeemedLoyaltyPointsForRefund,
@@ -14,8 +15,8 @@ import { clearCustomerPackageServiceBalances } from "@/lib/packages/service-bala
 import { calculateCreditNoteAmounts } from "@/lib/tax/calculator";
 import {
   getRefundableCents,
-  getRefundedPaymentState,
 } from "@/lib/refunds/rules";
+import { reconcileInvoiceSettlementAfterRefund } from "@/lib/invoices/refund-settlement-service";
 import { recordRefundInventory, recordVoidInventoryReversals } from "@/lib/inventory/service";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 import { fromCents, toCents } from "@/lib/validation/pos";
@@ -23,6 +24,7 @@ import {
   financialOperationKeySchema,
   runFinancialOperation,
 } from "@/lib/financial-idempotency";
+import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
 
 export type VoidInvoiceState = {
   status: "idle" | "success" | "error";
@@ -99,6 +101,7 @@ export async function refundPaymentAction(
   }
 
   const input = parsed.data;
+  const operationalBranchWhere = authorizedOperationalBranchWhere(user);
   const amountCents = Math.round(input.amount * 100);
 
   if (Math.abs(input.amount * 100 - amountCents) > 0.0001) {
@@ -141,11 +144,16 @@ export async function refundPaymentAction(
         if (!shift) {
           throw new Error("Start a cashier shift before processing a refund.");
         }
+        const shiftActivity = await assertCashierShiftAcceptsActivity(tx, {
+          businessId,
+          shift,
+        });
 
         const invoice = await tx.invoice.findFirst({
           where: {
             id: input.invoiceId,
             businessId,
+            ...operationalBranchWhere,
           },
           include: {
             workOrder: true,
@@ -316,6 +324,7 @@ export async function refundPaymentAction(
             workOrderId: invoice.workOrderId,
             invoiceId: invoice.id,
             processedById: user.userId,
+            refundedAt: shiftActivity.activityAt,
             shiftId: shift.id,
             amount: fromCents(amountCents),
             method: input.method,
@@ -375,33 +384,11 @@ export async function refundPaymentAction(
           createdById: user.userId,
         });
 
-        const nextPaidCents = Math.max(0, toCents(invoice.paidAmount) - amountCents);
-        const totalCents = toCents(invoice.total);
-        const nextBalanceCents = Math.max(0, totalCents - nextPaidCents);
-        const nextStatus = getRefundedPaymentState(
-          totalCents,
-          nextPaidCents,
-          true,
-        );
-
-        if (invoice.workOrder) {
-          await tx.workOrder.update({
-            where: { id: invoice.workOrder.id },
-            data: {
-              paidAmount: fromCents(nextPaidCents),
-              balance: fromCents(nextBalanceCents),
-              paymentStatus: nextStatus,
-            },
-          });
-        }
-
-        await tx.invoice.update({
-          where: { id: invoice.id },
-          data: {
-            paidAmount: fromCents(nextPaidCents),
-            balance: fromCents(nextBalanceCents),
-            status: nextStatus,
-          },
+        const settlement = await reconcileInvoiceSettlementAfterRefund(tx, {
+          businessId,
+          invoiceId: invoice.id,
+          totalCents: toCents(invoice.total),
+          workOrderId: invoice.workOrderId,
         });
 
         const creditNoteAmounts = calculateCreditNoteAmounts({
@@ -465,11 +452,13 @@ export async function refundPaymentAction(
               refundableAmount: fromCents(refundableCents),
             },
             after: {
-              invoiceStatus: nextStatus,
-              paidAmount: fromCents(nextPaidCents),
-              balance: fromCents(nextBalanceCents),
+              invoiceStatus: settlement.status,
+              paidAmount: fromCents(settlement.settledObligationCents),
+              balance: fromCents(settlement.outstandingCents),
               workOrderStatus: invoice.workOrder?.status ?? null,
-              paymentStatus: nextStatus,
+              paymentStatus: settlement.status,
+              refundLifecycle: settlement.refundLifecycle,
+              refundedAmount: fromCents(settlement.refundedCents),
               creditNoteNumber: creditNote.creditNoteNumber,
             },
             metadata: {
@@ -533,6 +522,7 @@ export async function voidInvoiceAction(
   const { businessId, user } = await requireBusinessUser("PROCESS_REFUND");
   const auditRequest = await getAuditRequestContext();
   const invoiceId = String(formData.get("invoiceId") ?? "");
+  const operationalBranchWhere = authorizedOperationalBranchWhere(user);
   const voidReason = String(formData.get("voidReason") ?? "").trim();
   const operationId = financialOperationKeySchema.safeParse(
     formData.get("operationId"),
@@ -565,6 +555,7 @@ export async function voidInvoiceAction(
         where: {
           id: invoiceId,
           businessId,
+          ...operationalBranchWhere,
         },
         include: {
           workOrder: true,

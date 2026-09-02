@@ -13,6 +13,7 @@ import {
   classifyWhatsAppSendFailure,
   sendWhatsAppQueueItem,
 } from "../src/lib/notification-queue/worker-send";
+import { emitScheduledJobFailure } from "../src/lib/ops/alerting";
 
 const pollIntervalMs = 1000;
 const batchSize = 10;
@@ -25,6 +26,12 @@ process.on("SIGTERM", shutdown);
 
 main().catch(async (error) => {
   console.error("[notification-queue-worker] Fatal error", getErrorMessage(error));
+  await emitScheduledJobFailure({
+    job: "notification-queue-worker",
+    code: "NOTIFICATION_WORKER_FATAL",
+    message: getErrorMessage(error),
+    severity: "CRITICAL",
+  }).catch(() => undefined);
   await prisma.$disconnect();
   process.exit(1);
 });
@@ -138,6 +145,14 @@ async function processQueuedBatch() {
         nextAttemptAt: failedQueueItem.nextAttemptAt,
         retryable: classification.retryable,
       });
+      if (failedQueueItem.status === "FAILED") {
+        await emitScheduledJobFailure({
+          job: "notification-queue-delivery",
+          attempt: failedQueueItem.retryCount,
+          code: "NOTIFICATION_DELIVERY_EXHAUSTED",
+          message: classification.safeMessage,
+        }).catch(() => undefined);
+      }
     }
   }
 
@@ -167,6 +182,11 @@ async function queueClosingReminderSweep() {
       "[notification-queue-worker] Closing reminder sweep failed",
       getErrorMessage(error),
     );
+    await emitScheduledJobFailure({
+      job: "closing-reminder-sweep",
+      code: "CLOSING_REMINDER_SWEEP_FAILED",
+      message: getErrorMessage(error),
+    }).catch(() => undefined);
   }
 }
 

@@ -337,6 +337,8 @@ test("Phase 3B query isolation remains intact after controlled edit entry migrat
   assert.match(component, /dialogId={`statutory-contributions-edit-/);
   assert.match(component, /dialogId={`lindung24-participation-/);
   assert.match(component, /title="Edit LINDUNG 24 coverage"/);
+  assert.match(component, /dialogId={`epf-participation-/);
+  assert.match(component, /title="Add EPF participation period"/);
   assert.match(component, /automatically refreshes any eligible Draft payroll/);
   assert.match(component, /Official acknowledgement date/);
   assert.match(component, /Local participation is voluntary/);
@@ -360,7 +362,7 @@ test("Phase 3B query isolation remains intact after controlled edit entry migrat
   assert.doesNotMatch(component, /Finalized payroll and exported records stay unchanged/);
   assert.doesNotMatch(component, /<h3>Change record<\/h3>/);
   assert.doesNotMatch(component, /categoryLabel="Update type"/);
-  assert.equal(component.match(/size="compact"/g)?.length, 4);
+  assert.equal(component.match(/size="compact"/g)?.length, 5);
   assert.match(component, /eyebrow="Statutory & tax"/);
   assert.doesNotMatch(
     component,

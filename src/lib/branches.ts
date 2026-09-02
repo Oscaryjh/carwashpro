@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import type { AppSession } from "@/lib/auth/session";
 
+export const DENIED_OPERATIONAL_BRANCH_ID =
+  "00000000-0000-0000-0000-000000000000";
+
+type OperationalBranchUser = Pick<AppSession, "branchId" | "role">;
+
 export type BranchOption = {
   id: string;
   name: string;
@@ -94,4 +99,48 @@ export async function resolveOperationalBranchId(
 
 export function branchWhere(branchId?: string | null) {
   return branchId ? { branchId } : {};
+}
+
+/**
+ * Canonical operational-data scope for business routes.
+ *
+ * Customer and vehicle identities remain business-wide. Operational records
+ * (appointments, invoices, payments, work orders, etc.) do not. `ALL_BRANCHES`
+ * is intentionally absent: it only expands Reports visibility.
+ */
+export function authorizedOperationalBranchWhere(
+  user: OperationalBranchUser,
+) {
+  return user.role === "BUSINESS_OWNER"
+    ? {}
+    : { branchId: user.branchId ?? DENIED_OPERATIONAL_BRANCH_ID };
+}
+
+/**
+ * Customer packages with no branch are business-wide; otherwise the same
+ * operational branch rule applies.
+ */
+export function authorizedCustomerPackageBranchWhere(
+  user: OperationalBranchUser,
+) {
+  if (user.role === "BUSINESS_OWNER") {
+    return {};
+  }
+
+  return {
+    OR: [
+      { branchId: null },
+      { branchId: user.branchId ?? DENIED_OPERATIONAL_BRANCH_ID },
+    ],
+  };
+}
+
+export function canAccessOperationalBranch(
+  user: OperationalBranchUser,
+  branchId: string | null,
+) {
+  return (
+    user.role === "BUSINESS_OWNER" ||
+    Boolean(user.branchId && branchId === user.branchId)
+  );
 }

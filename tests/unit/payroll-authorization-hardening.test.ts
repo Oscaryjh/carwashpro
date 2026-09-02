@@ -187,7 +187,10 @@ test("deployed sensitive entry points use dedicated capabilities and immutable s
   assert.match(statutoryArtifact, /byteLength/);
   assert.match(statutoryArtifact, /writeAuditLog/);
   assert.doesNotMatch(statutoryArtifact, /tryWriteAuditLog/);
-  assert.match(payslipRoute, /document\.run\.status !== "FINALIZED"/);
+  assert.match(payslipRoute, /requireWholeBusinessPayroll\("VIEW_PAYSLIP"\)/);
+  assert.match(payslipRoute, /PAYSLIP_PREVIEWED/);
+  assert.match(payslipRoute, /PAYSLIP_DOWNLOADED/);
+  assert.match(payslipRoute, /const disposition = isFinalized \? "attachment" : "inline"/);
   for (const exportSource of [payrollExport, statutoryArtifact]) {
     assert.match(exportSource, /checksumSha256/);
     assert.match(exportSource, /byteLength/);

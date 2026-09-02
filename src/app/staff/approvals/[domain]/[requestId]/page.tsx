@@ -26,9 +26,9 @@ export default async function StaffApprovalDetailPage({ params }: { params: Prom
           <Fact label="Leave type" value={request.policyName} />
           <Fact label="Dates" value={`${displayDate(request.startsOn)} – ${displayDate(request.endsOn)}`} />
           <Fact label="Duration" value={`${request.requestedDays} day(s) · ${humanize(request.leaveUnit)}`} />
+          <Fact label="Reason" value={request.reason || "No reason provided"} wide />
           <Fact label="Current balance" value={request.currentBalance == null ? "Not tracked" : `${request.currentBalance} days`} />
           <Fact label="Balance after approval" value={request.resultingBalance == null ? "Not tracked" : `${request.resultingBalance} days`} />
-          <Fact label="Reason" value={request.reason || "No reason provided"} wide />
         </dl>
         {request.supportingEvidenceRequired ? (
           <section className={`staff-approval-evidence ${request.supportingEvidenceStatus === "VERIFIED" ? "ready" : "warning"}`}>
@@ -47,10 +47,10 @@ export default async function StaffApprovalDetailPage({ params }: { params: Prom
   return (
     <ApprovalShell title="Review Claim" employee={claim.membership.fullName} branch={claim.branch.name} status={claim.status}>
       <dl className="staff-approval-facts">
-        <Fact label="Claim number" value={claim.claimNumber} />
-        <Fact label="Submitted" value={claim.submittedAt ? displayDateTime(claim.submittedAt) : "Not submitted"} />
         <Fact label="Submitted amount" value={`RM ${Number(claim.submittedTotal).toFixed(2)}`} />
+        <Fact label="Submitted" value={claim.submittedAt ? displayDateTime(claim.submittedAt) : "Not submitted"} />
         <Fact label="Purpose" value={claim.purpose} wide />
+        <Fact label="Claim reference" value={claim.claimNumber} />
       </dl>
       <section className="staff-approval-lines">
         <h2>Claim items</h2>

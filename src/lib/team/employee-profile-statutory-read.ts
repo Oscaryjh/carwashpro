@@ -38,6 +38,18 @@ type StatutorySection =
         epfMemberNumber: string | null;
         epfMemberNumberMasked: string | null;
         epfMemberBeforeAug1998: boolean;
+        epfParticipationExpectedRevision: number;
+        epfParticipationHistory: Array<{
+          effectiveFromMonth: string;
+          effectiveToMonth: string | null;
+          revision: number;
+          scheme: "EPF";
+          status: "PARTICIPATING" | "NOT_PARTICIPATING";
+          sourceType: string;
+          sourceReference: string | null;
+          reason: string;
+          confirmedAt: string;
+        }>;
         socsoEnabled: boolean;
         socsoCategory: "FIRST" | "SECOND" | null;
         socsoMemberNumber: string | null;
@@ -141,7 +153,13 @@ export async function loadEmployeeStatutoryProfileSection(
     };
   }
 
-  const [statutoryProfile, taxProfile, impactRuns, lindung24ParticipationHistory] = await Promise.all([
+  const [
+    statutoryProfile,
+    taxProfile,
+    impactRuns,
+    lindung24ParticipationHistory,
+    epfParticipationHistory,
+  ] = await Promise.all([
     canViewStatutory
       ? database.employeeBusinessMembership.findFirst({
           where: { businessId: input.businessId, id: input.membershipId },
@@ -213,6 +231,27 @@ export async function loadEmployeeStatutoryProfileSection(
           },
         }) ?? [])
       : [],
+    canViewStatutory
+      ? (database.employeeStatutoryParticipationPeriod?.findMany({
+          where: {
+            businessId: input.businessId,
+            membershipId: input.membershipId,
+            scheme: "EPF",
+          },
+          orderBy: [{ effectiveFromMonth: "asc" }, { revision: "asc" }],
+          select: {
+            confirmedAt: true,
+            effectiveFromMonth: true,
+            effectiveToMonth: true,
+            reason: true,
+            revision: true,
+            scheme: true,
+            sourceReference: true,
+            sourceType: true,
+            status: true,
+          },
+        }) ?? [])
+      : [],
   ]);
 
   if ((canViewStatutory && !statutoryProfile) || (canViewTax && !taxProfile)) {
@@ -249,6 +288,15 @@ export async function loadEmployeeStatutoryProfileSection(
               statutoryProfile.epfMemberNumber,
             ),
             epfMemberBeforeAug1998: statutoryProfile.epfMemberBeforeAug1998,
+            epfParticipationExpectedRevision:
+              epfParticipationHistory.at(-1)?.revision ?? 0,
+            epfParticipationHistory: epfParticipationHistory.map((record) => ({
+              ...record,
+              scheme: "EPF" as const,
+              effectiveFromMonth: record.effectiveFromMonth.toISOString(),
+              effectiveToMonth: record.effectiveToMonth?.toISOString() ?? null,
+              confirmedAt: record.confirmedAt.toISOString(),
+            })),
             socsoEnabled: statutoryProfile.socsoEnabled,
             socsoCategory: statutoryProfile.socsoCategory,
             socsoMemberNumber: canEditTax

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { calculatePcb2026 } from "../../src/lib/payroll/pcb-2026";
+import {
+  calculatePcb2026,
+  PCB_2026_CALCULATOR_VERSION,
+} from "../../src/lib/payroll/pcb-2026";
 import { assertNoDirectStatutoryEntryValues } from "../../src/lib/payroll/service";
 import { buildPcbGovernanceBinding } from "../../src/lib/payroll/pcb-governance";
 import { pcbProfileDataSchema } from "../../src/lib/payroll/pcb-profile";
@@ -69,6 +72,90 @@ const profile = pcbProfileDataSchema.parse({
   confirmedAt: "2026-01-01T00:00:00.000Z",
 });
 
+const parsedP1Profile = pcbProfileDataSchema.parse({
+  ...profile,
+  version: 4,
+  profileRevision: 2,
+  taxRegimeTimeline: [
+    {
+      taxYear: 2026,
+      regime: "RESIDENT_STANDARD",
+      effectiveFrom: "2026-01-01",
+      effectiveTo: "2026-12-31",
+      approvalStatus: "NOT_REQUIRED",
+      officialSourceReference: "HASiL PCB Computerised Calculation Specification 2026",
+      evidenceReference: null,
+      approvalReference: null,
+      approvedCompany: null,
+      approvedActivity: null,
+      approvedPosition: null,
+      reviewedByUserId: null,
+      confirmedAt: "2026-01-01T00:00:00.000Z",
+      revision: 2,
+    },
+  ],
+  nonCashRemunerationFacts: [
+    {
+      id: "bik-car-2026",
+      taxYear: 2026,
+      kind: "BIK",
+      inputBasis: "ANNUAL_VALUE",
+      valueCents: 2_500_000,
+      effectiveFrom: "2026-04-01",
+      effectiveTo: null,
+      officialSourceReference: "HASiL PCB Computerised Calculation Specification 2026",
+      evidenceReference: "BIK valuation retained",
+      reviewStatus: "REVIEWED",
+      revision: 2,
+    },
+    {
+      id: "vola-housing-2026",
+      taxYear: 2026,
+      kind: "VOLA",
+      inputBasis: "MONTHLY_VALUE",
+      valueCents: 150_000,
+      effectiveFrom: "2026-08-01",
+      effectiveTo: null,
+      officialSourceReference: "HASiL PCB Computerised Calculation Specification 2026",
+      evidenceReference: "VOLA valuation retained",
+      reviewStatus: "REVIEWED",
+      revision: 2,
+    },
+    {
+      id: "exempt-allowance-2026",
+      taxYear: 2026,
+      kind: "EXEMPT_ALLOWANCE",
+      inputBasis: "MONTHLY_VALUE",
+      valueCents: 100_000,
+      effectiveFrom: "2026-08-01",
+      effectiveTo: null,
+      officialSourceReference: "HASiL PCB Computerised Calculation Specification 2026",
+      evidenceReference: "Exemption evidence retained",
+      reviewStatus: "REVIEWED",
+      revision: 2,
+    },
+  ],
+  componentClassificationFacts: [],
+  tp3Declaration: {
+    formVersion: "HASIL_TP3_1_2026_BM",
+    status: "NOT_APPLICABLE",
+    grossRemunerationCents: 0,
+    epfCents: 0,
+    pcbCents: 0,
+    zakatCents: 0,
+    religiousTravelLevyCents: 0,
+    religiousTravelLevySourceReference: null,
+    exemptIncomeItems: [],
+    previousEmploymentPeriods: [],
+    entries: [],
+    sourceReference: null,
+    declaredAt: "2026-01-01T00:00:00.000Z",
+    reviewedAt: "2026-01-01T00:00:00.000Z",
+  },
+});
+if (parsedP1Profile.version !== 4) throw new Error("Expected PCB profile version 4");
+const p1Profile = parsedP1Profile;
+
 const governanceBinding = buildPcbGovernanceBinding({
   version: "PCB_2026_ENGINEERING_TEST",
   effectiveFrom: new Date(Date.UTC(2026, 0, 1)),
@@ -76,7 +163,7 @@ const governanceBinding = buildPcbGovernanceBinding({
   datasetDigest: "b".repeat(64),
   classificationVersion: "PCB_2026_CLASSIFICATION_V1",
   classificationDigest: "c".repeat(64),
-  calculatorVersion: "TETAMU_PCB_2026_1.1.0",
+  calculatorVersion: PCB_2026_CALCULATOR_VERSION,
   verificationEvidence: null,
 });
 
@@ -144,6 +231,54 @@ test("runtime PCB adapter calculates and retains the exact canonical calculator 
   assert.equal(result.wageBaseCents, 550_000);
   assert.equal(result.metadata.pcbCents, expected.amountCents);
   assert.ok(result.calculationInputDigest.length > 32);
+});
+
+test("runtime PCB adapter includes BIK and VOLA in PCB only and freezes their evidence", async () => {
+  const result = await calculatePcbForEntry(database(), input(7), {
+    pcbProfile: p1Profile,
+    treatments: [earning(550_000, "INCLUDED")],
+    epfEmployeeCents: 60_500,
+    normalEpfEmployeeCents: 60_500,
+    governanceBinding,
+  });
+  const expected = calculatePcb2026({
+    taxYear: 2026,
+    calculationMonth: 8,
+    taxRegime: "RESIDENT_STANDARD",
+    employeeCategory: "CATEGORY_1",
+    individualDisabled: false,
+    spouseDisabled: false,
+    children: p1Profile.children,
+    priorGrossRemunerationCents: 0,
+    priorEpfCents: 0,
+    priorPcbCents: 0,
+    accumulatedAllowableDeductionsCents: 0,
+    accumulatedZakatCents: 0,
+    currentNormalRemunerationCents: 977_700,
+    currentNormalEpfCents: 60_500,
+    currentAdditionalRemunerationCents: 0,
+    currentAdditionalEpfCents: 0,
+    currentAllowableDeductionsCents: 0,
+    currentZakatCents: 0,
+    currentReligiousTravelLevyCents: 0,
+  });
+
+  assert.equal(result.status, "CALCULATED");
+  assert.equal(expected.status, "CALCULATED");
+  if (result.status !== "CALCULATED" || expected.status !== "CALCULATED") return;
+  assert.equal(result.calculation.amountCents, expected.amountCents);
+  assert.equal(result.wageBaseCents, 550_000);
+  assert.equal(result.metadata.cashNormalRemunerationCents, 550_000);
+  assert.equal(result.metadata.pcbOnlyNormalRemunerationCents, 427_700);
+  assert.equal(result.metadata.normalRemunerationCents, 977_700);
+  assert.equal(result.metadata.exemptBenefitEvidenceCents, 100_000);
+  assert.equal(result.metadata.taxRegimeRevision, 2);
+  assert.equal(
+    (result.metadata.nonCashRemunerationFacts as Array<{ payslipGrossCents: number }>).every(
+      (fact) => fact.payslipGrossCents === 0,
+    ),
+    true,
+  );
 });
 
 test("runtime PCB adapter fails closed when additional-pay EPF is not allocated", async () => {

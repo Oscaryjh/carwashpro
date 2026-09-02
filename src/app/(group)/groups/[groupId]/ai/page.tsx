@@ -34,7 +34,7 @@ export default async function GroupAiPage({ params, searchParams }: Props) {
       <main className="ai-main">
         <section className="panel ai-scope-card"><div><span>Group</span><strong>{group.groupName}</strong></div><div><span>Businesses</span><strong>{aiEnabled.filter(Boolean).length} AI-enabled and authorised</strong></div><div><span>Period</span><strong>{range === "month" ? "This Month" : range.replaceAll("_", " ")}</strong></div></section>
         {current ? <section className="ai-history">{current.messages.map((message) => <article className={`ai-message ${message.role.toLowerCase()}`} key={message.id}><span>{message.role === "USER" ? "You" : "Tetamu AI"}</span><p>{message.content}</p>{message.role === "ASSISTANT" && message.structuredMetadata ? <GroupStructuredMetadata value={message.structuredMetadata} /> : null}</article>)}</section> : null}
-        <AiBusinessChat scopeType="GROUP" groupId={groupId} conversationId={current?.id} range={range} from={query.from} to={query.to} quotaBlocked={quotaBlocked} quotaMessage={quotaMessage(allowance)} />
+        <AiBusinessChat scopeType="GROUP" groupId={groupId} conversationId={current?.id} range={range} from={query.from} to={query.to} quotaBlocked={quotaBlocked} quotaMessage={quotaMessage(allowance)} remainingRequests={allowance.remainingRequests} />
         <p className="performance-coverage-note">Only authorised businesses are included. Missing modules are not treated as zero. This is operational analysis, not accounting profit, and no business data can be changed.</p>
       </main>
     </div>

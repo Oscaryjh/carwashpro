@@ -139,6 +139,12 @@ export const staffPermissions = [
     description: "Start/end cashier shifts and view shift totals.",
   },
   {
+    key: "CONFIRM_DAILY_CLOSING",
+    label: "Confirm Daily Closing",
+    description:
+      "Confirm and freeze branch Daily Closing, and resolve authorised stale shifts.",
+  },
+  {
     key: "WHATSAPP",
     label: "WhatsApp Inbox",
     description: "Use Inbox, message logs, and customer chats.",
@@ -424,6 +430,7 @@ const permissionSet = new Set<string>(
 const impliedStaffPermissions: Partial<
   Record<StaffPermission, readonly StaffPermission[]>
 > = {
+  CONFIRM_DAILY_CLOSING: ["CLOSING"],
   ATTENDANCE_EMPLOYEE_MANAGE: ["ATTENDANCE_EMPLOYEE_READ"],
   ATTENDANCE_SETTINGS_MANAGE: ["ATTENDANCE_SETTINGS_READ"],
   APPROVE_LEAVE: ["VIEW_LEAVE"],

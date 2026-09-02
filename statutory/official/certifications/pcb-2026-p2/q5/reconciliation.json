@@ -1,0 +1,16 @@
+{
+  "question": "Q5",
+  "status": "BLOCKED_BY_OFFICIAL_INTERPRETATION",
+  "employee": "Employee E",
+  "sourcePage": 7,
+  "sourceSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+  "fixtureSha256": "ff8a0263505d81cc3cd4be347dca80d5ebb91c67282c0a0022477166f5720430",
+  "requiredMonths": [
+    1,
+    2
+  ],
+  "monthsCertified": [],
+  "openAmbiguity": "The official question states RM6,000 annual housing-loan interest but does not state the month(s) in which TP1 relief is claimed; January/February MTD therefore cannot be frozen without HASiL clarification.",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "generatedAt": "2026-08-27T07:09:22.655Z"
+}

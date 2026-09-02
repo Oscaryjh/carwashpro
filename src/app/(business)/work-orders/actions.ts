@@ -39,6 +39,7 @@ import {
   sendServiceConfirmationQueued,
 } from "@/lib/whatsapp/work-order-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
+import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
 
 function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
@@ -570,7 +571,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
           cashierId: user.userId,
           status: "OPEN",
         },
-        select: { id: true, branchId: true },
+        select: { id: true, branchId: true, startedAt: true },
       });
 
       if (!shift) {
@@ -580,6 +581,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
       if (shift.branchId !== branchId) {
         throw new Error("This package sale does not belong to the current shift branch.");
       }
+      const shiftActivity = await assertCashierShiftAcceptsActivity(tx, { businessId, shift });
 
       const customer = await tx.customer.findFirst({
         where: {
@@ -725,6 +727,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
           businessId,
           branchId,
           cashierId: user.userId,
+          paidAt: shiftActivity.activityAt,
           invoiceId: invoice.id,
           customerPackageId: primaryCustomerPackage.id,
           shiftId: shift.id,

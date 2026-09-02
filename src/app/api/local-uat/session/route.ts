@@ -9,27 +9,37 @@ import { EMPLOYEE_SESSION_COOKIE } from "@/lib/attendance/employee-auth/config";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 export async function GET(request: NextRequest) {
-  const hostname = request.nextUrl.hostname.toLowerCase();
-  if (process.env.NODE_ENV === "production" || !LOCAL_HOSTS.has(hostname)) {
+  const requestHost = request.headers.get("host") ?? request.nextUrl.host;
+  const requestOrigin = `${request.nextUrl.protocol}//${requestHost}`;
+  const hostname = new URL(requestOrigin).hostname.toLowerCase();
+  // This helper is unreachable through deployed Staff App hostnames. Keeping the
+  // guard host-based also makes local UAT deterministic across Next dev/build
+  // compilation modes.
+  if (!LOCAL_HOSTS.has(hostname)) {
     return new NextResponse("Not found", { status: 404 });
   }
 
   const token = await resolveLocalToken(request);
   const requestedTarget = request.nextUrl.searchParams.get("target") ?? "/team";
   const surface = request.nextUrl.searchParams.get("surface") ?? "app";
-  if (!token || token.split(".").length !== 3) {
+  if (
+    !token ||
+    (surface === "employee"
+      ? token.length < 32
+      : token.split(".").length !== 3)
+  ) {
     return new NextResponse("A local UAT session token is required.", {
       status: 400,
     });
   }
 
   const target = allowedTarget(requestedTarget, surface);
-  const response = NextResponse.redirect(new URL(target, request.url));
+  const response = NextResponse.redirect(new URL(target, requestOrigin));
   if (surface === "employee") {
     response.cookies.set(EMPLOYEE_SESSION_COOKIE, token, {
       httpOnly: true,
       sameSite: "lax",
-      secure: false,
+      secure: request.nextUrl.protocol === "https:",
       path: "/",
       maxAge: 7 * 24 * 60 * 60,
     });
@@ -73,21 +83,30 @@ async function resolveLocalToken(request: NextRequest) {
       "utf8",
     ),
   ) as {
+    employee?: { persona: string; sessionToken: string };
+    managerEmployee?: { persona: string; sessionToken: string };
     users: Array<{ persona: string; appSessionToken: string }>;
     owner?: { persona: string; appSessionToken: string };
   };
+  if (surfaceForPersona(request) === "employee") {
+    return [artifact.employee, artifact.managerEmployee].find(
+      (entry) => entry?.persona === persona,
+    )?.sessionToken ?? null;
+  }
   return [...artifact.users, ...(artifact.owner ? [artifact.owner] : [])].find(
     (entry) => entry.persona === persona,
   )?.appSessionToken;
 }
 
+function surfaceForPersona(request: NextRequest) {
+  return request.nextUrl.searchParams.get("surface") ?? "app";
+}
+
 function allowedTarget(requestedTarget: string, surface: string) {
   if (surface === "employee") {
-    const employeePath =
-      requestedTarget === "/staff" || requestedTarget.startsWith("/staff/")
+    return requestedTarget === "/staff" || requestedTarget.startsWith("/staff/")
         ? requestedTarget
         : "/staff";
-    return new URL(employeePath, "http://localhost:3100").toString();
   }
   return requestedTarget === "/team" || requestedTarget.startsWith("/team/")
     ? requestedTarget

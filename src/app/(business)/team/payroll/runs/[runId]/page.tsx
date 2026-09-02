@@ -493,11 +493,11 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                     <th>Variable</th>
                     <th>Adjustments</th>
                     <th>Gross</th>
-                    <th>Deductions</th>
-                    <th>Net pay</th>
+                    <th>{data.run.status === "FINALIZED" ? "Deductions" : "Current deductions"}</th>
+                    <th>{data.run.status === "FINALIZED" ? "Net pay" : "Estimated net"}</th>
                     <th>Status / issues</th>
                     {(access.actions.canViewComponents) ||
-                    (access.actions.canViewPayslip && data.run.status === "FINALIZED") ? (
+                    access.actions.canViewPayslip ? (
                       <th><span className={styles.visuallyHidden}>Entry actions</span></th>
                     ) : null}
                   </tr>
@@ -516,8 +516,11 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                       <td data-label="Variable">{formatSignedMoney(entry.variablePay)}</td>
                       <td data-label="Adjustments">{formatSignedMoney(entry.adjustments)}</td>
                       <td data-label="Gross">{formatMoney(entry.grossPay)}</td>
-                      <td data-label="Deductions">{formatMoney(entry.deductions)}</td>
-                      <td data-label="Net pay"><strong>{formatMoney(entry.netPay)}</strong></td>
+                      <td data-label={data.run.status === "FINALIZED" ? "Deductions" : "Current deductions"}>{formatMoney(entry.deductions)}</td>
+                      <td data-label={data.run.status === "FINALIZED" ? "Net pay" : "Estimated net before PCB"}>
+                        <strong>{formatMoney(entry.netPay)}</strong>
+                        {data.run.status !== "FINALIZED" ? <small>Before pending PCB / MTD</small> : null}
+                      </td>
                       <td data-label="Status / issues">
                         <strong>{readinessFilterLabel(employeeReadiness?.status ?? "READY")}</strong>
                         {employeeReadiness?.issues.length ? (
@@ -536,7 +539,7 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                         ) : <small>No readiness issues</small>}
                       </td>
                       {(access.actions.canViewComponents) ||
-                      (access.actions.canViewPayslip && data.run.status === "FINALIZED") ? (
+                      access.actions.canViewPayslip ? (
                         <td data-label="Actions">
                           <div className={styles.entryActions}>
                             {access.actions.canViewComponents ? (
@@ -547,13 +550,17 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                                 {access.actions.canEditEntry && data.run.status === "DRAFT" ? "Review / edit" : "View components"}
                               </Link>
                             ) : null}
-                            {access.actions.canViewPayslip && data.run.status === "FINALIZED" ? (
+                            {access.actions.canViewPayslip ? (
                               <Link
                                 className={styles.entryAction}
                                 href={`/team/payroll/payslips/${entry.id}`}
                                 target="_blank"
                               >
-                                {entry.payslipPublished ? "Published payslip PDF" : "Payslip preview PDF"}
+                                {data.run.status !== "FINALIZED"
+                                  ? "Open draft payslip preview"
+                                  : entry.payslipPublished
+                                    ? "Download published payslip"
+                                    : "Download finalized payslip"}
                               </Link>
                             ) : null}
                           </div>

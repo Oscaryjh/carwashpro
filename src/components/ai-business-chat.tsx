@@ -18,6 +18,7 @@ export function AiBusinessChat(props: {
   disabledTitle?: string;
   quotaMessage?: string;
   usageWarning?: string;
+  remainingRequests?: number | null;
   showSuggestions?: boolean;
 }) {
   const router = useRouter();
@@ -91,10 +92,6 @@ export function AiBusinessChat(props: {
         </div>
       ) : null}
 
-      {props.usageWarning && !props.quotaBlocked ? (
-        <p className={styles.usageWarning} role="status">{props.usageWarning}</p>
-      ) : null}
-
       {props.quotaBlocked ? (
         <div className={styles.disabledState} role="status">
           <strong>{props.disabledTitle ?? "Ask Tetamu is unavailable"}</strong>
@@ -126,7 +123,14 @@ export function AiBusinessChat(props: {
             {pending ? "Thinking…" : "Ask"}
           </button>
         </div>
-        <small>Enter to ask · Shift + Enter for a new line</small>
+        <div className={styles.composerMeta}>
+          {props.remainingRequests != null && !props.quotaBlocked ? (
+            <small className={props.usageWarning ? styles.quotaLow : styles.quotaRemaining} role={props.usageWarning ? "status" : undefined}>
+              {props.usageWarning ?? `${props.remainingRequests} Ask Tetamu questions remaining this month`}
+            </small>
+          ) : <span />}
+          <small>Enter to ask · Shift + Enter for a new line</small>
+        </div>
       </form>
       {error ? <p className={styles.errorState} role="alert">{error}</p> : null}
     </section>

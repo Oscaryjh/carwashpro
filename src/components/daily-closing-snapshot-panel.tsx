@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -46,13 +46,22 @@ export function DailyClosingSnapshotPanel({
   branchName,
   businessDate,
   expectedCashCents,
+  openShiftCount,
   snapshot,
+  lateActivity,
 }: {
   branchId: string;
   branchName: string;
   businessDate: string;
   expectedCashCents: number;
+  openShiftCount: number;
   snapshot: ClosedSnapshot | null;
+  lateActivity: {
+    count: number;
+    firstAtLabel: string;
+    latestAtLabel: string;
+    netCashMovementCents: number;
+  } | null;
 }) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -60,16 +69,25 @@ export function DailyClosingSnapshotPanel({
     (expectedCashCents / 100).toFixed(2),
   );
   const [closingNote, setClosingNote] = useState("");
+  const dialogRef = useRef<HTMLElement>(null);
+  const initialFocusRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [state, action, pending] = useActionState(
     closeDailySnapshotAction,
     initialCloseDailySnapshotState,
   );
   const { operationId, rotateOperationId } = useFinancialOperationId("daily-closing");
-  const actualCashCents = useMemo(() => {
+  const actualCashValidation = useMemo(() => {
     const value = Number(actualCash);
-    return Number.isFinite(value) ? Math.round(value * 100) : 0;
+    const valid = Number.isFinite(value) && value >= 0 && value <= 21_474_836.47 &&
+      Math.abs(value * 100 - Math.round(value * 100)) < 1e-8;
+    return { cents: valid ? Math.round(value * 100) : 0, valid };
   }, [actualCash]);
+  const actualCashCents = actualCashValidation.cents;
   const differenceCents = actualCashCents - expectedCashCents;
+  const closingBlocked = openShiftCount > 0;
+  const reasonRequired = differenceCents !== 0;
+  const reasonMissing = reasonRequired && !closingNote.trim();
 
   useEffect(() => {
     if (state.status !== "success") return;
@@ -78,15 +96,50 @@ export function DailyClosingSnapshotPanel({
     router.refresh();
   }, [rotateOperationId, router, state.status]);
 
+  useEffect(() => {
+    if (!modalOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const trigger = triggerRef.current;
+    initialFocusRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !pending) {
+        event.preventDefault();
+        setModalOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href]',
+        ),
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      (previouslyFocused ?? trigger)?.focus();
+    };
+  }, [modalOpen, pending]);
+
   if (snapshot) {
     return (
       <section className="panel daily-closing-snapshot-panel is-closed">
         <div className="daily-closing-snapshot-heading">
           <div>
-            <span className="daily-closing-eyebrow">DAILY CLOSE</span>
-            <h2>Daily closing completed</h2>
+            <span className="daily-closing-eyebrow">FROZEN DAILY CLOSING</span>
+            <h2>Daily Closing</h2>
             <p>
-              Final figures were locked by {snapshot.closedByName} on{" "}
+              Closed by {snapshot.closedByName} on{" "}
               {snapshot.closedAtLabel}.
             </p>
           </div>
@@ -94,11 +147,11 @@ export function DailyClosingSnapshotPanel({
         </div>
         <div className="daily-closing-cash-grid">
           <CashMetric
-            label="Expected cash"
+            label="Expected Net Cash Movement"
             value={formatMoneyFromCents(snapshot.expectedCashCents)}
           />
           <CashMetric
-            label="Actual cash"
+            label="Actual Net Cash Movement"
             value={formatMoneyFromCents(snapshot.actualCashCents)}
           />
           <CashMetric
@@ -107,6 +160,17 @@ export function DailyClosingSnapshotPanel({
             tone={differenceTone(snapshot.cashDifferenceCents)}
           />
         </div>
+        <p className="daily-closing-cash-helper">Daily cash movement excludes opening floats.</p>
+        {lateActivity ? (
+          <div className="warning daily-closing-late-activity" role="alert">
+            <strong>Activity recorded after Daily Closing</strong>
+            <p>
+              {lateActivity.count} {lateActivity.count === 1 ? "record was" : "records were"} added after this closing was frozen.
+              {" "}{formatSignedMoney(lateActivity.netCashMovementCents)} net cash movement is not included in the closed snapshot.
+            </p>
+            <small>{lateActivity.firstAtLabel} to {lateActivity.latestAtLabel}</small>
+          </div>
+        ) : null}
         {snapshot.closingNote ? (
           <div className="daily-closing-note-row">
             <strong>Closing note</strong>
@@ -137,17 +201,28 @@ export function DailyClosingSnapshotPanel({
           </div>
           <span className="status neutral">Not closed</span>
         </div>
+        {closingBlocked ? (
+          <div className="warning daily-closing-action-message" role="alert">
+            <strong>Daily Closing not ready</strong>
+            <p>
+              {openShiftCount} cashier {openShiftCount === 1 ? "shift is" : "shifts are"} still open.
+              Close all shifts for this branch first.
+            </p>
+          </div>
+        ) : null}
         <div className="daily-closing-cash-entry">
           <CashMetric
-            label="Expected cash"
+            label="Expected Net Cash Movement"
             value={formatMoneyFromCents(expectedCashCents)}
           />
           <label>
-            <span>Actual cash counted</span>
+            <span>Actual Net Cash Movement</span>
             <input
               inputMode="decimal"
               min="0"
+              max="21474836.47"
               onChange={(event) => setActualCash(event.target.value)}
+              disabled={closingBlocked}
               step="0.01"
               type="number"
               value={actualCash}
@@ -160,15 +235,21 @@ export function DailyClosingSnapshotPanel({
           />
         </div>
         <label className="daily-closing-note-input">
-          <span>Closing note optional</span>
+          <span>{reasonRequired ? "Difference reason" : "Closing note (optional)"}</span>
           <textarea
             maxLength={1000}
             onChange={(event) => setClosingNote(event.target.value)}
+            disabled={closingBlocked}
             placeholder="Add a reason for any cash difference or an operational note."
             rows={2}
+            required={reasonRequired}
+            aria-describedby="daily-closing-reason-help"
             value={closingNote}
           />
         </label>
+        <small id="daily-closing-reason-help" className={reasonMissing ? "error-text" : "field-help"}>
+          {reasonRequired ? "Explain every non-zero cash difference before confirming." : "Add an operational note only when useful."}
+        </small>
         {state.status === "error" ? (
           <p className="error daily-closing-action-message">{state.message}</p>
         ) : null}
@@ -176,7 +257,12 @@ export function DailyClosingSnapshotPanel({
           <Link href="/closing/history" className="button secondary">
             Closing history
           </Link>
-          <button type="button" onClick={() => setModalOpen(true)}>
+          <button
+            ref={triggerRef}
+            disabled={closingBlocked || !actualCashValidation.valid || reasonMissing}
+            type="button"
+            onClick={() => setModalOpen(true)}
+          >
             Complete daily closing
           </button>
         </div>
@@ -197,6 +283,7 @@ export function DailyClosingSnapshotPanel({
             aria-modal="true"
             className="daily-closing-confirm-modal"
             role="dialog"
+            ref={dialogRef}
           >
             <div className="daily-closing-confirm-header">
               <div>
@@ -204,6 +291,7 @@ export function DailyClosingSnapshotPanel({
                 <h2 id="daily-closing-confirm-title">Lock {businessDate}</h2>
               </div>
               <button
+                ref={initialFocusRef}
                 aria-label="Close"
                 className="icon-button"
                 disabled={pending}
@@ -219,11 +307,11 @@ export function DailyClosingSnapshotPanel({
             </p>
             <div className="daily-closing-confirm-values">
               <CashMetric
-                label="Expected cash"
+                label="Expected Net Cash Movement"
                 value={formatMoneyFromCents(expectedCashCents)}
               />
               <CashMetric
-                label="Actual cash"
+                label="Actual Net Cash Movement"
                 value={formatMoneyFromCents(actualCashCents)}
               />
               <CashMetric
@@ -262,24 +350,22 @@ export function DailyClosingSnapshotPanel({
 function ClosingWhatsAppStatus({ sends }: { sends: ClosingWhatsAppSendView[] }) {
   if (!sends.length) {
     return (
-      <div className="daily-closing-whatsapp-status empty">
-        <div>
-          <strong>WhatsApp automation</strong>
-          <span>No closing WhatsApp send records for this snapshot.</span>
-        </div>
-      </div>
+      <details className="daily-closing-whatsapp-status empty">
+        <summary><strong>WhatsApp Closing Report</strong><span>Not configured</span></summary>
+        <p>No closing WhatsApp send records for this snapshot.</p>
+      </details>
     );
   }
 
   return (
-    <div className="daily-closing-whatsapp-status">
-      <div className="daily-closing-whatsapp-status-header">
+    <details className="daily-closing-whatsapp-status">
+      <summary className="daily-closing-whatsapp-status-header">
         <div>
           <strong>WhatsApp automation</strong>
           <span>Frozen report and resend activity.</span>
         </div>
         <span>{sends.length} records</span>
-      </div>
+      </summary>
       <div className="daily-closing-whatsapp-send-list">
         {sends.map((send) => (
           <div key={send.id} className="daily-closing-whatsapp-send-row">
@@ -311,7 +397,7 @@ function ClosingWhatsAppStatus({ sends }: { sends: ClosingWhatsAppSendView[] }) 
           </div>
         ))}
       </div>
-    </div>
+    </details>
   );
 }
 

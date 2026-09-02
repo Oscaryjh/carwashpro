@@ -6,6 +6,7 @@ import {
   safeEqual,
   verifyEmployeeOtpHash,
 } from "./crypto";
+import { emitSms123ProviderAlert } from "@/lib/ops/alerting";
 
 export type EmployeeOtpPurpose = "LOGIN" | "REGISTER_DEVICE";
 
@@ -313,6 +314,12 @@ export class Sms123OtpProvider implements EmployeeOtpProvider {
         signal: AbortSignal.timeout(this.config.otp.providerTimeoutMs),
       });
     } catch (error) {
+      void emitSms123ProviderAlert({
+        failureType:
+          error instanceof DOMException && error.name === "TimeoutError"
+            ? "TIMEOUT"
+            : "UNAVAILABLE",
+      }).catch(() => undefined);
       throw new EmployeeOtpProviderError(
         "PROVIDER_UNAVAILABLE",
         "SMS123 request failed.",
@@ -324,6 +331,11 @@ export class Sms123OtpProvider implements EmployeeOtpProvider {
     const status = readString(payload, "status");
     const providerCode = readString(payload, "msgCode");
     if (!response.ok || status !== "ok" || !SMS123_SUCCESS_CODES.has(providerCode)) {
+      void emitSms123ProviderAlert({
+        failureType: "REJECTED",
+        httpStatus: response.status,
+        providerCode: providerCode || null,
+      }).catch(() => undefined);
       throw new EmployeeOtpProviderError(
         response.status === 429
           ? "PROVIDER_RATE_LIMITED"
@@ -340,6 +352,11 @@ export class Sms123OtpProvider implements EmployeeOtpProvider {
 
     const reference = readSms123Reference(payload);
     if (!reference) {
+      void emitSms123ProviderAlert({
+        failureType: "INVALID_RESPONSE",
+        httpStatus: response.status,
+        providerCode: providerCode || null,
+      }).catch(() => undefined);
       throw new EmployeeOtpProviderError(
         "PROVIDER_INVALID_RESPONSE",
         "SMS123 returned an unexpected response.",

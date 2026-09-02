@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import {
+  authorizedCustomerPackageBranchWhere,
+  authorizedOperationalBranchWhere,
+} from "@/lib/branches";
 import { nextInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { awardLoyaltyPointsForPayment } from "@/lib/loyalty/service";
 import { activateCustomerPackageServiceBalances } from "@/lib/packages/service-balances";
@@ -20,6 +24,7 @@ import {
 import { usePackagePaymentSchema } from "@/lib/validation/packages";
 import { packageAllowsVehicle, vehicleSizeLabel } from "@/lib/vehicle-size";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
+import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
 
 export async function recordPaymentAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser(
@@ -44,13 +49,12 @@ export async function recordPaymentAction(formData: FormData) {
     payload: financialPayload,
     execute: async (tx) => {
     const shift = await getOpenShift(tx, businessId, user.userId);
+    const operationalBranchWhere = authorizedOperationalBranchWhere(user);
     const workOrder = await tx.workOrder.findFirstOrThrow({
       where: {
         id: input.workOrderId,
         businessId,
-        ...(user.role === "BUSINESS_OWNER"
-          ? {}
-          : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
+        ...operationalBranchWhere,
       },
       include: {
         business: {
@@ -148,6 +152,7 @@ export async function recordPaymentAction(formData: FormData) {
         businessId,
         branchId: workOrder.branchId,
         cashierId: user.userId,
+        paidAt: shift.activityAt,
         shiftId: shift.id,
         workOrderId: workOrder.id,
         invoiceId: invoice.id,
@@ -267,13 +272,13 @@ export async function usePackagePaymentAction(formData: FormData) {
     payload: financialPayload,
     execute: async (tx) => {
     const shift = await getOpenShift(tx, businessId, user.userId);
+    const operationalBranchWhere = authorizedOperationalBranchWhere(user);
+    const packageBranchWhere = authorizedCustomerPackageBranchWhere(user);
     const workOrder = await tx.workOrder.findFirstOrThrow({
       where: {
         id: input.workOrderId,
         businessId,
-        ...(user.role === "BUSINESS_OWNER"
-          ? {}
-          : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
+        ...operationalBranchWhere,
       },
       include: {
         business: {
@@ -308,6 +313,7 @@ export async function usePackagePaymentAction(formData: FormData) {
         remainingUses: {
           gt: 0,
         },
+        ...packageBranchWhere,
       },
       include: {
         package: true,
@@ -422,6 +428,7 @@ export async function usePackagePaymentAction(formData: FormData) {
         businessId,
         branchId: workOrder.branchId,
         cashierId: user.userId,
+        paidAt: shift.activityAt,
         workOrderId: workOrder.id,
         invoiceId: invoice.id,
         customerPackageId: customerPackage.id,
@@ -527,13 +534,12 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
     payload: financialPayload,
     execute: async (tx) => {
     const shift = await getOpenShift(tx, businessId, user.userId);
+    const packageBranchWhere = authorizedCustomerPackageBranchWhere(user);
     const customerPackage = await tx.customerPackage.findFirstOrThrow({
       where: {
         id: input.customerPackageId,
         businessId,
-        ...(user.role === "BUSINESS_OWNER"
-          ? {}
-          : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
+        ...packageBranchWhere,
         status: "PENDING_PAYMENT",
       },
       include: {
@@ -610,6 +616,7 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
         businessId,
         branchId: customerPackage.branchId,
         cashierId: user.userId,
+        paidAt: shift.activityAt,
         workOrderId: null,
         invoiceId: invoice.id,
         customerPackageId: customerPackage.id,
@@ -699,14 +706,17 @@ async function getOpenShift(
       cashierId,
       status: "OPEN",
     },
-    select: { id: true, branchId: true },
+    select: { id: true, branchId: true, startedAt: true },
   });
 
   if (!shift) {
     throw new Error("Start a cashier shift before checkout.");
   }
-
-  return shift;
+  const shiftActivity = await assertCashierShiftAcceptsActivity(tx, {
+    businessId,
+    shift,
+  });
+  return { ...shift, activityAt: shiftActivity.activityAt };
 }
 
 function assertShiftBranch(shiftBranchId: string | null, recordBranchId: string | null) {

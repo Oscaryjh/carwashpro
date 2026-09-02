@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import test, { after } from "node:test";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaClient as DatabaseClient } from "@prisma/client";
@@ -8,11 +8,13 @@ import { hashEmployeeIdentifier } from "../../src/lib/attendance/employee-auth/c
 import type { EmployeeAuthContext } from "../../src/lib/attendance/employee-auth/session";
 import { submitAttendanceException } from "../../src/lib/attendance/exception-service";
 import { performAttendancePunch } from "../../src/lib/attendance/punch-service";
+import { listAttendanceOvertimeCandidates } from "../../src/lib/attendance/overtime-service";
 import {
   getEmployeeAttendanceHistory,
   getEmployeeAttendanceToday,
 } from "../../src/lib/attendance/read-service";
 import { getAttendanceWorkDate } from "../../src/lib/attendance/work-date";
+import { getStaffOvertimeQueue } from "../../src/lib/staff-pwa/overtime-approvals";
 
 process.env.EMPLOYEE_AUTH_SECRET =
   process.env.EMPLOYEE_AUTH_SECRET ??
@@ -394,6 +396,304 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
   });
 });
 
+test("Clock Out projects the completed legacy session into one P2 day and OT candidate", async () => {
+  assertLocalDatabase();
+
+  await withRollback(async (transaction) => {
+    const fixture = await createFixture(transaction);
+    const database = transactionDatabase(transaction);
+    const workDate = new Date("2026-08-27T00:00:00.000Z");
+    const clockInAt = new Date("2026-08-27T08:44:41.076Z");
+    const clockOutAt = new Date("2026-08-27T09:30:13.867Z");
+
+    await transaction.attendanceExpectedDay.create({
+      data: {
+        businessId: fixture.businessA.id,
+        branchId: fixture.branchA.id,
+        membershipId: fixture.auth.membershipId,
+        workDate,
+        kind: "WORKDAY",
+        source: "ROSTER",
+        expectedStartAt: new Date("2026-08-27T08:50:00.000Z"),
+        expectedEndAt: new Date("2026-08-27T09:20:00.000Z"),
+        graceMinutes: 0,
+        timezoneSnapshot: "Asia/Kuala_Lumpur",
+        policySnapshot: { scheduledBreakMinutes: 0 },
+        evidenceReference: "REAL_DEVICE_OT_UAT_TESTING_ONLY",
+        createdById: fixture.actorId,
+      },
+    });
+
+    await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "CLOCK_IN",
+      input: punchInput(
+        fixture.branchA.id,
+        fixture.deviceIdentifier,
+        "clock-in:p2-bridge-001",
+      ),
+      now: clockInAt,
+    });
+    assert.equal(await transaction.attendanceP2FinalResult.count({
+      where: {
+        businessId: fixture.businessA.id,
+        membershipId: fixture.auth.membershipId,
+        workDate,
+      },
+    }), 0, "A missing Clock Out must not produce a clean P2 result");
+    const clockOutInput = punchInput(
+      fixture.branchA.id,
+      fixture.deviceIdentifier,
+      "clock-out:p2-bridge-001",
+    );
+    const clockOut = await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "CLOCK_OUT",
+      input: clockOutInput,
+      now: clockOutAt,
+    });
+
+    assert.equal(clockOut.resultingStatus, "COMPLETED");
+    assert.equal(clockOut.totalBreakMinutes, 0);
+    assert.equal(clockOut.totalWorkedMinutes, 45);
+    assert.equal(await transaction.attendanceFinalResult.count({
+      where: { attendanceSessionId: clockOut.attendanceSessionId },
+    }), 1);
+
+    const finalResult = await transaction.attendanceP2FinalResult.findFirstOrThrow({
+      where: {
+        businessId: fixture.businessA.id,
+        membershipId: fixture.auth.membershipId,
+        workDate,
+      },
+    });
+    assert.equal(finalResult.outcome, "PRESENT");
+    assert.equal(finalResult.totalWorkedMinutes, 45);
+
+    const candidates = await listAttendanceOvertimeCandidates({
+      businessId: fixture.businessA.id,
+      allowedBranchIds: [fixture.branchA.id],
+      membershipId: fixture.auth.membershipId,
+      periodStart: new Date("2026-08-01T00:00:00.000Z"),
+      periodEndExclusive: new Date("2026-09-01T00:00:00.000Z"),
+      database: transaction as unknown as PrismaClient,
+    });
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0]?.potentialOtMinutes, 15);
+    assert.equal(candidates[0]?.effectiveStatus, "PENDING_REVIEW");
+
+    const managerPhone = `+601${randomInt(10_000_000, 99_999_999)}`;
+    const managerAccount = await transaction.employeeAccount.create({
+      data: {
+        phoneNumber: managerPhone,
+        phoneNormalized: managerPhone,
+        name: "P2 Bridge Manager",
+        status: "ACTIVE",
+      },
+    });
+    const managerMembership = await transaction.employeeBusinessMembership.create({
+      data: {
+        employeeAccountId: managerAccount.id,
+        businessId: fixture.businessA.id,
+        employeeCode: `P2-MANAGER-${randomUUID()}`,
+        fullName: "P2 Bridge Manager",
+        phoneNumber: managerAccount.phoneNumber,
+        phoneNumberNormalized: managerAccount.phoneNormalized,
+        status: "ACTIVE",
+        attendanceEnabled: true,
+      },
+    });
+    const managerUser = await transaction.user.create({
+      data: {
+        businessId: fixture.businessA.id,
+        branchId: fixture.branchA.id,
+        employeeAccountId: managerAccount.id,
+        employeeBusinessMembershipId: managerMembership.id,
+        teamMemberLinkStatus: "LINKED",
+        teamMemberLinkedAt: new Date("2026-08-01T00:00:00.000Z"),
+        name: "P2 Bridge Manager",
+        email: `p2-manager-${randomUUID()}@test.local`,
+        role: "STAFF",
+        permissions: ["ATTENDANCE_EMPLOYEE_MANAGE"],
+        status: "active",
+      },
+    });
+    const managerAuth = {
+      sessionId: randomUUID(),
+      employeeAccountId: managerAccount.id,
+      membershipId: managerMembership.id,
+      businessId: fixture.businessA.id,
+      primaryBranchId: fixture.branchA.id,
+      attendanceBranchId: fixture.branchA.id,
+      deviceId: randomUUID(),
+    } satisfies EmployeeAuthContext;
+    const queue = await getStaffOvertimeQueue({
+      auth: managerAuth,
+      month: "2026-08",
+      database: transaction as unknown as PrismaClient,
+    });
+    assert.equal(queue?.access.actor.userId, managerUser.id);
+    assert.equal(queue?.pending, 1);
+    assert.equal(queue?.items[0]?.membershipId, fixture.auth.membershipId);
+    assert.equal(queue?.items[0]?.potentialOtMinutes, 15);
+
+    const replay = await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "CLOCK_OUT",
+      input: clockOutInput,
+      now: clockOutAt,
+    });
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.attendanceSessionId, clockOut.attendanceSessionId);
+    assert.equal(await transaction.attendanceP2FinalResult.count({
+      where: {
+        businessId: fixture.businessA.id,
+        membershipId: fixture.auth.membershipId,
+        workDate,
+      },
+    }), 1);
+  });
+});
+
+test("Clock Out preserves the P2 full-day Leave conflict and creates no OT candidate", async () => {
+  assertLocalDatabase();
+
+  await withRollback(async (transaction) => {
+    const fixture = await createFixture(transaction);
+    const database = transactionDatabase(transaction);
+    const workDate = new Date("2026-08-28T00:00:00.000Z");
+    await transaction.attendanceExpectedDay.create({
+      data: {
+        businessId: fixture.businessA.id,
+        branchId: fixture.branchA.id,
+        membershipId: fixture.auth.membershipId,
+        workDate,
+        kind: "WORKDAY",
+        source: "ROSTER",
+        expectedStartAt: new Date("2026-08-28T08:50:00.000Z"),
+        expectedEndAt: new Date("2026-08-28T09:20:00.000Z"),
+        timezoneSnapshot: "Asia/Kuala_Lumpur",
+        createdById: fixture.actorId,
+      },
+    });
+    const policy = await transaction.leavePolicy.create({
+      data: {
+        businessId: fixture.businessA.id,
+        code: `ANNUAL-${randomUUID()}`,
+        name: "P2 bridge leave",
+        payTreatment: "PAID",
+        countMode: "WEEKDAYS",
+        balanceTracked: true,
+        defaultEntitlementDays: 10,
+        origin: "BUSINESS_CUSTOM",
+        legalStatus: "COMPANY_POLICY_ONLY",
+      },
+    });
+    const policyVersion = await transaction.leavePolicyVersion.create({
+      data: {
+        businessId: fixture.businessA.id,
+        policyId: policy.id,
+        revision: 1,
+        effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
+        nameSnapshot: policy.name,
+        payTreatment: "PAID",
+        countMode: "WEEKDAYS",
+        balanceTracked: true,
+        defaultEntitlementDays: 10,
+        origin: "BUSINESS_CUSTOM",
+        legalStatus: "COMPANY_POLICY_ONLY",
+        sourceReference: "P2 bridge integration fixture",
+        reason: "Verify approved Leave remains an OT blocker.",
+        createdById: fixture.actorId,
+      },
+    });
+    const leave = await transaction.leaveRequest.create({
+      data: {
+        businessId: fixture.businessA.id,
+        membershipId: fixture.auth.membershipId,
+        branchId: fixture.branchA.id,
+        policyId: policy.id,
+        policyVersionId: policyVersion.id,
+        policyNameSnapshot: policy.name,
+        payTreatmentSnapshot: "PAID",
+        legalStatusSnapshot: "COMPANY_POLICY_ONLY",
+        leaveUnit: "FULL_DAY",
+        startsOn: workDate,
+        endsOn: workDate,
+        requestedDays: 1,
+        reason: "Approved full-day leave conflict fixture",
+        status: "APPROVED",
+        reviewedById: fixture.actorId,
+        reviewedAt: new Date("2026-08-27T00:00:00.000Z"),
+      },
+    });
+    await transaction.leaveRequestDay.create({
+      data: {
+        leaveRequestId: leave.id,
+        businessId: fixture.businessA.id,
+        membershipId: fixture.auth.membershipId,
+        leaveDate: workDate,
+        dayFraction: 1,
+        leaveUnit: "FULL_DAY",
+        policyVersionId: policyVersion.id,
+        payTreatmentSnapshot: "PAID",
+        balanceConsumptionUnits: 1,
+      },
+    });
+
+    await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "CLOCK_IN",
+      input: punchInput(
+        fixture.branchA.id,
+        fixture.deviceIdentifier,
+        "clock-in:p2-leave-conflict-001",
+      ),
+      now: new Date("2026-08-28T08:44:41.076Z"),
+    });
+    const clockOut = await performAttendancePunch({
+      database,
+      auth: fixture.auth,
+      type: "CLOCK_OUT",
+      input: punchInput(
+        fixture.branchA.id,
+        fixture.deviceIdentifier,
+        "clock-out:p2-leave-conflict-001",
+      ),
+      now: new Date("2026-08-28T09:30:13.867Z"),
+    });
+    assert.equal(clockOut.resultingStatus, "COMPLETED");
+    assert.equal(await transaction.attendanceP2Exception.count({
+      where: {
+        businessId: fixture.businessA.id,
+        membershipId: fixture.auth.membershipId,
+        workDate,
+        type: "LEAVE_ATTENDANCE_CONFLICT",
+        status: "OPEN",
+      },
+    }), 1);
+    assert.equal(await transaction.attendanceP2FinalResult.count({
+      where: {
+        businessId: fixture.businessA.id,
+        membershipId: fixture.auth.membershipId,
+        workDate,
+      },
+    }), 0);
+    assert.deepEqual(await listAttendanceOvertimeCandidates({
+      businessId: fixture.businessA.id,
+      allowedBranchIds: [fixture.branchA.id],
+      membershipId: fixture.auth.membershipId,
+      periodStart: new Date("2026-08-01T00:00:00.000Z"),
+      periodEndExclusive: new Date("2026-09-01T00:00:00.000Z"),
+      database: transaction as unknown as PrismaClient,
+    }), []);
+  });
+});
+
 test("Clock In snapshots the published Roster break and Staff App uses the Roster daily target", async () => {
   assertLocalDatabase();
 
@@ -544,7 +844,9 @@ async function createFixture(transaction: Prisma.TransactionClient) {
       branchId: branchA.id,
       isPrimary: true,
       canClockIn: true,
-      effectiveFrom: new Date(Date.now() - 86_400_000),
+      // The fixture replays governed Attendance examples on fixed August 2026
+      // work dates, so its canonical branch assignment must already be active.
+      effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
       status: "ACTIVE",
     },
   });

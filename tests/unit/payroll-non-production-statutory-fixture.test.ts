@@ -152,18 +152,18 @@ test("payslip distinguishes calculated zero from PCB that was not configured", (
     },
   ];
   const pdf = buildPayslipPdf(documentRun(entry), entry).toString("latin1");
-  assert.ok(pdf.includes("EPF employee: RM 330.00"));
-  assert.ok(pdf.includes("SOCSO employee: RM 14.75"));
-  assert.ok(pdf.includes("EIS employee: RM 5.90"));
-  assert.ok(pdf.includes("LINDUNG 24 \\(employee deduction\\): RM 0.00"));
-  assert.ok(pdf.includes("PCB: Pending configuration \\(not included in net pay\\)"));
-  assert.doesNotMatch(pdf, /PCB: RM 0\.00/);
-  assert.ok(pdf.includes("Total deductions: RM 350.65"));
-  assert.ok(pdf.includes("NET PAY: RM 2649.35"));
-  assert.ok(pdf.includes("Employer EPF: RM 390.00"));
-  assert.ok(pdf.includes("Employer SOCSO: RM 51.65"));
-  assert.ok(pdf.includes("Employer EIS: RM 5.90"));
-  assert.ok(pdf.includes("Total employer contributions: RM 447.55"));
+  assert.ok(pdf.includes("EPF employee: RM330.00"));
+  assert.ok(pdf.includes("SOCSO employee: RM14.75"));
+  assert.ok(pdf.includes("EIS employee: RM5.90"));
+  assert.ok(pdf.includes("LINDUNG 24 \\(employee deduction\\): RM0.00"));
+  assert.ok(pdf.includes("PCB \/ MTD: Pending configuration"));
+  assert.doesNotMatch(pdf, /PCB \/ MTD: RM0\.00/);
+  assert.ok(pdf.includes("Current deductions \\(excludes pending PCB\\): RM350.65"));
+  assert.ok(pdf.includes("ESTIMATED NET PAY \\(BEFORE PCB\\): RM2,649.35"));
+  assert.ok(pdf.includes("Employer EPF: RM390.00"));
+  assert.ok(pdf.includes("Employer SOCSO: RM51.65"));
+  assert.ok(pdf.includes("Employer EIS: RM5.90"));
+  assert.ok(pdf.includes("Total employer contributions: RM447.55"));
 });
 
 test("migration enforces evidence, immutability and exportability contracts", () => {

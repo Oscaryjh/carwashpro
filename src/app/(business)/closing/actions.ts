@@ -10,7 +10,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { assertStaffPermission } from "@/lib/auth/staff-permissions";
+import { assertStaffPermission, hasStaffPermission } from "@/lib/auth/staff-permissions";
 import { resolveOperationalBranchId } from "@/lib/branches";
 import { getCurrentBusinessDateValue } from "@/lib/business-day";
 import {
@@ -34,35 +34,51 @@ import {
   financialOperationKeySchema,
   runFinancialOperation,
 } from "@/lib/financial-idempotency";
+import {
+  acquireDailyClosingScopeLock,
+  acquireCashierOpenShiftLock,
+  assertNoCrossBusinessDayShiftActivity,
+  assertNoOpenShiftsForBusinessDate,
+  assertShiftActivityWithinBusinessDate,
+  calculateShiftExpectedCashCents,
+  CrossBusinessDayShiftReviewRequiredError,
+  DAILY_CLOSING_OPEN_SHIFT_MESSAGE,
+  DailyClosingOpenShiftError,
+  getCashierShiftBusinessDate,
+  runClosingSerializableTransaction,
+} from "@/lib/closing/shift-control";
+import {
+  closingMoneySchema,
+  DailyClosingDifferenceReasonError,
+  requireDailyClosingDifferenceReason,
+} from "@/lib/closing/money-validation";
 
 const startShiftSchema = z.object({
   branchId: z.string().optional(),
-  openingFloat: z.coerce.number().min(0, "Opening float cannot be negative."),
+  openingFloat: closingMoneySchema,
   returnTo: z.string().optional(),
 });
 
 const endShiftSchema = z.object({
-  closingCash: z.coerce.number().min(0, "Closing cash cannot be negative."),
-  notes: z.string().trim().optional(),
+  closingCash: closingMoneySchema,
+  notes: z.string().trim().max(1000, "Difference reason is too long.").optional(),
   shiftId: z.string().uuid("Shift is required."),
 });
 
 const closeDailySnapshotSchema = z.object({
   operationId: financialOperationKeySchema,
-  actualCash: z.coerce
-    .number()
-    .finite()
-    .min(0, "Actual cash cannot be negative.")
-    .max(21_474_836.47, "Actual cash is too large.")
-    .refine(
-      (value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8,
-      "Actual cash can have at most two decimal places.",
-    ),
+  actualCash: closingMoneySchema,
   branchId: z.string().uuid("Branch is required."),
   businessDate: z
     .string()
     .refine(isValidDateValue, "Business date is invalid."),
   closingNote: z.string().trim().max(1000, "Closing note is too long.").optional(),
+});
+
+const resolveStaleShiftSchema = z.object({
+  countedCash: closingMoneySchema,
+  reason: z.string().trim().min(1, "Reason is required.").max(1000, "Reason is too long."),
+  shiftId: z.string().uuid("Shift is required."),
 });
 
 const manualClosingWhatsAppSendSchema = z.object({
@@ -82,6 +98,7 @@ export type CloseDailySnapshotState = {
 
 export async function startShiftAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser("RUN_CLOSING");
+  assertStaffPermission(user, "CLOSING");
   const auditRequest = await getAuditRequestContext();
   const input = startShiftSchema.parse({
     branchId: formData.get("branchId")?.toString(),
@@ -95,73 +112,55 @@ export async function startShiftAction(formData: FormData) {
     input.branchId ?? null,
   );
 
-  if (branchId) {
-    const businessTimeSettings = await prisma.business.findUniqueOrThrow({
-      where: { id: businessId },
-      select: {
-        businessDayCutoffTime: true,
-        timezone: true,
-      },
-    });
-    const businessDate = getCurrentBusinessDateValue(
-      new Date(),
-      businessTimeSettings.timezone,
-      businessTimeSettings.businessDayCutoffTime,
-    );
-    const completedDailyClosing = await prisma.dailyClosingSnapshot.findUnique({
-      where: {
-        businessId_branchId_businessDate: {
-          businessDate: normalizeBusinessDate(businessDate),
-          branchId,
-          businessId,
-        },
-      },
-      select: { id: true },
-    });
-
-    if (completedDailyClosing) {
-      const message =
-        "Daily closing is already completed for this branch today. A new shift cannot be started.";
-      redirect(
-        returnTo
-          ? withStatusMessage(returnTo, "error", message)
-          : `/closing?type=error&message=${encodeURIComponent(message)}`,
-      );
-    }
-  }
-
-  const existingOpenShift = await prisma.cashierShift.findFirst({
-    where: {
-      businessId,
-      cashierId: user.userId,
-      status: "OPEN",
-    },
-    select: { id: true },
-  });
-
-  if (existingOpenShift) {
-    redirect(
-      returnTo
-        ? withStatusMessage(returnTo, "error", "You already have an open shift.")
-        : `/closing?type=error&message=${encodeURIComponent(
-            "You already have an open shift.",
-          )}`,
-    );
-  }
-
-  await prisma.$transaction(async (tx) => {
-    const shift = await tx.cashierShift.create({
-      data: {
+  try {
+    await runClosingSerializableTransaction(prisma, async (tx) => {
+      await acquireCashierOpenShiftLock(tx, {
         businessId,
-        branchId,
         cashierId: user.userId,
-        openingFloat: fromCents(Math.round(input.openingFloat * 100)),
-        status: "OPEN",
-      },
-    });
+      });
+      const businessTimeSettings = await tx.business.findUniqueOrThrow({
+        where: { id: businessId },
+        select: { businessDayCutoffTime: true, timezone: true },
+      });
+      const startedAt = new Date();
+      const businessDate = getCurrentBusinessDateValue(
+        startedAt,
+        businessTimeSettings.timezone,
+        businessTimeSettings.businessDayCutoffTime,
+      );
 
-    await writeAuditLog(
-      {
+      if (branchId) {
+        await acquireDailyClosingScopeLock(tx, { branchId, businessDate, businessId });
+        const completedDailyClosing = await tx.dailyClosingSnapshot.findUnique({
+          where: {
+            businessId_branchId_businessDate: {
+              businessDate: normalizeBusinessDate(businessDate),
+              branchId,
+              businessId,
+            },
+          },
+          select: { id: true },
+        });
+        if (completedDailyClosing) throw new DailyClosingAlreadyCompletedForShiftError();
+      }
+
+      const existingOpenShift = await tx.cashierShift.findFirst({
+        where: { businessId, cashierId: user.userId, status: "OPEN" },
+        select: { id: true },
+      });
+      if (existingOpenShift) throw new CashierAlreadyHasOpenShiftError();
+
+      const shift = await tx.cashierShift.create({
+        data: {
+          businessId,
+          branchId,
+          cashierId: user.userId,
+          openingFloat: fromCents(Math.round(input.openingFloat * 100)),
+          startedAt,
+          status: "OPEN",
+        },
+      });
+      await writeAuditLog({
         businessId,
         branchId,
         actor: user,
@@ -169,16 +168,23 @@ export async function startShiftAction(formData: FormData) {
         entityType: "CashierShift",
         entityId: shift.id,
         summary: `Started shift with RM${Number(shift.openingFloat).toFixed(2)} float`,
-        after: {
-          status: shift.status,
-          openingFloat: shift.openingFloat,
-          startedAt: shift.startedAt,
-        },
+        after: { status: shift.status, openingFloat: shift.openingFloat, startedAt: shift.startedAt },
         request: auditRequest,
-      },
-      tx,
-    );
-  });
+      }, tx);
+    });
+  } catch (error) {
+    const message = error instanceof DailyClosingAlreadyCompletedForShiftError
+      ? "Daily closing is already completed for this branch today. A new shift cannot be started."
+      : error instanceof CashierAlreadyHasOpenShiftError
+        ? "You already have an open shift."
+        : null;
+    if (message) {
+      redirect(returnTo
+        ? withStatusMessage(returnTo, "error", message)
+        : `/closing?type=error&message=${encodeURIComponent(message)}`);
+    }
+    throw error;
+  }
 
   revalidatePath("/closing");
   redirect(
@@ -247,15 +253,32 @@ export async function endShiftAction(formData: FormData) {
   const notes = input.notes?.trim() || null;
 
   let dailyClosingCompleted = false;
+  let dailyClosingReviewRequired = false;
 
   try {
-    const result = await prisma.$transaction(
+    const result = await runClosingSerializableTransaction(
+      prisma,
       async (tx) => {
         const canonicalShift = await tx.cashierShift.findFirst({
           where: { businessId, cashierId: user.userId, id: shift.id, status: "OPEN" },
-          select: { openingFloat: true },
+          select: { branchId: true, openingFloat: true, startedAt: true },
         });
         if (!canonicalShift) throw new ShiftAlreadyClosedError();
+        const businessTimeSettings = await tx.business.findUniqueOrThrow({
+          where: { id: businessId },
+          select: { businessDayCutoffTime: true, timezone: true },
+        });
+        const businessDate = getCashierShiftBusinessDate(
+          canonicalShift.startedAt,
+          businessTimeSettings,
+        );
+        if (canonicalShift.branchId) {
+          await acquireDailyClosingScopeLock(tx, {
+            branchId: canonicalShift.branchId,
+            businessDate,
+            businessId,
+          });
+        }
         const [cashPayments, cashRefunds, expensePayouts] = await Promise.all([
           tx.payment.aggregate({ where: { businessId, method: "CASH", shiftId: shift.id, status: "ACTIVE" }, _sum: { amount: true } }),
           tx.paymentRefund.aggregate({ where: { businessId, method: "CASH", shiftId: shift.id }, _sum: { amount: true } }),
@@ -265,7 +288,12 @@ export async function endShiftAction(formData: FormData) {
         const cashPaymentCents = toCents(cashPayments._sum.amount ?? 0);
         const cashRefundCents = toCents(cashRefunds._sum.amount ?? 0);
         const expensePayoutCents = toCents(expensePayouts._sum.amount ?? 0);
-        const expectedCashCents = openingFloatCents + cashPaymentCents - cashRefundCents - expensePayoutCents;
+        const expectedCashCents = calculateShiftExpectedCashCents({
+          cashPaymentCents,
+          cashRefundCents,
+          expensePayoutCents,
+          openingFloatCents,
+        });
         const differenceCents = closingCashCents - expectedCashCents;
         if (differenceCents !== 0 && !notes) throw new ShiftCashNoteRequiredError(differenceCents);
 
@@ -321,7 +349,7 @@ export async function endShiftAction(formData: FormData) {
         );
 
         if (!updated.branchId) {
-          return { dailyClosingCompleted: false };
+          return { dailyClosingCompleted: false, dailyClosingReviewRequired: false };
         }
 
         const otherOpenShift = await tx.cashierShift.findFirst({
@@ -334,21 +362,8 @@ export async function endShiftAction(formData: FormData) {
         });
 
         if (otherOpenShift) {
-          return { dailyClosingCompleted: false };
+          return { dailyClosingCompleted: false, dailyClosingReviewRequired: false };
         }
-
-        const businessTimeSettings = await tx.business.findUniqueOrThrow({
-          where: { id: businessId },
-          select: {
-            businessDayCutoffTime: true,
-            timezone: true,
-          },
-        });
-        const businessDate = getCurrentBusinessDateValue(
-          updated.startedAt,
-          businessTimeSettings.timezone,
-          businessTimeSettings.businessDayCutoffTime,
-        );
         const normalizedBusinessDate = normalizeBusinessDate(businessDate);
         const existingSnapshot = await tx.dailyClosingSnapshot.findUnique({
           where: {
@@ -362,7 +377,7 @@ export async function endShiftAction(formData: FormData) {
         });
 
         if (existingSnapshot) {
-          return { dailyClosingCompleted: false };
+          return { dailyClosingCompleted: false, dailyClosingReviewRequired: false };
         }
 
         const { fromDate, toDateExclusive } = getDailyClosingRange(
@@ -380,9 +395,28 @@ export async function endShiftAction(formData: FormData) {
           },
           select: {
             closingCash: true,
+            endedAt: true,
+            id: true,
             openingFloat: true,
           },
         });
+        try {
+          await assertNoCrossBusinessDayShiftActivity(tx, {
+            branchId: updated.branchId,
+            businessDate,
+            businessId,
+            settings: businessTimeSettings,
+          });
+        } catch (error) {
+          if (!(error instanceof CrossBusinessDayShiftReviewRequiredError)) throw error;
+          console.error(`[${error.code}] Daily closing snapshot blocked`, {
+            branchId: updated.branchId,
+            businessDate,
+            businessId,
+            shiftIds: error.shiftIds,
+          });
+          return { dailyClosingCompleted: false, dailyClosingReviewRequired: true };
+        }
         const actualCashCents = closedShifts.reduce(
           (total, closedShift) =>
             total +
@@ -402,11 +436,11 @@ export async function endShiftAction(formData: FormData) {
           user,
         });
 
-        return { dailyClosingCompleted: true };
+        return { dailyClosingCompleted: true, dailyClosingReviewRequired: false };
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
     dailyClosingCompleted = result.dailyClosingCompleted;
+    dailyClosingReviewRequired = result.dailyClosingReviewRequired;
   } catch (error) {
     if (error instanceof ShiftAlreadyClosedError) {
       redirect(
@@ -434,6 +468,8 @@ export async function endShiftAction(formData: FormData) {
     `/closing?type=success&message=${encodeURIComponent(
       dailyClosingCompleted
         ? "Shift ended and daily closing completed."
+        : dailyClosingReviewRequired
+          ? "Shift ended. Daily closing is blocked because this shift crossed the business-day cutoff and requires review."
         : "Shift ended. Daily closing will complete after the final open shift ends.",
     )}`,
   );
@@ -444,7 +480,12 @@ export async function closeDailySnapshotAction(
   formData: FormData,
 ): Promise<CloseDailySnapshotState> {
   const { businessId, industryType, user } = await requireBusinessUser("RUN_CLOSING");
-  assertStaffPermission(user, "CLOSING");
+  if (!hasStaffPermission(user, "CONFIRM_DAILY_CLOSING")) {
+    return {
+      message: "You do not have permission to confirm branch Daily Closing.",
+      status: "error",
+    };
+  }
 
   const parsed = closeDailySnapshotSchema.safeParse({
     operationId: formData.get("operationId"),
@@ -511,6 +552,11 @@ export async function closeDailySnapshotAction(
       operationType: FinancialOperationType.DAILY_CLOSING,
       payload: { ...financialPayload, branchId },
       execute: async (tx) => {
+        await acquireDailyClosingScopeLock(tx, {
+          branchId,
+          businessDate: parsed.data.businessDate,
+          businessId,
+        });
         const existing = await tx.dailyClosingSnapshot.findUnique({
           where: {
             businessId_branchId_businessDate: {
@@ -526,13 +572,42 @@ export async function closeDailySnapshotAction(
           throw new DailyClosingAlreadyExistsError(existing.id);
         }
 
+        await assertNoOpenShiftsForBusinessDate(tx, {
+          branchId,
+          businessDate: parsed.data.businessDate,
+          businessId,
+          settings: businessTimeSettings,
+        });
+        await assertNoCrossBusinessDayShiftActivity(tx, {
+          branchId,
+          businessDate: parsed.data.businessDate,
+          businessId,
+          settings: businessTimeSettings,
+        });
+
+        const closingReport = await getDailyClosingReport(
+          {
+            branchId,
+            businessId,
+            dateValue: parsed.data.businessDate,
+            industryType,
+          },
+          tx,
+        );
+        const actualCashCents = Math.round(parsed.data.actualCash * 100);
+        const closingNote = requireDailyClosingDifferenceReason({
+          actualCashCents,
+          expectedCashCents: getExpectedCashCents(closingReport.report),
+          reason: parsed.data.closingNote,
+        });
+
         const snapshot = await createDailyClosingSnapshotInTransaction({
-          actualCashCents: Math.round(parsed.data.actualCash * 100),
+          actualCashCents,
           auditRequest,
           branchId,
           businessDate: parsed.data.businessDate,
           businessId,
-          closingNote: parsed.data.closingNote || null,
+          closingNote,
           tx,
           user,
         });
@@ -559,6 +634,24 @@ export async function closeDailySnapshotAction(
         status: "error",
       };
     }
+    if (error instanceof DailyClosingOpenShiftError) {
+      return { message: DAILY_CLOSING_OPEN_SHIFT_MESSAGE, status: "error" };
+    }
+    if (error instanceof CrossBusinessDayShiftReviewRequiredError) {
+      console.error(`[${error.code}] Manual daily closing blocked`, {
+        branchId,
+        businessDate: parsed.data.businessDate,
+        businessId,
+        shiftIds: error.shiftIds,
+      });
+      return {
+        message: "Daily closing is blocked because a cashier shift crosses the business-day boundary and requires review.",
+        status: "error",
+      };
+    }
+    if (error instanceof DailyClosingDifferenceReasonError) {
+      return { message: error.message, status: "error" };
+    }
 
     console.error("[daily-closing] Unable to create snapshot", error);
     return {
@@ -568,9 +661,125 @@ export async function closeDailySnapshotAction(
   }
 }
 
+export async function resolveStaleShiftAction(formData: FormData) {
+  const { businessId, user } = await requireBusinessUser("RUN_CLOSING");
+  assertStaffPermission(user, "CONFIRM_DAILY_CLOSING");
+  const auditRequest = await getAuditRequestContext();
+  const input = resolveStaleShiftSchema.parse({
+    countedCash: formData.get("countedCash"),
+    reason: formData.get("reason"),
+    shiftId: formData.get("shiftId"),
+  });
+  const source = await prisma.cashierShift.findFirst({
+    where: { businessId, id: input.shiftId, status: "OPEN" },
+    select: { branchId: true, cashierId: true },
+  });
+  if (!source?.branchId) {
+    redirect(`/closing?type=error&message=${encodeURIComponent("Stale open shift not found.")}`);
+  }
+  const branchId = await resolveOperationalBranchId(businessId, user, source.branchId);
+  if (!branchId) {
+    redirect(`/closing?type=error&message=${encodeURIComponent("This shift is outside your branch scope.")}`);
+  }
+
+  try {
+    await runClosingSerializableTransaction(prisma, async (tx) => {
+      await acquireCashierOpenShiftLock(tx, { businessId, cashierId: source.cashierId });
+      const [shift, settings] = await Promise.all([
+        tx.cashierShift.findFirst({
+          where: { branchId, businessId, id: input.shiftId, status: "OPEN" },
+          select: {
+            branchId: true,
+            cashierId: true,
+            openingFloat: true,
+            startedAt: true,
+          },
+        }),
+        tx.business.findUniqueOrThrow({
+          where: { id: businessId },
+          select: { businessDayCutoffTime: true, timezone: true },
+        }),
+      ]);
+      if (!shift) throw new ShiftAlreadyClosedError();
+      const businessDate = getCashierShiftBusinessDate(shift.startedAt, settings);
+      const currentBusinessDate = getCurrentBusinessDateValue(
+        new Date(),
+        settings.timezone,
+        settings.businessDayCutoffTime,
+      );
+      if (businessDate >= currentBusinessDate) {
+        throw new Error("Only a previous business-day OPEN shift can be resolved here.");
+      }
+      await acquireDailyClosingScopeLock(tx, { branchId, businessDate, businessId });
+      await assertShiftActivityWithinBusinessDate(tx, {
+        businessDate,
+        businessId,
+        settings,
+        shiftId: input.shiftId,
+      });
+      const [cashPayments, cashRefunds, expensePayouts] = await Promise.all([
+        tx.payment.aggregate({ where: { businessId, method: "CASH", shiftId: input.shiftId, status: "ACTIVE" }, _sum: { amount: true } }),
+        tx.paymentRefund.aggregate({ where: { businessId, method: "CASH", shiftId: input.shiftId }, _sum: { amount: true } }),
+        tx.cashierShiftExpensePayout.aggregate({ where: { businessId, shiftId: input.shiftId }, _sum: { amount: true } }),
+      ]);
+      const expectedCashCents = calculateShiftExpectedCashCents({
+        cashPaymentCents: toCents(cashPayments._sum.amount ?? 0),
+        cashRefundCents: toCents(cashRefunds._sum.amount ?? 0),
+        expensePayoutCents: toCents(expensePayouts._sum.amount ?? 0),
+        openingFloatCents: toCents(shift.openingFloat),
+      });
+      const countedCashCents = Math.round(input.countedCash * 100);
+      const differenceCents = countedCashCents - expectedCashCents;
+      const closed = await tx.cashierShift.updateMany({
+        where: { businessId, id: input.shiftId, status: "OPEN" },
+        data: {
+          cashDifference: fromCents(differenceCents),
+          closingCash: fromCents(countedCashCents),
+          endedAt: new Date(),
+          expectedCash: fromCents(expectedCashCents),
+          notes: input.reason,
+          status: "CLOSED",
+        },
+      });
+      if (closed.count !== 1) throw new ShiftAlreadyClosedError();
+      await writeAuditLog({
+        action: "STALE_SHIFT_RESOLVED",
+        actor: user,
+        after: {
+          businessDate,
+          countedCashCents,
+          differenceCents,
+          expectedCashCents,
+          originalCashierId: shift.cashierId,
+          reason: input.reason,
+          resolvedByUserId: user.userId,
+        },
+        branchId,
+        businessId,
+        entityId: input.shiftId,
+        entityType: "CashierShift",
+        request: auditRequest,
+        summary: `Supervisor resolved stale shift with ${moneyFromCents(differenceCents)} difference`,
+      }, tx);
+    });
+  } catch (error) {
+    const message = error instanceof CrossBusinessDayShiftReviewRequiredError
+      ? "This shift contains activity across a business-day boundary and requires separate review."
+      : error instanceof ShiftAlreadyClosedError
+        ? "This shift is no longer open."
+        : error instanceof Error
+          ? error.message
+          : "Unable to resolve this stale shift.";
+    redirect(`/closing?type=error&message=${encodeURIComponent(message)}`);
+  }
+
+  revalidatePath("/closing");
+  redirect(`/closing?type=success&message=${encodeURIComponent("Stale shift resolved. Daily Closing can now be reviewed.")}`);
+}
+
 export async function manualClosingWhatsAppSendAction(formData: FormData) {
   const { businessId, user } = await requireBusinessUser("RUN_CLOSING");
-  assertStaffPermission(user, "CLOSING");
+  assertStaffPermission(user, "CONFIRM_DAILY_CLOSING");
 
   const input = manualClosingWhatsAppSendSchema.parse({
     attemptId: formData.get("attemptId"),
@@ -646,6 +855,10 @@ class DailyClosingAlreadyExistsError extends Error {
     super("Daily closing snapshot already exists.");
   }
 }
+
+class DailyClosingAlreadyCompletedForShiftError extends Error {}
+
+class CashierAlreadyHasOpenShiftError extends Error {}
 
 class ShiftAlreadyClosedError extends Error {
   constructor() {

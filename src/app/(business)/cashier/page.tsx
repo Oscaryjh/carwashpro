@@ -6,7 +6,11 @@ import type {
   CashierStaffOption,
 } from "@/components/cashier-unified-sale-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
-import { getOperationalBranches } from "@/lib/branches";
+import {
+  authorizedCustomerPackageBranchWhere,
+  authorizedOperationalBranchWhere,
+  getOperationalBranches,
+} from "@/lib/branches";
 import {
   getCashierCatalog,
   getCashierCatalogAvailability,
@@ -15,6 +19,11 @@ import { prisma } from "@/lib/prisma";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 import { getEffectiveBusinessPaymentMethods } from "@/lib/payments/business-methods";
 import { completeCashierSaleAction } from "@/app/(business)/cashier/actions";
+import { getCurrentBusinessDateValue } from "@/lib/business-day";
+import {
+  CASHIER_SHIFT_CUTOFF_MESSAGE,
+  getCashierShiftBusinessDate,
+} from "@/lib/closing/shift-control";
 
 type CashierPageProps = {
   searchParams: Promise<{
@@ -51,6 +60,8 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
   }
 
   const params = await searchParams;
+  const operationalBranchWhere = authorizedOperationalBranchWhere(user);
+  const packageBranchWhere = authorizedCustomerPackageBranchWhere(user);
   const inventoryEnabled = await isBusinessModuleEnabled(businessId, "INVENTORY");
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
@@ -59,11 +70,17 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
     getOperationalBranches(businessId, user),
     prisma.cashierShift.findFirst({
       where: { businessId, cashierId: user.userId, status: "OPEN" },
-      select: { branchId: true },
+      select: { branchId: true, startedAt: true },
     }),
     prisma.business.findUniqueOrThrow({
       where: { id: businessId },
-      select: { sstEnabled: true, sstLabel: true, sstRate: true },
+      select: {
+        businessDayCutoffTime: true,
+        sstEnabled: true,
+        sstLabel: true,
+        sstRate: true,
+        timezone: true,
+      },
     }),
     prisma.loyaltyProgram.findUnique({
       where: { businessId },
@@ -76,7 +93,11 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
     }),
     requestedAppointmentId
       ? prisma.appointment.findFirst({
-          where: { id: requestedAppointmentId, businessId },
+          where: {
+            id: requestedAppointmentId,
+            businessId,
+            ...operationalBranchWhere,
+          },
           select: {
             id: true,
             branchId: true,
@@ -103,7 +124,9 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
                 membership: { select: { pointsBalance: true, status: true } },
                 _count: {
                   select: {
-                    customerPackages: { where: { status: "ACTIVE" } },
+                    customerPackages: {
+                      where: { status: "ACTIVE", ...packageBranchWhere },
+                    },
                     vehicles: true,
                   },
                 },
@@ -291,6 +314,15 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
         returnTo: `/appointments?status=active&page=1&date=${formatSingaporeDate(requestedAppointment.scheduledAt)}&appointment=${requestedAppointment.id}`,
       }
     : null;
+  const shiftCrossedCutoff = Boolean(
+    openShift &&
+      getCashierShiftBusinessDate(openShift.startedAt, business) !==
+        getCurrentBusinessDateValue(
+          new Date(),
+          business.timezone,
+          business.businessDayCutoffTime,
+        ),
+  );
 
   return (
     <>
@@ -305,6 +337,12 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
         </div>
 
         {message ? <div className={messageType}>{message}</div> : null}
+        {shiftCrossedCutoff ? (
+          <div className="error" role="alert">
+            <strong>Previous business-day shift still open</strong>
+            <p>{CASHIER_SHIFT_CUTOFF_MESSAGE}</p>
+          </div>
+        ) : null}
         <CashierSalesPanel
           action={completeCashierSaleAction}
           appointmentError={appointmentError}
@@ -322,7 +360,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
             allowLoyaltyStacking: discount.allowLoyaltyStacking,
           }))}
           hasCatalogItems={catalogAvailability.hasItems}
-          hasOpenShift={Boolean(openShift)}
+          hasOpenShift={Boolean(openShift) && !shiftCrossedCutoff}
           initialCatalog={initialCatalog}
           initialCatalogType={catalogAvailability.initialType}
           initialSale={initialSale}

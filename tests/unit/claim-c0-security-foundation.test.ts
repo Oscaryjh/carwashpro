@@ -376,28 +376,41 @@ function createFakeS3Client() {
     metadata: Record<string, string>;
   };
   const objects = new Map<string, FakeObject>();
-  const putCommands: PutObjectCommand[] = [];
+  const putCommands: Array<{
+    input: ConstructorParameters<typeof PutObjectCommand>[0];
+  }> = [];
+
+  const commandInput = <T>(command: unknown) =>
+    (command as { input: T }).input;
 
   const client = {
     async send(command: PutObjectCommand | HeadObjectCommand | GetObjectCommand) {
       if (command instanceof PutObjectCommand) {
-        putCommands.push(command);
-        const key = String(command.input.Key);
-        if (command.input.IfNoneMatch === "*" && objects.has(key)) {
+        putCommands.push(
+          command as unknown as {
+            input: ConstructorParameters<typeof PutObjectCommand>[0];
+          },
+        );
+        const input = commandInput<ConstructorParameters<typeof PutObjectCommand>[0]>(
+          command,
+        );
+        const key = String(input.Key);
+        if (input.IfNoneMatch === "*" && objects.has(key)) {
           throw Object.assign(new Error("Precondition failed"), {
             name: "PreconditionFailed",
           });
         }
-        const bytes = Buffer.from(command.input.Body as Uint8Array);
+        const bytes = Buffer.from(input.Body as Uint8Array);
         objects.set(key, {
           bytes,
-          contentType: String(command.input.ContentType),
-          metadata: { ...(command.input.Metadata ?? {}) },
+          contentType: String(input.ContentType),
+          metadata: { ...(input.Metadata ?? {}) },
         });
         return { $metadata: { httpStatusCode: 200 } } as PutObjectCommandOutput;
       }
 
-      const key = String(command.input.Key);
+      const input = commandInput<{ Key?: string }>(command);
+      const key = String(input.Key);
       const object = objects.get(key);
       if (!object) {
         throw Object.assign(new Error("Not found"), { name: "NoSuchKey" });

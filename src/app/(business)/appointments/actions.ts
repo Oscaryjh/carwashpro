@@ -54,6 +54,10 @@ import { sendServiceConfirmationQueued } from "@/lib/whatsapp/work-order-notific
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
 import { recordSaleInventory } from "@/lib/inventory/service";
+import {
+  assertCashierShiftAcceptsActivity,
+  CASHIER_SHIFT_CUTOFF_MESSAGE,
+} from "@/lib/closing/shift-control";
 
 function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
@@ -1032,6 +1036,7 @@ export type SalonAppointmentPaymentState = {
 };
 
 const salonCheckoutMessages = new Set([
+  CASHIER_SHIFT_CUTOFF_MESSAGE,
   "Start a cashier shift before checkout.",
   "Complete the service before checkout.",
   "This payment does not belong to the current shift branch.",
@@ -1130,12 +1135,16 @@ export async function recordSalonAppointmentPaymentAction(
         cashierId: user.userId,
         status: "OPEN",
       },
-      select: { branchId: true, id: true },
+      select: { branchId: true, id: true, startedAt: true },
     });
 
     if (!shift) {
       throw new Error("Start a cashier shift before checkout.");
     }
+    const shiftActivity = await assertCashierShiftAcceptsActivity(tx, {
+      businessId,
+      shift,
+    });
 
     const appointment = await tx.appointment.findFirstOrThrow({
       where: {
@@ -1549,6 +1558,7 @@ export async function recordSalonAppointmentPaymentAction(
             customerPackageId: serviceBalance.customerPackageId,
             customerPackageServiceBalanceId: serviceBalance.id,
             cashierId: user.userId,
+            paidAt: shiftActivity.activityAt,
             shiftId: shift.id,
             amount: fromCents(packageCoverageByServiceBalanceId.get(serviceBalance.id) ?? 0),
             method: "PACKAGE",
@@ -1603,6 +1613,7 @@ export async function recordSalonAppointmentPaymentAction(
           appointmentId: appointment.id,
           invoiceId: invoice.id,
           cashierId: user.userId,
+          paidAt: shiftActivity.activityAt,
           shiftId: shift.id,
           amount: fromCents(depositCents),
           method: input.depositMethod,
@@ -1619,6 +1630,7 @@ export async function recordSalonAppointmentPaymentAction(
           appointmentId: appointment.id,
           invoiceId: invoice.id,
           cashierId: user.userId,
+          paidAt: shiftActivity.activityAt,
           shiftId: shift.id,
           amount: fromCents(amountCents),
           method: input.method,

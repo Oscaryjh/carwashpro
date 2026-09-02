@@ -1,7 +1,106 @@
-import type { PrismaClient } from "@prisma/client";
+import type {
+  AttendanceExpectedDayKind,
+  AttendanceOvertimeApprovalStatus,
+  AttendanceOvertimeContext,
+  AttendanceP2ExceptionStatus,
+  AttendanceP2ExceptionType,
+  AttendanceP2Outcome,
+  PrismaClient,
+} from "@prisma/client";
 import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
 import { listAttendanceOvertimeCandidates } from "@/lib/attendance/overtime-service";
 import { prisma } from "@/lib/prisma";
+
+const ACTIVE_EXCEPTION_STATUSES: AttendanceP2ExceptionStatus[] = [
+  "OPEN",
+  "PENDING_EMPLOYEE",
+  "PENDING_MANAGER",
+];
+const EMPLOYEE_ACTIONABLE_TYPES: AttendanceP2ExceptionType[] = [
+  "MISSING_CLOCK_IN",
+  "MISSING_CLOCK_OUT",
+];
+
+export type EmployeeTimesheetFinalInput = {
+  id: string;
+  businessId: string;
+  branchId: string;
+  membershipId: string;
+  workDate: Date;
+  version: number;
+  outcome: AttendanceP2Outcome;
+  actualClockInAt: Date | null;
+  actualClockOutAt: Date | null;
+  totalBreakMinutes: number;
+  totalWorkedMinutes: number;
+  sourceDigest: string;
+  createdAt: Date;
+};
+
+export type EmployeeTimesheetExceptionInput = {
+  id: string;
+  businessId: string;
+  branchId: string;
+  membershipId: string;
+  workDate: Date;
+  type: AttendanceP2ExceptionType;
+  status: AttendanceP2ExceptionStatus;
+  expectedDayId: string | null;
+  attendanceSessionId: string | null;
+  actualClockInAt: Date | null;
+  actualClockOutAt: Date | null;
+  exceptionMinutes: number;
+  reasonCode: string;
+  sourceDigest: string;
+  detectedAt: Date;
+  updatedAt: Date;
+};
+
+export type EmployeeTimesheetLockedDayInput = {
+  id: string;
+  businessId: string;
+  branchId: string;
+  membershipId: string;
+  workDate: Date;
+  finalResultId: string;
+  finalResultVersion: number;
+  outcome: AttendanceP2Outcome;
+  expectedDayKindSnapshot: AttendanceExpectedDayKind | null;
+  actualClockInAt: Date | null;
+  actualClockOutAt: Date | null;
+  totalBreakMinutes: number;
+  totalWorkedMinutes: number;
+  sourceDigest: string;
+  potentialOtMinutes: number;
+  approvedOtMinutes: number;
+  otContext: AttendanceOvertimeContext | null;
+  otApprovalStatus: AttendanceOvertimeApprovalStatus;
+};
+
+export type EmployeeTimesheetDayIssue = Pick<
+  EmployeeTimesheetExceptionInput,
+  "id" | "type" | "status" | "exceptionMinutes" | "reasonCode"
+>;
+
+export type EmployeeTimesheetDay = {
+  key: string;
+  source: "LIVE_FINAL" | "LIVE_EXCEPTION" | "LOCKED_SNAPSHOT";
+  businessId: string;
+  branchId: string;
+  membershipId: string;
+  workDate: Date;
+  status: "ACTION_NEEDED" | "WAITING_FOR_MANAGER" | "FINAL";
+  outcome: AttendanceP2Outcome | null;
+  actualClockInAt: Date | null;
+  actualClockOutAt: Date | null;
+  totalBreakMinutes: number;
+  totalWorkedMinutes: number;
+  issues: EmployeeTimesheetDayIssue[];
+  actionableException: {
+    id: string;
+    type: "MISSING_CLOCK_IN" | "MISSING_CLOCK_OUT";
+  } | null;
+};
 
 export async function getEmployeeTimesheetOverview(
   auth: EmployeeAuthContext,
@@ -9,15 +108,14 @@ export async function getEmployeeTimesheetOverview(
 ) {
   const database = options.database ?? prisma;
   const now = options.now ?? new Date();
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const monthEndExclusive = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const { monthStart, monthEndExclusive } = employeeTimesheetMonthRange(now);
   const allowedBranchIds = [...new Set([auth.primaryBranchId, auth.attendanceBranchId].filter(Boolean))] as string[];
   const [rows, exceptions, overtime, timesheet] = await Promise.all([
     database.attendanceP2FinalResult.findMany({
       where: {
         businessId: auth.businessId,
         membershipId: auth.membershipId,
-        workDate: { gte: monthStart },
+        workDate: { gte: monthStart, lt: monthEndExclusive },
       },
       orderBy: [{ workDate: "desc" }, { version: "desc" }],
     }),
@@ -25,7 +123,8 @@ export async function getEmployeeTimesheetOverview(
       where: {
         businessId: auth.businessId,
         membershipId: auth.membershipId,
-        status: { in: ["OPEN", "PENDING_EMPLOYEE", "PENDING_MANAGER"] },
+        workDate: { gte: monthStart, lt: monthEndExclusive },
+        status: { in: ACTIVE_EXCEPTION_STATUSES },
       },
       orderBy: [{ workDate: "desc" }, { detectedAt: "desc" }],
     }),
@@ -47,23 +146,30 @@ export async function getEmployeeTimesheetOverview(
       select: { status: true, currentRevisionId: true },
     }),
   ]);
-  const latest = [
-    ...new Map(
-      rows.map((row) => [row.workDate.toISOString().slice(0, 10), row]),
-    ).values(),
-  ];
-  const lockedOvertime = timesheet?.status === "LOCKED" && timesheet.currentRevisionId
+
+  const lockedDays = timesheet?.status === "LOCKED" && timesheet.currentRevisionId
     ? await database.attendanceTimesheetP2DaySnapshot.findMany({
         where: {
           revisionId: timesheet.currentRevisionId,
           businessId: auth.businessId,
           membershipId: auth.membershipId,
-          potentialOtMinutes: { gt: 0 },
         },
         orderBy: { workDate: "desc" },
         select: {
           id: true,
+          businessId: true,
+          branchId: true,
+          membershipId: true,
           workDate: true,
+          finalResultId: true,
+          finalResultVersion: true,
+          outcome: true,
+          expectedDayKindSnapshot: true,
+          actualClockInAt: true,
+          actualClockOutAt: true,
+          totalBreakMinutes: true,
+          totalWorkedMinutes: true,
+          sourceDigest: true,
           potentialOtMinutes: true,
           approvedOtMinutes: true,
           otContext: true,
@@ -71,5 +177,186 @@ export async function getEmployeeTimesheetOverview(
         },
       })
     : [];
-  return { monthStart, latest, exceptions, overtime, lockedOvertime, timesheetStatus: timesheet?.status ?? "DRAFT" };
+
+  const days = projectEmployeeTimesheetDays({
+    finalResults: rows,
+    exceptions,
+    lockedDays,
+    timesheetStatus: timesheet?.status ?? "DRAFT",
+  });
+  const lockedOvertime = lockedDays.filter((day) => day.potentialOtMinutes > 0);
+
+  return {
+    monthStart,
+    days,
+    overtime,
+    lockedOvertime,
+    timesheetStatus: timesheet?.status ?? "DRAFT",
+  };
+}
+
+export function employeeTimesheetMonthRange(now: Date) {
+  return {
+    monthStart: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
+    monthEndExclusive: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
+  };
+}
+
+/**
+ * Builds the employee-facing Timesheet read model.
+ *
+ * P2 is intentionally day-based: multiple raw Attendance sessions are folded
+ * into one immutable daily result before reaching this projector. Therefore
+ * the canonical identity is business + membership + work date, not a label or
+ * an exception row id.
+ */
+export function projectEmployeeTimesheetDays(input: {
+  finalResults: readonly EmployeeTimesheetFinalInput[];
+  exceptions: readonly EmployeeTimesheetExceptionInput[];
+  lockedDays?: readonly EmployeeTimesheetLockedDayInput[];
+  timesheetStatus: string;
+}): EmployeeTimesheetDay[] {
+  if (input.timesheetStatus === "LOCKED") {
+    return dedupeLockedDays(input.lockedDays ?? []).map((day) => ({
+      key: workdayKey(day),
+      source: "LOCKED_SNAPSHOT",
+      businessId: day.businessId,
+      branchId: day.branchId,
+      membershipId: day.membershipId,
+      workDate: day.workDate,
+      status: "FINAL",
+      outcome: day.outcome,
+      actualClockInAt: day.actualClockInAt,
+      actualClockOutAt: day.actualClockOutAt,
+      totalBreakMinutes: day.totalBreakMinutes,
+      totalWorkedMinutes: day.totalWorkedMinutes,
+      issues: [],
+      actionableException: null,
+    }));
+  }
+
+  const latestFinals = latestFinalByWorkday(input.finalResults);
+  const issuesByWorkday = new Map<string, EmployeeTimesheetExceptionInput[]>();
+  for (const issue of input.exceptions) {
+    const key = workdayKey(issue);
+    const final = latestFinals.get(key);
+    // A later immutable final result supersedes an older active projection row.
+    // Audit history remains in the database; it simply stops being an active
+    // employee task. A newer exception still correctly overrides an older final.
+    if (final && final.createdAt.getTime() >= issue.updatedAt.getTime()) continue;
+    const issues = issuesByWorkday.get(key) ?? [];
+    issues.push(issue);
+    issuesByWorkday.set(key, issues);
+  }
+
+  const keys = new Set([...latestFinals.keys(), ...issuesByWorkday.keys()]);
+  return [...keys]
+    .map((key) => {
+      const final = latestFinals.get(key) ?? null;
+      const activeIssues = (issuesByWorkday.get(key) ?? []).sort(compareIssues);
+      if (activeIssues.length) return exceptionDay(key, activeIssues, final);
+      if (final) return finalDay(key, final);
+      return null;
+    })
+    .filter((day): day is EmployeeTimesheetDay => Boolean(day))
+    .sort((left, right) => right.workDate.getTime() - left.workDate.getTime());
+}
+
+function latestFinalByWorkday(rows: readonly EmployeeTimesheetFinalInput[]) {
+  const latest = new Map<string, EmployeeTimesheetFinalInput>();
+  for (const row of [...rows].sort((left, right) =>
+    right.workDate.getTime() - left.workDate.getTime()
+      || right.version - left.version
+      || right.createdAt.getTime() - left.createdAt.getTime())) {
+    const key = workdayKey(row);
+    if (!latest.has(key)) latest.set(key, row);
+  }
+  return latest;
+}
+
+function dedupeLockedDays(rows: readonly EmployeeTimesheetLockedDayInput[]) {
+  const days = new Map<string, EmployeeTimesheetLockedDayInput>();
+  for (const row of [...rows].sort((left, right) =>
+    right.workDate.getTime() - left.workDate.getTime()
+      || right.finalResultVersion - left.finalResultVersion)) {
+    const key = workdayKey(row);
+    if (!days.has(key)) days.set(key, row);
+  }
+  return [...days.values()];
+}
+
+function exceptionDay(
+  key: string,
+  issues: EmployeeTimesheetExceptionInput[],
+  final: EmployeeTimesheetFinalInput | null,
+): EmployeeTimesheetDay {
+  const actionable = issues.find((issue): issue is EmployeeTimesheetExceptionInput & {
+    type: "MISSING_CLOCK_IN" | "MISSING_CLOCK_OUT";
+  } => EMPLOYEE_ACTIONABLE_TYPES.includes(issue.type)
+    && (issue.status === "OPEN" || issue.status === "PENDING_EMPLOYEE"));
+  const primary = issues[0]!;
+  return {
+    key,
+    source: "LIVE_EXCEPTION",
+    businessId: primary.businessId,
+    branchId: primary.branchId,
+    membershipId: primary.membershipId,
+    workDate: primary.workDate,
+    status: actionable ? "ACTION_NEEDED" : "WAITING_FOR_MANAGER",
+    outcome: null,
+    actualClockInAt: primary.actualClockInAt ?? final?.actualClockInAt ?? null,
+    actualClockOutAt: primary.actualClockOutAt ?? final?.actualClockOutAt ?? null,
+    totalBreakMinutes: final?.totalBreakMinutes ?? 0,
+    totalWorkedMinutes: final?.totalWorkedMinutes ?? 0,
+    issues: uniqueIssues(issues).map(({ id, type, status, exceptionMinutes, reasonCode }) => ({
+      id,
+      type,
+      status,
+      exceptionMinutes,
+      reasonCode,
+    })),
+    actionableException: actionable ? { id: actionable.id, type: actionable.type } : null,
+  };
+}
+
+function finalDay(key: string, final: EmployeeTimesheetFinalInput): EmployeeTimesheetDay {
+  return {
+    key,
+    source: "LIVE_FINAL",
+    businessId: final.businessId,
+    branchId: final.branchId,
+    membershipId: final.membershipId,
+    workDate: final.workDate,
+    status: "FINAL",
+    outcome: final.outcome,
+    actualClockInAt: final.actualClockInAt,
+    actualClockOutAt: final.actualClockOutAt,
+    totalBreakMinutes: final.totalBreakMinutes,
+    totalWorkedMinutes: final.totalWorkedMinutes,
+    issues: [],
+    actionableException: null,
+  };
+}
+
+function uniqueIssues(issues: EmployeeTimesheetExceptionInput[]) {
+  const unique = new Map<AttendanceP2ExceptionType, EmployeeTimesheetExceptionInput>();
+  for (const issue of issues) if (!unique.has(issue.type)) unique.set(issue.type, issue);
+  return [...unique.values()];
+}
+
+function compareIssues(left: EmployeeTimesheetExceptionInput, right: EmployeeTimesheetExceptionInput) {
+  return exceptionPriority(left) - exceptionPriority(right)
+    || right.updatedAt.getTime() - left.updatedAt.getTime()
+    || left.id.localeCompare(right.id);
+}
+
+function exceptionPriority(issue: EmployeeTimesheetExceptionInput) {
+  if (EMPLOYEE_ACTIONABLE_TYPES.includes(issue.type)
+    && (issue.status === "OPEN" || issue.status === "PENDING_EMPLOYEE")) return 0;
+  if (issue.status === "PENDING_MANAGER") return 1;
+  return 2;
+}
+
+function workdayKey(value: { businessId: string; membershipId: string; workDate: Date }) {
+  return `${value.businessId}:${value.membershipId}:${value.workDate.toISOString().slice(0, 10)}`;
 }

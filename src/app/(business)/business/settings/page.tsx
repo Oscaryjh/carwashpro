@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BusinessForm } from "@/components/business-form";
 import { assertRole } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
@@ -65,6 +66,16 @@ export default async function BusinessSettingsPage({
           business={business}
           settingsLayout
         />
+        <div className="company-settings-sheet company-settings-secondary-section" id="staff-app-appearance">
+          <div className="company-settings-section-heading">
+            <div>
+              <span className="company-settings-eyebrow">Employee experience</span>
+              <h2>Staff App appearance</h2>
+            </div>
+            <p>Manage the Staff App logo and employee home shortcut icons without changing the POS or invoice brand.</p>
+          </div>
+          <Link className="secondary-button" href="/business/settings/staff-app">Open Staff App appearance</Link>
+        </div>
         <CompanySettingsDialog
           id="payment-methods-dialog"
           eyebrow="Company settings"

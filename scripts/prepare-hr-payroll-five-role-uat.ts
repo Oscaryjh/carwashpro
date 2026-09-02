@@ -64,6 +64,7 @@ type AcceptanceArtifact = {
   businessName: string;
   branchId: string;
   ownerEmail: string;
+  managerEmail: string;
   employeeMemberships: Record<string, { membershipId: string }>;
 };
 
@@ -232,6 +233,85 @@ async function main() {
       tx,
     );
 
+    const managerUser = await tx.user.findFirstOrThrow({
+      where: {
+        businessId: artifact.businessId,
+        email: artifact.managerEmail,
+        status: "active",
+        employeeBusinessMembershipId: { not: null },
+      },
+      select: {
+        id: true,
+        permissions: true,
+        employeeBusinessMembership: {
+          select: {
+            id: true,
+            employeeAccountId: true,
+            businessId: true,
+            employeeCode: true,
+            fullName: true,
+            branchAssignments: {
+              where: { status: "ACTIVE", isPrimary: true },
+              select: { branchId: true },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+    const managerMembership = managerUser.employeeBusinessMembership;
+    if (!managerMembership) throw new Error("MANAGER_EMPLOYEE_MEMBERSHIP_IS_MISSING");
+    const managerBranchId = managerMembership.branchAssignments[0]?.branchId;
+    if (!managerBranchId) throw new Error("MANAGER_PRIMARY_BRANCH_IS_MISSING");
+    const managerPermissions = Array.from(new Set([
+      ...managerUser.permissions,
+      "ATTENDANCE_EMPLOYEE_READ",
+      "ATTENDANCE_EMPLOYEE_MANAGE",
+      "APPROVE_LEAVE",
+      "REVIEW_CLAIM",
+    ]));
+    await tx.user.update({
+      where: { id: managerUser.id },
+      data: { permissions: managerPermissions },
+    });
+    const managerDeviceHash = createHash("sha256")
+      .update("hr-five-role-uat-manager-browser")
+      .digest("hex");
+    const existingManagerDevice = await tx.employeeDevice.findFirst({
+      where: {
+        employeeAccountId: managerMembership.employeeAccountId,
+        status: "ACTIVE",
+        canView: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    const managerDevice = existingManagerDevice
+      ? existingManagerDevice
+      : await tx.employeeDevice.create({
+          data: {
+            employeeAccountId: managerMembership.employeeAccountId,
+            deviceIdentifierHash: managerDeviceHash,
+            displayName: "Manager UAT browser",
+            platform: "Browser",
+            browser: "Codex in-app browser",
+            canView: true,
+            canPunch: true,
+          },
+        });
+    const managerEmployeeSession = await createEmployeeSessionRecord(
+      {
+        employeeAccountId: managerMembership.employeeAccountId,
+        membershipId: managerMembership.id,
+        businessId: managerMembership.businessId,
+        primaryBranchId: managerBranchId,
+        attendanceBranchId: managerBranchId,
+        deviceId: managerDevice.id,
+        now: new Date(),
+        userAgent: "Tetamu manager Staff App local UAT",
+      },
+      tx,
+    );
+
     return {
       owner: { persona: "BUSINESS_OWNER", ...owner },
       users,
@@ -242,6 +322,14 @@ async function main() {
         membershipId: membership.id,
         sessionToken: employeeSession.token,
         sessionExpiresAt: employeeSession.expiresAt.toISOString(),
+      },
+      managerEmployee: {
+        persona: "MANAGER_EMPLOYEE",
+        employeeCode: managerMembership.employeeCode,
+        fullName: managerMembership.fullName,
+        membershipId: managerMembership.id,
+        sessionToken: managerEmployeeSession.token,
+        sessionExpiresAt: managerEmployeeSession.expiresAt.toISOString(),
       },
     };
   });
@@ -302,6 +390,7 @@ async function main() {
     passwordProvidedThroughEnvironment: true,
     employeeSessionCookie: "tetamu_employee_session",
     employee: prepared.employee,
+    managerEmployee: prepared.managerEmployee,
     users: appPersonas.filter((persona) => persona.persona !== "BUSINESS_OWNER"),
     owner,
   };
@@ -312,6 +401,7 @@ async function main() {
     businessId: output.businessId,
     personas: [
       output.employee.persona,
+      output.managerEmployee.persona,
       ...output.users.map((user) => user.persona),
       output.owner.persona,
     ],

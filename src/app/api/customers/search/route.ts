@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { authorizedCustomerPackageBranchWhere } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { customerPhoneSearchVariants } from "@/lib/validation/crm";
 
@@ -14,6 +15,7 @@ export async function GET(request: Request) {
   }
 
   const query = new URL(request.url).searchParams.get("q")?.trim() ?? "";
+  const packageBranchWhere = authorizedCustomerPackageBranchWhere(context.user);
   const customers = await prisma.customer.findMany({
     where: {
       businessId: context.businessId,
@@ -41,7 +43,7 @@ export async function GET(request: Request) {
       _count: {
         select: {
           customerPackages: {
-            where: { status: "ACTIVE" },
+            where: { status: "ACTIVE", ...packageBranchWhere },
           },
           vehicles: true,
         },
@@ -100,7 +102,7 @@ async function getCustomerSearchContext() {
     };
   }
 
-  return { businessId: business.id };
+  return { businessId: business.id, user };
 }
 
 function buildCustomerSearchWhere(query: string): Prisma.CustomerWhereInput {

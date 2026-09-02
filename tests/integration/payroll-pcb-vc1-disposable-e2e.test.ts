@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import type { Prisma } from "@prisma/client";
 import { statutoryExportStepUpResourceId } from "../../src/lib/payroll/high-risk-mfa";
+import { PCB_2026_CALCULATOR_VERSION } from "../../src/lib/payroll/pcb-2026";
 import { pcbProfileDataSchema } from "../../src/lib/payroll/pcb-profile";
 import { publishPayrollPayslips } from "../../src/lib/payroll/payslip-publication";
 import { getPayrollPeriodReadiness } from "../../src/lib/payroll/readiness";
@@ -216,7 +217,7 @@ async function createFixture() {
       classificationDigest: digest("pcb-vc1-classifications"),
       parserName: "tetamu-pcb-2026",
       parserVersion: "1.0.0",
-      calculatorVersion: "TETAMU_PCB_2026_1.1.0",
+      calculatorVersion: PCB_2026_CALCULATOR_VERSION,
       calculatorTestDigest: digest("pcb-vc1-calculator-tests"),
       datasetRowCount: 1,
       readiness: "CALCULATION_VERIFIED",

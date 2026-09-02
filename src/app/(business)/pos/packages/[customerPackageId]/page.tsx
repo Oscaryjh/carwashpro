@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { BackButton } from "@/components/back-button";
 import { PackagePurchasePaymentForm } from "@/components/package-purchase-payment-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { authorizedCustomerPackageBranchWhere } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { calculatePackageTax } from "@/lib/tax/calculator";
 import { recordPackagePurchasePaymentAction } from "../../actions";
@@ -20,13 +21,12 @@ export default async function PackageCheckoutPage({
     "PROCESS_CASHIER_PAYMENT",
   );
   const { customerPackageId } = await params;
+  const packageBranchWhere = authorizedCustomerPackageBranchWhere(user);
   const customerPackage = await prisma.customerPackage.findFirst({
     where: {
       id: customerPackageId,
       businessId,
-      ...(user.role === "BUSINESS_OWNER"
-        ? {}
-        : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
+      ...packageBranchWhere,
     },
     include: {
       branch: true,

@@ -25,10 +25,10 @@ export function hasDailySalesActivity(row: DailySalesPresentationRow) {
   );
 }
 
-export function getVisibleDailySalesDays(
-  days: readonly DailySalesPresentationRow[],
+export function getVisibleDailySalesDays<Row extends DailySalesPresentationRow>(
+  days: readonly Row[],
   showEmptyDays: boolean,
-) {
+): Row[] {
   return showEmptyDays ? [...days] : days.filter(hasDailySalesActivity);
 }
 
@@ -42,4 +42,10 @@ export function formatPaymentShare(sharePercent: number) {
   }
 
   return `${sharePercent.toFixed(1)}%`;
+}
+
+export function normalizeReportDateRange(fromValue: string, toValue: string) {
+  return fromValue <= toValue
+    ? { fromValue, toValue }
+    : { fromValue: toValue, toValue: fromValue };
 }

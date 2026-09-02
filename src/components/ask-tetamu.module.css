@@ -110,7 +110,14 @@
   overflow-y: auto;
 }
 
-.conversationList nav > a {
+.conversationRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-radius: 10px;
+}
+
+.conversationRow > a {
   display: grid;
   gap: 4px;
   min-width: 0;
@@ -118,17 +125,149 @@
   border-radius: 10px;
 }
 
-.conversationList nav > a:hover,
+.conversationRow > a:hover,
 .activeConversation {
   background: #e9f6f3;
   color: var(--accent-strong);
 }
 
-.conversationList nav strong,
-.conversationList nav small {
+.conversationRow strong,
+.conversationRow small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.archiveConversationTrigger {
+  padding-right: 6px;
+}
+
+.archiveConversationTrigger {
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.archiveConversationTrigger:hover:not(:disabled) {
+  border-color: #efb7b0;
+  background: #fff3f1;
+  color: #9b3026;
+  transform: none;
+}
+
+.archiveConfirmBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(12, 28, 26, .62);
+  backdrop-filter: blur(3px);
+}
+
+.archiveConfirmDialog {
+  width: min(100%, 440px);
+  display: grid;
+  gap: 22px;
+  padding: 24px;
+  border: 1px solid #c8d8d5;
+  border-radius: 18px;
+  background: #fff;
+  color: #18212f;
+  box-shadow: 0 24px 70px rgba(5, 20, 18, .34);
+}
+
+.archiveConfirmDialog > div:first-child {
+  display: grid;
+  gap: 7px;
+}
+
+.archiveConfirmDialog span {
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.archiveConfirmDialog h2,
+.archiveConfirmDialog p {
+  margin: 0;
+}
+
+.archiveConfirmDialog h2 {
+  color: #18212f;
+  font-size: 21px;
+}
+
+.archiveConfirmDialog p {
+  color: #465266;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.archiveConfirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.archiveConfirmActions button {
+  min-height: 42px;
+  padding-inline: 15px;
+  border-radius: 10px;
+}
+
+.archiveCancelButton {
+  border: 1px solid #9aa8b8;
+  background: #fff;
+  color: #18212f;
+  box-shadow: none;
+}
+
+.archiveCancelButton:hover:not(:disabled) {
+  border-color: #667084;
+  background: #f6f7f9;
+  transform: none;
+}
+
+.archiveConfirmButton {
+  border-color: #b42318;
+  background: #b42318;
+  color: #fff;
+}
+
+.archiveConfirmButton:hover:not(:disabled) {
+  border-color: #8f1c13;
+  background: #8f1c13;
+  transform: none;
+}
+
+@media (max-width: 520px) {
+  .archiveConfirmDialog {
+    padding: 20px;
+  }
+
+  .archiveConfirmActions {
+    flex-direction: column-reverse;
+  }
+
+  .archiveConfirmActions button,
+  .archiveConversationForm,
+  .restoreConfirmForm {
+    width: 100%;
+  }
 }
 
 .emptySidebar {
@@ -141,6 +280,69 @@
 .emptySidebar p {
   font-size: 13px;
   line-height: 1.45;
+}
+
+.conversationListFooter {
+  padding: 9px 10px 11px;
+  border-top: 1px solid var(--border);
+}
+
+.conversationListFooter a {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 9px;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.conversationListFooter a:hover {
+  background: #e9f6f3;
+}
+
+.restoreConversationTrigger {
+  padding-right: 6px;
+  min-width: 68px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid #9ed7cd;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--accent-strong);
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.restoreConversationTrigger:hover:not(:disabled) {
+  background: #e9f6f3;
+  transform: none;
+}
+
+.restoreConversationTrigger.restoreIconButton {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+}
+
+.restoreIconButton svg {
+  width: 17px;
+  height: 17px;
+}
+
+.restoreConfirmButton {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.restoreConfirmButton:hover:not(:disabled) {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  transform: none;
 }
 
 .mobileConversations {
@@ -389,6 +591,39 @@
   background: #fbfcfb;
 }
 
+.archivedConversationNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: auto;
+  padding: 15px 16px;
+  border-top: 1px solid #d6e6e2;
+  background: #f1f8f6;
+}
+
+.archivedConversationNotice > div {
+  display: grid;
+  gap: 3px;
+}
+
+.archivedConversationNotice p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.archivedConversationNotice .restoreConversationTrigger {
+  padding: 0;
+}
+
+.archivedConversationNotice .restoreConversationTrigger {
+  min-height: 40px;
+  padding-inline: 14px;
+  background: var(--accent);
+  color: #fff;
+}
+
 .suggestions {
   display: grid;
   gap: 10px;
@@ -431,16 +666,6 @@
   border-color: var(--accent);
   background: #e9f6f3;
   transform: translateY(-1px);
-}
-
-.usageWarning {
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid #e9cf96;
-  border-radius: 10px;
-  background: #fff9eb;
-  color: #725112;
-  font-size: 13px;
 }
 
 .disabledState {
@@ -534,9 +759,34 @@
   min-height: 42px;
 }
 
-.composer > small {
+.composerMeta {
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.composerMeta small {
   color: var(--muted);
+}
+
+.composerMeta > small:last-child {
   text-align: right;
+}
+
+.quotaRemaining,
+.quotaLow {
+  text-align: left;
+}
+
+.quotaRemaining {
+  color: var(--accent-strong) !important;
+}
+
+.quotaLow {
+  color: #725112 !important;
+  font-weight: 700;
 }
 
 .errorState {
@@ -770,6 +1020,15 @@
     padding: 12px;
   }
 
+  .archivedConversationNotice {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .archivedConversationNotice .restoreConversationTrigger {
+    width: 100%;
+  }
+
   .suggestionChips {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -788,7 +1047,11 @@
     width: 100%;
   }
 
-  .composer > small {
+  .composerMeta {
+    align-items: flex-start;
+  }
+
+  .composerMeta > small:last-child {
     display: none;
   }
 

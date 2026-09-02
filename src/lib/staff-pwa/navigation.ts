@@ -38,7 +38,7 @@ export function buildStaffNavigation(
       href: "/staff/history",
       label: "Time",
       icon: "attendance",
-      activePrefixes: ["/staff/history", "/staff/roster", "/staff/timesheet"],
+      activePrefixes: ["/staff/history", "/staff/roster", "/staff/timesheet", "/staff/appointments"],
     });
   }
   if (modules.has("HR") || modules.has("CLAIMS")) {
@@ -46,7 +46,7 @@ export function buildStaffNavigation(
       href: "/staff/requests",
       label: "Requests",
       icon: "requests",
-      activePrefixes: ["/staff/leave", "/staff/claims", "/staff/approvals"],
+      activePrefixes: ["/staff/requests", "/staff/leave", "/staff/claims", "/staff/approvals"],
     });
   }
   if (modules.has("PAYROLL") || modules.has("COMMISSION")) {
@@ -54,7 +54,7 @@ export function buildStaffNavigation(
       href: "/staff/pay",
       label: "Pay",
       icon: "pay",
-      activePrefixes: ["/staff/payslips", "/staff/commission"],
+      activePrefixes: ["/staff/pay", "/staff/payslips", "/staff/commission"],
     });
   }
 

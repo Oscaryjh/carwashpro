@@ -66,7 +66,7 @@ test("business suggestions and UI do not expose misleading or internal commercia
 test("conversation sidebar contains navigation only and hides normal usage", () => {
   const page = readFileSync("src/app/(business)/ai/page.tsx", "utf8");
   assert.doesNotMatch(page, /AI usage|questions remaining|styles\.usage/i);
-  assert.match(page, /<h2>Conversations<\/h2>/);
+  assert.match(page, /archivedMode \? "Archived" : "Conversations"/);
   assert.match(page, /aria-label="Ask Tetamu conversations"/);
   assert.match(page, /Start a new conversation/);
   assert.equal(getAiUsageNotice({
@@ -76,6 +76,41 @@ test("conversation sidebar contains navigation only and hides normal usage", () 
     periodEnd: new Date("2026-09-01T00:00:00.000Z"),
     timezone: "Asia\/Kuala_Lumpur",
   }), null);
+});
+
+test("conversation removal uses a confirmed soft archive scoped to the owning user and business", () => {
+  const page = readFileSync("src/app/(business)/ai/page.tsx", "utf8");
+  const action = readFileSync("src/app/(business)/ai/actions.ts", "utf8");
+  const control = readFileSync("src/components/ai-conversation-actions.tsx", "utf8");
+  assert.match(page, /ArchiveConversationButton/);
+  assert.match(control, /Remove this conversation\?/);
+  assert.match(control, /Keep conversation/);
+  assert.match(control, /role="dialog"/);
+  assert.doesNotMatch(control, /window\.confirm/);
+  assert.match(action, /aiConversation\.updateMany/);
+  assert.match(action, /createdById: context\.user\.userId/);
+  assert.match(action, /businessId: context\.businessId/);
+  assert.match(action, /archivedAt: new Date\(\)/);
+  assert.doesNotMatch(action, /aiConversation\.delete/);
+});
+
+test("archived conversations are available from the sidebar footer and can be restored", () => {
+  const page = readFileSync("src/app/(business)/ai/page.tsx", "utf8");
+  const action = readFileSync("src/app/(business)/ai/actions.ts", "utf8");
+  const control = readFileSync("src/components/ai-conversation-actions.tsx", "utf8");
+  const styles = readFileSync("src/components/ask-tetamu.module.css", "utf8");
+
+  assert.match(page, /Archived conversations/);
+  assert.match(page, /conversationListFooter/);
+  assert.match(page, /archivedAt: \{ not: null \}/);
+  assert.match(page, /RestoreConversationButton/);
+  assert.match(page, /conversation\.id} iconOnly/);
+  assert.match(control, /restoreAiConversationAction/);
+  assert.match(control, /Restore this conversation\?/);
+  assert.match(control, /Keep archived/);
+  assert.match(control, /aria-label="Restore conversation"/);
+  assert.match(action, /data: \{ archivedAt: null \}/);
+  assert.match(styles, /\.conversationListFooter/);
 });
 
 test("mobile drawer reuses the conversation-only sidebar at phone widths", () => {
@@ -98,6 +133,17 @@ test("low usage warning appears only near the monthly limit", () => {
   assert.equal(notice?.kind, "LOW");
   assert.match(notice?.message ?? "", /20 Ask Tetamu questions remaining this month/i);
   assert.match(notice?.message ?? "", /Resets 1 Sep 2026/i);
+});
+
+test("composer shows the remaining monthly questions at its lower left", () => {
+  const page = readFileSync("src/app/(business)/ai/page.tsx", "utf8");
+  const chat = readFileSync("src/components/ai-business-chat.tsx", "utf8");
+  const styles = readFileSync("src/components/ask-tetamu.module.css", "utf8");
+  assert.match(page, /remainingRequests=\{allowance\.remainingRequests\}/);
+  assert.match(chat, /Ask Tetamu questions remaining this month/);
+  assert.match(chat, /styles\.composerMeta/);
+  assert.match(styles, /\.composerMeta[\s\S]*justify-content: space-between/);
+  assert.match(styles, /\.quotaRemaining,[\s\S]*text-align: left/);
 });
 
 test("exhausted usage has a natural reset message and disables Ask", () => {

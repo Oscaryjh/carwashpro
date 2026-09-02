@@ -2,6 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackButton } from "@/components/back-button";
 import { DeleteCustomerForm } from "@/components/delete-customer-form";
+import {
+  authorizedCustomerPackageBranchWhere,
+  authorizedOperationalBranchWhere,
+} from "@/lib/branches";
 import { requireBusinessIndustryContext } from "@/lib/industry-context";
 import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
@@ -21,8 +25,10 @@ export default async function CustomerDetailsPage({
   params,
   searchParams,
 }: CustomerDetailsPageProps) {
-  const context = await requireBusinessIndustryContext();
+  const context = await requireBusinessIndustryContext("VIEW_CRM");
   const { user, businessId } = context;
+  const operationalBranchWhere = authorizedOperationalBranchWhere(user);
+  const packageBranchWhere = authorizedCustomerPackageBranchWhere(user);
   const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const { customerId } = await params;
   const query = await searchParams;
@@ -31,7 +37,7 @@ export default async function CustomerDetailsPage({
     Number.parseInt(query.appointmentPage ?? "1", 10) || 1,
   );
   const appointmentCount = await prisma.appointment.count({
-    where: { businessId, customerId },
+    where: { businessId, customerId, ...operationalBranchWhere },
   });
   const appointmentPageCount = Math.max(
     1,
@@ -52,6 +58,7 @@ export default async function CustomerDetailsPage({
         include: {
           branch: true,
           ownershipHistories: {
+            where: operationalBranchWhere,
             include: {
               previousCustomer: true,
               newCustomer: true,
@@ -62,13 +69,15 @@ export default async function CustomerDetailsPage({
         orderBy: { createdAt: "desc" },
       },
       previousVehicleOwnerships: {
+        where: operationalBranchWhere,
         include: {
           vehicle: true,
           newCustomer: true,
         },
         orderBy: { transferredAt: "desc" },
       },
-        customerPackages: {
+      customerPackages: {
+          where: packageBranchWhere,
           include: {
             package: true,
             serviceBalances: {
@@ -80,6 +89,7 @@ export default async function CustomerDetailsPage({
       },
       membership: true,
       appointments: {
+        where: operationalBranchWhere,
         include: {
           service: true,
           assignedStaff: true,
@@ -87,7 +97,7 @@ export default async function CustomerDetailsPage({
             include: {
               items: true,
               payments: {
-                where: { status: "ACTIVE" },
+                where: { status: "ACTIVE", ...operationalBranchWhere },
                 orderBy: { paidAt: "desc" },
               },
             },
@@ -98,10 +108,11 @@ export default async function CustomerDetailsPage({
         take: APPOINTMENTS_PER_PAGE,
       },
       invoices: {
+        where: operationalBranchWhere,
         include: {
           items: true,
           payments: {
-            where: { status: "ACTIVE" },
+            where: { status: "ACTIVE", ...operationalBranchWhere },
             orderBy: { paidAt: "desc" },
           },
         },
@@ -109,6 +120,7 @@ export default async function CustomerDetailsPage({
         take: 50,
       },
       workOrders: {
+        where: operationalBranchWhere,
         include: {
           branch: true,
           vehicle: true,

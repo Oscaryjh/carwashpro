@@ -587,6 +587,20 @@ function pcbReviewDraftClassificationRows(
       componentCode: entry.componentCode,
       sourceType: null,
       treatment: pcbTreatment(entry.treatments.PCB),
+      pcbNature: pcbNature(entry.treatments.PCB),
+      effectiveFrom: new Date(`${pack.effectiveFrom}T00:00:00.000Z`),
+      effectiveTo: pack.effectiveTo
+        ? new Date(`${pack.effectiveTo}T00:00:00.000Z`)
+        : null,
+      evidenceStatus: entry.treatments.PCB === "UNKNOWN" || entry.humanDecisionRequired
+        ? "NEEDS_EVIDENCE"
+        : "REVIEWED",
+      evidenceReference: entry.officialEvidence.join("; ") || sourceReference,
+      semanticMetadata: {
+        officialTreatment: entry.treatments.PCB ?? "UNKNOWN",
+        humanReviewStatus: entry.humanReviewStatus,
+        humanDecisionRequired: entry.humanDecisionRequired,
+      },
       rationale: limitedText(entry.reason || "PCB pay-item treatment requires HR review.", 500),
       authorityRef: limitedText(entry.officialEvidence.join("; ") || sourceReference, 500),
     });
@@ -595,6 +609,8 @@ function pcbReviewDraftClassificationRows(
     const existing = rows.get(componentCode);
     if (existing) {
       existing.treatment = "UNKNOWN";
+      existing.pcbNature = "UNKNOWN";
+      existing.evidenceStatus = "NEEDS_EVIDENCE";
       continue;
     }
     rows.set(componentCode, {
@@ -602,11 +618,25 @@ function pcbReviewDraftClassificationRows(
       componentCode,
       sourceType: null,
       treatment: "UNKNOWN",
+      pcbNature: "UNKNOWN",
+      effectiveFrom: new Date(`${pack.effectiveFrom}T00:00:00.000Z`),
+      effectiveTo: pack.effectiveTo
+        ? new Date(`${pack.effectiveTo}T00:00:00.000Z`)
+        : null,
+      evidenceStatus: "NEEDS_EVIDENCE",
+      evidenceReference: sourceReference,
       rationale: "PCB treatment is not proven by the retained official evidence.",
       authorityRef: sourceReference,
     });
   }
   return [...rows.values()].sort((left, right) => left.componentCode.localeCompare(right.componentCode));
+}
+
+function pcbNature(value: string | undefined) {
+  if (value === "NORMAL_REMUNERATION" || value === "INCLUDED") return "NORMAL_TAXABLE" as const;
+  if (value === "ADDITIONAL_REMUNERATION") return "ADDITIONAL_TAXABLE" as const;
+  if (value === "EXCLUDED") return "EXCLUDED" as const;
+  return "UNKNOWN" as const;
 }
 
 function pcbTreatment(value: string | undefined): StatutoryComponentTreatment {

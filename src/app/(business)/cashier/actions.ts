@@ -28,6 +28,7 @@ import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
 import { recordSaleInventory } from "@/lib/inventory/service";
 import { defaultBusinessPaymentMethods } from "@/lib/payments/business-methods";
+import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
 
 export type CashierSaleInvoiceSummary = {
   id: string;
@@ -140,7 +141,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       execute: async (tx) => {
       const shift = await tx.cashierShift.findFirst({
         where: { businessId, cashierId: user.userId, status: "OPEN" },
-        select: { id: true, branchId: true },
+        select: { id: true, branchId: true, startedAt: true },
       });
 
       if (!shift) {
@@ -150,6 +151,10 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       if (shift.branchId !== branchId) {
         throw new Error("This sale does not belong to the current shift branch.");
       }
+      const shiftActivity = await assertCashierShiftAcceptsActivity(tx, {
+        businessId,
+        shift,
+      });
 
       const persistedPaymentMethod = await tx.businessPaymentMethod.findFirst({
         where: {
@@ -816,6 +821,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
             businessId,
             branchId,
             cashierId: user.userId,
+            paidAt: shiftActivity.activityAt,
             shiftId: shift.id,
             appointmentId: effectiveAppointmentId,
             invoiceId: invoice.id,
@@ -845,6 +851,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
               businessId,
               branchId,
               cashierId: user.userId,
+              paidAt: shiftActivity.activityAt,
               shiftId: shift.id,
               appointmentId: effectiveAppointmentId,
               invoiceId: invoice.id,

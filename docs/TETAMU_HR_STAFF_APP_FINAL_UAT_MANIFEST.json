@@ -1,0 +1,63 @@
+{
+  "title": "TETAMU HR & STAFF APP — FINAL UAT CLOSURE",
+  "environment": "TESTING",
+  "closureDate": "2026-08-27",
+  "result": "COMPLETE",
+  "productionTouched": false,
+  "readyForHandover": true,
+  "testingEndpoints": {
+    "desktop": "https://tetamu-pos-web-testing.up.railway.app",
+    "staffApp": "https://tetamu-staff-app-testing.up.railway.app",
+    "desktopHealthHttpStatus": 200,
+    "staffAppHealthHttpStatus": 200
+  },
+  "domains": {
+    "otpLogin": "PASS",
+    "attendance": "PASS",
+    "roster": "PASS",
+    "leave": "PASS",
+    "claims": "PASS",
+    "attendanceCorrection": "PASS",
+    "overtime": "PASS",
+    "timesheet": "PASS",
+    "payPayslip": "PASS",
+    "managerMobileApprovals": "PASS",
+    "businessIsolation": "PASS",
+    "branchScope": "PASS",
+    "selfApprovalProtection": "PASS",
+    "mobileUx": "PASS"
+  },
+  "realDeviceEvidence": {
+    "leaveRequestId": "3adf4414-36e9-44cb-8c35-cc5e9cf67d0a",
+    "claimId": "c10c4671-4b1e-43c4-afe3-e7a6d58130b6",
+    "attendanceCorrectionExceptionId": "1103e43b-335b-4b45-95ca-b2026eb1fa05",
+    "attendanceCorrectionFinalResultId": "82b75852-e2c9-436a-9a0a-abc9d71ad9ec",
+    "overtimeReviewId": "0df5d5c7-0f7a-4298-aff7-3e197abc46cd",
+    "overtimeFinalResultId": "9320eecc-15d9-46fa-8efb-0c7ac8779bd7",
+    "overtimePotentialMinutes": 15,
+    "overtimeApprovedMinutes": 15,
+    "managerEmployeeCode": "EMP-005",
+    "payslipPublicationReference": "34993730-8dfb-4754-a32a-9594123f11a3"
+  },
+  "latestDeployment": {
+    "service": "tetamu-staff-app",
+    "deploymentId": "85a2a023-f8df-4378-b575-3061dc8bdd56",
+    "status": "SUCCESS"
+  },
+  "navigation": [
+    "Home",
+    "Time",
+    "Requests",
+    "Pay",
+    "Profile"
+  ],
+  "knownCoreUatDefectsRemaining": [],
+  "knownExclusions": [
+    "PCB 2026 HASiL certification",
+    "External monitoring alert receiver",
+    "Production deployment and operations",
+    "Real payment and bank export",
+    "Statutory submission"
+  ],
+  "report": "docs/TETAMU_HR_STAFF_APP_FINAL_UAT_CLOSURE.md"
+}

@@ -6,14 +6,16 @@ import {
   getEmployeeWorkplaces,
 } from "@/lib/attendance/employee-auth/session";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
+import { loadStaffAppAppearance } from "@/lib/staff-pwa/appearance";
 import "./staff.css";
+import "./staff-consolidation.css";
 
 export const metadata: Metadata = {
   title: { default: "Tetamu Staff App", template: "%s · Tetamu Staff App" },
   description: "Secure employee self-service for Tetamu workplaces.",
   applicationName: "Tetamu Staff App",
   manifest: "/staff/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Tetamu Staff App" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Tetamu Staff App" },
   icons: {
     icon: [
       { url: "/pwa/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -27,20 +29,21 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#087f76",
+  themeColor: "#f3f8f7",
 };
 
 export default async function StaffLayout({ children }: { children: ReactNode }) {
   const auth = await getEmployeeSelfServiceAuthContext();
-  const [moduleContext, workplaces] = auth
+  const [moduleContext, workplaces, appearance] = auth
     ? await Promise.all([
         loadBusinessModuleContext(auth.businessId),
         getEmployeeWorkplaces(auth),
+        loadStaffAppAppearance(auth.businessId),
       ])
-    : [null, []];
+    : [null, [], null];
   const modules = moduleContext ? [...moduleContext.enabledModules] : ["CORE"];
   return (
-    <StaffPwaChrome enabledModules={modules} workplaces={workplaces}>
+    <StaffPwaChrome appearance={appearance} enabledModules={modules} workplaces={workplaces}>
       {children}
     </StaffPwaChrome>
   );

@@ -4,6 +4,7 @@ import { BackButton } from "@/components/back-button";
 import { SendWhatsAppButton } from "@/components/send-whatsapp-button";
 import { WorkOrderContactForm } from "@/components/work-order-contact-form";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { authorizedOperationalBranchWhere } from "@/lib/branches";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { prisma } from "@/lib/prisma";
 import {
@@ -31,14 +32,13 @@ export default async function WorkOrderDetailsPage({
 }: WorkOrderDetailsPageProps) {
   const { user, businessId } = await requireBusinessUser("VIEW_WORK_ORDERS");
   const { workOrderId } = await params;
+  const operationalBranchWhere = authorizedOperationalBranchWhere(user);
   const { error, saved } = await searchParams;
   const workOrder = await prisma.workOrder.findFirst({
     where: {
       id: workOrderId,
       businessId,
-      ...(user.role === "BUSINESS_OWNER"
-        ? {}
-        : { branchId: user.branchId ?? "00000000-0000-0000-0000-000000000000" }),
+      ...operationalBranchWhere,
     },
     include: {
       customer: true,
