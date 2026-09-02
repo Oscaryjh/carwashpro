@@ -119,12 +119,14 @@ test("draft payslip keeps blocked PCB out of final net-pay semantics", () => {
   const pdf = buildPayslipPdf({ ...runHeader, status: "DRAFT", finalizedAt: null }, entry).toString("latin1");
   assert.match(pdf, /DRAFT PAYSLIP PREVIEW/);
   assert.match(pdf, /Unpaid absence: 1 day/);
-  assert.ok(pdf.includes("Current deductions \\(excludes pending PCB\\): RM328.12"));
-  assert.ok(pdf.includes("ESTIMATED NET PAY \\(BEFORE PCB\\): RM1,801.69"));
+  assert.ok(pdf.includes("Current deductions \\(excludes pending PCB\\)"));
+  assert.ok(pdf.includes("RM 328.12"));
+  assert.ok(pdf.includes("ESTIMATED NET PAY \\(BEFORE PCB\\)"));
+  assert.ok(pdf.includes("RM 1,801.69"));
   assert.match(pdf, /PCB \/ MTD: Pending configuration/);
   assert.doesNotMatch(pdf, /PCB \/ MTD: RM0\.00/);
   assert.equal(pdf.match(/EPF \/ KWSP/g)?.length, undefined);
-  assert.equal(pdf.match(/EPF employee/g)?.length, 1);
+  assert.equal(pdf.split("EPF \\(Employee\\)").length - 1, 1);
 });
 
 test("PCB presentation distinguishes pending review, calculated zero and not applicable", () => {

@@ -1,9 +1,9 @@
 import {
   buildTabularCsv,
   buildTabularXlsx,
-  buildTextPdf,
 } from "@/lib/business-groups/group-report-export";
 import { isProductionRuntime } from "@/lib/release/environment";
+import { buildProfessionalPayslipPdf } from "@/lib/payroll/payslip-pdf-v2";
 
 export type PayrollDocumentStatus = "DRAFT" | "REVIEW" | "FINALIZED";
 
@@ -108,123 +108,10 @@ export function buildPayslipPdf(
   ) {
     throw new Error("SYNTHETIC_STATUTORY_EVIDENCE_FORBIDDEN_IN_PRODUCTION");
   }
-  const employeeDeductions =
-    entry.otherDeductions +
-    entry.epfEmployee +
-    entry.socsoEmployee +
-    entry.eisEmployee +
-    entry.lindung24Employee +
-    entry.pcb +
-    entry.cp38;
-  const employerContributions =
-    entry.employerEpf + entry.employerSocso + entry.employerEis;
-  const componentEarnings = entry.components?.filter((component) => component.type === "EARNING") ?? [];
-  const componentDeductions = entry.components?.filter(
-    (component) => component.type === "DEDUCTION" && component.sourceType !== "STATUTORY",
-  ) ?? [];
-  const pcb = pcbPayslipPresentation(run.status, entry);
-  const isProvisional = run.status !== "FINALIZED" || pcb.pending;
-  const unpaidAbsenceDays = entry.unauthorizedAbsenceDays ?? entry.unpaidLeaveDays ?? 0;
-  return buildTextPdf([
-    run.business.name.toUpperCase(),
-    run.business.companyNo ? `Company No: ${run.business.companyNo}` : "",
-    run.business.address ?? "",
-    [run.business.phone, run.business.email].filter(Boolean).join(" | "),
-    "",
-    run.status === "FINALIZED" ? "PAYSLIP" : "DRAFT PAYSLIP PREVIEW",
-    ...(entry.statutoryEvidenceNature === "SYNTHETIC_TESTING"
-      ? [
-          "TESTING / NON-PRODUCTION STATUTORY FIXTURE",
-          `Fixture environment: ${entry.statutoryEvidenceEnvironment ?? "Not recorded"}`,
-          `Fixture purpose: ${entry.statutoryFixturePurpose ?? "Not recorded"}`,
-        ]
-      : []),
-    `Pay period: ${formatPayrollPeriod(run.periodStart)}`,
-    `Document status: ${formatStatus(run.status)}`,
-    run.finalizedAt
-      ? `Finalized: ${formatDateTime(run.finalizedAt)}`
-      : run.submittedAt
-        ? `Submitted for review: ${formatDateTime(run.submittedAt)}`
-        : "Draft preview - figures may change before payroll is finalized",
-    "",
-    `Employee: ${entry.fullName}`,
-    `Employee code: ${entry.employeeCode}`,
-    `Pay basis: ${formatPayBasis(entry.payBasis)}`,
-    "",
-    "ATTENDANCE",
-    `Days worked: ${entry.attendanceDays}`,
-    `Regular hours: ${formatMinutes(entry.regularMinutes)}`,
-    `Overtime hours: ${formatMinutes(entry.overtimeMinutes)}`,
-    `Public holiday hours: ${formatMinutes(entry.publicHolidayMinutes)}`,
-    ...(unpaidAbsenceDays > 0
-      ? [`Unpaid absence: ${formatDays(unpaidAbsenceDays)}`]
-      : []),
-    "",
-    "EARNINGS",
-    ...(componentEarnings.length
-      ? componentEarnings.map((component) => moneyLine(component.name, component.amount))
-      : [
-          moneyLine("Basic pay", entry.basicPay),
-          moneyLine("Overtime pay", entry.overtimePay),
-          moneyLine("Public holiday pay", entry.publicHolidayPay),
-          moneyLine("Allowances", entry.allowances),
-        ]),
-    moneyLine("Gross pay", entry.grossPay),
-    "",
-    "EMPLOYEE DEDUCTIONS",
-    ...(componentDeductions.length
-      ? componentDeductions.map((component) => moneyLine(component.name, component.amount))
-      : [moneyLine("Other deductions", entry.otherDeductions)]),
-    statutoryPayslipLine(entry, "EPF", "EPF employee", entry.epfEmployee),
-    statutoryPayslipLine(entry, "SOCSO", "SOCSO employee", entry.socsoEmployee),
-    statutoryPayslipLine(entry, "EIS", "EIS employee", entry.eisEmployee),
-    statutoryPayslipLine(
-      entry,
-      "LINDUNG24",
-      "LINDUNG 24 (employee deduction)",
-      entry.lindung24Employee,
-    ),
-    `PCB / MTD: ${pcb.value}`,
-    moneyLine("CP38 instruction", entry.cp38),
-    moneyLine(isProvisional ? "Current deductions (excludes pending PCB)" : "Total deductions", employeeDeductions),
-    "",
-    ...(pcb.pending
-      ? [
-          `PCB / MTD status: ${pcb.value}.`,
-          "PCB is not included in the current deductions or estimated net pay.",
-          "This is not the final amount payable.",
-          "",
-        ]
-      : []),
-    ...(entry.claimReimbursements?.length
-      ? [
-          "REIMBURSEMENTS (NON-WAGE)",
-          ...entry.claimReimbursements.map((item) => moneyLine(`Claim ${item.claimNumber}`, item.amount)),
-          "",
-        ]
-      : []),
-    moneyLine(isProvisional ? "ESTIMATED NET PAY (BEFORE PCB)" : "NET PAY", entry.netPay),
-    "",
-    "EMPLOYER CONTRIBUTIONS",
-    statutoryPayslipLine(entry, "EPF", "Employer EPF", entry.employerEpf, "employer"),
-    statutoryPayslipLine(entry, "SOCSO", "Employer SOCSO", entry.employerSocso, "employer"),
-    statutoryPayslipLine(entry, "EIS", "Employer EIS", entry.employerEis, "employer"),
-    moneyLine("Total employer contributions", employerContributions),
-    "Employer contributions are paid by the employer and do not reduce employee net pay.",
-    "",
-    `Statutory status: ${formatStatus(entry.statutoryStatus)}`,
-    ...(entry.statutoryRuleVersion
-      ? [
-          "Rule version(s):",
-          ...entry.statutoryRuleVersion
-            .split("|")
-            .flatMap((version) => wrapPdfText(version, 74).map((line, index) => `${index ? "  " : "- "}${line}`)),
-        ]
-      : ["Rule version: Not recorded"]),
-    entry.notes ? `Notes: ${entry.notes}` : "",
-    "",
-    "This is a computer-generated payroll document.",
-  ]);
+  return buildProfessionalPayslipPdf(run, {
+    ...entry,
+    pcbPresentation: pcbPayslipPresentation(run.status, entry),
+  });
 }
 
 export function pcbPayslipPresentation(

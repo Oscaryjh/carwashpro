@@ -45,6 +45,10 @@ export async function publishPayrollPayslips(
                 employerContribution: true,
               },
             },
+            claimReimbursementSnapshots: {
+              where: { status: { in: ["READY", "SETTLED"] } },
+              orderBy: { createdAt: "asc" },
+            },
             payslipPublication: { select: { id: true } },
           },
         },
