@@ -5,7 +5,7 @@
   "isolatedWorktree": true,
   "productionTouched": false,
   "testingBusinessDataChanged": false,
-  "p2CertificationDigest": "e3211a39b9994398460ccf62f8ff2c14924e9a280fd12176f7abd36fe76b622c",
+  "p2CertificationDigest": "721daef2a5069077ed8eab014e0eae26eb83396335fa7420d64f2ab243e7a71d",
   "officialSources": {
     "computerisedSpecification2026Sha256": "a1618051c858393d92d868c9975c183309d3d07e48f0e4f0cdef589f45f5800c",
     "testingQuestions2026Sha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
@@ -22,7 +22,7 @@
   },
   "identitySource": {
     "repositoryPath": "statutory/official/fixtures/pcb-2026-p3a-submission-identity.json",
-    "sha256": "e5841b5c64a2363db13e9be9c43684826c0077cc43c449594eb01960404ee905",
+    "sha256": "ef3a014dba987542bf013b850afe1d6a9b08baaac1529cee2d350a910e59b2f4",
     "status": "INPUT_REQUIRED",
     "exhibit4Ready": false,
     "exhibit3Ready": false,
@@ -414,7 +414,7 @@
     {
       "repositoryPath": "statutory/official/certifications/pcb-2026-p3/manifest/identity-validation.json",
       "bytes": 20731,
-      "sha256": "d6160ad482cf8d920ef729c858c46ccba8ad1d636fe5e9897063c314bbfa6521"
+      "sha256": "c2305e6fb4f16d1e441c4af3645414ef8eb1e72b5ac18f3d884f93ecf41bd73c"
     },
     {
       "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/calculation-detail/q1-2026-07-calculation-detail.json",
@@ -474,7 +474,7 @@
     {
       "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/manifest/manifest.json",
       "bytes": 11590,
-      "sha256": "bb38b4158bf018922828698557ce6941a3b861ca81922ceb5089968172f11b2d"
+      "sha256": "5fb74610ae581b5db4fe15f762d7b15b344c699376ec7c1fed9a4f406add0c02"
     },
     {
       "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q2/calculation-detail/q2-2026-03-calculation-detail.json",
@@ -519,7 +519,7 @@
     {
       "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q2/manifest/manifest.json",
       "bytes": 13251,
-      "sha256": "c79d5c31f788c9f819b8ac1598b22f0fae3cdadb1d48f6d2122736b6e1cbfc15"
+      "sha256": "f7457e322b92c2308b9251e8cfc16a8c7408acd9a12fdaee46136d556fdfb82f"
     },
     {
       "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-09-calculation-detail.json",
@@ -559,7 +559,7 @@
     {
       "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/manifest/manifest.json",
       "bytes": 8646,
-      "sha256": "2a853d55c24c31cd8589fbdad576d0d1322abb0708415b99d98342ec72f0ce78"
+      "sha256": "a52d015875c3332617d05060b6ffd3aca70ae96fa3f0079083391da0e8fa24ad"
     },
     {
       "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/calculation-detail/q4-2026-08-calculation-detail.json",
@@ -619,7 +619,7 @@
     {
       "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/manifest/manifest.json",
       "bytes": 11941,
-      "sha256": "5cbe7d67594954a722bc4e878d50e397ff643fc80d5d630ffc514daafc038e1d"
+      "sha256": "9a61d8a80c48bddca3e1bd5c2f6ad3d379ed5d795068622ca12f4013b685f408"
     },
     {
       "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-01-calculation-detail.json",
@@ -654,7 +654,7 @@
     {
       "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/manifest/manifest.json",
       "bytes": 6008,
-      "sha256": "d175bbc846eb8f8acbf77ab2c32e9aa6ccfa9862eb0e8a7926cc5004690da464"
+      "sha256": "082bffbf44f9b6024eaa93ee984daec3190b4ab0b9751101d4f5977806a51279"
     },
     {
       "repositoryPath": "statutory/official/certifications/pcb-2026-p3/shared/tetamu-pcb-2026-p3-cover-sheet.pdf",

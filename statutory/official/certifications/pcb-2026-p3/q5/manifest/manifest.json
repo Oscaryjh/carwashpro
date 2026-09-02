@@ -3,7 +3,7 @@
   "employeeLabel": "Employee E",
   "officialSourceSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
   "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
-  "p2CertificationDigest": "e3211a39b9994398460ccf62f8ff2c14924e9a280fd12176f7abd36fe76b622c",
+  "p2CertificationDigest": "721daef2a5069077ed8eab014e0eae26eb83396335fa7420d64f2ab243e7a71d",
   "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
   "independentVerifierVersion": "HASIL_2026_P2_INDEPENDENT_1.0.0",
   "requiredArtifacts": {
@@ -19,7 +19,7 @@
     "textFile": []
   },
   "identitySource": "statutory/official/fixtures/pcb-2026-p3a-submission-identity.json",
-  "identityInputSha256": "e5841b5c64a2363db13e9be9c43684826c0077cc43c449594eb01960404ee905",
+  "identityInputSha256": "ef3a014dba987542bf013b850afe1d6a9b08baaac1529cee2d350a910e59b2f4",
   "identityStatus": "NOT_REQUIRED",
   "requiredIdentityFields": [],
   "unresolvedIdentityInputs": [],
