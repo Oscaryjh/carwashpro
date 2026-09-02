@@ -124,7 +124,7 @@ class PdfCanvas {
     y: number,
     width: number,
     height: number,
-    color = COLORS.border,
+    color: string = COLORS.border,
     lineWidth = 0.7,
   ) {
     this.commands.push(
