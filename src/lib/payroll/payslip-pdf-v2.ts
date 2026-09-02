@@ -63,6 +63,9 @@ type PdfEntry = {
   netPay: number;
   claimReimbursements?: Array<{ claimNumber: string; amount: number }>;
   notes: string | null;
+  statutoryEvidenceNature?: "REAL" | "SYNTHETIC_TESTING";
+  statutoryEvidenceEnvironment?: "LOCAL" | "TESTING" | null;
+  statutoryFixturePurpose?: "PAYROLL_PAYSLIP_UAT" | null;
   components?: Array<{
     name: string;
     type: "EARNING" | "DEDUCTION";
@@ -186,6 +189,9 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
   const pcbPending = entry.pcbPresentation?.pending === true;
   drawCompanyHeader(pdf, run);
   drawTitle(pdf, run);
+  if (entry.statutoryEvidenceNature === "SYNTHETIC_TESTING") {
+    drawTestingFixtureBanner(pdf, entry);
+  }
   drawPaySummary(pdf, entry, pcbPending);
   drawIdentityPanel(pdf, entry);
   drawAttendance(pdf, entry);
@@ -232,10 +238,14 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
     { label: "EIS (Employee)", amount: entry.eisEmployee },
     ...(pcbPending ? [] : [{ label: "PCB", amount: entry.pcb }]),
     ...(entry.cp38 !== 0 ? [{ label: "CP38", amount: entry.cp38 }] : []),
-    ...(entry.lindung24Employee !== 0
-      ? [{ label: "LINDUNG24", amount: entry.lindung24Employee }]
-      : []),
-  ].filter((item) => item.amount !== 0 || ["EPF (Employee)", "SOCSO (Employee)", "EIS (Employee)", "PCB"].includes(item.label));
+    { label: "LINDUNG24", amount: entry.lindung24Employee },
+  ].filter((item) => item.amount !== 0 || [
+    "EPF (Employee)",
+    "SOCSO (Employee)",
+    "EIS (Employee)",
+    "LINDUNG24",
+    "PCB",
+  ].includes(item.label));
   drawFinancialSection(pdf, {
     title: "EMPLOYEE DEDUCTIONS",
     subtitle: "Deducted from employee pay",
@@ -298,6 +308,22 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
   drawNetPay(pdf, entry.netPay, pcbPending);
   drawNotes(pdf, entry.notes);
   return pdf.build();
+}
+
+function drawTestingFixtureBanner(pdf: PdfCanvas, entry: PdfEntry) {
+  const height = 43;
+  pdf.fillRect(PAGE_MARGIN, pdf.y, CONTENT_WIDTH, height, COLORS.roseSoft);
+  pdf.strokeRect(PAGE_MARGIN, pdf.y, CONTENT_WIDTH, height, COLORS.rose);
+  pdf.text("TESTING / NON-PRODUCTION STATUTORY FIXTURE", PAGE_MARGIN + 10, pdf.y + 7, 9, {
+    bold: true,
+    color: COLORS.rose,
+  });
+  const environment = entry.statutoryEvidenceEnvironment ?? "Not recorded";
+  const purpose = entry.statutoryFixturePurpose ?? "Not recorded";
+  pdf.text(`Environment: ${environment} | Purpose: ${purpose}`, PAGE_MARGIN + 10, pdf.y + 23, 7.7, {
+    color: COLORS.muted,
+  });
+  pdf.y += height + 7;
 }
 
 function drawCompanyHeader(pdf: PdfCanvas, run: PdfRun) {

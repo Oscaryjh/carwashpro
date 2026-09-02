@@ -152,19 +152,35 @@ test("payslip distinguishes calculated zero from PCB that was not configured", (
     },
   ];
   const pdf = buildPayslipPdf(documentRun(entry), entry).toString("latin1");
-  assert.ok(pdf.includes("EPF employee: RM330.00"));
-  assert.ok(pdf.includes("SOCSO employee: RM14.75"));
-  assert.ok(pdf.includes("EIS employee: RM5.90"));
-  assert.ok(pdf.includes("LINDUNG 24 \\(employee deduction\\): RM0.00"));
+  assertPdfRow(pdf, "EPF (Employee)", "RM 330.00");
+  assertPdfRow(pdf, "SOCSO (Employee)", "RM 14.75");
+  assertPdfRow(pdf, "EIS (Employee)", "RM 5.90");
+  assertPdfRow(pdf, "LINDUNG24", "RM 0.00");
   assert.ok(pdf.includes("PCB \/ MTD: Pending configuration"));
   assert.doesNotMatch(pdf, /PCB \/ MTD: RM0\.00/);
-  assert.ok(pdf.includes("Current deductions \\(excludes pending PCB\\): RM350.65"));
-  assert.ok(pdf.includes("ESTIMATED NET PAY \\(BEFORE PCB\\): RM2,649.35"));
-  assert.ok(pdf.includes("Employer EPF: RM390.00"));
-  assert.ok(pdf.includes("Employer SOCSO: RM51.65"));
-  assert.ok(pdf.includes("Employer EIS: RM5.90"));
-  assert.ok(pdf.includes("Total employer contributions: RM447.55"));
+  assertPdfRow(pdf, "Current deductions (excludes pending PCB)", "RM 350.65");
+  assertPdfRow(pdf, "ESTIMATED NET PAY (BEFORE PCB)", "RM 2,649.35");
+  assertPdfRow(pdf, "EPF (Employer)", "RM 390.00");
+  assertPdfRow(pdf, "SOCSO (Employer)", "RM 51.65");
+  assertPdfRow(pdf, "EIS (Employer)", "RM 5.90");
+  assertPdfRow(pdf, "TOTAL EMPLOYER CONTRIBUTIONS", "RM 447.55");
 });
+
+function assertPdfRow(pdf: string, label: string, amount: string) {
+  const encodedLabel = `(${pdfText(label)}) Tj`;
+  const encodedAmount = `(${pdfText(amount)}) Tj`;
+  const labelIndex = pdf.indexOf(encodedLabel);
+  const amountIndex = pdf.indexOf(encodedAmount, Math.max(0, labelIndex));
+  assert.ok(labelIndex >= 0, `Missing PDF row label: ${label}`);
+  assert.ok(
+    amountIndex > labelIndex && amountIndex - labelIndex < 320,
+    `Missing paired PDF row amount for ${label}: ${amount}`,
+  );
+}
+
+function pdfText(value: string) {
+  return value.replaceAll("\\", "\\\\").replaceAll("(", "\\(").replaceAll(")", "\\)");
+}
 
 test("migration enforces evidence, immutability and exportability contracts", () => {
   const migration = readFileSync(
