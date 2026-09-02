@@ -19,17 +19,17 @@ export async function GET(_request: Request, { params }: PayslipRouteProps) {
     return new Response("Payslip not found.", { status: 404 });
   }
   const pdf = buildPayslipPdf(document.run, document.entry);
-  if (document.run.status !== "FINALIZED") {
-    return new Response("Payslip not found.", { status: 404 });
-  }
+  const isFinalized = document.run.status === "FINALIZED";
   await tryWriteAuditLog({
     businessId: context.businessId,
     actor: context.user,
     request: await getAuditRequestContext(),
-    action: "PAYSLIP_DOWNLOADED",
+    action: isFinalized ? "PAYSLIP_DOWNLOADED" : "PAYSLIP_PREVIEWED",
     entityType: "PayrollEntry",
     entityId: document.entry.id,
-    summary: `Payslip downloaded for ${document.entry.fullName}.`,
+    summary: isFinalized
+      ? `Payslip downloaded for ${document.entry.fullName}.`
+      : `Draft payslip preview opened for ${document.entry.fullName}.`,
     metadata: {
       payrollRunId: document.run.id,
       employeeCode: document.entry.employeeCode,
@@ -37,10 +37,14 @@ export async function GET(_request: Request, { params }: PayslipRouteProps) {
     },
   });
   const fileName = payslipFileName(document.run, document.entry);
+  const disposition = isFinalized ? "attachment" : "inline";
+  const responseFileName = isFinalized
+    ? fileName
+    : fileName.replace("-payslip.pdf", "-draft-payslip-preview.pdf");
   return new Response(new Uint8Array(pdf), {
     headers: {
       "Cache-Control": "private, no-store",
-      "Content-Disposition": `attachment; filename="${fileName}"`,
+      "Content-Disposition": `${disposition}; filename="${responseFileName}"`,
       "Content-Length": String(pdf.length),
       "Content-Type": "application/pdf",
     },

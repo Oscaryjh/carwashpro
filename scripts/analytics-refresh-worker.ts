@@ -4,6 +4,10 @@ import {
   type AnalyticsRefreshSweepResult,
 } from "../src/lib/analytics/refresh-worker";
 import { prisma } from "../src/lib/prisma";
+import {
+  emitOpsAlert,
+  emitScheduledJobFailure,
+} from "../src/lib/ops/alerting";
 
 const ownerId = `analytics-worker:${randomUUID()}`;
 const pollIntervalMs = parsePositiveInteger(
@@ -11,12 +15,20 @@ const pollIntervalMs = parsePositiveInteger(
   15_000,
 );
 let shuttingDown = false;
+let consecutiveSweepFailures = 0;
+let sweepAlertActive = false;
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
 main().catch(async (error) => {
   console.error("[analytics-refresh-worker] Fatal error", errorMessage(error));
+  await emitScheduledJobFailure({
+    job: "analytics-refresh-worker",
+    code: "ANALYTICS_WORKER_FATAL",
+    message: errorMessage(error),
+    severity: "CRITICAL",
+  }).catch(() => undefined);
   await prisma.$disconnect();
   process.exit(1);
 });
@@ -30,12 +42,37 @@ async function main() {
   while (!shuttingDown) {
     try {
       const result = await runAnalyticsRefreshSweep({ ownerId });
+      if (sweepAlertActive) {
+        await emitOpsAlert({
+          event: "SCHEDULED_JOB_RECOVERED",
+          severity: "INFO",
+          service: process.env.RAILWAY_SERVICE_NAME ?? "tetamu-pos-worker",
+          stage: "scheduled-job",
+          code: "ANALYTICS_REFRESH_RECOVERED",
+          message: "Analytics refresh sweep recovered.",
+          status: "RECOVERED",
+          jobId: "analytics-refresh-sweep",
+          metadata: { consecutiveSuccesses: 1 },
+        }).catch(() => undefined);
+      }
+      consecutiveSweepFailures = 0;
+      sweepAlertActive = false;
       logSweep(result);
     } catch (error) {
+      consecutiveSweepFailures += 1;
       console.error(
         "[analytics-refresh-worker] Sweep failed",
         errorMessage(error),
       );
+      if (consecutiveSweepFailures >= 3 && !sweepAlertActive) {
+        await emitScheduledJobFailure({
+          job: "analytics-refresh-sweep",
+          attempt: consecutiveSweepFailures,
+          code: "ANALYTICS_REFRESH_REPEATED_FAILURE",
+          message: errorMessage(error),
+        }).catch(() => undefined);
+        sweepAlertActive = true;
+      }
     }
 
     if (!shuttingDown) await sleep(pollIntervalMs);

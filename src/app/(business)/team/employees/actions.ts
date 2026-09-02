@@ -11,18 +11,16 @@ import {
   createAttendanceEmployee,
   updateAttendanceEmployee,
 } from "@/lib/attendance/employee-service";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import {
+  requireBusinessUser,
+  requireBusinessUserWithAnyCapability,
+} from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
 
 export type AttendanceEmployeeActionState = {
   status: "idle" | "error" | "success";
   message: string;
   fieldErrors?: Record<string, string[]>;
-};
-
-export const initialAttendanceEmployeeActionState: AttendanceEmployeeActionState = {
-  status: "idle",
-  message: "",
 };
 
 export async function createAttendanceEmployeeAction(
@@ -64,9 +62,11 @@ export async function updateAttendanceEmployeeAction(
   formData: FormData,
 ): Promise<AttendanceEmployeeActionState> {
   try {
-    const { access, user, businessId } = await requireBusinessUser(
-      "MODIFY_ATTENDANCE_EMPLOYEES",
-    );
+    const { access, user, businessId } =
+      await requireBusinessUserWithAnyCapability([
+        "MODIFY_TEAM",
+        "MODIFY_ATTENDANCE_EMPLOYEES",
+      ]);
     const scope = await resolveAttendanceScope(access);
     const now = new Date();
     const employeeId = String(formData.get("employeeId") ?? "").trim();

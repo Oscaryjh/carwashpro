@@ -11,6 +11,15 @@ export function getInvoicePaymentSummary(payments: InvoicePaymentLike[]) {
   const activePayments = payments.filter((payment) => payment.status !== "VOID");
   const grossPaidAmount = sumPayments(activePayments);
   const totalRefundedAmount = sumRefunds(activePayments);
+  const monetaryPayments = activePayments.filter(
+    (payment) => payment.method !== "PACKAGE",
+  );
+  const grossMonetaryCollectionAmount = sumPayments(monetaryPayments);
+  const monetaryRefundedAmount = sumRefunds(monetaryPayments);
+  const netCollectedAmount = Math.max(
+    0,
+    grossMonetaryCollectionAmount - monetaryRefundedAmount,
+  );
   const packageVoucherAmount = sumNetPayments(
     activePayments.filter((payment) => payment.method === "PACKAGE"),
   );
@@ -20,8 +29,11 @@ export function getInvoicePaymentSummary(payments: InvoicePaymentLike[]) {
 
   return {
     cashPaidAmount,
+    grossMonetaryCollectionAmount,
     grossPaidAmount,
     hasPackageVoucher: packageVoucherAmount > 0,
+    monetaryRefundedAmount,
+    netCollectedAmount,
     packageVoucherAmount,
     totalRefundedAmount,
   };

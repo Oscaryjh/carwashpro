@@ -6,10 +6,11 @@ import { resolve } from "node:path";
 import EmbeddedPostgres from "embedded-postgres";
 
 export const DATABASE_DIR = ".local-postgres/data";
-export const DATABASE_NAME = "car_wash_crm_pos";
+export const DATABASE_NAME =
+  process.env.LOCAL_DATABASE_NAME ?? "tetamu_canonical_local_20260829";
 export const DATABASE_PORT = Number(process.env.LOCAL_POSTGRES_PORT ?? "5432");
 export const DATABASE_URL =
-  `postgresql://postgres:postgres@localhost:${DATABASE_PORT}/car_wash_crm_pos?schema=public`;
+  `postgresql://postgres:postgres@localhost:${DATABASE_PORT}/${DATABASE_NAME}?schema=public`;
 const REQUIRED_DATABASE_ENCODING = "UTF8";
 const REQUIRED_DATABASE_COLLATE = "C";
 const REQUIRED_DATABASE_CTYPE = "C";

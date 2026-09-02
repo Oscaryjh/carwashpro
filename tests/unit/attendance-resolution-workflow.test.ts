@@ -84,6 +84,17 @@ test("A2.1 queue labels blocking truthfully without claiming Timesheet or Payrol
   assert.doesNotMatch(queue, /Payroll Ready|Timesheet Ready/);
 });
 
+test("Attendance queue exposes pending missing-punch requests to the existing review action", () => {
+  const queue = read(
+    "src/app/(business)/team/attendance/resolutions/page.tsx",
+  );
+  assert.match(queue, /status: "PENDING"/);
+  assert.match(queue, /resolutionCase: \{ select: \{ id: true \} \}/);
+  assert.match(queue, /reviewAttendanceExceptionAction/);
+  assert.match(queue, /Approve correction/);
+  assert.match(queue, /Employee correction request/);
+});
+
 test("A2.1 cancellation permits only the first pending submission inside the deadline", () => {
   const submittedAt = new Date("2026-08-03T01:00:00.000Z");
   assert.equal(
