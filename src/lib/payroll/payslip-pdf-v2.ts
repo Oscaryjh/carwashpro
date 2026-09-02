@@ -66,6 +66,10 @@ type PdfEntry = {
   statutoryEvidenceNature?: "REAL" | "SYNTHETIC_TESTING";
   statutoryEvidenceEnvironment?: "LOCAL" | "TESTING" | null;
   statutoryFixturePurpose?: "PAYROLL_PAYSLIP_UAT" | null;
+  statutorySnapshots?: Array<{
+    scheme: string;
+    status: string;
+  }>;
   components?: Array<{
     name: string;
     type: "EARNING" | "DEDUCTION";
@@ -238,7 +242,11 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
     { label: "EIS (Employee)", amount: entry.eisEmployee },
     ...(pcbPending ? [] : [{ label: "PCB", amount: entry.pcb }]),
     ...(entry.cp38 !== 0 ? [{ label: "CP38", amount: entry.cp38 }] : []),
-    { label: "LINDUNG24", amount: entry.lindung24Employee },
+    ...(entry.lindung24Employee !== 0 || entry.statutorySnapshots?.some(
+      (snapshot) => snapshot.scheme === "LINDUNG24",
+    )
+      ? [{ label: "LINDUNG24", amount: entry.lindung24Employee }]
+      : []),
   ].filter((item) => item.amount !== 0 || [
     "EPF (Employee)",
     "SOCSO (Employee)",

@@ -12,7 +12,9 @@ export default function StaffPayslipsError({ reset }: { reset: () => void }) {
       <StaffV2PageHeader meta="Your published pay records." title="Payslips" />
       <div className={staffV2Styles.emptyState} role="alert">
         <strong>Payslips couldn&apos;t load.</strong>
-        <span>No stale or unpublished payroll document is shown.</span>
+        <span aria-label="No stale or unpublished payslip is shown.">
+          No stale or unpublished payroll document is shown.
+        </span>
         <button className={styles.errorAction} type="button" onClick={reset}>Try again</button>
       </div>
     </section>
