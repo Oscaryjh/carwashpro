@@ -1410,6 +1410,26 @@ async function ensureFixtureData(prisma: PrismaClient) {
         create: { id: stableFixtureId("payroll-setting.primary"), businessId: PRIMARY_BUSINESS_ID },
         update: {},
       });
+      const compensationVersionId = stableFixtureId("compensation-version.staff");
+      const existingCompensationVersion = await tx.employeeCompensationVersion.findUnique({
+        where: { id: compensationVersionId },
+      });
+      if (!existingCompensationVersion) {
+        await tx.employeeCompensationVersion.create({
+          data: {
+            id: compensationVersionId,
+            businessId: PRIMARY_BUSINESS_ID,
+            membershipId: STAFF_MEMBERSHIP_ID,
+            effectiveFromMonth: periodStart,
+            payBasis: "MONTHLY",
+            baseRate: new Prisma.Decimal("3800.00"),
+            source: "MANUAL",
+            reasonType: "DATA_MIGRATION",
+            reasonNote: fixtureMarker("compensation-version.staff"),
+            createdById: OWNER_ID,
+          },
+        });
+      }
       const payrollRunId = stableFixtureId("payroll-run.primary");
       let payrollRun = await tx.payrollRun.findUnique({ where: { id: payrollRunId } });
       if (!payrollRun) {
@@ -1444,6 +1464,9 @@ async function ensureFixtureData(prisma: PrismaClient) {
           payrollRunId,
           businessId: PRIMARY_BUSINESS_ID,
           membershipId: STAFF_MEMBERSHIP_ID,
+          compensationVersionId,
+          compensationEffectiveFromMonthSnapshot: periodStart,
+          compensationSourceSnapshot: "MANUAL",
           employeeCodeSnapshot: "UAT-STAFF",
           fullNameSnapshot: "Canonical UAT Staff",
           payBasisSnapshot: "MONTHLY",
@@ -1479,6 +1502,8 @@ async function ensureFixtureData(prisma: PrismaClient) {
             name: "Basic salary",
             amount: new Prisma.Decimal("3800.00"),
             sourceType: "BASIC_SALARY",
+            sourceVersionId: compensationVersionId,
+            effectiveFromMonth: periodStart,
             calculationBasis: "FIXTURE_BASE_RATE",
             origin: "SYSTEM",
             sortOrder: 10,

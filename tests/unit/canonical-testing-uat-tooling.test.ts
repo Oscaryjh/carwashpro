@@ -276,3 +276,13 @@ test("geofence-disabled fixture punches satisfy the canonical inside-status cons
   const statuses = [...disabledPunches].map((match) => match[1]);
   assert.deepEqual(statuses, ["false", "false", "false"]);
 });
+
+test("basic salary fixture line references the payroll entry compensation version", () => {
+  const source = readFileSync("scripts/prepare-testing-canonical-uat.ts", "utf8");
+  assert.match(source, /const compensationVersionId = stableFixtureId\("compensation-version\.staff"\)/);
+  assert.match(source, /compensationVersionId,\s*\n\s*compensationEffectiveFromMonthSnapshot:/);
+  assert.match(
+    source,
+    /sourceType:\s*"BASIC_SALARY",\s*\n\s*sourceVersionId:\s*compensationVersionId/,
+  );
+});
