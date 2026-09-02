@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
@@ -65,6 +66,10 @@ function entry(overrides: Partial<PayrollDocumentEntry> = {}): PayrollDocumentEn
   };
 }
 
+function occurrences(text: string, value: string) {
+  return text.split(value).length - 1;
+}
+
 test("Payslip V2 renders an A4 professional Malaysian payroll hierarchy", () => {
   const pdf = buildPayslipPdf(run, entry());
   const text = pdf.toString("latin1");
@@ -74,7 +79,8 @@ test("Payslip V2 renders an A4 professional Malaysian payroll hierarchy", () => 
   assert.match(text, /Company No: 202601234567/);
   assert.match(text, /PAYSLIP/);
   assert.match(text, /Pay period: August 2026/);
-  assert.match(text, /COMPANY \/ PAYSLIP INFO/);
+  assert.doesNotMatch(text, /COMPANY \/ PAYSLIP INFO/);
+  assert.doesNotMatch(text, /Document status/);
   assert.match(text, /EMPLOYEE INFO/);
   assert.match(text, /Nur Aisyah Binti Abdul Rahman/);
   assert.match(text, /MY-EMPLOYEE-CODE-001/);
@@ -83,6 +89,8 @@ test("Payslip V2 renders an A4 professional Malaysian payroll hierarchy", () => 
   assert.match(text, /192h 00m/);
   assert.match(text, /12h 30m/);
   assert.match(text, /8h 00m/);
+  assert.equal(occurrences(text, "Pay period: August 2026"), 1);
+  assert.equal(occurrences(text, "Finalized 2 Sept 2026, 12:49 pm"), 1);
 });
 
 test("Payslip V2 keeps canonical money sections separate and professionally labelled", () => {
@@ -112,7 +120,7 @@ test("Payslip V2 keeps canonical money sections separate and professionally labe
   ]) assert.ok(text.includes(expected));
   assert.doesNotMatch(text, /LENDING 24 jam/i);
   assert.match(text, /Employer-funded - does not reduce Net Pay/);
-  assert.match(text, /Non-wage reimbursements - excluded from Gross Pay/);
+  assert.match(text, /Non-wage - not part of Gross Pay/);
 });
 
 test("Payslip V2 displays canonical deduction inputs rather than Gross minus Net", () => {
@@ -149,17 +157,64 @@ test("Payslip V2 removes internal identifiers, rule details, fixture notes and s
   assert.match(text, /No signature is required/);
 });
 
+test("Payslip V2 de-duplicates canonical statutory components and reconciles visible totals", () => {
+  const text = buildPayslipPdf(run, entry({
+    components: [
+      { name: "Basic Salary", type: "EARNING", amount: 3_800 },
+      { name: "Commission", type: "EARNING", amount: 620 },
+      { name: "Overtime", type: "EARNING", amount: 320 },
+      { name: "Public Holiday Pay", type: "EARNING", amount: 160 },
+      { name: "Transport Allowance", type: "EARNING", amount: 200 },
+      { name: "Staff Loan", type: "DEDUCTION", amount: 75 },
+      { name: "EPF Employee", type: "DEDUCTION", amount: 420 },
+      { name: "SOCSO Employee", type: "DEDUCTION", amount: 19.75 },
+      { name: "EIS Employee", type: "DEDUCTION", amount: 7.9 },
+      { name: "Monthly Tax Deduction (PCB)", type: "DEDUCTION", amount: 85 },
+      { name: "CP38 tax instruction", type: "DEDUCTION", amount: 25 },
+      { name: "LINDUNG 24 Employee", type: "DEDUCTION", amount: 10 },
+    ],
+  })).toString("latin1");
+  assert.equal(occurrences(text, "EPF \\(Employee\\)"), 1);
+  assert.equal(occurrences(text, "SOCSO \\(Employee\\)"), 1);
+  assert.equal(occurrences(text, "EIS \\(Employee\\)"), 1);
+  assert.equal(occurrences(text, "PCB"), 1);
+  assert.equal(occurrences(text, "CP38"), 1);
+  assert.equal(occurrences(text, "LINDUNG24"), 1);
+  assert.match(text, /TOTAL DEDUCTIONS/);
+  assert.match(text, /RM 642\.65/);
+  assert.match(text, /TOTAL EMPLOYER CONTRIBUTIONS/);
+  assert.match(text, /RM 570\.95/);
+  assert.match(text, /TOTAL REIMBURSEMENTS/);
+  assert.match(text, /RM 120\.00/);
+});
+
+test("Payslip V2 refuses contradictory visible money facts", () => {
+  assert.throws(
+    () => buildPayslipPdf(run, entry({ grossPay: 5_101 })),
+    /PAYSLIP_PRESENTATION_RECONCILIATION_FAILED:EARNINGS/,
+  );
+  assert.throws(
+    () => buildPayslipPdf(run, entry({ otherDeductions: 80 })),
+    /PAYSLIP_PRESENTATION_RECONCILIATION_FAILED:EMPLOYEE_DEDUCTIONS/,
+  );
+  assert.throws(
+    () => buildPayslipPdf(run, entry({ netPay: 4_577.36 })),
+    /PAYSLIP_PRESENTATION_RECONCILIATION_FAILED:NET_PAY/,
+  );
+});
+
 test("Payslip V2 safely paginates long names, large amounts and many rows", () => {
   const manyRows = Array.from({ length: 38 }, (_, index) => ({
     name: `Long employee-facing earning component ${String(index + 1).padStart(2, "0")}`,
     type: "EARNING" as const,
     amount: 123_456.78 + index,
   }));
+  const longGross = manyRows.reduce((sum, item) => sum + item.amount, 0);
   const pdf = buildPayslipPdf(run, entry({
     fullName: "A Very Long Employee Name That Must Never Overlap The Amount Column Or Escape The Employee Panel",
     employeeCode: "EMPLOYEE-CODE-WITH-AN-EXCEPTIONALLY-LONG-SUFFIX-2026",
-    grossPay: 4_691_357.64,
-    netPay: 4_690_714.99,
+    grossPay: longGross,
+    netPay: longGross - 642.65 + 120,
     components: manyRows,
     notes: "A long but employee-appropriate note that should wrap safely across the available width without clipping or overlapping any financial amount.",
   }));
@@ -167,7 +222,7 @@ test("Payslip V2 safely paginates long names, large amounts and many rows", () =
   const pageCount = (text.match(/\/Type \/Page\b/g) ?? []).length;
   assert.ok(pageCount >= 2);
   assert.match(text, /PAYSLIP - CONTINUED/);
-  assert.match(text, /RM 4,691,357\.64/);
+  assert.match(text, new RegExp(moneyPattern(longGross)));
   assert.match(text, /Long employee-facing earning/);
   assert.doesNotMatch(text, /NaN|undefined/);
 });
@@ -176,6 +231,10 @@ test("Payslip V2 output is deterministic and publication/route security remains 
   const first = buildPayslipPdf(run, entry());
   const second = buildPayslipPdf(run, entry());
   assert.deepEqual(first, second);
+  assert.equal(
+    createHash("sha256").update(first).digest("hex"),
+    createHash("sha256").update(second).digest("hex"),
+  );
   const text = first.toString("latin1");
   assert.match(text, /\/Subject \(MY-PAYSLIP-V2\)/);
   assert.match(text, /\/Keywords \(MY-PAYSLIP-V2\)/);
@@ -194,6 +253,14 @@ test("Payslip V2 output is deterministic and publication/route security remains 
   assert.match(schema, /documentBytes\s+Bytes/);
   assert.match(schema, /documentSha256\s+String/);
 });
+
+function moneyPattern(value: number) {
+  const formatted = new Intl.NumberFormat("en-MY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+  return `RM ${formatted.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`;
+}
 
 test("Payslip V2 keeps an ordinary Malaysian payslip on one A4 page", () => {
   const pdf = buildPayslipPdf(run, entry({

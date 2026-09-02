@@ -14,8 +14,8 @@ const COLORS = {
   border: "0.820 0.855 0.855",
   canvas: "0.982 0.988 0.988",
   white: "1.000 1.000 1.000",
-  red: "0.710 0.145 0.263",
-  redSoft: "0.996 0.949 0.957",
+  rose: "0.565 0.235 0.302",
+  roseSoft: "0.992 0.973 0.976",
   blue: "0.059 0.353 0.686",
   blueSoft: "0.941 0.969 0.996",
 } as const;
@@ -182,7 +182,7 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
   drawCompanyHeader(pdf, run);
   drawTitle(pdf, run);
   drawPaySummary(pdf, entry);
-  drawIdentityPanels(pdf, run, entry);
+  drawIdentityPanel(pdf, entry);
   drawAttendance(pdf, entry);
 
   const componentEarnings = entry.components?.filter((item) => item.type === "EARNING") ?? [];
@@ -203,7 +203,9 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
     accent: COLORS.tealDark,
   });
 
-  const componentDeductions = entry.components?.filter((item) => item.type === "DEDUCTION") ?? [];
+  const componentDeductions = entry.components?.filter(
+    (item) => item.type === "DEDUCTION" && !isStatutoryDeductionComponent(item.name),
+  ) ?? [];
   const employeeDeductions =
     entry.otherDeductions +
     entry.epfEmployee +
@@ -217,7 +219,9 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
       label: professionalComponentLabel(item.name),
       amount: item.amount,
     })),
-    ...(componentDeductions.length ? [] : [{ label: "Other Deduction", amount: entry.otherDeductions }]),
+    ...(componentDeductions.length || entry.otherDeductions === 0
+      ? []
+      : [{ label: "Other Deduction", amount: entry.otherDeductions }]),
     { label: "EPF (Employee)", amount: entry.epfEmployee },
     { label: "SOCSO (Employee)", amount: entry.socsoEmployee },
     { label: "EIS (Employee)", amount: entry.eisEmployee },
@@ -233,35 +237,48 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
     rows: deductionRows,
     totalLabel: "TOTAL DEDUCTIONS",
     total: employeeDeductions,
-    tint: COLORS.redSoft,
-    accent: COLORS.red,
+    tint: COLORS.roseSoft,
+    accent: COLORS.rose,
   });
 
   const employerContributions = entry.employerEpf + entry.employerSocso + entry.employerEis;
+  const employerRows: FinancialRow[] = [
+    { label: "EPF (Employer)", amount: entry.employerEpf },
+    { label: "SOCSO (Employer)", amount: entry.employerSocso },
+    { label: "EIS (Employer)", amount: entry.employerEis },
+  ];
   drawFinancialSection(pdf, {
     title: "EMPLOYER CONTRIBUTIONS",
     subtitle: "Employer-funded - does not reduce Net Pay",
-    rows: [
-      { label: "EPF (Employer)", amount: entry.employerEpf },
-      { label: "SOCSO (Employer)", amount: entry.employerSocso },
-      { label: "EIS (Employer)", amount: entry.employerEis },
-    ],
+    rows: employerRows,
     totalLabel: "TOTAL EMPLOYER CONTRIBUTIONS",
     total: employerContributions,
     tint: COLORS.blueSoft,
     accent: COLORS.blue,
   });
 
-  if (entry.claimReimbursements?.length) {
+  const reimbursementRows: FinancialRow[] = entry.claimReimbursements?.map((item) => ({
+    label: `Claim ${item.claimNumber}`,
+    amount: item.amount,
+  })) ?? [];
+  assertPresentationReconciliation({
+    earnings,
+    grossPay: entry.grossPay,
+    deductions: deductionRows,
+    employeeDeductions,
+    employerContributions: employerRows,
+    employerContributionTotal: employerContributions,
+    reimbursements: reimbursementRows,
+    netPay: entry.netPay,
+  });
+
+  if (reimbursementRows.length) {
     drawFinancialSection(pdf, {
       title: "REIMBURSEMENTS",
-      subtitle: "Non-wage reimbursements - excluded from Gross Pay",
-      rows: entry.claimReimbursements.map((item) => ({
-        label: `Claim ${item.claimNumber}`,
-        amount: item.amount,
-      })),
+      subtitle: "Non-wage - not part of Gross Pay",
+      rows: reimbursementRows,
       totalLabel: "TOTAL REIMBURSEMENTS",
-      total: entry.claimReimbursements.reduce((sum, item) => sum + item.amount, 0),
+      total: sumMoney(reimbursementRows),
       tint: COLORS.tealSoft,
       accent: COLORS.tealDark,
     });
@@ -353,22 +370,14 @@ function drawPaySummary(pdf: PdfCanvas, entry: PdfEntry) {
   pdf.y += height + 7;
 }
 
-function drawIdentityPanels(pdf: PdfCanvas, run: PdfRun, entry: PdfEntry) {
-  const gap = 10;
-  const width = (CONTENT_WIDTH - gap) / 2;
-  const companyRows: Array<[string, string]> = [
-    ["Document status", formatStatus(run.status)],
-    ["Finalized", run.finalizedAt ? formatDateTime(run.finalizedAt) : "Not finalized"],
-    ["Pay period", formatPayrollPeriod(run.periodStart)],
-  ];
+function drawIdentityPanel(pdf: PdfCanvas, entry: PdfEntry) {
   const employeeRows: Array<[string, string]> = [
     ["Employee", entry.fullName],
     ["Employee code", entry.employeeCode],
     ["Pay basis", formatPayBasis(entry.payBasis)],
   ];
-  const height = Math.max(infoPanelHeight(companyRows, width), infoPanelHeight(employeeRows, width));
-  drawInfoPanel(pdf, PAGE_MARGIN, pdf.y, width, height, "COMPANY / PAYSLIP INFO", companyRows);
-  drawInfoPanel(pdf, PAGE_MARGIN + width + gap, pdf.y, width, height, "EMPLOYEE INFO", employeeRows);
+  const height = infoPanelHeight(employeeRows, CONTENT_WIDTH);
+  drawInfoPanel(pdf, PAGE_MARGIN, pdf.y, CONTENT_WIDTH, height, "EMPLOYEE INFO", employeeRows);
   pdf.y += height + 7;
 }
 
@@ -508,45 +517,72 @@ function drawTableHeader(pdf: PdfCanvas, height: number) {
 }
 
 function drawNetPay(pdf: PdfCanvas, amount: number) {
-  pdf.ensure(48);
-  pdf.fillRect(PAGE_MARGIN, pdf.y, CONTENT_WIDTH, 40, COLORS.tealDark);
-  pdf.text("NET PAY", PAGE_MARGIN + 14, pdf.y + 11, 12, { bold: true, color: COLORS.white });
-  pdf.text(money(amount), PAGE_WIDTH - PAGE_MARGIN - 14, pdf.y + 8, 18, {
+  pdf.ensure(44);
+  pdf.fillRect(PAGE_MARGIN, pdf.y, CONTENT_WIDTH, 36, COLORS.tealDark);
+  pdf.text("NET PAY", PAGE_MARGIN + 14, pdf.y + 10, 11.5, { bold: true, color: COLORS.white });
+  pdf.text(money(amount), PAGE_WIDTH - PAGE_MARGIN - 14, pdf.y + 7, 17, {
     align: "right",
     bold: true,
     color: COLORS.white,
   });
-  pdf.y += 40;
+  pdf.y += 36;
 }
 
 function drawNotes(pdf: PdfCanvas, notes: string | null) {
   const safeNote = employeeSafeNote(notes);
-  if (!safeNote) {
-    pdf.ensure(16);
-    pdf.text("NOTES", PAGE_MARGIN, pdf.y + 4, 7.5, { bold: true, color: COLORS.tealDark });
-    pdf.text(
-      "This is a computer-generated payslip. No signature is required.",
-      PAGE_MARGIN + 46,
-      pdf.y + 4,
-      7.5,
-      { color: COLORS.muted },
-    );
-    pdf.y += 16;
-    return;
-  }
   const body = safeNote
     ? `${safeNote}\nThis is a computer-generated payslip. No signature is required.`
     : "This is a computer-generated payslip. No signature is required.";
-  const lines = body.split("\n").flatMap((line) => wrapText(line, CONTENT_WIDTH - 20, 8.2));
-  const height = 24 + lines.length * 11 + 10;
+  const lines = body.split("\n").flatMap((line) => wrapText(line, CONTENT_WIDTH - 20, 8.5));
+  const height = 28 + lines.length * 11;
   pdf.ensure(height);
   pdf.fillRect(PAGE_MARGIN, pdf.y, CONTENT_WIDTH, height, COLORS.white);
   pdf.strokeRect(PAGE_MARGIN, pdf.y, CONTENT_WIDTH, height);
-  pdf.text("NOTES", PAGE_MARGIN + 10, pdf.y + 8, 8, { bold: true, color: COLORS.tealDark });
+  pdf.text("NOTES", PAGE_MARGIN + 10, pdf.y + 7, 8.3, { bold: true, color: COLORS.tealDark });
+  pdf.line(PAGE_MARGIN + 10, pdf.y + 21, PAGE_WIDTH - PAGE_MARGIN - 10, pdf.y + 21);
   lines.forEach((line, index) => {
-    pdf.text(line, PAGE_MARGIN + 10, pdf.y + 24 + index * 11, 8.2, { color: COLORS.muted });
+    pdf.text(line, PAGE_MARGIN + 10, pdf.y + 27 + index * 11, 8.5, { color: COLORS.muted });
   });
   pdf.y += height;
+}
+
+function isStatutoryDeductionComponent(value: string) {
+  return /^(?:EPF\s*\/\s*KWSP|EPF\s+Employee|SOCSO\s+Employee|EIS\s+Employee|LINDUNG\s*24\s+Employee|Monthly Tax Deduction\s*\(PCB\)|CP38\s+tax instruction)$/i.test(value.trim());
+}
+
+function assertPresentationReconciliation(input: {
+  earnings: FinancialRow[];
+  grossPay: number;
+  deductions: FinancialRow[];
+  employeeDeductions: number;
+  employerContributions: FinancialRow[];
+  employerContributionTotal: number;
+  reimbursements: FinancialRow[];
+  netPay: number;
+}) {
+  const reimbursementTotal = sumMoney(input.reimbursements);
+  const reconciliations: Array<[string, number, number]> = [
+    ["earnings", sumMoney(input.earnings), input.grossPay],
+    ["employee deductions", sumMoney(input.deductions), input.employeeDeductions],
+    ["employer contributions", sumMoney(input.employerContributions), input.employerContributionTotal],
+    [
+      "net pay",
+      Math.max(0, input.grossPay - input.employeeDeductions + reimbursementTotal),
+      input.netPay,
+    ],
+  ];
+  const failed = reconciliations.find(([, visible, canonical]) => toCents(visible) !== toCents(canonical));
+  if (failed) {
+    throw new Error(`PAYSLIP_PRESENTATION_RECONCILIATION_FAILED:${failed[0].toUpperCase().replaceAll(" ", "_")}`);
+  }
+}
+
+function sumMoney(rows: FinancialRow[]) {
+  return rows.reduce((total, row) => total + row.amount, 0);
+}
+
+function toCents(value: number) {
+  return Math.round(value * 100);
 }
 
 function professionalComponentLabel(value: string) {
