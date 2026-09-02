@@ -1,0 +1,572 @@
+# Staff V2 accepted-Testing → proposed-candidate diff manifest
+
+Comparison: c75b5d31d311bbb15cd0a6590e24cc3d23e53bdf → 94db430d894d1ee0712ae4201e43505138cbcd06
+Generated from git diff --name-status --find-renames. This is an audit manifest, not an approval of candidate scope.
+Because the Production-compatible baseline is not proven, there is no fabricated chosen-baseline comparison.
+
+Classification counts:
+
+- BUILD CONFIG: 4
+- DOC ONLY: 153
+- MIGRATION: 8
+- SHARED_DEPENDENCY_REQUIRED: 77
+- STAFF_REQUIRED: 107
+- TEST ONLY: 78
+- UNRELATED / NOT APPROVED: 127
+
+Status	Old path (rename only)	Path	Classification	Reason
+M		.env.example	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		AGENTS.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_ANDROID_MOBILE_OTP_REQUEST_FAILURE_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_EMPLOYEE_ATTENDANCE_CORRECTION_UNIFIED_READ_MODEL_PHASE1_CLOSURE_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_EMPLOYEE_ATTENDANCE_CORRECTION_UNIFIED_READ_MODEL_PHASE1_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_APPROVAL_CENTER_V2_IMPLEMENTATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_APPROVAL_CENTER_V2_VISUAL_NORMALIZATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_APP_V2_GLOBAL_FINAL_UAT_AND_CLOSURE_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_ATTENDANCE_CORRECTIONS_V2_IMPLEMENTATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_ATTENDANCE_HISTORY_V2_IMPLEMENTATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_CLAIMS_V2_IMPLEMENTATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_COMMISSION_V2_IMPLEMENTATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_HOME_V2_IMPLEMENTATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_LIVE_OT_SELF_REVIEW_ROOT_CAUSE_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_MANAGER_ATTENDANCE_P2_PROJECTION_GAP_CLOSURE_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_OT_SELF_REVIEW_AND_COUNT_FIX_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_PAYSLIPS_V2_IMPLEMENTATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_PAY_HUB_V2_IMPLEMENTATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_PROFILE_V2_IMPLEMENTATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_SCHEDULE_V2_IMPLEMENTATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_TIMESHEET_V2_FINAL_POLISH_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_TIMESHEET_V2_IMPLEMENTATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_TIME_HUB_V2_OWNER_REVIEW_FIX_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		TETAMU_STAFF_TIME_V2_PHASE1_IMPLEMENTATION_REPORT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/claims-v2/claim-detail-approved-awaiting-390.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/claims-v2/claim-detail-paid-390.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/claims-v2/claim-detail-paid-bottom-clearance-390.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/claims-v2/claim-detail-rejected-390.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/claims-v2/claims-landing-360.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/claims-v2/claims-landing-390.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/claims-v2/claims-landing-412.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/claims-v2/new-claim-step1-390.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/claims-v2/new-claim-step2-receipt-390.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/claims-v2/new-claim-step3-review-390.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-attendance-corrections-v2/corrections-360-bottom.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-attendance-corrections-v2/corrections-360-collapsed.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-attendance-corrections-v2/corrections-390-collapsed.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-attendance-corrections-v2/corrections-390-expanded-approved.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-attendance-corrections-v2/corrections-390-expanded-bottom.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-attendance-corrections-v2/corrections-390-local-lifecycle-fixtures.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-attendance-corrections-v2/corrections-412-collapsed.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-attendance-corrections-v2/local-lifecycle-fixtures.html	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-attendance-history-v2/attendance-history-v2-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-attendance-history-v2/attendance-history-v2-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-attendance-history-v2/attendance-history-v2-filter-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/added-to-payroll-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/approved-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/awaiting-review-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/empty-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/large-negative-adjustment-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/manager-as-employee-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/multiple-periods-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/populated-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/populated-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/populated-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/positive-adjustment-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/staff-commission-v2-layout-metrics.json	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-commission-v2/zero-lines-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-pay-hub-v2/long-large-amount-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-pay-hub-v2/manager-as-employee-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-pay-hub-v2/no-publication-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-pay-hub-v2/published-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-pay-hub-v2/published-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-pay-hub-v2/published-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-pay-hub-v2/staff-pay-hub-v2-layout-metrics.json	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-payslips-v2/empty-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-payslips-v2/large-net-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-payslips-v2/manager-as-employee-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-payslips-v2/populated-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-payslips-v2/populated-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-payslips-v2/populated-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-payslips-v2/staff-payslips-v2-layout-metrics.json	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-profile-v2/device-expanded-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-profile-v2/long-names-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-profile-v2/manager-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-profile-v2/multi-employer-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-profile-v2/multi-employer-chooser-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-profile-v2/normal-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-profile-v2/normal-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-profile-v2/normal-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-profile-v2/staff-profile-v2-layout-metrics.json	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-profile-v2/verified-redirect-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-schedule-v2/schedule-v2-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-schedule-v2/schedule-v2-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/README.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/approval-center-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/approval-center-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/attendance-corrections-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/attendance-corrections-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/attendance-corrections-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/attendance-history-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/attendance-history-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/claims-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/claims-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/claims-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/commission-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/commission-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/commission-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/home-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/home-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/home-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/leave-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/leave-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/leave-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/pay-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/pay-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/pay-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/payslips-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/payslips-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/payslips-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/profile-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/profile-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/profile-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/requests-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/requests-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/requests-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/schedule-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/schedule-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/time-360x800.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/time-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/time-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/timesheet-390x844.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		artifacts/staff-v2-global-final/timesheet-412x915.png	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_AUGUST_ISOLATED_PAYROLL_UAT_TO_PUBLISHED_PAYSLIP.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_AUGUST_PAYROLL_UAT_FEASIBILITY_AUDIT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_CLAIMS_CURRENT_FLOW_AND_OPTIMIZATION_BRIEF.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_HR_PAYROLL_CURRENT_SYSTEM_GUIDE.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_HR_PAYROLL_FINAL_CORE_ACCEPTANCE_CLOSURE.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_HR_PAYROLL_FIVE_ROLE_BROWSER_UAT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_HR_PAYROLL_FRESH_E2E_TRANSACTION_UAT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_HR_PAYROLL_MAIN_UNIT_TEST_COUNT_AUDIT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_HR_PAYROLL_REAL_DEVICE_UAT_FIXTURE_PREPARATION.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_HR_PAYROLL_STAFF_APP_FINAL_SYNC_CLOSURE.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_ISOLATED_PAYROLL_UAT_BUSINESS_PREPARATION.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_LEAVE_CURRENT_FLOW_AND_OPTIMIZATION_BRIEF.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_LINDUNG24_CURRENT_POLICY_ALIGNMENT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_LINDUNG24_PAYROLL_UAT_APPLICABILITY_AUDIT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_LINDUNG24_TESTING_PERSONA_PAYROLL_READINESS.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_NON_PRODUCTION_STATUTORY_FIXTURE_EVIDENCE_FACILITY.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_PAYROLL_CURRENT_FLOW_AND_OPTIMIZATION_BRIEF.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_PAYROLL_STATUTORY_CALCULATION_UAT_EXCEPT_PCB.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_REAL_DEVICE_UAT_ATTENDANCE_CORRECTION_MOBILE_UX.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_REAL_DEVICE_UAT_CLAIM_SUBMISSION_INCIDENT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_REAL_DEVICE_UAT_LEAVE_SUBMISSION_INCIDENT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_REAL_DEVICE_UAT_PUBLISHED_PAYSLIP_PREPARATION.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_SMS123_TESTING_OTP_DELIVERY_INCIDENT.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_TESTING_PAYROLL_FINALIZE_AND_PUBLISH_PAYSLIP.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		docs/TETAMU_TESTING_SYNTHETIC_LINDUNG24_PERSONA_AND_PAYROLL_READINESS.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+M		docs/known-limitations-and-deferred-scope.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+M		docs/staff-app-real-otp-authentication-phase1.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+D		docs/staff-app-sms123-otp-migration.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+M		docs/testing-release-smoke-checklist.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+M		docs/tetamu-system-complete-feature-context.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+A		evidence/staff-approval-center-v2/attendance-p2-detail-390x844.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-approval-center-v2/history-390x844.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-approval-center-v2/history-detail-390x844.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-approval-center-v2/history-empty-long-filter-360x800.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-approval-center-v2/leave-detail-390x844.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-approval-center-v2/overtime-adjust-390x844.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-approval-center-v2/overtime-detail-390x844.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-approval-center-v2/pending-360x800.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-approval-center-v2/pending-390x844.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-approval-center-v2/pending-412x915.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-approval-center-v2/reject-sheet-390x844.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-timesheet-v2-final-polish/timesheet-360-approved-ot-expanded.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-timesheet-v2-final-polish/timesheet-360-collapsed.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-timesheet-v2-final-polish/timesheet-360-expanded.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-timesheet-v2-final-polish/timesheet-390-collapsed.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-timesheet-v2-final-polish/timesheet-390-expanded.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-timesheet-v2-final-polish/timesheet-412-collapsed.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-timesheet-v2-final-polish/timesheet-412-expanded.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-timesheet-v2/timesheet-v2-360.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-timesheet-v2/timesheet-v2-390x844.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		evidence/staff-timesheet-v2/timesheet-v2-412x915-expanded.png	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		next.config.mjs	BUILD CONFIG	Build/dependency/CI configuration; requires explicit release packaging review.
+M		package-lock.json	BUILD CONFIG	Build/dependency/CI configuration; requires explicit release packaging review.
+M		package.json	BUILD CONFIG	Build/dependency/CI configuration; requires explicit release packaging review.
+M		pnpm-lock.yaml	BUILD CONFIG	Build/dependency/CI configuration; requires explicit release packaging review.
+D		prisma/migrations/20260822010000_staff_app_appearance/migration.sql	MIGRATION	Schema or immutable migration-ledger input; requires Testing ledger reconciliation.
+D		prisma/migrations/20260822023000_development_concurrent_otp_challenges/migration.sql	MIGRATION	Schema or immutable migration-ledger input; requires Testing ledger reconciliation.
+D		prisma/migrations/20260824130000_staff_app_sms123_otp/migration.sql	MIGRATION	Schema or immutable migration-ledger input; requires Testing ledger reconciliation.
+A		prisma/migrations/20260826173000_non_production_statutory_fixture_evidence_facility/migration.sql	MIGRATION	Schema or immutable migration-ledger input; requires Testing ledger reconciliation.
+A		prisma/migrations/20260827153000_pcb_2026_p1_correctness_foundation/migration.sql	MIGRATION	Schema or immutable migration-ledger input; requires Testing ledger reconciliation.
+A		prisma/migrations/20260827170000_effective_dated_statutory_participation/migration.sql	MIGRATION	Schema or immutable migration-ledger input; requires Testing ledger reconciliation.
+A		prisma/migrations/20260829110000_canonical_staff_app_appearance/migration.sql	MIGRATION	Schema or immutable migration-ledger input; requires Testing ledger reconciliation.
+M		prisma/schema.prisma	MIGRATION	Schema or immutable migration-ledger input; requires Testing ledger reconciliation.
+M		public/staff-app/icons/claims.webp	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		public/staff-app/icons/commission.webp	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		public/staff-app/icons/leave.webp	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		public/staff-app/icons/payslips.webp	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		public/staff-app/icons/schedule.webp	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		public/staff-app/icons/timesheets.webp	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		public/sw.js	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/apply-testing-synthetic-lindung24-persona.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/capture-staff-commission-v2-visuals.mjs	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/capture-staff-pay-hub-v2-visuals.mjs	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/capture-staff-payslips-v2-visuals.mjs	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/chrome-87-compat-loader.cjs	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		scripts/dev-supervisor.mjs	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		scripts/embedded-postgres-utils.mjs	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/finalize-testing-payroll-uat.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/local-oscar-payroll-fixture.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/prepare-approval-center-v2-browser-fixture.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/prepare-hr-payroll-core-acceptance.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/prepare-hr-payroll-five-role-uat.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/prepare-hr-payroll-fresh-e2e.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/prepare-staff-commission-v2-visual-fixtures.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/prepare-staff-pay-hub-v2-visual-fixtures.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/prepare-staff-payslips-v2-visual-fixtures.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/prepare-staff-profile-v2-visual-fixtures.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/prepare-testing-isolated-payroll-uat-business.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/prepare-testing-real-device-uat.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/repair-hr-payroll-fresh-e2e-devices.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/repair-hr-payroll-fresh-e2e-leave-policy.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+D		scripts/run-staff-app.mjs	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		scripts/verify-staff-payslips-v2-local.mjs	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/ai/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/business/settings/staff-app/actions.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/business/settings/staff-app/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/business/settings/staff-app/staff-app-appearance-editor.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/business/settings/staff-app/staff-app-appearance.module.css	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/approvals/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/attendance-settings/layout.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/attendance/layout.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/attendance/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/attendance/resolutions/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/attendance/resolutions/resolution.module.css	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/claims/claim-category-policy-form.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/claims/claims-filter-controls.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/claims/claims.module.css	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/claims/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/commission/commission.module.css	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/app/(business)/team/commission/layout.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/commission/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/employees/[employeeId]/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/employees/actions.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/app/(business)/team/holidays/layout.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/layout.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/leave/leave.module.css	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/leave/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/payroll/layout.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/payroll/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/payroll/runs/[runId]/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/payroll/runs/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/payroll/statutory/actions.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/people/[personId]/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/(business)/team/people/[personId]/payroll/actions.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/app/(business)/team/roster/layout.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/app/(business)/team/time/layout.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/app/(business)/team/time/page.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/app/(business)/team/time/time.module.css	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/api/ai/analyze/route.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/api/employee-appointments/route.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/app/api/employee-attendance/corrections/route.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/api/employee-attendance/exception/route.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/api/employee-auth/avatar/route.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/app/api/employee-auth/logout/route.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/app/api/local-uat/session/route.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/layout.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/app/staff/appointments/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/appointments/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/appointments/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/approvals/[domain]/[requestId]/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/approvals/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/approvals/history/[domain]/[sourceId]/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/approvals/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/approvals/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/commission/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/commission/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/commission/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/device/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/history/corrections/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/history/corrections/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/history/corrections/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/history/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/history/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/history/records/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/history/records/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/history/records/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/layout.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/leave/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/leave/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/leave/new/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/login/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/module-not-enabled/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/pay/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/pay/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/pay/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/payslips/[publicationId]/route.ts	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/payslips/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/payslips/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/payslips/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/profile/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/profile/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/profile/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/requests/attendance-corrections/actions.ts	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/requests/attendance-corrections/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/requests/attendance-corrections/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/requests/attendance-corrections/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/requests/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/requests/overtime/[finalResultId]/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/requests/overtime/actions.ts	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/requests/overtime/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/requests/overtime/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/requests/overtime/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/requests/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/roster/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/roster/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/roster/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/select-workplace/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/app/staff/staff-consolidation.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/staff.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/timesheet/error.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/timesheet/loading.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/timesheet/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+D		src/app/staff/uat-sign-in/route.ts	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/staff/verify/page.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/app/uploads/staff-app-logos/[filename]/route.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/components/ai-business-chat.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/components/app-shell.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/components/ask-tetamu.module.css	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/components/employee-profile-payroll.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/components/hr-payroll-issue.module.css	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/components/hr-payroll-issue.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/components/payroll-workspace-nav.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/components/pwa-register.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/components/staff-pwa/mobile-approval-form.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/mobile-overtime-approval-form.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-app-icon.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-appointment-calendar.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-approval-center-v2.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-approval-sheet.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-attendance-corrections-v2.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-attendance-corrections-v2.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-attendance-history-v2.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-auth.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-avatar-upload.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-claims.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-claims.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-commission-v2.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-commission-v2.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-date-picker.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-date-picker.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-history.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-home-attendance-view.ts	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-home-overview.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-leave.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-leave.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-pay-hub-v2.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-pay-hub-v2.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-payslips-v2.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-payslips-v2.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-profile-v2.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-profile.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-pwa-chrome.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-resolution-cases.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-schedule-v2.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-schedule-v2.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-task-navigation.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-time-hub-legacy-redirect.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-time-hub.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-timesheet-v2.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-timesheet-v2.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+M		src/components/staff-pwa/staff-today.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-v2-primitives.tsx	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/staff-pwa/staff-v2.module.css	STAFF_REQUIRED	Direct canonical Staff 3000 page, shell, component, asset, or PWA runtime.
+A		src/components/time-workspace-nav.tsx	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+D		src/instrumentation-client.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/instrumentation.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/ai/context.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/lib/ai/intent.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/lib/ai/presentation.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/ai/prompt.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/ai/provider.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/ai/schema.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/ai/service.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/approvals/service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/branch-setting-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/branch-setting.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/branch-switch-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/employee-auth/cookie.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/employee-auth/device-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/employee-auth/errors.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/employee-auth/otp-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/employee-auth/provider.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/employee-auth/response.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/employee-auth/schemas.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/employee-auth/selection-token.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/attendance/employee-correction-archive.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/employee-timesheet.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/exception-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/geofence.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/management-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/overtime-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/p2-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/phone.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/punch-input.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/punch-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/read-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/resolution-read-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/resolution-state-machine.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/resolution-workflow-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/scope.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/stale-session-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/state-machine.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/timesheet-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/work-date.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/attendance/write-rate-limit.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/auth/business-context-token.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/auth/business-user.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/auth/login-destination.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/auth/permissions.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/auth/staff-permissions.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/branches.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/business-performance/read-model.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/claim/attachment-policy.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/claim/index.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/claim/presentation.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/claim/service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/closing/money-validation.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/lib/closing/shift-control.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/commission/read.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/commission/service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/expense/service.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/lib/ops/alerting.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/payroll/component-calculation.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/payroll/documents.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/payroll/error-message.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/payroll/export.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/payroll/lindung24-participation-service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/payroll/lindung24-participation.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/payroll/payslip-publication.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/payroll/readiness.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/payroll/runs.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/payroll/service.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/payroll/statutory-artifact.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/payroll/statutory-evidence.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/payroll/statutory-export-eligibility.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/payroll/statutory-p2.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/reports/presentation.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		src/lib/roster/retrospective-classification.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/roster/service.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/runtime-staff-app-logo.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/lib/staff-pwa/appearance-config.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/staff-pwa/appearance.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/staff-pwa/appointments.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/staff-pwa/approval-history.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/staff-pwa/attendance-correction-eligibility.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/staff-pwa/attendance-corrections-v2.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/staff-pwa/attendance-history-v2.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+D		src/lib/staff-pwa/attendance-history.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/staff-pwa/client.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/staff-pwa/commission-v2.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/staff-pwa/home.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/staff-pwa/leave-v2.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/staff-pwa/navigation.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/staff-pwa/overtime-approvals.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/staff-pwa/profile-v2.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/staff-pwa/requests-hub.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/staff-pwa/schedule-v2.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/staff-pwa/schedule.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/staff-pwa/team-approvals.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/staff-pwa/time-hub.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+A		src/lib/staff-pwa/timesheet-v2.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+D		src/lib/staff-pwa/timesheet.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/staff-pwa/types.ts	SHARED_DEPENDENCY_REQUIRED	Potential Staff backend/read-model/auth/shared dependency; must be retained and reviewed with Staff scope.
+M		src/lib/team/employee-profile-statutory-read.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		src/middleware.ts	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		statutory/official/certifications/TETAMU_PAYROLL_STATUTORY_CALCULATION_UAT_2026.json	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		statutory/official/certifications/TETAMU_PAYROLL_STATUTORY_CALCULATION_UAT_2026.md	DOC ONLY	Documentation/evidence; excluded from runtime package assessment.
+M		statutory/official/certifications/tetamu-pcb-2026-vc1-worktree-isolation.json	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+A		statutory/official/lindung24/current-policy-alignment-manifest-v1.json	UNRELATED / NOT APPROVED	Tracked runtime/support change is outside proven Staff scope; owner approval or exclusion is required.
+M		tests/integration/attendance-database-guards.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/integration/attendance-employee-auth.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/integration/attendance-monthly-timesheet.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/integration/attendance-phase1b-services.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/integration/attendance-phase1c-api.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/integration/attendance-phase1c-database-guards.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/integration/attendance-phase1c-route-flow.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/integration/attendance-phase1c-services.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/integration/attendance-resolution-foundation.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/integration/attendance-resolution-workflow.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/integration/commission-engine.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/integration/employee-correction-archive.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/integration/payroll-lindung24-participation-closure.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/integration/payroll-p5-attendance-integration.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/integration/staff-manager-p2-projection.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/integration/staff-pay-read-only-correctness.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/ai-business-analysis-phase1.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/ask-tetamu-intent-routing.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/ask-tetamu-ux.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/attendance-operations-completion.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/business-rules.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/claims-presentation.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/claims-reimbursements-foundation.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+D		tests/unit/embedded-postgres-utils.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/employee-correction-archive.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/employee-payroll-profile-phase4b.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/employee-profile-phase3b.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/employee-profile-shell.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/employee-timesheet-projection.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/hr-payroll-product-integrity.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/leave-request-inbox-ux.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/malaysia-date-locale.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/payroll-lindung24-evidence.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/payroll-lindung24-participation.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/payroll-non-production-statutory-fixture.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/payroll-p4d-unified-workflow.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/payroll-p5-attendance-integration.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/payroll-runs-foundation.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/payroll-statutory-calculation-uat.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/people-hr-entitlement-ux.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/public-holiday-foundation.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/release-environment-validator.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/roster-shift-scheduling-phase1.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+D		tests/unit/runtime-staff-app-logo.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-android-home-manager-ux.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/staff-appointments.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-approval-center-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-approval-center-visual-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-attendance-approval-consistency.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-attendance-corrections-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-attendance-history-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+D		tests/unit/staff-attendance-history.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-browser-compatibility.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-claims-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-commission-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-employee-otp-delivery-lifecycle.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-employee-otp-transaction-timeout.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-history-correction-cta.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-home-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-leave-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-manager-overtime-approval.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-mobile-attendance-corrections.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/staff-mobile-team-approvals.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-pay-hub-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-pay-read-only-correctness.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-payslips-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-profile-v2-contract.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-profile-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/staff-pwa.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-requests-hub-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-schedule-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+D		tests/unit/staff-schedule.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+D		tests/unit/staff-surface.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-time-hub-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-timesheet-v2.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+D		tests/unit/staff-timesheet.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+A		tests/unit/staff-twilio-verify.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+M		tests/unit/unified-approval-center.test.ts	TEST ONLY	Automated test or captured evidence; not application runtime.
+
