@@ -361,7 +361,13 @@ test("Phase 1C services enforce Punch flow, replay, GPS exceptions and self-only
       },
       now: new Date(base.getTime() + 10 * 60 * 60_000 + 2_000),
     });
-    assert.ok(history.items.length >= 2);
+    assert.equal(
+      history.items.length,
+      1,
+      "Staff V2 history groups all sessions for one work date and branch into one canonical day",
+    );
+    assert.equal(history.items[0]?.sessions.length, 3);
+    assert.ok(history.items[0]?.flags.includes("3 sessions"));
     assert.ok(
       history.items.every(
         (item) => item.branch.id === fixture.branchA.id,
