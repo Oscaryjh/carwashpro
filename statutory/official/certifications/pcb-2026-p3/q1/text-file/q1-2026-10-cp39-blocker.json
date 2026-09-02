@@ -1,0 +1,85 @@
+{
+  "artifactType": "CP39_TEXT_FILE",
+  "status": "BLOCKED_MISSING_OFFICIAL_IDENTITIES",
+  "questionId": "Q1",
+  "month": "2026-10",
+  "employeeLabel": "Employee A",
+  "p2PcbCents": 194975,
+  "cp38Cents": 0,
+  "requiredFormat": "LHDN_CP39_EXHIBIT_4_2026",
+  "missingRequiredFields": [
+    {
+      "code": "EMPLOYER_HQ_REQUIRED",
+      "field": "lhdnEmployerNumberHq",
+      "detail": "Exhibit 4 requires an exact 10-digit HQ employer number."
+    },
+    {
+      "code": "EMPLOYER_NUMBER_REQUIRED",
+      "field": "lhdnEmployerNumber",
+      "detail": "Exhibit 4 requires an exact 10-digit employer number."
+    },
+    {
+      "code": "EMPLOYEE_TIN_REQUIRED",
+      "field": "taxIdentificationNumber",
+      "detail": "An exact 11-digit employee TIN is required and was not supplied by the Testing Questions."
+    },
+    {
+      "code": "EMPLOYEE_NUMBER_REQUIRED",
+      "field": "employeeNumber",
+      "detail": "A non-empty applicant-assigned alphanumeric employee/salary number is required; Exhibit 4 allows at most 10 characters."
+    },
+    {
+      "code": "IDENTITY_TYPE_REQUIRED",
+      "field": "identityType",
+      "detail": "Identity type must resolve to NEW_IC, OLD_IC or PASSPORT."
+    },
+    {
+      "code": "IDENTITY_NUMBER_REQUIRED",
+      "field": "identityNumber",
+      "detail": "A valid IC or passport number is required."
+    }
+  ],
+  "identityProvenance": {
+    "employeeLabel": "Employee A",
+    "fullName": {
+      "value": "Employee A",
+      "provenance": "OFFICIAL_QUESTION",
+      "status": "AVAILABLE",
+      "officialSource": "Testing Questions 2026 Question 1"
+    },
+    "employeeNumber": {
+      "value": null,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 field 19"
+    },
+    "taxIdentificationNumber": {
+      "value": null,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 field 11"
+    },
+    "identityType": {
+      "value": null,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 fields 13-16"
+    },
+    "identityNumber": {
+      "value": null,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 fields 13-15"
+    },
+    "passportCountryCode": {
+      "value": null,
+      "provenance": "ALLOWED_BLANK",
+      "status": "CLARIFICATION_REQUIRED",
+      "officialSource": "Exhibit 4 field 16; blank only if identity is not passport"
+    }
+  },
+  "blocker": "The retained official question does not provide mandatory Exhibit 4 identity fields, applicant employer numbers are absent, and the retained country-code list is incomplete. The canonical exporter was intentionally not called with invented identifiers.",
+  "generatedAt": "2026-08-28T16:56:20.007Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

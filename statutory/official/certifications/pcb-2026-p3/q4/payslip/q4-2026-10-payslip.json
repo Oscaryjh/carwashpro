@@ -1,0 +1,15 @@
+{
+  "questionId": "Q4",
+  "employeeLabel": "Employee D",
+  "month": "2026-10",
+  "grossCents": 1000000,
+  "epfCents": 0,
+  "zakatCents": 0,
+  "pcbCents": 330000,
+  "netCents": 670000,
+  "p2TraceDigest": "695a51db212e5e54d2d5fc7404f26760bbdba94fcec4d666d32020cf729df51e",
+  "notes": "RM1,000 VOLA is non-cash taxable remuneration. EPF participation is off through October.",
+  "renderer": "CANONICAL_PAYSLIP_RENDERER_2026",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

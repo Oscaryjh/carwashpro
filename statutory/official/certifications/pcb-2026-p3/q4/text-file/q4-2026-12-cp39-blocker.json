@@ -1,0 +1,90 @@
+{
+  "artifactType": "CP39_TEXT_FILE",
+  "status": "BLOCKED_MISSING_OFFICIAL_IDENTITIES",
+  "questionId": "Q4",
+  "month": "2026-12",
+  "employeeLabel": "Employee D",
+  "p2PcbCents": 0,
+  "cp38Cents": 0,
+  "requiredFormat": "LHDN_CP39_EXHIBIT_4_2026",
+  "missingRequiredFields": [
+    {
+      "code": "EMPLOYER_HQ_REQUIRED",
+      "field": "lhdnEmployerNumberHq",
+      "detail": "Exhibit 4 requires an exact 10-digit HQ employer number."
+    },
+    {
+      "code": "EMPLOYER_NUMBER_REQUIRED",
+      "field": "lhdnEmployerNumber",
+      "detail": "Exhibit 4 requires an exact 10-digit employer number."
+    },
+    {
+      "code": "EMPLOYEE_TIN_REQUIRED",
+      "field": "taxIdentificationNumber",
+      "detail": "An exact 11-digit employee TIN is required and was not supplied by the Testing Questions."
+    },
+    {
+      "code": "EMPLOYEE_NUMBER_REQUIRED",
+      "field": "employeeNumber",
+      "detail": "A non-empty applicant-assigned alphanumeric employee/salary number is required; Exhibit 4 allows at most 10 characters."
+    },
+    {
+      "code": "IDENTITY_NUMBER_REQUIRED",
+      "field": "identityNumber",
+      "detail": "A valid IC or passport number is required."
+    },
+    {
+      "code": "PASSPORT_COUNTRY_REQUIRED",
+      "field": "passportCountryCode",
+      "detail": "Passport requires a two-letter country code."
+    },
+    {
+      "code": "HASIL_COUNTRY_CODE_LIST_NOT_RETAINED",
+      "field": "passportCountryCode",
+      "detail": "The retained specification refers to a HASiL country-code list but does not contain that list; supplied codes cannot yet be certified against the official list."
+    }
+  ],
+  "identityProvenance": {
+    "employeeLabel": "Employee D",
+    "fullName": {
+      "value": "Employee D",
+      "provenance": "OFFICIAL_QUESTION",
+      "status": "AVAILABLE",
+      "officialSource": "Testing Questions 2026 Question 4"
+    },
+    "employeeNumber": {
+      "value": null,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 field 19"
+    },
+    "taxIdentificationNumber": {
+      "value": null,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 field 11"
+    },
+    "identityType": {
+      "value": "PASSPORT",
+      "provenance": "OFFICIAL_QUESTION",
+      "status": "AVAILABLE",
+      "officialSource": "Testing Questions 2026 identifies Employee D as an Australian expatriate"
+    },
+    "identityNumber": {
+      "value": null,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 field 15"
+    },
+    "passportCountryCode": {
+      "value": null,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "CLARIFICATION_REQUIRED",
+      "officialSource": "Exhibit 4 field 16 refers to a country-code list not retained with the specification"
+    }
+  },
+  "blocker": "The retained official question does not provide mandatory Exhibit 4 identity fields, applicant employer numbers are absent, and the retained country-code list is incomplete. The canonical exporter was intentionally not called with invented identifiers.",
+  "generatedAt": "2026-08-28T16:56:20.007Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

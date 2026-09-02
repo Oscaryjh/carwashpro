@@ -1,0 +1,696 @@
+{
+  "certification": "TETAMU PCB 2026 P3 OFFICIAL QUESTION ARTIFACT PREPARATION",
+  "verdict": "PARTIAL",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "isolatedWorktree": true,
+  "productionTouched": false,
+  "testingBusinessDataChanged": false,
+  "p2CertificationDigest": "721daef2a5069077ed8eab014e0eae26eb83396335fa7420d64f2ab243e7a71d",
+  "officialSources": {
+    "computerisedSpecification2026Sha256": "a1618051c858393d92d868c9975c183309d3d07e48f0e4f0cdef589f45f5800c",
+    "testingQuestions2026Sha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+    "hasilQ5ClarificationSha256": "cecef469dd30e0abd6bc42d17254ab82ac03d476a486dde612ed1d0b5cd675cf"
+  },
+  "generatorVersions": {
+    "package": "TETAMU_PCB_2026_P3_1.0.0",
+    "calculationDetail": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0",
+    "payslip": "CANONICAL_PAYSLIP_RENDERER_2026",
+    "ea": "TETAMU_EA_TESTING_QUESTION_EQUIVALENT_1.0.0",
+    "pcb2ii": "TETAMU_PCB_2II_EXHIBIT_3_DRAFT_1.0.0",
+    "cp39": "LHDN_CP39_EXHIBIT_4_2026",
+    "identityMapping": "TETAMU_PCB_2026_P3A_IDENTITY_1.0.0"
+  },
+  "identitySource": {
+    "repositoryPath": "statutory/official/fixtures/pcb-2026-p3a-submission-identity.json",
+    "sha256": "ef3a014dba987542bf013b850afe1d6a9b08baaac1529cee2d350a910e59b2f4",
+    "status": "INPUT_REQUIRED",
+    "exhibit4Ready": false,
+    "exhibit3Ready": false,
+    "unresolvedIdentityInputs": [
+      {
+        "artifact": "CP39",
+        "questionId": "Q1",
+        "code": "EMPLOYER_HQ_REQUIRED",
+        "field": "lhdnEmployerNumberHq",
+        "detail": "Exhibit 4 requires an exact 10-digit HQ employer number."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q1",
+        "code": "EMPLOYER_NUMBER_REQUIRED",
+        "field": "lhdnEmployerNumber",
+        "detail": "Exhibit 4 requires an exact 10-digit employer number."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q1",
+        "code": "EMPLOYEE_TIN_REQUIRED",
+        "field": "taxIdentificationNumber",
+        "detail": "An exact 11-digit employee TIN is required and was not supplied by the Testing Questions."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q1",
+        "code": "EMPLOYEE_NUMBER_REQUIRED",
+        "field": "employeeNumber",
+        "detail": "A non-empty applicant-assigned alphanumeric employee/salary number is required; Exhibit 4 allows at most 10 characters."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q1",
+        "code": "IDENTITY_TYPE_REQUIRED",
+        "field": "identityType",
+        "detail": "Identity type must resolve to NEW_IC, OLD_IC or PASSPORT."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q1",
+        "code": "IDENTITY_NUMBER_REQUIRED",
+        "field": "identityNumber",
+        "detail": "A valid IC or passport number is required."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q3",
+        "code": "EMPLOYER_HQ_REQUIRED",
+        "field": "lhdnEmployerNumberHq",
+        "detail": "Exhibit 4 requires an exact 10-digit HQ employer number."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q3",
+        "code": "EMPLOYER_NUMBER_REQUIRED",
+        "field": "lhdnEmployerNumber",
+        "detail": "Exhibit 4 requires an exact 10-digit employer number."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q3",
+        "code": "EMPLOYEE_TIN_REQUIRED",
+        "field": "taxIdentificationNumber",
+        "detail": "An exact 11-digit employee TIN is required and was not supplied by the Testing Questions."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q3",
+        "code": "EMPLOYEE_NUMBER_REQUIRED",
+        "field": "employeeNumber",
+        "detail": "A non-empty applicant-assigned alphanumeric employee/salary number is required; Exhibit 4 allows at most 10 characters."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q3",
+        "code": "IDENTITY_TYPE_REQUIRED",
+        "field": "identityType",
+        "detail": "Identity type must resolve to NEW_IC, OLD_IC or PASSPORT."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q3",
+        "code": "IDENTITY_NUMBER_REQUIRED",
+        "field": "identityNumber",
+        "detail": "A valid IC or passport number is required."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "EMPLOYER_HQ_REQUIRED",
+        "field": "lhdnEmployerNumberHq",
+        "detail": "Exhibit 4 requires an exact 10-digit HQ employer number."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "EMPLOYER_NUMBER_REQUIRED",
+        "field": "lhdnEmployerNumber",
+        "detail": "Exhibit 4 requires an exact 10-digit employer number."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "EMPLOYEE_TIN_REQUIRED",
+        "field": "taxIdentificationNumber",
+        "detail": "An exact 11-digit employee TIN is required and was not supplied by the Testing Questions."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "EMPLOYEE_NUMBER_REQUIRED",
+        "field": "employeeNumber",
+        "detail": "A non-empty applicant-assigned alphanumeric employee/salary number is required; Exhibit 4 allows at most 10 characters."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "IDENTITY_NUMBER_REQUIRED",
+        "field": "identityNumber",
+        "detail": "A valid IC or passport number is required."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "PASSPORT_COUNTRY_REQUIRED",
+        "field": "passportCountryCode",
+        "detail": "Passport requires a two-letter country code."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "HASIL_COUNTRY_CODE_LIST_NOT_RETAINED",
+        "field": "passportCountryCode",
+        "detail": "The retained specification refers to a HASiL country-code list but does not contain that list; supplied codes cannot yet be certified against the official list."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "hasilBranch",
+        "detail": "Exhibit 3 field hasilBranch requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "statementDate",
+        "detail": "Exhibit 3 field statementDate requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "employerName",
+        "detail": "Exhibit 3 field employerName requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "employerAddress",
+        "detail": "Exhibit 3 field employerAddress requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "lhdnEmployerNumber",
+        "detail": "Exhibit 3 field lhdnEmployerNumber requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "officerName",
+        "detail": "Exhibit 3 field officerName requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "officerPosition",
+        "detail": "Exhibit 3 field officerPosition requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "officerPhone",
+        "detail": "Exhibit 3 field officerPhone requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "EMPLOYEE_TIN_REQUIRED",
+        "field": "taxIdentificationNumber",
+        "detail": "An exact 11-digit employee TIN is required and was not supplied by the Testing Questions."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "EMPLOYEE_NUMBER_REQUIRED",
+        "field": "employeeNumber",
+        "detail": "A non-empty applicant-assigned employee number is required by Exhibit 3; no field width is stated there."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "IDENTITY_TYPE_REQUIRED",
+        "field": "identityType",
+        "detail": "Identity type must resolve to NEW_IC, OLD_IC or PASSPORT."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "IDENTITY_NUMBER_REQUIRED",
+        "field": "identityNumber",
+        "detail": "A valid IC or passport number is required."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_REFERENCE_REQUIRED",
+        "field": "2026-03.pcbReceiptOrTransactionNumber",
+        "detail": "Exhibit 3 contains a PCB receipt/bank-slip/transaction reference column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_DATE_REQUIRED",
+        "field": "2026-03.pcbReceiptOrTransactionDate",
+        "detail": "Exhibit 3 contains a PCB receipt/transaction date column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_REFERENCE_REQUIRED",
+        "field": "2026-06.pcbReceiptOrTransactionNumber",
+        "detail": "Exhibit 3 contains a PCB receipt/bank-slip/transaction reference column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_DATE_REQUIRED",
+        "field": "2026-06.pcbReceiptOrTransactionDate",
+        "detail": "Exhibit 3 contains a PCB receipt/transaction date column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_REFERENCE_REQUIRED",
+        "field": "2026-09.pcbReceiptOrTransactionNumber",
+        "detail": "Exhibit 3 contains a PCB receipt/bank-slip/transaction reference column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_DATE_REQUIRED",
+        "field": "2026-09.pcbReceiptOrTransactionDate",
+        "detail": "Exhibit 3 contains a PCB receipt/transaction date column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_REFERENCE_REQUIRED",
+        "field": "2026-12.pcbReceiptOrTransactionNumber",
+        "detail": "Exhibit 3 contains a PCB receipt/bank-slip/transaction reference column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_DATE_REQUIRED",
+        "field": "2026-12.pcbReceiptOrTransactionDate",
+        "detail": "Exhibit 3 contains a PCB receipt/transaction date column; no evidence was supplied."
+      }
+    ],
+    "provenanceRequired": true
+  },
+  "officialArtifactMatrix": {
+    "Q1": {
+      "calculationDetail": [
+        "2026-07",
+        "2026-10"
+      ],
+      "payslip": [
+        "2026-07",
+        "2026-12"
+      ],
+      "ea": true,
+      "pcb2ii": false,
+      "textFile": [
+        "2026-10"
+      ]
+    },
+    "Q2": {
+      "calculationDetail": [
+        "2026-03",
+        "2026-09"
+      ],
+      "payslip": [
+        "2026-03"
+      ],
+      "ea": false,
+      "pcb2ii": true,
+      "textFile": []
+    },
+    "Q3": {
+      "calculationDetail": [
+        "2026-09",
+        "2026-11"
+      ],
+      "payslip": [
+        "2026-09"
+      ],
+      "ea": false,
+      "pcb2ii": false,
+      "textFile": [
+        "2026-11"
+      ]
+    },
+    "Q4": {
+      "calculationDetail": [
+        "2026-08",
+        "2026-11"
+      ],
+      "payslip": [
+        "2026-10",
+        "2026-12"
+      ],
+      "ea": true,
+      "pcb2ii": false,
+      "textFile": [
+        "2026-12"
+      ]
+    },
+    "Q5": {
+      "calculationDetail": [
+        "2026-01",
+        "2026-02"
+      ],
+      "payslip": [
+        "2026-01"
+      ],
+      "ea": false,
+      "pcb2ii": false,
+      "textFile": []
+    }
+  },
+  "questions": [
+    {
+      "questionId": "Q1",
+      "employeeLabel": "Employee A",
+      "verdict": "PARTIAL",
+      "manifestPath": "statutory/official/certifications/pcb-2026-p3/q1/manifest/manifest.json"
+    },
+    {
+      "questionId": "Q2",
+      "employeeLabel": "Employee B",
+      "verdict": "PARTIAL",
+      "manifestPath": "statutory/official/certifications/pcb-2026-p3/q2/manifest/manifest.json"
+    },
+    {
+      "questionId": "Q3",
+      "employeeLabel": "Employee C",
+      "verdict": "PARTIAL",
+      "manifestPath": "statutory/official/certifications/pcb-2026-p3/q3/manifest/manifest.json"
+    },
+    {
+      "questionId": "Q4",
+      "employeeLabel": "Employee D",
+      "verdict": "PARTIAL",
+      "manifestPath": "statutory/official/certifications/pcb-2026-p3/q4/manifest/manifest.json"
+    },
+    {
+      "questionId": "Q5",
+      "employeeLabel": "Employee E",
+      "verdict": "READY",
+      "manifestPath": "statutory/official/certifications/pcb-2026-p3/q5/manifest/manifest.json"
+    }
+  ],
+  "artifacts": [
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/manifest/identity-source-matrix.json",
+      "bytes": 17218,
+      "sha256": "7cf6cf64083fe665e24b738a44336cce66e968c1f6a24923aa6ab3c421f0fcae"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/manifest/identity-validation.json",
+      "bytes": 20731,
+      "sha256": "8f48e7502285ec3da52ed5c8df1dd5b8347d1caece5a918937d081be7cedfc4a"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/calculation-detail/q1-2026-07-calculation-detail.json",
+      "bytes": 2313,
+      "sha256": "c58e2e23a9bafee78da46e8c74f4e1cfa88feee883773b4c4851e1fa6450ec68"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/calculation-detail/q1-2026-07-calculation-detail.pdf",
+      "bytes": 2973,
+      "sha256": "aca557ab0f562d438072f158c214b86e8359b4af859ec143135af133234a9700"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/calculation-detail/q1-2026-10-calculation-detail.json",
+      "bytes": 2341,
+      "sha256": "f5bc053b476cea8bc9399c78d53f453e9a4f4eaeeb346ed47ba9dc4b3b35985d"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/calculation-detail/q1-2026-10-calculation-detail.pdf",
+      "bytes": 2966,
+      "sha256": "ffb8f7c53f01d8ee7d2b069ebfc4d81f8d3d8199ec6d82687bec2e0a1ed2930a"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/payslip/q1-2026-07-payslip.json",
+      "bytes": 551,
+      "sha256": "104fa44c371f6415a16d998ebef7eacda1c359c78ee0dfb07b99c9bcbee4d698"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/payslip/q1-2026-07-payslip.pdf",
+      "bytes": 2852,
+      "sha256": "dff0a011b53b968afc77fbff56da207cb4e45b68118c676f7e5502343c0f152f"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/payslip/q1-2026-12-payslip.json",
+      "bytes": 547,
+      "sha256": "5dfbbc183ed7f3c65c8c58fa5d6020ae2e2d6c124e4e9a706755303ba43f0e91"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/payslip/q1-2026-12-payslip.pdf",
+      "bytes": 2852,
+      "sha256": "b1e75fe2ada196e78f5174a1ea038a544b4aae77675ee968c5eaf2645e6716e4"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/ea/q1-ea-testing-question-evidence.json",
+      "bytes": 1445,
+      "sha256": "7c970e77e7231e86c7c13bc5ffe45b4e01df7a8903476f27e229f277ccf7a32e"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/ea/q1-ea-testing-question-evidence.pdf",
+      "bytes": 1577,
+      "sha256": "f551a7b9892c145474fe7b6240e91a29388dc17bc660e2eb1808ee58e4f9c250"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/text-file/q1-2026-10-cp39-blocker.json",
+      "bytes": 2992,
+      "sha256": "23acc64d0260082dcd4c96d99b30d5e1e28f99861962fdc9794a2468706927d2"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q1/manifest/manifest.json",
+      "bytes": 11590,
+      "sha256": "a8969f8ca6bdccde6e4a74a1cb4d0a911ac6ccc00d52af6f1181829d45ce0bb6"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q2/calculation-detail/q2-2026-03-calculation-detail.json",
+      "bytes": 2604,
+      "sha256": "a62fc43ee54f32a310f39297ecdbc774c7b6ac2e47271b029c13e7023ce547d3"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q2/calculation-detail/q2-2026-03-calculation-detail.pdf",
+      "bytes": 2939,
+      "sha256": "283661799ac4f10a11066fb03ce73c4235a8b42d740e9dee8d7103301591c660"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q2/calculation-detail/q2-2026-09-calculation-detail.json",
+      "bytes": 2602,
+      "sha256": "37a84cfacf06bfcd8eba1ad9317a0c55d2d74188f8a85c70e3d3d1ad93849919"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q2/calculation-detail/q2-2026-09-calculation-detail.pdf",
+      "bytes": 2933,
+      "sha256": "fac972b139bbedda941a917865ebb1b91b798f67a85e4fdfbe8cc9bbd6e71554"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q2/payslip/q2-2026-03-payslip.json",
+      "bytes": 532,
+      "sha256": "e4986071856b08b332209f5772b6278599ce03185e08e492562b3883f275758b"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q2/payslip/q2-2026-03-payslip.pdf",
+      "bytes": 2803,
+      "sha256": "38fbaba0bca6546bd10ef94e4bff7d0040cc748a3567459cea0b90f63f348c48"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q2/pcb-2ii/q2-pcb-2ii-structured-source.json",
+      "bytes": 8292,
+      "sha256": "10a1b52f749c3a82cb51d08cb1dc02f54cbadb89ca859201289dcb388d49eaf7"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q2/pcb-2ii/q2-pcb-2ii-blocked-draft.pdf",
+      "bytes": 1304,
+      "sha256": "b2a6adb74c4a90baf778da3b25cfd821cf0ac2cd736ccbc59a2dadd95e9f67d7"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q2/manifest/manifest.json",
+      "bytes": 13251,
+      "sha256": "8424cdba5e1bc859a677a35995e6aad8d70a0eb71aebe89ad14fbd7a190bea17"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-09-calculation-detail.json",
+      "bytes": 2280,
+      "sha256": "c99d2e9a99aff0ae6aa04e0ce3a0181abcda09a6159692c55a96665743d55b3b"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-09-calculation-detail.pdf",
+      "bytes": 2947,
+      "sha256": "d5cfc1b87d1037775c644682f0d93794c3816da8cae98e6d3427f76db6521466"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-11-calculation-detail.json",
+      "bytes": 2233,
+      "sha256": "7abb8cc4291e081852dc09c99d746bae20b88012611a8f35e48a2fd8789b239b"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-11-calculation-detail.pdf",
+      "bytes": 2919,
+      "sha256": "8b3f13f5bbb260d62c34f2cdbd3295be0d04cb81b37c354f9219f4660b416e77"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/payslip/q3-2026-09-payslip.json",
+      "bytes": 519,
+      "sha256": "493a443f3920559d333b8e28c07cd9f7702a38462591790a1061de3eb756e3ad"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/payslip/q3-2026-09-payslip.pdf",
+      "bytes": 2760,
+      "sha256": "ddf4738648ab444731077e9c5136a0c3ee4167c4846259c99cb7cd09bff0afe4"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/text-file/q3-2026-11-cp39-blocker.json",
+      "bytes": 2991,
+      "sha256": "45d15003a9de105f8c1eb4f95aacd10333fcd86353b9ebe1838a463bb36efdfd"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/manifest/manifest.json",
+      "bytes": 8646,
+      "sha256": "dcdc0349cc63ec79cb2b729459c91eb8faadb6b4f49830e54f37a556826a38f4"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/calculation-detail/q4-2026-08-calculation-detail.json",
+      "bytes": 2146,
+      "sha256": "492f1534e704f48e5cfd87bd9d33c04db800a991e972cbaef22e9d64dabb06b1"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/calculation-detail/q4-2026-08-calculation-detail.pdf",
+      "bytes": 2901,
+      "sha256": "23369e7f79085dd1f8beefc8d04f006666fafc587a6c2537a6cd781fc8db9b34"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/calculation-detail/q4-2026-11-calculation-detail.json",
+      "bytes": 2418,
+      "sha256": "0a8e62edffbd6e3093981f33f331445937e8fdc4988827fba08cb92e7dace3a6"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/calculation-detail/q4-2026-11-calculation-detail.pdf",
+      "bytes": 2943,
+      "sha256": "ec3f8432e652c0cf0d98d4f78237fa2a4da9f9e4281996e7740020def757c59f"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/payslip/q4-2026-10-payslip.json",
+      "bytes": 505,
+      "sha256": "574f9011df305a6454aa81996dff43802a5dea2481f5bc63dd90d67bf40bff9c"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/payslip/q4-2026-10-payslip.pdf",
+      "bytes": 2746,
+      "sha256": "8b42f7c242838741a4b4043eaf7029f4fdd2a8b08a0f54fae464f37b80f5c173"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/payslip/q4-2026-12-payslip.json",
+      "bytes": 503,
+      "sha256": "99a33a35ff09d2a394c012c24a7ad3387b0847e629c3136323946ac058574bd6"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/payslip/q4-2026-12-payslip.pdf",
+      "bytes": 2745,
+      "sha256": "8b7bf35d9828fb47be7940623b55c4c997bae3bec6f6fc8a171a4847fb0a7fc7"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/ea/q4-ea-testing-question-evidence.json",
+      "bytes": 1365,
+      "sha256": "a1775fce8bcc3970862f985528c601660f54ce20c3285812578465c2f4488a30"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/ea/q4-ea-testing-question-evidence.pdf",
+      "bytes": 1571,
+      "sha256": "936f758bdcd5df4db29a31172c8aad4d1c984eb43951ef4181f5ac62e082dcdd"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/text-file/q4-2026-12-cp39-blocker.json",
+      "bytes": 3329,
+      "sha256": "c0a8461dc5c4bd6a670d575348fe2a81d6b0dff4a522525e07e85b43f372422f"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q4/manifest/manifest.json",
+      "bytes": 11941,
+      "sha256": "14df1c8ab20358eec6127470dee13b98125f9f53bee06db7730ba916a022f97d"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-01-calculation-detail.json",
+      "bytes": 2309,
+      "sha256": "5c7429d410760a4da5f75ceb36b76d70884bf8f4ec158bda909d921288091564"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-01-calculation-detail.pdf",
+      "bytes": 3014,
+      "sha256": "b23ef0b9e1c05f26ef3c989c0740dc74aa5294aa81f8d25b7f4f183db714e90f"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-02-calculation-detail.json",
+      "bytes": 2358,
+      "sha256": "11c34f4a9d7eb784d1f18faef12e31e737d60b87fc062984336e4b495ebfef34"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-02-calculation-detail.pdf",
+      "bytes": 3066,
+      "sha256": "1297cc3c6d6926371dab9eac0bb33be59bce566d37d25db8d3740c668c0afc78"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/payslip/q5-2026-01-payslip.json",
+      "bytes": 518,
+      "sha256": "ae74c8b7d9c9f46eb2709699409f4e5d53cf4ca22bc09dd4310eeaa3659d29d8"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/payslip/q5-2026-01-payslip.pdf",
+      "bytes": 2757,
+      "sha256": "c745816abb58c22649355d99c53a45c509daee1903a1d32f281010efc64df322"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q5/manifest/manifest.json",
+      "bytes": 6008,
+      "sha256": "0755761f1c4d9c8ee677cb4f54ec7a820dadfd27968e2877f270377320aed397"
+    },
+    {
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/shared/tetamu-pcb-2026-p3-cover-sheet.pdf",
+      "bytes": 1372,
+      "sha256": "c76a6a2ccd7fafd15bcbcc09b4485be81f668cadce7456d2212395680da74500"
+    }
+  ],
+  "openClarifications": [
+    {
+      "code": "APPLICANT_AND_EMPLOYEE_IDENTITY_INPUT_REQUIRED",
+      "affects": [
+        "Q1 CP39",
+        "Q2 PCB 2(II)",
+        "Q3 CP39",
+        "Q4 CP39"
+      ],
+      "detail": "Governed mapping and strict validation are implemented. Applicant employer data, Employee A-D submission identities and Q2 transaction evidence are not supplied. No values were invented."
+    },
+    {
+      "code": "HASIL_COUNTRY_CODE_LIST_NOT_RETAINED",
+      "affects": [
+        "Q4 CP39"
+      ],
+      "detail": "Exhibit 4 requires the passport-issuing country code from a HASiL list, but the retained specification only refers to the list and does not include it."
+    },
+    {
+      "code": "SUBMISSION_FORMAT_CLARIFICATION_STILL_REQUIRED",
+      "affects": [
+        "Q1 CP39",
+        "Q3 CP39",
+        "Q4 CP39"
+      ],
+      "detail": "HASiL email asks for PDF documents while the Testing Questions require text files. Preserve raw text plus PDF preview after identity mapping is supplied."
+    }
+  ],
+  "submissionStatus": "NOT_SUBMITTED",
+  "claimOfHasilApproval": false,
+  "generatedAt": "2026-08-28T16:56:20.007Z"
+}

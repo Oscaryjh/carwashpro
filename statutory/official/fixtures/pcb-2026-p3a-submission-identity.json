@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "TETAMU_PCB_2026_P3A_IDENTITY_1.0.0",
+  "applicant": {
+    "employerName": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3: Nama Dan Alamat Majikan" },
+    "employerAddress": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3: Nama Dan Alamat Majikan" },
+    "lhdnEmployerNumberHq": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 4 field 2" },
+    "lhdnEmployerNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 4 field 3 / Exhibit 3 No. Majikan (E)" },
+    "hasilBranch": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3: Cawangan" },
+    "statementDate": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3: Tarikh" },
+    "officerName": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3: Nama pegawai" },
+    "officerPosition": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3: Jawatan" },
+    "officerPhone": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3: No. Telefon" }
+  },
+  "employees": {
+    "Q1": {
+      "employeeLabel": "Employee A",
+      "fullName": { "value": "Employee A", "provenance": "OFFICIAL_QUESTION", "status": "AVAILABLE", "officialSource": "Testing Questions 2026 Question 1" },
+      "employeeNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 4 field 19" },
+      "taxIdentificationNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 4 field 11" },
+      "identityType": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 4 fields 13-16" },
+      "identityNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 4 fields 13-15" },
+      "passportCountryCode": { "value": null, "provenance": "ALLOWED_BLANK", "status": "CLARIFICATION_REQUIRED", "officialSource": "Exhibit 4 field 16; blank only if identity is not passport" }
+    },
+    "Q2": {
+      "employeeLabel": "Employee B",
+      "fullName": { "value": "Employee B", "provenance": "OFFICIAL_QUESTION", "status": "AVAILABLE", "officialSource": "Testing Questions 2026 Question 2" },
+      "employeeNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 3: No. Pekerja" },
+      "taxIdentificationNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 3: No. Pengenalan Cukai Pekerja (IG)" },
+      "identityType": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 3: No. Kad Pengenalan/No. Passpot" },
+      "identityNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 3: No. Kad Pengenalan/No. Passpot" },
+      "passportCountryCode": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "Exhibit 3 has no separate passport-country field" }
+    },
+    "Q3": {
+      "employeeLabel": "Employee C",
+      "fullName": { "value": "Employee C", "provenance": "OFFICIAL_QUESTION", "status": "AVAILABLE", "officialSource": "Testing Questions 2026 Question 3" },
+      "employeeNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 4 field 19" },
+      "taxIdentificationNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 4 field 11" },
+      "identityType": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 4 fields 13-16" },
+      "identityNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 4 fields 13-15" },
+      "passportCountryCode": { "value": null, "provenance": "ALLOWED_BLANK", "status": "CLARIFICATION_REQUIRED", "officialSource": "Exhibit 4 field 16; blank only if identity is not passport" }
+    },
+    "Q4": {
+      "employeeLabel": "Employee D",
+      "fullName": { "value": "Employee D", "provenance": "OFFICIAL_QUESTION", "status": "AVAILABLE", "officialSource": "Testing Questions 2026 Question 4" },
+      "employeeNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 4 field 19" },
+      "taxIdentificationNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 4 field 11" },
+      "identityType": { "value": "PASSPORT", "provenance": "OFFICIAL_QUESTION", "status": "AVAILABLE", "officialSource": "Testing Questions 2026 identifies Employee D as an Australian expatriate" },
+      "identityNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "OFFICIAL_QUESTION_NOT_PROVIDED", "officialSource": "Exhibit 4 field 15" },
+      "passportCountryCode": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "CLARIFICATION_REQUIRED", "officialSource": "Exhibit 4 field 16 refers to a country-code list not retained with the specification" }
+    },
+    "Q5": {
+      "employeeLabel": "Employee E",
+      "fullName": { "value": "Employee E", "provenance": "OFFICIAL_QUESTION", "status": "AVAILABLE", "officialSource": "Testing Questions 2026 Question 5" },
+      "employeeNumber": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "No P3 Q5 identity-bearing artifact required" },
+      "taxIdentificationNumber": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "No P3 Q5 identity-bearing artifact required" },
+      "identityType": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "No P3 Q5 identity-bearing artifact required" },
+      "identityNumber": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "No P3 Q5 identity-bearing artifact required" },
+      "passportCountryCode": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "No P3 Q5 identity-bearing artifact required" }
+    }
+  },
+  "pcb2iiTransactions": [
+    { "month": "2026-03", "pcbReceiptOrTransactionNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3 current-year PCB transaction column" }, "pcbReceiptOrTransactionDate": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3 current-year PCB transaction date column" }, "cp38ReceiptOrTransactionNumber": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "P2 certified CP38 is RM0.00" }, "cp38ReceiptOrTransactionDate": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "P2 certified CP38 is RM0.00" } },
+    { "month": "2026-06", "pcbReceiptOrTransactionNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3 current-year PCB transaction column" }, "pcbReceiptOrTransactionDate": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3 current-year PCB transaction date column" }, "cp38ReceiptOrTransactionNumber": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "P2 certified CP38 is RM0.00" }, "cp38ReceiptOrTransactionDate": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "P2 certified CP38 is RM0.00" } },
+    { "month": "2026-09", "pcbReceiptOrTransactionNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3 current-year PCB transaction column" }, "pcbReceiptOrTransactionDate": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3 current-year PCB transaction date column" }, "cp38ReceiptOrTransactionNumber": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "P2 certified CP38 is RM0.00" }, "cp38ReceiptOrTransactionDate": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "P2 certified CP38 is RM0.00" } },
+    { "month": "2026-12", "pcbReceiptOrTransactionNumber": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3 current-year PCB transaction column" }, "pcbReceiptOrTransactionDate": { "value": null, "provenance": "APPLICANT_SUPPLIED", "status": "MISSING_APPLICANT_INPUT", "officialSource": "Exhibit 3 current-year PCB transaction date column" }, "cp38ReceiptOrTransactionNumber": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "P2 certified CP38 is RM0.00" }, "cp38ReceiptOrTransactionDate": { "value": null, "provenance": "ALLOWED_BLANK", "status": "NOT_REQUIRED", "officialSource": "P2 certified CP38 is RM0.00" } }
+  ]
+}

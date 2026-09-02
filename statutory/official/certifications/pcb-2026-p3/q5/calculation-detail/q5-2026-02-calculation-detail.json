@@ -1,0 +1,67 @@
+{
+  "artifactType": "CALCULATION_DETAIL",
+  "status": "CERTIFICATION_READY",
+  "questionId": "Q5",
+  "employeeLabel": "Employee E",
+  "month": "2026-02",
+  "source": {
+    "officialTestingQuestionSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+    "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+    "p2InputDigest": "f9f34de4476d1a09fbb9692f8397aaeac7307bc3b2fddc6e596e568313e840a7",
+    "p2TraceDigest": "fdffc1291a71871ab10736a0c700b74e47e5b75bf00ffe44b8c2fffafeadf92e",
+    "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+    "ruleVersion": "HASIL_MTD_SPEC_2026"
+  },
+  "facts": {
+    "taxRegime": "KNOWLEDGE_WORKER",
+    "employeeCategory": "CATEGORY_1",
+    "normalRemunerationCents": 1800000,
+    "additionalRemunerationCents": 0,
+    "nonCashOrExemptContext": [
+      "RM500 monthly housing-loan interest",
+      "residential CCTV",
+      "business-premise CCTV excluded",
+      "gym",
+      "internet"
+    ],
+    "currentEmployerYtdBeforeCurrentCents": 1800000,
+    "previousEmployerRemunerationCents": 0,
+    "previousEmployerEpfCents": 0,
+    "previousEmployerPcbCents": 0,
+    "currentNormalEpfCents": 198000,
+    "currentAdditionalEpfCents": 0,
+    "accumulatedTp1DeductionsCents": 232000,
+    "currentTp1DeductionsCents": 152000,
+    "housingLoanInterestReliefCents": 50000,
+    "spouseReliefCents": 0,
+    "childReliefCents": 0,
+    "chargeableIncomeCents": 19916000,
+    "bracketMCents": 0,
+    "taxRatePercent": 15,
+    "bracketBCents": 0,
+    "annualTaxCents": 2987400,
+    "accumulatedZakatCents": 0,
+    "currentZakatCents": 0,
+    "currentReligiousTravelLevyCents": 0,
+    "normalPcbBeforeCurrentRebatesCents": 248780,
+    "normalPcbAfterCurrentRebatesCents": 248780,
+    "additionalPcbCents": 0,
+    "finalPcbCents": 248780
+  },
+  "rounding": {
+    "rawNumeratorCents": 2736550,
+    "divisor": 11,
+    "truncatedToSenCents": 248777,
+    "minimumThresholdApplied": false,
+    "roundedUpToFiveSenCents": 248780,
+    "postZakatAndLevyCents": 248780,
+    "additional": null
+  },
+  "officialSections": [
+    "Computerised Specification 2026: Knowledge Worker in the Specified Region",
+    "Computerised Specification 2026: Terms and Conditions"
+  ],
+  "generatedAt": "2026-08-28T16:56:20.007Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

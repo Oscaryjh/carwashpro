@@ -1,0 +1,28 @@
+{
+  "artifactType": "EA_TESTING_QUESTION_EVIDENCE",
+  "status": "CERTIFICATION_READY_SYSTEM_EQUIVALENT",
+  "label": "EA - Testing Question Evidence (SYSTEM-GENERATED EQUIVALENT)",
+  "questionId": "Q4",
+  "employeeLabel": "Employee D",
+  "employerIdentity": "Not supplied by official testing question",
+  "employeeOfficialIdentity": "Not supplied by official testing question",
+  "employmentPeriod": "2026-08-01 to 2026-12-31",
+  "currentEmployerCashRemunerationCents": 6000000,
+  "taxableBenefitsCents": 600000,
+  "exemptAllowancesCents": 0,
+  "employeeEpfCents": 330000,
+  "pcbCents": 990000,
+  "zakatDeductedFromRemunerationCents": 0,
+  "previousEmployerAmountsIncluded": false,
+  "sourceP2TraceDigests": [
+    "bba243f4f79ec64395c7cb0508fd4fb77eabc0fb3b92ce92ff56b53c424439aa",
+    "92586a2e4262cb34cd8885db5274957b0e3fb32e0b411f1d59d8d64e67980054",
+    "695a51db212e5e54d2d5fc7404f26760bbdba94fcec4d666d32020cf729df51e",
+    "48a61c71b2bdcab79401c486cd0c3b45a8f6661cf33d8c7f118fbff06cbaed72",
+    "7d75bcdfc0a10866f846ddd0fe9c20e0daca06c37126c0751bb5f294f76143d9"
+  ],
+  "limitation": "Exact official EA machine template is not retained. This equivalent covers only Q1/Q4 scenario evidence and does not claim generic EA compliance.",
+  "generatedAt": "2026-08-28T16:56:20.007Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

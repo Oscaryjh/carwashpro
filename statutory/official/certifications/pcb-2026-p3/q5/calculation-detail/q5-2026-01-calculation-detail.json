@@ -1,0 +1,66 @@
+{
+  "artifactType": "CALCULATION_DETAIL",
+  "status": "CERTIFICATION_READY",
+  "questionId": "Q5",
+  "employeeLabel": "Employee E",
+  "month": "2026-01",
+  "source": {
+    "officialTestingQuestionSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+    "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+    "p2InputDigest": "53e5bd969c82b9e8ccbb7a8eac1165edfa100dff4e355751099fb4092b53cda8",
+    "p2TraceDigest": "a4e510af3eac1bfbc622b8733c7f9cfa2218b4fc99238d6c2eb5ea3416cd7f7b",
+    "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+    "ruleVersion": "HASIL_MTD_SPEC_2026"
+  },
+  "facts": {
+    "taxRegime": "KNOWLEDGE_WORKER",
+    "employeeCategory": "CATEGORY_1",
+    "normalRemunerationCents": 1800000,
+    "additionalRemunerationCents": 0,
+    "nonCashOrExemptContext": [
+      "RM500 monthly housing-loan interest",
+      "food-waste grinder",
+      "gym",
+      "internet"
+    ],
+    "currentEmployerYtdBeforeCurrentCents": 0,
+    "previousEmployerRemunerationCents": 0,
+    "previousEmployerEpfCents": 0,
+    "previousEmployerPcbCents": 0,
+    "currentNormalEpfCents": 198000,
+    "currentAdditionalEpfCents": 0,
+    "accumulatedTp1DeductionsCents": 0,
+    "currentTp1DeductionsCents": 232000,
+    "housingLoanInterestReliefCents": 50000,
+    "spouseReliefCents": 0,
+    "childReliefCents": 0,
+    "chargeableIncomeCents": 20068007,
+    "bracketMCents": 0,
+    "taxRatePercent": 15,
+    "bracketBCents": 0,
+    "annualTaxCents": 3010201,
+    "accumulatedZakatCents": 0,
+    "currentZakatCents": 0,
+    "currentReligiousTravelLevyCents": 0,
+    "normalPcbBeforeCurrentRebatesCents": 250850,
+    "normalPcbAfterCurrentRebatesCents": 250850,
+    "additionalPcbCents": 0,
+    "finalPcbCents": 250850
+  },
+  "rounding": {
+    "rawNumeratorCents": 3010201,
+    "divisor": 12,
+    "truncatedToSenCents": 250850,
+    "minimumThresholdApplied": false,
+    "roundedUpToFiveSenCents": 250850,
+    "postZakatAndLevyCents": 250850,
+    "additional": null
+  },
+  "officialSections": [
+    "Computerised Specification 2026: Knowledge Worker in the Specified Region",
+    "Computerised Specification 2026: Terms and Conditions"
+  ],
+  "generatedAt": "2026-08-28T16:56:20.007Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

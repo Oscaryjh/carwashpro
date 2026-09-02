@@ -1,0 +1,763 @@
+{
+  "question": "Q4",
+  "status": "CERTIFIED",
+  "employee": "Employee D",
+  "sourcePage": 6,
+  "sourceSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+  "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+  "requiredMonths": [
+    8,
+    10,
+    11,
+    12
+  ],
+  "monthsCertified": [
+    "2026-08",
+    "2026-09",
+    "2026-10",
+    "2026-11",
+    "2026-12"
+  ],
+  "finalDifference": "RM0.00",
+  "records": [
+    {
+      "question": "Q4",
+      "month": "2026-08",
+      "requiredDocumentMonth": true,
+      "tetamuPcbCents": 330000,
+      "tetamuPcb": "RM3300.00",
+      "independentPcbCents": 330000,
+      "independentPcb": "RM3300.00",
+      "differenceCents": 0,
+      "difference": "RM0.00",
+      "result": "PASS",
+      "inputDigest": "59f602a9d24d1c6921fdf24ab569e8721bf2fcd9834aae450303d9eb659a7146",
+      "ruleVersion": "HASIL_MTD_SPEC_2026",
+      "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+      "independentVerifierVersion": "HASIL_2026_P2_INDEPENDENT_1.0.0",
+      "profileRevision": 1,
+      "tetamuTraceDigest": "bba243f4f79ec64395c7cb0508fd4fb77eabc0fb3b92ce92ff56b53c424439aa",
+      "independentTraceDigest": "f46b75fbb2cc2f0d3127d948a5e484c65ba8fd9486f0bc0e5b7c7e4e8a4266cc",
+      "tags": [
+        "RM1,000 VOLA",
+        "EPF off"
+      ],
+      "housingLoanInterestReliefCents": 0,
+      "otherAllowableDeductionsCents": 0,
+      "intermediate": {
+        "normalRemunerationCents": {
+          "tetamu": 1100000,
+          "independent": 1100000
+        },
+        "additionalRemunerationCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "projectedEpfCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "deductionsCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "chargeableIncomeCents": {
+          "tetamu": 1100000,
+          "independent": 1100000
+        },
+        "taxRatePercent": {
+          "tetamu": 30,
+          "independent": 30
+        },
+        "annualTaxCents": {
+          "tetamu": 330000,
+          "independent": 330000
+        },
+        "preRoundMtdCents": {
+          "tetamu": 330000,
+          "independent": 330000
+        },
+        "roundedMtdCents": {
+          "tetamu": 330000,
+          "independent": 330000
+        },
+        "finalPcbCents": {
+          "tetamu": 330000,
+          "independent": 330000
+        }
+      },
+      "tetamuTrace": {
+        "ruleVersion": "HASIL_MTD_SPEC_2026",
+        "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+        "taxYear": 2026,
+        "calculationMonth": 8,
+        "remainingMonths": 4,
+        "remainingMonthsIncludingCurrent": 5,
+        "taxRegime": "NON_RESIDENT",
+        "employeeCategory": "CATEGORY_2",
+        "priorGrossRemunerationCents": 0,
+        "priorEpfCents": 0,
+        "priorPcbCents": 0,
+        "currentNormalRemunerationCents": 1100000,
+        "currentNormalEpfCents": 0,
+        "currentAdditionalRemunerationCents": 0,
+        "currentAdditionalEpfCents": 0,
+        "accumulatedZakatCents": 0,
+        "currentZakatCents": 0,
+        "currentReligiousTravelLevyCents": 0,
+        "baseIndividualReliefCents": 0,
+        "spouseReliefCents": 0,
+        "individualDisabilityReliefCents": 0,
+        "spouseDisabilityReliefCents": 0,
+        "childReliefCents": 0,
+        "accumulatedAllowableDeductionsCents": 0,
+        "currentAllowableDeductionsCents": 0,
+        "normalProjectedEpfCents": 0,
+        "normalChargeableIncomeCents": 1100000,
+        "normalBracket": {
+          "chargeableIncomeCents": 1100000,
+          "mCents": 0,
+          "ratePercent": 30,
+          "bCents": 0,
+          "annualTaxCents": 330000
+        },
+        "normalMtdBeforeCurrentRebatesCents": 330000,
+        "normalMtdAfterCurrentRebatesCents": 330000,
+        "normalRounding": {
+          "rawNumeratorCents": 33000000,
+          "rawDivisor": 100,
+          "truncatedToSenCents": 330000,
+          "minimumThresholdApplied": false,
+          "roundedUpToFiveSenCents": 330000,
+          "postZakatAndLevyCents": 330000
+        },
+        "additionalProjectedEpfCents": null,
+        "additionalChargeableIncomeCents": null,
+        "additionalBracket": null,
+        "totalProjectedNormalMtdCents": null,
+        "additionalMtdCents": 0,
+        "additionalRounding": null,
+        "finalPcbCents": 330000,
+        "officialSections": [
+          "Computerised Specification 2026: Non-Resident Employee"
+        ]
+      },
+      "independentTrace": {
+        "projectedEpfWithoutAdditionalCents": 0,
+        "projectedEpfWithAdditionalCents": null,
+        "totalReliefCents": 0,
+        "normalChargeableIncomeCents": 1100000,
+        "normalAnnualTaxCents": 330000,
+        "normalRatePercent": 30,
+        "normalBCents": 0,
+        "normalRounding": {
+          "rawNumeratorCents": 33000000,
+          "divisor": 100,
+          "truncatedToSenCents": 330000,
+          "belowRm10Suppressed": false,
+          "roundedUpToFiveSenCents": 330000,
+          "postCurrentZakatAndLevyCents": 330000
+        },
+        "additionalChargeableIncomeCents": null,
+        "additionalAnnualTaxCents": null,
+        "projectedNormalMtdCents": null,
+        "additionalRounding": null,
+        "finalPcbCents": 330000
+      }
+    },
+    {
+      "question": "Q4",
+      "month": "2026-09",
+      "requiredDocumentMonth": false,
+      "tetamuPcbCents": 330000,
+      "tetamuPcb": "RM3300.00",
+      "independentPcbCents": 330000,
+      "independentPcb": "RM3300.00",
+      "differenceCents": 0,
+      "difference": "RM0.00",
+      "result": "PASS",
+      "inputDigest": "cd649bfd95b48b158be549cffed439f5f8418beca61f7b6571bff6afb9cf0583",
+      "ruleVersion": "HASIL_MTD_SPEC_2026",
+      "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+      "independentVerifierVersion": "HASIL_2026_P2_INDEPENDENT_1.0.0",
+      "profileRevision": 1,
+      "tetamuTraceDigest": "92586a2e4262cb34cd8885db5274957b0e3fb32e0b411f1d59d8d64e67980054",
+      "independentTraceDigest": "f46b75fbb2cc2f0d3127d948a5e484c65ba8fd9486f0bc0e5b7c7e4e8a4266cc",
+      "tags": [
+        "RM1,000 VOLA",
+        "EPF off"
+      ],
+      "housingLoanInterestReliefCents": 0,
+      "otherAllowableDeductionsCents": 0,
+      "intermediate": {
+        "normalRemunerationCents": {
+          "tetamu": 1100000,
+          "independent": 1100000
+        },
+        "additionalRemunerationCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "projectedEpfCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "deductionsCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "chargeableIncomeCents": {
+          "tetamu": 1100000,
+          "independent": 1100000
+        },
+        "taxRatePercent": {
+          "tetamu": 30,
+          "independent": 30
+        },
+        "annualTaxCents": {
+          "tetamu": 330000,
+          "independent": 330000
+        },
+        "preRoundMtdCents": {
+          "tetamu": 330000,
+          "independent": 330000
+        },
+        "roundedMtdCents": {
+          "tetamu": 330000,
+          "independent": 330000
+        },
+        "finalPcbCents": {
+          "tetamu": 330000,
+          "independent": 330000
+        }
+      },
+      "tetamuTrace": {
+        "ruleVersion": "HASIL_MTD_SPEC_2026",
+        "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+        "taxYear": 2026,
+        "calculationMonth": 9,
+        "remainingMonths": 3,
+        "remainingMonthsIncludingCurrent": 4,
+        "taxRegime": "NON_RESIDENT",
+        "employeeCategory": "CATEGORY_2",
+        "priorGrossRemunerationCents": 1100000,
+        "priorEpfCents": 0,
+        "priorPcbCents": 330000,
+        "currentNormalRemunerationCents": 1100000,
+        "currentNormalEpfCents": 0,
+        "currentAdditionalRemunerationCents": 0,
+        "currentAdditionalEpfCents": 0,
+        "accumulatedZakatCents": 0,
+        "currentZakatCents": 0,
+        "currentReligiousTravelLevyCents": 0,
+        "baseIndividualReliefCents": 0,
+        "spouseReliefCents": 0,
+        "individualDisabilityReliefCents": 0,
+        "spouseDisabilityReliefCents": 0,
+        "childReliefCents": 0,
+        "accumulatedAllowableDeductionsCents": 0,
+        "currentAllowableDeductionsCents": 0,
+        "normalProjectedEpfCents": 0,
+        "normalChargeableIncomeCents": 1100000,
+        "normalBracket": {
+          "chargeableIncomeCents": 1100000,
+          "mCents": 0,
+          "ratePercent": 30,
+          "bCents": 0,
+          "annualTaxCents": 330000
+        },
+        "normalMtdBeforeCurrentRebatesCents": 330000,
+        "normalMtdAfterCurrentRebatesCents": 330000,
+        "normalRounding": {
+          "rawNumeratorCents": 33000000,
+          "rawDivisor": 100,
+          "truncatedToSenCents": 330000,
+          "minimumThresholdApplied": false,
+          "roundedUpToFiveSenCents": 330000,
+          "postZakatAndLevyCents": 330000
+        },
+        "additionalProjectedEpfCents": null,
+        "additionalChargeableIncomeCents": null,
+        "additionalBracket": null,
+        "totalProjectedNormalMtdCents": null,
+        "additionalMtdCents": 0,
+        "additionalRounding": null,
+        "finalPcbCents": 330000,
+        "officialSections": [
+          "Computerised Specification 2026: Non-Resident Employee"
+        ]
+      },
+      "independentTrace": {
+        "projectedEpfWithoutAdditionalCents": 0,
+        "projectedEpfWithAdditionalCents": null,
+        "totalReliefCents": 0,
+        "normalChargeableIncomeCents": 1100000,
+        "normalAnnualTaxCents": 330000,
+        "normalRatePercent": 30,
+        "normalBCents": 0,
+        "normalRounding": {
+          "rawNumeratorCents": 33000000,
+          "divisor": 100,
+          "truncatedToSenCents": 330000,
+          "belowRm10Suppressed": false,
+          "roundedUpToFiveSenCents": 330000,
+          "postCurrentZakatAndLevyCents": 330000
+        },
+        "additionalChargeableIncomeCents": null,
+        "additionalAnnualTaxCents": null,
+        "projectedNormalMtdCents": null,
+        "additionalRounding": null,
+        "finalPcbCents": 330000
+      }
+    },
+    {
+      "question": "Q4",
+      "month": "2026-10",
+      "requiredDocumentMonth": true,
+      "tetamuPcbCents": 330000,
+      "tetamuPcb": "RM3300.00",
+      "independentPcbCents": 330000,
+      "independentPcb": "RM3300.00",
+      "differenceCents": 0,
+      "difference": "RM0.00",
+      "result": "PASS",
+      "inputDigest": "e27fd07b0b3f0d0b0887e4a32083dc4839590fae3594cae744f56333c7021a25",
+      "ruleVersion": "HASIL_MTD_SPEC_2026",
+      "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+      "independentVerifierVersion": "HASIL_2026_P2_INDEPENDENT_1.0.0",
+      "profileRevision": 1,
+      "tetamuTraceDigest": "695a51db212e5e54d2d5fc7404f26760bbdba94fcec4d666d32020cf729df51e",
+      "independentTraceDigest": "f46b75fbb2cc2f0d3127d948a5e484c65ba8fd9486f0bc0e5b7c7e4e8a4266cc",
+      "tags": [
+        "RM1,000 VOLA",
+        "EPF off"
+      ],
+      "housingLoanInterestReliefCents": 0,
+      "otherAllowableDeductionsCents": 0,
+      "intermediate": {
+        "normalRemunerationCents": {
+          "tetamu": 1100000,
+          "independent": 1100000
+        },
+        "additionalRemunerationCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "projectedEpfCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "deductionsCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "chargeableIncomeCents": {
+          "tetamu": 1100000,
+          "independent": 1100000
+        },
+        "taxRatePercent": {
+          "tetamu": 30,
+          "independent": 30
+        },
+        "annualTaxCents": {
+          "tetamu": 330000,
+          "independent": 330000
+        },
+        "preRoundMtdCents": {
+          "tetamu": 330000,
+          "independent": 330000
+        },
+        "roundedMtdCents": {
+          "tetamu": 330000,
+          "independent": 330000
+        },
+        "finalPcbCents": {
+          "tetamu": 330000,
+          "independent": 330000
+        }
+      },
+      "tetamuTrace": {
+        "ruleVersion": "HASIL_MTD_SPEC_2026",
+        "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+        "taxYear": 2026,
+        "calculationMonth": 10,
+        "remainingMonths": 2,
+        "remainingMonthsIncludingCurrent": 3,
+        "taxRegime": "NON_RESIDENT",
+        "employeeCategory": "CATEGORY_2",
+        "priorGrossRemunerationCents": 2200000,
+        "priorEpfCents": 0,
+        "priorPcbCents": 660000,
+        "currentNormalRemunerationCents": 1100000,
+        "currentNormalEpfCents": 0,
+        "currentAdditionalRemunerationCents": 0,
+        "currentAdditionalEpfCents": 0,
+        "accumulatedZakatCents": 0,
+        "currentZakatCents": 0,
+        "currentReligiousTravelLevyCents": 0,
+        "baseIndividualReliefCents": 0,
+        "spouseReliefCents": 0,
+        "individualDisabilityReliefCents": 0,
+        "spouseDisabilityReliefCents": 0,
+        "childReliefCents": 0,
+        "accumulatedAllowableDeductionsCents": 0,
+        "currentAllowableDeductionsCents": 0,
+        "normalProjectedEpfCents": 0,
+        "normalChargeableIncomeCents": 1100000,
+        "normalBracket": {
+          "chargeableIncomeCents": 1100000,
+          "mCents": 0,
+          "ratePercent": 30,
+          "bCents": 0,
+          "annualTaxCents": 330000
+        },
+        "normalMtdBeforeCurrentRebatesCents": 330000,
+        "normalMtdAfterCurrentRebatesCents": 330000,
+        "normalRounding": {
+          "rawNumeratorCents": 33000000,
+          "rawDivisor": 100,
+          "truncatedToSenCents": 330000,
+          "minimumThresholdApplied": false,
+          "roundedUpToFiveSenCents": 330000,
+          "postZakatAndLevyCents": 330000
+        },
+        "additionalProjectedEpfCents": null,
+        "additionalChargeableIncomeCents": null,
+        "additionalBracket": null,
+        "totalProjectedNormalMtdCents": null,
+        "additionalMtdCents": 0,
+        "additionalRounding": null,
+        "finalPcbCents": 330000,
+        "officialSections": [
+          "Computerised Specification 2026: Non-Resident Employee"
+        ]
+      },
+      "independentTrace": {
+        "projectedEpfWithoutAdditionalCents": 0,
+        "projectedEpfWithAdditionalCents": null,
+        "totalReliefCents": 0,
+        "normalChargeableIncomeCents": 1100000,
+        "normalAnnualTaxCents": 330000,
+        "normalRatePercent": 30,
+        "normalBCents": 0,
+        "normalRounding": {
+          "rawNumeratorCents": 33000000,
+          "divisor": 100,
+          "truncatedToSenCents": 330000,
+          "belowRm10Suppressed": false,
+          "roundedUpToFiveSenCents": 330000,
+          "postCurrentZakatAndLevyCents": 330000
+        },
+        "additionalChargeableIncomeCents": null,
+        "additionalAnnualTaxCents": null,
+        "projectedNormalMtdCents": null,
+        "additionalRounding": null,
+        "finalPcbCents": 330000
+      }
+    },
+    {
+      "question": "Q4",
+      "month": "2026-11",
+      "requiredDocumentMonth": true,
+      "tetamuPcbCents": 0,
+      "tetamuPcb": "RM0.00",
+      "independentPcbCents": 0,
+      "independentPcb": "RM0.00",
+      "differenceCents": 0,
+      "difference": "RM0.00",
+      "result": "PASS",
+      "inputDigest": "8c7451694ffb7e289f343d17b1f5f138385a130d517693815e5c0f2fb46ab630",
+      "ruleVersion": "HASIL_MTD_SPEC_2026",
+      "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+      "independentVerifierVersion": "HASIL_2026_P2_INDEPENDENT_1.0.0",
+      "profileRevision": 1,
+      "tetamuTraceDigest": "48a61c71b2bdcab79401c486cd0c3b45a8f6661cf33d8c7f118fbff06cbaed72",
+      "independentTraceDigest": "424228776974930ee3decabd982b3fc7657e27bd286b1508a4916236bafe1356",
+      "tags": [
+        "RM1,500 VOLA",
+        "EPF on",
+        "medical",
+        "study",
+        "medical insurance"
+      ],
+      "housingLoanInterestReliefCents": 0,
+      "otherAllowableDeductionsCents": 355000,
+      "intermediate": {
+        "normalRemunerationCents": {
+          "tetamu": 1650000,
+          "independent": 1650000
+        },
+        "additionalRemunerationCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "projectedEpfCents": {
+          "tetamu": 165000,
+          "independent": 165000
+        },
+        "deductionsCents": {
+          "tetamu": 355000,
+          "independent": 355000
+        },
+        "chargeableIncomeCents": {
+          "tetamu": 4215000,
+          "independent": 4215000
+        },
+        "taxRatePercent": {
+          "tetamu": 6,
+          "independent": 6
+        },
+        "annualTaxCents": {
+          "tetamu": 102900,
+          "independent": 102900
+        },
+        "preRoundMtdCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "roundedMtdCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "finalPcbCents": {
+          "tetamu": 0,
+          "independent": 0
+        }
+      },
+      "tetamuTrace": {
+        "ruleVersion": "HASIL_MTD_SPEC_2026",
+        "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+        "taxYear": 2026,
+        "calculationMonth": 11,
+        "remainingMonths": 1,
+        "remainingMonthsIncludingCurrent": 2,
+        "taxRegime": "RESIDENT_STANDARD",
+        "employeeCategory": "CATEGORY_2",
+        "priorGrossRemunerationCents": 3300000,
+        "priorEpfCents": 0,
+        "priorPcbCents": 990000,
+        "currentNormalRemunerationCents": 1650000,
+        "currentNormalEpfCents": 165000,
+        "currentAdditionalRemunerationCents": 0,
+        "currentAdditionalEpfCents": 0,
+        "accumulatedZakatCents": 0,
+        "currentZakatCents": 0,
+        "currentReligiousTravelLevyCents": 0,
+        "baseIndividualReliefCents": 900000,
+        "spouseReliefCents": 400000,
+        "individualDisabilityReliefCents": 0,
+        "spouseDisabilityReliefCents": 0,
+        "childReliefCents": 400000,
+        "accumulatedAllowableDeductionsCents": 0,
+        "currentAllowableDeductionsCents": 355000,
+        "normalProjectedEpfCents": 165000,
+        "normalChargeableIncomeCents": 4215000,
+        "normalBracket": {
+          "chargeableIncomeCents": 4215000,
+          "mCents": 3500000,
+          "ratePercent": 6,
+          "bCents": 60000,
+          "annualTaxCents": 102900
+        },
+        "normalMtdBeforeCurrentRebatesCents": 0,
+        "normalMtdAfterCurrentRebatesCents": 0,
+        "normalRounding": {
+          "rawNumeratorCents": -887100,
+          "rawDivisor": 2,
+          "truncatedToSenCents": 0,
+          "minimumThresholdApplied": true,
+          "roundedUpToFiveSenCents": 0,
+          "postZakatAndLevyCents": 0
+        },
+        "additionalProjectedEpfCents": null,
+        "additionalChargeableIncomeCents": null,
+        "additionalBracket": null,
+        "totalProjectedNormalMtdCents": null,
+        "additionalMtdCents": 0,
+        "additionalRounding": null,
+        "finalPcbCents": 0,
+        "officialSections": [
+          "Computerised Specification 2026: Normal Remuneration Formula",
+          "Computerised Specification 2026: Additional Remuneration Steps 1-5",
+          "Computerised Specification 2026: Table 1",
+          "Computerised Specification 2026: Conditions for Computerised Calculation"
+        ]
+      },
+      "independentTrace": {
+        "projectedEpfWithoutAdditionalCents": 165000,
+        "projectedEpfWithAdditionalCents": null,
+        "totalReliefCents": 2055000,
+        "normalChargeableIncomeCents": 4215000,
+        "normalAnnualTaxCents": 102900,
+        "normalRatePercent": 6,
+        "normalBCents": 60000,
+        "normalRounding": {
+          "rawNumeratorCents": -887100,
+          "divisor": 2,
+          "truncatedToSenCents": 0,
+          "belowRm10Suppressed": true,
+          "roundedUpToFiveSenCents": 0,
+          "postCurrentZakatAndLevyCents": 0
+        },
+        "additionalChargeableIncomeCents": null,
+        "additionalAnnualTaxCents": null,
+        "projectedNormalMtdCents": null,
+        "additionalRounding": null,
+        "finalPcbCents": 0
+      }
+    },
+    {
+      "question": "Q4",
+      "month": "2026-12",
+      "requiredDocumentMonth": true,
+      "tetamuPcbCents": 0,
+      "tetamuPcb": "RM0.00",
+      "independentPcbCents": 0,
+      "independentPcb": "RM0.00",
+      "differenceCents": 0,
+      "difference": "RM0.00",
+      "result": "PASS",
+      "inputDigest": "c447f7de2fdba44aaf731fde55110272c020a26ad11dcbc4a2ae1557f07148cb",
+      "ruleVersion": "HASIL_MTD_SPEC_2026",
+      "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+      "independentVerifierVersion": "HASIL_2026_P2_INDEPENDENT_1.0.0",
+      "profileRevision": 1,
+      "tetamuTraceDigest": "7d75bcdfc0a10866f846ddd0fe9c20e0daca06c37126c0751bb5f294f76143d9",
+      "independentTraceDigest": "2618ec0aa29664800979797e67c1a02e755dd9fee1f2c4700817a34b29907118",
+      "tags": [
+        "RM1,500 VOLA",
+        "EPF on",
+        "lifestyle capped at RM2,500",
+        "medical insurance"
+      ],
+      "housingLoanInterestReliefCents": 0,
+      "otherAllowableDeductionsCents": 305000,
+      "intermediate": {
+        "normalRemunerationCents": {
+          "tetamu": 1650000,
+          "independent": 1650000
+        },
+        "additionalRemunerationCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "projectedEpfCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "deductionsCents": {
+          "tetamu": 660000,
+          "independent": 660000
+        },
+        "chargeableIncomeCents": {
+          "tetamu": 3910000,
+          "independent": 3910000
+        },
+        "taxRatePercent": {
+          "tetamu": 6,
+          "independent": 6
+        },
+        "annualTaxCents": {
+          "tetamu": 84600,
+          "independent": 84600
+        },
+        "preRoundMtdCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "roundedMtdCents": {
+          "tetamu": 0,
+          "independent": 0
+        },
+        "finalPcbCents": {
+          "tetamu": 0,
+          "independent": 0
+        }
+      },
+      "tetamuTrace": {
+        "ruleVersion": "HASIL_MTD_SPEC_2026",
+        "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+        "taxYear": 2026,
+        "calculationMonth": 12,
+        "remainingMonths": 0,
+        "remainingMonthsIncludingCurrent": 1,
+        "taxRegime": "RESIDENT_STANDARD",
+        "employeeCategory": "CATEGORY_2",
+        "priorGrossRemunerationCents": 4950000,
+        "priorEpfCents": 165000,
+        "priorPcbCents": 990000,
+        "currentNormalRemunerationCents": 1650000,
+        "currentNormalEpfCents": 165000,
+        "currentAdditionalRemunerationCents": 0,
+        "currentAdditionalEpfCents": 0,
+        "accumulatedZakatCents": 0,
+        "currentZakatCents": 0,
+        "currentReligiousTravelLevyCents": 0,
+        "baseIndividualReliefCents": 900000,
+        "spouseReliefCents": 400000,
+        "individualDisabilityReliefCents": 0,
+        "spouseDisabilityReliefCents": 0,
+        "childReliefCents": 400000,
+        "accumulatedAllowableDeductionsCents": 355000,
+        "currentAllowableDeductionsCents": 305000,
+        "normalProjectedEpfCents": 0,
+        "normalChargeableIncomeCents": 3910000,
+        "normalBracket": {
+          "chargeableIncomeCents": 3910000,
+          "mCents": 3500000,
+          "ratePercent": 6,
+          "bCents": 60000,
+          "annualTaxCents": 84600
+        },
+        "normalMtdBeforeCurrentRebatesCents": 0,
+        "normalMtdAfterCurrentRebatesCents": 0,
+        "normalRounding": {
+          "rawNumeratorCents": -905400,
+          "rawDivisor": 1,
+          "truncatedToSenCents": 0,
+          "minimumThresholdApplied": true,
+          "roundedUpToFiveSenCents": 0,
+          "postZakatAndLevyCents": 0
+        },
+        "additionalProjectedEpfCents": null,
+        "additionalChargeableIncomeCents": null,
+        "additionalBracket": null,
+        "totalProjectedNormalMtdCents": null,
+        "additionalMtdCents": 0,
+        "additionalRounding": null,
+        "finalPcbCents": 0,
+        "officialSections": [
+          "Computerised Specification 2026: Normal Remuneration Formula",
+          "Computerised Specification 2026: Additional Remuneration Steps 1-5",
+          "Computerised Specification 2026: Table 1",
+          "Computerised Specification 2026: Conditions for Computerised Calculation"
+        ]
+      },
+      "independentTrace": {
+        "projectedEpfWithoutAdditionalCents": 0,
+        "projectedEpfWithAdditionalCents": null,
+        "totalReliefCents": 2360000,
+        "normalChargeableIncomeCents": 3910000,
+        "normalAnnualTaxCents": 84600,
+        "normalRatePercent": 6,
+        "normalBCents": 60000,
+        "normalRounding": {
+          "rawNumeratorCents": -905400,
+          "divisor": 1,
+          "truncatedToSenCents": 0,
+          "belowRm10Suppressed": true,
+          "roundedUpToFiveSenCents": 0,
+          "postCurrentZakatAndLevyCents": 0
+        },
+        "additionalChargeableIncomeCents": null,
+        "additionalAnnualTaxCents": null,
+        "projectedNormalMtdCents": null,
+        "additionalRounding": null,
+        "finalPcbCents": 0
+      }
+    }
+  ],
+  "hasilClarification": null,
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "generatedAt": "2026-08-28T16:24:57.417Z"
+}

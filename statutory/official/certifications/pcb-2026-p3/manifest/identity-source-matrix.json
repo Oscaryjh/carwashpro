@@ -1,0 +1,516 @@
+{
+  "authority": [
+    "HASiL Computerised Calculation Specification 2026 Exhibit 3, printed page 42",
+    "HASiL Computerised Calculation Specification 2026 Exhibits 4-5, printed pages 43-44",
+    "HASiL MTD Testing Questions 2026"
+  ],
+  "rows": [
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "officialField": "Employer No. (HQ)",
+      "start": 2,
+      "end": 11,
+      "length": 10,
+      "type": "Num",
+      "rule": "Required; right justify with zeroes",
+      "source": "Applicant"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "officialField": "Employer No.",
+      "start": 12,
+      "end": 21,
+      "length": 10,
+      "type": "Num",
+      "rule": "Required; right justify with zeroes",
+      "source": "Applicant"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "officialField": "Tax Identification Number",
+      "start": 2,
+      "end": 12,
+      "length": 11,
+      "type": "Num",
+      "rule": "Mandatory; left justify with zeroes to 11 digits",
+      "source": "Employee certification identity"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "officialField": "Employee's Name",
+      "start": 13,
+      "end": 72,
+      "length": 60,
+      "type": "Alphabet",
+      "rule": "Required; full name as IC/passport; left justify with spaces",
+      "source": "Official question plus applicant verification"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "officialField": "Old IC No.",
+      "start": 73,
+      "end": 84,
+      "length": 12,
+      "type": "Alphanum",
+      "rule": "Valid value or blank when not applicable",
+      "source": "Employee certification identity"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "officialField": "New IC No.",
+      "start": 85,
+      "end": 96,
+      "length": 12,
+      "type": "Num",
+      "rule": "Valid 12 digits without hyphens or blank when not applicable",
+      "source": "Employee certification identity"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "officialField": "Passport No.",
+      "start": 97,
+      "end": 108,
+      "length": 12,
+      "type": "Alphanum",
+      "rule": "Valid value or blank when not applicable",
+      "source": "Employee certification identity"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "officialField": "Country Code",
+      "start": 109,
+      "end": 110,
+      "length": 2,
+      "type": "Alphabet",
+      "rule": "Required for foreign passport; must use HASiL country-code list",
+      "source": "Employee certification identity plus retained code list"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "officialField": "Employee No. or Salary No.",
+      "start": 127,
+      "end": 136,
+      "length": 10,
+      "type": "Alphanum",
+      "rule": "Required; left justify",
+      "source": "Applicant-assigned employee code"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "officialField": "Cawangan",
+      "required": true,
+      "format": "No explicit width or code rule in Exhibit 3",
+      "source": "Applicant"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "officialField": "Tarikh",
+      "required": true,
+      "format": "Date; no explicit format stated in Exhibit 3",
+      "source": "Applicant"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "officialField": "Potongan Cukai Yang Dibuat Dalam Tahun",
+      "required": true,
+      "format": "Four-digit year",
+      "source": "Certified question year"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "officialField": "Nama Pekerja",
+      "required": true,
+      "format": "Employee name",
+      "source": "Official question plus applicant verification"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "officialField": "No. Kad Pengenalan/No. Passpot",
+      "required": true,
+      "format": "Valid IC or passport identity",
+      "source": "Employee certification identity"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "officialField": "No. Pengenalan Cukai Pekerja (IG)",
+      "required": true,
+      "format": "Employee tax identification number",
+      "source": "Employee certification identity"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "officialField": "No. Pekerja",
+      "required": true,
+      "format": "Employer-assigned employee number",
+      "source": "Applicant"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "officialField": "No. Majikan (E)",
+      "required": true,
+      "format": "Employer number",
+      "source": "Applicant"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "officialField": "Nama pegawai",
+      "required": true,
+      "format": "No explicit format in Exhibit 3",
+      "source": "Applicant"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "officialField": "Jawatan",
+      "required": true,
+      "format": "No explicit format in Exhibit 3",
+      "source": "Applicant"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "officialField": "No. Telefon",
+      "required": true,
+      "format": "No explicit format in Exhibit 3",
+      "source": "Applicant"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "officialField": "Nama Dan Alamat Majikan",
+      "required": true,
+      "format": "Employer name and address",
+      "source": "Applicant"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q1",
+      "officialField": "fullName",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q1.fullName",
+      "sourceAvailable": true,
+      "provenance": "OFFICIAL_QUESTION",
+      "status": "AVAILABLE",
+      "officialSource": "Testing Questions 2026 Question 1"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q1",
+      "officialField": "employeeNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q1.employeeNumber",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 field 19"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q1",
+      "officialField": "taxIdentificationNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q1.taxIdentificationNumber",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 field 11"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q1",
+      "officialField": "identityType",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q1.identityType",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 fields 13-16"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q1",
+      "officialField": "identityNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q1.identityNumber",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 fields 13-15"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q1",
+      "officialField": "passportCountryCode",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q1.passportCountryCode",
+      "sourceAvailable": false,
+      "provenance": "ALLOWED_BLANK",
+      "status": "CLARIFICATION_REQUIRED",
+      "officialSource": "Exhibit 4 field 16; blank only if identity is not passport"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "questionId": "Q2",
+      "officialField": "fullName",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q2.fullName",
+      "sourceAvailable": true,
+      "provenance": "OFFICIAL_QUESTION",
+      "status": "AVAILABLE",
+      "officialSource": "Testing Questions 2026 Question 2"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "questionId": "Q2",
+      "officialField": "employeeNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q2.employeeNumber",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 3: No. Pekerja"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "questionId": "Q2",
+      "officialField": "taxIdentificationNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q2.taxIdentificationNumber",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 3: No. Pengenalan Cukai Pekerja (IG)"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "questionId": "Q2",
+      "officialField": "identityType",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q2.identityType",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 3: No. Kad Pengenalan/No. Passpot"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "questionId": "Q2",
+      "officialField": "identityNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q2.identityNumber",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 3: No. Kad Pengenalan/No. Passpot"
+    },
+    {
+      "artifact": "PCB_2II_EXHIBIT_3",
+      "questionId": "Q2",
+      "officialField": "passportCountryCode",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q2.passportCountryCode",
+      "sourceAvailable": false,
+      "provenance": "ALLOWED_BLANK",
+      "status": "NOT_REQUIRED",
+      "officialSource": "Exhibit 3 has no separate passport-country field"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q3",
+      "officialField": "fullName",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q3.fullName",
+      "sourceAvailable": true,
+      "provenance": "OFFICIAL_QUESTION",
+      "status": "AVAILABLE",
+      "officialSource": "Testing Questions 2026 Question 3"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q3",
+      "officialField": "employeeNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q3.employeeNumber",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 field 19"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q3",
+      "officialField": "taxIdentificationNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q3.taxIdentificationNumber",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 field 11"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q3",
+      "officialField": "identityType",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q3.identityType",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 fields 13-16"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q3",
+      "officialField": "identityNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q3.identityNumber",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 fields 13-15"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q3",
+      "officialField": "passportCountryCode",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q3.passportCountryCode",
+      "sourceAvailable": false,
+      "provenance": "ALLOWED_BLANK",
+      "status": "CLARIFICATION_REQUIRED",
+      "officialSource": "Exhibit 4 field 16; blank only if identity is not passport"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q4",
+      "officialField": "fullName",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q4.fullName",
+      "sourceAvailable": true,
+      "provenance": "OFFICIAL_QUESTION",
+      "status": "AVAILABLE",
+      "officialSource": "Testing Questions 2026 Question 4"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q4",
+      "officialField": "employeeNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q4.employeeNumber",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 field 19"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q4",
+      "officialField": "taxIdentificationNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q4.taxIdentificationNumber",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 field 11"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q4",
+      "officialField": "identityType",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q4.identityType",
+      "sourceAvailable": true,
+      "provenance": "OFFICIAL_QUESTION",
+      "status": "AVAILABLE",
+      "officialSource": "Testing Questions 2026 identifies Employee D as an Australian expatriate"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q4",
+      "officialField": "identityNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q4.identityNumber",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 4 field 15"
+    },
+    {
+      "artifact": "CP39_EXHIBIT_4",
+      "questionId": "Q4",
+      "officialField": "passportCountryCode",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q4.passportCountryCode",
+      "sourceAvailable": false,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "CLARIFICATION_REQUIRED",
+      "officialSource": "Exhibit 4 field 16 refers to a country-code list not retained with the specification"
+    },
+    {
+      "artifact": "NOT_REQUIRED",
+      "questionId": "Q5",
+      "officialField": "fullName",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q5.fullName",
+      "sourceAvailable": true,
+      "provenance": "OFFICIAL_QUESTION",
+      "status": "AVAILABLE",
+      "officialSource": "Testing Questions 2026 Question 5"
+    },
+    {
+      "artifact": "NOT_REQUIRED",
+      "questionId": "Q5",
+      "officialField": "employeeNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q5.employeeNumber",
+      "sourceAvailable": false,
+      "provenance": "ALLOWED_BLANK",
+      "status": "NOT_REQUIRED",
+      "officialSource": "No P3 Q5 identity-bearing artifact required"
+    },
+    {
+      "artifact": "NOT_REQUIRED",
+      "questionId": "Q5",
+      "officialField": "taxIdentificationNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q5.taxIdentificationNumber",
+      "sourceAvailable": false,
+      "provenance": "ALLOWED_BLANK",
+      "status": "NOT_REQUIRED",
+      "officialSource": "No P3 Q5 identity-bearing artifact required"
+    },
+    {
+      "artifact": "NOT_REQUIRED",
+      "questionId": "Q5",
+      "officialField": "identityType",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q5.identityType",
+      "sourceAvailable": false,
+      "provenance": "ALLOWED_BLANK",
+      "status": "NOT_REQUIRED",
+      "officialSource": "No P3 Q5 identity-bearing artifact required"
+    },
+    {
+      "artifact": "NOT_REQUIRED",
+      "questionId": "Q5",
+      "officialField": "identityNumber",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q5.identityNumber",
+      "sourceAvailable": false,
+      "provenance": "ALLOWED_BLANK",
+      "status": "NOT_REQUIRED",
+      "officialSource": "No P3 Q5 identity-bearing artifact required"
+    },
+    {
+      "artifact": "NOT_REQUIRED",
+      "questionId": "Q5",
+      "officialField": "passportCountryCode",
+      "currentTetamuField": null,
+      "certificationFixtureField": "employees.Q5.passportCountryCode",
+      "sourceAvailable": false,
+      "provenance": "ALLOWED_BLANK",
+      "status": "NOT_REQUIRED",
+      "officialSource": "No P3 Q5 identity-bearing artifact required"
+    }
+  ],
+  "generatedAt": "2026-08-28T16:56:20.007Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

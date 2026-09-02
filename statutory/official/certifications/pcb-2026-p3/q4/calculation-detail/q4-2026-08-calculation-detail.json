@@ -1,0 +1,63 @@
+{
+  "artifactType": "CALCULATION_DETAIL",
+  "status": "CERTIFICATION_READY",
+  "questionId": "Q4",
+  "employeeLabel": "Employee D",
+  "month": "2026-08",
+  "source": {
+    "officialTestingQuestionSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+    "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+    "p2InputDigest": "59f602a9d24d1c6921fdf24ab569e8721bf2fcd9834aae450303d9eb659a7146",
+    "p2TraceDigest": "bba243f4f79ec64395c7cb0508fd4fb77eabc0fb3b92ce92ff56b53c424439aa",
+    "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+    "ruleVersion": "HASIL_MTD_SPEC_2026"
+  },
+  "facts": {
+    "taxRegime": "NON_RESIDENT",
+    "employeeCategory": "CATEGORY_2",
+    "normalRemunerationCents": 1100000,
+    "additionalRemunerationCents": 0,
+    "nonCashOrExemptContext": [
+      "RM1,000 VOLA",
+      "EPF off"
+    ],
+    "currentEmployerYtdBeforeCurrentCents": 0,
+    "previousEmployerRemunerationCents": 0,
+    "previousEmployerEpfCents": 0,
+    "previousEmployerPcbCents": 0,
+    "currentNormalEpfCents": 0,
+    "currentAdditionalEpfCents": 0,
+    "accumulatedTp1DeductionsCents": 0,
+    "currentTp1DeductionsCents": 0,
+    "housingLoanInterestReliefCents": 0,
+    "spouseReliefCents": 0,
+    "childReliefCents": 0,
+    "chargeableIncomeCents": 1100000,
+    "bracketMCents": 0,
+    "taxRatePercent": 30,
+    "bracketBCents": 0,
+    "annualTaxCents": 330000,
+    "accumulatedZakatCents": 0,
+    "currentZakatCents": 0,
+    "currentReligiousTravelLevyCents": 0,
+    "normalPcbBeforeCurrentRebatesCents": 330000,
+    "normalPcbAfterCurrentRebatesCents": 330000,
+    "additionalPcbCents": 0,
+    "finalPcbCents": 330000
+  },
+  "rounding": {
+    "rawNumeratorCents": 33000000,
+    "divisor": 100,
+    "truncatedToSenCents": 330000,
+    "minimumThresholdApplied": false,
+    "roundedUpToFiveSenCents": 330000,
+    "postZakatAndLevyCents": 330000,
+    "additional": null
+  },
+  "officialSections": [
+    "Computerised Specification 2026: Non-Resident Employee"
+  ],
+  "generatedAt": "2026-08-28T16:56:20.007Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

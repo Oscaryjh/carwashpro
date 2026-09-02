@@ -222,10 +222,10 @@ function validateBusiness(
     errors.push({ code: "PERKESO_EMPLOYER_INVALID", message: "PERKESO employer code must contain exactly 12 letters or digits." });
   }
   if (provider === "PCB") {
-    if (!/^\d{10}$/.test(digits(profile.lhdnEmployerNumberHq))) {
+    if (!/^\d{10}$/.test(clean(profile.lhdnEmployerNumberHq))) {
       errors.push({ code: "LHDN_HQ_INVALID", message: "LHDN HQ employer number must contain exactly 10 digits." });
     }
-    if (!/^\d{10}$/.test(digits(profile.lhdnEmployerNumber))) {
+    if (!/^\d{10}$/.test(clean(profile.lhdnEmployerNumber))) {
       errors.push({ code: "LHDN_EMPLOYER_INVALID", message: "LHDN employer number must contain exactly 10 digits." });
     }
   }
@@ -249,13 +249,21 @@ function validateEmployee(
     if (!identifier || identifier.length > 12) issue("PERKESO_ID_INVALID", "SOCSO/identity number must be 1 to 12 letters or digits.");
   }
   if (provider === "PCB") {
-    if (!/^\d{11}$/.test(digits(entry.membership.taxIdentificationNumber))) issue("TIN_INVALID", "Tax Identification Number must contain exactly 11 digits.");
+    if (!/^\d{11}$/.test(clean(entry.membership.taxIdentificationNumber))) issue("TIN_INVALID", "Tax Identification Number must contain exactly 11 digits without separators.");
+    if (entry.membership.statutoryIdentityType === "OLD_IC" && (!/^[A-Za-z0-9]{1,12}$/.test(identity))) {
+      issue("OLD_IC_INVALID", "Old IC must contain 1 to 12 alphanumeric characters without separators.");
+    }
+    if (entry.membership.statutoryIdentityType === "PASSPORT" && (!/^[A-Za-z0-9]{1,12}$/.test(identity))) {
+      issue("PASSPORT_INVALID", "Passport must contain 1 to 12 alphanumeric characters without separators.");
+    }
+    if (entry.membership.statutoryIdentityType === "OTHER") issue("IDENTITY_TYPE_UNSUPPORTED", "CP39 supports New IC, Old IC or Passport identity only.");
     if (entry.membership.statutoryIdentityType === "PASSPORT" && !/^[A-Za-z]{2}$/.test(clean(entry.membership.statutoryCountryCode))) {
       issue("COUNTRY_CODE_INVALID", "Passport holders require a 2-letter LHDN country code.");
     }
-    if (!alnum(entry.employeeCode) || alnum(entry.employeeCode).length > 10) issue("EMPLOYEE_CODE_INVALID", "Employee code must be 1 to 10 letters or digits for CP39.");
+    if (!/^[A-Za-z0-9]{1,10}$/.test(clean(entry.employeeCode))) issue("EMPLOYEE_CODE_INVALID", "Employee code must be 1 to 10 letters or digits for CP39; silent stripping or truncation is forbidden.");
+    if (entry.fullName.length > 60) issue("EMPLOYEE_NAME_TOO_LONG", "Employee name exceeds the 60-character CP39 field; silent truncation is forbidden.");
   }
-  if (entry.fullName.length > (provider === "PERKESO" ? 150 : provider === "PCB" ? 60 : 120)) {
+  if (provider !== "PCB" && entry.fullName.length > (provider === "PERKESO" ? 150 : 120)) {
     warnings.push({ code: "NAME_TRUNCATED", message: `Name will be truncated in the ${providerLabel(provider)} file.`, employeeName: entry.fullName, membershipId: entry.membershipId });
   }
 }

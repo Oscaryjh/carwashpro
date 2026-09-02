@@ -1,5 +1,5 @@
 export const PCB_2026_RULE_VERSION = "HASIL_MTD_SPEC_2026" as const;
-export const PCB_2026_CALCULATOR_VERSION = "TETAMU_PCB_2026_1.1.0" as const;
+export const PCB_2026_CALCULATOR_VERSION = "TETAMU_PCB_2026_1.2.0" as const;
 
 export const PCB_2026_BLOCKERS = {
   INVALID_INPUT: "PCB_INPUT_INVALID",
@@ -61,6 +61,15 @@ export type Pcb2026BracketTrace = Readonly<{
   annualTaxCents: number;
 }>;
 
+export type Pcb2026RoundingTrace = Readonly<{
+  rawNumeratorCents: number;
+  rawDivisor: number;
+  truncatedToSenCents: number;
+  minimumThresholdApplied: boolean;
+  roundedUpToFiveSenCents: number;
+  postZakatAndLevyCents: number;
+}>;
+
 export type PCB2026CalculationTrace = Readonly<{
   ruleVersion: typeof PCB_2026_RULE_VERSION;
   calculatorVersion: typeof PCB_2026_CALCULATOR_VERSION;
@@ -70,6 +79,16 @@ export type PCB2026CalculationTrace = Readonly<{
   remainingMonthsIncludingCurrent: number;
   taxRegime: Pcb2026TaxRegime;
   employeeCategory: Pcb2026EmployeeCategory;
+  priorGrossRemunerationCents: number;
+  priorEpfCents: number;
+  priorPcbCents: number;
+  currentNormalRemunerationCents: number;
+  currentNormalEpfCents: number;
+  currentAdditionalRemunerationCents: number;
+  currentAdditionalEpfCents: number;
+  accumulatedZakatCents: number;
+  currentZakatCents: number;
+  currentReligiousTravelLevyCents: number;
   baseIndividualReliefCents: number;
   spouseReliefCents: number;
   individualDisabilityReliefCents: number;
@@ -82,11 +101,13 @@ export type PCB2026CalculationTrace = Readonly<{
   normalBracket: Pcb2026BracketTrace;
   normalMtdBeforeCurrentRebatesCents: number;
   normalMtdAfterCurrentRebatesCents: number;
+  normalRounding: Pcb2026RoundingTrace;
   additionalProjectedEpfCents: number | null;
   additionalChargeableIncomeCents: number | null;
   additionalBracket: Pcb2026BracketTrace | null;
   totalProjectedNormalMtdCents: number | null;
   additionalMtdCents: number;
+  additionalRounding: Pcb2026RoundingTrace | null;
   finalPcbCents: number;
   officialSections: readonly string[];
 }>;
@@ -222,6 +243,28 @@ function payablePart(amountCents: number) {
   return roundPcbUpToFiveSen(nonNegative);
 }
 
+function roundingTrace(
+  rawNumeratorCents: number,
+  rawDivisor: number,
+  currentZakatCents = 0,
+  currentReligiousTravelLevyCents = 0,
+): Pcb2026RoundingTrace {
+  const truncatedToSenCents = Math.max(0, Math.floor(rawNumeratorCents / rawDivisor));
+  const minimumThresholdApplied = truncatedToSenCents < MINIMUM_MTD_CENTS;
+  const roundedUpToFiveSenCents = payablePart(truncatedToSenCents);
+  return {
+    rawNumeratorCents,
+    rawDivisor,
+    truncatedToSenCents,
+    minimumThresholdApplied,
+    roundedUpToFiveSenCents,
+    postZakatAndLevyCents: Math.max(
+      0,
+      roundedUpToFiveSenCents - currentZakatCents - currentReligiousTravelLevyCents,
+    ),
+  };
+}
+
 export function calculatePcb2026(input: PCB2026CalculationInput): PCB2026CalculationResult {
   if (!validateInput(input)) {
     return { status: "BLOCKED", amountCents: null, blockers: [input.taxYear === 2026 ? PCB_2026_BLOCKERS.INVALID_INPUT : PCB_2026_BLOCKERS.UNSUPPORTED_TAX_YEAR], trace: null };
@@ -239,8 +282,9 @@ export function calculatePcb2026(input: PCB2026CalculationInput): PCB2026Calcula
 
   if (input.taxRegime === "NON_RESIDENT") {
     const taxableRemunerationCents = input.currentNormalRemunerationCents + input.currentAdditionalRemunerationCents;
-    const rawMtdCents = Math.floor((taxableRemunerationCents * NON_RESIDENT_RATE_PERCENT) / 100);
-    const finalPcbCents = payablePart(rawMtdCents);
+    const normalRounding = roundingTrace(taxableRemunerationCents * NON_RESIDENT_RATE_PERCENT, 100);
+    const rawMtdCents = normalRounding.truncatedToSenCents;
+    const finalPcbCents = normalRounding.postZakatAndLevyCents;
     const bracket: Pcb2026BracketTrace = {
       chargeableIncomeCents: taxableRemunerationCents,
       mCents: 0,
@@ -261,6 +305,16 @@ export function calculatePcb2026(input: PCB2026CalculationInput): PCB2026Calcula
         remainingMonthsIncludingCurrent: monthsIncludingCurrent,
         taxRegime: input.taxRegime,
         employeeCategory: input.employeeCategory,
+        priorGrossRemunerationCents: input.priorGrossRemunerationCents,
+        priorEpfCents: input.priorEpfCents,
+        priorPcbCents: input.priorPcbCents,
+        currentNormalRemunerationCents: input.currentNormalRemunerationCents,
+        currentNormalEpfCents: input.currentNormalEpfCents,
+        currentAdditionalRemunerationCents: input.currentAdditionalRemunerationCents,
+        currentAdditionalEpfCents: input.currentAdditionalEpfCents,
+        accumulatedZakatCents: input.accumulatedZakatCents,
+        currentZakatCents: input.currentZakatCents,
+        currentReligiousTravelLevyCents: input.currentReligiousTravelLevyCents,
         baseIndividualReliefCents: 0,
         spouseReliefCents: 0,
         individualDisabilityReliefCents: 0,
@@ -273,11 +327,13 @@ export function calculatePcb2026(input: PCB2026CalculationInput): PCB2026Calcula
         normalBracket: bracket,
         normalMtdBeforeCurrentRebatesCents: finalPcbCents,
         normalMtdAfterCurrentRebatesCents: finalPcbCents,
+        normalRounding,
         additionalProjectedEpfCents: null,
         additionalChargeableIncomeCents: null,
         additionalBracket: null,
         totalProjectedNormalMtdCents: null,
         additionalMtdCents: 0,
+        additionalRounding: null,
         finalPcbCents,
         officialSections: ["Computerised Specification 2026: Non-Resident Employee"],
       },
@@ -304,18 +360,14 @@ export function calculatePcb2026(input: PCB2026CalculationInput): PCB2026Calcula
     const rebateCents = qualifiesForRebate
       ? INDIVIDUAL_REBATE_CENTS + (input.employeeCategory === "CATEGORY_2" ? SPOUSE_REBATE_CENTS : 0)
       : 0;
-    const rawMtdCents = Math.max(
-      0,
-      Math.floor(
-        (specialBracket.annualTaxCents - rebateCents - input.accumulatedZakatCents - input.priorPcbCents) /
-          monthsIncludingCurrent,
-      ),
+    const normalRounding = roundingTrace(
+      specialBracket.annualTaxCents - rebateCents - input.accumulatedZakatCents - input.priorPcbCents,
+      monthsIncludingCurrent,
+      input.currentZakatCents,
+      input.currentReligiousTravelLevyCents,
     );
-    const beforeCurrentRebatesCents = payablePart(rawMtdCents);
-    const finalPcbCents = Math.max(
-      0,
-      beforeCurrentRebatesCents - input.currentZakatCents - input.currentReligiousTravelLevyCents,
-    );
+    const beforeCurrentRebatesCents = normalRounding.roundedUpToFiveSenCents;
+    const finalPcbCents = normalRounding.postZakatAndLevyCents;
     const regimeSection =
       input.taxRegime === "RETURNING_EXPERT_PROGRAM"
         ? "Computerised Specification 2026: Approved Individual Under REP"
@@ -335,6 +387,16 @@ export function calculatePcb2026(input: PCB2026CalculationInput): PCB2026Calcula
         remainingMonthsIncludingCurrent: monthsIncludingCurrent,
         taxRegime: input.taxRegime,
         employeeCategory: input.employeeCategory,
+        priorGrossRemunerationCents: input.priorGrossRemunerationCents,
+        priorEpfCents: input.priorEpfCents,
+        priorPcbCents: input.priorPcbCents,
+        currentNormalRemunerationCents: input.currentNormalRemunerationCents,
+        currentNormalEpfCents: input.currentNormalEpfCents,
+        currentAdditionalRemunerationCents: input.currentAdditionalRemunerationCents,
+        currentAdditionalEpfCents: input.currentAdditionalEpfCents,
+        accumulatedZakatCents: input.accumulatedZakatCents,
+        currentZakatCents: input.currentZakatCents,
+        currentReligiousTravelLevyCents: input.currentReligiousTravelLevyCents,
         baseIndividualReliefCents,
         spouseReliefCents,
         individualDisabilityReliefCents,
@@ -347,11 +409,13 @@ export function calculatePcb2026(input: PCB2026CalculationInput): PCB2026Calcula
         normalBracket: specialBracket,
         normalMtdBeforeCurrentRebatesCents: beforeCurrentRebatesCents,
         normalMtdAfterCurrentRebatesCents: finalPcbCents,
+        normalRounding,
         additionalProjectedEpfCents: input.currentAdditionalRemunerationCents > 0 ? specialEpf.projected : null,
         additionalChargeableIncomeCents: input.currentAdditionalRemunerationCents > 0 ? specialBracket.chargeableIncomeCents : null,
         additionalBracket: input.currentAdditionalRemunerationCents > 0 ? specialBracket : null,
         totalProjectedNormalMtdCents: null,
         additionalMtdCents: 0,
+        additionalRounding: null,
         finalPcbCents,
         officialSections: [regimeSection, "Computerised Specification 2026: Terms and Conditions"],
       },
@@ -364,21 +428,21 @@ export function calculatePcb2026(input: PCB2026CalculationInput): PCB2026Calcula
     input.currentNormalRemunerationCents - normalEpf.currentNormal +
     (input.currentNormalRemunerationCents - normalEpf.projected) * remainingMonths - totalReliefCents;
   const normalBracket = annualTax(input.employeeCategory, normalChargeableIncomeCents);
-  const normalRawCents = Math.max(
-    0,
-    Math.floor((normalBracket.annualTaxCents - input.accumulatedZakatCents - input.priorPcbCents) / monthsIncludingCurrent),
+  const normalRounding = roundingTrace(
+    normalBracket.annualTaxCents - input.accumulatedZakatCents - input.priorPcbCents,
+    monthsIncludingCurrent,
+    input.currentZakatCents,
+    input.currentReligiousTravelLevyCents,
   );
-  const normalBeforeCurrentRebatesCents = payablePart(normalRawCents);
-  const normalAfterCurrentRebatesCents = Math.max(
-    0,
-    normalBeforeCurrentRebatesCents - input.currentZakatCents - input.currentReligiousTravelLevyCents,
-  );
+  const normalBeforeCurrentRebatesCents = normalRounding.roundedUpToFiveSenCents;
+  const normalAfterCurrentRebatesCents = normalRounding.postZakatAndLevyCents;
 
   let additionalProjectedEpfCents: number | null = null;
   let additionalChargeableIncomeCents: number | null = null;
   let additionalBracket: Pcb2026BracketTrace | null = null;
   let totalProjectedNormalMtdCents: number | null = null;
   let additionalMtdCents = 0;
+  let additionalRounding: Pcb2026RoundingTrace | null = null;
 
   if (input.currentAdditionalRemunerationCents > 0) {
     const additionalEpf = projectedEpfCents(input, input.currentAdditionalEpfCents, remainingMonths);
@@ -391,7 +455,11 @@ export function calculatePcb2026(input: PCB2026CalculationInput): PCB2026Calcula
     additionalBracket = annualTax(input.employeeCategory, additionalChargeableIncomeCents);
     totalProjectedNormalMtdCents = input.priorPcbCents + normalBeforeCurrentRebatesCents * monthsIncludingCurrent;
     const zakatPaidCents = input.accumulatedZakatCents + input.currentZakatCents;
-    additionalMtdCents = payablePart(additionalBracket.annualTaxCents - totalProjectedNormalMtdCents + zakatPaidCents);
+    additionalRounding = roundingTrace(
+      additionalBracket.annualTaxCents - totalProjectedNormalMtdCents + zakatPaidCents,
+      1,
+    );
+    additionalMtdCents = additionalRounding.roundedUpToFiveSenCents;
   }
 
   const finalPcbCents = normalAfterCurrentRebatesCents + additionalMtdCents;
@@ -408,6 +476,16 @@ export function calculatePcb2026(input: PCB2026CalculationInput): PCB2026Calcula
       remainingMonthsIncludingCurrent: monthsIncludingCurrent,
       taxRegime: input.taxRegime,
       employeeCategory: input.employeeCategory,
+      priorGrossRemunerationCents: input.priorGrossRemunerationCents,
+      priorEpfCents: input.priorEpfCents,
+      priorPcbCents: input.priorPcbCents,
+      currentNormalRemunerationCents: input.currentNormalRemunerationCents,
+      currentNormalEpfCents: input.currentNormalEpfCents,
+      currentAdditionalRemunerationCents: input.currentAdditionalRemunerationCents,
+      currentAdditionalEpfCents: input.currentAdditionalEpfCents,
+      accumulatedZakatCents: input.accumulatedZakatCents,
+      currentZakatCents: input.currentZakatCents,
+      currentReligiousTravelLevyCents: input.currentReligiousTravelLevyCents,
       baseIndividualReliefCents,
       spouseReliefCents,
       individualDisabilityReliefCents,
@@ -416,15 +494,19 @@ export function calculatePcb2026(input: PCB2026CalculationInput): PCB2026Calcula
       accumulatedAllowableDeductionsCents: input.accumulatedAllowableDeductionsCents,
       currentAllowableDeductionsCents: input.currentAllowableDeductionsCents,
       normalProjectedEpfCents: normalEpf.projected,
-      normalChargeableIncomeCents,
+      // Chargeable income cannot be negative. Keep the raw arithmetic local;
+      // the certification trace exposes the same non-negative P used by Table 1.
+      normalChargeableIncomeCents: normalBracket.chargeableIncomeCents,
       normalBracket,
       normalMtdBeforeCurrentRebatesCents: normalBeforeCurrentRebatesCents,
       normalMtdAfterCurrentRebatesCents: normalAfterCurrentRebatesCents,
+      normalRounding,
       additionalProjectedEpfCents,
-      additionalChargeableIncomeCents,
+      additionalChargeableIncomeCents: additionalBracket?.chargeableIncomeCents ?? null,
       additionalBracket,
       totalProjectedNormalMtdCents,
       additionalMtdCents,
+      additionalRounding,
       finalPcbCents,
       officialSections: [
         "Computerised Specification 2026: Normal Remuneration Formula",

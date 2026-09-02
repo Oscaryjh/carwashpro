@@ -1,0 +1,243 @@
+{
+  "artifactType": "PCB_2II_EXHIBIT_3",
+  "status": "WAITING_FOR_APPLICANT_IDENTITY_AND_TRANSACTION_EVIDENCE",
+  "questionId": "Q2",
+  "employeeLabel": "Employee B",
+  "hasilBranch": null,
+  "statementDate": null,
+  "employeeIdentityType": null,
+  "employeeIdentity": null,
+  "employeeTin": null,
+  "employeeNumber": null,
+  "employerNumber": null,
+  "employerNameAndAddress": null,
+  "officer": {
+    "name": null,
+    "position": null,
+    "phone": null
+  },
+  "deductions": [
+    {
+      "month": "2026-03",
+      "pcbCents": 1598500,
+      "cp38Cents": 0,
+      "pcbReceiptOrTransactionNumber": null,
+      "pcbReceiptOrTransactionDate": null,
+      "cp38ReceiptOrTransactionNumber": null,
+      "cp38ReceiptOrTransactionDate": null
+    },
+    {
+      "month": "2026-06",
+      "pcbCents": 3492750,
+      "cp38Cents": 0,
+      "pcbReceiptOrTransactionNumber": null,
+      "pcbReceiptOrTransactionDate": null,
+      "cp38ReceiptOrTransactionNumber": null,
+      "cp38ReceiptOrTransactionDate": null
+    },
+    {
+      "month": "2026-09",
+      "pcbCents": 3666250,
+      "cp38Cents": 0,
+      "pcbReceiptOrTransactionNumber": null,
+      "pcbReceiptOrTransactionDate": null,
+      "cp38ReceiptOrTransactionNumber": null,
+      "cp38ReceiptOrTransactionDate": null
+    },
+    {
+      "month": "2026-12",
+      "pcbCents": 3675000,
+      "cp38Cents": 0,
+      "pcbReceiptOrTransactionNumber": null,
+      "pcbReceiptOrTransactionDate": null,
+      "cp38ReceiptOrTransactionNumber": null,
+      "cp38ReceiptOrTransactionDate": null
+    }
+  ],
+  "authority": "HASiL Computerised Calculation Specification 2026 Exhibit 3, page 42 (PDF page 43)",
+  "identityProvenance": {
+    "employeeLabel": "Employee B",
+    "fullName": {
+      "value": "Employee B",
+      "provenance": "OFFICIAL_QUESTION",
+      "status": "AVAILABLE",
+      "officialSource": "Testing Questions 2026 Question 2"
+    },
+    "employeeNumber": {
+      "value": null,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 3: No. Pekerja"
+    },
+    "taxIdentificationNumber": {
+      "value": null,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 3: No. Pengenalan Cukai Pekerja (IG)"
+    },
+    "identityType": {
+      "value": null,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 3: No. Kad Pengenalan/No. Passpot"
+    },
+    "identityNumber": {
+      "value": null,
+      "provenance": "APPLICANT_SUPPLIED",
+      "status": "OFFICIAL_QUESTION_NOT_PROVIDED",
+      "officialSource": "Exhibit 3: No. Kad Pengenalan/No. Passpot"
+    },
+    "passportCountryCode": {
+      "value": null,
+      "provenance": "ALLOWED_BLANK",
+      "status": "NOT_REQUIRED",
+      "officialSource": "Exhibit 3 has no separate passport-country field"
+    }
+  },
+  "unresolvedIdentityInputs": [
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "APPLICANT_FIELD_REQUIRED",
+      "field": "hasilBranch",
+      "detail": "Exhibit 3 field hasilBranch requires applicant-supplied evidence."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "APPLICANT_FIELD_REQUIRED",
+      "field": "statementDate",
+      "detail": "Exhibit 3 field statementDate requires applicant-supplied evidence."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "APPLICANT_FIELD_REQUIRED",
+      "field": "employerName",
+      "detail": "Exhibit 3 field employerName requires applicant-supplied evidence."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "APPLICANT_FIELD_REQUIRED",
+      "field": "employerAddress",
+      "detail": "Exhibit 3 field employerAddress requires applicant-supplied evidence."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "APPLICANT_FIELD_REQUIRED",
+      "field": "lhdnEmployerNumber",
+      "detail": "Exhibit 3 field lhdnEmployerNumber requires applicant-supplied evidence."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "APPLICANT_FIELD_REQUIRED",
+      "field": "officerName",
+      "detail": "Exhibit 3 field officerName requires applicant-supplied evidence."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "APPLICANT_FIELD_REQUIRED",
+      "field": "officerPosition",
+      "detail": "Exhibit 3 field officerPosition requires applicant-supplied evidence."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "APPLICANT_FIELD_REQUIRED",
+      "field": "officerPhone",
+      "detail": "Exhibit 3 field officerPhone requires applicant-supplied evidence."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "EMPLOYEE_TIN_REQUIRED",
+      "field": "taxIdentificationNumber",
+      "detail": "An exact 11-digit employee TIN is required and was not supplied by the Testing Questions."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "EMPLOYEE_NUMBER_REQUIRED",
+      "field": "employeeNumber",
+      "detail": "A non-empty applicant-assigned employee number is required by Exhibit 3; no field width is stated there."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "IDENTITY_TYPE_REQUIRED",
+      "field": "identityType",
+      "detail": "Identity type must resolve to NEW_IC, OLD_IC or PASSPORT."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "IDENTITY_NUMBER_REQUIRED",
+      "field": "identityNumber",
+      "detail": "A valid IC or passport number is required."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "PCB_TRANSACTION_REFERENCE_REQUIRED",
+      "field": "2026-03.pcbReceiptOrTransactionNumber",
+      "detail": "Exhibit 3 contains a PCB receipt/bank-slip/transaction reference column; no evidence was supplied."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "PCB_TRANSACTION_DATE_REQUIRED",
+      "field": "2026-03.pcbReceiptOrTransactionDate",
+      "detail": "Exhibit 3 contains a PCB receipt/transaction date column; no evidence was supplied."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "PCB_TRANSACTION_REFERENCE_REQUIRED",
+      "field": "2026-06.pcbReceiptOrTransactionNumber",
+      "detail": "Exhibit 3 contains a PCB receipt/bank-slip/transaction reference column; no evidence was supplied."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "PCB_TRANSACTION_DATE_REQUIRED",
+      "field": "2026-06.pcbReceiptOrTransactionDate",
+      "detail": "Exhibit 3 contains a PCB receipt/transaction date column; no evidence was supplied."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "PCB_TRANSACTION_REFERENCE_REQUIRED",
+      "field": "2026-09.pcbReceiptOrTransactionNumber",
+      "detail": "Exhibit 3 contains a PCB receipt/bank-slip/transaction reference column; no evidence was supplied."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "PCB_TRANSACTION_DATE_REQUIRED",
+      "field": "2026-09.pcbReceiptOrTransactionDate",
+      "detail": "Exhibit 3 contains a PCB receipt/transaction date column; no evidence was supplied."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "PCB_TRANSACTION_REFERENCE_REQUIRED",
+      "field": "2026-12.pcbReceiptOrTransactionNumber",
+      "detail": "Exhibit 3 contains a PCB receipt/bank-slip/transaction reference column; no evidence was supplied."
+    },
+    {
+      "artifact": "PCB_2II",
+      "questionId": "Q2",
+      "code": "PCB_TRANSACTION_DATE_REQUIRED",
+      "field": "2026-12.pcbReceiptOrTransactionDate",
+      "detail": "Exhibit 3 contains a PCB receipt/transaction date column; no evidence was supplied."
+    }
+  ],
+  "blocker": "Official Q2 omits mandatory employee/applicant identities and the applicant has not supplied Exhibit 3 transaction evidence. Values were not invented.",
+  "generatedAt": "2026-08-28T16:56:20.007Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

@@ -1,0 +1,15 @@
+{
+  "questionId": "Q2",
+  "employeeLabel": "Employee B",
+  "month": "2026-03",
+  "grossCents": 10000000,
+  "epfCents": 0,
+  "zakatCents": 1200000,
+  "pcbCents": 1598500,
+  "netCents": 7201500,
+  "p2TraceDigest": "b16e84cb5437d89ebe42a4d727c935ff5c47b458c56585754b89c67a62221e2d",
+  "notes": "Voluntary EPF is a TP1 relief input, not a payroll EPF deduction. Director fee is additional remuneration.",
+  "renderer": "CANONICAL_PAYSLIP_RENDERER_2026",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

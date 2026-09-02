@@ -1,0 +1,141 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 1863 >>
+stream
+BT /F1 9 Tf 42 800 Td
+(TETAMU PAYROLL) Tj
+0 -17 Td
+(PCB 2026 COMPUTERISED CALCULATION DETAIL) Tj
+0 -17 Td
+(LOCAL CERTIFICATION EVIDENCE - HASiL APPROVAL PENDING) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(Question: Q4) Tj
+0 -17 Td
+(Employee: Employee D) Tj
+0 -17 Td
+(Month: November 2026) Tj
+0 -17 Td
+(Tax regime: RESIDENT_STANDARD) Tj
+0 -17 Td
+(Employee category: CATEGORY_2) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(REMUNERATION AND GOVERNED INPUTS) Tj
+0 -17 Td
+(Normal remuneration: RM16500.00) Tj
+0 -17 Td
+(Additional remuneration: RM0.00) Tj
+0 -17 Td
+(Current-employer YTD before current month: RM33000.00) Tj
+0 -17 Td
+(Previous-employer remuneration: RM0.00) Tj
+0 -17 Td
+(Previous-employer EPF: RM0.00) Tj
+0 -17 Td
+(Previous-employer PCB: RM0.00) Tj
+0 -17 Td
+(Current normal EPF input: RM1650.00) Tj
+0 -17 Td
+(Current additional EPF input: RM0.00) Tj
+0 -17 Td
+(Accumulated TP1 deductions: RM0.00) Tj
+0 -17 Td
+(Current TP1 deductions: RM3550.00) Tj
+0 -17 Td
+(Scenario context: RM1,500 VOLA; EPF on; medical; study; medical insurance) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(RELIEFS, TAX AND REBATES) Tj
+0 -17 Td
+(Spouse relief: RM4000.00) Tj
+0 -17 Td
+(Child relief: RM4000.00) Tj
+0 -17 Td
+(Chargeable income: RM42150.00) Tj
+0 -17 Td
+(Tax bracket M: RM35000.00) Tj
+0 -17 Td
+(Tax rate: 6%) Tj
+0 -17 Td
+(Tax bracket B: RM600.00) Tj
+0 -17 Td
+(Annual tax: RM1029.00) Tj
+0 -17 Td
+(Accumulated zakat: RM0.00) Tj
+0 -17 Td
+(Current zakat: RM0.00) Tj
+0 -17 Td
+(Current religious travel levy: RM0.00) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(PCB AND ROUNDING TRACE) Tj
+0 -17 Td
+(Raw numerator: RM-8871.00) Tj
+0 -17 Td
+(Divisor: 2) Tj
+0 -17 Td
+(Truncated to sen: RM0.00) Tj
+0 -17 Td
+(Minimum threshold applied: YES) Tj
+0 -17 Td
+(Rounded up to 5 sen: RM0.00) Tj
+0 -17 Td
+(Post-zakat/levy normal PCB: RM0.00) Tj
+0 -17 Td
+(Current normal PCB before rebates: RM0.00) Tj
+0 -17 Td
+(Current normal PCB after rebates: RM0.00) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 311 >>
+stream
+BT /F1 9 Tf 42 800 Td
+(Additional remuneration PCB: RM0.00) Tj
+0 -17 Td
+(FINAL PCB: RM0.00) Tj
+0 -17 Td
+() Tj
+0 -17 Td
+(P2 trace digest: 48a61c71b2bdcab79401c486cd0c3b45a8f6661cf33d8c7f118fbff06cbaed72) Tj
+0 -17 Td
+(This evidence is derived from the certified P2 trace. It is not proof of HASiL approval.) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000191 00000 n 
+0000000317 00000 n 
+0000002232 00000 n 
+0000002358 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+2720
+%%EOF

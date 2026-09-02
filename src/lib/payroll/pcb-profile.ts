@@ -7,6 +7,14 @@ import {
   sumPcbTp1Zakat,
   sumPcbTp3Deductions,
 } from "./pcb-declarations";
+import {
+  pcbComponentClassificationFactSchema,
+  pcbNonCashRemunerationFactSchema,
+  pcbPreviousEmploymentPeriodsSchema,
+  pcbTaxRegimeTimelineSchema,
+  pcbTp3ExemptIncomeItemSchema,
+  resolvePcbTaxRegimeForMonth,
+} from "./pcb-correctness-foundation";
 
 const nonNegativeCents = z.number().int().min(0).max(999_999_999_999);
 const childCount = z.number().int().min(0).max(99);
@@ -117,10 +125,50 @@ const pcbProfileV3Schema = pcbProfileBaseSchema.extend({
   }),
 });
 
+const pcbProfileV4Schema = pcbProfileBaseSchema.extend({
+  version: z.literal(4),
+  profileRevision: z.number().int().min(1),
+  taxRegimeTimeline: pcbTaxRegimeTimelineSchema,
+  nonCashRemunerationFacts: z.array(pcbNonCashRemunerationFactSchema).max(100),
+  componentClassificationFacts: z.array(pcbComponentClassificationFactSchema).max(200),
+  tp1Declaration: z.object({
+    formVersion: z.literal("HASIL_TP1_1_2026_BM"),
+    status: z.enum(["NOT_APPLICABLE", "CONFIRMED"]),
+    entries: pcbTp1DeclarationEntriesSchema,
+    sourceReference: declarationReference,
+    declaredAt: declarationTimestamp,
+    reviewedAt: declarationTimestamp,
+  }),
+  tp3Declaration: z.object({
+    formVersion: z.literal("HASIL_TP3_1_2026_BM"),
+    status: z.enum(["NOT_APPLICABLE", "CONFIRMED"]),
+    grossRemunerationCents: nonNegativeCents,
+    epfCents: nonNegativeCents,
+    pcbCents: nonNegativeCents,
+    zakatCents: nonNegativeCents.default(0),
+    religiousTravelLevyCents: nonNegativeCents.default(0),
+    religiousTravelLevySourceReference: declarationReference,
+    exemptIncomeItems: z.array(pcbTp3ExemptIncomeItemSchema).max(100),
+    previousEmploymentPeriods: pcbPreviousEmploymentPeriodsSchema,
+    entries: pcbTp3DeclarationEntriesSchema,
+    sourceReference: declarationReference,
+    declaredAt: declarationTimestamp,
+    reviewedAt: declarationTimestamp,
+  }),
+  religiousTravelLevyDeclaration: z.object({
+    status: z.enum(["NOT_APPLICABLE", "CONFIRMED"]),
+    amountCents: nonNegativeCents,
+    sourceReference: declarationReference,
+    declaredAt: declarationTimestamp,
+    reviewedAt: declarationTimestamp,
+  }),
+});
+
 export const pcbProfileDataSchema = z.discriminatedUnion("version", [
   pcbProfileV1Schema,
   pcbProfileV2Schema,
   pcbProfileV3Schema,
+  pcbProfileV4Schema,
 ]).superRefine((profile, context) => {
   if (profile.version === 1) return;
   const requireReference = (
@@ -189,6 +237,15 @@ export const pcbProfileDataSchema = z.discriminatedUnion("version", [
       profile.version === 2
         ? profile.tp3Declaration.zakatCents
         : profile.tp3Declaration.zakatCents,
+      profile.version === 4
+        ? profile.tp3Declaration.religiousTravelLevyCents
+        : 0,
+      profile.version === 4
+        ? profile.tp3Declaration.exemptIncomeItems.reduce(
+            (total, item) => total + item.amountCents,
+            0,
+          )
+        : 0,
     ],
     "tp3Declaration",
   );
@@ -249,16 +306,48 @@ export const pcbProfileDataSchema = z.discriminatedUnion("version", [
       });
     }
   }
+
+  if (profile.version === 4) {
+    const tp3HasFinancialFacts =
+      profile.tp3Declaration.grossRemunerationCents > 0 ||
+      profile.tp3Declaration.epfCents > 0 ||
+      profile.tp3Declaration.pcbCents > 0 ||
+      profile.tp3Declaration.zakatCents > 0 ||
+      profile.tp3Declaration.religiousTravelLevyCents > 0 ||
+      profile.tp3Declaration.exemptIncomeItems.some((item) => item.amountCents > 0) ||
+      profile.tp3Declaration.entries.some((item) => item.amountCents > 0);
+    if (
+      profile.tp3Declaration.status === "CONFIRMED" &&
+      tp3HasFinancialFacts &&
+      profile.tp3Declaration.previousEmploymentPeriods.length === 0
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Add the previous-employment period supported by TP3 evidence.",
+        path: ["tp3Declaration", "previousEmploymentPeriods"],
+      });
+    }
+    if (
+      profile.tp3Declaration.religiousTravelLevyCents > 0 &&
+      !profile.tp3Declaration.religiousTravelLevySourceReference
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Add the TP3 C4(ii) religious-travel levy evidence reference.",
+        path: ["tp3Declaration", "religiousTravelLevySourceReference"],
+      });
+    }
+  }
 });
 
 export type EmployeePcbProfile = z.infer<typeof pcbProfileDataSchema>;
 
-export type GovernedEmployeePcbProfile = Extract<EmployeePcbProfile, { version: 3 }>;
+export type GovernedEmployeePcbProfile = Extract<EmployeePcbProfile, { version: 3 | 4 }>;
 
 export function isGovernedEmployeePcbProfile(
   profile: EmployeePcbProfile | null | undefined,
 ): profile is GovernedEmployeePcbProfile {
-  return profile?.version === 3;
+  return profile?.version === 3 || profile?.version === 4;
 }
 
 export type PcbProfileReadiness = {
@@ -275,7 +364,7 @@ export function getPcbProfileReadiness(
       reasons: ["Confirm the employee tax facts before automatic PCB can run."],
     };
   }
-  if (profile.version !== 3) {
+  if (profile.version !== 3 && profile.version !== 4) {
     return {
       status: "REVIEW_REQUIRED",
       reasons: ["Reconfirm TP1 and TP3 using the structured 2026 declaration fields."],
@@ -288,9 +377,119 @@ export function getPcbProfileReadiness(
   if (profile.tp3Declaration.status === "CONFIRMED" && !profile.tp3Declaration.sourceReference) {
     reasons.push("Add the accepted TP3 declaration reference.");
   }
+  if (profile.version === 4) {
+    if (profile.taxRegimeTimeline.length === 0) {
+      reasons.push("Add an effective tax-treatment period for 2026.");
+    }
+    const specialWithoutApproval = profile.taxRegimeTimeline.some((period) =>
+      period.regime !== "RESIDENT_STANDARD" &&
+      period.regime !== "NON_RESIDENT" &&
+      (period.approvalStatus !== "CONFIRMED" ||
+        !period.approvalReference ||
+        !period.evidenceReference));
+    if (specialWithoutApproval) {
+      reasons.push("Add the special tax-treatment approval and evidence references.");
+    }
+  }
   return reasons.length
     ? { status: "REVIEW_REQUIRED", reasons }
     : { status: "READY", reasons: [] };
+}
+
+export function getPcbProfileReadinessForMonth(
+  profile: EmployeePcbProfile | null | undefined,
+  payrollMonth: string,
+): PcbProfileReadiness & { issueCodes: string[] } {
+  const readiness = getPcbProfileReadiness(profile);
+  const issueCodes: string[] = [];
+  const reasons = [...readiness.reasons];
+  if (!profile || profile.version !== 4) {
+    if (profile?.version === 3 &&
+        profile.taxRegime !== "RESIDENT_STANDARD" &&
+        profile.taxRegime !== "NON_RESIDENT") {
+      issueCodes.push("PCB_SPECIAL_APPROVAL_EVIDENCE_INCOMPLETE");
+      reasons.push("Reconfirm the special tax treatment with its effective period and approval evidence.");
+    } else if (!profile || profile.version !== 3) {
+      issueCodes.push("PCB_TAX_STATUS_TIMELINE_INCOMPLETE");
+    }
+    return {
+      status: reasons.length ? (profile ? "REVIEW_REQUIRED" : "MISSING") : readiness.status,
+      reasons,
+      issueCodes,
+    };
+  }
+  const regime = resolvePcbTaxRegimeForMonth(profile.taxRegimeTimeline, payrollMonth);
+  if (regime.status === "BLOCKED") {
+    issueCodes.push(regime.blocker);
+    reasons.push(
+      regime.blocker === "PCB_TAX_STATUS_PERIOD_OVERLAP"
+        ? "Resolve overlapping tax-treatment periods."
+        : regime.blocker === "PCB_TAX_STATUS_MONTH_TRANSITION_REQUIRES_REVIEW"
+          ? "A mid-month tax-treatment transition needs Payroll review."
+          : "Add tax treatment covering the full payroll month.",
+    );
+  }
+  if (profile.tp3Declaration.status === "CONFIRMED") {
+    if (profile.tp3Declaration.previousEmploymentPeriods.length === 0) {
+      issueCodes.push("PCB_TP3_PREVIOUS_EMPLOYMENT_PERIOD_INCOMPLETE");
+      reasons.push("Add the previous-employment period from the accepted TP3.");
+    }
+    if (profile.tp3Declaration.exemptIncomeItems.some((item) => item.reviewStatus !== "REVIEWED")) {
+      issueCodes.push("PCB_TP3_C2_INCOMPLETE");
+      reasons.push("Review the TP3 exempt remuneration details.");
+    }
+    if (profile.tp3Declaration.religiousTravelLevyCents > 0 &&
+        !profile.tp3Declaration.religiousTravelLevySourceReference) {
+      issueCodes.push("PCB_TP3_C4II_INCOMPLETE");
+      reasons.push("Add the TP3 C4(ii) religious-travel levy evidence reference.");
+    }
+  }
+  if (profile.nonCashRemunerationFacts.some((fact) => fact.reviewStatus !== "REVIEWED")) {
+    issueCodes.push("PCB_BIK_VOLA_CLASSIFICATION_INCOMPLETE");
+    reasons.push("Review the BIK, VOLA or exempt-benefit treatment.");
+  }
+  if (profile.componentClassificationFacts.some((fact) =>
+    fact.reviewStatus !== "REVIEWED" || fact.nature === "UNKNOWN")) {
+    issueCodes.push("PCB_COMPONENT_CLASSIFICATION_INCOMPLETE");
+    reasons.push("Resolve the PCB treatment for every applicable payroll component.");
+  }
+  return {
+    status: reasons.length ? "REVIEW_REQUIRED" : "READY",
+    reasons,
+    issueCodes,
+  };
+}
+
+export function resolvePcbProfileTaxRegimeForPeriod(
+  profile: GovernedEmployeePcbProfile,
+  statutoryPeriod: Date,
+) {
+  if (profile.version === 3) {
+    if (profile.taxRegime === "RESIDENT_STANDARD" || profile.taxRegime === "NON_RESIDENT") {
+      return {
+        status: "RESOLVED" as const,
+        regime: profile.taxRegime,
+        source: "LEGACY_V3_FULL_YEAR_BRIDGE" as const,
+        period: null,
+      };
+    }
+    return {
+      status: "BLOCKED" as const,
+      blocker: "PCB_SPECIAL_APPROVAL_EVIDENCE_INCOMPLETE" as const,
+    };
+  }
+  const month = `${statutoryPeriod.getUTCFullYear()}-${String(
+    statutoryPeriod.getUTCMonth() + 1,
+  ).padStart(2, "0")}`;
+  const resolved = resolvePcbTaxRegimeForMonth(profile.taxRegimeTimeline, month);
+  return resolved.status === "BLOCKED"
+    ? resolved
+    : {
+        status: "RESOLVED" as const,
+        regime: resolved.period.regime,
+        source: "EFFECTIVE_DATED_V4" as const,
+        period: resolved.period,
+      };
 }
 
 export function parseEmployeePcbProfile(value: Prisma.JsonValue | null | undefined) {

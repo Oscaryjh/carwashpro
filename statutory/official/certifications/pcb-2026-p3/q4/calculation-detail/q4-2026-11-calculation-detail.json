@@ -1,0 +1,69 @@
+{
+  "artifactType": "CALCULATION_DETAIL",
+  "status": "CERTIFICATION_READY",
+  "questionId": "Q4",
+  "employeeLabel": "Employee D",
+  "month": "2026-11",
+  "source": {
+    "officialTestingQuestionSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+    "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+    "p2InputDigest": "8c7451694ffb7e289f343d17b1f5f138385a130d517693815e5c0f2fb46ab630",
+    "p2TraceDigest": "48a61c71b2bdcab79401c486cd0c3b45a8f6661cf33d8c7f118fbff06cbaed72",
+    "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+    "ruleVersion": "HASIL_MTD_SPEC_2026"
+  },
+  "facts": {
+    "taxRegime": "RESIDENT_STANDARD",
+    "employeeCategory": "CATEGORY_2",
+    "normalRemunerationCents": 1650000,
+    "additionalRemunerationCents": 0,
+    "nonCashOrExemptContext": [
+      "RM1,500 VOLA",
+      "EPF on",
+      "medical",
+      "study",
+      "medical insurance"
+    ],
+    "currentEmployerYtdBeforeCurrentCents": 3300000,
+    "previousEmployerRemunerationCents": 0,
+    "previousEmployerEpfCents": 0,
+    "previousEmployerPcbCents": 0,
+    "currentNormalEpfCents": 165000,
+    "currentAdditionalEpfCents": 0,
+    "accumulatedTp1DeductionsCents": 0,
+    "currentTp1DeductionsCents": 355000,
+    "housingLoanInterestReliefCents": 0,
+    "spouseReliefCents": 400000,
+    "childReliefCents": 400000,
+    "chargeableIncomeCents": 4215000,
+    "bracketMCents": 3500000,
+    "taxRatePercent": 6,
+    "bracketBCents": 60000,
+    "annualTaxCents": 102900,
+    "accumulatedZakatCents": 0,
+    "currentZakatCents": 0,
+    "currentReligiousTravelLevyCents": 0,
+    "normalPcbBeforeCurrentRebatesCents": 0,
+    "normalPcbAfterCurrentRebatesCents": 0,
+    "additionalPcbCents": 0,
+    "finalPcbCents": 0
+  },
+  "rounding": {
+    "rawNumeratorCents": -887100,
+    "divisor": 2,
+    "truncatedToSenCents": 0,
+    "minimumThresholdApplied": true,
+    "roundedUpToFiveSenCents": 0,
+    "postZakatAndLevyCents": 0,
+    "additional": null
+  },
+  "officialSections": [
+    "Computerised Specification 2026: Normal Remuneration Formula",
+    "Computerised Specification 2026: Additional Remuneration Steps 1-5",
+    "Computerised Specification 2026: Table 1",
+    "Computerised Specification 2026: Conditions for Computerised Calculation"
+  ],
+  "generatedAt": "2026-08-28T16:56:20.007Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

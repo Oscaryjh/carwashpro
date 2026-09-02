@@ -11,8 +11,8 @@
   "fixtureDigest": "6e38d7f844b8b8e3671baf8776b77f3e49b7e94a361c00eddbb137ac6957c2e7",
   "fixtureFileSha256": "93e0f68b3cc13933b20e1fa3c297f3aceba7f229a3f462000f8bfd1e308627d4",
   "fixtureCount": 5,
-  "calculatorVersion": "TETAMU_PCB_2026_1.1.0",
-  "calculatorSourceSha256": "bf579528584120b8f6d5ef11ef9cacb05aaa9fceb70249710463a9578b9a1158",
+  "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+  "calculatorSourceSha256": "d885da7ddd35795e679df0579d9274442e12d04fb7e5b3b12c34105a271d3487",
   "classificationCandidateId": "malaysia-pcb-2026-signoff-candidate-v1",
   "classificationDigest": "02df2ba360b88adfdba6209bb287ad6d3915a388f4b04926151d10544b0136c6",
   "requirementsDigest": "31b6757cdfbe934e48a07e94b4c7473f2f78bf73121944cac95ce415d444c75b",
@@ -26,5 +26,5 @@
   "hasilSoftwareVerificationEvidence": null,
   "reviewedOn": "2026-08-21",
   "notes": "The retained official examples and calculator result pass the supported engineering scope. Tetamu now has a versioned governed PCB profile for TP1, TP3 and religious-travel declarations, a finalized tax-year ledger, official Kt allocation and frozen calculation provenance. Unresolved component classifications, special regimes and HASiL software verification remain explicit production blockers; no government approval or production activation occurred.",
-  "recordDigest": "84a06a9c5368f74ef99f67867585ccbc6bbc4ee23a3a58de502c3a155af2715f"
+  "recordDigest": "97124e519ec1dce05e70aad6ba41fe5406f4d3fd0d06312260924cfb864dcdea"
 }

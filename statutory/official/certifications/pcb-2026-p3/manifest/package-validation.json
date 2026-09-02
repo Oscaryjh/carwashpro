@@ -1,0 +1,789 @@
+{
+  "validator": "TETAMU_PCB_2026_P3_PACKAGE_VALIDATOR_1.0.0",
+  "packageVerdict": "PARTIAL",
+  "validationVerdict": "PASS_WITH_RECORDED_ARTIFACT_BLOCKERS",
+  "checkedAt": "2026-08-28T16:56:23.837Z",
+  "checks": [
+    {
+      "check": "identity-input-hash",
+      "result": "PASS",
+      "detail": "Governed certification identity input is hash-bound to master and validation manifests"
+    },
+    {
+      "check": "identity-status-truthful",
+      "result": "PASS",
+      "detail": "39 unresolved identity inputs recorded"
+    },
+    {
+      "check": "no-fake-official-identities",
+      "result": "PASS",
+      "detail": "No prohibited fake TIN, IC or employer marker exists in governed identity input"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/manifest/identity-source-matrix.json",
+      "result": "PASS",
+      "detail": "17218 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/manifest/identity-validation.json",
+      "result": "PASS",
+      "detail": "20731 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q1/calculation-detail/q1-2026-07-calculation-detail.json",
+      "result": "PASS",
+      "detail": "2313 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q1/calculation-detail/q1-2026-07-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "2973 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q1/calculation-detail/q1-2026-07-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q1/calculation-detail/q1-2026-10-calculation-detail.json",
+      "result": "PASS",
+      "detail": "2341 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q1/calculation-detail/q1-2026-10-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "2966 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q1/calculation-detail/q1-2026-10-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q1/payslip/q1-2026-07-payslip.json",
+      "result": "PASS",
+      "detail": "551 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q1/payslip/q1-2026-07-payslip.pdf",
+      "result": "PASS",
+      "detail": "2852 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q1/payslip/q1-2026-07-payslip.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q1/payslip/q1-2026-12-payslip.json",
+      "result": "PASS",
+      "detail": "547 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q1/payslip/q1-2026-12-payslip.pdf",
+      "result": "PASS",
+      "detail": "2852 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q1/payslip/q1-2026-12-payslip.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q1/ea/q1-ea-testing-question-evidence.json",
+      "result": "PASS",
+      "detail": "1445 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q1/ea/q1-ea-testing-question-evidence.pdf",
+      "result": "PASS",
+      "detail": "1577 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q1/ea/q1-ea-testing-question-evidence.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q1/text-file/q1-2026-10-cp39-blocker.json",
+      "result": "PASS",
+      "detail": "2992 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q1/manifest/manifest.json",
+      "result": "PASS",
+      "detail": "11590 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q2/calculation-detail/q2-2026-03-calculation-detail.json",
+      "result": "PASS",
+      "detail": "2604 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q2/calculation-detail/q2-2026-03-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "2939 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q2/calculation-detail/q2-2026-03-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q2/calculation-detail/q2-2026-09-calculation-detail.json",
+      "result": "PASS",
+      "detail": "2602 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q2/calculation-detail/q2-2026-09-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "2933 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q2/calculation-detail/q2-2026-09-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q2/payslip/q2-2026-03-payslip.json",
+      "result": "PASS",
+      "detail": "532 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q2/payslip/q2-2026-03-payslip.pdf",
+      "result": "PASS",
+      "detail": "2803 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q2/payslip/q2-2026-03-payslip.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q2/pcb-2ii/q2-pcb-2ii-structured-source.json",
+      "result": "PASS",
+      "detail": "8292 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q2/pcb-2ii/q2-pcb-2ii-blocked-draft.pdf",
+      "result": "PASS",
+      "detail": "1304 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q2/pcb-2ii/q2-pcb-2ii-blocked-draft.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q2/manifest/manifest.json",
+      "result": "PASS",
+      "detail": "13251 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-09-calculation-detail.json",
+      "result": "PASS",
+      "detail": "2280 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-09-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "2947 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-09-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-11-calculation-detail.json",
+      "result": "PASS",
+      "detail": "2233 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-11-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "2919 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-11-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q3/payslip/q3-2026-09-payslip.json",
+      "result": "PASS",
+      "detail": "519 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q3/payslip/q3-2026-09-payslip.pdf",
+      "result": "PASS",
+      "detail": "2760 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q3/payslip/q3-2026-09-payslip.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q3/text-file/q3-2026-11-cp39-blocker.json",
+      "result": "PASS",
+      "detail": "2991 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q3/manifest/manifest.json",
+      "result": "PASS",
+      "detail": "8646 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q4/calculation-detail/q4-2026-08-calculation-detail.json",
+      "result": "PASS",
+      "detail": "2146 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q4/calculation-detail/q4-2026-08-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "2901 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q4/calculation-detail/q4-2026-08-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q4/calculation-detail/q4-2026-11-calculation-detail.json",
+      "result": "PASS",
+      "detail": "2418 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q4/calculation-detail/q4-2026-11-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "2943 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q4/calculation-detail/q4-2026-11-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q4/payslip/q4-2026-10-payslip.json",
+      "result": "PASS",
+      "detail": "505 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q4/payslip/q4-2026-10-payslip.pdf",
+      "result": "PASS",
+      "detail": "2746 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q4/payslip/q4-2026-10-payslip.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q4/payslip/q4-2026-12-payslip.json",
+      "result": "PASS",
+      "detail": "503 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q4/payslip/q4-2026-12-payslip.pdf",
+      "result": "PASS",
+      "detail": "2745 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q4/payslip/q4-2026-12-payslip.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q4/ea/q4-ea-testing-question-evidence.json",
+      "result": "PASS",
+      "detail": "1365 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q4/ea/q4-ea-testing-question-evidence.pdf",
+      "result": "PASS",
+      "detail": "1571 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q4/ea/q4-ea-testing-question-evidence.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q4/text-file/q4-2026-12-cp39-blocker.json",
+      "result": "PASS",
+      "detail": "3329 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q4/manifest/manifest.json",
+      "result": "PASS",
+      "detail": "11941 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-01-calculation-detail.json",
+      "result": "PASS",
+      "detail": "2309 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-01-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "3014 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-01-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-02-calculation-detail.json",
+      "result": "PASS",
+      "detail": "2358 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-02-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "3066 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q5/calculation-detail/q5-2026-02-calculation-detail.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q5/payslip/q5-2026-01-payslip.json",
+      "result": "PASS",
+      "detail": "518 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q5/payslip/q5-2026-01-payslip.pdf",
+      "result": "PASS",
+      "detail": "2757 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/q5/payslip/q5-2026-01-payslip.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/q5/manifest/manifest.json",
+      "result": "PASS",
+      "detail": "6008 bytes"
+    },
+    {
+      "check": "hash:statutory/official/certifications/pcb-2026-p3/shared/tetamu-pcb-2026-p3-cover-sheet.pdf",
+      "result": "PASS",
+      "detail": "1372 bytes"
+    },
+    {
+      "check": "pdf:statutory/official/certifications/pcb-2026-p3/shared/tetamu-pcb-2026-p3-cover-sheet.pdf",
+      "result": "PASS",
+      "detail": "PDF header and EOF marker"
+    },
+    {
+      "check": "Q1:calculation-detail:2026-07",
+      "result": "PASS",
+      "detail": "P2-bound PDF and JSON present"
+    },
+    {
+      "check": "Q1:calculation-detail:2026-10",
+      "result": "PASS",
+      "detail": "P2-bound PDF and JSON present"
+    },
+    {
+      "check": "Q1:payslip:2026-07",
+      "result": "PASS",
+      "detail": "canonical PDF and JSON present"
+    },
+    {
+      "check": "Q1:payslip:2026-12",
+      "result": "PASS",
+      "detail": "canonical PDF and JSON present"
+    },
+    {
+      "check": "Q2:calculation-detail:2026-03",
+      "result": "PASS",
+      "detail": "P2-bound PDF and JSON present"
+    },
+    {
+      "check": "Q2:calculation-detail:2026-09",
+      "result": "PASS",
+      "detail": "P2-bound PDF and JSON present"
+    },
+    {
+      "check": "Q2:payslip:2026-03",
+      "result": "PASS",
+      "detail": "canonical PDF and JSON present"
+    },
+    {
+      "check": "Q3:calculation-detail:2026-09",
+      "result": "PASS",
+      "detail": "P2-bound PDF and JSON present"
+    },
+    {
+      "check": "Q3:calculation-detail:2026-11",
+      "result": "PASS",
+      "detail": "P2-bound PDF and JSON present"
+    },
+    {
+      "check": "Q3:payslip:2026-09",
+      "result": "PASS",
+      "detail": "canonical PDF and JSON present"
+    },
+    {
+      "check": "Q4:calculation-detail:2026-08",
+      "result": "PASS",
+      "detail": "P2-bound PDF and JSON present"
+    },
+    {
+      "check": "Q4:calculation-detail:2026-11",
+      "result": "PASS",
+      "detail": "P2-bound PDF and JSON present"
+    },
+    {
+      "check": "Q4:payslip:2026-10",
+      "result": "PASS",
+      "detail": "canonical PDF and JSON present"
+    },
+    {
+      "check": "Q4:payslip:2026-12",
+      "result": "PASS",
+      "detail": "canonical PDF and JSON present"
+    },
+    {
+      "check": "Q5:calculation-detail:2026-01",
+      "result": "PASS",
+      "detail": "P2-bound PDF and JSON present"
+    },
+    {
+      "check": "Q5:calculation-detail:2026-02",
+      "result": "PASS",
+      "detail": "P2-bound PDF and JSON present"
+    },
+    {
+      "check": "Q5:payslip:2026-01",
+      "result": "PASS",
+      "detail": "canonical PDF and JSON present"
+    },
+    {
+      "check": "cross-artifact-pcb-amount-source",
+      "result": "PASS",
+      "detail": "All document PCB values originate from P2 manifest records"
+    },
+    {
+      "check": "q5-housing-interest-allocation",
+      "result": "PASS",
+      "detail": "RM500 monthly housing-loan interest is bound through certified P2 input/trace"
+    }
+  ],
+  "artifactBlockers": [
+    {
+      "code": "APPLICANT_AND_EMPLOYEE_IDENTITY_INPUT_REQUIRED",
+      "affects": [
+        "Q1 CP39",
+        "Q2 PCB 2(II)",
+        "Q3 CP39",
+        "Q4 CP39"
+      ],
+      "detail": "Governed mapping and strict validation are implemented. Applicant employer data, Employee A-D submission identities and Q2 transaction evidence are not supplied. No values were invented."
+    },
+    {
+      "code": "HASIL_COUNTRY_CODE_LIST_NOT_RETAINED",
+      "affects": [
+        "Q4 CP39"
+      ],
+      "detail": "Exhibit 4 requires the passport-issuing country code from a HASiL list, but the retained specification only refers to the list and does not include it."
+    },
+    {
+      "code": "SUBMISSION_FORMAT_CLARIFICATION_STILL_REQUIRED",
+      "affects": [
+        "Q1 CP39",
+        "Q3 CP39",
+        "Q4 CP39"
+      ],
+      "detail": "HASiL email asks for PDF documents while the Testing Questions require text files. Preserve raw text plus PDF preview after identity mapping is supplied."
+    }
+  ],
+  "rawCp39TextValidation": "WAITING_FOR_APPLICANT_IDENTITY_AND_COUNTRY_CODE_AUTHORITY",
+  "pcb2iiCertificationReadiness": "WAITING_FOR_APPLICANT_IDENTITY_AND_TRANSACTION_EVIDENCE",
+  "identityValidation": {
+    "ready": false,
+    "exhibit4Ready": false,
+    "exhibit3Ready": false,
+    "unresolved": [
+      {
+        "artifact": "CP39",
+        "questionId": "Q1",
+        "code": "EMPLOYER_HQ_REQUIRED",
+        "field": "lhdnEmployerNumberHq",
+        "detail": "Exhibit 4 requires an exact 10-digit HQ employer number."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q1",
+        "code": "EMPLOYER_NUMBER_REQUIRED",
+        "field": "lhdnEmployerNumber",
+        "detail": "Exhibit 4 requires an exact 10-digit employer number."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q1",
+        "code": "EMPLOYEE_TIN_REQUIRED",
+        "field": "taxIdentificationNumber",
+        "detail": "An exact 11-digit employee TIN is required and was not supplied by the Testing Questions."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q1",
+        "code": "EMPLOYEE_NUMBER_REQUIRED",
+        "field": "employeeNumber",
+        "detail": "A non-empty applicant-assigned alphanumeric employee/salary number is required; Exhibit 4 allows at most 10 characters."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q1",
+        "code": "IDENTITY_TYPE_REQUIRED",
+        "field": "identityType",
+        "detail": "Identity type must resolve to NEW_IC, OLD_IC or PASSPORT."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q1",
+        "code": "IDENTITY_NUMBER_REQUIRED",
+        "field": "identityNumber",
+        "detail": "A valid IC or passport number is required."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q3",
+        "code": "EMPLOYER_HQ_REQUIRED",
+        "field": "lhdnEmployerNumberHq",
+        "detail": "Exhibit 4 requires an exact 10-digit HQ employer number."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q3",
+        "code": "EMPLOYER_NUMBER_REQUIRED",
+        "field": "lhdnEmployerNumber",
+        "detail": "Exhibit 4 requires an exact 10-digit employer number."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q3",
+        "code": "EMPLOYEE_TIN_REQUIRED",
+        "field": "taxIdentificationNumber",
+        "detail": "An exact 11-digit employee TIN is required and was not supplied by the Testing Questions."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q3",
+        "code": "EMPLOYEE_NUMBER_REQUIRED",
+        "field": "employeeNumber",
+        "detail": "A non-empty applicant-assigned alphanumeric employee/salary number is required; Exhibit 4 allows at most 10 characters."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q3",
+        "code": "IDENTITY_TYPE_REQUIRED",
+        "field": "identityType",
+        "detail": "Identity type must resolve to NEW_IC, OLD_IC or PASSPORT."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q3",
+        "code": "IDENTITY_NUMBER_REQUIRED",
+        "field": "identityNumber",
+        "detail": "A valid IC or passport number is required."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "EMPLOYER_HQ_REQUIRED",
+        "field": "lhdnEmployerNumberHq",
+        "detail": "Exhibit 4 requires an exact 10-digit HQ employer number."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "EMPLOYER_NUMBER_REQUIRED",
+        "field": "lhdnEmployerNumber",
+        "detail": "Exhibit 4 requires an exact 10-digit employer number."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "EMPLOYEE_TIN_REQUIRED",
+        "field": "taxIdentificationNumber",
+        "detail": "An exact 11-digit employee TIN is required and was not supplied by the Testing Questions."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "EMPLOYEE_NUMBER_REQUIRED",
+        "field": "employeeNumber",
+        "detail": "A non-empty applicant-assigned alphanumeric employee/salary number is required; Exhibit 4 allows at most 10 characters."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "IDENTITY_NUMBER_REQUIRED",
+        "field": "identityNumber",
+        "detail": "A valid IC or passport number is required."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "PASSPORT_COUNTRY_REQUIRED",
+        "field": "passportCountryCode",
+        "detail": "Passport requires a two-letter country code."
+      },
+      {
+        "artifact": "CP39",
+        "questionId": "Q4",
+        "code": "HASIL_COUNTRY_CODE_LIST_NOT_RETAINED",
+        "field": "passportCountryCode",
+        "detail": "The retained specification refers to a HASiL country-code list but does not contain that list; supplied codes cannot yet be certified against the official list."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "hasilBranch",
+        "detail": "Exhibit 3 field hasilBranch requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "statementDate",
+        "detail": "Exhibit 3 field statementDate requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "employerName",
+        "detail": "Exhibit 3 field employerName requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "employerAddress",
+        "detail": "Exhibit 3 field employerAddress requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "lhdnEmployerNumber",
+        "detail": "Exhibit 3 field lhdnEmployerNumber requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "officerName",
+        "detail": "Exhibit 3 field officerName requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "officerPosition",
+        "detail": "Exhibit 3 field officerPosition requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "APPLICANT_FIELD_REQUIRED",
+        "field": "officerPhone",
+        "detail": "Exhibit 3 field officerPhone requires applicant-supplied evidence."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "EMPLOYEE_TIN_REQUIRED",
+        "field": "taxIdentificationNumber",
+        "detail": "An exact 11-digit employee TIN is required and was not supplied by the Testing Questions."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "EMPLOYEE_NUMBER_REQUIRED",
+        "field": "employeeNumber",
+        "detail": "A non-empty applicant-assigned employee number is required by Exhibit 3; no field width is stated there."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "IDENTITY_TYPE_REQUIRED",
+        "field": "identityType",
+        "detail": "Identity type must resolve to NEW_IC, OLD_IC or PASSPORT."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "IDENTITY_NUMBER_REQUIRED",
+        "field": "identityNumber",
+        "detail": "A valid IC or passport number is required."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_REFERENCE_REQUIRED",
+        "field": "2026-03.pcbReceiptOrTransactionNumber",
+        "detail": "Exhibit 3 contains a PCB receipt/bank-slip/transaction reference column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_DATE_REQUIRED",
+        "field": "2026-03.pcbReceiptOrTransactionDate",
+        "detail": "Exhibit 3 contains a PCB receipt/transaction date column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_REFERENCE_REQUIRED",
+        "field": "2026-06.pcbReceiptOrTransactionNumber",
+        "detail": "Exhibit 3 contains a PCB receipt/bank-slip/transaction reference column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_DATE_REQUIRED",
+        "field": "2026-06.pcbReceiptOrTransactionDate",
+        "detail": "Exhibit 3 contains a PCB receipt/transaction date column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_REFERENCE_REQUIRED",
+        "field": "2026-09.pcbReceiptOrTransactionNumber",
+        "detail": "Exhibit 3 contains a PCB receipt/bank-slip/transaction reference column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_DATE_REQUIRED",
+        "field": "2026-09.pcbReceiptOrTransactionDate",
+        "detail": "Exhibit 3 contains a PCB receipt/transaction date column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_REFERENCE_REQUIRED",
+        "field": "2026-12.pcbReceiptOrTransactionNumber",
+        "detail": "Exhibit 3 contains a PCB receipt/bank-slip/transaction reference column; no evidence was supplied."
+      },
+      {
+        "artifact": "PCB_2II",
+        "questionId": "Q2",
+        "code": "PCB_TRANSACTION_DATE_REQUIRED",
+        "field": "2026-12.pcbReceiptOrTransactionDate",
+        "detail": "Exhibit 3 contains a PCB receipt/transaction date column; no evidence was supplied."
+      }
+    ]
+  },
+  "productionTouched": false
+}

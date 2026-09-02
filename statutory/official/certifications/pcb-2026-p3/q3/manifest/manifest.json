@@ -1,0 +1,210 @@
+{
+  "questionId": "Q3",
+  "employeeLabel": "Employee C",
+  "officialSourceSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+  "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+  "p2CertificationDigest": "721daef2a5069077ed8eab014e0eae26eb83396335fa7420d64f2ab243e7a71d",
+  "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+  "independentVerifierVersion": "HASIL_2026_P2_INDEPENDENT_1.0.0",
+  "requiredArtifacts": {
+    "calculationDetail": [
+      "2026-09",
+      "2026-11"
+    ],
+    "payslip": [
+      "2026-09"
+    ],
+    "ea": false,
+    "pcb2ii": false,
+    "textFile": [
+      "2026-11"
+    ]
+  },
+  "identitySource": "statutory/official/fixtures/pcb-2026-p3a-submission-identity.json",
+  "identityInputSha256": "ef3a014dba987542bf013b850afe1d6a9b08baaac1529cee2d350a910e59b2f4",
+  "identityStatus": "INPUT_REQUIRED",
+  "requiredIdentityFields": [
+    "lhdnEmployerNumberHq",
+    "lhdnEmployerNumber",
+    "taxIdentificationNumber",
+    "employeeNumber",
+    "identityType",
+    "identityNumber"
+  ],
+  "unresolvedIdentityInputs": [
+    {
+      "artifact": "CP39",
+      "questionId": "Q3",
+      "code": "EMPLOYER_HQ_REQUIRED",
+      "field": "lhdnEmployerNumberHq",
+      "detail": "Exhibit 4 requires an exact 10-digit HQ employer number."
+    },
+    {
+      "artifact": "CP39",
+      "questionId": "Q3",
+      "code": "EMPLOYER_NUMBER_REQUIRED",
+      "field": "lhdnEmployerNumber",
+      "detail": "Exhibit 4 requires an exact 10-digit employer number."
+    },
+    {
+      "artifact": "CP39",
+      "questionId": "Q3",
+      "code": "EMPLOYEE_TIN_REQUIRED",
+      "field": "taxIdentificationNumber",
+      "detail": "An exact 11-digit employee TIN is required and was not supplied by the Testing Questions."
+    },
+    {
+      "artifact": "CP39",
+      "questionId": "Q3",
+      "code": "EMPLOYEE_NUMBER_REQUIRED",
+      "field": "employeeNumber",
+      "detail": "A non-empty applicant-assigned alphanumeric employee/salary number is required; Exhibit 4 allows at most 10 characters."
+    },
+    {
+      "artifact": "CP39",
+      "questionId": "Q3",
+      "code": "IDENTITY_TYPE_REQUIRED",
+      "field": "identityType",
+      "detail": "Identity type must resolve to NEW_IC, OLD_IC or PASSPORT."
+    },
+    {
+      "artifact": "CP39",
+      "questionId": "Q3",
+      "code": "IDENTITY_NUMBER_REQUIRED",
+      "field": "identityNumber",
+      "detail": "A valid IC or passport number is required."
+    }
+  ],
+  "generatedArtifacts": [
+    {
+      "type": "CALCULATION_DETAIL",
+      "month": "2026-09",
+      "status": "CERTIFICATION_READY",
+      "pcbCents": 96020,
+      "inputDigest": "0b6ed6a4319c68e98949672b3fb4d7cb6c09c1fd03abdb46f0a0b1f3f2c8f59f",
+      "generatorVersion": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0",
+      "files": [
+        "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-09-calculation-detail.json",
+        "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-09-calculation-detail.pdf"
+      ]
+    },
+    {
+      "type": "CALCULATION_DETAIL",
+      "month": "2026-11",
+      "status": "CERTIFICATION_READY",
+      "pcbCents": 86920,
+      "inputDigest": "41c5d1aeffaaf377ec3ccfd94fbab0ebffd6140a125c4d0c794fdcbbba549548",
+      "generatorVersion": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0",
+      "files": [
+        "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-11-calculation-detail.json",
+        "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-11-calculation-detail.pdf"
+      ]
+    },
+    {
+      "type": "PAYSLIP",
+      "month": "2026-09",
+      "status": "CERTIFICATION_READY",
+      "pcbCents": 96020,
+      "inputDigest": "0b6ed6a4319c68e98949672b3fb4d7cb6c09c1fd03abdb46f0a0b1f3f2c8f59f",
+      "generatorVersion": "CANONICAL_PAYSLIP_RENDERER_2026",
+      "files": [
+        "statutory/official/certifications/pcb-2026-p3/q3/payslip/q3-2026-09-payslip.json",
+        "statutory/official/certifications/pcb-2026-p3/q3/payslip/q3-2026-09-payslip.pdf"
+      ]
+    },
+    {
+      "type": "CP39_TEXT_FILE",
+      "month": "2026-11",
+      "status": "BLOCKED_MISSING_OFFICIAL_IDENTITIES",
+      "pcbCents": 86920,
+      "generatorVersion": "LHDN_CP39_EXHIBIT_4_2026",
+      "blocker": "The retained official question does not provide mandatory Exhibit 4 identity fields, applicant employer numbers are absent, and the retained country-code list is incomplete. The canonical exporter was intentionally not called with invented identifiers.",
+      "files": [
+        "statutory/official/certifications/pcb-2026-p3/q3/text-file/q3-2026-11-cp39-blocker.json"
+      ]
+    }
+  ],
+  "artifactSha256": [
+    {
+      "filename": "q3-2026-09-calculation-detail.json",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-09-calculation-detail.json",
+      "bytes": 2280,
+      "sha256": "c99d2e9a99aff0ae6aa04e0ce3a0181abcda09a6159692c55a96665743d55b3b",
+      "artifactType": "CALCULATION_DETAIL",
+      "month": "2026-09",
+      "status": "CERTIFICATION_READY",
+      "inputDigest": "0b6ed6a4319c68e98949672b3fb4d7cb6c09c1fd03abdb46f0a0b1f3f2c8f59f",
+      "generatorVersion": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0"
+    },
+    {
+      "filename": "q3-2026-09-calculation-detail.pdf",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-09-calculation-detail.pdf",
+      "bytes": 2947,
+      "sha256": "d5cfc1b87d1037775c644682f0d93794c3816da8cae98e6d3427f76db6521466",
+      "artifactType": "CALCULATION_DETAIL",
+      "month": "2026-09",
+      "status": "CERTIFICATION_READY",
+      "inputDigest": "0b6ed6a4319c68e98949672b3fb4d7cb6c09c1fd03abdb46f0a0b1f3f2c8f59f",
+      "generatorVersion": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0"
+    },
+    {
+      "filename": "q3-2026-11-calculation-detail.json",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-11-calculation-detail.json",
+      "bytes": 2233,
+      "sha256": "7abb8cc4291e081852dc09c99d746bae20b88012611a8f35e48a2fd8789b239b",
+      "artifactType": "CALCULATION_DETAIL",
+      "month": "2026-11",
+      "status": "CERTIFICATION_READY",
+      "inputDigest": "41c5d1aeffaaf377ec3ccfd94fbab0ebffd6140a125c4d0c794fdcbbba549548",
+      "generatorVersion": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0"
+    },
+    {
+      "filename": "q3-2026-11-calculation-detail.pdf",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/calculation-detail/q3-2026-11-calculation-detail.pdf",
+      "bytes": 2919,
+      "sha256": "8b3f13f5bbb260d62c34f2cdbd3295be0d04cb81b37c354f9219f4660b416e77",
+      "artifactType": "CALCULATION_DETAIL",
+      "month": "2026-11",
+      "status": "CERTIFICATION_READY",
+      "inputDigest": "41c5d1aeffaaf377ec3ccfd94fbab0ebffd6140a125c4d0c794fdcbbba549548",
+      "generatorVersion": "TETAMU_PCB_CALCULATION_DETAIL_1.0.0"
+    },
+    {
+      "filename": "q3-2026-09-payslip.json",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/payslip/q3-2026-09-payslip.json",
+      "bytes": 519,
+      "sha256": "493a443f3920559d333b8e28c07cd9f7702a38462591790a1061de3eb756e3ad",
+      "artifactType": "PAYSLIP",
+      "month": "2026-09",
+      "status": "CERTIFICATION_READY",
+      "inputDigest": "0b6ed6a4319c68e98949672b3fb4d7cb6c09c1fd03abdb46f0a0b1f3f2c8f59f",
+      "generatorVersion": "CANONICAL_PAYSLIP_RENDERER_2026"
+    },
+    {
+      "filename": "q3-2026-09-payslip.pdf",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/payslip/q3-2026-09-payslip.pdf",
+      "bytes": 2760,
+      "sha256": "ddf4738648ab444731077e9c5136a0c3ee4167c4846259c99cb7cd09bff0afe4",
+      "artifactType": "PAYSLIP",
+      "month": "2026-09",
+      "status": "CERTIFICATION_READY",
+      "inputDigest": "0b6ed6a4319c68e98949672b3fb4d7cb6c09c1fd03abdb46f0a0b1f3f2c8f59f",
+      "generatorVersion": "CANONICAL_PAYSLIP_RENDERER_2026"
+    },
+    {
+      "filename": "q3-2026-11-cp39-blocker.json",
+      "repositoryPath": "statutory/official/certifications/pcb-2026-p3/q3/text-file/q3-2026-11-cp39-blocker.json",
+      "bytes": 2991,
+      "sha256": "45d15003a9de105f8c1eb4f95aacd10333fcd86353b9ebe1838a463bb36efdfd",
+      "artifactType": "CP39_TEXT_FILE",
+      "month": "2026-11",
+      "status": "BLOCKED_MISSING_OFFICIAL_IDENTITIES",
+      "inputDigest": null,
+      "generatorVersion": "LHDN_CP39_EXHIBIT_4_2026"
+    }
+  ],
+  "generationTimestamp": "2026-08-28T16:56:20.007Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false,
+  "verdict": "PARTIAL"
+}

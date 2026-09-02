@@ -1,0 +1,72 @@
+{
+  "artifactType": "CALCULATION_DETAIL",
+  "status": "CERTIFICATION_READY",
+  "questionId": "Q2",
+  "employeeLabel": "Employee B",
+  "month": "2026-09",
+  "source": {
+    "officialTestingQuestionSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+    "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+    "p2InputDigest": "8e4b9c5d3ebcc5b2fa1b341efa814f393365ac6dcb3bd118cf742077ae21a72c",
+    "p2TraceDigest": "677a6fab862d3cd563ad38651c6439180ecbfd99cc92556f45f7d49a39200b05",
+    "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+    "ruleVersion": "HASIL_MTD_SPEC_2026"
+  },
+  "facts": {
+    "taxRegime": "RESIDENT_STANDARD",
+    "employeeCategory": "CATEGORY_3",
+    "normalRemunerationCents": 0,
+    "additionalRemunerationCents": 10000000,
+    "nonCashOrExemptContext": [
+      "quarterly director fee"
+    ],
+    "currentEmployerYtdBeforeCurrentCents": 20000000,
+    "previousEmployerRemunerationCents": 0,
+    "previousEmployerEpfCents": 0,
+    "previousEmployerPcbCents": 0,
+    "currentNormalEpfCents": 0,
+    "currentAdditionalEpfCents": 0,
+    "accumulatedTp1DeductionsCents": 495000,
+    "currentTp1DeductionsCents": 135000,
+    "housingLoanInterestReliefCents": 0,
+    "spouseReliefCents": 0,
+    "childReliefCents": 1600000,
+    "chargeableIncomeCents": 16870000,
+    "bracketMCents": 10000000,
+    "taxRatePercent": 25,
+    "bracketBCents": 940000,
+    "annualTaxCents": 2657500,
+    "accumulatedZakatCents": 2400000,
+    "currentZakatCents": 1200000,
+    "currentReligiousTravelLevyCents": 0,
+    "normalPcbBeforeCurrentRebatesCents": 0,
+    "normalPcbAfterCurrentRebatesCents": 0,
+    "additionalPcbCents": 3666250,
+    "finalPcbCents": 3666250
+  },
+  "rounding": {
+    "rawNumeratorCents": -4833750,
+    "divisor": 4,
+    "truncatedToSenCents": 0,
+    "minimumThresholdApplied": true,
+    "roundedUpToFiveSenCents": 0,
+    "postZakatAndLevyCents": 0,
+    "additional": {
+      "rawNumeratorCents": 3666250,
+      "rawDivisor": 1,
+      "truncatedToSenCents": 3666250,
+      "minimumThresholdApplied": false,
+      "roundedUpToFiveSenCents": 3666250,
+      "postZakatAndLevyCents": 3666250
+    }
+  },
+  "officialSections": [
+    "Computerised Specification 2026: Normal Remuneration Formula",
+    "Computerised Specification 2026: Additional Remuneration Steps 1-5",
+    "Computerised Specification 2026: Table 1",
+    "Computerised Specification 2026: Conditions for Computerised Calculation"
+  ],
+  "generatedAt": "2026-08-28T16:56:20.007Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}

@@ -1,0 +1,63 @@
+{
+  "artifactType": "CALCULATION_DETAIL",
+  "status": "CERTIFICATION_READY",
+  "questionId": "Q3",
+  "employeeLabel": "Employee C",
+  "month": "2026-11",
+  "source": {
+    "officialTestingQuestionSha256": "d6523266b8b23daca956be0f61ec52879eab364736a9feb5668d7f039ae33517",
+    "fixtureSha256": "a2846ca0adc8d5a16e871ecc1611432243ed0193d3ae3ed9619a29f9f6ef5b53",
+    "p2InputDigest": "41c5d1aeffaaf377ec3ccfd94fbab0ebffd6140a125c4d0c794fdcbbba549548",
+    "p2TraceDigest": "640629966dcc5e313da6adcf9ad9fe9d80b5bac70d943040934314cf5f72e973",
+    "calculatorVersion": "TETAMU_PCB_2026_1.2.0",
+    "ruleVersion": "HASIL_MTD_SPEC_2026"
+  },
+  "facts": {
+    "taxRegime": "RETURNING_EXPERT_PROGRAM",
+    "employeeCategory": "CATEGORY_3",
+    "normalRemunerationCents": 1100000,
+    "additionalRemunerationCents": 0,
+    "nonCashOrExemptContext": [
+      "RM500 BIK allocation"
+    ],
+    "currentEmployerYtdBeforeCurrentCents": 2200000,
+    "previousEmployerRemunerationCents": 0,
+    "previousEmployerEpfCents": 0,
+    "previousEmployerPcbCents": 0,
+    "currentNormalEpfCents": 110000,
+    "currentAdditionalEpfCents": 0,
+    "accumulatedTp1DeductionsCents": 145600,
+    "currentTp1DeductionsCents": 72800,
+    "housingLoanInterestReliefCents": 0,
+    "spouseReliefCents": 0,
+    "childReliefCents": 200000,
+    "chargeableIncomeCents": 2681600,
+    "bracketMCents": 0,
+    "taxRatePercent": 15,
+    "bracketBCents": 0,
+    "annualTaxCents": 402240,
+    "accumulatedZakatCents": 0,
+    "currentZakatCents": 0,
+    "currentReligiousTravelLevyCents": 0,
+    "normalPcbBeforeCurrentRebatesCents": 86920,
+    "normalPcbAfterCurrentRebatesCents": 86920,
+    "additionalPcbCents": 0,
+    "finalPcbCents": 86920
+  },
+  "rounding": {
+    "rawNumeratorCents": 173840,
+    "divisor": 2,
+    "truncatedToSenCents": 86920,
+    "minimumThresholdApplied": false,
+    "roundedUpToFiveSenCents": 86920,
+    "postZakatAndLevyCents": 86920,
+    "additional": null
+  },
+  "officialSections": [
+    "Computerised Specification 2026: Approved Individual Under REP",
+    "Computerised Specification 2026: Terms and Conditions"
+  ],
+  "generatedAt": "2026-08-28T16:56:20.007Z",
+  "environment": "LOCAL_DISPOSABLE_CERTIFICATION",
+  "productionTouched": false
+}
