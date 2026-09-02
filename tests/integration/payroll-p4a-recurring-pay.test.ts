@@ -17,6 +17,8 @@ import {
 import { prisma } from "../../src/lib/prisma";
 import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 
+const recurringPayFixtureNow = new Date("2026-08-15T00:00:00.000Z");
+
 test("P4A recurring pay resolves, snapshots and preserves finalized payroll history", async () => {
   const fixture = await createFixture();
   const context = writeContext(fixture);
@@ -144,10 +146,12 @@ test("P4A recurring pay resolves, snapshots and preserves finalized payroll hist
   const correction = await scheduleRecurringPayComponent({
     command: correctionCommand,
     context,
+    now: recurringPayFixtureNow,
   });
   const replay = await scheduleRecurringPayComponent({
     command: correctionCommand,
     context,
+    now: recurringPayFixtureNow,
   });
   assert.equal(replay.commandReplay, true);
   assert.equal(replay.newVersionId, correction.newVersionId);
@@ -180,6 +184,7 @@ test("P4A recurring pay resolves, snapshots and preserves finalized payroll hist
       type: "EARNING",
     }),
     context,
+    now: recurringPayFixtureNow,
   });
   const septemberResolved = await resolveRecurringPayForEmployee({
     businessId: fixture.business.id,
@@ -282,6 +287,7 @@ async function setComponent(
       operation: "SET",
     }),
     context,
+    now: recurringPayFixtureNow,
   });
 }
 

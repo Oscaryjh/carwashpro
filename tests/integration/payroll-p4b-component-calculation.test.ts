@@ -17,6 +17,8 @@ import {
 import { prisma } from "../../src/lib/prisma";
 import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 
+const recurringPayFixtureNow = new Date("2026-08-15T00:00:00.000Z");
+
 test("P4B lines explain payroll, manual adjustments survive recalculation and remain idempotent", async () => {
   const fixture = await createFixture();
   const profileContext = writeContext(fixture);
@@ -272,6 +274,7 @@ async function setRecurring(
 ) {
   return scheduleRecurringPayComponent({
     context,
+    now: recurringPayFixtureNow,
     command: {
       ...input,
       commandId: randomUUID(),

@@ -212,6 +212,7 @@ export function sumRecurringPay(
 export async function scheduleRecurringPayComponent(input: {
   command: ScheduleRecurringPayCommand;
   context: PayrollProfileWriteContext;
+  now?: Date;
 }, database: PrismaClient = prisma) {
   const command = parseRecurringPayCommand(input.command);
   return executeCanonicalPayrollProfileCommand(
@@ -230,6 +231,7 @@ export async function scheduleRecurringPayComponent(input: {
         const currentMonth = await businessPayrollMonthStart(
           input.context.businessId,
           transaction,
+          input.now,
         );
         if (command.effectiveFromMonth < currentMonth) {
           throw new PayrollProfileWriteError(
