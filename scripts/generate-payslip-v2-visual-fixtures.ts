@@ -82,9 +82,12 @@ const cases: Array<[string, PayrollDocumentEntry]> = [
     ],
   })],
   ["D-claims-reimbursement", baseEntry({
-    otherDeductions: 480,
-    netPay: 3_440,
-    claimReimbursements: [{ claimNumber: "CLM-DEMO-001", amount: 120 }],
+    basicPay: 4_000,
+    grossPay: 4_000,
+    otherDeductions: 500,
+    netPay: 3_600,
+    claimReimbursements: [{ claimNumber: "CLM-DEMO-001", amount: 100 }],
+    components: [{ name: "Basic Salary", type: "EARNING", amount: 4_000 }],
   })],
   ["E-long-complex", baseEntry({
     employeeCode: "DEMO-LONG-EMPLOYEE-CODE-2026-0000001",

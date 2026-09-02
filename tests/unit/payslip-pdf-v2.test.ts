@@ -92,21 +92,24 @@ test("Payslip V2 keeps canonical money sections separate and professionally labe
     "TOTAL DEDUCTIONS",
     "NET PAY",
     "EARNINGS",
+    "TOTAL GROSS EARNINGS",
     "Commission",
     "EMPLOYEE DEDUCTIONS",
-    "EPF Employee",
-    "SOCSO Employee",
-    "EIS Employee",
     "PCB",
     "CP38",
     "LINDUNG24",
     "EMPLOYER CONTRIBUTIONS",
-    "Employer EPF",
-    "Employer SOCSO",
-    "Employer EIS",
     "REIMBURSEMENTS",
     "Claim CLM-2026-0088",
   ]) assert.match(text, new RegExp(expected));
+  for (const expected of [
+    "EPF \\(Employee\\)",
+    "SOCSO \\(Employee\\)",
+    "EIS \\(Employee\\)",
+    "EPF \\(Employer\\)",
+    "SOCSO \\(Employer\\)",
+    "EIS \\(Employer\\)",
+  ]) assert.ok(text.includes(expected));
   assert.doesNotMatch(text, /LENDING 24 jam/i);
   assert.match(text, /Employer-funded - does not reduce Net Pay/);
   assert.match(text, /Non-wage reimbursements - excluded from Gross Pay/);
@@ -173,6 +176,9 @@ test("Payslip V2 output is deterministic and publication/route security remains 
   const first = buildPayslipPdf(run, entry());
   const second = buildPayslipPdf(run, entry());
   assert.deepEqual(first, second);
+  const text = first.toString("latin1");
+  assert.match(text, /\/Subject \(MY-PAYSLIP-V2\)/);
+  assert.match(text, /\/Keywords \(MY-PAYSLIP-V2\)/);
   const [publication, route, schema] = await Promise.all([
     readFile("src/lib/payroll/payslip-publication.ts", "utf8"),
     readFile("src/app/staff/payslips/[publicationId]/route.ts", "utf8"),
@@ -187,4 +193,30 @@ test("Payslip V2 output is deterministic and publication/route security remains 
   assert.match(route, /Content-Disposition": `attachment;/);
   assert.match(schema, /documentBytes\s+Bytes/);
   assert.match(schema, /documentSha256\s+String/);
+});
+
+test("Payslip V2 keeps an ordinary Malaysian payslip on one A4 page", () => {
+  const pdf = buildPayslipPdf(run, entry({
+    components: [{ name: "Basic Salary", type: "EARNING", amount: 4_000 }],
+    basicPay: 4_000,
+    overtimePay: 0,
+    publicHolidayPay: 0,
+    allowances: 0,
+    otherDeductions: 500,
+    epfEmployee: 0,
+    socsoEmployee: 0,
+    eisEmployee: 0,
+    lindung24Employee: 0,
+    pcb: 0,
+    cp38: 0,
+    employerEpf: 0,
+    employerSocso: 0,
+    employerEis: 0,
+    grossPay: 4_000,
+    netPay: 3_600,
+    claimReimbursements: [{ claimNumber: "CLM-UAT-001", amount: 100 }],
+    notes: null,
+  }));
+  const pageCount = (pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length;
+  assert.equal(pageCount, 1);
 });

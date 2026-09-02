@@ -3,6 +3,8 @@ const PAGE_HEIGHT = 841.89;
 const PAGE_MARGIN = 34;
 const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN * 2;
 
+export const PAYSLIP_PDF_TEMPLATE_VERSION = "MY-PAYSLIP-V2";
+
 const COLORS = {
   teal: "0.000 0.369 0.345",
   tealDark: "0.000 0.259 0.243",
@@ -168,7 +170,10 @@ class PdfCanvas {
   }
 
   build() {
-    return assemblePdf(this.pages);
+    return assemblePdf(this.pages, {
+      title: `Payslip - ${this.companyName}`,
+      subject: PAYSLIP_PDF_TEMPLATE_VERSION,
+    });
   }
 }
 
@@ -192,7 +197,7 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
   drawFinancialSection(pdf, {
     title: "EARNINGS",
     rows: earnings,
-    totalLabel: "TOTAL EARNINGS",
+    totalLabel: "TOTAL GROSS EARNINGS",
     total: entry.grossPay,
     tint: COLORS.tealSoft,
     accent: COLORS.tealDark,
@@ -213,15 +218,15 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
       amount: item.amount,
     })),
     ...(componentDeductions.length ? [] : [{ label: "Other Deduction", amount: entry.otherDeductions }]),
-    { label: "EPF Employee", amount: entry.epfEmployee },
-    { label: "SOCSO Employee", amount: entry.socsoEmployee },
-    { label: "EIS Employee", amount: entry.eisEmployee },
+    { label: "EPF (Employee)", amount: entry.epfEmployee },
+    { label: "SOCSO (Employee)", amount: entry.socsoEmployee },
+    { label: "EIS (Employee)", amount: entry.eisEmployee },
     { label: "PCB", amount: entry.pcb },
     ...(entry.cp38 !== 0 ? [{ label: "CP38", amount: entry.cp38 }] : []),
     ...(entry.lindung24Employee !== 0
       ? [{ label: "LINDUNG24", amount: entry.lindung24Employee }]
       : []),
-  ].filter((item) => item.amount !== 0 || ["EPF Employee", "SOCSO Employee", "EIS Employee", "PCB"].includes(item.label));
+  ].filter((item) => item.amount !== 0 || ["EPF (Employee)", "SOCSO (Employee)", "EIS (Employee)", "PCB"].includes(item.label));
   drawFinancialSection(pdf, {
     title: "EMPLOYEE DEDUCTIONS",
     subtitle: "Deducted from employee pay",
@@ -237,9 +242,9 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
     title: "EMPLOYER CONTRIBUTIONS",
     subtitle: "Employer-funded - does not reduce Net Pay",
     rows: [
-      { label: "Employer EPF", amount: entry.employerEpf },
-      { label: "Employer SOCSO", amount: entry.employerSocso },
-      { label: "Employer EIS", amount: entry.employerEis },
+      { label: "EPF (Employer)", amount: entry.employerEpf },
+      { label: "SOCSO (Employer)", amount: entry.employerSocso },
+      { label: "EIS (Employer)", amount: entry.employerEis },
     ],
     totalLabel: "TOTAL EMPLOYER CONTRIBUTIONS",
     total: employerContributions,
@@ -547,9 +552,9 @@ function drawNotes(pdf: PdfCanvas, notes: string | null) {
 function professionalComponentLabel(value: string) {
   const normalized = value.trim();
   if (/lindung\s*24|lending\s*24/i.test(normalized)) return "LINDUNG24";
-  if (/^epf\s+employee$/i.test(normalized)) return "EPF Employee";
-  if (/^socso\s+employee$/i.test(normalized)) return "SOCSO Employee";
-  if (/^eis\s+employee$/i.test(normalized)) return "EIS Employee";
+  if (/^epf\s+employee$/i.test(normalized)) return "EPF (Employee)";
+  if (/^socso\s+employee$/i.test(normalized)) return "SOCSO (Employee)";
+  if (/^eis\s+employee$/i.test(normalized)) return "EIS (Employee)";
   return normalized || "Payroll item";
 }
 
@@ -660,7 +665,10 @@ function number(value: number) {
   return Number(value.toFixed(2)).toString();
 }
 
-function assemblePdf(pages: string[][]) {
+function assemblePdf(
+  pages: string[][],
+  metadata: { title: string; subject: string },
+) {
   const objects: Buffer[] = [];
   const pageObjectNumbers = pages.map((_, index) => 5 + index * 2);
   objects.push(Buffer.from("<< /Type /Catalog /Pages 2 0 R >>"));
@@ -683,6 +691,11 @@ function assemblePdf(pages: string[][]) {
     ]));
   });
 
+  const infoObjectNumber = objects.length + 1;
+  objects.push(Buffer.from(
+    `<< /Title (${pdfEscape(pdfSafeText(metadata.title))}) /Subject (${pdfEscape(pdfSafeText(metadata.subject))}) /Producer (Tetamu Payroll) /Keywords (${PAYSLIP_PDF_TEMPLATE_VERSION}) >>`,
+  ));
+
   let pdf = Buffer.from("%PDF-1.4\n%TETAMU\n");
   const offsets = [0];
   objects.forEach((object, index) => {
@@ -692,6 +705,6 @@ function assemblePdf(pages: string[][]) {
   const xrefOffset = pdf.length;
   let trailer = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
   for (const offset of offsets.slice(1)) trailer += `${String(offset).padStart(10, "0")} 00000 n \n`;
-  trailer += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  trailer += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info ${infoObjectNumber} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
   return Buffer.concat([pdf, Buffer.from(trailer)]);
 }
