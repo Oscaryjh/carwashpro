@@ -88,7 +88,7 @@ export function StaffToday() {
   }
   if (!today) {
     return (
-      <section className="staff-page-card">
+      <section className="staff-page-card staff-attendance-primary-card">
         <div className="staff-alert error" role="alert">{error || "Unable to load Attendance."}</div>
         <button className="staff-primary-button" onClick={() => load()} type="button">
           Try again
@@ -636,7 +636,7 @@ export function StaffToday() {
                 <button
                   className={
                     action === "CLOCK_IN" || action === "CLOCK_OUT"
-                      ? "staff-primary-button"
+                      ? "staff-primary-button staff-clock-action"
                       : "staff-secondary-button"
                   }
                   disabled={busy}

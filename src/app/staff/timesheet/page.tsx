@@ -12,16 +12,16 @@ export default async function StaffTimesheetPage() {
   return (
     <section className="staff-page-card" aria-labelledby="staff-timesheet-heading">
       <div className="staff-page-title">
-        <p>Attendance results</p>
-        <h1 id="staff-timesheet-heading">My timesheet</h1>
-        <p>Raw punches, pending corrections and resolved day outcomes stay separate.</p>
+        <p>MONTHLY ATTENDANCE</p>
+        <h1 id="staff-timesheet-heading">Timesheet &amp; overtime</h1>
+        <p>Review your final attendance results, corrections and overtime for the month.</p>
       </div>
       {overtime.length || lockedOvertime.length ? (
         <div className="staff-history-list" aria-label="Overtime classification">
           <div className="staff-page-title">
-            <p>Overtime classification</p>
+            <p>ATTENDANCE-DERIVED OVERTIME</p>
             <h2>My overtime</h2>
-            <p>Attendance reviews the minutes. Payroll can use only approved minutes from a locked monthly timesheet.</p>
+            <p>Potential time comes from attendance. Approved time is the manager-reviewed amount.</p>
           </div>
           {(timesheetStatus === "LOCKED" ? lockedOvertime : overtime).map((item) => {
             const locked = "otApprovalStatus" in item;
@@ -43,10 +43,10 @@ export default async function StaffTimesheetPage() {
                   <span><small>Approved OT</small><strong>{minutes(approvedMinutes)}</strong></span>
                 </div>
                 <p>{locked
-                  ? "Final payroll classification frozen in the locked timesheet."
+                  ? "This reviewed overtime is included in the completed monthly attendance record."
                   : status === "PENDING_REVIEW"
                     ? "Waiting for an authorised manager to review."
-                    : "Decision recorded. It becomes final for payroll only after the monthly timesheet is locked."}</p>
+                    : "The manager decision is recorded and will appear in the completed monthly record."}</p>
                 {!locked && review?.reason ? <small>Reason: {review.reason}</small> : null}
               </article>
             );
@@ -69,11 +69,11 @@ export default async function StaffTimesheetPage() {
       <div className="staff-history-list">
         {latest.map((row) => (
           <article className="staff-history-card" key={row.id}>
-            <div className="staff-history-card-header"><div><strong>{format(row.outcome)}</strong><small>{row.workDate.toISOString().slice(0, 10)} · Version {row.version}</small></div></div>
+            <div className="staff-history-card-header"><div><strong>{format(row.outcome)}</strong><small>{row.workDate.toISOString().slice(0, 10)}</small></div></div>
             <div className="staff-history-times"><span><small>Clock in</small><strong>{time(row.actualClockInAt)}</strong></span><span><small>Clock out</small><strong>{time(row.actualClockOutAt)}</strong></span></div>
           </article>
         ))}
-        {!latest.length && !exceptions.length ? <p>No Attendance day results are available for this month.</p> : null}
+        {!latest.length && !exceptions.length ? <p>No monthly attendance results are available yet.</p> : null}
       </div>
     </section>
   );

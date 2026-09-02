@@ -30,6 +30,18 @@ const profileSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-profile.tsx", import.meta.url),
   "utf8",
 );
+const requestsSource = readFileSync(
+  new URL("../../src/app/staff/requests/page.tsx", import.meta.url),
+  "utf8",
+);
+const paySource = readFileSync(
+  new URL("../../src/app/staff/pay/page.tsx", import.meta.url),
+  "utf8",
+);
+const historySource = readFileSync(
+  new URL("../../src/components/staff-pwa/staff-history.tsx", import.meta.url),
+  "utf8",
+);
 const chromeSource = readFileSync(
   new URL("../../src/components/staff-pwa/staff-pwa-chrome.tsx", import.meta.url),
   "utf8",
@@ -312,6 +324,42 @@ test("Staff navigation follows module entitlement without overcrowding the mobil
   assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Time", "Requests", "Pay", "Profile"]);
   assert.deepEqual(full.more, []);
   assert.equal(full.primary.length, 5, "Staff navigation is fixed to five mobile destinations");
+});
+
+test("Staff Requests separates employee self-service from role-aware manager approvals", () => {
+  assert.match(requestsSource, /Needs your approval/);
+  assert.match(requestsSource, /getStaffTeamApprovalSummary/);
+  assert.match(requestsSource, /getStaffOvertimeSummary/);
+  assert.match(requestsSource, /My requests/);
+  assert.match(requestsSource, /Attendance correction/);
+  assert.doesNotMatch(requestsSource, /Submit OT|Request overtime/);
+});
+
+test("Staff Home makes Clock In and Clock Out the dominant daily action", () => {
+  assert.match(todaySource, /staff-attendance-primary-card/);
+  assert.match(todaySource, /staff-primary-button staff-clock-action/);
+});
+
+test("Staff Time groups schedule, attendance, correction, timesheet and overtime", () => {
+  assert.match(historySource, /staff-time-navigation/);
+  assert.match(historySource, /Published roster/);
+  assert.match(historySource, /Past attendance/);
+  assert.match(historySource, /Timesheet &amp; overtime/);
+  assert.match(historySource, /attendance-correction/);
+});
+
+test("Staff Pay shows the latest published Gross, Deductions and Net pay summary", () => {
+  assert.match(paySource, />Gross</);
+  assert.match(paySource, />Deductions</);
+  assert.match(paySource, />Net pay</);
+  assert.match(paySource, /View payslip/);
+});
+
+test("Staff Profile prioritizes workplace switching and hides device metadata by default", () => {
+  assert.match(profileSource, /CURRENT WORKPLACE/);
+  assert.match(profileSource, /SWITCH WORKPLACE/);
+  assert.match(profileSource, /<details className="staff-security-details">/);
+  assert.doesNotMatch(profileSource, /label="Browser"|label="Can view"|label="Can punch"/);
 });
 
 test("Staff navigation refreshes live employee module entitlement after login", () => {

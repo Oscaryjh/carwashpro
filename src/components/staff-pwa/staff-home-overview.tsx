@@ -12,6 +12,10 @@ type TeamApprovalSummary = {
 } | null;
 
 export function StaffHomeOverview({ overview, teamApprovals, children }: { overview: AwaitedReturn; teamApprovals?: TeamApprovalSummary; children?: ReactNode }) {
+  const nextShift = overview.cards.find((card) => card.domain === "ROSTER");
+  const latestPayslip = overview.cards.find((card) => card.domain === "PAYSLIP");
+  const requestCards = overview.cards.filter((card) => card.domain === "LEAVE" || card.domain === "CLAIMS");
+  const pendingRequests = requestCards.filter((card) => /pending/i.test(card.value)).length;
   return (
     <section className="staff-home-overview" aria-labelledby="staff-home-overview-heading">
       {overview.showWelcome ? (
@@ -25,35 +29,21 @@ export function StaffHomeOverview({ overview, teamApprovals, children }: { overv
         </section>
       ) : null}
       {children}
-      {teamApprovals ? (
-        <Link className="staff-team-approvals-entry" href="/staff/approvals">
-          <span className="staff-team-approvals-icon" aria-hidden="true">✓</span>
-          <span>
-            <small>TEAM WORKSPACE</small>
-            <strong>Team Approvals</strong>
-            <b>{teamApprovals.total ? `${teamApprovals.total} waiting` : "All caught up"}</b>
-            <span className="staff-team-approvals-domains">
-              {teamApprovals.canReviewLeave ? <em>Leave {teamApprovals.leave}</em> : null}
-              {teamApprovals.canReviewClaims ? <em>Claims {teamApprovals.claims}</em> : null}
-            </span>
-          </span>
-          <span className="staff-team-approvals-count" aria-label={`${teamApprovals.total} pending approvals`}>{teamApprovals.total}</span>
-        </Link>
-      ) : null}
       <div className="staff-home-section-heading">
-        <div><p className="staff-kicker">MY SELF-SERVICE</p><h2 id="staff-home-overview-heading">Your work in one place</h2></div>
-        <Link href="/staff/profile">Profile</Link>
+        <div><p className="staff-kicker">NEXT</p><h2 id="staff-home-overview-heading">What&apos;s coming up</h2></div>
       </div>
-      {overview.cards.length ? (
-        <div className="staff-home-grid">
-          {overview.cards.map((card) => (
+      {nextShift || latestPayslip || requestCards.length ? (
+        <div className="staff-home-grid staff-home-grid-compact">
+          {nextShift ? [nextShift].map((card) => (
             <Link className={`staff-home-card ${card.status.toLowerCase()}`} href={card.href} key={card.domain}>
               <small>{card.label}</small>
               <strong>{card.value}</strong>
               <span>{card.detail}</span>
               <b>Open</b>
             </Link>
-          ))}
+          )) : null}
+          {requestCards.length ? <Link className="staff-home-card ready" href="/staff/requests"><small>My requests</small><strong>{pendingRequests ? `${pendingRequests} pending` : "No pending requests"}</strong><span>Leave, claims and attendance corrections.</span><b>Open</b></Link> : null}
+          {latestPayslip ? <Link className={`staff-home-card ${latestPayslip.status.toLowerCase()}`} href="/staff/pay"><small>Latest payslip</small><strong>{latestPayslip.value}</strong><span>{latestPayslip.detail}</span><b>Open</b></Link> : null}
         </div>
       ) : (
         <div className="staff-page-card staff-core-only-state" role="status">
@@ -62,6 +52,13 @@ export function StaffHomeOverview({ overview, teamApprovals, children }: { overv
           <Link href="/staff/profile">Open my profile</Link>
         </div>
       )}
+      {teamApprovals ? (
+        <Link aria-label="Team Approvals" className="staff-team-approvals-entry staff-team-approvals-compact" href="/staff/requests">
+          <span className="staff-team-approvals-icon" aria-hidden="true">✓</span>
+          <span><small>MANAGER</small><strong>Needs your approval</strong><b>{teamApprovals.total ? `${teamApprovals.total} waiting` : "All caught up"}</b></span>
+          <span className="staff-team-approvals-count" aria-label={`${teamApprovals.total} pending approvals`}>{teamApprovals.total}</span>
+        </Link>
+      ) : null}
     </section>
   );
 }

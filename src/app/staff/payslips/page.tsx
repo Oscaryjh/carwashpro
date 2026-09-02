@@ -26,8 +26,11 @@ export default async function StaffPayslipsPage() {
               <div>
                 <strong>{formatMonth(payslip.payrollRun.periodStart)}</strong>
                 <small>Published {formatDate(payslip.publishedAt)}</small>
+                <span className="staff-payslip-inline-summary">
+                  Gross {money(payslip.payrollEntry.grossPay)} · Deductions {money(Number(payslip.payrollEntry.grossPay) - Number(payslip.payrollEntry.netPay))} · <b>Net {money(payslip.payrollEntry.netPay)}</b>
+                </span>
               </div>
-              <Link href={`/staff/payslips/${payslip.id}`}>Download PDF</Link>
+              <Link href={`/staff/payslips/${payslip.id}`}>View payslip</Link>
             </article>
           ))}
         </div>
@@ -39,6 +42,10 @@ export default async function StaffPayslipsPage() {
       )}
     </section>
   );
+}
+
+function money(value: number | { toString(): string }) {
+  return new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(Number(value));
 }
 
 function formatMonth(value: Date) {

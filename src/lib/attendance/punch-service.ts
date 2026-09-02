@@ -27,6 +27,10 @@ import {
   getNextAttendanceStatus,
 } from "@/lib/attendance/state-machine";
 import { getAttendanceWorkDate } from "@/lib/attendance/work-date";
+import {
+  AttendanceP2Error,
+  materializeAttendanceP2DayFromCompletedPunch,
+} from "@/lib/attendance/p2-service";
 import { materializeAttendanceResolutionFoundationInTransaction } from "@/lib/attendance/resolution-service";
 import {
   enforceAttendanceWriteRateLimit,
@@ -80,8 +84,9 @@ export async function performAttendancePunch(args: {
     deviceIdentifierHash,
   );
 
+  let result: AttendancePunchResult | null = null;
   try {
-    return await database.$transaction(
+    result = await database.$transaction(
       async (transaction) => {
         const principal = await loadEmployeeAttendancePrincipal({
           transaction,
@@ -365,12 +370,23 @@ export async function performAttendancePunch(args: {
         punchType: args.type,
       });
       if (replay) {
-        return replay;
+        result = replay;
+      } else {
+        failure = new AttendanceApiError(
+          "INVALID_ATTENDANCE_STATE",
+          "A concurrent attendance action already changed the session.",
+        );
       }
-      failure = new AttendanceApiError(
-        "INVALID_ATTENDANCE_STATE",
-        "A concurrent attendance action already changed the session.",
-      );
+    }
+
+    if (result) {
+      await tryMaterializeCompletedPunchP2({
+        result,
+        auth: args.auth,
+        branchId: input.branchId,
+        database,
+      });
+      return result;
     }
 
     const normalized = normalizeAttendanceApiError(failure);
@@ -388,6 +404,63 @@ export async function performAttendancePunch(args: {
       },
     }, database);
     throw normalized;
+  }
+
+  if (!result) {
+    throw new AttendanceApiError(
+      "INVALID_ATTENDANCE_STATE",
+      "Attendance punch completed without a result.",
+    );
+  }
+  await tryMaterializeCompletedPunchP2({
+    result,
+    auth: args.auth,
+    branchId: input.branchId,
+    database,
+  });
+  return result;
+}
+
+async function tryMaterializeCompletedPunchP2(input: {
+  result: AttendancePunchResult;
+  auth: EmployeeAuthContext;
+  branchId: string;
+  database: PrismaClient;
+}) {
+  if (input.result.resultingStatus !== "COMPLETED") return;
+
+  try {
+    await materializeAttendanceP2DayFromCompletedPunch({
+      businessId: input.auth.businessId,
+      branchId: input.branchId,
+      membershipId: input.auth.membershipId,
+      workDate: new Date(`${input.result.workDate}T00:00:00.000Z`),
+      database: input.database,
+    });
+  } catch (error) {
+    const errorCode =
+      error instanceof AttendanceP2Error ? error.code : "P2_MATERIALIZATION_FAILED";
+    console.error("[attendance] Completed punch P2 materialization failed", {
+      businessId: input.auth.businessId,
+      membershipId: input.auth.membershipId,
+      attendanceSessionId: input.result.attendanceSessionId,
+      workDate: input.result.workDate,
+      errorCode,
+    });
+    await tryWriteAuditLog({
+      businessId: input.auth.businessId,
+      branchId: input.branchId,
+      action: "ATTENDANCE_P2_MATERIALIZATION_FAILED",
+      entityType: "EmployeeAttendance",
+      entityId: input.result.attendanceSessionId,
+      summary: "Completed attendance was saved but its P2 day projection needs retry.",
+      status: "FAILED",
+      metadata: {
+        membershipId: input.auth.membershipId,
+        workDate: input.result.workDate,
+        errorCode,
+      },
+    }, input.database);
   }
 }
 

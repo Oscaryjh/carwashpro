@@ -38,6 +38,10 @@ export function StaffHistory() {
   const [correctionReason, setCorrectionReason] = useState("");
   const [correctionSubmitting, setCorrectionSubmitting] = useState(false);
   const [correctionMessage, setCorrectionMessage] = useState("");
+
+  useEffect(() => {
+    if (window.location.hash === "#attendance-correction") setCorrectionOpen(true);
+  }, []);
   const [knownBranches, setKnownBranches] = useState<Array<{ id: string; name: string }>>([]);
 
   const load = useCallback(async () => {
@@ -165,9 +169,15 @@ export function StaffHistory() {
   return (
     <div className="staff-history-stack">
       <section className="staff-page-title">
-        <p className="staff-kicker">MY ATTENDANCE</p>
-        <h1>My Attendance</h1>
-        <p>Only your own Attendance records are shown.</p>
+        <p className="staff-kicker">MY TIME</p>
+        <h1>Time</h1>
+        <p>See today, your schedule, attendance history and monthly results.</p>
+        <nav className="staff-time-navigation" aria-label="Time sections">
+          <a href="/staff"><small>Today</small><strong>Current attendance</strong></a>
+          <a href="/staff/roster"><small>Schedule</small><strong>Published roster</strong></a>
+          <a className="active" href="/staff/history"><small>History</small><strong>Past attendance</strong></a>
+          <a href="/staff/timesheet"><small>Monthly</small><strong>Timesheet &amp; overtime</strong></a>
+        </nav>
         <button
           className="staff-secondary-button"
           onClick={() => setCorrectionOpen((current) => !current)}
@@ -178,11 +188,11 @@ export function StaffHistory() {
       </section>
 
       {correctionOpen ? (
-        <section className="staff-page-card">
+        <section className="staff-page-card" id="attendance-correction">
           <div className="staff-card-heading">
             <div>
               <p className="staff-kicker">ATTENDANCE CORRECTION</p>
-              <h2>Report a missing punch</h2>
+              <h2>Request an attendance correction</h2>
             </div>
           </div>
           <form className="staff-history-filters" onSubmit={submitCorrection}>
@@ -320,7 +330,7 @@ export function StaffHistory() {
 
       {history ? (
         <>
-          <section className="staff-history-list" aria-busy={loading}>
+          <section className="staff-history-list" aria-busy={loading} aria-label="Attendance history">
             {history.items.map((item) => <HistoryCard item={item} key={item.id} />)}
             {!history.items.length ? (
               <div className="staff-empty-state">

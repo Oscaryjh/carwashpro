@@ -55,7 +55,7 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
     <div className="staff-profile-stack">
       {deviceVerified ? (
         <div className="staff-alert success" role="status">
-          This device is verified and your Employee Session is active.
+          This device is verified. You can continue securely.
         </div>
       ) : null}
       <section className="staff-profile-hero">
@@ -73,7 +73,7 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
       <section className="staff-page-card">
         <div className="staff-card-heading">
           <div>
-            <p className="staff-kicker">WORKPLACE</p>
+            <p className="staff-kicker">CURRENT WORKPLACE</p>
             <h2>{profile.workplace.businessName}</h2>
           </div>
           <span className="staff-status-chip active">ACTIVE</span>
@@ -104,8 +104,8 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
         <section className="staff-page-card">
           <div className="staff-card-heading">
             <div>
-              <p className="staff-kicker">MY WORKPLACES</p>
-              <h2>{workplaces.length} active employers</h2>
+              <p className="staff-kicker">SWITCH WORKPLACE</p>
+              <h2>Choose another employer</h2>
             </div>
             <button className="staff-inline-action" onClick={openWorkplaceSwitcher} type="button">
               Switch
@@ -124,31 +124,29 @@ export function StaffProfile({ deviceVerified = false }: { deviceVerified?: bool
               </button>
             ))}
           </div>
-          <p className="staff-form-hint">Each employer has a separate secure Staff Session and separate data.</p>
+          <p className="staff-form-hint">Your information stays separate for each workplace.</p>
         </section>
       ) : null}
 
       <section className="staff-page-card">
         <div className="staff-card-heading">
           <div>
-            <p className="staff-kicker">CURRENT DEVICE</p>
-            <h2>{profile.device.displayName || "Verified device"}</h2>
+            <p className="staff-kicker">SECURITY</p>
+            <h2>Verified device</h2>
           </div>
           <span className={`staff-status-chip ${profile.device.status.toLowerCase()}`}>
             {profile.device.status}
           </span>
         </div>
-        <div className="staff-device-details">
-          <Detail label="Platform" value={profile.device.platform || "Unknown"} />
-          <Detail label="Browser" value={profile.device.browser || "Unknown"} />
-          <Detail label="First verified" value={formatDateTime(profile.device.firstVerifiedAt)} />
-          <Detail label="Last active" value={formatDateTime(profile.device.lastActiveAt)} />
-          <Detail label="Can view" value={profile.capabilities.canView ? "Yes" : "No"} />
-          <Detail label="Can punch" value={profile.capabilities.canPunch ? "Yes" : "No"} />
-        </div>
-        <p className="staff-form-hint">
-          Additional clock-in devices must be verified through the secure OTP flow.
-        </p>
+        <p className="staff-form-hint">New devices must be verified with the one-time code sent to your phone.</p>
+        <details className="staff-security-details">
+          <summary>Device activity</summary>
+          <div className="staff-device-details">
+            <Detail label="Device" value={profile.device.displayName || profile.device.platform || "Verified device"} />
+            <Detail label="First verified" value={formatDateTime(profile.device.firstVerifiedAt)} />
+            <Detail label="Last active" value={formatDateTime(profile.device.lastActiveAt)} />
+          </div>
+        </details>
       </section>
 
       {deviceVerified ? (
