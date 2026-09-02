@@ -243,3 +243,9 @@ test("prepare source has no destructive DB API or external provider dependency",
   assert.doesNotMatch(source, /from\s+["'][^"']*(?:sms123|twilio|whatsapp|email|webhook)[^"']*["']/i);
   assert.doesNotMatch(source, /fetch\s*\(/);
 });
+
+test("canonical UAT branches use the bounded Kuala Lumpur state code", () => {
+  const source = readFileSync("scripts/prepare-testing-canonical-uat.ts", "utf8");
+  assert.match(source, /stateCode:\s*"KUL"/);
+  assert.doesNotMatch(source, /stateCode:\s*"W\.P\. KUALA LUMPUR"/);
+});

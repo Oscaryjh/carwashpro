@@ -247,13 +247,13 @@ async function ensureFixtureData(prisma: PrismaClient) {
             businessId,
             name,
             countryCode: "MY",
-            stateCode: "W.P. KUALA LUMPUR",
+            stateCode: "KUL",
             address: fixtureMarker(markerKey),
           },
           update: {
             name,
             status: "ACTIVE",
-            stateCode: "W.P. KUALA LUMPUR",
+            stateCode: "KUL",
             address: fixtureMarker(markerKey),
           },
         });
