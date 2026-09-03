@@ -18,6 +18,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 
 COPY scripts/lib/database-backup-core.mjs scripts/lib/database-backup-core.mjs
+COPY scripts/lib/database-restore-runtime.mjs scripts/lib/database-restore-runtime.mjs
 COPY scripts/db-backup.mjs scripts/db-backup.mjs
 COPY scripts/db-restore-verify.mjs scripts/db-restore-verify.mjs
 

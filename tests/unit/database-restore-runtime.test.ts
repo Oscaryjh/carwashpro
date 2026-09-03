@@ -91,3 +91,14 @@ test("restore runtime contains no canonical database target", async () => {
   assert.equal(source.includes("prisma migrate reset"), false);
   assert.equal(source.includes("Postgres-Canonical-Testing"), false);
 });
+
+test("database operations image includes the restore runtime helper", async () => {
+  const dockerfile = await readFile(
+    join(process.cwd(), "Dockerfile.database-ops"),
+    "utf8",
+  );
+  assert.match(
+    dockerfile,
+    /COPY scripts\/lib\/database-restore-runtime\.mjs scripts\/lib\/database-restore-runtime\.mjs/,
+  );
+});
