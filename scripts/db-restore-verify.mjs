@@ -1,5 +1,5 @@
 import { createServer } from "node:net";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -13,6 +13,7 @@ import {
   fileSize,
   listHealthyManifests,
   parseEncryptionKey,
+  redactOperationalText,
   runCommand,
   sha256File,
   uploadJson,
@@ -115,6 +116,7 @@ async function executeRestoreVerification() {
   }
 
   pgData = join(workDir, "postgres-data");
+  const postgresLog = join(workDir, "postgres.log");
   port = await availablePort();
   const pgUser = "tetamu_restore_verifier";
   const pgDatabase = "tetamu_restore_verify";
@@ -127,20 +129,29 @@ async function executeRestoreVerification() {
   // starts PostgreSQL but exits unexpectedly, the finally block will still
   // attempt a safe stop before deleting the temporary data directory.
   pgStarted = true;
-  await runCommand(
-    pgBin("pg_ctl"),
-    [
-      "-D",
-      pgData,
-      "-l",
-      join(workDir, "postgres.log"),
-      "-o",
-      `-p ${port} -h 127.0.0.1`,
-      "-w",
-      "start",
-    ],
-    { timeoutMs: 120_000, resolveOnExit: true },
-  );
+  try {
+    await runCommand(
+      pgBin("pg_ctl"),
+      [
+        "-D",
+        pgData,
+        "-l",
+        postgresLog,
+        "-o",
+        `-p ${port} -h 127.0.0.1`,
+        "-w",
+        "start",
+      ],
+      { timeoutMs: 120_000, resolveOnExit: true },
+    );
+  } catch (error) {
+    const startupLog = await readFile(postgresLog, "utf8").catch(
+      () => "PostgreSQL startup log was unavailable.",
+    );
+    throw new Error(
+      `${error.message} PostgreSQL startup log: ${redactOperationalText(startupLog)}`,
+    );
+  }
   await runCommand(
     pgBin("createdb"),
     ["-h", "127.0.0.1", "-p", String(port), "-U", pgUser, pgDatabase],
