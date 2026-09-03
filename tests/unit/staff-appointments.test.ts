@@ -159,6 +159,7 @@ test("Staff appointment surface is read-only, tenant-scoped and does not expose 
   const source = readFileSync("src/lib/staff-pwa/appointments.ts", "utf8");
   const page = readFileSync("src/app/staff/appointments/page.tsx", "utf8");
   const calendar = readFileSync("src/components/staff-pwa/staff-appointment-calendar.tsx", "utf8");
+  const staffStyles = readFileSync("src/app/staff/staff-consolidation.css", "utf8");
   const route = readFileSync("src/app/api/employee-appointments/route.ts", "utf8");
   assert.match(source, /businessId: input\.auth\.businessId/);
   assert.match(source, /employeeBusinessMembershipId: input\.auth\.membershipId/);
@@ -167,6 +168,8 @@ test("Staff appointment surface is read-only, tenant-scoped and does not expose 
   assert.match(page, /StaffAppointmentCalendar/);
   assert.match(calendar, /type="date"/);
   assert.match(calendar, /aria-current=\{item\.selected \? "date"/);
+  assert.match(staffStyles, /\.staff-appointment-calendar-picker svg \{[^}]*fill:none;[^}]*height:20px;[^}]*stroke:var\(--staff-brand\);[^}]*width:20px;/s);
+  assert.match(staffStyles, /\.staff-appointment-calendar-picker input \{[^}]*opacity:0;[^}]*position:absolute;/s);
   assert.match(route, /requireEmployeeSelfServiceAuthContext/);
   assert.match(route, /requireEmployeeBusinessModule\(auth, "SALON"\)/);
 });
