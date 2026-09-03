@@ -14,7 +14,8 @@
   ],
   "overrides": {
     "brace-expansion@^1.0.0": "1.1.18",
-    "js-yaml": "4.3.1"
+    "js-yaml": "4.3.1",
+    "browserslist": "4.28.8"
   },
   "scripts": {
     "db:start": "node scripts/start-embedded-postgres.mjs",
