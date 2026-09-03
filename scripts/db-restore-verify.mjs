@@ -1,5 +1,5 @@
 import { createServer } from "node:net";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -13,13 +13,17 @@ import {
   fileSize,
   listHealthyManifests,
   parseEncryptionKey,
-  redactOperationalText,
   runCommand,
   sha256File,
   uploadJson,
   validateManifest,
   withS3Lock,
 } from "./lib/database-backup-core.mjs";
+import {
+  buildDisposablePostgresPaths,
+  cleanupDisposablePostgres,
+  startDisposablePostgres,
+} from "./lib/database-restore-runtime.mjs";
 
 if (!process.argv.includes("--disposable")) {
   throw new Error("Restore verification requires the explicit --disposable flag.");
@@ -32,8 +36,8 @@ const key = parseEncryptionKey(required("BACKUP_ENCRYPTION_KEY"));
 const s3 = createS3ClientFromEnvironment();
 const pgBin = (name) => process.env[`PG_${name.toUpperCase()}_BIN`] ?? name;
 const workDir = await mkdtemp(join(tmpdir(), "tetamu-restore-verify-"));
-let pgStarted = false;
-let pgData;
+const postgresPaths = buildDisposablePostgresPaths(workDir);
+let pgStartAttempted = false;
 let port;
 
 try {
@@ -66,16 +70,10 @@ try {
   console.error(JSON.stringify({ ...event, alert }));
   process.exitCode = 1;
 } finally {
-  if (pgStarted && pgData) {
-    await runCommand(pgBin("pg_ctl"), ["-D", pgData, "-m", "fast", "stop"], {
-      timeoutMs: 60_000,
-    }).catch(() => {});
-  }
-  await rm(workDir, {
-    recursive: true,
-    force: true,
-    maxRetries: 5,
-    retryDelay: 500,
+  await cleanupDisposablePostgres({
+    pgCtl: pgBin("pg_ctl"),
+    paths: postgresPaths,
+    startAttempted: pgStartAttempted,
   });
 }
 
@@ -115,43 +113,31 @@ async function executeRestoreVerification() {
     throw new Error("Restore catalog count does not match the manifest.");
   }
 
-  pgData = join(workDir, "postgres-data");
-  const postgresLog = join(workDir, "postgres.log");
   port = await availablePort();
   const pgUser = "tetamu_restore_verifier";
   const pgDatabase = "tetamu_restore_verify";
   await runCommand(
     pgBin("initdb"),
-    ["-D", pgData, "-U", pgUser, "--auth=trust", "--encoding=UTF8", "--locale=C"],
+    [
+      "-D",
+      postgresPaths.pgData,
+      "-U",
+      pgUser,
+      "--auth=trust",
+      "--encoding=UTF8",
+      "--locale=C",
+    ],
     { timeoutMs: 120_000 },
   );
   // Mark the disposable server as needing cleanup before startup. If pg_ctl
   // starts PostgreSQL but exits unexpectedly, the finally block will still
   // attempt a safe stop before deleting the temporary data directory.
-  pgStarted = true;
-  try {
-    await runCommand(
-      pgBin("pg_ctl"),
-      [
-        "-D",
-        pgData,
-        "-l",
-        postgresLog,
-        "-o",
-        `-p ${port} -h 127.0.0.1`,
-        "-w",
-        "start",
-      ],
-      { timeoutMs: 120_000, resolveOnExit: true },
-    );
-  } catch (error) {
-    const startupLog = await readFile(postgresLog, "utf8").catch(
-      () => "PostgreSQL startup log was unavailable.",
-    );
-    throw new Error(
-      `${error.message} PostgreSQL startup log: ${redactOperationalText(startupLog)}`,
-    );
-  }
+  pgStartAttempted = true;
+  await startDisposablePostgres({
+    pgCtl: pgBin("pg_ctl"),
+    paths: postgresPaths,
+    port,
+  });
   await runCommand(
     pgBin("createdb"),
     ["-h", "127.0.0.1", "-p", String(port), "-U", pgUser, pgDatabase],
@@ -177,6 +163,8 @@ async function executeRestoreVerification() {
   const checks = await queryJson(pgUser, pgDatabase, `
     SELECT json_build_object(
       'migrationHead', (SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT 1),
+      'migrationCount', (SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL),
+      'failedMigrations', (SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL),
       'businesses', (SELECT count(*) FROM businesses),
       'employeeAccounts', (SELECT count(*) FROM employee_accounts),
       'memberships', (SELECT count(*) FROM employee_business_memberships),
@@ -196,6 +184,9 @@ async function executeRestoreVerification() {
   `);
   if (!checks.migrationHead || Number(checks.businesses) <= 0) {
     throw new Error("Restored database failed core schema/data verification.");
+  }
+  if (Number(checks.failedMigrations) !== 0) {
+    throw new Error("Restored database contains failed Prisma migrations.");
   }
 
   const knownArtifacts = await queryJson(pgUser, pgDatabase, `
