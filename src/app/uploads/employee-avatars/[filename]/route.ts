@@ -12,7 +12,7 @@ export async function GET(
   { params }: EmployeeAvatarRouteProps,
 ) {
   const { filename } = await params;
-  const bytes = await readRuntimeEmployeeAvatar(filename);
+  const bytes = await readRuntimeEmployeeAvatar(filename, undefined, _request.headers.get("x-tetamu-image-fallback") !== "1");
 
   if (!bytes) {
     return new Response("Avatar not found.", {

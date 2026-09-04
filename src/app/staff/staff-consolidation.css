@@ -5,6 +5,7 @@
 
 .staff-pwa-brand > span.has-logo {
   background: #fff;
+  color: var(--staff-brand);
   overflow: hidden;
   padding: 4px;
 }

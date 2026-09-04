@@ -12,7 +12,7 @@ export async function GET(
   { params }: StaffAppLogoRouteProps,
 ) {
   const { filename } = await params;
-  const logo = await readRuntimeStaffAppLogo(filename);
+  const logo = await readRuntimeStaffAppLogo(filename, undefined, _request.headers.get("x-tetamu-image-fallback") !== "1");
 
   if (!logo) {
     return new Response("Logo not found.", {

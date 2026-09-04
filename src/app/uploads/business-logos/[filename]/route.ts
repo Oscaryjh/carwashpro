@@ -12,7 +12,7 @@ export async function GET(
   { params }: BusinessLogoRouteProps,
 ) {
   const { filename } = await params;
-  const logo = await readRuntimeBusinessLogo(filename);
+  const logo = await readRuntimeBusinessLogo(filename, undefined, _request.headers.get("x-tetamu-image-fallback") !== "1");
 
   if (!logo) {
     return new Response("Logo not found.", {

@@ -71,6 +71,20 @@ Testing and Production must use separate Projects and keys. Quota/provider error
 
 Production should use a private S3-compatible bucket, least-privilege credentials, HTTPS and a malware/privacy scan workflow. Until scan status is `CLEAN` and metadata status is `SAFE` or `SANITIZED`, download remains blocked.
 
+## Public logo and profile-photo storage
+
+- `PUBLIC_IMAGE_STORAGE_PROVIDER`: `s3` for the independently deployed Staff App. Local development may leave this unset to retain filesystem uploads.
+- `PUBLIC_IMAGE_S3_ENDPOINT`, `PUBLIC_IMAGE_S3_REGION`, `PUBLIC_IMAGE_S3_BUCKET`, `PUBLIC_IMAGE_S3_ACCESS_KEY_ID`, `PUBLIC_IMAGE_S3_SECRET_ACCESS_KEY`, `PUBLIC_IMAGE_S3_FORCE_PATH_STYLE`: server-only S3-compatible storage configuration.
+- `PUBLIC_IMAGE_S3_PREFIX`: must be `public-images/<local|testing|production>/vN`, matching the application environment. Never use a claim-receipt or leave-evidence prefix. The bucket stays private; only strict UUID filenames in the three image namespaces can be served by the image routes.
+- `PUBLIC_IMAGE_BASE_URL`: HTTPS Staff serving origin. New image records store absolute URLs so the POS can display them without sharing the Staff container filesystem.
+- `PUBLIC_IMAGE_LEGACY_ORIGIN`: optional trusted HTTPS POS origin, with no path or credentials. Missing legacy images can be read from its persistent upload volume. Requests never forward employee cookies, follow redirects, or recursively proxy between services.
+
+Testing may reuse the existing S3 account/bucket through separately configured image variables and the isolated `public-images/testing/v1` prefix. Do not change bucket visibility, private attachment configuration, or attachment authorization. Production must use its own explicit configuration.
+
+The existing POS release can continue saving legacy images to its persistent upload volume; Staff reads those through the legacy origin. Staff uploads use S3 and an absolute serving URL immediately, without requiring a POS deployment or database migration. When POS adopts this image adapter, configure the same environment-specific S3 prefix there too.
+
+Before publishing, verify a synthetic image write/read, a second-process read, and the known existing logo path. After publishing, verify the same synthetic object through the public image route, remove only that synthetic object, and verify a deleted/missing image falls back to employee initials. Never substitute a synthetic image for a real employee's missing photo.
+
 ## Controlled Platform Admin bootstrap
 
 - `ALLOW_PRODUCTION_PLATFORM_ADMIN_BOOTSTRAP`: normally `false`; set `true` only during an authorised one-time bootstrap.

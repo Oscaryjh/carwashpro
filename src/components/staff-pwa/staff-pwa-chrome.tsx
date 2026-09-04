@@ -24,6 +24,7 @@ import {
 } from "@/lib/staff-pwa/navigation";
 import type { EmployeeWorkplaceChoice } from "@/lib/staff-pwa/types";
 import type { StaffAppAppearance } from "@/lib/staff-pwa/appearance-config";
+import { StaffImage } from "./staff-image";
 
 const authRoutes = new Set([
   "/staff/login",
@@ -250,10 +251,7 @@ export function StaffPwaChrome({
           <header className="staff-pwa-header">
             <Link aria-label="Tetamu Staff App home" className="staff-pwa-brand" href="/staff">
               <span aria-hidden="true" className={appearance?.logoUrl ? "has-logo" : undefined}>
-                {appearance?.logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img alt="" src={appearance.logoUrl} />
-                ) : "T"}
+                <StaffImage alt="" src={appearance?.logoUrl} fallback="T" />
               </span>
               <strong>Tetamu<small>Staff App</small></strong>
             </Link>

@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { StaffImage } from "./staff-image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { StaffAppIcon } from "@/components/staff-pwa/staff-app-icon";
@@ -57,16 +57,15 @@ export function StaffHomeOverview({ overview, children }: {
   return (
     <section aria-label="Staff home" className={styles.scope}>
       <StaffV2PageHeader
-        leading={overview.profile.employee.avatarUrl ? (
-          <Image
+        leading={(
+          <StaffImage
             alt=""
             height={56}
-            sizes="56px"
             src={overview.profile.employee.avatarUrl}
-            unoptimized
             width={56}
+            fallback={<span aria-hidden="true">{initials || "T"}</span>}
           />
-        ) : <span aria-hidden="true">{initials || "T"}</span>}
+        )}
         leadingSize="large"
         meta={today}
         title={displayName}

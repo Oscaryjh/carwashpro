@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { isEmployeeSessionError, StaffApiError, staffApiFetch } from "@/lib/staff-pwa/client";
+import { StaffImage } from "./staff-image";
 
 const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
 
@@ -20,6 +21,7 @@ export function StaffAvatarUpload({
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [displayAvatarUrl, setDisplayAvatarUrl] = useState(avatarUrl);
+  const [unavailableAvatarUrl, setUnavailableAvatarUrl] = useState<string | null>(null);
   const [preparedFile, setPreparedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -130,12 +132,12 @@ export function StaffAvatarUpload({
         onClick={choosePhoto}
         type="button"
       >
-        {displayAvatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img alt={`${fullName} profile photo`} src={displayAvatarUrl} />
-        ) : (
-          <span aria-hidden="true">{initials || "T"}</span>
-        )}
+        <StaffImage
+          alt={`${fullName} profile photo`}
+          src={displayAvatarUrl}
+          fallback={<span aria-hidden="true">{initials || "T"}</span>}
+          onUnavailable={() => setUnavailableAvatarUrl(displayAvatarUrl)}
+        />
         <i aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M8.5 7 10 5h4l1.5 2H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2.5Z" /><circle cx="12" cy="13" r="3" /></svg>
         </i>
@@ -148,6 +150,9 @@ export function StaffAvatarUpload({
         type="file"
       />
       {error && !open ? <p className="staff-profile-avatar-inline-error" role="alert">{error}</p> : null}
+      {!open && !error && displayAvatarUrl && unavailableAvatarUrl === displayAvatarUrl ? (
+        <p className="staff-profile-avatar-inline-error" role="status">Your saved photo is unavailable. Choose a photo to restore it.</p>
+      ) : null}
 
       {open && preparedFile ? (
         <div
