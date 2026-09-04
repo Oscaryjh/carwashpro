@@ -7,6 +7,7 @@ import {
 } from "@/lib/attendance/employee-auth/session";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import { loadStaffAppAppearance } from "@/lib/staff-pwa/appearance";
+import { canAccessStaffApprovals } from "@/lib/staff-pwa/approval-navigation";
 import "./staff.css";
 import "./staff-consolidation.css";
 
@@ -34,16 +35,17 @@ export const viewport: Viewport = {
 
 export default async function StaffLayout({ children }: { children: ReactNode }) {
   const auth = await getEmployeeSelfServiceAuthContext();
-  const [moduleContext, workplaces, appearance] = auth
+  const [moduleContext, workplaces, appearance, canApprove] = auth
     ? await Promise.all([
         loadBusinessModuleContext(auth.businessId),
         getEmployeeWorkplaces(auth),
         loadStaffAppAppearance(auth.businessId),
+        canAccessStaffApprovals(auth),
       ])
-    : [null, [], null];
+    : [null, [], null, false];
   const modules = moduleContext ? [...moduleContext.enabledModules] : ["CORE"];
   return (
-    <StaffPwaChrome appearance={appearance} enabledModules={modules} workplaces={workplaces}>
+    <StaffPwaChrome appearance={appearance} canApprove={canApprove} enabledModules={modules} workplaces={workplaces}>
       {children}
     </StaffPwaChrome>
   );

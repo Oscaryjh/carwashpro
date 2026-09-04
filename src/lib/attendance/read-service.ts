@@ -524,6 +524,7 @@ export async function getEmployeeAttendanceHistory(args: {
           },
           resolutionCase: {
             select: {
+              id: true,
               status: true,
               openedReason: true,
               currentFinalResult: {
@@ -729,6 +730,13 @@ export async function getEmployeeAttendanceHistory(args: {
             session.status !== "COMPLETED" &&
             session.status !== "CANCELLED",
         ) ?? null;
+        const activeResolutionCase = orderedSessions
+          .map((session) => session.resolutionCase)
+          .find((resolution) =>
+            resolution?.status === "OPEN" ||
+            resolution?.status === "UNDER_REVIEW" ||
+            resolution?.status === "RETURNED_FOR_CORRECTION",
+          ) ?? null;
         const approvalStatuses = orderedSessions.map(
           (session) => session.approvalStatus,
         );
@@ -794,6 +802,8 @@ export async function getEmployeeAttendanceHistory(args: {
           ),
           adjusted,
           correctionSessionId: correctionSession?.id ?? null,
+          resolutionCaseId: activeResolutionCase?.id ?? null,
+          resolutionCaseStatus: activeResolutionCase?.status ?? null,
           sessions: orderedSessions.map((session) => ({
             id: session.id,
             clockInAt: session.clockInAt.toISOString(),

@@ -72,7 +72,7 @@ export default async function BusinessSettingsPage({
               <span className="company-settings-eyebrow">Employee experience</span>
               <h2>Staff App appearance</h2>
             </div>
-            <p>Manage the Staff App logo and employee home shortcut icons without changing the POS or invoice brand.</p>
+            <p>The Staff App follows the company logo automatically. Manage employee home shortcut icons and an optional logo fallback.</p>
           </div>
           <Link className="secondary-button" href="/business/settings/staff-app">Open Staff App appearance</Link>
         </div>

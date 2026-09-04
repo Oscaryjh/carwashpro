@@ -22,30 +22,21 @@ const teamSummary = {
 const teamAccess = {} as NonNullable<Awaited<ReturnType<typeof resolveStaffTeamApprovalAccess>>>;
 const overtimeAccess = {} as NonNullable<Awaited<ReturnType<typeof resolveStaffOvertimeAccess>>>;
 
-test("Requests Hub V2 is a compact gateway built from shared Staff V2 primitives", async () => {
+test("legacy Requests redirects without rendering another gateway", async () => {
   const page = await read("src/app/staff/requests/page.tsx");
-  for (const primitive of [
-    "StaffV2PageHeader",
-    "StaffV2ActionRow",
-    "StaffV2RowGroup",
-    "StaffV2ListRow",
-    "StaffV2SectionLabel",
-  ]) {
-    assert.match(page, new RegExp(primitive));
-  }
+  assert.match(page, /canAccessStaffApprovals/);
+  assert.match(page, /redirect\(await canAccessStaffApprovals\(auth\) \? "\/staff\/approvals" : "\/staff"\)/);
+  assert.doesNotMatch(page, /StaffV2PageHeader|StaffV2ActionRow|StaffV2EmptyState/);
   assert.doesNotMatch(page, /staff-hub-card|staff-hub-grid|RequestCard|RECENT ACTIVITY|No requests yet/);
   assert.doesNotMatch(page, /getEmployeeLeaveOverview|getEmployeeClaimOverview|loadEmployeeAttendanceResolutionCases/);
 });
 
 test("Requests Hub V2 keeps the approved employee copy and safe destinations", async () => {
   const page = await read("src/app/staff/requests/page.tsx");
-  assert.match(page, /Manage your leave, claims and attendance corrections\./);
-  assert.match(page, /Balances, requests and history/);
-  assert.match(page, /Expenses you've submitted/);
-  assert.match(page, /Missing or incorrect attendance/);
-  assert.match(page, /href="\/staff\/leave"/);
-  assert.match(page, /href="\/staff\/claims"/);
-  assert.match(page, /href="\/staff\/history\/corrections"/);
+  assert.match(page, /if \(!auth\) redirect\("\/staff\/login"\)/);
+  assert.doesNotMatch(page, /href="\/staff\/leave"/);
+  assert.doesNotMatch(page, /href="\/staff\/claims"/);
+  assert.doesNotMatch(page, /href="\/staff\/history\/corrections"/);
   assert.doesNotMatch(page, /href="\/staff\/requests\/attendance-corrections"/);
   assert.doesNotMatch(page, /Overtime request|Submit OT|Request overtime|staff\/requests\/overtime/);
 });
@@ -55,12 +46,12 @@ test("manager Approvals is permanent when capability exists and uses accepted co
     read("src/app/staff/requests/page.tsx"),
     read("src/lib/staff-pwa/requests-hub.ts"),
   ]);
-  assert.match(page, /loadRequestsApprovalEntry/);
+  assert.match(page, /canAccessStaffApprovals/);
   assert.match(model, /resolveStaffTeamApprovalAccess/);
   assert.match(model, /resolveStaffOvertimeAccess/);
   assert.match(model, /hasKnownCapability/);
-  assert.match(page, /title="Approvals"/);
-  assert.match(page, /href="\/staff\/approvals"/);
+  assert.match(page, /title: "Approvals"/);
+  assert.match(page, /"\/staff\/approvals" : "\/staff"/);
   assert.match(model, /\$\{pending\} waiting for you/);
   assert.match(model, /"All clear"/);
   assert.match(model, /"Unavailable"/);
@@ -119,32 +110,31 @@ test("OT-only capability keeps the permanent Approvals entry", async () => {
   assert.deepEqual(entry, { meta: "2 waiting for you" });
 });
 
-test("manager capability never removes personal employee request destinations", async () => {
+test("legacy Requests has no employee shortcuts or empty-state screen", async () => {
   const page = await read("src/app/staff/requests/page.tsx");
-  const approvalIndex = page.indexOf("{approvalEntry ? (");
-  const personalIndex = page.indexOf("staff-my-requests-heading");
-  assert.ok(approvalIndex >= 0 && personalIndex > approvalIndex);
-  assert.equal((page.match(/title="Leave"/g) ?? []).length, 1);
-  assert.equal((page.match(/title="Claims"/g) ?? []).length, 1);
-  assert.equal((page.match(/title="Attendance corrections"/g) ?? []).length, 1);
+  assert.match(page, /redirect\(await canAccessStaffApprovals/);
+  assert.doesNotMatch(page, /staff-my-requests-heading|StaffV2RowGroup/);
+  assert.equal((page.match(/title="Leave"/g) ?? []).length, 0);
+  assert.equal((page.match(/title="Claims"/g) ?? []).length, 0);
+  assert.equal((page.match(/title="Attendance corrections"/g) ?? []).length, 0);
+  assert.doesNotMatch(page, /StaffV2EmptyState|Where to find your requests/);
 });
 
-test("bottom navigation stays Home, Time, Requests, Pay, Profile with Requests third", () => {
-  const navigation = buildStaffNavigation(["CORE", "HR", "CLAIMS", "PAYROLL"]);
+test("authorized staff navigate directly to Approvals in the third slot", () => {
+  const navigation = buildStaffNavigation(["CORE", "HR", "CLAIMS", "PAYROLL"], { canApprove: true });
   assert.deepEqual(navigation.primary.map((item) => item.label), [
     "Home",
     "Time",
-    "Requests",
+    "Approvals",
     "Pay",
     "Profile",
   ]);
-  assert.equal(navigation.primary[2]?.href, "/staff/requests");
+  assert.equal(navigation.primary[2]?.href, "/staff/approvals");
   assert.deepEqual(navigation.more, []);
 });
 
-test("Requests loading keeps compact, stable row geometry", async () => {
+test("legacy Requests loading does not flash a removed screen", async () => {
   const loading = await read("src/app/staff/requests/loading.tsx");
-  assert.match(loading, /aria-busy="true"/);
-  assert.equal((loading.match(/styles\.skeleton/g) ?? []).length, 3);
-  assert.doesNotMatch(loading, /Hero|Card/);
+  assert.match(loading, /return null/);
+  assert.doesNotMatch(loading, /StaffV2PageHeader|styles\.skeleton/);
 });

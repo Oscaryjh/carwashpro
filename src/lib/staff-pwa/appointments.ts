@@ -3,6 +3,7 @@ import { addDaysToDateValue, dateValueToUtcDate } from "@/lib/business-time";
 import { businessWallClockToUtc } from "@/lib/business-day";
 import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
 import { getBranchLocalDateKey } from "@/lib/attendance/work-date";
+import { canDirectStaff } from "@/lib/business-groups/capabilities";
 import { prisma } from "@/lib/prisma";
 
 const TERMINAL_STATUSES = new Set<AppointmentStatus>([
@@ -24,6 +25,8 @@ export type StaffAppointmentConflict = Readonly<{
   label: string;
 }>;
 
+export type StaffAppointmentScope = "MINE" | "COMPANY";
+
 export type StaffAppointmentView = Readonly<{
   id: string;
   scheduledAt: string;
@@ -36,6 +39,8 @@ export type StaffAppointmentView = Readonly<{
   durationMinutes: number;
   durationLabel: string;
   branchName: string;
+  assignedStaffName: string;
+  isOwnAppointment: boolean;
   timezone: string;
   status: StaffAppointmentStatusView;
   conflicts: readonly StaffAppointmentConflict[];
@@ -49,6 +54,8 @@ export type StaffAppointmentDay = Readonly<{
   previousDate: string;
   nextDate: string;
   staffMapping: "LINKED" | "MISSING";
+  scope: StaffAppointmentScope;
+  canViewCompanyAppointments: boolean;
   appointments: readonly StaffAppointmentView[];
   remainingCount: number;
   nextAppointment: StaffAppointmentView | null;
@@ -85,6 +92,7 @@ export function getStaffAppointmentCalendarWeek(date: string): readonly StaffApp
 export async function getStaffAppointmentDay(input: {
   auth: EmployeeAuthContext;
   date?: string;
+  scope?: StaffAppointmentScope;
   now?: Date;
   database?: PrismaClient;
 }): Promise<StaffAppointmentDay> {
@@ -101,7 +109,12 @@ export async function getStaffAppointmentDay(input: {
         employeeBusinessMembershipId: input.auth.membershipId,
         status: "active",
       },
-      select: { id: true },
+      select: {
+        id: true,
+        branchId: true,
+        role: true,
+        permissions: true,
+      },
     }),
   ]);
   const today = getBranchLocalDateKey(now, business.timezone);
@@ -119,11 +132,33 @@ export async function getStaffAppointmentDay(input: {
     return {
       ...common,
       staffMapping: "MISSING",
+      scope: "MINE",
+      canViewCompanyAppointments: false,
       appointments: [],
       remainingCount: 0,
       nextAppointment: null,
     };
   }
+
+  const canViewCompanyAppointments = staffUser.role === "BUSINESS_OWNER"
+    || (staffUser.role === "STAFF" && canDirectStaff(staffUser.permissions, "VIEW_APPOINTMENTS"));
+  const requestedCompanyScope = input.scope === "COMPANY" && canViewCompanyAppointments;
+  const wholeBusinessScope = staffUser.role === "BUSINESS_OWNER"
+    || staffUser.permissions.includes("ALL_BRANCHES");
+  const activeBranches = requestedCompanyScope
+    ? await database.branch.findMany({
+        where: { businessId: input.auth.businessId, status: "ACTIVE" },
+        select: { id: true },
+        orderBy: { id: "asc" },
+      })
+    : [];
+  const activeBranchIds = activeBranches.map((branch) => branch.id);
+  const currentBranchId = [staffUser.branchId, input.auth.attendanceBranchId, input.auth.primaryBranchId]
+    .find((branchId): branchId is string => Boolean(branchId && activeBranchIds.includes(branchId)));
+  const allowedCompanyBranchIds = wholeBusinessScope
+    ? activeBranchIds
+    : currentBranchId ? [currentBranchId] : [];
+  const scope: StaffAppointmentScope = requestedCompanyScope ? "COMPANY" : "MINE";
 
   // Fetch a deliberately wider UTC window, then select each appointment by
   // its canonical branch timezone. This remains correct when one employee is
@@ -133,7 +168,16 @@ export async function getStaffAppointmentDay(input: {
   const rows = await database.appointment.findMany({
     where: {
       businessId: input.auth.businessId,
-      assignedStaffId: staffUser.id,
+      ...(scope === "MINE"
+        ? { assignedStaffId: staffUser.id }
+        : wholeBusinessScope
+          ? {
+              OR: [
+                { branchId: { in: allowedCompanyBranchIds } },
+                { branchId: null },
+              ],
+            }
+          : { branchId: { in: allowedCompanyBranchIds } }),
       scheduledAt: { gte: rangeStart, lt: rangeEnd },
     },
     orderBy: [{ scheduledAt: "asc" }, { createdAt: "asc" }],
@@ -146,6 +190,7 @@ export async function getStaffAppointmentDay(input: {
       durationMinutes: true,
       status: true,
       customer: { select: { name: true } },
+      assignedStaff: { select: { id: true, name: true } },
       branch: {
         select: {
           name: true,
@@ -196,13 +241,15 @@ export async function getStaffAppointmentDay(input: {
     const expected = row.branchId
       ? expectedDays.find((day) => day.branchId === row.branchId)
       : expectedDays[0];
+    const isOwnAppointment = row.assignedStaff?.id === staffUser.id;
     const conflicts: StaffAppointmentConflict[] = [];
-    if (approvedLeaveDays.length) {
+    if (isOwnAppointment && approvedLeaveDays.length) {
       conflicts.push({ code: "APPROVED_LEAVE", label: "Overlaps approved leave" });
     }
-    if (expected?.kind === "REST_DAY") {
+    if (isOwnAppointment && expected?.kind === "REST_DAY") {
       conflicts.push({ code: "REST_DAY", label: "Scheduled on a rest day" });
     } else if (
+      isOwnAppointment &&
       expected?.kind === "WORKDAY" &&
       expected.expectedStartAt &&
       expected.expectedEndAt &&
@@ -224,6 +271,8 @@ export async function getStaffAppointmentDay(input: {
       durationMinutes: row.durationMinutes,
       durationLabel: formatDuration(row.durationMinutes),
       branchName: row.branch?.name ?? "Workplace",
+      assignedStaffName: row.assignedStaff?.name.trim() || "Unassigned",
+      isOwnAppointment,
       timezone,
       status: appointmentStatusView(row.status),
       conflicts,
@@ -237,9 +286,11 @@ export async function getStaffAppointmentDay(input: {
   return {
     ...common,
     staffMapping: "LINKED",
+    scope,
+    canViewCompanyAppointments,
     appointments,
     remainingCount: remaining.length,
-    nextAppointment: date === today ? remaining[0] ?? null : null,
+    nextAppointment: scope === "MINE" && date === today ? remaining[0] ?? null : null,
   };
 }
 

@@ -8,6 +8,7 @@ export const loadStaffAppAppearance = cache(async (businessId: string) => {
   const business = await prisma.business.findUnique({
     where: { id: businessId },
     select: {
+      logoUrl: true,
       staffAppLogoUrl: true,
       staffAppAppearance: true,
     },
@@ -16,5 +17,6 @@ export const loadStaffAppAppearance = cache(async (businessId: string) => {
   return resolveStaffAppAppearance(
     business?.staffAppAppearance,
     business?.staffAppLogoUrl ?? null,
+    business?.logoUrl ?? null,
   );
 });

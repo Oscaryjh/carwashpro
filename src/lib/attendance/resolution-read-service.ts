@@ -3,6 +3,7 @@ import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth/session
 import type { AttendanceScope } from "@/lib/attendance/scope";
 import { getEmployeeResolutionCancellationState } from "@/lib/attendance/resolution-workflow-service";
 import { prisma } from "@/lib/prisma";
+import { summarizeAttendanceCorrectionBreakPunches } from "@/lib/staff-pwa/attendance-correction-breaks";
 
 export async function loadEmployeeAttendanceResolutionCases(args: {
   auth: EmployeeAuthContext;
@@ -30,12 +31,22 @@ export async function loadEmployeeAttendanceResolutionCases(args: {
           clockInAt: true,
           clockOutAt: true,
           totalBreakMinutes: true,
+          punches: {
+            where: { type: { in: ["BREAK_START", "BREAK_END"] } },
+            orderBy: [{ serverTimestamp: "asc" }, { createdAt: "asc" }],
+            select: { type: true, serverTimestamp: true },
+          },
         },
+      },
+      employee: {
+        select: { targetBreakMinutes: true },
       },
       branch: {
         select: {
           name: true,
-          attendanceSetting: { select: { timezone: true } },
+          attendanceSetting: {
+            select: { timezone: true, targetBreakMinutes: true },
+          },
         },
       },
       events: {
@@ -55,6 +66,9 @@ export async function loadEmployeeAttendanceResolutionCases(args: {
       currentFinalResultId: item.currentFinalResultId,
       events: item.events,
     });
+    const breakRecord = summarizeAttendanceCorrectionBreakPunches(
+      item.attendanceSession.punches,
+    );
     return {
       id: item.id,
       status: item.status,
@@ -65,12 +79,17 @@ export async function loadEmployeeAttendanceResolutionCases(args: {
       clockInAt: item.attendanceSession.clockInAt.toISOString(),
       clockOutAt: item.attendanceSession.clockOutAt?.toISOString() ?? null,
       totalBreakMinutes: item.attendanceSession.totalBreakMinutes,
+      breakRecord,
       canCancel: cancellation.canCancel,
       cancelDeadlineAt: cancellation.cancelDeadlineAt?.toISOString() ?? null,
       branch: {
         name: item.branch.name,
         timezone:
           item.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur",
+        recommendedBreakMinutes:
+          item.employee.targetBreakMinutes ??
+          item.branch.attendanceSetting?.targetBreakMinutes ??
+          60,
       },
       latestEvent: item.events[0]
         ? {

@@ -133,7 +133,8 @@ export default async function StaffAttendanceCorrectionQueuePage({ searchParams 
             const submission = item.events.find((event) => event.type === "EMPLOYEE_SUBMITTED");
             const correctionClockIn = submission?.proposedClockInAt ?? item.attendanceSession.clockInAt;
             const correctionClockOut = submission?.proposedClockOutAt ?? item.attendanceSession.clockOutAt;
-            const correctionBreak = submission?.proposedBreakMinutes ?? item.attendanceSession.totalBreakMinutes;
+            const breakNeedsVerification = Boolean(submission?.proposedClockInAt && submission.proposedBreakMinutes === null);
+            const correctionBreak = breakNeedsVerification ? "" : submission?.proposedBreakMinutes ?? item.attendanceSession.totalBreakMinutes;
             const canApproveCorrection = Boolean(correctionClockIn && correctionClockOut);
             return (
               <QueueItem branch={item.branch.name} employee={item.employee.fullName} key={source.sourceId} meta={`${formatReason(item.openedReason)} · ${formatWorkDate(item.attendanceSession.workDate)}`}>
@@ -157,7 +158,10 @@ export default async function StaffAttendanceCorrectionQueuePage({ searchParams 
                       <label><span>Clock in</span><input defaultValue={toLocalInput(correctionClockIn!, timezone)} name="correctedClockInLocal" required type="datetime-local" /></label>
                       <label><span>Clock out</span><input defaultValue={toLocalInput(correctionClockOut!, timezone)} name="correctedClockOutLocal" required type="datetime-local" /></label>
                     </div>
-                    <label><span>Break minutes</span><input defaultValue={correctionBreak} min="0" name="correctedBreakMinutes" required type="number" /></label>
+                    <label><span>Verified break minutes</span><input defaultValue={correctionBreak} min="0" name="correctedBreakMinutes" placeholder="Enter verified minutes" required type="number" /></label>
+                    {breakNeedsVerification ? (
+                      <small>No break time was declared. Verify it before approving the correction.</small>
+                    ) : <small>Review the proposed break time before approval.</small>}
                     <input name="reason" type="hidden" value="Approved employee attendance correction." />
                     <button className={styles.primaryButton} type="submit">Approve corrected time</button>
                   </form>

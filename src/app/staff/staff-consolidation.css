@@ -210,6 +210,9 @@
 .staff-appointment-calendar,
 .staff-appointment-list,
 .staff-appointment-state { background:#fff; border:1px solid var(--staff-line); border-radius:20px; }
+.staff-appointment-scope-tabs { background:#e8f2f0; border:1px solid var(--staff-line); border-radius:16px; display:grid; gap:4px; grid-template-columns:repeat(2,minmax(0,1fr)); padding:4px; }
+.staff-appointment-scope-tabs a { align-items:center; border-radius:12px; color:var(--staff-muted); display:flex; font-size:12px; font-weight:850; justify-content:center; min-height:44px; padding:8px; text-align:center; text-decoration:none; }
+.staff-appointment-scope-tabs a[aria-current="page"] { background:#fff; box-shadow:0 3px 10px rgba(16,67,62,.08); color:var(--staff-brand-dark); }
 .staff-appointment-date-nav { align-items:center; display:grid; grid-template-columns:44px minmax(0,1fr) 44px; padding:10px; text-align:center; }
 .staff-appointment-date-nav a { align-items:center; border-radius:12px; color:var(--staff-brand); display:flex; font-size:24px; height:44px; justify-content:center; text-decoration:none; }
 .staff-appointment-calendar-picker { align-items:center; color:var(--staff-brand-dark); cursor:pointer; display:flex; gap:8px; justify-content:center; min-height:60px; overflow:hidden; padding:8px; position:relative; }

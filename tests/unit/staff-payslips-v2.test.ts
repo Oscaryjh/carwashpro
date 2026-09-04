@@ -144,7 +144,7 @@ test("Pay Hub navigation and Staff bottom navigation remain untouched", async ()
   assert.doesNotMatch(hub, /Deductions|\bPaid\b/);
   assert.match(navigation, /label: "Home"/);
   assert.match(navigation, /label: "Time"/);
-  assert.match(navigation, /label: "Requests"/);
+  assert.match(navigation, /label: "Approvals"/);
   assert.match(navigation, /label: "Pay"/);
   assert.match(navigation, /label: "Profile"/);
 });

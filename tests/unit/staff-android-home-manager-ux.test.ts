@@ -50,11 +50,11 @@ test("mobile Staff shell reserves fixed nav, safe-area and comfortable scroll cl
   assert.match(consolidationCss, /\.staff-pwa-nav \{[\s\S]*?bottom:0/);
 });
 
-test("Quick Access remains limited to Appointments, Schedule and Leave", () => {
+test("Quick Access keeps personal destinations on Home", () => {
   assert.match(homeReader, /domain: "APPOINTMENTS"/);
   assert.match(homeReader, /domain: "ROSTER", label: "Schedule"/);
   assert.match(homeReader, /domain: "LEAVE", label: "Leave"/);
-  assert.doesNotMatch(homeReader, /domain: "CLAIMS", label:/);
+  assert.match(homeReader, /domain: "CLAIMS", label: "Claims"/);
   assert.doesNotMatch(homeReader, /domain: "TIMESHEET", label:/);
 });
 

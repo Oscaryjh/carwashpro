@@ -120,9 +120,19 @@
 }
 
 .staff-resolution-check input {
+  flex-shrink: 0;
   height: 20px;
   margin: 0;
+  min-height: 20px;
+  padding: 0;
   width: 20px;
+}
+
+.staff-break-declaration {
+  border-top: 1px solid var(--staff-line);
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
 }
 
 .staff-resolution-fields {
@@ -133,6 +143,52 @@
 
 .staff-resolution-fields label:last-child {
   grid-column: 1 / -1;
+}
+
+.staff-recorded-break,
+.staff-break-correction {
+  background: #f5fbfa;
+  border: 1px solid var(--staff-line);
+  border-radius: 12px;
+  display: grid;
+  gap: 6px;
+  grid-column: 1 / -1;
+  padding: 12px;
+}
+
+.staff-recorded-break > span,
+.staff-break-correction > span {
+  color: var(--staff-muted);
+  font-size: 12px;
+}
+
+.staff-recorded-break > strong {
+  font-size: 18px;
+}
+
+.staff-recorded-break > small {
+  color: var(--staff-muted);
+}
+
+.staff-break-time-fields {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.staff-field-guidance,
+.staff-field-warning {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.staff-field-guidance {
+  color: var(--staff-muted);
+}
+
+.staff-field-warning {
+  color: #8a5a00;
+  font-weight: 700;
 }
 
 .staff-resolution-pending {
@@ -169,6 +225,15 @@
 
   .staff-resolution-fields label:last-child {
     grid-column: auto;
+  }
+
+  .staff-recorded-break,
+  .staff-break-correction {
+    grid-column: auto;
+  }
+
+  .staff-break-time-fields {
+    grid-template-columns: 1fr;
   }
 }
 

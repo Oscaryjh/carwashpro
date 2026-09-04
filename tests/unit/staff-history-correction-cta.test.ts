@@ -44,6 +44,21 @@ test("a pending request is not offered as a duplicate correction", () => {
   );
 });
 
+test("an active Resolution Case owns the correction state", () => {
+  assert.equal(getMissingClockOutCorrectionState({
+    ...actionable,
+    resolutionCaseId: "resolution-1",
+    resolutionCaseStatus: "OPEN",
+    requiresApproval: true,
+    approvalStatus: "PENDING",
+  }), "ACTIONABLE");
+  assert.equal(getMissingClockOutCorrectionState({
+    ...actionable,
+    resolutionCaseId: "resolution-1",
+    resolutionCaseStatus: "UNDER_REVIEW",
+  }), "PENDING");
+});
+
 test("completed, active, cancelled and locked records do not get the missing clock-out CTA", () => {
   for (const key of ["COMPLETED", "IN_PROGRESS", "CANCELLED"]) {
     assert.equal(
@@ -63,7 +78,7 @@ test("completed, active, cancelled and locked records do not get the missing clo
   );
 });
 
-test("History card exposes contextual CTA through the canonical exception route", async () => {
+test("History shows a contextual CTA only when Home has no Resolution Case", async () => {
   const history = await readFile(
     "src/components/staff-pwa/staff-history.tsx",
     "utf8",
@@ -74,5 +89,16 @@ test("History card exposes contextual CTA through the canonical exception route"
   assert.match(history, /setCorrectionBranchId\(item\.branch\.id\)/);
   assert.match(history, /\/api\/employee-attendance\/exception/);
   assert.match(history, /already waiting for your manager/);
+  assert.match(history, /status\.correctionState === "ACTIONABLE" && !item\.resolutionCaseId/);
+  assert.doesNotMatch(history, /Continue correction/);
   assert.doesNotMatch(history, /\/api\/employee-attendance\/p2-corrections/);
+});
+
+test("legacy exception submission refuses a duplicate active Resolution Case", async () => {
+  const service = await readFile(
+    "src/lib/attendance/exception-service.ts",
+    "utf8",
+  );
+  assert.match(service, /attendanceSession\?\.resolutionCase/);
+  assert.match(service, /already has an active correction/);
 });

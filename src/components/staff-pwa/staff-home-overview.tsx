@@ -29,6 +29,7 @@ const homeQuickActionIcons: Partial<Record<StaffAppDomain, StaffAppIconName>> = 
   APPOINTMENTS: "clock",
   ROSTER: "calendar",
   LEAVE: "leaf",
+  CLAIMS: "receipt",
 };
 
 export function StaffHomeOverview({ overview, children }: {
@@ -59,13 +60,14 @@ export function StaffHomeOverview({ overview, children }: {
         leading={overview.profile.employee.avatarUrl ? (
           <Image
             alt=""
-            height={32}
-            sizes="32px"
+            height={56}
+            sizes="56px"
             src={overview.profile.employee.avatarUrl}
             unoptimized
-            width={32}
+            width={56}
           />
         ) : <span aria-hidden="true">{initials || "T"}</span>}
+        leadingSize="large"
         meta={today}
         title={displayName}
       />
@@ -99,7 +101,7 @@ export function StaffHomeOverview({ overview, children }: {
       <section className={styles.quickActions} aria-labelledby="staff-home-quick-access-heading">
         <p className={styles.sectionLabel} id="staff-home-quick-access-heading">Quick actions</p>
         {overview.quickAccess.length ? (
-          <div className={`${styles.quickGrid} ${overview.quickAccess.length === 2 ? styles.two : ""}`}>
+          <div className={`${styles.quickGrid} ${overview.quickAccess.length === 2 || overview.quickAccess.length === 4 ? styles.two : ""}`}>
             {overview.quickAccess.map((item) => (
               <Link
                 aria-label={`Open ${item.label}`}

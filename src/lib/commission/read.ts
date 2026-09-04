@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { commissionCalculationDetails } from "@/lib/staff-pwa/commission-v2";
 
 export async function getCommissionManagerDashboard(input: {
   businessId: string;
@@ -154,7 +155,7 @@ export async function getEmployeeCommissionStatements(input: {
 
   if (!currentStatements.length) return [];
 
-  return database.commissionStatement.findMany({
+  const statements = await database.commissionStatement.findMany({
     where: {
       id: { in: currentStatements.map((statement) => statement.id) },
       businessId: input.businessId,
@@ -168,7 +169,17 @@ export async function getEmployeeCommissionStatements(input: {
           eligibleAmountCents: true,
           commissionAmountCents: true,
           status: true,
-          sourceEvent: { select: { sourceType: true, businessDate: true, grossAmountCents: true, netAmountCents: true } },
+          calculationTrace: true,
+          sourceEvent: { select: {
+            sourceType: true,
+            businessDate: true,
+            grossAmountCents: true,
+            netAmountCents: true,
+            quantity: true,
+            // Invoice line names are sale-time snapshots; do not read live catalogue names.
+            invoiceItem: { select: { name: true } },
+            invoice: { select: { invoiceNumber: true } },
+          } },
         },
         orderBy: { createdAt: "asc" },
       },
@@ -184,4 +195,12 @@ export async function getEmployeeCommissionStatements(input: {
     },
     orderBy: [{ period: { earnedPeriodStart: "desc" } }, { createdAt: "desc" }],
   });
+
+  return statements.map(statement => ({
+    ...statement,
+    accruals: statement.accruals.map(({ calculationTrace, ...accrual }) => ({
+      ...accrual,
+      calculation: commissionCalculationDetails(calculationTrace),
+    })),
+  }));
 }

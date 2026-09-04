@@ -53,6 +53,7 @@ export async function updateStaffAppAppearanceAction(
       where: { id: businessId },
       select: {
         id: true,
+        logoUrl: true,
         staffAppLogoUrl: true,
         staffAppAppearance: true,
       },
@@ -119,6 +120,7 @@ export async function updateStaffAppAppearanceAction(
       appearance: resolveStaffAppAppearance(
         reset ? null : storedAppearance,
         logoUrl,
+        current.logoUrl,
       ),
     };
   } catch (error) {
@@ -168,4 +170,3 @@ async function saveStaffAppLogo(
   });
   return saved.logoUrl;
 }
-

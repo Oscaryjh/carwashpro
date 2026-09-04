@@ -16,7 +16,7 @@ const primitives = readFileSync(new URL("../../src/components/staff-pwa/staff-v2
 const sharedCss = readFileSync(new URL("../../src/components/staff-pwa/staff-v2.module.css", import.meta.url), "utf8");
 const leavePage = readFileSync(new URL("../../src/app/staff/leave/page.tsx", import.meta.url), "utf8");
 const newPage = readFileSync(new URL("../../src/app/staff/leave/new/page.tsx", import.meta.url), "utf8");
-const requests = readFileSync(new URL("../../src/app/staff/requests/page.tsx", import.meta.url), "utf8");
+const home = readFileSync(new URL("../../src/lib/staff-pwa/home.ts", import.meta.url), "utf8");
 const service = readFileSync(new URL("../../src/lib/leave/service.ts", import.meta.url), "utf8");
 const documents = readFileSync(new URL("../../src/lib/leave/document-service.ts", import.meta.url), "utf8");
 
@@ -28,11 +28,11 @@ const request = (status: string, evidenceStatus = "NOT_REVIEWED", documentStatus
   supportingDocuments: documentStatuses.map(document),
 });
 
-test("Leave V2 keeps the canonical routes and Requests Hub destination", () => {
+test("Leave V2 keeps the canonical routes and Home destination", () => {
   assert.match(leavePage, /<StaffLeave\s*\/>/);
   assert.match(newPage, /<StaffTaskNavigation\s*\/>/);
   assert.match(newPage, /<StaffLeave view="new-request"\s*\/>/);
-  assert.match(requests, /href="\/staff\/leave"/);
+  assert.match(home, /href: "\/staff\/leave"/);
 });
 
 test("Leave landing uses Staff V2 hierarchy without a balance-card wall", () => {

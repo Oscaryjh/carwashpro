@@ -26,15 +26,16 @@ test("/staff/history renders the light Time Hub V2", () => {
 });
 
 test("Time Hub uses canonical readers without duplicating Attendance actions", () => {
-  assert.match(loader, /getEmployeeAttendanceToday\(\{ auth \}\)/);
   assert.match(loader, /getEmployeeAttendanceHistory/);
   assert.match(loader, /getEmployeeTimesheetOverview\(auth\)/);
+  assert.doesNotMatch(loader, /getEmployeeAttendanceToday/);
+  assert.doesNotMatch(hub, /staff-time-today-heading|Ready to clock in|Clocked in|On break/);
   assert.doesNotMatch(hub, /Clock In|Clock Out|Start Break|requestGps|geofence/);
 });
 
 test("Time route streams stable V2 skeleton geometry", () => {
   assert.match(loading, /aria-busy="true"/);
-  assert.equal((loading.match(/styles\.skeleton/g) ?? []).length, 4);
+  assert.equal((loading.match(/styles\.skeleton/g) ?? []).length, 3);
   assert.match(css, /\.skeleton/);
 });
 
@@ -44,26 +45,18 @@ test("one canonical actionable Attendance summary is shown and pending items get
   assert.equal((hub.match(/<StaffV2ActionRow/g) ?? []).length, 1);
   assert.match(hub, /model\.attention \? \(/);
   assert.doesNotMatch(loader, /=== "PENDING"[^\n]*href/);
+  assert.match(loader, /getMissingClockOutCorrectionHref\(actionable\[0\]!\)/);
 });
 
-test("Schedule summary reuses the canonical schedule projector and never guesses Rest Day", () => {
-  assert.match(loader, /buildStaffScheduleDay/);
-  assert.match(loader, /getEmployeePublishedRoster/);
-  assert.match(loader, /membershipId: auth\.membershipId/);
-  assert.match(loader, /view\.status === "REST_DAY"/);
-  assert.match(loader, /view\.status === "NOT_SCHEDULED"/);
-  assert.match(loader, /No schedule today/);
-  assert.doesNotMatch(loader, /!assignments\.length[^\n]*Rest day/i);
-  assert.doesNotMatch(loader, /operatingHours|businessHours|openingHours/);
+test("Home remains the only surface for today’s schedule summary", () => {
+  assert.doesNotMatch(hub, /href="\/staff\/roster"|title="Schedule"/);
+  assert.doesNotMatch(loader, /getEmployeePublishedRoster|buildStaffScheduleDay|resolveBranchHolidays/);
 });
 
-test("completed Today state removes the redundant badge and shows only canonical facts", () => {
-  assert.match(loader, /today\.sessionCount === 1/);
-  assert.match(loader, /today\.currentSession\?\.clockInAt/);
-  assert.match(loader, /today\.currentSession\.clockOutAt/);
-  assert.match(loader, /badge: null/);
-  assert.doesNotMatch(loader, /badge: "Done"/);
-  assert.match(hub, /model\.today\.badge\s*\?/);
+test("Home remains the single destination for today’s clock status and actions", () => {
+  assert.doesNotMatch(hub, /href="\/staff"/);
+  assert.doesNotMatch(hub, />Today</);
+  assert.doesNotMatch(loader, /summarizeToday|todayError/);
 });
 
 test("Timesheet count names the counted unit and review state", () => {
@@ -75,9 +68,11 @@ test("Timesheet count names the counted unit and review state", () => {
 });
 
 test("Time Hub keeps stable destinations and moves the archive to its child route", () => {
-  assert.match(hub, /href="\/staff\/roster"/);
   assert.match(hub, /href="\/staff\/history\/records"/);
   assert.match(hub, /href="\/staff\/timesheet"/);
+  assert.equal((hub.match(/href="\/staff\/history\/corrections"/g) ?? []).length, 1);
+  assert.match(hub, /title="Attendance corrections"/);
+  assert.match(hub, /Requests and approval status/);
   assert.match(recordsPage, /<StaffHistory/);
   assert.match(history, /StaffV2FilterChip/);
   assert.doesNotMatch(hub, /StaffV2FilterChip/);
@@ -105,7 +100,7 @@ test("shared Staff V2 scope is neutral and protects Home/Time mobile geometry", 
 
 test("bottom navigation and manager-personal Time contract stay unchanged", () => {
   assert.match(navigation, /href: "\/staff\/history"/);
-  for (const label of ["Home", "Time", "Requests", "Pay", "Profile"]) {
+  for (const label of ["Home", "Time", "Approvals", "Pay", "Profile"]) {
     assert.match(navigation, new RegExp(`label: "${label}"`));
   }
   assert.doesNotMatch(hub, /Approval Center|Needs My Approval|Team approvals/);

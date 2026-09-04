@@ -116,6 +116,16 @@
   border-color: #087f76;
 }
 
+.logoInherited {
+  border-style: solid;
+  cursor: default;
+}
+
+.logoInherited:hover {
+  background: transparent;
+  border-color: #a9cbc6;
+}
+
 .logoPicker input {
   height: 1px;
   opacity: 0;
@@ -426,4 +436,3 @@
   .iconRow select { grid-column: 1 / -1; }
   .actions { align-items: stretch; flex-direction: column; }
 }
-

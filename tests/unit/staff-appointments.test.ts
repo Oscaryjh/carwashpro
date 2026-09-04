@@ -30,6 +30,7 @@ function appointment(overrides: Record<string, unknown> = {}) {
     status: "CONFIRMED" as AppointmentStatus,
     createdAt: new Date("2026-08-20T00:00:00.000Z"),
     customer: { name: "Alicia Tan" },
+    assignedStaff: { id: "staff-user-1", name: "Oscar" },
     branch: { name: "Young Parlor TWU", attendanceSetting: { timezone: "Asia/Kuala_Lumpur" } },
     ...overrides,
   };
@@ -38,13 +39,27 @@ function appointment(overrides: Record<string, unknown> = {}) {
 function database(input: {
   rows?: ReturnType<typeof appointment>[];
   userId?: string | null;
+  user?: {
+    id: string;
+    branchId: string | null;
+    role: "BUSINESS_OWNER" | "STAFF";
+    permissions: string[];
+  };
+  branchIds?: string[];
   expected?: Array<Record<string, unknown>>;
   leave?: Array<Record<string, unknown>>;
 } = {}) {
   const captured: { appointmentWhere?: unknown; serviceWhere?: unknown } = {};
   const fake = {
     business: { findFirstOrThrow: async () => ({ timezone: "Asia/Kuala_Lumpur" }) },
-    user: { findFirst: async ({ where }: { where: unknown }) => input.userId === null ? null : ({ id: input.userId ?? "staff-user-1", where }) },
+    user: { findFirst: async ({ where }: { where: unknown }) => input.userId === null ? null : ({
+      id: input.userId ?? input.user?.id ?? "staff-user-1",
+      branchId: input.user?.branchId ?? "branch-1",
+      role: input.user?.role ?? "STAFF",
+      permissions: input.user?.permissions ?? [],
+      where,
+    }) },
+    branch: { findMany: async () => (input.branchIds ?? ["branch-1"]).map((id) => ({ id })) },
     appointment: { findMany: async ({ where }: { where: unknown }) => { captured.appointmentWhere = where; return input.rows ?? [appointment()]; } },
     service: { findMany: async ({ where }: { where: unknown }) => {
       captured.serviceWhere = where;
@@ -97,6 +112,81 @@ test("Missing canonical Staff mapping fails closed instead of guessing by name, 
   const result = await getStaffAppointmentDay({ auth, date: "2026-08-22", now, database: fake });
   assert.equal(result.staffMapping, "MISSING");
   assert.equal(result.appointments.length, 0);
+});
+
+test("A business owner can switch to a tenant-scoped company appointment view", async () => {
+  const { fake, captured } = database({
+    user: { id: "staff-user-1", branchId: "branch-1", role: "BUSINESS_OWNER", permissions: [] },
+    branchIds: ["branch-1", "branch-2"],
+    rows: [
+      appointment(),
+      appointment({ id: "appointment-2", assignedStaff: { id: "staff-user-2", name: "Bella" } }),
+      appointment({ id: "appointment-3", assignedStaff: null }),
+    ],
+  });
+  const result = await getStaffAppointmentDay({
+    auth,
+    date: "2026-08-22",
+    scope: "COMPANY",
+    now,
+    database: fake,
+  });
+
+  assert.equal(result.scope, "COMPANY");
+  assert.equal(result.canViewCompanyAppointments, true);
+  assert.deepEqual(result.appointments.map((item) => [item.isOwnAppointment, item.assignedStaffName]), [
+    [true, "Oscar"],
+    [false, "Bella"],
+    [false, "Unassigned"],
+  ]);
+  assert.deepEqual(captured.appointmentWhere, {
+    businessId: "business-1",
+    OR: [
+      { branchId: { in: ["branch-1", "branch-2"] } },
+      { branchId: null },
+    ],
+    scheduledAt: { gte: new Date("2026-08-20T16:00:00.000Z"), lt: new Date("2026-08-23T16:00:00.000Z") },
+  });
+});
+
+test("A permitted employee sees company appointments only inside their active branch scope", async () => {
+  const { fake, captured } = database({
+    user: { id: "staff-user-1", branchId: "branch-1", role: "STAFF", permissions: ["APPOINTMENTS"] },
+    branchIds: ["branch-1", "branch-2"],
+  });
+  const result = await getStaffAppointmentDay({
+    auth,
+    date: "2026-08-22",
+    scope: "COMPANY",
+    now,
+    database: fake,
+  });
+
+  assert.equal(result.scope, "COMPANY");
+  assert.deepEqual(captured.appointmentWhere, {
+    businessId: "business-1",
+    branchId: { in: ["branch-1"] },
+    scheduledAt: { gte: new Date("2026-08-20T16:00:00.000Z"), lt: new Date("2026-08-23T16:00:00.000Z") },
+  });
+});
+
+test("An employee without appointment permission cannot force the company view", async () => {
+  const { fake, captured } = database();
+  const result = await getStaffAppointmentDay({
+    auth,
+    date: "2026-08-22",
+    scope: "COMPANY",
+    now,
+    database: fake,
+  });
+
+  assert.equal(result.scope, "MINE");
+  assert.equal(result.canViewCompanyAppointments, false);
+  assert.deepEqual(captured.appointmentWhere, {
+    businessId: "business-1",
+    assignedStaffId: "staff-user-1",
+    scheduledAt: { gte: new Date("2026-08-20T16:00:00.000Z"), lt: new Date("2026-08-23T16:00:00.000Z") },
+  });
 });
 
 test("Multiple services retain canonical ordering and appointment total duration", async () => {
@@ -166,6 +256,9 @@ test("Staff appointment surface is read-only, tenant-scoped and does not expose 
   assert.doesNotMatch(source, /customer.*phone|customer.*notes|select:\s*\{[^}]*phone/);
   assert.doesNotMatch(page, /Edit appointment|Book appointment|customerPhone|notes/);
   assert.match(page, /StaffAppointmentCalendar/);
+  assert.match(page, /My appointments/);
+  assert.match(page, /Company appointments/);
+  assert.match(calendar, /view=company/);
   assert.match(calendar, /type="date"/);
   assert.match(calendar, /aria-current=\{item\.selected \? "date"/);
   assert.match(staffStyles, /\.staff-appointment-calendar-picker svg \{[^}]*fill:none;[^}]*height:20px;[^}]*stroke:var\(--staff-brand\);[^}]*width:20px;/s);

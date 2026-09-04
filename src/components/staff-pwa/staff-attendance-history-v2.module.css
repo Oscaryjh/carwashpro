@@ -109,7 +109,7 @@
 .record summary:focus-visible,
 .recordAction button:focus-visible,
 .pagination button:focus-visible,
-.fallbackAction:focus-visible,
+.fallbackReport:focus-visible,
 .sheet button:focus-visible,
 .sheet input:focus-visible,
 .sheet select:focus-visible,
@@ -357,18 +357,77 @@
   text-align: center;
 }
 
-.fallbackAction {
-  background: transparent;
-  border: 0;
-  color: var(--staff-v2-brand-strong);
+.fallbackReport {
+  align-items: center;
+  background: color-mix(in srgb, var(--staff-v2-surface) 76%, transparent);
+  border: 1px solid var(--staff-v2-line);
+  border-radius: 14px;
+  color: var(--staff-v2-ink);
+  cursor: pointer;
+  display: grid;
   font: inherit;
-  font-size: 11px;
+  gap: 10px;
+  grid-template-columns: 36px minmax(0, 1fr) 16px;
+  min-height: 60px;
+  padding: 10px 12px;
+  text-align: left;
+  transition: background 120ms ease, border-color 120ms ease;
+  width: 100%;
+}
+
+.fallbackReport:hover {
+  background: var(--staff-v2-brand-soft);
+  border-color: color-mix(in srgb, var(--staff-v2-brand) 28%, var(--staff-v2-line));
+}
+
+.fallbackIcon {
+  align-items: center;
+  background: var(--staff-v2-brand-soft);
+  border-radius: 10px;
+  color: var(--staff-v2-brand-strong);
+  display: flex;
+  font-size: 22px;
+  font-weight: 500;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.fallbackCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fallbackCopy strong {
+  color: var(--staff-v2-ink);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.fallbackCopy small {
+  color: var(--staff-v2-muted);
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.fallbackChevron {
+  color: var(--staff-v2-brand-strong);
+  font-size: 20px;
   font-weight: 700;
-  justify-self: center;
-  min-height: 44px;
-  padding: 8px 12px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  line-height: 1;
+  text-align: right;
+}
+
+.fallbackHint {
+  background: var(--staff-v2-surface-subtle);
+  border-radius: 12px;
+  color: var(--staff-v2-muted);
+  font-size: 10px;
+  line-height: 1.45;
+  margin: 0;
+  padding: 10px 12px;
 }
 
 .dialog {
@@ -641,7 +700,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .records,
-  .chevron {
+  .chevron,
+  .fallbackReport {
     transition: none;
   }
 

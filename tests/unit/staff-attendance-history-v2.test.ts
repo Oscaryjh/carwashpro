@@ -56,8 +56,10 @@ test("canonical status mapper distinguishes employee action and manager waiting"
 
 test("pending correction has no duplicate employee action", () => {
   assert.match(history, /status\.correctionState === "ACTIONABLE"/);
+  assert.match(history, /status\.correctionState === "ACTIONABLE" && !item\.resolutionCaseId/);
   assert.match(history, /status\.correctionState === "PENDING"/);
   assert.match(history, /No action needed — your manager is reviewing this correction/);
+  assert.doesNotMatch(history, /Continue correction/);
   assert.match(
     history,
     /status\.correctionState === "PENDING" \? \(\s*<p className=\{styles\.pendingNote\}>/,
@@ -70,7 +72,11 @@ test("contextual correction preserves canonical preselection and endpoint", () =
   assert.match(history, /formatWorkDate\(selectedCorrectionSession\.workDate\)/);
   assert.match(history, /\/api\/employee-attendance\/exception/);
   assert.match(history, /result\.data\.duplicate/);
-  assert.match(history, /Report another missing punch/);
+  assert.match(history, /Report missing clock in\/out/);
+  assert.match(history, /not already shown on Home/);
+  assert.doesNotMatch(history, /Report another missing punch/);
+  assert.match(css, /\.fallbackReport[\s\S]*grid-template-columns:\s*36px minmax\(0, 1fr\) 16px/);
+  assert.match(css, /\.fallbackReport[\s\S]*min-height:\s*60px/);
 });
 
 test("filter sheet uses server-supported raw filters and preserves the 31-day rule", () => {
@@ -157,6 +163,8 @@ function item(overrides: Partial<AttendanceHistoryItem> = {}): AttendanceHistory
     requiresApproval: false,
     adjusted: false,
     correctionSessionId: null,
+    resolutionCaseId: null,
+    resolutionCaseStatus: null,
     ...overrides,
   };
 }

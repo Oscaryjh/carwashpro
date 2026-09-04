@@ -280,6 +280,9 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
               canModify && item.status === "RESOLVED" && Boolean(item.currentFinalResult);
             const correctionBaseline =
               item.currentFinalResult ?? item.attendanceSession;
+            const breakNeedsVerification = !canRevise && Boolean(
+              latestEmployeeSubmission?.proposedClockInAt && latestEmployeeSubmission.proposedBreakMinutes === null,
+            );
             return (
               <article className={styles.caseCard} id={`attendance-case-${item.id}`} key={item.id}>
                 <div className={styles.caseHeader}>
@@ -318,7 +321,9 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
                     <p>{latestEmployeeSubmission.reason}</p>
                     {latestEmployeeSubmission.proposedClockInAt ? (
                       <small>
-                        Proposed: {formatLocal(latestEmployeeSubmission.proposedClockInAt, timezone)} → {latestEmployeeSubmission.proposedClockOutAt ? formatLocal(latestEmployeeSubmission.proposedClockOutAt, timezone) : "No clock-out"} · {latestEmployeeSubmission.proposedBreakMinutes ?? 0} min break
+                        Proposed: {formatLocal(latestEmployeeSubmission.proposedClockInAt, timezone)} → {latestEmployeeSubmission.proposedClockOutAt ? formatLocal(latestEmployeeSubmission.proposedClockOutAt, timezone) : "No clock-out"} · {latestEmployeeSubmission.proposedBreakMinutes === null
+                          ? "Break not declared — manager verification required"
+                          : `${latestEmployeeSubmission.proposedBreakMinutes} min break (for review)`}
                       </small>
                     ) : null}
                   </div>
@@ -380,8 +385,9 @@ export default async function AttendanceResolutionQueuePage({ searchParams }: Pa
                           <input defaultValue={correctionBaseline.clockOutAt ? formatBranchLocalDateTime(correctionBaseline.clockOutAt, timezone).slice(0, 16) : ""} name="correctedClockOutLocal" required type="datetime-local" />
                         </label>
                         <label>
-                          <span>Break minutes</span>
-                          <input defaultValue={correctionBaseline.totalBreakMinutes} min="0" name="correctedBreakMinutes" required type="number" />
+                          <span>Verified break minutes</span>
+                          <input defaultValue={breakNeedsVerification ? "" : correctionBaseline.totalBreakMinutes} min="0" name="correctedBreakMinutes" placeholder="Enter verified minutes" required type="number" />
+                          {breakNeedsVerification ? <small>No break time was declared. Verify it before applying the correction.</small> : null}
                         </label>
                         <label className={styles.correctionReason}>
                           <span>Correction reason</span>

@@ -14,6 +14,12 @@ import {
 import { parseBranchLocalDateTime } from "@/lib/attendance/work-date";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import {
+  ABSOLUTE_ATTENDANCE_CORRECTION_BREAK_LIMIT_MINUTES,
+  getAttendanceCorrectionBreakLimit,
+  summarizeAttendanceCorrectionBreakPunches,
+  type AttendanceCorrectionBreakRecord,
+} from "@/lib/staff-pwa/attendance-correction-breaks";
 
 export const employeeResolutionSubmissionSchema = z.object({
   resolutionCaseId: z.string().uuid("Attendance Resolution Case is invalid."),
@@ -24,7 +30,11 @@ export const employeeResolutionSubmissionSchema = z.object({
     .max(500, "Explanation cannot exceed 500 characters."),
   proposedClockInLocal: optionalLocalDateTime(),
   proposedClockOutLocal: optionalLocalDateTime(),
-  proposedBreakMinutes: z.coerce.number().int().min(0).max(1_440).nullable().optional(),
+  proposedBreakMinutes: z.coerce.number().int().min(0).max(
+    ABSOLUTE_ATTENDANCE_CORRECTION_BREAK_LIMIT_MINUTES,
+  ).nullable().optional(),
+  proposedBreakStartLocal: optionalLocalDateTime(),
+  proposedBreakEndLocal: optionalLocalDateTime(),
 });
 
 export const employeeResolutionCancellationSchema = z.object({
@@ -49,7 +59,9 @@ const managerDecisionSchema = z.object({
     .max(500, "Decision reason cannot exceed 500 characters."),
   correctedClockInLocal: optionalLocalDateTime(),
   correctedClockOutLocal: optionalLocalDateTime(),
-  correctedBreakMinutes: z.coerce.number().int().min(0).max(1_440).nullable().optional(),
+  correctedBreakMinutes: z.coerce.number().int().min(0).max(
+    ABSOLUTE_ATTENDANCE_CORRECTION_BREAK_LIMIT_MINUTES,
+  ).nullable().optional(),
   expectedUpdatedAt: z.string().datetime(),
   expectedCurrentResultId: z.string().uuid().nullable().optional(),
 });
@@ -122,9 +134,21 @@ export async function submitEmployeeAttendanceResolution(args: {
         status: { in: ["OPEN", "RETURNED_FOR_CORRECTION"] },
       },
       include: {
+        attendanceSession: {
+          include: {
+            punches: {
+              where: { type: { in: ["BREAK_START", "BREAK_END"] } },
+              orderBy: [{ serverTimestamp: "asc" }, { createdAt: "asc" }],
+              select: { type: true, serverTimestamp: true },
+            },
+          },
+        },
+        employee: { select: { targetBreakMinutes: true } },
         branch: {
           select: {
-            attendanceSetting: { select: { timezone: true } },
+            attendanceSetting: {
+              select: { timezone: true, targetBreakMinutes: true },
+            },
           },
         },
       },
@@ -138,14 +162,39 @@ export async function submitEmployeeAttendanceResolution(args: {
 
     const timezone =
       resolutionCase.branch.attendanceSetting?.timezone ?? "Asia/Kuala_Lumpur";
-    const correction = parseCorrectionValues(
+    const breakRecord = summarizeAttendanceCorrectionBreakPunches(
+      resolutionCase.attendanceSession.punches,
+    );
+    const hasCorrection = Boolean(
+      input.proposedClockInLocal ||
+      input.proposedClockOutLocal ||
+      input.proposedBreakMinutes !== null && input.proposedBreakMinutes !== undefined ||
+      input.proposedBreakStartLocal ||
+      input.proposedBreakEndLocal,
+    );
+    const proposedBreakMinutes = hasCorrection
+      ? resolveEmployeeCorrectionBreakMinutes({
+          breakRecord,
+          proposedBreakMinutes: input.proposedBreakMinutes,
+          proposedBreakStartLocal: input.proposedBreakStartLocal,
+          proposedBreakEndLocal: input.proposedBreakEndLocal,
+          clockInLocal: input.proposedClockInLocal,
+          clockOutLocal: input.proposedClockOutLocal,
+          timezone,
+        })
+      : null;
+    const correction = parseEmployeeCorrectionProposal(
       {
         clockInLocal: input.proposedClockInLocal,
         clockOutLocal: input.proposedClockOutLocal,
-        breakMinutes: input.proposedBreakMinutes,
+        breakMinutes: proposedBreakMinutes,
+        recommendedBreakMinutes: breakRecord.status === "COMPLETE"
+          ? undefined
+          : resolutionCase.employee.targetBreakMinutes ??
+            resolutionCase.branch.attendanceSetting?.targetBreakMinutes ??
+            60,
       },
       timezone,
-      false,
     );
 
     assertAttendanceResolutionTransition(
@@ -185,6 +234,10 @@ export async function submitEmployeeAttendanceResolution(args: {
           attendanceSessionId: resolutionCase.attendanceSessionId,
           resolutionEventId: event.id,
           includesProposedCorrection: correction !== null,
+          breakEvidenceStatus: breakRecord.status,
+          breakDeclarationProvided: breakRecord.status === "NONE" &&
+            correction?.breakMinutes != null,
+          breakRequiresVerification: correction !== null && correction.breakMinutes === null,
         },
       },
       transaction,
@@ -394,6 +447,7 @@ export async function applyManagerAttendanceResolution(args: {
           clockInLocal: input.correctedClockInLocal,
           clockOutLocal: input.correctedClockOutLocal,
           breakMinutes: input.correctedBreakMinutes,
+          recommendedBreakMinutes: undefined,
         },
         timezone,
         true,
@@ -479,11 +533,171 @@ function optionalLocalDateTime() {
     .transform((value) => value || null);
 }
 
+function resolveEmployeeCorrectionBreakMinutes(input: {
+  breakRecord: AttendanceCorrectionBreakRecord;
+  proposedBreakMinutes: number | null | undefined;
+  proposedBreakStartLocal: string | null;
+  proposedBreakEndLocal: string | null;
+  clockInLocal: string | null;
+  clockOutLocal: string | null;
+  timezone: string;
+}) {
+  if (input.breakRecord.status === "COMPLETE") {
+    if (input.proposedBreakStartLocal || input.proposedBreakEndLocal) {
+      throw new AttendanceApiError(
+        "VALIDATION_ERROR",
+        "Recorded break punches cannot be replaced in an employee correction.",
+      );
+    }
+    if (
+      input.proposedBreakMinutes !== null &&
+      input.proposedBreakMinutes !== undefined &&
+      input.proposedBreakMinutes !== input.breakRecord.recordedMinutes
+    ) {
+      throw new AttendanceApiError(
+        "VALIDATION_ERROR",
+        "Recorded break minutes are locked to the existing break punches.",
+      );
+    }
+    if (input.clockInLocal && input.clockOutLocal) {
+      const clockInAt = parseBranchLocalDateTime(input.clockInLocal, input.timezone);
+      const clockOutAt = parseBranchLocalDateTime(input.clockOutLocal, input.timezone);
+      const breakOutsideShift = input.breakRecord.periods.some((period) =>
+        !period.startAt ||
+        !period.endAt ||
+        new Date(period.startAt) < clockInAt ||
+        new Date(period.endAt) > clockOutAt,
+      );
+      if (breakOutsideShift) {
+        throw new AttendanceApiError(
+          "VALIDATION_ERROR",
+          "The corrected shift must include every recorded break period.",
+        );
+      }
+    }
+    return input.breakRecord.recordedMinutes;
+  }
+
+  if (input.breakRecord.status === "NONE") {
+    if (input.proposedBreakStartLocal || input.proposedBreakEndLocal) {
+      throw new AttendanceApiError(
+        "VALIDATION_ERROR",
+        "Use break minutes when no break punches were recorded.",
+      );
+    }
+    return input.proposedBreakMinutes;
+  }
+
+  if (input.proposedBreakMinutes !== null && input.proposedBreakMinutes !== undefined) {
+    throw new AttendanceApiError(
+      "VALIDATION_ERROR",
+      "Complete the missing break start or end instead of replacing recorded break punches.",
+    );
+  }
+  const incompletePeriods = input.breakRecord.periods.filter(
+    (period) => !period.startAt || !period.endAt,
+  );
+  if (incompletePeriods.length !== 1) {
+    throw new AttendanceApiError(
+      "VALIDATION_ERROR",
+      "Multiple incomplete break records require manager review.",
+    );
+  }
+  if (
+    !input.clockInLocal ||
+    !input.clockOutLocal ||
+    !input.proposedBreakStartLocal ||
+    !input.proposedBreakEndLocal
+  ) {
+    throw new AttendanceApiError(
+      "VALIDATION_ERROR",
+      "Provide the missing break start and end for this correction.",
+    );
+  }
+
+  const clockInAt = parseBranchLocalDateTime(input.clockInLocal, input.timezone);
+  const clockOutAt = parseBranchLocalDateTime(input.clockOutLocal, input.timezone);
+  const breakStartAt = parseBranchLocalDateTime(
+    input.proposedBreakStartLocal,
+    input.timezone,
+  );
+  const breakEndAt = parseBranchLocalDateTime(
+    input.proposedBreakEndLocal,
+    input.timezone,
+  );
+  const incompletePeriod = incompletePeriods[0];
+  if (
+    incompletePeriod.startAt &&
+    minuteTimestamp(breakStartAt) !== minuteTimestamp(new Date(incompletePeriod.startAt))
+  ) {
+    throw new AttendanceApiError(
+      "VALIDATION_ERROR",
+      "The recorded break start cannot be changed by the employee.",
+    );
+  }
+  if (
+    incompletePeriod.endAt &&
+    minuteTimestamp(breakEndAt) !== minuteTimestamp(new Date(incompletePeriod.endAt))
+  ) {
+    throw new AttendanceApiError(
+      "VALIDATION_ERROR",
+      "The recorded break end cannot be changed by the employee.",
+    );
+  }
+  if (
+    breakEndAt <= breakStartAt ||
+    breakStartAt < clockInAt ||
+    breakEndAt > clockOutAt
+  ) {
+    throw new AttendanceApiError(
+      "VALIDATION_ERROR",
+      "The proposed break must fall inside the corrected shift.",
+    );
+  }
+  const overlapsRecordedPeriod = input.breakRecord.periods.some((period) => {
+    if (!period.startAt || !period.endAt) return false;
+    return breakStartAt < new Date(period.endAt) && breakEndAt > new Date(period.startAt);
+  });
+  if (overlapsRecordedPeriod) {
+    throw new AttendanceApiError(
+      "VALIDATION_ERROR",
+      "The proposed break overlaps an existing recorded break.",
+    );
+  }
+  return input.breakRecord.recordedMinutes + Math.floor(
+    (breakEndAt.getTime() - breakStartAt.getTime()) / 60_000,
+  );
+}
+
+function minuteTimestamp(value: Date) {
+  return Math.floor(value.getTime() / 60_000);
+}
+
+function parseEmployeeCorrectionProposal(
+  input: Parameters<typeof parseCorrectionValues>[0],
+  timezone: string,
+) {
+  if (!input.clockInLocal && !input.clockOutLocal && input.breakMinutes == null) return null;
+  if (input.breakMinutes != null) return parseCorrectionValues(input, timezone, false);
+
+  // No declaration is unknown, not zero or the workplace break target.
+  if (!input.clockInLocal || !input.clockOutLocal) {
+    throw new AttendanceApiError("VALIDATION_ERROR", "Provide both clock-in and clock-out for a correction.");
+  }
+  const clockInAt = parseBranchLocalDateTime(input.clockInLocal, timezone);
+  const clockOutAt = parseBranchLocalDateTime(input.clockOutLocal, timezone);
+  if (clockOutAt <= clockInAt) {
+    throw new AttendanceApiError("VALIDATION_ERROR", "Clock-out must be after clock-in.");
+  }
+  return { clockInAt, clockOutAt, breakMinutes: null };
+}
+
 function parseCorrectionValues(
   input: {
     clockInLocal: string | null;
     clockOutLocal: string | null;
     breakMinutes: number | null | undefined;
+    recommendedBreakMinutes: number | undefined;
   },
   timezone: string,
   required: boolean,
@@ -508,10 +722,21 @@ function parseCorrectionValues(
   const elapsedMinutes = Math.floor(
     (clockOutAt.getTime() - clockInAt.getTime()) / 60_000,
   );
-  if (elapsedMinutes <= 0 || input.breakMinutes > elapsedMinutes) {
+  const breakLimit = input.recommendedBreakMinutes === undefined
+    ? Math.min(
+        elapsedMinutes,
+        ABSOLUTE_ATTENDANCE_CORRECTION_BREAK_LIMIT_MINUTES,
+      )
+    : getAttendanceCorrectionBreakLimit({
+        elapsedMinutes,
+        recommendedBreakMinutes: input.recommendedBreakMinutes,
+      });
+  if (elapsedMinutes <= 0 || input.breakMinutes > breakLimit) {
     throw new AttendanceApiError(
       "VALIDATION_ERROR",
-      "Clock-out must be after clock-in and break cannot exceed the shift.",
+      elapsedMinutes <= 0
+        ? "Clock-out must be after clock-in."
+        : `Break minutes cannot exceed ${breakLimit} for this shift.`,
     );
   }
   return {

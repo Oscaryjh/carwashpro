@@ -523,6 +523,8 @@ export async function updateBusinessAction(formData: FormData) {
   revalidatePath("/admin/businesses");
   revalidatePath(`/admin/businesses/${businessId}`);
   revalidatePath("/business/settings");
+  revalidatePath("/business/settings/staff-app");
+  revalidatePath("/staff", "layout");
 
   if (user.role === "PLATFORM_ADMIN") {
     redirect(`/admin/businesses/${businessId}`);

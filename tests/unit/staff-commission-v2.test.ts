@@ -98,9 +98,16 @@ test("Commission breakdown uses employee-safe source types and typed facts only"
   assert.match(view, /role="listitem"/);
   assert.match(view, /<details/);
   for (const fact of ["Gross amount", "Net amount", "Eligible amount"]) assert.match(view, new RegExp(fact));
-  assert.doesNotMatch(view, /Hair colouring|Hair treatment|Shampoo sale|invoice|customer|source event ID|transaction internal ID/i);
+  for (const fact of ["Item", "Invoice", "Quantity", "Commission rate"]) assert.match(view, new RegExp(`label="${fact}"`));
+  assert.match(view, /commissionItemName\(accrual\.sourceEvent\.invoiceItem\?\.name/);
+  assert.match(view, /accrual\.calculation\.rateLabel/);
+  assert.doesNotMatch(view, /Hair colouring|Hair treatment|Shampoo sale|customer|source event ID|transaction internal ID/i);
   assert.doesNotMatch(view, /ruleSnapshot|calculationTrace|rateBasisPoints|fixedAmountCents|%/);
-  assert.doesNotMatch(reader.slice(reader.indexOf("export async function getEmployeeCommissionStatements")), /ruleSnapshot|calculationTrace|ruleRevision/);
+  const employeeReader = reader.slice(reader.indexOf("export async function getEmployeeCommissionStatements"));
+  assert.match(employeeReader, /invoiceItem: \{ select: \{ name: true \} \}/);
+  assert.match(employeeReader, /invoice: \{ select: \{ invoiceNumber: true \} \}/);
+  assert.match(employeeReader, /calculation: commissionCalculationDetails\(calculationTrace\)/);
+  assert.doesNotMatch(employeeReader, /ruleSnapshot|ruleRevision|customer|product:|service:|package:/);
 });
 
 test("Commission adjustments hide at zero and use neutral signed canonical values", async () => {
@@ -169,5 +176,5 @@ test("Pay Hub, Payslips, claim gap and bottom navigation remain unchanged", asyn
   assert.match(payslips, /Download \$\{period\} payslip PDF/);
   assert.doesNotMatch(payslips, /Deductions|\bPaid\b/);
   assert.match(correctnessTests, /Claim Payroll settlement currently has no canonical closing writer/);
-  for (const label of ["Home", "Time", "Requests", "Pay", "Profile"]) assert.match(navigation, new RegExp(`label: "${label}"`));
+  for (const label of ["Home", "Time", "Approvals", "Pay", "Profile"]) assert.match(navigation, new RegExp(`label: "${label}"`));
 });

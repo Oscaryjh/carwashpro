@@ -179,13 +179,17 @@ function TimesheetRow({
         </div>
       </details>
 
-      {row.status === "ACTION_NEEDED" && row.day?.actionableException ? (
+      {row.status === "ACTION_NEEDED" &&
+      (row.day?.actionableException || row.day?.resolutionCase) ? (
         <div className={styles.action}>
           <span>
             <strong>{issueSummary(row.day)}</strong>
             <small>Add the correct time for manager review.</small>
           </span>
-          <Link href="/staff/history/records#attendance-correction">Fix attendance</Link>
+          <Link href={row.day.resolutionCase
+            ? "/staff#attendance-issues"
+            : "/staff/history/records#attendance-correction"}
+          >Fix attendance</Link>
         </div>
       ) : null}
     </article>

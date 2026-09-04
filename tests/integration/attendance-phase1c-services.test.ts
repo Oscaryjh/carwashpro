@@ -1098,7 +1098,9 @@ test("Attendance operations support branch switching, stale shifts, and missing-
       1,
     );
 
-    const correction = await submitAttendanceException({
+    // Reconciliation now creates the canonical Home resolution. A second legacy
+    // missing-punch request must not create a competing correction for this shift.
+    await assertAttendanceError(submitAttendanceException({
       auth: branchAuth,
       database,
       now,
@@ -1109,6 +1111,36 @@ test("Attendance operations support branch switching, stale shifts, and missing-
         type: "FORGOT_CLOCK_OUT",
         requestedClockOutAt: new Date(now.getTime() - 60 * 60_000),
         reason: "I forgot to clock out after the late shift.",
+        deviceIdentifier: fixture.deviceIdentifier,
+      },
+    }), "INVALID_ATTENDANCE_STATE");
+    assert.equal(await transaction.attendanceException.count({
+      where: { attendanceSessionId: stale.id, type: "FORGOT_CLOCK_OUT" },
+    }), 0);
+
+    // A different, unreported shift must still support the missing-punch flow.
+    const unreported = await transaction.employeeAttendance.create({
+      data: {
+        employeeAccountId: branchAuth.employeeAccountId,
+        membershipId: branchAuth.membershipId,
+        businessId: branchAuth.businessId,
+        branchId: branchA2.id,
+        workDate: now,
+        status: "OPEN",
+        clockInAt: new Date(now.getTime() - 8 * 3_600_000),
+      },
+    });
+    const correction = await submitAttendanceException({
+      auth: branchAuth,
+      database,
+      now,
+      input: {
+        branchId: branchA2.id,
+        attendanceSessionId: unreported.id,
+        attendancePunchId: null,
+        type: "FORGOT_CLOCK_OUT",
+        requestedClockOutAt: new Date(now.getTime() - 60 * 60_000),
+        reason: "I forgot to clock out after this other shift.",
         deviceIdentifier: fixture.deviceIdentifier,
       },
     });
@@ -1146,14 +1178,14 @@ test("Attendance operations support branch switching, stale shifts, and missing-
     );
     const completed =
       await transaction.employeeAttendance.findUniqueOrThrow({
-        where: { id: stale.id },
+        where: { id: unreported.id },
       });
     assert.equal(completed.status, "COMPLETED");
     assert.ok(completed.clockOutPunchId);
     assert.equal(
       await transaction.attendancePunch.count({
         where: {
-          attendanceSessionId: stale.id,
+          attendanceSessionId: unreported.id,
           type: "CLOCK_OUT",
           source: "ADMIN_MANUAL",
         },
@@ -1182,8 +1214,8 @@ test("Attendance operations support branch switching, stale shifts, and missing-
       {
         ...managerContext,
         input: {
-          sessionId: stale.id,
-          adjustedClockInLocal: localInput(stale.clockInAt),
+          sessionId: unreported.id,
+          adjustedClockInLocal: localInput(unreported.clockInAt),
           adjustedClockOutLocal: localInput(
             new Date(now.getTime() - 60 * 60_000),
           ),
@@ -1195,10 +1227,10 @@ test("Attendance operations support branch switching, stale shifts, and missing-
       database,
     );
     assert.equal(adjusted.totalBreakMinutes, 30);
-    assert.equal(adjusted.totalWorkedMinutes, 17 * 60 + 30);
+    assert.equal(adjusted.totalWorkedMinutes, 6 * 60 + 30);
     assert.equal(
       await transaction.attendanceAdjustment.count({
-        where: { attendanceSessionId: stale.id },
+        where: { attendanceSessionId: unreported.id },
       }),
       2,
     );

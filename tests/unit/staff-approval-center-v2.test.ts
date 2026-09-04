@@ -39,16 +39,16 @@ test("history defaults to current month, supports twelve months and employee fil
   assert.match(page, /Only decisions made by you are shown/);
 });
 
-test("Requests keeps a permanent capability-gated Manager approval entry at zero pending", async () => {
+test("legacy Requests redirects authorized managers even at zero pending", async () => {
   const [requests, model] = await Promise.all([
     read("src/app/staff/requests/page.tsx"),
     read("src/lib/staff-pwa/requests-hub.ts"),
   ]);
-  assert.match(requests, /loadRequestsApprovalEntry/);
+  assert.match(requests, /canAccessStaffApprovals/);
   assert.match(model, /hasKnownCapability/);
   assert.match(model, /resolveStaffTeamApprovalAccess/);
   assert.match(model, /resolveStaffOvertimeAccess/);
-  assert.match(requests, /title="Approvals"/);
+  assert.match(requests, /"\/staff\/approvals" : "\/staff"/);
   assert.match(model, /pending > 0/);
   assert.match(model, /`\$\{pending\} waiting for you`/);
   assert.match(model, /"All clear"/);

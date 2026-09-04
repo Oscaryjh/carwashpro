@@ -31,10 +31,10 @@ test("Approval Center shows Overtime only through the attendance management capa
   ]);
   assert.match(adapter, /canDirectStaff\(user\.permissions, "MODIFY_ATTENDANCE_EMPLOYEES"\)/);
   assert.match(adapter, /moduleContext\.enabledModules\.has\("HR"\)/);
-  assert.match(requests, /loadRequestsApprovalEntry/);
+  assert.match(requests, /canAccessStaffApprovals/);
   assert.match(requestsModel, /resolveStaffOvertimeAccess/);
   assert.match(requestsModel, /overtimeCapability === "capable"/);
-  assert.match(requests, /href="\/staff\/approvals"/);
+  assert.match(requests, /"\/staff\/approvals" : "\/staff"/);
   assert.match(approvals, /href="\/staff\/requests\/overtime"/);
   assert.doesNotMatch(requests, /employee OT request|submit overtime/i);
 });

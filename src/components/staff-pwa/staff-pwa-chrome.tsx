@@ -19,6 +19,7 @@ import {
 } from "@/lib/staff-pwa/client";
 import {
   buildStaffNavigation,
+  isStaffNavigationItemActive,
   type StaffNavigationIcon,
 } from "@/lib/staff-pwa/navigation";
 import type { EmployeeWorkplaceChoice } from "@/lib/staff-pwa/types";
@@ -48,11 +49,13 @@ export function useStaffShell() {
 export function StaffPwaChrome({
   children,
   appearance,
+  canApprove,
   enabledModules,
   workplaces,
 }: {
   children: React.ReactNode;
   appearance: StaffAppAppearance | null;
+  canApprove: boolean;
   enabledModules: readonly string[];
   workplaces: readonly EmployeeWorkplaceChoice[];
 }) {
@@ -65,7 +68,8 @@ export function StaffPwaChrome({
   const workplaceCloseRef = useRef<HTMLButtonElement>(null);
   const workplaceFocusReturnRef = useRef<HTMLElement | null>(null);
   const [liveModules, setLiveModules] = useState<readonly string[]>(enabledModules);
-  const navigation = buildStaffNavigation(liveModules);
+  const [liveCanApprove, setLiveCanApprove] = useState(canApprove);
+  const navigation = buildStaffNavigation(liveModules, { canApprove: liveCanApprove });
   const [workplacesOpen, setWorkplacesOpen] = useState(false);
   const [taskNavigationHidden, setTaskNavigationHidden] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -111,20 +115,37 @@ export function StaffPwaChrome({
     return () => window.removeEventListener("keydown", manageDialogKeyboard);
   }, [closeWorkplaceSwitcher, switching, workplacesOpen]);
   useEffect(() => {
-    let active = true;
     setLiveModules(enabledModules);
+    setLiveCanApprove(canApprove);
+  }, [canApprove, enabledModules]);
+  useEffect(() => {
+    let active = true;
+    let requestVersion = 0;
     if (!showNavigation) return () => { active = false; };
 
-    void staffApiFetch<{ ok: true; enabledModules: string[] }>("/api/employee-auth/modules")
-      .then((result) => {
-        if (active) setLiveModules(result.enabledModules);
-      })
-      .catch(() => {
-        // Page-level auth and module gates remain authoritative.
-      });
+    const refreshNavigation = () => {
+      if (document.visibilityState !== "visible") return;
+      const version = ++requestVersion;
+      void staffApiFetch<{ ok: true; enabledModules: string[]; canApprove: boolean }>("/api/employee-auth/modules")
+        .then((result) => {
+          if (!active || version !== requestVersion) return;
+          setLiveModules(result.enabledModules);
+          setLiveCanApprove(result.canApprove === true);
+        })
+        .catch(() => {
+          // Unknown permissions do not leave a stale Approvals button visible.
+          // Page/action authorization remains authoritative, including old links.
+          if (active && version === requestVersion) setLiveCanApprove(false);
+        });
+    };
 
-    return () => { active = false; };
-  }, [currentPath, enabledModules, showNavigation]);
+    refreshNavigation();
+    document.addEventListener("visibilitychange", refreshNavigation);
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", refreshNavigation);
+    };
+  }, [currentPath, showNavigation]);
   useEffect(() => {
     let active = true;
     if (!showNavigation) return () => { active = false; };
@@ -302,12 +323,12 @@ export function StaffPwaChrome({
         {showNavigation && !taskNavigationHidden ? (
           <nav aria-label="Staff navigation" className="staff-pwa-nav">
             {navigation.primary.map((item) => (
-              <Link aria-current={isActive(currentPath, item) ? "page" : undefined} className={isActive(currentPath, item) ? "active" : ""} href={item.href} key={item.href}>
+              <Link aria-current={isStaffNavigationItemActive(currentPath, item) ? "page" : undefined} className={isStaffNavigationItemActive(currentPath, item) ? "active" : ""} href={item.href} key={item.href}>
                 <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>{item.label}
               </Link>
             ))}
             {navigation.more.map((item) => (
-              <Link aria-current={isActive(currentPath, item) ? "page" : undefined} className={isActive(currentPath, item) ? "active" : ""} href={item.href} key={item.href}>
+              <Link aria-current={isStaffNavigationItemActive(currentPath, item) ? "page" : undefined} className={isStaffNavigationItemActive(currentPath, item) ? "active" : ""} href={item.href} key={item.href}>
                 <span aria-hidden="true"><StaffNavIcon name={item.icon} /></span>{item.label}
               </Link>
             ))}
@@ -326,7 +347,7 @@ function StaffNavIcon({ name }: { name: StaffNavigationIcon }) {
   const paths: Record<StaffNavigationIcon, React.ReactNode> = {
     home: <><path d="m3.5 11 8.5-7 8.5 7" /><path d="M5.5 10v10h13V10M9.5 20v-6h5v6" /></>,
     attendance: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3.5 2" /></>,
-    requests: <><path d="M6 3h12v18H6z" /><path d="M9 3.5h6M9 9h6M9 13h6M9 17h4" /><path d="m4 9 1 1 2-2" /></>,
+    approvals: <><path d="M6 3h12v18H6z" /><path d="M9 3.5h6M9 9h6M9 13h6M9 17h4" /><path d="m4 9 1 1 2-2" /></>,
     pay: <><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h3" /><circle cx="17" cy="15" r="1" /></>,
     leave: <><path d="M5 20c8 0 14-5 14-15C9 5 5 11 5 20Z" /><path d="M6 18c3-4 6-7 11-10" /></>,
     schedule: <><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16M8 14h3M13 14h3" /></>,
@@ -357,14 +378,4 @@ function OfflineBanner() {
   }, []);
   if (online) return null;
   return <div className="staff-pwa-offline" role="alert">Staff App requires a network connection. Connect to the internet and try again.</div>;
-}
-
-function isActive(
-  currentPath: string,
-  item: { href: string; activePrefixes?: readonly string[] },
-) {
-  if (item.href === "/staff") return currentPath === item.href;
-  if (item.href === "/staff/profile") return currentPath === item.href || currentPath === "/staff/device";
-  const prefixes = item.activePrefixes ?? [item.href];
-  return prefixes.some((prefix) => currentPath === prefix || currentPath.startsWith(`${prefix}/`));
 }

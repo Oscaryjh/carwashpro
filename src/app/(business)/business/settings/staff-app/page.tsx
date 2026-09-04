@@ -15,6 +15,7 @@ export default async function StaffAppAppearancePage() {
   const business = await prisma.business.findUnique({
     where: { id: context.businessId },
     select: {
+      logoUrl: true,
       name: true,
       staffAppLogoUrl: true,
       staffAppAppearance: true,
@@ -29,7 +30,7 @@ export default async function StaffAppAppearancePage() {
         <div>
           <span>COMPANY SETTINGS</span>
           <h1>Staff App Appearance</h1>
-          <p>Manage the logo and home shortcut icons employees see for {business.name}.</p>
+          <p>The Staff App follows {business.name}&apos;s company logo. Manage the employee home shortcut icons here.</p>
         </div>
         <Link href="/business/settings">Back to settings</Link>
       </header>
@@ -37,10 +38,11 @@ export default async function StaffAppAppearancePage() {
         appearance={resolveStaffAppAppearance(
           business.staffAppAppearance,
           business.staffAppLogoUrl,
+          business.logoUrl,
         )}
+        businessLogoUrl={business.logoUrl}
         businessName={business.name}
       />
     </section>
   );
 }
-

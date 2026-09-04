@@ -204,19 +204,21 @@ test("mobile CSS preserves compact rows, wrapping, touch targets and bottom clea
   assert.match(sharedCss, /safe-area-inset-bottom/);
 });
 
-test("Requests routes employees to the archive while History and manager ownership stay separate", async () => {
-  const [requests, historyPage, managerPage, timesheet, navigation] = await Promise.all([
+test("Time routes employees to the archive while Requests and manager ownership stay separate", async () => {
+  const [requests, historyPage, managerPage, timesheet, navigation, timeHub] = await Promise.all([
     read("src/app/staff/requests/page.tsx"),
     read("src/app/staff/history/records/page.tsx"),
     read("src/app/staff/requests/attendance-corrections/page.tsx"),
     read("src/components/staff-pwa/staff-timesheet-v2.tsx"),
     read("src/lib/staff-pwa/navigation.ts"),
+    read("src/components/staff-pwa/staff-time-hub.tsx"),
   ]);
-  assert.match(requests, /href="\/staff\/history\/corrections"/);
+  assert.doesNotMatch(requests, /href="\/staff\/history\/corrections"/);
+  assert.match(timeHub, /href="\/staff\/history\/corrections"/);
   assert.match(historyPage, /<StaffHistory/);
   assert.match(managerPage, /Manager access required/);
   assert.match(timesheet, /\/staff\/history\/records#attendance-correction/);
-  for (const label of ["Home", "Time", "Requests", "Pay", "Profile"]) {
+  for (const label of ["Home", "Time", "Approvals", "Pay", "Profile"]) {
     assert.match(navigation, new RegExp(`label: "${label}"`));
   }
 });

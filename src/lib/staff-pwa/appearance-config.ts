@@ -60,7 +60,8 @@ const iconNames = new Set<string>(STAFF_APP_ICON_OPTIONS.map((option) => option.
 
 export function resolveStaffAppAppearance(
   stored: unknown,
-  logoUrl: string | null = null,
+  staffAppLogoUrl: string | null = null,
+  businessLogoUrl: string | null = null,
 ): StaffAppAppearance {
   const quickAccessIcons = { ...DEFAULT_STAFF_APP_ICONS };
   const storedIcons = readStoredIcons(stored);
@@ -72,7 +73,10 @@ export function resolveStaffAppAppearance(
     }
   }
 
-  return { logoUrl, quickAccessIcons };
+  return {
+    logoUrl: businessLogoUrl ?? staffAppLogoUrl,
+    quickAccessIcons,
+  };
 }
 
 export function toStoredStaffAppAppearance(

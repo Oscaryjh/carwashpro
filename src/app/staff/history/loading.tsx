@@ -8,13 +8,9 @@ export default function StaffTimeLoading() {
   return (
     <section aria-busy="true" aria-label="Loading Time" className={styles.scope}>
       <StaffV2PageHeader
-        meta="Today, attendance records and monthly work results."
+        meta="Attendance records, corrections and monthly work results."
         title="Time"
       />
-      <section>
-        <StaffV2SectionLabel>Today</StaffV2SectionLabel>
-        <div className={styles.skeleton} />
-      </section>
       <section>
         <StaffV2SectionLabel>My time</StaffV2SectionLabel>
         <div className={styles.rowGroup}>

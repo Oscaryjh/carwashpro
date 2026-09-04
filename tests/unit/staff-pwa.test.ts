@@ -378,24 +378,24 @@ test("Staff navigation follows module entitlement without overcrowding the mobil
   assert.deepEqual(posOnly.more, []);
 
   const hrOnly = buildStaffNavigation(["CORE", "HR"]);
-  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Time", "Requests", "Profile"]);
+  assert.deepEqual(hrOnly.primary.map((item) => item.label), ["Home", "Time", "Profile"]);
   assert.deepEqual(hrOnly.more, []);
 
-  const full = buildStaffNavigation(["CORE", "HR", "CLAIMS", "COMMISSION", "PAYROLL"]);
-  assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Time", "Requests", "Pay", "Profile"]);
+  const full = buildStaffNavigation(["CORE", "HR", "CLAIMS", "COMMISSION", "PAYROLL"], { canApprove: true });
+  assert.deepEqual(full.primary.map((item) => item.label), ["Home", "Time", "Approvals", "Pay", "Profile"]);
   assert.deepEqual(full.more, []);
-  assert.equal(full.primary.length, 5, "Staff navigation is fixed to five mobile destinations");
+  assert.equal(full.primary.length, 5, "Authorized staff have at most five mobile destinations");
 });
 
 test("Staff Requests separates employee self-service from role-aware manager approvals", () => {
-  assert.match(requestsSource, /title="Approvals"/);
+  assert.match(requestsSource, /title: "Approvals"/);
   assert.match(requestsModelSource, /waiting for you/);
   assert.match(requestsModelSource, /All clear/);
-  assert.match(requestsSource, /loadRequestsApprovalEntry/);
-  assert.match(requestsSource, /My requests/);
-  assert.match(requestsSource, /Attendance correction/);
-  assert.match(requestsSource, /href="\/staff\/history\/corrections"/);
-  assert.match(requestsSource, /title="Attendance corrections"/);
+  assert.match(requestsSource, /canAccessStaffApprovals/);
+  assert.match(requestsSource, /"\/staff\/approvals" : "\/staff"/);
+  assert.doesNotMatch(requestsSource, /Where to find your requests/);
+  assert.doesNotMatch(requestsSource, /href="\/staff\/history\/corrections"/);
+  assert.doesNotMatch(requestsSource, /title="Attendance corrections"/);
   assert.doesNotMatch(requestsSource, /Review employee time corrections waiting/);
   assert.doesNotMatch(requestsSource, /canonical workflow/);
   assert.doesNotMatch(requestsSource, /Submit OT|Request overtime/);
@@ -413,7 +413,7 @@ test("Staff Home makes Clock In and Clock Out the dominant daily action", () => 
 });
 
 test("Staff Time Hub groups personal time destinations while History owns the archive", () => {
-  assert.match(timeHubSource, /title="Schedule"/);
+  assert.doesNotMatch(timeHubSource, /title="Schedule"/);
   assert.match(timeHubSource, /title="Attendance history"/);
   assert.match(timeHubSource, /title="Timesheet & overtime"/);
   assert.match(timeHubSource, /href="\/staff\/history\/records"/);
@@ -426,8 +426,9 @@ test("Staff Time Hub groups personal time destinations while History owns the ar
 test("Staff monthly timesheet keeps attendance results and exceptions inside the displayed month", () => {
   assert.equal(
     employeeTimesheetSource.match(/workDate: \{ gte: monthStart, lt: monthEndExclusive \}/g)?.length,
-    2,
+    3,
   );
+  assert.match(employeeTimesheetSource, /attendanceResolutionCase\.findMany/);
   assert.match(timesheetPageSource, /parseStaffTimesheetMonth\(query\.month\)/);
   assert.match(timesheetPageSource, /getEmployeeTimesheetOverview\(auth, \{ now: monthStart \}\)/);
   assert.match(timesheetV2ModelSource, /Action needed/);
@@ -489,8 +490,8 @@ test("Staff Home stays lightweight and delegates schedule and appointments to ca
   assert.match(homeSource, /domain: "APPOINTMENTS"/);
   assert.match(homeSource, /domain: "ROSTER"/);
   assert.match(homeSource, /domain: "LEAVE"/);
+  assert.match(homeSource, /items\.push\(\{ domain: "CLAIMS"/);
   assert.doesNotMatch(homeSource, /items\.push\(\{ domain: "TIMESHEET"/);
-  assert.doesNotMatch(homeSource, /items\.push\(\{ domain: "CLAIMS"/);
   assert.doesNotMatch(homeSource, /items\.push\(\{ domain: "COMMISSION"/);
   assert.doesNotMatch(homeSource, /items\.push\(\{ domain: "PAYSLIP"/);
   assert.match(homeSource, /Schedule temporarily unavailable/);

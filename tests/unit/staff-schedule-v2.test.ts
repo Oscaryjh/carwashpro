@@ -167,7 +167,7 @@ test("Schedule V2 mobile geometry and existing bottom navigation remain safe", (
   assert.match(scheduleCss, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(navigationSource, /Home/);
   assert.match(navigationSource, /Time/);
-  assert.match(navigationSource, /Requests/);
+  assert.match(navigationSource, /Approvals/);
   assert.match(navigationSource, /Pay/);
   assert.match(navigationSource, /Profile/);
 });

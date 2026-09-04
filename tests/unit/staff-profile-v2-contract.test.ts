@@ -91,9 +91,9 @@ test("Device compatibility routes converge on canonical Profile", () => {
   assert.doesNotMatch(device, /StaffProfile/);
 });
 
-test("Profile preserves the five canonical bottom navigation destinations", () => {
-  const navigation = buildStaffNavigation(["CORE", "HR", "CLAIMS", "COMMISSION", "PAYROLL"]);
-  assert.deepEqual(navigation.primary.map((item) => item.label), ["Home", "Time", "Requests", "Pay", "Profile"]);
+test("Profile preserves the role-aware canonical bottom navigation destinations", () => {
+  const navigation = buildStaffNavigation(["CORE", "HR", "CLAIMS", "COMMISSION", "PAYROLL"], { canApprove: true });
+  assert.deepEqual(navigation.primary.map((item) => item.label), ["Home", "Time", "Approvals", "Pay", "Profile"]);
 });
 
 function source(path: string) {

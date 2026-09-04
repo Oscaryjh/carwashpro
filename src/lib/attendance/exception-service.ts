@@ -75,11 +75,25 @@ export async function submitAttendanceException(args: {
               clockInAt: true,
               clockOutAt: true,
               status: true,
+              resolutionCase: {
+                select: { id: true, status: true },
+              },
             },
           })
           : null;
         if (input.attendanceSessionId && !attendanceSession) {
           throw new AttendanceApiError("INVALID_ATTENDANCE_STATE");
+        }
+        if (
+          attendanceSession?.resolutionCase &&
+          ["OPEN", "UNDER_REVIEW", "RETURNED_FOR_CORRECTION"].includes(
+            attendanceSession.resolutionCase.status,
+          )
+        ) {
+          throw new AttendanceApiError(
+            "INVALID_ATTENDANCE_STATE",
+            "This attendance issue already has an active correction. Continue it from Staff Home.",
+          );
         }
 
         const punch = input.attendancePunchId && attendanceSession

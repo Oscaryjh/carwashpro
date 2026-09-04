@@ -11,6 +11,14 @@ export function getMissingClockOutCorrectionState(
     clockOutAt?: string | null;
     requiresApproval?: boolean;
     status?: string;
+    resolutionCaseId?: string | null;
+    resolutionCaseStatus?:
+      | "OPEN"
+      | "UNDER_REVIEW"
+      | "RETURNED_FOR_CORRECTION"
+      | "RESOLVED"
+      | "SUPERSEDED"
+      | null;
   },
 ): MissingClockOutCorrectionState {
   if (item.locked) {
@@ -35,6 +43,12 @@ export function getMissingClockOutCorrectionState(
     return "NOT_ACTIONABLE";
   }
 
+  if (item.resolutionCaseId) {
+    return item.resolutionCaseStatus === "UNDER_REVIEW"
+      ? "PENDING"
+      : "ACTIONABLE";
+  }
+
   const approvalLabel = missingClockOutSession?.approvalLabel?.toLowerCase();
   if (
     approvalLabel?.includes("pending") ||
@@ -44,4 +58,12 @@ export function getMissingClockOutCorrectionState(
   }
 
   return "ACTIONABLE";
+}
+
+export function getMissingClockOutCorrectionHref(
+  item: Pick<AttendanceHistoryItem, "resolutionCaseId">,
+) {
+  return item.resolutionCaseId
+    ? "/staff#attendance-issues"
+    : "/staff/history/records#attendance-correction";
 }

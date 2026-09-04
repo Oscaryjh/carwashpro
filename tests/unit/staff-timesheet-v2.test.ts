@@ -134,8 +134,11 @@ test("Next action appears only when it explains an exception or manager wait", (
 });
 
 test("employee-actionable missing time links to canonical Attendance correction flow", () => {
-  assert.match(component, /row\.status === "ACTION_NEEDED" && row\.day\?\.actionableException/);
-  assert.match(component, /href="\/staff\/history\/records#attendance-correction"/);
+  assert.match(component, /row\.status === "ACTION_NEEDED"/);
+  assert.match(component, /row\.day\?\.actionableException \|\| row\.day\?\.resolutionCase/);
+  assert.match(component, /row\.day\.resolutionCase/);
+  assert.match(component, /"\/staff#attendance-issues"/);
+  assert.match(component, /"\/staff\/history\/records#attendance-correction"/);
   assert.doesNotMatch(component, /StaffP2CorrectionForm|p2-corrections/);
 });
 
@@ -204,8 +207,8 @@ test("360, 390 and 412 mobile geometry remains overflow-safe", () => {
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
-test("bottom navigation remains Home Time Requests Pay Profile", () => {
-  for (const label of ["Home", "Time", "Requests", "Pay", "Profile"]) {
+test("bottom navigation keeps Time separate from permission-gated Approvals", () => {
+  for (const label of ["Home", "Time", "Approvals", "Pay", "Profile"]) {
     assert.match(navigation, new RegExp(`label: "${label}"`));
   }
 });

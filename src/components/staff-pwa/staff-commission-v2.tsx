@@ -11,6 +11,7 @@ import {
 } from "@/components/staff-pwa/staff-v2-primitives";
 import {
   adjustmentTypeLabel,
+  commissionItemName,
   commissionStatusPresentation,
   employeeSafeAdjustmentReason,
   formatCommissionDate,
@@ -41,11 +42,15 @@ type CommissionStatement = Readonly<{
     status: "ACTIVE" | "REVERSED";
     eligibleAmountCents: number;
     commissionAmountCents: number;
+    calculation: Readonly<{ rateLabel: string; basisLabel: string | null }>;
     sourceEvent: Readonly<{
       sourceType: StaffCommissionSourceType;
       businessDate: Date;
       grossAmountCents: number;
       netAmountCents: number;
+      quantity: number;
+      invoiceItem: Readonly<{ name: string }> | null;
+      invoice: Readonly<{ invoiceNumber: string }> | null;
     }>;
   }>>;
   appliedAdjustments: ReadonlyArray<Readonly<{
@@ -64,7 +69,7 @@ export function StaffCommissionV2({ statements, selectedIndex }: {
 
   return (
     <section aria-label="Commission" className={`${staffV2Styles.scope} ${styles.page}`}>
-      <StaffV2PageHeader title="Commission" meta="Your commission statements." />
+      <StaffV2PageHeader title="Commission" meta="Your earnings from services, packages and products." />
 
       {!statement ? (
         <StaffV2EmptyState
@@ -106,10 +111,14 @@ export function StaffCommissionV2({ statements, selectedIndex }: {
               <StaffV2RowGroup ariaLabel="Commission breakdown" className={styles.rowGroup}>
                 {statement.accruals.map((accrual, index) => (
                   <details className={styles.line} key={`${accrual.sourceEvent.businessDate.toISOString()}-${index}`} role="listitem">
-                    <summary aria-label={`${sourceTypeLabel(accrual.sourceEvent.sourceType)} on ${formatCommissionDate(accrual.sourceEvent.businessDate)}, commission ${formatCommissionMoney(accrual.commissionAmountCents)}`} className={styles.lineSummary}>
-                      <span className={styles.date}>{formatCommissionDayMonth(accrual.sourceEvent.businessDate)}</span>
+                    <summary aria-label={`${commissionItemName(accrual.sourceEvent.invoiceItem?.name, accrual.sourceEvent.sourceType)}, ${sourceTypeLabel(accrual.sourceEvent.sourceType)} on ${formatCommissionDate(accrual.sourceEvent.businessDate)}, commission ${formatCommissionMoney(accrual.commissionAmountCents)}`} className={styles.lineSummary}>
                       <span className={styles.lineCopy}>
-                        <strong>{sourceTypeLabel(accrual.sourceEvent.sourceType)}</strong>
+                        <strong>{commissionItemName(accrual.sourceEvent.invoiceItem?.name, accrual.sourceEvent.sourceType)}</strong>
+                        <small className={styles.lineMeta}>
+                          <span>{sourceTypeLabel(accrual.sourceEvent.sourceType)}</span>
+                          <span>{formatCommissionDayMonth(accrual.sourceEvent.businessDate)}</span>
+                          <span>Qty {accrual.sourceEvent.quantity}</span>
+                        </small>
                         <small>Eligible {formatCommissionMoney(accrual.eligibleAmountCents)}</small>
                       </span>
                       <span className={styles.lineAmount}>
@@ -121,10 +130,15 @@ export function StaffCommissionV2({ statements, selectedIndex }: {
                     <div className={styles.detail}>
                       <StaffV2DetailSection title="Line details">
                         <dl className={styles.detailList}>
+                          <Detail label="Item" value={commissionItemName(accrual.sourceEvent.invoiceItem?.name, accrual.sourceEvent.sourceType)} />
                           <Detail label="Date" value={formatCommissionDate(accrual.sourceEvent.businessDate)} />
                           <Detail label="Source" value={sourceTypeLabel(accrual.sourceEvent.sourceType)} />
+                          <Detail label="Invoice" value={accrual.sourceEvent.invoice?.invoiceNumber || "Not recorded"} />
+                          <Detail label="Quantity" value={String(accrual.sourceEvent.quantity)} />
                           <Detail label="Gross amount" value={formatCommissionMoney(accrual.sourceEvent.grossAmountCents)} />
                           <Detail label="Net amount" value={formatCommissionMoney(accrual.sourceEvent.netAmountCents)} />
+                          <Detail label="Commission rate" value={accrual.calculation.rateLabel} />
+                          {accrual.calculation.basisLabel ? <Detail label="Calculated on" value={accrual.calculation.basisLabel} /> : null}
                           <Detail label="Eligible amount" value={formatCommissionMoney(accrual.eligibleAmountCents)} />
                           <Detail label="Commission" value={formatCommissionMoney(accrual.commissionAmountCents)} />
                         </dl>

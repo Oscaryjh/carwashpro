@@ -15,6 +15,34 @@ export function sourceTypeLabel(type: StaffCommissionSourceType) {
   return "Package redemption";
 }
 
+export function commissionItemName(name: string | null | undefined, type: StaffCommissionSourceType) {
+  return name?.trim() || `${sourceTypeLabel(type)} (name not recorded)`;
+}
+
+/** Only display facts frozen by the calculation engine, never infer a rate from totals.
+ * Return an allowlisted presentation object, not the internal calculation trace.
+ */
+export function commissionCalculationDetails(value: unknown): { rateLabel: string; basisLabel: string | null } {
+  const trace = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  let rateLabel = "Not recorded";
+  const rate = trace.appliedRateBasisPoints;
+  const fixed = trace.fixedAmountCents;
+  if ((trace.ruleType === "PERCENTAGE" || trace.ruleType === "TIERED_PERCENTAGE")
+    && typeof rate === "number" && Number.isSafeInteger(rate) && rate >= 0 && rate <= 10_000) {
+    rateLabel = `${rate / 100}%${trace.ruleType === "TIERED_PERCENTAGE" ? " (tiered)" : ""}`;
+  } else if (trace.ruleType === "FIXED_AMOUNT" && typeof fixed === "number"
+    && Number.isSafeInteger(fixed) && fixed >= 0 && fixed <= 100_000_000) {
+    rateLabel = `${formatCommissionMoney(fixed)} per unit`;
+  }
+  const basisLabel = trace.basisOverride === "TRAINING_COMPLIMENTARY_GROSS"
+    ? "Original gross amount (training / complimentary)"
+    : trace.basis === "GROSS" ? "Gross amount"
+      : trace.basis === "NET_AFTER_DISCOUNT" ? "Net after discount" : null;
+  return { rateLabel, basisLabel };
+}
+
 export function adjustmentTypeLabel(type: StaffCommissionAdjustmentType) {
   if (type === "REFUND") return "Refund adjustment";
   if (type === "VOID") return "Void adjustment";

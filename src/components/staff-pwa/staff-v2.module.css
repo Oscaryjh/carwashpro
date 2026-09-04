@@ -76,6 +76,12 @@
   width: 100%;
 }
 
+.pageHeaderLeadingLarge {
+  font-size: 18px;
+  height: 56px;
+  width: 56px;
+}
+
 .pageHeaderCopy { min-width: 0; }
 .pageHeaderCopy h1 {
   color: var(--staff-v2-ink);

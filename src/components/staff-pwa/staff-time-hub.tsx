@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { StaffAppIcon } from "@/components/staff-pwa/staff-app-icon";
 import type { StaffTimeHubModel } from "@/lib/staff-pwa/time-hub";
 import {
@@ -7,7 +6,6 @@ import {
   StaffV2PageHeader,
   StaffV2RowGroup,
   StaffV2SectionLabel,
-  StaffV2StatusBadge,
   staffV2Styles as styles,
 } from "./staff-v2-primitives";
 import { StaffTimeHubLegacyRedirect } from "./staff-time-hub-legacy-redirect";
@@ -17,30 +15,9 @@ export function StaffTimeHub({ model }: { model: StaffTimeHubModel }) {
     <section aria-label="Time" className={styles.scope}>
       <StaffTimeHubLegacyRedirect />
       <StaffV2PageHeader
-        meta="Today, attendance records and monthly work results."
+        meta="Attendance records, corrections and monthly work results."
         title="Time"
       />
-
-      <section aria-labelledby="staff-time-today-heading">
-        <StaffV2SectionLabel id="staff-time-today-heading">Today</StaffV2SectionLabel>
-        {model.today ? (
-          <StaffV2ListRow
-            ariaLabel="Open today’s Attendance on Home"
-            href="/staff"
-            leading={<StaffAppIcon name="clock" />}
-            meta={model.today.meta}
-            title={model.today.title}
-            trailing={model.today.badge
-              ? <StaffV2StatusBadge tone={model.today.tone}>{model.today.badge}</StaffV2StatusBadge>
-              : null}
-          />
-        ) : (
-          <div className={styles.inlineError} role="alert">
-            <span><strong>Attendance couldn’t load</strong><small>Your other Time sections are still available.</small></span>
-            <Link href="/staff/history">Try again</Link>
-          </div>
-        )}
-      </section>
 
       {model.attention ? (
         <section aria-labelledby="staff-time-attention-heading">
@@ -63,13 +40,6 @@ export function StaffTimeHub({ model }: { model: StaffTimeHubModel }) {
         <StaffV2SectionLabel id="staff-time-destinations-heading">My time</StaffV2SectionLabel>
         <StaffV2RowGroup ariaLabel="Time sections">
           <StaffV2ListRow
-            ariaLabel="Open Schedule"
-            href="/staff/roster"
-            leading={<StaffAppIcon name="calendar" />}
-            meta={model.schedule?.summary ?? "Open your published schedule"}
-            title="Schedule"
-          />
-          <StaffV2ListRow
             ariaLabel="Open Attendance history"
             href="/staff/history/records"
             leading={<StaffAppIcon name="clock" />}
@@ -84,6 +54,13 @@ export function StaffTimeHub({ model }: { model: StaffTimeHubModel }) {
               ? `${model.timesheet.month} · ${model.timesheet.summary}`
               : "Open monthly work results"}
             title="Timesheet & overtime"
+          />
+          <StaffV2ListRow
+            ariaLabel="Open Attendance corrections"
+            href="/staff/history/corrections"
+            leading={<StaffAppIcon name="clock" />}
+            meta="Requests and approval status"
+            title="Attendance corrections"
           />
         </StaffV2RowGroup>
       </section>

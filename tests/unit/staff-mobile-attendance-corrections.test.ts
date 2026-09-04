@@ -15,13 +15,15 @@ const files = {
 };
 
 test("manager attendance route is separate from employee self-service history", async () => {
-  const [requests, approvals, queue] = await Promise.all([
+  const [requests, approvals, queue, time] = await Promise.all([
     readFile(files.requests, "utf8"),
     readFile(files.approvals, "utf8"),
     readFile(files.queue, "utf8"),
+    readFile("src/components/staff-pwa/staff-time-hub.tsx", "utf8"),
   ]);
-  assert.match(requests, /href="\/staff\/history\/corrections"/);
-  assert.match(requests, /title="Attendance corrections"/);
+  assert.doesNotMatch(requests, /href="\/staff\/history\/corrections"/);
+  assert.match(time, /href="\/staff\/history\/corrections"/);
+  assert.match(time, /title="Attendance corrections"/);
   assert.doesNotMatch(requests, /href="\/staff\/requests\/attendance-corrections"/);
   assert.match(approvals, /href="\/staff\/requests\/attendance-corrections"/);
   assert.match(approvals, /domain="ATTENDANCE"/);

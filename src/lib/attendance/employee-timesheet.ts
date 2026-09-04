@@ -5,6 +5,7 @@ import type {
   AttendanceP2ExceptionStatus,
   AttendanceP2ExceptionType,
   AttendanceP2Outcome,
+  AttendanceResolutionCaseStatus,
   PrismaClient,
 } from "@prisma/client";
 import type { EmployeeAuthContext } from "@/lib/attendance/employee-auth/session";
@@ -100,6 +101,10 @@ export type EmployeeTimesheetDay = {
     id: string;
     type: "MISSING_CLOCK_IN" | "MISSING_CLOCK_OUT";
   } | null;
+  resolutionCase?: {
+    id: string;
+    status: "OPEN" | "UNDER_REVIEW" | "RETURNED_FOR_CORRECTION";
+  } | null;
 };
 
 export async function getEmployeeTimesheetOverview(
@@ -110,7 +115,7 @@ export async function getEmployeeTimesheetOverview(
   const now = options.now ?? new Date();
   const { monthStart, monthEndExclusive } = employeeTimesheetMonthRange(now);
   const allowedBranchIds = [...new Set([auth.primaryBranchId, auth.attendanceBranchId].filter(Boolean))] as string[];
-  const [rows, exceptions, overtime, timesheet] = await Promise.all([
+  const [rows, exceptions, overtime, timesheet, resolutionCases] = await Promise.all([
     database.attendanceP2FinalResult.findMany({
       where: {
         businessId: auth.businessId,
@@ -145,6 +150,25 @@ export async function getEmployeeTimesheetOverview(
       },
       select: { status: true, currentRevisionId: true },
     }),
+    database.attendanceResolutionCase.findMany({
+      where: {
+        businessId: auth.businessId,
+        employeeId: auth.membershipId,
+        branchId: { in: allowedBranchIds },
+        status: { in: ["OPEN", "UNDER_REVIEW", "RETURNED_FOR_CORRECTION"] },
+        attendanceSession: {
+          workDate: { gte: monthStart, lt: monthEndExclusive },
+        },
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+      select: {
+        id: true,
+        businessId: true,
+        employeeId: true,
+        status: true,
+        attendanceSession: { select: { workDate: true } },
+      },
+    }),
   ]);
 
   const lockedDays = timesheet?.status === "LOCKED" && timesheet.currentRevisionId
@@ -178,12 +202,21 @@ export async function getEmployeeTimesheetOverview(
       })
     : [];
 
-  const days = projectEmployeeTimesheetDays({
+  const projectedDays = projectEmployeeTimesheetDays({
     finalResults: rows,
     exceptions,
     lockedDays,
     timesheetStatus: timesheet?.status ?? "DRAFT",
   });
+  const days = timesheet?.status === "LOCKED"
+    ? projectedDays
+    : applyEmployeeTimesheetResolutionCases(projectedDays, resolutionCases.map((item) => ({
+        id: item.id,
+        businessId: item.businessId,
+        membershipId: item.employeeId,
+        workDate: item.attendanceSession.workDate,
+        status: item.status,
+      })));
   const lockedOvertime = lockedDays.filter((day) => day.potentialOtMinutes > 0);
 
   return {
@@ -193,6 +226,50 @@ export async function getEmployeeTimesheetOverview(
     lockedOvertime,
     timesheetStatus: timesheet?.status ?? "DRAFT",
   };
+}
+
+export function applyEmployeeTimesheetResolutionCases(
+  days: readonly EmployeeTimesheetDay[],
+  cases: readonly Readonly<{
+    id: string;
+    businessId: string;
+    membershipId: string;
+    workDate: Date;
+    status: AttendanceResolutionCaseStatus;
+  }>[],
+): EmployeeTimesheetDay[] {
+  type ActiveResolutionCase = Omit<(typeof cases)[number], "status"> & {
+    status: "OPEN" | "UNDER_REVIEW" | "RETURNED_FOR_CORRECTION";
+  };
+  const caseByWorkday = new Map<string, ActiveResolutionCase>();
+  for (const resolutionCase of cases) {
+    if (
+      resolutionCase.status !== "OPEN" &&
+      resolutionCase.status !== "UNDER_REVIEW" &&
+      resolutionCase.status !== "RETURNED_FOR_CORRECTION"
+    ) continue;
+    const key = workdayKey(resolutionCase);
+    if (!caseByWorkday.has(key)) {
+      caseByWorkday.set(key, { ...resolutionCase, status: resolutionCase.status });
+    }
+  }
+  return days.map((day) => {
+    const resolutionCase = caseByWorkday.get(workdayKey(day));
+    if (!resolutionCase) return day;
+    return {
+      ...day,
+      status: resolutionCase.status === "UNDER_REVIEW"
+        ? "WAITING_FOR_MANAGER"
+        : "ACTION_NEEDED",
+      actionableException: resolutionCase.status === "UNDER_REVIEW"
+        ? null
+        : day.actionableException,
+      resolutionCase: {
+        id: resolutionCase.id,
+        status: resolutionCase.status,
+      },
+    };
+  });
 }
 
 export function employeeTimesheetMonthRange(now: Date) {

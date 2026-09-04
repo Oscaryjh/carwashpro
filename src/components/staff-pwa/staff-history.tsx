@@ -316,8 +316,13 @@ export function StaffHistory() {
             </nav>
           ) : null}
 
-          <button className={styles.fallbackAction} onClick={openGenericCorrection} type="button">
-            Report another missing punch
+          <button className={styles.fallbackReport} onClick={openGenericCorrection} type="button">
+            <span aria-hidden="true" className={styles.fallbackIcon}>+</span>
+            <span className={styles.fallbackCopy}>
+              <strong>Report missing clock in/out</strong>
+              <small>Only if the missing punch is not already shown on Home</small>
+            </span>
+            <span aria-hidden="true" className={styles.fallbackChevron}>›</span>
           </button>
         </>
       ) : null}
@@ -418,10 +423,15 @@ export function StaffHistory() {
             id="attendance-correction-title"
             kicker="ATTENDANCE CORRECTION"
             onClose={() => setCorrectionOpen(false)}
-            title={correctionContextual ? "Correct attendance" : "Report a missing punch"}
+            title={correctionContextual ? "Correct attendance" : "Report missing clock in/out"}
           />
           <form className={styles.form} onSubmit={submitCorrection}>
             <StaffV2FormSection>
+              {!correctionContextual ? (
+                <p className={styles.fallbackHint}>
+                  For a missing punch that does not already appear as an attendance issue on Home.
+                </p>
+              ) : null}
               {correctionContextual && selectedCorrectionSession ? (
                 <div className={styles.correctionContext}>
                   <strong>{formatWorkDate(selectedCorrectionSession.workDate)}</strong>
@@ -649,7 +659,7 @@ function HistoryRow({
           ) : null}
         </div>
       </details>
-      {status.correctionState === "ACTIONABLE" ? (
+      {status.correctionState === "ACTIONABLE" && !item.resolutionCaseId ? (
         <div className={styles.recordAction}>
           <span><strong>Missing clock out</strong><small>Add the correct time for manager review.</small></span>
           <button onClick={() => onSubmitCorrection(item)} type="button">Submit correction</button>

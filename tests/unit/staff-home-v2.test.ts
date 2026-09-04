@@ -119,6 +119,8 @@ test("Home V2 final polish removes duplicate state and mixed quick action artwor
   assert.match(overview, /APPOINTMENTS: "clock"/);
   assert.match(overview, /ROSTER: "calendar"/);
   assert.match(overview, /LEAVE: "leaf"/);
+  assert.match(overview, /CLAIMS: "receipt"/);
+  assert.match(overview, /overview\.quickAccess\.length === 4 \? styles\.two/);
   assert.doesNotMatch(overview, /quickAccessIcons\[item\.domain\]/);
   assert.match(css, /\.quickAction > span:first-child/);
   assert.match(css, /\.quickAction svg \{ height: 24px; width: 24px; \}/);
@@ -127,9 +129,11 @@ test("Home V2 final polish removes duplicate state and mixed quick action artwor
 });
 
 test("Home V2 final polish keeps identity and no-schedule guidance compact", () => {
-  assert.match(overview, /height=\{32\}/);
-  assert.match(overview, /width=\{32\}/);
+  assert.match(overview, /height=\{56\}/);
+  assert.match(overview, /width=\{56\}/);
+  assert.match(overview, /leadingSize="large"/);
   assert.match(css, /\.pageHeaderLeading[\s\S]*height: 32px;[\s\S]*width: 32px;/);
+  assert.match(css, /\.pageHeaderLeadingLarge[\s\S]*height: 56px;[\s\S]*width: 56px;/);
   assert.match(today, /"Check Schedule or ask your manager\."/);
   assert.match(today, /meta=\{today\.expectedAttendance/);
 });
@@ -146,7 +150,7 @@ test("Home-only shell is solid and canonical navigation remains unchanged", () =
   assert.match(staffCss, /staff-home-v2-shell \.staff-pwa-header/);
   assert.match(staffCss, /staff-home-v2-shell \.staff-pwa-brand > span/);
   assert.doesNotMatch(css, /radial-gradient|linear-gradient|backdrop-filter/);
-  for (const label of ["Home", "Time", "Requests", "Pay", "Profile"]) {
+  for (const label of ["Home", "Time", "Approvals", "Pay", "Profile"]) {
     assert.match(navigation, new RegExp(`label: "${label}"`));
   }
 });

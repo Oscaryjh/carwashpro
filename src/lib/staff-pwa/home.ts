@@ -67,6 +67,9 @@ function buildQuickAccess(modules: ReadonlySet<ModuleKey>): StaffHomeQuickAccess
     items.push({ domain: "ROSTER", label: "Schedule", href: "/staff/roster" });
     items.push({ domain: "LEAVE", label: "Leave", href: "/staff/leave" });
   }
+  if (modules.has("CLAIMS")) {
+    items.push({ domain: "CLAIMS", label: "Claims", href: "/staff/claims" });
+  }
   return items;
 }
 

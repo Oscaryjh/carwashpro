@@ -10,13 +10,14 @@ export async function GET(request: Request) {
   try {
     const auth = await requireEmployeeSelfServiceAuthContext(request);
     await requireEmployeeBusinessModule(auth, "SALON");
-    const date = new URL(request.url).searchParams.get("date") ?? undefined;
+    const searchParams = new URL(request.url).searchParams;
+    const date = searchParams.get("date") ?? undefined;
+    const scope = searchParams.get("view") === "company" ? "COMPANY" : "MINE";
     return employeeAttendanceJson({
       ok: true,
-      data: await getStaffAppointmentDay({ auth, date }),
+      data: await getStaffAppointmentDay({ auth, date, scope }),
     });
   } catch (error) {
     return employeeAttendanceErrorResponse(error);
   }
 }
-

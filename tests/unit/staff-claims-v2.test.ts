@@ -7,13 +7,13 @@ const css = readFileSync(new URL("../../src/components/staff-pwa/staff-claims.mo
 const sharedCss = readFileSync(new URL("../../src/components/staff-pwa/staff-v2.module.css", import.meta.url), "utf8");
 const primitives = readFileSync(new URL("../../src/components/staff-pwa/staff-v2-primitives.tsx", import.meta.url), "utf8");
 const page = readFileSync(new URL("../../src/app/staff/claims/page.tsx", import.meta.url), "utf8");
-const requests = readFileSync(new URL("../../src/app/staff/requests/page.tsx", import.meta.url), "utf8");
+const home = readFileSync(new URL("../../src/lib/staff-pwa/home.ts", import.meta.url), "utf8");
 const approvalCenter = readFileSync(new URL("../../src/app/staff/approvals/page.tsx", import.meta.url), "utf8");
 const service = readFileSync(new URL("../../src/lib/claim/service.ts", import.meta.url), "utf8");
 
-test("Claims V2 keeps the canonical route and Requests Hub destination", () => {
+test("Claims V2 keeps the canonical route and Home destination", () => {
   assert.match(page, /<StaffClaims\s*\/>/);
-  assert.match(requests, /href="\/staff\/claims"/);
+  assert.match(home, /href: "\/staff\/claims"/);
   assert.match(claims, /StaffV2PageHeader title="Claims"/);
 });
 

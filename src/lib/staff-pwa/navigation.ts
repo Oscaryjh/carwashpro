@@ -17,7 +17,7 @@ export type StaffNavigationIcon =
   | "commission"
   | "payslip"
   | "profile"
-  | "requests"
+  | "approvals"
   | "pay";
 
 export type StaffNavigation = {
@@ -27,10 +27,11 @@ export type StaffNavigation = {
 
 export function buildStaffNavigation(
   enabledModules: readonly string[],
+  options: { canApprove?: boolean } = {},
 ): StaffNavigation {
   const modules = new Set(enabledModules as readonly ModuleKey[]);
   const primary: StaffNavigationItem[] = [
-    { href: "/staff", label: "Home", icon: "home" },
+    { href: "/staff", label: "Home", icon: "home", activePrefixes: ["/staff/leave", "/staff/claims"] },
   ];
 
   if (modules.has("HR")) {
@@ -41,12 +42,12 @@ export function buildStaffNavigation(
       activePrefixes: ["/staff/history", "/staff/roster", "/staff/timesheet", "/staff/appointments"],
     });
   }
-  if (modules.has("HR") || modules.has("CLAIMS")) {
+  if (modules.has("HR") && options.canApprove === true) {
     primary.push({
-      href: "/staff/requests",
-      label: "Requests",
-      icon: "requests",
-      activePrefixes: ["/staff/requests", "/staff/leave", "/staff/claims", "/staff/approvals"],
+      href: "/staff/approvals",
+      label: "Approvals",
+      icon: "approvals",
+      activePrefixes: ["/staff/approvals", "/staff/requests"],
     });
   }
   if (modules.has("PAYROLL") || modules.has("COMMISSION")) {
@@ -60,4 +61,11 @@ export function buildStaffNavigation(
 
   primary.push({ href: "/staff/profile", label: "Profile", icon: "profile" });
   return { primary, more: [] };
+}
+
+export function isStaffNavigationItemActive(currentPath: string, item: StaffNavigationItem) {
+  if (currentPath === item.href) return true;
+  if (item.href === "/staff/profile" && currentPath === "/staff/device") return true;
+  const prefixes = item.activePrefixes ?? (item.href === "/staff" ? [] : [item.href]);
+  return prefixes.some(prefix => currentPath === prefix || currentPath.startsWith(`${prefix}/`));
 }

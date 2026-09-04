@@ -109,7 +109,7 @@ test("loading, error and bottom sheets are mobile-safe and keyboard reachable", 
   assert.match(primitives, /stickyActionBarAboveNavigation/);
   assert.match(navigation, /Home/);
   assert.match(navigation, /Time/);
-  assert.match(navigation, /Requests/);
+  assert.match(navigation, /Approvals/);
   assert.match(navigation, /Pay/);
   assert.match(navigation, /Profile/);
 });

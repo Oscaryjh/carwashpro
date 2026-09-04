@@ -181,9 +181,21 @@ export type AttendanceResolutionCase = {
   clockInAt: string;
   clockOutAt: string | null;
   totalBreakMinutes: number;
+  breakRecord: {
+    status: "NONE" | "COMPLETE" | "INCOMPLETE";
+    recordedMinutes: number;
+    periods: Array<{
+      startAt: string | null;
+      endAt: string | null;
+    }>;
+  };
   canCancel: boolean;
   cancelDeadlineAt: string | null;
-  branch: { name: string; timezone: string };
+  branch: {
+    name: string;
+    timezone: string;
+    recommendedBreakMinutes: number;
+  };
   latestEvent: {
     type: string;
     reason: string;
@@ -261,6 +273,14 @@ export type AttendanceHistoryItem = {
   requiresApproval: boolean;
   adjusted: boolean;
   correctionSessionId: string | null;
+  resolutionCaseId: string | null;
+  resolutionCaseStatus:
+    | "OPEN"
+    | "UNDER_REVIEW"
+    | "RETURNED_FOR_CORRECTION"
+    | "RESOLVED"
+    | "SUPERSEDED"
+    | null;
 };
 
 export type AttendanceHistory = {

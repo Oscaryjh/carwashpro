@@ -18,9 +18,11 @@ import styles from "./staff-app-appearance.module.css";
 
 export function StaffAppAppearanceEditor({
   appearance,
+  businessLogoUrl,
   businessName,
 }: {
   appearance: StaffAppAppearance;
+  businessLogoUrl: string | null;
   businessName: string;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -51,7 +53,7 @@ export function StaffAppAppearanceEditor({
     setLogoPreviewUrl(file ? URL.createObjectURL(file) : null);
   }
 
-  const logoUrl = logoPreviewUrl ?? savedLogoUrl;
+  const logoUrl = businessLogoUrl ?? logoPreviewUrl ?? savedLogoUrl;
 
   return (
     <form action={formAction} className={styles.workspace}>
@@ -59,23 +61,38 @@ export function StaffAppAppearanceEditor({
         <section className={styles.panel}>
           <div className={styles.sectionHeading}>
             <span>01</span>
-            <div><h2>Staff App logo</h2><p>Only the Staff App header changes. Your company and invoice logo stay untouched.</p></div>
+            <div>
+              <h2>Staff App logo</h2>
+              <p>{businessLogoUrl
+                ? "The Staff App automatically uses your company logo. Change it under Branding & profile."
+                : "No company logo is set yet. You can use an optional Staff App logo until one is added."}</p>
+            </div>
           </div>
-          <label className={styles.logoPicker}>
-            <span className={styles.logoSample}>
-              {logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img alt="Staff App logo preview" src={logoUrl} />
-              ) : <b>T</b>}
-            </span>
-            <span><strong>Choose logo</strong><small>PNG, JPG or WebP · maximum 2MB</small></span>
-            <input
-              accept="image/png,image/jpeg,image/webp"
-              name="logo"
-              onChange={(event) => previewLogo(event.target.files?.[0])}
-              type="file"
-            />
-          </label>
+          {businessLogoUrl ? (
+            <div className={`${styles.logoPicker} ${styles.logoInherited}`}>
+              <span className={styles.logoSample}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img alt="Company logo used by Staff App" src={businessLogoUrl} />
+              </span>
+              <span><strong>Using company logo</strong><small>Kept in sync automatically</small></span>
+            </div>
+          ) : (
+            <label className={styles.logoPicker}>
+              <span className={styles.logoSample}>
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img alt="Staff App logo preview" src={logoUrl} />
+                ) : <b>T</b>}
+              </span>
+              <span><strong>Choose fallback logo</strong><small>PNG, JPG or WebP · maximum 2MB</small></span>
+              <input
+                accept="image/png,image/jpeg,image/webp"
+                name="logo"
+                onChange={(event) => previewLogo(event.target.files?.[0])}
+                type="file"
+              />
+            </label>
+          )}
         </section>
 
         <section className={styles.panel}>
@@ -142,4 +159,3 @@ export function StaffAppAppearanceEditor({
     </form>
   );
 }
-

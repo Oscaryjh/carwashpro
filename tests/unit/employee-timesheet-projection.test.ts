@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  applyEmployeeTimesheetResolutionCases,
   employeeTimesheetMonthRange,
   projectEmployeeTimesheetDays,
   type EmployeeTimesheetExceptionInput,
@@ -36,6 +37,33 @@ test("completed day has no missing-time employee action", () => {
 
   assert.equal(day?.actionableException, null);
   assert.deepEqual(day?.issues, []);
+});
+
+test("active Resolution Case is the single Timesheet correction state", () => {
+  const base = projectEmployeeTimesheetDays({
+    finalResults: [],
+    exceptions: [exception({ type: "MISSING_CLOCK_OUT", status: "OPEN" })],
+    timesheetStatus: "DRAFT",
+  });
+  const [open] = applyEmployeeTimesheetResolutionCases(base, [{
+    id: "resolution-1",
+    businessId: BUSINESS_ID,
+    membershipId: MEMBERSHIP_ID,
+    workDate: WORK_DATE,
+    status: "OPEN",
+  }]);
+  assert.equal(open?.status, "ACTION_NEEDED");
+  assert.equal(open?.resolutionCase?.id, "resolution-1");
+
+  const [submitted] = applyEmployeeTimesheetResolutionCases(base, [{
+    id: "resolution-1",
+    businessId: BUSINESS_ID,
+    membershipId: MEMBERSHIP_ID,
+    workDate: WORK_DATE,
+    status: "UNDER_REVIEW",
+  }]);
+  assert.equal(submitted?.status, "WAITING_FOR_MANAGER");
+  assert.equal(submitted?.actionableException, null);
 });
 
 test("stale active exception does not duplicate a later canonical final", () => {

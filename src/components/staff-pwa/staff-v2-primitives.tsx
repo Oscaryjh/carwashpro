@@ -6,16 +6,22 @@ export { styles as staffV2Styles };
 
 export function StaffV2PageHeader({
   leading,
+  leadingSize = "default",
   title,
   meta,
 }: {
   leading?: ReactNode;
+  leadingSize?: "default" | "large";
   title: string;
   meta?: ReactNode;
 }) {
   return (
     <header className={`${styles.pageHeader} ${leading ? "" : styles.pageHeaderNoLeading}`}>
-      {leading ? <span className={styles.pageHeaderLeading}>{leading}</span> : null}
+      {leading ? (
+        <span className={`${styles.pageHeaderLeading} ${leadingSize === "large" ? styles.pageHeaderLeadingLarge : ""}`}>
+          {leading}
+        </span>
+      ) : null}
       <div className={styles.pageHeaderCopy}>
         <h1>{title}</h1>
         {meta ? <p>{meta}</p> : null}
