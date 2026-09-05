@@ -24,6 +24,8 @@ import {
 import { usePackagePaymentSchema } from "@/lib/validation/packages";
 import { packageAllowsVehicle, vehicleSizeLabel } from "@/lib/vehicle-size";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
+import { parsePerformanceInput, performanceFingerprint } from "@/lib/performance/input";
+import { capturePerformanceCheckout } from "@/lib/performance/service";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
 
 export async function recordPaymentAction(formData: FormData) {
@@ -46,7 +48,7 @@ export async function recordPaymentAction(formData: FormData) {
     businessId,
     operationKey: operationId,
     operationType: FinancialOperationType.WORK_ORDER_PAYMENT,
-    payload: financialPayload,
+    payload: { ...financialPayload, ...performanceFingerprint(formData) },
     execute: async (tx) => {
     const shift = await getOpenShift(tx, businessId, user.userId);
     const operationalBranchWhere = authorizedOperationalBranchWhere(user);
@@ -222,6 +224,7 @@ export async function recordPaymentAction(formData: FormData) {
       tx,
     );
 
+    await capturePerformanceCheckout(tx, { businessId, actorUserId: user.userId, input: parsePerformanceInput(formData), paymentIds: [payment.id] });
     return {
       invoiceId: invoice.id,
       shouldSendInvoice: isPaid,
@@ -269,7 +272,7 @@ export async function usePackagePaymentAction(formData: FormData) {
     businessId,
     operationKey: operationId,
     operationType: FinancialOperationType.PACKAGE_REDEMPTION,
-    payload: financialPayload,
+    payload: { ...financialPayload, ...performanceFingerprint(formData) },
     execute: async (tx) => {
     const shift = await getOpenShift(tx, businessId, user.userId);
     const operationalBranchWhere = authorizedOperationalBranchWhere(user);
@@ -487,6 +490,7 @@ export async function usePackagePaymentAction(formData: FormData) {
       tx,
     );
 
+    await capturePerformanceCheckout(tx, { businessId, actorUserId: user.userId, input: null, paymentIds: [payment.id] });
     return { invoiceId: invoice.id };
     },
   });
@@ -531,7 +535,7 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
     businessId,
     operationKey: operationId,
     operationType: FinancialOperationType.PACKAGE_PURCHASE,
-    payload: financialPayload,
+    payload: { ...financialPayload, ...performanceFingerprint(formData) },
     execute: async (tx) => {
     const shift = await getOpenShift(tx, businessId, user.userId);
     const packageBranchWhere = authorizedCustomerPackageBranchWhere(user);
@@ -673,6 +677,7 @@ export async function recordPackagePurchasePaymentAction(formData: FormData) {
       tx,
     );
 
+    await capturePerformanceCheckout(tx, { businessId, actorUserId: user.userId, input: parsePerformanceInput(formData), paymentIds: [payment.id] });
     return {
       customerId: customerPackage.customer.id,
       invoiceId: invoice.id,

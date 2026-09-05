@@ -1452,6 +1452,8 @@ enum PaymentRecordStatus {
 }
 
 enum FinancialOperationType {
+  PERFORMANCE_SALES_CORRECTION
+  PERFORMANCE_TIP_CORRECTION
   CASHIER_CHECKOUT
   SALON_APPOINTMENT_PAYMENT
   WORK_ORDER_PAYMENT
@@ -1858,6 +1860,9 @@ enum LoyaltyTransactionType {
 }
 
 model Business {
+  performanceAttributions PerformanceAttribution[]
+  performanceReceipts PerformanceReceipt[]
+  performanceIssues PerformanceSourceIssue[]
   id                      String           @id @default(uuid()) @db.Uuid
   name                    String
   slug                    String           @unique
@@ -2481,6 +2486,9 @@ model CommercialAuditEvent {
 }
 
 model Branch {
+  performanceTargetVersions PerformanceTargetVersion[]
+  performanceAttributions PerformanceAttribution[]
+  performanceReceipts PerformanceReceipt[]
   id          String       @id @default(uuid()) @db.Uuid
   businessId  String       @map("business_id") @db.Uuid
   name        String
@@ -2569,6 +2577,7 @@ model Branch {
 }
 
 model User {
+  performanceAttributions PerformanceAttribution[]
   id                           String               @id @default(uuid()) @db.Uuid
   businessId                   String?              @map("business_id") @db.Uuid
   branchId                     String?              @map("branch_id") @db.Uuid
@@ -3363,6 +3372,8 @@ model EmployeeSession {
 }
 
 model EmployeeBusinessMembership {
+  performanceShares PerformanceShare[]
+  performanceContributions PerformanceContribution[]
   id                        String                         @id @default(uuid()) @db.Uuid
   employeeAccountId         String                         @map("employee_account_id") @db.Uuid
   businessId                String                         @map("business_id") @db.Uuid
@@ -8007,6 +8018,9 @@ model WorkOrderItem {
 }
 
 model Payment {
+  performanceReceipts PerformanceReceipt[]
+  performanceTipAttributions PerformanceAttribution[]
+  performanceIssues PerformanceSourceIssue[]
   id                              String              @id @default(uuid()) @db.Uuid
   businessId                      String              @map("business_id") @db.Uuid
   branchId                        String?             @map("branch_id") @db.Uuid
@@ -8058,6 +8072,7 @@ model Payment {
   @@index([shiftId])
   @@index([status])
   @@index([businessId, paidAt, status, method], map: "payments_business_paid_status_method_idx")
+  @@index([businessId, branchId, paidAt], map: "payments_performance_scope_time_idx")
   @@index([businessId, updatedAt], map: "payments_business_updated_idx")
   @@index([paidAt])
   @@map("payments")
@@ -8091,6 +8106,7 @@ model BusinessPaymentMethod {
 }
 
 model PaymentRefund {
+  performanceReceipt PerformanceReceipt?
   id                  String        @id @default(uuid()) @db.Uuid
   businessId          String        @map("business_id") @db.Uuid
   branchId            String?       @map("branch_id") @db.Uuid
@@ -8125,6 +8141,7 @@ model PaymentRefund {
 
   @@unique([id, businessId])
   @@index([businessId, refundedAt])
+  @@index([businessId, branchId, refundedAt], map: "refunds_performance_scope_time_idx")
   @@index([businessId, updatedAt], map: "payment_refunds_business_updated_idx")
   @@index([branchId])
   @@index([paymentId])
@@ -8579,6 +8596,8 @@ model ClosingWhatsAppSendAttempt {
 }
 
 model Invoice {
+  performanceAttributions PerformanceAttribution[]
+  performanceReceipts PerformanceReceipt[]
   id                    String              @id @default(uuid()) @db.Uuid
   businessId            String              @map("business_id") @db.Uuid
   branchId              String?             @map("branch_id") @db.Uuid
@@ -9076,6 +9095,142 @@ model WhatsAppWorkerCommand {
   @@index([status, createdAt])
   @@index([businessId])
   @@map("whatsapp_worker_commands")
+}
+
+// Performance is independent from commission and payroll. Sources and revisions are append-only.
+model PerformanceAttribution {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  branchId String @map("branch_id") @db.Uuid
+  invoiceId String @map("invoice_id") @db.Uuid
+  paymentId String? @map("payment_id") @db.Uuid
+  component String @db.VarChar(8)
+  scopeKey String @map("scope_key")
+  revision Int
+  reason String
+  evidence Json
+  actorUserId String @map("actor_user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  shares PerformanceShare[]
+  contributions PerformanceContribution[]
+  @@unique([businessId, scopeKey, revision])
+  @@index([businessId, invoiceId, component, revision])
+  @@index([branchId])
+  @@index([paymentId])
+  @@index([actorUserId])
+  @@map("performance_attributions")
+}
+
+model PerformanceShare {
+  id String @id @default(uuid()) @db.Uuid
+  attributionId String @map("attribution_id") @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  membershipId String @map("membership_id") @db.Uuid
+  basisPoints Int @map("basis_points")
+  employeeName String @map("employee_name")
+  employeeCode String @map("employee_code")
+  attribution PerformanceAttribution @relation(fields: [attributionId], references: [id], onDelete: Restrict)
+  membership EmployeeBusinessMembership @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  @@unique([attributionId, membershipId])
+  @@index([membershipId, businessId])
+  @@map("performance_shares")
+}
+
+model PerformanceReceipt {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  branchId String? @map("branch_id") @db.Uuid
+  invoiceId String? @map("invoice_id") @db.Uuid
+  paymentId String @map("payment_id") @db.Uuid
+  refundId String? @unique @map("refund_id") @db.Uuid
+  sourceKey String @map("source_key")
+  kind String @db.VarChar(12)
+  quality String @db.VarChar(40)
+  rawCents BigInt @map("raw_cents")
+  salesCents BigInt @map("sales_cents")
+  taxCents BigInt @map("tax_cents")
+  tipCents BigInt @map("tip_cents")
+  unresolvedCents BigInt @map("unresolved_cents")
+  occurredAt DateTime @map("occurred_at")
+  localDate String @map("local_date") @db.VarChar(10)
+  timezone String
+  policyVersion String @map("policy_version")
+  evidence Json
+  createdAt DateTime @default(now()) @map("created_at")
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  refund PaymentRefund? @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  contributions PerformanceContribution[]
+  @@unique([businessId, sourceKey])
+  @@index([businessId, branchId, occurredAt, id])
+  @@index([businessId, localDate])
+  @@index([businessId, branchId, localDate], map: "performance_receipts_scope_local_date_idx")
+  @@index([paymentId])
+  @@index([invoiceId])
+  @@map("performance_receipts")
+}
+
+model PerformanceTargetVersion {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  branchId String @map("branch_id") @db.Uuid
+  year Int
+  revision Int
+  requestKey String @map("request_key") @db.Uuid
+  fingerprint String
+  actorUserId String @map("actor_user_id") @db.Uuid
+  actorName String @map("actor_name")
+  reason String
+  snapshot Json
+  previousSnapshot Json @map("previous_snapshot")
+  preview Json
+  createdAt DateTime @default(now()) @map("created_at")
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  @@unique([businessId, branchId, year, revision])
+  @@unique([businessId, requestKey])
+  @@index([businessId, branchId, year, createdAt], map: "performance_target_versions_scope_created_idx")
+  @@map("performance_target_versions")
+}
+
+model PerformanceContribution {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  eventId String @map("event_id") @db.Uuid
+  attributionId String @map("attribution_id") @db.Uuid
+  component String @db.VarChar(8)
+  membershipId String? @map("membership_id") @db.Uuid
+  recipientKey String @map("recipient_key")
+  amountCents BigInt @map("amount_cents")
+  createdAt DateTime @default(now()) @map("created_at")
+  event PerformanceReceipt @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  attribution PerformanceAttribution @relation(fields: [attributionId], references: [id], onDelete: Restrict)
+  membership EmployeeBusinessMembership? @relation(fields: [membershipId, businessId], references: [id, businessId], onDelete: Restrict)
+  @@unique([eventId, attributionId, component, recipientKey])
+  @@index([businessId, membershipId, eventId])
+  @@index([attributionId])
+  @@map("performance_contributions")
+}
+
+model PerformanceSourceIssue {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  paymentId String @map("payment_id") @db.Uuid
+  code String @db.VarChar(40)
+  reason String
+  evidence Json
+  createdAt DateTime @default(now()) @map("created_at")
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  @@unique([businessId, paymentId, code])
+  @@index([paymentId])
+  @@map("performance_source_issues")
 }
 
 model AuditLog {

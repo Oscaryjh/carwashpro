@@ -32,9 +32,10 @@ const homeQuickActionIcons: Partial<Record<StaffAppDomain, StaffAppIconName>> = 
   CLAIMS: "receipt",
 };
 
-export function StaffHomeOverview({ overview, children }: {
+export function StaffHomeOverview({ overview, children, performance }: {
   overview: AwaitedReturn;
   children?: ReactNode;
+  performance?: ReactNode;
 }) {
   const displayName = formatDisplayName(overview.profile.employee.fullName);
   const initials = overview.profile.employee.fullName
@@ -97,6 +98,7 @@ export function StaffHomeOverview({ overview, children }: {
         </section>
       ) : null}
 
+      {performance}
       <section className={styles.quickActions} aria-labelledby="staff-home-quick-access-heading">
         <p className={styles.sectionLabel} id="staff-home-quick-access-heading">Quick actions</p>
         {overview.quickAccess.length ? (

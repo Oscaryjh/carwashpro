@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import {readFileSync,writeFileSync,existsSync,readdirSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import {join} from 'node:path';
+import {PrismaClient} from '@prisma/client';
+const root='/Users/innovdia/.codex/local-uat/tetamu-performance-20260905';
+const repo='/Users/innovdia/Development/carwashpro';
+const output='/Users/innovdia/Documents/Codex/2026-09-03/bang/outputs/performance-uat';
+const u=new URL(process.env.DATABASE_URL);assert.equal(u.hostname,'127.0.0.1');assert.equal(u.pathname,'/tetamu_performance_disposable_phase3_20260905_a');
+const hash=p=>createHash('sha256').update(readFileSync(p)).digest('hex');
+const paths=execFileSync('git',['ls-files','--cached','--others','--exclude-standard','-z'],{cwd:repo,encoding:'utf8'}).split('\0').filter(Boolean);
+const baselinePaths=paths.filter(p=>existsSync(join(root,'baseline',p))&&!p.startsWith('.env'));
+const changes=baselinePaths.filter(p=>!existsSync(join(repo,p))||hash(join(repo,p))!==hash(join(root,'baseline',p)));
+let appRuntimeChanges=[];function compare(dir,prefix='src'){for(const d of readdirSync(dir,{withFileTypes:true})){const relative=join(prefix,d.name),destination=join(root,'runtime',relative);if(d.isDirectory())compare(join(dir,d.name),relative);else if(d.isFile()&&(!existsSync(destination)||hash(destination)!==hash(join(repo,relative))))appRuntimeChanges.push(relative);}}compare(repo+'/src');
+const protection={checkedSourceFiles:baselinePaths.length,changes,appRuntimeChanges,head:execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim()};
+writeFileSync(`${output}/workspace-protection.json`,JSON.stringify(protection,null,2));
+assert.deepEqual(changes,[]);assert.deepEqual(appRuntimeChanges,[]);
+const f=JSON.parse(readFileSync(`${root}/current.json`,'utf8'));
+const db=new PrismaClient();
+try{
+  const identity=await db.$queryRaw`select current_database() as database, inet_server_addr()::text as host, current_setting('application_name') as application`;
+  const counts={payments:await db.payment.count({where:{businessId:f.businessId}}),manual118:await db.payment.count({where:{businessId:f.businessId,amount:118}}),refunds:await db.paymentRefund.count({where:{businessId:f.businessId}}),members:await db.employeeBusinessMembership.count({where:{businessId:f.businessId}}),staffWithNoUser:await db.employeeBusinessMembership.count({where:{businessId:f.businessId,staffUser:{is:null}}}),goals:await db.performanceTargetVersion.count({where:{businessId:f.businessId}})};
+  const manager=await db.user.findFirst({where:{businessId:f.businessId,role:'STAFF'},select:{permissions:true}});
+  const visit=await db.appointment.findUnique({where:{id:f.manualAppointmentId},select:{status:true,invoice:{select:{id:true}}}});
+  const verified={identity,counts,manager,visit,asOf:f.ledger.asOf,coverage:f.ledger.coverageStatus,uncaptured:f.ledger.uncapturedCount,pending:f.ledger.pendingCount,unassigned:f.ledger.unassignedAmount,team:f.ledger.team};
+  writeFileSync(`${output}/database-verification.json`,JSON.stringify(verified,null,2));
+  assert.equal(counts.payments,13);assert.equal(counts.manual118,0);assert.equal(counts.staffWithNoUser,6);assert.equal(counts.goals,1);assert.equal(visit.invoice,null);assert.equal(f.ledger.coverageStatus,'COMPLETE');assert.equal(f.ledger.team.total,60000000);
+  assert.ok(manager.permissions.includes('PERFORMANCE_VIEW_TEAM'));assert.ok(!manager.permissions.includes('PERFORMANCE_MANAGE_TARGETS'));
+  console.log(JSON.stringify({protection,database:identity,counts,result:'PASS'},null,2));
+}finally{await db.$disconnect();}

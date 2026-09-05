@@ -12,6 +12,11 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
   const enabled = moduleContext.enabledModules;
   const items: HrPayrollWorkspaceItem[] = [];
 
+  if (process.env.TETAMU_PERFORMANCE_PHASE2 === "true" && access.source === "DIRECT_BUSINESS" &&
+    hasAnyCapability(access, ["PERFORMANCE_VIEW_TEAM", "PERFORMANCE_MANAGE_TARGETS"])) {
+    items.push({ href: "/team/performance", label: "业绩管理 / Performance", icon: "overview" });
+  }
+
   if (hasAnyCapability(access, ["APPROVE_LEAVE", "REVIEW_CLAIM", "APPROVE_PAYROLL", "MODIFY_ATTENDANCE_EMPLOYEES"])) {
     items.push({
       href: "/team/approvals",

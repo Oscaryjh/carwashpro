@@ -1,4 +1,5 @@
 "use client";
+import { CheckoutAttribution } from "@/components/performance/checkout-attribution";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -73,11 +74,16 @@ export function SalonAppointmentPaymentForm({
   const router = useRouter();
   const [method, setMethod] = useState("CASH");
   const [depositMethod, setDepositMethod] = useState("CASH");
+  const [reference, setReference] = useState("");
+  const [depositReference, setDepositReference] = useState("");
   const [discount, setDiscount] = useState("0");
   const [catalogDiscountId, setCatalogDiscountId] = useState("");
   const [discountReference, setDiscountReference] = useState("");
   const [deposit, setDeposit] = useState("0");
   const [tip, setTip] = useState("0");
+  const [performanceAvailable, setPerformanceAvailable] = useState(false);
+  const [additionalTip, setAdditionalTip] = useState("0");
+  const additionalTipAmount = hasInvoice && performanceAvailable ? Number(additionalTip || 0) : 0;
   const [cashReceived, setCashReceived] = useState("");
   const [selectedCustomerPackageIds, setSelectedCustomerPackageIds] = useState<string[]>([]);
   const [amount, setAmount] = useState(
@@ -141,7 +147,7 @@ export function SalonAppointmentPaymentForm({
     (sum, application) => sum + application.coveredAmount,
     0,
   );
-  const amountDue = hasInvoice ? balance : Math.max(0, total - packageCoverage);
+  const amountDue = hasInvoice ? balance + additionalTipAmount : Math.max(0, total - packageCoverage);
   const balancePaymentCents = Math.max(0, Math.round((Number(amount) || 0) * 100));
   const depositCents = Math.max(0, Math.round((Number(deposit) || 0) * 100));
   const cashDueCents = (method === "CASH" ? balancePaymentCents : 0)
@@ -215,6 +221,7 @@ export function SalonAppointmentPaymentForm({
       <input type="hidden" name="appointmentId" value={appointmentId} />
       <input type="hidden" name="operationId" value={operationId} />
       <input type="hidden" name="catalogDiscountId" value={catalogDiscountId} />
+      {additionalTipAmount > 0 && <input type="hidden" name="performanceTipAmount" value={additionalTip} />}
       {selectedCustomerPackageIds.map((customerPackageId) => (
         <input
           key={customerPackageId}
@@ -339,6 +346,11 @@ export function SalonAppointmentPaymentForm({
           </label>
         </div>
       ) : null}
+      {hasInvoice && performanceAvailable && <label style={{ gridColumn: "1 / -1" }}>
+        Additional tip for this balance payment · 本次新增小费
+        <input type="number" min="0" max="9999999" step="0.01" inputMode="decimal" value={additionalTip} onChange={(event) => { setAdditionalTip(event.target.value); setAmountEdited(false); }} />
+        <small>Only adds a new tip. Previous tip amounts and recipients stay unchanged; only the received share counts.</small>
+      </label>}
       <div className="salon-checkout-summary" aria-live="polite">
         <span>Subtotal <strong>RM{subtotal.toFixed(2)}</strong></span>
         {!hasInvoice && appliedDiscount > 0 ? (
@@ -373,7 +385,8 @@ export function SalonAppointmentPaymentForm({
         {!hasInvoice && packageCoverage > 0 ? (
           <span>Voucher total <strong>-RM{packageCoverage.toFixed(2)}</strong></span>
         ) : null}
-        <span className="is-total">Total <strong>RM{(hasInvoice ? totalAmount : total).toFixed(2)}</strong></span>
+        {additionalTipAmount > 0 && <span>Additional tip <strong>RM{additionalTipAmount.toFixed(2)}</strong></span>}
+        <span className="is-total">Total <strong>RM{(hasInvoice ? totalAmount + additionalTipAmount : total).toFixed(2)}</strong></span>
         {!hasInvoice && packageCoverage > 0 ? (
           <span className="is-due">Amount due <strong>RM{amountDue.toFixed(2)}</strong></span>
         ) : null}
@@ -408,7 +421,7 @@ export function SalonAppointmentPaymentForm({
           {depositMethod !== "CASH" ? (
             <label className="salon-checkout-reference-field">
               Deposit reference
-              <input name="depositReference" required />
+              <input name="depositReference" required value={depositReference} onChange={(event) => setDepositReference(event.target.value)} />
             </label>
           ) : null}
         </div>
@@ -463,7 +476,7 @@ export function SalonAppointmentPaymentForm({
         {method !== "CASH" ? (
           <label className="salon-checkout-reference-field">
             Reference
-            <input name="reference" required />
+            <input name="reference" required value={reference} onChange={(event) => setReference(event.target.value)} />
           </label>
         ) : null}
       </div>
@@ -486,6 +499,7 @@ export function SalonAppointmentPaymentForm({
           </div>
         </div>
       ) : null}
+      <CheckoutAttribution key={operationId} appointmentId={appointmentId} hasTip={Number(tip) > 0 || additionalTipAmount > 0} onEnabledChange={setPerformanceAvailable} exempt={Number(amount) + Number(deposit) <= 0} />
       {!hasOpenShift ? (
         <div className="salon-payment-action-error" role="alert">
           <span>Start a cashier shift before checkout.</span>

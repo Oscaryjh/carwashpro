@@ -105,3 +105,23 @@ node scripts/validate-release-environment.mjs whatsapp
 ```
 
 The validator checks names/presence and fail-closed mock rules. It intentionally never prints secret values.
+
+## Performance target management (Phase 2)
+
+`TETAMU_PERFORMANCE_PHASE2` defaults to `false` (only the exact value `true` enables it).
+It controls the People performance workspace and target preview/publish services. Disabled routes return
+not found before querying target tables; existing People/Approvals remain available. This flag is separate
+from `TETAMU_PERFORMANCE_PHASE1`: enabling targets neither enables receipt capture nor repairs capture gaps.
+The target migration must be applied through the normal reviewed release process before enabling.
+`SESSION_SECRET` (minimum 32 characters) signs actor/scope/draft-bound, 20-minute target previews.
+Only isolated test environments have been enabled during implementation; no production defaults changed.
+
+### Staff performance (Phase 3)
+
+`TETAMU_STAFF_PERFORMANCE=true` explicitly enables the private Staff home card,
+`/staff/performance` and `/api/employee-performance`. Default is disabled. It does not
+enable capture, publish targets or backfill history, and has no Payroll/Commission dependency.
+Disabled reads stop before new performance tables are queried. All Phase 1/2 migrations
+must already be reviewed/applied before enabling. Staff uses its own genuine session;
+backend users are only consulted for explicit team-member read scope, never fabricated.
+Responses are private/no-store; do not add these routes to offline or shared caches.

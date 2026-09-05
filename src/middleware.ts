@@ -17,6 +17,13 @@ function getSecret() {
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
+  // Gate only the new Staff route before layout streaming (which otherwise converts notFound to HTTP 200).
+  // Staff authentication remains in the page/API, never the back-office cookie path below.
+  if (pathname === "/staff/performance") {
+    return process.env.TETAMU_STAFF_PERFORMANCE === "true" ? NextResponse.next() :
+      new NextResponse("Performance is not enabled.", { status: 404, headers: { "Cache-Control": "private, no-store, max-age=0" } });
+  }
+
   // The dedicated Staff App deployment shares the codebase but not the
   // back-office surface. Keep staff APIs available while redirecting any
   // accidentally opened back-office page to the Staff App login.
@@ -149,6 +156,7 @@ function nullableString(value: unknown) {
 
 export const config = {
   matcher: [
+    "/staff/performance",
     "/",
     "/admin/:path*",
     "/appointments/:path*",

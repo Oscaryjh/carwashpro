@@ -1,4 +1,6 @@
 export const businessCapabilities = [
+  "PERFORMANCE_VIEW_TEAM",
+  "PERFORMANCE_MANAGE_TARGETS",
   "VIEW_DASHBOARD",
   "VIEW_REPORTS",
   "VIEW_APPOINTMENTS",
@@ -158,6 +160,8 @@ export function canGroupOwner(capability: BusinessCapability) {
 }
 
 const directStaffPermissionMap: Record<BusinessCapability, readonly string[]> = {
+  PERFORMANCE_VIEW_TEAM: ["PERFORMANCE_VIEW_TEAM", "PERFORMANCE_MANAGE_TARGETS"],
+  PERFORMANCE_MANAGE_TARGETS: ["PERFORMANCE_MANAGE_TARGETS"],
   VIEW_DASHBOARD: ["DASHBOARD"],
   VIEW_REPORTS: ["REPORTS"],
   VIEW_APPOINTMENTS: ["APPOINTMENTS"],

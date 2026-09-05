@@ -1,4 +1,5 @@
 "use server";
+import { capturePerformanceRefund, capturePerformanceVoid } from "@/lib/performance/service";
 
 import { FinancialOperationType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -474,6 +475,7 @@ export async function refundPaymentAction(
           tx,
         );
 
+        await capturePerformanceRefund(tx, refund.id, { businessId, actorUserId: user.userId });
         return {
           invoiceId: invoice.id,
           appointmentId: invoice.appointmentId,
@@ -748,6 +750,7 @@ export async function voidInvoiceAction(
         tx,
       );
 
+      await capturePerformanceVoid(tx, { businessId, invoiceId: invoice.id, actorUserId: user.userId, reason: voidReason });
       return {
         invoiceId: invoice.id,
         workOrderId: invoice.workOrderId,
