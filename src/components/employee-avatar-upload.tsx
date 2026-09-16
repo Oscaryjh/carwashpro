@@ -194,6 +194,7 @@ export function EmployeeAvatarUpload({
         <form action={formAction}>
           <input
             accept="image/jpeg,image/png,image/webp"
+            aria-label={`Upload profile photo for ${fullName}`}
             className={styles.fileInput}
             name="avatar"
             onChange={handleFileChange}
