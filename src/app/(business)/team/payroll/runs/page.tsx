@@ -112,7 +112,7 @@ export default async function PayrollRunsPage({ searchParams }: PayrollRunsPageP
                   <th>Net payroll</th>
                   <th>Updated</th>
                   <th>Finalized</th>
-                  <th><span className={styles.visuallyHidden}>Action</span></th>
+                  <th aria-label="Action" />
                 </tr>
               </thead>
               <tbody>

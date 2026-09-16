@@ -498,7 +498,7 @@ export default async function PayrollRunDetailPage({ params, searchParams }: Pay
                     <th>Status / issues</th>
                     {(access.actions.canViewComponents) ||
                     access.actions.canViewPayslip ? (
-                      <th><span className={styles.visuallyHidden}>Entry actions</span></th>
+                      <th aria-label="Entry actions" />
                     ) : null}
                   </tr>
                 </thead>
