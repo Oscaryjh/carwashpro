@@ -143,13 +143,5 @@ export function StaffManagerApprovalEntry({ summary }: {
 }
 
 function formatDisplayName(fullName: string) {
-  return fullName
-    .trim()
-    .split(/\s+/)
-    .map((part) =>
-      part
-        ? `${part[0]?.toLocaleUpperCase("en-MY")}${part.slice(1).toLocaleLowerCase("en-MY")}`
-        : part,
-    )
-    .join(" ");
+  return fullName.trim().replace(/\s+/g, " ");
 }
