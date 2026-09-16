@@ -212,6 +212,10 @@
 .staff-appointment-state { background:#fff; border:1px solid var(--staff-line); border-radius:20px; }
 .staff-appointment-date-nav { align-items:center; display:grid; grid-template-columns:44px minmax(0,1fr) 44px; padding:10px; text-align:center; }
 .staff-appointment-date-nav a { align-items:center; border-radius:12px; color:var(--staff-brand); display:flex; font-size:24px; height:44px; justify-content:center; text-decoration:none; }
+.staff-appointment-calendar-picker { align-items:center; color:var(--staff-brand-dark); cursor:pointer; display:flex; gap:8px; justify-content:center; min-height:60px; overflow:hidden; padding:8px; position:relative; }
+.staff-appointment-calendar-picker svg { fill:none; flex:0 0 auto; height:20px; stroke:var(--staff-brand); stroke-linecap:round; stroke-linejoin:round; stroke-width:1.8; width:20px; }
+.staff-appointment-calendar-picker span { display:grid; gap:2px; min-width:0; }
+.staff-appointment-calendar-picker input { border:0; cursor:pointer; height:100%; inset:0; margin:0; min-height:0; opacity:0; padding:0; position:absolute; width:100%; z-index:1; }
 .staff-appointment-date-nav strong { display:block; }
 .staff-appointment-date-nav small { color:var(--staff-muted); display:block; font-size:10px; }
 .staff-appointment-week { border-top:1px solid var(--staff-line); display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); padding:8px; }

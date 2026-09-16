@@ -13,6 +13,7 @@ import {
 import { PwaInstallButton } from "@/components/pwa-install-button";
 import {
   clearStaffTenantClientState,
+  isEmployeeSessionError,
   StaffApiError,
   staffApiFetch,
 } from "@/lib/staff-pwa/client";
@@ -124,6 +125,34 @@ export function StaffPwaChrome({
 
     return () => { active = false; };
   }, [currentPath, enabledModules, showNavigation]);
+  useEffect(() => {
+    let active = true;
+    if (!showNavigation) return () => { active = false; };
+
+    const refreshSession = () => {
+      if (document.visibilityState !== "visible") return;
+      void staffApiFetch<{ ok: true; authenticated: true }>(
+        "/api/employee-auth/me",
+      ).catch((caught) => {
+        if (
+          !active ||
+          !(caught instanceof StaffApiError) ||
+          !isEmployeeSessionError(caught.code)
+        ) {
+          return;
+        }
+        clearStaffTenantClientState();
+        window.location.replace("/staff/login?reason=session-expired");
+      });
+    };
+
+    refreshSession();
+    document.addEventListener("visibilitychange", refreshSession);
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", refreshSession);
+    };
+  }, [showNavigation]);
 
   function openWorkplaceSwitcher() {
     setSwitchError("");

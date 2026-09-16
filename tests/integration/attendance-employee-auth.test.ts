@@ -1382,6 +1382,81 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
   }
 });
 
+test("employee sessions expire only after the configured inactivity window", async () => {
+  assertLocalDatabase();
+  const baseTime = new Date();
+  const fixture = await createFixture();
+  const config = authConfig({
+    EMPLOYEE_SESSION_EXPIRES_SECONDS: "300",
+    EMPLOYEE_SESSION_TOUCH_INTERVAL_SECONDS: "30",
+  });
+
+  try {
+    const requested = await requestWithCapture({
+      phone: fixture.single.phone,
+      deviceIdentifier: "sliding-session-device-0001",
+      ipAddress: "10.6.0.1",
+      now: baseTime,
+      config,
+    });
+    const login = await verifyEmployeeOtp(
+      {
+        challengeId: requested.result.challengeId,
+        otp: requested.provider.sent[0].otp,
+        deviceIdentifier: "sliding-session-device-0001",
+        request: requestContext("10.6.0.1"),
+      },
+      { database: prisma, config, now: plusSeconds(baseTime, 1) },
+    );
+    if (login.status !== "AUTHENTICATED") {
+      assert.fail("Single membership should authenticate directly.");
+    }
+
+    const initial = await prisma.employeeSession.findUniqueOrThrow({
+      where: { id: login.context.sessionId },
+      select: { expiresAt: true },
+    });
+    assert.equal(
+      initial.expiresAt.getTime(),
+      plusSeconds(baseTime, 301).getTime(),
+    );
+
+    await authenticateEmployeeSessionToken(login.token, {
+      database: prisma,
+      config,
+      now: plusSeconds(baseTime, 32),
+    });
+    const refreshed = await prisma.employeeSession.findUniqueOrThrow({
+      where: { id: login.context.sessionId },
+      select: { expiresAt: true, lastActiveAt: true },
+    });
+    assert.equal(
+      refreshed.expiresAt.getTime(),
+      plusSeconds(baseTime, 332).getTime(),
+    );
+    assert.equal(
+      refreshed.lastActiveAt.getTime(),
+      plusSeconds(baseTime, 32).getTime(),
+    );
+
+    await authenticateEmployeeSessionToken(login.token, {
+      database: prisma,
+      config,
+      now: plusSeconds(baseTime, 302),
+    });
+    await assert.rejects(
+      authenticateEmployeeSessionToken(login.token, {
+        database: prisma,
+        config,
+        now: plusSeconds(baseTime, 603),
+      }),
+      isAuthError("SESSION_REVOKED"),
+    );
+  } finally {
+    await cleanupFixture(fixture);
+  }
+});
+
 async function exerciseRateLimits(
   fixture: Awaited<ReturnType<typeof createFixture>>,
   now: Date,

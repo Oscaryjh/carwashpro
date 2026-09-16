@@ -122,6 +122,10 @@ const moduleRouteSource = readFileSync(
   new URL("../../src/app/api/employee-auth/modules/route.ts", import.meta.url),
   "utf8",
 );
+const meRouteSource = readFileSync(
+  new URL("../../src/app/api/employee-auth/me/route.ts", import.meta.url),
+  "utf8",
+);
 const staffCssSource = readFileSync(
   new URL("../../src/app/staff/staff.css", import.meta.url),
   "utf8",
@@ -464,6 +468,15 @@ test("Staff navigation refreshes live employee module entitlement after login", 
   assert.match(moduleRouteSource, /requireEmployeeSelfServiceAuthContext/);
   assert.match(moduleRouteSource, /loadBusinessModuleContext\(auth\.businessId\)/);
   assert.match(moduleRouteSource, /enabledModules: \[\.\.\.context\.enabledModules\]/);
+});
+
+test("Staff session refreshes on app open and foreground activity", () => {
+  assert.match(chromeSource, /\/api\/employee-auth\/me/);
+  assert.match(chromeSource, /visibilitychange/);
+  assert.match(chromeSource, /isEmployeeSessionError/);
+  assert.match(meRouteSource, /readEmployeeSessionToken\(request\)/);
+  assert.match(meRouteSource, /response\.cookies\.set/);
+  assert.match(meRouteSource, /employeeSessionCookieOptions\(config\)/);
 });
 
 test("Staff Home stays lightweight and delegates schedule and appointments to canonical readers", () => {
