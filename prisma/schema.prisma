@@ -259,6 +259,11 @@ enum UserStatus {
   inactive
 }
 
+enum UserAccountType {
+  HUMAN
+  SERVICE
+}
+
 enum EmployeeAccountStatus {
   ACTIVE
   INACTIVE
@@ -2577,6 +2582,7 @@ model User {
   whatsappPhone                String?              @map("whatsapp_phone")
   passwordHash                 String?              @map("password_hash")
   loginEnabled                 Boolean              @default(true) @map("login_enabled")
+  accountType                  UserAccountType      @default(HUMAN) @map("account_type")
   appointmentBookable          Boolean              @default(false) @map("appointment_bookable")
   employeeAccountId            String?              @map("employee_account_id") @db.Uuid
   employeeBusinessMembershipId String?              @unique @map("employee_business_membership_id") @db.Uuid
@@ -2739,6 +2745,7 @@ model User {
   statutoryComponentReviews      StatutoryComponentReviewDecision[]      @relation("StatutoryComponentReviewDecisionReviewer")
 
   @@index([businessId])
+  @@index([businessId, accountType, status])
   @@index([branchId])
   @@index([role])
   @@index([staffRoleProfileId])
@@ -3373,6 +3380,7 @@ model EmployeeBusinessMembership {
   phoneNumberNormalized     String                         @map("phone_number_normalized")
   employmentType            EmployeeEmploymentType         @default(FULL_TIME) @map("employment_type")
   status                    EmployeeMembershipStatus       @default(ACTIVE)
+  isTestAccount             Boolean                        @default(false) @map("is_test_account")
   attendanceEnabled         Boolean                        @default(false) @map("attendance_enabled")
   payBasis                  EmployeePayBasis               @default(MONTHLY) @map("pay_basis")
   baseSalary                Decimal?                       @map("base_salary") @db.Decimal(12, 2)
@@ -3460,6 +3468,7 @@ model EmployeeBusinessMembership {
   @@unique([businessId, phoneNumberNormalized])
   @@unique([id, businessId])
   @@index([businessId, status])
+  @@index([businessId, isTestAccount, status])
   @@index([employeeAccountId, status])
   @@map("employee_business_memberships")
 }
