@@ -32,6 +32,7 @@ This ledger bounds the selective replay from the preserved detached workspace in
 | `src/lib/business-groups/capabilities.ts` | tracked diff | RBAC | `0d37da2bd9aec03031214da8f95e2aa42c60492e38c68be27f0c4eae585782d3` | Required to map `TEAM_READ` to directory read without mutation rights |
 | `src/app/(business)/team/page.tsx` | tracked diff | people UI | `dbf824ac8c3e535b23d5dc5aa54320b01a977ac3797dbfd3df0993662ceae335` | Mounts the scoped directory and blocks read-only users from legacy admin panels |
 | `src/lib/hr-calendar-month.ts` | untracked dependency override | people UI | `48a7ab394724d0ce98033faa90a9f542c22cf95b4354adc14cf4765a1fb3b94e` | Small pure UTC month formatter directly imported by admitted People presentation/UI; automated `NO` classification is overridden by the demonstrated module-not-found test failure |
+| `src/components/staff-create-modal.tsx` | tracked diff | people UI | `5e159077ea426fa663938486095e10c9b68a84801a3d4e2b88f0a66479ea54eb` | Required for filter-preserving create/close navigation and employee terminology used by the admitted team page |
 | `src/lib/attendance/effective-session.ts` | untracked | attendance | `03ea468a43b66c1ab0c624670ef982ee0edb30e16406b9aa17626c097963dd3f` | Effective corrected session selection |
 | `src/lib/attendance/business-attendance-projection.ts` | untracked | attendance | `c81ba648875f9e61407de804ea406c486415b747d2fc1492a242863591ddb6fb` | Business attendance projection |
 | `src/lib/attendance/review-presentation.ts` | untracked | attendance | `6dff12894a430e4651f81bf2a24d3b48d6dbce3a86a0ff0a97ae5f81e59c01c1` | Human review copy |
@@ -66,6 +67,7 @@ This ledger bounds the selective replay from the preserved detached workspace in
 | `src/lib/payroll/statutory-submission.ts` | reject | Real submission orchestration is restricted. |
 | `src/lib/payroll/statutory-submission-readiness.ts` | reject | Coupled to excluded submission workflow. |
 | `src/lib/payroll/submission-spec-registry.ts` | reject | Coupled to excluded submission specifications. |
+| `src/lib/payroll/readiness-runtime.ts` | reject | Wraps canonical readiness with Testing-only statutory engineering rules; the admitted People read uses `src/lib/payroll/readiness.ts` directly instead. |
 | `statutory/official/submission-specifications/perkeso-v2.1-layout.json` | reject | Unapproved official-export specification. |
 | `statutory/official/submission-specifications/registry-phase2-initial.json` | reject | Unapproved official-export specification. |
 | `statutory/official/submission-specifications/registry.json` | reject | Unapproved official-export specification. |
