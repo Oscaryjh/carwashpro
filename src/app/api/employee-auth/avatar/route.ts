@@ -1,10 +1,10 @@
 import { revalidatePath } from "next/cache";
-import sharp from "sharp";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee-auth";
 import { EmployeeAuthError } from "@/lib/attendance/employee-auth/errors";
 import { assertEmployeeAuthSameOrigin } from "@/lib/attendance/employee-auth/http";
 import { employeeAuthErrorResponse, employeeAuthJson } from "@/lib/attendance/employee-auth/response";
+import { processEmployeeAvatarImage } from "@/lib/employee-avatar-image";
 import { prisma } from "@/lib/prisma";
 import { deleteRuntimeEmployeeAvatarByUrl, writeRuntimeEmployeeAvatar } from "@/lib/runtime-employee-avatar";
 
@@ -54,14 +54,7 @@ export async function POST(request: Request) {
     const input = Buffer.from(await file.arrayBuffer());
     let bytes: Buffer;
     try {
-      bytes = await sharp(input, {
-        failOn: "warning",
-        limitInputPixels: 40_000_000,
-      } as NonNullable<Parameters<typeof sharp>[1]>)
-        .rotate()
-        .resize(512, 512, { fit: "cover", position: "attention" })
-        .webp({ quality: 84 })
-        .toBuffer();
+      bytes = await processEmployeeAvatarImage(input);
     } catch {
       throw invalidAvatar("This photo could not be processed. Choose another photo.");
     }
@@ -119,4 +112,3 @@ function invalidAvatar(message: string) {
     status: 400,
   });
 }
-
