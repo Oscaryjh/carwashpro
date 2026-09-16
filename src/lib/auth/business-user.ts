@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
-import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import {
   ModuleNotEnabledError,
   requireBusinessModules,
 } from "@/lib/modules/entitlements";
 import { modulesForCapability, type ModuleKey } from "@/lib/modules/registry";
-import { requireBusinessContext } from "@/lib/tenant";
+import {
+  requireBusinessContext,
+  requireBusinessContextWithAnyCapability,
+} from "@/lib/tenant";
 
 export async function requireBusinessUser(capability?: BusinessCapability) {
   return requireBusinessUserAccess(capability);
@@ -15,13 +17,23 @@ export async function requireBusinessUser(capability?: BusinessCapability) {
 export async function requireBusinessUserWithAnyCapability(
   capabilities: readonly BusinessCapability[],
 ) {
-  const context = await requireBusinessUserAccess();
-  const matchedCapability = capabilities.find((capability) =>
-    hasBusinessCapability(context.access, capability),
-  );
+  const context = await requireBusinessContextWithAnyCapability(capabilities);
+  const matchedCapability = context.access.capability;
 
   if (!matchedCapability) {
     redirect("/login?error=business-access-denied");
+  }
+
+  if (context.access.source === "PLATFORM_ADMIN") {
+    redirect("/admin/businesses");
+  }
+
+  if (
+    !["BUSINESS_OWNER", "STAFF", "GROUP_MANAGER_READ_ONLY"].includes(
+      context.access.effectiveBusinessRole,
+    )
+  ) {
+    redirect("/dashboard");
   }
 
   try {

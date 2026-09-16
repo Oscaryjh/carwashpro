@@ -55,3 +55,19 @@ test("server edit and avatar actions still require mutation capability", () => {
   const directory = readFileSync("src/app/(business)/team/page.tsx", "utf8");
   assert.match(directory, /hasStaffPermission\(user, "TEAM_READ"\) && !canManageTeam/);
 });
+
+test("team workspace admits scoped group managers through an allowed child capability", () => {
+  const layout = readFileSync("src/app/(business)/team/layout.tsx", "utf8");
+  assert.match(layout, /requireBusinessUserWithAnyCapability/);
+  for (const capability of [
+    "VIEW_TEAM_DIRECTORY",
+    "VIEW_ATTENDANCE_EMPLOYEES",
+    "VIEW_ROSTER",
+    "VIEW_LEAVE",
+    "VIEW_CLAIM",
+    "VIEW_PAYROLL_RUN",
+  ]) {
+    assert.match(layout, new RegExp(`"${capability}"`));
+  }
+  assert.doesNotMatch(layout, /requireBusinessUser\(\)/);
+});

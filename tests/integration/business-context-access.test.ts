@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { PrismaClient } from "@prisma/client";
-import { resolveBusinessAccess } from "../../src/lib/business-groups/business-access";
+import {
+  resolveBusinessAccess,
+  resolveBusinessAccessWithAnyCapability,
+} from "../../src/lib/business-groups/business-access";
 
 const prisma = new PrismaClient();
 
@@ -190,6 +193,18 @@ test("business context access is revalidated against direct and group authorizat
       "GROUP_MANAGER_READ_ONLY",
     );
     assert.equal(managerRead.actorRole, "GROUP_MANAGER");
+
+    const managerWorkspaceAccess = await resolveBusinessAccessWithAnyCapability({
+      userId: groupManager.id,
+      requestedBusinessId: scoped.id,
+      capabilities: ["VIEW_PAYROLL_RUN", "VIEW_TEAM_DIRECTORY"],
+    });
+    assertGranted(
+      managerWorkspaceAccess,
+      "GROUP_ACCESS",
+      "GROUP_MANAGER_READ_ONLY",
+    );
+    assert.equal(managerWorkspaceAccess.capability, "VIEW_TEAM_DIRECTORY");
 
     const managerOutsideScope = await resolveBusinessAccess({
       userId: groupManager.id,

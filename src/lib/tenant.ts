@@ -5,6 +5,7 @@ import { tryWriteAuthSecurityEvent } from "@/lib/auth/security";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import {
   resolveBusinessAccess,
+  resolveBusinessAccessWithAnyCapability,
   type ResolvedBusinessAccess,
 } from "@/lib/business-groups/business-access";
 
@@ -24,6 +25,27 @@ export const getBusinessContext = cache(async function getBusinessContext(
     capability,
   });
 
+  return finalizeBusinessContext(user, access);
+});
+
+export async function getBusinessContextWithAnyCapability(
+  capabilities: readonly BusinessCapability[],
+) {
+  const user = await requireUser();
+  const requestedBusinessId = user.activeBusinessId ?? user.homeBusinessId;
+  const access = await resolveBusinessAccessWithAnyCapability({
+    userId: user.userId,
+    requestedBusinessId,
+    capabilities,
+  });
+
+  return finalizeBusinessContext(user, access);
+}
+
+async function finalizeBusinessContext(
+  user: Awaited<ReturnType<typeof requireUser>>,
+  access: ResolvedBusinessAccess,
+) {
   if (!access.granted && canUseFallback(access)) {
     await logAccessDenied(user, access);
     redirect("/business-context/recover");
@@ -69,12 +91,30 @@ export const getBusinessContext = cache(async function getBusinessContext(
     access,
     contextVersion: user.contextVersion,
   };
-});
+}
 
 export async function requireBusinessContext(
   options: RequireBusinessContextOptions = {},
 ) {
   const context = await getBusinessContext(options.capability);
+
+  if (!context.businessId || !context.industryType) {
+    redirect("/admin/businesses");
+  }
+
+  return {
+    user: context.user,
+    businessId: context.businessId,
+    industryType: context.industryType,
+    access: context.access,
+    contextVersion: context.contextVersion,
+  };
+}
+
+export async function requireBusinessContextWithAnyCapability(
+  capabilities: readonly BusinessCapability[],
+) {
+  const context = await getBusinessContextWithAnyCapability(capabilities);
 
   if (!context.businessId || !context.industryType) {
     redirect("/admin/businesses");

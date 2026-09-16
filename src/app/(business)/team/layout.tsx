@@ -4,11 +4,18 @@ import {
   type HrPayrollWorkspaceItem,
 } from "@/components/hr-payroll-workspace-nav";
 import styles from "@/components/hr-payroll-workspace.module.css";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserWithAnyCapability } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 
 export default async function TeamLayout({ children }: { children: ReactNode }) {
-  const { access, moduleContext } = await requireBusinessUser();
+  const { access, moduleContext } = await requireBusinessUserWithAnyCapability([
+    "VIEW_TEAM_DIRECTORY",
+    "VIEW_ATTENDANCE_EMPLOYEES",
+    "VIEW_ROSTER",
+    "VIEW_LEAVE",
+    "VIEW_CLAIM",
+    "VIEW_PAYROLL_RUN",
+  ]);
   const enabled = moduleContext.enabledModules;
   const items: HrPayrollWorkspaceItem[] = [];
 

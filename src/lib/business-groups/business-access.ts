@@ -295,6 +295,33 @@ export async function resolveBusinessAccess(
   };
 }
 
+export async function resolveBusinessAccessWithAnyCapability(
+  input: Omit<ResolveBusinessAccessInput, "capability"> & {
+    capabilities: readonly BusinessCapability[];
+  },
+  database: AccessDatabase = prisma,
+): Promise<ResolvedBusinessAccess> {
+  if (!input.capabilities.length) {
+    throw new Error("At least one business capability is required.");
+  }
+
+  let firstDenial: Extract<ResolvedBusinessAccess, { granted: false }> | null = null;
+  for (const capability of input.capabilities) {
+    const access = await resolveBusinessAccess(
+      {
+        userId: input.userId,
+        requestedBusinessId: input.requestedBusinessId,
+        capability,
+      },
+      database,
+    );
+    if (access.granted) return access;
+    firstDenial ??= access;
+  }
+
+  return firstDenial as Extract<ResolvedBusinessAccess, { granted: false }>;
+}
+
 async function findFallback(
   user: {
     id: string;
