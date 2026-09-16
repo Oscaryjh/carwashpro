@@ -29,6 +29,8 @@ This ledger bounds the selective replay from the preserved detached workspace in
 | `tests/unit/people-workbench-security.test.ts` | untracked | people tests | `3b62b1126590cfd5bdff3781681d8dd5eeff1425322a9bfe22d7e46db43b52ad` | Security and pure behavior |
 | `tests/unit/team-read-permission.test.ts` | untracked | RBAC tests | `a628969b45802d3043fe3e3582c318f92a77cc10f225e90bd47c3858062978f2` | Role and route permission matrix |
 | `src/lib/auth/staff-permissions.ts` | tracked diff | RBAC | `1f101ee9745737de957bfcde7604738f7036d2035e90522998705df1748ff62e` | Only People/Payroll route permission hunks |
+| `src/lib/business-groups/capabilities.ts` | tracked diff | RBAC | `0d37da2bd9aec03031214da8f95e2aa42c60492e38c68be27f0c4eae585782d3` | Required to map `TEAM_READ` to directory read without mutation rights |
+| `src/app/(business)/team/page.tsx` | tracked diff | people UI | `dbf824ac8c3e535b23d5dc5aa54320b01a977ac3797dbfd3df0993662ceae335` | Mounts the scoped directory and blocks read-only users from legacy admin panels |
 | `src/lib/attendance/effective-session.ts` | untracked | attendance | `03ea468a43b66c1ab0c624670ef982ee0edb30e16406b9aa17626c097963dd3f` | Effective corrected session selection |
 | `src/lib/attendance/business-attendance-projection.ts` | untracked | attendance | `c81ba648875f9e61407de804ea406c486415b747d2fc1492a242863591ddb6fb` | Business attendance projection |
 | `src/lib/attendance/review-presentation.ts` | untracked | attendance | `6dff12894a430e4651f81bf2a24d3b48d6dbce3a86a0ff0a97ae5f81e59c01c1` | Human review copy |
