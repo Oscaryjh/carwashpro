@@ -29,6 +29,7 @@ test("local HR/Payroll UAT fixture defines exactly the approved eight roles", ()
   assert.ok(groupManager && groupManager.kind === "GROUP_USER");
   if (payrollAdmin.kind === "DIRECT_USER") {
     const permissions: readonly string[] = payrollAdmin.permissions;
+    assert.ok(permissions.includes("ALL_BRANCHES"));
     assert.ok(permissions.includes("VIEW_PAYROLL_RUN"));
     assert.ok(permissions.includes("EDIT_PAYROLL_ENTRY"));
     assert.equal(permissions.includes("SUBMIT_STATUTORY"), false);

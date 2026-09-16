@@ -11,6 +11,7 @@ export const HR_PAYROLL_EIGHT_ROLE_PERSONAS = [
     email: "uat.payroll-admin@tetamu.local",
     roleProfile: "Payroll Admin",
     permissions: [
+      "ALL_BRANCHES",
       "PAYROLL_READ",
       "VIEW_COMPENSATION",
       "VIEW_PAYROLL_RUN",
