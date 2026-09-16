@@ -95,6 +95,16 @@ export function getEmployeeCorrectionFinalResultCopy(
   return null;
 }
 
+export function getEmployeeCorrectionRecordedResult(
+  item: Pick<EmployeeCorrectionArchiveItem, "employeeStatus" | "currentFinalResult">,
+) {
+  // Never present an employee proposal as the manager-approved recorded result.
+  if (item.employeeStatus !== "APPROVED" && item.employeeStatus !== "REJECTED") {
+    return null;
+  }
+  return item.currentFinalResult;
+}
+
 export function auditEmployeeCorrectionActionRoute(
   item: Pick<
     EmployeeCorrectionArchiveItem,

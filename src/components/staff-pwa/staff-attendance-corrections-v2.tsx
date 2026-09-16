@@ -11,6 +11,7 @@ import {
   appendEmployeeCorrectionArchiveItems,
   auditEmployeeCorrectionActionRoute,
   getEmployeeCorrectionFinalResultCopy,
+  getEmployeeCorrectionRecordedResult,
   getEmployeeCorrectionStatusPresentation,
   getEmployeeCorrectionTypeCopy,
 } from "@/lib/staff-pwa/attendance-corrections-v2";
@@ -196,6 +197,10 @@ export function CorrectionArchiveRow({
   const correctionType = getEmployeeCorrectionTypeCopy(item.correctionType);
   const requestedSummary = formatRequestedSummary(item);
   const finalResult = getEmployeeCorrectionFinalResultCopy(item.finalDisposition);
+  const recordedResult = getEmployeeCorrectionRecordedResult(item);
+  const recordedSummary = recordedResult && item.employeeStatus === "APPROVED" && recordedResult.clockInAt && recordedResult.clockOutAt
+    ? `Final ${formatDateTime(recordedResult.clockInAt)} – ${formatDateTime(recordedResult.clockOutAt)}`
+    : null;
   const actionRoute = auditEmployeeCorrectionActionRoute(item);
   const hasRequestedChange = Boolean(item.requestedClockIn || item.requestedClockOut);
   const hasTimeline = item.resolutionEvents.length > 0;
@@ -210,7 +215,7 @@ export function CorrectionArchiveRow({
           <time dateTime={item.workDate}>{formatShortDate(item.workDate)}</time>
           <span className={styles.rowCopy}>
             <strong>{correctionType}</strong>
-            {requestedSummary ? <small>{requestedSummary}</small> : null}
+            {recordedSummary || requestedSummary ? <small>{recordedSummary ?? requestedSummary}</small> : null}
             {hasMultipleBranches ? <small>{item.branchName}</small> : null}
           </span>
           <span className={styles.rowStatus}>
@@ -220,6 +225,18 @@ export function CorrectionArchiveRow({
         </summary>
 
         <div className={styles.correctionDetail}>
+          {recordedResult ? (
+            <StaffV2DetailSection title="Final attendance result">
+              <p className={styles.resultCopy}>{finalResult ?? "Current recorded attendance result"}</p>
+              <dl className={styles.detailFacts}>
+                <Fact label="Clock in" value={recordedResult.clockInAt ? formatDateTime(recordedResult.clockInAt) : "Not recorded"} />
+                <Fact label="Clock out" value={recordedResult.clockOutAt ? formatDateTime(recordedResult.clockOutAt) : "Not recorded"} />
+                <Fact label="Break" value={`${recordedResult.totalBreakMinutes} minutes`} />
+                <Fact label="Worked" value={`${Math.floor(recordedResult.totalWorkedMinutes / 60)}h ${recordedResult.totalWorkedMinutes % 60}m`} />
+              </dl>
+              <p className={styles.longCopy}>The recorded result may differ from your original request, which is preserved below.</p>
+            </StaffV2DetailSection>
+          ) : null}
           <StaffV2DetailSection title="Request">
             <dl className={styles.detailFacts}>
               <Fact label="Date" value={formatWorkDate(item.workDate)} />
@@ -271,7 +288,7 @@ export function CorrectionArchiveRow({
             </StaffV2DetailSection>
           ) : null}
 
-          {finalResult ? (
+          {finalResult && !recordedResult ? (
             <StaffV2DetailSection title="Result">
               <p className={styles.resultCopy}>{finalResult}</p>
             </StaffV2DetailSection>

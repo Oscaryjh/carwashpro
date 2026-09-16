@@ -6,6 +6,7 @@ import {
   appendEmployeeCorrectionArchiveItems,
   auditEmployeeCorrectionActionRoute,
   getEmployeeCorrectionFinalResultCopy,
+  getEmployeeCorrectionRecordedResult,
   getEmployeeCorrectionStatusPresentation,
   getEmployeeCorrectionTypeCopy,
 } from "../../src/lib/staff-pwa/attendance-corrections-v2";
@@ -68,6 +69,36 @@ test("correction types and final results use employee-safe copy", () => {
   assert.equal(getEmployeeCorrectionFinalResultCopy("INCLUDED"), "Included in attendance result");
   assert.equal(getEmployeeCorrectionFinalResultCopy("EXCLUDED"), "Not included in attendance result");
   assert.equal(getEmployeeCorrectionFinalResultCopy(null), null);
+});
+
+test("approved corrections show the recorded final attendance without relabelling a request", () => {
+  const recorded = {
+    version: 1,
+    disposition: "INCLUDED" as const,
+    outcome: "PRESENT" as const,
+    source: "CORRECTION" as const,
+    clockInAt: "2026-08-31T01:00:00.000Z",
+    clockOutAt: "2026-08-31T10:00:00.000Z",
+    totalBreakMinutes: 60,
+    totalWorkedMinutes: 480,
+    createdAt: "2026-08-31T10:05:00.000Z",
+  };
+  assert.deepEqual(getEmployeeCorrectionRecordedResult({
+    employeeStatus: "APPROVED",
+    currentFinalResult: recorded,
+  }), recorded);
+  assert.deepEqual(getEmployeeCorrectionRecordedResult({
+    employeeStatus: "REJECTED",
+    currentFinalResult: recorded,
+  }), recorded);
+  assert.equal(getEmployeeCorrectionRecordedResult({
+    employeeStatus: "PENDING",
+    currentFinalResult: recorded,
+  }), null);
+  assert.equal(getEmployeeCorrectionRecordedResult({
+    employeeStatus: "APPROVED",
+    currentFinalResult: null,
+  }), null);
 });
 
 test("only actionable Resolution cases navigate to the existing canonical employee flow", () => {
@@ -138,6 +169,8 @@ test("rows use one normalized status and progressively disclose only provided ev
   assert.match(component, /item\.resolutionEvents\.map/);
   assert.match(component, /hasTimeline \?/);
   assert.match(component, /finalResult \?/);
+  assert.match(component, /Final attendance result/);
+  assert.match(component, /recordedSummary \?\? requestedSummary/);
   assert.doesNotMatch(component, />\s*RESOLUTION_CASE\s*</);
   assert.doesNotMatch(component, />\s*STANDALONE_EXCEPTION\s*</);
   assert.doesNotMatch(component, />\s*P2_CORRECTION_REQUEST\s*</);
