@@ -35,6 +35,7 @@ This ledger bounds the selective replay from the preserved detached workspace in
 | `src/components/staff-create-modal.tsx` | tracked diff | people UI | `5e159077ea426fa663938486095e10c9b68a84801a3d4e2b88f0a66479ea54eb` | Required for filter-preserving create/close navigation and employee terminology used by the admitted team page |
 | `src/lib/attendance/effective-session.ts` | untracked | attendance | `03ea468a43b66c1ab0c624670ef982ee0edb30e16406b9aa17626c097963dd3f` | Effective corrected session selection |
 | `src/lib/attendance/business-attendance-projection.ts` | untracked | attendance | `c81ba648875f9e61407de804ea406c486415b747d2fc1492a242863591ddb6fb` | Business attendance projection |
+| `src/lib/attendance/p2-service.ts` | tracked diff | attendance | `cbd7c50d822f33ab46c8f3f8c4a4b244070d9ef6afd17361bd1e166dab064355` | Focused test proves monthly Timesheet lock guard and approved-correction projection are required before any write |
 | `src/lib/attendance/review-presentation.ts` | untracked | attendance | `6dff12894a430e4651f81bf2a24d3b48d6dbce3a86a0ff0a97ae5f81e59c01c1` | Human review copy |
 | `tests/unit/attendance-effective-session.test.ts` | untracked | attendance tests | `f066abd1726aac656fe72ee65a08b3d89a40cf8e033887dcdedc857bab9a16d0` | Behavioral session tests |
 | `tests/unit/business-attendance-projection.test.ts` | untracked | attendance tests | `f42eb2d0a5ad9a8f4feb12cc567d6159b0aa57818ecb5cdad9cd27d8ddc0395a` | Behavioral projection tests |
