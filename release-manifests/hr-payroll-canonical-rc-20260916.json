@@ -1,18 +1,18 @@
 {
   "schemaVersion": 2,
-  "releaseName": "TETAMU HR/Payroll Canonical RC Completion Phase 2",
-  "generatedAt": "2026-09-16T14:06:44.289Z",
-  "verdict": "PARTIAL_RC_BLOCKED",
-  "verdictReason": "Desktop/Staff browser smoke and 1440/834/390/360 responsive verification could not run because the Mac remained locked; HTTP SSR evidence is not treated as browser UAT.",
+  "releaseName": "TETAMU HR/Payroll Canonical RC Completion Phase 2 — Final Browser Gate Closure",
+  "generatedAt": "2026-09-16T16:25:36.737Z",
+  "verdict": "READY_FOR_HUMAN_UAT",
+  "verdictReason": "Desktop and Staff browser smoke, eight-role permission checks, and responsive/interaction verification at 1440/834/390/360 passed on the final Next 16.3.5 build after focused browser-driven fixes.",
   "cleanRootSha": "71f4786c828239d4270d93afa9253e8400a8b6ad",
   "branch": "codex/hr-payroll-canonical-rc-20260916",
   "preservedPhase1SourceCommitCount": 13,
   "preservedPhase1Head": "5d0e24b48f5356d7ad2ce09e92b9e779ad61f15b",
-  "finalRcSha": "58890fda9141a9d0569b796e981eae9056a8ee54",
-  "finalRcTree": "30c847713abe1ea6b57f366997d357c229203f42",
+  "finalRcSha": "f2553d3fcf5965b50151a52a374112ccac430417",
+  "finalRcTree": "8d8f7cc821aaf1490c746d72be418b1211302549",
   "canonicalSourceDigest": {
-    "algorithm": "SHA-256 of deterministic git archive --format=tar of finalRcSha; evidence-only documents and this V2 manifest are outside the source digest to avoid self-reference.",
-    "value": "e965a879165c073032229473e1e18ca6d5d203c8714631e350668d8ead3b40de"
+    "algorithm": "SHA-256 of deterministic git archive --format=tar of finalRcSha. The subsequent final evidence commit is outside this immutable source SHA.",
+    "value": "1963e5a46bec9630a0b3be7f60674b6f7bfeff060a9eb8440af1c726ed1e2c82"
   },
   "orderedCommitShas": [
     "c872e913e67dbbfd37f7d66c04598d540d1ad0d0",
@@ -37,7 +37,16 @@
     "f3b8210ea7189c8a2745e82ece979deb5daa72cd",
     "c9a033bb8ca3cb214adcc38f0153e514e2b2a190",
     "d5bd0cd3b7a35bacbf69715d035d455940415640",
-    "58890fda9141a9d0569b796e981eae9056a8ee54"
+    "58890fda9141a9d0569b796e981eae9056a8ee54",
+    "b4d9076fd63b4e77df3b888dded76d030e89d621",
+    "becd9f0280998ea87f7a203adb7ca4d57d2d4c79",
+    "a239a5b36a4bebb4420fe21fbae5257ab87f10d7",
+    "b6f5cba39633a9c476fd6fc87e8ab66c3f615146",
+    "05c6dd49e187959df494a6443f1928612756be9a",
+    "15bbbd572e752ddca3e3a141077a06949400d88d",
+    "fe15cf276ceeae1ddaf30083dd575a80151dd485",
+    "44d4aa440af864a02accb061a39a92526885aada",
+    "f2553d3fcf5965b50151a52a374112ccac430417"
   ],
   "orderedCommits": [
     {
@@ -131,6 +140,42 @@
     {
       "sha": "58890fda9141a9d0569b796e981eae9056a8ee54",
       "subject": "fix(auth): preserve scoped group manager workspace access"
+    },
+    {
+      "sha": "b4d9076fd63b4e77df3b888dded76d030e89d621",
+      "subject": "docs(release): record HR payroll phase 2 evidence"
+    },
+    {
+      "sha": "becd9f0280998ea87f7a203adb7ca4d57d2d4c79",
+      "subject": "fix(auth): isolate password input accessible name"
+    },
+    {
+      "sha": "a239a5b36a4bebb4420fe21fbae5257ab87f10d7",
+      "subject": "fix(people): label avatar file input"
+    },
+    {
+      "sha": "b6f5cba39633a9c476fd6fc87e8ab66c3f615146",
+      "subject": "fix(payroll): contain run table at responsive widths"
+    },
+    {
+      "sha": "05c6dd49e187959df494a6443f1928612756be9a",
+      "subject": "fix(payroll): enlarge payment recovery link targets"
+    },
+    {
+      "sha": "15bbbd572e752ddca3e3a141077a06949400d88d",
+      "subject": "fix(uat): give payroll admin whole-business scope"
+    },
+    {
+      "sha": "fe15cf276ceeae1ddaf30083dd575a80151dd485",
+      "subject": "fix(staff): preserve employee name capitalization"
+    },
+    {
+      "sha": "44d4aa440af864a02accb061a39a92526885aada",
+      "subject": "fix(staff): contain date picker keyboard focus"
+    },
+    {
+      "sha": "f2553d3fcf5965b50151a52a374112ccac430417",
+      "subject": "fix(people): enlarge readiness detail tap targets"
     }
   ],
   "includedFileHashes": [
@@ -140,14 +185,9 @@
       "sha256": "c0b6a8d1ca444887dc35219d511ebed2b123a3beb54f216bf574a01365e6f109"
     },
     {
-      "path": "TETAMU_HR_PAYROLL_CANONICAL_RC_REBUILD_REPORT.md",
-      "status": "A",
-      "sha256": "7c7ad1709f798756fd5c699e80e02a687a0d81988c830db25a09ad6e9552e74f"
-    },
-    {
       "path": "docs/hr-payroll-canonical-rc-source-ledger.md",
       "status": "A",
-      "sha256": "ba3e6226857e5b09ed4fbf9941c37e723827e0034b0a24624774a06ee5a227a0"
+      "sha256": "f5acaecf3cd6bf6d44e55934027c5192c8f80a611bba142a2e9e5c226611abc0"
     },
     {
       "path": "docs/superpowers/plans/2026-09-16-hr-payroll-canonical-rc-completion-phase2.md",
@@ -182,12 +222,12 @@
     {
       "path": "release-manifests/hr-payroll-canonical-rc-20260916.json",
       "status": "A",
-      "sha256": "851ba966ef3af47fd53751eb71b12fd9d72e120fde9579161fa1762c7c124896"
+      "sha256": "ee4b937d9e7adfeab1751f42fbabe349160ef90dddd0d847175b91c09d3e8d76"
     },
     {
       "path": "scripts/hr-payroll-eight-role-uat-contract.ts",
       "status": "A",
-      "sha256": "5a5ca7b78d7679a9b17dee08c3b4af62940b360dd8e0215f126d2eccb7a98e99"
+      "sha256": "6484bab1ec29ed107d0146c37c70ebe13629bf34b2ae77ec99876dc81ccbe924"
     },
     {
       "path": "scripts/prepare-hr-payroll-eight-role-uat.ts",
@@ -230,6 +270,26 @@
       "sha256": "9280ac77dc215fa17d02ec9fc5aa7ce7eee9a0105537bdaa5b9b400271a0f45b"
     },
     {
+      "path": "src/app/(business)/team/payroll/payments/payments.module.css",
+      "status": "M",
+      "sha256": "59f3c28baa8817d6d08881953739e0476d86394b43c4718b4cb8b2ee1656258d"
+    },
+    {
+      "path": "src/app/(business)/team/payroll/runs/[runId]/page.tsx",
+      "status": "M",
+      "sha256": "b8b223581911d5c099e5b704211f025ad14b5d6f0bdd0f3da4a25eac414b69e2"
+    },
+    {
+      "path": "src/app/(business)/team/payroll/runs/page.tsx",
+      "status": "M",
+      "sha256": "c0834e1006afdc1d0e961e35317876baad466f3a85d4571bb78c8859190f4cfd"
+    },
+    {
+      "path": "src/app/(business)/team/payroll/runs/runs.module.css",
+      "status": "M",
+      "sha256": "a68c63114e33fb1522eb828ae13229f627ff6adf6bca43201211b5e3cede7718"
+    },
+    {
       "path": "src/app/api/employee-auth/avatar/route.ts",
       "status": "M",
       "sha256": "5ba890f0378406a60304877107f78673985b0831d352e5dedf621b18450c044c"
@@ -238,6 +298,11 @@
       "path": "src/app/api/employee-auth/me/route.ts",
       "status": "M",
       "sha256": "0f71ce93130e6a3cb3ce53b5eb3678b6f0c5ded5152a7dd29dfb3776fcaf7ba4"
+    },
+    {
+      "path": "src/app/login/login-form.tsx",
+      "status": "M",
+      "sha256": "b534e066ef1a01a7222ae6aaa39b91a9eedbef01aae1d4f2f116f25dbfd182b0"
     },
     {
       "path": "src/app/staff/approvals/[domain]/[requestId]/page.tsx",
@@ -250,6 +315,11 @@
       "sha256": "f387cb2e518b91502766a4d97a368f99a54033c46e0c004d40129eb6d3ff5839"
     },
     {
+      "path": "src/components/employee-avatar-upload.tsx",
+      "status": "M",
+      "sha256": "401e57d0151e3604831b1e982a85409ac19468444633d22fc71bf11f940d1dc2"
+    },
+    {
       "path": "src/components/payroll-workspace-nav.tsx",
       "status": "M",
       "sha256": "d7a143899ca9c309bfe2e17abca0a7807f16260e4ba28a722e3ed828f5fa50d9"
@@ -257,7 +327,7 @@
     {
       "path": "src/components/people-directory.module.css",
       "status": "A",
-      "sha256": "d0523a59b5132ac925881b8b163b67f31f4958972640aafb9ae423c214aa1e60"
+      "sha256": "895c855e040264794e39c469afa302945e30c955949b1c9e01a6f524a72e2983"
     },
     {
       "path": "src/components/people-directory.tsx",
@@ -273,6 +343,16 @@
       "path": "src/components/staff-pwa/staff-attendance-corrections-v2.tsx",
       "status": "M",
       "sha256": "f42f76d84b69c6b4324639dbdcf1027cd0c65bbae7f2344d86b9d253ef8403e4"
+    },
+    {
+      "path": "src/components/staff-pwa/staff-date-picker.tsx",
+      "status": "M",
+      "sha256": "697695ee4feb4da5c2e1421252d06117b7b7ee55e248e132c121121c696beb56"
+    },
+    {
+      "path": "src/components/staff-pwa/staff-home-overview.tsx",
+      "status": "M",
+      "sha256": "6a4f5ed21ca4eba41c6284a42ac5dda65966bc653131483e5e4d8c8da8ccf2d8"
     },
     {
       "path": "src/components/staff-pwa/staff-leave.tsx",
@@ -445,14 +525,24 @@
       "sha256": "4667fcc5d3dc21526cc9ef03908d05bbb792cbc081126218bcf4ead8b40c6cde"
     },
     {
+      "path": "tests/unit/employee-avatar-upload-accessibility.test.ts",
+      "status": "A",
+      "sha256": "6e395255382878e477017928c0dd4f48318adf8a252591b0cdfaf113871b9cb0"
+    },
+    {
       "path": "tests/unit/hr-payroll-eight-role-uat.test.ts",
       "status": "A",
-      "sha256": "2ec27f824286373852f95b97db4faadc057858b249b50f4b4f5071be80816431"
+      "sha256": "21286d174ef27d91965fdf85c3517f204a961f8fe818592c855c4b4b9ad3b45a"
     },
     {
       "path": "tests/unit/leave-request-inbox-ux.test.ts",
       "status": "M",
       "sha256": "3a8aa1f6aa4405ecb5a6a93f15ad293e614200955045d7755e1e9b9e270fea15"
+    },
+    {
+      "path": "tests/unit/login-password-accessibility.test.ts",
+      "status": "A",
+      "sha256": "b5067d1d0dd6e3d0fc5a2b353126f28c0e0095e2dd5d13094ce84da8557261d5"
     },
     {
       "path": "tests/unit/payroll-company-work-pay.test.ts",
@@ -470,6 +560,16 @@
       "sha256": "11f74393539f3114425d2bb6989b05cd8dcf57233defc6215d36dced1f79e2c3"
     },
     {
+      "path": "tests/unit/payroll-payment-responsive-accessibility.test.ts",
+      "status": "A",
+      "sha256": "cf0ef9fcdd3a5f0334a4bf929de3c3d52c12d4da91262aa9e5aea19dec642675"
+    },
+    {
+      "path": "tests/unit/payroll-run-responsive-accessibility.test.ts",
+      "status": "A",
+      "sha256": "3acbd51c4f1996b927f73a23be0b0eeef33c5e6f86a723c4b041188f7bcafb19"
+    },
+    {
       "path": "tests/unit/payroll-stale-presentation-rc.test.ts",
       "status": "A",
       "sha256": "853a1cbcfcf55cafb721f32dcfbb4f75be9ab67dbd0dc979a36cdb46a070f17f"
@@ -483,6 +583,11 @@
       "path": "tests/unit/people-account-classification-schema.test.ts",
       "status": "A",
       "sha256": "a2b20b407365efa50cca0a6115e41ab674efd22c6ab2618fb5d6ef1f83cc6326"
+    },
+    {
+      "path": "tests/unit/people-directory-mobile-tap-target.test.ts",
+      "status": "A",
+      "sha256": "845129c37c9af48c882bb4e486dfa73c45e1e2f78c91871198c50fe50e06808a"
     },
     {
       "path": "tests/unit/people-directory-uiux.test.ts",
@@ -500,6 +605,16 @@
       "sha256": "a546bcc21738691d39cc2594ce35fc471a54a9a07012e38b927be252f968689a"
     },
     {
+      "path": "tests/unit/staff-date-picker-accessibility.test.ts",
+      "status": "A",
+      "sha256": "fef7bfd901ab605e6aa492231b3377496bf0d524f7b34f0e651bb48886fe5d81"
+    },
+    {
+      "path": "tests/unit/staff-home-display-name.test.ts",
+      "status": "A",
+      "sha256": "1328cf03a720e0ff218cc8762c13a9323c87ea801e01fa7f147c43c3ccb513ed"
+    },
+    {
       "path": "tests/unit/staff-leave-v2.test.ts",
       "status": "M",
       "sha256": "1915b13cb7a52de82d6f9be3ccc28fd7b8425c13331b09ad57182ebeb411958c"
@@ -513,6 +628,11 @@
       "path": "tests/unit/team-read-permission.test.ts",
       "status": "A",
       "sha256": "360435f45bcc7156b16d6998f09cd7bf6f73fd1de6a41169e56c72695ca9d6fa"
+    },
+    {
+      "path": "TETAMU_HR_PAYROLL_CANONICAL_RC_REBUILD_REPORT.md",
+      "status": "A",
+      "sha256": "7c7ad1709f798756fd5c699e80e02a687a0d81988c830db25a09ad6e9552e74f"
     }
   ],
   "evidenceDocuments": [
@@ -522,7 +642,7 @@
     },
     {
       "path": "TETAMU_HR_PAYROLL_CANONICAL_RC_COMPLETION_PHASE2_REPORT.md",
-      "sha256": "0e002c4aaea80e04d046a53f16cce64caf4b3b6bdc90b7891c6fdf90047028e5"
+      "sha256": "8e4df489929dea3f27050fd35a803af7b081dee5d0373ec42203aab9fd28ce37"
     },
     {
       "path": "TETAMU_HR_PAYROLL_SECURITY_UPGRADE_SUMMARY.md",
@@ -530,7 +650,7 @@
     },
     {
       "path": "TETAMU_HR_PAYROLL_BROWSER_MATRIX_VIEWPORT_SUMMARY.md",
-      "sha256": "1e101353a4f118a8553da24bc3796b09b43c6bacef675c502e65a063caf5fc9c"
+      "sha256": "d1c6fabb9bf172d5e04264bb9d46c62936b90fe75ffcc6abb4f2a48b3d43ed79"
     }
   ],
   "sourceLedger": {
@@ -794,22 +914,7 @@
     {
       "gate": "Lint",
       "command": "npm run lint",
-      "result": "PASS_0_ERRORS_13_BASELINE_WARNINGS"
-    },
-    {
-      "gate": "Full unit",
-      "command": "npm test",
-      "result": "PASS_1657_OF_1657_NO_SKIP_TODO"
-    },
-    {
-      "gate": "Disposable integration",
-      "command": "npm run test:integration:disposable",
-      "result": "PASS_208_OF_208_PLUS_ISOLATED_1_OF_1"
-    },
-    {
-      "gate": "Production build",
-      "command": "npm run build",
-      "result": "PASS_NEXT_16_3_5_146_PAGES"
+      "result": "PASS_0_ERRORS_13_EXISTING_WARNINGS"
     },
     {
       "gate": "Leave focused",
@@ -839,28 +944,142 @@
       "gate": "Safe direct-avatar and Next Image AVIF",
       "command": "tsx --test tests/unit/employee-avatar-avif-security.test.ts",
       "result": "PASS_2_OF_2"
+    },
+    {
+      "gate": "Full unit",
+      "command": "npm test",
+      "result": "PASS_1665_OF_1665_NO_SKIP_TODO"
+    },
+    {
+      "gate": "Disposable integration",
+      "command": "npm run test:integration:disposable",
+      "result": "PASS_208_OF_208_PLUS_ISOLATED_1_OF_1"
+    },
+    {
+      "gate": "Focused HR/Payroll/Staff/security",
+      "command": "npx tsx --test <24 focused test files>",
+      "result": "PASS_188_OF_188"
+    },
+    {
+      "gate": "Production build",
+      "command": "npm run build",
+      "result": "PASS_NEXT_16_3_5_146_ROUTES"
+    },
+    {
+      "gate": "Browser Desktop",
+      "result": "PASS"
+    },
+    {
+      "gate": "Browser Staff",
+      "result": "PASS_SMS123_SESSION_OWN_ONLY"
+    },
+    {
+      "gate": "Responsive matrix",
+      "result": "PASS_1440_834_390_360"
+    },
+    {
+      "gate": "Source hygiene",
+      "result": "PASS_NO_SECRET_ABSOLUTE_PATH_GENERATED_SKIP_TODO_OR_WEAKENED_ASSERTION"
+    },
+    {
+      "gate": "Disposable cleanup",
+      "result": "PASS_DATABASE_ZERO_LEFTOVER_AND_EPHEMERAL_ARTIFACTS_TRASHED"
     }
   ],
   "browserSmokeEvidence": {
-    "result": "BLOCKED_HOST_LOCKED",
-    "desktopBrowser": "NOT_RUN",
-    "staffBrowser": "NOT_RUN",
-    "systemAttempts": 2,
-    "nonBrowserSupplement": {
-      "evidenceType": "LOCAL_HTTP_SSR_SMOKE_NOT_BROWSER_UAT",
-      "personas": 8,
-      "requests": 39,
-      "result": "COMPLETED_WITH_EXPECTED_REDIRECTS_AND_RESTRICTED_STATES",
-      "groupManagerDefectDetectedAndFixed": true
-    }
+    "result": "PASS",
+    "sourceSha": "f2553d3fcf5965b50151a52a374112ccac430417",
+    "finalBuild": "NEXT_16_3_5_PRODUCTION_BUILD",
+    "personas": [
+      "BUSINESS_OWNER",
+      "PAYROLL_ADMIN",
+      "HR_MANAGER",
+      "BRANCH_MANAGER",
+      "SUPERVISOR",
+      "GROUP_OWNER",
+      "GROUP_MANAGER",
+      "STAFF"
+    ],
+    "desktopBrowser": "PASS",
+    "staffBrowser": "PASS",
+    "sms123BrowserOtp": "PASS_ISOLATED_LOCAL_HARNESS_NO_REAL_SMS",
+    "staffSessionRefresh": "PASS",
+    "staffSignOut": "PASS_REASON_LOGGED_OUT",
+    "staffSessionExpiry": "PASS_REASON_SESSION_EXPIRED",
+    "staffPayslipOwnOnly": "PASS_SELF_200_OTHER_404",
+    "deepLinkDenial": "PASS",
+    "paymentStatutoryPcb": "PASS_FAIL_CLOSED",
+    "browserDrivenFixCommits": [
+      "becd9f0280998ea87f7a203adb7ca4d57d2d4c79",
+      "a239a5b36a4bebb4420fe21fbae5257ab87f10d7",
+      "b6f5cba39633a9c476fd6fc87e8ab66c3f615146",
+      "05c6dd49e187959df494a6443f1928612756be9a",
+      "15bbbd572e752ddca3e3a141077a06949400d88d",
+      "fe15cf276ceeae1ddaf30083dd575a80151dd485",
+      "44d4aa440af864a02accb061a39a92526885aada",
+      "f2553d3fcf5965b50151a52a374112ccac430417"
+    ],
+    "evidenceRoot": "WORKTREE_EXTERNAL_FINAL_GATE_EVIDENCE",
+    "evidenceIndex": {
+      "file": "53-evidence-sha256.txt",
+      "sha256": "e67b7b3fb78e15794adbc4cd41c008ccf1e25b4418fed0134ca41647ddf4b6bd",
+      "filesIndexed": 58
+    },
+    "screenshots": [
+      {
+        "file": "30-final-people-360.png",
+        "sha256": "f2a741687a426b2315bbdeaad72ceb5ad167828d19755340cc1579a140ace3a3"
+      },
+      {
+        "file": "31-final-payroll-run-834.png",
+        "sha256": "cd14c6a02c58cc99589b99b4ff6bca2a091c869d2e3025d9cbd8ed06ab969389"
+      },
+      {
+        "file": "32-final-payment-blocked-390.png",
+        "sha256": "81706474d8176fec634831e601785c6e2f40c39106352a1ed139dd45f499c803"
+      },
+      {
+        "file": "33-final-staff-home-390.png",
+        "sha256": "39cce945962efaa1cb4e27cd99677e6a11ca8c16bc195e36fa618efca8b321e4"
+      },
+      {
+        "file": "34-final-staff-payslips-390.png",
+        "sha256": "71759af00cc2d569fbf6fbba55cd0766414af0afa8a14aeae656e1073eb64f28"
+      },
+      {
+        "file": "35-final-date-picker-focus-360.png",
+        "sha256": "2ade63a587790a73993926d9d4d45b951e3ba06782e9ac15ccba9a6428690853"
+      }
+    ]
   },
   "responsiveEvidence": {
-    "result": "BLOCKED_HOST_LOCKED",
+    "result": "PASS",
     "viewports": {
-      "360": "NOT_RUN",
-      "390": "NOT_RUN",
-      "834": "NOT_RUN",
-      "1440": "NOT_RUN"
+      "1440x900": "PASS",
+      "834x1112": "PASS",
+      "390x844": "PASS",
+      "360x800": "PASS"
+    },
+    "checks": {
+      "documentHorizontalOverflow": "PASS",
+      "importantContentClipping": "PASS",
+      "desktopTableToMobileCard": "PASS",
+      "modalAndDrawerBounds": "PASS",
+      "stickyActionAndNavigationOcclusion": "PASS",
+      "tapTargets": "PASS",
+      "keyboardNavigation": "PASS",
+      "focusVisible": "PASS",
+      "labelInputAssociation": "PASS",
+      "statePresentation": "PASS",
+      "terminologyConsistency": "PASS"
+    },
+    "finalMeasurements": {
+      "payrollRunDocumentWidthAt834": 834,
+      "peopleReadinessDetailTargetHeight": 36,
+      "staffDatePicker390Contained": true,
+      "staffDatePicker360Contained": true,
+      "datePickerTabOutlinePx": 2,
+      "datePickerRestoredFocusRingPx": 3
     }
   },
   "securityAuditDisposition": {
@@ -896,7 +1115,14 @@
         "uatBlocker": false
       }
     ],
-    "productionReviewStillRequired": true
+    "productionReviewStillRequired": true,
+    "packageLockInstalledVersionMatch": true,
+    "directAvatarAndNextImageAvif": "PASS_2_OF_2_SAFE_FIXTURE",
+    "productionTraceAdvisoryReferences": 0,
+    "runtimeClassification": {
+      "eslintJsYaml": "DEV_TRUE_LINT_TOOLING",
+      "prismaDeepmerge": "DEV_OPTIONAL_BUILD_MIGRATION_CLI_NOT_IN_NEXT_PRODUCTION_TRACES"
+    }
   },
   "finalVerification": {
     "completedItems": [
@@ -918,6 +1144,9 @@
       16,
       17,
       18,
+      19,
+      20,
+      21,
       22,
       23,
       24,
@@ -927,20 +1156,12 @@
       28,
       29
     ],
-    "blockedItems": [
-      19,
-      20,
-      21
-    ],
+    "blockedItems": [],
     "disposableDatabaseCleanup": "PASS_ZERO_LEFTOVER",
     "ephemeralSessionArtifacts": "MOVED_TO_TRASH",
     "rcWorktreeCleanAfterEvidenceCommit": true
   },
-  "incompleteRequiredGates": [
-    "browser-based Desktop smoke",
-    "browser-based Staff App smoke",
-    "responsive and interaction checks at 1440/834/390/360"
-  ],
+  "incompleteRequiredGates": [],
   "restrictedFeatures": {
     "officialExportEligible": false,
     "bankPaymentExecutionEnabled": false,
