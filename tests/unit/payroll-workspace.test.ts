@@ -120,6 +120,13 @@ test("Workspace exposes the current P2 payment module without fake bank executio
   assert.doesNotMatch(page, /Publish payslip/);
 });
 
+test("Payroll navigation exposes the authorized read-only issue center", async () => {
+  const navigation = await source("src/components/payroll-workspace-nav.tsx");
+  assert.match(navigation, /canViewPayrollExceptionCenter/);
+  assert.match(navigation, /href: "\/team\/payroll\/exceptions"/);
+  assert.match(navigation, /label: "Resolve payroll issues"/);
+});
+
 test("Payroll readiness separates calculation, payment and statutory gates", async () => {
   const page = await source("src/app/(business)/team/payroll/workspace/page.tsx");
 

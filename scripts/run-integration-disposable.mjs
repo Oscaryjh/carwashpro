@@ -20,12 +20,21 @@ try {
   await ensureDatabaseExists(pg, databaseName);
   await waitForPostgres(pg, databaseName);
   await runCommand("prisma", ["migrate", "deploy"], databaseUrl);
-  const integrationFiles = (await readdir(resolve("tests", "integration"), {
+  const discoveredFiles = (await readdir(resolve("tests", "integration"), {
     withFileTypes: true,
   }))
     .filter((entry) => entry.isFile() && entry.name.endsWith(".test.ts"))
     .map((entry) => `tests/integration/${entry.name}`)
     .sort();
+  const requestedFiles = process.argv.slice(2);
+  const integrationFiles = requestedFiles.length
+    ? requestedFiles.map(normalizeRequestedFile)
+    : discoveredFiles;
+  for (const file of integrationFiles) {
+    if (!discoveredFiles.includes(file)) {
+      throw new Error(`Unknown integration test file: ${file}`);
+    }
+  }
   const isolatedFiles = new Set([
     "tests/integration/attendance-phase1c-route-flow.test.ts",
   ]);
@@ -39,6 +48,7 @@ try {
     databaseUrl,
   );
   for (const file of isolatedFiles) {
+    if (!integrationFiles.includes(file)) continue;
     await runCommand(
       "tsx",
       ["--test", "--test-concurrency=1", file],
@@ -48,6 +58,10 @@ try {
 } finally {
   await dropDisposableDatabase(databaseName);
   await stopOwnedPostgres(pg, ownsPostgres);
+}
+
+function normalizeRequestedFile(value) {
+  return value.replace(/^\.\//, "");
 }
 
 function runCommand(commandName, args, url) {

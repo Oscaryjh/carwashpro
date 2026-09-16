@@ -5,9 +5,10 @@ import {
 import styles from "@/components/hr-payroll-workspace.module.css";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
+import { canViewPayrollExceptionCenter } from "@/lib/payroll/exception-center-access";
 
 export async function PayrollWorkspaceNav() {
-  const { access, moduleContext } = await requireBusinessUser();
+  const { access, businessId, moduleContext } = await requireBusinessUser();
   const items: HrPayrollWorkspaceItem[] = [
     {
       href: "/team/payroll/workspace",
@@ -24,6 +25,16 @@ export async function PayrollWorkspaceNav() {
       activePrefixes: ["/team/payroll/runs", "/team/payroll/payslips"],
     },
   ];
+
+  if (canViewPayrollExceptionCenter(access, businessId)) {
+    items.splice(1, 0, {
+      href: "/team/payroll/exceptions",
+      label: "Resolve payroll issues",
+      shortLabel: "Resolve issues",
+      icon: "resolution",
+      activePrefixes: ["/team/payroll/exceptions"],
+    });
+  }
 
   if (moduleContext.enabledModules.has("COMMISSION") && hasBusinessCapability(access, "VIEW_COMMISSION")) {
     items.push({ href: "/team/commission", label: "Payroll inputs and commission", shortLabel: "Pay inputs", icon: "commission" });

@@ -64,6 +64,7 @@ export type PayrollExceptionOverview = {
   canViewPayroll: boolean;
   hasAccessibleBranches: boolean;
   month: string;
+  restrictedAreas: Array<"TAX" | "STATUTORY">;
   rowLimitReached: boolean;
   rows: PayrollExceptionEmployee[];
   summary: {

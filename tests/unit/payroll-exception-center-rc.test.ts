@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import type { ResolvedBusinessAccess } from "../../src/lib/business-groups/business-access";
 import {
@@ -125,4 +126,26 @@ test("exception filters and summaries are pure and hide ready rows by default", 
     setupRequired: 0,
     total: 2,
   });
+});
+
+test("exception list and detail routes stay read-only, restricted-aware and responsive", () => {
+  const listPath = "src/app/(business)/team/payroll/exceptions/page.tsx";
+  const detailPath = "src/app/(business)/team/payroll/exceptions/[membershipId]/page.tsx";
+  const stylesPath = "src/app/(business)/team/payroll/exceptions/payroll-exceptions.module.css";
+  assert.equal(existsSync(listPath), true);
+  assert.equal(existsSync(detailPath), true);
+  assert.equal(existsSync(stylesPath), true);
+  const list = readFileSync(listPath, "utf8");
+  const detail = readFileSync(detailPath, "utf8");
+  const styles = readFileSync(stylesPath, "utf8");
+  assert.match(list, /Payroll issues/);
+  assert.match(list, /Tax and statutory setup are intentionally excluded/);
+  assert.match(list, /This page is read-only/);
+  assert.match(list, /filterPayrollExceptionRows/);
+  assert.match(detail, /business-readable status only/);
+  assert.match(detail, /notFound\(\)/);
+  assert.doesNotMatch(`${list}\n${detail}`, /<form[^>]+action=|server action|updateMany|createMany/);
+  assert.match(styles, /@media \(max-width:\s*720px\)/);
+  assert.match(styles, /overflow-wrap:\s*anywhere/);
+  assert.match(styles, /min-height:\s*44px/);
 });
