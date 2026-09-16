@@ -17,25 +17,26 @@ export function LoginForm() {
         <span>Email</span>
         <input name="email" type="email" autoComplete="email" required />
       </label>
-      <label>
+      <label htmlFor="login-password">
         <span>Password</span>
-        <div className="password-field">
-          <input
-            name="password"
-            type={showPassword ? "text" : "password"}
-            autoComplete="current-password"
-            required
-          />
-          <button
-            aria-label={showPassword ? "Hide password" : "Show password"}
-            className="secondary-light-button"
-            type="button"
-            onClick={() => setShowPassword((current) => !current)}
-          >
-            {showPassword ? "Hide" : "Show"}
-          </button>
-        </div>
       </label>
+      <div className="password-field">
+        <input
+          id="login-password"
+          name="password"
+          type={showPassword ? "text" : "password"}
+          autoComplete="current-password"
+          required
+        />
+        <button
+          aria-label={showPassword ? "Hide password" : "Show password"}
+          className="secondary-light-button"
+          type="button"
+          onClick={() => setShowPassword((current) => !current)}
+        >
+          {showPassword ? "Hide" : "Show"}
+        </button>
+      </div>
       <button type="submit" disabled={pending}>
         {pending ? "Signing in..." : "Sign in"}
       </button>
