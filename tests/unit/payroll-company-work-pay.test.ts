@@ -82,3 +82,32 @@ test("company work-pay calculation rejects invalid HR multipliers", () => {
     /multiplier is invalid/,
   );
 });
+
+test("fee-only workers may have a zero base without invented work pay", () => {
+  assert.deepEqual(calculateCompanyWorkPay({
+    payBasis: "MONTHLY",
+    baseRateCents: 0,
+    workingDaysPerMonth: 26,
+    normalWorkMinutesPerDay: 480,
+    normalOtMinutes: 0,
+    restDayWorkMinutes: 0,
+    restDayOtMinutes: 0,
+    publicHolidayWorkMinutes: 0,
+    publicHolidayOtMinutes: 0,
+    overtimeMultiplier: 1.5,
+    restDayWorkMultiplier: 1,
+    restDayOvertimeMultiplier: 2,
+    publicHolidayWorkMultiplier: 2,
+    publicHolidayOvertimeMultiplier: 3,
+    publicHolidayPayEnabled: true,
+  }), {
+    hourlyRateCents: 0,
+    normalOvertimePayCents: 0,
+    restDayWorkPayCents: 0,
+    restDayOvertimePayCents: 0,
+    publicHolidayWorkPayCents: 0,
+    publicHolidayOvertimePayCents: 0,
+    overtimePayCents: 0,
+    publicHolidayPayCents: 0,
+  });
+});

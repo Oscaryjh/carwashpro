@@ -30,7 +30,7 @@ export type CompanyWorkPayResult = {
 export function calculateCompanyWorkPay(
   input: CompanyWorkPayInput,
 ): CompanyWorkPayResult {
-  assertPositiveInteger(input.baseRateCents, "base rate");
+  assertNonnegativeInteger(input.baseRateCents, "base rate");
   assertPositiveInteger(input.workingDaysPerMonth, "working days per month");
   assertPositiveInteger(input.normalWorkMinutesPerDay, "paid work minutes");
   [
@@ -100,6 +100,12 @@ export function calculateCompanyWorkPay(
 
 function assertPositiveInteger(value: number, label: string) {
   if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`Company work-pay ${label} is invalid.`);
+  }
+}
+
+function assertNonnegativeInteger(value: number, label: string) {
+  if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`Company work-pay ${label} is invalid.`);
   }
 }
