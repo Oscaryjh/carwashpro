@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { PeopleDirectory } from "@/components/people-directory";
+import directoryStyles from "@/components/people-directory.module.css";
+import { loadPeopleDirectory } from "@/lib/team/people-directory-read";
+import { peopleListPath } from "@/lib/team/people-presentation";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { CatalogFormModal } from "@/components/catalog-form-modal";
@@ -9,7 +13,7 @@ import {
 } from "@/components/staff-create-modal";
 import { StaffAvailabilityForm } from "@/components/staff-availability-form";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
-import { assertStaffPermission } from "@/lib/auth/staff-permissions";
+import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { getActiveBranches } from "@/lib/branches";
@@ -56,6 +60,13 @@ type TeamSection = (typeof teamSections)[number]["key"];
 type TeamPageProps = {
   searchParams: Promise<{
     activityPage?: string;
+    filter?: string;
+    branch?: string;
+    fromHrHome?: string;
+    homeMonth?: string;
+    month?: string;
+    page?: string;
+    position?: string;
     focus?: string;
     levelId?: string;
     message?: string;
@@ -64,6 +75,7 @@ type TeamPageProps = {
     roleId?: string;
     section?: string;
     staffId?: string;
+    testAccounts?: string;
     type?: string;
   }>;
 };
@@ -71,9 +83,6 @@ type TeamPageProps = {
 export default async function TeamPage({ searchParams }: TeamPageProps) {
   const { access, user, businessId, industryType, moduleContext } =
     await requireBusinessUser("VIEW_TEAM_DIRECTORY");
-  if (access.source === "DIRECT_BUSINESS") {
-    assertStaffPermission(user, "TEAM");
-  }
   const canEditCompensation =
     moduleContext.enabledModules.has("PAYROLL") &&
     hasBusinessCapability(access, "EDIT_COMPENSATION");
@@ -107,6 +116,12 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   )
     ? (params.section as TeamSection)
     : "people";
+  // The new directory-only grant must not expose legacy administration panels
+  // or load edit-modal data through query strings. Existing TEAM is unchanged.
+  if (hasStaffPermission(user, "TEAM_READ") && !canManageTeam &&
+    (requestedSection !== "people" || params.modal || configurationFocus)) {
+    notFound();
+  }
   if (
     (requestedSection === "roles" &&
       !canManageTeamPermissions &&
@@ -131,8 +146,8 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const scheduleDataRequired =
     section === "schedule" || params.modal === "schedule";
   const staffDataRequired =
-    section === "people" || scheduleDataRequired || params.modal === "edit";
-  const employeeOnlyDataRequired = section === "people" && hrEnabled;
+    (section === "people" && !hrEnabled) || scheduleDataRequired || params.modal === "edit";
+  const employeeOnlyDataRequired = false;
   const ownerDataRequired = section === "schedule";
   const roleDataRequired =
     canManageTeamPermissions &&
@@ -161,6 +176,9 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const currentAssignmentWhere = buildCurrentPeopleAssignmentWhere(peopleScope);
   const staffScopeWhere = buildPeopleStaffScopeWhere(peopleScope);
   const membershipScopeWhere = buildPeopleMembershipScopeWhere(peopleScope);
+  const directory = section === "people" && hrEnabled
+    ? await loadPeopleDirectory({ ...peopleScope, access, context: params, modules: moduleContext.enabledModules })
+    : null;
   const allowedBranchIds = new Set(scope.allowedBranchIds);
   const activityAuditWhere = {
     businessId,
@@ -463,7 +481,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const messageType = params.type === "error" ? "error" : "success";
   const activeRoleOptions = roleProfiles
     .filter((role) => role.active)
-    .map(({ id, name }) => ({ id, name }));
+    .map(({ id, name, permissions }) => ({ id, name, permissions }));
   const activeStaffLevelOptions = staffLevels
     .filter((level) => level.active)
     .map(({ id, name }) => ({ id, name }));
@@ -481,17 +499,20 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           ).map((membership) => membership.employeeCode),
         )
       : undefined;
+  const peopleZh = section === "people" && directory?.language === "ZH";
 
   return (
     <>
       <section className="content team-workspace-page hr-module-page">
-        <div className="page-header team-page-header hr-module-header">
+        <div className={`page-header team-page-header hr-module-header ${section === "people" && directory ? directoryStyles.pageHeader : ""}`}>
           <div>
-            <span className="hr-module-eyebrow">People management</span>
-            <h1>People</h1>
+            {section === "people" && directory ? null : <span className="hr-module-eyebrow">People management</span>}
+            <h1>{section === "people" && directory ? peopleZh ? "员工" : "Employees" : "People"}</h1>
             <p>
               {hrEnabled
-                ? "Employees, employment, services and access in one place."
+                ? section === "people" && directory
+                  ? peopleZh ? "管理员工资料与工资就绪状态。" : "Manage employee profiles and payroll readiness."
+                  : "Find employees, see what needs setup, and continue their next step."
                 : "Team members, branches, roles, login and operational assignment."}
             </p>
           </div>
@@ -499,9 +520,9 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
             {canManageTeam ? (
               <Link
                 className="button-link"
-                href="/team?section=people&modal=create"
+                href={`${peopleListPath(params)}&modal=create`}
               >
-                Add team member
+                {hrEnabled ? peopleZh ? "新增员工" : "Add employee" : "Add team member"}
               </Link>
             ) : null}
           </div>
@@ -516,9 +537,10 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           </div>
         ) : null}
 
-        <div className="team-workspace">
-          <div className="team-workspace-content">
-            {section === "people" ? (
+        <div className={`team-workspace ${section === "people" && directory ? directoryStyles.workspace : ""}`}>
+          <div className={`team-workspace-content ${section === "people" && directory ? directoryStyles.workspaceContent : ""}`}>
+            {section === "people" && directory ? <PeopleDirectory data={directory} context={params} branches={branches} canAddEmployee={canManageTeam} /> : null}
+            {section === "people" && !directory ? (
               <PeopleSection
                 branchesAvailable={Boolean(branches.length)}
                 canManageTeam={canManageTeam}
@@ -591,6 +613,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
 
       {params.modal === "create" && canManageTeam ? (
         <StaffCreateModal
+          closePath={peopleListPath(params)}
           action={createStaffAction}
           allowHrFields={hrEnabled}
           allowPayrollFields={canEditCompensation}

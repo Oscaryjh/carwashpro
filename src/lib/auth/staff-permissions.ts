@@ -160,6 +160,11 @@ export const staffPermissions = [
     description: "Create staff accounts and manage staff permissions.",
   },
   {
+    key: "TEAM_READ",
+    label: "View employee directory & profiles",
+    description: "Read employee details within assigned branches. Does not grant employee edits, payroll, bank or system-access changes.",
+  },
+  {
     key: "MANAGE_TEAM_PERMISSIONS",
     label: "Manage roles & permissions",
     description:
@@ -560,6 +565,7 @@ const staffHomeRoutes: Array<[StaffPermission, string]> = [
   ["PRODUCTS", "/products"],
   ["DISCOUNTS", "/discounts"],
   ["TEAM", "/team"],
+  ["TEAM_READ", "/team"],
   ["ATTENDANCE_EMPLOYEE_READ", "/team/employees"],
   ["ATTENDANCE_SETTINGS_READ", "/team/attendance-settings"],
   ["VIEW_LEAVE", "/team/leave"],
@@ -584,6 +590,31 @@ export function getStaffHomePath(
   return (
     routes.find(([permission]) => permissionValues.has(permission))?.[1] ??
     "/login"
+  );
+}
+
+/** Narrow route admission only; server capability and tenant checks remain mandatory. */
+export function canReadPeopleRoute(permissions: readonly string[], pathname: string) {
+  if (!permissions.includes("TEAM_READ")) return false;
+  if (pathname === "/team" || /^\/team\/people\/[^/]+$/.test(pathname)) {
+    return true;
+  }
+  if (
+    (pathname === "/team/statutory-readiness" ||
+      /^\/team\/statutory-readiness\/[^/]+$/.test(pathname)) &&
+    permissions.includes("VIEW_STATUTORY_PROFILE") &&
+    permissions.includes("VIEW_TAX_PROFILE")
+  ) return true;
+  return (
+    (pathname === "/team/payroll/exceptions" || /^\/team\/payroll\/exceptions\/[^/]+$/.test(pathname)) &&
+    (
+      permissions.includes("VIEW_PAYROLL_RUN") ||
+      permissions.includes("VIEW_COMPENSATION") ||
+      permissions.includes("ATTENDANCE_EMPLOYEE_READ") ||
+      permissions.includes("ATTENDANCE_EMPLOYEE_MANAGE") ||
+      permissions.includes("VIEW_STATUTORY_PROFILE") ||
+      permissions.includes("VIEW_TAX_PROFILE")
+    )
   );
 }
 
@@ -667,13 +698,18 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
   if (pathname === "/team/roster" || pathname.startsWith("/team/roster/")) {
     return "ROSTER_VIEW";
   }
-  if (pathname === "/team/approvals" || pathname.startsWith("/team/approvals/")) {
+  if (pathname === "/team/home" || pathname === "/team/approvals" || pathname.startsWith("/team/approvals/")) {
     // The page requires HR plus at least one actionable domain capability.
     // No single legacy staff permission represents this aggregated route.
     return null;
   }
   if (pathname === "/team/claims" || pathname.startsWith("/team/claims/")) {
     return "VIEW_CLAIM";
+  }
+  if (pathname === "/team/leave" || pathname.startsWith("/team/leave/")) {
+    // Match the Leave page's existing capability, not the directory fallback.
+    // Mutations still require their own approval/policy/balance permissions.
+    return "VIEW_LEAVE";
   }
   if (pathname === "/team/commission" || pathname.startsWith("/team/commission/")) {
     return "VIEW_COMMISSION";
@@ -691,15 +727,17 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
   // state before any payroll query. Let authenticated users reach that boundary
   // so a direct URL does not silently redirect them to an unrelated module.
   if (
+    pathname === "/team/payroll" ||
     pathname === "/team/payroll/workspace" ||
     pathname === "/team/payroll/runs" ||
-    pathname.startsWith("/team/payroll/runs/")
+    pathname.startsWith("/team/payroll/runs/") ||
+    pathname === "/team/payroll/exceptions" ||
+    pathname.startsWith("/team/payroll/exceptions/")
   ) {
     return null;
   }
 
   if (
-    pathname === "/team/payroll" ||
     pathname.startsWith("/team/payroll/")
   ) {
     return "PAYROLL_READ";

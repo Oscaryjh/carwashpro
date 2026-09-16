@@ -15,10 +15,11 @@ type StaffCreateModalProps = {
   canManagePermissions: boolean;
   enabledModules: readonly ModuleKey[];
   industryType?: string;
-  roleProfiles: Array<{ id: string; name: string }>;
+  roleProfiles: Array<{ id: string; name: string; permissions?: string[] }>;
   services: Array<{ id: string; name: string }>;
   staffLevels: Array<{ id: string; name: string }>;
   suggestedEmployeeCode?: string;
+  closePath?: string;
 };
 
 export function StaffCreateModal({
@@ -33,13 +34,14 @@ export function StaffCreateModal({
   services,
   staffLevels,
   suggestedEmployeeCode,
+  closePath = "/team?section=people",
 }: StaffCreateModalProps) {
   return (
     <CatalogFormModal
-      ariaLabel="Add team member"
-      closePath="/team?section=people"
+      ariaLabel={allowHrFields ? "Add employee" : "Add team member"}
+      closePath={closePath}
       eyebrow="PEOPLE"
-      title="Add team member"
+      title={allowHrFields ? "Add employee" : "Add team member"}
       wide
     >
       <div className="staff-create-modal-content">
@@ -60,8 +62,9 @@ export function StaffCreateModal({
           roleProfiles={roleProfiles}
           services={services}
           staffLevels={staffLevels}
-          submitLabel="Add team member"
+          submitLabel={allowHrFields ? "Create employee" : "Add team member"}
           suggestedEmployeeCode={suggestedEmployeeCode}
+          returnTo={closePath}
         />
       </div>
     </CatalogFormModal>
