@@ -120,3 +120,39 @@ export function assertEightRoleUatEnvironment(environment: FixtureEnvironment) {
   }
   return password;
 }
+
+type EightRoleUatDeviceIdentity = Readonly<{
+  employeeAccountId: string;
+  deviceIdentifierHash: string;
+}>;
+
+const EIGHT_ROLE_UAT_DEVICE_STATE = {
+  displayName: "Eight-role UAT staff browser",
+  platform: "Browser",
+  browser: "Codex browser",
+  canView: true,
+  canPunch: true,
+  status: "ACTIVE" as const,
+  revokedAt: null,
+  revokeReason: null,
+};
+
+export function resolveEightRoleUatDeviceWrite(
+  existingDevice: Readonly<{ id: string }> | null,
+  identity: EightRoleUatDeviceIdentity,
+) {
+  if (existingDevice) {
+    return {
+      mode: "UPDATE" as const,
+      where: { id: existingDevice.id },
+      data: { ...EIGHT_ROLE_UAT_DEVICE_STATE },
+    };
+  }
+  return {
+    mode: "CREATE" as const,
+    data: {
+      ...identity,
+      ...EIGHT_ROLE_UAT_DEVICE_STATE,
+    },
+  };
+}

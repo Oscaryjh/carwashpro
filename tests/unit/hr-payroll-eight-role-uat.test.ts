@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   HR_PAYROLL_EIGHT_ROLE_PERSONAS,
   assertEightRoleUatEnvironment,
+  resolveEightRoleUatDeviceWrite,
 } from "../../scripts/hr-payroll-eight-role-uat-contract";
 
 const EXPECTED_PERSONAS = [
@@ -56,4 +57,35 @@ test("eight-role fixture rejects production, remote databases and weak credentia
     DATABASE_URL: "postgresql://user:pass@127.0.0.1:5432/local",
     HR_EIGHT_ROLE_UAT_PASSWORD: "local-password-123",
   }), "local-password-123");
+});
+
+test("eight-role fixture reuses an existing active punch device", () => {
+  assert.deepEqual(
+    resolveEightRoleUatDeviceWrite({ id: "existing-device" }, {
+      employeeAccountId: "employee-account",
+      deviceIdentifierHash: "new-browser-hash",
+    }),
+    {
+      mode: "UPDATE",
+      where: { id: "existing-device" },
+      data: {
+        displayName: "Eight-role UAT staff browser",
+        platform: "Browser",
+        browser: "Codex browser",
+        canView: true,
+        canPunch: true,
+        status: "ACTIVE",
+        revokedAt: null,
+        revokeReason: null,
+      },
+    },
+  );
+
+  assert.equal(
+    resolveEightRoleUatDeviceWrite(null, {
+      employeeAccountId: "employee-account",
+      deviceIdentifierHash: "new-browser-hash",
+    }).mode,
+    "CREATE",
+  );
 });

@@ -12,6 +12,7 @@ import {
 import {
   HR_PAYROLL_EIGHT_ROLE_PERSONAS,
   assertEightRoleUatEnvironment,
+  resolveEightRoleUatDeviceWrite,
 } from "./hr-payroll-eight-role-uat-contract";
 
 const prisma = new PrismaClient();
@@ -219,24 +220,24 @@ async function main() {
     const deviceIdentifierHash = createHash("sha256")
       .update("hr-eight-role-uat-staff-browser")
       .digest("hex");
-    const device = await tx.employeeDevice.upsert({
+    const existingDevice = await tx.employeeDevice.findFirst({
       where: {
-        employeeAccountId_deviceIdentifierHash: {
-          employeeAccountId: membership.employeeAccountId,
-          deviceIdentifierHash,
-        },
-      },
-      update: { canPunch: true, canView: true, status: "ACTIVE" },
-      create: {
         employeeAccountId: membership.employeeAccountId,
-        deviceIdentifierHash,
-        displayName: "Eight-role UAT staff browser",
-        platform: "Browser",
-        browser: "Codex browser",
-        canView: true,
+        status: "ACTIVE",
         canPunch: true,
       },
+      select: { id: true },
     });
+    const deviceWrite = resolveEightRoleUatDeviceWrite(existingDevice, {
+      employeeAccountId: membership.employeeAccountId,
+      deviceIdentifierHash,
+    });
+    const device = deviceWrite.mode === "UPDATE"
+      ? await tx.employeeDevice.update({
+          where: deviceWrite.where,
+          data: deviceWrite.data,
+        })
+      : await tx.employeeDevice.create({ data: deviceWrite.data });
     const employeeSession = await createEmployeeSessionRecord({
       employeeAccountId: membership.employeeAccountId,
       membershipId: membership.id,
