@@ -1,0 +1,659 @@
+{
+  "releaseName": "TETAMU HR/Payroll Canonical RC 2026-09-16",
+  "createdAt": "2026-09-16T10:53:07Z",
+  "verdict": "PARTIAL_RC_BLOCKED",
+  "cleanRootSha": "71f4786c828239d4270d93afa9253e8400a8b6ad",
+  "branch": "codex/hr-payroll-canonical-rc-20260916",
+  "finalRcSha": "5d0e24b48f5356d7ad2ce09e92b9e779ad61f15b",
+  "finalRcTree": "43bde296c6318452a67a81d450e27ca61ffedc3c",
+  "gitStatusClean": true,
+  "canonicalSourceDigest": {
+    "algorithm": "SHA-256 of deterministic `git archive --format=tar <finalRcSha>`; release manifest and report are excluded because finalRcSha is the audited source commit immediately before the evidence-only commit.",
+    "value": "6f9b5ee1e8b182b28c721d240b2f76125f39777deb0f28e9deac17cb494c6164"
+  },
+  "orderedCommits": [
+    {
+      "sha": "c872e913e67dbbfd37f7d66c04598d540d1ad0d0",
+      "subject": "docs(plan): define canonical HR payroll RC rebuild"
+    },
+    {
+      "sha": "5c00e8329326db42d11baf848936f8b12ee90510",
+      "subject": "docs(reconcile): bound HR payroll source replay"
+    },
+    {
+      "sha": "553156352a3c6b5d47eddb776d9da82f3236b65b",
+      "subject": "feat(hr): add auditable people account classification"
+    },
+    {
+      "sha": "5b36c0763681ef2cd12c8cfaf227a159693fbff1",
+      "subject": "docs(reconcile): admit people directory dependencies"
+    },
+    {
+      "sha": "9adb0f87ad7e8f1f0ab3cc2f7a2fc2a1bf9646c4",
+      "subject": "docs(reconcile): admit People month formatter dependency"
+    },
+    {
+      "sha": "4d7e7e4c1587c6514fba26c2c87350550f7a5611",
+      "subject": "docs(reconcile): resolve People UI dependencies"
+    },
+    {
+      "sha": "08b10f5849d27561054efb66d46ad8c2a2e8d424",
+      "subject": "feat(hr): restore canonical people workflows"
+    },
+    {
+      "sha": "0c1390510230c2741c787b411e3a9382beb22f5d",
+      "subject": "docs(reconcile): admit attendance projection dependency"
+    },
+    {
+      "sha": "aa86e91a1438d94d5ed1cc75ba8c5b0d3a7da4a3",
+      "subject": "feat(attendance): restore reviewed payroll time inputs"
+    },
+    {
+      "sha": "954e1b32efc2417b55d571b074a142c1a7f49803",
+      "subject": "feat(payroll): add controlled correction and exception workflow"
+    },
+    {
+      "sha": "0306a9c9f815fd45884d49bbf3c8fc1ae3eb9f5f",
+      "subject": "fix(payroll): restore reviewed company work pay rules"
+    },
+    {
+      "sha": "bb93609848205dae3e34d1a3d4801d05ceb13cf0",
+      "subject": "fix(staff): refresh sessions and date picker"
+    },
+    {
+      "sha": "5d0e24b48f5356d7ad2ce09e92b9e779ad61f15b",
+      "subject": "fix(hr): preserve payroll route and entitlement contracts"
+    }
+  ],
+  "includedFileHashes": [
+    {
+      "path": ".env.example",
+      "status": "M",
+      "sha256": "c0b6a8d1ca444887dc35219d511ebed2b123a3beb54f216bf574a01365e6f109"
+    },
+    {
+      "path": "docs/hr-payroll-canonical-rc-source-ledger.md",
+      "status": "A",
+      "sha256": "70c6a377bdc38bb9a1a75f3f25bc2dd81319e93c4f1bcd948e5c050be6cc2a33"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-16-hr-payroll-canonical-rc-rebuild.md",
+      "status": "A",
+      "sha256": "abfcfee337d6a82a9ebc3948ccc52ebfed7c5ffbc2cc381f801b9a7d208b76e8"
+    },
+    {
+      "path": "prisma/migrations/20260915090000_people_workbench_account_classification/migration.sql",
+      "status": "A",
+      "sha256": "15f6e9943b068ab2e8ff71a7231f2f0786ff0957aa2a3a1463e85c808caf134f"
+    },
+    {
+      "path": "prisma/schema.prisma",
+      "status": "M",
+      "sha256": "074c1e37716709516900e82cd3cf5dfcd190ce93d220136f076084eb00a691db"
+    },
+    {
+      "path": "src/app/(business)/team/page.tsx",
+      "status": "M",
+      "sha256": "4ff00b39f98e7425d2acd3f925cfd3762547f14e67a5d9e8ca9857b8c842e364"
+    },
+    {
+      "path": "src/app/api/employee-auth/me/route.ts",
+      "status": "M",
+      "sha256": "0f71ce93130e6a3cb3ce53b5eb3678b6f0c5ded5152a7dd29dfb3776fcaf7ba4"
+    },
+    {
+      "path": "src/app/staff/staff-consolidation.css",
+      "status": "M",
+      "sha256": "f387cb2e518b91502766a4d97a368f99a54033c46e0c004d40129eb6d3ff5839"
+    },
+    {
+      "path": "src/components/people-directory.module.css",
+      "status": "A",
+      "sha256": "d0523a59b5132ac925881b8b163b67f31f4958972640aafb9ae423c214aa1e60"
+    },
+    {
+      "path": "src/components/people-directory.tsx",
+      "status": "A",
+      "sha256": "b20c85aaeedac1ae5853ac0062908f09492a7b1ec8801d6b0d14b98438760b3e"
+    },
+    {
+      "path": "src/components/staff-create-modal.tsx",
+      "status": "M",
+      "sha256": "5e159077ea426fa663938486095e10c9b68a84801a3d4e2b88f0a66479ea54eb"
+    },
+    {
+      "path": "src/components/staff-pwa/staff-pwa-chrome.tsx",
+      "status": "M",
+      "sha256": "0586032112510fa23cd10329aba62bf38fb5109008d4d1dc09e053c6eb42ae5a"
+    },
+    {
+      "path": "src/lib/attendance/business-attendance-projection.ts",
+      "status": "A",
+      "sha256": "c81ba648875f9e61407de804ea406c486415b747d2fc1492a242863591ddb6fb"
+    },
+    {
+      "path": "src/lib/attendance/effective-session.ts",
+      "status": "A",
+      "sha256": "03ea468a43b66c1ab0c624670ef982ee0edb30e16406b9aa17626c097963dd3f"
+    },
+    {
+      "path": "src/lib/attendance/employee-auth/session.ts",
+      "status": "M",
+      "sha256": "2c940c7ed47cdc8d7fd673b87d8fcb97e64e39e54b1f96e5eb7c7e088ee14946"
+    },
+    {
+      "path": "src/lib/attendance/p2-service.ts",
+      "status": "M",
+      "sha256": "cbd7c50d822f33ab46c8f3f8c4a4b244070d9ef6afd17361bd1e166dab064355"
+    },
+    {
+      "path": "src/lib/auth/staff-permissions.ts",
+      "status": "M",
+      "sha256": "22d634a70521811eb587b30a70ae7710dd9b39f3da62167dcd2bb9b9d71d511f"
+    },
+    {
+      "path": "src/lib/business-groups/capabilities.ts",
+      "status": "M",
+      "sha256": "0d37da2bd9aec03031214da8f95e2aa42c60492e38c68be27f0c4eae585782d3"
+    },
+    {
+      "path": "src/lib/hr-calendar-month.ts",
+      "status": "A",
+      "sha256": "48a7ab394724d0ce98033faa90a9f542c22cf95b4354adc14cf4765a1fb3b94e"
+    },
+    {
+      "path": "src/lib/payroll/company-work-pay.ts",
+      "status": "M",
+      "sha256": "fcdd0b3a6e2e31e59b855ab53461788f81cb955443a33bc833c92cc4a8745de7"
+    },
+    {
+      "path": "src/lib/payroll/exception-center-access.ts",
+      "status": "A",
+      "sha256": "ba1ea498a87c8c57c2b99ca7f499ab4924f017fb444a1a5dc0fa1abba89e3524"
+    },
+    {
+      "path": "src/lib/payroll/exception-center-projection.ts",
+      "status": "A",
+      "sha256": "443c2b8ec88b52167ac40e7a96eef45cc2db70f97499ccc0a3d6d1ffeac93486"
+    },
+    {
+      "path": "src/lib/payroll/exception-center-types.ts",
+      "status": "A",
+      "sha256": "3946d855a425eda65a310325df397415aa5c4b998e02e2c221510c3270ce5ab7"
+    },
+    {
+      "path": "src/lib/payroll/leave-conflict-read.ts",
+      "status": "A",
+      "sha256": "06f61a3e37343888993299b06e2125333bde12eb636485f438d50144d2248001"
+    },
+    {
+      "path": "src/lib/payroll/stale-presentation.ts",
+      "status": "A",
+      "sha256": "7c52af6e820c17a6195a2bb33775b7ec47a5a1aa983b6085c4d797803e2dd02c"
+    },
+    {
+      "path": "src/lib/team/people-directory-read.ts",
+      "status": "A",
+      "sha256": "342901ac5968273d88213550942d09bf372b3f5f367ab1c4451aba62a4ce0646"
+    },
+    {
+      "path": "src/lib/team/people-presentation.ts",
+      "status": "A",
+      "sha256": "0f262d797f7f1974b284ac302b2d4b9a7fb91bf445d71fd821d5a73b271bdebd"
+    },
+    {
+      "path": "tests/helpers/people-directory-render.ts",
+      "status": "A",
+      "sha256": "d364c84e418d0654293e364447f81bceda3a345166bf8ce89586bf3e2cf6e858"
+    },
+    {
+      "path": "tests/integration/attendance-employee-auth.test.ts",
+      "status": "M",
+      "sha256": "e8fcedcf58e79f0c2e55a2ca7f5a0426deee048521acee0de19e946d3a50bbf2"
+    },
+    {
+      "path": "tests/unit/attendance-effective-session.test.ts",
+      "status": "A",
+      "sha256": "f066abd1726aac656fe72ee65a08b3d89a40cf8e033887dcdedc857bab9a16d0"
+    },
+    {
+      "path": "tests/unit/business-attendance-projection.test.ts",
+      "status": "A",
+      "sha256": "f42eb2d0a5ad9a8f4feb12cc567d6159b0aa57818ecb5cdad9cd27d8ddc0395a"
+    },
+    {
+      "path": "tests/unit/payroll-company-work-pay.test.ts",
+      "status": "M",
+      "sha256": "8778f1a08a51885263dc927bad61c09b154a3475bbcaaf51552be1be7e24fddd"
+    },
+    {
+      "path": "tests/unit/payroll-exception-center-rc.test.ts",
+      "status": "A",
+      "sha256": "850b089aaa8823562e057822e217cff45e44377e6d122ae1d4e33913ac927239"
+    },
+    {
+      "path": "tests/unit/payroll-leave-conflict-resolver.test.ts",
+      "status": "A",
+      "sha256": "11f74393539f3114425d2bb6989b05cd8dcf57233defc6215d36dced1f79e2c3"
+    },
+    {
+      "path": "tests/unit/payroll-stale-presentation-rc.test.ts",
+      "status": "A",
+      "sha256": "853a1cbcfcf55cafb721f32dcfbb4f75be9ab67dbd0dc979a36cdb46a070f17f"
+    },
+    {
+      "path": "tests/unit/people-account-classification-schema.test.ts",
+      "status": "A",
+      "sha256": "a2b20b407365efa50cca0a6115e41ab674efd22c6ab2618fb5d6ef1f83cc6326"
+    },
+    {
+      "path": "tests/unit/people-directory-uiux.test.ts",
+      "status": "A",
+      "sha256": "f0952e8d07025d6b174ce8206a6dcc0207d69bf9b0d5be5934594755e3a16f0a"
+    },
+    {
+      "path": "tests/unit/staff-appointments.test.ts",
+      "status": "M",
+      "sha256": "acd517e2dcc269378cc8bc937d6d9f6b23f244987356408d61d2b89de034473c"
+    },
+    {
+      "path": "tests/unit/staff-pwa.test.ts",
+      "status": "M",
+      "sha256": "1fc919247604dafd2808bdafb0cbd18581fbe4af7459c2d938997f86753fe08a"
+    },
+    {
+      "path": "tests/unit/team-read-permission.test.ts",
+      "status": "A",
+      "sha256": "a628969b45802d3043fe3e3582c318f92a77cc10f225e90bd47c3858062978f2"
+    }
+  ],
+  "sourceLedger": {
+    "path": "docs/hr-payroll-canonical-rc-source-ledger.md",
+    "sha256": "70c6a377bdc38bb9a1a75f3f25bc2dd81319e93c4f1bcd948e5c050be6cc2a33"
+  },
+  "migrations": {
+    "total": 214,
+    "migrationList": [
+      "20260624143000_init_multitenant",
+      "20260624160000_add_crm_customers_vehicles",
+      "20260624160747_align_schema",
+      "20260624170000_add_services_work_orders",
+      "20260624180000_add_pos_payments_invoices",
+      "20260624190000_add_whatsapp_messages",
+      "20260625100000_add_packages",
+      "20260625101000_align_package_schema",
+      "20260625110000_add_whatsapp_queue_status",
+      "20260625120000_add_multi_branch",
+      "20260625121000_align_branch_schema",
+      "20260626042236_add_vehicle_contact_ownership",
+      "20260626122947_add_package_pos_checkout",
+      "20260626123030_finish_package_pos_checkout",
+      "20260626133338_add_payment_void_status",
+      "20260626153700_add_invoice_void_reason",
+      "20260627010000_add_business_logo",
+      "20260627023000_add_staff_permissions",
+      "20260627024500_add_service_category",
+      "20260627031000_add_service_category_management",
+      "20260627033000_add_business_company_no",
+      "20260627034000_add_package_categories",
+      "20260628030000_whatsapp_manual_deep_link",
+      "20260628031000_align_category_defaults",
+      "20260628043000_add_whatsapp_inbox_foundation",
+      "20260628170000_add_whatsapp_conversation_remote_jid",
+      "20260629122956_sync_whatsapp_inbox_state",
+      "20260629161000_add_whatsapp_audio_messages",
+      "20260630020000_add_whatsapp_templates",
+      "20260630093000_add_whatsapp_document_messages",
+      "20260630190318_add_whatsapp_worker_commands",
+      "20260701090000_add_whatsapp_phone_pairing",
+      "20260702161718_add_notification_queue",
+      "20260702162503_add_notification_queue_retry",
+      "20260702163856_add_notification_queue_message_log_id",
+      "20260703104500_add_whatsapp_inbox_reply_message_type",
+      "20260703171315_add_whatsapp_history_sync",
+      "20260703191500_add_whatsapp_delivery_status",
+      "20260704090000_add_whatsapp_history_sync",
+      "20260704091500_restore_notification_queue_provider_message_index",
+      "20260708162604_add_cashier_shifts",
+      "20260708183000_add_notification_queue_document_attachment",
+      "20260709133000_add_whatsapp_image_messages",
+      "20260709151500_add_whatsapp_delivery_read_statuses",
+      "20260709165000_add_user_branch_scope",
+      "20260709182000_add_work_order_picked_up_at",
+      "20260709192000_add_appointments",
+      "20260709205000_add_appointment_assigned_staff",
+      "20260710162000_add_appointment_service_ids",
+      "20260710184500_add_appointment_pickup_contact",
+      "20260711143000_scope_whatsapp_message_ids_by_business",
+      "20260713123000_add_audit_logs",
+      "20260713150000_add_appointment_reminders",
+      "20260713190000_add_payment_refunds",
+      "20260713210000_add_membership_loyalty",
+      "20260713220000_harden_payment_refunds",
+      "20260713230000_add_vehicle_size_rules",
+      "20260713233000_add_package_purchase_invoices",
+      "20260716120000_add_business_industry",
+      "20260716140000_add_salon_service_foundation",
+      "20260716143000_seed_salon_service_categories",
+      "20260716150000_allow_customer_only_appointments",
+      "20260716151136_add_staff_availability",
+      "20260716162000_add_salon_appointment_service_statuses",
+      "20260716173000_add_salon_appointment_checkout",
+      "20260716190000_add_salon_customer_profile_fields",
+      "20260716190000_align_vehicle_size_indexes",
+      "20260716210000_add_appointment_duration",
+      "20260716223000_add_appointment_reminder_settings",
+      "20260717033518_add_staff_login_access",
+      "20260717033950_allow_staff_without_login",
+      "20260717040305_add_cross_industry_employee_foundation",
+      "20260717150000_add_salon_invoice_adjustments",
+      "20260717180000_add_supported_business_industries",
+      "20260718074146_add_credit_notes",
+      "20260718090000_scope_whatsapp_templates_by_industry",
+      "20260718140000_add_business_sst_settings",
+      "20260718170000_add_sst_invoice_snapshots",
+      "20260719120000_add_products_and_inventory",
+      "20260719123000_add_product_category_management",
+      "20260719190000_add_invoice_item_customer_package",
+      "20260720173000_add_loyalty_redemption_and_invoice_discount",
+      "20260720223000_add_appointment_sale_items",
+      "20260721090000_add_multi_service_package_benefits",
+      "20260721153000_add_customer_date_of_birth",
+      "20260721170000_add_user_appointment_bookable",
+      "20260721183000_add_catalog_discounts",
+      "20260721193000_add_fixed_catalog_discounts",
+      "20260722143000_add_staff_roles_and_levels",
+      "20260723120000_add_daily_closing_snapshots",
+      "20260723130000_reconcile_product_uuid_defaults",
+      "20260724100000_add_closing_whatsapp_automation",
+      "20260726190000_add_business_day_cutoff_time",
+      "20260727100000_add_business_groups",
+      "20260727130000_add_business_time_settings",
+      "20260729130000_add_business_group_logo",
+      "20260729143000_enforce_group_membership_history",
+      "20260729170000_create_analytics_daily_summaries",
+      "20260730100000_create_analytics_refresh_checkpoint",
+      "20260730110000_harden_analytics_refresh_worker",
+      "20260730130000_attendance_phase_1a_foundation",
+      "20260730133000_attendance_phase_1a_guard_hardening",
+      "20260730170000_attendance_assignment_history",
+      "20260730183000_attendance_phase_1c_auth_and_idempotency",
+      "20260730193000_attendance_phase_1c_compatibility_hardening",
+      "20260730210000_team_people_unification",
+      "20260731110000_attendance_operations_completion",
+      "20260731111500_attendance_branch_guard_order",
+      "20260731130000_attendance_work_break_pay_foundation",
+      "20260731160000_payroll_foundation",
+      "20260731170000_payroll_trigger_fix",
+      "20260731180000_statutory_contribution_foundation",
+      "20260801090000_payroll_review_status",
+      "20260801090500_payroll_review_release",
+      "20260801130000_statutory_submission_center",
+      "20260801170000_leave_management_foundation",
+      "20260802170000_statutory_export_artifact_foundation",
+      "20260802171000_statutory_artifact_identity_guard",
+      "20260803100000_compensation_version_foundation",
+      "20260803103000_compensation_version_entry_scope",
+      "20260803130000_payroll_profile_canonical_write",
+      "20260803170000_attendance_resolution_foundation",
+      "20260803190000_attendance_resolution_workflow",
+      "20260803193000_attendance_resolution_gap_hardening",
+      "20260803193100_attendance_resolution_gap_guards",
+      "20260803210000_attendance_monthly_timesheet_foundation",
+      "20260803230000_attendance_payroll_timesheet_bridge",
+      "20260804120000_payment_integrity_foundation",
+      "20260808120000_payroll_p4a_recurring_pay_foundation",
+      "20260808150000_payroll_p4b_component_calculation_foundation",
+      "20260808180000_payroll_p4c_variable_pay_correction_foundation",
+      "20260808210000_payroll_p4d_payslip_publication",
+      "20260808225000_attendance_timesheet_approved_status",
+      "20260808230000_attendance_p2_resolution_workflow",
+      "20260808234000_payroll_p5_attendance_integration",
+      "20260809010000_statutory_p2_calculation_foundation",
+      "20260809040000_statutory_p2b_artifact_verification_pipeline",
+      "20260809070000_statutory_p2c_certification_activation",
+      "20260809100000_statutory_component_reconciliation",
+      "20260809130000_lindung24_participation_closure",
+      "20260809160000_pos_financial_idempotency",
+      "20260809190000_login_authentication_security_hardening",
+      "20260809220000_whatsapp_testing_hardening",
+      "20260810010000_leave_management_final_closure",
+      "20260810030000_business_module_feature_entitlement_foundation",
+      "20260810060000_simple_invoice_number",
+      "20260810090000_claims_reimbursements_final_closure",
+      "20260810143000_statutory_human_signoff_activation",
+      "20260810170000_statutory_human_governance_closure",
+      "20260810190000_sensitive_action_step_up_foundation",
+      "20260810220000_true_mfa_totp_foundation",
+      "20260810223000_true_mfa_enrollment_session_lifecycle",
+      "20260810233000_commission_engine_foundation",
+      "20260810234000_commission_tenant_scope_guards",
+      "20260811010000_commission_rate_guard",
+      "20260811013000_commission_void_idempotency",
+      "20260811120000_inventory_phase1_core_stock_foundation",
+      "20260811123000_inventory_movement_lookup_guards",
+      "20260811160000_inventory_phase2_purchasing_foundation",
+      "20260811190000_inventory_phase3_stock_count_reorder",
+      "20260811210000_expense_phase1_business_foundation",
+      "20260811233000_expense_phase2a_claims_payroll_integration",
+      "20260811234000_expense_phase2a_payroll_claim_reconciliation",
+      "20260811235000_expense_phase2a_snapshot_immutability",
+      "20260812010000_roster_shift_scheduling_phase1",
+      "20260812020000_supplier_bill_accounts_payable_phase1",
+      "20260812050000_expense_phase2b_inventory_purchase",
+      "20260812070000_ai_business_analysis_phase1",
+      "20260812100000_ai_usage_quota_commercial_foundation",
+      "20260812150000_commercial_pricing_foundation_phase1",
+      "20260812180000_subscription_billing_payment_foundation_phase1",
+      "20260813120000_staff_app_twilio_verify_sms",
+      "20260813121000_staff_otp_provider_reference_reuse",
+      "20260814070000_expense_document_autofill",
+      "20260814120000_expense_reporting_settlement",
+      "20260814121000_expense_partial_payment_constraint",
+      "20260814122000_expense_partial_payment_summary_constraint",
+      "20260814130000_expense_pos_drawer_payouts",
+      "20260814150000_roster_shift_templates_phase1",
+      "20260815100000_business_payment_methods",
+      "20260815113000_training_complimentary_checkout",
+      "20260815150000_payment_currency_asset",
+      "20260815160000_automatic_product_sku",
+      "20260815170000_roster_employee_default_schedule",
+      "20260817110000_configurable_hr_two_level_approvals",
+      "20260817140000_public_holiday_foundation",
+      "20260817190000_payroll_holiday_pay_policy",
+      "20260817200000_custom_leave_types",
+      "20260817223000_leave_management_phase2a",
+      "20260817233000_leave_management_phase2b",
+      "20260817235900_leave_management_phase2c_sabah_statutory_rule_pack",
+      "20260818143000_leave_management_phase2d_payroll_handoff",
+      "20260818170000_leave_management_phase2e_supporting_documents",
+      "20260818190000_attendance_payroll_context_hardening",
+      "20260818220000_attendance_overtime_approval",
+      "20260818233000_payroll_p6b_cross_midnight_segmentation",
+      "20260819090000_payroll_p6c_sabah_work_pay",
+      "20260819153000_employee_membership_avatar",
+      "20260819190000_employee_commission_override",
+      "20260819220000_employee_item_commission_override",
+      "20260820110000_employee_working_days_override",
+      "20260820111500_employee_working_days_guard",
+      "20260820130000_company_work_pay_rules",
+      "20260821090000_mfa_disabled_authorization",
+      "20260821143000_employee_pcb_profile",
+      "20260821153000_statutory_additional_remuneration_review_decision",
+      "20260821170000_pcb_cp38_engineering_closure",
+      "20260824190000_staff_app_sms123_otp",
+      "20260826173000_non_production_statutory_fixture_evidence_facility",
+      "20260827153000_pcb_2026_p1_correctness_foundation",
+      "20260827170000_effective_dated_statutory_participation",
+      "20260829110000_canonical_staff_app_appearance",
+      "20260902120000_staff_otp_forward_hardening",
+      "20260915090000_people_workbench_account_classification"
+    ],
+    "orderedNamesSha256": "b27ce4a4a41c7d7fd66f4c8439d2f6a7de4647cef595abbb3e7e15fff918d32f",
+    "addedInRc": [
+      {
+        "name": "20260915090000_people_workbench_account_classification",
+        "sha256": "15f6e9943b068ab2e8ff71a7231f2f0786ff0957aa2a3a1463e85c808caf134f",
+        "type": "additive"
+      }
+    ],
+    "migrationHead": "20260915090000_people_workbench_account_classification",
+    "freshDisposableResult": "PASS: 214/214 migrations applied from empty PostgreSQL 18.4 database",
+    "representativeForwardMigrationResult": "NOT_RUN_BLOCKER"
+  },
+  "schemaHash": {
+    "path": "prisma/schema.prisma",
+    "sha256": "074c1e37716709516900e82cd3cf5dfcd190ce93d220136f076084eb00a691db"
+  },
+  "lockfileHash": {
+    "package-lock.json": "a331748c12e0a2fc901fd73164fb3333ee55f389cffb9e4100149e6f7378a528",
+    "pnpm-lock.yaml": "3cd5d04bcdb43822588a8f4f8279c9dce1bad4c645d9f24b105ded5b3ba42cd9",
+    "unchangedFromCleanRoot": true
+  },
+  "toolchain": {
+    "node": "v22.23.2",
+    "npm": "11.12.1",
+    "prisma": "6.19.3",
+    "prismaClient": "6.19.3",
+    "typescript": "5.9.3",
+    "next": "16.3.0",
+    "postgresDisposable": "18.4"
+  },
+  "testCommands": [
+    {
+      "command": "node --test --import tsx <11 selected HR/Payroll and Staff unit files>",
+      "result": "PASS",
+      "summary": "93 passed, 0 failed, 0 skipped, 0 todo"
+    },
+    {
+      "command": "node --test --import tsx tests/unit/business-rules.test.ts tests/unit/payroll-runs-foundation.test.ts tests/unit/people-hr-entitlement-ux.test.ts",
+      "result": "PASS",
+      "summary": "52 passed, 0 failed, 0 skipped, 0 todo"
+    },
+    {
+      "command": "npm test",
+      "result": "PASS",
+      "summary": "1647 passed, 0 failed, 0 skipped, 0 todo"
+    },
+    {
+      "command": "npm run test:integration:disposable",
+      "result": "PASS",
+      "summary": "205 main integration tests plus 1 isolated attendance route test passed; disposable database removed"
+    },
+    {
+      "command": "npm run prisma:migrate:fresh-check",
+      "result": "PASS",
+      "summary": "214 migrations applied successfully to a new disposable database"
+    },
+    {
+      "command": "DATABASE_URL=<placeholder-local-url> npx prisma validate",
+      "result": "PASS",
+      "summary": "Schema valid; no external database access"
+    },
+    {
+      "command": "npx prisma generate",
+      "result": "PASS",
+      "summary": "Prisma Client 6.19.3 generated"
+    },
+    {
+      "command": "npm exec -- tsc --noEmit --pretty false",
+      "result": "PASS",
+      "summary": "0 TypeScript errors"
+    },
+    {
+      "command": "npm run lint",
+      "result": "PASS_WITH_BASELINE_WARNINGS",
+      "summary": "0 errors, 13 warnings; warning count matches clean-root baseline"
+    },
+    {
+      "command": "PORT=3199 npm run build",
+      "result": "PASS_WITH_BASELINE_WARNINGS",
+      "summary": "Production build passed; 146/146 static pages generated; existing Next middleware deprecation warning remains"
+    }
+  ],
+  "testResultSummary": {
+    "cleanRootBaseline": "PASS with 7 npm audit findings (6 high, 1 critical) and 13 lint warnings retained",
+    "selectedFocused": {
+      "passed": 93,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "compatibilityRegression": {
+      "passed": 52,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "fullUnit": {
+      "passed": 1647,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "disposableIntegration": {
+      "passed": 206,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "fullVerification": "PARTIAL: automated code, schema, migration-from-empty, regression and build gates pass; forward migration and manual UI smoke/responsive gates are incomplete"
+  },
+  "buildResult": {
+    "status": "PASS_WITH_BASELINE_WARNINGS",
+    "staticPages": "146/146",
+    "warnings": [
+      "Prisma package.json configuration deprecation",
+      "Next middleware file-convention deprecation"
+    ]
+  },
+  "restrictedFeatureFlags": {
+    "bankPaymentExecutionEnabled": false,
+    "governmentSubmissionEnabled": false,
+    "pcbProductionEnabled": false,
+    "officialExportEligible": false,
+    "productionEligible": false,
+    "hasilApproval": "PENDING",
+    "publicBankState": "PUBLIC_BANK_SPEC_NOT_READY",
+    "statutoryState": "READINESS_IS_NOT_SUBMISSION"
+  },
+  "excludedScope": [
+    "bank/payment execution pages and adapters",
+    "government/statutory export and submission orchestration",
+    "PCB V4 and certification changes",
+    "five unapproved PCB/statutory migrations dated 20260907-20260912",
+    "Testing-only payroll readiness runtime wrapper",
+    "deployment scripts, Railway changes and production endpoints",
+    "generated/build artifacts, deployment package and bulk overlay",
+    "unselected source-ledger candidates and all unreviewed YES/REVIEW rows"
+  ],
+  "incompleteRequiredGates": [
+    "representative forward migration from a representative existing schema state",
+    "browser-based Desktop smoke",
+    "browser-based Staff App smoke",
+    "manual responsive checks at 1440/834/390/360",
+    "full integrated Leave workflow replay and evidence-freeze validation",
+    "full exception/correction read aggregation, guarded actions and Desktop UI replay",
+    "complete Payroll workspace and Staff HR/Payroll surface reconciliation from the approved candidate set"
+  ],
+  "sourceEvidenceReferences": [
+    "TETAMU_DESKTOP_TESTING_BASELINE_RECOVERY_REPORT.md",
+    "HR_PAYROLL_RC_RECONCILIATION_REPORT.md",
+    "file-classification.csv",
+    "HR_PAYROLL_RC_FREEZE_20260915.zip",
+    "docs/hr-payroll-canonical-rc-source-ledger.md",
+    "docs/superpowers/plans/2026-09-16-hr-payroll-canonical-rc-rebuild.md",
+    "immutable Git commit 5f9b5b5f350d6ee3670f4d989b203776e6527544"
+  ],
+  "knownBaselineWarnings": [
+    "npm audit: 7 findings (6 high, 1 critical); no automated dependency changes made",
+    "ESLint: 13 pre-existing warnings and 0 errors",
+    "Prisma package.json configuration is deprecated",
+    "Next middleware file convention is deprecated"
+  ],
+  "environmentMutationStatement": "No Railway, Desktop Testing, Staff Testing or Production deployment, variables, services, domains, data or endpoints were changed. No push, merge or pull request was performed. No real bank payment, government submission or PCB Production operation was executed.",
+  "reviewerStatus": "PENDING",
+  "humanUatStatus": "PENDING",
+  "deploymentStatus": "NOT_DEPLOYED",
+  "productionEligible": false
+}
