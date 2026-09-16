@@ -455,6 +455,7 @@ export async function getEmployeeLeaveOverview(auth: EmployeeAuthContext) {
         entitlementDays: entitlementByPolicy.get(policy.id) ?? projected,
         usedDays: usedByPolicy.get(policy.id) ?? 0,
         pendingDays: pendingByPolicy.get(policy.id) ?? 0,
+        balanceRecorded: balanceByPolicy.has(policy.id),
         remainingDays: version.balanceTracked ? balance : null,
         currentEntitlementDays: policyBuckets
           .filter((bucket) => bucket.sourceType === "CURRENT_ENTITLEMENT")
@@ -870,6 +871,7 @@ export async function getManagerLeaveDashboard(input: { businessId: string; allo
     })
     : [];
   const balanceMap = new Map(ledger.map((row) => [`${row.membershipId}:${row.policyId}`, Number(row._sum.units ?? 0)]));
+  const recordedBalanceKeys = new Set(balanceMap.keys());
   for (const employee of employees) {
     for (const policy of policies) {
       const version = policy.versions[0];
@@ -962,6 +964,7 @@ export async function getManagerLeaveDashboard(input: { businessId: string; allo
       reviewNote: request.reviewNote,
       cancellationReason: request.cancellationReason,
       reviewedBy: request.reviewedBy?.name ?? null,
+      balanceRecorded: recordedBalanceKeys.has(`${request.membershipId}:${request.policyId}`),
       currentBalance: request.balanceTrackedSnapshot ? balanceMap.get(`${request.membershipId}:${request.policyId}`) ?? 0 : null,
       resultingBalance: request.balanceTrackedSnapshot
         ? request.status === "PENDING"

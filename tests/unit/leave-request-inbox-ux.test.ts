@@ -21,7 +21,8 @@ test("leave requests are separated into compact pending, approved and closed vie
   assert.match(page, /request\?: string/);
   assert.match(page, /id=\{`leave-request-\$\{request\.id\}`\}/);
   assert.match(page, /<details className=\{styles\.requestDetails\} open=\{params\.request === request\.id\}>/);
-  assert.match(page, /Balance \{formatBalance\(request\.currentBalance\)\} → \{formatBalance\(request\.resultingBalance\)\}/);
+  assert.match(page, /request\.balanceRecorded/);
+  assert.match(page, /Balance not yet recorded/);
 
   assert.match(styles, /\.requestQueues\s*\{/);
   assert.match(styles, /\.requestDetails\s*\{/);

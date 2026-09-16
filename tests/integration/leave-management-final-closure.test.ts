@@ -5,6 +5,8 @@ import type { AppSession } from "../../src/lib/auth/session";
 import type { EmployeeAuthContext } from "../../src/lib/attendance/employee-auth";
 import {
   cancelApprovedLeaveRequest,
+  getEmployeeLeaveOverview,
+  getManagerLeaveDashboard,
   processDueCarryForwardExpiries,
   processLeavePeriodRollover,
   reviewLeaveRequest,
@@ -76,6 +78,43 @@ test("Leave approval consumes the frozen balance and cancellation restores it ex
     prisma.leaveBalanceLedgerEntry.deleteMany({ where: { leaveRequestId: submitted.id } }),
     /immutable|cannot be deleted/i,
   );
+});
+
+test("Leave views distinguish a projected entitlement from a recorded balance", async () => {
+  const fixture = await createFixture(8);
+
+  const employeeOverview = await getEmployeeLeaveOverview(fixture.auth);
+  const employeePolicy = employeeOverview.policies.find((policy) => policy.id === fixture.policy.id);
+  assert.ok(employeePolicy);
+  assert.equal(employeePolicy.balanceRecorded, false);
+  assert.equal(employeePolicy.remainingDays, 0);
+
+  const request = await prisma.leaveRequest.create({
+    data: {
+      businessId: fixture.business.id,
+      membershipId: fixture.membership.id,
+      branchId: fixture.branch.id,
+      policyId: fixture.policy.id,
+      policyVersionId: fixture.version.id,
+      policyNameSnapshot: fixture.version.nameSnapshot,
+      payTreatmentSnapshot: fixture.version.payTreatment,
+      balanceTrackedSnapshot: true,
+      legalStatusSnapshot: fixture.version.legalStatus,
+      startsOn: new Date("2026-09-07T00:00:00.000Z"),
+      endsOn: new Date("2026-09-07T00:00:00.000Z"),
+      requestedDays: 1,
+      reason: "Unrecorded balance presentation coverage",
+    },
+  });
+  const managerDashboard = await getManagerLeaveDashboard({
+    businessId: fixture.business.id,
+    allowedBranchIds: [fixture.branch.id],
+    year: 2026,
+  });
+  const managerRequest = managerDashboard.requests.find((item) => item.id === request.id);
+  assert.ok(managerRequest);
+  assert.equal(managerRequest.balanceRecorded, false);
+  assert.equal(managerRequest.currentBalance, 8);
 });
 
 test("concurrent Leave approvals cannot overspend one entitlement", async () => {

@@ -63,6 +63,21 @@ test("Leave balance format and safe presentation ordering are deterministic", ()
   assert.doesNotMatch(leave, /bucket ID|ledger event|rule-pack|policyRevision|readinessCode \?/);
 });
 
+test("Leave balance presentation never invents a zero when no balance was recorded", async () => {
+  const leaveModule = await import("../../src/lib/staff-pwa/leave-v2");
+  const present = Reflect.get(leaveModule, "leaveBalancePresentation");
+  assert.equal(typeof present, "function");
+  if (typeof present !== "function") return;
+  assert.deepEqual(present({ balanceRecorded: false, remainingDays: 0 }), {
+    compact: "Balance not yet recorded",
+    detail: "Not yet recorded",
+  });
+  assert.deepEqual(present({ balanceRecorded: true, remainingDays: 0 }), {
+    compact: "0 days available",
+    detail: "0 days",
+  });
+});
+
 test("Leave decision status maps to one employee-facing primary state", () => {
   assert.deepEqual(leaveDecisionPresentation("PENDING"), { label: "Waiting for manager", tone: "warning" });
   assert.deepEqual(leaveDecisionPresentation("APPROVED"), { label: "Approved", tone: "success" });

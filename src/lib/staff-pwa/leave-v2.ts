@@ -60,6 +60,14 @@ export function formatLeaveUnits(value: number, unit = "day") {
   return `${amount} ${value === 1 || value === 0.5 ? unit : `${unit}s`}`;
 }
 
+export function leaveBalancePresentation(policy: { balanceRecorded: boolean; remainingDays: number | null }) {
+  if (!policy.balanceRecorded) {
+    return { compact: "Balance not yet recorded", detail: "Not yet recorded" };
+  }
+  const formatted = formatLeaveUnits(policy.remainingDays ?? 0);
+  return { compact: `${formatted} available`, detail: formatted };
+}
+
 export function formatLeaveDate(value: string, includeYear = false) {
   return new Intl.DateTimeFormat("en-MY", {
     day: "numeric",

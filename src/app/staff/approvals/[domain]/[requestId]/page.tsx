@@ -42,8 +42,16 @@ export default async function StaffApprovalDetailPage({ params }: { params: Prom
           </StaffV2DetailSection>
           <StaffV2DetailSection title="Balance">
             <dl className={styles.detailFacts}>
-              <Fact label="Current" value={request.currentBalance == null ? "Not tracked" : `${request.currentBalance} days`} />
-              <Fact label="After approval" value={request.resultingBalance == null ? "Not tracked" : `${request.resultingBalance} days`} />
+              {request.currentBalance == null ? (
+                <Fact label="Balance" value="Not tracked" />
+              ) : request.balanceRecorded ? (
+                <>
+                  <Fact label="Current" value={`${request.currentBalance} days`} />
+                  <Fact label="After approval" value={`${request.resultingBalance} days`} />
+                </>
+              ) : (
+                <Fact label="Balance" value="Not yet recorded" />
+              )}
             </dl>
           </StaffV2DetailSection>
           {request.supportingEvidenceRequired ? (

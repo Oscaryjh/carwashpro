@@ -301,7 +301,11 @@ export default async function LeavePage({ searchParams }: Props) {
                   </p>
                   <div className={styles.requestFacts}>
                     <span>{payTreatmentLabel(request.payTreatment)}</span>
-                    <span>Balance {formatBalance(request.currentBalance)} → {formatBalance(request.resultingBalance)}</span>
+                    <span>{request.currentBalance == null
+                      ? "Balance not tracked"
+                      : request.balanceRecorded
+                        ? `Balance ${formatBalance(request.currentBalance)} → ${formatBalance(request.resultingBalance)}`
+                        : "Balance not yet recorded"}</span>
                     {request.supportingEvidenceRequired ? <span>Evidence required</span> : null}
                     {request.supportingDocuments.length > 0 ? <span>{request.supportingDocuments.length} {request.supportingDocuments.length === 1 ? "document" : "documents"}</span> : null}
                   </div>

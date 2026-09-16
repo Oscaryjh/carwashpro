@@ -8,6 +8,7 @@ import {
   formatLeaveDate,
   formatLeaveDateRange,
   formatLeaveUnits,
+  leaveBalancePresentation,
   leaveDecisionPresentation,
   leaveEvidencePresentation,
   leaveRowStatus,
@@ -71,6 +72,7 @@ type LeavePolicy = {
   entitlementDays: number;
   usedDays: number;
   pendingDays: number;
+  balanceRecorded: boolean;
   remainingDays: number | null;
   currentEntitlementDays: number;
   carryForwardDays: number;
@@ -456,19 +458,21 @@ function Feedback({ message, error, retry }: { message: string | null; error: st
 }
 
 function BalanceRow({ policy }: { policy: LeavePolicy }) {
+  const balance = leaveBalancePresentation(policy);
   return (
     <div className={styles.balanceRow} role="listitem">
       <span><strong>{friendlyPolicyName(policy.name)}</strong><small>{policy.payTreatment === "PAID" ? "Paid" : "Unpaid"}</small></span>
-      <b>{formatLeaveUnits(policy.remainingDays ?? 0)} available</b>
+      <b>{balance.compact}</b>
     </div>
   );
 }
 
 function BalanceDetail({ policy, year }: { policy: LeavePolicy; year: number }) {
+  const balance = leaveBalancePresentation(policy);
   return (
     <StaffV2DetailSection title={friendlyPolicyName(policy.name)}>
       <dl className={styles.detailFacts}>
-        <Fact label="Available" value={formatLeaveUnits(policy.remainingDays ?? 0)} />
+        <Fact label="Available" value={balance.detail} />
         <Fact label={`${year} entitlement`} value={formatLeaveUnits(policy.currentEntitlementDays)} />
         {policy.carryForwardDays > 0 ? <Fact label="Carry forward" value={formatLeaveUnits(policy.carryForwardDays)} /> : null}
         <Fact label="Used" value={formatLeaveUnits(policy.usedDays)} />
