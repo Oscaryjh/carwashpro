@@ -1,16 +1,44 @@
 {
-  "releaseName": "TETAMU HR/Payroll Canonical RC 2026-09-16",
-  "createdAt": "2026-09-16T10:53:07Z",
+  "schemaVersion": 2,
+  "releaseName": "TETAMU HR/Payroll Canonical RC Completion Phase 2",
+  "generatedAt": "2026-09-16T14:06:44.289Z",
   "verdict": "PARTIAL_RC_BLOCKED",
+  "verdictReason": "Desktop/Staff browser smoke and 1440/834/390/360 responsive verification could not run because the Mac remained locked; HTTP SSR evidence is not treated as browser UAT.",
   "cleanRootSha": "71f4786c828239d4270d93afa9253e8400a8b6ad",
   "branch": "codex/hr-payroll-canonical-rc-20260916",
-  "finalRcSha": "5d0e24b48f5356d7ad2ce09e92b9e779ad61f15b",
-  "finalRcTree": "43bde296c6318452a67a81d450e27ca61ffedc3c",
-  "gitStatusClean": true,
+  "preservedPhase1SourceCommitCount": 13,
+  "preservedPhase1Head": "5d0e24b48f5356d7ad2ce09e92b9e779ad61f15b",
+  "finalRcSha": "58890fda9141a9d0569b796e981eae9056a8ee54",
+  "finalRcTree": "30c847713abe1ea6b57f366997d357c229203f42",
   "canonicalSourceDigest": {
-    "algorithm": "SHA-256 of deterministic `git archive --format=tar <finalRcSha>`; release manifest and report are excluded because finalRcSha is the audited source commit immediately before the evidence-only commit.",
-    "value": "6f9b5ee1e8b182b28c721d240b2f76125f39777deb0f28e9deac17cb494c6164"
+    "algorithm": "SHA-256 of deterministic git archive --format=tar of finalRcSha; evidence-only documents and this V2 manifest are outside the source digest to avoid self-reference.",
+    "value": "e965a879165c073032229473e1e18ca6d5d203c8714631e350668d8ead3b40de"
   },
+  "orderedCommitShas": [
+    "c872e913e67dbbfd37f7d66c04598d540d1ad0d0",
+    "5c00e8329326db42d11baf848936f8b12ee90510",
+    "553156352a3c6b5d47eddb776d9da82f3236b65b",
+    "5b36c0763681ef2cd12c8cfaf227a159693fbff1",
+    "9adb0f87ad7e8f1f0ab3cc2f7a2fc2a1bf9646c4",
+    "4d7e7e4c1587c6514fba26c2c87350550f7a5611",
+    "08b10f5849d27561054efb66d46ad8c2a2e8d424",
+    "0c1390510230c2741c787b411e3a9382beb22f5d",
+    "aa86e91a1438d94d5ed1cc75ba8c5b0d3a7da4a3",
+    "954e1b32efc2417b55d571b074a142c1a7f49803",
+    "0306a9c9f815fd45884d49bbf3c8fc1ae3eb9f5f",
+    "bb93609848205dae3e34d1a3d4801d05ceb13cf0",
+    "5d0e24b48f5356d7ad2ce09e92b9e779ad61f15b",
+    "cc255eee26f4809cd38e623b06b871021f4892df",
+    "3b8b3d49d405e6779424252acb82f82be14d3921",
+    "5f20ecfe9a2b7dfd1bf31f52bf87341526a443ac",
+    "2f7e782234f6359fba010777ec92bebae2fc1e57",
+    "9a7aad32ee8b29e22ae1f6e6979f57f0f6ee4d4b",
+    "2c4f96af92ca448465d4c5d899f52aa2879cdb4b",
+    "f3b8210ea7189c8a2745e82ece979deb5daa72cd",
+    "c9a033bb8ca3cb214adcc38f0153e514e2b2a190",
+    "d5bd0cd3b7a35bacbf69715d035d455940415640",
+    "58890fda9141a9d0569b796e981eae9056a8ee54"
+  ],
   "orderedCommits": [
     {
       "sha": "c872e913e67dbbfd37f7d66c04598d540d1ad0d0",
@@ -63,6 +91,46 @@
     {
       "sha": "5d0e24b48f5356d7ad2ce09e92b9e779ad61f15b",
       "subject": "fix(hr): preserve payroll route and entitlement contracts"
+    },
+    {
+      "sha": "cc255eee26f4809cd38e623b06b871021f4892df",
+      "subject": "docs(release): record canonical HR payroll RC evidence"
+    },
+    {
+      "sha": "3b8b3d49d405e6779424252acb82f82be14d3921",
+      "subject": "docs(plan): define HR payroll RC completion phase 2"
+    },
+    {
+      "sha": "5f20ecfe9a2b7dfd1bf31f52bf87341526a443ac",
+      "subject": "test(hr): verify people classification forward migration"
+    },
+    {
+      "sha": "2f7e782234f6359fba010777ec92bebae2fc1e57",
+      "subject": "fix(leave): distinguish projected and recorded balances"
+    },
+    {
+      "sha": "9a7aad32ee8b29e22ae1f6e6979f57f0f6ee4d4b",
+      "subject": "feat(attendance): restore exception and correction lifecycle"
+    },
+    {
+      "sha": "2c4f96af92ca448465d4c5d899f52aa2879cdb4b",
+      "subject": "feat(staff): complete eight-role self-service UAT fixture"
+    },
+    {
+      "sha": "f3b8210ea7189c8a2745e82ece979deb5daa72cd",
+      "subject": "test(security): cover safe AVIF image paths"
+    },
+    {
+      "sha": "c9a033bb8ca3cb214adcc38f0153e514e2b2a190",
+      "subject": "fix(security): upgrade Next and Sharp runtimes"
+    },
+    {
+      "sha": "d5bd0cd3b7a35bacbf69715d035d455940415640",
+      "subject": "fix(uat): reuse active staff device in eight-role fixture"
+    },
+    {
+      "sha": "58890fda9141a9d0569b796e981eae9056a8ee54",
+      "subject": "fix(auth): preserve scoped group manager workspace access"
     }
   ],
   "includedFileHashes": [
@@ -72,14 +140,34 @@
       "sha256": "c0b6a8d1ca444887dc35219d511ebed2b123a3beb54f216bf574a01365e6f109"
     },
     {
+      "path": "TETAMU_HR_PAYROLL_CANONICAL_RC_REBUILD_REPORT.md",
+      "status": "A",
+      "sha256": "7c7ad1709f798756fd5c699e80e02a687a0d81988c830db25a09ad6e9552e74f"
+    },
+    {
       "path": "docs/hr-payroll-canonical-rc-source-ledger.md",
       "status": "A",
-      "sha256": "70c6a377bdc38bb9a1a75f3f25bc2dd81319e93c4f1bcd948e5c050be6cc2a33"
+      "sha256": "ba3e6226857e5b09ed4fbf9941c37e723827e0034b0a24624774a06ee5a227a0"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-16-hr-payroll-canonical-rc-completion-phase2.md",
+      "status": "A",
+      "sha256": "c869cacef4d837ecd2005f23abb24b93e07b260345ebe7a257b5c0447c78ca93"
     },
     {
       "path": "docs/superpowers/plans/2026-09-16-hr-payroll-canonical-rc-rebuild.md",
       "status": "A",
       "sha256": "abfcfee337d6a82a9ebc3948ccc52ebfed7c5ffbc2cc381f801b9a7d208b76e8"
+    },
+    {
+      "path": "package-lock.json",
+      "status": "M",
+      "sha256": "8d0b25355df6f2c7781c433d04351cf76926304b4532527fc59d854182721401"
+    },
+    {
+      "path": "package.json",
+      "status": "M",
+      "sha256": "cba86f9f67a2dfb8f7df495dfb2518ba8d9edb98ded42eb32d2b5393fce9278d"
     },
     {
       "path": "prisma/migrations/20260915090000_people_workbench_account_classification/migration.sql",
@@ -92,9 +180,59 @@
       "sha256": "074c1e37716709516900e82cd3cf5dfcd190ce93d220136f076084eb00a691db"
     },
     {
+      "path": "release-manifests/hr-payroll-canonical-rc-20260916.json",
+      "status": "A",
+      "sha256": "851ba966ef3af47fd53751eb71b12fd9d72e120fde9579161fa1762c7c124896"
+    },
+    {
+      "path": "scripts/hr-payroll-eight-role-uat-contract.ts",
+      "status": "A",
+      "sha256": "5a5ca7b78d7679a9b17dee08c3b4af62940b360dd8e0215f126d2eccb7a98e99"
+    },
+    {
+      "path": "scripts/prepare-hr-payroll-eight-role-uat.ts",
+      "status": "A",
+      "sha256": "d49f20f96dc93b22a52a6578c6ae2c30e59da31bb51f7824e7f6619772b12f5a"
+    },
+    {
+      "path": "scripts/run-integration-disposable.mjs",
+      "status": "M",
+      "sha256": "b8e08f7a743dd3d18ee1296dd84fdb8d59cf58c91e6f1c72263167a7c963ddf6"
+    },
+    {
+      "path": "src/app/(business)/team/layout.tsx",
+      "status": "M",
+      "sha256": "07efee3060cd0cb48508b4b914f978220b6e2ef01c7c6d9cfcebd7645ff578f3"
+    },
+    {
+      "path": "src/app/(business)/team/leave/page.tsx",
+      "status": "M",
+      "sha256": "fb4499222f42e7bf6cacc8d1881734f4518566dd5d5b4da6df3bacd85b671eb8"
+    },
+    {
       "path": "src/app/(business)/team/page.tsx",
       "status": "M",
       "sha256": "4ff00b39f98e7425d2acd3f925cfd3762547f14e67a5d9e8ca9857b8c842e364"
+    },
+    {
+      "path": "src/app/(business)/team/payroll/exceptions/[membershipId]/page.tsx",
+      "status": "A",
+      "sha256": "8c715374088452ee23f8a90f3aace270e57fb03561c5cc1f9f08e77763ef47a2"
+    },
+    {
+      "path": "src/app/(business)/team/payroll/exceptions/page.tsx",
+      "status": "A",
+      "sha256": "c64581c94f22ee23698d335d3ca8b70404a95d50c2f81a7d02f1ae8cff371480"
+    },
+    {
+      "path": "src/app/(business)/team/payroll/exceptions/payroll-exceptions.module.css",
+      "status": "A",
+      "sha256": "9280ac77dc215fa17d02ec9fc5aa7ce7eee9a0105537bdaa5b9b400271a0f45b"
+    },
+    {
+      "path": "src/app/api/employee-auth/avatar/route.ts",
+      "status": "M",
+      "sha256": "5ba890f0378406a60304877107f78673985b0831d352e5dedf621b18450c044c"
     },
     {
       "path": "src/app/api/employee-auth/me/route.ts",
@@ -102,9 +240,19 @@
       "sha256": "0f71ce93130e6a3cb3ce53b5eb3678b6f0c5ded5152a7dd29dfb3776fcaf7ba4"
     },
     {
+      "path": "src/app/staff/approvals/[domain]/[requestId]/page.tsx",
+      "status": "M",
+      "sha256": "7256d3da2a6eb4dd277772e5e2659c9502ee2780aabbc518689f651a8bd2ed05"
+    },
+    {
       "path": "src/app/staff/staff-consolidation.css",
       "status": "M",
       "sha256": "f387cb2e518b91502766a4d97a368f99a54033c46e0c004d40129eb6d3ff5839"
+    },
+    {
+      "path": "src/components/payroll-workspace-nav.tsx",
+      "status": "M",
+      "sha256": "d7a143899ca9c309bfe2e17abca0a7807f16260e4ba28a722e3ed828f5fa50d9"
     },
     {
       "path": "src/components/people-directory.module.css",
@@ -120,6 +268,16 @@
       "path": "src/components/staff-create-modal.tsx",
       "status": "M",
       "sha256": "5e159077ea426fa663938486095e10c9b68a84801a3d4e2b88f0a66479ea54eb"
+    },
+    {
+      "path": "src/components/staff-pwa/staff-attendance-corrections-v2.tsx",
+      "status": "M",
+      "sha256": "f42f76d84b69c6b4324639dbdcf1027cd0c65bbae7f2344d86b9d253ef8403e4"
+    },
+    {
+      "path": "src/components/staff-pwa/staff-leave.tsx",
+      "status": "M",
+      "sha256": "ff5ba84cedd8d0cbb89cbb0c72737a55841b9317493d2a1da64f6c1a9f78c980"
     },
     {
       "path": "src/components/staff-pwa/staff-pwa-chrome.tsx",
@@ -147,9 +305,19 @@
       "sha256": "cbd7c50d822f33ab46c8f3f8c4a4b244070d9ef6afd17361bd1e166dab064355"
     },
     {
+      "path": "src/lib/auth/business-user.ts",
+      "status": "M",
+      "sha256": "ff40706528bff1c08603ceff2b0f3839e6f3beeb3f8615befd5101797ec868a9"
+    },
+    {
       "path": "src/lib/auth/staff-permissions.ts",
       "status": "M",
       "sha256": "22d634a70521811eb587b30a70ae7710dd9b39f3da62167dcd2bb9b9d71d511f"
+    },
+    {
+      "path": "src/lib/business-groups/business-access.ts",
+      "status": "M",
+      "sha256": "5d8855d1d599045d4d1c6d82f0ffb6d52ddc8fe3667ccabf9c8f8d3914c8215c"
     },
     {
       "path": "src/lib/business-groups/capabilities.ts",
@@ -157,9 +325,19 @@
       "sha256": "0d37da2bd9aec03031214da8f95e2aa42c60492e38c68be27f0c4eae585782d3"
     },
     {
+      "path": "src/lib/employee-avatar-image.ts",
+      "status": "A",
+      "sha256": "8aec4c7a970709cd353ed8d6a7e57a2984f8739dfa8d4785c421d52abf218d6e"
+    },
+    {
       "path": "src/lib/hr-calendar-month.ts",
       "status": "A",
       "sha256": "48a7ab394724d0ce98033faa90a9f542c22cf95b4354adc14cf4765a1fb3b94e"
+    },
+    {
+      "path": "src/lib/leave/service.ts",
+      "status": "M",
+      "sha256": "85cab4c57893eecf428035521c924b993840057ec98cd7418a35cf0da7c1c3ee"
     },
     {
       "path": "src/lib/payroll/company-work-pay.ts",
@@ -177,9 +355,14 @@
       "sha256": "443c2b8ec88b52167ac40e7a96eef45cc2db70f97499ccc0a3d6d1ffeac93486"
     },
     {
+      "path": "src/lib/payroll/exception-center-read.ts",
+      "status": "A",
+      "sha256": "5112ac81bd1304baee0d01a9c1ce83101f4ada2814799209245ceea1a7f71d8a"
+    },
+    {
       "path": "src/lib/payroll/exception-center-types.ts",
       "status": "A",
-      "sha256": "3946d855a425eda65a310325df397415aa5c4b998e02e2c221510c3270ce5ab7"
+      "sha256": "5a165bcb769c273a40497b1d0ae72923614c10621da231d46af5f006c214f800"
     },
     {
       "path": "src/lib/payroll/leave-conflict-read.ts",
@@ -192,6 +375,16 @@
       "sha256": "7c52af6e820c17a6195a2bb33775b7ec47a5a1aa983b6085c4d797803e2dd02c"
     },
     {
+      "path": "src/lib/staff-pwa/attendance-corrections-v2.ts",
+      "status": "M",
+      "sha256": "166030b7648c027215244620beb60877c494ff389f1bdeb3b701e0eb42756a65"
+    },
+    {
+      "path": "src/lib/staff-pwa/leave-v2.ts",
+      "status": "M",
+      "sha256": "d397617522f416c72b89041e32e3881d375ba8db7ff9552ba7e0f7e128967a52"
+    },
+    {
       "path": "src/lib/team/people-directory-read.ts",
       "status": "A",
       "sha256": "342901ac5968273d88213550942d09bf372b3f5f367ab1c4451aba62a4ce0646"
@@ -200,6 +393,11 @@
       "path": "src/lib/team/people-presentation.ts",
       "status": "A",
       "sha256": "0f262d797f7f1974b284ac302b2d4b9a7fb91bf445d71fd821d5a73b271bdebd"
+    },
+    {
+      "path": "src/lib/tenant.ts",
+      "status": "M",
+      "sha256": "d5f733ed5f44d4758be51a806458e3fdd0c2e5c0d88adc92baf0c033c27a6095"
     },
     {
       "path": "tests/helpers/people-directory-render.ts",
@@ -212,6 +410,26 @@
       "sha256": "e8fcedcf58e79f0c2e55a2ca7f5a0426deee048521acee0de19e946d3a50bbf2"
     },
     {
+      "path": "tests/integration/business-context-access.test.ts",
+      "status": "M",
+      "sha256": "8f955e63162f0d7b72e3bbcf21bcc3cdff77aa0ba070917a9e41728e1a01680a"
+    },
+    {
+      "path": "tests/integration/leave-management-final-closure.test.ts",
+      "status": "M",
+      "sha256": "0d4f1e5787e8aecd0fd0f1823cf165c687622f64f85493b487589c33264a2c11"
+    },
+    {
+      "path": "tests/integration/payroll-exception-center.test.ts",
+      "status": "A",
+      "sha256": "66af4ca5a07528b16679ed85c6a791270abdf1981aa9699f1a7d4df13529ff5c"
+    },
+    {
+      "path": "tests/integration/people-account-classification-forward-migration.test.ts",
+      "status": "A",
+      "sha256": "0ede3157a429d4ab585bda51cd0c553dc3b91163e6fc028220e333b2b550ac47"
+    },
+    {
       "path": "tests/unit/attendance-effective-session.test.ts",
       "status": "A",
       "sha256": "f066abd1726aac656fe72ee65a08b3d89a40cf8e033887dcdedc857bab9a16d0"
@@ -222,6 +440,21 @@
       "sha256": "f42eb2d0a5ad9a8f4feb12cc567d6159b0aa57818ecb5cdad9cd27d8ddc0395a"
     },
     {
+      "path": "tests/unit/employee-avatar-avif-security.test.ts",
+      "status": "A",
+      "sha256": "4667fcc5d3dc21526cc9ef03908d05bbb792cbc081126218bcf4ead8b40c6cde"
+    },
+    {
+      "path": "tests/unit/hr-payroll-eight-role-uat.test.ts",
+      "status": "A",
+      "sha256": "2ec27f824286373852f95b97db4faadc057858b249b50f4b4f5071be80816431"
+    },
+    {
+      "path": "tests/unit/leave-request-inbox-ux.test.ts",
+      "status": "M",
+      "sha256": "3a8aa1f6aa4405ecb5a6a93f15ad293e614200955045d7755e1e9b9e270fea15"
+    },
+    {
       "path": "tests/unit/payroll-company-work-pay.test.ts",
       "status": "M",
       "sha256": "8778f1a08a51885263dc927bad61c09b154a3475bbcaaf51552be1be7e24fddd"
@@ -229,7 +462,7 @@
     {
       "path": "tests/unit/payroll-exception-center-rc.test.ts",
       "status": "A",
-      "sha256": "850b089aaa8823562e057822e217cff45e44377e6d122ae1d4e33913ac927239"
+      "sha256": "071a63586420ec45cd75f45e357784a7364fc0de05b29110ce0b092e69fbd58a"
     },
     {
       "path": "tests/unit/payroll-leave-conflict-resolver.test.ts",
@@ -240,6 +473,11 @@
       "path": "tests/unit/payroll-stale-presentation-rc.test.ts",
       "status": "A",
       "sha256": "853a1cbcfcf55cafb721f32dcfbb4f75be9ab67dbd0dc979a36cdb46a070f17f"
+    },
+    {
+      "path": "tests/unit/payroll-workspace.test.ts",
+      "status": "M",
+      "sha256": "9690e83c97a53b1165203d27b68ad66749776ec7b7b27c5b7ea7cfb72932a030"
     },
     {
       "path": "tests/unit/people-account-classification-schema.test.ts",
@@ -257,6 +495,16 @@
       "sha256": "acd517e2dcc269378cc8bc937d6d9f6b23f244987356408d61d2b89de034473c"
     },
     {
+      "path": "tests/unit/staff-attendance-corrections-v2.test.ts",
+      "status": "M",
+      "sha256": "a546bcc21738691d39cc2594ce35fc471a54a9a07012e38b927be252f968689a"
+    },
+    {
+      "path": "tests/unit/staff-leave-v2.test.ts",
+      "status": "M",
+      "sha256": "1915b13cb7a52de82d6f9be3ccc28fd7b8425c13331b09ad57182ebeb411958c"
+    },
+    {
       "path": "tests/unit/staff-pwa.test.ts",
       "status": "M",
       "sha256": "1fc919247604dafd2808bdafb0cbd18581fbe4af7459c2d938997f86753fe08a"
@@ -264,12 +512,30 @@
     {
       "path": "tests/unit/team-read-permission.test.ts",
       "status": "A",
-      "sha256": "a628969b45802d3043fe3e3582c318f92a77cc10f225e90bd47c3858062978f2"
+      "sha256": "360435f45bcc7156b16d6998f09cd7bf6f73fd1de6a41169e56c72695ca9d6fa"
+    }
+  ],
+  "evidenceDocuments": [
+    {
+      "path": "docs/hr-payroll-canonical-rc-source-ledger.md",
+      "sha256": "f5acaecf3cd6bf6d44e55934027c5192c8f80a611bba142a2e9e5c226611abc0"
+    },
+    {
+      "path": "TETAMU_HR_PAYROLL_CANONICAL_RC_COMPLETION_PHASE2_REPORT.md",
+      "sha256": "0e002c4aaea80e04d046a53f16cce64caf4b3b6bdc90b7891c6fdf90047028e5"
+    },
+    {
+      "path": "TETAMU_HR_PAYROLL_SECURITY_UPGRADE_SUMMARY.md",
+      "sha256": "5526262eb3540a45593572b8f65a99d6f637bd3efba03bc3e2f720a7424403d1"
+    },
+    {
+      "path": "TETAMU_HR_PAYROLL_BROWSER_MATRIX_VIEWPORT_SUMMARY.md",
+      "sha256": "1e101353a4f118a8553da24bc3796b09b43c6bacef675c502e65a063caf5fc9c"
     }
   ],
   "sourceLedger": {
     "path": "docs/hr-payroll-canonical-rc-source-ledger.md",
-    "sha256": "70c6a377bdc38bb9a1a75f3f25bc2dd81319e93c4f1bcd948e5c050be6cc2a33"
+    "sha256": "f5acaecf3cd6bf6d44e55934027c5192c8f80a611bba142a2e9e5c226611abc0"
   },
   "migrations": {
     "total": 214,
@@ -489,171 +755,214 @@
       "20260902120000_staff_otp_forward_hardening",
       "20260915090000_people_workbench_account_classification"
     ],
-    "orderedNamesSha256": "b27ce4a4a41c7d7fd66f4c8439d2f6a7de4647cef595abbb3e7e15fff918d32f",
-    "addedInRc": [
-      {
-        "name": "20260915090000_people_workbench_account_classification",
-        "sha256": "15f6e9943b068ab2e8ff71a7231f2f0786ff0957aa2a3a1463e85c808caf134f",
-        "type": "additive"
-      }
-    ],
-    "migrationHead": "20260915090000_people_workbench_account_classification",
-    "freshDisposableResult": "PASS: 214/214 migrations applied from empty PostgreSQL 18.4 database",
-    "representativeForwardMigrationResult": "NOT_RUN_BLOCKER"
-  },
-  "schemaHash": {
-    "path": "prisma/schema.prisma",
-    "sha256": "074c1e37716709516900e82cd3cf5dfcd190ce93d220136f076084eb00a691db"
-  },
-  "lockfileHash": {
-    "package-lock.json": "a331748c12e0a2fc901fd73164fb3333ee55f389cffb9e4100149e6f7378a528",
-    "pnpm-lock.yaml": "3cd5d04bcdb43822588a8f4f8279c9dce1bad4c645d9f24b105ded5b3ba42cd9",
-    "unchangedFromCleanRoot": true
-  },
-  "toolchain": {
-    "node": "v22.23.2",
-    "npm": "11.12.1",
-    "prisma": "6.19.3",
-    "prismaClient": "6.19.3",
-    "typescript": "5.9.3",
-    "next": "16.3.0",
-    "postgresDisposable": "18.4"
+    "freshResult": "PASS_214_OF_214",
+    "forwardMigration": {
+      "result": "PASS",
+      "path": "213_TO_214",
+      "tests": 1,
+      "assertions": [
+        "row counts preserved",
+        "legacy rows backfilled",
+        "defaults and NOT NULL enforced",
+        "classification indexes present",
+        "tenant-scoped People/Payroll joins preserved",
+        "bounded disposable database cleanup left zero matching databases"
+      ]
+    }
   },
   "testCommands": [
     {
-      "command": "node --test --import tsx <11 selected HR/Payroll and Staff unit files>",
-      "result": "PASS",
-      "summary": "93 passed, 0 failed, 0 skipped, 0 todo"
+      "gate": "Prisma validate/generate",
+      "command": "DATABASE_URL=<loopback-disposable> npx prisma validate && npx prisma generate",
+      "result": "PASS"
     },
     {
-      "command": "node --test --import tsx tests/unit/business-rules.test.ts tests/unit/payroll-runs-foundation.test.ts tests/unit/people-hr-entitlement-ux.test.ts",
-      "result": "PASS",
-      "summary": "52 passed, 0 failed, 0 skipped, 0 todo"
-    },
-    {
-      "command": "npm test",
-      "result": "PASS",
-      "summary": "1647 passed, 0 failed, 0 skipped, 0 todo"
-    },
-    {
-      "command": "npm run test:integration:disposable",
-      "result": "PASS",
-      "summary": "205 main integration tests plus 1 isolated attendance route test passed; disposable database removed"
-    },
-    {
+      "gate": "Fresh migrations",
       "command": "npm run prisma:migrate:fresh-check",
-      "result": "PASS",
-      "summary": "214 migrations applied successfully to a new disposable database"
+      "result": "PASS_214_OF_214"
     },
     {
-      "command": "DATABASE_URL=<placeholder-local-url> npx prisma validate",
-      "result": "PASS",
-      "summary": "Schema valid; no external database access"
+      "gate": "Forward migration",
+      "command": "node scripts/run-integration-disposable.mjs tests/integration/people-account-classification-forward-migration.test.ts",
+      "result": "PASS_1_OF_1"
     },
     {
-      "command": "npx prisma generate",
-      "result": "PASS",
-      "summary": "Prisma Client 6.19.3 generated"
+      "gate": "TypeScript",
+      "command": "npx tsc --noEmit",
+      "result": "PASS"
     },
     {
-      "command": "npm exec -- tsc --noEmit --pretty false",
-      "result": "PASS",
-      "summary": "0 TypeScript errors"
-    },
-    {
+      "gate": "Lint",
       "command": "npm run lint",
-      "result": "PASS_WITH_BASELINE_WARNINGS",
-      "summary": "0 errors, 13 warnings; warning count matches clean-root baseline"
+      "result": "PASS_0_ERRORS_13_BASELINE_WARNINGS"
     },
     {
-      "command": "PORT=3199 npm run build",
-      "result": "PASS_WITH_BASELINE_WARNINGS",
-      "summary": "Production build passed; 146/146 static pages generated; existing Next middleware deprecation warning remains"
+      "gate": "Full unit",
+      "command": "npm test",
+      "result": "PASS_1657_OF_1657_NO_SKIP_TODO"
+    },
+    {
+      "gate": "Disposable integration",
+      "command": "npm run test:integration:disposable",
+      "result": "PASS_208_OF_208_PLUS_ISOLATED_1_OF_1"
+    },
+    {
+      "gate": "Production build",
+      "command": "npm run build",
+      "result": "PASS_NEXT_16_3_5_146_PAGES"
+    },
+    {
+      "gate": "Leave focused",
+      "result": "PASS_88_OF_88"
+    },
+    {
+      "gate": "Exception/correction focused",
+      "result": "PASS_42_OF_42"
+    },
+    {
+      "gate": "Payroll focused",
+      "result": "PASS_119_OF_119"
+    },
+    {
+      "gate": "RBAC focused",
+      "result": "PASS_44_OF_44_AND_POST_FIX_16_OF_16"
+    },
+    {
+      "gate": "Staff focused",
+      "result": "PASS_308_OF_308"
+    },
+    {
+      "gate": "PCB/bank/statutory fail-closed focused",
+      "result": "PASS_219_OF_219"
+    },
+    {
+      "gate": "Safe direct-avatar and Next Image AVIF",
+      "command": "tsx --test tests/unit/employee-avatar-avif-security.test.ts",
+      "result": "PASS_2_OF_2"
     }
   ],
-  "testResultSummary": {
-    "cleanRootBaseline": "PASS with 7 npm audit findings (6 high, 1 critical) and 13 lint warnings retained",
-    "selectedFocused": {
-      "passed": 93,
-      "failed": 0,
-      "skipped": 0,
-      "todo": 0
-    },
-    "compatibilityRegression": {
-      "passed": 52,
-      "failed": 0,
-      "skipped": 0,
-      "todo": 0
-    },
-    "fullUnit": {
-      "passed": 1647,
-      "failed": 0,
-      "skipped": 0,
-      "todo": 0
-    },
-    "disposableIntegration": {
-      "passed": 206,
-      "failed": 0,
-      "skipped": 0,
-      "todo": 0
-    },
-    "fullVerification": "PARTIAL: automated code, schema, migration-from-empty, regression and build gates pass; forward migration and manual UI smoke/responsive gates are incomplete"
+  "browserSmokeEvidence": {
+    "result": "BLOCKED_HOST_LOCKED",
+    "desktopBrowser": "NOT_RUN",
+    "staffBrowser": "NOT_RUN",
+    "systemAttempts": 2,
+    "nonBrowserSupplement": {
+      "evidenceType": "LOCAL_HTTP_SSR_SMOKE_NOT_BROWSER_UAT",
+      "personas": 8,
+      "requests": 39,
+      "result": "COMPLETED_WITH_EXPECTED_REDIRECTS_AND_RESTRICTED_STATES",
+      "groupManagerDefectDetectedAndFixed": true
+    }
   },
-  "buildResult": {
-    "status": "PASS_WITH_BASELINE_WARNINGS",
-    "staticPages": "146/146",
-    "warnings": [
-      "Prisma package.json configuration deprecation",
-      "Next middleware file-convention deprecation"
-    ]
+  "responsiveEvidence": {
+    "result": "BLOCKED_HOST_LOCKED",
+    "viewports": {
+      "360": "NOT_RUN",
+      "390": "NOT_RUN",
+      "834": "NOT_RUN",
+      "1440": "NOT_RUN"
+    }
   },
-  "restrictedFeatureFlags": {
+  "securityAuditDisposition": {
+    "result": "PASS_FOR_HUMAN_UAT_SECURITY_GATE",
+    "upgradeCommit": "c9a033bb8ca3cb214adcc38f0153e514e2b2a190",
+    "versions": {
+      "next": "16.3.5",
+      "@next/env": "16.3.5",
+      "eslint-config-next": "16.3.5",
+      "sharp": "0.35.4"
+    },
+    "preAudit": {
+      "total": 7,
+      "critical": 1,
+      "high": 6
+    },
+    "postAudit": {
+      "total": 5,
+      "critical": 0,
+      "high": 5
+    },
+    "vulnerableSharpCopies": 0,
+    "nextRuntimeCopiesBelow16_3_3": 0,
+    "remaining": [
+      {
+        "chain": "@eslint/eslintrc -> js-yaml",
+        "classification": "DEV_ONLY_LINT_TOOLING",
+        "uatBlocker": false
+      },
+      {
+        "chain": "prisma -> @prisma/config -> deepmerge-ts",
+        "classification": "BUILD_MIGRATION_CLI_NOT_REQUEST_REACHABLE",
+        "uatBlocker": false
+      }
+    ],
+    "productionReviewStillRequired": true
+  },
+  "finalVerification": {
+    "completedItems": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29
+    ],
+    "blockedItems": [
+      19,
+      20,
+      21
+    ],
+    "disposableDatabaseCleanup": "PASS_ZERO_LEFTOVER",
+    "ephemeralSessionArtifacts": "MOVED_TO_TRASH",
+    "rcWorktreeCleanAfterEvidenceCommit": true
+  },
+  "incompleteRequiredGates": [
+    "browser-based Desktop smoke",
+    "browser-based Staff App smoke",
+    "responsive and interaction checks at 1440/834/390/360"
+  ],
+  "restrictedFeatures": {
+    "officialExportEligible": false,
     "bankPaymentExecutionEnabled": false,
     "governmentSubmissionEnabled": false,
     "pcbProductionEnabled": false,
-    "officialExportEligible": false,
     "productionEligible": false,
     "hasilApproval": "PENDING",
     "publicBankState": "PUBLIC_BANK_SPEC_NOT_READY",
     "statutoryState": "READINESS_IS_NOT_SUBMISSION"
   },
   "excludedScope": [
-    "bank/payment execution pages and adapters",
-    "government/statutory export and submission orchestration",
-    "PCB V4 and certification changes",
-    "five unapproved PCB/statutory migrations dated 20260907-20260912",
-    "Testing-only payroll readiness runtime wrapper",
-    "deployment scripts, Railway changes and production endpoints",
-    "generated/build artifacts, deployment package and bulk overlay",
-    "unselected source-ledger candidates and all unreviewed YES/REVIEW rows"
+    "bulk replay of the historical 592-file overlay",
+    "real bank/payment execution",
+    "official statutory export and government submission",
+    "PCB Production activation",
+    "Testing/Production/Railway mutation",
+    "push, merge, pull request and deployment",
+    "browser screenshots, traces, local database and ephemeral session artifacts from Git"
   ],
-  "incompleteRequiredGates": [
-    "representative forward migration from a representative existing schema state",
-    "browser-based Desktop smoke",
-    "browser-based Staff App smoke",
-    "manual responsive checks at 1440/834/390/360",
-    "full integrated Leave workflow replay and evidence-freeze validation",
-    "full exception/correction read aggregation, guarded actions and Desktop UI replay",
-    "complete Payroll workspace and Staff HR/Payroll surface reconciliation from the approved candidate set"
-  ],
-  "sourceEvidenceReferences": [
-    "TETAMU_DESKTOP_TESTING_BASELINE_RECOVERY_REPORT.md",
-    "HR_PAYROLL_RC_RECONCILIATION_REPORT.md",
-    "file-classification.csv",
-    "HR_PAYROLL_RC_FREEZE_20260915.zip",
-    "docs/hr-payroll-canonical-rc-source-ledger.md",
-    "docs/superpowers/plans/2026-09-16-hr-payroll-canonical-rc-rebuild.md",
-    "immutable Git commit 5f9b5b5f350d6ee3670f4d989b203776e6527544"
-  ],
-  "knownBaselineWarnings": [
-    "npm audit: 7 findings (6 high, 1 critical); no automated dependency changes made",
-    "ESLint: 13 pre-existing warnings and 0 errors",
-    "Prisma package.json configuration is deprecated",
-    "Next middleware file convention is deprecated"
-  ],
-  "environmentMutationStatement": "No Railway, Desktop Testing, Staff Testing or Production deployment, variables, services, domains, data or endpoints were changed. No push, merge or pull request was performed. No real bank payment, government submission or PCB Production operation was executed.",
   "reviewerStatus": "PENDING",
   "humanUatStatus": "PENDING",
   "deploymentStatus": "NOT_DEPLOYED",
-  "productionEligible": false
+  "productionEligible": false,
+  "environmentMutationStatement": "No Railway, Desktop Testing, Staff Testing or Production deployment, variables, services, domains or data were changed. No push, merge, pull request, real payment, government submission or PCB Production operation was performed."
 }
