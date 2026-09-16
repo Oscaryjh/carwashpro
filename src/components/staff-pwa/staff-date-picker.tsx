@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import styles from "./staff-date-picker.module.css";
 
@@ -13,9 +13,19 @@ type StaffDatePickerProps = {
 };
 
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
+const FOCUSABLE = [
+  "button:not([disabled])",
+  "[href]",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
 
 export function StaffDatePicker({ label, min, name, onChange, value }: StaffDatePickerProps) {
   const titleId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(parseDate(value) ?? new Date()));
   const days = useMemo(() => calendarDays(visibleMonth), [visibleMonth]);
@@ -23,11 +33,34 @@ export function StaffDatePicker({ label, min, name, onChange, value }: StaffDate
 
   useEffect(() => {
     if (!open) return;
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+    const trigger = triggerRef.current;
+    const sheet = sheetRef.current;
+    const focusable = () => Array.from(sheet?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
+    requestAnimationFrame(() => focusable()[0]?.focus());
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = focusable();
+      if (!controls.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      requestAnimationFrame(() => trigger?.focus());
+    };
   }, [open]);
 
   function openCalendar() {
@@ -44,7 +77,7 @@ export function StaffDatePicker({ label, min, name, onChange, value }: StaffDate
   const calendar = open ? createPortal(
     <div className={styles.layer}>
       <button className={styles.backdrop} type="button" aria-label={`Close ${label} calendar`} onClick={() => setOpen(false)} />
-      <section className={styles.sheet} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <section className={styles.sheet} ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <span className={styles.handle} aria-hidden="true" />
         <header className={styles.toolbar}>
           <button type="button" onClick={() => setOpen(false)}>Cancel</button>
@@ -96,6 +129,7 @@ export function StaffDatePicker({ label, min, name, onChange, value }: StaffDate
         aria-label={`${label} date: ${value ? displayDate(value) : "not selected"}`}
         className={value ? styles.trigger : styles.triggerEmpty}
         onClick={openCalendar}
+        ref={triggerRef}
         type="button"
       >
         <span>{value ? displayDate(value) : "DD/MM/YYYY"}</span>
