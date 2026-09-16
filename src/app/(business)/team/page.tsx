@@ -147,7 +147,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
     section === "schedule" || params.modal === "schedule";
   const staffDataRequired =
     (section === "people" && !hrEnabled) || scheduleDataRequired || params.modal === "edit";
-  const employeeOnlyDataRequired = false;
+  const employeeOnlyDataRequired = section === "people" && hrEnabled;
   const ownerDataRequired = section === "schedule";
   const roleDataRequired =
     canManageTeamPermissions &&
@@ -334,7 +334,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
           orderBy: [{ status: "asc" }, { name: "asc" }],
         })
       : Promise.resolve([]),
-    employeeOnlyDataRequired
+    employeeOnlyDataRequired && !directory
       ? prisma.employeeBusinessMembership.findMany({
           where: {
             ...membershipScopeWhere,

@@ -727,7 +727,6 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
   // state before any payroll query. Let authenticated users reach that boundary
   // so a direct URL does not silently redirect them to an unrelated module.
   if (
-    pathname === "/team/payroll" ||
     pathname === "/team/payroll/workspace" ||
     pathname === "/team/payroll/runs" ||
     pathname.startsWith("/team/payroll/runs/") ||
@@ -738,6 +737,7 @@ export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY
   }
 
   if (
+    pathname === "/team/payroll" ||
     pathname.startsWith("/team/payroll/")
   ) {
     return "PAYROLL_READ";
