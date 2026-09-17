@@ -1,18 +1,26 @@
-export type RuntimeEnvironment = "development" | "testing" | "production";
-export type RuntimeEnvironmentMap = Readonly<Record<string, string | undefined>>;
+import {
+  isProductionGradeEnvironment,
+  parseRuntimeEnvironment,
+} from "./environment-contract.mjs";
+import type {
+  RuntimeEnvironment,
+  RuntimeEnvironmentMap,
+} from "./environment-contract.mjs";
+
+export type { RuntimeEnvironment, RuntimeEnvironmentMap } from "./environment-contract.mjs";
 
 export function runtimeEnvironment(env: RuntimeEnvironmentMap = process.env): RuntimeEnvironment {
-  const explicit = env.APP_ENVIRONMENT?.trim().toLowerCase();
-  const railway = env.RAILWAY_ENVIRONMENT_NAME?.trim().toLowerCase();
-  const value = explicit || railway || env.NODE_ENV?.trim().toLowerCase();
-
-  if (value === "production") return "production";
-  if (value === "testing" || value === "test") return "testing";
-  return "development";
+  return parseRuntimeEnvironment(env);
 }
 
 export function isProductionRuntime(env: RuntimeEnvironmentMap = process.env) {
   return runtimeEnvironment(env) === "production";
+}
+
+export function isProductionGradeRuntime(
+  env: RuntimeEnvironmentMap = process.env,
+) {
+  return isProductionGradeEnvironment(runtimeEnvironment(env));
 }
 
 export function assertLocalDatabaseTarget(databaseUrl: string | undefined, purpose: string) {
