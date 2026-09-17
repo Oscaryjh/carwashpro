@@ -123,6 +123,19 @@ export function assertHrPayrollUatFixtureEnvironment(
     guardError("HR_UAT_FIXTURE_PREVIEW_PRODUCTION_BUILD_REQUIRED");
   }
 
+  const localSimulation =
+    env.UAT_PREVIEW_LOCAL_SIMULATION?.trim().toLowerCase() === "true";
+  if (LOOPBACK_HOSTS.has(identity.hostname)) {
+    if (normalized(env.RAILWAY_DEPLOYMENT_ID)) {
+      guardError("HR_UAT_FIXTURE_DEPLOYED_LOOPBACK_FORBIDDEN");
+    }
+    if (!localSimulation) {
+      guardError("HR_UAT_FIXTURE_LOCAL_SIMULATION_REQUIRED");
+    }
+  } else if (localSimulation) {
+    guardError("HR_UAT_FIXTURE_REMOTE_LOCAL_SIMULATION_FORBIDDEN");
+  }
+
   const environmentId = normalized(env.RAILWAY_ENVIRONMENT_ID);
   const webServiceId = normalized(env.RAILWAY_SERVICE_ID);
   const databaseServiceId = normalized(env.RAILWAY_DATABASE_SERVICE_ID);

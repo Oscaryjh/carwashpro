@@ -62,6 +62,50 @@ test("exact Preview identity and keyed database fingerprint are accepted", () =>
   });
 });
 
+test("Preview loopback requires explicit non-deployed local simulation", () => {
+  const databaseUrl =
+    "postgresql://preview_user:preview-password@127.0.0.1:5432/tetamu_uat_preview";
+  const localSimulation = previewEnvironment({
+    DATABASE_URL: databaseUrl,
+    RAILWAY_DEPLOYMENT_ID: "",
+    UAT_PREVIEW_LOCAL_SIMULATION: "true",
+  });
+  localSimulation.UAT_PREVIEW_EXPECTED_DATABASE_FINGERPRINT =
+    databaseConnectionFingerprint(
+      databaseUrl,
+      localSimulation.RAILWAY_DATABASE_SERVICE_ID!,
+      localSimulation.UAT_PREVIEW_DATABASE_FINGERPRINT_SECRET!,
+    );
+  assert.equal(
+    assertHrPayrollUatFixtureEnvironment(localSimulation).mode,
+    "uat-preview",
+  );
+
+  assert.throws(
+    () =>
+      assertHrPayrollUatFixtureEnvironment({
+        ...localSimulation,
+        UAT_PREVIEW_LOCAL_SIMULATION: "false",
+      }),
+    /HR_UAT_FIXTURE_LOCAL_SIMULATION_REQUIRED/,
+  );
+  assert.throws(
+    () =>
+      assertHrPayrollUatFixtureEnvironment({
+        ...localSimulation,
+        RAILWAY_DEPLOYMENT_ID: "preview-deployment",
+      }),
+    /HR_UAT_FIXTURE_DEPLOYED_LOOPBACK_FORBIDDEN/,
+  );
+  assert.throws(
+    () =>
+      assertHrPayrollUatFixtureEnvironment(
+        previewEnvironment({ UAT_PREVIEW_LOCAL_SIMULATION: "true" }),
+      ),
+    /HR_UAT_FIXTURE_REMOTE_LOCAL_SIMULATION_FORBIDDEN/,
+  );
+});
+
 test("denylist categories win before matching allowlist values", () => {
   const base = previewEnvironment();
   const fingerprint = base.UAT_PREVIEW_EXPECTED_DATABASE_FINGERPRINT!;

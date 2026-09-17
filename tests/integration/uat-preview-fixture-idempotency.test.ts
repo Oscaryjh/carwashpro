@@ -179,6 +179,7 @@ function previewEnvironment(
     UAT_PREVIEW_EXPECTED_WEB_SERVICE_ID: "preview-web-service",
     UAT_PREVIEW_EXPECTED_DATABASE_SERVICE_ID: databaseServiceId,
     UAT_PREVIEW_DATABASE_NAME: databaseName,
+    UAT_PREVIEW_LOCAL_SIMULATION: "true",
     UAT_PREVIEW_DATABASE_FINGERPRINT_SECRET: FINGERPRINT_SECRET,
     UAT_PREVIEW_GUARD_SECRET:
       "preview-integration-guard-secret-longer-than-thirty-two-bytes",
