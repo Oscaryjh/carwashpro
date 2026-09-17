@@ -92,6 +92,8 @@ export type PreviewFixtureCounts = Readonly<{
   activeEmployeeSessions: number;
   activeAppSessions: number;
   otpChallenges: number;
+  historicalOtpChallenges: number;
+  activeOtpChallenges: number;
   paymentBatches: number;
   statutorySubmissions: number;
   outboundWhatsApp: number;
@@ -458,6 +460,7 @@ export async function capturePreviewFixtureCounts(
   const businessIds = boundaryBusiness
     ? [businessId, boundaryBusiness.id]
     : [businessId];
+  const observedAt = new Date();
   const [
     businesses,
     branches,
@@ -483,7 +486,7 @@ export async function capturePreviewFixtureCounts(
     payslipPublications,
     activeEmployeeSessions,
     activeAppSessions,
-    otpChallenges,
+    otpChallengeStates,
     paymentBatches,
     statutorySubmissions,
     outboundWhatsApp,
@@ -532,18 +535,26 @@ export async function capturePreviewFixtureCounts(
         },
       },
     }),
-    database.employeeOtpChallenge.count({
-      where: {
-        employeeAccount: {
-          memberships: { some: { businessId: { in: businessIds } } },
-        },
-      },
+    database.employeeOtpChallenge.findMany({
+      // Include unlinked challenges. Only terminal lifecycle state is read;
+      // phone numbers, OTP hashes and provider references are not needed.
+      select: { expiresAt: true, invalidatedAt: true },
     }),
     database.payrollPaymentBatch.count({ where: { businessId: { in: businessIds } } }),
     database.payrollStatutorySubmission.count({ where: { businessId: { in: businessIds } } }),
     database.whatsAppMessage.count({ where: { businessId: { in: businessIds } } }),
     database.notificationQueue.count({ where: { businessId: { in: businessIds } } }),
   ]);
+  const otpAudit = { historicalOtpChallenges: 0, activeOtpChallenges: 0 };
+  for (const challenge of otpChallengeStates) {
+    if (challenge.invalidatedAt !== null || challenge.expiresAt <= observedAt) {
+      otpAudit.historicalOtpChallenges += 1;
+    } else {
+      // Verified-but-unconsumed challenges can still complete membership
+      // selection; exhausted attempts alone are not proof of terminal state.
+      otpAudit.activeOtpChallenges += 1;
+    }
+  }
   return {
     businesses,
     branches,
@@ -569,7 +580,8 @@ export async function capturePreviewFixtureCounts(
     payslipPublications,
     activeEmployeeSessions,
     activeAppSessions,
-    otpChallenges,
+    otpChallenges: otpChallengeStates.length,
+    ...otpAudit,
     paymentBatches,
     statutorySubmissions,
     outboundWhatsApp,
@@ -986,7 +998,6 @@ export async function capturePreviewFixtureEvidence(
     payslipPublications: 8,
     activeEmployeeSessions: 0,
     activeAppSessions: 0,
-    otpChallenges: 0,
     paymentBatches: 0,
     statutorySubmissions: 0,
     outboundWhatsApp: 0,
@@ -1203,7 +1214,7 @@ export function assertCompletePreviewFixtureEvidence(
     ["payslipPublications", 8, "HR_UAT_FIXTURE_PAYSLIP_COUNT_MISMATCH"],
     ["activeEmployeeSessions", 0, "HR_UAT_FIXTURE_ACTIVE_EMPLOYEE_SESSION_PRESENT"],
     ["activeAppSessions", 0, "HR_UAT_FIXTURE_ACTIVE_APP_SESSION_PRESENT"],
-    ["otpChallenges", 0, "HR_UAT_FIXTURE_OTP_CHALLENGE_PRESENT"],
+    ["activeOtpChallenges", 0, "HR_UAT_FIXTURE_OTP_CHALLENGE_PRESENT"],
     ["paymentBatches", 0, "HR_UAT_FIXTURE_PAYMENT_BATCH_PRESENT"],
     ["statutorySubmissions", 0, "HR_UAT_FIXTURE_STATUTORY_SUBMISSION_PRESENT"],
     ["outboundWhatsApp", 0, "HR_UAT_FIXTURE_WHATSAPP_OUTBOUND_PRESENT"],

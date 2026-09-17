@@ -406,6 +406,124 @@ test("formal verifier fails closed when any required Leave or Attendance domain 
   }
 });
 
+test("historical OTP is immutable audit history, not duplicate fixture data", async () => {
+  const marker = await prisma.business.findUniqueOrThrow({
+    where: { slug: HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG },
+  });
+  const account = await prisma.employeeAccount.findFirstOrThrow();
+  const baseline = await capturePreviewFixtureEvidence(prisma, marker.id);
+  for (const historyCount of [1, 4, 9]) {
+    const past = new Date(Date.now() - 60_000);
+    const future = new Date(Date.now() + 60_000);
+    const ids = await prisma.$transaction(async (transaction) => {
+      const createdIds: string[] = [];
+      for (let index = 0; index < historyCount; index += 1) {
+        const row = await transaction.employeeOtpChallenge.create({ data: {
+        employeeAccountId: account.id,
+        phoneNumberNormalized: account.phoneNormalized,
+        purpose: "LOGIN",
+        provider: "mock",
+        deliveryChannel: "local",
+        expiresAt: index % 3 === 0 ? past : future,
+        createdAt: new Date(past.getTime() - 60_000),
+        resendAvailableAt: past,
+        } });
+        if (index % 3 !== 0) {
+          await transaction.employeeOtpChallenge.update({
+            where: { id: row.id },
+            data: { invalidatedAt: past, verifiedAt: index % 3 === 2 ? past : null },
+          });
+        }
+        createdIds.push(row.id);
+      }
+      return createdIds;
+    });
+    const rows = await prisma.employeeOtpChallenge.findMany({ where: { id: { in: ids } } });
+    try {
+      const evidence = await capturePreviewFixtureEvidence(prisma, marker.id);
+      assert.equal(evidence.duplicateCount, 0, "OTP audit rows are not fixture duplicates");
+      assert.equal(evidence.counts.otpChallenges, historyCount);
+      assert.equal(evidence.counts.historicalOtpChallenges, historyCount);
+      assert.equal(evidence.counts.activeOtpChallenges, 0);
+      assert.equal(evidence.stableFixtureDigest, baseline.stableFixtureDigest);
+      assertCompletePreviewFixtureEvidence(evidence);
+      const verification = runFixtureScript(
+        "scripts/verify-hr-payroll-uat-preview-fixture.ts", previewEnvironment(),
+      );
+      assert.equal(verification.status, 0, verification.stderr);
+      assertSanitized(verification, previewEnvironment());
+      const afterRows = await prisma.employeeOtpChallenge.findMany({ where: { id: { in: ids } } });
+      assert.deepEqual(afterRows.sort((a, b) => a.id.localeCompare(b.id)),
+        rows.sort((a, b) => a.id.localeCompare(b.id)), "verifier must not mutate OTP history");
+    } finally {
+      // This database is disposable and loopback-only; never a Preview cleanup.
+      await prisma.employeeOtpChallenge.deleteMany({ where: { id: { in: ids } } });
+    }
+  }
+});
+
+test("active OTP fails closed including unlinked and attempt-exhausted unexpired challenges", async () => {
+  const marker = await prisma.business.findUniqueOrThrow({
+    where: { slug: HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG },
+  });
+  const account = await prisma.employeeAccount.findFirstOrThrow();
+  for (const scenario of ["usable", "unlinked", "attempt-exhausted", "verified-unconsumed"] as const) {
+    const row = await prisma.employeeOtpChallenge.create({ data: {
+      employeeAccountId: scenario === "unlinked" ? null : account.id,
+      phoneNumberNormalized: account.phoneNormalized,
+      purpose: "LOGIN", provider: "mock", deliveryChannel: "local",
+      expiresAt: new Date(Date.now() + 60_000), resendAvailableAt: new Date(),
+      createdAt: new Date(Date.now() - 60_000),
+      maxAttempts: 5,
+    } }).then((created) => prisma.employeeOtpChallenge.update({
+      where: { id: created.id },
+      data: {
+        verifiedAt: scenario === "verified-unconsumed" ? new Date() : null,
+        attempts: scenario === "attempt-exhausted" ? 5 : 0,
+      },
+    }));
+    try {
+      const evidence = await capturePreviewFixtureEvidence(prisma, marker.id);
+      assert.throws(() => assertCompletePreviewFixtureEvidence(evidence),
+        { message: "HR_UAT_FIXTURE_OTP_CHALLENGE_PRESENT" }, scenario);
+      assert.equal(evidence.counts.activeOtpChallenges, 1, scenario);
+      assert.equal(evidence.counts.historicalOtpChallenges, 0, scenario);
+      assert.equal(evidence.duplicateCount, 0, "active OTP is a safety violation, not a duplicate");
+      const verification = runFixtureScript(
+        "scripts/verify-hr-payroll-uat-preview-fixture.ts", previewEnvironment(),
+      );
+      assert.notEqual(verification.status, 0, scenario);
+      assert.match(verification.stderr, /HR_UAT_FIXTURE_OTP_CHALLENGE_PRESENT/);
+      assert.deepEqual(await prisma.employeeOtpChallenge.findUniqueOrThrow({ where: { id: row.id } }), row);
+    } finally {
+      await prisma.employeeOtpChallenge.delete({ where: { id: row.id } });
+    }
+  }
+});
+
+test("genuine fixture duplicates remain detected alongside historical OTP", async () => {
+  const marker = await prisma.business.findUniqueOrThrow({
+    where: { slug: HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG },
+  });
+  const account = await prisma.employeeAccount.findFirstOrThrow();
+  const history = await prisma.employeeOtpChallenge.create({ data: {
+    employeeAccountId: account.id, phoneNumberNormalized: account.phoneNormalized,
+    purpose: "LOGIN", provider: "mock", deliveryChannel: "local",
+    createdAt: new Date(Date.now() - 120_000),
+    expiresAt: new Date(Date.now() - 60_000), resendAvailableAt: new Date(),
+  } });
+  const branch = await prisma.branch.create({ data: { businessId: marker.id, name: "Duplicate synthetic branch" } });
+  try {
+    const evidence = await capturePreviewFixtureEvidence(prisma, marker.id);
+    assert.equal(evidence.duplicateCount, 1, "only the excess fixture branch is a duplicate");
+    assert.throws(() => assertCompletePreviewFixtureEvidence(evidence),
+      { message: "HR_UAT_FIXTURE_BRANCH_COUNT_MISMATCH" });
+  } finally {
+    await prisma.branch.delete({ where: { id: branch.id } });
+    await prisma.employeeOtpChallenge.delete({ where: { id: history.id } });
+  }
+});
+
 function runFixturePair(environment: NodeJS.ProcessEnv) {
   return [
     runFixtureScript("scripts/prepare-hr-payroll-core-acceptance.ts", environment),
