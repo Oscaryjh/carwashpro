@@ -1,6 +1,7 @@
 import { jwtVerify } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 import { getStaffHomePath, routePermission } from "@/lib/auth/staff-permissions";
+import { evaluateUatPreviewAccess } from "@/lib/release/preview-access";
 
 const SESSION_COOKIE = "car_wash_session";
 
@@ -16,6 +17,15 @@ function getSecret() {
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const previewAccess = await evaluateUatPreviewAccess(request);
+  if (!previewAccess.allowed) return previewAccess.response;
+
+  // Preview uses a broad matcher so that Staff, APIs, and deep links all pass
+  // through the outer access gate. Preserve the original back-office-only
+  // application-auth behavior for every route outside that historical set.
+  if (!isBackOfficeMiddlewarePath(pathname)) {
+    return continueRequest(request);
+  }
 
   // The dedicated Staff App deployment shares the codebase but not the
   // back-office surface. Keep staff APIs available while redirecting any
@@ -31,7 +41,7 @@ export async function middleware(request: NextRequest) {
   // included in the matcher so the dedicated Staff surface can redirect it to
   // /staff/login above, but the POS surface must not redirect /login to itself.
   if (pathname === "/login") {
-    return NextResponse.next();
+    return continueRequest(request);
   }
 
   const secret = getSecret();
@@ -98,7 +108,7 @@ export async function middleware(request: NextRequest) {
     }
 
     if (pathname === "/business-context/recover") {
-      return NextResponse.next();
+      return continueRequest(request);
     }
 
     if (pathname === "/salon/dashboard") {
@@ -137,7 +147,7 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL(staffHomePath, request.url));
       }
     }
-    return NextResponse.next();
+    return continueRequest(request);
   } catch {
     return NextResponse.redirect(new URL("/login", request.url));
   }
@@ -147,32 +157,56 @@ function nullableString(value: unknown) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+const BACK_OFFICE_EXACT_PATHS = new Set([
+  "/",
+  "/login",
+  "/logout",
+  "/salon/dashboard",
+]);
+const BACK_OFFICE_PREFIXES = [
+  "/admin",
+  "/appointments",
+  "/ai",
+  "/branches",
+  "/business/settings",
+  "/business-context",
+  "/cashier",
+  "/closing",
+  "/crm",
+  "/dashboard",
+  "/groups",
+  "/invoices",
+  "/loyalty",
+  "/packages",
+  "/pos",
+  "/products",
+  "/reports",
+  "/services",
+  "/team",
+  "/whatsapp",
+  "/work-orders",
+] as const;
+
+function isBackOfficeMiddlewarePath(pathname: string) {
+  return (
+    BACK_OFFICE_EXACT_PATHS.has(pathname) ||
+    BACK_OFFICE_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    )
+  );
+}
+
+function continueRequest(request: NextRequest) {
+  if (process.env.APP_ENVIRONMENT?.trim().toLowerCase() !== "uat-preview") {
+    return NextResponse.next();
+  }
+  const headers = new Headers(request.headers);
+  headers.delete("authorization");
+  return NextResponse.next({ request: { headers } });
+}
+
 export const config = {
   matcher: [
-    "/",
-    "/admin/:path*",
-    "/appointments/:path*",
-    "/ai/:path*",
-    "/branches/:path*",
-    "/business/settings/:path*",
-    "/business-context/:path*",
-    "/cashier/:path*",
-    "/closing/:path*",
-    "/crm/:path*",
-    "/dashboard/:path*",
-    "/groups/:path*",
-    "/invoices/:path*",
-    "/login",
-    "/logout",
-    "/loyalty/:path*",
-    "/packages/:path*",
-    "/pos/:path*",
-    "/products/:path*",
-    "/reports/:path*",
-    "/salon/dashboard",
-    "/services/:path*",
-    "/team/:path*",
-    "/whatsapp/:path*",
-    "/work-orders/:path*",
+    "/((?!api/health(?:/|$)|_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|robots\\.txt$|sitemap\\.xml$|manifest\\.webmanifest$|staff/manifest\\.webmanifest$|sw\\.js$|pwa(?:/|$)).*)",
   ],
 };
