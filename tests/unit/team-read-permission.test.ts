@@ -71,3 +71,23 @@ test("team workspace admits scoped group managers through an allowed child capab
   }
   assert.doesNotMatch(layout, /requireBusinessUser\(\)/);
 });
+
+test("time workspace keeps scoped group managers on authorized attendance and roster routes", () => {
+  const navigation = readFileSync("src/components/time-workspace-nav.tsx", "utf8");
+
+  assert.match(navigation, /requireBusinessUserWithAnyCapability/);
+  assert.match(navigation, /"VIEW_ATTENDANCE_EMPLOYEES"/);
+  assert.match(navigation, /"VIEW_ROSTER"/);
+  assert.match(navigation, /"VIEW_ATTENDANCE_SETTINGS"/);
+  assert.doesNotMatch(navigation, /requireBusinessUser\(\)/);
+
+  for (const forbiddenCapability of [
+    "VIEW_PAYROLL",
+    "VIEW_PAYROLL_RUN",
+    "VIEW_BANK_ACCOUNT",
+    "EXPORT_PAYMENT_FILE",
+    "EXPORT_STATUTORY",
+  ]) {
+    assert.doesNotMatch(navigation, new RegExp(`"${forbiddenCapability}"`));
+  }
+});

@@ -3,11 +3,15 @@ import {
   type HrPayrollWorkspaceItem,
 } from "@/components/hr-payroll-workspace-nav";
 import styles from "@/components/hr-payroll-workspace.module.css";
-import { requireBusinessUser } from "@/lib/auth/business-user";
+import { requireBusinessUserWithAnyCapability } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 
 export async function TimeWorkspaceNav() {
-  const { access } = await requireBusinessUser();
+  const { access } = await requireBusinessUserWithAnyCapability([
+    "VIEW_ATTENDANCE_EMPLOYEES",
+    "VIEW_ROSTER",
+    "VIEW_ATTENDANCE_SETTINGS",
+  ]);
   const items: HrPayrollWorkspaceItem[] = [
     { href: "/team/time", label: "Overview", icon: "overview", exact: true },
   ];
