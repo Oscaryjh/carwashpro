@@ -28,6 +28,15 @@ const PERIOD_END = new Date("2026-08-31T00:00:00.000Z");
 const BUSINESS_NAME = HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_NAME;
 const OWNER_EMAIL_PREFIX = "hr-core-acceptance.owner";
 const MANAGER_EMAIL_PREFIX = "hr-core-acceptance.manager";
+const LEAVE_YEAR_START = new Date("2026-01-01T00:00:00.000Z");
+const LEAVE_YEAR_END = new Date("2026-12-31T00:00:00.000Z");
+const ATTENDANCE_CORRECTION_WORK_DATE = new Date("2026-09-01T00:00:00.000Z");
+const ATTENDANCE_CORRECTION_CLOCK_IN = new Date("2026-09-01T01:00:00.000Z");
+const ATTENDANCE_CORRECTION_CLOCK_OUT = new Date("2026-09-01T10:00:00.000Z");
+const ATTENDANCE_EXCEPTION_REASON =
+  "Synthetic UAT missing clock-out exception for correction verification.";
+const ATTENDANCE_CORRECTION_REQUEST_KEY =
+  "hr-payroll-uat-preview:core-a:2026-09-01:missing-clock-out";
 
 const scenarios = [
   { code: "CORE-A", name: "Core A - Normal Monthly", phone: "+60119992001", kind: "NORMAL" },
@@ -62,6 +71,10 @@ async function main() {
   const { guard, password } = readFixtureEnvironment();
   const existingState = await assertPreviewDatabaseContents(prisma, guard);
   if (existingState.state === "synthetic-marker" && existingState.businessId) {
+    await prisma.$transaction(
+      (tx) => ensureRequiredPreviewDomains(tx, existingState.businessId!),
+      { timeout: 30_000 },
+    );
     await writeCoreArtifact(
       await reconstructPreviewArtifact(existingState.businessId, guard),
     );
@@ -325,6 +338,8 @@ async function main() {
       paidLeave,
       unpaidLeave,
     });
+
+    await ensureRequiredPreviewDomains(tx, business.id);
 
     const statement = await tx.commissionPeriod.create({
       data: {
@@ -701,6 +716,364 @@ async function writeCoreArtifact(artifact: {
       2,
     ),
   );
+}
+
+async function ensureRequiredPreviewDomains(
+  tx: Prisma.TransactionClient,
+  businessId: string,
+) {
+  const [branch, owner, manager, membership, paidPolicy, paidLeave, employeeSession] =
+    await Promise.all([
+      tx.branch.findFirstOrThrow({
+        where: { businessId },
+        orderBy: { createdAt: "asc" },
+      }),
+      tx.user.findFirstOrThrow({
+        where: { businessId, email: { startsWith: `${OWNER_EMAIL_PREFIX}+` } },
+      }),
+      tx.user.findFirstOrThrow({
+        where: { businessId, email: { startsWith: `${MANAGER_EMAIL_PREFIX}+` } },
+      }),
+      tx.employeeBusinessMembership.findFirstOrThrow({
+        where: { businessId, employeeCode: "CORE-C" },
+      }),
+      tx.leavePolicy.findFirstOrThrow({
+        where: { businessId, code: "ANNUAL", balanceTracked: true },
+        include: {
+          versions: {
+            where: { status: "ACTIVE" },
+            orderBy: { revision: "desc" },
+            take: 1,
+          },
+        },
+      }),
+      tx.leaveRequest.findFirstOrThrow({
+        where: {
+          businessId,
+          membership: { employeeCode: "CORE-C" },
+          status: "APPROVED",
+          balanceTrackedSnapshot: true,
+        },
+        include: { days: true },
+      }),
+      tx.employeeSession.findFirstOrThrow({
+        where: {
+          businessId,
+          membership: { employeeCode: "CORE-A" },
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
+  const policyVersion = paidPolicy.versions[0];
+  if (!policyVersion) {
+    throw new Error("HR_CORE_ACCEPTANCE_ACTIVE_ANNUAL_POLICY_VERSION_MISSING");
+  }
+  const consumedUnits = paidLeave.days.reduce(
+    (sum, day) => sum + Number(day.balanceConsumptionUnits),
+    0,
+  );
+  if (consumedUnits !== 1) {
+    throw new Error("HR_CORE_ACCEPTANCE_PAID_LEAVE_CONSUMPTION_MISMATCH");
+  }
+
+  await tx.employeeLeaveBalance.upsert({
+    where: {
+      membershipId_policyId_year: {
+        membershipId: membership.id,
+        policyId: paidPolicy.id,
+        year: 2026,
+      },
+    },
+    create: {
+      businessId,
+      membershipId: membership.id,
+      policyId: paidPolicy.id,
+      year: 2026,
+      entitlementOverrideDays: 12,
+      carriedForwardDays: 0,
+      adjustmentDays: 0,
+      note: "Synthetic UAT annual leave balance; 12 granted and 1 approved day consumed.",
+    },
+    update: {
+      entitlementOverrideDays: 12,
+      carriedForwardDays: 0,
+      adjustmentDays: 0,
+      note: "Synthetic UAT annual leave balance; 12 granted and 1 approved day consumed.",
+    },
+  });
+
+  const entitlementSourceDigest = digest({
+    fixture: "hr-payroll-uat-preview",
+    membershipId: membership.id,
+    policyVersionId: policyVersion.id,
+    year: 2026,
+    entitledUnits: 12,
+  });
+  const entitlementIdentity = {
+    businessId,
+    membershipId: membership.id,
+    policyId: paidPolicy.id,
+    leaveYearStart: LEAVE_YEAR_START,
+  };
+  const existingEntitlement = await tx.employeeLeaveEntitlement.findUnique({
+    where: {
+      businessId_membershipId_policyId_leaveYearStart: entitlementIdentity,
+    },
+  });
+  const entitlement = existingEntitlement ??
+    await tx.employeeLeaveEntitlement.create({
+      data: {
+      businessId,
+      membershipId: membership.id,
+      policyId: paidPolicy.id,
+      policyVersionId: policyVersion.id,
+      leaveYearStart: LEAVE_YEAR_START,
+      leaveYearEnd: LEAVE_YEAR_END,
+      entitledUnits: 12,
+      rawEntitledUnits: 12,
+      prorationFactor: 1,
+      eligibilitySnapshot: {
+        status: "ELIGIBLE",
+        source: "SYNTHETIC_UAT_FIXTURE",
+      },
+      calculationSnapshot: {
+        defaultEntitlementDays: 12,
+        approvedConsumptionUnits: consumedUnits,
+      },
+      source: "SYNTHETIC_UAT_FIXTURE",
+      sourceDigest: entitlementSourceDigest,
+      createdById: owner.id,
+      },
+    });
+  if (
+    entitlement.policyVersionId !== policyVersion.id ||
+    Number(entitlement.entitledUnits) !== 12 ||
+    entitlement.sourceDigest !== entitlementSourceDigest
+  ) {
+    throw new Error("HR_CORE_ACCEPTANCE_LEAVE_ENTITLEMENT_IDENTITY_MISMATCH");
+  }
+  const bucket = await tx.leaveEntitlementBucket.upsert({
+    where: { entitlementId: entitlement.id },
+    create: {
+      businessId,
+      membershipId: membership.id,
+      policyId: paidPolicy.id,
+      policyVersionId: policyVersion.id,
+      periodStart: LEAVE_YEAR_START,
+      periodEnd: LEAVE_YEAR_END,
+      sourceType: "CURRENT_ENTITLEMENT",
+      grantedUnits: 12,
+      availableFrom: LEAVE_YEAR_START,
+      status: "ACTIVE",
+      entitlementId: entitlement.id,
+      sourceDigest: entitlementSourceDigest,
+    },
+    update: {
+      policyVersionId: policyVersion.id,
+      periodEnd: LEAVE_YEAR_END,
+      grantedUnits: 12,
+      availableFrom: LEAVE_YEAR_START,
+      status: "ACTIVE",
+      sourceDigest: entitlementSourceDigest,
+    },
+  });
+  const entitlementLedgerSourceKey = `hr-uat:entitlement:${entitlement.id}`;
+  const entitlementLedger =
+    await tx.leaveBalanceLedgerEntry.findUnique({
+      where: { sourceKey: entitlementLedgerSourceKey },
+    }) ??
+    await tx.leaveBalanceLedgerEntry.create({
+      data: {
+      businessId,
+      membershipId: membership.id,
+      policyId: paidPolicy.id,
+      policyVersionId: policyVersion.id,
+      leaveYearStart: LEAVE_YEAR_START,
+      eventType: "ENTITLEMENT",
+      units: 12,
+      sourceKey: entitlementLedgerSourceKey,
+      entitlementId: entitlement.id,
+      bucketId: bucket.id,
+      reason: "Synthetic UAT entitlement grant from the active frozen policy version.",
+      actorUserId: owner.id,
+      },
+    });
+  if (
+    entitlementLedger.businessId !== businessId ||
+    entitlementLedger.membershipId !== membership.id ||
+    entitlementLedger.policyId !== paidPolicy.id ||
+    entitlementLedger.policyVersionId !== policyVersion.id ||
+    entitlementLedger.eventType !== "ENTITLEMENT" ||
+    Number(entitlementLedger.units) !== 12 ||
+    entitlementLedger.entitlementId !== entitlement.id ||
+    entitlementLedger.bucketId !== bucket.id
+  ) {
+    throw new Error("HR_CORE_ACCEPTANCE_LEAVE_ENTITLEMENT_LEDGER_MISMATCH");
+  }
+  const allocationSourceKey = `hr-uat:allocation:${paidLeave.id}:${bucket.id}`;
+  const allocation =
+    await tx.leaveConsumptionAllocation.findUnique({
+      where: { sourceKey: allocationSourceKey },
+    }) ??
+    await tx.leaveConsumptionAllocation.create({
+      data: {
+      businessId,
+      leaveRequestId: paidLeave.id,
+      bucketId: bucket.id,
+      units: consumedUnits,
+      sourceKey: allocationSourceKey,
+      },
+    });
+  if (
+    allocation.businessId !== businessId ||
+    allocation.leaveRequestId !== paidLeave.id ||
+    allocation.bucketId !== bucket.id ||
+    Number(allocation.units) !== consumedUnits
+  ) {
+    throw new Error("HR_CORE_ACCEPTANCE_LEAVE_ALLOCATION_MISMATCH");
+  }
+  const consumptionLedgerSourceKey = `hr-uat:consumption:${paidLeave.id}:${bucket.id}`;
+  const consumptionLedger =
+    await tx.leaveBalanceLedgerEntry.findUnique({
+      where: { sourceKey: consumptionLedgerSourceKey },
+    }) ??
+    await tx.leaveBalanceLedgerEntry.create({
+      data: {
+      businessId,
+      membershipId: membership.id,
+      policyId: paidPolicy.id,
+      policyVersionId: policyVersion.id,
+      leaveYearStart: LEAVE_YEAR_START,
+      eventType: "APPROVED_CONSUMPTION",
+      units: -consumedUnits,
+      sourceKey: consumptionLedgerSourceKey,
+      leaveRequestId: paidLeave.id,
+      bucketId: bucket.id,
+      allocationId: allocation.id,
+      reason: "Synthetic UAT approved leave consumed from the active entitlement bucket.",
+      actorUserId: manager.id,
+      },
+    });
+  if (
+    consumptionLedger.businessId !== businessId ||
+    consumptionLedger.membershipId !== membership.id ||
+    consumptionLedger.policyId !== paidPolicy.id ||
+    consumptionLedger.policyVersionId !== policyVersion.id ||
+    consumptionLedger.eventType !== "APPROVED_CONSUMPTION" ||
+    Number(consumptionLedger.units) !== -consumedUnits ||
+    consumptionLedger.leaveRequestId !== paidLeave.id ||
+    consumptionLedger.bucketId !== bucket.id ||
+    consumptionLedger.allocationId !== allocation.id
+  ) {
+    throw new Error("HR_CORE_ACCEPTANCE_LEAVE_CONSUMPTION_LEDGER_MISMATCH");
+  }
+
+  const attendanceMembership = await tx.employeeBusinessMembership.findFirstOrThrow({
+    where: { businessId, employeeCode: "CORE-A" },
+  });
+  const attendanceExceptionId = deterministicUuid(
+    `hr-uat:${businessId}:core-a:2026-09-01:attendance-exception`,
+  );
+  await tx.attendanceException.upsert({
+    where: { id: attendanceExceptionId },
+    create: {
+      id: attendanceExceptionId,
+      employeeId: attendanceMembership.id,
+      businessId,
+      branchId: branch.id,
+      type: "FORGOT_CLOCK_OUT",
+      reason: ATTENDANCE_EXCEPTION_REASON,
+      status: "PENDING",
+      requestedClockInAt: ATTENDANCE_CORRECTION_CLOCK_IN,
+      requestedClockOutAt: ATTENDANCE_CORRECTION_CLOCK_OUT,
+    },
+    update: {
+      employeeId: attendanceMembership.id,
+      branchId: branch.id,
+      type: "FORGOT_CLOCK_OUT",
+      reason: ATTENDANCE_EXCEPTION_REASON,
+      status: "PENDING",
+      requestedClockInAt: ATTENDANCE_CORRECTION_CLOCK_IN,
+      requestedClockOutAt: ATTENDANCE_CORRECTION_CLOCK_OUT,
+      reviewedBy: null,
+      reviewedAt: null,
+      reviewNote: null,
+    },
+  });
+  const p2StableKey = `hr-uat:${businessId}:core-a:2026-09-01:missing-clock-out`;
+  const p2Exception = await tx.attendanceP2Exception.upsert({
+    where: { stableKey: p2StableKey },
+    create: {
+      businessId,
+      branchId: branch.id,
+      membershipId: attendanceMembership.id,
+      workDate: ATTENDANCE_CORRECTION_WORK_DATE,
+      type: "MISSING_CLOCK_OUT",
+      status: "PENDING_MANAGER",
+      stableKey: p2StableKey,
+      expectedStartAt: ATTENDANCE_CORRECTION_CLOCK_IN,
+      expectedEndAt: ATTENDANCE_CORRECTION_CLOCK_OUT,
+      actualClockInAt: ATTENDANCE_CORRECTION_CLOCK_IN,
+      actualClockOutAt: null,
+      graceMinutesSnapshot: 0,
+      exceptionMinutes: 0,
+      reasonCode: "SYNTHETIC_UAT_MISSING_CLOCK_OUT",
+      sourceDigest: digest(p2StableKey),
+      revision: 1,
+    },
+    update: {
+      branchId: branch.id,
+      membershipId: attendanceMembership.id,
+      workDate: ATTENDANCE_CORRECTION_WORK_DATE,
+      type: "MISSING_CLOCK_OUT",
+      status: "PENDING_MANAGER",
+      expectedStartAt: ATTENDANCE_CORRECTION_CLOCK_IN,
+      expectedEndAt: ATTENDANCE_CORRECTION_CLOCK_OUT,
+      actualClockInAt: ATTENDANCE_CORRECTION_CLOCK_IN,
+      actualClockOutAt: null,
+      graceMinutesSnapshot: 0,
+      exceptionMinutes: 0,
+      reasonCode: "SYNTHETIC_UAT_MISSING_CLOCK_OUT",
+      sourceDigest: digest(p2StableKey),
+      revision: 1,
+      currentResolutionId: null,
+      resolvedAt: null,
+    },
+  });
+  await tx.attendanceCorrectionRequest.upsert({
+    where: { requestKey: ATTENDANCE_CORRECTION_REQUEST_KEY },
+    create: {
+      businessId,
+      exceptionId: p2Exception.id,
+      membershipId: attendanceMembership.id,
+      employeeSessionId: employeeSession.id,
+      requestKey: ATTENDANCE_CORRECTION_REQUEST_KEY,
+      requestedClockInAt: ATTENDANCE_CORRECTION_CLOCK_IN,
+      requestedClockOutAt: ATTENDANCE_CORRECTION_CLOCK_OUT,
+      reason: "Synthetic UAT employee correction for a missed clock-out.",
+      status: "PENDING",
+    },
+    update: {
+      exceptionId: p2Exception.id,
+      membershipId: attendanceMembership.id,
+      employeeSessionId: employeeSession.id,
+      requestedClockInAt: ATTENDANCE_CORRECTION_CLOCK_IN,
+      requestedClockOutAt: ATTENDANCE_CORRECTION_CLOCK_OUT,
+      reason: "Synthetic UAT employee correction for a missed clock-out.",
+      status: "PENDING",
+      reviewedById: null,
+      reviewedAt: null,
+      reviewReason: null,
+    },
+  });
+}
+
+function deterministicUuid(value: string) {
+  const bytes = createHash("sha256").update(value).digest().subarray(0, 16);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x50;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 async function createLeavePolicy(

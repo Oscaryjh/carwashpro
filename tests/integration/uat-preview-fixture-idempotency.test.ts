@@ -6,9 +6,11 @@ import { join, resolve } from "node:path";
 import test, { after, before } from "node:test";
 import { PrismaClient } from "@prisma/client";
 import {
+  assertCompletePreviewFixtureEvidence,
   assertHrPayrollUatFixtureEnvironment,
   assertPreviewDatabaseContents,
   capturePreviewFixtureCounts,
+  capturePreviewFixtureEvidence,
   databaseConnectionFingerprint,
   HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG,
 } from "../../scripts/uat-preview-database-guard";
@@ -147,6 +149,7 @@ test("Preview core and eight-role fixtures are idempotent across every required 
     businessId: marker.id,
   });
   const firstCounts = await capturePreviewFixtureCounts(prisma, marker.id);
+  const firstEvidence = await capturePreviewFixtureEvidence(prisma, marker.id);
 
   const secondResults = runFixturePair(environment);
   for (const result of secondResults) {
@@ -154,15 +157,26 @@ test("Preview core and eight-role fixtures are idempotent across every required 
     assertSanitized(result, environment);
   }
   const secondCounts = await capturePreviewFixtureCounts(prisma, marker.id);
+  const secondEvidence = await capturePreviewFixtureEvidence(prisma, marker.id);
 
   assert.deepEqual(secondCounts, firstCounts);
+  assert.equal(secondEvidence.stableFixtureDigest, firstEvidence.stableFixtureDigest);
+  assert.equal(secondEvidence.duplicateCount, 0);
   assert.equal(secondCounts.businesses, 1);
   assert.equal(secondCounts.employeeAccounts, 6);
   assert.equal(secondCounts.employeeMemberships, 6);
   assert.equal(secondCounts.activeDevices, 6);
   assert.equal(secondCounts.attendanceTimesheets, 1);
+  assert.equal(secondCounts.attendanceExceptions, 1);
+  assert.equal(secondCounts.attendanceP2Exceptions, 1);
+  assert.equal(secondCounts.attendanceCorrections, 1);
   assert.equal(secondCounts.leaveRequests, 2);
   assert.equal(secondCounts.leaveDays, 2);
+  assert.equal(secondCounts.leaveBalances, 1);
+  assert.equal(secondCounts.leaveEntitlements, 1);
+  assert.equal(secondCounts.leaveEntitlementBuckets, 1);
+  assert.equal(secondCounts.leaveLedgerEntries, 2);
+  assert.equal(secondCounts.leaveConsumptionAllocations, 1);
   assert.equal(secondCounts.payrollRuns, 1);
   assert.equal(secondCounts.payrollEntries, 6);
   assert.ok(secondCounts.payrollComponents > 0);
@@ -174,7 +188,119 @@ test("Preview core and eight-role fixtures are idempotent across every required 
   );
   assert.equal(verification.status, 0, verification.stderr);
   assert.match(verification.stdout, /"verified": true/);
+  assert.match(verification.stdout, /"duplicateCount": 0/);
+  assert.match(verification.stdout, /"stableFixtureDigest": "[a-f0-9]{64}"/);
   assertSanitized(verification, environment);
+});
+
+test("formal fixture creates the required Leave and Attendance domain evidence", async () => {
+  const marker = await prisma.business.findUniqueOrThrow({
+    where: { slug: HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG },
+    select: { id: true },
+  });
+
+  const [
+    leaveBalances,
+    leaveEntitlements,
+    leaveBuckets,
+    leaveLedgerEntries,
+    leaveConsumptionAllocations,
+    attendanceExceptions,
+    attendanceCorrections,
+  ] = await Promise.all([
+    prisma.employeeLeaveBalance.count({ where: { businessId: marker.id } }),
+    prisma.employeeLeaveEntitlement.count({ where: { businessId: marker.id } }),
+    prisma.leaveEntitlementBucket.count({ where: { businessId: marker.id } }),
+    prisma.leaveBalanceLedgerEntry.count({ where: { businessId: marker.id } }),
+    prisma.leaveConsumptionAllocation.count({ where: { businessId: marker.id } }),
+    prisma.attendanceException.count({ where: { businessId: marker.id } }),
+    prisma.attendanceCorrectionRequest.count({ where: { businessId: marker.id } }),
+  ]);
+
+  assert.deepEqual(
+    {
+      leaveBalances,
+      leaveEntitlements,
+      leaveBuckets,
+      leaveLedgerEntries,
+      leaveConsumptionAllocations,
+      attendanceExceptions,
+      attendanceCorrections,
+    },
+    {
+      leaveBalances: 1,
+      leaveEntitlements: 1,
+      leaveBuckets: 1,
+      leaveLedgerEntries: 2,
+      leaveConsumptionAllocations: 1,
+      attendanceExceptions: 1,
+      attendanceCorrections: 1,
+    },
+  );
+
+  const evidence = await capturePreviewFixtureEvidence(prisma, marker.id);
+  assertCompletePreviewFixtureEvidence(evidence);
+  assert.deepEqual(evidence.domains.leave.ledgerUnits, [-1, 12]);
+  assert.equal(evidence.domains.leave.ledgerBalanceUnits, 11);
+  assert.equal(evidence.domains.leave.availableUnits, 11);
+  assert.equal(evidence.domains.leave.linksValid, true);
+  assert.equal(evidence.domains.attendance.workDate, "2026-09-01T00:00:00.000Z");
+  assert.equal(evidence.domains.attendance.linksValid, true);
+});
+
+test("formal verifier reports relational evidence and a stable digest", () => {
+  const artifactDirectory = ARTIFACT_DIRECTORIES.at(-1);
+  assert.ok(artifactDirectory);
+  const environment = previewEnvironment({
+    HR_PAYROLL_UAT_ARTIFACT_DIRECTORY: artifactDirectory,
+  });
+
+  const verification = runFixtureScript(
+    "scripts/verify-hr-payroll-uat-preview-fixture.ts",
+    environment,
+  );
+
+  assert.equal(verification.status, 0, verification.stderr);
+  const output = JSON.parse(verification.stdout) as {
+    duplicateCount: number;
+    stableFixtureDigest: string;
+    domains: { leave: { linksValid: boolean }; attendance: { linksValid: boolean } };
+  };
+  assert.equal(output.duplicateCount, 0);
+  assert.match(output.stableFixtureDigest, /^[a-f0-9]{64}$/);
+  assert.equal(output.domains.leave.linksValid, true);
+  assert.equal(output.domains.attendance.linksValid, true);
+  assertSanitized(verification, environment);
+});
+
+test("formal verifier fails closed when any required Leave or Attendance domain is absent", async () => {
+  const marker = await prisma.business.findUniqueOrThrow({
+    where: { slug: HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG },
+    select: { id: true },
+  });
+  const evidence = await capturePreviewFixtureEvidence(prisma, marker.id);
+  const missingDomains = [
+    ["leaveBalances", "HR_UAT_FIXTURE_LEAVE_BALANCE_MISSING"],
+    ["leaveEntitlements", "HR_UAT_FIXTURE_LEAVE_ENTITLEMENT_MISSING"],
+    ["leaveEntitlementBuckets", "HR_UAT_FIXTURE_LEAVE_BUCKET_MISSING"],
+    ["leaveLedgerEntries", "HR_UAT_FIXTURE_LEAVE_LEDGER_MISSING"],
+    ["leaveConsumptionAllocations", "HR_UAT_FIXTURE_LEAVE_ALLOCATION_MISSING"],
+    ["attendanceExceptions", "HR_UAT_FIXTURE_ATTENDANCE_EXCEPTION_MISSING"],
+    ["attendanceP2Exceptions", "HR_UAT_FIXTURE_ATTENDANCE_P2_EXCEPTION_MISSING"],
+    ["attendanceCorrections", "HR_UAT_FIXTURE_ATTENDANCE_CORRECTION_MISSING"],
+  ] as const;
+
+  for (const [name, expectedError] of missingDomains) {
+    assert.throws(
+      () =>
+        assertCompletePreviewFixtureEvidence({
+          ...evidence,
+          counts: { ...evidence.counts, [name]: 0 },
+        }),
+      (error: unknown) =>
+        error instanceof Error && error.message === expectedError,
+    );
+  }
 });
 
 function runFixturePair(environment: NodeJS.ProcessEnv) {

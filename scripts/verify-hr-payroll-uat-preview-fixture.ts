@@ -1,8 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import {
+  assertCompletePreviewFixtureEvidence,
   assertHrPayrollUatFixtureEnvironment,
   assertPreviewDatabaseContents,
-  capturePreviewFixtureCounts,
+  capturePreviewFixtureEvidence,
 } from "./uat-preview-database-guard";
 
 const prisma = new PrismaClient();
@@ -17,34 +18,15 @@ async function main() {
     throw new Error("HR_UAT_FIXTURE_SYNTHETIC_MARKER_REQUIRED");
   }
 
-  const counts = await capturePreviewFixtureCounts(prisma, state.businessId);
-  const exactCounts = {
-    businesses: 1,
-    employeeAccounts: 6,
-    employeeMemberships: 6,
-    activeDevices: 6,
-    attendanceTimesheets: 1,
-    leaveRequests: 2,
-    leaveDays: 2,
-    payrollRuns: 1,
-    payrollEntries: 6,
-    payslipPublications: 6,
-  } as const;
-  for (const [name, expected] of Object.entries(exactCounts)) {
-    if (counts[name as keyof typeof counts] !== expected) {
-      throw new Error("HR_UAT_FIXTURE_COUNT_MISMATCH");
-    }
-  }
-  if (counts.payrollComponents <= 0) {
-    throw new Error("HR_UAT_FIXTURE_PAYROLL_COMPONENTS_MISSING");
-  }
+  const evidence = await capturePreviewFixtureEvidence(prisma, state.businessId);
+  assertCompletePreviewFixtureEvidence(evidence);
 
   process.stdout.write(
     `${JSON.stringify(
       {
         verified: true,
         marker: guard.syntheticBusinessSlug,
-        counts,
+        ...evidence,
       },
       null,
       2,
