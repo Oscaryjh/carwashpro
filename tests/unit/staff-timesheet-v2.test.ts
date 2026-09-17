@@ -73,16 +73,16 @@ test("summary counts unique presentation dates without double counting day and O
   assert.deepEqual(summary, { action: 0, waiting: 1, final: 0, rows: 1, state: "WAITING_FOR_MANAGER" });
 });
 
-test("draft month with no open actions is Up to date and locked month is Final", () => {
+test("draft month stays Up to date while a locked payroll month remains explicitly Locked", () => {
   const rows = buildStaffTimesheetV2Rows({ days: [day()], overtime: [] });
   assert.equal(summarizeStaffTimesheetV2(rows, "DRAFT").state, "UP_TO_DATE");
-  assert.equal(summarizeStaffTimesheetV2(rows, "LOCKED").state, "FINAL");
+  assert.equal(summarizeStaffTimesheetV2(rows, "LOCKED").state, "LOCKED");
 });
 
 test("normal month summary is one natural employee summary with singular/plural grammar", () => {
   assert.deepEqual(
-    staffTimesheetSummaryItems({ action: 0, waiting: 0, final: 1, rows: 1, state: "FINAL" }),
-    [{ label: "Final", value: "1 workday" }],
+    staffTimesheetSummaryItems({ action: 0, waiting: 0, final: 1, rows: 1, state: "LOCKED" }),
+    [{ label: "Locked", value: "1 workday" }],
   );
   assert.deepEqual(
     staffTimesheetSummaryItems({ action: 0, waiting: 0, final: 2, rows: 2, state: "UP_TO_DATE" }),
@@ -179,8 +179,11 @@ test("Result Why and Next action are detail-only and paid leave has no dash metr
   assert.doesNotMatch(component, />—</);
 });
 
-test("locked snapshot wording stays final and payroll-safe", () => {
+test("locked snapshot keeps its real status and explains the payroll consequence", () => {
   assert.match(page, /overview\.timesheetStatus === "LOCKED"/);
+  assert.match(component, /timesheetStatus === "LOCKED"/);
+  assert.match(component, /Locked for payroll/);
+  assert.match(component, /authorized correction or reopen/);
   assert.match(component, /This record will be used for payroll/);
   assert.match(component, /StaffV2DetailSection title="Payroll"/);
   assert.doesNotMatch(component, /snapshot|revision|digest|materialization/i);

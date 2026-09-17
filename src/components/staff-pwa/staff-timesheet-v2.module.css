@@ -2,6 +2,28 @@
   min-width: 0;
 }
 
+.lockNotice {
+  background: var(--staff-v2-success-soft);
+  border: 1px solid color-mix(in srgb, var(--staff-v2-success) 24%, transparent);
+  border-radius: 14px;
+  color: var(--staff-v2-ink);
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 11px 12px;
+}
+
+.lockNotice strong {
+  font-size: 12px;
+}
+
+.lockNotice span {
+  color: var(--staff-v2-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .results {
   display: grid;
   gap: 6px;

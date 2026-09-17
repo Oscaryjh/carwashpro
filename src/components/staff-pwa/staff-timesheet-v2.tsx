@@ -59,6 +59,13 @@ export function StaffTimesheetV2({
 
       <StaffV2CompactSummary items={staffTimesheetSummaryItems(summary)} />
 
+      {timesheetStatus === "LOCKED" ? (
+        <aside aria-label="Timesheet lock status" className={styles.lockNotice}>
+          <strong>Locked for payroll</strong>
+          <span>This month can only change through an authorized correction or reopen.</span>
+        </aside>
+      ) : null}
+
       <section aria-labelledby="timesheet-workdays-heading" className={styles.results}>
         <StaffV2SectionLabel id="timesheet-workdays-heading">Workdays</StaffV2SectionLabel>
         {rows.length ? (

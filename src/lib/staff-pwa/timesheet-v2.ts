@@ -26,7 +26,7 @@ export type StaffTimesheetV2Summary = Readonly<{
   waiting: number;
   final: number;
   rows: number;
-  state: "ACTION_NEEDED" | "WAITING_FOR_MANAGER" | "FINAL" | "UP_TO_DATE";
+  state: "ACTION_NEEDED" | "WAITING_FOR_MANAGER" | "FINAL" | "LOCKED" | "UP_TO_DATE";
 }>;
 
 export type StaffTimesheetV2SummaryItem = Readonly<{
@@ -85,7 +85,7 @@ export function summarizeStaffTimesheetV2(
       : waiting
         ? "WAITING_FOR_MANAGER"
         : timesheetStatus === "LOCKED"
-          ? "FINAL"
+          ? "LOCKED"
           : "UP_TO_DATE",
   };
 }
@@ -95,7 +95,11 @@ export function staffTimesheetSummaryItems(
 ): StaffTimesheetV2SummaryItem[] {
   if (!summary.action && !summary.waiting) {
     return [{
-      label: summary.state === "FINAL" ? "Final" : "Up to date",
+      label: summary.state === "LOCKED"
+        ? "Locked"
+        : summary.state === "FINAL"
+          ? "Final"
+          : "Up to date",
       value: workdayCount(summary.rows),
     }];
   }
