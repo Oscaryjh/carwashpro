@@ -9,6 +9,12 @@ export const HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_NAME =
   "Tetamu HR Acceptance Test";
 export const HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG =
   "tetamu-hr-uat-preview-synthetic-v1";
+export const HR_PAYROLL_UAT_BOUNDARY_BUSINESS_NAME =
+  "Tetamu HR Boundary Test";
+export const HR_PAYROLL_UAT_BOUNDARY_BUSINESS_SLUG =
+  "tetamu-hr-uat-preview-boundary-v1";
+export const HR_PAYROLL_UAT_SYNTHETIC_TOPOLOGY_VERSION =
+  "hr-payroll-uat-preview-r3-v1";
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 const RESTRICTED_FALSE_FLAGS = [
@@ -43,13 +49,26 @@ export type HrPayrollUatFixtureGuard = Readonly<{
   syntheticBusinessSlug: typeof HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG;
 }>;
 
-export type PreviewFixtureState = Readonly<{
-  state: "local-unchecked" | "empty" | "synthetic-marker";
-  businessId: string | null;
-}>;
+export type PreviewFixtureState =
+  | Readonly<{
+      state: "local-unchecked" | "empty";
+      businessId: null;
+      boundaryBusinessId: null;
+    }>
+  | Readonly<{
+      state: "synthetic-marker";
+      businessId: string;
+      boundaryBusinessId: null;
+    }>
+  | Readonly<{
+      state: "synthetic-topology";
+      businessId: string;
+      boundaryBusinessId: string;
+    }>;
 
 export type PreviewFixtureCounts = Readonly<{
   businesses: number;
+  branches: number;
   employeeAccounts: number;
   employeeMemberships: number;
   activeDevices: number;
@@ -70,6 +89,13 @@ export type PreviewFixtureCounts = Readonly<{
   payrollEntries: number;
   payrollComponents: number;
   payslipPublications: number;
+  activeEmployeeSessions: number;
+  activeAppSessions: number;
+  otpChallenges: number;
+  paymentBatches: number;
+  statutorySubmissions: number;
+  outboundWhatsApp: number;
+  outboundNotifications: number;
 }>;
 
 export function databaseConnectionFingerprint(
@@ -274,17 +300,27 @@ export function assertHrPayrollUatFixtureEnvironment(
 export async function assertPreviewDatabaseContents(
   database: Pick<
     PrismaClient,
-    "business" | "customer" | "employeeAccount" | "employeeBusinessMembership" | "user"
+    | "business"
+    | "branch"
+    | "businessGroupMember"
+    | "customer"
+    | "employeeAccount"
+    | "employeeBusinessMembership"
+    | "user"
   >,
   guard: HrPayrollUatFixtureGuard,
 ): Promise<PreviewFixtureState> {
   if (guard.mode === "local-disposable") {
-    return { state: "local-unchecked", businessId: null };
+    return {
+      state: "local-unchecked",
+      businessId: null,
+      boundaryBusinessId: null,
+    };
   }
 
   const businesses = await database.business.findMany({
     select: { id: true, name: true, slug: true },
-    take: 2,
+    take: 3,
   });
   if (businesses.length === 0) {
     const [customers, employeeAccounts, users] = await Promise.all([
@@ -295,30 +331,39 @@ export async function assertPreviewDatabaseContents(
     if (customers !== 0 || employeeAccounts !== 0 || users !== 0) {
       guardError("HR_UAT_FIXTURE_NON_SYNTHETIC_DATA_PRESENT");
     }
-    return { state: "empty", businessId: null };
+    return { state: "empty", businessId: null, boundaryBusinessId: null };
   }
 
-  const marker = businesses[0];
-  if (
-    businesses.length !== 1 ||
-    marker.name !== guard.syntheticBusinessName ||
-    marker.slug !== guard.syntheticBusinessSlug
-  ) {
+  const marker = businesses.find(
+    (business) =>
+      business.name === guard.syntheticBusinessName &&
+      business.slug === guard.syntheticBusinessSlug,
+  );
+  if (!marker) {
     guardError("HR_UAT_FIXTURE_NON_SYNTHETIC_DATA_PRESENT");
   }
+  const boundary = businesses.find(
+    (business) =>
+      business.name === HR_PAYROLL_UAT_BOUNDARY_BUSINESS_NAME &&
+      business.slug === HR_PAYROLL_UAT_BOUNDARY_BUSINESS_SLUG,
+  );
+  if (businesses.length !== 1 && !(businesses.length === 2 && boundary)) {
+    guardError("HR_UAT_FIXTURE_NON_SYNTHETIC_DATA_PRESENT");
+  }
+  const allowedBusinessIds = boundary ? [marker.id, boundary.id] : [marker.id];
 
   const [foreignCustomer, foreignMembership, orphanAccount, users] =
     await Promise.all([
       database.customer.findFirst({
-        where: { businessId: { not: marker.id } },
+        where: { businessId: { notIn: allowedBusinessIds } },
         select: { id: true },
       }),
       database.employeeBusinessMembership.findFirst({
-        where: { businessId: { not: marker.id } },
+        where: { businessId: { notIn: allowedBusinessIds } },
         select: { id: true },
       }),
       database.employeeAccount.findFirst({
-        where: { memberships: { none: { businessId: marker.id } } },
+        where: { memberships: { none: { businessId: { in: allowedBusinessIds } } } },
         select: { id: true },
       }),
       database.user.findMany({
@@ -327,19 +372,55 @@ export async function assertPreviewDatabaseContents(
     ]);
   const foreignUser = users.some(
     (user) =>
-      user.businessId !== marker.id &&
+      !allowedBusinessIds.includes(user.businessId ?? "") &&
       !(user.businessId === null && SYNTHETIC_GROUP_USER_EMAILS.has(user.email ?? "")),
   );
   if (foreignCustomer || foreignMembership || orphanAccount || foreignUser) {
     guardError("HR_UAT_FIXTURE_NON_SYNTHETIC_DATA_PRESENT");
   }
-  return { state: "synthetic-marker", businessId: marker.id };
+  if (!boundary) {
+    return {
+      state: "synthetic-marker",
+      businessId: marker.id,
+      boundaryBusinessId: null,
+    };
+  }
+  const [branchCount, boundaryMemberships, groupMemberships] = await Promise.all([
+    database.branch.count({ where: { businessId: { in: allowedBusinessIds } } }),
+    database.employeeBusinessMembership.findMany({
+      where: {
+        OR: [
+          { businessId: marker.id, employeeCode: "BOUNDARY-B" },
+          { businessId: boundary.id, employeeCode: "TENANT-B" },
+        ],
+      },
+      select: { businessId: true, employeeCode: true },
+    }),
+    database.businessGroupMember.findMany({
+      where: { businessId: { in: allowedBusinessIds }, status: "ACTIVE" },
+      select: { businessId: true, groupId: true },
+    }),
+  ]);
+  if (
+    branchCount !== 3 ||
+    boundaryMemberships.length !== 2 ||
+    groupMemberships.length !== 2 ||
+    groupMemberships[0]?.groupId !== groupMemberships[1]?.groupId
+  ) {
+    guardError("HR_UAT_FIXTURE_SYNTHETIC_TOPOLOGY_PARTIAL");
+  }
+  return {
+    state: "synthetic-topology",
+    businessId: marker.id,
+    boundaryBusinessId: boundary.id,
+  };
 }
 
 export async function capturePreviewFixtureCounts(
   database: Pick<
     PrismaClient,
     | "business"
+    | "branch"
     | "employeeAccount"
     | "employeeBusinessMembership"
     | "employeeDevice"
@@ -360,11 +441,26 @@ export async function capturePreviewFixtureCounts(
     | "payrollEntry"
     | "payrollEntryComponent"
     | "payrollPayslipPublication"
+    | "employeeSession"
+    | "authSession"
+    | "employeeOtpChallenge"
+    | "payrollPaymentBatch"
+    | "payrollStatutorySubmission"
+    | "whatsAppMessage"
+    | "notificationQueue"
   >,
   businessId: string,
 ): Promise<PreviewFixtureCounts> {
+  const boundaryBusiness = await database.business.findUnique({
+    where: { slug: HR_PAYROLL_UAT_BOUNDARY_BUSINESS_SLUG },
+    select: { id: true },
+  });
+  const businessIds = boundaryBusiness
+    ? [businessId, boundaryBusiness.id]
+    : [businessId];
   const [
     businesses,
+    branches,
     employeeAccounts,
     employeeMemberships,
     activeDevices,
@@ -385,38 +481,72 @@ export async function capturePreviewFixtureCounts(
     payrollEntries,
     payrollComponents,
     payslipPublications,
+    activeEmployeeSessions,
+    activeAppSessions,
+    otpChallenges,
+    paymentBatches,
+    statutorySubmissions,
+    outboundWhatsApp,
+    outboundNotifications,
   ] = await Promise.all([
-    database.business.count({ where: { id: businessId } }),
+    database.business.count({ where: { id: { in: businessIds } } }),
+    database.branch.count({ where: { businessId: { in: businessIds } } }),
     database.employeeAccount.count({
-      where: { memberships: { some: { businessId } } },
+      where: { memberships: { some: { businessId: { in: businessIds } } } },
     }),
-    database.employeeBusinessMembership.count({ where: { businessId } }),
+    database.employeeBusinessMembership.count({ where: { businessId: { in: businessIds } } }),
     database.employeeDevice.count({
       where: {
         status: "ACTIVE",
-        employeeAccount: { memberships: { some: { businessId } } },
+        employeeAccount: { memberships: { some: { businessId: { in: businessIds } } } },
       },
     }),
-    database.attendancePunch.count({ where: { businessId } }),
-    database.attendanceMonthlyTimesheet.count({ where: { businessId } }),
-    database.attendanceException.count({ where: { businessId } }),
-    database.attendanceP2Exception.count({ where: { businessId } }),
-    database.attendanceCorrectionRequest.count({ where: { businessId } }),
-    database.leaveRequest.count({ where: { businessId } }),
-    database.leaveRequestDay.count({ where: { businessId } }),
-    database.leaveSupportingDocument.count({ where: { businessId } }),
-    database.employeeLeaveBalance.count({ where: { businessId } }),
-    database.employeeLeaveEntitlement.count({ where: { businessId } }),
-    database.leaveEntitlementBucket.count({ where: { businessId } }),
-    database.leaveBalanceLedgerEntry.count({ where: { businessId } }),
-    database.leaveConsumptionAllocation.count({ where: { businessId } }),
-    database.payrollRun.count({ where: { businessId } }),
-    database.payrollEntry.count({ where: { businessId } }),
-    database.payrollEntryComponent.count({ where: { businessId } }),
-    database.payrollPayslipPublication.count({ where: { businessId } }),
+    database.attendancePunch.count({ where: { businessId: { in: businessIds } } }),
+    database.attendanceMonthlyTimesheet.count({ where: { businessId: { in: businessIds } } }),
+    database.attendanceException.count({ where: { businessId: { in: businessIds } } }),
+    database.attendanceP2Exception.count({ where: { businessId: { in: businessIds } } }),
+    database.attendanceCorrectionRequest.count({ where: { businessId: { in: businessIds } } }),
+    database.leaveRequest.count({ where: { businessId: { in: businessIds } } }),
+    database.leaveRequestDay.count({ where: { businessId: { in: businessIds } } }),
+    database.leaveSupportingDocument.count({ where: { businessId: { in: businessIds } } }),
+    database.employeeLeaveBalance.count({ where: { businessId: { in: businessIds } } }),
+    database.employeeLeaveEntitlement.count({ where: { businessId: { in: businessIds } } }),
+    database.leaveEntitlementBucket.count({ where: { businessId: { in: businessIds } } }),
+    database.leaveBalanceLedgerEntry.count({ where: { businessId: { in: businessIds } } }),
+    database.leaveConsumptionAllocation.count({ where: { businessId: { in: businessIds } } }),
+    database.payrollRun.count({ where: { businessId: { in: businessIds } } }),
+    database.payrollEntry.count({ where: { businessId: { in: businessIds } } }),
+    database.payrollEntryComponent.count({ where: { businessId: { in: businessIds } } }),
+    database.payrollPayslipPublication.count({ where: { businessId: { in: businessIds } } }),
+    database.employeeSession.count({
+      where: { businessId: { in: businessIds }, revokedAt: null },
+    }),
+    database.authSession.count({
+      where: {
+        revokedAt: null,
+        user: {
+          OR: [
+            { businessId: { in: businessIds } },
+            { email: { in: [...SYNTHETIC_GROUP_USER_EMAILS] } },
+          ],
+        },
+      },
+    }),
+    database.employeeOtpChallenge.count({
+      where: {
+        employeeAccount: {
+          memberships: { some: { businessId: { in: businessIds } } },
+        },
+      },
+    }),
+    database.payrollPaymentBatch.count({ where: { businessId: { in: businessIds } } }),
+    database.payrollStatutorySubmission.count({ where: { businessId: { in: businessIds } } }),
+    database.whatsAppMessage.count({ where: { businessId: { in: businessIds } } }),
+    database.notificationQueue.count({ where: { businessId: { in: businessIds } } }),
   ]);
   return {
     businesses,
+    branches,
     employeeAccounts,
     employeeMemberships,
     activeDevices,
@@ -437,6 +567,13 @@ export async function capturePreviewFixtureCounts(
     payrollEntries,
     payrollComponents,
     payslipPublications,
+    activeEmployeeSessions,
+    activeAppSessions,
+    otpChallenges,
+    paymentBatches,
+    statutorySubmissions,
+    outboundWhatsApp,
+    outboundNotifications,
   };
 }
 
@@ -470,6 +607,10 @@ export type PreviewFixtureEvidence = Readonly<{
       workDate: string | null;
       linksValid: boolean;
     }>;
+    boundary: Readonly<{
+      linksValid: boolean;
+      topologyVersion: typeof HR_PAYROLL_UAT_SYNTHETIC_TOPOLOGY_VERSION;
+    }>;
     lockedTimesheets: number;
     approvedOtSnapshots: number;
     payrollRunStatus: string | null;
@@ -481,6 +622,13 @@ export async function capturePreviewFixtureEvidence(
   businessId: string,
 ): Promise<PreviewFixtureEvidence> {
   const counts = await capturePreviewFixtureCounts(database, businessId);
+  const boundaryBusiness = await database.business.findUnique({
+    where: { slug: HR_PAYROLL_UAT_BOUNDARY_BUSINESS_SLUG },
+    select: { id: true, name: true, slug: true },
+  });
+  const businessIds = boundaryBusiness
+    ? [businessId, boundaryBusiness.id]
+    : [businessId];
   const [
     memberships,
     annualPolicy,
@@ -502,7 +650,7 @@ export async function capturePreviewFixtureEvidence(
     users,
   ] = await Promise.all([
     database.employeeBusinessMembership.findMany({
-      where: { businessId },
+      where: { businessId: { in: businessIds } },
       select: { id: true, employeeCode: true, fullName: true },
       orderBy: { employeeCode: "asc" },
     }),
@@ -588,12 +736,12 @@ export async function capturePreviewFixtureEvidence(
       },
     }),
     database.payrollRun.findMany({
-      where: { businessId },
+      where: { businessId: { in: businessIds } },
       select: { id: true, periodStart: true, status: true },
       orderBy: { periodStart: "asc" },
     }),
     database.payrollEntry.findMany({
-      where: { businessId },
+      where: { businessId: { in: businessIds } },
       select: {
         id: true,
         employeeCodeSnapshot: true,
@@ -613,7 +761,7 @@ export async function capturePreviewFixtureEvidence(
       orderBy: { employeeCodeSnapshot: "asc" },
     }),
     database.payrollPayslipPublication.findMany({
-      where: { businessId },
+      where: { businessId: { in: businessIds } },
       select: {
         id: true,
         payrollRunId: true,
@@ -626,7 +774,7 @@ export async function capturePreviewFixtureEvidence(
     database.user.findMany({
       where: {
         OR: [
-          { businessId },
+          { businessId: { in: businessIds } },
           { email: { in: [...SYNTHETIC_GROUP_USER_EMAILS] } },
         ],
       },
@@ -641,6 +789,104 @@ export async function capturePreviewFixtureEvidence(
       orderBy: { email: "asc" },
     }),
   ]);
+
+  const [
+    businesses,
+    branches,
+    boundaryMemberships,
+    boundaryLeaveRequests,
+    boundaryTimesheetDays,
+    boundaryPayslips,
+    groupMembers,
+    groupManager,
+  ] =
+    await Promise.all([
+      database.business.findMany({
+        where: { id: { in: businessIds } },
+        select: { id: true, name: true, slug: true },
+        orderBy: { slug: "asc" },
+      }),
+      database.branch.findMany({
+        where: { businessId: { in: businessIds } },
+        select: { id: true, businessId: true, name: true },
+        orderBy: [{ businessId: "asc" }, { name: "asc" }],
+      }),
+      database.employeeBusinessMembership.findMany({
+        where: {
+          OR: [
+            { businessId, employeeCode: "BOUNDARY-B" },
+            ...(boundaryBusiness
+              ? [{ businessId: boundaryBusiness.id, employeeCode: "TENANT-B" }]
+              : []),
+          ],
+        },
+        select: {
+          id: true,
+          businessId: true,
+          employeeCode: true,
+          branchAssignments: {
+            where: { status: "ACTIVE", isPrimary: true },
+            select: { branchId: true },
+          },
+        },
+        orderBy: { employeeCode: "asc" },
+      }),
+      database.leaveRequest.findMany({
+        where: {
+          status: "APPROVED",
+          membership: { employeeCode: { in: ["BOUNDARY-B", "TENANT-B"] } },
+        },
+        select: { membershipId: true },
+      }),
+      database.attendanceTimesheetP2DaySnapshot.findMany({
+        where: { businessId: { in: businessIds } },
+        select: { membershipId: true },
+      }),
+      database.payrollPayslipPublication.findMany({
+        where: { membership: { employeeCode: { in: ["BOUNDARY-B", "TENANT-B"] } } },
+        select: { membershipId: true },
+      }),
+      database.businessGroupMember.findMany({
+        where: { businessId: { in: businessIds }, status: "ACTIVE" },
+        select: { businessId: true, groupId: true },
+        orderBy: { businessId: "asc" },
+      }),
+      database.businessGroupUser.findFirst({
+        where: {
+          role: "GROUP_MANAGER",
+          status: "ACTIVE",
+          user: { email: "uat.group-manager@tetamu.local" },
+        },
+        select: {
+          accessScope: true,
+          groupId: true,
+          businessAccesses: {
+            select: { businessId: true },
+            orderBy: { businessId: "asc" },
+          },
+        },
+      }),
+    ]);
+  const boundaryLinksValid = Boolean(
+    boundaryBusiness &&
+      businesses.length === 2 &&
+      branches.filter((branch) => branch.businessId === businessId).length === 2 &&
+      branches.filter((branch) => branch.businessId === boundaryBusiness.id).length === 1 &&
+      boundaryMemberships.length === 2 &&
+      boundaryMemberships.every(
+        (membership) =>
+          membership.branchAssignments.length === 1 &&
+          boundaryLeaveRequests.filter((row) => row.membershipId === membership.id).length === 1 &&
+          boundaryTimesheetDays.filter((row) => row.membershipId === membership.id).length === 1 &&
+          boundaryPayslips.filter((row) => row.membershipId === membership.id).length === 1,
+      ) &&
+      groupMembers.length === 2 &&
+      groupMembers[0]?.groupId === groupMembers[1]?.groupId &&
+      groupManager?.groupId === groupMembers[0]?.groupId &&
+      groupManager.accessScope === "SELECTED_BUSINESSES" &&
+      groupManager.businessAccesses.length === 1 &&
+      groupManager.businessAccesses[0]?.businessId === businessId,
+  );
 
   const membershipCodeById = new Map(
     memberships.map((membership) => [membership.id, membership.employeeCode]),
@@ -719,24 +965,32 @@ export async function capturePreviewFixtureEvidence(
       correctionSession.membershipId === correction.membershipId,
   );
   const exactExpectedCounts: Partial<Record<keyof PreviewFixtureCounts, number>> = {
-    businesses: 1,
-    employeeAccounts: 6,
-    employeeMemberships: 6,
+    businesses: 2,
+    branches: 3,
+    employeeAccounts: 8,
+    employeeMemberships: 8,
     activeDevices: 6,
-    attendanceTimesheets: 1,
+    attendanceTimesheets: 2,
     attendanceExceptions: 1,
     attendanceP2Exceptions: 1,
     attendanceCorrections: 1,
-    leaveRequests: 2,
-    leaveDays: 2,
+    leaveRequests: 4,
+    leaveDays: 4,
     leaveBalances: 1,
     leaveEntitlements: 1,
     leaveEntitlementBuckets: 1,
     leaveLedgerEntries: 2,
     leaveConsumptionAllocations: 1,
-    payrollRuns: 1,
-    payrollEntries: 6,
-    payslipPublications: 6,
+    payrollRuns: 3,
+    payrollEntries: 8,
+    payslipPublications: 8,
+    activeEmployeeSessions: 0,
+    activeAppSessions: 0,
+    otpChallenges: 0,
+    paymentBatches: 0,
+    statutorySubmissions: 0,
+    outboundWhatsApp: 0,
+    outboundNotifications: 0,
   };
   const duplicateCount = Object.entries(exactExpectedCounts).reduce(
     (sum, [name, expected]) =>
@@ -745,6 +999,12 @@ export async function capturePreviewFixtureEvidence(
   );
   const stableProjection = {
     marker: HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG,
+    topologyVersion: HR_PAYROLL_UAT_SYNTHETIC_TOPOLOGY_VERSION,
+    businesses,
+    branches,
+    boundaryMemberships,
+    groupMembers,
+    groupManager,
     memberships,
     users: users.map((user) => ({
       ...user,
@@ -904,6 +1164,10 @@ export async function capturePreviewFixtureEvidence(
         workDate: p2Exception?.workDate.toISOString() ?? null,
         linksValid: attendanceLinksValid,
       },
+      boundary: {
+        linksValid: boundaryLinksValid,
+        topologyVersion: HR_PAYROLL_UAT_SYNTHETIC_TOPOLOGY_VERSION,
+      },
       lockedTimesheets,
       approvedOtSnapshots,
       payrollRunStatus: payrollRuns[0]?.status ?? null,
@@ -918,24 +1182,32 @@ export function assertCompletePreviewFixtureEvidence(
   const requiredCounts: ReadonlyArray<
     readonly [keyof PreviewFixtureCounts, number, string]
   > = [
-    ["businesses", 1, "HR_UAT_FIXTURE_BUSINESS_COUNT_MISMATCH"],
-    ["employeeAccounts", 6, "HR_UAT_FIXTURE_EMPLOYEE_ACCOUNT_COUNT_MISMATCH"],
-    ["employeeMemberships", 6, "HR_UAT_FIXTURE_MEMBERSHIP_COUNT_MISMATCH"],
+    ["businesses", 2, "HR_UAT_FIXTURE_BUSINESS_COUNT_MISMATCH"],
+    ["branches", 3, "HR_UAT_FIXTURE_BRANCH_COUNT_MISMATCH"],
+    ["employeeAccounts", 8, "HR_UAT_FIXTURE_EMPLOYEE_ACCOUNT_COUNT_MISMATCH"],
+    ["employeeMemberships", 8, "HR_UAT_FIXTURE_MEMBERSHIP_COUNT_MISMATCH"],
     ["activeDevices", 6, "HR_UAT_FIXTURE_DEVICE_COUNT_MISMATCH"],
-    ["attendanceTimesheets", 1, "HR_UAT_FIXTURE_TIMESHEET_COUNT_MISMATCH"],
+    ["attendanceTimesheets", 2, "HR_UAT_FIXTURE_TIMESHEET_COUNT_MISMATCH"],
     ["attendanceExceptions", 1, "HR_UAT_FIXTURE_ATTENDANCE_EXCEPTION_MISSING"],
     ["attendanceP2Exceptions", 1, "HR_UAT_FIXTURE_ATTENDANCE_P2_EXCEPTION_MISSING"],
     ["attendanceCorrections", 1, "HR_UAT_FIXTURE_ATTENDANCE_CORRECTION_MISSING"],
-    ["leaveRequests", 2, "HR_UAT_FIXTURE_LEAVE_REQUEST_COUNT_MISMATCH"],
-    ["leaveDays", 2, "HR_UAT_FIXTURE_LEAVE_DAY_COUNT_MISMATCH"],
+    ["leaveRequests", 4, "HR_UAT_FIXTURE_LEAVE_REQUEST_COUNT_MISMATCH"],
+    ["leaveDays", 4, "HR_UAT_FIXTURE_LEAVE_DAY_COUNT_MISMATCH"],
     ["leaveBalances", 1, "HR_UAT_FIXTURE_LEAVE_BALANCE_MISSING"],
     ["leaveEntitlements", 1, "HR_UAT_FIXTURE_LEAVE_ENTITLEMENT_MISSING"],
     ["leaveEntitlementBuckets", 1, "HR_UAT_FIXTURE_LEAVE_BUCKET_MISSING"],
     ["leaveLedgerEntries", 2, "HR_UAT_FIXTURE_LEAVE_LEDGER_MISSING"],
     ["leaveConsumptionAllocations", 1, "HR_UAT_FIXTURE_LEAVE_ALLOCATION_MISSING"],
-    ["payrollRuns", 1, "HR_UAT_FIXTURE_PAYROLL_RUN_COUNT_MISMATCH"],
-    ["payrollEntries", 6, "HR_UAT_FIXTURE_PAYROLL_ENTRY_COUNT_MISMATCH"],
-    ["payslipPublications", 6, "HR_UAT_FIXTURE_PAYSLIP_COUNT_MISMATCH"],
+    ["payrollRuns", 3, "HR_UAT_FIXTURE_PAYROLL_RUN_COUNT_MISMATCH"],
+    ["payrollEntries", 8, "HR_UAT_FIXTURE_PAYROLL_ENTRY_COUNT_MISMATCH"],
+    ["payslipPublications", 8, "HR_UAT_FIXTURE_PAYSLIP_COUNT_MISMATCH"],
+    ["activeEmployeeSessions", 0, "HR_UAT_FIXTURE_ACTIVE_EMPLOYEE_SESSION_PRESENT"],
+    ["activeAppSessions", 0, "HR_UAT_FIXTURE_ACTIVE_APP_SESSION_PRESENT"],
+    ["otpChallenges", 0, "HR_UAT_FIXTURE_OTP_CHALLENGE_PRESENT"],
+    ["paymentBatches", 0, "HR_UAT_FIXTURE_PAYMENT_BATCH_PRESENT"],
+    ["statutorySubmissions", 0, "HR_UAT_FIXTURE_STATUTORY_SUBMISSION_PRESENT"],
+    ["outboundWhatsApp", 0, "HR_UAT_FIXTURE_WHATSAPP_OUTBOUND_PRESENT"],
+    ["outboundNotifications", 0, "HR_UAT_FIXTURE_NOTIFICATION_OUTBOUND_PRESENT"],
   ];
   for (const [name, expected, error] of requiredCounts) {
     if (counts[name] !== expected) guardError(error);
@@ -983,6 +1255,12 @@ export function assertCompletePreviewFixtureEvidence(
   }
   if (domains.payrollRunStatus !== "FINALIZED") {
     guardError("HR_UAT_FIXTURE_PAYROLL_RUN_NOT_FINALIZED");
+  }
+  if (
+    !domains.boundary.linksValid ||
+    domains.boundary.topologyVersion !== HR_PAYROLL_UAT_SYNTHETIC_TOPOLOGY_VERSION
+  ) {
+    guardError("HR_UAT_FIXTURE_BOUNDARY_RELATION_MISMATCH");
   }
   if (!/^[a-f0-9]{64}$/.test(evidence.stableFixtureDigest)) {
     guardError("HR_UAT_FIXTURE_STABLE_DIGEST_INVALID");

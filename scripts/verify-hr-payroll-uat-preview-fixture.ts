@@ -14,8 +14,8 @@ async function main() {
     throw new Error("HR_UAT_FIXTURE_PREVIEW_VERIFICATION_REQUIRED");
   }
   const state = await assertPreviewDatabaseContents(prisma, guard);
-  if (state.state !== "synthetic-marker" || !state.businessId) {
-    throw new Error("HR_UAT_FIXTURE_SYNTHETIC_MARKER_REQUIRED");
+  if (state.state !== "synthetic-topology" || !state.businessId) {
+    throw new Error("HR_UAT_FIXTURE_SYNTHETIC_TOPOLOGY_REQUIRED");
   }
 
   const evidence = await capturePreviewFixtureEvidence(prisma, state.businessId);

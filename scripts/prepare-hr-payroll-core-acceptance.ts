@@ -70,7 +70,11 @@ function actor(user: { id: string; name: string; email: string | null }) {
 async function main() {
   const { guard, password } = readFixtureEnvironment();
   const existingState = await assertPreviewDatabaseContents(prisma, guard);
-  if (existingState.state === "synthetic-marker" && existingState.businessId) {
+  if (
+    (existingState.state === "synthetic-marker" ||
+      existingState.state === "synthetic-topology") &&
+    existingState.businessId
+  ) {
     await prisma.$transaction(
       (tx) => ensureRequiredPreviewDomains(tx, existingState.businessId!),
       { timeout: 30_000 },

@@ -15,6 +15,8 @@ import {
   HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG,
 } from "../../scripts/uat-preview-database-guard";
 
+const BOUNDARY_BUSINESS_SLUG = "tetamu-hr-uat-preview-boundary-v1";
+
 const ISOLATED_DATABASE_NAME =
   `tetamu_uat_preview_fixture_${process.pid}_${Date.now()}`;
 const FINGERPRINT_SECRET =
@@ -145,8 +147,11 @@ test("Preview core and eight-role fixtures are idempotent across every required 
     select: { id: true },
   });
   assert.deepEqual(await assertPreviewDatabaseContents(prisma, guard), {
-    state: "synthetic-marker",
+    state: "synthetic-topology",
     businessId: marker.id,
+    boundaryBusinessId: await prisma.business
+      .findUniqueOrThrow({ where: { slug: BOUNDARY_BUSINESS_SLUG }, select: { id: true } })
+      .then((business) => business.id),
   });
   const firstCounts = await capturePreviewFixtureCounts(prisma, marker.id);
   const firstEvidence = await capturePreviewFixtureEvidence(prisma, marker.id);
@@ -162,25 +167,26 @@ test("Preview core and eight-role fixtures are idempotent across every required 
   assert.deepEqual(secondCounts, firstCounts);
   assert.equal(secondEvidence.stableFixtureDigest, firstEvidence.stableFixtureDigest);
   assert.equal(secondEvidence.duplicateCount, 0);
-  assert.equal(secondCounts.businesses, 1);
-  assert.equal(secondCounts.employeeAccounts, 6);
-  assert.equal(secondCounts.employeeMemberships, 6);
+  assert.equal(secondCounts.businesses, 2);
+  assert.equal((secondCounts as { branches?: number }).branches, 3);
+  assert.equal(secondCounts.employeeAccounts, 8);
+  assert.equal(secondCounts.employeeMemberships, 8);
   assert.equal(secondCounts.activeDevices, 6);
-  assert.equal(secondCounts.attendanceTimesheets, 1);
+  assert.equal(secondCounts.attendanceTimesheets, 2);
   assert.equal(secondCounts.attendanceExceptions, 1);
   assert.equal(secondCounts.attendanceP2Exceptions, 1);
   assert.equal(secondCounts.attendanceCorrections, 1);
-  assert.equal(secondCounts.leaveRequests, 2);
-  assert.equal(secondCounts.leaveDays, 2);
+  assert.equal(secondCounts.leaveRequests, 4);
+  assert.equal(secondCounts.leaveDays, 4);
   assert.equal(secondCounts.leaveBalances, 1);
   assert.equal(secondCounts.leaveEntitlements, 1);
   assert.equal(secondCounts.leaveEntitlementBuckets, 1);
   assert.equal(secondCounts.leaveLedgerEntries, 2);
   assert.equal(secondCounts.leaveConsumptionAllocations, 1);
-  assert.equal(secondCounts.payrollRuns, 1);
-  assert.equal(secondCounts.payrollEntries, 6);
+  assert.equal(secondCounts.payrollRuns, 3);
+  assert.equal(secondCounts.payrollEntries, 8);
   assert.ok(secondCounts.payrollComponents > 0);
-  assert.equal(secondCounts.payslipPublications, 6);
+  assert.equal(secondCounts.payslipPublications, 8);
 
   const verification = runFixtureScript(
     "scripts/verify-hr-payroll-uat-preview-fixture.ts",
@@ -191,6 +197,103 @@ test("Preview core and eight-role fixtures are idempotent across every required 
   assert.match(verification.stdout, /"duplicateCount": 0/);
   assert.match(verification.stdout, /"stableFixtureDigest": "[a-f0-9]{64}"/);
   assertSanitized(verification, environment);
+});
+
+test("formal fixture exposes real branch and tenant boundary objects without side effects", async () => {
+  const primary = await prisma.business.findUniqueOrThrow({
+    where: { slug: HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG },
+    select: { id: true },
+  });
+  const boundary = await prisma.business.findUniqueOrThrow({
+    where: { slug: BOUNDARY_BUSINESS_SLUG },
+    select: { id: true },
+  });
+  const [primaryBranches, boundaryBranches, primaryBoundaryMember, tenantMember] =
+    await Promise.all([
+      prisma.branch.count({ where: { businessId: primary.id } }),
+      prisma.branch.count({ where: { businessId: boundary.id } }),
+      prisma.employeeBusinessMembership.findUnique({
+        where: {
+          businessId_employeeCode: {
+            businessId: primary.id,
+            employeeCode: "BOUNDARY-B",
+          },
+        },
+      }),
+      prisma.employeeBusinessMembership.findUnique({
+        where: {
+          businessId_employeeCode: {
+            businessId: boundary.id,
+            employeeCode: "TENANT-B",
+          },
+        },
+      }),
+    ]);
+
+  assert.equal(primaryBranches, 2);
+  assert.equal(boundaryBranches, 1);
+  assert.ok(primaryBoundaryMember);
+  assert.ok(tenantMember);
+
+  for (const membership of [primaryBoundaryMember, tenantMember]) {
+    assert.equal(
+      await prisma.leaveRequest.count({
+        where: { businessId: membership.businessId, membershipId: membership.id },
+      }),
+      1,
+    );
+    assert.equal(
+      await prisma.attendanceTimesheetP2DaySnapshot.count({
+        where: { businessId: membership.businessId, membershipId: membership.id },
+      }),
+      1,
+    );
+    assert.equal(
+      await prisma.payrollPayslipPublication.count({
+        where: { businessId: membership.businessId, membershipId: membership.id },
+      }),
+      1,
+    );
+  }
+
+  const group = await prisma.businessGroup.findFirstOrThrow({
+    where: { code: `hr-payroll-uat-${primary.id}` },
+    select: {
+      members: { where: { status: "ACTIVE" }, select: { businessId: true } },
+      users: {
+        where: { role: "GROUP_MANAGER", status: "ACTIVE" },
+        select: {
+          accessScope: true,
+          businessAccesses: { select: { businessId: true } },
+        },
+      },
+    },
+  });
+  assert.deepEqual(
+    group.members.map((member) => member.businessId).sort(),
+    [primary.id, boundary.id].sort(),
+  );
+  assert.equal(group.users[0]?.accessScope, "SELECTED_BUSINESSES");
+  assert.deepEqual(group.users[0]?.businessAccesses, [{ businessId: primary.id }]);
+
+  assert.equal(await prisma.authSession.count({ where: { revokedAt: null } }), 0);
+  assert.equal(await prisma.employeeSession.count({ where: { revokedAt: null } }), 0);
+  assert.equal(await prisma.employeeOtpChallenge.count(), 0);
+  assert.equal(await prisma.payrollPaymentBatch.count(), 0);
+  assert.equal(await prisma.payrollStatutorySubmission.count(), 0);
+  assert.equal(await prisma.whatsAppMessage.count(), 0);
+  assert.equal(await prisma.notificationQueue.count(), 0);
+
+  const evidence = await capturePreviewFixtureEvidence(prisma, primary.id);
+  const boundaryEvidence = (
+    evidence.domains as typeof evidence.domains & {
+      boundary?: { linksValid: boolean; topologyVersion: string };
+    }
+  ).boundary;
+  assert.deepEqual(boundaryEvidence, {
+    linksValid: true,
+    topologyVersion: "hr-payroll-uat-preview-r3-v1",
+  });
 });
 
 test("formal fixture creates the required Leave and Attendance domain evidence", async () => {
