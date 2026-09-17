@@ -2176,6 +2176,22 @@ select:disabled {
   line-height: 1.1;
 }
 
+.brand-name-link {
+  align-items: center;
+  color: inherit;
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 24px;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.brand-name-link:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid rgba(255, 255, 255, .88);
+  outline-offset: 2px;
+}
+
 .sidebar-toggle {
   width: 34px;
   min-width: 34px;

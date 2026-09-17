@@ -296,9 +296,14 @@
 }
 
 .employeeLink {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 24px;
+  align-items: center;
   color: #172235;
   font-size: 12px;
   font-weight: 700;
+  overflow-wrap: anywhere;
   text-decoration: none;
 }
 
