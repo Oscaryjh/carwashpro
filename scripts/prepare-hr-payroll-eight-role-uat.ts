@@ -14,11 +14,14 @@ import {
   assertEightRoleUatEnvironment,
   resolveEightRoleUatDeviceWrite,
 } from "./hr-payroll-eight-role-uat-contract";
+import {
+  assertHrPayrollUatFixtureEnvironment,
+  assertPreviewDatabaseContents,
+  HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG,
+} from "./uat-preview-database-guard";
 
 const prisma = new PrismaClient();
 const EXPECTED_BUSINESS_NAME = "Tetamu HR Acceptance Test";
-const ARTIFACT_PATH = join(process.cwd(), ".tmp", "hr-payroll-core-acceptance.json");
-const OUTPUT_PATH = join(process.cwd(), ".tmp", "hr-payroll-eight-role-uat.json");
 
 type AcceptanceArtifact = {
   environment: string;
@@ -31,13 +34,24 @@ type AcceptanceArtifact = {
 };
 
 async function main() {
+  const guard = assertHrPayrollUatFixtureEnvironment(process.env);
   const password = assertEightRoleUatEnvironment(process.env);
+  await assertPreviewDatabaseContents(prisma, guard);
   process.env.SESSION_SECRET ??= "tetamu-local-eight-role-app-session-secret-v1";
   process.env.EMPLOYEE_AUTH_SECRET ??= "tetamu-local-eight-role-employee-session-secret-v1";
 
-  const artifact = JSON.parse(await readFile(ARTIFACT_PATH, "utf8")) as AcceptanceArtifact;
+  const artifactDirectory =
+    process.env.HR_PAYROLL_UAT_ARTIFACT_DIRECTORY?.trim() ||
+    join(process.cwd(), ".tmp");
+  const artifactPath = join(artifactDirectory, "hr-payroll-core-acceptance.json");
+  const outputPath = join(artifactDirectory, "hr-payroll-eight-role-uat.json");
+  const artifact = JSON.parse(await readFile(artifactPath, "utf8")) as AcceptanceArtifact;
+  const expectedArtifactEnvironment =
+    guard.mode === "uat-preview"
+      ? "UAT PREVIEW / SYNTHETIC ONLY"
+      : "LOCAL / TESTING ONLY";
   if (
-    artifact.environment !== "LOCAL / TESTING ONLY" ||
+    artifact.environment !== expectedArtifactEnvironment ||
     artifact.productionAccessed !== false ||
     artifact.businessName !== EXPECTED_BUSINESS_NAME
   ) {
@@ -46,9 +60,14 @@ async function main() {
 
   const business = await prisma.business.findUniqueOrThrow({
     where: { id: artifact.businessId },
-    select: { id: true, industryType: true, name: true, status: true },
+    select: { id: true, industryType: true, name: true, slug: true, status: true },
   });
-  if (business.name !== EXPECTED_BUSINESS_NAME || business.status !== "active") {
+  if (
+    business.name !== EXPECTED_BUSINESS_NAME ||
+    business.status !== "active" ||
+    (guard.mode === "uat-preview" &&
+      business.slug !== HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG)
+  ) {
     throw new Error("HR_EIGHT_ROLE_UAT_BUSINESS_IS_NOT_ACTIVE_ACCEPTANCE_DATA");
   }
 
@@ -321,7 +340,7 @@ async function main() {
     throw new Error("HR_EIGHT_ROLE_UAT_PERSONA_ORDER_MISMATCH");
   }
   const output = {
-    environment: "LOCAL / TESTING ONLY",
+    environment: expectedArtifactEnvironment,
     productionAccessed: false,
     businessId: artifact.businessId,
     branchId: artifact.branchId,
@@ -331,13 +350,13 @@ async function main() {
     employeeSessionCookie: "tetamu_employee_session",
     personas: [...desktop, prepared.staff],
   };
-  await mkdir(join(process.cwd(), ".tmp"), { recursive: true });
-  await writeFile(OUTPUT_PATH, `${JSON.stringify(output, null, 2)}\n`, "utf8");
+  await mkdir(artifactDirectory, { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
   console.log(JSON.stringify({
     environment: output.environment,
     businessId: output.businessId,
     personas: personaOrder,
-    outputPath: OUTPUT_PATH,
+    outputPath,
   }, null, 2));
 }
 

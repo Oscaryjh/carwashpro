@@ -1,3 +1,5 @@
+import { assertHrPayrollUatFixtureEnvironment } from "./uat-preview-database-guard";
+
 export const HR_PAYROLL_EIGHT_ROLE_PERSONAS = [
   {
     key: "BUSINESS_OWNER",
@@ -100,20 +102,24 @@ export const HR_PAYROLL_EIGHT_ROLE_PERSONAS = [
 export type HrPayrollEightRolePersona = (typeof HR_PAYROLL_EIGHT_ROLE_PERSONAS)[number];
 export type HrPayrollEightRolePersonaKey = HrPayrollEightRolePersona["key"];
 
-type FixtureEnvironment = Readonly<{
-  DATABASE_URL?: string;
-  HR_EIGHT_ROLE_UAT_PASSWORD?: string;
-  NODE_ENV?: string;
-}>;
+type FixtureEnvironment = NodeJS.ProcessEnv;
 
 export function assertEightRoleUatEnvironment(environment: FixtureEnvironment) {
-  if (environment.NODE_ENV === "production") {
+  const preview = environment.APP_ENVIRONMENT?.trim().toLowerCase() === "uat-preview";
+  if (environment.NODE_ENV === "production" && !preview) {
     throw new Error("HR_EIGHT_ROLE_UAT_FORBIDDEN_IN_PRODUCTION");
   }
-  if (!environment.DATABASE_URL) throw new Error("DATABASE_URL is required.");
-  const hostname = new URL(environment.DATABASE_URL).hostname.toLowerCase();
-  if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname)) {
-    throw new Error("HR_EIGHT_ROLE_UAT_REQUIRES_A_LOCAL_DATABASE");
+  try {
+    assertHrPayrollUatFixtureEnvironment(environment);
+  } catch (error) {
+    if (
+      !preview &&
+      error instanceof Error &&
+      error.message === "HR_UAT_FIXTURE_LOCAL_DATABASE_REQUIRED"
+    ) {
+      throw new Error("HR_EIGHT_ROLE_UAT_REQUIRES_A_LOCAL_DATABASE");
+    }
+    throw error;
   }
   const password = environment.HR_EIGHT_ROLE_UAT_PASSWORD;
   if (!password || password.length < 12) {

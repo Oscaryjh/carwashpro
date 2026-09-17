@@ -13,12 +13,19 @@ import {
   submitPayrollRunForReview,
 } from "../src/lib/payroll/service";
 import { issueTestHighRiskStepUp } from "../tests/helpers/high-risk-step-up";
+import {
+  assertHrPayrollUatFixtureEnvironment,
+  assertPreviewDatabaseContents,
+  HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_NAME,
+  HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG,
+  type HrPayrollUatFixtureGuard,
+} from "./uat-preview-database-guard";
 
 const prisma = new PrismaClient();
 const MONTH = "2026-08";
 const PERIOD_START = new Date("2026-08-01T00:00:00.000Z");
 const PERIOD_END = new Date("2026-08-31T00:00:00.000Z");
-const BUSINESS_NAME = "Tetamu HR Acceptance Test";
+const BUSINESS_NAME = HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_NAME;
 const OWNER_EMAIL_PREFIX = "hr-core-acceptance.owner";
 const MANAGER_EMAIL_PREFIX = "hr-core-acceptance.manager";
 
@@ -35,23 +42,15 @@ function digest(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
-function assertLocalOnly() {
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("HR_CORE_ACCEPTANCE_FORBIDDEN_IN_PRODUCTION");
-  }
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) throw new Error("DATABASE_URL is required.");
-  const hostname = new URL(databaseUrl).hostname.toLowerCase();
-  if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname)) {
-    throw new Error("HR_CORE_ACCEPTANCE_REQUIRES_A_LOCAL_DATABASE");
-  }
+function readFixtureEnvironment() {
+  const guard = assertHrPayrollUatFixtureEnvironment(process.env);
   const password = process.env.HR_CORE_ACCEPTANCE_PASSWORD;
   if (!password || password.length < 12) {
     throw new Error("HR_CORE_ACCEPTANCE_PASSWORD_MUST_BE_AT_LEAST_12_CHARACTERS");
   }
   process.env.EMPLOYEE_AUTH_SECRET ??=
     "tetamu-local-hr-core-acceptance-employee-session-secret-v1";
-  return password;
+  return { guard, password };
 }
 
 function actor(user: { id: string; name: string; email: string | null }) {
@@ -60,8 +59,16 @@ function actor(user: { id: string; name: string; email: string | null }) {
 }
 
 async function main() {
-  const password = assertLocalOnly();
-  const suffix = randomUUID().slice(0, 8);
+  const { guard, password } = readFixtureEnvironment();
+  const existingState = await assertPreviewDatabaseContents(prisma, guard);
+  if (existingState.state === "synthetic-marker" && existingState.businessId) {
+    await writeCoreArtifact(
+      await reconstructPreviewArtifact(existingState.businessId, guard),
+    );
+    return;
+  }
+
+  const suffix = guard.mode === "uat-preview" ? "previewv1" : randomUUID().slice(0, 8);
   const phoneRun = Date.now().toString().slice(-7);
   const ownerEmail = `${OWNER_EMAIL_PREFIX}+${suffix}@tetamu.local`;
   const managerEmail = `${MANAGER_EMAIL_PREFIX}+${suffix}@tetamu.local`;
@@ -71,7 +78,10 @@ async function main() {
     const business = await tx.business.create({
       data: {
         name: BUSINESS_NAME,
-        slug: `tetamu-hr-acceptance-test-${suffix}`,
+        slug:
+          guard.mode === "uat-preview"
+            ? HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG
+            : `tetamu-hr-acceptance-test-${suffix}`,
         industryType: "GENERAL_SERVICE",
         timezone: "Asia/Kuching",
       },
@@ -168,7 +178,10 @@ async function main() {
       deviceId: string;
     }>();
     for (const [scenarioIndex, scenario] of scenarios.entries()) {
-      const phone = `+6011${phoneRun}${scenarioIndex + 1}`;
+      const phone =
+        guard.mode === "uat-preview"
+          ? scenario.phone
+          : `+6011${phoneRun}${scenarioIndex + 1}`;
       const account = await tx.employeeAccount.create({
         data: {
           name: scenario.name,
@@ -510,7 +523,10 @@ async function main() {
   });
   const finalizedRun = await prisma.payrollRun.findUniqueOrThrow({ where: { id: run.id } });
   const artifact = {
-    environment: "LOCAL / TESTING ONLY",
+    environment:
+      guard.mode === "uat-preview"
+        ? "UAT PREVIEW / SYNTHETIC ONLY"
+        : "LOCAL / TESTING ONLY",
     productionAccessed: false,
     businessId: fixture.business.id,
     businessSlug: fixture.business.slug,
@@ -563,20 +579,128 @@ async function main() {
     },
   };
 
-  const outputDirectory = join(process.cwd(), ".tmp");
+  await writeCoreArtifact(artifact);
+}
+
+async function reconstructPreviewArtifact(
+  businessId: string,
+  guard: HrPayrollUatFixtureGuard,
+) {
+  const [business, branch, owner, manager, memberships, run, timesheet, roster] =
+    await Promise.all([
+      prisma.business.findUniqueOrThrow({ where: { id: businessId } }),
+      prisma.branch.findFirstOrThrow({ where: { businessId }, orderBy: { createdAt: "asc" } }),
+      prisma.user.findFirstOrThrow({
+        where: { businessId, email: { startsWith: `${OWNER_EMAIL_PREFIX}+` } },
+      }),
+      prisma.user.findFirstOrThrow({
+        where: { businessId, email: { startsWith: `${MANAGER_EMAIL_PREFIX}+` } },
+      }),
+      prisma.employeeBusinessMembership.findMany({
+        where: { businessId, employeeCode: { in: scenarios.map((scenario) => scenario.code) } },
+        select: { id: true, employeeCode: true },
+        orderBy: { employeeCode: "asc" },
+      }),
+      prisma.payrollRun.findFirstOrThrow({
+        where: { businessId, periodStart: PERIOD_START },
+      }),
+      prisma.attendanceMonthlyTimesheet.findFirstOrThrow({
+        where: { businessId, periodStart: PERIOD_START },
+      }),
+      prisma.rosterPeriod.findFirstOrThrow({
+        where: { businessId },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
+  const [payslipCount, entries, claimSnapshot] = await Promise.all([
+    prisma.payrollPayslipPublication.count({ where: { businessId, payrollRunId: run.id } }),
+    prisma.payrollEntry.findMany({
+      where: { businessId, payrollRunId: run.id },
+      select: { id: true, employeeCodeSnapshot: true, fullNameSnapshot: true },
+      orderBy: { employeeCodeSnapshot: "asc" },
+    }),
+    prisma.payrollClaimReimbursementSnapshot.findFirst({
+      where: { businessId, payrollRunId: run.id },
+      select: { id: true, status: true, amount: true, statutoryTreatmentStatus: true },
+    }),
+  ]);
+  if (!owner.email || !manager.email) {
+    throw new Error("HR_CORE_ACCEPTANCE_SYNTHETIC_ACTOR_EMAIL_MISSING");
+  }
+  return {
+    environment: "UAT PREVIEW / SYNTHETIC ONLY",
+    productionAccessed: false,
+    businessId: business.id,
+    businessSlug: business.slug,
+    businessName: business.name,
+    timezone: business.timezone,
+    month: MONTH,
+    ownerEmail: owner.email,
+    managerEmail: manager.email,
+    branchId: branch.id,
+    roster: {
+      periodId: roster.id,
+      status: roster.status,
+      publishedRevision: roster.publicationRevision,
+    },
+    timesheet: {
+      timesheetId: timesheet.id,
+      revisionId: timesheet.currentRevisionId,
+      status: timesheet.status,
+    },
+    payrollRunId: run.id,
+    payrollRunStatus: run.status,
+    payslips: { employeeCount: payslipCount },
+    claimSnapshot: claimSnapshot && {
+      ...claimSnapshot,
+      amount: claimSnapshot.amount.toString(),
+    },
+    employeeMemberships: Object.fromEntries(
+      memberships.map((membership) => [
+        membership.employeeCode,
+        { membershipId: membership.id },
+      ]),
+    ),
+    entries,
+    cleanup: {
+      strategy: "Delete only the exact synthetic marker after controlled UAT evidence is retained.",
+      businessId: business.id,
+      marker: guard.syntheticBusinessSlug,
+    },
+  };
+}
+
+async function writeCoreArtifact(artifact: {
+  environment: string;
+  businessId: string;
+  businessSlug: string;
+  month: string;
+  payrollRunId: string;
+  payrollRunStatus: string;
+  payslips: { employeeCount: number };
+}) {
+  const outputDirectory =
+    process.env.HR_PAYROLL_UAT_ARTIFACT_DIRECTORY?.trim() ||
+    join(process.cwd(), ".tmp");
   await mkdir(outputDirectory, { recursive: true });
   const outputPath = join(outputDirectory, "hr-payroll-core-acceptance.json");
   await writeFile(outputPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
-  console.log(JSON.stringify({
-    environment: artifact.environment,
-    businessId: artifact.businessId,
-    businessSlug: artifact.businessSlug,
-    month: artifact.month,
-    payrollRunId: artifact.payrollRunId,
-    payrollRunStatus: artifact.payrollRunStatus,
-    payslipCount: payslips.employeeCount,
-    outputPath,
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        environment: artifact.environment,
+        businessId: artifact.businessId,
+        businessSlug: artifact.businessSlug,
+        month: artifact.month,
+        payrollRunId: artifact.payrollRunId,
+        payrollRunStatus: artifact.payrollRunStatus,
+        payslipCount: artifact.payslips.employeeCount,
+        outputPath,
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 async function createLeavePolicy(
