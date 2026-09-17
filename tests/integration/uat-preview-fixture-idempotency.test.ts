@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import test, { after } from "node:test";
+import { join, resolve } from "node:path";
+import test, { after, before } from "node:test";
 import { PrismaClient } from "@prisma/client";
 import {
   assertHrPayrollUatFixtureEnvironment,
@@ -13,18 +13,78 @@ import {
   HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG,
 } from "../../scripts/uat-preview-database-guard";
 
-const prisma = new PrismaClient();
+const ISOLATED_DATABASE_NAME =
+  `tetamu_uat_preview_fixture_${process.pid}_${Date.now()}`;
 const FINGERPRINT_SECRET =
   "preview-integration-fingerprint-secret-longer-than-thirty-two-bytes";
 const ARTIFACT_DIRECTORIES: string[] = [];
+let administration: PrismaClient | undefined;
+let isolatedDatabaseUrl = "";
+let prisma: PrismaClient;
+
+before(async () => {
+  const rootDatabaseUrl = process.env.DATABASE_URL;
+  assert.ok(rootDatabaseUrl, "disposable integration DATABASE_URL is required");
+  assert.match(
+    ISOLATED_DATABASE_NAME,
+    /^tetamu_uat_preview_fixture_\d+_\d+$/,
+  );
+  const rootUrl = new URL(rootDatabaseUrl);
+  assert.ok(
+    ["localhost", "127.0.0.1", "::1", "[::1]"].includes(
+      rootUrl.hostname.toLowerCase(),
+    ),
+    "Preview fixture integration requires local PostgreSQL.",
+  );
+
+  const administrationUrl = new URL(rootUrl);
+  administrationUrl.pathname = "/postgres";
+  administrationUrl.searchParams.set("schema", "public");
+  const isolatedUrl = new URL(rootUrl);
+  isolatedUrl.pathname = `/${ISOLATED_DATABASE_NAME}`;
+  isolatedUrl.searchParams.set("schema", "public");
+  isolatedDatabaseUrl = isolatedUrl.toString();
+
+  administration = new PrismaClient({
+    datasources: { db: { url: administrationUrl.toString() } },
+  });
+  await administration.$executeRawUnsafe(
+    `CREATE DATABASE "${ISOLATED_DATABASE_NAME}"`,
+  );
+  const migration = spawnSync(
+    process.execPath,
+    [resolve("node_modules", "prisma", "build", "index.js"), "migrate", "deploy"],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: { ...process.env, DATABASE_URL: isolatedDatabaseUrl },
+      timeout: 120_000,
+    },
+  );
+  assert.equal(migration.status, 0, migration.stderr);
+  prisma = new PrismaClient({
+    datasources: { db: { url: isolatedDatabaseUrl } },
+  });
+  await prisma.$connect();
+});
 
 after(async () => {
-  await prisma.$disconnect();
+  await prisma?.$disconnect();
   await Promise.all(
     ARTIFACT_DIRECTORIES.map((directory) =>
       rm(directory, { recursive: true, force: true }),
     ),
   );
+  if (administration) {
+    await administration.$executeRawUnsafe(
+      "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+      ISOLATED_DATABASE_NAME,
+    );
+    await administration.$executeRawUnsafe(
+      `DROP DATABASE "${ISOLATED_DATABASE_NAME}"`,
+    );
+    await administration.$disconnect();
+  }
 });
 
 test("Preview fixture rejects unrelated data before writing the synthetic marker", async () => {
@@ -162,8 +222,8 @@ async function fixtureArtifactDirectory() {
 function previewEnvironment(
   overrides: Partial<NodeJS.ProcessEnv> = {},
 ): NodeJS.ProcessEnv {
-  const databaseUrl = process.env.DATABASE_URL;
-  assert.ok(databaseUrl, "disposable integration DATABASE_URL is required");
+  const databaseUrl = isolatedDatabaseUrl;
+  assert.ok(databaseUrl, "isolated Preview fixture DATABASE_URL is required");
   const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.slice(1));
   const databaseServiceId = "preview-database-service";
   const environment: NodeJS.ProcessEnv = {
