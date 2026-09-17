@@ -1,15 +1,24 @@
 import { EmployeeAuthError } from "./errors";
+import { runtimeEnvironment } from "@/lib/release/environment";
+import {
+  readUatPreviewOtpConfiguration,
+  type UatPreviewOtpConfiguration,
+} from "./uat-preview-otp";
 
 export const EMPLOYEE_SESSION_COOKIE = "tetamu_employee_session";
 export const EMPLOYEE_OTP_DIGITS = 6;
 
-export type EmployeeOtpProviderName = "mock" | "twilio_verify" | "sms123";
-export type EmployeeOtpChannel = "local" | "sms";
+export type EmployeeOtpProviderName =
+  | "mock"
+  | "twilio_verify"
+  | "sms123"
+  | "uat_preview_intercept";
+export type EmployeeOtpChannel = "local" | "sms" | "intercept";
 export type EmployeeOtpSendMode = "mock" | "provider";
 
 export type EmployeeAuthConfig = Readonly<{
   authSecret: string;
-  environment: "development" | "test" | "production";
+  environment: "development" | "test" | "production" | "uat-preview";
   maxJsonBodyBytes: number;
   otp: Readonly<{
     digits: typeof EMPLOYEE_OTP_DIGITS;
@@ -40,6 +49,7 @@ export type EmployeeAuthConfig = Readonly<{
     sms123: Readonly<{
       apiKey: string | null;
     }>;
+    uatPreview: UatPreviewOtpConfiguration | null;
   }>;
   session: Readonly<{
     cookieName: typeof EMPLOYEE_SESSION_COOKIE;
@@ -53,7 +63,11 @@ export type EmployeeAuthConfig = Readonly<{
 export function getEmployeeAuthConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): EmployeeAuthConfig {
-  const environment = normalizeEnvironment(env.NODE_ENV);
+  const applicationEnvironment = runtimeEnvironment(env);
+  const environment =
+    applicationEnvironment === "uat-preview"
+      ? "uat-preview"
+      : normalizeEnvironment(env.NODE_ENV);
   const testingDeployment = readTestingDeployment(env);
   const authSecret = env.EMPLOYEE_AUTH_SECRET?.trim() ?? "";
 
@@ -72,7 +86,10 @@ export function getEmployeeAuthConfig(
   const sendMode: EmployeeOtpSendMode =
     provider === "mock" ? "mock" : "provider";
 
-  if (environment === "production" && provider === "mock") {
+  if (
+    (environment === "production" || environment === "uat-preview") &&
+    provider === "mock"
+  ) {
     throw new EmployeeAuthError(
       "CONFIGURATION_ERROR",
       "OTP mock mode is not available in production.",
@@ -86,6 +103,10 @@ export function getEmployeeAuthConfig(
   );
   const twilio = readTwilioConfig(env, provider);
   const sms123 = readSms123Config(env, provider);
+  const uatPreview =
+    provider === "uat_preview_intercept"
+      ? readUatPreviewOtpConfiguration(env)
+      : null;
 
   return {
     authSecret,
@@ -178,6 +199,7 @@ export function getEmployeeAuthConfig(
       mockCode,
       twilio,
       sms123,
+      uatPreview,
     },
     session: {
       cookieName: EMPLOYEE_SESSION_COOKIE,
@@ -202,7 +224,8 @@ export function getEmployeeAuthConfig(
         60 * 60,
         "EMPLOYEE_SESSION_TOUCH_INTERVAL_SECONDS",
       ),
-      secureCookie: environment === "production",
+      secureCookie:
+        environment === "production" || environment === "uat-preview",
     },
   };
 }
@@ -222,6 +245,7 @@ function readMockCode(
 
   if (
     environment === "production" ||
+    environment === "uat-preview" ||
     sendMode !== "mock"
   ) {
     throw new EmployeeAuthError(
@@ -257,6 +281,12 @@ function normalizeProvider(
   const normalized = value?.trim().toLowerCase();
 
   if (!normalized) {
+    if (environment === "uat-preview") {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "UAT_PREVIEW_OTP_PROVIDER_REQUIRED",
+      );
+    }
     return environment === "production"
       ? "twilio_verify"
       : "mock";
@@ -274,9 +304,19 @@ function normalizeProvider(
     return "sms123";
   }
 
+  if (normalized === "uat_preview_intercept") {
+    if (environment !== "uat-preview") {
+      throw new EmployeeAuthError(
+        "CONFIGURATION_ERROR",
+        "UAT_PREVIEW_OTP_ENVIRONMENT_MISMATCH",
+      );
+    }
+    return "uat_preview_intercept";
+  }
+
   throw new EmployeeAuthError(
     "CONFIGURATION_ERROR",
-    "OTP_PROVIDER must be mock, twilio_verify, or sms123.",
+    "OTP_PROVIDER is invalid.",
   );
 }
 
@@ -285,7 +325,12 @@ function normalizeChannel(
   provider: EmployeeOtpProviderName,
 ): EmployeeOtpChannel {
   const normalized = value?.trim().toLowerCase();
-  const fallback = provider === "mock" ? "local" : "sms";
+  const fallback =
+    provider === "mock"
+      ? "local"
+      : provider === "uat_preview_intercept"
+        ? "intercept"
+        : "sms";
   const channel = normalized || fallback;
 
   if (channel !== fallback) {
@@ -293,7 +338,9 @@ function normalizeChannel(
       "CONFIGURATION_ERROR",
       provider === "mock"
         ? "OTP_CHANNEL must be local when OTP_PROVIDER=mock."
-        : `OTP_CHANNEL must be sms when OTP_PROVIDER=${provider}.`,
+        : provider === "uat_preview_intercept"
+          ? "OTP_CHANNEL must be intercept for the UAT Preview interceptor."
+          : `OTP_CHANNEL must be sms when OTP_PROVIDER=${provider}.`,
     );
   }
 

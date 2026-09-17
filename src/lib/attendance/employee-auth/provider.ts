@@ -7,6 +7,7 @@ import {
   verifyEmployeeOtpHash,
 } from "./crypto";
 import { emitSms123ProviderAlert } from "@/lib/ops/alerting";
+import { UatPreviewEmployeeOtpProvider } from "./uat-preview-otp";
 
 export type EmployeeOtpPurpose = "LOGIN" | "REGISTER_DEVICE";
 
@@ -37,8 +38,8 @@ export type EmployeeVerificationCheckResult = Readonly<{
 }>;
 
 export interface EmployeeOtpProvider {
-  readonly name: "mock" | "twilio_verify" | "sms123";
-  readonly channel: "local" | "sms";
+  readonly name: "mock" | "twilio_verify" | "sms123" | "uat_preview_intercept";
+  readonly channel: "local" | "sms" | "intercept";
   readonly verificationMode: "provider" | "application";
   sendVerification(
     input: StartEmployeeVerificationInput,
@@ -65,6 +66,7 @@ export class MockEmployeeOtpProvider implements EmployeeOtpProvider {
   constructor(private readonly config: EmployeeAuthConfig) {
     if (
       config.environment === "production" ||
+      config.environment === "uat-preview" ||
       config.otp.provider !== "mock"
     ) {
       throw new EmployeeAuthError(
@@ -464,6 +466,9 @@ export function createEmployeeOtpProvider(
   }
   if (config.otp.provider === "sms123") {
     return new Sms123OtpProvider(config);
+  }
+  if (config.otp.provider === "uat_preview_intercept") {
+    return new UatPreviewEmployeeOtpProvider(config);
   }
   return new TwilioVerifySmsProvider(config);
 }

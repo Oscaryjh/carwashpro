@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { randomInt, randomUUID } from "node:crypto";
 import test, { after } from "node:test";
 import { PrismaClient } from "@prisma/client";
@@ -1382,6 +1383,142 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
   }
 });
 
+test("uat-preview interceptor completes Staff login and preserves challenge single-use limits", async () => {
+  assertLocalDatabase();
+  const fixture = await createFixture();
+  const now = new Date();
+  const deviceIdentifier = "uat-preview-staff-browser-device-0001";
+  const config = previewAuthConfig(fixture.single.phone, {
+    EMPLOYEE_OTP_MAX_ATTEMPTS: "2",
+    EMPLOYEE_OTP_PHONE_HOURLY_LIMIT: "50",
+    EMPLOYEE_OTP_IP_HOURLY_LIMIT: "50",
+    EMPLOYEE_OTP_DEVICE_HOURLY_LIMIT: "50",
+    STAFF_OTP_VERIFY_PHONE_HOURLY_LIMIT: "50",
+    STAFF_OTP_VERIFY_IP_HOURLY_LIMIT: "50",
+  });
+
+  try {
+    const requested = await requestEmployeeOtp(
+      {
+        phoneNumber: fixture.single.phone,
+        deviceIdentifier,
+        request: requestContext("10.8.0.1"),
+      },
+      { database: prisma, config, now },
+    );
+    const challenge = await prisma.employeeOtpChallenge.findUniqueOrThrow({
+      where: { id: requested.challengeId },
+      select: {
+        expiresAt: true,
+        otpHash: true,
+        provider: true,
+        providerMessageCode: true,
+        providerReference: true,
+      },
+    });
+    const otpHelper = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        "tsx",
+        "scripts/read-uat-preview-employee-otp.ts",
+        "--challenge-id",
+        requested.challengeId,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          ...previewAuthEnvironment(fixture.single.phone),
+        },
+      },
+    );
+    assert.equal(otpHelper.status, 0, "the guarded local OTP helper must succeed");
+    const otp = otpHelper.stdout.trim();
+    if (!/^\d{6}$/.test(otp)) {
+      assert.fail("the guarded local OTP helper must return one six-digit code");
+    }
+    assert.equal(otpHelper.stderr, "");
+
+    assert.equal(
+      challenge.provider,
+      "mock",
+      "the immutable 214-migration schema uses a compatibility storage label only",
+    );
+    assert.equal(
+      challenge.providerMessageCode,
+      "UAT_PREVIEW_INTERCEPT_V1",
+      "the durable marker must distinguish Preview rows from generic mock rows",
+    );
+    assert.equal(challenge.otpHash, null);
+    assert.equal(challenge.providerReference?.includes(otp), false);
+    assert.equal(
+      challenge.providerReference?.includes(fixture.single.phone),
+      false,
+    );
+
+    const login = await verifyEmployeeOtp(
+      {
+        challengeId: requested.challengeId,
+        otp,
+        deviceIdentifier,
+        request: requestContext("10.8.0.1"),
+      },
+      { database: prisma, config, now: plusSeconds(now, 1) },
+    );
+    assert.equal(login.status, "AUTHENTICATED");
+    await assert.rejects(
+      verifyEmployeeOtp(
+        {
+          challengeId: requested.challengeId,
+          otp,
+          deviceIdentifier,
+          request: requestContext("10.8.0.1"),
+        },
+        { database: prisma, config, now: plusSeconds(now, 2) },
+      ),
+      isAuthError("OTP_INVALID"),
+    );
+
+    await clearChallenges(fixture.single.phone);
+    const attempts = await requestEmployeeOtp(
+      {
+        phoneNumber: fixture.single.phone,
+        deviceIdentifier: "uat-preview-attempt-device-0002",
+        request: requestContext("10.8.0.2"),
+      },
+      { database: prisma, config, now: plusSeconds(now, 61) },
+    );
+    await assert.rejects(
+      verifyEmployeeOtp(
+        {
+          challengeId: attempts.challengeId,
+          otp: "000000",
+          deviceIdentifier: "uat-preview-attempt-device-0002",
+          request: requestContext("10.8.0.2"),
+        },
+        { database: prisma, config, now: plusSeconds(now, 62) },
+      ),
+      isAuthError("OTP_INVALID"),
+    );
+    await assert.rejects(
+      verifyEmployeeOtp(
+        {
+          challengeId: attempts.challengeId,
+          otp: "000000",
+          deviceIdentifier: "uat-preview-attempt-device-0002",
+          request: requestContext("10.8.0.2"),
+        },
+        { database: prisma, config, now: plusSeconds(now, 63) },
+      ),
+      isAuthError("OTP_LOCKED"),
+    );
+  } finally {
+    await cleanupFixture(fixture);
+  }
+});
+
 test("employee sessions expire only after the configured inactivity window", async () => {
   assertLocalDatabase();
   const baseTime = new Date();
@@ -1959,6 +2096,51 @@ function authConfig(
     STAFF_OTP_VERIFY_IP_HOURLY_LIMIT: "100",
     ...overrides,
   });
+}
+
+function previewAuthConfig(
+  syntheticPhone: string,
+  overrides: Partial<NodeJS.ProcessEnv> = {},
+) {
+  return getEmployeeAuthConfig(previewAuthEnvironment(syntheticPhone, overrides));
+}
+
+function previewAuthEnvironment(
+  syntheticPhone: string,
+  overrides: Partial<NodeJS.ProcessEnv> = {},
+): NodeJS.ProcessEnv {
+  return {
+    NODE_ENV: "production",
+    APP_ENVIRONMENT: "uat-preview",
+    RAILWAY_PROJECT_ID: "preview-project",
+    RAILWAY_ENVIRONMENT_ID: "preview-environment",
+    RAILWAY_SERVICE_ID: "preview-web",
+    UAT_PREVIEW_EXPECTED_PROJECT_ID: "preview-project",
+    UAT_PREVIEW_EXPECTED_ENVIRONMENT_ID: "preview-environment",
+    UAT_PREVIEW_EXPECTED_WEB_SERVICE_ID: "preview-web",
+    UAT_PREVIEW_ACCESS_ENABLED: "true",
+    UAT_PREVIEW_ACCESS_USERNAME: "uat-reviewer",
+    UAT_PREVIEW_ACCESS_PASSWORD: "preview-access-password-that-is-long-enough",
+    UAT_PREVIEW_OTP_INTERCEPT_ENABLED: "true",
+    UAT_PREVIEW_OTP_HMAC_SEED:
+      "preview-integration-otp-seed-longer-than-thirty-two-bytes",
+    UAT_PREVIEW_SYNTHETIC_PHONE_ALLOWLIST: syntheticPhone,
+    PRODUCTION_ELIGIBLE: "false",
+    OFFICIAL_EXPORT_ELIGIBLE: "false",
+    BANK_PAYMENT_EXECUTION_ENABLED: "false",
+    GOVERNMENT_SUBMISSION_ENABLED: "false",
+    PCB_PRODUCTION_ENABLED: "false",
+    EMPLOYEE_AUTH_SECRET: TEST_SECRET,
+    OTP_PROVIDER: "uat_preview_intercept",
+    OTP_CHANNEL: "intercept",
+    SMS123_API_KEY: "",
+    TWILIO_ACCOUNT_SID: "",
+    TWILIO_VERIFY_SERVICE_SID: "",
+    TWILIO_API_KEY_SID: "",
+    TWILIO_API_KEY_SECRET: "",
+    TWILIO_AUTH_TOKEN: "",
+    ...overrides,
+  };
 }
 
 async function findDeviceHash(

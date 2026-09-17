@@ -58,6 +58,21 @@ const EMPLOYEE_OTP_TRANSACTION_OPTIONS = {
 } as const;
 const EMPLOYEE_OTP_DELIVERY_STATE_UPDATE_ATTEMPTS = 3;
 
+function otpChallengePersistenceIdentity(provider: EmployeeOtpProvider) {
+  if (provider.name === "uat_preview_intercept") {
+    return {
+      provider: "mock" as const,
+      channel: "local" as const,
+      providerMessageCode: "UAT_PREVIEW_INTERCEPT_V1",
+    };
+  }
+  return {
+    provider: provider.name,
+    channel: provider.channel,
+    providerMessageCode: null,
+  };
+}
+
 export type EmployeeOtpRequestResult = Readonly<{
   challengeId: string;
   message: string;
@@ -127,6 +142,7 @@ export async function requestEmployeeOtp(
   const database = dependencies.database ?? prisma;
   const config = dependencies.config ?? getEmployeeAuthConfig();
   const provider = dependencies.provider ?? createEmployeeOtpProvider(config);
+  const persistenceIdentity = otpChallengePersistenceIdentity(provider);
   const now = dependencies.now ?? new Date();
   const deviceFingerprintHash = hashEmployeeIdentifier(
     "device-fingerprint",
@@ -256,8 +272,8 @@ export async function requestEmployeeOtp(
         phoneNumberNormalized,
         purpose: deviceAccess.purpose,
         otpHash,
-        provider: config.otp.provider,
-        deliveryChannel: config.otp.channel,
+        provider: persistenceIdentity.provider,
+        deliveryChannel: persistenceIdentity.channel,
         expiresAt,
         attempts: 0,
         maxAttempts: config.otp.maxAttempts,
@@ -399,6 +415,7 @@ export async function requestEmployeeOtp(
       },
       data: {
         providerReference: acceptedDelivery.providerReference,
+        providerMessageCode: persistenceIdentity.providerMessageCode,
         deliveryAcceptedAt: now,
       },
     });
@@ -458,6 +475,8 @@ export async function verifyEmployeeOtp(
 ): Promise<EmployeeLoginResult> {
   const database = dependencies.database ?? prisma;
   const config = dependencies.config ?? getEmployeeAuthConfig();
+  const provider = dependencies.provider ?? createEmployeeOtpProvider(config);
+  const persistenceIdentity = otpChallengePersistenceIdentity(provider);
   const now = dependencies.now ?? new Date();
   const deviceFingerprintHash = hashEmployeeIdentifier(
     "device-fingerprint",
@@ -488,6 +507,7 @@ export async function verifyEmployeeOtp(
         purpose: true,
         provider: true,
         providerReference: true,
+        providerMessageCode: true,
         otpHash: true,
         deliveryAcceptedAt: true,
         expiresAt: true,
@@ -523,7 +543,9 @@ export async function verifyEmployeeOtp(
       record !== null &&
       record.employeeAccountId !== null &&
       (record.purpose === "LOGIN" || record.purpose === "REGISTER_DEVICE") &&
-      record.provider === config.otp.provider &&
+      record.provider === persistenceIdentity.provider &&
+      (persistenceIdentity.providerMessageCode === null ||
+        record.providerMessageCode === persistenceIdentity.providerMessageCode) &&
       record.providerReference !== null &&
       record.deliveryAcceptedAt !== null &&
       record.verifiedAt === null &&
@@ -623,7 +645,6 @@ export async function verifyEmployeeOtp(
     );
   }
 
-  const provider = dependencies.provider ?? createEmployeeOtpProvider(config);
   let providerCheck;
   try {
     providerCheck = await provider.checkVerification({
