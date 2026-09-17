@@ -28,3 +28,8 @@ test("the controlled-logo brand link has a visible keyboard-focusable 24px targe
     /\.brand-name-link:focus-visible\s*\{[^}]*outline:[^;}]+;[^}]*outline-offset:[^;}]+;[^}]*\}/,
   );
 });
+
+test("the standard brand link remains a 24px target on restricted mobile pages", () => {
+  const rule = globalCss.match(/\.brand\s*\{([^}]*)\}/)?.[1] ?? "";
+  assert.match(rule, /min-height:\s*24px;/);
+});
