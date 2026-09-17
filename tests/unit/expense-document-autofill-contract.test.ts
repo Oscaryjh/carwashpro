@@ -87,7 +87,7 @@ test("Malaysia slash dates use DD/MM/YYYY without redundant confirmation", () =>
 });
 
 test("provider configuration switches explicitly and never silently selects another provider", () => {
-  const common: NodeJS.ProcessEnv = { NODE_ENV: "development", APP_ENVIRONMENT: "local", EXPENSE_RECEIPT_AUTOFILL_ENABLED: "true", EXPENSE_DOCUMENT_AI_ENABLED: "true" };
+  const common: NodeJS.ProcessEnv = { NODE_ENV: "development", APP_ENVIRONMENT: "development", EXPENSE_RECEIPT_AUTOFILL_ENABLED: "true", EXPENSE_DOCUMENT_AI_ENABLED: "true" };
   assert.equal(getExpenseDocumentAiConfiguration({ ...common, EXPENSE_DOCUMENT_AI_PROVIDER: "mock" }).provider, "mock");
   assert.ok(createExpenseDocumentProvider({ ...common, EXPENSE_DOCUMENT_AI_PROVIDER: "mock" }) instanceof MockExpenseDocumentProvider);
   assert.ok(createExpenseDocumentProvider({ ...common, EXPENSE_DOCUMENT_AI_PROVIDER: "openai", OPENAI_API_KEY: "unit-test-only" }) instanceof OpenAiExpenseDocumentProvider);

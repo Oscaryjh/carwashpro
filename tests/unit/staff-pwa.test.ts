@@ -527,10 +527,12 @@ test("Local development removes stale PWA workers and caches", () => {
   assert.match(pwaRegisterSource, /cacheName\.startsWith\("tetamu-pos-static-"\)/);
 });
 
-test("POS middleware does not treat Staff PWA as a POS user route", () => {
+test("Preview access covers Staff without applying back-office session routing", () => {
   const matcher = middlewareSource.slice(middlewareSource.indexOf("matcher:"));
   assert.doesNotMatch(matcher, /"\/staff/);
-  assert.match(matcher, /"\/team\/:path\*"/);
+  assert.match(matcher, /api\/health/);
+  assert.match(middlewareSource, /if \(!isBackOfficeMiddlewarePath\(pathname\)\)/);
+  assert.match(middlewareSource, /"\/team",/);
 });
 
 test("port 3000 owns the canonical Staff routes without a 3100 redirect", () => {

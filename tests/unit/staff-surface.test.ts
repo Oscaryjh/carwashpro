@@ -23,7 +23,8 @@ test("Staff App surface redirects back-office pages to staff login", () => {
 
   assert.match(middleware, /process\.env\.TETAMU_APP_SURFACE === "staff"/);
   assert.match(middleware, /new URL\("\/staff\/login", request\.url\)/);
-  assert.match(middleware, /"\/reports\/:path\*"/);
+  assert.match(middleware, /if \(!isBackOfficeMiddlewarePath\(pathname\)\)/);
+  assert.match(middleware, /"\/reports",/);
 });
 
 test("Staff OTP database transactions have a bounded cold-start tolerance", () => {
