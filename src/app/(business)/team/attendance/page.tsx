@@ -4,6 +4,10 @@ import {
   buildAttendanceSessionWhere,
   resolveAttendanceScope,
 } from "@/lib/attendance/scope";
+import {
+  buildManagerAttendanceMonthlyIssueWhere,
+  buildManagerAttendanceMonthlySummary,
+} from "@/lib/attendance/business-attendance-projection";
 import { calculateAttendanceDurations } from "@/lib/attendance/state-machine";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
@@ -177,6 +181,15 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
   const visibleMonthlyMembers = selectedEmployeeId
     ? monthlyMembers.filter((member) => member.id === selectedEmployeeId)
     : monthlyMembers;
+  const monthlyMembershipIds = visibleMonthlyMembers.map((member) => member.id);
+  const monthlyIssueWhere = buildManagerAttendanceMonthlyIssueWhere({
+    businessId,
+    allowedBranchIds: scope.allowedBranchIds,
+    requestedBranchId,
+    membershipIds: monthlyMembershipIds,
+    from: monthRange.from,
+    to: monthRange.to,
+  });
   const monthlySessionsPromise = visibleMonthlyMembers.length
     ? prisma.employeeAttendance.findMany({
         where: buildAttendanceSessionWhere<Prisma.EmployeeAttendanceWhereInput>(
@@ -193,6 +206,7 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
           },
         ),
         select: {
+          id: true,
           membershipId: true,
           workDate: true,
           status: true,
@@ -203,9 +217,34 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
         },
       })
     : Promise.resolve([]);
+  const monthlyP2ExceptionsPromise = visibleMonthlyMembers.length
+    ? prisma.attendanceP2Exception.findMany({
+        where: monthlyIssueWhere.p2,
+        select: {
+          id: true,
+          membershipId: true,
+          attendanceSessionId: true,
+          type: true,
+          status: true,
+        },
+      })
+    : Promise.resolve([]);
+  const monthlyResolutionCasesPromise = visibleMonthlyMembers.length
+    ? prisma.attendanceResolutionCase.findMany({
+        where: monthlyIssueWhere.resolutionCases,
+        select: {
+          id: true,
+          employeeId: true,
+          attendanceSessionId: true,
+          status: true,
+        },
+      })
+    : Promise.resolve([]);
   const [
     [attendance, activeAttendance, completedCount, terminalMinutes],
     monthlySessions,
+    monthlyP2Exceptions,
+    monthlyResolutionCases,
   ] = await Promise.all([
     Promise.all([
       prisma.employeeAttendance.findMany({
@@ -251,40 +290,14 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
       }),
     ]),
     monthlySessionsPromise,
+    monthlyP2ExceptionsPromise,
+    monthlyResolutionCasesPromise,
   ]);
-  const monthlyAttendance = visibleMonthlyMembers.map((member) => {
-    const sessions = monthlySessions.filter(
-      (session) => session.membershipId === member.id,
-    );
-    const completedSessions = sessions.filter(
-      (session) => session.status === "COMPLETED",
-    );
-    const workedDays = new Set(
-      completedSessions.map((session) =>
-        session.workDate.toISOString().slice(0, 10),
-      ),
-    ).size;
-    return {
-      ...member,
-      workedDays,
-      completedShifts: completedSessions.length,
-      workedMinutes: completedSessions.reduce(
-        (total, session) => total + session.totalWorkedMinutes,
-        0,
-      ),
-      breakMinutes: completedSessions.reduce(
-        (total, session) => total + session.totalBreakMinutes,
-        0,
-      ),
-      incompleteCount: sessions.filter(
-        (session) => session.status === "INCOMPLETE",
-      ).length,
-      pendingCount: sessions.filter(
-        (session) =>
-          session.requiresApproval &&
-          session.approvalStatus === "PENDING",
-      ).length,
-    };
+  const monthlyAttendance = buildManagerAttendanceMonthlySummary({
+    members: visibleMonthlyMembers,
+    sessions: monthlySessions,
+    p2Exceptions: monthlyP2Exceptions,
+    resolutionCases: monthlyResolutionCases,
   });
 
   const now = new Date();
@@ -411,7 +424,9 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
             <h2>Days worked and net hours</h2>
             <p>
               One worked day is counted once even when the employee completes
-              multiple shifts. Net hours already exclude unpaid breaks.
+              multiple shifts. Needs attention combines raw clock sessions with
+              active attendance exceptions and resolution cases. Payroll-period
+              readiness remains a separate check in People and Timesheets.
             </p>
           </div>
           <span className={styles.resultCount}>
@@ -489,11 +504,9 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
                     <td><strong>{formatDuration(member.workedMinutes)}</strong></td>
                     <td>{formatDuration(member.breakMinutes)}</td>
                     <td>
-                      {member.pendingCount
-                        ? `${member.pendingCount} pending`
-                        : member.incompleteCount
-                          ? `${member.incompleteCount} incomplete`
-                          : "Clear"}
+                      {member.attentionCount > 1
+                        ? `${member.attentionCount} · ${member.attentionLabel}`
+                        : member.attentionLabel}
                     </td>
                   </tr>
                 ))}
@@ -511,8 +524,11 @@ export default async function StaffAttendancePage({ searchParams }: AttendancePa
         <div className={styles.panelHeading}>
           <div>
             <span className={styles.eyebrow}>ATTENDANCE LOG</span>
-            <h2>Attendance records</h2>
-            <p>Filter by date or status to find the shift you need.</p>
+            <h2>Raw clock records</h2>
+            <p>
+              Filter raw clock sessions by date or status. Payroll-period
+              readiness is reviewed separately in People and Timesheets.
+            </p>
           </div>
           <span className={styles.resultCount}>
             {totalRecords} {totalRecords === 1 ? "record" : "records"}
