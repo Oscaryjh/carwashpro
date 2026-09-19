@@ -18,6 +18,7 @@ test("business context switching is scoped, audited, and transaction safe", asyn
 
   const suffix = randomUUID().slice(0, 8);
   const businessIds: string[] = [];
+  const immutableEntitlementBusinessIds: string[] = [];
   const userIds: string[] = [];
   let groupId: string | null = null;
 
@@ -111,6 +112,27 @@ test("business context switching is scoped, audited, and transaction safe", asyn
       directStaff.id,
       groupOnly.id,
     );
+
+    await prisma.businessModuleEntitlement.createMany({
+      data: [
+        ...["HR", "PAYROLL"].map((moduleKey) => ({
+          businessId: auto.id,
+          moduleKey: moduleKey as "HR" | "PAYROLL",
+        })),
+        ...["POS", "SALON"].map((moduleKey) => ({
+          businessId: salon.id,
+          moduleKey: moduleKey as "POS" | "SALON",
+        })),
+      ].map((entitlement) => ({
+        ...entitlement,
+        status: "ENABLED" as const,
+        enabledFrom: new Date("2026-01-01T00:00:00.000Z"),
+        source: "MANUAL" as const,
+        createdById: owner.id,
+        updatedById: owner.id,
+      })),
+    });
+    immutableEntitlementBusinessIds.push(auto.id, salon.id);
 
     await prisma.businessGroupUser.create({
       data: {
@@ -413,6 +435,9 @@ test("business context switching is scoped, audited, and transaction safe", asyn
       ),
     ]);
     assert.equal(concurrentRecoveries.every((result) => result.ok), true);
+    for (const result of concurrentRecoveries) {
+      if (result.ok) assert.equal(result.destination, "/team");
+    }
     assert.equal(recoveryWrites.length, 2);
     assert.equal(
       await prisma.businessGroupAuditLog.count({
@@ -491,7 +516,15 @@ test("business context switching is scoped, audited, and transaction safe", asyn
       await prisma.branch.deleteMany({
         where: { businessId: { in: businessIds } },
       });
-      await prisma.business.deleteMany({ where: { id: { in: businessIds } } });
+      await prisma.business.deleteMany({
+        where: {
+          id: {
+            in: businessIds.filter(
+              (id) => !immutableEntitlementBusinessIds.includes(id),
+            ),
+          },
+        },
+      });
     }
     await prisma.$disconnect();
   }

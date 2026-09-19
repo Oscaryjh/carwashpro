@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   businessContextErrorMessage,
+  resolveModuleAwareBusinessHome,
   safeBusinessReturnTo,
 } from "../../src/lib/business-groups/business-context";
 
@@ -108,6 +109,38 @@ test("business return paths reject redirects and encoded bypasses", () => {
       unsafe,
     );
   }
+});
+
+test("module-aware business home preserves enabled operations and sends HR-only owners to team", () => {
+  assert.equal(
+    resolveModuleAwareBusinessHome(
+      autoOwnerContext,
+      new Set(["CORE", "HR", "PAYROLL"]),
+    ),
+    "/team",
+  );
+  assert.equal(
+    resolveModuleAwareBusinessHome(
+      autoOwnerContext,
+      new Set(["CORE", "POS", "AUTO"]),
+    ),
+    "/work-orders",
+  );
+  assert.equal(
+    resolveModuleAwareBusinessHome(
+      groupOwnerContext,
+      new Set(["CORE", "POS", "SALON"]),
+    ),
+    "/cashier",
+  );
+  assert.equal(
+    safeBusinessReturnTo(
+      "/work-orders",
+      autoOwnerContext,
+      new Set(["CORE", "HR", "PAYROLL"]),
+    ),
+    "/team",
+  );
 });
 
 test("authorization errors use non-disclosing messages", () => {

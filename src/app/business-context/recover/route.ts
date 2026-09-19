@@ -11,6 +11,7 @@ import {
   sessionCookieOptions,
 } from "@/lib/auth/session";
 import { internalRedirect } from "@/lib/http/internal-redirect";
+import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 
 export async function GET() {
   const user = await requireUser();
@@ -19,7 +20,14 @@ export async function GET() {
     return internalRedirect("/no-business-access");
   }
 
-  const destination = safeBusinessReturnTo(null, recovery.context);
+  const moduleContext = await loadBusinessModuleContext(
+    recovery.context.businessId,
+  );
+  const destination = safeBusinessReturnTo(
+    null,
+    recovery.context,
+    moduleContext.enabledModules,
+  );
   const response = internalRedirect(destination);
   const result = await commitBusinessContextSwitch(
     {

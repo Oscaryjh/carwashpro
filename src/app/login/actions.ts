@@ -15,6 +15,7 @@ import { getAuthRequestContext } from "@/lib/auth/security";
 import {
   commitBusinessContextSwitch,
   getRecoveryBusinessContext,
+  resolveModuleAwareBusinessHome,
 } from "@/lib/business-groups/business-context";
 import { loginSchema } from "@/lib/validation/login";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
@@ -102,14 +103,25 @@ export async function loginAction(
   });
   if (user.businessId && user.role !== "PLATFORM_ADMIN") {
     const moduleContext = await loadBusinessModuleContext(user.businessId);
-    const operationalHomeEnabled =
-      loginDestination === "/work-orders"
-        ? moduleContext.enabledModules.has("POS") &&
-          moduleContext.enabledModules.has("AUTO")
-        : loginDestination === "/cashier"
-          ? moduleContext.enabledModules.has("POS")
-          : true;
-    if (!operationalHomeEnabled) loginDestination = "/team";
+    if (user.role === "BUSINESS_OWNER") {
+      loginDestination = resolveModuleAwareBusinessHome(
+        {
+          effectiveBusinessRole: "BUSINESS_OWNER",
+          industryType: user.business?.industryType ?? "AUTO_DETAILING",
+          permissions: user.permissions,
+        },
+        moduleContext.enabledModules,
+      );
+    } else {
+      const operationalHomeEnabled =
+        loginDestination === "/work-orders"
+          ? moduleContext.enabledModules.has("POS") &&
+            moduleContext.enabledModules.has("AUTO")
+          : loginDestination === "/cashier"
+            ? moduleContext.enabledModules.has("POS")
+            : true;
+      if (!operationalHomeEnabled) loginDestination = "/team";
+    }
   }
 
   if (loginDestination === "/business-context/recover") {

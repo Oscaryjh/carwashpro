@@ -10,6 +10,8 @@ import { getStaffHomePath } from "@/lib/auth/staff-permissions";
 import { writeBusinessGroupAuditLog } from "@/lib/business-groups/audit";
 import type { EffectiveBusinessRole } from "@/lib/business-groups/business-access";
 import { canGroupManager } from "@/lib/business-groups/capabilities";
+import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
+import type { ModuleKey } from "@/lib/modules/registry";
 import { prisma } from "@/lib/prisma";
 
 export type BusinessContextErrorCode =
@@ -64,7 +66,11 @@ export type AuthorizedBusinessContext = {
 
 type ContextDatabase = Pick<
   Prisma.TransactionClient,
-  "user" | "business" | "businessGroupMember" | "businessGroupUser"
+  | "user"
+  | "business"
+  | "businessGroupMember"
+  | "businessGroupUser"
+  | "businessModuleEntitlement"
 >;
 
 type ContextTransaction = ContextDatabase &
@@ -444,9 +450,14 @@ export async function commitBusinessContextSwitch(
   );
   if (!initialAuthorization.ok) return initialAuthorization;
 
+  const initialModuleContext = await loadBusinessModuleContext(
+    initialAuthorization.context.businessId,
+    { database },
+  );
   const destination = safeBusinessReturnTo(
     input.returnTo,
     initialAuthorization.context,
+    initialModuleContext.enabledModules,
   );
   if (input.session.activeBusinessId === input.targetBusinessId) {
     return {
@@ -466,6 +477,9 @@ export async function commitBusinessContextSwitch(
     if (!authorization.ok) return authorization;
 
     const context = authorization.context;
+    const moduleContext = await loadBusinessModuleContext(context.businessId, {
+      database: transaction,
+    });
     const nextSession = rotatedSession(input.session, context);
     const auditGroupId =
       context.groupId ??
@@ -543,7 +557,11 @@ export async function commitBusinessContextSwitch(
     return {
       ok: true,
       changed: true,
-      destination: safeBusinessReturnTo(input.returnTo, context),
+      destination: safeBusinessReturnTo(
+        input.returnTo,
+        context,
+        moduleContext.enabledModules,
+      ),
       session: nextSession,
     };
   });
@@ -555,8 +573,9 @@ export function safeBusinessReturnTo(
     AuthorizedBusinessContext,
     "effectiveBusinessRole" | "industryType" | "permissions"
   >,
+  enabledModules?: ReadonlySet<ModuleKey>,
 ) {
-  const fallback = safeBusinessHome(context);
+  const fallback = resolveModuleAwareBusinessHome(context, enabledModules);
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
     return fallback;
   }
@@ -590,6 +609,16 @@ export function safeBusinessReturnTo(
   if (url.origin !== "https://business-context.invalid") return fallback;
 
   const path = url.pathname.replace(/\/+$/, "") || "/";
+  if (
+    enabledModules &&
+    !isBusinessReturnPathModuleEnabled(
+      path,
+      context.industryType,
+      enabledModules,
+    )
+  ) {
+    return fallback;
+  }
   const commonReadPaths = new Set([
     "/dashboard",
     "/reports",
@@ -638,6 +667,36 @@ export function safeBusinessReturnTo(
   return fallback;
 }
 
+function isBusinessReturnPathModuleEnabled(
+  path: string,
+  industryType: BusinessIndustry,
+  enabledModules: ReadonlySet<ModuleKey>,
+) {
+  if (path === "/work-orders") {
+    return enabledModules.has("POS") && enabledModules.has("AUTO");
+  }
+  if (path === "/appointments" || path === "/salon/dashboard") {
+    return enabledModules.has(
+      industryType === "SALON_BEAUTY" ? "SALON" : "AUTO",
+    );
+  }
+  if (
+    [
+      "/cashier",
+      "/closing",
+      "/crm",
+      "/invoices",
+      "/loyalty",
+      "/packages",
+      "/products",
+      "/services",
+    ].includes(path)
+  ) {
+    return enabledModules.has("POS");
+  }
+  return true;
+}
+
 export function businessContextErrorMessage(code: BusinessContextErrorCode) {
   const messages: Record<BusinessContextErrorCode, string> = {
     INVALID_CONTEXT_TOKEN:
@@ -655,11 +714,12 @@ export function businessContextErrorMessage(code: BusinessContextErrorCode) {
   return messages[code];
 }
 
-function safeBusinessHome(
+export function resolveModuleAwareBusinessHome(
   context: Pick<
     AuthorizedBusinessContext,
     "effectiveBusinessRole" | "industryType" | "permissions"
   >,
+  enabledModules?: ReadonlySet<ModuleKey>,
 ) {
   if (context.effectiveBusinessRole === "STAFF") {
     const staffHome = getStaffHomePath(
@@ -686,9 +746,29 @@ function safeBusinessHome(
       )?.[1] ?? "/no-business-access"
     );
   }
-  return context.industryType === "AUTO_DETAILING"
-    ? "/work-orders"
-    : "/cashier";
+
+  if (!enabledModules) {
+    return context.industryType === "AUTO_DETAILING"
+      ? "/work-orders"
+      : "/cashier";
+  }
+  if (
+    context.industryType === "AUTO_DETAILING" &&
+    enabledModules.has("POS") &&
+    enabledModules.has("AUTO")
+  ) {
+    return "/work-orders";
+  }
+  if (
+    context.industryType !== "AUTO_DETAILING" &&
+    enabledModules.has("POS")
+  ) {
+    return "/cashier";
+  }
+  if (enabledModules.has("HR") || enabledModules.has("PAYROLL")) {
+    return "/team";
+  }
+  return "/no-business-access";
 }
 
 function rotatedSession(
