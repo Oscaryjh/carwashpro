@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test, { after, before } from "node:test";
 import { PrismaClient } from "@prisma/client";
+import { getPayrollPeriodReadiness } from "../../src/lib/payroll/readiness";
 import {
   assertCompletePreviewFixtureEvidence,
   assertHrPayrollUatFixtureEnvironment,
@@ -292,6 +294,7 @@ test("formal fixture exposes real branch and tenant boundary objects without sid
   ).boundary;
   assert.deepEqual(boundaryEvidence, {
     linksValid: true,
+    payrollPeriodsValid: true,
     topologyVersion: "hr-payroll-uat-preview-r3-v1",
   });
 });
@@ -523,6 +526,169 @@ test("genuine fixture duplicates remain detected alongside historical OTP", asyn
     await prisma.employeeOtpChallenge.delete({ where: { id: history.id } });
   }
 });
+
+const BOUNDARY_RUN_IDS = [
+  "a5739bf1-bcc4-51ad-b24c-0aa9b64020da",
+  "8698226d-a3a3-5b15-9fc1-c13f95f415a0",
+];
+const CANONICAL_SEPTEMBER_END = new Date("2026-10-01T00:00:00.000Z");
+const LEGACY_BOUNDARY_END = new Date("2026-09-30T00:00:00.000Z");
+
+test("boundary fixture produces September exclusive-end runs readable by canonical readiness", async () => {
+  const runs = await boundaryRuns();
+  assert.equal(runs.length, 2);
+  for (const run of runs) {
+    assert.equal(run.periodStart.toISOString(), "2026-09-01T00:00:00.000Z");
+    assert.equal(run.periodEnd.toISOString(), "2026-10-01T00:00:00.000Z");
+    const readiness = await getPayrollPeriodReadiness({
+      businessId: run.businessId, month: "2026-09", runId: run.id,
+    }, prisma);
+    assert.equal(readiness.runId, run.id);
+    assert.equal(readiness.month, "2026-09");
+    assert.equal(readiness.businessId, run.businessId);
+  }
+});
+
+test("formal verifier rejects an incorrect boundary period instead of accepting count-only evidence", async () => {
+  const run = await prisma.payrollRun.findUniqueOrThrow({ where: { id: BOUNDARY_RUN_IDS[0] } });
+  try {
+    await setDisposableBoundaryPeriod(run.id, LEGACY_BOUNDARY_END);
+    const verification = runFixtureScript("scripts/verify-hr-payroll-uat-preview-fixture.ts", previewEnvironment());
+    assert.notEqual(verification.status, 0, "wrong end must fail the formal verifier");
+    assert.match(verification.stderr, /HR_UAT_FIXTURE_PAYROLL_PERIOD_MISMATCH/);
+  } finally {
+    await setDisposableBoundaryPeriod(run.id, run.periodEnd);
+  }
+});
+
+test("fixture refuses legacy published boundary periods without altering any related row", async () => {
+  const original = await boundaryRuns();
+  for (const id of BOUNDARY_RUN_IDS) {
+    await setDisposableBoundaryPeriod(id, LEGACY_BOUNDARY_END);
+  }
+  const before = await boundaryRuns();
+  const untouched = await prisma.payrollRun.findMany({ where: { id: { notIn: BOUNDARY_RUN_IDS } } });
+  const environment = boundaryFixtureEnvironment();
+  const first = runFixtureScript("scripts/prepare-hr-payroll-eight-role-uat.ts", environment);
+  try {
+    assert.notEqual(first.status, 0, "fixture is not the separately approved maintenance CLI");
+    assert.match(first.stderr, /HR_UAT_FIXTURE_BOUNDARY_PERIOD_REPAIR_REJECTED/);
+    assertSanitized(first, environment);
+    assert.deepEqual(await boundaryRuns(), before);
+    assert.deepEqual(await prisma.payrollRun.findMany({ where: { id: { notIn: BOUNDARY_RUN_IDS } } }), untouched);
+  } finally {
+    for (const run of original) await setDisposableBoundaryPeriod(run.id, run.periodEnd);
+  }
+});
+
+test("period repair refuses a non-synthetic boundary employee before fixture upserts can relabel it", async () => {
+  const run = (await boundaryRuns())[0];
+  const memberId = run.entries[0].membershipId;
+  await prisma.employeeBusinessMembership.update({ where: { id: memberId }, data: { isTestAccount: false } });
+  try {
+    const before = await boundaryRuns();
+    const result = runFixtureScript("scripts/prepare-hr-payroll-eight-role-uat.ts", boundaryFixtureEnvironment());
+    assert.notEqual(result.status, 0, "non-synthetic employee must not be silently relabelled");
+    assert.match(result.stderr, /HR_UAT_FIXTURE_BOUNDARY_PERIOD_REPAIR_REJECTED/);
+    assert.deepEqual(await boundaryRuns(), before);
+    assert.equal((await prisma.employeeBusinessMembership.findUniqueOrThrow({ where: { id: memberId } })).isTestAccount, false);
+  } finally {
+    await prisma.employeeBusinessMembership.update({ where: { id: memberId }, data: { isTestAccount: true } });
+  }
+});
+
+test("period repair refuses unexpected old period and rolls back both boundary runs", async () => {
+  const before = await boundaryRuns();
+  await setDisposableBoundaryPeriod(BOUNDARY_RUN_IDS[0], LEGACY_BOUNDARY_END);
+  await setDisposableBoundaryPeriod(BOUNDARY_RUN_IDS[1], new Date("2026-09-29T00:00:00.000Z"));
+  try {
+    const tampered = await boundaryRuns();
+    const result = runFixtureScript("scripts/prepare-hr-payroll-eight-role-uat.ts", boundaryFixtureEnvironment());
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /HR_UAT_FIXTURE_BOUNDARY_PERIOD_REPAIR_REJECTED/);
+    assert.deepEqual(await boundaryRuns(), tampered, "all targets are checked before any correction commits");
+  } finally {
+    for (const run of before) await setDisposableBoundaryPeriod(run.id, run.periodEnd);
+  }
+});
+
+test("period repair refuses an existing same-month canonical run and leaves original publications untouched", async () => {
+  const before = await boundaryRuns();
+  const scalar = await prisma.payrollRun.findUniqueOrThrow({ where: { id: BOUNDARY_RUN_IDS[0] } });
+  await setDisposableBoundaryPeriod(scalar.id, LEGACY_BOUNDARY_END);
+  const collision = await prisma.payrollRun.create({ data: {
+    ...scalar, id: randomUUID(), periodEnd: CANONICAL_SEPTEMBER_END,
+    status: "DRAFT", submittedAt: null, submittedById: null, finalizedAt: null, finalizedById: null,
+  } });
+  try {
+    const oldRows = await boundaryRuns();
+    const result = runFixtureScript("scripts/prepare-hr-payroll-eight-role-uat.ts", boundaryFixtureEnvironment());
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /HR_UAT_FIXTURE_BOUNDARY_PERIOD_REPAIR_REJECTED/);
+    assert.deepEqual(await boundaryRuns(), oldRows);
+    assert.deepEqual(await prisma.payrollRun.findUniqueOrThrow({ where: { id: collision.id } }), collision);
+  } finally {
+    // Only this loopback disposable test-created collision is removed.
+    await prisma.payrollRun.delete({ where: { id: collision.id } });
+    for (const run of before) await setDisposableBoundaryPeriod(run.id, run.periodEnd);
+  }
+});
+
+test("period repair rejects wrong tenant marker and canonical readiness still denies cross-tenant run IDs", async () => {
+  const runs = await boundaryRuns();
+  await assert.rejects(getPayrollPeriodReadiness({
+    businessId: runs[0].businessId, month: "2026-09", runId: runs[1].id,
+  }, prisma), { message: "Payroll run not found." });
+  const business = await prisma.business.findUniqueOrThrow({ where: { slug: BOUNDARY_BUSINESS_SLUG } });
+  await prisma.business.update({ where: { id: business.id }, data: { name: "Unrelated tenant" } });
+  try {
+    const result = runFixtureScript("scripts/prepare-hr-payroll-eight-role-uat.ts", boundaryFixtureEnvironment());
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /HR_UAT_FIXTURE_NON_SYNTHETIC_DATA_PRESENT/);
+    assert.deepEqual(await boundaryRuns(), runs);
+  } finally {
+    await prisma.business.update({ where: { id: business.id }, data: { name: business.name } });
+  }
+});
+
+// Test preparation only: these rows live in the loopback disposable DB created above.
+// Exercise the existing trigger mechanism, never disable or replace protections.
+async function setDisposableBoundaryPeriod(id: string, end: Date) {
+  assert.ok(BOUNDARY_RUN_IDS.includes(id));
+  assert.equal(new URL(isolatedDatabaseUrl).pathname, `/${ISOLATED_DATABASE_NAME}`);
+  assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(new URL(isolatedDatabaseUrl).hostname));
+  await prisma.$transaction(async (tx) => {
+    const run = await tx.payrollRun.findUniqueOrThrow({ where: { id } });
+    if (run.periodEnd.getTime() === end.getTime()) return;
+    await tx.$executeRaw`SELECT set_config('tetamu.payroll_reopen', ${id}, TRUE)`;
+    await tx.payrollRun.update({ where: { id }, data: {
+      status: "DRAFT", submittedAt: null, submittedById: null,
+      finalizedAt: null, finalizedById: null, updatedAt: run.updatedAt,
+    } });
+    await tx.payrollRun.update({ where: { id }, data: {
+      periodEnd: end, status: run.status, submittedAt: run.submittedAt,
+      submittedById: run.submittedById, finalizedAt: run.finalizedAt,
+      finalizedById: run.finalizedById, updatedAt: run.updatedAt,
+    } });
+  });
+}
+
+function boundaryRuns() {
+  return prisma.payrollRun.findMany({
+    where: { id: { in: BOUNDARY_RUN_IDS } }, orderBy: { id: "asc" },
+    include: {
+      entries: { orderBy: { id: "asc" } },
+      components: { orderBy: { id: "asc" } },
+      payslipPublications: { orderBy: { id: "asc" } },
+    },
+  });
+}
+
+function boundaryFixtureEnvironment() {
+  const artifactDirectory = ARTIFACT_DIRECTORIES.at(-1);
+  assert.ok(artifactDirectory);
+  return previewEnvironment({ HR_PAYROLL_UAT_ARTIFACT_DIRECTORY: artifactDirectory });
+}
 
 function runFixturePair(environment: NodeJS.ProcessEnv) {
   return [

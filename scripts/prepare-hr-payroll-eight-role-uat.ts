@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import bcrypt from "bcryptjs";
 import { Prisma, PrismaClient } from "@prisma/client";
+import { parsePayrollMonth } from "../src/lib/payroll/period";
 import {
   HR_PAYROLL_EIGHT_ROLE_PERSONAS,
   assertEightRoleUatEnvironment,
@@ -329,8 +330,7 @@ async function ensureBoundaryPayroll(
     key: string;
   },
 ) {
-  const periodStart = new Date("2026-09-01T00:00:00.000Z");
-  const periodEnd = new Date("2026-09-30T00:00:00.000Z");
+  const { start: periodStart, end: periodEnd } = parsePayrollMonth("2026-09");
   const runKey = {
     businessId_periodStart_periodEnd: {
       businessId: input.businessId,
@@ -658,6 +658,32 @@ async function ensureBoundaryTopology(
   return { boundaryBusiness, boundaryBranch };
 }
 
+async function assertExistingBoundaryPeriods(tx: Prisma.TransactionClient, primaryBusinessId: string) {
+  const period = parsePayrollMonth("2026-09");
+  const targets = [
+    { key: "primary-boundary", businessId: primaryBusinessId, code: "BOUNDARY-B" },
+    { key: "tenant-boundary", businessId: deterministicUuid("uat-preview-r3:boundary-business"), code: "TENANT-B" },
+  ];
+  let existing = 0;
+  for (const target of targets) {
+    const id = deterministicUuid(`uat-preview-r3:payroll-run:${target.key}`);
+    const run = await tx.payrollRun.findUnique({ where: { id }, include: {
+      entries: { include: { membership: { select: { businessId: true, employeeCode: true, isTestAccount: true } } } },
+      components: true, payslipPublications: { select: { payrollEntryId: true, membershipId: true, businessId: true } },
+    } });
+    if (!run) continue;
+    existing++;
+    const entry = run.entries[0], component = run.components[0], publication = run.payslipPublications[0];
+    if (run.businessId !== target.businessId || run.status !== "FINALIZED" || run.periodStart.getTime() !== period.start.getTime() || run.periodEnd.getTime() !== period.end.getTime() || run.entries.length !== 1 || run.components.length !== 1 || run.payslipPublications.length !== 1 || entry.membership.isTestAccount !== true || entry.membership.businessId !== target.businessId || entry.membership.employeeCode !== target.code || component.payrollEntryId !== entry.id || component.businessId !== target.businessId || publication.payrollEntryId !== entry.id || publication.businessId !== target.businessId || publication.membershipId !== entry.membershipId) {
+      throw new Error("HR_UAT_FIXTURE_BOUNDARY_PERIOD_REPAIR_REJECTED");
+    }
+    if (await tx.payrollRun.count({ where: { businessId: target.businessId, id: { not: id }, periodStart: { lt: period.end }, periodEnd: { gt: period.start } } })) {
+      throw new Error("HR_UAT_FIXTURE_BOUNDARY_PERIOD_REPAIR_REJECTED");
+    }
+  }
+  if (existing !== 0 && existing !== targets.length) throw new Error("HR_UAT_FIXTURE_BOUNDARY_PERIOD_REPAIR_REJECTED");
+}
+
 async function main() {
   const guard = assertHrPayrollUatFixtureEnvironment(process.env);
   const password = assertEightRoleUatEnvironment(process.env);
@@ -698,6 +724,9 @@ async function main() {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const prepared = await prisma.$transaction(async (tx) => {
+    // The ordinary fixture never reopens published runs or relabels a tampered employee.
+    // Legacy published periods require the separately authorized maintenance CLI first.
+    await assertExistingBoundaryPeriods(tx, artifact.businessId);
     const owner = await tx.user.findFirstOrThrow({
       where: {
         businessId: artifact.businessId,

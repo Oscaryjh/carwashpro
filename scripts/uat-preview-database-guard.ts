@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
+import { parsePayrollMonth } from "../src/lib/payroll/period";
 import {
   runtimeEnvironment,
   type RuntimeEnvironmentMap,
@@ -621,6 +622,7 @@ export type PreviewFixtureEvidence = Readonly<{
     }>;
     boundary: Readonly<{
       linksValid: boolean;
+      payrollPeriodsValid: boolean;
       topologyVersion: typeof HR_PAYROLL_UAT_SYNTHETIC_TOPOLOGY_VERSION;
     }>;
     lockedTimesheets: number;
@@ -749,7 +751,7 @@ export async function capturePreviewFixtureEvidence(
     }),
     database.payrollRun.findMany({
       where: { businessId: { in: businessIds } },
-      select: { id: true, periodStart: true, status: true },
+      select: { id: true, businessId: true, periodStart: true, periodEnd: true, status: true },
       orderBy: { periodStart: "asc" },
     }),
     database.payrollEntry.findMany({
@@ -879,6 +881,11 @@ export async function capturePreviewFixtureEvidence(
         },
       }),
     ]);
+  const boundaryPeriod = parsePayrollMonth("2026-09");
+  const boundaryPeriodsValid = [
+    { id: "a5739bf1-bcc4-51ad-b24c-0aa9b64020da", businessId },
+    { id: "8698226d-a3a3-5b15-9fc1-c13f95f415a0", businessId: boundaryBusiness?.id },
+  ].every(target => payrollRuns.some(run => run.id === target.id && run.businessId === target.businessId && run.status === "FINALIZED" && run.periodStart.getTime() === boundaryPeriod.start.getTime() && run.periodEnd.getTime() === boundaryPeriod.end.getTime()));
   const boundaryLinksValid = Boolean(
     boundaryBusiness &&
       businesses.length === 2 &&
@@ -1121,6 +1128,7 @@ export async function capturePreviewFixtureEvidence(
     payrollRuns: payrollRuns.map((row) => ({
       ...row,
       periodStart: row.periodStart.toISOString(),
+      periodEnd: row.periodEnd.toISOString(),
     })),
     payrollEntries: payrollEntries.map((entry) => ({
       ...entry,
@@ -1177,6 +1185,7 @@ export async function capturePreviewFixtureEvidence(
       },
       boundary: {
         linksValid: boundaryLinksValid,
+        payrollPeriodsValid: boundaryPeriodsValid,
         topologyVersion: HR_PAYROLL_UAT_SYNTHETIC_TOPOLOGY_VERSION,
       },
       lockedTimesheets,
@@ -1266,6 +1275,9 @@ export function assertCompletePreviewFixtureEvidence(
   }
   if (domains.payrollRunStatus !== "FINALIZED") {
     guardError("HR_UAT_FIXTURE_PAYROLL_RUN_NOT_FINALIZED");
+  }
+  if (!domains.boundary.payrollPeriodsValid) {
+    guardError("HR_UAT_FIXTURE_PAYROLL_PERIOD_MISMATCH");
   }
   if (
     !domains.boundary.linksValid ||
