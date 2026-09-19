@@ -14,6 +14,7 @@ export const HR_PAYROLL_EIGHT_ROLE_PERSONAS = [
     roleProfile: "Payroll Admin",
     permissions: [
       "ALL_BRANCHES",
+      "ATTENDANCE_EMPLOYEE_READ",
       "PAYROLL_READ",
       "VIEW_COMPENSATION",
       "VIEW_PAYROLL_RUN",

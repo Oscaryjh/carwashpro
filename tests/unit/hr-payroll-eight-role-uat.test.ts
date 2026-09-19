@@ -5,6 +5,7 @@ import {
   assertEightRoleUatEnvironment,
   resolveEightRoleUatDeviceWrite,
 } from "../../scripts/hr-payroll-eight-role-uat-contract";
+import { canDirectStaff } from "../../src/lib/business-groups/capabilities";
 
 const EXPECTED_PERSONAS = [
   "BUSINESS_OWNER",
@@ -32,6 +33,16 @@ test("local HR/Payroll UAT fixture defines exactly the approved eight roles", ()
     assert.ok(permissions.includes("ALL_BRANCHES"));
     assert.ok(permissions.includes("VIEW_PAYROLL_RUN"));
     assert.ok(permissions.includes("EDIT_PAYROLL_ENTRY"));
+    assert.ok(permissions.includes("ATTENDANCE_EMPLOYEE_READ"));
+    assert.equal(permissions.includes("ATTENDANCE_EMPLOYEE_MANAGE"), false);
+    assert.equal(
+      canDirectStaff(permissions, "VIEW_ATTENDANCE_EMPLOYEES"),
+      true,
+    );
+    assert.equal(
+      canDirectStaff(permissions, "MODIFY_ATTENDANCE_EMPLOYEES"),
+      false,
+    );
     assert.equal(permissions.includes("SUBMIT_STATUTORY"), false);
     assert.equal(permissions.includes("EXPORT_PAYMENT_FILE"), false);
   }
