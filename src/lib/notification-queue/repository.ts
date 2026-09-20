@@ -114,6 +114,18 @@ export async function findQueued(input: FindQueuedNotificationsInput = {}) {
 }
 
 export async function markSending(id: string) {
+  // Serializable races roll back the complete claim/attempt transaction. Retry
+  // only that conflict: the next snapshot observes the winner and returns null.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await claimSendingOnce(id);
+    } catch (error) {
+      if (attempt >= 2 || !(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2034") throw error;
+    }
+  }
+}
+
+async function claimSendingOnce(id: string) {
   const now = new Date();
   const claimToken = randomUUID();
 

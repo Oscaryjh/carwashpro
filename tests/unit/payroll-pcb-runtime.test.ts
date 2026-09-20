@@ -169,9 +169,14 @@ const governanceBinding = buildPcbGovernanceBinding({
 
 function database(priorSnapshots: unknown[] = []) {
   return {
-    payrollEntryStatutorySnapshot: {
-      findMany: async () => priorSnapshots,
+    payrollEntry: {
+      findMany: async () => priorSnapshots.map((value) => {
+        const snapshot = value as { id: string; payrollRun: { periodStart: Date } };
+        return { id: snapshot.id, payrollRun: snapshot.payrollRun, statutorySnapshots: [snapshot] };
+      }),
     },
+    payrollPcbPublicationVersion: { findFirst: async () => null },
+    payrollManualPcbConfirmation: { findFirst: async () => null },
   } as never;
 }
 

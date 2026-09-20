@@ -142,6 +142,11 @@ test("Preview core and eight-role fixtures are idempotent across every required 
 
   const firstResults = runFixturePair(environment);
   for (const result of firstResults) {
+    if (result.status !== 0) {
+      const { diagnoseRun } = await import("../helpers/rc-readiness-diagnostics");
+      const runs = await prisma.payrollRun.findMany({ where: { business: { slug: HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG } }, select: { id: true, businessId: true } });
+      for (const run of runs) await diagnoseRun(run.businessId, run.id, prisma);
+    }
     assert.equal(result.status, 0, result.stderr);
     assertSanitized(result, environment);
   }
@@ -792,6 +797,8 @@ function previewEnvironment(
   const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.slice(1));
   const databaseServiceId = "preview-database-service";
   const environment: NodeJS.ProcessEnv = {
+    RC_DISPOSABLE_TEST: process.env.RC_DISPOSABLE_TEST,
+    TETAMU_MFA_ENABLED: "true",
     NODE_ENV: "production",
     APP_ENVIRONMENT: "uat-preview",
     DATABASE_URL: databaseUrl,

@@ -142,7 +142,7 @@ test("PCB presentation distinguishes pending review, calculated zero and not app
   assert.deepEqual(pcbPayslipPresentation("FINALIZED", {
     pcb: 0,
     statutorySnapshots: [{ scheme: "PCB", status: "CALCULATED", blockerCode: null, employeeContribution: 0, employerContribution: 0 }],
-  }), { pending: false, value: "RM0.00" });
+  }), { pending: false, value: "RM0.00 · Non-official result", sourceLabel: "Non-official result" });
   assert.deepEqual(pcbPayslipPresentation("FINALIZED", {
     pcb: 0,
     statutorySnapshots: [{ scheme: "PCB", status: "NOT_APPLICABLE", blockerCode: null, employeeContribution: 0, employerContribution: 0 }],

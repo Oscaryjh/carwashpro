@@ -16,6 +16,7 @@ export type PayrollDocumentStatutorySnapshot = {
 };
 
 export type PayrollDocumentEntry = {
+  pcbCorrection?: { version: number; recordedAt: string; reference: string };
   id: string;
   employeeCode: string;
   fullName: string;
@@ -119,11 +120,15 @@ export function pcbPayslipPresentation(
   entry: Pick<PayrollDocumentEntry, "pcb" | "statutorySnapshots">,
 ) {
   const snapshot = entry.statutorySnapshots?.find((item) => item.scheme === "PCB");
-  if (snapshot?.status === "CALCULATED" || snapshot?.status === "MANUAL") {
-    return { pending: false, value: formatMoney(snapshot.employeeContribution) };
+  if (snapshot?.status === "MANUAL") {
+    return { pending: false, value: `${formatMoney(snapshot.employeeContribution)} · Manually confirmed`, sourceLabel: "Manually confirmed" };
   }
-  if (snapshot?.status === "NOT_APPLICABLE") {
-    return { pending: false, value: formatMoney(0) };
+  if (snapshot?.status === "CALCULATED") {
+    if (isProductionRuntime()) return { pending: true, value: "Manual confirmation required" };
+    return { pending: false, value: `${formatMoney(snapshot.employeeContribution)} · Non-official result`, sourceLabel: "Non-official result" };
+  }
+  if (snapshot?.status === "NOT_APPLICABLE" && !isProductionRuntime()) {
+    return { pending: false, value: formatMoney(snapshot.employeeContribution) };
   }
   if (snapshot?.status === "BLOCKED") {
     const needsConfiguration = /PROFILE|TAX_REGIME|RESIDEN|CITIZEN|PARTICIPATION/.test(
@@ -134,7 +139,7 @@ export function pcbPayslipPresentation(
       value: needsConfiguration ? "Pending configuration" : "Review required",
     };
   }
-  if (runStatus === "FINALIZED" || entry.pcb !== 0) {
+  if (!isProductionRuntime() && (runStatus === "FINALIZED" || entry.pcb !== 0)) {
     return { pending: false, value: formatMoney(entry.pcb) };
   }
   return { pending: true, value: "Pending configuration" };

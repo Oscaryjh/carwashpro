@@ -50,15 +50,15 @@ test("local and Testing can explicitly enable or disable bank-account MFA", () =
   );
 });
 
-test("the master switch disables bank-account MFA in Production too", () => {
+test("Production bank-account MFA cannot be disabled by either switch", () => {
   const env = {
     APP_ENVIRONMENT: "production",
     TETAMU_MFA_ENABLED: "false",
     PAYROLL_BANK_ACCOUNT_MFA_ENABLED: "false",
   };
 
-  assert.equal(isPayrollBankAccountMfaEnabled(env), false);
-  assert.equal(payrollBankAccountHighRisk("employee-1", env), undefined);
+  assert.equal(isPayrollBankAccountMfaEnabled(env), true);
+  assert.ok(payrollBankAccountHighRisk("employee-1", env));
 });
 
 test("Production enforces bank-account MFA after the master switch is restored", () => {

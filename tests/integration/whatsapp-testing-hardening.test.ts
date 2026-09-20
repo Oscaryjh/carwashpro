@@ -8,6 +8,7 @@ import {
   recoverExpiredSending,
 } from "../../src/lib/notification-queue/repository";
 import { prisma } from "../../src/lib/prisma";
+import { randomUUID } from "node:crypto";
 import { enqueueWhatsAppLogMessage } from "../../src/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "../../src/lib/whatsapp/templates";
 import {
@@ -332,6 +333,25 @@ test("WhatsApp hardening keeps one intent, one claim, durable attempts and monot
     await prisma.business.deleteMany({
       where: { id: { in: [businessA.id, businessB.id] } },
     });
+  }
+});
+
+test("competing worker claims yield exactly one durable attempt without serialization errors", async () => {
+  const business = await prisma.business.create({ data: { name: "Synthetic concurrent claim", slug: `claim-${randomUUID()}` } });
+  try {
+    for (let round = 0; round < 4; round++) {
+      const queue = await prisma.notificationQueue.create({ data: { businessId: business.id, message: "Synthetic concurrency probe", messageType: "READY_FOR_PICKUP", phone: "601100000000" } });
+      const claims = await Promise.allSettled(Array.from({ length: 8 }, () => markSending(queue.id)));
+      assert.equal(claims.filter((claim) => claim.status === "rejected").length, 0,
+        `WORKER_CLAIM_ERRORS:${claims.flatMap((claim) => claim.status === "rejected" && /^P\d{4}$/.test(claim.reason?.code) ? [claim.reason.code] : []).join(",")}`);
+      assert.equal(claims.filter((claim) => claim.status === "fulfilled" && claim.value !== null).length, 1);
+      assert.equal(await prisma.whatsAppSendAttempt.count({ where: { queueId: queue.id } }), 1);
+      assert.equal((await prisma.notificationQueue.findUniqueOrThrow({ where: { id: queue.id } })).attemptCount, 1);
+    }
+  } finally {
+    await prisma.whatsAppSendAttempt.deleteMany({ where: { businessId: business.id } });
+    await prisma.notificationQueue.deleteMany({ where: { businessId: business.id } });
+    await prisma.business.delete({ where: { id: business.id } });
   }
 });
 

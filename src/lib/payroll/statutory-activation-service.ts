@@ -528,6 +528,7 @@ export async function activateStatutoryRule(
   },
   database: StatutoryDatabase = prisma,
 ) {
+  if (input.expectedScheme === "PCB") throw new Error("PCB_PRODUCTION_ACTIVATION_NOT_ENABLED");
   assertHumanCapability(input.actor, ACTIVATE_STATUTORY_RULESET);
   const prepared = prepareControlledActivation({
     actorId: input.actor.id,
@@ -558,6 +559,7 @@ export async function activateStatutoryRule(
     });
     assertRuleIdentity(rule, input.evidence);
     assertStoredVerification(rule, input.verificationEvidence ?? input.evidence, verificationAudit);
+    if (rule.scheme === "PCB") throw new Error("PCB_PRODUCTION_ACTIVATION_NOT_ENABLED");
     const latestDecision = rule.signOffs[0];
     const approved = rule.signOffs.find((item) => item.decision === "APPROVED");
     const currentDigest = statutoryRuleEvidenceDigest(rule);

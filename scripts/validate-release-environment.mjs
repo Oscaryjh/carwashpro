@@ -2,9 +2,11 @@ import {
   isProductionGradeEnvironment,
   parseRuntimeEnvironment,
 } from "../src/lib/release/environment-contract.mjs";
+import { validateProductionRuntime } from "../src/lib/release/production-contract.mjs";
+import { readSourceAttestation } from "../src/lib/release/source-attestation.mjs";
 
 const scope = process.argv[2] ?? "web";
-const VALID_SCOPES = new Set(["web", "notification", "analytics", "whatsapp"]);
+const VALID_SCOPES = new Set(["web", "staff", "notification", "analytics", "whatsapp", "monitor"]);
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 if (!VALID_SCOPES.has(scope)) {
@@ -29,7 +31,8 @@ if (isProductionGradeEnvironment(environment)) {
 }
 
 if (environment === "production") {
-  requireValue("APP_RELEASE_SHA", 7, environment);
+  try { validateProductionRuntime(process.env, scope, readSourceAttestation()); }
+  catch (error) { fail(error instanceof Error && /^PRODUCTION_[A-Z0-9_]+$/.test(error.message) ? error.message : "Production contract validation failed."); }
   requireRemoteDatabaseUrl("Production");
   validateProductionProviders();
 }

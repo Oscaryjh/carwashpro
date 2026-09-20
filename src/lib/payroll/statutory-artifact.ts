@@ -67,6 +67,7 @@ export async function downloadOrCreateStatutoryArtifact(
   },
   database: PrismaClient = prisma,
 ): Promise<StatutoryArtifactDownload> {
+  if (input.provider === "PCB") throw new Error("PCB_OFFICIAL_EXPORT_NOT_ENABLED");
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       return await database.$transaction(

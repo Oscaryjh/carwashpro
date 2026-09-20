@@ -12,10 +12,11 @@ import {
 import {
   finalizePayrollRun,
   generatePayrollRun,
-  submitPayrollRunForReview,
 } from "../../src/lib/payroll/service";
+import { submitPayrollRunForReview } from "../helpers/rc-readiness-diagnostics";
 import { prisma } from "../../src/lib/prisma";
 import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
+import { confirmFixturePcb, enableFixturePayrollModules } from "../helpers/manual-pcb-fixture";
 
 const recurringPayFixtureNow = new Date("2026-08-15T00:00:00.000Z");
 
@@ -114,6 +115,8 @@ test("P4A recurring pay resolves, snapshots and preserves finalized payroll hist
     "300.10",
   );
 
+  await enableFixturePayrollModules(fixture.business.id);
+  await confirmFixturePcb({ businessId: fixture.business.id, entryId: entryBefore.id, actorId: context.actor.userId, amount: "0.00", externalReference: "EXPLICIT_ZERO_P4A_RECURRING_PAY_REGRESSION" });
   await submitPayrollRunForReview({
     actor: context.actor,
     businessId: fixture.business.id,

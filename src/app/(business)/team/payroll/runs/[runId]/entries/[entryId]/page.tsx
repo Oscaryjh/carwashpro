@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ManualPcbFields } from "@/components/manual-pcb-fields";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
+import { resolveManualPcb, manualPcbInputDigest } from "@/lib/payroll/manual-pcb-service";
+import { prisma } from "@/lib/prisma";
 import { resolvePayrollRunsReadAccess } from "@/lib/payroll/runs-access";
 import { loadPayrollRunEntryEditor } from "@/lib/payroll/entry-editor";
 import {
@@ -7,6 +11,7 @@ import {
 } from "@/lib/payroll/runs";
 import {
   addManualPayrollAdjustmentAction,
+  confirmManualPcbAction,
   approvePayrollCorrectionAction,
   approvePayrollVariablePayAction,
   cancelPayrollCorrectionAction,
@@ -64,13 +69,18 @@ export default async function PayrollEntryEditorPage({
   const canEdit = access.actions.canEditEntry && data.run.status === "DRAFT";
   if (!canEdit) {
     return (
+      <>
       <ReadOnlyPayrollEntry
         data={data}
         returnPath={returnPath}
       />
+      {data.run.status === "FINALIZED" && access.actions.canViewPayslip && <p className="content"><Link href={`/team/payroll/payslips/${entryId}/history`}>Payslip history &amp; PCB correction</Link></p>}
+      </>
     );
   }
   const earnedStart = `${month}-01`;
+  const manualPcb = await resolveManualPcb(prisma, access.businessId, entryId);
+  const expectedInputDigest = await manualPcbInputDigest(prisma, access.businessId, entryId);
   const earnedEnd = new Date(
     Date.UTC(
       data.run.periodStart.getUTCFullYear(),
@@ -117,6 +127,21 @@ export default async function PayrollEntryEditorPage({
           returnPath={returnPath}
         />
         <StatutorySnapshotDetail snapshots={data.entry.statutorySnapshots} />
+
+        <section className={styles.editorFieldset} aria-label="Manual PCB confirmation">
+          <h3>PCB source</h3>
+          <p>{manualPcb ? `Manually confirmed · version ${manualPcb.sourceVersion} · ${manualPcb.confirmedAt.toISOString().slice(0, 10)}` : "Blocked: manual PCB confirmation is missing or no longer matches these payroll inputs."}</p>
+          {isMfaFeatureEnabled() ? <form action={confirmManualPcbAction}>
+            <input type="hidden" name="entryId" value={entryId} />
+            <input type="hidden" name="runId" value={runId} />
+            <input type="hidden" name="month" value={month} />
+            <input type="hidden" name="expectedRevision" value={data.entry.calculationRevision} />
+            <input type="hidden" name="expectedInputDigest" value={expectedInputDigest} />
+            <input type="hidden" name="returnPath" value={returnPath} />
+            <ManualPcbFields />
+            <button type="submit">Confirm PCB amount</button>
+          </form> : <p>MFA must be enabled before an authorized payroll user can confirm PCB.</p>}
+        </section>
 
         <div className={styles.editorFieldset}>
           <h3>Earning lines</h3>

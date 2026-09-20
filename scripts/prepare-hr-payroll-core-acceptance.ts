@@ -13,6 +13,7 @@ import {
   submitPayrollRunForReview,
 } from "../src/lib/payroll/service";
 import { issueTestHighRiskStepUp } from "../tests/helpers/high-risk-step-up";
+import { confirmFixturePcb } from "../tests/helpers/manual-pcb-fixture";
 import {
   assertHrPayrollUatFixtureEnvironment,
   assertPreviewDatabaseContents,
@@ -488,6 +489,18 @@ async function main() {
     },
   });
 
+  // Explicit certified amounts for the six synthetic acceptance scenarios only.
+  // The helper is restricted to the RC-owned loopback disposable test database.
+  const manualPcbAmounts: Record<string, string> = {
+    "CORE-A": "0.00", "CORE-B": "0.00", "CORE-C": "0.00",
+    "CORE-D": "0.00", "CORE-E": "0.00", "CORE-F": "0.00",
+  };
+  const manualEntries = await prisma.payrollEntry.findMany({ where: { businessId: fixture.business.id, payrollRunId: run.id } });
+  for (const entry of manualEntries) {
+    const amount = manualPcbAmounts[entry.employeeCodeSnapshot];
+    if (amount === undefined) throw new Error("CORE_MANUAL_PCB_EVIDENCE_MISSING");
+    await confirmFixturePcb({ businessId: fixture.business.id, entryId: entry.id, actorId: fixture.owner.id, amount, password, externalReference: `CORE_ACCEPTANCE_EXPLICIT_ZERO_${entry.employeeCodeSnapshot}_2026_08` });
+  }
   await submitPayrollRunForReview({
     businessId: fixture.business.id,
     actor: actor(fixture.owner),

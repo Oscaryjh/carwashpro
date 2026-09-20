@@ -73,7 +73,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
       submissionByProvider.set(submission.provider, submission);
     }
   }
-  const readyCount = providers.filter((provider) => validation[provider.id].ready).length;
+  const readyCount = providers.filter((provider) => provider.id !== "PCB" && validation[provider.id].ready).length;
   const configuredEmployees = employees.filter((employee) =>
     employee.statutoryIdentityType && employee.statutoryIdentityNumber,
   ).length;
@@ -130,7 +130,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
             <article className={styles.providerCard} key={provider.id}>
               <div className={styles.cardHeading}>
                 <div><span className={styles.kicker}>{provider.portal}</span><h2>{provider.name}</h2></div>
-                <span className={result.ready ? styles.ready : styles.blocked}>{result.ready ? "Ready" : "Needs setup"}</span>
+                <span className={provider.id !== "PCB" && result.ready ? styles.ready : styles.blocked}>{provider.id === "PCB" ? "尚未启用 / Not enabled" : result.ready ? "Ready" : "Needs setup"}</span>
               </div>
               <p>{provider.description}</p>
               <div className={styles.providerMeta}>
@@ -142,7 +142,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
               ) : <div className={styles.passMessage}>All required fields passed pre-export validation.</div>}
               {result.errors.length > 4 ? <small className={styles.moreIssues}>+ {result.errors.length - 4} more issues below in employee profiles</small> : null}
               <div className={styles.cardActions}>
-                {artifactAvailable || (canExport && canCreateArtifact && result.ready) ? (
+                {provider.id === "PCB" ? <span className={styles.disabledButton}>尚未启用 / Not enabled</span> : artifactAvailable || (canExport && canCreateArtifact && result.ready) ? (
                   <details>
                     <summary className={styles.primaryButton}>
                       {artifactAvailable ? "Download retained artifact" : "Create encrypted export"}
@@ -228,6 +228,7 @@ export default async function StatutorySubmissionPage({ searchParams }: PageProp
 type SubmissionSummary = { id: string; revision: number; status: string; integrityStatus: string; exportedAt: Date | null; submittedAt: Date | null; resolvedAt: Date | null; submissionReference: string | null; rejectionReason: string | null; artifact: { id: string } | null };
 
 function SubmissionWorkflow({ submission, history, provider, month, canSubmit, canResolve, mfaFeatureEnabled }: { submission: SubmissionSummary; history: SubmissionSummary[]; provider: StatutorySubmissionProvider; month: string; canSubmit: boolean; canResolve: boolean; mfaFeatureEnabled: boolean }) {
+  if (provider === "PCB") return <p>尚未启用 / Not enabled. Official downloads and government submission are unavailable.</p>;
   const verified = submission.integrityStatus === "VERIFIED" && Boolean(submission.artifact);
   return (
     <div className={styles.workflow}>

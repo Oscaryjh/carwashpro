@@ -9,6 +9,7 @@ import {
 import { safePaymentReason, writePayrollPaymentAudit } from "./payment-audit";
 import { PayrollPaymentError, type PayrollPaymentContext } from "./types";
 import { consumePayrollHighRiskAuthorization } from "@/lib/payroll/high-risk-mfa";
+import { assertLaunchFeatureEnabled } from "@/lib/release/launch-policy";
 
 // P0 has no bank adapter and no download route. This function exists only for
 // integrity tests using fixed internal bytes; production bank formats belong to P3.
@@ -24,6 +25,7 @@ export async function createInternalTestPaymentArtifact(
   },
   database: PrismaClient = prisma,
 ) {
+  if (process.env.APP_ENVIRONMENT === "production" || process.env.RAILWAY_ENVIRONMENT_NAME === "production") assertLaunchFeatureEnabled("PAYMENT_EXPORT");
   if (!input.allowInternalTestArtifact || process.env.NODE_ENV !== "test") {
     throw new PayrollPaymentError("ACCESS_DENIED", "Internal payment artifacts are test-only.");
   }
@@ -111,5 +113,6 @@ export async function decryptInternalTestPaymentArtifact(
   artifact: Parameters<typeof decryptPaymentArtifact>[0],
   environment: NodeJS.ProcessEnv,
 ) {
+  if (process.env.NODE_ENV !== "test" || [process.env.APP_ENVIRONMENT, process.env.RAILWAY_ENVIRONMENT_NAME, environment.APP_ENVIRONMENT, environment.RAILWAY_ENVIRONMENT_NAME, environment.NODE_ENV].some((value) => value?.trim().toLowerCase() === "production")) assertLaunchFeatureEnabled("PAYMENT_EXPORT");
   return decryptPaymentArtifact(artifact, environment);
 }

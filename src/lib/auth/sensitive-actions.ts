@@ -1,4 +1,6 @@
 export const SENSITIVE_ACTION_KEYS = [
+  "PCB_HISTORICAL_CORRECT",
+  "PCB_MANUAL_CONFIRM",
   "STATUTORY_RULESET_SIGNOFF",
   "STATUTORY_RULESET_ACTIVATE",
   "PAYROLL_FINALIZE",
@@ -35,6 +37,22 @@ export type SensitiveActionPolicy = Readonly<{
 const FIVE_MINUTES_SECONDS = 5 * 60;
 
 const policies: Record<SensitiveActionKey, SensitiveActionPolicy> = {
+  PCB_HISTORICAL_CORRECT: policy({
+    actionKey: "PCB_HISTORICAL_CORRECT",
+    requiredAssurance: "MFA",
+    resourceType: "PAYSLIP_PUBLICATION",
+    requiredCapability: "EDIT_PAYROLL_ENTRY",
+    requiredModule: "PAYROLL",
+    requiresReason: true,
+  }),
+  PCB_MANUAL_CONFIRM: policy({
+    actionKey: "PCB_MANUAL_CONFIRM",
+    requiredAssurance: "MFA",
+    resourceType: "PAYROLL_ENTRY",
+    requiredCapability: "EDIT_PAYROLL_ENTRY",
+    requiredModule: "PAYROLL",
+    requiresReason: true,
+  }),
   STATUTORY_RULESET_SIGNOFF: policy({
     actionKey: "STATUTORY_RULESET_SIGNOFF",
     requiredAssurance: "MFA",

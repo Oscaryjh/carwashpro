@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { correctedFrozenNetPay } from "../../src/lib/payroll/pcb-correction-contract";
 import {
   buildPayslipPdf,
   type PayrollDocumentEntry,
@@ -69,6 +70,27 @@ function entry(overrides: Partial<PayrollDocumentEntry> = {}): PayrollDocumentEn
 function occurrences(text: string, value: string) {
   return text.split(value).length - 1;
 }
+test("published corrections recompute clamped net from frozen amounts, not previous net", () => {
+  const original = entry({ grossPay: 1000, basicPay: 1000, overtimePay: 0, publicHolidayPay: 0, allowances: 0,
+    otherDeductions: 950, epfEmployee: 0, socsoEmployee: 0, eisEmployee: 0, lindung24Employee: 0,
+    pcb: 100, cp38: 0, netPay: 0, claimReimbursements: [], components: [
+      { name: "Basic Salary", type: "EARNING", amount: 1000 }, { name: "Other", type: "DEDUCTION", amount: 950 },
+    ] });
+  assert.doesNotThrow(() => buildPayslipPdf(run, original));
+  for (const pcb of [50, 150]) {
+    const netPay = correctedFrozenNetPay(original, pcb);
+    assert.equal(netPay, 0);
+    assert.doesNotThrow(() => buildPayslipPdf(run, { ...original, pcb, netPay }));
+  }
+});
+test("prior-period PCB refund is displayed separately from taxable gross and reconciles net", () => {
+  const original = entry();
+  const corrected = entry({ netPay: original.netPay + 50, components: [...original.components!,
+    { name: "Prior-period PCB adjustment", type: "EARNING", amount: 50, sourceType: "PRIOR_PERIOD_PCB" }] });
+  const text = buildPayslipPdf(run, corrected).toString("latin1");
+  assert.match(text, /PRIOR-PERIOD PCB ADJUSTMENT/);
+  assert.match(text, /not proof of payment/i);
+});
 
 test("Payslip V2 renders an A4 professional Malaysian payroll hierarchy", () => {
   const pdf = buildPayslipPdf(run, entry());

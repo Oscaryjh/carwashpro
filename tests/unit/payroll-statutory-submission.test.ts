@@ -71,42 +71,14 @@ test("PERKESO combined v2.0 record is exactly 278 characters", () => {
   assert.equal(line.slice(220, 226), "001625");
 });
 
-test("LHDN CP39 file has a 57-character header and 136-character detail", () => {
-  const text = buildOfficialSubmissionFile("PCB", profile, run).toString("utf8");
-  const [header, detail] = text.replace(/\r\n$/, "").split("\r\n");
-  assert.equal(header.length, 57);
-  assert.equal(detail.length, 136);
-  assert.equal(header.slice(0, 1), "H");
-  assert.equal(header.slice(21, 27), "202608");
-  assert.equal(detail.slice(0, 1), "D");
-  assert.equal(detail.slice(1, 12), "12345678901");
-  assert.equal(detail.slice(84, 96), "900101145555");
-  assert.equal(header.slice(27, 37), "0000001250");
-  assert.equal(header.slice(37, 42), "00001");
-  assert.equal(header.slice(42, 52), "0000000725");
-  assert.equal(header.slice(52, 57), "00001");
-  assert.equal(detail.slice(110, 118), "00001250");
-  assert.equal(detail.slice(118, 126), "00000725");
-  assert.equal(statutorySubmissionFileName("PCB", profile, run), "000065432108_2026.txt");
+test("first release does not generate CP39 even when all legacy validation fields are present", () => {
+  assert.equal(validateStatutorySubmission("PCB", profile, run).ready, true);
+  assert.throws(() => buildOfficialSubmissionFile("PCB", profile, run), /PCB_OFFICIAL_EXPORT_NOT_ENABLED/);
 });
 
-test("LHDN CP39 Exhibit 4 output is byte-stable for PCB and CP38 amounts", () => {
-  const text = buildOfficialSubmissionFile("PCB", profile, run).toString("utf8");
-  const expectedHeader =
-    "H00001234560000654321202608000000125000001000000072500001";
-  const expectedDetail = [
-    "D",
-    "12345678901",
-    "Oscar Staff".padEnd(60, " "),
-    " ".repeat(12),
-    "900101145555",
-    " ".repeat(12),
-    "  ",
-    "00001250",
-    "00000725",
-    "EMP001".padEnd(10, " "),
-  ].join("");
-  assert.deepEqual(Buffer.from(text, "utf8"), Buffer.from(`${expectedHeader}\r\n${expectedDetail}\r\n`, "utf8"));
+test("explicit PCB and CP38 amounts cannot unlock official CP39 bytes", () => {
+  assert.throws(() => buildOfficialSubmissionFile("PCB", profile, run), /PCB_OFFICIAL_EXPORT_NOT_ENABLED/);
+  assert.equal(statutorySubmissionFileName("PCB", profile, run), "000065432108_2026.txt");
 });
 
 test("validation lists employee-specific blocking fields instead of guessing", () => {
@@ -141,5 +113,5 @@ test("CP39 blocks identity normalization or truncation instead of silently chang
     new Set(result.errors.map((item) => item.code)),
     new Set(["TIN_INVALID", "PASSPORT_INVALID", "EMPLOYEE_CODE_INVALID", "EMPLOYEE_NAME_TOO_LONG"]),
   );
-  assert.throws(() => buildOfficialSubmissionFile("PCB", profile, invalid), /Tax Identification Number/);
+  assert.throws(() => buildOfficialSubmissionFile("PCB", profile, invalid), /PCB_OFFICIAL_EXPORT_NOT_ENABLED/);
 });

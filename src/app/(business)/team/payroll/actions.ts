@@ -5,6 +5,9 @@ import { headers } from "next/headers";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { confirmManualPcb } from "@/lib/payroll/manual-pcb-service";
+import { correctPublishedPcb } from "@/lib/payroll/pcb-published-correction";
+import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
@@ -299,6 +302,43 @@ export async function generatePayrollRunAction(formData: FormData) {
       "Unable to generate payroll draft.",
       requestedReturnPath,
     );
+  }
+}
+
+export async function confirmManualPcbAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
+  try {
+    const context = await requirePayrollComponentEdit();
+    if (!isMfaFeatureEnabled()) throw new Error("PCB_MANUAL_MFA_REQUIRED");
+    const entryId = z.string().uuid().parse(formData.get("entryId"));
+    const stepUp = await issuePayrollStepUp(context, formData, "PCB_MANUAL_CONFIRM", entryId);
+    await confirmManualPcb({ businessId: context.businessId, actorId: context.user.userId, entryId,
+      expectedRevision: z.coerce.number().int().nonnegative().parse(formData.get("expectedRevision")),
+      expectedInputDigest: z.string().regex(/^[a-f0-9]{64}$/).parse(formData.get("expectedInputDigest")),
+      amount: formData.get("amount"), externalReference: formData.get("externalReference"), confirmed: formData.get("confirmed") === "yes", stepUp });
+    finish("success", "PCB amount manually confirmed for the current payroll revision.", month, returnPath);
+  } catch (error) {
+    handleActionError(error, month, "PCB was not confirmed. Check the amount, evidence, current revision and MFA, then try again.", returnPath);
+  }
+}
+
+export async function correctPublishedPcbAction(formData: FormData) {
+  const month = monthFrom(formData);
+  const returnPath = payrollRunReturnPath(formData.get("runId"), null);
+  try {
+    const context = await requirePayrollComponentEdit();
+    if (!isMfaFeatureEnabled()) throw new Error("PCB_MANUAL_MFA_REQUIRED");
+    const publicationId = z.string().uuid().parse(formData.get("publicationId"));
+    const stepUp = await issuePayrollStepUp(context, formData, "PCB_HISTORICAL_CORRECT", publicationId);
+    await correctPublishedPcb({ businessId: context.businessId, actorId: context.user.userId, publicationId,
+      expectedVersion: z.coerce.number().int().positive().parse(formData.get("expectedVersion")),
+      expectedInputDigest: z.string().regex(/^[a-f0-9]{64}$/).parse(formData.get("expectedInputDigest")),
+      amount: formData.get("amount"), externalReference: formData.get("externalReference"), confirmed: formData.get("confirmed") === "yes",
+      reason: z.string().min(5).max(500).parse(formData.get("reason")), stepUp });
+    finish("success", "Corrected payslip published. Original retained; prior-period adjustment is not proof of payment.", month, returnPath);
+  } catch (error) {
+    handleActionError(error, month, "Correction was not published. Check permission, evidence, latest version and MFA; reload before trying again.", returnPath);
   }
 }
 

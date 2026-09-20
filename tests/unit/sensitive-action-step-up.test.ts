@@ -18,7 +18,7 @@ import {
 import { assertServerActionSameOrigin } from "../../src/lib/auth/security";
 
 test("sensitive action registry is centralized, bounded and resource scoped", () => {
-  assert.equal(SENSITIVE_ACTION_KEYS.length, 16);
+  assert.equal(SENSITIVE_ACTION_KEYS.length, 18);
   for (const actionKey of SENSITIVE_ACTION_KEYS) {
     const policy = getSensitiveActionPolicy(actionKey);
     assert.equal(policy.actionKey, actionKey);

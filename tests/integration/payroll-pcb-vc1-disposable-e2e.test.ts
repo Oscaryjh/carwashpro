@@ -10,16 +10,17 @@ import { getPayrollPeriodReadiness } from "../../src/lib/payroll/readiness";
 import {
   finalizePayrollRun,
   generatePayrollRun,
-  submitPayrollRunForReview,
 } from "../../src/lib/payroll/service";
+import { submitPayrollRunForReview } from "../helpers/rc-readiness-diagnostics";
 import { downloadOrCreateStatutoryArtifact } from "../../src/lib/payroll/statutory-artifact";
 import { prisma } from "../../src/lib/prisma";
 import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
+import { confirmFixturePcb, enableFixturePayrollModules } from "../helpers/manual-pcb-fixture";
 
 const request = { ipAddress: "127.0.0.1", userAgent: "pcb-vc1-disposable-e2e" };
 const testMonth = "2026-08";
 
-test("PCB VC1 executes A-F through real payroll, finalization, frozen snapshots, payslips and database-backed CP39", async () => {
+test("PCB VC1 preserves A-F calculations with manually confirmed payroll, frozen payslips and CP39 refusal", async () => {
   assertDisposableDatabase();
   const previousEnvironment = process.env.TETAMU_PAYROLL_ENVIRONMENT;
   const previousKeyVersion = process.env.STATUTORY_ARTIFACT_ACTIVE_KEY_VERSION;
@@ -64,7 +65,7 @@ test("PCB VC1 executes A-F through real payroll, finalization, frozen snapshots,
     const b = entryByCode(firstState, "VC1B");
     const bPcb = snapshot(b, "PCB");
     assert.equal(metadata(bPcb).currentEmployerYtdRemunerationCents, 800_000);
-    assert.equal(metadata(bPcb).ytdPcbCents, Math.round(Number(julyB.employeeContribution) * 100));
+    assert.equal(metadata(bPcb).ytdPcbCents, 12_345);
     assert.equal(metadata(bPcb).ytdSourceCount, 1);
 
     // C — structured TP1 deductions are frozen into the calculator input.
@@ -119,6 +120,7 @@ test("PCB VC1 executes A-F through real payroll, finalization, frozen snapshots,
       bPcb.sourceDigest,
     );
 
+    await confirmVc1Run(fixture, draft.id, testMonth);
     const readiness = await getPayrollPeriodReadiness(
       { businessId: fixture.businessId, month: testMonth, runId: draft.id },
       prisma,
@@ -134,7 +136,7 @@ test("PCB VC1 executes A-F through real payroll, finalization, frozen snapshots,
     for (const publication of august.publications) {
       assert.equal(Buffer.from(publication.documentBytes).subarray(0, 4).toString(), "%PDF");
     }
-    assertCp39(august.cp39.body, august.cp39.recordCount ?? 0);
+    assert.equal(await prisma.payrollStatutoryExportArtifact.count({ where: { payrollRunId: draft.id, provider: "PCB" } }), 0);
 
     const frozenBefore = await frozenProof(draft.id);
     const aMembership = fixture.memberships.A;
@@ -159,11 +161,9 @@ test("PCB VC1 executes A-F through real payroll, finalization, frozen snapshots,
         },
       });
     });
-    const repeatCp39 = await exportCp39(fixture, draft.id, testMonth);
+    await assert.rejects(exportCp39(fixture, draft.id, testMonth), /PCB_OFFICIAL_EXPORT_NOT_ENABLED/);
     const frozenAfter = await frozenProof(draft.id);
     assert.deepEqual(frozenAfter, frozenBefore);
-    assert.deepEqual(repeatCp39.body, august.cp39.body);
-    assert.equal(repeatCp39.artifactId, august.cp39.artifactId);
 
     await negativeFailClosedProofs(fixture.ruleId);
   } finally {
@@ -455,7 +455,20 @@ async function createLockedTimesheet(input: { businessId: string; branchId: stri
 
 async function runFinalizePublishAndExport(fixture: Awaited<ReturnType<typeof createFixture>>, month: string) {
   const run = await generatePayrollRun({ businessId: fixture.businessId, actor: fixture.actor, request, month }, prisma);
+  await confirmVc1Run(fixture, run.id, month);
   return { runId: run.id, ...(await finalizePublishAndExport(fixture, run.id, month)) };
+}
+
+async function confirmVc1Run(fixture: Awaited<ReturnType<typeof createFixture>>, runId: string, month: string) {
+  await enableFixturePayrollModules(fixture.businessId);
+  const amounts: Record<string, string> = { VC1A: "123.45", VC1B: "123.45", VC1C: "123.45", VC1D: "123.45", VC1E: "123.45", VC1F: "0.00" };
+  const entries = await prisma.payrollEntry.findMany({ where: { businessId: fixture.businessId, payrollRunId: runId } });
+  for (const entry of entries) {
+    const amount = amounts[entry.employeeCodeSnapshot];
+    assert.ok(amount, "Every synthetic case requires an explicit external manual amount");
+    await confirmFixturePcb({ businessId: fixture.businessId, entryId: entry.id, actorId: fixture.ownerId, amount, externalReference: `VC1_EXTERNAL_APPROVAL_${month}_${entry.employeeCodeSnapshot}` });
+    assert.equal((await prisma.payrollEntry.findUniqueOrThrow({ where: { id: entry.id } })).pcb.toFixed(2), amount);
+  }
 }
 
 async function finalizePublishAndExport(fixture: Awaited<ReturnType<typeof createFixture>>, runId: string, month: string) {
@@ -464,8 +477,8 @@ async function finalizePublishAndExport(fixture: Awaited<ReturnType<typeof creat
   const finalized = await finalizePayrollRun({ businessId: fixture.businessId, actor: fixture.actor, request, runId, allowSelfApprovalOverride: true, overrideReason: "Disposable VC1 verification", stepUp: authorization.stepUp }, prisma);
   const published = await publishPayrollPayslips({ businessId: fixture.businessId, runId, actor: fixture.actor, request }, prisma);
   const publications = await prisma.payrollPayslipPublication.findMany({ where: { payrollRunId: runId }, orderBy: { membershipId: "asc" } });
-  const cp39 = await exportCp39(fixture, runId, month);
-  return { finalized, published, publications, cp39 };
+  await assert.rejects(exportCp39(fixture, runId, month), /PCB_OFFICIAL_EXPORT_NOT_ENABLED/);
+  return { finalized, published, publications };
 }
 
 async function exportCp39(fixture: Awaited<ReturnType<typeof createFixture>>, _runId: string, month: string) {
@@ -502,25 +515,15 @@ async function frozenProof(runId: string) {
   };
 }
 
-function assertCp39(body: Buffer, recordCount: number) {
-  const text = body.toString("utf8");
-  assert.equal(text.endsWith("\r\n"), true);
-  const lines = text.slice(0, -2).split("\r\n");
-  assert.equal(lines[0]?.length, 57);
-  assert.equal(lines.length - 1, recordCount);
-  for (const line of lines.slice(1)) assert.equal(line.length, 136);
-  assert.match(lines[0]!, /^H\d{10}\d{10}202608\d{10}\d{5}\d{10}\d{5}$/);
-  assert.equal(Number(lines[0]!.slice(27, 37)), lines.slice(1).reduce((sum, line) => sum + Number(line.slice(110, 118)), 0));
-  assert.equal(Number(lines[0]!.slice(37, 42)), lines.length - 1);
-  assert.equal(Number(lines[0]!.slice(42, 52)), lines.slice(1).reduce((sum, line) => sum + Number(line.slice(118, 126)), 0));
-}
-
 async function negativeFailClosedProofs(ruleId: string) {
   const fixture = await createNegativeFixture("UNKNOWN", "2026-09", baseProfile(), "CUSTOM_UNKNOWN");
   const unknown = await generatePayrollRun({ businessId: fixture.businessId, actor: fixture.actor, request, month: fixture.month }, prisma);
   const unknownReadiness = await getPayrollPeriodReadiness({ businessId: fixture.businessId, month: fixture.month, runId: unknown.id }, prisma);
   assert.equal(unknownReadiness.canProceed, false);
-  assert.ok(unknownReadiness.blockers.some((item) => item.code === "STATUTORY_CLASSIFICATION_REQUIRED"));
+  assert.ok(unknownReadiness.blockers.some((item) => item.code === "PCB_MANUAL_CONFIRMATION_REQUIRED"));
+  const unknownSnapshot = await loadPcbSnapshot(unknown.id, fixture.membershipId);
+  assert.equal(unknownSnapshot.status, "BLOCKED");
+  assert.equal(unknownSnapshot.blockerCode, "STATUTORY_CLASSIFICATION_REQUIRED");
   await assert.rejects(submitPayrollRunForReview({ businessId: fixture.businessId, actor: fixture.actor, request, runId: unknown.id }, prisma));
 
   const missing = await createNegativeFixture("MISSING", "2026-09", null, null);
@@ -533,10 +536,12 @@ async function negativeFailClosedProofs(ruleId: string) {
   for (const reference of ["CP38-A", "CP38-B"]) {
     await prisma.employeeCp38Instruction.create({ data: { businessId: cp38.businessId, membershipId: cp38.membershipId, instructionReference: reference, revision: 1, monthlyAmount: 25, effectiveFromMonth: new Date("2026-09-01T00:00:00.000Z"), evidenceReference: `test://${reference}`, status: "ACTIVE", recordedById: cp38.ownerId, sourceDigest: digest(reference) } });
   }
-  await assert.rejects(
-    generatePayrollRun({ businessId: cp38.businessId, actor: cp38.actor, request, month: cp38.month }, prisma),
-    /PAYROLL_COMPONENT_RECONCILIATION_FAILED/,
-  );
+  // Two distinct instruction references are legal and sum once. The previous
+  // DB invariant accidentally omitted CP38 from net, not an authorization guard.
+  const cp38Run = await generatePayrollRun({ businessId: cp38.businessId, actor: cp38.actor, request, month: cp38.month }, prisma);
+  const cp38Entry = await prisma.payrollEntry.findFirstOrThrow({ where: { payrollRunId: cp38Run.id, membershipId: cp38.membershipId } });
+  assert.equal(Number(cp38Entry.cp38), 50);
+  assert.equal(Number(cp38Entry.netPay), Math.max(0, Number(cp38Entry.grossPay) - Number(cp38Entry.otherDeductions) - Number(cp38Entry.epfEmployee) - Number(cp38Entry.socsoEmployee) - Number(cp38Entry.eisEmployee) - Number(cp38Entry.lindung24Employee) - Number(cp38Entry.pcb) - 50));
   assert.equal(
     await prisma.employeeCp38Instruction.count({
       where: { businessId: cp38.businessId, membershipId: cp38.membershipId, status: "ACTIVE" },

@@ -10,10 +10,11 @@ import {
   finalizePayrollRun,
   generatePayrollRun,
   reopenPayrollRun,
-  submitPayrollRunForReview,
 } from "../../src/lib/payroll/service";
+import { submitPayrollRunForReview } from "../helpers/rc-readiness-diagnostics";
 import { prisma } from "../../src/lib/prisma";
 import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
+import { confirmFixturePcb, enableFixturePayrollModules } from "../helpers/manual-pcb-fixture";
 
 test("compensation versions enforce tenant, month, immutability and projection rules", async () => {
   const fixture = await createFixture();
@@ -379,6 +380,8 @@ test("payroll generate and refresh resolve compensation by run month", async () 
       where: { payrollRunId: novemberRun.id },
       data: { statutoryStatus: "AUTO_CALCULATED" },
     });
+    await enableFixturePayrollModules(fixture.business.id);
+    await confirmFixturePcb({ businessId: fixture.business.id, entryId: novemberEntry.id, actorId: actor(fixture).userId, amount: "0.00", externalReference: "EXPLICIT_ZERO_COMPENSATION_REGRESSION_NOVEMBER" });
     await submitPayrollRunForReview({
       actor: actor(fixture),
       businessId: fixture.business.id,

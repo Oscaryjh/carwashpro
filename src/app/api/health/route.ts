@@ -5,9 +5,10 @@ import { releaseIdentity } from "@/lib/release/environment";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const identity = releaseIdentity();
+  let identity: ReturnType<typeof releaseIdentity> | null = null;
 
   try {
+    identity = releaseIdentity();
     await prisma.$queryRaw`SELECT 1`;
     return NextResponse.json(
       { ok: true, database: "ready", release: identity },

@@ -6,7 +6,6 @@ import {
   getPaymentBankAdapter,
   getPaymentProviderReadiness,
   listPaymentBankAdapters,
-  PaymentProviderAccessError,
   paymentProviderReadiness,
   requireReleaseReadyPaymentBankAdapter,
 } from "../../src/lib/payroll/payment/providers";
@@ -33,8 +32,8 @@ test("unknown providers and blocked Public Bank access fail closed with safe err
   assert.throws(
     () => requireReleaseReadyPaymentBankAdapter("UNKNOWN_BANK"),
     (error: unknown) => {
-      assert.ok(error instanceof PaymentProviderAccessError);
-      assert.equal(error.code, "PAYMENT_PROVIDER_UNKNOWN");
+      assert.ok(error instanceof Error);
+      assert.equal(error.message, "PAYMENT_EXPORT_NOT_ENABLED");
       assert.doesNotMatch(error.message, /UNKNOWN_BANK/);
       return true;
     },
@@ -42,8 +41,8 @@ test("unknown providers and blocked Public Bank access fail closed with safe err
   assert.throws(
     () => requireReleaseReadyPaymentBankAdapter("PUBLIC_BANK"),
     (error: unknown) => {
-      assert.ok(error instanceof PaymentProviderAccessError);
-      assert.equal(error.code, "PUBLIC_BANK_SPEC_NOT_READY");
+      assert.ok(error instanceof Error);
+      assert.equal(error.message, "PAYMENT_EXPORT_NOT_ENABLED");
       assert.doesNotMatch(error.message, /account|beneficiary|configuration/i);
       return true;
     },

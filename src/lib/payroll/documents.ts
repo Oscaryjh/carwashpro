@@ -1,4 +1,5 @@
-import type { PayrollEntry } from "@prisma/client";
+import type { PayrollEntry, Prisma, PrismaClient } from "@prisma/client";
+import { assertManualPcbForEntry } from "./manual-pcb-service";
 import type {
   PayrollDocumentEntry,
   PayrollDocumentRun,
@@ -63,7 +64,7 @@ export async function loadPayrollDocumentRun(
     status: run.status,
     submittedAt: run.submittedAt,
     finalizedAt: run.finalizedAt,
-    entries: run.entries.map(payrollDocumentEntry),
+    entries: await Promise.all(run.entries.map((entry) => controlledPayrollDocumentEntry(prisma, businessId, entry))),
   };
 }
 
@@ -108,7 +109,22 @@ export async function loadPayrollPayslip(
       submittedAt: entry.payrollRun.submittedAt,
       finalizedAt: entry.payrollRun.finalizedAt,
     },
-    entry: payrollDocumentEntry(entry),
+    entry: await controlledPayrollDocumentEntry(prisma, businessId, entry),
+  };
+}
+
+export async function controlledPayrollDocumentEntry(database: PrismaClient | Prisma.TransactionClient, businessId: string, entry: Parameters<typeof payrollDocumentEntry>[0]) {
+  const document = payrollDocumentEntry(entry);
+  const source = await assertManualPcbForEntry(database, businessId, entry.id);
+  if (!source) return document;
+  if (source.inputRevision !== entry.calculationRevision || !source.amount.equals(entry.pcb)) throw new Error("PCB_INPUT_REVISION_CHANGED");
+  return {
+    ...document,
+    officialStatutoryExportEligible: false,
+    statutorySnapshots: [
+      ...(document.statutorySnapshots ?? []).filter((snapshot) => snapshot.scheme !== "PCB"),
+      { scheme: "PCB" as const, status: "MANUAL" as const, blockerCode: null, employeeContribution: Number(source.amount), employerContribution: 0 },
+    ],
   };
 }
 

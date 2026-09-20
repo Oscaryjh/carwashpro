@@ -1,4 +1,8 @@
 import { emitOpsAlert } from "../src/lib/ops/alerting";
+import { evaluateReleaseHealth } from "../src/lib/ops/health-probe";
+import { readSourceAttestation } from "../src/lib/release/source-attestation.mjs";
+import { validateProductionRuntime } from "../src/lib/release/production-contract.mjs";
+import { parseRuntimeEnvironment } from "../src/lib/release/environment-contract.mjs";
 
 type ProbeName = "desktop" | "database" | "staff";
 type ProbeState = {
@@ -7,10 +11,12 @@ type ProbeState = {
   alertActive: boolean;
 };
 
-const environment = (process.env.APP_ENVIRONMENT ?? "").trim().toLowerCase();
-if (environment !== "testing" && environment !== "local") {
-  throw new Error("The operational health monitor is enabled only for Testing or Local.");
+const parsedEnvironment = parseRuntimeEnvironment(process.env.APP_ENVIRONMENT === "local" ? { ...process.env, APP_ENVIRONMENT: "development" } : process.env);
+const environment = parsedEnvironment === "development" ? "local" : parsedEnvironment;
+if (!["testing", "local", "production"].includes(environment)) {
+  throw new Error("The operational health monitor requires a known environment.");
 }
+const productionIdentity = environment === "production" ? validateProductionRuntime(process.env, "monitor", readSourceAttestation()) : null;
 
 const intervalMs = readInteger("OPS_MONITOR_INTERVAL_MS", 120_000, 60_000, 300_000);
 const failureThreshold = readInteger("OPS_HEALTH_FAILURE_THRESHOLD", 3, 2, 10);
@@ -23,7 +29,7 @@ let stopping = false;
 process.on("SIGINT", () => (stopping = true));
 process.on("SIGTERM", () => (stopping = true));
 
-await run();
+void run().catch(() => { console.error("HEALTH_MONITOR_FAILED"); process.exitCode = 1; });
 
 async function run() {
   console.log(JSON.stringify({
@@ -52,6 +58,7 @@ export async function runProbeCycle(fetchImpl: typeof fetch = fetch) {
     const payload = await readJson(response);
     desktopHealthy = response.ok && payload?.ok === true;
     databaseHealthy = response.ok && payload?.database === "ready";
+    if (productionIdentity && !evaluateReleaseHealth(payload, productionIdentity)) { desktopHealthy = false; databaseHealthy = false; }
   } catch {
     desktopHealthy = false;
     databaseHealthy = false;
@@ -66,7 +73,7 @@ export async function runProbeCycle(fetchImpl: typeof fetch = fetch) {
       redirect: "manual",
       signal: AbortSignal.timeout(10_000),
     });
-    staffHealthy = response.status >= 200 && response.status < 400;
+    staffHealthy = productionIdentity ? response.ok && evaluateReleaseHealth(await readJson(response), productionIdentity) : response.status >= 200 && response.status < 400;
   } catch {
     staffHealthy = false;
   }
@@ -118,7 +125,7 @@ async function recordProbe(name: ProbeName, healthy: boolean) {
 
 function serviceName(name: ProbeName) {
   if (name === "staff") return "tetamu-staff-app";
-  if (name === "database") return "testing-postgres";
+  if (name === "database") return `${environment}-postgres`;
   return "tetamu-pos-web";
 }
 
@@ -135,7 +142,7 @@ function requiredUrl(name: string) {
   if (!value) throw new Error(`${name} is required.`);
   const url = new URL(value);
   if (url.protocol !== "https:" && environment !== "local") {
-    throw new Error(`${name} must use HTTPS in Testing.`);
+    throw new Error(`${name} must use HTTPS outside Local.`);
   }
   return url.toString();
 }

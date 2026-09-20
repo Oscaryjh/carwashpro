@@ -3,6 +3,7 @@ import { getAuditRequestContext, tryWriteAuditLog } from "@/lib/audit";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
 import { loadPayrollPayslip } from "@/lib/payroll/documents";
 import { buildPayslipPdf, payslipFileName } from "@/lib/payroll/export";
+import { prisma } from "@/lib/prisma";
 
 type PayslipRouteProps = {
   params: Promise<{ entryId: string }>;
@@ -13,6 +14,20 @@ export async function GET(_request: Request, { params }: PayslipRouteProps) {
   const parsed = z.string().uuid().safeParse((await params).entryId);
   if (!parsed.success) {
     return new Response("Payslip not found.", { status: 404 });
+  }
+  const publication = await prisma.payrollPayslipPublication.findFirst({ where: { businessId: context.businessId, payrollEntryId: parsed.data } });
+  if (publication) {
+    const selected = new URL(_request.url).searchParams.get("version");
+    if (selected !== null && !/^[1-9][0-9]*$/.test(selected)) return new Response("Payslip not found.", { status: 404 });
+    const version = await prisma.payrollPcbPublicationVersion.findFirst({ where: { businessId: context.businessId, publicationId: publication.id,
+      ...(selected ? { version: Number(selected) } : {}) }, orderBy: { version: "desc" } });
+    if (selected && !version && selected !== "1") return new Response("Payslip not found.", { status: 404 });
+    const bytes = version?.documentBytes ?? publication.documentBytes;
+    await tryWriteAuditLog({ businessId: context.businessId, actor: context.user, request: await getAuditRequestContext(),
+      action: "PAYSLIP_DOWNLOADED", entityType: "PayrollEntry", entityId: publication.payrollEntryId,
+      summary: "Published payslip version downloaded.",
+      metadata: { payrollRunId: publication.payrollRunId, publicationId: publication.id, publicationVersion: version?.version ?? 1 } });
+    return new Response(new Uint8Array(bytes), { headers: { "Cache-Control": "private, no-store", "Content-Type": "application/pdf", "Content-Disposition": "inline; filename=payslip.pdf" } });
   }
   const document = await loadPayrollPayslip(context.businessId, parsed.data);
   if (!document) {

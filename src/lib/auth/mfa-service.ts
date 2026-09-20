@@ -25,7 +25,7 @@ import {
 
 export const MFA_ENROLLMENT_TTL_SECONDS = 10 * 60;
 
-type MfaDatabase = Pick<PrismaClient, "$transaction" | "userMfaCredential">;
+type MfaDatabase = Pick<PrismaClient, "$transaction" | "userMfaCredential" | "authSession" | "authSecurityEvent">;
 export type MfaTransaction = Pick<
   Prisma.TransactionClient,
   | "$queryRaw"
@@ -172,6 +172,20 @@ export async function completeMfaEnrollment(
   dependencies: { database?: MfaDatabase; now?: Date } = {},
 ) {
   const database = dependencies.database ?? prisma;
+  // Precompute expensive hashes only for a plausible, factor-verified pending
+  // enrollment. The authoritative checks are repeated under the user lock.
+  const candidate = await database.userMfaCredential.findUnique({ where: { id: input.credentialId } });
+  const preflightNow = dependencies.now ?? new Date();
+  const preflightSession = await usablePasswordSession(input.userId, input.sessionId, database, preflightNow);
+  const preflightHashes = mfaRateLimitHashes({ userId: input.userId, sessionId: input.sessionId, credentialId: candidate?.id,
+    ipAddress: input.request.ipAddress, userAgent: input.request.userAgent });
+  const preflightLimit = await checkMfaRateLimit({ userId: input.userId, sessionId: input.sessionId,
+    identifierHash: preflightHashes.identifierHash!, ipAddressHash: preflightHashes.ipAddressHash, now: preflightNow }, database);
+  const canPrepare = preflightSession && preflightLimit.allowed && candidate?.userId === input.userId && candidate.status === "PENDING" &&
+    candidate.enrollmentSessionId === input.sessionId && candidate.pendingExpiresAt && candidate.pendingExpiresAt > preflightNow &&
+    verifyTotp({ code: input.code, secret: decryptCredentialSecret(candidate), timestamp: preflightNow.getTime() }) !== null;
+  const recoveryCodes = canPrepare ? generateRecoveryCodes() : [];
+  const hashesForStorage = canPrepare ? await hashRecoveryCodes(recoveryCodes) : [];
   const now = dependencies.now ?? new Date();
   const result = await database.$transaction(
     async (transaction: MfaTransaction) => {
@@ -245,8 +259,7 @@ export async function completeMfaEnrollment(
         );
         return failure("MFA_VERIFICATION_FAILED");
       }
-      const recoveryCodes = generateRecoveryCodes();
-      const hashesForStorage = await hashRecoveryCodes(recoveryCodes);
+      if (!recoveryCodes.length) return failure("MFA_CREDENTIAL_CHANGED");
       const activated = await transaction.userMfaCredential.updateMany({
         where: { id: credential.id, status: "PENDING" },
         data: {
@@ -662,7 +675,7 @@ function decryptCredentialSecret(credential: {
 async function usablePasswordSession(
   userId: string,
   sessionId: string,
-  transaction: MfaTransaction,
+  transaction: Pick<MfaTransaction, "authSession">,
   now: Date,
 ) {
   const session = await transaction.authSession.findUnique({

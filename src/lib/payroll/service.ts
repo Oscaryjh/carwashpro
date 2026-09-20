@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { assertManualPcbForEntry } from "./manual-pcb-service";
 import type { AppSession } from "@/lib/auth/session";
 import { writeAuditLog, type AuditRequestContext } from "@/lib/audit";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/lib/payroll/attendance-integration";
 import { buildSystemPayrollEntryComponents } from "@/lib/payroll/component-calculation";
 import { deriveAndPersistEntryAggregates } from "@/lib/payroll/component-service";
+import { applyPendingPcbCorrections, recordPcbAdjustmentRemoval } from "./pcb-correction-settlement";
 import { resolveEmployeeCompensationVersion } from "@/lib/payroll/compensation-version";
 import { calculateCompanyWorkPay } from "@/lib/payroll/company-work-pay";
 import {
@@ -187,6 +189,7 @@ export async function generatePayrollRun(
     const eligibleMembershipIds = new Set(
       memberships.map((membership) => membership.id),
     );
+    await recordPcbAdjustmentRemoval(transaction, context.businessId, previousEntries.map((entry) => entry.id), context.actor.userId);
     await transaction.payrollEntry.deleteMany({
       where: {
         businessId: context.businessId,
@@ -607,6 +610,7 @@ export async function generatePayrollRun(
         statutoryEntry,
         statutoryEntry.calculationRevision,
       );
+      await applyPendingPcbCorrections(transaction, context.businessId, entry.id, context.actor.userId);
     }
     await writeAuditLog(
       {
@@ -1012,6 +1016,7 @@ export async function submitPayrollRunForReview(
       include: {
         entries: {
           select: {
+            id: true,
             statutoryStatus: true,
             publicHolidayPayDecisionStatus: true,
             statutorySnapshots: {
@@ -1048,9 +1053,14 @@ export async function submitPayrollRunForReview(
       transaction,
     );
     assertPayrollReadinessCanProceed(readiness);
+    const manualConfirmedIds = new Set<string>();
+    for (const entry of run.entries) {
+      if (await assertManualPcbForEntry(transaction, context.businessId, entry.id)) manualConfirmedIds.add(entry.id);
+    }
     const reviewRequired = run.entries.filter(
       (entry) => entry.statutoryStatus === "REVIEW_REQUIRED" &&
-        !hasOnlyNonProductionDeferredPcbBlocker(entry.statutorySnapshots),
+        !hasOnlyNonProductionDeferredPcbBlocker(entry.statutorySnapshots) &&
+        !(manualConfirmedIds.has(entry.id) && entry.statutorySnapshots.some((snapshot) => snapshot.scheme === "PCB") && entry.statutorySnapshots.every((snapshot) => snapshot.scheme === "PCB" || snapshot.status !== "BLOCKED")),
     ).length;
     if (reviewRequired) {
       throw new Error(
@@ -1108,6 +1118,8 @@ export async function returnPayrollRunToDraft(
         submittedById: null,
       },
     });
+    const correctionEntries = await transaction.payrollEntry.findMany({ where: { businessId: context.businessId, payrollRunId: run.id }, select: { id: true } });
+    for (const entry of correctionEntries) await applyPendingPcbCorrections(transaction, context.businessId, entry.id, context.actor.userId);
     await writeAuditLog(
       {
         businessId: context.businessId,
@@ -1164,6 +1176,8 @@ export async function finalizePayrollRun(
       transaction,
     );
     assertPayrollReadinessCanProceed(readiness);
+    const currentEntries = await transaction.payrollEntry.findMany({ where: { businessId: context.businessId, payrollRunId: run.id }, select: { id: true } });
+    for (const entry of currentEntries) await assertManualPcbForEntry(transaction, context.businessId, entry.id);
     const stepUpAudit = await consumePayrollHighRiskAuthorization(
       {
         actionKey: "PAYROLL_FINALIZE",

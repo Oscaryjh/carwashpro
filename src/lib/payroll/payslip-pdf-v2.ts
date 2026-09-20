@@ -35,6 +35,7 @@ type PdfRun = {
 };
 
 type PdfEntry = {
+  pcbCorrection?: { version: number; recordedAt: string; reference: string };
   employeeCode: string;
   fullName: string;
   payBasis: string;
@@ -54,7 +55,7 @@ type PdfEntry = {
   eisEmployee: number;
   lindung24Employee: number;
   pcb: number;
-  pcbPresentation?: { pending: boolean; value: string };
+  pcbPresentation?: { pending: boolean; value: string; sourceLabel?: string };
   cp38: number;
   employerEpf: number;
   employerSocso: number;
@@ -193,6 +194,14 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
   const pcbPending = entry.pcbPresentation?.pending === true;
   drawCompanyHeader(pdf, run);
   drawTitle(pdf, run);
+  if (entry.pcbCorrection) {
+    pdf.ensure(54);
+    pdf.text(`Corrected - version ${entry.pcbCorrection.version}`, PAGE_MARGIN, pdf.y, 11, { bold: true });
+    pdf.y += 17;
+    pdf.text("Supersedes previous version - original retained in audit history", PAGE_MARGIN, pdf.y, 9);
+    pdf.y += 15;
+    pdf.y += pdf.paragraph(`${entry.pcbCorrection.recordedAt} / ${entry.pcbCorrection.reference}`, PAGE_MARGIN, pdf.y, CONTENT_WIDTH, 8) + 10;
+  }
   if (entry.statutoryEvidenceNature === "SYNTHETIC_TESTING") {
     drawTestingFixtureBanner(pdf, entry);
   }
@@ -200,7 +209,8 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
   drawIdentityPanel(pdf, entry);
   drawAttendance(pdf, entry);
 
-  const componentEarnings = entry.components?.filter((item) => item.type === "EARNING") ?? [];
+  const priorPcbRefunds = entry.components?.filter((item) => item.type === "EARNING" && item.sourceType === "PRIOR_PERIOD_PCB").map((item) => ({ label: item.name, amount: item.amount })) ?? [];
+  const componentEarnings = entry.components?.filter((item) => item.type === "EARNING" && item.sourceType !== "PRIOR_PERIOD_PCB") ?? [];
   const earnings = componentEarnings.length
     ? componentEarnings.map((item) => ({ label: professionalComponentLabel(item.name), amount: item.amount }))
     : [
@@ -219,7 +229,7 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
   });
 
   const componentDeductions = entry.components?.filter(
-    (item) => item.type === "DEDUCTION" && !isStatutoryDeductionComponent(item.name),
+    (item) => item.type === "DEDUCTION" && item.sourceType !== "STATUTORY" && !isStatutoryDeductionComponent(item.name),
   ) ?? [];
   const employeeDeductions =
     entry.otherDeductions +
@@ -240,7 +250,7 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
     { label: "EPF (Employee)", amount: entry.epfEmployee },
     { label: "SOCSO (Employee)", amount: entry.socsoEmployee },
     { label: "EIS (Employee)", amount: entry.eisEmployee },
-    ...(pcbPending ? [] : [{ label: "PCB", amount: entry.pcb }]),
+    ...(pcbPending ? [] : [{ label: entry.pcbPresentation?.sourceLabel ? `PCB (${entry.pcbPresentation.sourceLabel})` : "PCB", amount: entry.pcb }]),
     ...(entry.cp38 !== 0 ? [{ label: "CP38", amount: entry.cp38 }] : []),
     ...(entry.lindung24Employee !== 0 || entry.statutorySnapshots?.some(
       (snapshot) => snapshot.scheme === "LINDUNG24",
@@ -253,6 +263,8 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
     "EIS (Employee)",
     "LINDUNG24",
     "PCB",
+    "PCB (Manually confirmed)",
+    "PCB (Non-official result)",
   ].includes(item.label));
   drawFinancialSection(pdf, {
     title: "EMPLOYEE DEDUCTIONS",
@@ -298,7 +310,13 @@ export function buildProfessionalPayslipPdf(run: PdfRun, entry: PdfEntry) {
     employerContributions: employerRows,
     employerContributionTotal: employerContributions,
     reimbursements: reimbursementRows,
+    priorPcbRefunds,
     netPay: entry.netPay,
+  });
+
+  if (priorPcbRefunds.length) drawFinancialSection(pdf, {
+    title: "PRIOR-PERIOD PCB ADJUSTMENT", subtitle: "Prior-period refund; not taxable gross and not proof of payment",
+    rows: priorPcbRefunds, totalLabel: "TOTAL PRIOR-PERIOD PCB REFUND", total: sumMoney(priorPcbRefunds), tint: COLORS.blueSoft, accent: COLORS.blue,
   });
 
   if (reimbursementRows.length) {
@@ -642,6 +660,7 @@ function assertPresentationReconciliation(input: {
   employerContributions: FinancialRow[];
   employerContributionTotal: number;
   reimbursements: FinancialRow[];
+  priorPcbRefunds: FinancialRow[];
   netPay: number;
 }) {
   const reimbursementTotal = sumMoney(input.reimbursements);
@@ -651,7 +670,7 @@ function assertPresentationReconciliation(input: {
     ["employer contributions", sumMoney(input.employerContributions), input.employerContributionTotal],
     [
       "net pay",
-      Math.max(0, input.grossPay - input.employeeDeductions + reimbursementTotal),
+      Math.max(0, input.grossPay - input.employeeDeductions + reimbursementTotal + sumMoney(input.priorPcbRefunds)),
       input.netPay,
     ],
   ];

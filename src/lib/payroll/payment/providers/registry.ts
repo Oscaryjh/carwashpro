@@ -1,4 +1,5 @@
 import type { PaymentBankAdapter } from "./contract";
+import { assertLaunchFeatureEnabled } from "@/lib/release/launch-policy";
 
 export const paymentProviderKeys = ["PUBLIC_BANK"] as const;
 
@@ -60,23 +61,8 @@ export function getPaymentProviderReadiness(
  * It deliberately exposes no configuration values or beneficiary details.
  */
 export function requireReleaseReadyPaymentBankAdapter(providerKey: string) {
-  const readiness = getPaymentProviderReadiness(providerKey);
-  if (!readiness) {
-    throw new PaymentProviderAccessError("PAYMENT_PROVIDER_UNKNOWN");
-  }
-  if (!readiness.releaseReady) {
-    throw new PaymentProviderAccessError(
-      readiness.reason ?? "PAYMENT_PROVIDER_UNKNOWN",
-    );
-  }
-
-  // The current readiness map has no release-ready provider. This lookup is
-  // retained for the bank-specification-gated implementation phase.
-  const adapter = getPaymentBankAdapter(providerKey);
-  if (!adapter) {
-    throw new PaymentProviderAccessError("PAYMENT_PROVIDER_UNKNOWN");
-  }
-  return adapter;
+  void providerKey;
+  return assertLaunchFeatureEnabled("PAYMENT_EXPORT");
 }
 
 export function listPaymentBankAdapters() {

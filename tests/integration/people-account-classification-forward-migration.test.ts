@@ -40,7 +40,12 @@ test("migration 214 adds explicit account classification to a pre-RC database", 
   const temporaryPrismaDirectory = path.join(temporaryRoot, "prisma");
   cpSync(path.join(projectRoot, "prisma"), temporaryPrismaDirectory, {
     recursive: true,
-    filter: (source) => !source.includes(migrationName),
+    filter: (source) => {
+      const relative = path.relative(path.join(projectRoot, "prisma"), source);
+      const [directory, name] = relative.split(path.sep);
+      // Replay exactly the historical prefix, not later RC migrations.
+      return directory !== "migrations" || !name || !/^\d{14}_/.test(name) || name < migrationName;
+    },
   });
   const temporarySchemaPath = path.join(temporaryPrismaDirectory, "schema.prisma");
   const administration = new PrismaClient({

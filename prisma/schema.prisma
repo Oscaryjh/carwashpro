@@ -370,6 +370,7 @@ enum PayrollEntryComponentType {
 }
 
 enum PayrollEntryComponentSourceType {
+  PRIOR_PERIOD_PCB
   BASIC_SALARY
   PAYROLL_CALCULATION
   ATTENDANCE
@@ -4830,6 +4831,41 @@ model PayrollAttendanceInputSnapshot {
   @@map("payroll_attendance_input_snapshots")
 }
 
+// Audit identifiers deliberately survive deletion/recreation of draft inputs.
+model PayrollManualPcbConfirmation {
+  id                String   @id @default(uuid()) @db.Uuid
+  businessId        String   @map("business_id") @db.Uuid
+  membershipId      String   @map("membership_id") @db.Uuid
+  payrollRunId      String   @map("payroll_run_id") @db.Uuid
+  payrollEntryId    String   @map("payroll_entry_id") @db.Uuid
+  payrollMonth      String   @map("payroll_month") @db.VarChar(7)
+  inputRevision     Int      @map("input_revision")
+  amount            Decimal  @db.Decimal(12, 2)
+  externalReference String   @map("external_reference") @db.VarChar(500)
+  inputDigest       String   @map("input_digest") @db.Char(64)
+  inputVersion      Int      @map("input_version")
+  sourceVersion     Int      @map("source_version")
+  inputEvidence     Json     @map("input_evidence")
+  confirmedById     String   @map("confirmed_by_id") @db.Uuid
+  confirmedAt       DateTime @default(now()) @map("confirmed_at") @db.Timestamptz(3)
+  authorizationId   String   @unique @map("authorization_id") @db.Uuid
+  invalidations     PayrollManualPcbInvalidation[]
+
+  @@unique([payrollEntryId, sourceVersion])
+  @@index([businessId, membershipId, payrollMonth])
+  @@index([payrollRunId])
+  @@map("payroll_manual_pcb_confirmations")
+}
+
+model PayrollManualPcbInvalidation {
+  id             String   @id @default(uuid()) @db.Uuid
+  confirmationId String   @unique @map("confirmation_id") @db.Uuid
+  reason         String   @db.VarChar(80)
+  invalidatedAt  DateTime @default(now()) @map("invalidated_at") @db.Timestamptz(3)
+  confirmation   PayrollManualPcbConfirmation @relation(fields: [confirmationId], references: [id], onDelete: Restrict)
+  @@map("payroll_manual_pcb_invalidations")
+}
+
 model PayrollPayslipPublication {
   id             String   @id @default(uuid()) @db.Uuid
   businessId     String   @map("business_id") @db.Uuid
@@ -4852,6 +4888,54 @@ model PayrollPayslipPublication {
   @@index([businessId, payrollRunId])
   @@index([businessId, membershipId, publishedAt])
   @@map("payroll_payslip_publications")
+}
+
+// Immutable version chain; original publication and financial rows never change.
+model PayrollPcbPublicationVersion {
+  id                    String   @id @default(uuid()) @db.Uuid
+  businessId            String   @map("business_id") @db.Uuid
+  membershipId          String   @map("membership_id") @db.Uuid
+  payrollRunId          String   @map("payroll_run_id") @db.Uuid
+  payrollEntryId        String   @map("payroll_entry_id") @db.Uuid
+  publicationId         String   @map("publication_id") @db.Uuid
+  payrollMonth          String   @map("payroll_month") @db.VarChar(7)
+  version               Int
+  supersedesId          String?  @unique @map("supersedes_id") @db.Uuid
+  amount                Decimal  @db.Decimal(12, 2)
+  delta                 Decimal  @db.Decimal(12, 2)
+  sourceKind            String   @map("source_kind") @db.VarChar(16)
+  confirmationId        String?  @map("confirmation_id") @db.Uuid
+  originalInputDigest   String   @map("original_input_digest") @db.Char(64)
+  inputDigest           String   @map("input_digest") @db.Char(64)
+  inputVersion          Int      @map("input_version")
+  inputEvidence         Json     @map("input_evidence")
+  documentRun           Json     @map("document_run")
+  documentEntry         Json     @map("document_entry")
+  documentBytes         Bytes    @map("document_bytes") @db.ByteA
+  documentSha256        String   @map("document_sha256") @db.Char(64)
+  reason                String   @db.VarChar(500)
+  externalReference     String   @map("external_reference") @db.VarChar(500)
+  actorId               String   @map("actor_id") @db.Uuid
+  recordedAt            DateTime @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  authorizationId       String?  @unique @map("authorization_id") @db.Uuid
+
+  @@unique([publicationId, version])
+  @@index([businessId, membershipId, payrollMonth])
+  @@index([payrollEntryId])
+  @@map("payroll_pcb_publication_versions")
+}
+
+model PayrollPcbSettlementEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  businessId      String   @map("business_id") @db.Uuid
+  correctionId    String   @map("correction_id") @db.Uuid
+  state           String   @db.VarChar(48)
+  payrollEntryId  String?  @map("payroll_entry_id") @db.Uuid
+  componentId     String?  @map("component_id") @db.Uuid
+  actorId         String   @map("actor_id") @db.Uuid
+  recordedAt      DateTime @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  @@index([businessId, correctionId, recordedAt])
+  @@map("payroll_pcb_settlement_events")
 }
 
 model PayrollEntryComponent {

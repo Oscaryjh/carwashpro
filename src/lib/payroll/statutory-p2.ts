@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { authoritativePcbHistory } from "./pcb-history";
 import type {
   EmployeeSocsoCategory,
   EmployeeStatutoryNationality,
@@ -229,6 +230,8 @@ type MaterializeDatabase = Pick<
   | "payrollComponentStatutoryTreatmentSnapshot"
   | "payrollEntryStatutorySnapshot"
   | "payrollEntry"
+  | "payrollManualPcbConfirmation"
+  | "payrollPcbPublicationVersion"
   | "employeeLindung24ParticipationVersion"
   | "employeeStatutoryParticipationPeriod"
   | "employeeCp38Instruction"
@@ -463,6 +466,7 @@ export async function materializeStatutoryP2(
       businessId: input.businessId,
       payrollEntryId: input.payrollEntryId,
       sourceType: { not: "STATUTORY" },
+      code: { not: "PRIOR_PERIOD_PCB_ADJUSTMENT" },
     },
     orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }],
   });
@@ -1063,46 +1067,27 @@ export async function calculatePcbForEntry(
     context.epfEmployeeCents - currentNormalEpfCents,
   );
 
-  const priorSnapshots = await database.payrollEntryStatutorySnapshot.findMany({
-    where: {
-      businessId: input.businessId,
-      membershipId: input.membershipId,
-      scheme: "PCB",
-      status: "CALCULATED",
-      payrollRun: {
-        status: "FINALIZED",
-        periodStart: {
-          gte: new Date(Date.UTC(taxYear, 0, 1)),
-          lt: input.statutoryPeriod,
-        },
-      },
-    },
-    select: {
-      id: true,
-      calculationMetadata: true,
-      sourceDigest: true,
-      payrollRun: { select: { periodStart: true } },
-    },
-  });
+  const priorSnapshots = await authoritativePcbHistory(database, input.businessId, input.membershipId, input.statutoryPeriod);
   const records: PcbTaxYearLedgerRecord[] = [];
   for (const snapshot of priorSnapshots) {
     const metadata = parsePcbSnapshotLedgerMetadata(snapshot.calculationMetadata);
-    if (!metadata) {
+    if (!metadata || !snapshot.amount) {
       return {
         status: "BLOCKED",
         blocker: STATUTORY_P2_BLOCKERS.PCB_YTD_LEDGER_INCOMPLETE,
       };
     }
     records.push({
-      sourceId: snapshot.id,
-      sourceRevision: 1,
+      sourceId: snapshot.sourceId,
+      sourceRevision: snapshot.sourceVersion,
       sourceType: "CURRENT_EMPLOYER_FINALIZED_PAYROLL",
       sourceStatus: "FINALIZED",
       businessId: input.businessId,
       membershipId: input.membershipId,
       taxYear,
-      effectiveMonth: snapshot.payrollRun.periodStart.getUTCMonth() + 1,
+      effectiveMonth: snapshot.month.getUTCMonth() + 1,
       ...metadata,
+      pcbCents: moneyToCents(snapshot.amount),
     });
   }
 

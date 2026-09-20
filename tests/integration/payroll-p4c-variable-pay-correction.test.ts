@@ -6,8 +6,8 @@ import { addManualPayrollAdjustment } from "../../src/lib/payroll/component-serv
 import {
   finalizePayrollRun,
   generatePayrollRun,
-  submitPayrollRunForReview,
 } from "../../src/lib/payroll/service";
+import { submitPayrollRunForReview } from "../helpers/rc-readiness-diagnostics";
 import {
   approvePayrollCorrection,
   approvePayrollVariablePay,
@@ -19,6 +19,7 @@ import {
 } from "../../src/lib/payroll/variable-pay";
 import { prisma } from "../../src/lib/prisma";
 import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
+import { confirmFixturePcb, enableFixturePayrollModules } from "../helpers/manual-pcb-fixture";
 
 test("P4C freezes variable pay and applies correction deltas exactly once", async () => {
   const fixture = await createFixture();
@@ -28,6 +29,9 @@ test("P4C freezes variable pay and applies correction deltas exactly once", asyn
 
   const payrollContext = { businessId: fixture.business.id, actor: actor(fixture.owner) };
   const julyRun = await generatePayrollRun({ ...payrollContext, month: "2026-07" });
+  await enableFixturePayrollModules(fixture.business.id);
+  const julyEntry = await loadEntry(julyRun.id);
+  await confirmFixturePcb({ businessId: fixture.business.id, entryId: julyEntry.id, actorId: fixture.owner.id, amount: "0.00", externalReference: "EXPLICIT_ZERO_P4C_JULY_CORRECTION_BASELINE" });
   await submitPayrollRunForReview({ ...payrollContext, runId: julyRun.id });
   const finalizeStepUp = await issueTestHighRiskStepUp(prisma, {
     actionKey: "PAYROLL_FINALIZE",

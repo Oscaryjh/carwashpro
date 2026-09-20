@@ -6,6 +6,8 @@ import type {
   RuntimeEnvironment,
   RuntimeEnvironmentMap,
 } from "./environment-contract.mjs";
+import { validateProductionRuntime, type SourceAttestation } from "./production-contract.mjs";
+import { readSourceAttestation } from "./source-attestation.mjs";
 
 export type { RuntimeEnvironment, RuntimeEnvironmentMap } from "./environment-contract.mjs";
 
@@ -38,12 +40,17 @@ export function assertLocalDatabaseTarget(databaseUrl: string | undefined, purpo
   }
 }
 
-export function releaseIdentity(env: RuntimeEnvironmentMap = process.env) {
+export function releaseIdentity(env: RuntimeEnvironmentMap = process.env, attestation?: SourceAttestation | null) {
+  const environment = runtimeEnvironment(env);
+  const productionIdentity = environment === "production"
+    ? validateProductionRuntime(env, env.APP_SERVICE_SCOPE ?? "web", attestation === undefined ? readSourceAttestation() : attestation)
+    : null;
   return {
-    commitSha: env.APP_RELEASE_SHA?.trim() || env.RAILWAY_GIT_COMMIT_SHA?.trim() || "UNSET",
+    commitSha: productionIdentity?.commitSha || env.RAILWAY_GIT_COMMIT_SHA?.trim() || env.APP_RELEASE_SHA?.trim() || "UNSET",
+    tree: productionIdentity?.tree || env.APP_RELEASE_TREE?.trim() || null,
     deploymentId: env.RAILWAY_DEPLOYMENT_ID?.trim() || null,
-    environment: runtimeEnvironment(env),
-    sourceDigest: env.APP_RELEASE_SOURCE_DIGEST?.trim() || null,
+    environment,
+    sourceDigest: productionIdentity?.sourceDigest || env.APP_RELEASE_SOURCE_DIGEST?.trim() || null,
     version: env.npm_package_version?.trim() || "0.1.0",
   };
 }

@@ -161,7 +161,8 @@ export function calculatePayrollComponentAggregates(
   Object.values(statutory).forEach((value) => assertMoneyCents(value));
   assertMoneyCents(reimbursementCents);
 
-  const grossPayCents = sumLines(lines, (line) => line.type === "EARNING");
+  const grossPayCents = sumLines(lines, (line) => line.type === "EARNING" && line.code !== "PRIOR_PERIOD_PCB_ADJUSTMENT");
+  const priorPcbRefundCents = sumLines(lines, (line) => line.type === "EARNING" && line.code === "PRIOR_PERIOD_PCB_ADJUSTMENT");
   const nonStatutoryDeductionsCents = sumLines(
     lines,
     (line) => line.type === "DEDUCTION" && line.sourceType !== "STATUTORY",
@@ -194,7 +195,7 @@ export function calculatePayrollComponentAggregates(
     recurringDeductionsCents,
     netPayCents: Math.max(
       0,
-      grossPayCents - nonStatutoryDeductionsCents - statutoryDeductionsCents + reimbursementCents,
+      grossPayCents - nonStatutoryDeductionsCents - statutoryDeductionsCents + reimbursementCents + priorPcbRefundCents,
     ),
   };
 }

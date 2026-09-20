@@ -5,7 +5,7 @@ import { assertLocalDatabaseTarget, releaseIdentity, runtimeEnvironment } from "
 test("runtime environment distinguishes Testing from Production", () => {
   assert.equal(runtimeEnvironment({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "testing" }), "testing");
   assert.equal(runtimeEnvironment({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "production" }), "production");
-  assert.equal(runtimeEnvironment({ APP_ENVIRONMENT: "production", RAILWAY_ENVIRONMENT_NAME: "testing" }), "production");
+  assert.throws(() => runtimeEnvironment({ APP_ENVIRONMENT: "production", RAILWAY_ENVIRONMENT_NAME: "testing" }), /CONFLICT/);
 });
 
 test("Local fixture guard parses the database hostname exactly", () => {
@@ -20,6 +20,7 @@ test("release identity reports commit, deployment and environment without secret
     deploymentId: "deploy-1",
     environment: "testing",
     sourceDigest: null,
+    tree: null,
     version: "1.2.3",
   });
 });

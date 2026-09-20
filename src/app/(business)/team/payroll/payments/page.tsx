@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NOT_ENABLED_LABEL } from "@/lib/release/launch-policy";
 import { sanitizePayrollNotice } from "@/lib/payroll/error-message";
 import { resolvePaymentReadAccess } from "@/lib/payroll/payment/payment-access";
 import { loadPaymentBatches, parsePaymentPage, parsePaymentStatus, paymentBatchStatuses } from "@/lib/payroll/payment/payment-read";
@@ -21,7 +22,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       <Link href="/team/payroll/workspace">Payroll Workspace</Link><Link href="/team/payroll/runs">Payroll Runs</Link>
     </PaymentPageHeader>
     {notice ? <div className={`${styles.notice} ${query.type === "error" ? styles.noticeError : ""}`} role={query.type === "error" ? "alert" : "status"}>{notice}</div> : null}
-    <section className={styles.hero}><div><p className={styles.eyebrow}>Payment control</p><h2>Finalized is not paid</h2><p>A batch records reviewed salary-payment instructions. P2 does not create a bank file, submit to a bank, or mark employees paid.</p></div><div className={styles.metrics}><div className={styles.metric}><span>Matching batches</span><strong>{data.total}</strong></div><div className={styles.metric}><span>Current capability</span><strong>Review &amp; approval</strong></div><div className={styles.metric}><span>Bank execution</span><strong>Not available</strong></div></div></section>
+    <section className={styles.hero}><div><p className={styles.eyebrow}>Payment control</p><h2>Finalized is not paid</h2><p>A batch records reviewed salary-payment instructions. P2 does not create a bank file, submit to a bank, or mark employees paid.</p></div><div className={styles.metrics}><div className={styles.metric}><span>Matching batches</span><strong>{data.total}</strong></div><div className={styles.metric}><span>Current capability</span><strong>Review &amp; approval</strong></div><div className={styles.metric}><span>Bank execution &amp; Payment Export</span><strong>{NOT_ENABLED_LABEL}</strong></div></div></section>
     <section className={styles.panel}>
       <div className={styles.sectionHeading}><div><h2>Payment batches</h2><p>Original and correction revisions remain independently traceable.</p></div></div>
       <form className={styles.filterForm} action="/team/payroll/payments"><label>Status<select name="status" defaultValue={status ?? ""}><option value="">All statuses</option>{paymentBatchStatuses.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</select></label>{runId ? <input type="hidden" name="runId" value={runId} /> : null}<button className={styles.secondaryButton} type="submit">Apply filter</button>{status || runId ? <Link href="/team/payroll/payments">Clear</Link> : null}</form>

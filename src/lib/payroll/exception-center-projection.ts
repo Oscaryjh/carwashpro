@@ -220,6 +220,10 @@ function payrollIssuePresentation(code: PayrollReadinessIssue["code"]): {
   title: string;
 } | null {
   switch (code) {
+    case "PCB_CORRECTION_SETTLEMENT_REQUIRED":
+      return { area: "TAX", title: "Apply prior-period PCB adjustment", detail: "Refresh the next open draft and confirm PCB again. A payroll adjustment is not proof of payment." };
+    case "PCB_MANUAL_CONFIRMATION_REQUIRED":
+      return { area: "TAX", title: "Confirm PCB for this payroll", detail: "An authorized payroll user must confirm the amount, including zero, with external evidence and MFA for the current inputs." };
     case "PRORATION_NOT_SUPPORTED":
       return { area: "EMPLOYMENT", title: "Employment dates need review", detail: "This employee joined or left during the month and the pay treatment needs confirmation." };
     case "MISSING_COMPENSATION":

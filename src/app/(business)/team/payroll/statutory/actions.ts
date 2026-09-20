@@ -124,6 +124,7 @@ export async function createStatutoryCorrectionRevisionAction(formData: FormData
 
 export async function authorizeStatutoryExportAction(formData: FormData) {
   const input = exportAuthorizationSchema.parse(Object.fromEntries(formData));
+  if (input.provider === "PCB") throw new Error("PCB_OFFICIAL_EXPORT_NOT_ENABLED");
   const context = await requireWholeBusinessPayroll("EXPORT_STATUTORY");
   const period = parsePayrollMonth(input.month);
   const run = await prisma.payrollRun.findUnique({
@@ -259,6 +260,7 @@ export async function updateStatutorySubmissionStatusAction(formData: FormData) 
         },
       });
       if (!before) throw new Error("Statutory submission record was not found.");
+      if (before.provider === "PCB") throw new Error("PCB_GOVERNMENT_SUBMISSION_NOT_ENABLED");
       await assertPayrollRunOfficialStatutoryExportEligible(
         { businessId: context.businessId, payrollRunId: before.payrollRunId },
         transaction,

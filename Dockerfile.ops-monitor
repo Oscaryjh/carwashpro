@@ -9,5 +9,6 @@ RUN npm ci --omit=dev=false
 COPY tsconfig.json ./
 COPY scripts ./scripts
 COPY src/lib/ops ./src/lib/ops
+COPY src/lib/release ./src/lib/release
 
 CMD ["node", "--import", "tsx", "scripts/ops-health-monitor.ts"]

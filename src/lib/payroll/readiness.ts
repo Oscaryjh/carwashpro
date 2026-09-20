@@ -4,6 +4,8 @@ import { getPayrollRunComponentReconciliationFailures } from "@/lib/payroll/comp
 import { isPayrollBankAccountMfaEnabled } from "@/lib/payroll/payment/bank-account-security";
 import { parsePayrollMonth } from "@/lib/payroll/period";
 import { prisma } from "@/lib/prisma";
+import { resolveManualPcb, assertManualPcbForEntry } from "./manual-pcb-service";
+import { pendingPcbCorrections, hasInsufficientPcbAdjustment } from "./pcb-correction-settlement";
 
 type ReadinessDatabase = PrismaClient | Prisma.TransactionClient;
 
@@ -57,6 +59,8 @@ export function hasOnlyNonProductionDeferredPcbBlocker(
   );
 }
 export type PayrollReadinessCode =
+  | "PCB_CORRECTION_SETTLEMENT_REQUIRED"
+  | "PCB_MANUAL_CONFIRMATION_REQUIRED"
   | "MISSING_COMPENSATION"
   | "RECONCILIATION_FAILED"
   | "PRORATION_NOT_SUPPORTED"
@@ -216,6 +220,7 @@ export async function getPayrollPeriodReadiness(
       id: true,
       employeeCode: true,
       fullName: true,
+      status: true,
       joinedAt: true,
       terminatedAt: true,
       statutoryProfileRevision: true,
@@ -449,6 +454,18 @@ export async function getPayrollPeriodReadiness(
     lindung24Participation.map((record) => [record.membershipId, record]),
   );
   const issues: PayrollReadinessIssue[] = [];
+  const insufficientPcbEntries = new Set<string>();
+  if (run && run.status !== "FINALIZED") {
+    for (const entry of entries) {
+      if (!await hasInsufficientPcbAdjustment(database, input.businessId, entry.id)) continue;
+      insufficientPcbEntries.add(entry.id);
+      if (!membershipIds.includes(entry.membershipId)) issues.push(createPayrollReadinessIssue({
+        code: "PCB_CORRECTION_SETTLEMENT_REQUIRED", severity: "BLOCKING", membershipId: entry.membershipId,
+        employeeCode: null, employeeName: null,
+        message: "An existing payroll entry has an unsettled prior-period PCB adjustment exceeding available take-home pay. Refresh the draft and resolve the outstanding amount before review.",
+      }));
+    }
+  }
 
   for (const membership of memberships) {
     const compensation = compensationByMembership.get(membership.id);
@@ -497,6 +514,10 @@ export async function getPayrollPeriodReadiness(
       add("BLOCKING", "RECONCILIATION_FAILED", "Stored totals do not reconcile with canonical component lines.");
     }
     if (entry) {
+      if (run && run.status !== "FINALIZED" && (insufficientPcbEntries.has(entry.id) ||
+        (membership.status === "ACTIVE" && (await pendingPcbCorrections(database, input.businessId, membership.id, period.start)).length))) {
+        add("BLOCKING", "PCB_CORRECTION_SETTLEMENT_REQUIRED", "Prior-period PCB adjustment is pending or exceeds available take-home pay. Return review to draft and refresh payroll. Insufficient amounts remain unsettled for Payroll to resolve with evidence; no payment is claimed.");
+      }
       const cp38Warning = entry.statutoryWarning
         ?.split("; ")
         .find((warning) => warning.startsWith("CP38:"));
@@ -517,6 +538,15 @@ export async function getPayrollPeriodReadiness(
         }
       }
       for (const snapshot of entry.statutorySnapshots) {
+        if (snapshot.scheme === "PCB") {
+          try {
+            if (await assertManualPcbForEntry(database, input.businessId, entry.id)) continue;
+          } catch (error) {
+            if (!(error instanceof Error) || error.message !== "PCB_MANUAL_CONFIRMATION_REQUIRED") throw error;
+            add("BLOCKING", "PCB_MANUAL_CONFIRMATION_REQUIRED", "PCB requires an explicit amount, external reference and MFA confirmation for the current payroll inputs, including a zero amount.");
+            continue;
+          }
+        }
         const activeRule = activeStatutoryRuleByScheme.get(snapshot.scheme);
         if (
           snapshot.profileRevisionSnapshot !== membership.statutoryProfileRevision ||
@@ -586,6 +616,10 @@ export async function getPayrollPeriodReadiness(
       }
     }
 
+    if (entry && !entry.statutorySnapshots.some((snapshot) => snapshot.scheme === "PCB")) {
+      const manual = await resolveManualPcb(database, input.businessId, entry.id);
+      if (!manual) add("BLOCKING", "PCB_MANUAL_CONFIRMATION_REQUIRED", "Confirm the PCB amount and external reference for this payroll revision.");
+    }
     const lockedRevision =
       currentTimesheet?.status === "LOCKED"
         ? currentTimesheet.currentRevision
@@ -812,6 +846,8 @@ export function assertPayrollReadinessCanProceed(readiness: PayrollReadiness) {
 }
 
 const READINESS_CODES: PayrollReadinessCode[] = [
+  "PCB_CORRECTION_SETTLEMENT_REQUIRED",
+  "PCB_MANUAL_CONFIRMATION_REQUIRED",
   "MISSING_COMPENSATION",
   "RECONCILIATION_FAILED",
   "PRORATION_NOT_SUPPORTED",
@@ -864,6 +900,10 @@ function readinessIssueGuidance(code: PayrollReadinessCode): {
   resolutionHint: string;
 } {
   switch (code) {
+    case "PCB_CORRECTION_SETTLEMENT_REQUIRED":
+      return { source: "Prior-period PCB correction", resolutionHint: "Apply the prior-period adjustment in the next open draft, then reconfirm PCB and review payroll." };
+    case "PCB_MANUAL_CONFIRMATION_REQUIRED":
+      return { source: "Manual PCB confirmation", resolutionHint: "An authorized Payroll Owner/Admin must confirm the amount, including zero, with external evidence and MFA for the current payroll revision." };
     case "MISSING_COMPENSATION":
     case "PRORATION_NOT_SUPPORTED":
     case "FUTURE_COMPENSATION_CHANGE":

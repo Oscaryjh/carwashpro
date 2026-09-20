@@ -93,6 +93,7 @@ export function buildOfficialSubmissionFile(
   profile: StatutoryBusinessProfile,
   run: StatutorySubmissionRun,
 ) {
+  if (provider === "PCB") throw new Error("PCB_OFFICIAL_EXPORT_NOT_ENABLED");
   const validation = validateStatutorySubmission(provider, profile, run);
   if (!validation.ready) throw new Error(validation.errors[0]?.message ?? "Statutory submission is not ready.");
   if (provider === "EPF") return Buffer.from(buildEpfCsv(validation.eligibleEntries), "utf8");

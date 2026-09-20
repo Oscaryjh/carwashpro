@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
-  runtimeEnvironment,
+  parseRuntimeEnvironment as runtimeEnvironment,
   type RuntimeEnvironmentMap,
-} from "./environment";
+} from "./environment-contract.mjs";
 
 export type UatPreviewAccessDecision =
   | Readonly<{ allowed: true }>

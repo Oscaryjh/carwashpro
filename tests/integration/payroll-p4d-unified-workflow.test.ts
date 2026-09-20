@@ -8,6 +8,7 @@ import {
 } from "../../src/lib/payroll/payslip-publication";
 import { reopenPayrollRun } from "../../src/lib/payroll/service";
 import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
+import { confirmFixturePcb, enableFixturePayrollModules } from "../helpers/manual-pcb-fixture";
 
 const prisma = new PrismaClient();
 
@@ -125,6 +126,8 @@ async function createFixture() {
       normalWorkMinutesSnapshot: 480,
     },
   });
+  await enableFixturePayrollModules(business.id);
+  await confirmFixturePcb({ businessId: business.id, entryId: entry.id, actorId: owner.id, amount: "0.00", externalReference: "EXPLICIT_ZERO_P4D_ZERO_PAY_PUBLICATION_FIXTURE" });
   const run = await prisma.payrollRun.update({
     where: { id: draftRun.id },
     data: {

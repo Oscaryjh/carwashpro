@@ -13,8 +13,11 @@
     "safari 16.4"
   ],
   "overrides": {
+    "@prisma/config@6.19.3": {
+      "deepmerge-ts": "8.0.0"
+    },
     "brace-expansion@^1.0.0": "1.1.18",
-    "js-yaml": "4.3.1",
+    "js-yaml": "4.3.2",
     "browserslist": "4.28.8"
   },
   "scripts": {
@@ -48,7 +51,7 @@
     "notification:worker": "node scripts/validate-release-environment.mjs notification && node --use-system-ca --import tsx scripts/notification-queue-worker.ts",
     "whatsapp:worker": "node scripts/validate-release-environment.mjs whatsapp && node --use-system-ca scripts/run-whatsapp-worker.mjs",
     "next:clean": "node scripts/clean-next-cache.mjs",
-    "build": "prisma generate && node scripts/guard-next-build.mjs && next build --webpack",
+    "build": "prisma generate && node scripts/guard-next-build.mjs && node scripts/attest-release-source.mjs && next build --webpack",
     "start": "node scripts/validate-release-environment.mjs web && next start",
     "lint": "eslint .",
     "test": "tsx --test tests/unit/*.test.ts",

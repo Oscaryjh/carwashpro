@@ -21,6 +21,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const month = url.searchParams.get("month") ?? "";
   const provider = parseProvider(url.searchParams.get("provider"));
+  if (provider === "PCB") return new Response("尚未启用 / Not enabled", { status: 403, headers: { "Cache-Control": "private, no-store" } });
   const revision = parseRevision(url.searchParams.get("revision"));
   if (!provider) return new Response("Select a valid statutory provider.", { status: 400 });
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {

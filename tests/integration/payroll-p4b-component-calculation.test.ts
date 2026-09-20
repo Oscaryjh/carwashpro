@@ -12,10 +12,11 @@ import { scheduleRecurringPayComponent } from "../../src/lib/payroll/recurring-p
 import {
   finalizePayrollRun,
   generatePayrollRun,
-  submitPayrollRunForReview,
 } from "../../src/lib/payroll/service";
+import { submitPayrollRunForReview } from "../helpers/rc-readiness-diagnostics";
 import { prisma } from "../../src/lib/prisma";
 import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
+import { confirmFixturePcb, enableFixturePayrollModules } from "../helpers/manual-pcb-fixture";
 
 const recurringPayFixtureNow = new Date("2026-08-15T00:00:00.000Z");
 
@@ -161,6 +162,8 @@ test("P4B lines explain payroll, manual adjustments survive recalculation and re
     /PAYROLL_COMPONENT_RECONCILIATION_FAILED/,
   );
 
+  await enableFixturePayrollModules(actorContext.businessId);
+  await confirmFixturePcb({ businessId: actorContext.businessId, entryId: entry.id, actorId: actorContext.actor.userId, amount: "0.00", externalReference: "EXPLICIT_ZERO_P4B_COMPONENT_REGRESSION" });
   await submitPayrollRunForReview({ ...actorContext, runId: run.id });
   const finalizeStepUp = await issueTestHighRiskStepUp(prisma, {
     actionKey: "PAYROLL_FINALIZE",

@@ -14,6 +14,7 @@ import {
   hashEmployeeSessionToken,
 } from "../../src/lib/attendance/employee-auth/crypto";
 import { loadPublishedPayslipsForEmployee } from "../../src/lib/payroll/payslip-publication";
+import { confirmFixturePcb } from "../helpers/manual-pcb-fixture";
 
 const prisma = new PrismaClient();
 const employeeAuthSecret = "staff-pay-read-only-correctness-secret-2026";
@@ -198,7 +199,7 @@ async function createPayWorkplace(token: string, suffix: string, employeeAccount
   });
   const branch = await prisma.branch.create({ data: { businessId: business.id, name: "Main" } });
   const owner = await prisma.user.create({
-    data: { businessId: business.id, branchId: branch.id, name: "Pay owner", role: "BUSINESS_OWNER" },
+    data: { businessId: business.id, branchId: branch.id, name: "Pay owner", email: `pay-owner-${token}-${suffix}@test.invalid`, role: "BUSINESS_OWNER" },
   });
   const normalizedPhone = phone();
   const account = employeeAccountId
@@ -273,6 +274,7 @@ async function createPublication(
       netPay: "0.00",
     },
   });
+  await confirmFixturePcb({ businessId: fixture.business.id, entryId: entry.id, actorId: fixture.owner.id, amount: "0.00", externalReference: "EXPLICIT_ZERO_STAFF_ZERO_PAY_SELF_SERVICE_FIXTURE" });
   await prisma.payrollRun.update({
     where: { id: run.id },
     data: {
