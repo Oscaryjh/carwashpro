@@ -16,6 +16,7 @@ import {
   databaseConnectionFingerprint,
   HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG,
 } from "../../scripts/uat-preview-database-guard";
+import { HR_PAYROLL_EIGHT_ROLE_PERSONAS } from "../../scripts/hr-payroll-eight-role-uat-contract";
 
 const BOUNDARY_BUSINESS_SLUG = "tetamu-hr-uat-preview-boundary-v1";
 
@@ -299,6 +300,25 @@ test("formal fixture exposes real branch and tenant boundary objects without sid
   });
 });
 
+test("Branch Manager fixture is assigned to the synthetic boundary branch", async () => {
+  const branchManagerPersona = HR_PAYROLL_EIGHT_ROLE_PERSONAS.find(
+    (persona) => persona.key === "BRANCH_MANAGER",
+  );
+  assert.ok(branchManagerPersona?.email);
+  const [branchManager, boundaryBranch] = await Promise.all([
+    prisma.user.findUniqueOrThrow({
+      where: { email: branchManagerPersona.email },
+      select: { branchId: true },
+    }),
+    prisma.branch.findFirstOrThrow({
+      where: { name: "Synthetic Boundary Branch" },
+      select: { id: true },
+    }),
+  ]);
+
+  assert.equal(branchManager.branchId, boundaryBranch.id);
+});
+
 test("formal fixture creates the required Leave and Attendance domain evidence", async () => {
   const marker = await prisma.business.findUniqueOrThrow({
     where: { slug: HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG },
@@ -377,6 +397,38 @@ test("formal verifier reports relational evidence and a stable digest", () => {
   assert.equal(output.domains.leave.linksValid, true);
   assert.equal(output.domains.attendance.linksValid, true);
   assertSanitized(verification, environment);
+});
+
+test("formal verifier rejects a Branch Manager outside the synthetic boundary branch", async () => {
+  const branchManagerPersona = HR_PAYROLL_EIGHT_ROLE_PERSONAS.find(
+    (persona) => persona.key === "BRANCH_MANAGER",
+  );
+  assert.ok(branchManagerPersona?.email);
+  const branchManager = await prisma.user.findUniqueOrThrow({
+    where: { email: branchManagerPersona.email },
+    select: { branchId: true, id: true },
+  });
+  const mainBranch = await prisma.branch.findFirstOrThrow({
+    where: { name: "Acceptance Main Branch" },
+    select: { id: true },
+  });
+  try {
+    await prisma.user.update({
+      where: { id: branchManager.id },
+      data: { branchId: mainBranch.id },
+    });
+    const verification = runFixtureScript(
+      "scripts/verify-hr-payroll-uat-preview-fixture.ts",
+      previewEnvironment(),
+    );
+    assert.notEqual(verification.status, 0);
+    assert.match(verification.stderr, /HR_UAT_FIXTURE_BRANCH_MANAGER_SCOPE_MISMATCH/);
+  } finally {
+    await prisma.user.update({
+      where: { id: branchManager.id },
+      data: { branchId: branchManager.branchId },
+    });
+  }
 });
 
 test("formal verifier fails closed when any required Leave or Attendance domain is absent", async () => {

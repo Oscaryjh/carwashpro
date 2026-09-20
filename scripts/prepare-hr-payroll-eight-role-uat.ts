@@ -655,7 +655,7 @@ async function ensureBoundaryTopology(
     ownerId: boundaryOwner.id,
     key: "tenant-boundary",
   });
-  return { boundaryBusiness, boundaryBranch };
+  return { boundaryBusiness, boundaryBranch, primaryBoundaryBranch };
 }
 
 async function assertExistingBoundaryPeriods(tx: Prisma.TransactionClient, primaryBusinessId: string) {
@@ -740,6 +740,12 @@ async function main() {
       data: { passwordHash, loginEnabled: true, status: "active" },
     });
 
+    const boundary = await ensureBoundaryTopology(
+      tx,
+      artifact.businessId,
+      owner.id,
+    );
+
     const directUsers = [];
     for (const persona of HR_PAYROLL_EIGHT_ROLE_PERSONAS) {
       if (persona.kind !== "DIRECT_USER") continue;
@@ -763,7 +769,9 @@ async function main() {
         where: { email: persona.email },
         update: {
           businessId: artifact.businessId,
-          branchId: artifact.branchId,
+          branchId: persona.key === "BRANCH_MANAGER"
+            ? boundary.primaryBoundaryBranch.id
+            : artifact.branchId,
           name: persona.name,
           passwordHash,
           loginEnabled: true,
@@ -774,7 +782,9 @@ async function main() {
         },
         create: {
           businessId: artifact.businessId,
-          branchId: artifact.branchId,
+          branchId: persona.key === "BRANCH_MANAGER"
+            ? boundary.primaryBoundaryBranch.id
+            : artifact.branchId,
           name: persona.name,
           email: persona.email,
           passwordHash,
@@ -788,12 +798,6 @@ async function main() {
       });
       directUsers.push({ persona: persona.key, ...user });
     }
-
-    const boundary = await ensureBoundaryTopology(
-      tx,
-      artifact.businessId,
-      owner.id,
-    );
 
     const groupCode = `hr-payroll-uat-${artifact.businessId}`;
     const group = await tx.businessGroup.upsert({

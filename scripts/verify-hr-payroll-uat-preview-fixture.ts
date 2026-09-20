@@ -5,6 +5,7 @@ import {
   assertPreviewDatabaseContents,
   capturePreviewFixtureEvidence,
 } from "./uat-preview-database-guard";
+import { HR_PAYROLL_EIGHT_ROLE_PERSONAS } from "./hr-payroll-eight-role-uat-contract";
 
 const prisma = new PrismaClient();
 
@@ -20,6 +21,34 @@ async function main() {
 
   const evidence = await capturePreviewFixtureEvidence(prisma, state.businessId);
   assertCompletePreviewFixtureEvidence(evidence);
+  const branchManagerPersona = HR_PAYROLL_EIGHT_ROLE_PERSONAS.find(
+    (persona) => persona.key === "BRANCH_MANAGER",
+  );
+  if (!branchManagerPersona?.email) {
+    throw new Error("HR_UAT_FIXTURE_BRANCH_MANAGER_SCOPE_MISMATCH");
+  }
+  const [branchManager, boundaryBranch] = await Promise.all([
+    prisma.user.findUnique({
+      where: { email: branchManagerPersona.email },
+      select: { branchId: true, businessId: true },
+    }),
+    prisma.branch.findFirst({
+      where: {
+        businessId: state.businessId,
+        name: "Synthetic Boundary Branch",
+        status: "ACTIVE",
+      },
+      select: { id: true },
+    }),
+  ]);
+  if (
+    !branchManager ||
+    !boundaryBranch ||
+    branchManager.businessId !== state.businessId ||
+    branchManager.branchId !== boundaryBranch.id
+  ) {
+    throw new Error("HR_UAT_FIXTURE_BRANCH_MANAGER_SCOPE_MISMATCH");
+  }
 
   process.stdout.write(
     `${JSON.stringify(
