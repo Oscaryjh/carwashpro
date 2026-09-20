@@ -36,6 +36,19 @@ export function peopleListPath(input: PeopleContext = {}) {
   }
   return `/team?${query}`;
 }
+export function employeeDirectoryDetailPath(input: {
+  canManageAttendanceEmployees: boolean;
+  canViewTeamDirectory: boolean;
+  employeeId: string;
+}) {
+  if (input.canViewTeamDirectory) {
+    return `/team/people/${input.employeeId}`;
+  }
+  if (input.canManageAttendanceEmployees) {
+    return `/team/employees/${input.employeeId}`;
+  }
+  return null;
+}
 /** Accept only allowlisted HR list contexts; never accept an arbitrary redirect destination. */
 export function safePeopleReturn(value?: string) {
   if (!value || !value.startsWith("/team") || /[\\\r\n]/.test(value)) return null;

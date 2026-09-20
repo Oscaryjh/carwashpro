@@ -103,6 +103,45 @@ export const HR_PAYROLL_EIGHT_ROLE_PERSONAS = [
 export type HrPayrollEightRolePersona = (typeof HR_PAYROLL_EIGHT_ROLE_PERSONAS)[number];
 export type HrPayrollEightRolePersonaKey = HrPayrollEightRolePersona["key"];
 
+export function isExactHrPayrollUatNavigation(input: {
+  finalPath: string;
+  requestedPath: string;
+  status: number | null;
+}) {
+  return input.status === 200 && input.finalPath === input.requestedPath;
+}
+
+export function isHrPayrollUatDeniedNavigation(input: {
+  allowedFallbackPaths: readonly string[];
+  bodyText: string;
+  finalPath: string;
+  requestedPath: string;
+  status: number | null;
+}) {
+  if ([401, 403, 404].includes(input.status ?? 0)) return true;
+  if (
+    [
+      "/business-access-denied",
+      "/no-business-access",
+      "/module-not-enabled",
+      "/login",
+    ].includes(input.finalPath)
+  ) {
+    return true;
+  }
+  if (
+    /(access denied|not authorized|not found|module not enabled|do not have permission)/i.test(
+      input.bodyText,
+    )
+  ) {
+    return true;
+  }
+  return (
+    input.finalPath !== input.requestedPath &&
+    input.allowedFallbackPaths.includes(input.finalPath)
+  );
+}
+
 type FixtureEnvironment = NodeJS.ProcessEnv;
 
 export function assertEightRoleUatEnvironment(environment: FixtureEnvironment) {

@@ -7,7 +7,9 @@ import {
 } from "@/lib/attendance/phone";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
+import { employeeDirectoryDetailPath } from "@/lib/team/people-presentation";
 import styles from "./employee.module.css";
 
 type EmployeesPageProps = {
@@ -217,6 +219,10 @@ export default async function EmployeesPage({
     context.access.effectiveBusinessRole === "GROUP_MANAGER_READ_ONLY" ||
     (context.access.effectiveBusinessRole === "STAFF" &&
       context.access.permissions.includes("ATTENDANCE_EMPLOYEE_MANAGE"));
+  const canViewTeamDirectory = hasBusinessCapability(
+    context.access,
+    "VIEW_TEAM_DIRECTORY",
+  );
   const hasFilters = Boolean(
     q ||
       code ||
@@ -402,8 +408,13 @@ export default async function EmployeesPage({
                   const primaryAssignment = employee.branchAssignments.find(
                     (assignment) => assignment.isPrimary,
                   );
-                  const employeeName = canManageEmployees ? (
-                    <Link href={`/team/people/${employee.id}`}>
+                  const detailPath = employeeDirectoryDetailPath({
+                    canManageAttendanceEmployees: canManageEmployees,
+                    canViewTeamDirectory,
+                    employeeId: employee.id,
+                  });
+                  const employeeName = detailPath ? (
+                    <Link href={detailPath}>
                       {employee.fullName}
                     </Link>
                   ) : (
