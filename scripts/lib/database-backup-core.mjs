@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { assertAlertDestination, readAlertBearer, redactAlertBearer, serializeAlertPayload } from "../../src/lib/ops/alert-auth.mjs";
 import {
   createCipheriv,
   createDecipheriv,
@@ -502,13 +503,12 @@ export async function deliverFailureAlert({
   fetchImpl = fetch,
   sleepImpl = sleep,
 }) {
+  const token = readAlertBearer();
   if (!webhookUrl) {
     return { delivered: false, attempts: 0, reason: "ALERT_DESTINATION_NOT_CONFIGURED" };
   }
-  const parsed = new URL(webhookUrl);
-  if (parsed.protocol !== "https:") {
-    throw new Error("Operational alert webhook must use HTTPS.");
-  }
+  assertAlertDestination(webhookUrl, token);
+  const body = serializeAlertPayload(event);
   let lastReason = "ALERT_DELIVERY_FAILED";
   let attempts = 0;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -516,8 +516,9 @@ export async function deliverFailureAlert({
     try {
       const response = await fetchImpl(webhookUrl, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(event),
+        headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+        redirect: "manual",
+        body,
         signal: AbortSignal.timeout(10_000),
       });
       if (response.ok) {
@@ -529,27 +530,27 @@ export async function deliverFailureAlert({
       }
       lastReason = `ALERT_HTTP_${response.status}`;
       if (response.status < 500 && response.status !== 429) break;
-    } catch (error) {
-      lastReason = redactOperationalText(error instanceof Error ? error.message : error);
+    } catch {
+      lastReason = "ALERT_TRANSPORT_ERROR";
     }
     if (attempt < 3) await sleepImpl(100 * 2 ** (attempt - 1));
   }
   console.error(
     JSON.stringify({
       event: "ALERT_DELIVERY_FAILED",
-      environment: event.environment,
+      environment: redactAlertBearer(event.environment),
       severity: "ERROR",
-      service: event.service,
+      service: redactAlertBearer(event.service),
       timestamp: new Date().toISOString(),
       code: lastReason,
-      originalEvent: event.event,
+      originalEvent: redactAlertBearer(event.event),
     }),
   );
   return { delivered: false, attempts, reason: lastReason };
 }
 
 export function redactOperationalText(value) {
-  return String(value ?? "")
+  return redactAlertBearer(value)
     .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, "[REDACTED_DATABASE_URL]")
     .replace(/(authorization|cookie)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
     .replace(/(password|secret|token|api[_-]?key)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")

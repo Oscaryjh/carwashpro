@@ -64,6 +64,7 @@ test("staging monitor executes attested DB-down and recovery alert cycles withou
       globalThis.setTimeout = (fn, ms, ...args) => timeout(fn, ms >= 60000 ? 1 : ms, ...args);
       globalThis.fetch = async (url, options) => {
         if (url === process.env.OPS_ALERT_WEBHOOK_URL) {
+          if (options.headers.authorization !== "Bearer " + process.env.OPS_ALERT_WEBHOOK_BEARER_TOKEN || options.redirect !== "manual") throw new Error("ALERT_AUTH_CONTRACT_FAILED");
           codes.push(JSON.parse(options.body).code);
           return Response.json({receiverId: "synthetic-receiver"});
         }
@@ -84,6 +85,7 @@ test("staging monitor executes attested DB-down and recovery alert cycles withou
     assert.equal(child.status, 0, "synthetic monitor completes and exits");
     const codes = JSON.parse(child.stdout.match(/SYNTHETIC_MONITOR_CODES=(\[[^\n]*\])/)?.[1] ?? "[]");
     for (const code of ["DATABASE_UNAVAILABLE", "DATABASE_RECOVERED", "SERVICE_HEALTH_FAILED", "SERVICE_HEALTH_RECOVERED"]) assert.equal(codes.includes(code), true, code);
-    assert.equal(/UNAPPROVED_TARGET|RC_EXTERNAL_NETWORK_DENIED/.test(child.stdout + child.stderr), false);
+    assert.equal(/UNAPPROVED_TARGET|RC_EXTERNAL_NETWORK_DENIED|ALERT_AUTH_CONTRACT_FAILED/.test(child.stdout + child.stderr), false);
+    assert.equal((child.stdout + child.stderr).includes(f.env.OPS_ALERT_WEBHOOK_BEARER_TOKEN), false);
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });

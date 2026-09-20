@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readStagingPolicy } from "./staging-contract.mjs";
+import { assertAlertDestination, readAlertBearer } from "../ops/alert-auth.mjs";
 
 const hex = (value, length) => typeof value === "string" && new RegExp(`^[a-f0-9]{${length}}$`).test(value);
 const reject = (code) => { throw new Error(`PRODUCTION_${code}`); };
@@ -36,6 +37,11 @@ export function validateProductionRuntime(env, scope, attestation) {
   forbidden.push(...(staging?.secretFingerprints ?? []));
   if (forbidden.some((entry) => !hex(entry, 64))) reject("SECRET_DENYLIST_INVALID");
   const secrets = [];
+  let alertToken;
+  try { alertToken = readAlertBearer(env); } catch { reject("ALERT_BEARER_TOKEN_REQUIRED_OR_INVALID"); }
+  if (alertToken) secrets.push(alertToken);
+  const alertTokenBytes = alertToken ? Buffer.from(alertToken, /^[a-f0-9]{64}$/i.test(alertToken) ? "hex" : "base64url") : null;
+  if (alertTokenBytes?.length && forbidden.includes(hash(alertTokenBytes))) reject("SECRET_REUSE");
   if (staging) {
     const databasePassword = decodeURIComponent(db.password);
     if (Buffer.byteLength(databasePassword, "utf8") < 32) reject("RC_STAGING_DATABASE_SECRET_REQUIRED");
@@ -51,11 +57,13 @@ export function validateProductionRuntime(env, scope, attestation) {
       if (key.length !== 32) reject(`${prefix}_KEYRING_INVALID`);
       // Check encoded and decoded representations to prevent encoding-only reuse.
       if (forbidden.includes(hash(key)) || forbidden.includes(hash(encoded))) reject("SECRET_REUSE");
+      if (alertToken === encoded || alertTokenBytes?.equals(key)) reject("SECRET_DOMAIN_REUSE");
       secrets.push(key);
     }
   }
   if (secrets.some((secret) => forbidden.includes(hash(secret)))) reject("SECRET_REUSE");
   if (new Set(secrets.map(hash)).size !== secrets.length) reject("SECRET_DOMAIN_REUSE");
+  if (alertTokenBytes?.length && secrets.some((secret) => secret !== alertToken && hash(secret) === hash(alertTokenBytes))) reject("SECRET_DOMAIN_REUSE");
   exact("TETAMU_MFA_ENABLED", "true");
   if (!/^[0-5]$/.test(value("AUTH_TRUST_PROXY_HOPS"))) reject("AUTH_TRUST_PROXY_HOPS_REQUIRED");
   required("AUTH_PROXY_CONTRACT_REFERENCE");
@@ -71,6 +79,7 @@ export function validateProductionRuntime(env, scope, attestation) {
     let url; try { url = new URL(required(key)); } catch { reject(`${key}_INVALID`); }
     if (url.protocol !== "https:" || url.username || url.password) reject(`${key}_INVALID`);
   }
+  try { assertAlertDestination(required("OPS_ALERT_WEBHOOK_URL"), alertToken); } catch { reject("ALERT_DESTINATION_INVALID"); }
   required("OPS_ALERT_OWNER"); exact("APP_SERVICE_SCOPE", scope);
   if (scope !== "web" && scope !== "staff") { required("WORKER_SINGLETON_ID"); exact("WORKER_REPLICA_COUNT", "1"); }
   return { commitSha: attestation.commitSha, tree: attestation.tree, sourceDigest: attestation.sourceDigest };

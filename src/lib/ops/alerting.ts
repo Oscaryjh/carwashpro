@@ -1,3 +1,5 @@
+import { assertAlertDestination, readAlertBearer, redactAlertBearer, serializeAlertPayload } from "./alert-auth.mjs";
+
 export type OpsAlertSeverity = "INFO" | "WARNING" | "ERROR" | "CRITICAL";
 
 export type OpsAlertEvent = Readonly<{
@@ -89,6 +91,7 @@ export async function sendOpsAlert(
   event: OpsAlertEvent,
   options: SendOptions = {},
 ): Promise<OpsAlertDelivery> {
+  const token = readAlertBearer();
   const webhookUrl = options.webhookUrl ?? process.env.OPS_ALERT_WEBHOOK_URL;
   if (!webhookUrl) {
     return {
@@ -98,7 +101,8 @@ export async function sendOpsAlert(
       reason: "ALERT_DESTINATION_NOT_CONFIGURED",
     };
   }
-  assertHttpsWebhook(webhookUrl, event.environment);
+  assertAlertDestination(webhookUrl, token, event.environment === "local");
+  const body = serializeAlertPayload(event);
   const now = options.now ?? new Date();
   const state = getAlertState();
   const gate = deliveryGate(state, event.fingerprint, now.getTime(), options);
@@ -120,8 +124,9 @@ export async function sendOpsAlert(
     try {
       const response = await fetchImpl(webhookUrl, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(event),
+        headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+        redirect: "manual",
+        body,
         signal: AbortSignal.timeout(10_000),
       });
       if (response.ok) {
@@ -135,13 +140,14 @@ export async function sendOpsAlert(
       }
       lastReason = `ALERT_HTTP_${response.status}`;
       if (response.status < 500 && response.status !== 429) break;
-    } catch (error) {
-      lastReason = redactOpsText(error instanceof Error ? error.message : String(error));
+    } catch {
+      // Transport exceptions can echo request headers or destinations.
+      lastReason = "ALERT_TRANSPORT_ERROR";
     }
     if (attempt < 3) await sleepImpl(100 * 2 ** (attempt - 1));
   }
   console.error(
-    JSON.stringify({
+    serializeAlertPayload({
       event: "ALERT_DELIVERY_FAILED",
       environment: event.environment,
       severity: "ERROR",
@@ -166,7 +172,7 @@ export async function emitOpsAlert(
   const event = createOpsAlertEvent(input);
   const delivery = await sendOpsAlert(event, options);
   const log = { ...event, delivery };
-  const output = JSON.stringify(log);
+  const output = serializeAlertPayload(log);
   if (event.severity === "INFO" || event.status === "RECOVERED") console.log(output);
   else console.error(output);
   return { event, delivery };
@@ -245,7 +251,7 @@ export async function emitScheduledJobFailure(input: {
 }
 
 export function redactOpsText(value: unknown) {
-  return String(value ?? "")
+  return redactAlertBearer(value)
     .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, "[REDACTED_DATABASE_URL]")
     .replace(/(authorization|cookie)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
     .replace(/(password|secret|token|api[_-]?key)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
@@ -266,7 +272,7 @@ function redactOpsValue(value: unknown, key = ""): unknown {
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value).map(([entryKey, entry]) => [
-        entryKey,
+        redactAlertBearer(entryKey),
         redactOpsValue(entry, entryKey),
       ]),
     );
@@ -332,14 +338,6 @@ function stableIdentifier(value: string, name: string) {
 
 function safeText(value: unknown, limit: number) {
   return redactOpsText(value).slice(0, limit);
-}
-
-function assertHttpsWebhook(webhookUrl: string, environment: string) {
-  const parsed = new URL(webhookUrl);
-  const local = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-  if (parsed.protocol !== "https:" && !(environment === "local" && local)) {
-    throw new Error("OPS_ALERT_WEBHOOK_URL must use HTTPS outside Local.");
-  }
 }
 
 async function receiverIdentity(response: Response) {

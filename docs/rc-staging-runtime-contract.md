@@ -63,6 +63,29 @@ simulated messages delivered. They do not test customer-message delivery.
 Operational monitor/alert HTTPS endpoints still require separate approved test
 receivers at infrastructure provisioning; local tests inject a non-network sink.
 
+## Authenticated operational alerts
+
+`OPS_ALERT_WEBHOOK_BEARER_TOKEN` is required for RC Staging in all six runtime
+scopes and in both the monitor/application and backup alert transports. Generate
+an independent random secret (at least 32 characters; base64url recommended),
+store it in a worktree-external 0600 handoff and isolated service secrets. It must
+not match an application, encryption, database, OTP or protected-environment
+secret. No value belongs in source, evidence, logs or reports.
+
+The only credential transport is `Authorization: Bearer ...`. HTTPS destinations
+must not contain URL credentials, query parameters, fragments or the bearer
+value. Requests use manual redirect handling and reject 3xx without following
+the Location header. 401 is terminal; 429, 5xx and transport failures retain
+bounded retries. Transport exceptions and receiver echoes must not disclose the
+secret. Payloads and emitted logs redact the configured bearer independently of
+metadata key names. A receiver response is not authority to expose its body.
+
+Outside RC Staging, an absent bearer preserves the existing optional-auth alert
+contract; any configured bearer must be valid and receives the same protections.
+This does not authorize Production activation or change Payroll/PCB semantics.
+The temporary Staging receiver retains only synthetic event type, timestamp and
+correlation ID; it rejects unauthenticated requests and non-allowlisted events.
+
 ## Features and publication boundary
 
 `PRODUCTION_ELIGIBLE=false`; PCB activation/official exports/government submission,

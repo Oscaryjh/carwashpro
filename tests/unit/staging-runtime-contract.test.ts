@@ -7,6 +7,32 @@ import { evaluateReleaseHealth } from "../../src/lib/ops/health-probe";
 import { stagingRuntimeFixture } from "../helpers/staging-runtime-fixture";
 import { productionRuntimeFixture } from "../helpers/production-runtime-fixture";
 
+test("all staging scopes reject missing alert bearer and cross-domain secret reuse", () => {
+  for (const scope of ["web", "staff", "analytics", "notification", "whatsapp", "monitor"]) {
+    const f = stagingRuntimeFixture(scope);
+    delete f.env.OPS_ALERT_WEBHOOK_BEARER_TOKEN;
+    assert.throws(() => validateProductionRuntime(f.env, scope, f.attestation), /ALERT_.*TOKEN/);
+    f.env.OPS_ALERT_WEBHOOK_BEARER_TOKEN = f.env.SESSION_SECRET;
+    assert.throws(() => validateProductionRuntime(f.env, scope, f.attestation), /SECRET_DOMAIN_REUSE/);
+    f.env.OPS_ALERT_WEBHOOK_BEARER_TOKEN = "bad\r\nheader";
+    assert.throws(() => validateProductionRuntime(f.env, scope, f.attestation), /ALERT_.*TOKEN/);
+  }
+});
+
+test("alert bearer cannot reuse encoded MFA or bank key material or protected decoded fingerprints", () => {
+  for (const prefix of ["MFA", "PAYROLL_PAYMENT"]) {
+    for (const encoding of ["base64", "base64url", "hex"] as const) {
+      const f = stagingRuntimeFixture();
+      const key = Buffer.from(Object.values(JSON.parse(f.env[`${prefix}_ENCRYPTION_KEYS`]))[0] as string, "base64");
+      f.env.OPS_ALERT_WEBHOOK_BEARER_TOKEN = key.toString(encoding);
+      assert.throws(() => validateProductionRuntime(f.env, "web", f.attestation), /SECRET_DOMAIN_REUSE/);
+    }
+  }
+  const f = stagingRuntimeFixture();
+  f.env.PRODUCTION_NONPROD_SECRET_FINGERPRINTS = createHash("sha256").update(Buffer.from(f.env.OPS_ALERT_WEBHOOK_BEARER_TOKEN, "base64url")).digest("hex");
+  assert.throws(() => validateProductionRuntime(f.env, "web", f.attestation), /SECRET_REUSE/);
+});
+
 for (const scope of ["web", "staff", "analytics", "notification", "whatsapp", "monitor"]) {
   test(`staging ${scope} retains production grade attestation and health identity`, () => {
     const f = stagingRuntimeFixture(scope);
