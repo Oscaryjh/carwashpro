@@ -34,7 +34,9 @@ if (environment === "production") {
   try { validateProductionRuntime(process.env, scope, readSourceAttestation()); }
   catch (error) { fail(error instanceof Error && /^PRODUCTION_[A-Z0-9_]+$/.test(error.message) ? error.message : "Production contract validation failed."); }
   requireRemoteDatabaseUrl("Production");
-  validateProductionProviders();
+  // Staging communications were validated fail-closed by the same full runtime
+  // contract above. Never demand live-provider credentials for isolated staging.
+  if (process.env.APP_DEPLOYMENT_PROFILE !== "rc-staging") validateProductionProviders();
 }
 
 if (environment === "uat-preview") {

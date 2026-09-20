@@ -1,6 +1,8 @@
 import { isProductionRuntime } from "@/lib/release/environment";
+import { validateProductionRuntime, type SourceAttestation } from "@/lib/release/production-contract.mjs";
+import { readSourceAttestation } from "@/lib/release/source-attestation.mjs";
 
-export type WhatsAppSendMode = "mock" | "live";
+export type WhatsAppSendMode = "mock" | "live" | "disabled";
 
 export type QueueSendInput = {
   businessId: string;
@@ -70,8 +72,13 @@ export type WhatsAppSendFailureClassification = Readonly<{
 
 export function resolveWhatsAppSendMode(
   env: WhatsAppWorkerEnv = process.env,
+  sourceAttestation: SourceAttestation | null = readSourceAttestation(),
 ) {
   const value = env.WHATSAPP_SEND_MODE?.trim();
+  if (env.APP_DEPLOYMENT_PROFILE === "rc-staging" || env.RAILWAY_ENVIRONMENT_NAME?.toLowerCase().startsWith("production-rc-staging")) {
+    validateProductionRuntime(env, env.APP_SERVICE_SCOPE ?? "notification", sourceAttestation);
+    return "disabled";
+  }
 
   if (isProductionRuntime(env) && value === "mock") {
     throw new WhatsAppSendModeConfigError(
@@ -104,10 +111,12 @@ export async function sendWhatsAppQueueItem(
   options: {
     env?: WhatsAppWorkerEnv;
     transport?: QueueSendTransport;
+    sourceAttestation?: SourceAttestation | null;
   } = {},
 ): Promise<QueueSendResult> {
   const env = options.env ?? process.env;
-  const mode = resolveWhatsAppSendMode(env);
+  const mode = resolveWhatsAppSendMode(env, options.sourceAttestation);
+  if (mode === "disabled") throw new WhatsAppSendModeConfigError("RC_STAGING_COMMUNICATION_DISABLED");
 
   if (mode === "mock") {
     return {

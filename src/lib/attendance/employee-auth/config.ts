@@ -1,5 +1,7 @@
 import { EmployeeAuthError } from "./errors";
 import { runtimeEnvironment } from "@/lib/release/environment";
+import { readRcStagingOtpConfiguration, type RcStagingOtpConfiguration } from "./rc-staging-otp";
+import type { SourceAttestation } from "@/lib/release/production-contract.mjs";
 import {
   readUatPreviewOtpConfiguration,
   type UatPreviewOtpConfiguration,
@@ -12,6 +14,7 @@ export type EmployeeOtpProviderName =
   | "mock"
   | "twilio_verify"
   | "sms123"
+  | "rc_staging_intercept"
   | "uat_preview_intercept";
 export type EmployeeOtpChannel = "local" | "sms" | "intercept";
 export type EmployeeOtpSendMode = "mock" | "provider";
@@ -50,6 +53,7 @@ export type EmployeeAuthConfig = Readonly<{
       apiKey: string | null;
     }>;
     uatPreview: UatPreviewOtpConfiguration | null;
+    rcStaging?: RcStagingOtpConfiguration | null;
   }>;
   session: Readonly<{
     cookieName: typeof EMPLOYEE_SESSION_COOKIE;
@@ -62,8 +66,11 @@ export type EmployeeAuthConfig = Readonly<{
 
 export function getEmployeeAuthConfig(
   env: NodeJS.ProcessEnv = process.env,
+  sourceAttestation?: SourceAttestation | null,
 ): EmployeeAuthConfig {
   const applicationEnvironment = runtimeEnvironment(env);
+  const stagingDeployment = env.APP_DEPLOYMENT_PROFILE === "rc-staging" || env.RAILWAY_ENVIRONMENT_NAME?.toLowerCase().startsWith("production-rc-staging");
+  const rcStaging = stagingDeployment ? readRcStagingOtpConfiguration(env, sourceAttestation) : null;
   const environment =
     applicationEnvironment === "uat-preview"
       ? "uat-preview"
@@ -107,6 +114,7 @@ export function getEmployeeAuthConfig(
     provider === "uat_preview_intercept"
       ? readUatPreviewOtpConfiguration(env)
       : null;
+  if (provider === "rc_staging_intercept" && !rcStaging) readRcStagingOtpConfiguration(env, sourceAttestation);
 
   return {
     authSecret,
@@ -200,6 +208,7 @@ export function getEmployeeAuthConfig(
       twilio,
       sms123,
       uatPreview,
+      rcStaging,
     },
     session: {
       cookieName: EMPLOYEE_SESSION_COOKIE,
@@ -303,6 +312,7 @@ function normalizeProvider(
   if (normalized === "sms123") {
     return "sms123";
   }
+  if (normalized === "rc_staging_intercept") return "rc_staging_intercept";
 
   if (normalized === "uat_preview_intercept") {
     if (environment !== "uat-preview") {
@@ -328,7 +338,7 @@ function normalizeChannel(
   const fallback =
     provider === "mock"
       ? "local"
-      : provider === "uat_preview_intercept"
+      : provider === "uat_preview_intercept" || provider === "rc_staging_intercept"
         ? "intercept"
         : "sms";
   const channel = normalized || fallback;
@@ -338,7 +348,7 @@ function normalizeChannel(
       "CONFIGURATION_ERROR",
       provider === "mock"
         ? "OTP_CHANNEL must be local when OTP_PROVIDER=mock."
-        : provider === "uat_preview_intercept"
+        : provider === "uat_preview_intercept" || provider === "rc_staging_intercept"
           ? "OTP_CHANNEL must be intercept for the UAT Preview interceptor."
           : `OTP_CHANNEL must be sms when OTP_PROVIDER=${provider}.`,
     );

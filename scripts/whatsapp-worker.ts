@@ -4,6 +4,7 @@ import {
   type WhatsAppWorkerCommand,
 } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
+import { runDisabledStagingWorker } from "./rc-staging-disabled-worker";
 import {
   disconnectWhatsAppSession,
   sendWhatsAppDocumentMessage,
@@ -24,6 +25,7 @@ main().catch((error) => {
 });
 
 async function main() {
+  if (await runDisabledStagingWorker("whatsapp")) return;
   console.log("[whatsapp-worker] Started");
   await restoreActiveSessions();
 

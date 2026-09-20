@@ -14,6 +14,9 @@ export function parseRuntimeEnvironment(env = process.env) {
   const explicit = normalize(env.APP_ENVIRONMENT);
   const railway = normalize(env.RAILWAY_ENVIRONMENT_NAME);
   const node = normalize(env.NODE_ENV);
+  if ((normalize(env.APP_DEPLOYMENT_PROFILE) === "rc-staging" || railway.startsWith("production-rc-staging")) && explicit !== "production") {
+    throw new Error("RC_STAGING_REQUIRES_PRODUCTION_SECURITY");
+  }
   const canonicalNames = new Set(["development", "test", "testing", "uat-preview", "production"]);
   if (explicit && canonicalNames.has(railway) && explicit !== railway && !(new Set(["test", "testing"]).has(explicit) && new Set(["test", "testing"]).has(railway))) {
     throw new Error("RUNTIME_ENVIRONMENT_CONFLICT");

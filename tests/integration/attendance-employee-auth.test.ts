@@ -3,6 +3,8 @@ import { spawnSync } from "node:child_process";
 import { randomInt, randomUUID } from "node:crypto";
 import test, { after } from "node:test";
 import { PrismaClient } from "@prisma/client";
+import { stagingRuntimeFixture } from "../helpers/staging-runtime-fixture";
+import { deriveRcStagingOtp } from "../../src/lib/attendance/employee-auth/rc-staging-otp";
 import {
   getEmployeeAuthConfig,
   type EmployeeAuthConfig,
@@ -1517,6 +1519,51 @@ test("uat-preview interceptor completes Staff login and preserves challenge sing
   } finally {
     await cleanupFixture(fixture);
   }
+});
+
+test("RC staging intercept rejects non-synthetic identities even on the allowlist", async () => {
+  assertLocalDatabase(); const fixture = await createFixture();
+  const f = stagingRuntimeFixture("staff"); f.env.RC_STAGING_SYNTHETIC_PHONE_ALLOWLIST = fixture.single.phone;
+  const config = getEmployeeAuthConfig(f.env, f.attestation);
+  try {
+    const requested = await requestEmployeeOtp({ phoneNumber: fixture.single.phone, deviceIdentifier: "staging-denied-device" }, { database: prisma, config });
+    const challenge = await prisma.employeeOtpChallenge.findUniqueOrThrow({ where: { id: requested.challengeId }, select: { providerReference: true, employeeAccountId: true } });
+    assert.equal(challenge.providerReference === null, true, "non-synthetic identity must not receive an intercepted challenge");
+    assert.equal(challenge.employeeAccountId === null, true);
+  } finally { await cleanupFixture(fixture); }
+});
+
+test("RC staging synthetic OTP retains single use, expiry, attempt limits and session logout", async () => {
+  assertLocalDatabase(); const fixture = await createFixture();
+  const f = stagingRuntimeFixture("staff"); f.env.RC_STAGING_SYNTHETIC_PHONE_ALLOWLIST = fixture.single.phone;
+  f.env.EMPLOYEE_OTP_MAX_ATTEMPTS = "2";
+  const config = getEmployeeAuthConfig(f.env, f.attestation);
+  const deviceIdentifier = "staging-synthetic-device";
+  const now = new Date();
+  try {
+    await prisma.employeeBusinessMembership.update({ where: { id: fixture.single.membershipId }, data: { isTestAccount: true } });
+    const request = { phoneNumber: fixture.single.phone, deviceIdentifier };
+    const requested = await requestEmployeeOtp(request, { database: prisma, config, now });
+    const record = await prisma.employeeOtpChallenge.findUniqueOrThrow({ where: { id: requested.challengeId } });
+    assert.equal(record.providerMessageCode, "RC_STAGING_INTERCEPT_V1");
+    const otp = deriveRcStagingOtp({ challengeId: requested.challengeId, phoneNumber: fixture.single.phone, expiresAt: record.expiresAt }, f.env.RC_STAGING_OTP_HMAC_SEED);
+    const input = { challengeId: requested.challengeId, otp, deviceIdentifier };
+    const login = await verifyEmployeeOtp(input, { database: prisma, config, now: plusSeconds(now, 1) });
+    assert.equal(login.status, "AUTHENTICATED");
+    if (login.status === "AUTHENTICATED") await revokeEmployeeSessionToken(login.token, { database: prisma, config, now: plusSeconds(now, 2) });
+    await assert.rejects(verifyEmployeeOtp(input, { database: prisma, config, now: plusSeconds(now, 2) }), isAuthError("OTP_INVALID"));
+    await clearChallenges(fixture.single.phone);
+    const second = await requestEmployeeOtp(request, { database: prisma, config, now: plusSeconds(now, 61) });
+    const secondRecord = await prisma.employeeOtpChallenge.findUniqueOrThrow({ where: { id: second.challengeId } });
+    const correct = deriveRcStagingOtp({ challengeId: second.challengeId, phoneNumber: fixture.single.phone, expiresAt: secondRecord.expiresAt }, f.env.RC_STAGING_OTP_HMAC_SEED);
+    const wrong = correct === "000000" ? "111111" : "000000";
+    await assert.rejects(verifyEmployeeOtp({ ...input, challengeId: second.challengeId, otp: wrong }, { database: prisma, config, now: plusSeconds(now, 62) }), isAuthError("OTP_INVALID"));
+    await assert.rejects(verifyEmployeeOtp({ ...input, challengeId: second.challengeId, otp: wrong }, { database: prisma, config, now: plusSeconds(now, 63) }), isAuthError("OTP_LOCKED"));
+    await clearChallenges(fixture.single.phone);
+    const third = await requestEmployeeOtp(request, { database: prisma, config, now: plusSeconds(now, 122) });
+    await assert.rejects(verifyEmployeeOtp({ ...input, challengeId: third.challengeId }, { database: prisma, config, now: plusSeconds(now, 500) }), isAuthError("OTP_INVALID"));
+    assert.equal((await prisma.employeeOtpChallenge.findUniqueOrThrow({ where: { id: third.challengeId } })).invalidatedAt !== null, true);
+  } finally { await cleanupFixture(fixture); }
 });
 
 test("employee sessions expire only after the configured inactivity window", async () => {

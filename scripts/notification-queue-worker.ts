@@ -1,4 +1,5 @@
 import { prisma } from "../src/lib/prisma";
+import { runDisabledStagingWorker } from "./rc-staging-disabled-worker";
 import {
   findQueued,
   getQueueDocumentAttachment,
@@ -37,6 +38,7 @@ main().catch(async (error) => {
 });
 
 async function main() {
+  if (await runDisabledStagingWorker("notification")) return;
   const sendModeConfig = getWhatsAppSendModeRuntimeConfig();
 
   console.log("[notification-queue-worker] Started", {

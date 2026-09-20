@@ -59,11 +59,11 @@ const EMPLOYEE_OTP_TRANSACTION_OPTIONS = {
 const EMPLOYEE_OTP_DELIVERY_STATE_UPDATE_ATTEMPTS = 3;
 
 function otpChallengePersistenceIdentity(provider: EmployeeOtpProvider) {
-  if (provider.name === "uat_preview_intercept") {
+  if (provider.name === "uat_preview_intercept" || provider.name === "rc_staging_intercept") {
     return {
       provider: "mock" as const,
       channel: "local" as const,
-      providerMessageCode: "UAT_PREVIEW_INTERCEPT_V1",
+      providerMessageCode: provider.name === "rc_staging_intercept" ? "RC_STAGING_INTERCEPT_V1" : "UAT_PREVIEW_INTERCEPT_V1",
     };
   }
   return {
@@ -189,12 +189,13 @@ export async function requestEmployeeOtp(
       },
       transaction,
     );
-    const identity = await findEligibleEmployeeIdentityByPhone(
+    const eligibleIdentity = await findEligibleEmployeeIdentityByPhone(
       phoneNumberNormalized,
       now,
       transaction,
       dependencies.requireAttendance ?? true,
     );
+    const identity = eligibleIdentity && await stagingIdentityAllowed(eligibleIdentity.employeeAccountId, config, transaction) ? eligibleIdentity : null;
     const deviceAccess = identity
       ? await resolveOtpDeviceAccess(
           identity.employeeAccountId,
@@ -783,7 +784,7 @@ export async function verifyEmployeeOtp(
     dependencies.requireAttendance ?? true,
   );
 
-  if (!identity) {
+  if (!identity || !await stagingIdentityAllowed(identity.employeeAccountId, config, database)) {
     await database.employeeOtpChallenge.updateMany({
       where: {
         id: challenge.id,
@@ -917,6 +918,7 @@ async function completeEmployeeLogin(
     : null;
 
   return dependencies.database.$transaction(async (transaction) => {
+    if (!await stagingIdentityAllowed(input.employeeAccountId, dependencies.config, transaction)) throw new EmployeeAuthError("OTP_INVALID");
     const challenge = await transaction.employeeOtpChallenge.findFirst({
       where: {
         id: input.challengeId,
@@ -1166,6 +1168,20 @@ async function updateEmployeeOtpChallengeWithRetry(
   }
 
   throw lastError;
+}
+
+async function stagingIdentityAllowed(
+  employeeAccountId: string,
+  config: EmployeeAuthConfig,
+  database: Pick<Prisma.TransactionClient, "employeeAccount">,
+) {
+  if (config.otp.provider !== "rc_staging_intercept") return true;
+  // A configured phone alone cannot turn a real employee into a test identity.
+  // Also recheck at verification/session creation, including multi-membership.
+  return await database.employeeAccount.count({ where: {
+    id: employeeAccountId,
+    memberships: { some: { isTestAccount: true }, every: { isTestAccount: true } },
+  } }) === 1;
 }
 
 async function resolveOtpDeviceAccess(

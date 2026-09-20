@@ -8,6 +8,7 @@ import {
 } from "./crypto";
 import { emitSms123ProviderAlert } from "@/lib/ops/alerting";
 import { UatPreviewEmployeeOtpProvider } from "./uat-preview-otp";
+import { RcStagingEmployeeOtpProvider } from "./rc-staging-otp";
 
 export type EmployeeOtpPurpose = "LOGIN" | "REGISTER_DEVICE";
 
@@ -38,7 +39,7 @@ export type EmployeeVerificationCheckResult = Readonly<{
 }>;
 
 export interface EmployeeOtpProvider {
-  readonly name: "mock" | "twilio_verify" | "sms123" | "uat_preview_intercept";
+  readonly name: "mock" | "twilio_verify" | "sms123" | "uat_preview_intercept" | "rc_staging_intercept";
   readonly channel: "local" | "sms" | "intercept";
   readonly verificationMode: "provider" | "application";
   sendVerification(
@@ -470,6 +471,7 @@ export function createEmployeeOtpProvider(
   if (config.otp.provider === "uat_preview_intercept") {
     return new UatPreviewEmployeeOtpProvider(config);
   }
+  if (config.otp.provider === "rc_staging_intercept") return new RcStagingEmployeeOtpProvider(config);
   return new TwilioVerifySmsProvider(config);
 }
 
