@@ -12,16 +12,32 @@ import {
 // @ts-expect-error Restore runtime helpers are authored as native ESM JavaScript.
 } from "../../scripts/lib/database-restore-runtime.mjs";
 
-test("disposable PostgreSQL uses a fixture-owned writable socket directory", async () => {
+test("disposable PostgreSQL uses an isolated writable socket directory with platform-appropriate security", async () => {
   const workDir = await mkdtemp(join(tmpdir(), "tetamu-restore-runtime-test-"));
   const paths = buildDisposablePostgresPaths(workDir);
   try {
+    const fixtureRoot = relative(tmpdir(), workDir);
+    assert.equal(fixtureRoot.startsWith(".."), false);
+    assert.equal(paths.socketDir, join(workDir, "pg-socket"));
     assert.equal(relative(workDir, paths.socketDir), "pg-socket");
+    assert.equal(paths.socketDir.includes("/var/run/postgresql"), false);
+    assert.equal(paths.socketDir.includes("Postgres-Singapore"), false);
+
     await prepareDisposablePostgres(paths);
-    assert.equal((await stat(paths.socketDir)).mode & 0o777, 0o700);
+    const socketStat = await stat(paths.socketDir);
+    assert.equal(socketStat.isDirectory(), true);
+
+    const probePath = join(paths.socketDir, "fixture-owned-probe.txt");
+    await writeFile(probePath, "fixture-owned");
+    assert.equal(await readFile(probePath, "utf8"), "fixture-owned");
+
+    if (process.platform !== "win32") {
+      assert.equal(socketStat.mode & 0o777, 0o700);
+    }
   } finally {
     await cleanupDisposablePostgres({ pgCtl: "pg_ctl", paths, startAttempted: false });
   }
+  await assert.rejects(access(workDir));
 });
 
 test("pg_ctl is restricted to localhost and the disposable socket path", () => {
