@@ -15,6 +15,7 @@ function isolatedProof(scope: string) {
   mkdirSync(join(root, ".release"));
   writeFileSync(join(root, "package-lock.json"), lockfile);
   writeFileSync(join(root, ".release/source-attestation.json"), JSON.stringify(f.attestation));
+  f.env.APP_IMMUTABLE_SOURCE_MANIFEST = JSON.stringify({ version: 1, commitSha: f.attestation.commitSha, tree: f.attestation.tree, sourceDigest: f.attestation.sourceDigest, lockfileHash: f.attestation.lockfileHash, buildContextDigest: f.attestation.buildContextDigest });
   return { ...f, root };
 }
 

@@ -20,7 +20,7 @@ test("build proof uses actual clean Git archive and rejects dirty or mismatched 
     const sha = git("rev-parse", "HEAD").toString().trim();
     assert.equal(run({ RAILWAY_GIT_COMMIT_SHA: sha }).status, 0);
     const proof = JSON.parse(readFileSync(join(directory, ".release/source-attestation.json"), "utf8"));
-    assert.deepEqual(proof, { commitSha: sha, tree: git("rev-parse", "HEAD^{tree}").toString().trim(), sourceDigest: hash(git("archive", "--format=tar", "HEAD")), lockfileHash: hash("{}\n") });
+    assert.deepEqual(proof, { version: 1, mode: "LOCAL_PUBLICATION", commitSha: sha, tree: git("rev-parse", "HEAD^{tree}").toString().trim(), sourceDigest: hash(git("archive", "--format=tar", "HEAD")), lockfileHash: hash("{}\n") });
     assert.equal(run({ RAILWAY_GIT_COMMIT_SHA: "0".repeat(40) }).status, 1);
     assert.equal(JSON.parse(readFileSync(join(directory, ".release/source-attestation.json"), "utf8")).mode, "INVALID");
     writeFileSync(join(directory, "package-lock.json"), "{\"dirty\":true}\n");

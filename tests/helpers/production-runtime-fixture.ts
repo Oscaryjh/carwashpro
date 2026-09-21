@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 export function productionRuntimeFixture(scope = "web") {
   const secret = () => randomBytes(48).toString("base64url");
-  const attestation = { commitSha: "a".repeat(40), tree: "b".repeat(40), sourceDigest: "c".repeat(64), lockfileHash: "d".repeat(64) };
+  const attestation: { version?: number; mode?: string; commitSha: string; tree: string; sourceDigest: string; lockfileHash: string; buildContextDigest?: string } = { commitSha: "a".repeat(40), tree: "b".repeat(40), sourceDigest: "c".repeat(64), lockfileHash: "d".repeat(64) };
   const env: Record<string, string> = {
     NODE_ENV: "production", APP_ENVIRONMENT: "production", RAILWAY_ENVIRONMENT_NAME: "production",
     APP_RELEASE_SHA: attestation.commitSha, RAILWAY_GIT_COMMIT_SHA: attestation.commitSha,

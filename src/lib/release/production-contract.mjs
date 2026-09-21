@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readStagingPolicy } from "./staging-contract.mjs";
 import { assertAlertDestination, readAlertBearer } from "../ops/alert-auth.mjs";
+import { parseImmutablePublicationManifest } from "./build-attestation.mjs";
 
 const hex = (value, length) => typeof value === "string" && new RegExp(`^[a-f0-9]{${length}}$`).test(value);
 const reject = (code) => { throw new Error(`PRODUCTION_${code}`); };
@@ -21,6 +22,14 @@ export function validateProductionRuntime(env, scope, attestation) {
   const profile = value("APP_DEPLOYMENT_PROFILE") || "production";
   if (!["production", "rc-staging"].includes(profile)) reject("DEPLOYMENT_PROFILE_INVALID");
   const staging = profile === "rc-staging" ? readStagingPolicy(env, scope, databaseIdentityFingerprint(env)) : null;
+  if (staging) {
+    if (attestation.mode !== "RAILPACK_BUILD" || attestation.version !== 1 || !hex(attestation.buildContextDigest, 64)) reject("BUILD_ATTESTATION_REQUIRED");
+    let manifest;
+    try { manifest = parseImmutablePublicationManifest(env.APP_IMMUTABLE_SOURCE_MANIFEST); } catch { reject("IMMUTABLE_PUBLICATION_MANIFEST_REQUIRED"); }
+    for (const key of ["commitSha", "tree", "sourceDigest", "lockfileHash", "buildContextDigest"]) {
+      if (attestation[key] !== manifest[key]) reject("IMMUTABLE_PUBLICATION_MANIFEST_MISMATCH");
+    }
+  }
   if (!staging) {
     exact("RAILWAY_ENVIRONMENT_NAME", "production");
     for (const key of Object.keys(env)) if (key.startsWith("RC_STAGING_") && value(key)) reject("STAGING_CONFIGURATION_FORBIDDEN");

@@ -29,5 +29,7 @@ export function stagingRuntimeFixture(scope = "web") {
   env.RC_STAGING_OTP_HMAC_SEED = randomBytes(48).toString("base64url");
   env.RC_STAGING_SYNTHETIC_PHONE_ALLOWLIST = "+60119992001";
   env.PRODUCTION_ELIGIBLE = "false";
+  fixture.attestation = { ...fixture.attestation, version: 1, mode: "RAILPACK_BUILD", buildContextDigest: "e".repeat(64) };
+  env.APP_IMMUTABLE_SOURCE_MANIFEST = JSON.stringify({ version: 1, commitSha: fixture.attestation.commitSha, tree: fixture.attestation.tree, sourceDigest: fixture.attestation.sourceDigest, lockfileHash: fixture.attestation.lockfileHash, buildContextDigest: fixture.attestation.buildContextDigest });
   return { ...fixture, env: env as Record<string, string> & { NODE_ENV: "production" } };
 }
