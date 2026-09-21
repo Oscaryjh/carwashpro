@@ -4,15 +4,18 @@ import { resolve, sep } from "node:path";
 import type { PrismaClient } from "@prisma/client";
 import { authenticatePasswordLogin } from "../../src/lib/auth/password-login";
 import { persistSessionContext } from "../../src/lib/auth/session";
-import { beginMfaEnrollment, completeMfaEnrollment } from "../../src/lib/auth/mfa-service";
+import { beginMfaEnrollment, completeMfaEnrollment, regenerateRecoveryCodes } from "../../src/lib/auth/mfa-service";
 import { generateTotpCode } from "../../src/lib/auth/mfa-totp";
 import { verifySensitiveActionMfa } from "../../src/lib/auth/sensitive-action-service";
 import { getSensitiveActionPolicy, type SensitiveActionKey } from "../../src/lib/auth/sensitive-actions";
 import { confirmManualPcb, manualPcbInputDigest } from "../../src/lib/payroll/manual-pcb-service";
 
-// Called only within the exclusive, empty-database installation. No test-issued
+// Called only within the exclusive guarded installation/resume. No test-issued
 // authorization tokens, bypass flags, fixed OTPs or weakened MFA policy.
 const authorizers = new Map<string, ReturnType<typeof enrollStagingAuthorizer>>();
+export function clearStagingAuthorizerCache() {
+  authorizers.clear();
+}
 export function readStagingCredentialHandoff() {
   const path = process.env.RC_STAGING_FIXTURE_SECRET_FILE;
   if (!path) throw new Error("RC_STAGING_FIXTURE_MFA_HANDOFF_REQUIRED");
@@ -34,19 +37,35 @@ async function enrollStagingAuthorizer(prisma: PrismaClient, businessId: string,
   const session = await persistSessionContext({ userId, sessionId: randomUUID(), homeBusinessId: user.businessId,
     activeBusinessId: businessId, contextVersion: 1, branchId: user.branchId,
     name: user.name, email: user.email, role: user.role, permissions: user.permissions, status: user.status }, { database: prisma, request });
-  const pending = await beginMfaEnrollment({ userId, sessionId: session.id, password, request }, { database: prisma });
-  const enrolled = await completeMfaEnrollment({ userId, sessionId: session.id, credentialId: pending.credential.id,
-    code: generateTotpCode({ secret: pending.manualSecret, timestamp: Date.now() }), request }, { database: prisma });
-  // Only the Owner-controlled, worktree-external 0600 handoff may retain the
-  // synthetic TOTP enrollment. Never log it or put it in fixture audit metadata.
-  const { path: actual, data: secrets } = readStagingCredentialHandoff();
-  secrets.mfa = { ...secrets.mfa, [userId]: pending.manualSecret };
-  const temporary = `${actual}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, JSON.stringify(secrets), { mode: 0o600, flag: "wx" });
-  renameSync(temporary, actual);
+  const active = await prisma.userMfaCredential.findFirst({ where: { userId, type: "TOTP", status: "ACTIVE", revokedAt: null } });
+  let recoveryCodes: string[];
+  if (active) {
+    const { data: secrets } = readStagingCredentialHandoff();
+    const existingSecret = secrets.mfa?.[userId];
+    if (typeof existingSecret !== "string" || existingSecret.length < 16) throw new Error("RC_STAGING_FIXTURE_MFA_HANDOFF_REJECTED");
+    const periodMs = active.periodSeconds * 1_000;
+    const currentCounter = Math.floor(Date.now() / periodMs);
+    const lastAcceptedCounter = active.lastAcceptedCounter === null ? null : Number(active.lastAcceptedCounter);
+    if (lastAcceptedCounter !== null && currentCounter <= lastAcceptedCounter) {
+      await new Promise((resolve) => setTimeout(resolve, (lastAcceptedCounter + 1) * periodMs - Date.now() + 50));
+    }
+    recoveryCodes = (await regenerateRecoveryCodes({ userId, sessionId: session.id, password,
+      factor: { factorType: "TOTP", code: generateTotpCode({ secret: existingSecret, timestamp: Date.now() }) }, request }, { database: prisma })).recoveryCodes;
+  } else {
+    const pending = await beginMfaEnrollment({ userId, sessionId: session.id, password, request }, { database: prisma });
+    recoveryCodes = (await completeMfaEnrollment({ userId, sessionId: session.id, credentialId: pending.credential.id,
+      code: generateTotpCode({ secret: pending.manualSecret, timestamp: Date.now() }), request }, { database: prisma })).recoveryCodes;
+    // Only the Owner-controlled, worktree-external 0600 handoff may retain the
+    // synthetic TOTP enrollment. Never log it or put it in fixture audit metadata.
+    const { path: actual, data: secrets } = readStagingCredentialHandoff();
+    secrets.mfa = { ...secrets.mfa, [userId]: pending.manualSecret };
+    const temporary = `${actual}.${randomUUID()}.tmp`;
+    writeFileSync(temporary, JSON.stringify(secrets), { mode: 0o600, flag: "wx" });
+    renameSync(temporary, actual);
+  }
   let index = 0;
   const authorize = async (actionKey: SensitiveActionKey, resourceId: string) => {
-    const code = enrolled.recoveryCodes[index++];
+    const code = recoveryCodes[index++];
     if (!code) throw new Error("RC_STAGING_FIXTURE_MFA_RECOVERY_EXHAUSTED");
     const result = await verifySensitiveActionMfa({ actionKey, resourceId, resourceType: getSensitiveActionPolicy(actionKey).resourceType,
       businessId, userId, sessionId: session.id, password, factor: { factorType: "RECOVERY_CODE", code }, request }, { database: prisma });

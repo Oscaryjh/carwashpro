@@ -15,15 +15,23 @@ Staging database service variables are queried. Protected environments are queri
 for service identity metadata only, never connected to.
 
 The first invocation may create a new 0600 credential file only after identity
-checks. It requires all application tables empty and the exact 216-migration
-ledger. A transaction-scoped advisory lock serializes concurrent installations.
+checks. It normally requires all application tables empty and the exact
+216-migration ledger. The sole recovery exception is the versioned
+`CORE_PCB_CONFIRMED_DRAFT` checkpoint: before any write, the reconciler checks
+every non-empty application-table count, an ordered raw full-row digest and the
+business/branch/Payroll/MFA semantics against the committed manifest. Unknown,
+extra, duplicated or conflicting state is rejected. A transaction-scoped
+advisory lock serializes concurrent installation and recovery.
 Real Payroll and Manual PCB services run through password authentication, real
 MFA enrollment/step-up, two-person review/finalize and Payslip publication. No
 Payroll ledger, confirmation ledger or MFA authorization record is fabricated.
 The disabled synthetic tenant Owner is temporarily enabled for its own MFA
 approval and restored in `finally`. Installation sessions and usable OTP are
 revoked in `finally`, including failure paths. Partial business data is never
-automatically deleted or repaired; a failed partial installation is blocked.
+deleted, overwritten or broadly repaired. The single proven checkpoint resumes
+only unfinished phases. Existing MFA enrollment is recovered through a new
+password session plus real TOTP and recovery-code regeneration; no factor,
+session or step-up is bypassed.
 
 The same POS master data and financial trace and the eight-role permission
 contract are retained. Boundary Leave/Timesheet evidence is aligned to its
@@ -41,8 +49,9 @@ and the credential handoff digest after all synthetic MFA material is safely
 saved. MFA TOTP secrets remain only in that external 0600 handoff, never reports.
 Do not edit or rotate that file on rerun. The second invocation is verify-only;
 `--verify` additionally prohibits creating a missing credential file. Wrong or
-missing credential evidence, data drift, marker/version mismatch, nonempty
-unmarked databases and protected identities all fail closed. Successful UAT
+missing credential evidence, data drift, marker/version mismatch, any unmarked
+database other than the exact committed recovery checkpoint, and protected
+identities all fail closed. Successful UAT
 activity changes data deliberately; this installer is not a reset/reseed tool.
 
 All runtime keys are allowlisted. Each encryption keyring has exactly one active
@@ -51,11 +60,12 @@ The wrapper emits only structured counts/digests/codes. Never run with shell
 tracing, print secrets, or persist raw child/API/Prisma diagnostics.
 
 Test only on a new disposable local database using `scripts/rc-disposable-test.mjs`.
-The Staging integration file owns the whole empty database, so run it separately
-from other files. It covers first-install concurrency, verify-only replay,
-credential mismatch, semantic scope tampering, mid-workflow failure cleanup and
-unrelated-row rejection. Existing Preview fixture and canonical Payroll regression
-files must also pass in their own disposable databases.
+The Staging integration files each own a whole disposable database, so run them
+separately from other files. They cover first-install concurrency, exact
+checkpoint acceptance, unknown/conflicting state rejection, resume, verify-only
+replay, credential mismatch, semantic scope tampering, mid-workflow failure
+cleanup and unrelated-row rejection. Existing Preview fixture and canonical
+Payroll regression files must also pass in their own disposable databases.
 
 Production, Testing, old Preview and old databases remain prohibited mutation
 targets. No migrations, schema, business authorization, dependency or payment/

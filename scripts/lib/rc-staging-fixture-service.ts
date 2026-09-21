@@ -4,20 +4,21 @@ import { resolve } from "node:path";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { assertStagingFixtureState } from "./rc-staging-fixture-contract";
-import { seedStagingHrCore } from "./rc-staging-hr-core-data";
+import { resumeStagingHrCoreFromCheckpoint, seedStagingHrCore } from "./rc-staging-hr-core-data";
+import { reconcileStagingFixtureCheckpoint } from "./rc-staging-fixture-reconciliation";
 import { seedStagingPos } from "./rc-staging-pos-data";
 import { seedStagingRoles } from "./rc-staging-role-data";
-import { createStagingAuthorizer, readStagingCredentialHandoff } from "./rc-staging-fixture-mfa";
+import { clearStagingAuthorizerCache, createStagingAuthorizer, readStagingCredentialHandoff } from "./rc-staging-fixture-mfa";
 import { HR_PAYROLL_EIGHT_ROLE_PERSONAS } from "../hr-payroll-eight-role-uat-contract";
 import { generatePayrollRun, submitPayrollRunForReview, finalizePayrollRun } from "../../src/lib/payroll/service";
 import { publishPayrollPayslips } from "../../src/lib/payroll/payslip-publication";
 
-const VERSION = "rc-staging-synthetic-v1";
+const VERSION = "rc-staging-synthetic-v2";
 const MARKER_ID = "f52bbfe5-736a-4b4c-83d6-770cd2376910";
 const MARKER_ACTION = "RC_STAGING_SYNTHETIC_INSTALLED";
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const requireState = (ok: unknown) => { if (!ok) throw new Error("RC_STAGING_FIXTURE_STATE_REJECTED"); };
-const definitionFiles = ["rc-staging-fixture-contract.ts", "rc-staging-fixture-service.ts", "rc-staging-fixture-mfa.ts", "rc-staging-fixture-transport.ts", "rc-staging-fixture-preflight.ts", "rc-staging-hr-core-data.ts", "rc-staging-pos-data.ts", "rc-staging-role-data.ts", "../hr-payroll-eight-role-uat-contract.ts", "../provision-rc-staging-synthetic.ts", "../rc-staging-synthetic-worker.ts"];
+const definitionFiles = ["rc-staging-fixture-contract.ts", "rc-staging-fixture-database.ts", "rc-staging-fixture-reconciliation.ts", "rc-staging-fixture-service.ts", "rc-staging-fixture-mfa.ts", "rc-staging-fixture-transport.ts", "rc-staging-fixture-preflight.ts", "rc-staging-hr-core-data.ts", "rc-staging-pos-data.ts", "rc-staging-role-data.ts", "../hr-payroll-eight-role-uat-contract.ts", "../provision-rc-staging-synthetic.ts", "../rc-staging-synthetic-worker.ts"];
 type Database = PrismaClient | Prisma.TransactionClient;
 
 async function definitionDigest() {
@@ -185,6 +186,7 @@ export async function withStagingSessionCleanup<T>(prisma: PrismaClient, action:
     await prisma.authSession.updateMany({ where: { userId: { in: userIds }, revokedAt: null }, data: { revokedAt: new Date(), revokeReason: "RC_STAGING_FIXTURE_COMPLETE" } });
     await prisma.employeeSession.updateMany({ where: { businessId: { in: businessIds }, revokedAt: null }, data: { revokedAt: new Date(), revokeReason: "RC_STAGING_FIXTURE_COMPLETE" } });
     await prisma.employeeOtpChallenge.updateMany({ where: { employeeAccountId: { in: employeeIds }, verifiedAt: null, invalidatedAt: null, expiresAt: { gt: new Date() }, attempts: { lt: prisma.employeeOtpChallenge.fields.maxAttempts } }, data: { invalidatedAt: new Date() } });
+    clearStagingAuthorizerCache();
   }
 }
 
@@ -199,7 +201,10 @@ export async function verifyStagingSynthetic(prisma: Database) {
   return { ...await verifyStagingSemanticData(prisma), dataDigest: snapshot.dataDigest, definitionDigest: digest, version: VERSION, migrationCount: migrations };
 }
 
-export async function provisionStagingSynthetic(prisma: PrismaClient, input: { password: string }) {
+export async function provisionStagingSynthetic(
+  prisma: PrismaClient,
+  input: { password: string; testCheckpointEvidence?: { dataDigest: string; credentialDigest: string } },
+) {
   if (input.password.length < 32) throw new Error("RC_STAGING_FIXTURE_PASSWORD_REQUIRED");
   if (readStagingCredentialHandoff().data.password !== input.password) throw new Error("RC_STAGING_FIXTURE_CREDENTIALS_REJECTED");
   return prisma.$transaction(async lock => {
@@ -208,11 +213,15 @@ export async function provisionStagingSynthetic(prisma: PrismaClient, input: { p
     const snapshot = await databaseSnapshot(lock);
     const marker = await lock.auditLog.findUnique({ where: { id: MARKER_ID } });
     const digest = await definitionDigest();
-    const state = assertStagingFixtureState({ rows: snapshot.rows, marker: marker?.metadata ?? null, expectedVersion: VERSION, expectedDefinitionDigest: digest, currentDigest: snapshot.dataDigest });
+    const state = snapshot.rows > 0 && !marker
+      ? (await reconcileStagingFixtureCheckpoint(lock, input.testCheckpointEvidence), "RESUME" as const)
+      : assertStagingFixtureState({ rows: snapshot.rows, marker: marker?.metadata ?? null, expectedVersion: VERSION, expectedDefinitionDigest: digest, currentDigest: snapshot.dataDigest });
     if (state === "VERIFY_ONLY") return { ...await verifyStagingSynthetic(lock), mode: "VERIFIED_EXISTING" as const };
     const core = await withStagingSessionCleanup(prisma, async () => {
-      await seedStagingPos(prisma, input.password);
-      const installed = await seedStagingHrCore(prisma, input.password);
+      if (state === "INSTALL") await seedStagingPos(prisma, input.password);
+      const installed = state === "RESUME"
+        ? await resumeStagingHrCoreFromCheckpoint(prisma, input.password)
+        : await seedStagingHrCore(prisma, input.password);
       await seedStagingRoles(prisma, input.password, installed);
       await boundaryPayroll(prisma, input.password);
       return installed;
@@ -220,6 +229,6 @@ export async function provisionStagingSynthetic(prisma: PrismaClient, input: { p
     await verifyStagingSemanticData(prisma);
     const final = await databaseSnapshot(prisma);
     await lock.auditLog.create({ data: { id: MARKER_ID, businessId: core.businessId, action: MARKER_ACTION, entityType: "RC_STAGING_SYNTHETIC", summary: "Isolated synthetic fixture installed via domain services", metadata: { status: "COMPLETE", version: VERSION, definitionDigest: digest, dataDigest: final.dataDigest, credentialsDigest: hash(canonical(readStagingCredentialHandoff().data)) } } });
-    return { ...await verifyStagingSynthetic(lock), mode: "INSTALLED" as const };
+    return { ...await verifyStagingSynthetic(lock), mode: state === "RESUME" ? "RESUMED" as const : "INSTALLED" as const };
   }, { timeout: 300000, maxWait: 300000 });
 }

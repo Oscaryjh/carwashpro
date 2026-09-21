@@ -9,6 +9,10 @@ import { spawn } from "node:child_process";
 const root = resolve(import.meta.dirname, "..");
 const tests = process.argv[2] === "--all" ? (await readdir(join(root, "tests/integration"))).filter((name) => name.endsWith(".test.ts")).sort().map((name) => `tests/integration/${name}`) : process.argv.slice(2);
 if (!tests.length || tests.some((file) => !/^tests\/integration\/[a-zA-Z0-9_-]+(?:\.integration)?\.test\.ts$/.test(file))) throw new Error("RC_TEST_ALLOWLIST_REQUIRED");
+const wholeDatabaseTests = new Set([
+  "tests/integration/rc-staging-fixture-resume.test.ts",
+  "tests/integration/rc-staging-fixture.test.ts",
+]);
 const directory = await mkdtemp(join(root, ".rc-disposable-"));
 const port = await new Promise((res, rej) => {
   const server = createServer();
@@ -80,7 +84,13 @@ let finalExitCode = 0;
 try {
   await database.initialise(); await database.start(); await database.createDatabase(localDatabaseName);
   await run(["node_modules/prisma/build/index.js", "migrate", "deploy"], "MIGRATION_REPLAY");
-  await run(["--import", "tsx", "--test", "--test-concurrency=1", ...tests], "INTEGRATION");
+  const sharedTests = tests.length > 1 ? tests.filter((file) => !wholeDatabaseTests.has(file)) : tests;
+  if (sharedTests.length) await run(["--import", "tsx", "--test", "--test-concurrency=1", ...sharedTests], "INTEGRATION");
+  if (tests.length > 1) {
+    for (const file of tests.filter((candidate) => wholeDatabaseTests.has(candidate))) {
+      await runIsolatedWholeDatabaseTest(file);
+    }
+  }
 } catch (error) {
   console.log(JSON.stringify({ result: "BLOCKED", code: error instanceof Error && /^(MIGRATION_REPLAY|INTEGRATION)_FAILED$/.test(error.message) ? error.message : "LOCAL_HARNESS_FAILED" }));
   finalExitCode = 1;
@@ -93,3 +103,16 @@ try {
 // embedded-postgres installs an async exit hook. Exit explicitly only AFTER
 // owned-resource cleanup so its natural beforeExit hook cannot mask failure.
 process.exit(finalExitCode);
+
+async function runIsolatedWholeDatabaseTest(file) {
+  const exit = await new Promise((resolveExit) => {
+    const child = spawn(process.execPath, [resolve(root, "scripts/rc-disposable-test.mjs"), file], {
+      cwd: root,
+      env: { PATH: process.env.PATH, HOME: process.env.HOME },
+      stdio: "inherit",
+    });
+    child.on("error", () => resolveExit(1));
+    child.on("close", (code) => resolveExit(code ?? 1));
+  });
+  if (exit !== 0) throw new Error("INTEGRATION_FAILED");
+}

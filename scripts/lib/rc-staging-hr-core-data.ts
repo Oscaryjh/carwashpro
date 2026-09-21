@@ -52,7 +52,11 @@ function actor(user: { id: string; name: string; email: string | null }) {
 }
 
 // Scenario definitions copied from the approved core fixture; original entrypoint and guards are unchanged.
-export async function seedStagingHrCore(prisma: PrismaClient, password: string) {
+export async function seedStagingHrCore(
+  prisma: PrismaClient,
+  password: string,
+  options: { stopAfterConfirmedDraft?: boolean } = {},
+) {
   const suffix = "stagingv1";
   const ownerEmail = `${OWNER_EMAIL_PREFIX}+${suffix}@tetamu.local`;
   const managerEmail = `${MANAGER_EMAIL_PREFIX}+${suffix}@tetamu.local`;
@@ -469,11 +473,21 @@ export async function seedStagingHrCore(prisma: PrismaClient, password: string) 
     if (amount === undefined) throw new Error("CORE_MANUAL_PCB_EVIDENCE_MISSING");
     await authorizer.confirm(entry.id, amount, `RC_STAGING_CORE_EXPLICIT_ZERO_${entry.employeeCodeSnapshot}_2026_08`);
   }
+  const artifact = {
+    businessId: fixture.business.id,
+    businessName: BUSINESS_NAME,
+    branchId: fixture.branch.id,
+    ownerEmail,
+    employeeMemberships: Object.fromEntries(
+      [...fixture.members].map(([code, member]) => [code, { membershipId: member.membershipId }]),
+    ),
+  };
+  if (options.stopAfterConfirmedDraft) return artifact;
   await submitPayrollRunForReview({
     businessId: fixture.business.id,
     actor: actor(fixture.owner),
     runId: run.id,
-  });
+  }, prisma);
   const persona = HR_PAYROLL_EIGHT_ROLE_PERSONAS.find(p => p.key === "PAYROLL_ADMIN")!;
   const reviewer = await prisma.user.create({ data: { businessId: fixture.business.id, branchId: fixture.branch.id,
     name: persona.name, email: persona.email, role: "STAFF", permissions: [...persona.permissions], passwordHash,
@@ -485,14 +499,14 @@ export async function seedStagingHrCore(prisma: PrismaClient, password: string) 
     actor: actor(reviewer),
     runId: run.id,
     stepUp,
-  });
+  }, prisma);
   await publishPayrollPayslips({
     businessId: fixture.business.id,
     runId: run.id,
     actor: actor(fixture.owner),
-  });
+  }, prisma);
 
-  return { businessId: fixture.business.id, businessName: BUSINESS_NAME, branchId: fixture.branch.id, ownerEmail, employeeMemberships: Object.fromEntries([...fixture.members].map(([code, member]) => [code, {membershipId: member.membershipId}])) };
+  return artifact;
 
 async function ensureRequiredPreviewDomains(
   tx: Prisma.TransactionClient,
@@ -1177,4 +1191,88 @@ async function createLockedTimesheet(
   return { timesheetId: timesheet.id, revisionId: revision.id, status: "LOCKED" as const };
 }
 
+}
+
+export async function createStagingHrCoreCheckpoint(
+  prisma: PrismaClient,
+  password: string,
+) {
+  return seedStagingHrCore(prisma, password, { stopAfterConfirmedDraft: true });
+}
+
+export async function resumeStagingHrCoreFromCheckpoint(
+  prisma: PrismaClient,
+  password: string,
+) {
+  const business = await prisma.business.findUniqueOrThrow({
+    where: { slug: HR_PAYROLL_UAT_SYNTHETIC_BUSINESS_SLUG },
+  });
+  const branch = await prisma.branch.findFirstOrThrow({
+    where: { businessId: business.id, name: "Acceptance Main Branch" },
+  });
+  const ownerEmail = `${OWNER_EMAIL_PREFIX}+stagingv1@tetamu.local`;
+  const owner = await prisma.user.findUniqueOrThrow({ where: { email: ownerEmail } });
+  const candidateRuns = await prisma.payrollRun.findMany({
+    where: { businessId: business.id, status: "DRAFT" },
+    include: { entries: { select: { employeeCodeSnapshot: true } } },
+  });
+  if (candidateRuns.length !== 1) throw new Error("RC_STAGING_FIXTURE_RECONCILIATION_REJECTED");
+  const run = candidateRuns[0];
+  const expectedCodes = scenarios.map(({ code }) => code).sort();
+  if (
+    run.entries.length !== expectedCodes.length ||
+    JSON.stringify(run.entries.map(({ employeeCodeSnapshot }) => employeeCodeSnapshot).sort()) !==
+      JSON.stringify(expectedCodes)
+  ) {
+    throw new Error("RC_STAGING_FIXTURE_RECONCILIATION_REJECTED");
+  }
+  await submitPayrollRunForReview({
+    businessId: business.id,
+    actor: actor(owner),
+    runId: run.id,
+  }, prisma);
+  const persona = HR_PAYROLL_EIGHT_ROLE_PERSONAS.find((item) => item.key === "PAYROLL_ADMIN")!;
+  const reviewer = await prisma.user.create({
+    data: {
+      businessId: business.id,
+      branchId: branch.id,
+      name: persona.name,
+      email: persona.email,
+      role: "STAFF",
+      permissions: [...persona.permissions],
+      passwordHash: await bcrypt.hash(password, 10),
+      loginEnabled: true,
+      status: "active",
+    },
+  });
+  const reviewerAuthorization = await createStagingAuthorizer(
+    prisma,
+    business.id,
+    reviewer.id,
+    password,
+  );
+  await finalizePayrollRun({
+    businessId: business.id,
+    actor: actor(reviewer),
+    runId: run.id,
+    stepUp: await reviewerAuthorization.authorize("PAYROLL_FINALIZE", run.id),
+  }, prisma);
+  await publishPayrollPayslips({
+    businessId: business.id,
+    runId: run.id,
+    actor: actor(owner),
+  }, prisma);
+  const members = await prisma.employeeBusinessMembership.findMany({
+    where: { businessId: business.id, employeeCode: { in: expectedCodes } },
+    select: { id: true, employeeCode: true },
+  });
+  return {
+    businessId: business.id,
+    businessName: BUSINESS_NAME,
+    branchId: branch.id,
+    ownerEmail,
+    employeeMemberships: Object.fromEntries(
+      members.map((member) => [member.employeeCode, { membershipId: member.id }]),
+    ),
+  };
 }

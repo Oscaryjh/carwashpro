@@ -6,8 +6,8 @@ async function main() {
   const input = await prepareStagingFixtureConnection();
   for (const key of Object.keys(process.env)) delete process.env[key];
   Object.assign(process.env, input.environment);
-  const { PrismaClient } = await import("@prisma/client");
-  const prisma = new PrismaClient({ log: [] });
+  const { createStagingFixtureDatabase } = await import("./lib/rc-staging-fixture-database");
+  const prisma = createStagingFixtureDatabase();
   try {
     const actual = await prisma.$queryRaw<Array<{ database: string; username: string }>>`SELECT current_database() AS database,current_user AS username`;
     if (actual.length !== 1 || actual[0].database !== input.databaseName || actual[0].username !== input.databaseUser) throw new Error("RC_STAGING_FIXTURE_CONNECTED_IDENTITY_MISMATCH");
