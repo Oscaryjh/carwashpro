@@ -1,25 +1,21 @@
 import { revalidatePath } from "next/cache";
-import sharp from "sharp";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee-auth";
 import { EmployeeAuthError } from "@/lib/attendance/employee-auth/errors";
 import { assertEmployeeAuthSameOrigin } from "@/lib/attendance/employee-auth/http";
 import { employeeAuthErrorResponse, employeeAuthJson } from "@/lib/attendance/employee-auth/response";
+import {
+  AvatarImageValidationError,
+  EMPLOYEE_AVATAR_CONTENT_TYPES,
+  processEmployeeAvatarImage,
+} from "@/lib/employee-avatar-image";
 import { prisma } from "@/lib/prisma";
 import { deleteRuntimeEmployeeAvatarByUrl, writeRuntimeEmployeeAvatar } from "@/lib/runtime-employee-avatar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const allowedAvatarTypes = new Set([
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-  "image/avif",
-  "image/heic",
-  "image/heif",
-]);
+const allowedAvatarTypes = new Set<string>(EMPLOYEE_AVATAR_CONTENT_TYPES);
 const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
 
 export async function POST(request: Request) {
@@ -54,15 +50,15 @@ export async function POST(request: Request) {
     const input = Buffer.from(await file.arrayBuffer());
     let bytes: Buffer;
     try {
-      bytes = await sharp(input, {
-        failOn: "warning",
-        limitInputPixels: 40_000_000,
-      } as NonNullable<Parameters<typeof sharp>[1]>)
-        .rotate()
-        .resize(512, 512, { fit: "cover", position: "attention" })
-        .webp({ quality: 84 })
-        .toBuffer();
-    } catch {
+      bytes = await processEmployeeAvatarImage({
+        input,
+        contentType: file.type,
+        maxBytes: MAX_AVATAR_BYTES,
+      });
+    } catch (error) {
+      if (error instanceof AvatarImageValidationError && error.code === "TOO_LARGE") {
+        throw invalidAvatar("Choose a photo smaller than 10 MB.");
+      }
       throw invalidAvatar("This photo could not be processed. Choose another photo.");
     }
     const upload = await writeRuntimeEmployeeAvatar({
@@ -119,4 +115,3 @@ function invalidAvatar(message: string) {
     status: 400,
   });
 }
-

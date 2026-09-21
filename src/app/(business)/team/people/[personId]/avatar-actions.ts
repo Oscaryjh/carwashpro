@@ -1,12 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import sharp from "sharp";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
+import {
+  MANAGED_EMPLOYEE_AVATAR_CONTENT_TYPES,
+  processEmployeeAvatarImage,
+} from "@/lib/employee-avatar-image";
 import { prisma } from "@/lib/prisma";
 import {
   deleteRuntimeEmployeeAvatarByUrl,
@@ -18,7 +21,7 @@ import {
 } from "@/lib/team/people-scope";
 
 const membershipIdSchema = z.string().uuid();
-const allowedAvatarTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const allowedAvatarTypes = new Set<string>(MANAGED_EMPLOYEE_AVATAR_CONTENT_TYPES);
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 export type EmployeeAvatarActionState = {
@@ -90,11 +93,12 @@ export async function updateEmployeeAvatarAction(
   let uploadedAvatarUrl: string | null = null;
   try {
     const input = Buffer.from(await file.arrayBuffer());
-    const avatar = await sharp(input, { failOn: "warning" })
-      .rotate()
-      .resize(512, 512, { fit: "cover", position: "attention" })
-      .webp({ quality: 84 })
-      .toBuffer();
+    const avatar = await processEmployeeAvatarImage({
+      input,
+      contentType: file.type,
+      maxBytes: MAX_AVATAR_BYTES,
+      allowedContentTypes: MANAGED_EMPLOYEE_AVATAR_CONTENT_TYPES,
+    });
     const upload = await writeRuntimeEmployeeAvatar({
       membershipId: membership.id,
       bytes: avatar,
