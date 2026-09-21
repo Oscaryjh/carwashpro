@@ -5,6 +5,8 @@ export function stagingRuntimeFixture(scope = "web") {
   const fixture = productionRuntimeFixture(scope);
   const { env } = fixture;
   env.APP_DEPLOYMENT_PROFILE = "rc-staging";
+  env.RAILWAY_REPLICA_REGION = "asia-southeast1-eqsg3a";
+  env.PRODUCTION_DATABASE_REGION = "asia-southeast1-eqsg3a";
   env.OPS_ALERT_WEBHOOK_BEARER_TOKEN = randomBytes(48).toString("base64url");
   env.RAILWAY_ENVIRONMENT_NAME = "Production-RC-Staging-20260920";
   env.RAILWAY_ENVIRONMENT_ID = env.PRODUCTION_EXPECTED_ENVIRONMENT_ID = "synthetic-staging";

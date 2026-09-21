@@ -25,7 +25,11 @@ inventory. This local candidate does not create resources or attest real IDs.
 All actual IDs must match this manifest AND the existing `PRODUCTION_EXPECTED_*`
 bindings. Protected identities take precedence. Database name and fingerprint
 must be independently verified, not inferred from service display names. Both
-database and replica region must be `asia-southeast1`. All original source proof,
+database and replica region must be `asia-southeast1-eqsg3a` for this approved
+rc-staging profile. Legacy, missing, unknown, non-Singapore and mismatched regions
+are rejected; do not override the platform-provided replica region to disguise
+its actual location. The formal Production profile retains its original
+`asia-southeast1` contract unchanged. All original source proof,
 deployment ID, MFA, encryption/key-version, proxy, alert and singleton checks
 remain mandatory for every scope. No staging migration bypass exists.
 

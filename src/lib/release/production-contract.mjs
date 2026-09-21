@@ -25,7 +25,8 @@ export function validateProductionRuntime(env, scope, attestation) {
     exact("RAILWAY_ENVIRONMENT_NAME", "production");
     for (const key of Object.keys(env)) if (key.startsWith("RC_STAGING_") && value(key)) reject("STAGING_CONFIGURATION_FORBIDDEN");
   }
-  exact("RAILWAY_REPLICA_REGION", "asia-southeast1"); exact("PRODUCTION_DATABASE_REGION", "asia-southeast1");
+  const region = staging ? "asia-southeast1-eqsg3a" : "asia-southeast1";
+  exact("RAILWAY_REPLICA_REGION", region); exact("PRODUCTION_DATABASE_REGION", region);
   for (const [actual, approved] of [["RAILWAY_PROJECT_ID", "PRODUCTION_EXPECTED_PROJECT_ID"], ["RAILWAY_ENVIRONMENT_ID", "PRODUCTION_EXPECTED_ENVIRONMENT_ID"], ["RAILWAY_SERVICE_ID", "PRODUCTION_EXPECTED_SERVICE_ID"], ["RAILWAY_DATABASE_SERVICE_ID", "PRODUCTION_EXPECTED_DATABASE_SERVICE_ID"]]) exact(actual, required(approved));
   required("RAILWAY_DEPLOYMENT_ID");
   let db; try { db = new URL(value("DATABASE_URL")); } catch { reject("DATABASE_URL_INVALID"); }
