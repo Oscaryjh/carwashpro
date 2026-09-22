@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { releaseIdentity } from "@/lib/release/environment";
 import { evaluateWebReadiness } from "@/lib/health/web-readiness";
-import { validatePosPilotRuntimeContract } from "@/lib/release/pos-pilot-contract";
+import {
+  resolvePosPilotWriteFreezeMode,
+  validatePosPilotRuntimeContract,
+} from "@/lib/release/pos-pilot-contract";
 import { assertWhatsAppLiveDeliveryAllowed } from "@/lib/whatsapp/delivery-policy";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +14,7 @@ export async function GET() {
   const identity = releaseIdentity();
   const readiness = await evaluateWebReadiness({
     databaseProbe: () => prisma.$queryRaw`SELECT 1`,
+    writeFreezeModeProbe: () => resolvePosPilotWriteFreezeMode(),
     runtimeContractProbe: () => {
       validatePosPilotRuntimeContract();
       if (

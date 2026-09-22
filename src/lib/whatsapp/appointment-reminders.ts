@@ -4,6 +4,7 @@ import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
 import { normalizeValidWhatsAppPhone } from "@/lib/whatsappDeepLink";
+import { shouldSuppressPosPilotNotificationQueue } from "@/lib/release/pos-pilot-contract";
 
 export const APPOINTMENT_REMINDER_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_APPOINTMENT_REMINDER_LEAD_TIME_MINUTES = 24 * 60;
@@ -52,6 +53,9 @@ export async function scheduleAppointmentReminder({
   sentByUserId,
   now = new Date(),
 }: ScheduleAppointmentReminderInput) {
+  if (shouldSuppressPosPilotNotificationQueue()) {
+    return { status: "WRITE_FROZEN" as const };
+  }
   if (!(await isBusinessModuleEnabled(businessId, "WHATSAPP", { now }))) {
     return { status: "MODULE_NOT_ENABLED" as const };
   }

@@ -19,12 +19,17 @@ import {
 import { reconcileInvoiceSettlementAfterRefund } from "@/lib/invoices/refund-settlement-service";
 import { recordRefundInventory, recordVoidInventoryReversals } from "@/lib/inventory/service";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
+import { prisma } from "@/lib/prisma";
 import { fromCents, toCents } from "@/lib/validation/pos";
 import {
   financialOperationKeySchema,
   runFinancialOperation,
 } from "@/lib/financial-idempotency";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import {
+  assertPosPilotWriteScope,
+  preflightPosPilotWrite,
+} from "@/lib/release/pos-pilot-write-freeze-server";
 
 export type VoidInvoiceState = {
   status: "idle" | "success" | "error";
@@ -59,6 +64,7 @@ export async function refundPaymentAction(
   _previousState: RefundPaymentState,
   formData: FormData,
 ): Promise<RefundPaymentState> {
+  const smokeScope = await preflightPosPilotWrite("POS_REFUND");
   const { businessId, user } = await requireBusinessUser("PROCESS_REFUND");
   const auditRequest = await getAuditRequestContext();
 
@@ -102,6 +108,17 @@ export async function refundPaymentAction(
 
   const input = parsed.data;
   const operationalBranchWhere = authorizedOperationalBranchWhere(user);
+  if (smokeScope) {
+    const scopeTarget = await prisma.invoice.findFirstOrThrow({
+      where: { id: input.invoiceId, businessId, ...operationalBranchWhere },
+      select: { branchId: true },
+    });
+    assertPosPilotWriteScope(smokeScope, {
+      actorId: user.userId,
+      branchId: scopeTarget.branchId,
+      businessId,
+    });
+  }
   const amountCents = Math.round(input.amount * 100);
 
   if (Math.abs(input.amount * 100 - amountCents) > 0.0001) {
@@ -519,6 +536,7 @@ export async function voidInvoiceAction(
   _previousState: VoidInvoiceState,
   formData: FormData,
 ): Promise<VoidInvoiceState> {
+  await preflightPosPilotWrite("INVOICE_VOID");
   const { businessId, user } = await requireBusinessUser("PROCESS_REFUND");
   const auditRequest = await getAuditRequestContext();
   const invoiceId = String(formData.get("invoiceId") ?? "");

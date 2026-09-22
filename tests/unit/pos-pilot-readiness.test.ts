@@ -12,33 +12,40 @@ test("web readiness distinguishes process, application and database health", asy
   const ready = await evaluateWebReadiness({
     databaseProbe: async () => undefined,
     runtimeContractProbe: () => undefined,
+    writeFreezeModeProbe: () => "full",
   });
   assert.deepEqual(ready, {
     application: "ready",
     database: "ready",
     ok: true,
     process: "alive",
+    writeFreeze: "full",
   });
 
   const databaseDown = await evaluateWebReadiness({
     databaseProbe: async () => { throw new Error("secret db host"); },
     runtimeContractProbe: () => undefined,
+    writeFreezeModeProbe: () => "operator-smoke",
   });
   assert.deepEqual(databaseDown, {
     application: "not_ready",
     database: "unavailable",
     ok: false,
     process: "alive",
+    writeFreeze: "operator-smoke",
   });
   assert.doesNotMatch(JSON.stringify(databaseDown), /secret db host/);
 
   const configurationDown = await evaluateWebReadiness({
     databaseProbe: async () => undefined,
     runtimeContractProbe: () => { throw new Error("secret config"); },
+    writeFreezeModeProbe: () => { throw new Error("secret freeze config"); },
   });
   assert.equal(configurationDown.application, "configuration_failed");
   assert.equal(configurationDown.database, "not_checked");
   assert.equal(configurationDown.ok, false);
+  assert.equal(configurationDown.writeFreeze, "invalid");
+  assert.doesNotMatch(JSON.stringify(configurationDown), /secret freeze config/);
 });
 
 test("worker readiness requires config, DB, queue and a fresh loop heartbeat", () => {

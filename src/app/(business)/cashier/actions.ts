@@ -29,6 +29,10 @@ import { runFinancialOperation } from "@/lib/financial-idempotency";
 import { recordSaleInventory } from "@/lib/inventory/service";
 import { defaultBusinessPaymentMethods } from "@/lib/payments/business-methods";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import {
+  assertPosPilotWriteScope,
+  preflightPosPilotWrite,
+} from "@/lib/release/pos-pilot-write-freeze-server";
 
 export type CashierSaleInvoiceSummary = {
   id: string;
@@ -76,6 +80,7 @@ function mergeQuantities(ids: string[], quantities: number[]) {
 }
 
 export async function completeCashierSaleAction(formData: FormData): Promise<CashierSaleState> {
+  const smokeScope = await preflightPosPilotWrite("POS_CHECKOUT");
   const { businessId, user } = await requireBusinessUser(
     "PROCESS_CASHIER_PAYMENT",
   );
@@ -129,6 +134,11 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
     if (!branchId) {
       throw new Error("An active branch is required before completing a sale.");
     }
+    assertPosPilotWriteScope(smokeScope, {
+      actorId: user.userId,
+      branchId,
+      businessId,
+    });
 
     const { operationId, ...financialPayload } = input;
     const { result } = await runFinancialOperation({

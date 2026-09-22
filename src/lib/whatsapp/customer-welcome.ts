@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getDefaultWhatsAppInstanceId } from "@/lib/whatsapp/instance";
 import { encodeWhatsAppStoredText } from "@/lib/whatsapp/message-codec";
 import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
+import { shouldSuppressPosPilotNotificationQueue } from "@/lib/release/pos-pilot-contract";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
@@ -20,6 +21,7 @@ type SendNewCustomerWelcomeInput = {
 export async function sendNewCustomerWelcomeIfConnected(
   input: SendNewCustomerWelcomeInput,
 ) {
+  if (shouldSuppressPosPilotNotificationQueue()) return;
   if (!(await isBusinessModuleEnabled(input.businessId, "WHATSAPP"))) return;
   const recipientPhone = normalizeMalaysiaWhatsAppPhone(input.customerPhone);
 

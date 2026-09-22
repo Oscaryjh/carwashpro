@@ -27,6 +27,10 @@ import { assertStaffAvailability } from "@/lib/appointments/staff-availability";
 import { buildAppointmentStaffWhere } from "@/lib/appointments/staff-branch-scope";
 import { awardLoyaltyPointsForPayment } from "@/lib/loyalty/service";
 import { prisma } from "@/lib/prisma";
+import {
+  assertPosPilotWriteScope,
+  preflightPosPilotWrite,
+} from "@/lib/release/pos-pilot-write-freeze-server";
 import { calculateTax } from "@/lib/tax/calculator";
 import { normalizeCustomerPhone } from "@/lib/validation/crm";
 import {
@@ -153,7 +157,10 @@ async function cancelReminderSafely(input: {
   }
 }
 
-async function createAppointment(formData: FormData): Promise<AppointmentMutationResult> {
+async function createAppointment(
+  formData: FormData,
+  smokeScope: Awaited<ReturnType<typeof preflightPosPilotWrite>>,
+): Promise<AppointmentMutationResult> {
   const { businessId, industryType, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const parsedInput = createAppointmentSchema.safeParse({
     assignedStaffId: formData.get("assignedStaffId"),
@@ -185,6 +192,11 @@ async function createAppointment(formData: FormData): Promise<AppointmentMutatio
     input.branchId || null,
   ));
   const appointmentBranchId = branchId;
+  assertPosPilotWriteScope(smokeScope, {
+    actorId: user.userId,
+    branchId: appointmentBranchId,
+    businessId,
+  });
   const scheduledAt = parseAppointmentDateTime(
     input.scheduledDate,
     input.scheduledTime,
@@ -388,13 +400,15 @@ async function createAppointment(formData: FormData): Promise<AppointmentMutatio
 export async function createAppointmentInlineAction(
   formData: FormData,
 ): Promise<AppointmentMutationResult> {
-  return createAppointment(formData);
+  const smokeScope = await preflightPosPilotWrite("APPOINTMENT_CREATE");
+  return createAppointment(formData, smokeScope);
 }
 
 export async function createAppointmentAction(formData: FormData): Promise<void> {
+  const smokeScope = await preflightPosPilotWrite("APPOINTMENT_CREATE");
   const scheduledDate =
     formData.get("scheduledDate")?.toString() || new Date().toISOString().slice(0, 10);
-  const result = await createAppointment(formData);
+  const result = await createAppointment(formData, smokeScope);
 
   if (!result.ok) {
     redirect(
@@ -408,6 +422,7 @@ export async function createAppointmentAction(formData: FormData): Promise<void>
 }
 
 export async function updateAppointmentStatusAction(formData: FormData) {
+  const smokeScope = await preflightPosPilotWrite("APPOINTMENT_UPDATE");
   const { businessId, industryType, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const input = updateAppointmentStatusSchema.parse({
     appointmentId: formData.get("appointmentId"),
@@ -424,11 +439,17 @@ export async function updateAppointmentStatusAction(formData: FormData) {
     },
     select: {
       assignedStaffId: true,
+      branchId: true,
       id: true,
       serviceId: true,
       serviceIds: true,
       status: true,
     },
+  });
+  assertPosPilotWriteScope(smokeScope, {
+    actorId: user.userId,
+    branchId: appointment.branchId,
+    businessId,
   });
 
   if (input.status === "COMPLETED" && industryType !== "SALON_BEAUTY") {
@@ -477,6 +498,7 @@ export async function updateAppointmentStatusAction(formData: FormData) {
 export async function rescheduleAppointmentAction(
   formData: FormData,
 ): Promise<AppointmentMutationResult> {
+  const smokeScope = await preflightPosPilotWrite("APPOINTMENT_UPDATE");
   const { businessId, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const input = rescheduleAppointmentSchema.parse({
     assignedStaffId: formData.get("assignedStaffId"),
@@ -509,6 +531,11 @@ export async function rescheduleAppointmentAction(
       serviceId: true,
       serviceIds: true,
     },
+  });
+  assertPosPilotWriteScope(smokeScope, {
+    actorId: user.userId,
+    branchId: appointment.branchId,
+    businessId,
   });
 
   if (appointment.invoice) {
@@ -593,6 +620,7 @@ export async function rescheduleAppointmentAction(
 export async function updateAppointmentDetailsAction(
   formData: FormData,
 ): Promise<AppointmentMutationResult> {
+  const smokeScope = await preflightPosPilotWrite("APPOINTMENT_UPDATE");
   const { businessId, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const input = updateAppointmentDetailsSchema.parse({
     appointmentId: formData.get("appointmentId"),
@@ -625,6 +653,11 @@ export async function updateAppointmentDetailsAction(
       invoice: { select: { id: true } },
       status: true,
     },
+  });
+  assertPosPilotWriteScope(smokeScope, {
+    actorId: user.userId,
+    branchId: appointment.branchId,
+    businessId,
   });
 
   const isCompletedSaleUpdate = appointment.status === "COMPLETED";
@@ -764,6 +797,7 @@ export async function updateAppointmentDetailsAction(
 }
 
 export async function addAppointmentServicesAction(formData: FormData) {
+  const smokeScope = await preflightPosPilotWrite("APPOINTMENT_UPDATE");
   const { businessId, industryType, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const input = addAppointmentServicesSchema.parse({
     appointmentId: formData.get("appointmentId"),
@@ -773,6 +807,18 @@ export async function addAppointmentServicesAction(formData: FormData) {
 
   if (industryType !== "SALON_BEAUTY") {
     throw new Error("Adding services during an appointment is only available to Salon businesses.");
+  }
+
+  if (smokeScope) {
+    const scopeTarget = await prisma.appointment.findFirstOrThrow({
+      where: { id: input.appointmentId, businessId, ...staffBranchFilter(user) },
+      select: { branchId: true },
+    });
+    assertPosPilotWriteScope(smokeScope, {
+      actorId: user.userId,
+      branchId: scopeTarget.branchId,
+      businessId,
+    });
   }
 
   const result = await prisma.$transaction(async (tx) => {
@@ -881,6 +927,7 @@ export async function addAppointmentServicesAction(formData: FormData) {
 }
 
 export async function convertAppointmentToJobAction(formData: FormData) {
+  await preflightPosPilotWrite("APPOINTMENT_CONVERT_TO_JOB");
   const { businessId, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const input = convertAppointmentSchema.parse({
     appointmentId: formData.get("appointmentId"),
@@ -1066,6 +1113,7 @@ export async function recordSalonAppointmentPaymentAction(
   _previousState: SalonAppointmentPaymentState,
   formData: FormData,
 ): Promise<SalonAppointmentPaymentState> {
+  const smokeScope = await preflightPosPilotWrite("POS_PAYMENT");
   const { businessId, industryType, user } = await requireBusinessUser("MODIFY_APPOINTMENTS");
   const auditRequest = await getAuditRequestContext();
   const parsed = salonAppointmentPaymentSchema.safeParse({
@@ -1098,6 +1146,18 @@ export async function recordSalonAppointmentPaymentAction(
   }
 
   const input = parsed.data;
+
+  if (smokeScope) {
+    const scopeTarget = await prisma.appointment.findFirstOrThrow({
+      where: { id: input.appointmentId, businessId, ...staffBranchFilter(user) },
+      select: { branchId: true },
+    });
+    assertPosPilotWriteScope(smokeScope, {
+      actorId: user.userId,
+      branchId: scopeTarget.branchId,
+      businessId,
+    });
+  }
 
   if (industryType !== "SALON_BEAUTY") {
     return {

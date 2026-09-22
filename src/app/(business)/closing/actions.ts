@@ -52,6 +52,10 @@ import {
   DailyClosingDifferenceReasonError,
   requireDailyClosingDifferenceReason,
 } from "@/lib/closing/money-validation";
+import {
+  assertPosPilotWriteScope,
+  preflightPosPilotWrite,
+} from "@/lib/release/pos-pilot-write-freeze-server";
 
 const startShiftSchema = z.object({
   branchId: z.string().optional(),
@@ -97,6 +101,7 @@ export type CloseDailySnapshotState = {
 };
 
 export async function startShiftAction(formData: FormData) {
+  const smokeScope = await preflightPosPilotWrite("POS_DAILY_CLOSING_START");
   const { businessId, user } = await requireBusinessUser("RUN_CLOSING");
   assertStaffPermission(user, "CLOSING");
   const auditRequest = await getAuditRequestContext();
@@ -111,6 +116,11 @@ export async function startShiftAction(formData: FormData) {
     user,
     input.branchId ?? null,
   );
+  assertPosPilotWriteScope(smokeScope, {
+    actorId: user.userId,
+    branchId,
+    businessId,
+  });
 
   try {
     await runClosingSerializableTransaction(prisma, async (tx) => {
@@ -217,6 +227,7 @@ function withStatusMessage(
 }
 
 export async function endShiftAction(formData: FormData) {
+  const smokeScope = await preflightPosPilotWrite("POS_DAILY_CLOSING_END");
   const { businessId, user } = await requireBusinessUser("RUN_CLOSING");
   assertStaffPermission(user, "CLOSING");
   const auditRequest = await getAuditRequestContext();
@@ -248,6 +259,11 @@ export async function endShiftAction(formData: FormData) {
       )}`,
     );
   }
+  assertPosPilotWriteScope(smokeScope, {
+    actorId: user.userId,
+    branchId: shift.branchId,
+    businessId,
+  });
 
   const closingCashCents = Math.round(input.closingCash * 100);
   const notes = input.notes?.trim() || null;
@@ -479,6 +495,7 @@ export async function closeDailySnapshotAction(
   _previousState: CloseDailySnapshotState,
   formData: FormData,
 ): Promise<CloseDailySnapshotState> {
+  const smokeScope = await preflightPosPilotWrite("POS_DAILY_CLOSING_FINALIZE");
   const { businessId, industryType, user } = await requireBusinessUser("RUN_CLOSING");
   if (!hasStaffPermission(user, "CONFIRM_DAILY_CLOSING")) {
     return {
@@ -540,6 +557,11 @@ export async function closeDailySnapshotAction(
       status: "error",
     };
   }
+  assertPosPilotWriteScope(smokeScope, {
+    actorId: user.userId,
+    branchId,
+    businessId,
+  });
   const auditRequest = await getAuditRequestContext();
 
   try {
@@ -662,6 +684,7 @@ export async function closeDailySnapshotAction(
 }
 
 export async function resolveStaleShiftAction(formData: FormData) {
+  await preflightPosPilotWrite("STALE_SHIFT_RESOLUTION");
   const { businessId, user } = await requireBusinessUser("RUN_CLOSING");
   assertStaffPermission(user, "CONFIRM_DAILY_CLOSING");
   const auditRequest = await getAuditRequestContext();
@@ -778,6 +801,7 @@ export async function resolveStaleShiftAction(formData: FormData) {
 }
 
 export async function manualClosingWhatsAppSendAction(formData: FormData) {
+  await preflightPosPilotWrite("WHATSAPP_SEND");
   const { businessId, user } = await requireBusinessUser("RUN_CLOSING");
   assertStaffPermission(user, "CONFIRM_DAILY_CLOSING");
 

@@ -16,6 +16,7 @@ const productionBase = {
   RAILWAY_ENVIRONMENT_NAME: "production",
   POS_PILOT_FROZEN_DOMAINS: "true",
   POS_PILOT_RELEASE_MODE: "core-pilot",
+  POS_PILOT_WRITE_FREEZE_MODE: "full",
   APP_RELEASE_SHA: "abcdef1234567890",
   APP_RELEASE_SOURCE_DIGEST: "a".repeat(64),
   DATABASE_URL: "postgresql://user:pass@production-db.internal:5432/tetamu",
@@ -44,9 +45,43 @@ test("Testing environment permits controlled mocks", () => {
     NODE_ENV: "production",
     POS_PILOT_FROZEN_DOMAINS: "true",
     POS_PILOT_RELEASE_MODE: "core-pilot",
+    POS_PILOT_WRITE_FREEZE_MODE: "full",
     WHATSAPP_SEND_MODE: "mock",
   });
   assert.equal(result.status, 0, result.stderr);
+});
+
+test("Production release validation fails closed for missing or ambiguous write-freeze mode", () => {
+  for (const value of ["", "FULL", "true", "disabled"]) {
+    const result = validate("web", {
+      ...productionBase,
+      POS_PILOT_WRITE_FREEZE_MODE: value,
+    });
+    assert.notEqual(result.status, 0, value);
+    assert.match(result.stderr, /POS_PILOT_WRITE_FREEZE_MODE/i, value);
+  }
+});
+
+test("Production operator-smoke startup requires the complete dedicated capability scope", () => {
+  const operatorSmoke = {
+    ...productionBase,
+    POS_PILOT_WRITE_FREEZE_MODE: "operator-smoke",
+    POS_PILOT_SMOKE_SECRET: "s".repeat(64),
+    POS_PILOT_SMOKE_OPERATOR_USER_ID: "11111111-1111-4111-8111-111111111111",
+    POS_PILOT_SMOKE_BUSINESS_ID: "22222222-2222-4222-8222-222222222222",
+    POS_PILOT_SMOKE_BRANCH_ID: "33333333-3333-4333-8333-333333333333",
+  };
+  assert.equal(validate("web", operatorSmoke).status, 0);
+  for (const key of [
+    "POS_PILOT_SMOKE_SECRET",
+    "POS_PILOT_SMOKE_OPERATOR_USER_ID",
+    "POS_PILOT_SMOKE_BUSINESS_ID",
+    "POS_PILOT_SMOKE_BRANCH_ID",
+  ]) {
+    const result = validate("web", { ...operatorSmoke, [key]: "" });
+    assert.notEqual(result.status, 0, key);
+    assert.match(result.stderr, new RegExp(key), key);
+  }
 });
 
 test("Production environment fails closed when source identity is incomplete", () => {

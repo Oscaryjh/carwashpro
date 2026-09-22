@@ -40,6 +40,10 @@ import {
 } from "@/lib/whatsapp/work-order-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import {
+  assertPosPilotWriteScope,
+  preflightPosPilotWrite,
+} from "@/lib/release/pos-pilot-write-freeze-server";
 
 function toCents(value: unknown) {
   return Math.round(Number(value) * 100);
@@ -114,6 +118,7 @@ async function redirectToWorkOrderFormError(
 }
 
 export async function createVehicleForWorkOrderAction(formData: FormData) {
+  await preflightPosPilotWrite("VEHICLE_CREATE");
   const { businessId, user } = await requireBusinessUser("MODIFY_WORK_ORDERS");
   const branchId = await resolveOperationalBranchId(
     businessId,
@@ -263,6 +268,7 @@ export async function createVehicleForWorkOrderAction(formData: FormData) {
 }
 
 export async function createWorkOrderAction(formData: FormData) {
+  const smokeScope = await preflightPosPilotWrite("WORK_ORDER_CREATE");
   const { businessId, user } = await requireBusinessUser("MODIFY_WORK_ORDERS");
   const auditRequest = await getAuditRequestContext();
   const branchId = await resolveOperationalBranchId(
@@ -270,6 +276,11 @@ export async function createWorkOrderAction(formData: FormData) {
     user,
     formData.get("branchId"),
   );
+  assertPosPilotWriteScope(smokeScope, {
+    actorId: user.userId,
+    branchId,
+    businessId,
+  });
   const parsedInput = createWorkOrderSchema.safeParse({
     vehicleId: formData.get("vehicleId"),
     contactType: formData.get("contactType"),
@@ -526,6 +537,7 @@ export async function createWorkOrderAction(formData: FormData) {
 }
 
 export async function purchasePackageFromCashierAction(formData: FormData) {
+  await preflightPosPilotWrite("PACKAGE_PURCHASE");
   const { businessId, user } = await requireBusinessUser("MODIFY_WORK_ORDERS");
   const auditRequest = await getAuditRequestContext();
   const returnPath = packagePurchaseReturnPath(formData.get("returnTo"));
@@ -836,6 +848,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
 }
 
 export async function updateWorkOrderStatusAction(formData: FormData) {
+  const smokeScope = await preflightPosPilotWrite("WORK_ORDER_UPDATE");
   const { businessId, user } = await requireBusinessUser("MODIFY_WORK_ORDERS");
   const auditRequest = await getAuditRequestContext();
   const input = updateWorkOrderStatusSchema.parse({
@@ -856,6 +869,11 @@ export async function updateWorkOrderStatusAction(formData: FormData) {
       customer: true,
       vehicle: true,
     },
+  });
+  assertPosPilotWriteScope(smokeScope, {
+    actorId: user.userId,
+    branchId: workOrder.branchId,
+    businessId,
   });
 
   if (!canMoveWorkOrderStatus(workOrder.status, input.status)) {
@@ -904,6 +922,7 @@ export async function updateWorkOrderStatusAction(formData: FormData) {
 }
 
 export async function updateWorkOrderContactAction(formData: FormData) {
+  const smokeScope = await preflightPosPilotWrite("WORK_ORDER_UPDATE");
   const { businessId, user } = await requireBusinessUser("MODIFY_WORK_ORDERS");
   const auditRequest = await getAuditRequestContext();
   const workOrderId = formData.get("workOrderId")?.toString() ?? "";
@@ -934,6 +953,11 @@ export async function updateWorkOrderContactAction(formData: FormData) {
     include: {
       customer: true,
     },
+  });
+  assertPosPilotWriteScope(smokeScope, {
+    actorId: user.userId,
+    branchId: workOrder.branchId,
+    businessId,
   });
 
   if (workOrder.contactType === "NEW_OWNER") {

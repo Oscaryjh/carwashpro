@@ -156,8 +156,9 @@ test("production and testing require the explicit frozen contract and it can nev
         APP_ENVIRONMENT: environment,
         POS_PILOT_FROZEN_DOMAINS: "true",
         POS_PILOT_RELEASE_MODE: "core-pilot",
+        POS_PILOT_WRITE_FREEZE_MODE: "full",
       }),
-      { frozenDomains: true, releaseMode: "core-pilot" },
+      { frozenDomains: true, releaseMode: "core-pilot", writeFreeze: "full" },
     );
     assert.throws(
       () =>

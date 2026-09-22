@@ -8,6 +8,7 @@ import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
+import { shouldSuppressPosPilotNotificationQueue } from "@/lib/release/pos-pilot-contract";
 
 type SendServiceConfirmationInput = {
   businessId: string;
@@ -30,6 +31,7 @@ export async function sendServiceConfirmationQueued({
   workOrderId,
   sentByUserId,
 }: SendServiceConfirmationInput) {
+  if (shouldSuppressPosPilotNotificationQueue()) return;
   if (!(await isBusinessModuleEnabled(businessId, "WHATSAPP"))) return;
   const workOrder = await getWorkOrderForNotification(businessId, workOrderId);
 
@@ -119,6 +121,7 @@ export async function sendReadyForPickupIfConnected({
   workOrderId,
   sentByUserId,
 }: SendReadyForPickupInput) {
+  if (shouldSuppressPosPilotNotificationQueue()) return;
   if (!(await isBusinessModuleEnabled(businessId, "WHATSAPP"))) return;
   const workOrder = await getWorkOrderForNotification(businessId, workOrderId);
 

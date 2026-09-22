@@ -13,6 +13,7 @@ import { enqueueWhatsAppLogMessage } from "@/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "@/lib/whatsapp/templates";
 import { normalizeMalaysiaWhatsAppPhone } from "@/lib/whatsappDeepLink";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
+import { shouldSuppressPosPilotNotificationQueue } from "@/lib/release/pos-pilot-contract";
 
 type SendInvoiceInput = {
   businessId: string;
@@ -25,6 +26,7 @@ function formatMoney(value: unknown) {
 }
 
 export async function sendInvoiceIfConnected(input: SendInvoiceInput) {
+  if (shouldSuppressPosPilotNotificationQueue()) return;
   if (!(await isBusinessModuleEnabled(input.businessId, "WHATSAPP"))) return;
   try {
     await sendInvoiceNotification(input);

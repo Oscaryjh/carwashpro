@@ -1,4 +1,36 @@
+import { NextResponse } from "next/server";
+import { resolvePosPilotSmokeConfig } from "@/lib/release/pos-pilot-smoke-authorization";
+
 export const FROZEN_DOMAIN_DENIED = "FROZEN_DOMAIN_DENIED" as const;
+
+export {
+  assertPosPilotSmokeOperationScope,
+  authorizePosPilotSmoke,
+  authorizePosPilotSmokeOperation,
+  buildPosPilotSmokeAuthorizationResult,
+  issuePosPilotSmokeCapability,
+  maintenanceSecretMatches,
+  POS_PILOT_SMOKE_COOKIE,
+  posPilotSmokeScopeMatches,
+  verifyPosPilotSmokeCapability,
+} from "@/lib/release/pos-pilot-smoke-authorization";
+export { resolvePosPilotSmokeConfig };
+
+export const POS_PILOT_WRITE_FROZEN = "POS_PILOT_WRITE_FROZEN" as const;
+
+export const POS_PILOT_WRITE_FREEZE_MODES = [
+  "full",
+  "operator-smoke",
+  "off",
+] as const;
+
+export type PosPilotWriteFreezeMode =
+  (typeof POS_PILOT_WRITE_FREEZE_MODES)[number];
+
+export type PosPilotWriteDecision =
+  | "ALLOW"
+  | "DENY"
+  | "REQUIRE_SMOKE_CAPABILITY";
 
 export const POS_PILOT_RELEASE_MODE = "core-pilot" as const;
 
@@ -29,6 +61,90 @@ export class FrozenDomainDeniedError extends Error {
   constructor(readonly operation: FrozenDomainOperation) {
     super(FROZEN_DOMAIN_DENIED);
     this.name = "FrozenDomainDeniedError";
+  }
+}
+
+export class PosPilotWriteFrozenError extends Error {
+  readonly code = POS_PILOT_WRITE_FROZEN;
+
+  constructor(readonly operation = "BUSINESS_MUTATION") {
+    super(POS_PILOT_WRITE_FROZEN);
+    this.name = "PosPilotWriteFrozenError";
+  }
+}
+
+export function resolvePosPilotWriteFreezeMode(
+  env: RuntimeEnv = process.env,
+): PosPilotWriteFreezeMode {
+  const value = env.POS_PILOT_WRITE_FREEZE_MODE;
+  if (isWriteFreezeMode(value)) return value;
+
+  const environment = resolveEnvironment(env);
+  const corePilot = env.POS_PILOT_RELEASE_MODE === POS_PILOT_RELEASE_MODE;
+  if (!value && environment !== "production" && !corePilot) return "off";
+
+  throw new Error(
+    "POS_PILOT_WRITE_FREEZE_MODE must be exactly full, operator-smoke, or off.",
+  );
+}
+
+export function writeFrozenResponse() {
+  return new NextResponse(POS_PILOT_WRITE_FROZEN, {
+    status: 503,
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+      "retry-after": "60",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+export function evaluatePosPilotWriteRequest(input: {
+  method: string;
+  pathname: string;
+  mode: PosPilotWriteFreezeMode;
+  smokeCapabilityValid?: boolean;
+}): PosPilotWriteDecision {
+  const method = input.method.toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+    return "ALLOW";
+  }
+  if (input.mode === "off" || isWriteFreezeInfrastructurePath(input.pathname)) {
+    return "ALLOW";
+  }
+  if (input.mode === "full") return "DENY";
+  if (!isOperatorSmokePath(input.pathname)) return "DENY";
+  return input.smokeCapabilityValid ? "ALLOW" : "REQUIRE_SMOKE_CAPABILITY";
+}
+
+export function maintenanceAuditEvent(input: {
+  event: "MODE_OBSERVED" | "SMOKE_ACCEPTED" | "SMOKE_DENIED";
+  mode: PosPilotWriteFreezeMode;
+  actorId?: string;
+  businessId?: string;
+  branchId?: string;
+  operation?: string;
+  reason?: string;
+  maintenanceToken?: string;
+}) {
+  return compactObject({
+    event: `POS_PILOT_WRITE_FREEZE_${input.event}`,
+    mode: input.mode,
+    actorId: input.actorId,
+    businessId: input.businessId,
+    branchId: input.branchId,
+    operation: input.operation,
+    reason: input.reason,
+  });
+}
+
+export function shouldSuppressPosPilotNotificationQueue(
+  env: RuntimeEnv = process.env,
+) {
+  try {
+    return resolvePosPilotWriteFreezeMode(env) !== "off";
+  } catch {
+    return true;
   }
 }
 
@@ -89,6 +205,47 @@ export function classifyPosPilotRoute(
 
 type RuntimeEnv = Record<string, string | undefined>;
 
+function isWriteFreezeMode(value: string | undefined): value is PosPilotWriteFreezeMode {
+  return POS_PILOT_WRITE_FREEZE_MODES.some((mode) => mode === value);
+}
+
+function isWriteFreezeInfrastructurePath(pathname: string) {
+  return pathname === "/login" ||
+    pathname === "/logout" ||
+    pathname === "/security/mfa" ||
+    pathname.startsWith("/security/mfa/") ||
+    pathname === "/api/health" ||
+    pathname === "/api/employee-auth/request-otp" ||
+    pathname === "/api/employee-auth/verify-otp" ||
+    pathname === "/api/employee-auth/logout" ||
+    pathname === "/api/employee-auth/select-membership" ||
+    pathname === "/api/employee-auth/switch-workplace" ||
+    pathname.startsWith("/api/maintenance/pos-pilot-write-freeze/") ||
+    pathname.startsWith("/_next/") ||
+    pathname === "/favicon.ico";
+}
+
+function isOperatorSmokePath(pathname: string) {
+  return pathname === "/cashier" ||
+    pathname.startsWith("/cashier/") ||
+    pathname === "/pos" ||
+    pathname.startsWith("/pos/") ||
+    pathname === "/appointments" ||
+    pathname.startsWith("/appointments/") ||
+    pathname === "/work-orders" ||
+    pathname.startsWith("/work-orders/") ||
+    pathname === "/invoices" ||
+    pathname.startsWith("/invoices/") ||
+    pathname === "/closing" ||
+    pathname.startsWith("/closing/");
+}
+
+function compactObject(input: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(input).filter(([, value]) => value !== undefined),
+  );
+}
+
 export function validatePosPilotRuntimeContract(env: RuntimeEnv = process.env) {
   assertConsistentRuntimeEnvironment(env);
   const environment = resolveEnvironment(env);
@@ -106,9 +263,15 @@ export function validatePosPilotRuntimeContract(env: RuntimeEnv = process.env) {
     }
   }
 
+  const writeFreeze = resolvePosPilotWriteFreezeMode(env);
+  if (environment === "production" && writeFreeze === "operator-smoke") {
+    resolvePosPilotSmokeConfig(env);
+  }
+
   return {
     frozenDomains: true as const,
     releaseMode: POS_PILOT_RELEASE_MODE,
+    writeFreeze,
   };
 }
 

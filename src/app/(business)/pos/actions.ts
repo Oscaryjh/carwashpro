@@ -25,8 +25,13 @@ import { usePackagePaymentSchema } from "@/lib/validation/packages";
 import { packageAllowsVehicle, vehicleSizeLabel } from "@/lib/vehicle-size";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import {
+  assertPosPilotWriteScope,
+  preflightPosPilotWrite,
+} from "@/lib/release/pos-pilot-write-freeze-server";
 
 export async function recordPaymentAction(formData: FormData) {
+  const smokeScope = await preflightPosPilotWrite("POS_PAYMENT");
   const { businessId, user } = await requireBusinessUser(
     "PROCESS_CASHIER_PAYMENT",
   );
@@ -38,6 +43,18 @@ export async function recordPaymentAction(formData: FormData) {
     method: formData.get("method"),
     reference: formData.get("reference"),
   });
+
+  if (smokeScope) {
+    const scopeTarget = await prisma.workOrder.findFirstOrThrow({
+      where: { id: input.workOrderId, businessId, ...authorizedOperationalBranchWhere(user) },
+      select: { branchId: true },
+    });
+    assertPosPilotWriteScope(smokeScope, {
+      actorId: user.userId,
+      branchId: scopeTarget.branchId,
+      businessId,
+    });
+  }
 
   const { operationId, ...financialPayload } = input;
   const { result } = await runFinancialOperation({
@@ -252,6 +269,7 @@ export async function recordPaymentAction(formData: FormData) {
 }
 
 export async function usePackagePaymentAction(formData: FormData) {
+  const smokeScope = await preflightPosPilotWrite("POS_PACKAGE_REDEMPTION");
   const { businessId, user } = await requireBusinessUser(
     "PROCESS_CASHIER_PAYMENT",
   );
@@ -261,6 +279,18 @@ export async function usePackagePaymentAction(formData: FormData) {
     workOrderId: formData.get("workOrderId"),
     customerPackageId: formData.get("customerPackageId"),
   });
+
+  if (smokeScope) {
+    const scopeTarget = await prisma.workOrder.findFirstOrThrow({
+      where: { id: input.workOrderId, businessId, ...authorizedOperationalBranchWhere(user) },
+      select: { branchId: true },
+    });
+    assertPosPilotWriteScope(smokeScope, {
+      actorId: user.userId,
+      branchId: scopeTarget.branchId,
+      businessId,
+    });
+  }
 
   const { operationId, ...financialPayload } = input;
   const { result: packageResult } = await runFinancialOperation({
@@ -512,6 +542,7 @@ export async function usePackagePaymentAction(formData: FormData) {
 }
 
 export async function recordPackagePurchasePaymentAction(formData: FormData) {
+  await preflightPosPilotWrite("PACKAGE_PURCHASE");
   const { businessId, user } = await requireBusinessUser(
     "PROCESS_CASHIER_PAYMENT",
   );

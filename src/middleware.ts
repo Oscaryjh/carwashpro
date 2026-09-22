@@ -3,7 +3,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getStaffHomePath, routePermission } from "@/lib/auth/staff-permissions";
 import {
   classifyPosPilotRoute,
+  evaluatePosPilotWriteRequest,
   FROZEN_DOMAIN_DENIED,
+  maintenanceAuditEvent,
+  POS_PILOT_SMOKE_COOKIE,
+  posPilotSmokeScopeMatches,
+  resolvePosPilotSmokeConfig,
+  resolvePosPilotWriteFreezeMode,
+  verifyPosPilotSmokeCapability,
+  writeFrozenResponse,
 } from "@/lib/release/pos-pilot-contract";
 
 const SESSION_COOKIE = "car_wash_session";
@@ -26,6 +34,16 @@ export async function middleware(request: NextRequest) {
       status: 403,
       headers: { "content-type": "text/plain; charset=utf-8" },
     });
+  }
+
+  const writeFreeze = await enforceWriteFreeze(request);
+  if (writeFreeze) return writeFreeze;
+
+  // API routes own their authentication boundary. Including them in the
+  // matcher is required so the write freeze runs before route parsing, while
+  // this return preserves existing employee/webhook/auth semantics.
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
   }
 
   // The dedicated Staff App deployment shares the codebase but not the
@@ -154,6 +172,91 @@ export async function middleware(request: NextRequest) {
   }
 }
 
+async function enforceWriteFreeze(request: NextRequest) {
+  let mode: ReturnType<typeof resolvePosPilotWriteFreezeMode>;
+  try {
+    mode = resolvePosPilotWriteFreezeMode();
+  } catch {
+    logMaintenanceEvent(maintenanceAuditEvent({
+      event: "SMOKE_DENIED",
+      mode: "full",
+      reason: "INVALID_CONFIGURATION",
+    }));
+    return writeFrozenResponse();
+  }
+
+  const initial = evaluatePosPilotWriteRequest({
+    method: request.method,
+    pathname: request.nextUrl.pathname,
+    mode,
+  });
+  if (initial === "ALLOW") return null;
+  if (initial === "DENY") {
+    logMaintenanceEvent(maintenanceAuditEvent({
+      event: "SMOKE_DENIED",
+      mode,
+      reason: mode === "full" ? "FULL_FREEZE" : "OPERATION_NOT_ALLOWLISTED",
+    }));
+    return writeFrozenResponse();
+  }
+
+  const authorizedScope = await verifiedSmokeScope(request);
+  if (!authorizedScope) {
+    logMaintenanceEvent(maintenanceAuditEvent({
+      event: "SMOKE_DENIED",
+      mode,
+      reason: "CAPABILITY_OR_SCOPE_INVALID",
+    }));
+    return writeFrozenResponse();
+  }
+
+  const finalDecision = evaluatePosPilotWriteRequest({
+    method: request.method,
+    pathname: request.nextUrl.pathname,
+    mode,
+    smokeCapabilityValid: true,
+  });
+  if (finalDecision !== "ALLOW") return writeFrozenResponse();
+  logMaintenanceEvent(maintenanceAuditEvent({
+    event: "SMOKE_ACCEPTED",
+    mode,
+    ...authorizedScope,
+    operation: request.nextUrl.pathname,
+  }));
+  return null;
+}
+
+async function verifiedSmokeScope(request: NextRequest) {
+  try {
+    const config = resolvePosPilotSmokeConfig();
+    const capability = await verifyPosPilotSmokeCapability({
+      token: request.cookies.get(POS_PILOT_SMOKE_COOKIE)?.value ?? "",
+      secret: config.secret,
+    });
+    if (!capability || !posPilotSmokeScopeMatches(capability, config)) return null;
+
+    const sessionToken = request.cookies.get(SESSION_COOKIE)?.value;
+    const sessionSecret = getSecret();
+    if (!sessionToken || !sessionSecret) return null;
+    const verified = await jwtVerify(sessionToken, sessionSecret);
+    const sessionScope = {
+      actorId: typeof verified.payload.userId === "string" ? verified.payload.userId : "",
+      businessId: typeof verified.payload.activeBusinessId === "string"
+        ? verified.payload.activeBusinessId
+        : "",
+      branchId: typeof verified.payload.branchId === "string" ? verified.payload.branchId : "",
+    };
+    if (verified.payload.role !== "BUSINESS_OWNER") return null;
+    return posPilotSmokeScopeMatches(capability, sessionScope) ? capability : null;
+  } catch {
+    return null;
+  }
+}
+
+function logMaintenanceEvent(event: Record<string, unknown>) {
+  console.info(JSON.stringify(event));
+}
+
 function nullableString(value: unknown) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
@@ -162,16 +265,22 @@ export const config = {
   matcher: [
     "/",
     "/admin/:path*",
+    "/api/:path*",
     "/appointments/:path*",
     "/ai/:path*",
     "/branches/:path*",
+    "/business/:path*",
     "/business/settings/:path*",
     "/business-context/:path*",
     "/cashier/:path*",
+    "/catalog/:path*",
     "/closing/:path*",
     "/crm/:path*",
     "/dashboard/:path*",
+    "/discounts/:path*",
+    "/expenses/:path*",
     "/groups/:path*",
+    "/inventory/:path*",
     "/invoices/:path*",
     "/login",
     "/logout",
@@ -182,6 +291,7 @@ export const config = {
     "/reports/:path*",
     "/salon/dashboard",
     "/services/:path*",
+    "/staff/:path*",
     "/team/:path*",
     "/whatsapp/:path*",
     "/work-orders/:path*",

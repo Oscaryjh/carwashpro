@@ -3,12 +3,21 @@ export type WebReadiness = Readonly<{
   database: "ready" | "unavailable" | "not_checked";
   ok: boolean;
   process: "alive";
+  writeFreeze: "full" | "operator-smoke" | "off" | "invalid";
 }>;
 
 export async function evaluateWebReadiness(input: {
   databaseProbe: () => Promise<unknown>;
   runtimeContractProbe: () => unknown;
+  writeFreezeModeProbe: () => "full" | "operator-smoke" | "off";
 }): Promise<WebReadiness> {
+  let writeFreeze: WebReadiness["writeFreeze"];
+  try {
+    writeFreeze = input.writeFreezeModeProbe();
+  } catch {
+    writeFreeze = "invalid";
+  }
+
   try {
     input.runtimeContractProbe();
   } catch {
@@ -17,6 +26,7 @@ export async function evaluateWebReadiness(input: {
       database: "not_checked",
       ok: false,
       process: "alive",
+      writeFreeze,
     };
   }
 
@@ -27,6 +37,7 @@ export async function evaluateWebReadiness(input: {
       database: "ready",
       ok: true,
       process: "alive",
+      writeFreeze,
     };
   } catch {
     return {
@@ -34,6 +45,7 @@ export async function evaluateWebReadiness(input: {
       database: "unavailable",
       ok: false,
       process: "alive",
+      writeFreeze,
     };
   }
 }

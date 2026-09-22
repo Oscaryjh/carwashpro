@@ -1,4 +1,5 @@
 const scope = process.argv[2] ?? "web";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const explicit = process.env.APP_ENVIRONMENT?.trim().toLowerCase();
 const railway = process.env.RAILWAY_ENVIRONMENT_NAME?.trim().toLowerCase();
 if (explicit && railway && explicit !== railway) {
@@ -18,6 +19,21 @@ if (environment === "production" || environment === "testing") {
   if (process.env.POS_PILOT_FROZEN_DOMAINS?.trim().toLowerCase() !== "true") {
     fail(`POS_PILOT_FROZEN_DOMAINS=true is required in ${environment}.`);
   }
+  if (!new Set(["full", "operator-smoke", "off"]).has(process.env.POS_PILOT_WRITE_FREEZE_MODE ?? "")) {
+    fail(
+      `POS_PILOT_WRITE_FREEZE_MODE must be exactly full, operator-smoke, or off in ${environment}.`,
+    );
+  }
+}
+
+if (
+  environment === "production" &&
+  process.env.POS_PILOT_WRITE_FREEZE_MODE === "operator-smoke"
+) {
+  requireValue("POS_PILOT_SMOKE_SECRET", 48);
+  requirePattern("POS_PILOT_SMOKE_OPERATOR_USER_ID", UUID_PATTERN);
+  requirePattern("POS_PILOT_SMOKE_BUSINESS_ID", UUID_PATTERN);
+  requirePattern("POS_PILOT_SMOKE_BRANCH_ID", UUID_PATTERN);
 }
 
 if (!new Set(["web", "notification", "analytics", "whatsapp"]).has(scope)) {
@@ -79,7 +95,10 @@ if (environment === "production") {
   }
 }
 
-console.log(`[release-env] ${scope} environment contract valid for ${environment}.`);
+console.log(
+  `[release-env] ${scope} environment contract valid for ${environment}; ` +
+  `writeFreeze=${process.env.POS_PILOT_WRITE_FREEZE_MODE ?? "off"}.`,
+);
 
 function requireValue(name, minimumLength) {
   const value = process.env[name]?.trim() ?? "";

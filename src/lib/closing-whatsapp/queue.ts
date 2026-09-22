@@ -6,6 +6,7 @@ import {
 } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { shouldSuppressPosPilotNotificationQueue } from "@/lib/release/pos-pilot-contract";
 import {
   buildClosingReportDedupeKey,
   buildUnclosedReminderDedupeKey,
@@ -26,6 +27,7 @@ export async function enqueueClosingReportForSnapshot(
   snapshotId: string,
   client: PrismaLike = prisma,
 ): Promise<ClosingWhatsAppQueueResult> {
+  if (shouldSuppressPosPilotNotificationQueue()) return emptyResult();
   const snapshot = await client.dailyClosingSnapshot.findUnique({
     where: { id: snapshotId },
     select: {
@@ -102,6 +104,7 @@ export async function enqueueUnclosedClosingReminders(
   },
   client: PrismaLike = prisma,
 ): Promise<ClosingWhatsAppQueueResult> {
+  if (shouldSuppressPosPilotNotificationQueue()) return emptyResult();
   const config = await getClosingWhatsAppAutomationConfig(input, client);
 
   if (!config.enabled || !config.sendUnclosedReminder) {
@@ -285,6 +288,7 @@ export async function enqueueManualClosingWhatsAppSend(
   },
   client: PrismaLike = prisma,
 ) {
+  if (shouldSuppressPosPilotNotificationQueue()) return emptyResult();
   const source = await client.closingWhatsAppSendAttempt.findFirst({
     where: { businessId: input.businessId, id: input.attemptId },
     include: {
