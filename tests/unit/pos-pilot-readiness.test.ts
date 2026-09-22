@@ -14,7 +14,7 @@ test("web readiness distinguishes process, application and database health", asy
   });
   assert.deepEqual(ready, {
     application: "ready",
-    database: "reachable",
+    database: "ready",
     ok: true,
     process: "alive",
   });
@@ -25,7 +25,7 @@ test("web readiness distinguishes process, application and database health", asy
   });
   assert.deepEqual(databaseDown, {
     application: "not_ready",
-    database: "unreachable",
+    database: "unavailable",
     ok: false,
     process: "alive",
   });
@@ -60,4 +60,3 @@ test("worker readiness requires config, DB, queue and a fresh loop heartbeat", (
   tracker.fatalConfigurationFailure();
   assert.equal(tracker.snapshot(12_000).configuration, "fatal");
 });
-

@@ -58,6 +58,17 @@ test("Production environment fails closed when source identity is incomplete", (
   assert.match(result.stderr, /APP_RELEASE_SOURCE_DIGEST/i);
 });
 
+test("Railway Production cannot be downgraded by APP_ENVIRONMENT", () => {
+  const result = validate("web", {
+    ...productionBase,
+    APP_ENVIRONMENT: "development",
+    POS_PILOT_RELEASE_MODE: "",
+    POS_PILOT_FROZEN_DOMAINS: "",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /conflicting runtime environment identities/i);
+});
+
 test("Production environment rejects employee OTP, AI and WhatsApp mocks", () => {
   const otp = validate("web", { ...productionBase, OTP_PROVIDER: "mock", OTP_CHANNEL: "local" });
   assert.notEqual(otp.status, 0);
@@ -80,6 +91,19 @@ test("Production web contract can pass with mocks disabled and optional AI off",
     PAYROLL_PAYMENT_FINGERPRINT_KEY: "",
   });
   assert.equal(result.status, 0, result.stderr);
+});
+
+test("Production web contract enforces the same live WhatsApp identity as direct send", () => {
+  const wrongMode = validate("web", { ...productionBase, WHATSAPP_SEND_MODE: "disabled" });
+  assert.notEqual(wrongMode.status, 0);
+  assert.match(wrongMode.stderr, /WHATSAPP_SEND_MODE/i);
+
+  const wrongIdentity = validate("web", {
+    ...productionBase,
+    RAILWAY_ENVIRONMENT_ID: "00000000-0000-4000-8000-000000000000",
+  });
+  assert.notEqual(wrongIdentity.status, 0);
+  assert.match(wrongIdentity.stderr, /source-pinned Railway Production identity/i);
 });
 
 test("Production web contract accepts SMS123 with a server-only API key", () => {

@@ -1,7 +1,15 @@
 const scope = process.argv[2] ?? "web";
 const explicit = process.env.APP_ENVIRONMENT?.trim().toLowerCase();
 const railway = process.env.RAILWAY_ENVIRONMENT_NAME?.trim().toLowerCase();
-const environment = explicit || railway || process.env.NODE_ENV?.trim().toLowerCase() || "development";
+if (explicit && railway && explicit !== railway) {
+  fail("Conflicting runtime environment identities are forbidden.");
+}
+const environment =
+  explicit === "production" || railway === "production"
+    ? "production"
+    : explicit === "testing" || railway === "testing"
+      ? "testing"
+      : explicit || railway || process.env.NODE_ENV?.trim().toLowerCase() || "development";
 
 if (environment === "production" || environment === "testing") {
   if (process.env.POS_PILOT_RELEASE_MODE !== "core-pilot") {
@@ -57,11 +65,11 @@ if (environment === "production") {
   }
   if (aiEnabled) requireValue("OPENAI_API_KEY", 20);
 
-  if ((scope === "notification" || scope === "whatsapp") && process.env.WHATSAPP_SEND_MODE !== "live") {
+  if ((scope === "web" || scope === "notification" || scope === "whatsapp") && process.env.WHATSAPP_SEND_MODE !== "live") {
     fail('Production WhatsApp workers require WHATSAPP_SEND_MODE="live".');
   }
   if (
-    (scope === "notification" || scope === "whatsapp") &&
+    (scope === "web" || scope === "notification" || scope === "whatsapp") &&
     (
       process.env.RAILWAY_ENVIRONMENT_NAME?.trim().toLowerCase() !== "production" ||
       process.env.RAILWAY_ENVIRONMENT_ID?.trim() !== "bef43b86-32dc-486e-a1ef-bb9f9699e4f5"

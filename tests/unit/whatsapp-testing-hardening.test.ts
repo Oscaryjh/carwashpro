@@ -21,6 +21,7 @@ import {
   normalizeValidWhatsAppPhone,
   normalizeWhatsAppQueueRecipient,
 } from "../../src/lib/whatsappDeepLink";
+import { sendConnectorTextMessage } from "../../src/lib/whatsapp/connector-client";
 import { ConnectorRequestReplayCache } from "../../whatsapp-connector/src/request-replay";
 import {
   authorizeConnectorRequest,
@@ -139,6 +140,44 @@ test("connector authentication and request identity fail closed", () => {
     validateConnectorRequestIdentity("queue-request-123", "queue-request-123").ok,
     true,
   );
+});
+
+test("direct Web send rejects non-Production identity before transport", async () => {
+  const originalFetch = globalThis.fetch;
+  let transportCalls = 0;
+  globalThis.fetch = (async () => {
+    transportCalls += 1;
+    throw new Error("transport must not be called");
+  }) as typeof fetch;
+  const original = {
+    APP_ENVIRONMENT: process.env.APP_ENVIRONMENT,
+    RAILWAY_ENVIRONMENT_NAME: process.env.RAILWAY_ENVIRONMENT_NAME,
+    RAILWAY_ENVIRONMENT_ID: process.env.RAILWAY_ENVIRONMENT_ID,
+    WHATSAPP_SEND_MODE: process.env.WHATSAPP_SEND_MODE,
+  };
+  Object.assign(process.env, {
+    APP_ENVIRONMENT: "testing",
+    RAILWAY_ENVIRONMENT_NAME: "testing",
+    RAILWAY_ENVIRONMENT_ID: "testing-id",
+    WHATSAPP_SEND_MODE: "live",
+  });
+  try {
+    await assert.rejects(
+      () => sendConnectorTextMessage({
+        businessId: "11111111-1111-4111-8111-111111111111",
+        phone: "601112212259",
+        message: "test",
+      }),
+      /source-pinned Production identity/i,
+    );
+    assert.equal(transportCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });
 
 test("connector replay cache shares one in-flight/completed send and retries failures", async () => {

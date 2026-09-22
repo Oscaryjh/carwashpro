@@ -10,6 +10,7 @@ import { writeSensitiveAuditLog } from "@/lib/audit/payroll-sensitive";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 import {
   PayrollProfileWriteError,
   type CanonicalCommandResult,
@@ -111,6 +112,7 @@ type ExecuteInput<TResult extends CanonicalCommandResult> = {
 export async function executeCanonicalPayrollProfileCommand<
   TResult extends CanonicalCommandResult,
 >(input: ExecuteInput<TResult>, database: PrismaClient = prisma): Promise<TResult> {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const fingerprint = commandFingerprint({
     caller: input.context.caller,
     command: input.command,
@@ -214,6 +216,7 @@ export async function executeCanonicalPayrollProfileCommandInTransaction<
   input: ExecuteInput<TResult>,
   transaction: Prisma.TransactionClient,
 ): Promise<TResult> {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   await enableCanonicalPayrollProfileWrite(transaction);
   await assertCanonicalAuthorization(
     input.context,
@@ -272,6 +275,7 @@ export async function executeCanonicalPayrollProfileCommandInTransaction<
 export async function enableCanonicalPayrollProfileWrite(
   transaction: Prisma.TransactionClient,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   await transaction.$executeRaw`SELECT set_config('tetamu.payroll_profile_command', 'on', true)`;
 }
 

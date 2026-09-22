@@ -23,6 +23,9 @@ import {
   startSocket
 } from "./socket.js";
 import { connectorHealthFromStates } from "./readiness.js";
+import {
+  isConnectorLiveDeliveryAllowed,
+} from "./delivery-policy.js";
 import type { ApiResponse, SendRequestBody } from "./types.js";
 import { ConnectorRequestReplayCache } from "./request-replay.js";
 import {
@@ -290,7 +293,10 @@ async function handleRequest(
         service: "whatsapp-connector",
         uptimeSeconds: Math.round(process.uptime()),
         activeSessions: getActiveSessionCount(),
-        readiness: connectorHealthFromStates(getSessionReadinessStates())
+        readiness: connectorHealthFromStates(
+          getSessionReadinessStates(),
+          isConnectorLiveDeliveryAllowed(),
+        )
       }
     });
     return;
@@ -469,6 +475,17 @@ async function handleRequest(
   if (url.pathname === "/send") {
     if (request.method !== "POST") {
       methodNotAllowed(response);
+      return;
+    }
+
+    if (!isConnectorLiveDeliveryAllowed()) {
+      sendJson(response, 403, {
+        ok: false,
+        error: {
+          code: "CONNECTOR_LIVE_DELIVERY_DENIED",
+          message: "Live delivery is disabled for this environment.",
+        },
+      });
       return;
     }
 

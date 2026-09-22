@@ -5,6 +5,7 @@ import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { generatePayrollRun } from "@/lib/payroll/service";
 import { prisma } from "@/lib/prisma";
 import type { RuntimeEnvironmentMap } from "@/lib/release/environment";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 import type { PayrollProfileWriteContext } from "./employee-profile-write/types";
 import {
   LINDUNG24_BLOCKERS,
@@ -66,6 +67,7 @@ export async function recordEmployeeLindung24ParticipationAndRefreshDrafts(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const participation = await recordEmployeeLindung24Participation(input, database);
   const draftRuns = await database.payrollRun.findMany({
     where: {
@@ -112,6 +114,7 @@ export async function recordEmployeeLindung24Participation(
   database: ParticipationWriteDatabase = prisma,
   options: { environment?: RuntimeEnvironmentMap } = {},
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const command = commandSchema.parse(input.command);
   assertStatutoryEvidenceWriteAllowed(command.evidenceNature, options.environment);
   if (

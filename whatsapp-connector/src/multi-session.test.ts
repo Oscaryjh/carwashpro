@@ -10,6 +10,10 @@ import {
 } from "./socket.js";
 import { getReconnectDelayMs } from "./reconnect.js";
 import { connectorHealthFromStates } from "./readiness.js";
+import {
+  assertConnectorLiveDeliveryAllowed,
+  isConnectorLiveDeliveryAllowed,
+} from "./delivery-policy.js";
 
 test("uses isolated auth directories for different businesses", () => {
   process.env.AUTH_INFO_PATH = path.join("C:", "tmp", "whatsapp-auth");
@@ -70,6 +74,37 @@ test("connector health distinguishes process, session and send readiness", () =>
   });
   assert.equal(
     connectorHealthFromStates([{ status: "connected", healthy: false }]).send,
+    "NOT_READY_TO_SEND",
+  );
+});
+
+test("connector effect boundary only permits source-pinned Production live delivery", () => {
+  const production = {
+    APP_ENVIRONMENT: "production",
+    RAILWAY_ENVIRONMENT_NAME: "production",
+    RAILWAY_ENVIRONMENT_ID: "bef43b86-32dc-486e-a1ef-bb9f9699e4f5",
+    WHATSAPP_SEND_MODE: "live",
+  };
+  assert.equal(isConnectorLiveDeliveryAllowed(production), true);
+  assert.doesNotThrow(() => assertConnectorLiveDeliveryAllowed(production));
+
+  for (const env of [
+    { ...production, APP_ENVIRONMENT: "testing", RAILWAY_ENVIRONMENT_NAME: "testing" },
+    { ...production, WHATSAPP_SEND_MODE: "mock" },
+    { ...production, RAILWAY_ENVIRONMENT_ID: "wrong" },
+    { ...production, APP_ENVIRONMENT: "development" },
+  ]) {
+    assert.equal(isConnectorLiveDeliveryAllowed(env), false);
+    assert.throws(
+      () => assertConnectorLiveDeliveryAllowed(env),
+      /CONNECTOR_LIVE_DELIVERY_DENIED/,
+    );
+  }
+});
+
+test("connector readiness cannot claim send-ready when delivery policy is closed", () => {
+  assert.equal(
+    connectorHealthFromStates([{ status: "connected", healthy: true }], false).send,
     "NOT_READY_TO_SEND",
   );
 });

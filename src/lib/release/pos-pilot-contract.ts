@@ -68,6 +68,7 @@ export function frozenDomainResponse(operation: FrozenDomainOperation) {
 export function classifyPosPilotRoute(pathname: string): "ALLOWED" | "FROZEN" {
   return pathname === "/team/payroll" ||
     pathname.startsWith("/team/payroll/") ||
+    /^\/team\/people\/[^/]+\/payroll(?:\/|$)/.test(pathname) ||
     pathname === "/admin/statutory" ||
     pathname.startsWith("/admin/statutory/")
     ? "FROZEN"
@@ -77,6 +78,7 @@ export function classifyPosPilotRoute(pathname: string): "ALLOWED" | "FROZEN" {
 type RuntimeEnv = Record<string, string | undefined>;
 
 export function validatePosPilotRuntimeContract(env: RuntimeEnv = process.env) {
+  assertConsistentRuntimeEnvironment(env);
   const environment = resolveEnvironment(env);
 
   if (environment === "production" || environment === "testing") {
@@ -99,12 +101,21 @@ export function validatePosPilotRuntimeContract(env: RuntimeEnv = process.env) {
 }
 
 function resolveEnvironment(env: RuntimeEnv) {
-  return (
-    env.APP_ENVIRONMENT ??
-    env.RAILWAY_ENVIRONMENT_NAME ??
-    env.NODE_ENV ??
-    "development"
-  )
-    .trim()
-    .toLowerCase();
+  const explicit = normalizeEnvironment(env.APP_ENVIRONMENT);
+  const railway = normalizeEnvironment(env.RAILWAY_ENVIRONMENT_NAME);
+  if (explicit === "production" || railway === "production") return "production";
+  if (explicit === "testing" || railway === "testing") return "testing";
+  return explicit || railway || normalizeEnvironment(env.NODE_ENV) || "development";
+}
+
+function assertConsistentRuntimeEnvironment(env: RuntimeEnv) {
+  const explicit = normalizeEnvironment(env.APP_ENVIRONMENT);
+  const railway = normalizeEnvironment(env.RAILWAY_ENVIRONMENT_NAME);
+  if (explicit && railway && explicit !== railway) {
+    throw new Error("Conflicting runtime environment identities are forbidden.");
+  }
+}
+
+function normalizeEnvironment(value: string | undefined) {
+  return value?.trim().toLowerCase() ?? "";
 }

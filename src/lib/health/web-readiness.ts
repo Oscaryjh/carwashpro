@@ -1,6 +1,6 @@
 export type WebReadiness = Readonly<{
   application: "ready" | "not_ready" | "configuration_failed";
-  database: "reachable" | "unreachable" | "not_checked";
+  database: "ready" | "unavailable" | "not_checked";
   ok: boolean;
   process: "alive";
 }>;
@@ -24,17 +24,16 @@ export async function evaluateWebReadiness(input: {
     await input.databaseProbe();
     return {
       application: "ready",
-      database: "reachable",
+      database: "ready",
       ok: true,
       process: "alive",
     };
   } catch {
     return {
       application: "not_ready",
-      database: "unreachable",
+      database: "unavailable",
       ok: false,
       process: "alive",
     };
   }
 }
-

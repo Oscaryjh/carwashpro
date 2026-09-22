@@ -56,6 +56,7 @@ import { updateEmployeeStatutoryAndTaxProfiles } from "@/lib/payroll/employee-pr
 import { updateEmployeeTaxProfile } from "@/lib/payroll/employee-profile-write/tax";
 import { recordEmployeeLindung24ParticipationAndRefreshDrafts } from "@/lib/payroll/lindung24-participation-service";
 import { recordEmployeeStatutoryParticipationAndRefreshDrafts } from "@/lib/payroll/statutory-participation-service";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 const reasonSchema = z.object({
   reasonNote: z.string().trim().min(5, "Enter a reason of at least 5 characters.").max(500),
@@ -579,6 +580,7 @@ const existingBankVersionSchema = bankVersionBaseSchema.extend({
 });
 
 export async function scheduleEmployeeCompensationChangeAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   let membershipId = safeMembershipId(formData.get("membershipId"));
   try {
     const input = compensationSchema.parse(Object.fromEntries(formData));
@@ -621,6 +623,7 @@ export async function scheduleEmployeeCompensationChangeAction(formData: FormDat
 }
 
 export async function scheduleEmployeeRecurringPayAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   let membershipId = safeMembershipId(formData.get("membershipId"));
   try {
     const input = recurringPaySchema.parse(Object.fromEntries(formData));
@@ -667,6 +670,7 @@ export async function scheduleEmployeeRecurringPayAction(formData: FormData) {
 }
 
 export async function updateEmployeePayrollWorkTargetAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   let membershipId = safeMembershipId(formData.get("membershipId"));
   try {
     const input = workTargetSchema.parse(Object.fromEntries(formData));
@@ -706,6 +710,7 @@ export async function updateEmployeePayrollWorkTargetAction(formData: FormData) 
 }
 
 export async function updateEmployeeStatutoryProfileAction(formData: FormData) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   let membershipId = safeMembershipId(formData.get("membershipId"));
   try {
     const input = statutoryProfileSchema.parse({
@@ -777,6 +782,7 @@ export async function updateEmployeeStatutoryProfileAction(formData: FormData) {
 export async function updateEmployeeStatutoryAndTaxProfilesAction(
   formData: FormData,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   let membershipId = safeMembershipId(formData.get("membershipId"));
   try {
     const statutoryInput = statutoryProfileSchema.parse({
@@ -924,6 +930,7 @@ export async function updateEmployeeStatutoryAndTaxProfilesAction(
 }
 
 export async function recordEmployeeLindung24ParticipationAction(formData: FormData) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   let membershipId = safeMembershipId(formData.get("membershipId"));
   try {
     const command = lindung24ParticipationSchema.parse({
@@ -987,6 +994,7 @@ export async function recordEmployeeLindung24ParticipationAction(formData: FormD
 }
 
 export async function recordEmployeeEpfParticipationAction(formData: FormData) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   let membershipId = safeMembershipId(formData.get("membershipId"));
   try {
     const command = epfParticipationSchema.parse({
@@ -1042,6 +1050,7 @@ export async function recordEmployeeEpfParticipationAction(formData: FormData) {
 }
 
 export async function updateEmployeeTaxProfileAction(formData: FormData) {
+  assertFrozenDomainDenied("PCB_CALCULATION");
   let membershipId = safeMembershipId(formData.get("membershipId"));
   try {
     const input = taxProfileSchema.parse({
@@ -1125,6 +1134,7 @@ export async function updateEmployeeTaxProfileAction(formData: FormData) {
 }
 
 export async function createEmployeeBankVersionAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_BANK_EXECUTION");
   let membershipId = safeMembershipId(formData.get("membershipId"));
   const returnToProfile = formData.get("returnTo") === "profile";
   try {
@@ -1173,6 +1183,7 @@ export async function createEmployeeBankVersionAction(formData: FormData) {
 }
 
 export async function verifyEmployeeBankVersionAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_BANK_EXECUTION");
   let membershipId = safeMembershipId(formData.get("membershipId"));
   try {
     const input = existingBankVersionSchema.parse(Object.fromEntries(formData));
@@ -1203,6 +1214,7 @@ export async function verifyEmployeeBankVersionAction(formData: FormData) {
 }
 
 export async function deactivateEmployeeBankVersionAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_BANK_EXECUTION");
   let membershipId = safeMembershipId(formData.get("membershipId"));
   try {
     const input = existingBankVersionSchema.parse(Object.fromEntries(formData));

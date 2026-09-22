@@ -71,6 +71,7 @@ test("UI and route classifier denies payroll/statutory surfaces without blocking
     "/team/payroll/runs/run-1",
     "/team/payroll/export",
     "/team/payroll/statutory/export",
+    "/team/people/11111111-1111-4111-8111-111111111111/payroll",
     "/admin/statutory/rulesets",
   ]) {
     assert.equal(classifyPosPilotRoute(route), "FROZEN", route);
@@ -85,6 +86,25 @@ test("UI and route classifier denies payroll/statutory surfaces without blocking
   ]) {
     assert.equal(classifyPosPilotRoute(route), "ALLOWED", route);
   }
+});
+
+test("contradictory Railway and application identities always enforce the strict frozen boundary", () => {
+  assert.throws(
+    () => assertFrozenDomainDenied("PAYROLL_MUTATION", {
+      APP_ENVIRONMENT: "development",
+      RAILWAY_ENVIRONMENT_NAME: "production",
+    }),
+    FrozenDomainDeniedError,
+  );
+  assert.throws(
+    () => validatePosPilotRuntimeContract({
+      APP_ENVIRONMENT: "development",
+      RAILWAY_ENVIRONMENT_NAME: "production",
+      POS_PILOT_FROZEN_DOMAINS: "true",
+      POS_PILOT_RELEASE_MODE: "core-pilot",
+    }),
+    /conflicting runtime environment identities/i,
+  );
 });
 
 test("production and testing require the explicit frozen contract and it can never enable a frozen domain", () => {
@@ -126,6 +146,10 @@ test("high-risk entry files invoke the shared hard deny before transactional or 
     ["src/app/(business)/team/payroll/actions.ts", /assertFrozenDomainDenied\("PAYROLL_MUTATION"\)/],
     ["src/app/(business)/team/payroll/payments/actions.ts", /assertFrozenDomainDenied\("PAYROLL_PAYMENT_BATCH"\)/],
     ["src/app/(business)/team/payroll/statutory/actions.ts", /assertFrozenDomainDenied\("GOVERNMENT_SUBMISSION"\)/],
+    ["src/app/(business)/team/people/[personId]/payroll/actions.ts", /assertFrozenDomainDenied\("PAYROLL_MUTATION"\)/],
+    ["src/lib/payroll/employee-profile-write/common.ts", /assertFrozenDomainDenied\("PAYROLL_MUTATION"\)/],
+    ["src/lib/payroll/employee-profile-write/statutory-tax.ts", /assertFrozenDomainDenied\("PAYROLL_MUTATION"\)/],
+    ["src/lib/payroll/lindung24-participation-service.ts", /assertFrozenDomainDenied\("STATUTORY_ACTIVATION"\)/],
   ]);
 
   for (const [file, pattern] of expectations) {
@@ -168,6 +192,16 @@ test("direct service, action and export route calls deny before DB or artifact w
     );
     await assert.rejects(
       () => savePayrollSettingAction(new FormData()),
+      (error) =>
+        error instanceof FrozenDomainDeniedError &&
+        error.code === FROZEN_DOMAIN_DENIED,
+    );
+
+    const { scheduleEmployeeCompensationChangeAction } = await import(
+      "@/app/(business)/team/people/[personId]/payroll/actions"
+    );
+    await assert.rejects(
+      () => scheduleEmployeeCompensationChangeAction(new FormData()),
       (error) =>
         error instanceof FrozenDomainDeniedError &&
         error.code === FROZEN_DOMAIN_DENIED,

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 import type {
   UpdateEmployeeStatutoryProfileCommand,
@@ -27,6 +28,7 @@ export async function updateEmployeeStatutoryAndTaxProfiles(input: {
   statutory: UpdateEmployeeStatutoryProfileResult;
   tax: UpdateEmployeeTaxProfileResult;
 }> {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   return prisma.$transaction(async (transaction) => {
     const statutory = await updateEmployeeStatutoryProfileInTransaction(
       input.statutory,
