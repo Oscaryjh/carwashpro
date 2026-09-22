@@ -69,3 +69,12 @@ test("notification worker continuously publishes readiness and marks runtime fai
   assert.match(source, /readiness\.queueUnavailable\(\)/);
   assert.match(source, /readiness:\s*readiness\.snapshot\(/);
 });
+
+test("controlled cutover uses the stable Web database readiness literal", async () => {
+  const source = await readFile(
+    "docs/releases/pos-pilot-controlled-cutover-design.md",
+    "utf8",
+  );
+  assert.match(source, /database.?=.?`?ready`?/i);
+  assert.doesNotMatch(source, /database.?=.?`?reachable`?/i);
+});

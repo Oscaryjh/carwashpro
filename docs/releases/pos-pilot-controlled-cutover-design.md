@@ -20,7 +20,7 @@ This document is a future procedure only. Phase 1 does not execute it and does n
 
 ## Application switch and health order
 
-1. Switch Web to the exact candidate artifact; require `/api/health` HTTP 200 with `process=alive`, `application=ready`, and `database=reachable`.
+1. Switch Web to the exact candidate artifact; require `/api/health` HTTP 200 with `process=alive`, `application=ready`, and `database=ready`.
 2. Switch Worker; require startup configuration success, DB reachable, queue available, and fresh worker-loop heartbeat.
 3. Switch WhatsApp connector only after its persisted session backup/rollback evidence is approved. `/health` may report process healthy while `SESSION_NOT_CONNECTED`; customer traffic is allowed only at `READY_TO_SEND` and after allowlisted UAT authorization.
 4. Run read-only smoke checks, then POS checkout/customer payment/refund/invoice/receipt/package/daily-closing synthetic checks under the approved Pilot fixture boundary.
@@ -36,4 +36,3 @@ This document is a future procedure only. Phase 1 does not execute it and does n
 ## Evidence bundle
 
 The external release attestation binds the final full commit SHA, tree SHA, source digest, build artifact digest, lockfile digests, migration transcript, backup digest, restore transcript, health results, deployment IDs, timestamps, and rollback decision. It must not modify the candidate source tree and must not contain credentials or plaintext provider secrets.
-
