@@ -9,6 +9,7 @@ import {
   shouldForwardMessagesUpsert,
 } from "./socket.js";
 import { getReconnectDelayMs } from "./reconnect.js";
+import { connectorHealthFromStates } from "./readiness.js";
 
 test("uses isolated auth directories for different businesses", () => {
   process.env.AUTH_INFO_PATH = path.join("C:", "tmp", "whatsapp-auth");
@@ -50,4 +51,25 @@ test("reconnect delay is bounded and increases with retry attempts", () => {
   assert.ok(laterAttempt >= 8000 && laterAttempt < 8500);
   assert.ok(cappedAttempt >= 30000 && cappedAttempt <= 30000);
   assert.ok(getReconnectDelayMs(-1) >= 1000);
+});
+
+test("connector health distinguishes process, session and send readiness", () => {
+  assert.deepEqual(connectorHealthFromStates([]), {
+    process: "PROCESS_HEALTHY",
+    session: "SESSION_NOT_CONNECTED",
+    send: "NOT_READY_TO_SEND",
+    connectedSessions: 0,
+    configuredSessions: 0,
+  });
+  assert.deepEqual(connectorHealthFromStates([{ status: "connected", healthy: true }]), {
+    process: "PROCESS_HEALTHY",
+    session: "SESSION_CONNECTED",
+    send: "READY_TO_SEND",
+    connectedSessions: 1,
+    configuredSessions: 1,
+  });
+  assert.equal(
+    connectorHealthFromStates([{ status: "connected", healthy: false }]).send,
+    "NOT_READY_TO_SEND",
+  );
 });

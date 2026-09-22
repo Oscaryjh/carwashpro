@@ -85,6 +85,9 @@ test("live mode is the only mode that calls the injected connector transport", a
 
   const result = await sendWhatsAppQueueItem(sampleQueueItem, {
     env: {
+      APP_ENVIRONMENT: "production",
+      RAILWAY_ENVIRONMENT_ID: "bef43b86-32dc-486e-a1ef-bb9f9699e4f5",
+      RAILWAY_ENVIRONMENT_NAME: "production",
       WHATSAPP_CONNECTOR_API_SECRET: "secret-for-test",
       WHATSAPP_CONNECTOR_URL: "https://connector.example.test/",
       WHATSAPP_SEND_MODE: "live",
@@ -167,11 +170,40 @@ test("production mock mode is forbidden before a queue item can be simulated", (
     /forbidden in production/i,
   );
   assert.equal(
-    resolveWhatsAppSendMode({ NODE_ENV: "production", WHATSAPP_SEND_MODE: "live" }),
+    resolveWhatsAppSendMode({
+      APP_ENVIRONMENT: "production",
+      RAILWAY_ENVIRONMENT_ID: "bef43b86-32dc-486e-a1ef-bb9f9699e4f5",
+      RAILWAY_ENVIRONMENT_NAME: "production",
+      WHATSAPP_SEND_MODE: "live",
+    }),
     "live",
   );
   assert.equal(
     resolveWhatsAppSendMode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "testing", WHATSAPP_SEND_MODE: "mock" }),
     "mock",
+  );
+});
+
+test("development and testing reject live delivery even when the mode alone is set", () => {
+  for (const environment of ["development", "testing"]) {
+    assert.throws(
+      () => resolveWhatsAppSendMode({
+        APP_ENVIRONMENT: environment,
+        WHATSAPP_SEND_MODE: "live",
+      }),
+      /Production identity/i,
+    );
+  }
+});
+
+test("live delivery requires the source-pinned Production Railway identity", () => {
+  assert.throws(
+    () => resolveWhatsAppSendMode({
+      APP_ENVIRONMENT: "production",
+      RAILWAY_ENVIRONMENT_NAME: "production",
+      RAILWAY_ENVIRONMENT_ID: "wrong-environment",
+      WHATSAPP_SEND_MODE: "live",
+    }),
+    /Production identity/i,
   );
 });

@@ -26,6 +26,9 @@ export type QueueSendTransport = (
 
 type WhatsAppWorkerEnv = Record<string, string | undefined>;
 
+const PRODUCTION_RAILWAY_ENVIRONMENT_ID =
+  "bef43b86-32dc-486e-a1ef-bb9f9699e4f5";
+
 type ConnectorSendResponse =
   | {
       ok: true;
@@ -79,12 +82,26 @@ export function resolveWhatsAppSendMode(
     );
   }
 
+  if (value === "live" && !hasExplicitProductionIdentity(env)) {
+    throw new WhatsAppSendModeConfigError(
+      "Live WhatsApp delivery requires the source-pinned Production identity.",
+    );
+  }
+
   if (value === "mock" || value === "live") {
     return value;
   }
 
   throw new WhatsAppSendModeConfigError(
     'WHATSAPP_SEND_MODE must be explicitly set to "mock" or "live".',
+  );
+}
+
+function hasExplicitProductionIdentity(env: WhatsAppWorkerEnv) {
+  return (
+    env.APP_ENVIRONMENT?.trim().toLowerCase() === "production" &&
+    env.RAILWAY_ENVIRONMENT_NAME?.trim().toLowerCase() === "production" &&
+    env.RAILWAY_ENVIRONMENT_ID?.trim() === PRODUCTION_RAILWAY_ENVIRONMENT_ID
   );
 }
 

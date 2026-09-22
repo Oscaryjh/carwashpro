@@ -1340,3 +1340,10 @@ async function logoutSessionInternal() {
 export function getActiveSessionCount() {
   return sessions.size;
 }
+
+export function getSessionReadinessStates() {
+  return [...sessions.values()].map((runtime) => ({
+    healthy: runtime.state.sessionHealth?.ok !== false,
+    status: runtime.state.status,
+  }));
+}

@@ -14,12 +14,15 @@ import {
   sendWhatsAppQueueItem,
 } from "../src/lib/notification-queue/worker-send";
 import { emitScheduledJobFailure } from "../src/lib/ops/alerting";
+import { createWorkerReadinessTracker } from "../src/lib/notification-queue/worker-readiness";
+import { validatePosPilotRuntimeContract } from "../src/lib/release/pos-pilot-contract";
 
 const pollIntervalMs = 1000;
 const batchSize = 10;
 const queuedAfter = parseQueuedAfter(process.argv);
 let shuttingDown = false;
 let lastClosingReminderSweepAt = 0;
+const readiness = createWorkerReadinessTracker({ staleAfterMs: 30_000 });
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
@@ -37,15 +40,30 @@ main().catch(async (error) => {
 });
 
 async function main() {
-  const sendModeConfig = getWhatsAppSendModeRuntimeConfig();
+  let sendModeConfig;
+  try {
+    validatePosPilotRuntimeContract();
+    sendModeConfig = getWhatsAppSendModeRuntimeConfig();
+    readiness.configurationReady();
+  } catch (error) {
+    readiness.fatalConfigurationFailure();
+    throw error;
+  }
+  await prisma.$queryRaw`SELECT 1`;
+  readiness.databaseReady();
+  await findQueued({ limit: 1, queuedAfter });
+  readiness.queueReady();
+  readiness.loopHeartbeat();
 
   console.log("[notification-queue-worker] Started", {
     connectorCallsEnabled: sendModeConfig.connectorCallsEnabled,
     queuedAfter: queuedAfter?.toISOString() ?? null,
     sendMode: sendModeConfig.mode,
+    readiness: readiness.snapshot(),
   });
 
   while (!shuttingDown) {
+    readiness.loopHeartbeat();
     const processed = await processQueuedBatch();
 
     if (!processed) {

@@ -14,6 +14,7 @@ import {
 import {
   getDiagnostics,
   getActiveSessionCount,
+  getSessionReadinessStates,
   getQr,
   getSession,
   getStatus,
@@ -21,6 +22,7 @@ import {
   reconnectSocket,
   startSocket
 } from "./socket.js";
+import { connectorHealthFromStates } from "./readiness.js";
 import type { ApiResponse, SendRequestBody } from "./types.js";
 import { ConnectorRequestReplayCache } from "./request-replay.js";
 import {
@@ -287,7 +289,8 @@ async function handleRequest(
       data: {
         service: "whatsapp-connector",
         uptimeSeconds: Math.round(process.uptime()),
-        activeSessions: getActiveSessionCount()
+        activeSessions: getActiveSessionCount(),
+        readiness: connectorHealthFromStates(getSessionReadinessStates())
       }
     });
     return;
