@@ -11,6 +11,7 @@ import type { AuditRequestContext, WriteAuditLogInput } from "@/lib/audit";
 import { sanitizeAuditReason } from "@/lib/audit/sanitize";
 import { writeSensitiveAuditLog } from "@/lib/audit/payroll-sensitive";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 type CompensationDatabase = PrismaClient | Prisma.TransactionClient;
 type CompensationActor = NonNullable<WriteAuditLogInput["actor"]>;
@@ -104,6 +105,7 @@ export async function writeEmployeeCompensationVersionInTransaction(
   input: CompensationWriteInput,
   transaction: Prisma.TransactionClient,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   await assertCompensationWriteAuthorization(input, transaction);
   const effectiveFromMonth = payrollMonthStart(input.effectiveFromMonth);
   if (effectiveFromMonth.getTime() !== input.effectiveFromMonth.getTime()) {
@@ -235,6 +237,7 @@ export async function synchronizeMembershipCompensationProjection(
   transaction: Prisma.TransactionClient,
   asOfPayrollMonth = currentPayrollMonthStart(),
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const currentMonth = payrollMonthStart(asOfPayrollMonth);
   const applicable = await transaction.employeeCompensationVersion.findFirst({
     where: {

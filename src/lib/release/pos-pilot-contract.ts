@@ -69,9 +69,14 @@ export function classifyPosPilotRoute(
   pathname: string,
   searchParams?: Pick<URLSearchParams, "get">,
 ): "ALLOWED" | "FROZEN" {
-  const employeePayrollSection =
-    /^\/team\/people\/[^/]+\/?$/.test(pathname) &&
-    searchParams?.get("section") === "payroll";
+  const isEmployeeProfile = /^\/team\/people\/[^/]+\/?$/.test(pathname);
+  const section = searchParams?.get("section");
+  const view = searchParams?.get("view");
+  const employeePayrollSection = isEmployeeProfile && (
+    section === "payroll" ||
+    section === "statutory" ||
+    (section === "compensation" && (view === "payroll" || view === "statutory"))
+  );
   return pathname === "/team/payroll" ||
     pathname.startsWith("/team/payroll/") ||
     /^\/team\/people\/[^/]+\/payroll(?:\/|$)/.test(pathname) ||

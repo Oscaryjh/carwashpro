@@ -7,6 +7,7 @@ import {
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 import {
   consumePayrollHighRiskAuthorization,
   type PayrollHighRiskAuditLink,
@@ -36,6 +37,7 @@ export async function executePayrollPaymentCommand<
   input: ExecutePaymentCommandInput<TResult>,
   database: PrismaClient = prisma,
 ): Promise<TResult> {
+  assertFrozenDomainDenied("PAYROLL_BANK_EXECUTION");
   validateCommandId(input.command.commandId);
   const requestFingerprint = paymentCommandFingerprint({
     command: input.command,

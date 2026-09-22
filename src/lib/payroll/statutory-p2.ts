@@ -8,6 +8,7 @@ import type {
   StatutoryRuleSetStatus,
   StatutoryScheme,
 } from "@prisma/client";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 import { buildStatutoryDeductionComponents } from "./component-calculation";
 import { CP38_BLOCKERS, resolveCp38ForPeriod } from "./cp38-instruction";
 import type { NormalizedContributionDataset } from "./statutory-artifact-pipeline";
@@ -334,6 +335,7 @@ export async function materializeStatutoryP2(
     preloadedStatutoryParticipation?: readonly StatutoryParticipationPeriod[];
   },
 ) {
+  assertFrozenDomainDenied("PCB_CALCULATION");
   const schemes: StatutoryScheme[] = ["EPF", "SOCSO", "EIS", "LINDUNG24", "PCB"];
   const statutoryParticipation =
     input.preloadedStatutoryParticipation ??
@@ -994,6 +996,7 @@ export async function calculatePcbForEntry(
       metadata: Record<string, unknown>;
     }
 > {
+  assertFrozenDomainDenied("PCB_CALCULATION");
   const calculationMonth = input.statutoryPeriod.getUTCMonth() + 1;
   const taxYear = input.statutoryPeriod.getUTCFullYear();
   if (context.pcbProfile.taxYear !== taxYear) {
