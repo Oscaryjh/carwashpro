@@ -28,6 +28,12 @@ const guardedActions = [
   ["src/app/(business)/work-orders/actions.ts", "purchasePackageFromCashierAction", "PACKAGE_PURCHASE"],
   ["src/app/(business)/work-orders/actions.ts", "updateWorkOrderStatusAction", "WORK_ORDER_UPDATE"],
   ["src/app/(business)/work-orders/actions.ts", "updateWorkOrderContactAction", "WORK_ORDER_UPDATE"],
+  ["src/app/staff/approvals/actions.ts", "reviewMobileLeaveAction", "STAFF_BUSINESS_MUTATION"],
+  ["src/app/staff/approvals/actions.ts", "reviewMobileClaimAction", "STAFF_BUSINESS_MUTATION"],
+  ["src/app/staff/requests/attendance-corrections/actions.ts", "reviewMobilePendingAttendanceExceptionAction", "STAFF_BUSINESS_MUTATION"],
+  ["src/app/staff/requests/attendance-corrections/actions.ts", "reviewMobileAttendanceCorrectionAction", "STAFF_BUSINESS_MUTATION"],
+  ["src/app/staff/requests/attendance-corrections/actions.ts", "reviewMobileP2AttendanceCorrectionAction", "STAFF_BUSINESS_MUTATION"],
+  ["src/app/staff/requests/overtime/actions.ts", "decideMobileOvertimeAction", "STAFF_BUSINESS_MUTATION"],
 ] as const;
 
 test("every operator-smoke surface performs source-level preflight before auth, transaction or queue work", async () => {

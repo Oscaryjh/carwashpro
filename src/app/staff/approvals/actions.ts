@@ -5,8 +5,10 @@ import { redirect } from "next/navigation";
 import { getAuditRequestContext } from "@/lib/audit";
 import { requireEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee-auth";
 import { reviewStaffClaim, reviewStaffLeave } from "@/lib/staff-pwa/team-approvals";
+import { preflightPosPilotWrite } from "@/lib/release/pos-pilot-write-freeze-server";
 
 export async function reviewMobileLeaveAction(formData: FormData) {
+  await preflightPosPilotWrite("STAFF_BUSINESS_MUTATION");
   try {
     const auth = await requireEmployeeSelfServiceAuthContext();
     const decision = decisionValue(formData);
@@ -26,6 +28,7 @@ export async function reviewMobileLeaveAction(formData: FormData) {
 }
 
 export async function reviewMobileClaimAction(formData: FormData) {
+  await preflightPosPilotWrite("STAFF_BUSINESS_MUTATION");
   try {
     const auth = await requireEmployeeSelfServiceAuthContext();
     const decision = decisionValue(formData);

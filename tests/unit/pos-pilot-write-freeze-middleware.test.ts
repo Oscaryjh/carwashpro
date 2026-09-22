@@ -131,7 +131,6 @@ test("middleware matcher covers every business route family that owns server act
     "/pos/:path*",
     "/products/:path*",
     "/services/:path*",
-    "/staff/:path*",
     "/team/:path*",
     "/whatsapp/:path*",
     "/work-orders/:path*",

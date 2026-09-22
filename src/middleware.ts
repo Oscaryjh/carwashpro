@@ -291,7 +291,6 @@ export const config = {
     "/reports/:path*",
     "/salon/dashboard",
     "/services/:path*",
-    "/staff/:path*",
     "/team/:path*",
     "/whatsapp/:path*",
     "/work-orders/:path*",

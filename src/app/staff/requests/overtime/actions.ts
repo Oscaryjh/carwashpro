@@ -7,8 +7,10 @@ import { AttendanceOvertimeError } from "@/lib/attendance/overtime-service";
 import { requireEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee-auth";
 import { getAuditRequestContext } from "@/lib/audit";
 import { decideStaffOvertime } from "@/lib/staff-pwa/overtime-approvals";
+import { preflightPosPilotWrite } from "@/lib/release/pos-pilot-write-freeze-server";
 
 export async function decideMobileOvertimeAction(formData: FormData) {
+  await preflightPosPilotWrite("STAFF_BUSINESS_MUTATION");
   const finalResultId = String(formData.get("finalResultId") ?? "");
   const month = String(formData.get("month") ?? "");
   try {

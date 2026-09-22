@@ -10,8 +10,10 @@ import {
   reviewStaffAttendanceP2Correction,
   reviewStaffPendingAttendanceException,
 } from "@/lib/staff-pwa/team-approvals";
+import { preflightPosPilotWrite } from "@/lib/release/pos-pilot-write-freeze-server";
 
 export async function reviewMobilePendingAttendanceExceptionAction(formData: FormData) {
+  await preflightPosPilotWrite("STAFF_BUSINESS_MUTATION");
   try {
     const decision = String(formData.get("decision") ?? "");
     if (decision !== "APPROVED" && decision !== "REJECTED") {
@@ -37,6 +39,7 @@ export async function reviewMobilePendingAttendanceExceptionAction(formData: For
 }
 
 export async function reviewMobileAttendanceCorrectionAction(formData: FormData) {
+  await preflightPosPilotWrite("STAFF_BUSINESS_MUTATION");
   try {
     const action = String(formData.get("action") ?? "");
     if (action !== "APPLY_CORRECTION" && action !== "RETURN_TO_EMPLOYEE") {
@@ -68,6 +71,7 @@ export async function reviewMobileAttendanceCorrectionAction(formData: FormData)
 }
 
 export async function reviewMobileP2AttendanceCorrectionAction(formData: FormData) {
+  await preflightPosPilotWrite("STAFF_BUSINESS_MUTATION");
   try {
     const decision = String(formData.get("decision") ?? "");
     if (decision !== "APPROVED" && decision !== "REJECTED") {
