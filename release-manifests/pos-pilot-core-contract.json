@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "releaseMode": "core-pilot",
+  "baseCommit": "c48fb152631646da4a7f98dca16e5f8fbc93c40a",
+  "migrationBaseline": 213,
+  "runtimeContract": {
+    "POS_PILOT_RELEASE_MODE": "core-pilot",
+    "POS_PILOT_FROZEN_DOMAINS": "true"
+  },
+  "productionIdentity": {
+    "railwayEnvironmentId": "bef43b86-32dc-486e-a1ef-bb9f9699e4f5",
+    "railwayEnvironmentName": "production"
+  },
+  "frozenDomains": [
+    "PAYROLL_MUTATION",
+    "PCB_CALCULATION",
+    "STATUTORY_ACTIVATION",
+    "OFFICIAL_STATUTORY_EXPORT",
+    "GOVERNMENT_SUBMISSION",
+    "PAYROLL_PAYMENT_BATCH",
+    "PAYROLL_BANK_EXECUTION",
+    "PAYROLL_SETTLEMENT",
+    "FROZEN_DOMAIN_JOB"
+  ],
+  "allowedPosDomains": [
+    "POS_CHECKOUT",
+    "POS_CUSTOMER_PAYMENT",
+    "POS_PARTIAL_PAYMENT",
+    "POS_REFUND",
+    "POS_INVOICE_RECEIPT",
+    "POS_PACKAGE_REDEMPTION",
+    "POS_DAILY_CLOSING",
+    "POS_CUSTOMER_HISTORY"
+  ],
+  "notes": [
+    "This committed source manifest intentionally contains no candidate commit SHA, tree SHA, artifact digest, or evidence-bundle hash.",
+    "Post-commit identity belongs only in the external Phase 1 release attestation/report."
+  ]
+}
