@@ -12,6 +12,8 @@ function validate(scope: string, env: Record<string, string>) {
 
 const productionBase = {
   APP_ENVIRONMENT: "production",
+  RAILWAY_ENVIRONMENT_ID: "bef43b86-32dc-486e-a1ef-bb9f9699e4f5",
+  RAILWAY_ENVIRONMENT_NAME: "production",
   POS_PILOT_FROZEN_DOMAINS: "true",
   POS_PILOT_RELEASE_MODE: "core-pilot",
   APP_RELEASE_SHA: "abcdef1234567890",

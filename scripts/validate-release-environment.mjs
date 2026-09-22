@@ -60,6 +60,15 @@ if (environment === "production") {
   if ((scope === "notification" || scope === "whatsapp") && process.env.WHATSAPP_SEND_MODE !== "live") {
     fail('Production WhatsApp workers require WHATSAPP_SEND_MODE="live".');
   }
+  if (
+    (scope === "notification" || scope === "whatsapp") &&
+    (
+      process.env.RAILWAY_ENVIRONMENT_NAME?.trim().toLowerCase() !== "production" ||
+      process.env.RAILWAY_ENVIRONMENT_ID?.trim() !== "bef43b86-32dc-486e-a1ef-bb9f9699e4f5"
+    )
+  ) {
+    fail("Production WhatsApp delivery requires the source-pinned Railway Production identity.");
+  }
 }
 
 console.log(`[release-env] ${scope} environment contract valid for ${environment}.`);

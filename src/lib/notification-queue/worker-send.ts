@@ -1,4 +1,5 @@
 import { isProductionRuntime } from "@/lib/release/environment";
+import { assertWhatsAppLiveDeliveryAllowed } from "@/lib/whatsapp/delivery-policy";
 
 export type WhatsAppSendMode = "mock" | "live";
 
@@ -25,9 +26,6 @@ export type QueueSendTransport = (
 ) => Promise<Response>;
 
 type WhatsAppWorkerEnv = Record<string, string | undefined>;
-
-const PRODUCTION_RAILWAY_ENVIRONMENT_ID =
-  "bef43b86-32dc-486e-a1ef-bb9f9699e4f5";
 
 type ConnectorSendResponse =
   | {
@@ -82,10 +80,14 @@ export function resolveWhatsAppSendMode(
     );
   }
 
-  if (value === "live" && !hasExplicitProductionIdentity(env)) {
-    throw new WhatsAppSendModeConfigError(
-      "Live WhatsApp delivery requires the source-pinned Production identity.",
-    );
+  if (value === "live") {
+    try {
+      assertWhatsAppLiveDeliveryAllowed(env);
+    } catch (error) {
+      throw new WhatsAppSendModeConfigError(
+        error instanceof Error ? error.message : "Live WhatsApp delivery is denied.",
+      );
+    }
   }
 
   if (value === "mock" || value === "live") {
@@ -94,14 +96,6 @@ export function resolveWhatsAppSendMode(
 
   throw new WhatsAppSendModeConfigError(
     'WHATSAPP_SEND_MODE must be explicitly set to "mock" or "live".',
-  );
-}
-
-function hasExplicitProductionIdentity(env: WhatsAppWorkerEnv) {
-  return (
-    env.APP_ENVIRONMENT?.trim().toLowerCase() === "production" &&
-    env.RAILWAY_ENVIRONMENT_NAME?.trim().toLowerCase() === "production" &&
-    env.RAILWAY_ENVIRONMENT_ID?.trim() === PRODUCTION_RAILWAY_ENVIRONMENT_ID
   );
 }
 

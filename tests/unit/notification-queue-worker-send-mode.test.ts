@@ -7,6 +7,7 @@ import {
   WhatsAppSendModeConfigError,
   type QueueSendTransport,
 } from "../../src/lib/notification-queue/worker-send";
+import { assertWhatsAppLiveDeliveryAllowed } from "@/lib/whatsapp/delivery-policy";
 
 const sampleQueueItem = {
   businessId: "business-qa",
@@ -206,4 +207,22 @@ test("live delivery requires the source-pinned Production Railway identity", () 
     }),
     /Production identity/i,
   );
+});
+
+test("direct connector sends share the same Production-only delivery policy", () => {
+  for (const environment of ["development", "testing"]) {
+    assert.throws(
+      () => assertWhatsAppLiveDeliveryAllowed({
+        APP_ENVIRONMENT: environment,
+        WHATSAPP_SEND_MODE: "live",
+      }),
+      /Production identity/i,
+    );
+  }
+  assert.doesNotThrow(() => assertWhatsAppLiveDeliveryAllowed({
+    APP_ENVIRONMENT: "production",
+    RAILWAY_ENVIRONMENT_ID: "bef43b86-32dc-486e-a1ef-bb9f9699e4f5",
+    RAILWAY_ENVIRONMENT_NAME: "production",
+    WHATSAPP_SEND_MODE: "live",
+  }));
 });

@@ -314,6 +314,7 @@ export async function sendConnectorTextMessage(input: {
   message: string;
   requestId?: string;
 }) {
+  assertWhatsAppLiveDeliveryAllowed();
   const requestId = input.requestId ?? randomUUID();
   const response = await fetch(`${getWhatsAppConnectorUrl()}/send`, {
     method: "POST",
@@ -511,3 +512,4 @@ function getConnectorErrorMessage(body: unknown) {
   return "";
 }
 import { randomUUID } from "node:crypto";
+import { assertWhatsAppLiveDeliveryAllowed } from "@/lib/whatsapp/delivery-policy";
