@@ -93,6 +93,7 @@ export function buildOfficialSubmissionFile(
   profile: StatutoryBusinessProfile,
   run: StatutorySubmissionRun,
 ) {
+  assertFrozenDomainDenied("GOVERNMENT_SUBMISSION");
   const validation = validateStatutorySubmission(provider, profile, run);
   if (!validation.ready) throw new Error(validation.errors[0]?.message ?? "Statutory submission is not ready.");
   if (provider === "EPF") return Buffer.from(buildEpfCsv(validation.eligibleEntries), "utf8");
@@ -297,3 +298,4 @@ function formatNewIc(value: string | null) {
   return number.length === 12 ? `${number.slice(0, 6)}-${number.slice(6, 8)}-${number.slice(8)}` : clean(value);
 }
 function csvCell(value: string) { return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value; }
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";

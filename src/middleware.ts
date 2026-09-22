@@ -1,6 +1,10 @@
 import { jwtVerify } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 import { getStaffHomePath, routePermission } from "@/lib/auth/staff-permissions";
+import {
+  classifyPosPilotRoute,
+  FROZEN_DOMAIN_DENIED,
+} from "@/lib/release/pos-pilot-contract";
 
 const SESSION_COOKIE = "car_wash_session";
 
@@ -16,6 +20,13 @@ function getSecret() {
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+
+  if (classifyPosPilotRoute(pathname) === "FROZEN") {
+    return new NextResponse(FROZEN_DOMAIN_DENIED, {
+      status: 403,
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+  }
 
   // The dedicated Staff App deployment shares the codebase but not the
   // back-office surface. Keep staff APIs available while redirecting any

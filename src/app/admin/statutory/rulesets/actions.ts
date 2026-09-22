@@ -2,6 +2,7 @@
 
 import type { StatutoryComponentReviewDecisionValue } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { SENSITIVE_ACTION_COOKIE } from "@/lib/auth/sensitive-action-service";
@@ -26,6 +27,7 @@ import {
 } from "@/lib/payroll/statutory-governance-service";
 
 export async function registerPcbReviewDraftAction() {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
   try {
@@ -48,6 +50,7 @@ export async function registerPcbReviewDraftAction() {
 }
 
 export async function signOffStatutoryRuleAction(formData: FormData) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
   const ruleSetId = required(formData, "ruleSetId");
@@ -81,6 +84,7 @@ export async function signOffStatutoryRuleAction(formData: FormData) {
 }
 
 export async function reviewStatutoryClassificationAction(formData: FormData) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
   const ruleSetId = required(formData, "ruleSetId");
@@ -111,6 +115,7 @@ export async function reviewStatutoryClassificationAction(formData: FormData) {
 }
 
 export async function reviewStatutoryClassificationsAction(formData: FormData) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
   const ruleSetId = required(formData, "ruleSetId");
@@ -190,6 +195,7 @@ export async function reviewStatutoryClassificationsAction(formData: FormData) {
 }
 
 export async function completeStatutoryHumanReviewAction(formData: FormData) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
   const ruleSetId = required(formData, "ruleSetId");
@@ -215,6 +221,7 @@ export async function completeStatutoryHumanReviewAction(formData: FormData) {
 }
 
 export async function recordPcbSoftwareVerificationAction(formData: FormData) {
+  assertFrozenDomainDenied("PCB_CALCULATION");
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
   const ruleSetId = required(formData, "ruleSetId");
@@ -250,6 +257,7 @@ export async function recordPcbSoftwareVerificationAction(formData: FormData) {
 }
 
 export async function activateStatutoryRuleAction(formData: FormData) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const user = await requireUser();
   assertRole(user, ["PLATFORM_ADMIN"]);
   const ruleSetId = required(formData, "ruleSetId");

@@ -53,6 +53,7 @@ import {
 } from "@/lib/payroll/variable-pay";
 import { prisma } from "@/lib/prisma";
 import { trySynchronizePayrollExpense } from "@/lib/expense/source-integration";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 const settingSchema = z.object({
   workingDaysPerMonth: z.coerce.number().int().min(1).max(31),
@@ -76,6 +77,7 @@ const holidaySchema = z.object({
 const workflowReasonSchema = z.string().trim().min(5).max(500);
 
 export async function savePayrollSettingAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   try {
     const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
@@ -158,6 +160,7 @@ export async function savePayrollSettingAction(formData: FormData) {
 }
 
 export async function addPayrollHolidayAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   try {
     const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
@@ -204,6 +207,7 @@ export async function addPayrollHolidayAction(formData: FormData) {
 }
 
 export async function deletePayrollHolidayAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   try {
     const context = await requireWholeBusinessPayroll("EDIT_PAYROLL_ENTRY");
@@ -243,6 +247,7 @@ export async function deletePayrollHolidayAction(formData: FormData) {
 }
 
 export async function generatePayrollRunAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const requestedReturnPath = payrollRunReturnPath(
     formData.get("runId"),
@@ -303,6 +308,7 @@ export async function generatePayrollRunAction(formData: FormData) {
 }
 
 export async function updatePayrollEntryAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(
     formData.get("runId"),
@@ -327,6 +333,7 @@ export async function updatePayrollEntryAction(formData: FormData) {
 }
 
 export async function decidePayrollHolidayPayAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const runId = String(formData.get("runId") ?? "");
   const entryId = String(formData.get("entryId") ?? "");
@@ -381,6 +388,7 @@ export async function decidePayrollHolidayPayAction(formData: FormData) {
 }
 
 export async function addManualPayrollAdjustmentAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -404,6 +412,7 @@ export async function addManualPayrollAdjustmentAction(formData: FormData) {
 }
 
 export async function createPayrollVariablePayAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -427,6 +436,7 @@ export async function createPayrollVariablePayAction(formData: FormData) {
 }
 
 export async function approvePayrollVariablePayAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -442,6 +452,7 @@ export async function approvePayrollVariablePayAction(formData: FormData) {
 }
 
 export async function cancelPayrollVariablePayAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -458,6 +469,7 @@ export async function cancelPayrollVariablePayAction(formData: FormData) {
 }
 
 export async function createPayrollCorrectionAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -478,6 +490,7 @@ export async function createPayrollCorrectionAction(formData: FormData) {
 }
 
 export async function approvePayrollCorrectionAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -493,6 +506,7 @@ export async function approvePayrollCorrectionAction(formData: FormData) {
 }
 
 export async function cancelPayrollCorrectionAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -509,6 +523,7 @@ export async function cancelPayrollCorrectionAction(formData: FormData) {
 }
 
 export async function editManualPayrollAdjustmentAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -531,6 +546,7 @@ export async function editManualPayrollAdjustmentAction(formData: FormData) {
 }
 
 export async function removeManualPayrollAdjustmentAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -551,6 +567,7 @@ export async function removeManualPayrollAdjustmentAction(formData: FormData) {
 }
 
 export async function submitPayrollRunForReviewAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -568,6 +585,7 @@ export async function submitPayrollRunForReviewAction(formData: FormData) {
 }
 
 export async function returnPayrollRunToDraftAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -586,6 +604,7 @@ export async function returnPayrollRunToDraftAction(formData: FormData) {
 }
 
 export async function finalizePayrollRunAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_SETTLEMENT");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -617,6 +636,7 @@ export async function finalizePayrollRunAction(formData: FormData) {
 }
 
 export async function reopenPayrollRunAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {
@@ -647,6 +667,7 @@ export async function reopenPayrollRunAction(formData: FormData) {
 }
 
 export async function publishPayrollPayslipsAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const month = monthFrom(formData);
   const returnPath = payrollRunReturnPath(formData.get("runId"), formData.get("returnPath"));
   try {

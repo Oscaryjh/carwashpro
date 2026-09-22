@@ -12,6 +12,8 @@ function validate(scope: string, env: Record<string, string>) {
 
 const productionBase = {
   APP_ENVIRONMENT: "production",
+  POS_PILOT_FROZEN_DOMAINS: "true",
+  POS_PILOT_RELEASE_MODE: "core-pilot",
   APP_RELEASE_SHA: "abcdef1234567890",
   APP_RELEASE_SOURCE_DIGEST: "a".repeat(64),
   DATABASE_URL: "postgresql://user:pass@production-db.internal:5432/tetamu",
@@ -38,6 +40,8 @@ test("Testing environment permits controlled mocks", () => {
   const result = validate("notification", {
     APP_ENVIRONMENT: "testing",
     NODE_ENV: "production",
+    POS_PILOT_FROZEN_DOMAINS: "true",
+    POS_PILOT_RELEASE_MODE: "core-pilot",
     WHATSAPP_SEND_MODE: "mock",
   });
   assert.equal(result.status, 0, result.stderr);
@@ -67,7 +71,12 @@ test("Production environment rejects employee OTP, AI and WhatsApp mocks", () =>
 });
 
 test("Production web contract can pass with mocks disabled and optional AI off", () => {
-  const result = validate("web", productionBase);
+  const result = validate("web", {
+    ...productionBase,
+    PAYROLL_PAYMENT_ACTIVE_KEY_VERSION: "",
+    PAYROLL_PAYMENT_ENCRYPTION_KEYS: "",
+    PAYROLL_PAYMENT_FINGERPRINT_KEY: "",
+  });
   assert.equal(result.status, 0, result.stderr);
 });
 

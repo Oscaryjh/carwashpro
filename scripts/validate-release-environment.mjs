@@ -3,6 +3,15 @@ const explicit = process.env.APP_ENVIRONMENT?.trim().toLowerCase();
 const railway = process.env.RAILWAY_ENVIRONMENT_NAME?.trim().toLowerCase();
 const environment = explicit || railway || process.env.NODE_ENV?.trim().toLowerCase() || "development";
 
+if (environment === "production" || environment === "testing") {
+  if (process.env.POS_PILOT_RELEASE_MODE !== "core-pilot") {
+    fail(`POS_PILOT_RELEASE_MODE=core-pilot is required in ${environment}.`);
+  }
+  if (process.env.POS_PILOT_FROZEN_DOMAINS?.trim().toLowerCase() !== "true") {
+    fail(`POS_PILOT_FROZEN_DOMAINS=true is required in ${environment}.`);
+  }
+}
+
 if (!new Set(["web", "notification", "analytics", "whatsapp"]).has(scope)) {
   fail(`Unknown release validation scope: ${scope}`);
 }
@@ -14,9 +23,11 @@ if (environment === "production") {
   requireValue("SESSION_SECRET", 32);
   requireValue("MFA_ACTIVE_KEY_VERSION", 1);
   requireValue("MFA_ENCRYPTION_KEYS", 10);
-  requireValue("PAYROLL_PAYMENT_ACTIVE_KEY_VERSION", 1);
-  requireValue("PAYROLL_PAYMENT_ENCRYPTION_KEYS", 10);
-  requireValue("PAYROLL_PAYMENT_FINGERPRINT_KEY", 32);
+  if (process.env.POS_PILOT_RELEASE_MODE !== "core-pilot") {
+    requireValue("PAYROLL_PAYMENT_ACTIVE_KEY_VERSION", 1);
+    requireValue("PAYROLL_PAYMENT_ENCRYPTION_KEYS", 10);
+    requireValue("PAYROLL_PAYMENT_FINGERPRINT_KEY", 32);
+  }
 
   const otpProvider = process.env.OTP_PROVIDER ?? process.env.EMPLOYEE_OTP_SEND_MODE;
   if (otpProvider === "mock" || process.env.EMPLOYEE_OTP_MOCK_CODE) {

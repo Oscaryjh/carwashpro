@@ -7,6 +7,7 @@ import type {
   StatutoryScheme,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 import {
   getSensitiveActionPolicy,
   TRUE_MFA_CAPABILITY,
@@ -100,6 +101,7 @@ export async function registerCanonicalStatutoryCandidates(
   },
   database: GovernanceDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   assertRegistrationActor(input.actor);
   assertReason(input.reason);
   const packs = await loadStatutoryEvidencePackInputs(input.root ?? process.cwd());
@@ -118,6 +120,7 @@ export async function registerPcbReviewDraft(
   },
   database: GovernanceDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("PCB_CALCULATION");
   assertReviewActor(input.actor);
   assertReason(input.reason);
   const pack = (await loadStatutoryHumanReviewPackages(input.root ?? process.cwd()))
@@ -353,6 +356,7 @@ export async function recordStatutoryComponentReviewDecision(
   },
   database: GovernanceDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const saved = await recordStatutoryComponentReviewDecisions({
     ruleSetId: input.ruleSetId,
     decisions: [{
@@ -387,6 +391,7 @@ export async function recordStatutoryComponentReviewDecisions(
   },
   database: GovernanceDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   assertReviewActor(input.actor);
   if (input.decisions.length === 0) {
     throw new Error("STATUTORY_REVIEW_DECISION_REQUIRED");
@@ -526,6 +531,7 @@ export async function completeStatutoryHumanReview(
   },
   database: GovernanceDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   assertReviewActor(input.actor);
   assertReason(input.reason);
   return database.$transaction(async (transaction) => {

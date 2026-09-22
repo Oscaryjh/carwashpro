@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 import {
   encryptBankAccountNumber,
   normalizeBankCode,
@@ -46,6 +47,7 @@ export async function createEmployeeBankVersion(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_BANK_EXECUTION");
   validateReason(command.reason, command.reasonType);
   const effectiveFrom = validDate(command.effectiveFrom);
   const accountHolderName = requiredText(command.accountHolderName, 160, "account holder name");
@@ -175,6 +177,7 @@ export async function verifyEmployeeBankVersion(
   command: BankVersionCommandBase & { bankAccountVersionId: string },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_BANK_EXECUTION");
   validateReason(command.reason, command.reasonType);
   return executePayrollPaymentCommand(
     {
@@ -258,6 +261,7 @@ export async function deactivateEmployeeBankVersion(
   command: BankVersionCommandBase & { bankAccountVersionId: string },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_BANK_EXECUTION");
   validateReason(command.reason, command.reasonType);
   return executePayrollPaymentCommand(
     {

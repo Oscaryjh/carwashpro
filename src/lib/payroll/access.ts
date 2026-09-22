@@ -3,10 +3,12 @@ import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 export async function requireWholeBusinessPayroll(
   capability: BusinessCapability,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const context = await requireBusinessUser(capability);
   const [scope, activeBranchCount] = await Promise.all([
     resolveAttendanceScope(context.access),

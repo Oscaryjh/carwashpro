@@ -14,6 +14,7 @@ import {
   submitPayrollPaymentBatch,
 } from "@/lib/payroll/payment/payment-batch-service";
 import { PayrollPaymentError } from "@/lib/payroll/payment/types";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 const baseSchema = z.object({
   commandId: z.string().uuid(),
@@ -26,6 +27,7 @@ const batchSchema = baseSchema.extend({ paymentBatchId: z.string().uuid() });
 const correctionSchema = baseSchema.extend({ supersedesBatchId: z.string().uuid() });
 
 export async function createPaymentBatchAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_PAYMENT_BATCH");
   try {
     const input = createSchema.parse(Object.fromEntries(formData));
     const context = await requireWholeBusinessPayroll("CREATE_PAYMENT_BATCH");
@@ -47,18 +49,22 @@ export async function createPaymentBatchAction(formData: FormData) {
 }
 
 export async function submitPaymentBatchAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_PAYMENT_BATCH");
   return runBatchAction(formData, "SUBMIT_PAYMENT_BATCH", submitPayrollPaymentBatch, "Payment batch submitted for independent approval.");
 }
 
 export async function approvePaymentBatchAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_PAYMENT_BATCH");
   return runBatchAction(formData, "APPROVE_PAYMENT_BATCH", approvePayrollPaymentBatch, "Payment batch approved for future instruction preparation. It has not been paid or submitted to a bank.");
 }
 
 export async function cancelPaymentBatchAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_PAYMENT_BATCH");
   return runBatchAction(formData, "CANCEL_PAYMENT_BATCH", cancelPayrollPaymentBatch, "Payment batch cancelled. Its immutable history remains available.");
 }
 
 export async function createCorrectionPaymentBatchAction(formData: FormData) {
+  assertFrozenDomainDenied("PAYROLL_PAYMENT_BATCH");
   let sourceId = safeUuid(formData.get("supersedesBatchId"));
   try {
     const input = correctionSchema.parse(Object.fromEntries(formData));

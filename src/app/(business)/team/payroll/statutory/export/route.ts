@@ -15,8 +15,11 @@ import {
 } from "@/lib/payroll/statutory-submission";
 import { statutoryExportStepUpResourceId } from "@/lib/payroll/high-risk-mfa";
 import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
+import { frozenDomainResponse } from "@/lib/release/pos-pilot-contract";
 
 export async function GET(request: Request) {
+  const denial = frozenDomainResponse("OFFICIAL_STATUTORY_EXPORT");
+  if (denial) return denial;
   const context = await requireWholeBusinessPayroll("EXPORT_STATUTORY");
   const url = new URL(request.url);
   const month = url.searchParams.get("month") ?? "";

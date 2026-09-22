@@ -4,6 +4,7 @@ import { writeAuditLog } from "@/lib/audit";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { generatePayrollRun } from "@/lib/payroll/service";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 import type { PayrollProfileWriteContext } from "./employee-profile-write/types";
 import {
   monthStart,
@@ -40,6 +41,7 @@ export async function recordEmployeeStatutoryParticipationAndRefreshDrafts(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const participation = await recordEmployeeStatutoryParticipation(input, database);
   const draftRuns = await database.payrollRun.findMany({
     where: {
@@ -81,6 +83,7 @@ export async function recordEmployeeStatutoryParticipation(
   },
   database: ParticipationDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const command = commandSchema.parse(input.command);
   if (
     !hasBusinessCapability(input.context.access, "VIEW_STATUTORY_PROFILE") ||

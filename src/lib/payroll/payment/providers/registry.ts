@@ -60,6 +60,7 @@ export function getPaymentProviderReadiness(
  * It deliberately exposes no configuration values or beneficiary details.
  */
 export function requireReleaseReadyPaymentBankAdapter(providerKey: string) {
+  assertFrozenDomainDenied("PAYROLL_BANK_EXECUTION");
   const readiness = getPaymentProviderReadiness(providerKey);
   if (!readiness) {
     throw new PaymentProviderAccessError("PAYMENT_PROVIDER_UNKNOWN");
@@ -87,3 +88,4 @@ export function listPaymentBankAdapters() {
     providerKey: adapter.providerKey,
   }));
 }
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";

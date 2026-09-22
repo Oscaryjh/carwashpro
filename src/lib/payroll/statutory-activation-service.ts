@@ -18,6 +18,7 @@ import {
   prepareControlledActivation,
   type RuleActivationEvidence,
 } from "./statutory-artifact-pipeline";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 export { STATUTORY_REVIEW_CHECKLIST_VERSION } from "./statutory-human-review";
 export const SIGN_OFF_STATUTORY_RULESET = "SIGN_OFF_STATUTORY_RULESET";
@@ -158,6 +159,7 @@ export async function recordStatutoryCalculationVerification(
   },
   database: StatutoryDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   assertPlatformActor(input.actor);
   assertLifecycleReason(input.reason);
   assertRuleEngineeringReady(input.evidence);
@@ -259,6 +261,7 @@ export async function recordPcbSoftwareVerification(
   },
   database: StatutoryDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("PCB_CALCULATION");
   assertHumanCapability(input.actor, SIGN_OFF_STATUTORY_RULESET);
   const officialEvidence = validatePcbSoftwareVerificationEvidence(input.evidence);
   const rule = await database.statutoryRuleSet.findUniqueOrThrow({
@@ -362,6 +365,7 @@ export async function signOffStatutoryRule(
   },
   database: StatutoryDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   assertHumanCapability(input.actor, SIGN_OFF_STATUTORY_RULESET);
   assertLifecycleReason(input.reason);
   return database.$transaction(async (transaction) => {
@@ -458,6 +462,7 @@ export async function revokeStatutoryRuleSignOff(
   },
   database: StatutoryDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   assertHumanCapability(input.actor, SIGN_OFF_STATUTORY_RULESET);
   assertLifecycleReason(input.reason);
   return database.$transaction(async (transaction) => {
@@ -528,6 +533,7 @@ export async function activateStatutoryRule(
   },
   database: StatutoryDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   assertHumanCapability(input.actor, ACTIVATE_STATUTORY_RULESET);
   const prepared = prepareControlledActivation({
     actorId: input.actor.id,
@@ -642,6 +648,7 @@ export async function activateStoredStatutoryRule(
   },
   database: StatutoryDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const rule = await database.statutoryRuleSet.findUniqueOrThrow({
     where: { id: input.ruleSetId },
     include: { signOffs: { where: { decision: "APPROVED" }, orderBy: { createdAt: "desc" } } },
@@ -673,6 +680,7 @@ export async function retireStatutoryRule(
   input: { ruleSetId: string; actor: PlatformActor; reason: string },
   database: StatutoryDatabase = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   assertPlatformActor(input.actor);
   assertLifecycleReason(input.reason);
   return database.$transaction(async (transaction) => {

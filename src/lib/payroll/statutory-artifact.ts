@@ -27,6 +27,7 @@ import {
   type PayrollHighRiskAuditLink,
   type PayrollHighRiskStepUp,
 } from "@/lib/payroll/high-risk-mfa";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 type ArtifactActor = WriteAuditLogInput["actor"];
 
@@ -67,6 +68,7 @@ export async function downloadOrCreateStatutoryArtifact(
   },
   database: PrismaClient = prisma,
 ): Promise<StatutoryArtifactDownload> {
+  assertFrozenDomainDenied("OFFICIAL_STATUTORY_EXPORT");
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       return await database.$transaction(
@@ -313,6 +315,7 @@ export async function createStatutoryCorrectionRevision(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("GOVERNMENT_SUBMISSION");
   return database.$transaction(async (transaction) => {
     const source = await transaction.payrollStatutorySubmission.findFirst({
       where: {

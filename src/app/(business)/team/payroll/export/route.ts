@@ -7,8 +7,11 @@ import {
   buildStatutoryExport,
   payrollExportFileName,
 } from "@/lib/payroll/export";
+import { frozenDomainResponse } from "@/lib/release/pos-pilot-contract";
 
 export async function GET(request: Request) {
+  const denial = frozenDomainResponse("OFFICIAL_STATUTORY_EXPORT");
+  if (denial) return denial;
   const url = new URL(request.url);
   const month = url.searchParams.get("month") ?? "";
   const kind = url.searchParams.get("kind");

@@ -16,6 +16,7 @@ import {
   type InternalPaymentReadiness,
 } from "./payment-readiness";
 import { PayrollPaymentError, type PayrollPaymentContext } from "./types";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 type BatchCommandBase = {
   commandId: string;
@@ -29,6 +30,7 @@ export async function createPayrollPaymentBatch(
   command: BatchCommandBase & { payrollRunId: string },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_PAYMENT_BATCH");
   validateReason(command.reason, command.reasonType);
   return executePayrollPaymentCommand(
     {
@@ -62,6 +64,7 @@ export async function submitPayrollPaymentBatch(
   command: BatchCommandBase & { paymentBatchId: string },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_PAYMENT_BATCH");
   validateReason(command.reason, command.reasonType);
   return executePayrollPaymentCommand(
     {
@@ -117,6 +120,7 @@ export async function approvePayrollPaymentBatch(
   command: BatchCommandBase & { paymentBatchId: string },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_PAYMENT_BATCH");
   validateReason(command.reason, command.reasonType);
   return executePayrollPaymentCommand(
     {
@@ -172,6 +176,7 @@ export async function cancelPayrollPaymentBatch(
   command: BatchCommandBase & { paymentBatchId: string },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_PAYMENT_BATCH");
   validateReason(command.reason, command.reasonType);
   return executePayrollPaymentCommand(
     {
@@ -221,6 +226,7 @@ export async function createCorrectionPaymentBatch(
   command: BatchCommandBase & { supersedesBatchId: string },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_PAYMENT_BATCH");
   validateReason(command.reason, command.reasonType);
   return executePayrollPaymentCommand(
     {

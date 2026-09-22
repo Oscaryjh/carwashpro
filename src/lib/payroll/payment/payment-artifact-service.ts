@@ -9,6 +9,7 @@ import {
 import { safePaymentReason, writePayrollPaymentAudit } from "./payment-audit";
 import { PayrollPaymentError, type PayrollPaymentContext } from "./types";
 import { consumePayrollHighRiskAuthorization } from "@/lib/payroll/high-risk-mfa";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 // P0 has no bank adapter and no download route. This function exists only for
 // integrity tests using fixed internal bytes; production bank formats belong to P3.
@@ -24,6 +25,7 @@ export async function createInternalTestPaymentArtifact(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_BANK_EXECUTION");
   if (!input.allowInternalTestArtifact || process.env.NODE_ENV !== "test") {
     throw new PayrollPaymentError("ACCESS_DENIED", "Internal payment artifacts are test-only.");
   }
@@ -111,5 +113,6 @@ export async function decryptInternalTestPaymentArtifact(
   artifact: Parameters<typeof decryptPaymentArtifact>[0],
   environment: NodeJS.ProcessEnv,
 ) {
+  assertFrozenDomainDenied("PAYROLL_BANK_EXECUTION");
   return decryptPaymentArtifact(artifact, environment);
 }

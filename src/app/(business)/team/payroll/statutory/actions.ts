@@ -32,6 +32,7 @@ import {
 import { parsePayrollMonth } from "@/lib/payroll/service";
 import { assertPayrollRunOfficialStatutoryExportEligible } from "@/lib/payroll/statutory-export-eligibility";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 const optionalText = (max: number) => z.string().trim().max(max).optional();
 
@@ -64,6 +65,7 @@ const exportAuthorizationSchema = z.object({
 
 
 export async function saveBusinessStatutoryProfileAction(formData: FormData) {
+  assertFrozenDomainDenied("GOVERNMENT_SUBMISSION");
   const month = monthFrom(formData);
   try {
     const context = await requireWholeBusinessPayroll("EDIT_STATUTORY_PROFILE");
@@ -102,6 +104,7 @@ export async function saveBusinessStatutoryProfileAction(formData: FormData) {
 }
 
 export async function createStatutoryCorrectionRevisionAction(formData: FormData) {
+  assertFrozenDomainDenied("GOVERNMENT_SUBMISSION");
   const month = monthFrom(formData);
   try {
     const context = await requireWholeBusinessPayroll("RESOLVE_STATUTORY_SUBMISSION");
@@ -123,6 +126,7 @@ export async function createStatutoryCorrectionRevisionAction(formData: FormData
 }
 
 export async function authorizeStatutoryExportAction(formData: FormData) {
+  assertFrozenDomainDenied("OFFICIAL_STATUTORY_EXPORT");
   const input = exportAuthorizationSchema.parse(Object.fromEntries(formData));
   const context = await requireWholeBusinessPayroll("EXPORT_STATUTORY");
   const period = parsePayrollMonth(input.month);
@@ -189,6 +193,7 @@ export async function authorizeStatutoryExportAction(formData: FormData) {
 }
 
 export async function updateStatutorySubmissionStatusAction(formData: FormData) {
+  assertFrozenDomainDenied("GOVERNMENT_SUBMISSION");
   const month = monthFrom(formData);
   try {
     const requestedStatus = String(formData.get("targetStatus") ?? "");

@@ -13,6 +13,7 @@ import { writeSensitiveAuditLog } from "@/lib/audit/payroll-sensitive";
 import type { BusinessCapability } from "@/lib/business-groups/capabilities";
 import type { PayrollComponentLine } from "@/lib/payroll/component-calculation";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 type PayrollActor = Pick<AppSession, "userId" | "name" | "email">;
 export type P4CWriteContext = {
@@ -42,6 +43,7 @@ export async function createPayrollVariablePay(
   command: VariablePayCommand,
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   assertP4CEdit(context);
   const input = parseVariablePay(command);
   return database.$transaction(async (transaction) => {
@@ -64,6 +66,7 @@ export async function editPayrollVariablePay(
   command: VariablePayCommand & { variablePayId: string; expectedRevision: number },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   assertP4CEdit(context);
   const input = parseVariablePay(command);
   return database.$transaction(async (transaction) => {
@@ -89,6 +92,7 @@ export async function approvePayrollVariablePay(
   input: { variablePayId: string; expectedRevision: number },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   assertP4CApprove(context);
   return database.$transaction(async (transaction) => {
     const current = await transaction.payrollVariablePay.findFirst({
@@ -113,6 +117,7 @@ export async function cancelPayrollVariablePay(
   input: { variablePayId: string; expectedRevision: number; reason: unknown },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   assertP4CEdit(context);
   const reason = requiredText(input.reason, "Cancellation reason", 5, 500);
   return database.$transaction(async (transaction) => {
@@ -146,6 +151,7 @@ export async function createPayrollCorrection(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   assertP4CEdit(context);
   const originalAmountCents = parseNonnegativeMoney(command.originalAmount, "Original amount");
   const correctedAmountCents = parseNonnegativeMoney(command.correctedAmount, "Corrected amount");
@@ -194,6 +200,7 @@ export async function approvePayrollCorrection(
   input: { correctionId: string; expectedRevision: number },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   assertP4CApprove(context);
   return database.$transaction(async (transaction) => {
     const current = await transaction.payrollCorrection.findFirst({
@@ -218,6 +225,7 @@ export async function cancelPayrollCorrection(
   input: { correctionId: string; expectedRevision: number; reason: unknown },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   assertP4CEdit(context);
   const reason = requiredText(input.reason, "Cancellation reason", 5, 500);
   return database.$transaction(async (transaction) => {

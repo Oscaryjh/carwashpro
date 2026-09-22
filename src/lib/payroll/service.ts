@@ -41,6 +41,7 @@ import {
   type PayrollHighRiskStepUp,
 } from "@/lib/payroll/high-risk-mfa";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 export { parsePayrollMonth } from "@/lib/payroll/period";
 
@@ -70,6 +71,7 @@ export async function generatePayrollRun(
   context: PayrollContext & { month: string },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const period = parsePayrollMonth(context.month);
   return runSerializablePayrollTransaction(database, async (transaction) => {
     const setting =
@@ -732,6 +734,7 @@ export async function updatePayrollEntry(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   return database.$transaction(async (transaction) => {
     const entry = await transaction.payrollEntry.findFirst({
       where: { id: context.entryId, businessId: context.businessId },
@@ -799,6 +802,7 @@ export async function decidePayrollHolidayPay(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const reason = String(context.reason ?? "").trim();
   if (context.decision === "EXCLUDED" && (reason.length < 5 || reason.length > 500)) {
     throw new Error("Exclusion reason must be 5 to 500 characters.");
@@ -1006,6 +1010,7 @@ export async function submitPayrollRunForReview(
   context: PayrollContext & { runId: string },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   return database.$transaction(async (transaction) => {
     const run = await transaction.payrollRun.findFirst({
       where: { id: context.runId, businessId: context.businessId },
@@ -1094,6 +1099,7 @@ export async function returnPayrollRunToDraft(
   context: PayrollContext & { runId: string; reason: string },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   return database.$transaction(async (transaction) => {
     const run = await transaction.payrollRun.findFirst({
       where: { id: context.runId, businessId: context.businessId },
@@ -1134,6 +1140,7 @@ export async function finalizePayrollRun(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_SETTLEMENT");
   return database.$transaction(async (transaction) => {
     const run = await transaction.payrollRun.findFirst({
       where: { id: context.runId, businessId: context.businessId },
@@ -1228,6 +1235,7 @@ export async function reopenPayrollRun(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const result = await database.$transaction(async (transaction) => {
     const run = await transaction.payrollRun.findFirst({
       where: { id: context.runId, businessId: context.businessId },
