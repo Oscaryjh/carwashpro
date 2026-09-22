@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { evaluateWebReadiness } from "@/lib/health/web-readiness";
@@ -59,4 +60,12 @@ test("worker readiness requires config, DB, queue and a fresh loop heartbeat", (
   assert.equal(stale.loop, WORKER_HEARTBEAT_STALE);
   tracker.fatalConfigurationFailure();
   assert.equal(tracker.snapshot(12_000).configuration, "fatal");
+});
+
+test("notification worker continuously publishes readiness and marks runtime failures", async () => {
+  const source = await readFile("scripts/notification-queue-worker.ts", "utf8");
+  assert.match(source, /publishReadiness\(/);
+  assert.match(source, /readiness\.databaseUnavailable\(\)/);
+  assert.match(source, /readiness\.queueUnavailable\(\)/);
+  assert.match(source, /readiness:\s*readiness\.snapshot\(/);
 });

@@ -5,6 +5,7 @@ import { writeAuditLog, type AuditRequestContext } from "@/lib/audit";
 import { payrollDocumentEntry } from "@/lib/payroll/documents";
 import { buildPayslipPdf } from "@/lib/payroll/export";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 const businessDocumentSelect = {
   name: true,
@@ -23,6 +24,7 @@ export async function publishPayrollPayslips(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   return database.$transaction(async (transaction) => {
     const run = await transaction.payrollRun.findFirst({
       where: { id: input.runId, businessId: input.businessId },

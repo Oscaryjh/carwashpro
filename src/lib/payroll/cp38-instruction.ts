@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 export const CP38_BLOCKERS = {
   AMBIGUOUS_ACTIVE_REVISION: "CP38_ACTIVE_INSTRUCTION_AMBIGUOUS",
@@ -123,6 +124,7 @@ export async function recordCp38Instruction(
   database: Cp38WriteDatabase,
   rawInput: z.input<typeof cp38InstructionInputSchema>,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   const input = cp38InstructionInputSchema.parse(rawInput);
   const from = firstOfMonth(input.effectiveFromMonth);
   const to = input.effectiveToMonth

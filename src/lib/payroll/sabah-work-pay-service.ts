@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 import type { PayrollAttendanceInput } from "./attendance-integration";
 import { calculateSabahStatutoryWorkPay, type WorkPayCoverageClass } from "./sabah-work-pay-calculation";
 import {
@@ -24,6 +25,7 @@ export async function registerSabahWorkPayCandidate(
   input: { actorUserId: string; reason: string },
   database: Database = prisma,
 ) {
+  assertFrozenDomainDenied("STATUTORY_ACTIVATION");
   if (input.reason.trim().length < 10) throw new Error("STATUTORY_RULE_REGISTRATION_REASON_REQUIRED");
   const existing = await database.statutoryRuleSet.findUnique({
     where: { scheme_version: { scheme: "WORK_PAY", version: SABAH_WORK_PAY_RULE_VERSION } },
@@ -116,6 +118,7 @@ export async function materializeSabahWorkPay(input: {
   attendance: PayrollAttendanceInput;
   coverageClass?: WorkPayCoverageClass | null;
 }, database: Database = prisma) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const rule = await resolveActiveSabahWorkPayRule(input.period, database);
   return database.$transaction(
     (tx) => materializeSabahWorkPayInTransaction(tx, { ...input, rule }),
@@ -143,6 +146,7 @@ export async function materializeSabahWorkPayInTransaction(
     rule: Awaited<ReturnType<typeof resolveActiveSabahWorkPayRule>>;
   },
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const { rule } = input;
   const calculation = calculateSabahStatutoryWorkPay({
     payBasis: input.payBasis,

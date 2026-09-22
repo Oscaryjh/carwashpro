@@ -21,7 +21,7 @@ function getSecret() {
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  if (classifyPosPilotRoute(pathname) === "FROZEN") {
+  if (classifyPosPilotRoute(pathname, request.nextUrl.searchParams) === "FROZEN") {
     return new NextResponse(FROZEN_DOMAIN_DENIED, {
       status: 403,
       headers: { "content-type": "text/plain; charset=utf-8" },

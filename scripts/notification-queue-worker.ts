@@ -22,6 +22,7 @@ const batchSize = 10;
 const queuedAfter = parseQueuedAfter(process.argv);
 let shuttingDown = false;
 let lastClosingReminderSweepAt = 0;
+let lastReadinessPublishedAt = 0;
 const readiness = createWorkerReadinessTracker({ staleAfterMs: 30_000 });
 
 process.on("SIGINT", shutdown);
@@ -64,7 +65,18 @@ async function main() {
 
   while (!shuttingDown) {
     readiness.loopHeartbeat();
-    const processed = await processQueuedBatch();
+    let processed: boolean;
+    try {
+      processed = await processQueuedBatch();
+      readiness.databaseReady();
+      readiness.queueReady();
+      publishReadiness();
+    } catch (error) {
+      readiness.databaseUnavailable();
+      readiness.queueUnavailable();
+      publishReadiness(true);
+      throw error;
+    }
 
     if (!processed) {
       await sleep(pollIntervalMs);
@@ -73,6 +85,14 @@ async function main() {
 
   await prisma.$disconnect();
   console.log("[notification-queue-worker] Stopped");
+}
+
+function publishReadiness(force = false, now = Date.now()) {
+  if (!force && now - lastReadinessPublishedAt < 10_000) return;
+  lastReadinessPublishedAt = now;
+  console.log("[notification-queue-worker] Readiness", {
+    readiness: readiness.snapshot(now),
+  });
 }
 
 function parseQueuedAfter(args: string[]) {

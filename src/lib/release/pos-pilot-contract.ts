@@ -65,10 +65,17 @@ export function frozenDomainResponse(operation: FrozenDomainOperation) {
   }
 }
 
-export function classifyPosPilotRoute(pathname: string): "ALLOWED" | "FROZEN" {
+export function classifyPosPilotRoute(
+  pathname: string,
+  searchParams?: Pick<URLSearchParams, "get">,
+): "ALLOWED" | "FROZEN" {
+  const employeePayrollSection =
+    /^\/team\/people\/[^/]+\/?$/.test(pathname) &&
+    searchParams?.get("section") === "payroll";
   return pathname === "/team/payroll" ||
     pathname.startsWith("/team/payroll/") ||
     /^\/team\/people\/[^/]+\/payroll(?:\/|$)/.test(pathname) ||
+    employeePayrollSection ||
     pathname === "/admin/statutory" ||
     pathname.startsWith("/admin/statutory/")
     ? "FROZEN"

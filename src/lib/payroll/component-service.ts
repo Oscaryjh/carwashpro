@@ -18,6 +18,7 @@ import {
   type PayrollComponentLine,
 } from "@/lib/payroll/component-calculation";
 import { prisma } from "@/lib/prisma";
+import { assertFrozenDomainDenied } from "@/lib/release/pos-pilot-contract";
 
 type PayrollActor = Pick<AppSession, "userId" | "name" | "email">;
 type ComponentContext = {
@@ -38,6 +39,7 @@ export async function addManualPayrollAdjustment(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const text = normalizeManualAdjustmentText(context);
   const amountCents = parsePayrollComponentAmount(context.amount);
   return database.$transaction(async (transaction) => {
@@ -99,6 +101,7 @@ export async function editManualPayrollAdjustment(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const text = normalizeManualAdjustmentText(context);
   const amountCents = parsePayrollComponentAmount(context.amount);
   return database.$transaction(async (transaction) => {
@@ -155,6 +158,7 @@ export async function removeManualPayrollAdjustment(
   },
   database: PrismaClient = prisma,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const removalReason = String(context.reason ?? "").trim();
   if (removalReason.length < 5 || removalReason.length > 500) {
     throw new Error("Removal reason must be 5 to 500 characters.");
@@ -250,6 +254,7 @@ export async function deriveAndPersistEntryAggregates(
   entry: EntryAmounts,
   expectedRevision: number,
 ) {
+  assertFrozenDomainDenied("PAYROLL_MUTATION");
   const components = await transaction.payrollEntryComponent.findMany({
     where: { businessId: entry.businessId, payrollEntryId: entry.id },
     orderBy: [{ sortOrder: "asc" }, { lineKey: "asc" }],

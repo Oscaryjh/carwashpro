@@ -76,6 +76,20 @@ test("UI and route classifier denies payroll/statutory surfaces without blocking
   ]) {
     assert.equal(classifyPosPilotRoute(route), "FROZEN", route);
   }
+  assert.equal(
+    classifyPosPilotRoute(
+      "/team/people/11111111-1111-4111-8111-111111111111",
+      new URLSearchParams("section=payroll"),
+    ),
+    "FROZEN",
+  );
+  assert.equal(
+    classifyPosPilotRoute(
+      "/team/people/11111111-1111-4111-8111-111111111111",
+      new URLSearchParams("section=profile"),
+    ),
+    "ALLOWED",
+  );
   for (const route of [
     "/cashier",
     "/pos",
@@ -150,6 +164,10 @@ test("high-risk entry files invoke the shared hard deny before transactional or 
     ["src/lib/payroll/employee-profile-write/common.ts", /assertFrozenDomainDenied\("PAYROLL_MUTATION"\)/],
     ["src/lib/payroll/employee-profile-write/statutory-tax.ts", /assertFrozenDomainDenied\("PAYROLL_MUTATION"\)/],
     ["src/lib/payroll/lindung24-participation-service.ts", /assertFrozenDomainDenied\("STATUTORY_ACTIVATION"\)/],
+    ["src/lib/payroll/component-service.ts", /assertFrozenDomainDenied\("PAYROLL_MUTATION"\)/],
+    ["src/lib/payroll/payslip-publication.ts", /assertFrozenDomainDenied\("PAYROLL_MUTATION"\)/],
+    ["src/lib/payroll/cp38-instruction.ts", /assertFrozenDomainDenied\("STATUTORY_ACTIVATION"\)/],
+    ["src/lib/payroll/sabah-work-pay-service.ts", /assertFrozenDomainDenied\("STATUTORY_ACTIVATION"\)/],
   ]);
 
   for (const [file, pattern] of expectations) {
@@ -206,6 +224,33 @@ test("direct service, action and export route calls deny before DB or artifact w
         error instanceof FrozenDomainDeniedError &&
         error.code === FROZEN_DOMAIN_DENIED,
     );
+
+    const directWrites: Array<() => Promise<unknown>> = [];
+    const { addManualPayrollAdjustment } = await import(
+      "@/lib/payroll/component-service"
+    );
+    directWrites.push(() => addManualPayrollAdjustment({} as never, {} as never));
+    const { publishPayrollPayslips } = await import(
+      "@/lib/payroll/payslip-publication"
+    );
+    directWrites.push(() => publishPayrollPayslips({} as never, {} as never));
+    const { recordCp38Instruction } = await import(
+      "@/lib/payroll/cp38-instruction"
+    );
+    directWrites.push(() => recordCp38Instruction({} as never, {} as never));
+    const { registerSabahWorkPayCandidate, materializeSabahWorkPay } = await import(
+      "@/lib/payroll/sabah-work-pay-service"
+    );
+    directWrites.push(() => registerSabahWorkPayCandidate({} as never, {} as never));
+    directWrites.push(() => materializeSabahWorkPay({} as never, {} as never));
+    for (const directWrite of directWrites) {
+      await assert.rejects(
+        directWrite,
+        (error) =>
+          error instanceof FrozenDomainDeniedError &&
+          error.code === FROZEN_DOMAIN_DENIED,
+      );
+    }
 
     const { GET } = await import(
       "@/app/(business)/team/payroll/export/route"
