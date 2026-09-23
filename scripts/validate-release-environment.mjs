@@ -9,6 +9,9 @@ if (!new Set(["web", "notification", "analytics", "whatsapp"]).has(scope)) {
 
 if (explicit === "testing" || railway === "testing") {
   if (explicit !== "testing" || railway !== "testing") fail("Testing identity must match APP_ENVIRONMENT and RAILWAY_ENVIRONMENT_NAME.");
+  if (!/^[a-f0-9]{40}$/i.test(process.env.RAILWAY_GIT_COMMIT_SHA?.trim() ?? "")) {
+    fail("Testing Git-source deployment requires a full RAILWAY_GIT_COMMIT_SHA.");
+  }
   for (const [key, expected] of [
     ["TETAMU_TESTING_OUTBOUND_MODE", "intercept"],
     ["EMPLOYEE_OTP_TESTING_ENABLED", "true"],

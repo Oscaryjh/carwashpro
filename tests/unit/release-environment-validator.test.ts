@@ -46,6 +46,7 @@ test("Testing environment permits controlled mocks", () => {
     TESTING_EMAIL_MODE: "disabled",
     PAYMENT_EXPORT_ENABLED: "false",
     STATUTORY_OFFICIAL_SUBMISSION_ENABLED: "false",
+    RAILWAY_GIT_COMMIT_SHA: "a".repeat(40),
     NODE_ENV: "production",
     WHATSAPP_SEND_MODE: "mock",
   });
@@ -57,12 +58,13 @@ test("Testing launch rejects missing intercept profile, live channels and provid
     TETAMU_TESTING_OUTBOUND_MODE: "intercept", EMPLOYEE_OTP_TESTING_ENABLED: "true",
     EMPLOYEE_OTP_TEST_PHONE_ALLOWLIST: "+60100000001", OTP_PROVIDER: "mock", OTP_CHANNEL: "local",
     WHATSAPP_SEND_MODE: "mock", TESTING_EMAIL_MODE: "disabled", PAYMENT_EXPORT_ENABLED: "false",
-    STATUTORY_OFFICIAL_SUBMISSION_ENABLED: "false", NODE_ENV: "production" };
+    STATUTORY_OFFICIAL_SUBMISSION_ENABLED: "false", RAILWAY_GIT_COMMIT_SHA: "a".repeat(40), NODE_ENV: "production" };
   for (const variant of [
     { TETAMU_TESTING_OUTBOUND_MODE: "" }, { APP_ENVIRONMENT: "production" },
     { OTP_PROVIDER: "sms123" }, { EMPLOYEE_OTP_TESTING_ENABLED: "" },
     { WHATSAPP_SEND_MODE: "live" }, { SMS123_API_KEY: "k".repeat(20) },
     { PAYMENT_EXPORT_ENABLED: "true" },
+    { RAILWAY_GIT_COMMIT_SHA: "" },
   ]) {
     const result = validate("notification", { ...safe, ...variant });
     assert.notEqual(result.status, 0, JSON.stringify(variant));
