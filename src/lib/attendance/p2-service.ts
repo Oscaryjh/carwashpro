@@ -9,6 +9,7 @@ import {
 } from "@/lib/attendance/p2-detection";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { effectiveAttendanceSession } from "@/lib/attendance/effective-session";
 
 const reasonSchema = z.string().trim().min(3).max(500);
 const expectedDaySchema = z.object({
@@ -206,7 +207,14 @@ export async function materializeAttendanceP2DayInTransaction(
   const workDate = dateOnly(args.workDate);
   const monthStart = new Date(Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth(), 1));
   const nextMonth = new Date(Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth() + 1, 1));
-  const [expected, sessions, leaveDay, approvedCorrectionCount, assignment] = await Promise.all([
+  const timesheet = await transaction.attendanceMonthlyTimesheet.findUnique({
+    where: { businessId_periodStart: { businessId: args.context.businessId, periodStart: monthStart } },
+    select: { status: true },
+  });
+  if (timesheet?.status === "APPROVED" || timesheet?.status === "LOCKED") {
+    throw new AttendanceP2Error("TIMESHEET_LOCKED", "Reopen the approved or locked monthly Timesheet before refreshing Attendance evidence.");
+  }
+  const [expected, rawSessions, leaveDay, approvedCorrectionCount, assignment] = await Promise.all([
     transaction.attendanceExpectedDay.findFirst({
       where: { businessId: args.context.businessId, membershipId: args.membershipId, workDate, status: "CURRENT" },
       orderBy: { revision: "desc" },
@@ -219,6 +227,7 @@ export async function materializeAttendanceP2DayInTransaction(
         workDate,
       },
       orderBy: [{ clockInAt: "asc" }, { id: "asc" }],
+      include: { resolutionCase: { include: { currentFinalResult: true } } },
     }),
     transaction.leaveRequestDay.findFirst({
       where: {
@@ -250,6 +259,11 @@ export async function materializeAttendanceP2DayInTransaction(
       select: { branchId: true },
     }),
   ]);
+  const sessions = rawSessions.map(effectiveAttendanceSession).sort((a, b) => a.clockInAt.getTime() - b.clockInAt.getTime());
+  const correctedSources = rawSessions.flatMap((session) =>
+    effectiveAttendanceSession(session) !== session && session.resolutionCase?.currentFinalResult
+      ? [{ sessionId: session.id, finalResultId: session.resolutionCase.currentFinalResult.id }]
+      : []);
   const branchId = expected?.branchId ?? sessions[0]?.branchId ?? assignment?.branchId;
   if (!branchId || !args.context.allowedBranchIds.includes(branchId)) {
     throw new AttendanceP2Error("OUTSIDE_SCOPE", "Attendance day has no authorized branch evidence.");
@@ -258,7 +272,9 @@ export async function materializeAttendanceP2DayInTransaction(
   const facts = {
     sessionId: sessions.length === 1 ? sessions[0]!.id : null,
     firstClockInAt: sessions[0]?.clockInAt ?? null,
-    lastClockOutAt: completedOuts.sort((a, b) => b.getTime() - a.getTime())[0] ?? null,
+    lastClockOutAt: correctedSources.length && sessions.some((session) => !session.clockOutAt && session.status !== "CANCELLED")
+      ? null
+      : completedOuts.sort((a, b) => b.getTime() - a.getTime())[0] ?? null,
     totalBreakMinutes: sessions.reduce((sum, item) => sum + item.totalBreakMinutes, 0),
     totalWorkedMinutes: sessions.reduce((sum, item) => sum + item.totalWorkedMinutes, 0),
   };
@@ -288,6 +304,7 @@ export async function materializeAttendanceP2DayInTransaction(
   const active = await transaction.attendanceP2Exception.findMany({
     where: {
       businessId: args.context.businessId,
+      branchId,
       membershipId: args.membershipId,
       workDate,
       status: { in: ["OPEN", "PENDING_EMPLOYEE", "PENDING_MANAGER"] },
@@ -296,7 +313,15 @@ export async function materializeAttendanceP2DayInTransaction(
   const detectedKeys = new Set(detected.exceptions.map((item) => item.stableKey));
   const obsoleteIds = active.filter((item) => !detectedKeys.has(item.stableKey)).map((item) => item.id);
   if (obsoleteIds.length) {
-    await transaction.attendanceP2Exception.updateMany({ where: { id: { in: obsoleteIds } }, data: { status: "CLOSED" } });
+    await transaction.attendanceP2Exception.updateMany({ where: { id: { in: obsoleteIds } }, data: { status: "CLOSED", revision: { increment: 1 } } });
+    if (correctedSources.length) {
+      await writeAuditLog({
+        businessId: args.context.businessId, branchId, actor: args.context.actor, request: args.context.request,
+        action: "ATTENDANCE_CORRECTION_PROJECTED", entityType: "AttendanceP2Exception", entityId: obsoleteIds[0],
+        summary: "Obsolete Attendance exceptions closed from current approved correction evidence; raw punches retained.",
+        metadata: { membershipId: args.membershipId, workDate: workDate.toISOString(), closedExceptionIds: obsoleteIds, correctedSources },
+      }, transaction);
+    }
   }
   for (const issue of detected.exceptions) {
     await transaction.attendanceP2Exception.upsert({
@@ -342,7 +367,7 @@ export async function materializeAttendanceP2DayInTransaction(
       totalBreakMinutes: facts.totalBreakMinutes,
       totalWorkedMinutes: facts.totalWorkedMinutes,
       sourceDigest: detected.sourceDigest,
-      resolutionDigest: attendanceP2Digest([]),
+      resolutionDigest: attendanceP2Digest(correctedSources),
       createdById: args.context.actor.userId,
     });
   }
