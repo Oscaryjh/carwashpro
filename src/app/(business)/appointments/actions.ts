@@ -53,6 +53,9 @@ import {
 import { sendServiceConfirmationQueued } from "@/lib/whatsapp/work-order-notifications";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
+import { parseCheckoutTipCents, parsePerformanceInput, performanceFingerprint } from "@/lib/performance/input";
+import { appendCheckoutTip } from "@/lib/performance/checkout-tip";
+import { capturePerformanceCheckout } from "@/lib/performance/service";
 import { recordSaleInventory } from "@/lib/inventory/service";
 import {
   assertCashierShiftAcceptsActivity,
@@ -1078,7 +1081,7 @@ export async function recordSalonAppointmentPaymentAction(
     catalogDiscountId: formData.get("catalogDiscountId")?.toString() || undefined,
     discountReference: formData.get("discountReference")?.toString() || undefined,
     depositAmount: formData.get("depositAmount"),
-    depositMethod: formData.get("depositMethod"),
+    depositMethod: formData.get("depositMethod") ?? undefined,
     depositReference: formData.get("depositReference"),
     tipAmount: formData.get("tipAmount"),
     customerPackageIds: formData.getAll("customerPackageIds"),
@@ -1116,6 +1119,7 @@ export async function recordSalonAppointmentPaymentAction(
   };
 
   try {
+    const additionalTipCents = parseCheckoutTipCents(formData);
     const { operationId, ...financialPayload } = input;
     ({ result } = await runFinancialOperation({
     actorUserId: user.userId,
@@ -1123,7 +1127,7 @@ export async function recordSalonAppointmentPaymentAction(
     businessId,
     operationKey: operationId,
     operationType: FinancialOperationType.SALON_APPOINTMENT_PAYMENT,
-    payload: financialPayload,
+    payload: { ...financialPayload, ...performanceFingerprint(formData), ...(additionalTipCents ? { additionalTipCents } : {}) },
     execute: async (tx) => {
     const businessSst = await tx.business.findUniqueOrThrow({
       where: { id: businessId },
@@ -1590,6 +1594,14 @@ export async function recordSalonAppointmentPaymentAction(
       throw new Error("Discount, deposit, and tip can only be set when the invoice is created.");
     }
 
+    if (additionalTipCents) {
+      if (isNewInvoice || !appointment.branchId) throw new Error("Use the invoice creation tip field for a new invoice.");
+      const updated = await appendCheckoutTip(tx, { businessId, branchId: appointment.branchId, actorUserId: user.userId }, {
+        invoiceId: invoice.id, additionalTipCents, paymentCents: toCents(input.amount), operationKey: operationId, attribution: parsePerformanceInput(formData),
+      });
+      invoice = { ...invoice, ...updated };
+    }
+
     const totalCents = toCents(invoice.total);
     const paidCents = toCents(invoice.paidAmount) + packageCoverageCents;
     const amountCents = toCents(input.amount);
@@ -1744,6 +1756,9 @@ export async function recordSalonAppointmentPaymentAction(
       tx,
     );
 
+    await capturePerformanceCheckout(tx, { businessId, actorUserId: user.userId, input: parsePerformanceInput(formData),
+      paymentIds: createdPayments.map((entry) => entry.id),
+      depositPaymentIds: depositCents > 0 && createdPayments[packagePayments.length] ? [createdPayments[packagePayments.length].id] : [] });
     return {
       invoiceId: invoice.id,
       customerId: appointment.customerId,

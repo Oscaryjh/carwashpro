@@ -39,6 +39,8 @@ import {
   sendServiceConfirmationQueued,
 } from "@/lib/whatsapp/work-order-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
+import { parsePerformanceInput, performanceFingerprint } from "@/lib/performance/input";
+import { capturePerformanceCheckout } from "@/lib/performance/service";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
 
 function toCents(value: unknown) {
@@ -540,6 +542,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
   });
 
   if (!parsed.success) {
+    if (formData.get("preservePaymentForm") === "1") throw new Error(parsed.error.issues[0]?.message ?? "Package purchase details are invalid.");
     redirectToPackagePurchaseMessage(
       returnPath,
       "error",
@@ -563,7 +566,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
       businessId,
       operationKey: operationId,
       operationType: FinancialOperationType.PACKAGE_PURCHASE,
-      payload: { ...financialPayload, branchId },
+      payload: { ...financialPayload, branchId, ...performanceFingerprint(formData) },
       execute: async (tx) => {
       const shift = await tx.cashierShift.findFirst({
         where: {
@@ -799,6 +802,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
         tx,
       );
 
+      await capturePerformanceCheckout(tx, { businessId, actorUserId: user.userId, input: parsePerformanceInput(formData), paymentIds: [payment.id] });
       return {
         customerId: customer.id,
         customerPackageIds: customerPackages.map((item) => item.id),
@@ -825,6 +829,7 @@ export async function purchasePackageFromCashierAction(formData: FormData) {
     revalidatePath(`/invoices/${result.invoiceId}`);
     revalidatePath(returnPath);
   } catch (error) {
+    if (formData.get("preservePaymentForm") === "1") throw error;
     redirectToPackagePurchaseMessage(
       returnPath,
       "error",

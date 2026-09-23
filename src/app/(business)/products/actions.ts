@@ -16,6 +16,8 @@ import { fromCents } from "@/lib/validation/pos";
 import { productSaleSchema, productSchema } from "@/lib/validation/products";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
+import { parsePerformanceInput, performanceFingerprint } from "@/lib/performance/input";
+import { capturePerformanceCheckout } from "@/lib/performance/service";
 import { applyInventoryMovement, recordSaleInventory, runInventorySerializable } from "@/lib/inventory/service";
 import { isBusinessModuleEnabled } from "@/lib/modules/entitlements";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
@@ -328,6 +330,7 @@ export async function sellProductAction(formData: FormData) {
   });
 
   if (!parsed.success) {
+    if (formData.get("preservePaymentForm") === "1") throw new Error(parsed.error.issues[0]?.message ?? "Product sale is invalid.");
     redirectProductFormMessage(returnPath, "error", parsed.error.issues[0]?.message ?? "Product sale is invalid.");
   }
 
@@ -346,7 +349,7 @@ export async function sellProductAction(formData: FormData) {
       businessId,
       operationKey: operationId,
       operationType: FinancialOperationType.CASHIER_CHECKOUT,
-      payload: { ...financialPayload, branchId },
+      payload: { ...financialPayload, branchId, ...performanceFingerprint(formData) },
       execute: async (tx) => {
       const shift = await tx.cashierShift.findFirst({
         where: { businessId, cashierId: user.userId, status: "OPEN" },
@@ -481,6 +484,7 @@ export async function sellProductAction(formData: FormData) {
         request: auditRequest,
       }, tx);
 
+      await capturePerformanceCheckout(tx, { businessId, actorUserId: user.userId, input: parsePerformanceInput(formData), paymentIds: [payment.id] });
       return { customerId: customer?.id ?? null, invoiceId: invoice.id };
       },
     });
@@ -498,6 +502,7 @@ export async function sellProductAction(formData: FormData) {
     revalidatePath("/dashboard");
     revalidatePath("/closing");
   } catch (error) {
+    if (formData.get("preservePaymentForm") === "1") throw error;
     redirectProductFormMessage(returnPath, "error", error instanceof Error ? error.message : "Unable to complete product sale.");
   }
 

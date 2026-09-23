@@ -129,6 +129,12 @@ export function clearEmployeeAuthFlow() {
 }
 
 export function clearStaffTenantClientState() {
+  window.dispatchEvent(new Event("tetamu:staff-context-changing"));
+  if (typeof BroadcastChannel !== "undefined") {
+    const channel = new BroadcastChannel("tetamu-staff-context");
+    channel.postMessage("changed");
+    channel.close();
+  }
   clearEmployeeAuthFlow();
   removeStorageKeysWithPrefix(window.sessionStorage, TENANT_STORAGE_PREFIX);
   removeStorageKeysWithPrefix(window.localStorage, TENANT_STORAGE_PREFIX);

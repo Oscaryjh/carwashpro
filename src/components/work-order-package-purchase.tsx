@@ -1,4 +1,6 @@
 "use client";
+import { CheckoutAttribution } from "@/components/performance/checkout-attribution";
+import { SafePaymentForm } from "@/components/performance/safe-payment-form";
 
 import { useMemo, useState } from "react";
 import {
@@ -142,7 +144,7 @@ export function WorkOrderPackagePurchase({
   }
 
   return (
-    <form action={action} className="product-sale-form package-cart-form">
+    <SafePaymentForm action={action} className="product-sale-form package-cart-form">
       <input name="operationId" type="hidden" value={operationId} />
       <section className="product-sale-section">
         <h3>Customer account</h3>
@@ -291,6 +293,7 @@ export function WorkOrderPackagePurchase({
       <p className="package-cart-note">
         Payment activates every selected package immediately. No appointment or service order is created.
       </p>
+      <CheckoutAttribution exempt={tax.total <= 0} />
       <div className="form-actions">
         <FinancialSubmitButton
           disabled={!selectedCustomer || !lines.length || lines.some((line) => !line.packageId)}
@@ -349,7 +352,7 @@ export function WorkOrderPackagePurchase({
           </section>
         </div>
       ) : null}
-    </form>
+    </SafePaymentForm>
   );
 }
 

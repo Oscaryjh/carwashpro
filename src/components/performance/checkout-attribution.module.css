@@ -1,0 +1,18 @@
+.panel { grid-column: 1 / -1; box-sizing: border-box; width: 100%; min-width: 0; padding: 14px; margin: 12px 0; border: 1px solid #bed4d1; border-radius: 14px; background: #f5faf9; color: #123d39; font-size: 14px; }
+.panel h3 { margin: 0 0 8px; font-size: 16px; }
+.panel { scroll-margin-top: 90px; }
+.panel.panel p { display: block; margin: 6px 0; line-height: 1.4; }
+.panel label { display: flex; flex-direction: column; gap: 5px; min-width: 0; margin: 8px 0; }
+.panel input, .panel select, .panel button, .panel textarea { min-height: 44px; max-width: 100%; min-width: 0; font: inherit; border: 1px solid #9fbbb7; border-radius: 8px; padding: 8px; color: #123d39; background: white; }
+.panel input[type=checkbox] { width: 22px; height: 22px; min-height: 22px; flex-shrink: 0; }
+.panel .check { flex-direction: row; align-items: center; gap: 10px; }
+.choices { max-height: 210px; overflow-y: auto; display: grid; gap: 5px; }
+.choices button { text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.choices button[aria-pressed=true] { border: 2px solid #087f75; background: #ddf3ef; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) 88px 44px; align-items: center; gap: 6px; margin: 6px 0; }
+.row span { overflow-wrap: anywhere; }
+.row input { width: 100%; }
+.error { color: #a32020; font-weight: 600; }
+.muted { color: #526c69; font-size: 12px; }
+.toggle { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 420px) { .panel { padding: 10px; } .row { grid-template-columns: minmax(0,1fr) 74px 44px; } }

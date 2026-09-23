@@ -263,11 +263,13 @@ test("workplace switching clears tenant state without deleting the verified devi
     clear: () => values.clear(),
   });
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const dispatchedEvents: string[] = [];
   Object.defineProperty(globalThis, "window", {
     configurable: true,
     value: {
       sessionStorage: storage(sessionValues),
       localStorage: storage(localValues),
+      dispatchEvent: (event: Event) => { dispatchedEvents.push(event.type); return true; },
     },
   });
 
@@ -278,6 +280,7 @@ test("workplace switching clears tenant state without deleting the verified devi
     assert.equal(localValues.has("tetamu.staff.tenant.filters"), false);
     assert.equal(localValues.get("tetamu.staff.device"), "verified-device");
     assert.equal(sessionValues.get("unrelated"), "keep");
+    assert.deepEqual(dispatchedEvents, ["tetamu:staff-context-changing"]);
   } finally {
     if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
     else Reflect.deleteProperty(globalThis, "window");
@@ -516,7 +519,8 @@ test("Local development removes stale PWA workers and caches", () => {
 
 test("POS middleware does not treat Staff PWA as a POS user route", () => {
   const matcher = middlewareSource.slice(middlewareSource.indexOf("matcher:"));
-  assert.doesNotMatch(matcher, /"\/staff/);
+  assert.deepEqual([...matcher.matchAll(/"(\/staff[^\"]*)"/g)].map((match) => match[1]), ["/staff/performance"]);
+  assert.match(middlewareSource, /if \(pathname === "\/staff\/performance"\) \{[\s\S]*?NextResponse\.next\(\)/);
   assert.match(matcher, /"\/team\/:path\*"/);
 });
 

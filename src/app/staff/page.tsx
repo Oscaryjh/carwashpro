@@ -5,6 +5,8 @@ import {
   StaffManagerApprovalEntry,
 } from "@/components/staff-pwa/staff-home-overview";
 import { StaffToday } from "@/components/staff-pwa/staff-today";
+import { StaffPerformance } from "@/components/staff-pwa/staff-performance";
+import { staffPerformanceEnabled, staffPerformanceScopeKey } from "@/lib/staff-pwa/performance-access";
 import { getEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee-auth/session";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
 import { getStaffHomeOverview } from "@/lib/staff-pwa/home";
@@ -41,7 +43,7 @@ export default async function StaffHomePage() {
 
   return (
     <div className="staff-home-stack">
-      <StaffHomeOverview overview={overview}>
+      <StaffHomeOverview overview={overview} performance={staffPerformanceEnabled() ? <StaffPerformance card key={staffPerformanceScopeKey(auth)} scopeKey={staffPerformanceScopeKey(auth)} /> : null}>
         {context.enabledModules.has("HR") ? (
           <StaffToday
             afterAttendance={approvalSummary && approvalSummary.total > 0 ? (

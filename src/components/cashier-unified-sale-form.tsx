@@ -1,4 +1,5 @@
 "use client";
+import { CheckoutAttribution } from "@/components/performance/checkout-attribution";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -121,6 +122,8 @@ export function CashierUnifiedSaleForm({
       ?? "",
   );
   const [cashReceived, setCashReceived] = useState("");
+  const [performanceAvailable, setPerformanceAvailable] = useState(false);
+  const [performanceTip, setPerformanceTip] = useState("0");
   const [paymentReference, setPaymentReference] = useState("");
   const [tenderAmount, setTenderAmount] = useState("");
   const [exchangeRateToMyr, setExchangeRateToMyr] = useState("");
@@ -456,6 +459,7 @@ export function CashierUnifiedSaleForm({
   const draftLoyaltyDiscount = draftRedemption.discountCents / 100;
   const draftTotalDiscount = draftManualDiscount + draftLoyaltyDiscount;
 
+  const receivedTip = performanceAvailable && !isTrainingComplimentary ? Number(performanceTip || 0) : 0;
   const tax = useMemo(() => calculateTax({
     lines: lines.map((line) => {
       return {
@@ -468,7 +472,8 @@ export function CashierUnifiedSaleForm({
     sstLabel: taxSettings.label,
     sstRate: taxSettings.rate,
     discount: isTrainingComplimentary ? subtotal : totalDiscount,
-  }), [isTrainingComplimentary, lines, subtotal, taxSettings, totalDiscount]);
+    tip: receivedTip,
+  }), [isTrainingComplimentary, lines, subtotal, taxSettings, totalDiscount, receivedTip]);
 
   const selectedCustomerPackages = availableCustomerPackages.filter((option) =>
     selectedCustomerPackageIds.includes(option.id),
@@ -506,7 +511,8 @@ export function CashierUnifiedSaleForm({
     sstLabel: taxSettings.label,
     sstRate: taxSettings.rate,
     discount: draftTotalDiscount,
-  }), [draftTotalDiscount, lines, taxSettings]);
+    tip: receivedTip,
+  }), [draftTotalDiscount, lines, taxSettings, receivedTip]);
 
   const totalCents = Math.max(0, Math.round(amountDue * 100));
   const cashReceivedCents = Math.max(0, Math.round((Number(cashReceived) || 0) * 100));
@@ -639,7 +645,13 @@ export function CashierUnifiedSaleForm({
       return;
     }
 
-    const result = await action(formData);
+    let result: Awaited<ReturnType<typeof action>>;
+    try {
+      result = await action(formData);
+    } catch {
+      setSaleError("Unable to confirm payment. Your cart and original request ID are retained. Check payment status before retrying.");
+      return;
+    }
 
     if (result.status !== "success" || !result.invoice) {
       setSaleError(result.message || "Unable to complete cashier sale.");
@@ -661,6 +673,7 @@ export function CashierUnifiedSaleForm({
     setLoyaltyPoints("0");
     setAdjustmentsOpen(false);
     setCashReceived("");
+    setPerformanceTip("0");
     setPaymentReference("");
     setSelectedCustomerPackageIds([]);
     setAvailableCustomerPackages([]);
@@ -984,6 +997,7 @@ export function CashierUnifiedSaleForm({
         </div>
 
         <input name="method" type="hidden" value={paymentMethod} />
+        {receivedTip > 0 && <input name="performanceTipAmount" type="hidden" value={performanceTip} />}
         <input name="paymentMethodId" type="hidden" value={selectedPaymentMethod?.id ?? ""} />
         <input name="paymentMethodCode" type="hidden" value={selectedPaymentMethod?.code ?? ""} />
         <input name="checkoutReason" type="hidden" value={isTrainingComplimentary ? checkoutReason : ""} />
@@ -1273,11 +1287,17 @@ export function CashierUnifiedSaleForm({
                       <strong>−{formatMoney(option.coveredAmount)}</strong>
                     </div>
                   ))}
+                  {receivedTip > 0 && <div><span>Tip (not a payout)</span><strong>{formatMoney(receivedTip)}</strong></div>}
                   <div><span>Total</span><strong>{formatMoney(tax.total)}</strong></div>
                   {packageCoverage > 0 ? (
                     <div className={styles.amountDueRow}><span>Amount due</span><strong>{formatMoney(amountDue)}</strong></div>
                   ) : null}
                 </div>
+                {performanceAvailable && !isTrainingComplimentary && <label className={styles.referenceField} style={{ padding: "12px" }}>
+                  <span>Tip amount · 小费（不是发放）</span>
+                  <input type="number" min="0" max="9999999" step="0.01" inputMode="decimal" value={performanceTip} onChange={(event) => setPerformanceTip(event.target.value)} />
+                </label>}
+                <CheckoutAttribution branchId={branchId} appointmentId={appointmentSale?.appointmentId} hasTip={receivedTip > 0} onEnabledChange={setPerformanceAvailable} exempt={isTrainingComplimentary || amountDue <= 0 || !lines.length} />
               </aside>
             </div>
 

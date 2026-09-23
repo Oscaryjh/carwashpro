@@ -1,4 +1,6 @@
 "use client";
+import { CheckoutAttribution } from "@/components/performance/checkout-attribution";
+import { SafePaymentForm } from "@/components/performance/safe-payment-form";
 
 import { useEffect, useState } from "react";
 import { PACKAGE_PAYMENT_PREVIEW_EVENT } from "@/components/pos-payment-preview";
@@ -39,7 +41,7 @@ export function PaymentForm({
   }, []);
 
   return (
-    <form
+    <SafePaymentForm
       action={action}
       className={[
         "form",
@@ -113,6 +115,7 @@ export function PaymentForm({
           />
         </label>
       </div>
+      <CheckoutAttribution workOrderId={workOrderId} exempt={isPackageSelected} />
       <div className="form-actions">
         <FinancialSubmitButton disabled={isPackageSelected} pendingLabel="Recording payment...">
           {isPackageSelected
@@ -122,6 +125,6 @@ export function PaymentForm({
               : "Record payment"}
         </FinancialSubmitButton>
       </div>
-    </form>
+    </SafePaymentForm>
   );
 }

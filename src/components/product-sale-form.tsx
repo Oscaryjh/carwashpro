@@ -1,4 +1,6 @@
 "use client";
+import { CheckoutAttribution } from "@/components/performance/checkout-attribution";
+import { SafePaymentForm } from "@/components/performance/safe-payment-form";
 
 import { useMemo, useState } from "react";
 import { PackageCustomerPicker } from "@/components/package-customer-picker";
@@ -121,7 +123,7 @@ export function ProductSaleForm({
   }
 
   return (
-    <form action={action} className="product-sale-form">
+    <SafePaymentForm action={action} className="product-sale-form">
       <input name="operationId" type="hidden" value={operationId} />
       <div className="product-sale-section">
         <h3>Customer optional</h3>
@@ -219,6 +221,7 @@ export function ProductSaleForm({
         {method !== "CASH" ? <label><span>Reference</span><input name="reference" placeholder="Receipt or transaction reference" required /></label> : null}
       </div>
       <input name="returnTo" type="hidden" value={returnTo} />
+      <CheckoutAttribution branchId={branchId} exempt={tax.total <= 0} />
       <div className="form-actions">
         <FinancialSubmitButton
           disabled={!lines.length || !branches.length || lines.some((line) => {
@@ -230,6 +233,6 @@ export function ProductSaleForm({
           Pay RM{tax.total.toFixed(2)}
         </FinancialSubmitButton>
       </div>
-    </form>
+    </SafePaymentForm>
   );
 }

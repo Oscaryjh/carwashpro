@@ -1,4 +1,6 @@
 "use client";
+import { CheckoutAttribution } from "@/components/performance/checkout-attribution";
+import { SafePaymentForm } from "@/components/performance/safe-payment-form";
 
 import { useState } from "react";
 import { useFinancialOperationId } from "@/hooks/use-financial-operation-id";
@@ -20,7 +22,7 @@ export function PackagePurchasePaymentForm({
   const { operationId } = useFinancialOperationId("package-purchase");
 
   return (
-    <form action={action} className="form">
+    <SafePaymentForm action={action} className="form">
       <input type="hidden" name="customerPackageId" value={customerPackageId} />
       <input type="hidden" name="operationId" value={operationId} />
       <div className="field-grid">
@@ -55,11 +57,12 @@ export function PackagePurchasePaymentForm({
           <input name="reference" required={isReferenceRequired} />
         </label>
       </div>
+      <CheckoutAttribution customerPackageId={customerPackageId} exempt={balance <= 0} />
       <div className="form-actions">
         <FinancialSubmitButton pendingLabel="Activating package...">
           Pay and activate package
         </FinancialSubmitButton>
       </div>
-    </form>
+    </SafePaymentForm>
   );
 }

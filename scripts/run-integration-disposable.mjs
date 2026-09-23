@@ -17,7 +17,12 @@ const pg = createEmbeddedPostgres();
 const databaseName =
   `tetamu_pcb_verification_vc1_disposable_${process.pid}_${Date.now()}`;
 const databaseUrl = `postgresql://postgres:postgres@localhost:5432/${databaseName}?schema=public`;
+const performanceDatabaseName =
+  `tetamu_performance_disposable_${process.pid}_${Date.now()}`;
+const performanceDatabaseUrl =
+  `postgresql://postgres:postgres@localhost:5432/${performanceDatabaseName}?schema=public`;
 let ownsPostgres = false;
+let performanceDatabaseCreated = false;
 
 try {
   ownsPostgres = await ensurePostgresReady(pg);
@@ -34,12 +39,15 @@ try {
     availableIntegrationFiles,
     process.argv.slice(2),
   );
+  const performanceFiles = integrationFiles.filter((file) =>
+    /^tests\/integration\/performance-[^/]+\.test\.ts$/.test(file),
+  );
   const isolatedFiles = new Set([
     "tests/integration/attendance-phase1c-route-flow.test.ts",
     "tests/integration/authenticated-route-boundaries.test.ts",
   ]);
   const sharedProcessFiles = integrationFiles.filter(
-    (file) => !isolatedFiles.has(file),
+    (file) => !isolatedFiles.has(file) && !performanceFiles.includes(file),
   );
 
   if (sharedProcessFiles.length > 0) {
@@ -56,7 +64,17 @@ try {
       databaseUrl,
     );
   }
+  if (performanceFiles.length > 0) {
+    await ensureDatabaseExists(pg, performanceDatabaseName);
+    performanceDatabaseCreated = true;
+    await waitForPostgres(pg, performanceDatabaseName);
+    await runCommand("prisma", ["migrate", "deploy"], performanceDatabaseUrl);
+    await runCommand("tsx", ["--test", "--test-concurrency=1", ...performanceFiles], performanceDatabaseUrl);
+  }
 } finally {
+  if (performanceDatabaseCreated) {
+    await dropDisposableDatabase(performanceDatabaseName);
+  }
   await dropDisposableDatabase(databaseName);
   await stopOwnedPostgres(pg, ownsPostgres);
 }
@@ -88,7 +106,7 @@ function runCommand(commandName, args, url) {
 }
 
 async function dropDisposableDatabase(targetName) {
-  if (!/^tetamu_pcb_verification_vc1_disposable_\d+_\d+$/.test(targetName)) {
+  if (!/^tetamu_(?:pcb_verification_vc1|performance)_disposable_\d+_\d+$/.test(targetName)) {
     throw new Error(`Refusing to drop unexpected database name: ${targetName}`);
   }
 

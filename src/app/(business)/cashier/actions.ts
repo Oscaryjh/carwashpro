@@ -26,6 +26,8 @@ import { cashierSaleSchema } from "@/lib/validation/cashier";
 import { fromCents } from "@/lib/validation/pos";
 import { sendInvoiceIfConnected } from "@/lib/whatsapp/invoice-notifications";
 import { runFinancialOperation } from "@/lib/financial-idempotency";
+import { parseCheckoutTipCents, parsePerformanceInput, performanceFingerprint } from "@/lib/performance/input";
+import { capturePerformanceCheckout } from "@/lib/performance/service";
 import { recordSaleInventory } from "@/lib/inventory/service";
 import { defaultBusinessPaymentMethods } from "@/lib/payments/business-methods";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
@@ -120,6 +122,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
   const auditRequest = await getAuditRequestContext();
 
   try {
+    const tipCents = parseCheckoutTipCents(formData);
     const branchId = await resolveOperationalBranchId(
       businessId,
       user,
@@ -137,7 +140,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
       businessId,
       operationKey: operationId,
       operationType: FinancialOperationType.CASHIER_CHECKOUT,
-      payload: { ...financialPayload, branchId },
+      payload: { ...financialPayload, branchId, ...performanceFingerprint(formData), ...(tipCents ? { performanceTipCents: tipCents } : {}) },
       execute: async (tx) => {
       const shift = await tx.cashierShift.findFirst({
         where: { businessId, cashierId: user.userId, status: "OPEN" },
@@ -199,6 +202,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         }
       }
       const isTrainingComplimentary = selectedPaymentMethod.behavior === "TRAINING_COMPLIMENTARY";
+      if (isTrainingComplimentary && tipCents) throw new Error("A zero-receipt complimentary checkout cannot collect a tip.");
       if (isTrainingComplimentary) {
         if (!input.checkoutReason || input.checkoutReason.length < 5) {
           throw new Error("Enter a reason for this Training / Complimentary service.");
@@ -636,6 +640,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           })),
         ],
         discount: totalDiscountCents / 100,
+        tip: tipCents / 100,
       });
       const packageCoverageByBalanceId = new Map<string, number>();
       let packageCoverageCents = 0;
@@ -707,6 +712,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           subtotal: fromCents(Math.round(tax.subtotal * 100)),
           taxableSubtotal: fromCents(Math.round(tax.taxableSubtotal * 100)),
           taxAmount: fromCents(Math.round(tax.tax * 100)),
+          tipAmount: fromCents(tipCents),
           taxRate: fromCents(Math.round(tax.taxRate * 100)),
           taxLabel: tax.tax > 0 ? tax.taxLabel : null,
           discountAmount: fromCents(totalDiscountCents),
@@ -979,6 +985,8 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         tx,
       );
 
+      await capturePerformanceCheckout(tx, { businessId, actorUserId: user.userId, input: parsePerformanceInput(formData),
+        paymentIds: [...packagePayments.map((entry) => entry.id), ...(cashPayment ? [cashPayment.id] : [])] });
       return {
         customerId: customer?.id ?? null,
         customerPackageIds: [
@@ -1023,7 +1031,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           ],
           subtotal: tax.subtotal,
           discountAmount: totalDiscountCents / 100,
-          tipAmount: 0,
+          tipAmount: tipCents / 100,
           taxAmount: tax.tax,
           taxRate: tax.taxRate,
           taxLabel: tax.taxLabel,

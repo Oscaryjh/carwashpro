@@ -29,11 +29,13 @@ const homeQuickActionIcons: Partial<Record<StaffAppDomain, StaffAppIconName>> = 
   APPOINTMENTS: "clock",
   ROSTER: "calendar",
   LEAVE: "leaf",
+  CLAIMS: "receipt",
 };
 
-export function StaffHomeOverview({ overview, children }: {
+export function StaffHomeOverview({ overview, children, performance }: {
   overview: AwaitedReturn;
   children?: ReactNode;
+  performance?: ReactNode;
 }) {
   const displayName = formatDisplayName(overview.profile.employee.fullName);
   const initials = overview.profile.employee.fullName
@@ -60,8 +62,8 @@ export function StaffHomeOverview({ overview, children }: {
           <Image
             alt=""
             height={32}
-            sizes="32px"
             src={overview.profile.employee.avatarUrl}
+            sizes="32px"
             unoptimized
             width={32}
           />
@@ -96,10 +98,11 @@ export function StaffHomeOverview({ overview, children }: {
         </section>
       ) : null}
 
+      {performance}
       <section className={styles.quickActions} aria-labelledby="staff-home-quick-access-heading">
         <p className={styles.sectionLabel} id="staff-home-quick-access-heading">Quick actions</p>
         {overview.quickAccess.length ? (
-          <div className={`${styles.quickGrid} ${overview.quickAccess.length === 2 ? styles.two : ""}`}>
+          <div className={`${styles.quickGrid} ${overview.quickAccess.length === 2 || overview.quickAccess.length === 4 ? styles.two : ""}`}>
             {overview.quickAccess.map((item) => (
               <Link
                 aria-label={`Open ${item.label}`}

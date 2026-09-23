@@ -299,6 +299,9 @@ export async function authenticateEmployeeSessionToken(
   );
 
   if (session.lastActiveAt.getTime() <= touchBefore.getTime()) {
+    const refreshedExpiresAt = new Date(
+      now.getTime() + config.session.expiresInSeconds * 1_000,
+    );
     await database.$transaction([
       database.employeeSession.updateMany({
         where: {
@@ -307,7 +310,10 @@ export async function authenticateEmployeeSessionToken(
           expiresAt: { gt: now },
           lastActiveAt: { lte: touchBefore },
         },
-        data: { lastActiveAt: now },
+        data: {
+          expiresAt: refreshedExpiresAt,
+          lastActiveAt: now,
+        },
       }),
       database.employeeDevice.updateMany({
         where: {
@@ -777,6 +783,25 @@ export async function revokeEmployeeSessionToken(
 
     return true;
   });
+}
+
+/** Recheck an already authenticated context inside a private read snapshot; no session writes. */
+export async function revalidateEmployeeSelfServiceScope(auth: EmployeeAuthContext, tx: Prisma.TransactionClient, now = new Date()) {
+  const session = await tx.employeeSession.findUnique({ where: { id: auth.sessionId }, select: employeeAuthSessionSelect });
+  if (!session || session.membershipId !== auth.membershipId || session.businessId !== auth.businessId ||
+    session.employeeAccountId !== auth.employeeAccountId || session.employeeDeviceId !== auth.deviceId ||
+    session.primaryBranchId !== auth.primaryBranchId ||
+    (session.attendanceBranchId ?? session.primaryBranchId) !== (auth.attendanceBranchId ?? auth.primaryBranchId)) {
+    throw new EmployeeAuthError("SESSION_REVOKED");
+  }
+  const error = validateEmployeeSession(session, now, false, false);
+  if (error) throw error;
+  const branchId = session.attendanceBranchId ?? session.primaryBranchId;
+  const assignment = session.membership.branchAssignments.some(a => a.businessId === session.businessId &&
+    a.branchId === branchId && a.status === "ACTIVE" && a.effectiveFrom <= now && (!a.effectiveUntil || a.effectiveUntil >= now));
+  const branch = await tx.branch.findFirst({ where: { id: branchId, businessId: session.businessId, status: "ACTIVE" }, select: { id: true, name: true } });
+  if (!assignment || !branch) throw new EmployeeAuthError("PRIMARY_BRANCH_UNAVAILABLE");
+  return { businessId: session.businessId, membershipId: session.membershipId, branch, assignments: session.membership.branchAssignments };
 }
 
 function validateEmployeeSession(

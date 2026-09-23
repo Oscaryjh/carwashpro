@@ -83,6 +83,8 @@ const aiCapabilityPermissions = [
 ] as const;
 
 export const staffPermissions = [
+  { key: "PERFORMANCE_VIEW_TEAM", label: "View branch performance", description: "Read assigned branch targets and contributions; no salary or commission access." },
+  { key: "PERFORMANCE_MANAGE_TARGETS", label: "Manage branch performance targets", description: "Preview and publish audited annual targets for the assigned branch." },
   {
     key: "DASHBOARD",
     label: "Dashboard",
@@ -575,6 +577,8 @@ const staffHomeRoutes: Array<[StaffPermission, string]> = [
   ["EXPENSE_VIEW", "/expenses"],
   ["ACCOUNTS_PAYABLE_VIEW", "/inventory/accounts-payable"],
   ["SUPPLIER_BILLS_VIEW", "/inventory/supplier-bills"],
+  ["PERFORMANCE_VIEW_TEAM", "/team/performance"],
+  ["PERFORMANCE_MANAGE_TARGETS", "/team/performance"],
 ];
 
 export function getStaffHomePath(
@@ -588,7 +592,8 @@ export function getStaffHomePath(
     : staffHomeRoutes;
 
   return (
-    routes.find(([permission]) => permissionValues.has(permission))?.[1] ??
+    routes.find(([permission]) => permissionValues.has(permission) &&
+      (!permission.startsWith("PERFORMANCE_") || process.env.TETAMU_PERFORMANCE_PHASE2 === "true"))?.[1] ??
     "/login"
   );
 }
@@ -600,6 +605,10 @@ export function canReadPeopleRoute(permissions: readonly string[], pathname: str
 }
 
 export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY" | null {
+  if (pathname === "/team/performance" || pathname.startsWith("/team/performance/")) {
+    // Page and service independently enforce permissions and active branch scope.
+    return null;
+  }
   if (pathname === "/ai" || pathname.startsWith("/ai/")) {
     return "AI_ANALYSIS_VIEW";
   }
