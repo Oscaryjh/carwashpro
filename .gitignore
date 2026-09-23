@@ -29,5 +29,19 @@ whatsapp-connector/test-send.ts
 scripts/local-refund-pdf-fixture.ts
 /process.exit(0)
 /\{
+# Retained local reconciliation evidence only; never part of the deployable Git source.
+/.reconciliation-evidence/
+/canonical-migration-reconstruction/
+/AUTHENTICATED_ROUTE_MATRIX.md
+/AUTH_ACCOUNT_CLASSIFICATION_MATRIX.md
+/CANONICAL_TARGET_MANIFEST.md
+/LATER_WORK_PRESERVATION_MANIFEST.md
+/LATER_WORK_SOURCE_PROVENANCE.md
+/LATER_WORK_SOURCE_PROVENANCE_FINAL.md
+/PAYMENT_EXPORT_PATH_MATRIX.md
+/PRISMA_DRIFT_MATRIX.md
+/REAL_MESSAGING_PATH_MATRIX.md
+/RUNTIME_SOURCE_CLOSURE_MATRIX.md
+/RUNTIME_SOURCE_GAP_MATRIX.md
 !src/app/business/settings/logs/
 !src/app/business/settings/logs/**
