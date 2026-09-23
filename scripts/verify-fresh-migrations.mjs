@@ -1,5 +1,8 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { assertMigrationHistory } from "./lib/canonical-migration-history.mjs";
 import {
   createEmbeddedPostgres,
   ensureDatabaseExists,
@@ -18,10 +21,37 @@ try {
   await ensureDatabaseExists(pg, databaseName);
   await waitForPostgres(pg, databaseName);
   await runPrismaMigrateDeploy(databaseUrl);
+  await verifyMigrationHistory(databaseName);
   console.log(`Fresh migration rebuild passed for disposable database ${databaseName}.`);
 } finally {
   await dropDisposableDatabase(databaseName);
   await stopOwnedPostgres(pg, ownsPostgres);
+}
+
+async function verifyMigrationHistory(targetName) {
+  const migrationRoot = resolve("prisma", "migrations");
+  const expected = readdirSync(migrationRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^\d{14}_/.test(entry.name))
+    .map((entry) => ({
+      name: entry.name,
+      checksum: createHash("sha256")
+        .update(readFileSync(resolve(migrationRoot, entry.name, "migration.sql")))
+        .digest("hex"),
+    }));
+  if (expected.length !== 222) {
+    throw new Error(`Expected 222 canonical SQL migrations, got ${expected.length}`);
+  }
+  const client = pg.getPgClient(targetName, "127.0.0.1");
+  try {
+    await client.connect();
+    const result = await client.query(
+      'SELECT migration_name, checksum, finished_at, rolled_back_at FROM "_prisma_migrations"',
+    );
+    assertMigrationHistory(expected, result.rows);
+    console.log(`Verified ${result.rows.length}/222 completed migration history rows and SQL checksums.`);
+  } finally {
+    await client.end().catch(() => undefined);
+  }
 }
 
 function runPrismaMigrateDeploy(url) {
