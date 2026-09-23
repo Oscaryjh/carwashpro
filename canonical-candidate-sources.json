@@ -1,0 +1,112 @@
+{
+  "entries": [
+    {
+      "feature": "Common Git ancestor",
+      "sha": "0c2b8d13aac620368e8d2d1c191c8e59efee9169",
+      "decision": "APPLY",
+      "files": ["package.json", "src/", "prisma/"],
+      "migrationNames": [],
+      "tests": ["tests/unit/canonical-source-ledger.test.ts"],
+      "reason": "Both Local and Testing unique commit chains descend from this base; the candidate starts here."
+    },
+    {
+      "feature": "Testing five unique commits",
+      "sha": "5f9b5b5f350d6ee3670f4d989b203776e6527544",
+      "decision": "MERGE_SEMANTICALLY",
+      "files": ["scripts/db-restore-verify.mjs", "src/lib/attendance/employee-auth/session.ts", "src/app/api/employee-auth/me/route.ts", "src/components/staff-pwa/staff-pwa-chrome.tsx"],
+      "migrationNames": [],
+      "tests": ["tests/integration/attendance-employee-auth.test.ts", "tests/unit/database-restore-runtime.test.ts"],
+      "reason": "Retain tested DB operations and Staff UI fixes, but resolve session expiry and revocation against the approved contract rather than taking the full file."
+    },
+    {
+      "feature": "Local eight unique UAT commits",
+      "sha": "c5a84d04932d4371fccd40a66bf8dd7c1fadb4f9",
+      "decision": "MERGE_SEMANTICALLY",
+      "files": ["scripts/prepare-testing-canonical-uat.ts", "scripts/verify-testing-canonical-uat.ts", "scripts/lib/canonical-testing-guard.ts", "tests/unit/canonical-testing-uat-tooling.test.ts"],
+      "migrationNames": [],
+      "tests": ["tests/unit/canonical-testing-uat-tooling.test.ts"],
+      "reason": "Preserve UAT fixture and audit value without letting old fixtures override later security contracts."
+    },
+    {
+      "feature": "People account classification",
+      "sha": "553156352a3c6b5d47eddb776d9da82f3236b65b",
+      "decision": "MERGE_SEMANTICALLY",
+      "files": ["src/lib/team/people-service.ts", "src/lib/team/people-scope.ts", "src/lib/auth/password-login.ts"],
+      "migrationNames": [],
+      "tests": ["tests/integration/team-people-service.test.ts"],
+      "reason": "Keep HUMAN/SERVICE semantics and tenant scoping; the migration is already included in the immutable 222 set."
+    },
+    {
+      "feature": "People TEAM_READ admission",
+      "sha": "f7917672da656994c2bdd82f93227a140e3c4a36",
+      "decision": "MERGE_SEMANTICALLY",
+      "files": ["src/lib/team/people-scope.ts", "src/app/(business)/team/people/[personId]/page.tsx"],
+      "migrationNames": [],
+      "tests": ["tests/unit/team-people-scope.test.ts"],
+      "reason": "Runtime TEAM_READ exception must survive while payroll and bank permissions remain separate."
+    },
+    {
+      "feature": "HR payroll attendance and exception inputs",
+      "sha": "954e1b32efc2417b55d571b074a142c1a7f49803",
+      "decision": "MERGE_SEMANTICALLY",
+      "files": ["src/lib/payroll/", "src/lib/attendance/", "src/app/(business)/team/payroll/"],
+      "migrationNames": [],
+      "tests": ["tests/integration/hr-payroll-mvp-pilot.test.ts", "tests/integration/payroll-pcb-vc1-disposable-e2e.test.ts"],
+      "reason": "Testing permits internal synthetic calculations and saves, but not external output or weaker authorization."
+    },
+    {
+      "feature": "PCB later corrections versions and settlement",
+      "sha": "eed66c60a251aa9a77e2bd3077a65cc85df58fdb",
+      "decision": "MERGE_SEMANTICALLY",
+      "files": ["src/lib/payroll/", "src/app/(business)/team/payroll/statutory/"],
+      "migrationNames": [],
+      "tests": ["tests/integration/payroll-pcb-vc1-disposable-e2e.test.ts"],
+      "reason": "Preserve immutable and idempotent internal correction behavior; RC-r2 uncommitted files are not included."
+    },
+    {
+      "feature": "Payment bank and official export hard deny",
+      "sha": "b2a4bc1cb737fa776065d9211a2133c050d65af3",
+      "decision": "MERGE_SEMANTICALLY",
+      "files": ["src/lib/release/pos-pilot-contract.ts", "src/app/(business)/team/payroll/export/route.ts", "src/app/(business)/team/payroll/statutory/export/route.ts"],
+      "migrationNames": [],
+      "tests": ["tests/unit/pos-pilot-frozen-domains.test.ts"],
+      "reason": "Keep code-level external execution denial while allowing Testing-only internal payroll/PCB flows."
+    },
+    {
+      "feature": "Testing OTP intercept and outbound environment contract",
+      "sha": "0d0bbda3567540ac65bb666899be6969c50930ee",
+      "decision": "REIMPLEMENT",
+      "files": ["src/lib/attendance/employee-auth/", "scripts/validate-release-environment.mjs", "src/lib/notification-queue/worker-send.ts"],
+      "migrationNames": [],
+      "tests": ["tests/unit/release-environment-validator.test.ts", "tests/unit/notification-queue-worker-send-mode.test.ts"],
+      "reason": "Use staging intercept behavior as evidence, but implement an explicit Testing-only fail-closed identity; never transplant its Production assumptions."
+    },
+    {
+      "feature": "Production image processing security patch",
+      "sha": "c48fb152631646da4a7f98dca16e5f8fbc93c40a",
+      "decision": "APPLY",
+      "files": ["src/lib/employee-avatar-image.ts", "package-lock.json"],
+      "migrationNames": [],
+      "tests": ["tests/unit/employee-avatar-image-security.test.ts"],
+      "reason": "This is a source patch to retain in candidate, not authorization to modify or deploy Production."
+    },
+    {
+      "feature": "Performance attribution targets and staff views",
+      "sha": "5f2662946275bd0a8832705bbd2d3c757044d6e5",
+      "decision": "MERGE_SEMANTICALLY",
+      "files": ["src/lib/performance/", "src/app/(business)/team/performance/", "src/app/api/employee-performance/route.ts", "src/app/staff/performance/page.tsx"],
+      "migrationNames": ["20260905160000_performance_receipts_phase1", "20260906010000_performance_coverage_indexes", "20260906020000_performance_targets"],
+      "tests": ["tests/integration/performance-phase1.test.ts"],
+      "reason": "Git source supplies missing runtime read/write path; its three SQL migrations are claims already within the recovered 222, never copied a second time."
+    },
+    {
+      "feature": "Later pilot maintenance and closing hotfixes",
+      "sha": "c3d9b664a17242910406022bdbf66de85d463866",
+      "decision": "MERGE_SEMANTICALLY",
+      "files": ["src/lib/release/pos-pilot-smoke-authorization.ts", "src/lib/closing/stale-shift-unknown-cash-service.ts", "src/app/(business)/appointments/actions.ts"],
+      "migrationNames": [],
+      "tests": ["tests/integration/stale-shift-unknown-cash.test.ts", "tests/unit/pos-pilot-smoke-authorization.test.ts"],
+      "reason": "Evaluate later server-side authorization and appointment/closing fixes without importing an incompatible global pilot freeze."
+    }
+  ]
+}
