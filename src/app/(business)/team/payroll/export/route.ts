@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isTestingDeployment } from "@/lib/release/testing-boundary";
 import { getAuditRequestContext, tryWriteAuditLog } from "@/lib/audit";
 import { requireWholeBusinessPayroll } from "@/lib/payroll/access";
 import { loadPayrollDocumentRun } from "@/lib/payroll/documents";
@@ -9,6 +10,7 @@ import {
 } from "@/lib/payroll/export";
 
 export async function GET(request: Request) {
+  if (isTestingDeployment()) return new Response("Payment and payroll export are disabled in Testing.", { status: 403 });
   const url = new URL(request.url);
   const month = url.searchParams.get("month") ?? "";
   const kind = url.searchParams.get("kind");

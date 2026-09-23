@@ -5,6 +5,7 @@ import { cookies, headers } from "next/headers";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { assertTestingExternalDeliveryBlocked } from "@/lib/release/testing-boundary";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import {
   sensitiveActionCookieOptions,
@@ -102,6 +103,7 @@ export async function saveBusinessStatutoryProfileAction(formData: FormData) {
 }
 
 export async function createStatutoryCorrectionRevisionAction(formData: FormData) {
+  assertTestingExternalDeliveryBlocked("statutory-submission");
   const month = monthFrom(formData);
   try {
     const context = await requireWholeBusinessPayroll("RESOLVE_STATUTORY_SUBMISSION");
@@ -123,6 +125,7 @@ export async function createStatutoryCorrectionRevisionAction(formData: FormData
 }
 
 export async function authorizeStatutoryExportAction(formData: FormData) {
+  assertTestingExternalDeliveryBlocked("statutory-submission");
   const input = exportAuthorizationSchema.parse(Object.fromEntries(formData));
   const context = await requireWholeBusinessPayroll("EXPORT_STATUTORY");
   const period = parsePayrollMonth(input.month);
@@ -189,6 +192,7 @@ export async function authorizeStatutoryExportAction(formData: FormData) {
 }
 
 export async function updateStatutorySubmissionStatusAction(formData: FormData) {
+  if (formData.get("targetStatus") === "SUBMITTED") assertTestingExternalDeliveryBlocked("statutory-submission");
   const month = monthFrom(formData);
   try {
     const requestedStatus = String(formData.get("targetStatus") ?? "");

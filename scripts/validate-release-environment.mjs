@@ -7,6 +7,29 @@ if (!new Set(["web", "notification", "analytics", "whatsapp"]).has(scope)) {
   fail(`Unknown release validation scope: ${scope}`);
 }
 
+if (explicit === "testing" || railway === "testing") {
+  if (explicit !== "testing" || railway !== "testing") fail("Testing identity must match APP_ENVIRONMENT and RAILWAY_ENVIRONMENT_NAME.");
+  for (const [key, expected] of [
+    ["TETAMU_TESTING_OUTBOUND_MODE", "intercept"],
+    ["EMPLOYEE_OTP_TESTING_ENABLED", "true"],
+    ["OTP_PROVIDER", "mock"],
+    ["OTP_CHANNEL", "local"],
+    ["WHATSAPP_SEND_MODE", "mock"],
+    ["TESTING_EMAIL_MODE", "disabled"],
+    ["PAYMENT_EXPORT_ENABLED", "false"],
+    ["STATUTORY_OFFICIAL_SUBMISSION_ENABLED", "false"],
+  ]) {
+    if (process.env[key]?.trim().toLowerCase() !== expected) fail(`Testing requires ${key}=${expected}.`);
+  }
+  const phones = (process.env.EMPLOYEE_OTP_TEST_PHONE_ALLOWLIST ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+  if (!phones.length || phones.some((phone) => !/^\+60\d{9,10}$/.test(phone)) || new Set(phones).size !== phones.length) {
+    fail("Testing requires an explicit synthetic EMPLOYEE_OTP_TEST_PHONE_ALLOWLIST.");
+  }
+  for (const key of ["SMS123_API_KEY", "TWILIO_AUTH_TOKEN", "TWILIO_API_KEY_SECRET"]) {
+    if (process.env[key]?.trim()) fail(`Testing forbids live ${key} credentials.`);
+  }
+}
+
 if (environment === "production") {
   requireValue("APP_RELEASE_SHA", 7);
   requireHexDigest("APP_RELEASE_SOURCE_DIGEST");

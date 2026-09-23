@@ -170,8 +170,8 @@ test("production mock mode is forbidden before a queue item can be simulated", (
     resolveWhatsAppSendMode({ NODE_ENV: "production", WHATSAPP_SEND_MODE: "live" }),
     "live",
   );
-  assert.equal(
-    resolveWhatsAppSendMode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "testing", WHATSAPP_SEND_MODE: "mock" }),
-    "mock",
+  assert.throws(
+    () => resolveWhatsAppSendMode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "testing", WHATSAPP_SEND_MODE: "mock" }),
+    /Testing outbound profile is missing or inconsistent/i,
   );
 });

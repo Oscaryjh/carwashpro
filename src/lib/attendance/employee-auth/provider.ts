@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import type { EmployeeAuthConfig } from "./config";
 import { getEmployeeAuthConfig } from "./config";
+import { assertTestingExternalDeliveryBlocked } from "@/lib/release/testing-boundary";
 import { EmployeeAuthError } from "./errors";
 import {
   safeEqual,
@@ -198,6 +199,7 @@ export class TwilioVerifySmsProvider implements EmployeeOtpProvider {
   }
 
   private async callTwilio(path: string, body: URLSearchParams) {
+    assertTestingExternalDeliveryBlocked("sms");
     const twilio = this.config.otp.twilio;
     if (!twilio.verifyServiceSid || !twilio.accountSid) {
       throw new EmployeeAuthError("CONFIGURATION_ERROR");
@@ -278,6 +280,7 @@ export class Sms123OtpProvider implements EmployeeOtpProvider {
   }
 
   async sendVerification(input: StartEmployeeVerificationInput) {
+    assertTestingExternalDeliveryBlocked("sms");
     if (!input.code || !/^\d{6}$/.test(input.code)) {
       throw new EmployeeAuthError(
         "CONFIGURATION_ERROR",

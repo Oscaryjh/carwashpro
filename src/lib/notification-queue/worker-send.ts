@@ -1,4 +1,5 @@
 import { isProductionRuntime } from "@/lib/release/environment";
+import { isTestingDeployment, requireTestingOutboundProfile, assertTestingExternalDeliveryBlocked } from "@/lib/release/testing-boundary";
 
 export type WhatsAppSendMode = "mock" | "live";
 
@@ -72,6 +73,13 @@ export function resolveWhatsAppSendMode(
   env: WhatsAppWorkerEnv = process.env,
 ) {
   const value = env.WHATSAPP_SEND_MODE?.trim();
+
+  if (isTestingDeployment(env)) {
+    requireTestingOutboundProfile(env);
+    if (value !== "mock") {
+      throw new WhatsAppSendModeConfigError('Testing requires WHATSAPP_SEND_MODE="mock"; live and missing modes are blocked.');
+    }
+  }
 
   if (isProductionRuntime(env) && value === "mock") {
     throw new WhatsAppSendModeConfigError(
@@ -214,6 +222,7 @@ async function sendToConnector(
     transport: QueueSendTransport;
   },
 ) {
+  assertTestingExternalDeliveryBlocked("whatsapp", options.env);
   const isAudio = input.documentMimeType?.startsWith("audio/");
   const isImage = input.documentMimeType?.startsWith("image/");
   const response = await options.transport(

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { assertTestingExternalDeliveryBlocked } from "@/lib/release/testing-boundary";
 import { Prisma, type PayrollStatutoryProvider, type PrismaClient } from "@prisma/client";
 import {
   writeAuditLog,
@@ -67,6 +68,7 @@ export async function downloadOrCreateStatutoryArtifact(
   },
   database: PrismaClient = prisma,
 ): Promise<StatutoryArtifactDownload> {
+  assertTestingExternalDeliveryBlocked("statutory-submission");
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       return await database.$transaction(

@@ -6,6 +6,7 @@ type MembershipDatabase =
   | Pick<Prisma.TransactionClient, "employeeAccount">;
 
 export type EligibleEmployeeMembership = Readonly<{
+  isTestAccount: boolean;
   employeeAccountId: string;
   membershipId: string;
   businessId: string;
@@ -36,6 +37,7 @@ const eligibleAccountSelect = {
       businessId: true,
       employeeCode: true,
       fullName: true,
+      isTestAccount: true,
       attendanceEnabled: true,
       business: {
         select: {
@@ -176,6 +178,7 @@ function mapEligibleIdentity(
         businessName: membership.business.name,
         employeeCode: membership.employeeCode,
         fullName: membership.fullName,
+        isTestAccount: membership.isTestAccount,
         primaryBranchId: primary.branchId,
         primaryBranchName: primary.branch.name,
       },

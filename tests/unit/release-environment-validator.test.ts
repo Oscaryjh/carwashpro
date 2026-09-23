@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
 
-function validate(scope: string, env: Record<string, string>) {
+function validate(scope: string, env: Record<string, string | undefined>) {
   return spawnSync(process.execPath, ["scripts/validate-release-environment.mjs", scope], {
     cwd: process.cwd(),
     encoding: "utf8",
@@ -37,10 +37,36 @@ const productionBase = {
 test("Testing environment permits controlled mocks", () => {
   const result = validate("notification", {
     APP_ENVIRONMENT: "testing",
+    RAILWAY_ENVIRONMENT_NAME: "testing",
+    TETAMU_TESTING_OUTBOUND_MODE: "intercept",
+    EMPLOYEE_OTP_TESTING_ENABLED: "true",
+    EMPLOYEE_OTP_TEST_PHONE_ALLOWLIST: "+60100000001",
+    OTP_PROVIDER: "mock",
+    OTP_CHANNEL: "local",
+    TESTING_EMAIL_MODE: "disabled",
+    PAYMENT_EXPORT_ENABLED: "false",
+    STATUTORY_OFFICIAL_SUBMISSION_ENABLED: "false",
     NODE_ENV: "production",
     WHATSAPP_SEND_MODE: "mock",
   });
   assert.equal(result.status, 0, result.stderr);
+});
+
+test("Testing launch rejects missing intercept profile, live channels and provider credentials", () => {
+  const safe = { APP_ENVIRONMENT: "testing", RAILWAY_ENVIRONMENT_NAME: "testing",
+    TETAMU_TESTING_OUTBOUND_MODE: "intercept", EMPLOYEE_OTP_TESTING_ENABLED: "true",
+    EMPLOYEE_OTP_TEST_PHONE_ALLOWLIST: "+60100000001", OTP_PROVIDER: "mock", OTP_CHANNEL: "local",
+    WHATSAPP_SEND_MODE: "mock", TESTING_EMAIL_MODE: "disabled", PAYMENT_EXPORT_ENABLED: "false",
+    STATUTORY_OFFICIAL_SUBMISSION_ENABLED: "false", NODE_ENV: "production" };
+  for (const variant of [
+    { TETAMU_TESTING_OUTBOUND_MODE: "" }, { APP_ENVIRONMENT: "production" },
+    { OTP_PROVIDER: "sms123" }, { EMPLOYEE_OTP_TESTING_ENABLED: "" },
+    { WHATSAPP_SEND_MODE: "live" }, { SMS123_API_KEY: "k".repeat(20) },
+    { PAYMENT_EXPORT_ENABLED: "true" },
+  ]) {
+    const result = validate("notification", { ...safe, ...variant });
+    assert.notEqual(result.status, 0, JSON.stringify(variant));
+  }
 });
 
 test("Production environment fails closed when source identity is incomplete", () => {

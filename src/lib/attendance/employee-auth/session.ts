@@ -299,9 +299,6 @@ export async function authenticateEmployeeSessionToken(
   );
 
   if (session.lastActiveAt.getTime() <= touchBefore.getTime()) {
-    const refreshedExpiresAt = new Date(
-      now.getTime() + config.session.expiresInSeconds * 1_000,
-    );
     await database.$transaction([
       database.employeeSession.updateMany({
         where: {
@@ -310,10 +307,7 @@ export async function authenticateEmployeeSessionToken(
           expiresAt: { gt: now },
           lastActiveAt: { lte: touchBefore },
         },
-        data: {
-          expiresAt: refreshedExpiresAt,
-          lastActiveAt: now,
-        },
+        data: { lastActiveAt: now },
       }),
       database.employeeDevice.updateMany({
         where: {

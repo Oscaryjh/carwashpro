@@ -77,7 +77,7 @@ test("employee auth config is centralized and production mock fails closed", () 
         OTP_PROVIDER: "mock",
         EMPLOYEE_OTP_MOCK_CODE: "000000",
       }),
-    /mock mode is not available in production/i,
+    /Testing outbound profile must be explicit and consistent/i,
   );
 
   assert.throws(

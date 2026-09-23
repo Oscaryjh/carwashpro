@@ -1,4 +1,5 @@
 import { EmployeeAuthError } from "./errors";
+import { isTestingDeployment, requireTestingOutboundProfile } from "@/lib/release/testing-boundary";
 
 export const EMPLOYEE_SESSION_COOKIE = "tetamu_employee_session";
 export const EMPLOYEE_OTP_DIGITS = 6;
@@ -27,6 +28,7 @@ export type EmployeeAuthConfig = Readonly<{
     providerTimeoutMs: number;
     sendMode: EmployeeOtpSendMode;
     testingDeployment: boolean;
+    testingAllowedPhones: readonly string[];
     locale: string;
     mockAccessKey: string | null;
     mockCode: string | null;
@@ -53,8 +55,9 @@ export type EmployeeAuthConfig = Readonly<{
 export function getEmployeeAuthConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): EmployeeAuthConfig {
-  const environment = normalizeEnvironment(env.NODE_ENV);
   const testingDeployment = readTestingDeployment(env);
+  const testingAllowedPhones = testingDeployment ? readTestingAllowedPhones(env) : [];
+  const environment = testingDeployment ? "test" : normalizeEnvironment(env.NODE_ENV);
   const authSecret = env.EMPLOYEE_AUTH_SECRET?.trim() ?? "";
 
   if (Buffer.byteLength(authSecret, "utf8") < 32) {
@@ -71,6 +74,11 @@ export function getEmployeeAuthConfig(
   const channel = normalizeChannel(env.OTP_CHANNEL, provider);
   const sendMode: EmployeeOtpSendMode =
     provider === "mock" ? "mock" : "provider";
+
+  if (testingDeployment && (provider !== "mock" || channel !== "local" ||
+      [env.SMS123_API_KEY, env.TWILIO_AUTH_TOKEN, env.TWILIO_API_KEY_SECRET].some((value) => Boolean(value?.trim())))) {
+    throw new EmployeeAuthError("CONFIGURATION_ERROR", "Testing Staff OTP must use mock intercept without live provider credentials.");
+  }
 
   if (environment === "production" && provider === "mock") {
     throw new EmployeeAuthError(
@@ -173,6 +181,7 @@ export function getEmployeeAuthConfig(
       ),
       sendMode,
       testingDeployment,
+      testingAllowedPhones,
       locale: readLocale(env.EMPLOYEE_OTP_LOCALE),
       mockAccessKey: env.EMPLOYEE_OTP_MOCK_ACCESS_KEY?.trim() || null,
       mockCode,
@@ -202,7 +211,7 @@ export function getEmployeeAuthConfig(
         60 * 60,
         "EMPLOYEE_SESSION_TOUCH_INTERVAL_SECONDS",
       ),
-      secureCookie: environment === "production",
+      secureCookie: environment === "production" || testingDeployment,
     },
   };
 }
@@ -372,6 +381,15 @@ function readTwilioConfig(
 
 function readTestingDeployment(env: NodeJS.ProcessEnv) {
   const enabled = env.EMPLOYEE_OTP_TESTING_ENABLED?.trim().toLowerCase();
+  if (isTestingDeployment(env)) {
+    try { requireTestingOutboundProfile(env); } catch {
+      throw new EmployeeAuthError("CONFIGURATION_ERROR", "Testing outbound profile must be explicit and consistent.");
+    }
+    if (enabled !== "true") {
+      throw new EmployeeAuthError("CONFIGURATION_ERROR", "EMPLOYEE_OTP_TESTING_ENABLED must be true in Testing.");
+    }
+    return true;
+  }
   if (!enabled) return false;
   if (enabled !== "true") {
     throw new EmployeeAuthError(
@@ -386,6 +404,14 @@ function readTestingDeployment(env: NodeJS.ProcessEnv) {
     );
   }
   return true;
+}
+
+function readTestingAllowedPhones(env: NodeJS.ProcessEnv) {
+  const phones = (env.EMPLOYEE_OTP_TEST_PHONE_ALLOWLIST ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+  if (phones.length === 0 || phones.some((phone) => !/^\+60\d{9,10}$/.test(phone)) || new Set(phones).size !== phones.length) {
+    throw new EmployeeAuthError("CONFIGURATION_ERROR", "Testing OTP requires an explicit, unique E.164 synthetic phone allowlist.");
+  }
+  return phones;
 }
 
 function readLocale(value: string | undefined) {

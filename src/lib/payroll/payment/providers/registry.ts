@@ -1,4 +1,5 @@
 import type { PaymentBankAdapter } from "./contract";
+import { assertTestingExternalDeliveryBlocked } from "@/lib/release/testing-boundary";
 
 export const paymentProviderKeys = ["PUBLIC_BANK"] as const;
 
@@ -60,6 +61,7 @@ export function getPaymentProviderReadiness(
  * It deliberately exposes no configuration values or beneficiary details.
  */
 export function requireReleaseReadyPaymentBankAdapter(providerKey: string) {
+  assertTestingExternalDeliveryBlocked("bank-execution");
   const readiness = getPaymentProviderReadiness(providerKey);
   if (!readiness) {
     throw new PaymentProviderAccessError("PAYMENT_PROVIDER_UNKNOWN");

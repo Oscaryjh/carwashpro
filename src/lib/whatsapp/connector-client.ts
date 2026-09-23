@@ -1,3 +1,5 @@
+import { assertTestingExternalDeliveryBlocked } from "@/lib/release/testing-boundary";
+
 type ConnectorSendSuccess = {
   ok: true;
   data: {
@@ -314,6 +316,7 @@ export async function sendConnectorTextMessage(input: {
   message: string;
   requestId?: string;
 }) {
+  assertTestingExternalDeliveryBlocked("whatsapp");
   const requestId = input.requestId ?? randomUUID();
   const response = await fetch(`${getWhatsAppConnectorUrl()}/send`, {
     method: "POST",

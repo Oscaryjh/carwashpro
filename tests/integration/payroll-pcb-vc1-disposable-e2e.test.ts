@@ -165,6 +165,20 @@ test("PCB VC1 executes A-F through real payroll, finalization, frozen snapshots,
     assert.deepEqual(repeatCp39.body, august.cp39.body);
     assert.equal(repeatCp39.artifactId, august.cp39.artifactId);
 
+    // The legacy local fixture above verifies frozen CP39 math. The exact
+    // Railway Testing release identity must never generate/download it.
+    const priorAppEnvironment = process.env.APP_ENVIRONMENT;
+    const priorRailwayEnvironment = process.env.RAILWAY_ENVIRONMENT_NAME;
+    try {
+      process.env.APP_ENVIRONMENT = "testing";
+      process.env.RAILWAY_ENVIRONMENT_NAME = "testing";
+      await assert.rejects(exportCp39(fixture, draft.id, testMonth), /Testing.*blocked/);
+      assert.deepEqual(await frozenProof(draft.id), frozenBefore);
+    } finally {
+      restore("APP_ENVIRONMENT", priorAppEnvironment);
+      restore("RAILWAY_ENVIRONMENT_NAME", priorRailwayEnvironment);
+    }
+
     await negativeFailClosedProofs(fixture.ruleId);
   } finally {
     restore("TETAMU_PAYROLL_ENVIRONMENT", previousEnvironment);

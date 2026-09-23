@@ -236,6 +236,8 @@ export async function requestEmployeeOtp(
 
     const shouldDeliver =
       Boolean(identity) &&
+      (!config.otp.testingDeployment || (config.otp.testingAllowedPhones.includes(phoneNumberNormalized) &&
+        identity?.memberships.every((membership) => membership.isTestAccount))) &&
       deviceAccess.deliveryAllowed &&
       rateLimit.providerAllowed;
 

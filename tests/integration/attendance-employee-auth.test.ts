@@ -33,6 +33,25 @@ after(async () => {
   await prisma.$disconnect();
 });
 
+test("Railway Testing OTP intercept admits only allowlisted synthetic Staff memberships", async () => {
+  assertLocalDatabase();
+  const fixture = await createFixture();
+  await prisma.employeeBusinessMembership.update({ where: { id: fixture.single.membershipId }, data: { isTestAccount: true } });
+  const config = getEmployeeAuthConfig({ NODE_ENV: "production", APP_ENVIRONMENT: "testing",
+    RAILWAY_ENVIRONMENT_NAME: "testing", TETAMU_TESTING_OUTBOUND_MODE: "intercept",
+    EMPLOYEE_OTP_TESTING_ENABLED: "true", EMPLOYEE_OTP_TEST_PHONE_ALLOWLIST: fixture.single.phone,
+    EMPLOYEE_AUTH_SECRET: TEST_SECRET, OTP_PROVIDER: "mock", OTP_CHANNEL: "local" });
+  const realProvider = new CapturingEmployeeOtpProvider();
+  await requestEmployeeOtp({ phoneNumber: fixture.rate.phone, deviceIdentifier: "testing-real-device-0001",
+    request: requestContext("10.9.0.1") }, { database: prisma, config, provider: realProvider });
+  assert.equal(realProvider.sent.length, 0);
+  const syntheticProvider = new CapturingEmployeeOtpProvider();
+  await requestEmployeeOtp({ phoneNumber: fixture.single.phone, deviceIdentifier: "testing-synthetic-device-0001",
+    request: requestContext("10.9.0.2") }, { database: prisma, config, provider: syntheticProvider });
+  assert.equal(syntheticProvider.sent.length, 1);
+  assert.equal(syntheticProvider.sent[0].phoneNumber, fixture.single.phone);
+});
+
 test("Phase 1C employee auth enforces OTP, membership, device, session, and tenant safety", async () => {
   assertLocalDatabase();
   const baseTime = new Date(Date.now() - 3 * 60_000);
