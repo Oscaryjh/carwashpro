@@ -19,6 +19,7 @@ import {
 import { getStatus, recordSuccessfulSend, startSocket } from "./socket.js";
 import { logger } from "./logger.js";
 import { buildStableProviderMessageId } from "./identity.js";
+import { assertWhatsAppProviderAvailable } from "./testing-boundary.js";
 
 export { buildStableProviderMessageId } from "./identity.js";
 
@@ -189,6 +190,7 @@ async function ensureTrustedContactToken(socket: WASocket, jid: string) {
 }
 
 export async function validateWhatsAppRecipient(businessId: string, phone: string) {
+  assertWhatsAppProviderAvailable();
   const normalizedPhone = normalizePhone(phone);
   const fallbackJid = `${normalizedPhone}@s.whatsapp.net`;
   const socket = await startSocket(businessId);
@@ -264,6 +266,7 @@ export async function sendTextMessage(
   options: SendTextMessageOptions = {},
   requestId?: string,
 ) {
+  assertWhatsAppProviderAvailable();
   const trimmedMessage = message.trim();
 
   if (!trimmedMessage) {

@@ -27,6 +27,7 @@ import {
   authorizeConnectorRequest,
   validateConnectorRequestIdentity,
 } from "./security.js";
+import { assertConnectorReleaseProfile, assertWhatsAppProviderAvailable } from "./testing-boundary.js";
 
 const MAX_JSON_BODY_BYTES = 10 * 1024 * 1024;
 const sendRequestReplayCache = new ConnectorRequestReplayCache();
@@ -409,6 +410,7 @@ async function handleRequest(
     }
 
     try {
+      assertWhatsAppProviderAvailable();
       const status = await reconnectSocket(businessId);
       sendRawJson(response, 200, {
         ok: true,
@@ -574,6 +576,7 @@ async function handleRequest(
 }
 
 assertRequiredEnv();
+assertConnectorReleaseProfile();
 
 const server = http.createServer((request, response) => {
   void handleRequest(request, response).catch((error: unknown) => {
@@ -599,6 +602,7 @@ logger.info(
 );
 
 function lazyStartSocket(businessId: string) {
+  assertWhatsAppProviderAvailable();
   let promise = socketStartPromises.get(businessId);
 
   if (!promise) {
