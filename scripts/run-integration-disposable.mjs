@@ -2,6 +2,10 @@ import { spawn } from "node:child_process";
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
+  selectIntegrationFiles,
+  selectIsolatedIntegrationFiles,
+} from "./lib/disposable-integration-files.mjs";
+import {
   createEmbeddedPostgres,
   ensureDatabaseExists,
   ensurePostgresReady,
@@ -20,12 +24,16 @@ try {
   await ensureDatabaseExists(pg, databaseName);
   await waitForPostgres(pg, databaseName);
   await runCommand("prisma", ["migrate", "deploy"], databaseUrl);
-  const integrationFiles = (await readdir(resolve("tests", "integration"), {
+  const availableIntegrationFiles = (await readdir(resolve("tests", "integration"), {
     withFileTypes: true,
   }))
     .filter((entry) => entry.isFile() && entry.name.endsWith(".test.ts"))
     .map((entry) => `tests/integration/${entry.name}`)
     .sort();
+  const integrationFiles = selectIntegrationFiles(
+    availableIntegrationFiles,
+    process.argv.slice(2),
+  );
   const isolatedFiles = new Set([
     "tests/integration/attendance-phase1c-route-flow.test.ts",
   ]);
@@ -33,12 +41,14 @@ try {
     (file) => !isolatedFiles.has(file),
   );
 
-  await runCommand(
-    "tsx",
-    ["--test", "--test-concurrency=1", ...sharedProcessFiles],
-    databaseUrl,
-  );
-  for (const file of isolatedFiles) {
+  if (sharedProcessFiles.length > 0) {
+    await runCommand(
+      "tsx",
+      ["--test", "--test-concurrency=1", ...sharedProcessFiles],
+      databaseUrl,
+    );
+  }
+  for (const file of selectIsolatedIntegrationFiles(integrationFiles, [...isolatedFiles])) {
     await runCommand(
       "tsx",
       ["--test", "--test-concurrency=1", file],

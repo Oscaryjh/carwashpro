@@ -23,7 +23,7 @@ Branch: `codex/testing-canonical-20260923`. Base: `0c2b8d13aac620368e8d2d1c191c8
 | `1702e1f279ea62727abc7e5b436ea9af00c793c6` | sanitized Postgres startup diagnostics | `APPLY` | No connection secret in logs. |
 | `9c5b7e5a6cea1cea6d5061a29e682beb6ff0880b` | portable restore helper/test | `APPLY` | restore verification test. |
 | `71f4786c828239d4270d93afa9253e8400a8b6ad` | database-ops package helper | `APPLY` | Docker database-ops test/build. |
-| `5f9b5b5f350d6ee3670f4d989b203776e6527544` | Staff PWA session/date picker, `me` route, tests | `MERGE_SEMANTICALLY` | No sliding expiry; disabled/revoked/logout/biz switch contract first. UI fix separately retained. |
+| `5f9b5b5f350d6ee3670f4d989b203776e6527544` | Staff PWA session/date picker, `me` route, tests | `MERGE_SEMANTICALLY` | Sliding DB expiry and `/me` cookie reissue are `SUPERSEDED` by approved fixed-expiry/re-login contract. Attendance-only denials do not revoke Staff; PWA foreground check/date-picker pieces remain separate UI inputs for later integration. |
 
 ## Additional feature lines
 

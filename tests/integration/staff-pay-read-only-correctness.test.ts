@@ -104,7 +104,15 @@ test("published payslip download uses self-service auth without Attendance and r
   assert.equal(first.membership.attendanceEnabled, false);
   const attendanceGuardSession = await createSession(first, `attendance-guard-${token}`);
   assert.equal(await getEmployeeAuthContext(request(cookie(attendanceGuardSession.token)), { database: prisma, config }), null);
-  assert.ok((await prisma.employeeSession.findUniqueOrThrow({ where: { id: attendanceGuardSession.id } })).revokedAt);
+  assert.equal(
+    (await prisma.employeeSession.findUniqueOrThrow({ where: { id: attendanceGuardSession.id } })).revokedAt,
+    null,
+    "an Attendance-only denial must not revoke a valid payslip self-service session",
+  );
+  assert.equal(
+    (await getEmployeeSelfServiceAuthContext(request(cookie(attendanceGuardSession.token)), { database: prisma, config }))?.membershipId,
+    first.membership.id,
+  );
 
   const ownSession = await createSession(first, `own-${token}`);
   const ownCookie = cookie(ownSession.token);

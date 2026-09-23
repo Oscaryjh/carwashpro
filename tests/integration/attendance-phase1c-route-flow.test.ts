@@ -321,6 +321,120 @@ test("Employee cookie drives the complete Attendance route flow with tenant isol
   }
 });
 
+test("Employee logout invalidates the same authenticated cookie at the HTTP route", async () => {
+  const fixture = await createFixture();
+  const [{ GET: me }, { POST: logout }, prismaModule] = await Promise.all([
+    import("../../src/app/api/employee-auth/me/route"),
+    import("../../src/app/api/employee-auth/logout/route"),
+    import("../../src/lib/prisma"),
+  ]);
+  appDatabase = prismaModule.prisma;
+  const cookie = `tetamu_employee_session=${fixture.sessionToken}`;
+  const meRequest = () => new Request("http://localhost/api/employee-auth/me", { headers: { cookie } });
+
+  assert.equal((await me(meRequest())).status, 200);
+  const logoutResponse = await logout(new Request("http://localhost/api/employee-auth/logout", {
+    method: "POST",
+    headers: { cookie, origin: "http://localhost" },
+  }));
+  assert.equal(logoutResponse.status, 200);
+  assert.equal((await me(meRequest())).status, 401);
+  assert.equal(
+    await database.employeeSession.count({
+      where: {
+        refreshTokenHash: hashEmployeeSessionToken(fixture.sessionToken, employeeSecret),
+        revokedAt: { not: null },
+      },
+    }),
+    1,
+  );
+});
+
+test("Attendance disable preserves HTTP self-service, but account disable revokes it", async () => {
+  const fixture = await createFixture();
+  const [{ GET: me }, { GET: today }, prismaModule] = await Promise.all([
+    import("../../src/app/api/employee-auth/me/route"),
+    import("../../src/app/api/employee-attendance/today/route"),
+    import("../../src/lib/prisma"),
+  ]);
+  appDatabase = prismaModule.prisma;
+  const cookie = `tetamu_employee_session=${fixture.sessionToken}`;
+  const meRequest = () => new Request("http://localhost/api/employee-auth/me", { headers: { cookie } });
+  await database.employeeBusinessMembership.update({
+    where: { id: fixture.membershipId },
+    data: { attendanceEnabled: false },
+  });
+
+  assert.equal((await me(meRequest())).status, 200);
+  const attendanceResponse = await today(new Request("http://localhost/api/employee-attendance/today", {
+    headers: { cookie },
+  }));
+  assert.equal(attendanceResponse.status, 403);
+  assert.equal((await attendanceResponse.json()).error.code, "ATTENDANCE_DISABLED");
+  assert.equal((await me(meRequest())).status, 200);
+
+  await database.employeeAccount.update({
+    where: { id: fixture.employeeAccountId },
+    data: { status: "INACTIVE" },
+  });
+  const disabledResponse = await me(meRequest());
+  assert.equal(disabledResponse.status, 403);
+  assert.equal((await disabledResponse.json()).error.code, "EMPLOYEE_INACTIVE");
+  await database.employeeAccount.update({
+    where: { id: fixture.employeeAccountId },
+    data: { status: "ACTIVE" },
+  });
+  assert.equal((await me(meRequest())).status, 401, "reactivating an account must not restore its old cookie");
+});
+
+test("revoked employee membership denies HTTP access and cannot resurrect its old cookie", async () => {
+  const fixture = await createFixture();
+  const [{ GET: me }, prismaModule] = await Promise.all([
+    import("../../src/app/api/employee-auth/me/route"),
+    import("../../src/lib/prisma"),
+  ]);
+  appDatabase = prismaModule.prisma;
+  const cookie = `tetamu_employee_session=${fixture.sessionToken}`;
+  const meRequest = () => new Request("http://localhost/api/employee-auth/me", { headers: { cookie } });
+  assert.equal((await me(meRequest())).status, 200);
+  await database.employeeBusinessMembership.update({
+    where: { id: fixture.membershipId },
+    data: { status: "SUSPENDED" },
+  });
+  const denied = await me(meRequest());
+  assert.equal(denied.status, 403);
+  assert.equal((await denied.json()).error.code, "MEMBERSHIP_INACTIVE");
+  await database.employeeBusinessMembership.update({
+    where: { id: fixture.membershipId },
+    data: { status: "ACTIVE" },
+  });
+  assert.equal((await me(meRequest())).status, 401);
+});
+
+test("an expired Employee cookie is rejected by the HTTP route without refresh", async () => {
+  const fixture = await createFixture();
+  const [{ GET: me }, prismaModule] = await Promise.all([
+    import("../../src/app/api/employee-auth/me/route"),
+    import("../../src/lib/prisma"),
+  ]);
+  appDatabase = prismaModule.prisma;
+  const cookie = `tetamu_employee_session=${fixture.sessionToken}`;
+  const tokenHash = hashEmployeeSessionToken(fixture.sessionToken, employeeSecret);
+  const stored = await database.employeeSession.findUniqueOrThrow({
+    where: { refreshTokenHash: tokenHash },
+    select: { createdAt: true },
+  });
+  assert.ok(Date.now() > stored.createdAt.getTime() + 1);
+  await database.employeeSession.update({
+    where: { refreshTokenHash: tokenHash },
+    data: { expiresAt: new Date(stored.createdAt.getTime() + 1) },
+  });
+  const response = await me(new Request("http://localhost/api/employee-auth/me", { headers: { cookie } }));
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error.code, "SESSION_REVOKED");
+  assert.equal(response.headers.get("set-cookie"), null, "expired sessions must not receive a renewed cookie");
+});
+
 async function createFixture() {
   const token = randomUUID();
   const now = new Date();

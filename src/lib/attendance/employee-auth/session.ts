@@ -250,7 +250,9 @@ export async function authenticateEmployeeSessionToken(
   );
 
   if (failure) {
-    if (session.revokedAt === null) {
+    // Attendance eligibility only gates attendance operations. It must not
+    // invalidate a still-authorized employee self-service session.
+    if (session.revokedAt === null && failure.code !== "ATTENDANCE_DISABLED") {
       await database.$transaction(async (transaction) => {
         const revoked = await transaction.employeeSession.updateMany({
           where: {
@@ -803,10 +805,6 @@ function validateEmployeeSession(
     return new EmployeeAuthError("MEMBERSHIP_INACTIVE");
   }
 
-  if (requireAttendance && !session.membership.attendanceEnabled) {
-    return new EmployeeAuthError("ATTENDANCE_DISABLED");
-  }
-
   if (
     session.business.id !== session.businessId ||
     session.business.status !== "active"
@@ -834,11 +832,7 @@ function validateEmployeeSession(
   if (
     session.primaryBranch.id !== session.primaryBranchId ||
     session.primaryBranch.businessId !== session.businessId ||
-    session.primaryBranch.status !== "ACTIVE" ||
-    (requireAttendance &&
-      (session.primaryBranch.attendanceSetting?.isEnabled !== true ||
-        session.primaryBranch.attendanceSetting.businessId !== session.businessId ||
-        session.primaryBranch.attendanceSetting.branchId !== session.primaryBranchId))
+    session.primaryBranch.status !== "ACTIVE"
   ) {
     return new EmployeeAuthError("PRIMARY_BRANCH_UNAVAILABLE");
   }
@@ -849,7 +843,6 @@ function validateEmployeeSession(
         assignment.branchId === session.primaryBranchId &&
         assignment.businessId === session.businessId &&
         assignment.isPrimary &&
-        (!requireAttendance || assignment.canClockIn) &&
         assignment.status === "ACTIVE" &&
         assignment.effectiveFrom.getTime() <= now.getTime() &&
         (assignment.effectiveUntil === null ||
@@ -858,6 +851,18 @@ function validateEmployeeSession(
 
   if (validPrimaryAssignments.length !== 1) {
     return new EmployeeAuthError("PRIMARY_BRANCH_UNAVAILABLE");
+  }
+
+  // Attendance settings and punch eligibility gate the feature, not the
+  // employee's otherwise valid self-service identity.
+  if (requireAttendance && (
+    !session.membership.attendanceEnabled ||
+    !validPrimaryAssignments[0].canClockIn ||
+    session.primaryBranch.attendanceSetting?.isEnabled !== true ||
+    session.primaryBranch.attendanceSetting.businessId !== session.businessId ||
+    session.primaryBranch.attendanceSetting.branchId !== session.primaryBranchId
+  )) {
+    return new EmployeeAuthError("ATTENDANCE_DISABLED");
   }
 
   return null;

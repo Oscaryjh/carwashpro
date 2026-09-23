@@ -1137,7 +1137,15 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
         config,
         now: plusSeconds(baseTime, 73),
       }),
-      isAuthError("PRIMARY_BRANCH_UNAVAILABLE"),
+      isAuthError("ATTENDANCE_DISABLED"),
+    );
+    assert.equal(
+      (await prisma.employeeSession.findUniqueOrThrow({
+        where: { id: reactivatedLogin.context.sessionId },
+        select: { revokedAt: true },
+      })).revokedAt,
+      null,
+      "disabled branch Attendance must not revoke the existing Staff session",
     );
     await prisma.branchAttendanceSetting.update({
       where: { branchId: fixture.branchA.id },
@@ -1220,15 +1228,70 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
       }),
       isAuthError("ATTENDANCE_DISABLED"),
     );
+    const attendanceDisabledRecord = await prisma.employeeSession.findUniqueOrThrow({
+      where: { id: attendanceDisabledSession.context.sessionId },
+      select: { revokedAt: true },
+    });
+    assert.equal(
+      attendanceDisabledRecord.revokedAt,
+      null,
+      "disabling Attendance must not revoke a legitimate self-service session",
+    );
+    const selfServiceWhileAttendanceDisabled = await authenticateEmployeeSessionToken(
+      attendanceDisabledSession.token,
+      {
+        database: prisma,
+        config,
+        now: plusSeconds(baseTime, 80),
+        requireAttendance: false,
+      },
+    );
+    assert.equal(selfServiceWhileAttendanceDisabled.sessionId, attendanceDisabledSession.context.sessionId);
     await prisma.employeeBusinessMembership.update({
       where: { id: fixture.single.membershipId },
       data: { attendanceEnabled: true },
     });
 
+    const branchAttendanceDisabledSession = await createDynamicSession(
+      plusSeconds(baseTime, 81),
+    );
+    await prisma.branchAttendanceSetting.update({
+      where: { branchId: fixture.branchA.id },
+      data: { isEnabled: false },
+    });
+    await assert.rejects(
+      authenticateEmployeeSessionToken(branchAttendanceDisabledSession.token, {
+        database: prisma,
+        config,
+        now: plusSeconds(baseTime, 82),
+      }),
+      isAuthError("ATTENDANCE_DISABLED"),
+    );
+    assert.equal(
+      (await prisma.employeeSession.findUniqueOrThrow({
+        where: { id: branchAttendanceDisabledSession.context.sessionId },
+        select: { revokedAt: true },
+      })).revokedAt,
+      null,
+      "branch Attendance setting must not revoke Staff self-service",
+    );
+    assert.equal(
+      (await authenticateEmployeeSessionToken(branchAttendanceDisabledSession.token, {
+        database: prisma,
+        config,
+        now: plusSeconds(baseTime, 83),
+        requireAttendance: false,
+      })).sessionId,
+      branchAttendanceDisabledSession.context.sessionId,
+    );
+    await prisma.branchAttendanceSetting.update({
+      where: { branchId: fixture.branchA.id },
+      data: { isEnabled: true },
+    });
+
     const invalidatedSessionIds = [
       suspendedSession.context.sessionId,
       terminatedSession.context.sessionId,
-      attendanceDisabledSession.context.sessionId,
     ];
     assert.equal(
       await prisma.employeeSession.count({
@@ -1238,7 +1301,7 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
         },
       }),
       invalidatedSessionIds.length,
-      "all sessions must be revoked immediately after dynamic membership invalidation",
+      "only invalid account or membership sessions are revoked",
     );
 
     await clearChallenges(fixture.single.phone);
@@ -1266,6 +1329,20 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
       assert.fail("Active device should login.");
     }
 
+    const deviceSessionIds = [
+      reactivatedLogin.context.sessionId,
+      attendanceDisabledSession.context.sessionId,
+      branchAttendanceDisabledSession.context.sessionId,
+      freshSessionLogin.context.sessionId,
+    ];
+    assert.equal(
+      await prisma.employeeSession.count({
+        where: { id: { in: deviceSessionIds }, revokedAt: null },
+      }),
+      4,
+      "Attendance toggles keep three earlier legitimate sessions active alongside the new login",
+    );
+
     const adminDeviceRevoke = await revokeEmployeeDevice(
       {
         businessId: fixture.businessA.id,
@@ -1285,8 +1362,15 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
     );
     assert.equal(
       adminDeviceRevoke.revokedSessionCount,
-      1,
+      4,
       "administrator revoke must report the pre-trigger active session count",
+    );
+    assert.equal(
+      await prisma.employeeSession.count({
+        where: { id: { in: deviceSessionIds }, revokedAt: { not: null } },
+      }),
+      4,
+      "administrator device revoke still invalidates every retained session",
     );
     assert.equal(
       await prisma.auditLog.count({
@@ -1377,6 +1461,64 @@ test("Phase 1C employee auth enforces OTP, membership, device, session, and tena
         "Audit must not contain raw phone, OTP, IP, or device identifier",
       );
     }
+  } finally {
+    await cleanupFixture(fixture);
+  }
+});
+
+test("Employee session activity never slides its absolute expiry", async () => {
+  assertLocalDatabase();
+  const baseTime = new Date();
+  const fixture = await createFixture();
+  const config = authConfig({
+    EMPLOYEE_SESSION_EXPIRES_SECONDS: "300",
+    EMPLOYEE_SESSION_TOUCH_INTERVAL_SECONDS: "30",
+  });
+
+  try {
+    const requested = await requestWithCapture({
+      phone: fixture.single.phone,
+      deviceIdentifier: "fixed-expiry-session-device-0001",
+      ipAddress: "10.6.0.1",
+      now: baseTime,
+      config,
+    });
+    const login = await verifyEmployeeOtp(
+      {
+        challengeId: requested.result.challengeId,
+        otp: requested.provider.sent[0].otp,
+        deviceIdentifier: "fixed-expiry-session-device-0001",
+        request: requestContext("10.6.0.1"),
+      },
+      { database: prisma, config, now: plusSeconds(baseTime, 1) },
+    );
+    if (login.status !== "AUTHENTICATED") assert.fail("Single membership must authenticate.");
+
+    const initial = await prisma.employeeSession.findUniqueOrThrow({
+      where: { id: login.context.sessionId },
+      select: { expiresAt: true },
+    });
+    assert.equal(initial.expiresAt.getTime(), plusSeconds(baseTime, 301).getTime());
+
+    await authenticateEmployeeSessionToken(login.token, {
+      database: prisma,
+      config,
+      now: plusSeconds(baseTime, 32),
+    });
+    const touched = await prisma.employeeSession.findUniqueOrThrow({
+      where: { id: login.context.sessionId },
+      select: { expiresAt: true, lastActiveAt: true },
+    });
+    assert.equal(touched.expiresAt.getTime(), initial.expiresAt.getTime());
+    assert.equal(touched.lastActiveAt.getTime(), plusSeconds(baseTime, 32).getTime());
+    await assert.rejects(
+      authenticateEmployeeSessionToken(login.token, {
+        database: prisma,
+        config,
+        now: plusSeconds(baseTime, 302),
+      }),
+      isAuthError("SESSION_REVOKED"),
+    );
   } finally {
     await cleanupFixture(fixture);
   }
