@@ -83,6 +83,7 @@ export async function authenticatePasswordLogin(
       const user = await findPasswordLoginUser(email, transaction);
       const usable = Boolean(
         user &&
+          user.accountType === "HUMAN" &&
           user.status === "active" &&
           user.loginEnabled &&
           user.email &&

@@ -9,7 +9,7 @@ import {
 } from "@/components/staff-create-modal";
 import { StaffAvailabilityForm } from "@/components/staff-availability-form";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
-import { assertStaffPermission } from "@/lib/auth/staff-permissions";
+import { hasStaffPermission } from "@/lib/auth/staff-permissions";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { getActiveBranches } from "@/lib/branches";
@@ -71,9 +71,6 @@ type TeamPageProps = {
 export default async function TeamPage({ searchParams }: TeamPageProps) {
   const { access, user, businessId, industryType, moduleContext } =
     await requireBusinessUser("VIEW_TEAM_DIRECTORY");
-  if (access.source === "DIRECT_BUSINESS") {
-    assertStaffPermission(user, "TEAM");
-  }
   const canEditCompensation =
     moduleContext.enabledModules.has("PAYROLL") &&
     hasBusinessCapability(access, "EDIT_COMPENSATION");
@@ -107,6 +104,14 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   )
     ? (params.section as TeamSection)
     : "people";
+  if (
+    access.source === "DIRECT_BUSINESS" &&
+    hasStaffPermission(user, "TEAM_READ") &&
+    !hasBusinessCapability(access, "MODIFY_TEAM") &&
+    (requestedSection !== "people" || params.modal || configurationFocus)
+  ) {
+    notFound();
+  }
   if (
     (requestedSection === "roles" &&
       !canManageTeamPermissions &&

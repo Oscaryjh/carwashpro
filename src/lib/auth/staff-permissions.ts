@@ -160,6 +160,11 @@ export const staffPermissions = [
     description: "Create staff accounts and manage staff permissions.",
   },
   {
+    key: "TEAM_READ",
+    label: "View employee directory & profiles",
+    description: "Read employee details in assigned branches without team, payroll or bank administration.",
+  },
+  {
     key: "MANAGE_TEAM_PERMISSIONS",
     label: "Manage roles & permissions",
     description:
@@ -560,6 +565,7 @@ const staffHomeRoutes: Array<[StaffPermission, string]> = [
   ["PRODUCTS", "/products"],
   ["DISCOUNTS", "/discounts"],
   ["TEAM", "/team"],
+  ["TEAM_READ", "/team"],
   ["ATTENDANCE_EMPLOYEE_READ", "/team/employees"],
   ["ATTENDANCE_SETTINGS_READ", "/team/attendance-settings"],
   ["VIEW_LEAVE", "/team/leave"],
@@ -585,6 +591,12 @@ export function getStaffHomePath(
     routes.find(([permission]) => permissionValues.has(permission))?.[1] ??
     "/login"
   );
+}
+
+/** Narrow gateway exception; page admission and tenant/branch scope still run on the server. */
+export function canReadPeopleRoute(permissions: readonly string[], pathname: string) {
+  return permissions.includes("TEAM_READ") &&
+    (pathname === "/team" || /^\/team\/people\/[^/]+$/.test(pathname));
 }
 
 export function routePermission(pathname: string): StaffPermission | "OWNER_ONLY" | null {

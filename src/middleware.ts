@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
-import { getStaffHomePath, routePermission } from "@/lib/auth/staff-permissions";
+import { canReadPeopleRoute, getStaffHomePath, routePermission } from "@/lib/auth/staff-permissions";
 
 const SESSION_COOKIE = "car_wash_session";
 
@@ -133,7 +133,7 @@ export async function middleware(request: NextRequest) {
       requiredPermission !== "OWNER_ONLY" &&
       role === "STAFF"
     ) {
-      if (!permissions.includes(requiredPermission)) {
+      if (!permissions.includes(requiredPermission) && !canReadPeopleRoute(permissions, pathname)) {
         return NextResponse.redirect(new URL(staffHomePath, request.url));
       }
     }
