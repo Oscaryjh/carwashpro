@@ -69,7 +69,7 @@ test("Payslips ordering and publication uniqueness stay canonical without month 
   assert.match(reader, /orderBy: \[\{ payrollRun: \{ periodStart: "desc" \} \}, \{ publishedAt: "desc" \}\]/);
   assert.match(reader, /where: \{ businessId: input\.businessId, membershipId: input\.membershipId \}/);
   assert.match(schema, /model PayrollPayslipPublication[\s\S]*payrollEntryId String\s+@unique/);
-  assert.match(schema, /@@unique\(\[payrollEntryId, businessId, membershipId\]\)/);
+  assert.match(schema, /@@unique\(\[payrollEntryId, businessId, membershipId\], map: "payroll_payslip_publications_entry_business_membership_key"\)/);
   assert.doesNotMatch(view, /new Map|reduce\(|dedup|period\.slice/);
 });
 

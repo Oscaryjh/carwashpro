@@ -141,19 +141,19 @@ test("Phase 1C timestamp defaults and guards use a UTC wall clock", () => {
   );
   assert.match(
     schema,
-    /model EmployeeOtpChallenge[\s\S]*?createdAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'\)"\)\)/,
+    /model EmployeeOtpChallenge[\s\S]*?createdAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text\)"\)\)/,
   );
   assert.match(
     schema,
-    /model EmployeeDevice[\s\S]*?firstVerifiedAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'\)"\)\)[\s\S]*?lastActiveAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'\)"\)\)[\s\S]*?createdAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'\)"\)\)/,
+    /model EmployeeDevice[\s\S]*?firstVerifiedAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text\)"\)\)[\s\S]*?lastActiveAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text\)"\)\)[\s\S]*?createdAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text\)"\)\)/,
   );
   assert.match(
     schema,
-    /model EmployeeSession[\s\S]*?lastActiveAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'\)"\)\)[\s\S]*?createdAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'\)"\)\)/,
+    /model EmployeeSession[\s\S]*?lastActiveAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text\)"\)\)[\s\S]*?createdAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text\)"\)\)/,
   );
   assert.match(
     schema,
-    /model AttendanceRequestIdempotency[\s\S]*?createdAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'\)"\)\)/,
+    /model AttendanceRequestIdempotency[\s\S]*?createdAt\s+DateTime\s+@default\(dbgenerated\("\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text\)"\)\)/,
   );
 });
 

@@ -116,7 +116,7 @@ test("generated Leave entitlement and manual adjustment cannot double-credit the
 
   assert.match(
     schema,
-    /@@unique\(\[businessId, membershipId, policyId, leaveYearStart\]\)/,
+    /@@unique\(\[businessId, membershipId, policyId, leaveYearStart\], map: "employee_leave_entitlements_year_key"\)/,
   );
   assert.match(schema, /sourceKey\s+String\s+@unique/);
   assert.match(service, /sourceKey: `leave-entitlement:\$\{entitlement\.id\}`/);

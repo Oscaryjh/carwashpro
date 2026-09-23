@@ -132,7 +132,7 @@ test("P7 HR company work-pay is deterministic and canonical components retain pr
   assert.match(schema, /sourceVersionId/);
   assert.match(schema, /sourceRevision/);
   assert.match(schema, /calculationBasis/);
-  assert.match(schema, /@@unique\(\[payrollEntryId, lineKey\]\)/);
+  assert.match(schema, /@@unique\(\[payrollEntryId, lineKey\], map: "payroll_entry_components_entry_line_key"\)/);
 });
 
 test("P7 run review filters readiness before pagination and shows actionable drill-down", async () => {
