@@ -69,3 +69,21 @@ test("source ledger rejects a nonexistent Git commit", () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /not a commit/i);
 });
+
+test("source ledger records post-alignment migrations as deferred without claiming the 222 baseline", () => {
+  const result = runWithEntries([{
+    feature: "post-alignment PCB",
+    sha: baseSha,
+    decision: "DEFERRED_POST_ALIGNMENT_FEATURE",
+    files: ["src/lib/payroll/pcb-published-correction.ts"],
+    migrationNames: [],
+    deferredMigrationNames: [
+      "20260920000100_controlled_manual_pcb_source",
+      "20260920000200_published_pcb_correction",
+    ],
+    tests: ["tests/unit/canonical-source-ledger.test.ts"],
+    reason: "not in the verified 222 SQL baseline",
+  }]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /0 migration claims/);
+});

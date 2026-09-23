@@ -31,7 +31,7 @@ Branch: `codex/testing-canonical-20260923`. Base: `0c2b8d13aac620368e8d2d1c191c8
 |---|---|---|
 | People `553156352a3c6b5d47eddb776d9da82f3236b65b` + `f7917672da656994c2bdd82f93227a140e3c4a36` | `MERGE_SEMANTICALLY` | HUMAN/SERVICE and `TEAM_READ`, with server-side business/branch/own-data; no implied payroll/bank rights. |
 | HR `aa86e91a1438d94d5ed1cc75ba8c5b0d3a7da4a3` + `954e1b32efc2417b55d571b074a142c1a7f49803` | `MERGE_SEMANTICALLY` | Internal synthetic payroll calculation/save and auth/approval tests; external output blocked. |
-| PCB `0170cdc2ed1450e23f64bce82e258aa69406e5fc` through `eed66c60a251aa9a77e2bd3077a65cc85df58fdb` | `MERGE_SEMANTICALLY` | Immutable/idempotent internal ledger; RC-r2 uncommitted files excluded; official submission/export denied. |
+| PCB `0170cdc2ed1450e23f64bce82e258aa69406e5fc` through `eed66c60a251aa9a77e2bd3077a65cc85df58fdb` | `DEFERRED_POST_ALIGNMENT_FEATURE` | `20260920000100_controlled_manual_pcb_source` 与 `20260920000200_published_pcb_correction` 均不在 222 baseline；本轮不加入 migration 或依赖它们的手工来源、发布修正、版本、结算代码。现有 222 内 Payroll/PCB 内部计算与保存保留；外发另按 Testing 禁发策略。 |
 | Payment/official hard deny `b2a4bc1cb737fa776065d9211a2133c050d65af3` | `MERGE_SEMANTICALLY` | Keep provider/route hard-deny without importing entire global pilot freeze that blocks permitted Testing internal saves. |
 | RC staging intercept `0d0bbda3567540ac65bb666899be6969c50930ee` | `REIMPLEMENT` | Explicit Testing-only identity and synthetic OTP; no Production policy copy. |
 | Image security `c48fb152631646da4a7f98dca16e5f8fbc93c40a` | `APPLY` | Preserve image security patch, build/test. |

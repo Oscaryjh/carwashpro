@@ -57,11 +57,12 @@
     {
       "feature": "PCB later corrections versions and settlement",
       "sha": "eed66c60a251aa9a77e2bd3077a65cc85df58fdb",
-      "decision": "MERGE_SEMANTICALLY",
+      "decision": "DEFERRED_POST_ALIGNMENT_FEATURE",
       "files": ["src/lib/payroll/", "src/app/(business)/team/payroll/statutory/"],
       "migrationNames": [],
+      "deferredMigrationNames": ["20260920000100_controlled_manual_pcb_source", "20260920000200_published_pcb_correction"],
       "tests": ["tests/integration/payroll-pcb-vc1-disposable-e2e.test.ts"],
-      "reason": "Preserve immutable and idempotent internal correction behavior; RC-r2 uncommitted files are not included."
+      "reason": "DEFERRED_POST_ALIGNMENT_FEATURE: the two required migrations are outside verified baseline 222. Do not include the migrations or dependent manual PCB, published correction, version, or settlement code in this candidate; preserve existing 222-baseline internal Payroll/PCB calculation and save."
     },
     {
       "feature": "Payment bank and official export hard deny",

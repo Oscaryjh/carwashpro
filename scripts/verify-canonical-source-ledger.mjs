@@ -1,11 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const allowedDecisions = new Set([
   "APPLY",
   "MERGE_SEMANTICALLY",
   "SUPERSEDED",
   "REIMPLEMENT",
+  "DEFERRED_POST_ALIGNMENT_FEATURE",
 ]);
 
 function fail(message) {
@@ -69,6 +70,22 @@ if (process.exitCode) {
     if (!Array.isArray(entry.migrationNames)) {
       fail(`${label}: migrationNames must be an array`);
       continue;
+    }
+    if (entry.decision === "DEFERRED_POST_ALIGNMENT_FEATURE") {
+      if (entry.migrationNames.length !== 0) {
+        fail(`${label}: deferred source cannot claim a baseline migration`);
+      }
+      if (!Array.isArray(entry.deferredMigrationNames) || entry.deferredMigrationNames.length === 0) {
+        fail(`${label}: deferred migration names required`);
+      } else {
+        for (const name of entry.deferredMigrationNames) {
+          if (typeof name !== "string" || !/^\d{14}_[a-z0-9_]+$/.test(name)) {
+            fail(`${label}: invalid deferred migration name ${String(name)}`);
+          } else if (existsSync(`prisma/migrations/${name}`)) {
+            fail(`${label}: deferred migration already exists in candidate: ${name}`);
+          }
+        }
+      }
     }
     for (const name of entry.migrationNames) {
       if (typeof name !== "string" || !/^\d{14}_[a-z0-9_]+$/.test(name)) {

@@ -1,6 +1,6 @@
 # Phase 2.6 — Canonical Build input manifest（仅输入决议；不 build）
 
-本表替代 Phase 2.5 的粗粒度输入表。状态仅为 `APPLY | MERGE_SEMANTICALLY | REIMPLEMENT | SUPERSEDED | DROP_OBSOLETE | MANUAL_RESOLUTION`。`APPLY` 表示未来 Phase 3 候选的选定来源，**不是本阶段已经合入**。完整 SHA/文件/测试见 `LATER_WORK_SOURCE_PROVENANCE_FINAL.md`，逐 SQL 见 `CANONICAL_MIGRATION_MANIFEST_222.md`。
+本表替代 Phase 2.5 的粗粒度输入表。状态为 `APPLY | MERGE_SEMANTICALLY | REIMPLEMENT | SUPERSEDED | DROP_OBSOLETE | MANUAL_RESOLUTION | DEFERRED_POST_ALIGNMENT_FEATURE`。`APPLY` 表示选定来源，不等于已合入。完整 SHA/文件/测试见 `LATER_WORK_SOURCE_PROVENANCE_FINAL.md`，逐 SQL 见 `CANONICAL_MIGRATION_MANIFEST_222.md`。
 
 | Feature / module | 精确来源（branch/SHA/迁移） | 决议 | 语义优先级 / 未决 |
 |---|---|---|---|
@@ -12,7 +12,7 @@
 | Runtime Staff PWA session | R `src/lib/attendance/employee-auth/session.ts`；P/RC 后续版本与之不同 | `MANUAL_RESOLUTION` | R 保留 attendance-disabled 非撤销及滑动 `expiresAt`；P/RC 更严格但会改变自助会话行为。须裁决并写负测，不能 take latest。 |
 | People 目录/权限 | `553156352a3c6b5d47eddb776d9da82f3236b65b` + `f7917672da656994c2bdd82f93227a140e3c4a36`；222 内 `20260915090000...`；R `TEAM_READ` | `MERGE_SEMANTICALLY` | 保留账户分类与 tenant scope；P core-pilot 少了 TEAM_READ/例外路由逻辑，不能直接 supersede R。 |
 | HR Payroll/exception/Attendance 输入 | HR preview `aa86e91a1438d94d5ed1cc75ba8c5b0d3a7da4a3`、`954e1b32efc2417b55d571b074a142c1a7f49803`，后续 RC-r2 | `MERGE_SEMANTICALLY` | 保留审核链、whole-business guard；与 P pilot frozen domain 合同整合。 |
-| Manual PCB / published correction / version / settlement | RC-r2 `0170cdc2ed1450e23f64bce82e258aa69406e5fc` 至 `eed66c60a251aa9a77e2bd3077a65cc85df58fdb` | `MERGE_SEMANTICALLY` | dormant、不可变/幂等；RC-r2 9 个未提交文件单独冻结，绝不隐式纳入。 |
+| Manual PCB / published correction / version / settlement | RC-r2 `0170cdc2ed1450e23f64bce82e258aa69406e5fc` 至 `eed66c60a251aa9a77e2bd3077a65cc85df58fdb`；`20260920000100_controlled_manual_pcb_source`、`20260920000200_published_pcb_correction` | `DEFERRED_POST_ALIGNMENT_FEATURE` | 两条 migration 不在 222 baseline，本轮不复制、不改 DB，也不纳入依赖代码。以后按正常新功能开发新增经 Testing 验证的 migration；222 内现有 Payroll/PCB 内部计算与保存不受影响。 |
 | Production image security | `release/tetamu-pos-production-20260921` `c48fb152631646da4a7f98dca16e5f8fbc93c40a` | `APPLY` | 只含图像/依赖补丁；不是最终 canonical source。 |
 | Payroll/official export/government/bank execution hard freeze | core-pilot `3dbc37535e563d2a8aec12738b681c1eff1e94e7`、`804863964839c7e2b42364c86a16e2dfa30de779`、HEAD `b2a4bc1cb737fa776065d9211a2133c050d65af3`；`pos-pilot-contract.ts` | `APPLY` | 代码硬拒绝 + Production/Testing env contract + 47/47 单测；不得被 HR/RC 功能覆盖。 |
 | Payment Export 环境显式 false | RC staging `0d0bbda3567540ac65bb666899be6969c50930ee` `production-contract.mjs`；P pilot hard deny | `MERGE_SEMANTICALLY` | 可采用 `PAYMENT_EXPORT_ENABLED=false` 作为额外合同，但不可用 flag 取代 P 的 code hard deny；范围分别核对。 |
