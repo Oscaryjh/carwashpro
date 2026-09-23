@@ -36,6 +36,7 @@ try {
   );
   const isolatedFiles = new Set([
     "tests/integration/attendance-phase1c-route-flow.test.ts",
+    "tests/integration/authenticated-route-boundaries.test.ts",
   ]);
   const sharedProcessFiles = integrationFiles.filter(
     (file) => !isolatedFiles.has(file),
