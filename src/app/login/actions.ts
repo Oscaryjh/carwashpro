@@ -18,6 +18,10 @@ import {
 } from "@/lib/business-groups/business-context";
 import { loginSchema } from "@/lib/validation/login";
 import { loadBusinessModuleContext } from "@/lib/modules/entitlements";
+import {
+  messageForLoginException,
+  messageForPasswordLoginFailure,
+} from "./login-feedback";
 
 export type LoginState = {
   error?: string;
@@ -36,9 +40,10 @@ export async function loginAction(
     return { error: "Please enter a valid email and password." };
   }
 
-  const requestContext = getAuthRequestContext(await headers());
+  let requestContext: ReturnType<typeof getAuthRequestContext>;
   let authenticated: Awaited<ReturnType<typeof authenticatePasswordLogin>>;
   try {
+    requestContext = getAuthRequestContext(await headers());
     authenticated = await authenticatePasswordLogin({
       email: parsed.data.email,
       password: parsed.data.password,
@@ -48,97 +53,101 @@ export async function loginAction(
     console.error("[auth] Password login security check failed", {
       errorName: error instanceof Error ? error.name : "UnknownError",
     });
-    return { error: "Unable to sign in safely. Please try again later." };
+    return { error: messageForLoginException(error) };
   }
 
   if (!authenticated.ok) {
-    return {
-      error:
-        authenticated.code === "RATE_LIMITED"
-          ? "Too many attempts. Try again later."
-          : "Invalid login details.",
-    };
+    return { error: messageForPasswordLoginFailure(authenticated.code) };
   }
 
   const user = authenticated.user;
+  let loginDestination: string;
+  try {
+    if (user.businessId) {
+      await writeAuditLog({
+        businessId: user.businessId,
+        branchId: user.branchId,
+        actor: {
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+        },
+        action: "USER_LOGIN",
+        entityType: "User",
+        entityId: user.id,
+        summary: `${user.name} logged in`,
+        metadata: { role: user.role },
+        request: await getAuditRequestContext(),
+      });
+    }
 
-  if (user.businessId) {
-    await writeAuditLog({
-      businessId: user.businessId,
+    const session: CreateSessionInput = {
+      userId: user.id,
+      sessionId: randomUUID(),
+      homeBusinessId: user.businessId,
+      activeBusinessId: user.businessId,
+      contextVersion: SESSION_CONTEXT_VERSION,
+      industryType: user.business?.industryType ?? null,
       branchId: user.branchId,
-      actor: {
-        userId: user.id,
-        name: user.name,
-        email: user.email,
-      },
-      action: "USER_LOGIN",
-      entityType: "User",
-      entityId: user.id,
-      summary: `${user.name} logged in`,
-      metadata: { role: user.role },
-      request: await getAuditRequestContext(),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      permissions: user.permissions,
+      status: user.status,
+    };
+
+    loginDestination = getLoginDestination({
+      role: user.role,
+      businessId: user.businessId,
+      industryType: user.business?.industryType ?? null,
     });
-  }
-
-  const session: CreateSessionInput = {
-    userId: user.id,
-    sessionId: randomUUID(),
-    homeBusinessId: user.businessId,
-    activeBusinessId: user.businessId,
-    contextVersion: SESSION_CONTEXT_VERSION,
-    industryType: user.business?.industryType ?? null,
-    branchId: user.branchId,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    permissions: user.permissions,
-    status: user.status,
-  };
-
-  let loginDestination = getLoginDestination({
-    role: user.role,
-    businessId: user.businessId,
-    industryType: user.business?.industryType ?? null,
-  });
-  if (user.businessId && user.role !== "PLATFORM_ADMIN") {
-    const moduleContext = await loadBusinessModuleContext(user.businessId);
-    const operationalHomeEnabled =
-      loginDestination === "/work-orders"
-        ? moduleContext.enabledModules.has("POS") &&
-          moduleContext.enabledModules.has("AUTO")
-        : loginDestination === "/cashier"
-          ? moduleContext.enabledModules.has("POS")
-          : true;
-    if (!operationalHomeEnabled) loginDestination = "/team";
-  }
-
-  if (loginDestination === "/business-context/recover") {
-    const recoverySession = {
-      ...session,
-      businessId: null,
-    } satisfies AppSession;
-    const recovery = await getRecoveryBusinessContext(recoverySession);
-
-    if (!recovery.ok) {
-      await createSession(session, { request: requestContext });
-      redirect("/no-business-access");
+    if (user.businessId && user.role !== "PLATFORM_ADMIN") {
+      const moduleContext = await loadBusinessModuleContext(user.businessId);
+      const operationalHomeEnabled =
+        loginDestination === "/work-orders"
+          ? moduleContext.enabledModules.has("POS") &&
+            moduleContext.enabledModules.has("AUTO")
+          : loginDestination === "/cashier"
+            ? moduleContext.enabledModules.has("POS")
+            : true;
+      if (!operationalHomeEnabled) loginDestination = "/team";
     }
 
-    const result = await commitBusinessContextSwitch({
-      session: recoverySession,
-      targetBusinessId: recovery.context.businessId,
-      source: "RECOVERY",
-    });
+    if (loginDestination === "/business-context/recover") {
+      const recoverySession = {
+        ...session,
+        businessId: null,
+      } satisfies AppSession;
+      const recovery = await getRecoveryBusinessContext(recoverySession);
 
-    if (!result.ok) {
+      if (!recovery.ok) {
+        await createSession(session, { request: requestContext });
+        loginDestination = "/no-business-access";
+      } else {
+        const result = await commitBusinessContextSwitch({
+          session: recoverySession,
+          targetBusinessId: recovery.context.businessId,
+          source: "RECOVERY",
+        });
+        if (!result.ok) {
+          await createSession(session, { request: requestContext });
+          loginDestination = "/no-business-access";
+        } else {
+          loginDestination = result.destination;
+        }
+      }
+    } else {
       await createSession(session, { request: requestContext });
-      redirect("/no-business-access");
     }
-
-    redirect(result.destination);
+  } catch (error) {
+    console.error("[auth] Password login completion failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      errorCode:
+        error && typeof error === "object" && "code" in error
+          ? String(error.code)
+          : undefined,
+    });
+    return { error: messageForLoginException(error) };
   }
-
-  await createSession(session, { request: requestContext });
-
   redirect(loginDestination);
 }

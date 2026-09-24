@@ -12,7 +12,7 @@ export function LoginForm() {
 
   return (
     <form action={formAction} className="form">
-      {state.error ? <div className="error">{state.error}</div> : null}
+      {state.error ? <div className="error login-error" role="alert">{state.error}</div> : null}
       <label>
         <span>Email</span>
         <input name="email" type="email" autoComplete="email" required />

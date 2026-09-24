@@ -2087,6 +2087,13 @@ select:disabled {
   padding: 9px 10px;
 }
 
+.login-error {
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
 .success {
   border: 1px solid #b7dfc2;
   border-radius: var(--radius-control);

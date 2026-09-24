@@ -30,7 +30,11 @@ export type PasswordLoginResult =
     }>
   | Readonly<{
       ok: false;
-      code: "INVALID_CREDENTIALS" | "RATE_LIMITED";
+      code:
+        | "INVALID_CREDENTIALS"
+        | "ACCOUNT_UNAVAILABLE"
+        | "SERVICE_LOGIN_DENIED"
+        | "RATE_LIMITED";
     }>;
 
 export async function authenticatePasswordLogin(
@@ -81,21 +85,23 @@ export async function authenticatePasswordLogin(
       }
 
       const user = await findPasswordLoginUser(email, transaction);
-      const usable = Boolean(
-        user &&
-          user.accountType === "HUMAN" &&
-          user.status === "active" &&
-          user.loginEnabled &&
-          user.email &&
-          user.passwordHash &&
-          (!user.business || user.business.status === "active"),
-      );
       const passwordValid = await verifyPasswordHash(
         input.password,
-        usable && user?.passwordHash ? user.passwordHash : null,
+        user?.passwordHash,
       );
+      const failureCode: Extract<PasswordLoginResult, { ok: false }>["code"] | null =
+        !user || !user.email || !user.passwordHash || !passwordValid
+          ? "INVALID_CREDENTIALS"
+          : user.accountType === "SERVICE"
+            ? "SERVICE_LOGIN_DENIED"
+            : user.accountType !== "HUMAN" ||
+                user.status !== "active" ||
+                !user.loginEnabled ||
+                (user.business && user.business.status !== "active")
+              ? "ACCOUNT_UNAVAILABLE"
+              : null;
 
-      if (!usable || !user || !passwordValid) {
+      if (failureCode) {
         await writeAuthSecurityEvent(
           {
             eventType: "LOGIN_FAILED",
@@ -104,15 +110,15 @@ export async function authenticatePasswordLogin(
             ...hashes,
             userId: user?.id ?? null,
             businessId: user?.businessId ?? null,
-            reason: "INVALID_CREDENTIALS",
+            reason: failureCode,
             createdAt: now,
           },
           transaction,
         );
-        return { ok: false as const, code: "INVALID_CREDENTIALS" as const };
+        return { ok: false as const, code: failureCode };
       }
 
-      if (!user.email || !user.passwordHash) {
+      if (!user || !user.email || !user.passwordHash) {
         throw new Error("Authenticated password user is incomplete.");
       }
 
