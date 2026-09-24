@@ -386,7 +386,7 @@ export function BusinessForm({
               <input
                 name="ownerPassword"
                 type="password"
-                minLength={8}
+                minLength={6}
                 required
                 aria-invalid={Boolean(fieldErrors.ownerPassword)}
                 aria-describedby={

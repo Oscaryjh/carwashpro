@@ -72,7 +72,7 @@ export const createBusinessSchema = z.object({
   phone: businessFieldsSchema.shape.phone,
   ownerName: z.string().trim().min(2, "Owner name is required."),
   ownerEmail: z.string().trim().email("Enter a valid owner email."),
-  ownerPassword: z.string().min(8, "Owner password must be at least 8 characters."),
+  ownerPassword: z.string().min(6, "Owner password must be at least 6 characters."),
 });
 
 export const adminResetUserPasswordSchema = z.object({

@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { businessSchema } from "../../src/lib/validation/business";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import {
+  adminResetUserPasswordSchema,
+  businessSchema,
+  createBusinessSchema,
+} from "../../src/lib/validation/business";
 
 const validBusiness = {
   name: "Salon Test",
@@ -80,4 +86,59 @@ test("rejects an invalid business day cutoff", () => {
     });
     assert.equal(result.success, false);
   }
+});
+
+const validCreateBusiness = {
+  name: "Salon Test",
+  slug: "salon-test",
+  industryType: "SALON_BEAUTY",
+  companyNo: "",
+  phone: "",
+  ownerName: "Salon Owner",
+  ownerEmail: "owner@example.test",
+};
+
+test("new business accepts a six-character owner password but rejects five", () => {
+  assert.equal(
+    createBusinessSchema.safeParse({ ...validCreateBusiness, ownerPassword: "123456" }).success,
+    true,
+  );
+
+  const short = createBusinessSchema.safeParse({
+    ...validCreateBusiness,
+    ownerPassword: "12345",
+  });
+  assert.equal(short.success, false);
+  if (!short.success) {
+    assert.equal(short.error.flatten().fieldErrors.ownerPassword?.[0],
+      "Owner password must be at least 6 characters.");
+  }
+});
+
+test("new business form lets the browser submit a six-character owner password", async () => {
+  require.extensions[".css"] = (module) => { module.exports = {}; };
+  const { BusinessForm } = await import("../../src/components/business-form");
+  const html = renderToStaticMarkup(createElement(BusinessForm, {
+    action: () => {},
+    mode: "create",
+    showOwnerFields: true,
+  }));
+  const input = html.match(/<input[^>]*name="ownerPassword"[^>]*>/)?.[0];
+  assert.ok(input, "owner password input should render");
+  assert.match(input, /minLength="6"/);
+});
+
+test("admin password reset still requires eight characters", () => {
+  const reset = {
+    businessId: "00000000-0000-4000-8000-000000000001",
+    userId: "00000000-0000-4000-8000-000000000002",
+  };
+  assert.equal(
+    adminResetUserPasswordSchema.safeParse({ ...reset, newPassword: "123456" }).success,
+    false,
+  );
+  assert.equal(
+    adminResetUserPasswordSchema.safeParse({ ...reset, newPassword: "12345678" }).success,
+    true,
+  );
 });
