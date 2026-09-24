@@ -160,29 +160,21 @@ test("Staff avatar upload keeps auth and image decoding boundaries", async (t) =
       }
     });
 
-    await t.test("HEVC HEIC either decodes or safely reports unsupported codec", async () => {
+    await t.test("HEIC is explicitly rejected without changing the Staff avatar", async () => {
       const before = await database.employeeBusinessMembership.findUniqueOrThrow({
         where: { id: membership.id }, select: { avatarUrl: true },
       });
-      const response = await uploadAvatar(baseUrl, HEVC_HEIC, "image/heic", token);
-      assert.ok(response.status === 200 || response.status === 400);
-      const body = await response.json();
-      assert.doesNotMatch(JSON.stringify(body), /stack|libvips|sharp|RangeError/i);
-      if (response.status === 200) {
-        createdAvatars.push(body.avatarUrl);
-        assert.equal(body.ok, true);
-        const filename = body.avatarUrl.split("/").at(-1);
-        assert.ok(filename);
-        const saved = await readRuntimeEmployeeAvatar(filename);
-        assert.ok(saved);
-        const metadata = await sharpNative(saved).metadata();
-        assert.equal(metadata.format, "webp");
-        assert.equal(metadata.width, 512);
-        assert.equal(metadata.height, 512);
-      } else {
+      for (const sample of [
+        { type: "image/heic", name: "avatar.heic" },
+        { type: "", name: "iphone-photo.HEIC" },
+      ]) {
+        const response = await uploadAvatar(baseUrl, HEVC_HEIC, sample.type, token, sample.name);
+        assert.equal(response.status, 400);
+        const body = await response.json();
+        assert.doesNotMatch(JSON.stringify(body), /stack|libvips|sharp|RangeError/i);
         assert.equal(body.ok, false);
         assert.equal(body.error.code, "INVALID_REQUEST");
-        assert.equal(body.error.message, "This photo could not be processed. Choose another photo.");
+        assert.equal(body.error.message, "HEIC is not supported yet. Please use JPEG, PNG, WebP or AVIF.");
         assert.equal((await database.employeeBusinessMembership.findUniqueOrThrow({
           where: { id: membership.id }, select: { avatarUrl: true },
         })).avatarUrl, before.avatarUrl);
@@ -218,9 +210,9 @@ test("Staff avatar upload keeps auth and image decoding boundaries", async (t) =
   }
 });
 
-function uploadAvatar(baseUrl: string, bytes: Buffer, type: string, token?: string | null) {
+function uploadAvatar(baseUrl: string, bytes: Buffer, type: string, token?: string | null, filename = "avatar") {
   const form = new FormData();
-  form.set("avatar", new File([new Uint8Array(bytes)], "avatar", { type }));
+  form.set("avatar", new File([new Uint8Array(bytes)], filename, { type }));
   return fetch(`${baseUrl}/api/employee-auth/avatar`, {
     method: "POST",
     headers: {

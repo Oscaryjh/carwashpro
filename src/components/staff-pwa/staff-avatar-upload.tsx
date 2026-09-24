@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { isEmployeeSessionError, StaffApiError, staffApiFetch } from "@/lib/staff-pwa/client";
+import { STAFF_AVATAR_ACCEPT, staffAvatarFormatError } from "@/lib/staff-avatar-format";
 
 const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
 
@@ -55,8 +56,9 @@ export function StaffAvatarUpload({
     const source = input.files?.[0];
     setError("");
     if (!source) return;
-    if (!source.type.startsWith("image/")) {
-      setError("Choose a photo from your camera or photo library.");
+    const formatError = staffAvatarFormatError(source.type, source.name);
+    if (formatError) {
+      setError(formatError);
       input.value = "";
       return;
     }
@@ -141,7 +143,7 @@ export function StaffAvatarUpload({
         </i>
       </button>
       <input
-        accept="image/*"
+        accept={STAFF_AVATAR_ACCEPT}
         className="staff-profile-avatar-input"
         onChange={(event) => void handleFileChange(event)}
         ref={inputRef}

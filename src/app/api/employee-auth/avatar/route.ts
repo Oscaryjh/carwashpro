@@ -7,19 +7,11 @@ import { assertEmployeeAuthSameOrigin } from "@/lib/attendance/employee-auth/htt
 import { employeeAuthErrorResponse, employeeAuthJson } from "@/lib/attendance/employee-auth/response";
 import { prisma } from "@/lib/prisma";
 import { deleteRuntimeEmployeeAvatarByUrl, writeRuntimeEmployeeAvatar } from "@/lib/runtime-employee-avatar";
+import { staffAvatarFormatError } from "@/lib/staff-avatar-format";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const allowedAvatarTypes = new Set([
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-  "image/avif",
-  "image/heic",
-  "image/heif",
-]);
 const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
 
 export async function POST(request: Request) {
@@ -33,9 +25,8 @@ export async function POST(request: Request) {
     if (!(file instanceof File) || file.size === 0) {
       throw invalidAvatar("Choose a photo before saving.");
     }
-    if (!allowedAvatarTypes.has(file.type)) {
-      throw invalidAvatar("Use a photo from your camera or photo library.");
-    }
+    const formatError = staffAvatarFormatError(file.type, file.name);
+    if (formatError) throw invalidAvatar(formatError);
     if (file.size > MAX_AVATAR_BYTES) {
       throw invalidAvatar("Choose a photo smaller than 10 MB.");
     }
@@ -119,4 +110,3 @@ function invalidAvatar(message: string) {
     status: 400,
   });
 }
-
