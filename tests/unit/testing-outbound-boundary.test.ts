@@ -7,10 +7,11 @@ import { assertTestingExternalDeliveryBlocked, requireTestingOutboundProfile } f
 import { sendConnectorTextMessage } from "../../src/lib/whatsapp/connector-client";
 import { GET as payrollExport } from "../../src/app/(business)/team/payroll/export/route";
 import { GET as statutoryExport } from "../../src/app/(business)/team/payroll/statutory/export/route";
-import { authorizeStatutoryExportAction, updateStatutorySubmissionStatusAction } from "../../src/app/(business)/team/payroll/statutory/actions";
+import { authorizeStatutoryExportAction, createStatutoryCorrectionRevisionAction, updateStatutorySubmissionStatusAction } from "../../src/app/(business)/team/payroll/statutory/actions";
 import { buildOfficialSubmissionFile } from "../../src/lib/payroll/statutory-submission";
-import { downloadOrCreateStatutoryArtifact } from "../../src/lib/payroll/statutory-artifact";
+import { createStatutoryCorrectionRevision, downloadOrCreateStatutoryArtifact } from "../../src/lib/payroll/statutory-artifact";
 import { requireReleaseReadyPaymentBankAdapter } from "../../src/lib/payroll/payment/providers/registry";
+import { assertOfficialStatutoryAllowed } from "../../src/lib/release/official-statutory-policy";
 
 const testing = {
   APP_ENVIRONMENT: "testing",
@@ -104,4 +105,33 @@ test("Testing official and payment export routes deny before auth, file generati
   } finally {
     keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
   }
+});
+
+test("Production official artifact route, actions, and direct services deny before auth, generation, or writes", async () => {
+  const keys = ["APP_ENVIRONMENT", "RAILWAY_ENVIRONMENT_NAME"] as const;
+  const previous = keys.map((key) => process.env[key]);
+  try {
+    process.env.APP_ENVIRONMENT = "production";
+    process.env.RAILWAY_ENVIRONMENT_NAME = "production";
+    assert.equal((await statutoryExport(new Request("http://localhost:3000/team/payroll/statutory/export?provider=PCB"))).status, 403);
+    assert.throws(() => buildOfficialSubmissionFile("PCB", {} as Parameters<typeof buildOfficialSubmissionFile>[1],
+      {} as Parameters<typeof buildOfficialSubmissionFile>[2]), /Production.*disabled/);
+    await assert.rejects(downloadOrCreateStatutoryArtifact({} as Parameters<typeof downloadOrCreateStatutoryArtifact>[0]), /Production.*disabled/);
+    await assert.rejects(createStatutoryCorrectionRevision({} as Parameters<typeof createStatutoryCorrectionRevision>[0]), /Production.*disabled/);
+    await assert.rejects(authorizeStatutoryExportAction(new FormData()), /Production.*disabled/);
+    await assert.rejects(createStatutoryCorrectionRevisionAction(new FormData()), /Production.*disabled/);
+    const submission = new FormData();
+    submission.set("targetStatus", "SUBMITTED");
+    await assert.rejects(updateStatutorySubmissionStatusAction(submission), /Production.*disabled/);
+  } finally {
+    keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
+  }
+});
+
+test("official statutory policy denies missing or conflicting release identity and permits explicit local tests", () => {
+  assert.throws(() => assertOfficialStatutoryAllowed({}), /configuration.*required/i);
+  assert.throws(() => assertOfficialStatutoryAllowed({ APP_ENVIRONMENT: "development", NODE_ENV: "production" }), /Production.*disabled/i);
+  assert.throws(() => assertOfficialStatutoryAllowed({ APP_ENVIRONMENT: "development", RAILWAY_ENVIRONMENT_NAME: "production" }), /Production.*disabled/i);
+  assert.doesNotThrow(() => assertOfficialStatutoryAllowed({ APP_ENVIRONMENT: "development" }));
+  assert.doesNotThrow(() => assertOfficialStatutoryAllowed({ NODE_ENV: "test" }));
 });

@@ -9,6 +9,13 @@ import {
 import { statutoryExportStepUpResourceId } from "../../src/lib/payroll/high-risk-mfa";
 import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 
+const previousAppEnvironment = process.env.APP_ENVIRONMENT;
+test.before(() => { process.env.APP_ENVIRONMENT = "development"; });
+test.after(() => {
+  if (previousAppEnvironment === undefined) delete process.env.APP_ENVIRONMENT;
+  else process.env.APP_ENVIRONMENT = previousAppEnvironment;
+});
+
 test("immutable statutory artifact rejects database update and delete", async () => {
   const suffix = randomUUID();
   const business = await prisma.business.create({

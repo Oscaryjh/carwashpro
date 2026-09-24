@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { isTestingDeployment } from "@/lib/release/testing-boundary";
+import { officialStatutoryDenial } from "@/lib/release/official-statutory-policy";
 import { getAuditRequestContext } from "@/lib/audit";
 import {
   SensitiveActionError,
@@ -18,7 +18,8 @@ import { statutoryExportStepUpResourceId } from "@/lib/payroll/high-risk-mfa";
 import { isMfaFeatureEnabled } from "@/lib/auth/mfa-feature";
 
 export async function GET(request: Request) {
-  if (isTestingDeployment()) return new Response("Official statutory export is disabled in Testing.", { status: 403 });
+  const denial = officialStatutoryDenial();
+  if (denial) return new Response(denial, { status: 403 });
   const context = await requireWholeBusinessPayroll("EXPORT_STATUTORY");
   const url = new URL(request.url);
   const month = url.searchParams.get("month") ?? "";

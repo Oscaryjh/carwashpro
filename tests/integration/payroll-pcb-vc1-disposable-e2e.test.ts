@@ -19,6 +19,13 @@ import { issueTestHighRiskStepUp } from "../helpers/high-risk-step-up";
 const request = { ipAddress: "127.0.0.1", userAgent: "pcb-vc1-disposable-e2e" };
 const testMonth = "2026-08";
 
+const previousAppEnvironment = process.env.APP_ENVIRONMENT;
+test.before(() => { process.env.APP_ENVIRONMENT = "development"; });
+test.after(() => {
+  if (previousAppEnvironment === undefined) delete process.env.APP_ENVIRONMENT;
+  else process.env.APP_ENVIRONMENT = previousAppEnvironment;
+});
+
 test("PCB VC1 executes A-F through real payroll, finalization, frozen snapshots, payslips and database-backed CP39", async () => {
   assertDisposableDatabase();
   const previousEnvironment = process.env.TETAMU_PAYROLL_ENVIRONMENT;

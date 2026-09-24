@@ -8,6 +8,13 @@ import {
   type StatutorySubmissionRun,
 } from "../../src/lib/payroll/statutory-submission";
 
+const previousAppEnvironment = process.env.APP_ENVIRONMENT;
+test.before(() => { process.env.APP_ENVIRONMENT = "development"; });
+test.after(() => {
+  if (previousAppEnvironment === undefined) delete process.env.APP_ENVIRONMENT;
+  else process.env.APP_ENVIRONMENT = previousAppEnvironment;
+});
+
 const profile: StatutoryBusinessProfile = {
   epfEmployerNumber: "E1234567",
   perkesoEmployerCode: "A12345678901",

@@ -1,4 +1,4 @@
-import { assertTestingExternalDeliveryBlocked } from "@/lib/release/testing-boundary";
+import { assertOfficialStatutoryAllowed } from "@/lib/release/official-statutory-policy";
 
 export type StatutorySubmissionProvider = "EPF" | "PERKESO" | "PCB";
 export type StatutoryIdentityType = "NEW_IC" | "OLD_IC" | "PASSPORT" | "OTHER";
@@ -95,7 +95,7 @@ export function buildOfficialSubmissionFile(
   profile: StatutoryBusinessProfile,
   run: StatutorySubmissionRun,
 ) {
-  assertTestingExternalDeliveryBlocked("statutory-submission");
+  assertOfficialStatutoryAllowed();
   const validation = validateStatutorySubmission(provider, profile, run);
   if (!validation.ready) throw new Error(validation.errors[0]?.message ?? "Statutory submission is not ready.");
   if (provider === "EPF") return Buffer.from(buildEpfCsv(validation.eligibleEntries), "utf8");
