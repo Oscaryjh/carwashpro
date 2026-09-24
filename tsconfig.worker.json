@@ -3,6 +3,9 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "skipLibCheck": true,
     "strict": true,
     "esModuleInterop": true,

@@ -128,17 +128,30 @@ test("new business form lets the browser submit a six-character owner password",
   assert.match(input, /minLength="6"/);
 });
 
-test("admin password reset still requires eight characters", () => {
+test("admin password reset accepts six characters but rejects five", () => {
   const reset = {
     businessId: "00000000-0000-4000-8000-000000000001",
     userId: "00000000-0000-4000-8000-000000000002",
   };
   assert.equal(
-    adminResetUserPasswordSchema.safeParse({ ...reset, newPassword: "123456" }).success,
+    adminResetUserPasswordSchema.safeParse({ ...reset, newPassword: "12345" }).success,
     false,
   );
   assert.equal(
-    adminResetUserPasswordSchema.safeParse({ ...reset, newPassword: "12345678" }).success,
+    adminResetUserPasswordSchema.safeParse({ ...reset, newPassword: "123456" }).success,
     true,
   );
+});
+
+test("admin reset form lets the browser submit a six-character password", async () => {
+  require.extensions[".css"] = (module) => { module.exports = {}; };
+  const { AdminResetPasswordForm } = await import("../../src/components/admin-reset-password-form");
+  const html = renderToStaticMarkup(createElement(AdminResetPasswordForm, {
+    businessId: "00000000-0000-4000-8000-000000000001",
+    userId: "00000000-0000-4000-8000-000000000002",
+    userEmail: "owner@example.test",
+  }));
+  const input = html.match(/<input[^>]*name="newPassword"[^>]*>/)?.[0];
+  assert.ok(input, "admin reset password input should render");
+  assert.match(input, /minLength="6"/);
 });

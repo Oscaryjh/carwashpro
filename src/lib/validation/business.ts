@@ -78,7 +78,7 @@ export const createBusinessSchema = z.object({
 export const adminResetUserPasswordSchema = z.object({
   businessId: z.string().uuid("Business id is required."),
   userId: z.string().uuid("User id is required."),
-  newPassword: z.string().min(8, "New password must be at least 8 characters."),
+  newPassword: z.string().min(6, "New password must be at least 6 characters."),
 });
 
 export const adminUpdateUserEmailSchema = z.object({

@@ -43,7 +43,7 @@ export function AdminResetPasswordForm({
         aria-label={`New password for ${userEmail ?? "staff member"}`}
         name="newPassword"
         type="password"
-        minLength={8}
+        minLength={6}
         placeholder="New password"
         required
       />
