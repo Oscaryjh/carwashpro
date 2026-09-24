@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  classifyWhatsAppSendFailure,
+  ConnectorSendError,
   resolveWhatsAppSendMode,
   sendWhatsAppQueueItem,
   WhatsAppSendModeConfigError,
@@ -174,4 +176,24 @@ test("production mock mode is forbidden before a queue item can be simulated", (
     () => resolveWhatsAppSendMode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "testing", WHATSAPP_SEND_MODE: "mock" }),
     /Testing outbound profile is missing or inconsistent/i,
   );
+});
+
+test("disabled connector denial is terminal for queue and retry", async () => {
+  let transportCalls = 0;
+  const transport: QueueSendTransport = async () => {
+    transportCalls += 1;
+    return new Response(JSON.stringify({ ok: false, error: { code: "CONNECTOR_LIVE_DELIVERY_DENIED", message: "WhatsApp provider access is disabled." } }), { status: 403 });
+  };
+  for (const queueId of ["first-attempt", "retry-attempt"]) {
+    await assert.rejects(
+      () => sendWhatsAppQueueItem({ ...sampleQueueItem, queueId }, { env: { WHATSAPP_SEND_MODE: "live", WHATSAPP_CONNECTOR_URL: "https://connector.example.test" }, transport }),
+      (error: unknown) => {
+        assert.ok(error instanceof ConnectorSendError);
+        assert.equal(error.status, 403);
+        assert.equal(classifyWhatsAppSendFailure(error).retryable, false);
+        return true;
+      },
+    );
+  }
+  assert.equal(transportCalls, 2);
 });

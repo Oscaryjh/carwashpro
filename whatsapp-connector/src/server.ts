@@ -27,7 +27,7 @@ import {
   authorizeConnectorRequest,
   validateConnectorRequestIdentity,
 } from "./security.js";
-import { assertConnectorReleaseProfile, assertWhatsAppProviderAvailable } from "./testing-boundary.js";
+import { assertConnectorReleaseProfile, assertWhatsAppProviderAvailable, WhatsAppProviderUnavailableError } from "./testing-boundary.js";
 
 const MAX_JSON_BODY_BYTES = 10 * 1024 * 1024;
 const sendRequestReplayCache = new ConnectorRequestReplayCache();
@@ -155,6 +155,7 @@ function methodNotAllowed(response: http.ServerResponse) {
 }
 
 function errorStatusCode(error: unknown) {
+  if (error instanceof WhatsAppProviderUnavailableError) return 403;
   if (error instanceof HttpRequestError) {
     return error.statusCode;
   }
@@ -167,6 +168,9 @@ function errorStatusCode(error: unknown) {
 }
 
 function serializeError(error: unknown) {
+  if (error instanceof WhatsAppProviderUnavailableError) {
+    return { code: error.code, message: error.message };
+  }
   if (error instanceof WhatsAppNotConnectedError) {
     return {
       code: error.code,
@@ -418,6 +422,7 @@ async function handleRequest(
       });
       return;
     } catch (error: unknown) {
+      if (error instanceof WhatsAppProviderUnavailableError) throw error;
       logger.error({ error }, "Failed to reconnect WhatsApp socket");
       sendJson(response, 503, {
         ok: false,
@@ -430,12 +435,13 @@ async function handleRequest(
     }
   }
 
-    if (url.pathname === "/logout") {
+  if (url.pathname === "/logout") {
     if (request.method !== "POST") {
       methodNotAllowed(response);
       return;
     }
 
+    assertWhatsAppProviderAvailable();
     await logoutSession(businessId);
     sendRawJson(response, 200, { ok: true });
     return;
@@ -470,6 +476,8 @@ async function handleRequest(
       methodNotAllowed(response);
       return;
     }
+
+    assertWhatsAppProviderAvailable();
 
     body ??= {};
     const validationError = validateSendRequestBody(body);

@@ -7,6 +7,7 @@ import {
   markSentToServer,
   recoverExpiredSending,
 } from "../../src/lib/notification-queue/repository";
+import { classifyWhatsAppSendFailure, ConnectorSendError, sendWhatsAppQueueItem } from "../../src/lib/notification-queue/worker-send";
 import { prisma } from "../../src/lib/prisma";
 import { enqueueWhatsAppLogMessage } from "../../src/lib/whatsapp/notification-queue";
 import { renderManagedWhatsAppTemplate } from "../../src/lib/whatsapp/templates";
@@ -105,6 +106,27 @@ test("WhatsApp hardening keeps one intent, one claim, durable attempts and monot
       ],
     );
     t.diagnostic("retry and success attempt history verified");
+
+    const deniedQueue = await prisma.notificationQueue.create({
+      data: { businessId: businessA.id, message: "Synthetic disabled connector check", messageType: "READY_FOR_PICKUP", phone: "60100000001", status: "QUEUED" },
+    });
+    const deniedClaim = await markSending(deniedQueue.id);
+    assert.ok(deniedClaim?.claimToken);
+    let deniedError: unknown;
+    await assert.rejects(
+      () => sendWhatsAppQueueItem({ businessId: businessA.id, queueId: deniedQueue.id, phone: deniedQueue.phone, message: deniedQueue.message }, {
+        env: { WHATSAPP_SEND_MODE: "live", WHATSAPP_CONNECTOR_URL: "https://synthetic-connector.example.test" },
+        transport: async () => new Response(JSON.stringify({ ok: false, error: { code: "CONNECTOR_LIVE_DELIVERY_DENIED", message: "WhatsApp provider access is disabled." } }), { status: 403 }),
+      }),
+      (error: unknown) => { deniedError = error; return error instanceof ConnectorSendError; },
+    );
+    const failure = classifyWhatsAppSendFailure(deniedError);
+    assert.equal(failure.retryable, false);
+    const deniedFinal = await markFailed({ claimToken: deniedClaim.claimToken, errorCategory: failure.category, errorMessage: failure.safeMessage, id: deniedQueue.id, retryable: failure.retryable });
+    assert.equal(deniedFinal.status, "FAILED");
+    assert.equal(await prisma.notificationQueue.count({ where: { id: deniedQueue.id, status: "QUEUED" } }), 0);
+    assert.deepEqual(await prisma.whatsAppSendAttempt.findMany({ where: { queueId: deniedQueue.id }, select: { status: true } }), [{ status: "FAILED_FINAL" }]);
+    t.diagnostic("disabled connector denial remains terminal through queue persistence");
 
     const deliveredAt = new Date("2026-08-09T03:00:00.000Z");
     const readAt = new Date("2026-08-09T03:01:00.000Z");

@@ -15,6 +15,7 @@ import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { logger } from "./logger.js";
+import { assertWhatsAppProviderAvailable } from "./testing-boundary.js";
 import { getReconnectDelayMs } from "./reconnect.js";
 import type { ConnectorState } from "./types.js";
 import {
@@ -1140,6 +1141,7 @@ async function connectSocket(generation: number) {
 }
 
 export function getSocket(businessId: string) {
+  assertWhatsAppProviderAvailable();
   return withSession(businessId, () => getRuntime().socket);
 }
 
@@ -1205,10 +1207,12 @@ export function getQr(businessId: string) {
 }
 
 export async function startSocket(businessId: string, force = false) {
+  assertWhatsAppProviderAvailable();
   return withSession(businessId, () => startSocketInternal(force));
 }
 
 async function startSocketInternal(force = false) {
+  assertWhatsAppProviderAvailable();
   const runtime = getRuntime();
   logger.info(
     {
@@ -1263,6 +1267,7 @@ async function startSocketInternal(force = false) {
 }
 
 export async function reconnectSocket(businessId: string) {
+  assertWhatsAppProviderAvailable();
   return withSession(businessId, reconnectSocketInternal);
 }
 
@@ -1295,10 +1300,12 @@ async function reconnectSocketInternal() {
 }
 
 export async function logoutSession(businessId: string) {
+  assertWhatsAppProviderAvailable();
   return withSession(businessId, logoutSessionInternal);
 }
 
 async function logoutSessionInternal() {
+  assertWhatsAppProviderAvailable();
   const runtime = getRuntime();
   if (runtime.reconnectTimer) {
     clearTimeout(runtime.reconnectTimer);
