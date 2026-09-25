@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { getPickerApiContext } from "@/lib/auth/picker-api";
 import { authorizedCustomerPackageBranchWhere } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import { customerPhoneSearchVariants } from "@/lib/validation/crm";
@@ -8,7 +8,7 @@ import { customerPhoneSearchVariants } from "@/lib/validation/crm";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const context = await getCustomerSearchContext();
+  const context = await getPickerApiContext("read");
 
   if ("response" in context) {
     return context.response;
@@ -65,44 +65,6 @@ export async function GET(request: Request) {
       vehicles: customer.vehicles,
     })),
   });
-}
-
-async function getCustomerSearchContext() {
-  const user = await getSession();
-
-  if (!user || user.status !== "active") {
-    return {
-      response: NextResponse.json(
-        { ok: false, error: "Session expired. Please login again." },
-        { status: 401 },
-      ),
-    };
-  }
-
-  if (!user.businessId || !["BUSINESS_OWNER", "STAFF"].includes(user.role)) {
-    return {
-      response: NextResponse.json(
-        { ok: false, error: "Customer access is not allowed." },
-        { status: 403 },
-      ),
-    };
-  }
-
-  const business = await prisma.business.findUnique({
-    where: { id: user.businessId },
-    select: { id: true },
-  });
-
-  if (!business) {
-    return {
-      response: NextResponse.json(
-        { ok: false, error: "Business not found. Please login again." },
-        { status: 401 },
-      ),
-    };
-  }
-
-  return { businessId: business.id, user };
 }
 
 function buildCustomerSearchWhere(query: string): Prisma.CustomerWhereInput {

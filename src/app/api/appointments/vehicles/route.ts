@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { getPickerApiContext } from "@/lib/auth/picker-api";
 import { prisma } from "@/lib/prisma";
 import {
   customerPhoneSearchVariants,
@@ -14,7 +14,7 @@ import { resolveVehicleSize } from "@/lib/vehicle-size";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const context = await getAppointmentApiContext();
+  const context = await getPickerApiContext("read");
 
   if ("response" in context) {
     return context.response;
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const context = await getAppointmentApiContext();
+  const context = await getPickerApiContext("write");
 
   if ("response" in context) {
     return context.response;
@@ -193,44 +193,6 @@ export async function POST(request: Request) {
       customerPhone: customer.phone,
     },
   });
-}
-
-async function getAppointmentApiContext() {
-  const user = await getSession();
-
-  if (!user || user.status !== "active") {
-    return {
-      response: NextResponse.json(
-        { ok: false, error: "Session expired. Please login again." },
-        { status: 401 },
-      ),
-    };
-  }
-
-  if (!user.businessId || !["BUSINESS_OWNER", "STAFF"].includes(user.role)) {
-    return {
-      response: NextResponse.json(
-        { ok: false, error: "Appointment access is not allowed." },
-        { status: 403 },
-      ),
-    };
-  }
-
-  const business = await prisma.business.findUnique({
-    where: { id: user.businessId },
-    select: { id: true },
-  });
-
-  if (!business) {
-    return {
-      response: NextResponse.json(
-        { ok: false, error: "Business not found. Please login again." },
-        { status: 401 },
-      ),
-    };
-  }
-
-  return { businessId: user.businessId, user };
 }
 
 function buildVehicleSearchWhere(query: string) {

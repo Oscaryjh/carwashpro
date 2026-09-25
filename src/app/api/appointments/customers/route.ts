@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSession, type AppSession } from "@/lib/auth/session";
+import type { AppSession } from "@/lib/auth/session";
+import { getPickerApiContext } from "@/lib/auth/picker-api";
 import { authorizedCustomerPackageBranchWhere } from "@/lib/branches";
 import { prisma } from "@/lib/prisma";
 import {
@@ -11,15 +12,9 @@ import { sendNewCustomerWelcomeIfConnected } from "@/lib/whatsapp/customer-welco
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const user = await getSession();
-
-  if (!user || user.status !== "active" || !user.businessId) {
-    return NextResponse.json({ ok: false, error: "Session expired." }, { status: 401 });
-  }
-
-  if (!["BUSINESS_OWNER", "STAFF"].includes(user.role)) {
-    return NextResponse.json({ ok: false, error: "Customer access is not allowed." }, { status: 403 });
-  }
+  const context = await getPickerApiContext("write");
+  if ("response" in context) return context.response;
+  const { businessId, user } = context;
 
   const body = (await request.json()) as { name?: string; phone?: string };
   const parsed = customerSchema.safeParse({
@@ -38,7 +33,7 @@ export async function POST(request: Request) {
 
   const existingCustomer = await prisma.customer.findFirst({
     where: {
-      businessId: user.businessId,
+      businessId,
       phone: { in: customerPhoneSearchVariants(parsed.data.phone) },
     },
     select: customerPickerSelect(user),
@@ -54,7 +49,7 @@ export async function POST(request: Request) {
 
   const customer = await prisma.customer.create({
     data: {
-      businessId: user.businessId,
+      businessId,
       branchId: user.branchId ?? null,
       name: parsed.data.name,
       phone: parsed.data.phone,
@@ -64,7 +59,7 @@ export async function POST(request: Request) {
   });
 
   await sendNewCustomerWelcomeIfConnected({
-    businessId: user.businessId,
+    businessId,
     branchId: user.branchId ?? null,
     customerId: customer.id,
     customerName: customer.name,
