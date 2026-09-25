@@ -1,5 +1,4 @@
 import { revalidatePath } from "next/cache";
-import sharp from "sharp";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { requireEmployeeSelfServiceAuthContext } from "@/lib/attendance/employee-auth";
 import { EmployeeAuthError } from "@/lib/attendance/employee-auth/errors";
@@ -7,6 +6,7 @@ import { assertEmployeeAuthSameOrigin } from "@/lib/attendance/employee-auth/htt
 import { employeeAuthErrorResponse, employeeAuthJson } from "@/lib/attendance/employee-auth/response";
 import { prisma } from "@/lib/prisma";
 import { deleteRuntimeEmployeeAvatarByUrl, writeRuntimeEmployeeAvatar } from "@/lib/runtime-employee-avatar";
+import { normalizeEmployeeAvatarImage } from "@/lib/employee-avatar-image-policy";
 import { staffAvatarFormatError } from "@/lib/staff-avatar-format";
 
 export const runtime = "nodejs";
@@ -45,16 +45,9 @@ export async function POST(request: Request) {
     const input = Buffer.from(await file.arrayBuffer());
     let bytes: Buffer;
     try {
-      bytes = await sharp(input, {
-        failOn: "warning",
-        limitInputPixels: 40_000_000,
-      } as NonNullable<Parameters<typeof sharp>[1]>)
-        .rotate()
-        .resize(512, 512, { fit: "cover", position: "attention" })
-        .webp({ quality: 84 })
-        .toBuffer();
-    } catch {
-      throw invalidAvatar("This photo could not be processed. Choose another photo.");
+      bytes = await normalizeEmployeeAvatarImage(input, file.type, file.name);
+    } catch (error) {
+      throw invalidAvatar(error instanceof Error ? error.message : "This photo could not be processed. Choose another photo.");
     }
     const upload = await writeRuntimeEmployeeAvatar({
       membershipId: membership.id,
@@ -90,9 +83,6 @@ export async function POST(request: Request) {
     });
     avatarPersisted = true;
 
-    await deleteRuntimeEmployeeAvatarByUrl(membership.avatarUrl).catch((error) => {
-      console.error("[staff-avatar] Unable to remove previous avatar.", error);
-    });
     revalidatePath("/staff");
     revalidatePath("/staff/profile");
     return employeeAuthJson({ ok: true, avatarUrl: upload.avatarUrl });

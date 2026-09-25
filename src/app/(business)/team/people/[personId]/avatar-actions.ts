@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import sharp from "sharp";
 import { z } from "zod";
 import { getAuditRequestContext, writeAuditLog } from "@/lib/audit";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { assertStaffPermission } from "@/lib/auth/staff-permissions";
 import { prisma } from "@/lib/prisma";
+import { normalizeEmployeeAvatarImage } from "@/lib/employee-avatar-image-policy";
+import { HEIC_UNSUPPORTED_MESSAGE, staffAvatarFormatError } from "@/lib/staff-avatar-format";
 import {
   deleteRuntimeEmployeeAvatarByUrl,
   writeRuntimeEmployeeAvatar,
@@ -18,7 +19,6 @@ import {
 } from "@/lib/team/people-scope";
 
 const membershipIdSchema = z.string().uuid();
-const allowedAvatarTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 export type EmployeeAvatarActionState = {
@@ -46,9 +46,8 @@ export async function updateEmployeeAvatarAction(
   if (!(file instanceof File) || file.size === 0) {
     return { status: "error", message: "Choose a photo before saving." };
   }
-  if (!allowedAvatarTypes.has(file.type)) {
-    return { status: "error", message: "Use a JPG, PNG or WebP photo." };
-  }
+  const formatError = staffAvatarFormatError(file.type, file.name);
+  if (formatError) return { status: "error", message: formatError };
   if (file.size > MAX_AVATAR_BYTES) {
     return { status: "error", message: "The processed photo must be under 2 MB." };
   }
@@ -88,13 +87,16 @@ export async function updateEmployeeAvatarAction(
   }
 
   let uploadedAvatarUrl: string | null = null;
+  let avatarPersisted = false;
   try {
     const input = Buffer.from(await file.arrayBuffer());
-    const avatar = await sharp(input, { failOn: "warning" })
-      .rotate()
-      .resize(512, 512, { fit: "cover", position: "attention" })
-      .webp({ quality: 84 })
-      .toBuffer();
+    let avatar: Buffer;
+    try {
+      avatar = await normalizeEmployeeAvatarImage(input, file.type, file.name);
+    } catch (error) {
+      return { status: "error", message: error instanceof Error && error.message === HEIC_UNSUPPORTED_MESSAGE
+        ? HEIC_UNSUPPORTED_MESSAGE : "This photo could not be processed. Choose another photo." };
+    }
     const upload = await writeRuntimeEmployeeAvatar({
       membershipId: membership.id,
       bytes: avatar,
@@ -123,10 +125,8 @@ export async function updateEmployeeAvatarAction(
         transaction,
       );
     });
+    avatarPersisted = true;
 
-    await deleteRuntimeEmployeeAvatarByUrl(membership.avatarUrl).catch((error) => {
-      console.error("[employee-avatar] Unable to remove previous avatar.", error);
-    });
     revalidatePath(`/team/people/${membership.id}`);
 
     return {
@@ -135,7 +135,7 @@ export async function updateEmployeeAvatarAction(
       avatarUrl: upload.avatarUrl,
     };
   } catch (error) {
-    if (uploadedAvatarUrl) {
+    if (uploadedAvatarUrl && !avatarPersisted) {
       await deleteRuntimeEmployeeAvatarByUrl(uploadedAvatarUrl).catch(() => undefined);
     }
     console.error("[employee-avatar] Unable to update employee avatar.", error);

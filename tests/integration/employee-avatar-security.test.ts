@@ -8,7 +8,8 @@ import { PrismaClient } from "@prisma/client";
 import sharp from "sharp";
 import { EMPLOYEE_SESSION_COOKIE, getEmployeeAuthConfig } from "../../src/lib/attendance/employee-auth/config";
 import { createEmployeeSessionRecord } from "../../src/lib/attendance/employee-auth/session";
-import { deleteRuntimeEmployeeAvatarByUrl, readRuntimeEmployeeAvatar } from "../../src/lib/runtime-employee-avatar";
+import { getEmployeeAvatarObjectStore } from "../../src/lib/employee-avatar-s3";
+import { deleteRuntimeEmployeeAvatarByUrl } from "../../src/lib/runtime-employee-avatar";
 
 const database = new PrismaClient();
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -131,12 +132,18 @@ test("Staff avatar upload keeps auth and image decoding boundaries", async (t) =
         createdAvatars.push(body.avatarUrl);
         const filename = body.avatarUrl.split("/").at(-1);
         assert.ok(filename);
-        const saved = await readRuntimeEmployeeAvatar(filename);
-        assert.ok(saved, sample.label);
+        const avatarResponse = await fetch(`${baseUrl}${body.avatarUrl}`);
+        assert.equal(avatarResponse.status, 200, sample.label);
+        assert.equal(avatarResponse.headers.get("content-type"), "image/webp", sample.label);
+        const saved = Buffer.from(await avatarResponse.arrayBuffer());
         const metadata = await sharpNative(saved).metadata();
         assert.equal(metadata.format, "webp", sample.label);
         assert.equal(metadata.width, 512, sample.label);
         assert.equal(metadata.height, 512, sample.label);
+      }
+      for (const priorUrl of createdAvatars) {
+        const retained = await fetch(`${baseUrl}${priorUrl}`);
+        assert.equal(retained.status, 200, `previous avatar remains immutable and readable: ${priorUrl}`);
       }
     });
 
@@ -183,7 +190,8 @@ test("Staff avatar upload keeps auth and image decoding boundaries", async (t) =
   } finally {
     stopApp(app);
     try {
-      for (const url of createdAvatars) await deleteRuntimeEmployeeAvatarByUrl(url);
+      const testStore = getEmployeeAvatarObjectStore({ NODE_ENV: "test" });
+      for (const url of createdAvatars) await deleteRuntimeEmployeeAvatarByUrl(url, undefined, testStore);
       if (businessId) await database.auditLog.deleteMany({ where: { businessId } });
       if (accountId) {
         await database.employeeSession.deleteMany({ where: { employeeAccountId: accountId } });

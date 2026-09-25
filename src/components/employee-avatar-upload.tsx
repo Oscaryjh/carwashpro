@@ -70,8 +70,8 @@ export function EmployeeAvatarUpload({
     const source = event.target.files?.[0];
     setClientError("");
     if (!source) return;
-    if (!source.type.startsWith("image/")) {
-      setClientError("Choose a JPG, PNG or WebP photo.");
+    if (!["image/jpeg", "image/png", "image/webp", "image/avif", "image/heif"].includes(source.type) || /\.heic$/i.test(source.name)) {
+      setClientError(/\.heic$/i.test(source.name) ? "HEIC is not supported yet. Please use JPEG, PNG, WebP or AVIF." : "Choose a JPEG, PNG, WebP or AVIF photo.");
       event.target.value = "";
       return;
     }
@@ -193,7 +193,7 @@ export function EmployeeAvatarUpload({
       {action ? (
         <form action={formAction}>
           <input
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/jpeg,image/png,image/webp,image/avif,image/heif"
             className={styles.fileInput}
             name="avatar"
             onChange={handleFileChange}
