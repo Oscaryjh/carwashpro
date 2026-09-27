@@ -1,0 +1,73 @@
+.section { --admin-ink: #172033; --admin-muted: #667286; --admin-line: #d8e3e5; --admin-teal: #087f74; width: 100%; max-width: 1480px; border: 1px solid var(--admin-line); border-radius: 16px; background: #fff; color: var(--admin-ink); }
+.heading { display: flex; align-items: center; gap: 20px; padding: 18px 20px; cursor: pointer; list-style: none; }
+.heading::-webkit-details-marker { display: none; }
+.heading > span:first-child { display: grid; gap: 4px; }
+.heading strong { font-size: 17px; }
+.heading small, .legend, .muted { font-size: 12px; color: var(--admin-muted); }
+.counts { margin-left: auto; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.chevron { color: var(--admin-teal); font-size: 22px; }
+.controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+.legend { margin: 0; padding: 10px 20px; border-top: 1px solid var(--admin-line); background: #f5f9f9; }
+.tableWrap { overflow-x: auto; }
+.table { width: 100%; min-width: 930px; border-collapse: collapse; text-align: left; table-layout: fixed; }
+.table thead th { background: #f5f9f9; font-size: 11px; text-transform: uppercase; letter-spacing: .035em; color: var(--admin-muted); padding: 10px 12px; border-bottom: 1px solid var(--admin-line); }
+.table th:first-child { width: 22%; padding-left: 20px; }
+.table th:nth-child(2) { width: 11%; }
+.table th:nth-child(3) { width: 13%; }
+.table th:nth-child(4) { width: 19%; }
+.table th:nth-child(5) { width: 17%; }
+.table th:nth-child(6) { width: 11%; }
+.table th:last-child { width: 7%; }
+.table tbody th, .table td { height: 42px; padding: 5px 12px; border-bottom: 1px solid #eaf0f1; font-size: 12px; vertical-align: middle; }
+.table tbody tr:last-child > * { border-bottom: 0; }
+.table tbody tr:hover { background: #f7fafb; }
+.table small { display: block; font-size: 10px; font-weight: 400; color: var(--admin-muted); line-height: 1.4; }
+.moduleName { display: flex; align-items: center; gap: 6px; font-weight: 650; }
+.required { color: #087f74; background: #e6f4f0; padding: 4px 9px; border-radius: 7px; font-size: 11px; font-weight: 650; }
+.changed { background: #f0faf7; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: #087f74; display: inline-block; }
+.plan { color: var(--admin-muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.switch { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; border: 0; padding: 4px 0; background: transparent; color: #667286; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.switch:hover { background: #edf7f4; }
+.track { width: 28px; height: 16px; background: #c2cbd2; border-radius: 10px; position: relative; }
+.track::after { content: ""; position: absolute; left: 2px; top: 2px; width: 12px; height: 12px; background: #fff; border-radius: 50%; }
+.switch[aria-checked=true] { color: #087f74; }
+.switch[aria-checked=true] .track { background: #087f74; }
+.switch[aria-checked=true] .track::after { left: 14px; }
+.edit { min-height: 28px; border: 0; background: transparent; color: #087f74; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 650; }
+.edit:hover { background: #e6f4f0; }
+.section button:focus-visible, .heading:focus-visible, .drawer button:focus-visible { outline: 2px solid #087f74; outline-offset: 3px; }
+.saveBar { position: sticky; bottom: 12px; z-index: 5; display: flex; align-items: center; gap: 14px; margin: 12px; padding: 12px 16px; border: 1px solid #aacfc7; border-radius: 12px; background: #fff; box-shadow: 0 4px 24px #173e3320; }
+.saveBar > strong { font-size: 13px; white-space: nowrap; }
+.saveBar label { flex: 1; display: block; font-size: 11px; font-weight: 650; }
+.saveBar label span { color: #667286; font-weight: 400; }
+.saveBar input { display: block; width: 100%; margin-top: 4px; padding: 8px 10px; min-height: 34px; }
+.primary, .secondary { border: 1px solid #d8e3e5; border-radius: 8px; padding: 10px 14px; font-size: 12px; font-weight: 650; cursor: pointer; white-space: nowrap; }
+.primary { background: #087f74; color: #fff; border-color: #087f74; }
+.primary:hover { background: #066b62; }
+.secondary { background: #fff; color: #334155; }
+.secondary:hover { background: #f1f5f5; }
+.section button:disabled { cursor: not-allowed; opacity: .55; }
+.error { margin: 12px 20px; border: 1px solid #efc2be; border-radius: 8px; padding: 12px; color: #9f2929; background: #fff5f4; font-size: 12px; line-height: 1.6; }
+.notice { margin: 12px 20px; color: #087f74; font-size: 12px; }
+.drawer { position: fixed; margin: 0 0 0 auto; inset: 0; width: 420px; height: 100dvh; max-height: 100dvh; max-width: 420px; border: 0; border-left: 1px solid #d8e3e5; padding: 0; color: #172033; background: #fff; box-shadow: -8px 0 40px #17203320; }
+.drawer::backdrop { background: #17203338; }
+.drawerForm { height: 100%; display: flex; flex-direction: column; }
+.drawer header { display: flex; justify-content: space-between; align-items: center; padding: 24px; border-bottom: 1px solid #d8e3e5; }
+.drawer header p { margin: 0 0 6px; text-transform: uppercase; font-size: 11px; letter-spacing: .06em; color: #087f74; font-weight: 700; }
+.drawer h2 { margin: 0; font-size: 22px; }
+.drawerBody { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+.drawerBody > label { display: grid; gap: 7px; font-size: 13px; font-weight: 650; }
+.drawerBody input:not([type=checkbox]), .drawerBody select { width: 100%; min-height: 40px; border: 1px solid #d8e3e5; border-radius: 8px; padding: 9px 12px; color: #172033; background: #fff; }
+.drawerBody p { margin: 0; line-height: 1.6; }
+.drawerBody label small { font-weight: 400; color: #667286; }
+.drawer footer { display: flex; justify-content: flex-end; gap: 10px; padding: 20px 24px; border-top: 1px solid #d8e3e5; }
+.confirmation { background: #f0f8f6; border: 1px solid #cce3df; border-radius: 10px; padding: 18px; font-size: 13px; }
+.confirmation h3 { margin-top: 0; font-size: 16px; }
+.confirmation ul { padding-left: 18px; }
+.confirmation li { margin: 10px 0; }
+.confirmation small { display: block; margin-top: 4px; line-height: 1.5; }
+.checkbox { display: flex; align-items: flex-start; gap: 8px; line-height: 1.5; }
+.checkbox input { flex: 0 0 auto; margin-top: 4px; }
+.embedded .tableWrap { max-height: calc(100dvh - 380px); overflow: auto; }
+.embedded .table thead { position: sticky; top: 0; z-index: 1; }

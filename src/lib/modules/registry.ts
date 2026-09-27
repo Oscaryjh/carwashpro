@@ -35,7 +35,7 @@ export const MODULE_REGISTRY = {
   POS: definition("POS", "POS", "OPERATIONS", [], false, true),
   INVENTORY: definition("INVENTORY", "Inventory", "OPERATIONS", ["POS"], false, true),
   SALON: definition("SALON", "Salon appointments", "OPERATIONS", [], false, true),
-  AUTO: definition("AUTO", "Auto work orders", "OPERATIONS", [], false, true),
+  AUTO: definition("AUTO", "Vehicle Work Orders", "OPERATIONS", [], false, true),
   WHATSAPP: definition("WHATSAPP", "WhatsApp", "ADD_ON", [], false, true),
   BUSINESS_GROUP: definition("BUSINESS_GROUP", "Business group", "ADD_ON", [], false, true),
   HR: definition("HR", "HR", "WORKFORCE", [], false, true),

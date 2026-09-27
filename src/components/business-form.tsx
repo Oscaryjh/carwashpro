@@ -23,6 +23,7 @@ type BusinessFormProps = {
   settingsLayout?: boolean;
   formError?: string;
   fieldErrors?: Record<string, string | undefined>;
+  workspaceLayout?: boolean;
 };
 
 export function BusinessForm({
@@ -34,6 +35,7 @@ export function BusinessForm({
   settingsLayout = false,
   formError,
   fieldErrors = {},
+  workspaceLayout = false,
 }: BusinessFormProps) {
   const status = business?.status ?? "active";
 
@@ -323,7 +325,8 @@ export function BusinessForm({
       </div>
 
       {mode === "edit" ? (
-        <>
+        <details open={workspaceLayout ? undefined : true}>
+          <summary hidden={!workspaceLayout}>Additional settings · logo, address and tax</summary>
           <section className="subsection">
             <div>
               <h3>Company logo</h3>
@@ -350,7 +353,7 @@ export function BusinessForm({
               initialRegistrationNo={business?.sstRegistrationNo ?? ""}
             />
           </section>
-        </>
+        </details>
       ) : null}
 
       {showOwnerFields ? (
@@ -403,6 +406,7 @@ export function BusinessForm({
       ) : null}
 
       <div className="form-actions">
+        {workspaceLayout && <button type="reset" data-workspace-discard className="secondary-light-button">Discard</button>}
         <BusinessSubmitButton
           idleLabel={mode === "create" ? "Create company" : "Save changes"}
         />

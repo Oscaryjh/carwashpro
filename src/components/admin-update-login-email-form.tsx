@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import {
   adminUpdateUserEmailAction,
   type AdminUpdateUserEmailState,
@@ -10,6 +10,8 @@ type AdminUpdateLoginEmailFormProps = {
   businessId: string;
   userId: string;
   email: string | null;
+  onCancel?: () => void;
+  onSuccess?: (message: string) => void;
 };
 
 const initialState: AdminUpdateUserEmailState = {
@@ -21,29 +23,34 @@ export function AdminUpdateLoginEmailForm({
   businessId,
   userId,
   email,
+  onCancel,
+  onSuccess,
 }: AdminUpdateLoginEmailFormProps) {
   const [state, formAction, pending] = useActionState(
     adminUpdateUserEmailAction,
     initialState,
   );
 
+  useEffect(() => { if (state.status === "success") onSuccess?.(state.message); }, [state, onSuccess]);
+
   return (
     <form action={formAction} className="inline-account-form">
       <input type="hidden" name="businessId" value={businessId} />
       <input type="hidden" name="userId" value={userId} />
-      <input
+      <label>Login email<input
         aria-label={`Login email for ${email ?? "staff member"}`}
         name="email"
         type="email"
         defaultValue={email ?? ""}
         autoComplete="off"
         required
-      />
-      <button type="submit" disabled={pending}>
-        {pending ? "Updating..." : "Update"}
-      </button>
+      /></label>
+      <div className="form-actions">
+        {onCancel && <button className="secondary-light-button" type="button" onClick={onCancel} disabled={pending}>Cancel</button>}
+        <button type="submit" disabled={pending}>{pending ? "Saving…" : "Save changes"}</button>
+      </div>
       {state.status !== "idle" ? (
-        <p className={`form-message ${state.status}`}>{state.message}</p>
+        <p className={`form-message ${state.status}`} role={state.status === "error" ? "alert" : "status"}>{state.message}</p>
       ) : null}
     </form>
   );
