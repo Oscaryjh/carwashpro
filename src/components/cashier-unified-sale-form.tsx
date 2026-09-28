@@ -1,4 +1,6 @@
 "use client";
+
+import { BranchSelect } from "@/components/branch-select";
 import { CheckoutAttribution } from "@/components/performance/checkout-attribution";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1350,21 +1352,7 @@ export function CashierUnifiedSaleForm({
               >
                 <input name="returnTo" type="hidden" value={shiftReturnPath} />
                 <div className={styles.shiftModalFields}>
-                  <label>
-                    <span>Branch</span>
-                    <select
-                      defaultValue={branchId || (branches.length === 1 ? branches[0].id : "")}
-                      name="branchId"
-                      required
-                    >
-                      <option disabled value="">Select branch</option>
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <BranchSelect branches={branches} selectedBranchId={branchId} />
                   <label>
                     <span>Opening cash float</span>
                     <input

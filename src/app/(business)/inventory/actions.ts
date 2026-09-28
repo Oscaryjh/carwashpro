@@ -11,7 +11,7 @@ import {
 } from "@/lib/inventory/service";
 
 const movementSchema = z.object({
-  branchId: z.string().uuid(),
+  branchId: z.preprocess((value) => value === "" || value === null ? undefined : value, z.string().uuid().optional()),
   expectedRevision: z.coerce.number().int().min(0).optional(),
   operationKey: z.string().trim().min(16).max(160),
   productId: z.string().uuid(),
@@ -108,7 +108,7 @@ async function runMovementAction(
   });
   if (!parsed.success) inventoryRedirect("error", parsed.error.issues[0]?.message ?? "Invalid inventory movement.");
   try {
-    const branchId = await resolveOperationalBranchId(businessId, user, parsed.data.branchId);
+    const branchId = await resolveOperationalBranchId(businessId, user, parsed.data.branchId ?? null);
     if (!branchId) throw new Error("Branch is required.");
     await runManualInventoryMovement({
       actorUserId: user.userId,

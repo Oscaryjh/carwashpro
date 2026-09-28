@@ -124,7 +124,8 @@ export function WorkOrderForm({
           </div>
 
           <div className="job-cart-section">
-            <h3>Branch</h3>
+            <h3>{branches.length === 1 ? "Store" : "Branch"}</h3>
+            {branches.length === 1 ? <p>{branches[0].name}</p> : null}
             <BranchSelect branches={branches} selectedBranchId={vehicle.branchId} />
           </div>
 

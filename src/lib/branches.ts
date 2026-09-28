@@ -33,7 +33,11 @@ export async function resolveBranchId(
   const branchId = requestedBranchId?.toString() || "";
 
   if (!branches.length) {
-    return null;
+    throw new Error("No active store location is available. Contact your administrator.");
+  }
+
+  if (branchId && !branches.some((branch) => branch.id === branchId)) {
+    throw new Error("Branch is invalid for this business.");
   }
 
   if (branches.length === 1) {

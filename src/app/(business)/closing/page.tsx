@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { BranchSelect } from "@/components/branch-select";
+import { selectedOrOnlyBranch } from "@/lib/branch-selection";
 import type { PaymentMethod, PaymentRecordStatus } from "@prisma/client";
 import { DailyClosingSnapshotPanel } from "@/components/daily-closing-snapshot-panel";
 import { getOperationalBranches } from "@/lib/branches";
@@ -180,14 +182,10 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
     businessTimeSettings,
   );
   const { dateValue, fromDate, toDateExclusive } = todayRange;
-  const selectedBranch =
-    branches.find((branch) => branch.id === params.branchId) ??
-    (staleShiftForDate
-      ? branches.find((branch) => branch.id === staleShiftForDate.branchId)
-      : undefined) ??
-    (openShift ? branches.find((branch) => branch.id === openShift.branchId) : undefined) ??
-    branches[0] ??
-    null;
+  const selectedBranch = selectedOrOnlyBranch(
+    branches,
+    params.branchId || staleShiftForDate?.branchId || openShift?.branchId,
+  ) ?? null;
   const shifts = await prisma.cashierShift.findMany({
     where: {
       businessId,
@@ -364,7 +362,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
   const shiftPage = Math.min(requestedShiftPage, shiftPageCount);
   const shiftStart = (shiftPage - 1) * SHIFT_PAGE_SIZE;
   const visibleShifts = shifts.slice(shiftStart, shiftStart + SHIFT_PAGE_SIZE);
-  const canStartShift = isOwner || branches.length > 0;
+  const canStartShift = branches.length > 0;
 
   return (
     <>
@@ -515,35 +513,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                 {canStartShift ? (
                   <>
                     <div className="field-grid">
-                      <label>
-                        <span>Branch</span>
-                        {isOwner && branches.length ? (
-                          <select
-                            name="branchId"
-                            defaultValue={branches.length === 1 ? branches[0].id : ""}
-                            required
-                          >
-                            <option value="" disabled>
-                              Select branch
-                            </option>
-                            {branches.map((branch) => (
-                              <option key={branch.id} value={branch.id}>
-                                {branch.name}
-                              </option>
-                            ))}
-                          </select>
-                        ) : isOwner ? (
-                          <>
-                            <input type="hidden" name="branchId" value="" />
-                            <input value="All branches" readOnly className="read-only-field" />
-                          </>
-                        ) : (
-                          <>
-                            <input type="hidden" name="branchId" value={branches[0].id} />
-                            <input value={branches[0].name} readOnly className="read-only-field" />
-                          </>
-                        )}
-                      </label>
+                      <BranchSelect branches={branches} />
                       <label>
                         <span>Opening Float</span>
                         <input
@@ -564,7 +534,7 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
                   </>
                 ) : (
                   <p className="empty-state">
-                    This staff account is not assigned to an active branch.
+                    No authorised active store location is available. Contact your administrator.
                   </p>
                 )}
               </form>
@@ -596,6 +566,16 @@ export default async function ClosingPage({ searchParams }: ClosingPageProps) {
           ) : null}
         </section>
 
+        {canConfirmDailyClosing && !selectedBranch ? (
+          <section className="panel">
+            <h2>Select a store for daily closing</h2>
+            <form method="get">
+              <input type="hidden" name="date" value={dateValue} />
+              <BranchSelect branches={branches} />
+              {branches.length > 0 ? <button type="submit">View closing</button> : null}
+            </form>
+          </section>
+        ) : null}
         {canConfirmDailyClosing && dailyClosing ? (
           <>
             <DailyClosingSummary
@@ -1197,14 +1177,14 @@ function DailyClosingSummary({
     <section className="panel daily-closing-report" aria-labelledby="daily-closing-title">
       <div className="daily-closing-header">
         <div>
-          <span className="daily-closing-eyebrow">BRANCH CLOSING STATUS</span>
+          <span className="daily-closing-eyebrow">{branches.length === 1 ? "STORE CLOSING STATUS" : "BRANCH CLOSING STATUS"}</span>
           <h2 id="daily-closing-title">{dailyClosing.branchName}</h2>
           <p>
             {formatBusinessDate(dailyClosing.dateValue)} · closes at {dailyClosing.businessDayCutoffTime} ·{" "}
             {isFrozen ? "Final figures from the frozen snapshot" : "Preview before daily closing"}
           </p>
         </div>
-        <form method="get" className="daily-closing-branch-form">
+        {branches.length > 1 ? <form method="get" className="daily-closing-branch-form">
           {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
           <input type="hidden" name="date" value={dailyClosing.dateValue} />
           <label>
@@ -1220,7 +1200,7 @@ function DailyClosingSummary({
           <button type="submit" className="secondary">
             View
           </button>
-        </form>
+        </form> : null}
       </div>
 
       <div className="daily-closing-owner-view">

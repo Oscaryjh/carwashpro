@@ -13,12 +13,14 @@ type InventoryCommandFormProps = {
 export function InventoryCommandForm({ action, branches, mode, products }: InventoryCommandFormProps) {
   const [operationKey] = useState(() => `inventory:${mode.toLowerCase()}:${crypto.randomUUID()}`);
   const [productId, setProductId] = useState("");
-  const [branchId, setBranchId] = useState("");
+  const [branchId, setBranchId] = useState(branches.length === 1 ? branches[0].id : "");
   const transfer = mode === "TRANSFER";
   const selectedStock = products
     .find((product) => product.id === productId)
     ?.stocks.find((stock) => stock.branchId === branchId);
   const expectedRevision = selectedStock?.revision ?? 0;
+  if (!branches.length) return <p role="alert">No active store location is available. Contact your administrator.</p>;
+  if (transfer && branches.length < 2) return <p>Transfers require at least two authorised locations within this business. Stock cannot be transferred to another business here.</p>;
   return (
     <form action={action} className="form">
       <input name="operationKey" type="hidden" value={operationKey} />
@@ -32,13 +34,13 @@ export function InventoryCommandForm({ action, branches, mode, products }: Inven
             ))}
           </select>
         </label>
-        <label>
+        {branches.length === 1 && !transfer ? <input type="hidden" name="branchId" value={branchId} /> : <label>
           <span>{transfer ? "Source branch" : "Branch"}</span>
           <select name={transfer ? "sourceBranchId" : "branchId"} onChange={(event) => setBranchId(event.target.value)} value={branchId} required>
             <option value="">Select branch</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
-        </label>
+        </label>}
         {transfer ? (
           <label>
             <span>Destination branch</span>

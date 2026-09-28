@@ -226,6 +226,7 @@ export function BusinessForm({
 
   return (
     <form action={action} className="form">
+      {mode === "create" ? <p>One Business represents one physical store or outlet, with its own login and records.</p> : null}
       {business ? <input type="hidden" name="businessId" value={business.id} /> : null}
       {formError ? (
         <p className="form-error" role="alert" aria-live="polite">
@@ -329,6 +330,14 @@ export function BusinessForm({
         ) : null}
       </div>
 
+      {mode === "create" ? (
+        <label>
+          <span>Business address (optional)</span>
+          <textarea name="address" rows={3} placeholder="Store or outlet address" />
+          <small>Address only. Clock-in location is configured separately in HR settings.</small>
+        </label>
+      ) : null}
+
       {mode === "edit" ? (
         <details open={workspaceLayout ? undefined : true}>
           <summary hidden={!workspaceLayout}>Additional settings · logo, address and tax</summary>
@@ -365,7 +374,7 @@ export function BusinessForm({
         <section className="subsection">
           <div>
             <h3>Owner account</h3>
-            <p>Create the first owner login for this company.</p>
+            <p>Create a separate owner login for this store. Access to other businesses requires an explicit Business Group grant.</p>
           </div>
           <div className="field-grid">
             <label>
@@ -413,7 +422,7 @@ export function BusinessForm({
       <div className="form-actions">
         {workspaceLayout && <button type="reset" data-workspace-discard className="secondary-light-button">Discard</button>}
         <BusinessSubmitButton
-          idleLabel={mode === "create" ? "Create company" : "Save changes"}
+          idleLabel={mode === "create" ? "Create business" : "Save changes"}
         />
       </div>
     </form>

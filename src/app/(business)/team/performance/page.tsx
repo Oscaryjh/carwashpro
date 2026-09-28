@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { BranchSelect } from "@/components/branch-select";
+import { selectedOrOnlyBranch } from "@/lib/branch-selection";
 import { notFound } from "next/navigation";
 import { requireBusinessUserWithAnyCapability } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
@@ -21,9 +23,12 @@ export default async function PerformancePage({searchParams}:{searchParams:Promi
   if(process.env.TETAMU_PERFORMANCE_PHASE2!=="true") notFound();
   const {businessId,user,access}=await requireBusinessUserWithAnyCapability(["PERFORMANCE_VIEW_TEAM","PERFORMANCE_MANAGE_TARGETS"]);
   if(access.source!=="DIRECT_BUSINESS") notFound();
+  // Historical performance remains readable for authorised inactive locations.
   const branches=await prisma.branch.findMany({where:{businessId,...(user.role==="BUSINESS_OWNER"?{}:{id:user.branchId??"00000000-0000-0000-0000-000000000000"})},select:{id:true,name:true},orderBy:{name:"asc"}});
   const p=await searchParams;
-  const branch=branches.find(b=>b.id===(p.branch??user.branchId))??(!p.branch?branches[0]:undefined);
+  const requestedBranch = p.branch ?? user.branchId;
+  const branch=selectedOrOnlyBranch(branches, requestedBranch);
+  if (!branch && !requestedBranch && branches.length > 1) return <main className={styles.page}><h1>业绩管理</h1><p>请选择要查看的门店。</p><form method="get" className={styles.filters}><BranchSelect branches={branches} name="branch" /><button type="submit">查看</button></form></main>;
   if(!branch) notFound();
   const business=await prisma.business.findUniqueOrThrow({where:{id:businessId},select:{timezone:true}});
   const now=new Date(),today=localPerformanceDate(now,performanceTimezone(business.timezone));
@@ -37,7 +42,7 @@ export default async function PerformancePage({searchParams}:{searchParams:Promi
   const selectedMember=data.members.find(m=>m.id===p.employee);
   return <main className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>PEOPLE / PERFORMANCE</p><h1>业绩管理</h1><p>本店实际销售收款与小费，扣除对应退款；不含税，不涉及工资或佣金。</p></div><span className={styles.badge}>{canManage?"可管理目标":"门店只读"}</span></header>
-    <form className={styles.filters} method="get"><input type="hidden" name="tab" value={tab}/><label>门店<select name="branch" defaultValue={branch.id}>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label><label>年份<input aria-label="Performance year" name="year" type="number" min="2001" max="2200" defaultValue={year}/></label><label>月份<select name="month" defaultValue={month}>{Array.from({length:12},(_,i)=><option key={i} value={i+1}>{i+1}月</option>)}</select></label><button type="submit">查看</button></form>
+    <form className={styles.filters} method="get"><input type="hidden" name="tab" value={tab}/><BranchSelect branches={branches} selectedBranchId={branch.id} name="branch" /><label>年份<input aria-label="Performance year" name="year" type="number" min="2001" max="2200" defaultValue={year}/></label><label>月份<select name="month" defaultValue={month}>{Array.from({length:12},(_,i)=><option key={i} value={i+1}>{i+1}月</option>)}</select></label><button type="submit">查看</button></form>
     <nav className={styles.tabs} aria-label="Performance sections">{[["overview","总览"],["targets","目标设置"],["details","业绩明细"]].map(([key,label])=><Link key={key} href={href({tab:key,page:"",employee:"",status:"",component:""})} aria-current={tab===key?"page":undefined}>{label}</Link>)}</nav>
     <p className={styles.meta}>统计截止 {date(data.asOf)} · {data.timezone} · {data.annual.started?`覆盖 ${date(data.annual.from)} 至 ${date(new Date(Math.min(new Date(data.annual.toExclusive).getTime()-1,now.getTime())).toISOString())}`:"该经营年度尚未开始，目标可先设置"}</p>
     {!data.annual.complete&&<aside className={styles.warning}>数据待补齐：目前仅显示已核对小计，暂不确认正式等级或完成率。未捕获 {data.annual.uncapturedCount}，待核对 {data.annual.pendingCount}，来源证据缺口 {data.annual.basisGapCount}。<Link href={href({tab:"details",status:"",page:"",range:"year"})}>查看来源</Link></aside>}

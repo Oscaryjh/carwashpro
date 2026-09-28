@@ -98,6 +98,21 @@ const validCreateBusiness = {
   ownerEmail: "owner@example.test",
 };
 
+test("new store accepts an optional trimmed business address", () => {
+  const parsed = createBusinessSchema.parse({ ...validCreateBusiness, ownerPassword: "123456", address: "  Synthetic Lintas address  " });
+  assert.equal((parsed as { address?: string }).address, "Synthetic Lintas address");
+  assert.equal(createBusinessSchema.safeParse({ ...validCreateBusiness, ownerPassword: "123456" }).success, true);
+});
+
+test("new store form accepts address without requesting GPS coordinates or a group owner", async () => {
+  require.extensions[".css"] = (module) => { module.exports = {}; };
+  const { BusinessForm } = await import("../../src/components/business-form");
+  const html = renderToStaticMarkup(createElement(BusinessForm, { action: () => {}, mode: "create", showOwnerFields: true }));
+  assert.match(html, /<textarea[^>]*name="address"/);
+  assert.doesNotMatch(html, /name="(?:latitude|longitude|groupId|existingOwnerId)"/);
+  assert.match(html, /name="ownerEmail"/);
+});
+
 test("new business accepts a six-character owner password but rejects five", () => {
   assert.equal(
     createBusinessSchema.safeParse({ ...validCreateBusiness, ownerPassword: "123456" }).success,

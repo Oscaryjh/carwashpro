@@ -23,11 +23,11 @@ const transition = base.extend({ expectedRevision: z.coerce.number().int().min(0
 
 export async function createStockCountAction(formData: FormData) {
   const context = await requireBusinessUserForModule("INVENTORY", "CREATE_STOCK_COUNT");
-  const parsed = base.extend({ branchId: z.string().uuid(), countType: z.enum(["FULL_BRANCH_COUNT", "SELECTED_PRODUCTS"]), notes: z.string().max(2000).optional() }).safeParse(Object.fromEntries(formData));
+  const parsed = base.extend({ branchId: z.preprocess((value) => value === "" || value === null ? undefined : value, z.string().uuid().optional()), countType: z.enum(["FULL_BRANCH_COUNT", "SELECTED_PRODUCTS"]), notes: z.string().max(2000).optional() }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) fail("/inventory/stock-counts/new", parsed.error.issues[0]?.message ?? "Invalid stock count.");
   let sessionId: string;
   try {
-    const branchId = await resolveOperationalBranchId(context.businessId, context.user, parsed.data.branchId);
+    const branchId = await resolveOperationalBranchId(context.businessId, context.user, parsed.data.branchId ?? null);
     if (!branchId) throw new Error("An authorised branch is required.");
     const productIds = formData.getAll("productIds").map(String);
     sessionId = (await createStockCount({ actor: actor(context.user), branchId, businessId: context.businessId, countType: parsed.data.countType, notes: parsed.data.notes, operationKey: parsed.data.operationKey, productIds })).id;

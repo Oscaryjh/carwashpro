@@ -179,7 +179,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
               <option value="ACTIVE">Active</option>
               <option value="INACTIVE">Inactive</option>
             </select>
-            <select name="branchId" defaultValue={branchId} aria-label="Branch">
+            {branches.length > 1 ? <select name="branchId" defaultValue={branchId} aria-label="Branch">
               <option value="">All branches</option>
               <option value={ALL_BRANCHES_ONLY}>All branches only</option>
               {branches.map((branch) => (
@@ -187,7 +187,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                   {branch.name}
                 </option>
               ))}
-            </select>
+            </select> : null}
             <button type="submit">Filter</button>
             {hasFilters ? (
               <Link className="secondary-link-button" href="/services">

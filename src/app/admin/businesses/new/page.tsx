@@ -14,8 +14,8 @@ export default async function NewBusinessPage() {
       <section className="content">
         <div className="page-header">
           <div>
-            <h1>Create Company</h1>
-            <p>Add a company, choose its industry, and create its first owner account.</p>
+            <h1>New Business</h1>
+            <p>Create a new store or outlet with its own owner login and business records.</p>
           </div>
           <BackButton fallbackHref="/admin/businesses" />
         </div>

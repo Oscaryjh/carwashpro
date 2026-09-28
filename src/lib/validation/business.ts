@@ -70,6 +70,7 @@ export const createBusinessSchema = z.object({
   industryType: businessIndustrySchema,
   companyNo: businessFieldsSchema.shape.companyNo,
   phone: businessFieldsSchema.shape.phone,
+  address: businessFieldsSchema.shape.address,
   ownerName: z.string().trim().min(2, "Owner name is required."),
   ownerEmail: z.string().trim().email("Enter a valid owner email."),
   ownerPassword: z.string().min(6, "Owner password must be at least 6 characters."),
