@@ -120,7 +120,7 @@ export async function AppShell({ user, access, children }: AppShellProps) {
   const teamWorkspaceItems: NavItem[] = [
     ...(process.env.TETAMU_PERFORMANCE_PHASE2 === "true" && isStoreUser && grantedAccess?.source === "DIRECT_BUSINESS" &&
       (canSee("PERFORMANCE_VIEW_TEAM") || canSee("PERFORMANCE_MANAGE_TARGETS"))
-      ? [{ href: "/team/performance", label: "业绩管理 / Performance", shortLabel: "Performance", icon: "reports" as const }] : []),
+      ? [{ href: "/team/performance", label: "Performance", shortLabel: "Performance", icon: "reports" as const }] : []),
     ...(approvalNavigationVisible
       ? [
           {
