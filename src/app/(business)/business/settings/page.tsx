@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { BusinessForm } from "@/components/business-form";
+import { BusinessAttendanceLocations } from "@/components/business-attendance-locations";
+import { hasBusinessCapability } from "@/lib/business-groups/business-access";
+import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { assertRole } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 import { requireBusinessContext } from "@/lib/tenant";
@@ -41,6 +44,22 @@ export default async function BusinessSettingsPage({
     orderBy: [{ brand: "asc" }, { model: "asc" }],
   });
   const moduleContext = await loadBusinessModuleContext(context.businessId);
+  const canManageAttendance = moduleContext.enabledModules.has("HR") &&
+    hasBusinessCapability(context.access, "MODIFY_ATTENDANCE_SETTINGS");
+  const attendanceScope = canManageAttendance ? await resolveAttendanceScope(context.access) : null;
+  const attendanceBranches = attendanceScope ? await prisma.branch.findMany({
+    where: {
+      businessId: context.businessId,
+      id: { in: [...attendanceScope.allowedBranchIds] },
+      status: "ACTIVE",
+    },
+    select: {
+      id: true,
+      name: true,
+      attendanceSetting: { select: { isEnabled: true, requireGeofence: true, geofenceRadiusMeters: true } },
+    },
+    orderBy: { name: "asc" },
+  }) : [];
   const commercial = await getEffectiveCommercialConfiguration({ businessId: context.businessId });
   const subscriptionInvoices = await listSubscriptionInvoices({ actor: context.user, businessId: context.businessId });
   const paymentMethods = await getEffectiveBusinessPaymentMethods(context.businessId);
@@ -65,6 +84,7 @@ export default async function BusinessSettingsPage({
           mode="edit"
           business={business}
           settingsLayout
+          attendanceLocations={<BusinessAttendanceLocations branches={attendanceBranches} available={canManageAttendance} hrEnabled={moduleContext.enabledModules.has("HR")} />}
         />
         <div className="company-settings-sheet company-settings-secondary-section" id="staff-app-appearance">
           <div className="company-settings-section-heading">

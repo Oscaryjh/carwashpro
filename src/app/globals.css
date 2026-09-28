@@ -9388,6 +9388,68 @@ label {
   grid-column: 1 / -1;
 }
 
+.company-attendance-location {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+  margin-bottom: 24px;
+  padding: 20px;
+  border: 1px solid #cce3df;
+  border-radius: 12px;
+  background: #f0f8f6;
+}
+
+.company-attendance-location h3,
+.company-attendance-location p {
+  margin: 0;
+}
+
+.company-attendance-location h3 {
+  font-size: 15px;
+  color: #116f66;
+}
+
+.company-attendance-location p,
+.company-attendance-location small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.company-attendance-location-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.company-attendance-location-summary strong {
+  font-size: 13px;
+}
+
+.company-attendance-location-summary a {
+  white-space: nowrap;
+}
+
+.company-attendance-branch { display: grid; gap: 4px; }
+.company-attendance-branch > span { color: #526575; font-size: 12px; }
+.company-attendance-branch > strong { color: #243746; font-size: 14px; }
+.company-attendance-location .company-attendance-warning { color: #865009; }
+.company-attendance-location .company-attendance-configured { color: #17664f; }
+.company-attendance-location-summary > div { flex: 1 1 300px; }
+.company-attendance-location-summary p { margin-top: 6px; max-width: 560px; }
+.company-attendance-location a.company-attendance-location-action {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px; padding: 10px 16px; border: 1px solid #0f766e;
+  border-radius: 8px; background: #0f766e; color: #fff;
+  font-size: 13px; line-height: 1.4; font-weight: 600; text-decoration: none;
+}
+.company-attendance-location a.company-attendance-location-action:hover { background: #115e59; border-color: #115e59; color: #fff; }
+.company-attendance-location a.company-attendance-location-action:focus-visible { outline: 3px solid #0f766e; outline-offset: 3px; }
+.company-attendance-location-help { border-top: 1px solid #cce3df; padding-top: 12px; }
+.company-settings-form .company-profile-save-note { margin: 0 auto 0 0; align-self: center; font-size: 12px; line-height: 1.5; color: #526575; }
+
 .company-settings-form label,
 .company-settings-secondary-section label {
   display: grid;

@@ -1,4 +1,5 @@
 import type { Business, BusinessStatus } from "@prisma/client";
+import type { ReactNode } from "react";
 import {
   BusinessLogoUpload,
   BusinessSubmitButton,
@@ -23,6 +24,7 @@ type BusinessFormProps = {
   settingsLayout?: boolean;
   formError?: string;
   fieldErrors?: Record<string, string | undefined>;
+  attendanceLocations?: ReactNode;
   workspaceLayout?: boolean;
 };
 
@@ -35,6 +37,7 @@ export function BusinessForm({
   settingsLayout = false,
   formError,
   fieldErrors = {},
+  attendanceLocations,
   workspaceLayout = false,
 }: BusinessFormProps) {
   const status = business?.status ?? "active";
@@ -171,7 +174,9 @@ export function BusinessForm({
               />
             </label>
           </div>
+          {attendanceLocations}
           <CompanySettingsDialogFooter>
+            {attendanceLocations && <p className="company-profile-save-note">Saves company settings only. Clock-in location is saved separately in HR.</p>}
             <BusinessSubmitButton idleLabel="Save changes" />
           </CompanySettingsDialogFooter>
         </CompanySettingsDialog>
