@@ -71,7 +71,7 @@ test("Performance renders English overview, targets, details and recovery states
     annual: { ...period }, current: { ...period }, previous: { ...period, from: "2026-08-01T00:00:00Z", asOf: "2026-08-28T14:25:00Z" },
     comparison: { future: false, complete: true, delta: 1000, percent: null, label: "上月同期" },
     progress: { percent: null, gap: null }, level: { level: null, nextGap: null },
-    target: null, previousTarget: null, revision: 0, history: [] as any[], page: 1, pageSize: 20, totalRows: 0, details: [] as any[],
+    target: null as { levels: number[] } | null, previousTarget: null, revision: 0, history: [] as any[], page: 1, pageSize: 20, totalRows: 0, details: [] as any[],
     members: [{ id: "member", fullName: "Synthetic Member", employeeCode: "UAT01", status: "ACTIVE", eligible: true,
       goal: null, amount: totals, month: totals, progress: { percent: null, gap: null },
       comparison: { complete: true, delta: 1000, percent: null }, months: [{ month: 9, amount: totals, complete: true, future: false }] }],
@@ -99,11 +99,66 @@ test("Performance renders English overview, targets, details and recovery states
     });
     const require = createRequire(import.meta.url);
     const page = require(join(directory, "page.cjs")).default;
-    const render = async (tab: string) => renderToStaticMarkup(await page({ searchParams: Promise.resolve({ tab, year: "2026", month: "9" }) }));
+    const render = async (tab: string, q?: string) => renderToStaticMarkup(await page({ searchParams: Promise.resolve({ tab, year: "2026", month: "9", q }) }));
     const overview = await render("overview");
-    for (const copy of ["Performance", "Previous period", "Current period", "Change", "Percentage change: N/A", "Team performance", "Find team member", "Name or employee ID", "Search", "Annual target", "No individual target set", "28 Aug 2026", "22:25"]) assert.ok(overview.includes(copy), `Missing English copy: ${copy}`);
+    for (const copy of ["Performance", "Previous period", "Current period", "Change", "Team performance", "Find team member", "Name or employee ID", "Search", "Annual target", "No individual target set", "28 Aug 2026", "22:25"]) assert.ok(overview.includes(copy), `Missing English copy: ${copy}`);
+    assert.match(overview, /<dt>Percentage change<\/dt><dd>N\/A<\/dd>/);
     assert.match(overview, /RM\s*10\.00/);
     assert.doesNotMatch(overview, /\p{Script=Han}/u);
+    // Catch swapped KPI amounts, hidden historical staff, lost disclosure content,
+    // and search/detail links that drop the selected branch/year/month.
+    data.annual.team = { salesReceived: 1200, tipsReceived: 100, refunds: 300, total: 1000 };
+    data.current.team = { salesReceived: 800, tipsReceived: 0, refunds: 0, total: 800 };
+    data.previous.team = { salesReceived: 0, tipsReceived: 0, refunds: 0, total: 0 };
+    data.members[0].status = "SUSPENDED";
+    data.members[0].eligible = false;
+    const compact = await render("overview");
+    const section = (html: string, label: string) => {
+      const content = html.match(new RegExp(`aria-label="${label}"[^>]*>([\\s\\S]*?)</section>`))?.[1];
+      assert.ok(content, `Missing section: ${label}`);
+      return content;
+    };
+    assert.match(section(compact, "Year to date performance"), /<strong[^>]*>RM\s*10\.00<\/strong>/);
+    assert.match(section(compact, "Monthly performance"), /<strong[^>]*>RM\s*8\.00<\/strong>/);
+    const previousFrom = data.previous.from;
+    data.previous.from = "2200-10-01T00:00:00Z";
+    data.comparison.future = true;
+    const future = section(await render("overview"), "Monthly performance");
+    assert.match(future, /<dt>Previous period<\/dt><dd>Not started<\/dd>/);
+    assert.match(future, /<strong[^>]*>—<\/strong>/);
+    data.previous.from = previousFrom;
+    data.comparison.future = false;
+    const levels = (html: string) => {
+      const table = html.match(/<table[^>]*aria-label="Performance levels"[^>]*>([\s\S]*?)<\/table>/)?.[1];
+      assert.ok(table, "Performance levels table is present");
+      return table;
+    };
+    assert.equal((levels(compact).match(/Not set/g) ?? []).length, 3);
+    data.target = { levels: [500, 1500, 2500] };
+    const configured = levels(await render("overview"));
+    assert.match(configured, /Level 1<\/th><td>RM\s*5\.00<\/td><td>Reached/);
+    assert.match(configured, /Level 2<\/th><td>RM\s*15\.00<\/td><td>In progress/);
+    data.annual.complete = false;
+    const incomplete = levels(await render("overview"));
+    assert.equal((incomplete.match(/Unconfirmed/g) ?? []).length, 3);
+    assert.doesNotMatch(incomplete, /<progress/);
+    data.annual.started = false;
+    assert.equal((levels(await render("overview")).match(/Not started/g) ?? []).length, 3);
+    data.annual.started = true;
+    data.annual.complete = true;
+    data.target = null;
+    assert.match(compact, /<summary>Coverage<\/summary>[\s\S]*?Asia\/Kuala_Lumpur/);
+    assert.match(compact, /<table[^>]*aria-label="Performance levels"/);
+    assert.match(compact, /data-status="SUSPENDED"[\s\S]*?Synthetic Member[\s\S]*?Suspended/);
+    assert.match(compact, /Former branch member/);
+    assert.match(compact, /<summary[^>]*>[\s\S]*?Synthetic Member[\s\S]*?<\/summary>/);
+    assert.match(compact, /tab=details&amp;year=2026&amp;month=9&amp;branch=branch&amp;employee=member/);
+    assert.ok((await render("overview", "uat01")).includes("Synthetic Member"));
+    assert.ok(!(await render("overview", "no-match")).includes("Synthetic Member"));
+    assert.match(await render("overview", "no-match"), /No team members match your search/);
+    assert.doesNotMatch(compact, />Target management</);
+    data.members[0].status = "ACTIVE";
+    data.members[0].eligible = true;
     for (const tab of ["targets", "details"]) assert.doesNotMatch(await render(tab), /\p{Script=Han}/u, tab);
     data.details.push({ sourceKey: "REFUND:synthetic", invoiceNumber: "无发票", occurredAt: period.asOf,
       method: "CASH", qualifiedCents: null, rawCents: 1000, taxCents: null, salesCents: 1000, tipCents: 0,
