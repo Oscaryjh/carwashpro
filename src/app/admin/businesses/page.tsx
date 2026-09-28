@@ -184,7 +184,7 @@ export default async function BusinessesPage({
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Company</th>
+                    <th>Business</th>
                     <th>Company No.</th>
                     <th>Industry</th>
                     <th>Contact</th>

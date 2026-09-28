@@ -19,6 +19,12 @@
 .navigation a:hover { background: #e9f2f0; }
 .navigation small { font-size: 11px; padding: 2px 7px; border-radius: 12px; background: #fff8; }
 .content { min-width: 0; }
+.legacyAccess { margin-top: 24px; padding: 16px 20px; border: 1px solid #dbe3eb; border-radius: 12px; background: #fff; color: #536278; font-size: 13px; }
+.legacyAccess summary { cursor: pointer; font-weight: 600; }
+.legacyAccess summary:hover { color: #0f766e; }
+.legacyAccess h2 { margin: 18px 0 8px; font-size: 16px; color: #223246; }
+.legacyAccess p { max-width: 760px; line-height: 1.6; margin: 8px 0 12px; }
+.legacyAccess a[aria-current] { border-color: #0f766e; color: #0f766e; }
 .panel { background: #fff; border: 1px solid #dbe3eb; border-radius: 14px; padding: 24px; }
 .panelHeading { display: flex; gap: 20px; justify-content: space-between; align-items: center; margin-bottom: 22px; }
 .panelHeading h2 { margin: 0; font-size: 19px; }

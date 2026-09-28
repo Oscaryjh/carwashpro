@@ -35,6 +35,7 @@ export function AdminBusinessWorkspace({ business, branches, users, enabledModul
   const [branchDialog, setBranchDialog] = useState<{ branch: Branch; confirm: boolean } | null>(null);
   const [branchError, setBranchError] = useState("");
   const [branchSaving, setBranchSaving] = useState(false);
+  const branchPanel = useRef<HTMLElement>(null);
   const storageKey = `tetamu:workspace-section:${business.id}`;
 
   function select(next: WorkspaceSection) {
@@ -56,6 +57,7 @@ export function AdminBusinessWorkspace({ business, branches, users, enabledModul
     } catch { /* Optional navigation memory only. */ }
   }, [searchParams, pathname, storageKey]);
   useEffect(() => { setBranchError(""); }, [branchDialog]);
+  useEffect(() => { if (section === "branches") branchPanel.current?.focus(); }, [section]);
   useEffect(() => {
     if (result.type === "success" && result.message) setNotice(result.message.includes("entitlement") ? "Module access updated" : result.message);
   }, [result.type, result.message]);
@@ -71,12 +73,12 @@ export function AdminBusinessWorkspace({ business, branches, users, enabledModul
       <div className={styles.headerActions}><Status value={business.status} /><button type="button" className={styles.secondary} onClick={() => select("profile")}>Edit company</button></div>
     </header>
     <section className={styles.metrics} aria-label="Business summary">
-      {[['Branches', branches.length], ['Users', users.length], ['Enabled modules', enabledModules]].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
+      {[['Users', users.length], ['Enabled modules', enabledModules]].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
     </section>
     {notice && <div className={styles.toast} role="status"><span aria-hidden="true">✓ </span>{notice}<button type="button" aria-label="Dismiss notification" onClick={() => setNotice("")}>×</button></div>}
     {result.type === "error" && result.message && <p className={styles.error} role="alert">{result.message}</p>}
     <div className={styles.layout}>
-      <nav className={styles.navigation} aria-label="Business workspace sections">{workspaceSections.map((key) => <a key={key} href={workspaceHref(pathname, params.toString(), key)} aria-current={section === key ? "page" : undefined} onClick={(event) => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); select(key); } }}><span>{labels[key]}</span>{key === "branches" ? <small>{branches.length}</small> : key === "users" ? <small>{users.length}</small> : null}</a>)}</nav>
+      <nav className={styles.navigation} aria-label="Business workspace sections">{workspaceSections.filter((key) => key !== "branches").map((key) => <a key={key} href={workspaceHref(pathname, params.toString(), key)} aria-current={section === key ? "page" : undefined} onClick={(event) => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); select(key); } }}><span>{labels[key]}</span>{key === "users" ? <small>{users.length}</small> : null}</a>)}</nav>
       <div className={styles.content}>
         <section hidden={section !== "overview"} className={styles.panel} aria-label="Overview">
           <div className={styles.panelHeading}><div><h2>Business information</h2><p>Company identity and workspace status.</p></div><button className={styles.secondary} onClick={() => select("profile")}>Edit company</button></div>
@@ -88,8 +90,8 @@ export function AdminBusinessWorkspace({ business, branches, users, enabledModul
           <div className={styles.panelHeading}><div><h2>Company profile</h2><p>Update company information. Industry and slug are read-only.</p></div></div>
           <div onClick={(event) => { if (event.target instanceof Element && event.target.closest('button[data-workspace-discard]')) { event.preventDefault(); setProfileVersion((value) => value + 1); setNotice("Unsaved company changes discarded"); } }}><Fragment key={profileVersion}>{profile}</Fragment></div>
         </section>
-        <section hidden={section !== "branches"} className={styles.panel} aria-label="Branches">
-          <div className={styles.panelHeading}><div><h2>Locations <small>{branches.length}</small></h2><p>New stores are created as separate businesses with independent logins.</p></div></div>
+        <section ref={branchPanel} tabIndex={-1} hidden={section !== "branches"} className={styles.panel} aria-label="Branches">
+          <div className={styles.panelHeading}><div><h2>Branch management <small>{branches.length}</small></h2><p>Legacy / special multi-location management. Create a new Business for a new outlet.</p></div></div>
           <details className={styles.advanced}><summary>Advanced / legacy branch management</summary><p>Keep existing multi-branch operations here. For a new outlet, create a new Business instead.</p><Link className={styles.secondary} href={`/admin/businesses/${business.id}/branches/new`}>Add legacy branch</Link></details>
           <Search label="Search branches" value={branchSearch} onChange={setBranchSearch} />
           <div className={styles.tableWrap}><table><thead><tr>{["Name", "Phone", "Address", "Status", "Action"].map((label) => <th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{visibleBranches.map((branch) => <tr key={branch.id}><th scope="row">{branch.name}</th><td>{branch.phone || "—"}</td><td className={styles.address}>{branch.address || "—"}</td><td><Status value={branch.status} /></td><td><RowActions label={branch.name}><button onClick={() => setBranchDialog({ branch, confirm: false })}>View details</button><button onClick={() => setBranchDialog({ branch, confirm: true })}>{branch.status === "ACTIVE" ? "Deactivate" : "Activate"}</button></RowActions></td></tr>)}{!visibleBranches.length && <tr><td colSpan={5} className={styles.empty}>{branches.length ? "No branches match your search." : "No branches yet. Add your first location."}</td></tr>}</tbody></table></div>
@@ -101,6 +103,13 @@ export function AdminBusinessWorkspace({ business, branches, users, enabledModul
         </section>
       </div>
     </div>
+    <details className={styles.legacyAccess}>
+      <summary>Advanced / Legacy</summary>
+      <h2>Branch management</h2>
+      <p>Tetamu POS treats each physical outlet as a separate Business. Branch management is retained for legacy or special multi-location setups.</p>
+      <p>Opening a new store? Create a new Business instead of adding a branch.</p>
+      <a className={styles.secondary} href={workspaceHref(pathname, params.toString(), "branches")} aria-current={section === "branches" ? "page" : undefined} onClick={(event) => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); select("branches"); } }}>Manage branches</a>
+    </details>
     {editing && <WorkspaceDialog title={editing.mode === "email" ? "Edit user" : "Reset password"} close={() => setEditing(null)}>
       <p className={styles.muted}>{editing.user.name}</p>
       {editing.mode === "email" ? <><dl className={styles.drawerInfo}><div><dt>Name</dt><dd>{editing.user.name}</dd></div><div><dt>Role</dt><dd>{readable(editing.user.role)}</dd></div><div><dt>Status</dt><dd>{readable(editing.user.status)}</dd></div></dl><AdminUpdateLoginEmailForm businessId={business.id} userId={editing.user.id} email={editing.user.email} onCancel={() => setEditing(null)} onSuccess={(message) => { setEditing(null); setNotice(message); }} /></> : <AdminResetPasswordForm businessId={business.id} userId={editing.user.id} userEmail={editing.user.email} onCancel={() => setEditing(null)} onSuccess={(message) => { setEditing(null); setNotice(message); }} />}
