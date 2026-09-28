@@ -42,6 +42,20 @@ test("real signed sessions cannot cross People, Payroll, tenant or branch HTTP b
   const deniedToken = await tokenFor(denied, a.id, a1.id, []);
   const managerToken = await tokenFor(branchManager, a.id, a1.id, ["PAYROLL_READ", "VIEW_PAYSLIP"]);
   const groupToken = await tokenFor(groupManager, a.id, null, [], null);
+  const admin = await database.user.create({ data: {
+    name: `Logout admin ${suffix}`, email: `logout-admin-${suffix}@example.test`,
+    role: "PLATFORM_ADMIN", accountType: "HUMAN", permissions: [],
+  } });
+  const adminSession = {
+    userId: admin.id, sessionId: randomUUID(), homeBusinessId: null,
+    activeBusinessId: null, contextVersion: 1, branchId: null,
+    name: admin.name, email: admin.email!, role: admin.role,
+    permissions: [], status: admin.status,
+  };
+  const storedAdminSession = await persistSessionContext(adminSession, { database });
+  const adminToken = await createSessionToken(adminSession, {
+    absoluteExpiresAt: storedAdminSession.absoluteExpiresAt,
+  });
   const port = await freePort();
   const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--webpack", "-p", String(port)], {
     cwd: process.cwd(),
@@ -84,6 +98,29 @@ test("real signed sessions cannot cross People, Payroll, tenant or branch HTTP b
     assert.match(groupBank.headers.get("location") ?? "", /business-access-denied/);
     const unauthenticated = await fetch(base + `/team/people/${sameBranch.id}`, { redirect: "manual" });
     assert.equal(unauthenticated.status, 307);
+
+    assert.equal((await request("/admin/businesses", adminToken)).status, 200);
+    const crossSiteLogout = await fetch(base + "/logout", {
+      method: "POST", redirect: "manual",
+      headers: { cookie: `${SESSION_COOKIE}=${adminToken}`, origin: "https://evil.example", "sec-fetch-site": "cross-site" },
+    });
+    assert.equal(crossSiteLogout.status, 403);
+    assert.equal((await database.authSession.findUniqueOrThrow({ where: { id: adminSession.sessionId } })).revokedAt, null);
+    await request("/logout", adminToken);
+    assert.equal((await database.authSession.findUniqueOrThrow({ where: { id: adminSession.sessionId } })).revokedAt, null, "GET must not log out");
+    const logout = await fetch(base + "/logout", {
+      method: "POST", redirect: "manual",
+      headers: { cookie: `${SESSION_COOKIE}=${adminToken}`, origin: base, "sec-fetch-site": "same-origin" },
+    });
+    assert.equal(logout.status, 303, "logout must navigate to login with GET");
+    assert.equal(logout.headers.get("location"), "/login");
+    assert.match(logout.headers.get("set-cookie") ?? "", /car_wash_session=;/);
+    assert.match(logout.headers.get("set-cookie") ?? "", /Expires=Thu, 01 Jan 1970|Max-Age=0/i);
+    assert.ok((await database.authSession.findUniqueOrThrow({ where: { id: adminSession.sessionId } })).revokedAt);
+    const replay = await request("/admin/businesses", adminToken);
+    assert.equal(replay.status, 307);
+    assert.match(replay.headers.get("location") ?? "", /\/login/);
+    assert.equal(await database.authSecurityEvent.count({ where: { sessionId: adminSession.sessionId, eventType: "SESSION_REVOKED" } }), 1);
   } finally {
     child.kill();
     if (child.exitCode === null) await Promise.race([once(child, "exit"), new Promise((resolve) => setTimeout(resolve, 5_000))]);

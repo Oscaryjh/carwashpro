@@ -12,7 +12,10 @@ export async function POST(request: NextRequest) {
   }
   await auditLogout(request);
   await destroySession({ reason: "User logged out." });
-  redirect("/login");
+  return new Response(null, {
+    status: 303,
+    headers: { Location: "/login", "Cache-Control": "no-store" },
+  });
 }
 
 export async function GET(request: NextRequest) {

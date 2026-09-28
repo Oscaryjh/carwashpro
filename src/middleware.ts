@@ -37,7 +37,9 @@ export async function middleware(request: NextRequest) {
   // The back-office login page must remain reachable without a session. It is
   // included in the matcher so the dedicated Staff surface can redirect it to
   // /staff/login above, but the POS surface must not redirect /login to itself.
-  if (pathname === "/login") {
+  // Logout owns same-origin validation, server-side revocation and cookie
+  // cleanup. It must also be reachable for expired cookies and platform admins.
+  if (pathname === "/login" || pathname === "/logout") {
     return NextResponse.next();
   }
 
