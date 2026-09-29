@@ -40,6 +40,9 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
   const isSalonBusiness = context.industry.industryType === "SALON_BEAUTY";
   const params = await searchParams;
   const isCreateOpen = params.modal === "create";
+  const companyTax = isCreateOpen
+    ? await prisma.business.findUnique({ where: { id: businessId }, select: { sstRate: true } })
+    : null;
   const isCategoriesOpen = params.modal === "categories";
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
@@ -281,6 +284,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
       {isCreateOpen ? (
         <ServiceCreateModal
           action={createServiceAction}
+          companySstRate={companyTax?.sstRate == null ? null : Number(companyTax.sstRate)}
           branches={branches}
           categories={categories.filter((category) => category.status === "ACTIVE")}
           isSalonBusiness={isSalonBusiness}

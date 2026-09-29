@@ -643,6 +643,13 @@
   transform: translateY(-50%);
 }
 
+.service-tax-fields {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+
 .service-taxable-field {
   position: relative;
   display: grid;

@@ -8,6 +8,7 @@ type ServiceCreateModalProps = {
   branches: BranchOption[];
   categories: Pick<ServiceCategory, "id" | "name" | "status">[];
   isSalonBusiness: boolean;
+  companySstRate?: number | null;
   staffOptions: Array<{
     branchName: string | null;
     id: string;
@@ -21,6 +22,7 @@ export function ServiceCreateModal({
   branches,
   categories,
   isSalonBusiness,
+  companySstRate,
   staffOptions,
 }: ServiceCreateModalProps) {
   return (
@@ -36,6 +38,7 @@ export function ServiceCreateModal({
         branches={branches}
         categories={categories}
         isSalonBusiness={isSalonBusiness}
+        companySstRate={companySstRate}
         staffOptions={staffOptions}
         submitLabel="Create service"
       />

@@ -74,6 +74,9 @@ export default async function ServiceDetailsPage({
   }
 
   const formId = `service-form-${service.id}`;
+  const companyTax = await prisma.business.findUnique({
+    where: { id: businessId }, select: { sstRate: true },
+  });
 
   return (
     <>
@@ -122,6 +125,7 @@ export default async function ServiceDetailsPage({
           </div>
           <ServiceForm
             action={updateServiceAction}
+            companySstRate={companyTax?.sstRate == null ? null : Number(companyTax.sstRate)}
             service={service}
             branches={branches}
             categories={categories}
