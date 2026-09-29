@@ -11,6 +11,7 @@ type ServiceFormProps = {
   branches?: BranchOption[];
   submitLabel?: string;
   formId?: string;
+  modalLayout?: boolean;
   isSalonBusiness?: boolean;
   staffOptions?: Array<{
     id: string;
@@ -29,15 +30,27 @@ export function ServiceForm({
   branches = [],
   submitLabel,
   formId,
+  modalLayout = false,
   isSalonBusiness = false,
   staffOptions = [],
   selectedStaffIds = [],
 }: ServiceFormProps) {
+  const durationField = isSalonBusiness ? (
+    <label>
+      <span>Duration</span>
+      <div className="input-with-suffix">
+        <input name="durationMinutes" type="number" step="5" min="5" max="720"
+          placeholder="60" defaultValue={service?.durationMinutes ?? ""} required />
+        <span>minutes</span>
+      </div>
+    </label>
+  ) : null;
   return (
-    <form action={action} className="form" id={formId}>
+    <form action={action} className={modalLayout ? "form service-create-form" : "form"} id={formId}>
       {service ? <input type="hidden" name="serviceId" value={service.id} /> : null}
+      {modalLayout ? <BranchSelect branches={branches} selectedBranchId={service?.branchId} /> : null}
       <div className="field-grid">
-        <BranchSelect branches={branches} selectedBranchId={service?.branchId} />
+        {!modalLayout ? <BranchSelect branches={branches} selectedBranchId={service?.branchId} /> : null}
         <label>
           <span>Category</span>
           <select
@@ -77,29 +90,14 @@ export function ServiceForm({
             required
           />
         </label>
+        {modalLayout ? durationField : null}
         <ServiceTaxFields
+          compact={modalLayout}
           defaultTaxable={service?.taxable ?? true}
           defaultTaxRate={service?.taxRate == null ? "" : Number(service.taxRate).toFixed(2)}
           companySstRate={companySstRate}
         />
-        {isSalonBusiness ? (
-          <label>
-            <span>Duration</span>
-            <div className="input-with-suffix">
-              <input
-                name="durationMinutes"
-                type="number"
-                step="5"
-                min="5"
-                max="720"
-                placeholder="60"
-                defaultValue={service?.durationMinutes ?? ""}
-                required
-              />
-              <span>minutes</span>
-            </div>
-          </label>
-        ) : null}
+        {!modalLayout ? durationField : null}
         {service ? (
           <label>
             <span>Status</span>
@@ -113,10 +111,10 @@ export function ServiceForm({
       {isSalonBusiness ? (
         <fieldset className="service-staff-fieldset">
           <legend>Available staff</legend>
-          <p className="field-helper">
+          {!modalLayout || staffOptions.length > 0 ? <p className="field-helper">
             Select the team members who can perform this service. Leave all
             unchecked to allow every active team member.
-          </p>
+          </p> : null}
           {staffOptions.length ? (
             <div className="service-staff-grid">
               {staffOptions.map((staff) => (
@@ -138,7 +136,10 @@ export function ServiceForm({
               ))}
             </div>
           ) : (
-            <p className="empty-state compact-empty-state">
+            modalLayout ? <div className="service-staff-empty">
+              <strong>No active staff available</strong>
+              <p className="field-helper">Add staff in People &amp; HR to assign this service.</p>
+            </div> : <p className="empty-state compact-empty-state">
               No active staff accounts are available yet.
             </p>
           )}

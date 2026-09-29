@@ -31,9 +31,11 @@ export function ServiceCreateModal({
       closePath="/services"
       eyebrow="SERVICE CATALOG"
       title="New service"
+      modalClassName="service-create-modal"
       wide
     >
       <ServiceForm
+        modalLayout
         action={action}
         branches={branches}
         categories={categories}

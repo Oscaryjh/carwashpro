@@ -1531,6 +1531,164 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* New service only: leave the shared edit form and other catalog modals unchanged. */
+.service-create-modal {
+  display: flex;
+  flex-direction: column;
+}
+
+.service-create-modal .product-create-modal-header {
+  flex-shrink: 0;
+  padding: 24px 28px 20px;
+}
+
+.service-create-modal .product-create-modal-body {
+  min-height: 0;
+  max-height: none;
+  padding: 0 28px 24px;
+}
+
+.service-create-modal .service-create-form {
+  gap: 24px;
+}
+
+.service-create-modal .field-grid {
+  align-items: start;
+  gap: 24px 20px;
+}
+
+.service-create-modal .service-tax-fields-inline {
+  grid-column: span 2;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+}
+
+.service-create-modal .service-create-form .service-taxable-field {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-rows: auto 42px auto;
+  align-items: center;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 6px 8px;
+}
+
+.service-create-modal .field-grid label {
+  font-size: 13px;
+  gap: 6px;
+}
+
+.service-create-modal .field-grid label > span:first-child,
+.service-create-modal .service-tax-rate-field > span:first-child {
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.service-create-modal .field-grid input:not([type="checkbox"]),
+.service-create-modal .field-grid select {
+  height: 42px;
+  min-height: 42px;
+}
+
+.service-create-modal .service-taxable-copy {
+  display: contents;
+}
+
+.service-create-modal .service-taxable-copy strong {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.service-create-modal .service-taxable-indicator,
+.service-create-modal .service-taxable-state {
+  grid-row: 2;
+}
+
+.service-create-modal .service-taxable-state {
+  grid-column: 2;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.service-create-modal .service-taxable-copy small {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+.service-create-modal .service-tax-rate-slot {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.service-create-modal .service-tax-fields-inline > .form-error {
+  grid-column: 1 / -1;
+}
+
+.service-create-modal .field-helper,
+.service-create-modal .service-taxable-copy small {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.service-create-modal .service-staff-fieldset {
+  padding: 20px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  gap: 12px;
+}
+
+.service-create-modal .service-staff-fieldset legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+}
+
+.service-create-modal .service-staff-empty {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f5f8fa;
+  font-size: 13px;
+}
+
+.service-create-modal .form-actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+
+.service-create-modal .form-actions button {
+  width: auto;
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 10px 20px;
+}
+
+@media (max-width: 620px) {
+  .service-create-modal .service-tax-fields-inline {
+    grid-column: 1;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .service-create-modal .service-tax-rate-slot {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .service-create-modal .service-tax-rate-slot:has(> [hidden]) {
+    display: none;
+  }
+}
+
 .catalog-category-modal-content {
   display: grid;
   gap: 12px;

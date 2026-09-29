@@ -41,6 +41,57 @@ test("new service shows the company rate as a hint without filling the override 
   }
 });
 
+test("new service modal groups fields in reading order without changing submitted field names", () => {
+  const html = render({ modalLayout: true, isSalonBusiness: true, branches: [{ id: "a", name: "Store" }], companySstRate: 8, submitLabel: "Create service" });
+  const names = [...html.matchAll(/<(?:input|select)\b[^>]*name="([^"]+)"/g)].map(match => match[1]).filter(name => !name.startsWith("$"));
+  assert.deepEqual(names, ["branchId", "categoryId", "name", "price", "durationMinutes", "taxable", "taxRate"]);
+  assert.match(html, /service-create-form/);
+  assert.match(html, /service-tax-fields-inline/);
+  assert.match(html, /No active staff available/);
+  assert.match(html, /Add staff in People &amp; HR to assign this service\./);
+  assert.match(html, /placeholder="Use company rate: 8%"/);
+  assert.match(html, /type="submit">Create service/);
+});
+
+test("shared edit and non-salon service forms retain their fields and staff selection", () => {
+  const edit = render({ service: { id: "edit", price: 10, taxable: true, taxRate: 6, durationMinutes: 45, status: "ACTIVE" }, isSalonBusiness: true, staffOptions: [{ id: "staff", name: "Synthetic Staff", role: "STAFF", branchName: "Store" }], selectedStaffIds: ["staff"] });
+  assert.doesNotMatch(edit, /service-create-form|service-tax-fields-inline/);
+  assert.ok(edit.indexOf('name="taxRate"') < edit.indexOf('name="durationMinutes"'));
+  assert.match(edit, /name="status"/);
+  assert.match(edit, /name="staffIds"[^>]*checked=""[^>]*value="staff"/);
+  const auto = render({ modalLayout: true, isSalonBusiness: false, branches: [{ id: "a", name: "A" }, { id: "b", name: "B" }] });
+  assert.doesNotMatch(auto, /name="durationMinutes"|Available staff/);
+  assert.match(auto, /<select name="branchId" required=""/);
+});
+
+test("compact modal tax toggle hides only rate content and retains its slot and override", () => {
+  const state = { index: 0, values: [] as unknown[] };
+  (globalThis as any)[hookKey] = state;
+  const renderFields = () => { state.index = 0; return TaxFields({ compact: true, defaultTaxable: true, defaultTaxRate: "6", companySstRate: 8 }); };
+  function nodes(node: any): any[] {
+    if (!node || typeof node !== "object") return [];
+    return [node, ...[node.props?.children].flat(Infinity).flatMap(nodes)];
+  }
+  try {
+    let tree = renderFields();
+    let elements = nodes(tree);
+    assert.match(tree.props.className, /service-tax-fields-inline/);
+    elements.find(n => n.props?.name === "taxable").props.onChange({ currentTarget: { checked: false } });
+    tree = renderFields(); elements = nodes(tree);
+    const slot = elements.find(n => n.props?.className === "service-tax-rate-slot");
+    assert.ok(slot);
+    assert.notEqual(slot.props.hidden, true);
+    assert.ok(nodes(slot).some(n => n.props?.hidden === true));
+    const input = elements.find(n => n.props?.name === "taxRate");
+    assert.equal(input.props.defaultValue, "6");
+    assert.notEqual(input.props.disabled, true);
+    elements.find(n => n.props?.name === "taxable").props.onChange({ currentTarget: { checked: true } });
+    elements = nodes(renderFields());
+    assert.ok(!elements.some(n => n.props?.hidden === true));
+    assert.equal(elements.find(n => n.props?.name === "taxRate").props.defaultValue, "6");
+  } finally { delete (globalThis as any)[hookKey]; }
+});
+
 test("missing or invalid company rate uses honest generic guidance", () => {
   for (const companySstRate of [undefined, null, NaN, Infinity, -1, 101]) {
     const html = render({ companySstRate });
