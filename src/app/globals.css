@@ -9373,6 +9373,8 @@ label {
   text-align: right;
 }
 
+.business-day-info { padding: 10px 12px; margin: 16px 0 0; border-radius: 8px; background: #f1f5f8; color: #526477; font-size: 13px; line-height: 1.5; }
+
 .company-settings-field-grid {
   display: grid;
   align-items: start;

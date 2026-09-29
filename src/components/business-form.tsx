@@ -5,6 +5,7 @@ import {
   BusinessSubmitButton,
 } from "@/components/business-logo-upload";
 import { BusinessTaxFields } from "@/components/business-tax-fields";
+import { BusinessDayStartField } from "@/components/business-day-start-field";
 import {
   CompanySettingsDialog,
   CompanySettingsDialogFooter,
@@ -96,7 +97,7 @@ export function BusinessForm({
             dialogId="business-day-dialog"
             index="02"
             label="Business day"
-            description="Time zone and daily cutoff"
+            description="Time zone and reporting day"
           />
           <CompanySettingsDialogTrigger
             dialogId="company-tax-dialog"
@@ -188,20 +189,13 @@ export function BusinessForm({
           id="business-day-dialog"
           eyebrow="Operations"
           title="Business day"
-          description="Set the Malaysia time zone and when each business day closes."
+          description="Choose when Tetamu POS starts a new reporting day."
         >
           <div className="company-settings-field-grid">
-            <BusinessTimezoneField timezone={business.timezone} />
-            <label>
-              <span>Business day cutoff</span>
-              <input
-                name="businessDayCutoffTime"
-                type="time"
-                defaultValue={business.businessDayCutoffTime}
-                required
-              />
-            </label>
+            <BusinessTimezoneField timezone={business.timezone} reportingDay />
+            <BusinessDayStartField initialTime={business.businessDayCutoffTime} />
           </div>
+          <p className="business-day-info"><span aria-hidden="true">ⓘ </span>This does not change your store opening hours.</p>
           <CompanySettingsDialogFooter>
             <BusinessSubmitButton idleLabel="Save changes" />
           </CompanySettingsDialogFooter>
@@ -432,7 +426,7 @@ export function BusinessForm({
   );
 }
 
-function BusinessTimezoneField({ timezone }: { timezone: string }) {
+function BusinessTimezoneField({ timezone, reportingDay = false }: { timezone: string; reportingDay?: boolean }) {
   const isMalaysiaTimezone =
     timezone === "Asia/Kuching" || timezone === "Asia/Kuala_Lumpur";
 
@@ -455,8 +449,7 @@ function BusinessTimezoneField({ timezone }: { timezone: string }) {
         )}
       </select>
       <small className="field-helper" id="business-timezone-help">
-        Malaysia time is UTC+8. The standard technical time zone is kept
-        internally for accurate schedules and reports.
+        {reportingDay ? "Used for reports, appointments and shifts." : "Malaysia time is UTC+8. The standard technical time zone is kept internally for accurate schedules and reports."}
       </small>
     </label>
   );
