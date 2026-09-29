@@ -1,6 +1,7 @@
 "use client";
 
 import { CatalogFormModal } from "@/components/catalog-form-modal";
+import { ServiceCategoriesTable } from "@/components/service-categories-table";
 
 type CategoryItem = {
   id: string;
@@ -10,6 +11,7 @@ type CategoryItem = {
 };
 
 type CatalogCategoriesModalProps = {
+  variant?: "service";
   categories: CategoryItem[];
   closePath: string;
   createAction: (formData: FormData) => Promise<void>;
@@ -24,6 +26,7 @@ type CatalogCategoriesModalProps = {
 };
 
 export function CatalogCategoriesModal({
+  variant,
   categories,
   closePath,
   createAction,
@@ -46,6 +49,9 @@ export function CatalogCategoriesModal({
       title={title}
       wide
     >
+      {variant === "service" ? (
+        <ServiceCategoriesTable categories={categories} createAction={createAction} updateAction={updateAction} deleteAction={deleteAction} message={message} messageType={messageType} />
+      ) : (
       <div className="catalog-category-modal-content">
         <p className="catalog-category-description">{description}</p>
         {message ? <div className={messageType}>{message}</div> : null}
@@ -110,6 +116,7 @@ export function CatalogCategoriesModal({
           <p className="empty-state compact-empty-state">No categories yet.</p>
         )}
       </div>
+      )}
     </CatalogFormModal>
   );
 }

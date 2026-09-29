@@ -1,0 +1,29 @@
+.content { display: grid; gap: 16px; padding-bottom: 20px; }
+.count { margin: 0; color: var(--muted, #64748b); font-size: 14px; }
+.create { display: flex; gap: 12px; align-items: center; }
+.create input { flex: 1; min-width: 0; }
+.create button, .editActions button { width: auto; white-space: nowrap; }
+.empty { padding: 12px 0; }
+.empty p { margin: 6px 0 0; color: #64748b; }
+.table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.table th, .table td { text-align: left; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; overflow-wrap: anywhere; }
+.table th { font-size: 12px; color: #64748b; background: #f8fafc; }
+.table th:first-child { width: 48%; }
+.table th:last-child { width: 76px; }
+.active, .inactive { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.active { background: #e2f3eb; color: #226847; }
+.inactive { background: #f1f5f9; color: #475569; }
+.actionCell { position: relative; }
+.actionCell summary { cursor: pointer; list-style: none; width: 34px; height: 32px; display: grid; place-items: center; border-radius: 6px; font-size: 22px; }
+.actionCell summary::-webkit-details-marker { display: none; }
+.actionCell summary:hover { background: #edf5f4; }
+.content :is(button, summary, input, select):focus-visible { outline: 2px solid #0f766e; outline-offset: 3px; }
+.menu { position: absolute; z-index: 5; right: 12px; top: 46px; width: 230px; background: white; padding: 8px; border: 1px solid #dce5e8; border-radius: 10px; box-shadow: 0 8px 24px #152d4020; }
+.menu button { width: 100%; text-align: left; background: transparent; color: #243746; padding: 8px 10px; border: 0; border-radius: 5px; box-shadow: none; }
+.menu button:hover:not(:disabled) { background: #edf5f4; }
+.menu button:disabled { color: #94a3b8; cursor: not-allowed; }
+.menu small { display: block; padding: 6px 10px; color: #64748b; line-height: 1.5; }
+.editCell { background: #f8fafc; }
+.edit { display: grid; grid-template-columns: 1fr 180px; gap: 14px; }
+.edit label { display: grid; gap: 6px; }
+.editActions { grid-column: 1 / -1; display: flex; gap: 10px; justify-content: flex-end; }

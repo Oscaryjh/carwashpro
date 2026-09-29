@@ -35,6 +35,7 @@ test("actual createBusinessAction provisions one internal branch and independent
     });
     const { createBusinessAction } = createRequire(import.meta.url)(outfile);
     const businesses = [];
+    let retainedBusinessId: string | undefined;
     for (const outlet of ["Lintas", "Damai"]) {
       const name = `A Salon ${outlet} ${suffix}`;
       const slug = `outlet-${outlet.toLowerCase()}-${suffix}`;
@@ -49,6 +50,13 @@ test("actual createBusinessAction provisions one internal branch and independent
       assert.equal(business.users.length, 1);
       assert.equal(business.users[0].role, "BUSINESS_OWNER");
       assert.equal(business.users[0].branchId, business.branches[0].id);
+      assert.equal(await prisma.serviceCategory.count({ where: { businessId: business.id } }), 0);
+      if (retainedBusinessId) {
+        assert.deepEqual(await prisma.serviceCategory.findMany({ where: { businessId: retainedBusinessId }, select: { name: true, status: true } }), [{ name: "Merchant category", status: "INACTIVE" }]);
+      } else {
+        await prisma.serviceCategory.create({ data: { businessId: business.id, name: "Merchant category", status: "INACTIVE" } });
+        retainedBusinessId = business.id;
+      }
       assert.equal(await prisma.branchAttendanceSetting.count({ where: { businessId: business.id } }), 0);
       assert.equal(await prisma.auditLog.count({ where: { businessId: business.id, action: "BUSINESS_CREATED" } }), 1);
       assert.equal(await prisma.auditLog.count({ where: { businessId: business.id, action: "BRANCH_CREATED" } }), 1);

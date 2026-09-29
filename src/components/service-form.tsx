@@ -1,4 +1,5 @@
 import type { Service, ServiceCategory } from "@prisma/client";
+import Link from "next/link";
 import { BranchSelect } from "@/components/branch-select";
 import { ServiceTaxFields } from "@/components/service-tax-fields";
 import type { BranchOption } from "@/lib/branches";
@@ -68,6 +69,13 @@ export function ServiceForm({
               </option>
             ))}
           </select>
+          {!service && !categories.some((category) => category.status === "ACTIVE") ? (
+            <span className="service-category-setup">
+              <strong>No service categories yet.</strong>
+              <span>Create a category before adding a service.</span>
+              <Link href="/services?modal=categories">Manage categories</Link>
+            </span>
+          ) : null}
         </label>
         <label>
           <span>Name</span>

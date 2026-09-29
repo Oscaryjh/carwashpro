@@ -32,17 +32,6 @@ const LOGO_EXTENSIONS = new Map([
   ["image/webp", "webp"],
 ]);
 
-const SALON_DEFAULT_SERVICE_CATEGORIES = [
-  "Hair Services",
-  "Hair Colouring",
-  "Hair Treatment",
-  "Facial",
-  "Nails",
-  "Massage",
-  "Waxing",
-  "Other",
-] as const;
-
 const CREATE_BUSINESS_FIELDS = [
   "name",
   "slug",
@@ -198,16 +187,6 @@ export async function createBusinessAction(
         industryType: newBusiness.industryType,
         actorUserId: user.userId,
       });
-
-      if (newBusiness.industryType === "SALON_BEAUTY") {
-        await tx.serviceCategory.createMany({
-          data: SALON_DEFAULT_SERVICE_CATEGORIES.map((name) => ({
-            businessId: newBusiness.id,
-            name,
-          })),
-          skipDuplicates: true,
-        });
-      }
 
       await writeAuditLog(
         {

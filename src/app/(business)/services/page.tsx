@@ -298,6 +298,7 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
       ) : null}
       {isCategoriesOpen ? (
         <CatalogCategoriesModal
+          variant="service"
           categories={categories.map((category) => ({
             id: category.id,
             itemCount: category._count.services,

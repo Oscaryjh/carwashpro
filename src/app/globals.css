@@ -24742,3 +24742,5 @@ button:disabled,
     width: 100%;
   }
 }
+.service-category-setup { display: grid; gap: 6px; margin-top: 8px; font-size: 13px; color: #64748b; }
+.service-category-setup a { color: #0f766e; text-decoration: underline; font-weight: 600; }
