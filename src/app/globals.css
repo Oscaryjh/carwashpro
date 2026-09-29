@@ -1531,6 +1531,80 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* New product only: leave the shared edit form and other catalog modals unchanged. */
+.product-create-layout {
+  display: flex;
+  flex-direction: column;
+  width: min(820px, 100%);
+}
+
+.product-create-layout .product-create-modal-header {
+  flex-shrink: 0;
+  padding: 24px 28px 20px;
+}
+
+.product-create-layout .product-create-modal-body {
+  min-height: 0;
+  max-height: none;
+  padding: 0 28px 24px;
+}
+
+.product-create-layout .product-create-form { gap: 20px; }
+.product-create-layout .field-grid { align-items: start; gap: 18px 24px; }
+.product-create-layout label { font-size: 13px; gap: 6px; }
+.product-create-layout label > span:first-child { line-height: 20px; }
+.product-create-layout input:not([type="checkbox"]),
+.product-create-layout select { height: 42px; min-height: 42px; }
+.product-create-layout textarea { height: auto; min-height: 76px; resize: vertical; }
+.product-create-layout .field-helper,
+.product-create-layout .service-taxable-copy small {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.product-create-layout .product-tax-fields { display: grid; gap: 12px; min-width: 0; }
+.product-create-layout .product-tax-rate-slot { min-height: 110px; }
+.product-create-layout .product-create-form .product-toggle-field {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-rows: auto 42px auto;
+  align-items: center;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 6px 8px;
+}
+.product-create-layout .service-taxable-copy { display: contents; }
+.product-create-layout .service-taxable-copy strong {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  font-size: 13px;
+  line-height: 20px;
+}
+.product-create-layout .service-taxable-indicator,
+.product-create-layout .product-toggle-state { grid-row: 2; }
+.product-create-layout .product-toggle-state { grid-column: 2; font-weight: 500; }
+.product-create-layout .service-taxable-copy small { grid-column: 1 / -1; grid-row: 3; }
+.product-create-layout .product-inventory-section {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+.product-create-layout .product-inventory-section h3 { margin: 0; font-size: 15px; }
+.product-create-layout .product-inventory-section .product-toggle-field {
+  grid-template-columns: auto 36px minmax(0, 1fr);
+  grid-template-rows: 30px auto;
+}
+.product-create-layout .product-inventory-section .service-taxable-copy strong { grid-column: 1; }
+.product-create-layout .product-inventory-section .service-taxable-indicator { grid-column: 2; grid-row: 1; }
+.product-create-layout .product-inventory-section .product-toggle-state { grid-column: 3; grid-row: 1; }
+.product-create-layout .product-inventory-section .service-taxable-copy small { grid-row: 2; }
+.product-create-layout .form-actions { justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 18px; }
+.product-create-layout .form-actions button { width: auto; flex: 0 0 auto; min-height: 42px; padding: 10px 20px; }
+
 /* New service only: leave the shared edit form and other catalog modals unchanged. */
 .service-create-modal {
   display: flex;

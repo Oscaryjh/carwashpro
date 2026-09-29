@@ -8,21 +8,25 @@ type ProductCreateModalProps = {
   branches: BranchOption[];
   categories: Pick<ProductCategory, "id" | "name" | "status">[];
   inventoryEnabled: boolean;
+  companySstRate?: number | null;
 };
 
-export function ProductCreateModal({ action, branches, categories, inventoryEnabled }: ProductCreateModalProps) {
+export function ProductCreateModal({ action, branches, categories, inventoryEnabled, companySstRate }: ProductCreateModalProps) {
   return (
     <CatalogFormModal
       ariaLabel="New product"
       closePath="/products"
       eyebrow="PRODUCT CATALOG"
       title="New product"
+      modalClassName="product-create-layout"
     >
       <ProductForm
         action={action}
         branches={branches}
         categories={categories}
         inventoryEnabled={inventoryEnabled}
+        modalLayout
+        companySstRate={companySstRate}
         returnPath="/products"
         submitLabel="Create product"
       />

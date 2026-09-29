@@ -66,6 +66,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const message = params.message?.trim();
   const messageType = params.type === "error" ? "error" : "success";
   const isCreateOpen = params.modal === "create" || params.type === "create";
+  const companyTax = isCreateOpen
+    ? await prisma.business.findUnique({ where: { id: businessId }, select: { sstRate: true } })
+    : null;
   const isCategoriesOpen = params.modal === "categories";
   const hasFilters = Boolean(query || status || categoryId);
   const totalPages = Math.max(1, Math.ceil(matchingCount / CATALOG_PAGE_SIZE));
@@ -152,6 +155,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           branches={branches}
           categories={categories.filter((category) => category.status === "ACTIVE")}
           inventoryEnabled={moduleContext.enabledModules.has("INVENTORY")}
+          companySstRate={companyTax?.sstRate == null ? null : Number(companyTax.sstRate)}
         />
       ) : null}
       {isCategoriesOpen ? (
