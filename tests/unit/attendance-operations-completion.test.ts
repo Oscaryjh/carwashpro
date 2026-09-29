@@ -75,6 +75,7 @@ test("Photo Attendance is absent from branch Attendance settings UI", () => {
 });
 
 test("device location is visually confirmed before branch coordinates change", () => {
+  const settingsForm = readFileSync(new URL("../../src/components/attendance-location-fields.tsx", import.meta.url), "utf8");
   assert.match(settingsForm, /pendingDeviceLocation/);
   assert.match(settingsForm, /Google Maps preview/);
   assert.match(settingsForm, /Use this location/);

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { BusinessForm } from "@/components/business-form";
-import { BusinessAttendanceLocations } from "@/components/business-attendance-locations";
-import { hasBusinessCapability } from "@/lib/business-groups/business-access";
-import { resolveAttendanceScope } from "@/lib/attendance/scope";
+import { CompanyClockInLocation, CompanyLocationSaveProvider } from "@/components/company-clock-in-location";
+import { loadCompanyLocationView } from "@/lib/attendance/company-location-view";
+import { saveCompanyClockInLocationAction } from "./clock-in-location/actions";
 import { assertRole } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 import { requireBusinessContext } from "@/lib/tenant";
@@ -44,22 +44,7 @@ export default async function BusinessSettingsPage({
     orderBy: [{ brand: "asc" }, { model: "asc" }],
   });
   const moduleContext = await loadBusinessModuleContext(context.businessId);
-  const canManageAttendance = moduleContext.enabledModules.has("HR") &&
-    hasBusinessCapability(context.access, "MODIFY_ATTENDANCE_SETTINGS");
-  const attendanceScope = canManageAttendance ? await resolveAttendanceScope(context.access) : null;
-  const attendanceBranches = attendanceScope ? await prisma.branch.findMany({
-    where: {
-      businessId: context.businessId,
-      id: { in: [...attendanceScope.allowedBranchIds] },
-      status: "ACTIVE",
-    },
-    select: {
-      id: true,
-      name: true,
-      attendanceSetting: { select: { isEnabled: true, requireGeofence: true, geofenceRadiusMeters: true } },
-    },
-    orderBy: { name: "asc" },
-  }) : [];
+  const locationView = await loadCompanyLocationView(context.access, moduleContext.enabledModules.has("HR"), business?.timezone ?? "Asia/Kuching");
   const commercial = await getEffectiveCommercialConfiguration({ businessId: context.businessId });
   const subscriptionInvoices = await listSubscriptionInvoices({ actor: context.user, businessId: context.businessId });
   const paymentMethods = await getEffectiveBusinessPaymentMethods(context.businessId);
@@ -79,13 +64,16 @@ export default async function BusinessSettingsPage({
   return (
     <>
       <section className="content company-settings-page">
+        <CompanyLocationSaveProvider action={saveCompanyClockInLocationAction}>
         <BusinessForm
           action={updateBusinessAction}
           mode="edit"
           business={business}
           settingsLayout
-          attendanceLocations={<BusinessAttendanceLocations branches={attendanceBranches} available={canManageAttendance} hrEnabled={moduleContext.enabledModules.has("HR")} />}
+          openClockInLocation={params.panel === "clock-in-location"}
+          attendanceLocations={<CompanyClockInLocation view={locationView} />}
         />
+        </CompanyLocationSaveProvider>
         <div className="company-settings-sheet company-settings-secondary-section" id="staff-app-appearance">
           <div className="company-settings-section-heading">
             <div>

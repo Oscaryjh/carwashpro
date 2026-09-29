@@ -59,6 +59,11 @@ export function CompanySettingsDialog({
   useEffect(() => {
     if (initiallyOpen && dialogRef.current && !dialogRef.current.open) {
       dialogRef.current.showModal();
+      if (window.location.hash === "#clock-in-location") {
+        const location = dialogRef.current.querySelector<HTMLElement>("#clock-in-location");
+        location?.focus();
+        location?.scrollIntoView({ block: "start" });
+      }
     }
   }, [initiallyOpen]);
 

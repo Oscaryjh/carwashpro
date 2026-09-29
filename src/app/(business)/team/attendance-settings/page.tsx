@@ -3,6 +3,7 @@ import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { hasBusinessCapability } from "@/lib/business-groups/business-access";
 import { prisma } from "@/lib/prisma";
+import { resolveCompanyLocationTarget } from "@/lib/attendance/company-location";
 import styles from "./attendance-settings.module.css";
 
 export default async function AttendanceSettingsPage() {
@@ -11,6 +12,7 @@ export default async function AttendanceSettingsPage() {
   );
   const scope = await resolveAttendanceScope(access);
   const canManage = hasBusinessCapability(access, "MODIFY_ATTENDANCE_SETTINGS");
+  const locationTarget = await resolveCompanyLocationTarget(access);
   const [business, branches] = await Promise.all([
     prisma.business.findUnique({
       where: { id: businessId },
@@ -85,12 +87,13 @@ export default async function AttendanceSettingsPage() {
                     </dd>
                   </div>
                 </dl>
+                {locationTarget.kind === "single" && <div><h3>Clock-in location</h3><p>{setting ? "Location configured" : "Location not configured"}</p><p>Managed in Business details</p>{canManage && <Link href="/business/settings/clock-in-location">Manage location →</Link>}</div>}
                 {canManage ? (
                   <Link
                     className="button-link"
                     href={`/team/attendance-settings/${branch.id}`}
                   >
-                    GPS &amp; Attendance
+                    {locationTarget.kind === "single" ? "Attendance rules" : "GPS & Attendance"}
                   </Link>
                 ) : (
                   <p className={styles.readOnly}>

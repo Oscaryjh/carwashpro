@@ -1,5 +1,6 @@
 "use client";
 
+import { AttendanceLocationFields } from "./attendance-location-fields";
 import { useActionState, useState } from "react";
 import type { BranchAttendanceSettingActionState } from "@/app/(business)/team/attendance-settings/actions";
 import styles from "@/app/(business)/team/attendance-settings/attendance-settings.module.css";
@@ -9,7 +10,7 @@ const initialBranchAttendanceSettingActionState: BranchAttendanceSettingActionSt
   message: "",
 };
 
-type AttendanceSettingValues = {
+export type AttendanceSettingValues = {
   latitude: string;
   longitude: string;
   geofenceRadiusMeters: number;
@@ -35,12 +36,7 @@ type AttendanceSettingsFormProps = {
   };
   isConfigured: boolean;
   initialValues: AttendanceSettingValues;
-};
-
-type PendingDeviceLocation = {
-  latitude: number;
-  longitude: number;
-  accuracyMeters: number;
+  locationManagedElsewhere?: boolean;
 };
 
 export function AttendanceSettingsForm({
@@ -48,72 +44,16 @@ export function AttendanceSettingsForm({
   branch,
   isConfigured,
   initialValues,
+  locationManagedElsewhere = false,
 }: AttendanceSettingsFormProps) {
   const [state, formAction, pending] = useActionState(
     action,
     initialBranchAttendanceSettingActionState,
   );
-  const [latitude, setLatitude] = useState(initialValues.latitude);
-  const [longitude, setLongitude] = useState(initialValues.longitude);
-  const [locating, setLocating] = useState(false);
-  const [locationMessage, setLocationMessage] = useState("");
-  const [pendingDeviceLocation, setPendingDeviceLocation] =
-    useState<PendingDeviceLocation | null>(null);
   const [attendancePaused, setAttendancePaused] = useState(
     isConfigured ? !initialValues.isEnabled : false,
   );
-  const isMalaysiaTimezone =
-    initialValues.timezone === "Asia/Kuching" ||
-    initialValues.timezone === "Asia/Kuala_Lumpur";
-
-  function useCurrentLocation() {
-    if (!navigator.geolocation) {
-      setLocationMessage("This browser does not provide device location.");
-      return;
-    }
-
-    setLocating(true);
-    setLocationMessage("Requesting the current device location...");
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setPendingDeviceLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracyMeters: position.coords.accuracy,
-        });
-        setLocationMessage("");
-        setLocating(false);
-      },
-      (error) => {
-        const message =
-          error.code === error.PERMISSION_DENIED
-            ? "Location access is off. Allow location for this site in your browser settings, then try again."
-            : error.code === error.TIMEOUT
-              ? "Location took too long. Move near a window or outdoors, then try again."
-              : "This device could not determine its location. Check GPS and precise-location settings, then try again.";
-        setLocationMessage(message);
-        setLocating(false);
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 15_000,
-      },
-    );
-  }
-
-  function confirmCurrentLocation() {
-    if (!pendingDeviceLocation) {
-      return;
-    }
-
-    setLatitude(pendingDeviceLocation.latitude.toFixed(6));
-    setLongitude(pendingDeviceLocation.longitude.toFixed(6));
-    setPendingDeviceLocation(null);
-    setLocationMessage(
-      "Branch location updated from this device. Save Attendance Settings to apply it.",
-    );
-  }
+  const needsLocation = locationManagedElsewhere && !isConfigured;
 
   return (
     <form
@@ -160,19 +100,19 @@ export function AttendanceSettingsForm({
                 : styles.attendanceStatusActive
             }`}
           >
-            {attendancePaused ? "Paused" : "Active"}
+            {needsLocation ? "Not configured" : attendancePaused ? "Paused" : "Active"}
           </span>
         </div>
 
         <div className={styles.attendanceAvailability}>
           <div>
             <strong>
-              {attendancePaused
+              {needsLocation ? "Clock-in location is required" : attendancePaused
                 ? "Staff clock-in is paused"
                 : "Staff can use Attendance"}
             </strong>
             <span>
-              {attendancePaused
+              {needsLocation ? "Configure the clock-in location in Business details first." : attendancePaused
                 ? "Staff cannot Clock In or Clock Out for this branch until Attendance is resumed. Existing history remains available."
                 : isConfigured
                   ? "Clock In and Clock Out use the saved location and work-policy rules below."
@@ -182,6 +122,7 @@ export function AttendanceSettingsForm({
           <label className={styles.pauseControl}>
             <input
               checked={attendancePaused}
+              disabled={needsLocation || pending}
               onChange={(event) => setAttendancePaused(event.target.checked)}
               type="checkbox"
             />
@@ -193,220 +134,16 @@ export function AttendanceSettingsForm({
         </div>
       </section>
 
-      {pendingDeviceLocation ? (
-        <div
-          className={styles.locationModalBackdrop}
-          onMouseDown={(event) => {
-            if (event.currentTarget === event.target) {
-              setPendingDeviceLocation(null);
-            }
-          }}
-        >
-          <section
-            aria-describedby="location-confirmation-description"
-            aria-labelledby="location-confirmation-title"
-            aria-modal="true"
-            className={styles.locationModal}
-            role="dialog"
-          >
-            <div className={styles.locationModalHeading}>
-              <div>
-                <p>CONFIRM BRANCH LOCATION</p>
-                <h2 id="location-confirmation-title">Is this the right place?</h2>
-              </div>
-              <button
-                aria-label="Close location preview"
-                autoFocus
-                className={styles.locationModalClose}
-                onClick={() => setPendingDeviceLocation(null)}
-                type="button"
-              >
-                X
-              </button>
-            </div>
-
-            <p
-              className={styles.locationModalDescription}
-              id="location-confirmation-description"
-            >
-              Check that the marker is at {branch.name}. Nothing changes until you
-              confirm this location and save the settings.
-            </p>
-
-            <div className={styles.locationMapFrame}>
-              <iframe
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                src={`https://www.google.com/maps?q=${pendingDeviceLocation.latitude},${pendingDeviceLocation.longitude}&z=18&output=embed`}
-                title={`Google Maps preview for ${branch.name}`}
-              />
-            </div>
-
-            <div className={styles.locationConfirmationDetails}>
-              <div>
-                <span>Detected position</span>
-                <strong>{branch.name}</strong>
-                <small>
-                  GPS accuracy: approximately{" "}
-                  {Math.round(pendingDeviceLocation.accuracyMeters)} m
-                </small>
-              </div>
-              <a
-                href={`https://www.google.com/maps?q=${pendingDeviceLocation.latitude},${pendingDeviceLocation.longitude}`}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Open in Google Maps
-              </a>
-            </div>
-
-            <details className={styles.locationCoordinatesDetails}>
-              <summary>View coordinates</summary>
-              <span>
-                {pendingDeviceLocation.latitude.toFixed(6)}, {" "}
-                {pendingDeviceLocation.longitude.toFixed(6)}
-              </span>
-            </details>
-
-            <div className={styles.locationModalActions}>
-              <button
-                className={styles.locationSecondaryButton}
-                disabled={locating}
-                onClick={useCurrentLocation}
-                type="button"
-              >
-                {locating ? "Locating..." : "Try location again"}
-              </button>
-              <button onClick={confirmCurrentLocation} type="button">
-                Use this location
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-
+      {locationManagedElsewhere ? (
+        <section className={styles.section}>
+          <h2>Clock-in location</h2>
+          <p>{isConfigured ? "Location configured" : "Location not configured"}</p>
+          {isConfigured && <p>Radius: {initialValues.geofenceRadiusMeters} m</p>}
+          <p>Managed in Business details</p>
+          <a href="/business/settings/clock-in-location">Manage location →</a>
+        </section>
+      ) : <AttendanceLocationFields branch={branch} initialValues={initialValues} pending={pending} />}
       <section className={styles.section}>
-        <div className={styles.sectionHeading}>
-          <div>
-            <p>GEOFENCE CENTRE</p>
-            <h2>Branch coordinates</h2>
-          </div>
-          <button
-            className={styles.locationButton}
-            disabled={locating || pending}
-            onClick={useCurrentLocation}
-            type="button"
-          >
-            {locating ? "Locating..." : "Use current device location"}
-          </button>
-        </div>
-
-        <div className={styles.fieldGrid}>
-          <label>
-            <span>Latitude</span>
-            <input
-              inputMode="decimal"
-              max="90"
-              min="-90"
-              name="latitude"
-              onChange={(event) => setLatitude(event.target.value)}
-              required
-              step="0.000001"
-              value={latitude}
-            />
-            <small>-90 to 90</small>
-          </label>
-          <label>
-            <span>Longitude</span>
-            <input
-              inputMode="decimal"
-              max="180"
-              min="-180"
-              name="longitude"
-              onChange={(event) => setLongitude(event.target.value)}
-              required
-              step="0.000001"
-              value={longitude}
-            />
-            <small>-180 to 180</small>
-          </label>
-        </div>
-
-        {locationMessage ? (
-          <p className={styles.locationMessage} role="status">
-            {locationMessage}
-          </p>
-        ) : null}
-        <div className={styles.coordinatePreview} aria-live="polite">
-          <span>
-            Latitude: <strong>{latitude || "Not set"}</strong>
-          </span>
-          <span>
-            Longitude: <strong>{longitude || "Not set"}</strong>
-          </span>
-        </div>
-      </section>
-
-      <section className={styles.section}>
-        <div className={styles.sectionHeading}>
-          <div>
-            <p>LOCATION RULES</p>
-            <h2>Geofence validation</h2>
-          </div>
-        </div>
-
-        <div className={styles.fieldGrid}>
-          <label>
-            <span>Geofence Radius (metres)</span>
-            <input
-              defaultValue={initialValues.geofenceRadiusMeters}
-              max="1000"
-              min="20"
-              name="geofenceRadiusMeters"
-              required
-              step="1"
-              type="number"
-            />
-            <small>The permitted clock-in area around the branch (20-1000 m).</small>
-          </label>
-          <label>
-            <span>Maximum Accepted GPS Error (metres)</span>
-            <input
-              defaultValue={initialValues.minimumAccuracyMeters}
-              max="500"
-              min="10"
-              name="minimumAccuracyMeters"
-              required
-              step="1"
-              type="number"
-            />
-            <small>The largest device location error accepted (10-500 m).</small>
-          </label>
-          <label>
-            <span>Time zone</span>
-            <select
-              aria-describedby="attendance-timezone-help"
-              defaultValue={
-                isMalaysiaTimezone
-                  ? "Asia/Kuala_Lumpur"
-                  : initialValues.timezone
-              }
-              name="timezone"
-              required
-            >
-              {!isMalaysiaTimezone ? (
-                <option value={initialValues.timezone}>
-                  {initialValues.timezone} (Current)
-                </option>
-              ) : null}
-              <option value="Asia/Kuala_Lumpur">Malaysia (UTC+8)</option>
-            </select>
-            <small id="attendance-timezone-help">
-              Malaysia time is used for clock-in dates, shifts and overnight work.
-            </small>
-          </label>
-        </div>
-
         <div className={styles.checkGrid}>
           <ToggleField
             defaultChecked={initialValues.requireGeofence}
@@ -436,7 +173,7 @@ export function AttendanceSettingsForm({
       <WorkPolicyFields initialValues={initialValues} />
 
       <div className={styles.actions}>
-        <button disabled={pending} type="submit">
+        <button disabled={pending || needsLocation} type="submit">
           {pending ? "Saving..." : "Save Attendance Settings"}
         </button>
       </div>

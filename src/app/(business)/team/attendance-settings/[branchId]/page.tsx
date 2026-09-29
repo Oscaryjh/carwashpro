@@ -4,6 +4,7 @@ import { AttendanceSettingsForm } from "@/components/attendance-settings-form";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 import { prisma } from "@/lib/prisma";
+import { resolveCompanyLocationTarget } from "@/lib/attendance/company-location";
 import { saveBranchAttendanceSettingAction } from "../actions";
 import styles from "../attendance-settings.module.css";
 
@@ -47,6 +48,7 @@ export default async function AttendanceSettingsDetailPage({
   }
 
   const setting = branch.attendanceSetting;
+  const locationTarget = await resolveCompanyLocationTarget(access);
 
   return (
     <section className={`content hr-module-page ${styles.page}`}>
@@ -70,6 +72,7 @@ export default async function AttendanceSettingsDetailPage({
       ) : null}
 
       <AttendanceSettingsForm
+        locationManagedElsewhere={locationTarget.kind === "single"}
         action={saveBranchAttendanceSettingAction}
         branch={{ id: branch.id, name: branch.name }}
         isConfigured={Boolean(setting)}

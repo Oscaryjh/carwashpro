@@ -8,6 +8,7 @@ import { z } from "zod";
 import { getAuditRequestContext } from "@/lib/audit";
 import { upsertBranchAttendanceSetting } from "@/lib/attendance/branch-setting-service";
 import { resolveAttendanceScope } from "@/lib/attendance/scope";
+import { resolveCompanyLocationTarget } from "@/lib/attendance/company-location";
 import { requireBusinessUser } from "@/lib/auth/business-user";
 
 export type BranchAttendanceSettingActionState = {
@@ -27,12 +28,14 @@ export async function saveBranchAttendanceSettingAction(
     const scope = await resolveAttendanceScope(access);
     const branchId = String(formData.get("branchId") ?? "").trim();
     const request = await getAuditRequestContext();
+    const locationTarget = await resolveCompanyLocationTarget(access);
 
     await upsertBranchAttendanceSetting({
       businessId,
       allowedBranchIds: scope.allowedBranchIds,
       actor: user,
       request,
+      mode: locationTarget.kind === "single" ? "policy" : undefined,
       input: {
         businessId,
         branchId,

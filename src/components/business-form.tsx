@@ -26,6 +26,7 @@ type BusinessFormProps = {
   fieldErrors?: Record<string, string | undefined>;
   attendanceLocations?: ReactNode;
   workspaceLayout?: boolean;
+  openClockInLocation?: boolean;
 };
 
 export function BusinessForm({
@@ -39,6 +40,7 @@ export function BusinessForm({
   fieldErrors = {},
   attendanceLocations,
   workspaceLayout = false,
+  openClockInLocation = false,
 }: BusinessFormProps) {
   const status = business?.status ?? "active";
 
@@ -112,6 +114,7 @@ export function BusinessForm({
 
         <CompanySettingsDialog
           id="company-profile-dialog"
+          initiallyOpen={openClockInLocation}
           eyebrow="Company profile"
           title="Business details"
           description="Information used across invoices, receipts and customer records."
@@ -176,8 +179,8 @@ export function BusinessForm({
           </div>
           {attendanceLocations}
           <CompanySettingsDialogFooter>
-            {attendanceLocations && <p className="company-profile-save-note">Saves company settings only. Clock-in location is saved separately in HR.</p>}
-            <BusinessSubmitButton idleLabel="Save changes" />
+            {attendanceLocations && <p className="company-profile-save-note">Saves company profile changes only. Save clock-in location separately.</p>}
+            <BusinessSubmitButton idleLabel="Save company changes" />
           </CompanySettingsDialogFooter>
         </CompanySettingsDialog>
 
