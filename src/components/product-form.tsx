@@ -23,10 +23,25 @@ type ProductFormProps = {
 };
 
 export function ProductForm({ action, branches, categories, product, submitLabel, returnPath, inventoryEnabled, modalLayout = false, companySstRate }: ProductFormProps) {
+  const isCreate = !product;
   const [trackInventory, setTrackInventory] = useState(product?.trackInventory ?? false);
   const [taxable, setTaxable] = useState(product?.taxable ?? false);
   const [hiddenRateError, setHiddenRateError] = useState(false);
   const hasCompanyRate = typeof companySstRate === "number" && Number.isFinite(companySstRate) && companySstRate >= 0 && companySstRate <= 100;
+  const priceField = <label>
+    <span>Price</span>
+    <input min="0" name="price" step="0.01" type="number" defaultValue={product ? Number(product.price).toFixed(2) : ""} required />
+  </label>;
+  const costField = <label>
+    <span>{isCreate || modalLayout ? "Cost price" : "Cost price optional"}</span>
+    <input min="0" name="costPrice" step="0.01" type="number"
+      defaultValue={product?.costPrice == null ? "" : Number(product.costPrice).toFixed(2)}
+      onInvalid={isCreate ? (event) => {
+        const details = event.currentTarget.closest("details");
+        if (details) details.open = true;
+      } : undefined} />
+    {isCreate ? <small className="field-helper">Used as the default unit cost when creating purchase orders.</small> : null}
+  </label>;
   return (
     <form action={action} className={modalLayout ? "form product-create-form" : "form"}>
       {product ? <input name="productId" type="hidden" value={product.id} /> : null}
@@ -36,7 +51,7 @@ export function ProductForm({ action, branches, categories, product, submitLabel
           <span>Name</span>
           <input name="name" defaultValue={product?.name ?? ""} placeholder="Shampoo" required />
         </label>
-        <label>
+        {isCreate ? priceField : <label>
           <span>SKU</span>
           <input
             aria-label="System-generated SKU"
@@ -46,7 +61,7 @@ export function ProductForm({ action, branches, categories, product, submitLabel
           <small className="field-helper">
             {modalLayout ? "Tetamu will generate a unique SKU when you save this product." : "Tetamu assigns the next unique product number. No manual entry is needed."}
           </small>
-        </label>
+        </label>}
         <label>
           <span>Category</span>
           <select defaultValue={product?.categoryId ?? ""} name="categoryId" required>
@@ -59,27 +74,7 @@ export function ProductForm({ action, branches, categories, product, submitLabel
           </select>
           {!categories.length ? <small className="field-helper">{modalLayout ? "No category yet?" : "Create a product category before adding products."} <Link href="/products?modal=categories">Manage categories</Link></small> : null}
         </label>
-        <label>
-          <span>Price</span>
-          <input
-            min="0"
-            name="price"
-            step="0.01"
-            type="number"
-            defaultValue={product ? Number(product.price).toFixed(2) : ""}
-            required
-          />
-        </label>
-        <label>
-          <span>{modalLayout ? "Cost price" : "Cost price optional"}</span>
-          <input
-            min="0"
-            name="costPrice"
-            step="0.01"
-            type="number"
-            defaultValue={product?.costPrice == null ? "" : Number(product.costPrice).toFixed(2)}
-          />
-        </label>
+        {!isCreate ? <>{priceField}{costField}</> : null}
         {modalLayout ? <div className="product-tax-fields">
           <label className="service-taxable-field product-toggle-field">
             <input name="taxable" type="checkbox" checked={taxable} onChange={(event) => {
@@ -143,10 +138,10 @@ export function ProductForm({ action, branches, categories, product, submitLabel
         ) : null}
       </div>
 
-      <label>
+      {!isCreate ? <label>
         <span>{modalLayout ? "Description" : "Description optional"}</span>
         <textarea defaultValue={product?.description ?? ""} name="description" rows={3} />
-      </label>
+      </label> : null}
 
       <div className={modalLayout ? "product-inventory-section" : undefined} style={!modalLayout || !inventoryEnabled ? { display: "contents" } : undefined}>
       {modalLayout && inventoryEnabled ? <h3>Inventory</h3> : null}
@@ -195,6 +190,11 @@ export function ProductForm({ action, branches, categories, product, submitLabel
         )}
       </fieldset> : null}
       </div>
+
+      {isCreate ? <details className="product-advanced-settings">
+        <summary>Advanced settings</summary>
+        <div className="product-advanced-fields">{costField}</div>
+      </details> : null}
 
       <div className="form-actions">
         <button type="submit">{submitLabel}</button>

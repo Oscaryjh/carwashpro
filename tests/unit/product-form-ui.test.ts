@@ -36,14 +36,38 @@ function nodes(node: any): any[] {
 test("new product exposes ordered fields and concise create-only guidance", () => {
   const html = render();
   assert.match(html, /product-create-form/);
-  assert.deepEqual([...html.matchAll(/<(?:input|select)\b[^>]*name="([^"]+)"/g)].map(m => m[1]).filter(n => !n.startsWith("$")), ["name", "categoryId", "price", "costPrice", "taxable", "taxRate", "trackInventory"]);
-  assert.match(html, /value="Assigned automatically"/);
-  assert.match(html, /Tetamu will generate a unique SKU when you save this product\./);
+  assert.deepEqual([...html.matchAll(/<(?:input|select)\b[^>]*name="([^"]+)"/g)].map(m => m[1]).filter(n => !n.startsWith("$")), ["name", "price", "categoryId", "taxable", "taxRate", "trackInventory", "costPrice"]);
+  assert.doesNotMatch(html, /System-generated SKU|Assigned automatically|<span>SKU<\/span>/);
   assert.match(html, /No category yet\? <a href="\/products\?modal=categories">Manage categories/);
   assert.match(html, /<span>Cost price<\/span>/);
-  assert.match(html, /<span>Description<\/span>/);
+  assert.doesNotMatch(html, /name="description"|<textarea/);
   assert.match(html, /Keep track of stock quantity for this product\./);
   assert.doesNotMatch(html, /immutable branch stock ledger|name="stock_a"/);
+});
+
+test("new cost remains an enabled form field inside initially closed advanced settings", () => {
+  const html = render();
+  const advanced = html.match(/<details\b[^>]*>[\s\S]*?<\/details>/)?.[0] ?? "";
+  assert.ok(advanced);
+  assert.doesNotMatch(advanced.split(">")[0], /\bopen\b/);
+  assert.match(advanced, /<summary>Advanced settings<\/summary>/);
+  assert.match(advanced, /Used as the default unit cost when creating purchase orders\./);
+  const input = advanced.match(/<input[^>]*name="costPrice"[^>]*>/)?.[0] ?? "";
+  assert.ok(input);
+  assert.doesNotMatch(input, /disabled/);
+  assert.match(input, /value=""/);
+  assert.ok(html.indexOf("product-inventory-section") < html.indexOf("<details"));
+});
+
+test("edit keeps saved SKU description and cost even when modal styling is requested", () => {
+  const product = { id: "p", name: "Product", description: "Existing product notes", sku: "SKU-023", status: "ACTIVE", price: 10, costPrice: 3.25, taxRate: null, taxable: false, trackInventory: false, stocks: [] };
+  for (const modalLayout of [false, true]) {
+    const html = render({ modalLayout, product });
+    assert.match(html, /value="SKU-023"/);
+    assert.match(html, /<textarea[^>]*name="description"[^>]*>Existing product notes<\/textarea>/);
+    assert.match(html, /name="costPrice"[^>]*value="3.25"/);
+    assert.doesNotMatch(html, /<summary>Advanced settings<\/summary>/);
+  }
 });
 
 test("company rate is a hint only, including zero and fractional rates", () => {

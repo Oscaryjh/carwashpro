@@ -1550,6 +1550,10 @@
 }
 
 .product-create-layout .product-create-form { gap: 20px; }
+.product-create-layout .product-advanced-settings { border-top: 1px solid var(--line); padding-top: 16px; }
+.product-create-layout .product-advanced-settings > summary { cursor: pointer; font-weight: 600; color: var(--ink); width: fit-content; }
+.product-create-layout .product-advanced-settings > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.product-create-layout .product-advanced-fields { margin-top: 16px; max-width: 380px; }
 .product-create-layout .field-grid { align-items: start; gap: 18px 24px; }
 .product-create-layout label { font-size: 13px; gap: 6px; }
 .product-create-layout label > span:first-child { line-height: 20px; }
