@@ -12,6 +12,7 @@ import {
 import type { CashierCatalogResult } from "@/lib/cashier/catalog";
 import type { CatalogDiscountOption } from "@/lib/catalog-discounts";
 import type { TaxDisplaySettings } from "@/lib/tax/calculator";
+import type { CashierCatalogCreateAccess } from "@/lib/cashier/catalog-create-access";
 
 type CashierSalesPanelProps = {
   action: (formData: FormData) => Promise<CashierSaleState>;
@@ -19,6 +20,7 @@ type CashierSalesPanelProps = {
   branchId: string;
   branches: CashierBranchOption[];
   catalogDiscounts: CatalogDiscountOption[];
+  catalogCreateAccess: CashierCatalogCreateAccess;
   hasCatalogItems: boolean;
   hasOpenShift: boolean;
   initialCatalog: CashierCatalogResult;
@@ -41,6 +43,7 @@ export function CashierSalesPanel({
   branchId,
   branches,
   catalogDiscounts,
+  catalogCreateAccess,
   hasCatalogItems,
   hasOpenShift,
   initialCatalog,
@@ -52,16 +55,31 @@ export function CashierSalesPanel({
   loyaltySettings,
 }: CashierSalesPanelProps) {
   if (!hasCatalogItems && !initialSale?.lines.length) {
+    const createOptions = [
+      { key: "service" as const, label: "Create service", href: "/services?modal=create" },
+      { key: "product" as const, label: "Create product", href: "/products?type=create" },
+      { key: "package" as const, label: "Create package", href: "/packages/new" },
+    ].filter(({ key }) => catalogCreateAccess[key]);
+    const names = createOptions.map(({ key }) => key);
+    const itemDescription = names.length === 3
+      ? names.join(", ").replace(/, ([^,]+)$/, ", or $1")
+      : names.join(" or ");
+
     return (
       <div className="cashier-empty-state">
         <span aria-hidden="true" className="cashier-empty-icon">+</span>
         <div>
           <h3>No sale items yet</h3>
-          <p>Create an active service, product, or package before starting a sale.</p>
-          <div className="cashier-empty-actions">
-            <Link className="button-link" href="/packages/new">Create package</Link>
-            <Link className="button-link secondary" href="/products?type=create">Create product</Link>
-          </div>
+          <p>{createOptions.length
+            ? `Create an active ${itemDescription} before starting a sale.`
+            : "No active sale items are available. Ask your business owner to set up the catalog."}</p>
+          {createOptions.length > 0 ? (
+            <div className="cashier-empty-actions">
+              {createOptions.map(({ key, label, href }, index) => (
+                <Link key={key} className={index === 0 ? "button-link" : "button-link secondary"} href={href}>{label}</Link>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     );

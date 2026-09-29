@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { CashierSalesPanel } from "@/components/cashier-sales-panel";
+import { getCashierCatalogCreateAccess } from "@/lib/cashier/catalog-create-access";
 import type {
   CashierCartLine,
   CashierInitialSale,
@@ -51,7 +52,7 @@ function formatSingaporeDate(date: Date) {
 }
 
 export default async function CashierPage({ searchParams }: CashierPageProps) {
-  const { user, businessId, industryType } = await requireBusinessUser(
+  const { user, businessId, industryType, moduleContext } = await requireBusinessUser(
     "PROCESS_CASHIER_PAYMENT",
   );
 
@@ -344,6 +345,7 @@ export default async function CashierPage({ searchParams }: CashierPageProps) {
           </div>
         ) : null}
         <CashierSalesPanel
+          catalogCreateAccess={getCashierCatalogCreateAccess(user, moduleContext.enabledModules, industryType)}
           action={completeCashierSaleAction}
           appointmentError={appointmentError}
           branchId={cashierBranchId}
