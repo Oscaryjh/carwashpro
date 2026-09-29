@@ -19,7 +19,7 @@ test("empty location exposes editable coordinates without a confirmation step", 
 });
 test("configured location presents store-friendly rules and separate saving copy", () => {
   const html = renderToStaticMarkup(createElement(CompanyClockInLocation, { view: { kind: "single", branch: { id: "a", name: "Outlet" }, values: initialValues, configured: true, canManage: true, hrEnabled: true } }));
-  for (const label of ["Configured", "Use current device location", "Save clock-in location", "Clock-in rules", "Allowed clock-in radius", "Maximum GPS error allowed", "Business address and clock-in location are saved separately."]) assert.ok(html.includes(label), label);
+  for (const label of ["Configured", "Use current device location", "Save clock-in location", "Clock-in rules", "Clock-in radius", "GPS accuracy requirement", "Business address and clock-in location are saved separately."]) assert.ok(html.includes(label), label);
   assert.doesNotMatch(html, /Geofence validation|around the branch/);
   assert.match(html, /<button[^>]*disabled=""[^>]*>Save clock-in location/);
 });
@@ -32,9 +32,33 @@ test("pending location save locks every editable location field", () => {
 
 test("read-only location uses the same GPS rule labels", () => {
   const html = renderToStaticMarkup(createElement(CompanyClockInLocation, { view: { kind: "single", values: initialValues, configured: true, canManage: false, hrEnabled: true } }));
+  assert.match(html, /Clock-in radius/);
+  assert.match(html, /<details[^>]*><summary[^>]*>Advanced settings<\/summary>[\s\S]*GPS accuracy requirement/);
+  assert.doesNotMatch(html, /<input|<select|<details[^>]*\bopen/);
+  assert.doesNotMatch(html, /<dt>GPS accuracy<\/dt>/);
+});
+
+test("company advanced rule is collapsed but retains its enabled form field and stored value", () => {
+  const html = renderToStaticMarkup(createElement(AttendanceLocationFields, { branch: { id: "a", name: "Outlet" }, initialValues, compact: true, formId: "location-save" }));
+  const advanced = html.match(/<details\b[^>]*>[\s\S]*?<\/details>/)?.[0];
+  assert.ok(advanced, "advanced disclosure must exist");
+  assert.doesNotMatch(advanced, /<details[^>]*\bopen/);
+  assert.match(advanced, /<summary[^>]*>Advanced settings<\/summary>/);
+  assert.match(advanced, /GPS accuracy requirement/);
+  assert.match(advanced, /<input[^>]*form="location-save"[^>]*name="minimumAccuracyMeters"[^>]*value="80"/);
+  assert.doesNotMatch(advanced, /disabled|name="geofenceRadiusMeters"|name="timezone"/);
+  const ordinary = html.replace(advanced, "");
+  assert.doesNotMatch(ordinary, /name="minimumAccuracyMeters"|Maximum GPS error allowed/);
+  assert.match(ordinary, /name="geofenceRadiusMeters"[^>]*value="100"/);
+  assert.match(ordinary, /value="Asia\/Kuching" selected/);
+});
+
+test("legacy HR keeps its visible GPS rule and existing labels", () => {
+  const html = renderToStaticMarkup(createElement(AttendanceLocationFields, { branch: { id: "a", name: "Outlet" }, initialValues }));
+  assert.doesNotMatch(html, /<details/);
   assert.match(html, /Allowed clock-in radius/);
   assert.match(html, /Maximum GPS error allowed/);
-  assert.doesNotMatch(html, /<dt>GPS accuracy<\/dt>/);
+  assert.match(html, /name="minimumAccuracyMeters"[^>]*value="80"/);
 });
 test("unconfigured single outlet cannot claim attendance is active or save policy before location", () => {
   const html = renderToStaticMarkup(createElement(AttendanceSettingsForm, { action: async () => ({ status: "success", message: "" }), branch: { id: "a", name: "Outlet" }, isConfigured: false, initialValues: { ...initialValues, isEnabled: false }, locationManagedElsewhere: true } as any));

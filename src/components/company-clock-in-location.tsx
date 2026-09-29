@@ -53,7 +53,7 @@ export function CompanyClockInLocation({ view, businessName }: { view: CompanyLo
         {state.status === "error" && state.message && <p role="alert">{state.message}</p>}
         {state.status === "success" && !draft.dirty && <p role="status">Clock-in location saved.</p>}
         <div className={styles.footer}><div className={styles.hint}><p>Business address and clock-in location are saved separately.</p><p>Changing the business address does not automatically update the clock-in location.</p></div><button className={styles.primaryButton} type="submit" form={formId} disabled={pending || !draft.canSave}>{pending ? "Saving..." : "Save clock-in location"}</button></div>
-      </> : <><p>You do not have permission to change attendance location settings.</p>{view.configured && view.values && <dl><dt>Latitude</dt><dd>{view.values.latitude}</dd><dt>Longitude</dt><dd>{view.values.longitude}</dd><dt>Allowed clock-in radius</dt><dd>{view.values.geofenceRadiusMeters} m</dd><dt>Maximum GPS error allowed</dt><dd>{view.values.minimumAccuracyMeters} m</dd></dl>}</>}
+      </> : <><p>You do not have permission to change attendance location settings.</p>{view.configured && view.values && <><dl><dt>Latitude</dt><dd>{view.values.latitude}</dd><dt>Longitude</dt><dd>{view.values.longitude}</dd><dt>Clock-in radius</dt><dd>{view.values.geofenceRadiusMeters} m</dd><dt>Time zone</dt><dd>{view.values.timezone === "Asia/Kuching" || view.values.timezone === "Asia/Kuala_Lumpur" ? "Malaysia (UTC+8)" : view.values.timezone}</dd></dl><details className={styles.advanced}><summary>Advanced settings</summary><dl><dt>GPS accuracy requirement</dt><dd>{view.values.minimumAccuracyMeters} m</dd></dl></details></>}</>}
     </>}
   </section>;
 }

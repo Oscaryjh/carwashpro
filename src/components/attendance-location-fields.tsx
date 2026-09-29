@@ -20,7 +20,7 @@ type Props = {
   onDraftChange?: (state: LocationDraftState) => void;
 };
 
-export function AttendanceLocationFields({ initialValues, pending = false, formId, onDirty, onReadyChange, savedValues, onDraftChange }: Props) {
+export function AttendanceLocationFields({ initialValues, pending = false, formId, compact = false, onDirty, onReadyChange, savedValues, onDraftChange }: Props) {
 
   const [latitude, setLatitude] = useState(initialValues.latitude);
   const [longitude, setLongitude] = useState(initialValues.longitude);
@@ -105,6 +105,8 @@ export function AttendanceLocationFields({ initialValues, pending = false, formI
     );
   }
 
+  const accuracyField = <label><span>{compact ? "GPS accuracy requirement" : "Maximum GPS error allowed"}</span><div className={styles.unitInput}><input form={formId} value={maximumError} onChange={(event) => setMaximumError(event.target.value)} disabled={pending} max="500" min="10" name="minimumAccuracyMeters" required step="1" type="number" /><span>metres</span></div><small>{compact ? "Prevents inaccurate device locations from being accepted when staff clock in." : "Used when staff clock in. This does not limit how you set the store location."}</small>{compact && <small>Recommended: 80 m.</small>}</label>;
+
   return <div className={styles.editor}>
     <div>
       <div className={styles.fieldGrid}>
@@ -125,11 +127,12 @@ export function AttendanceLocationFields({ initialValues, pending = false, formI
     {coordinatesValid ? <div className={styles.map}><iframe loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="Clock-in location map" src={`https://www.google.com/maps?q=${Number(latitude)},${Number(longitude)}&z=18&output=embed`} /></div> : <div className={styles.mapEmpty}><p>Enter coordinates manually or use your current device location.</p><p>Map preview will appear after valid coordinates are entered.</p></div>}
     <section className={styles.rules}>
       <h4>Clock-in rules</h4>
-      <div className={styles.rulesGrid}>
-        <label><span>Allowed clock-in radius</span><div className={styles.unitInput}><input form={formId} value={radius} onChange={(event) => setRadius(event.target.value)} disabled={pending} max="1000" min="20" name="geofenceRadiusMeters" required step="1" type="number" /><span>metres</span></div><small>The permitted area around the store where staff can clock in.</small></label>
-        <label><span>Maximum GPS error allowed</span><div className={styles.unitInput}><input form={formId} value={maximumError} onChange={(event) => setMaximumError(event.target.value)} disabled={pending} max="500" min="10" name="minimumAccuracyMeters" required step="1" type="number" /><span>metres</span></div><small>Used when staff clock in. This does not limit how you set the store location.</small></label>
-        <label><span>Time zone</span><select form={formId} disabled={pending} value={timezone} onChange={(event) => setTimezone(event.target.value)} name="timezone" required>{!isMalaysiaTimezone && <option value={initialValues.timezone}>{initialValues.timezone} (Current)</option>}<option value={isMalaysiaTimezone ? initialValues.timezone : "Asia/Kuala_Lumpur"}>Malaysia (UTC+8)</option></select><small>Used for attendance dates, shifts and overnight work.</small></label>
+      <div className={compact ? styles.fieldGrid : styles.rulesGrid}>
+        <label><span>{compact ? "Clock-in radius" : "Allowed clock-in radius"}</span><div className={styles.unitInput}><input form={formId} value={radius} onChange={(event) => setRadius(event.target.value)} disabled={pending} max="1000" min="20" name="geofenceRadiusMeters" required step="1" type="number" /><span>metres</span></div><small>{compact ? "Staff can clock in when they are within this distance from the store." : "The permitted area around the store where staff can clock in."}</small>{compact && <small>Recommended: 100 m for most stores.</small>}</label>
+        {!compact && accuracyField}
+        <label><span>Time zone</span><select form={formId} disabled={pending} value={timezone} onChange={(event) => setTimezone(event.target.value)} name="timezone" required>{!isMalaysiaTimezone && <option value={initialValues.timezone}>{initialValues.timezone} (Current)</option>}<option value={isMalaysiaTimezone ? initialValues.timezone : "Asia/Kuala_Lumpur"}>Malaysia (UTC+8)</option></select><small>{compact ? "Used for attendance dates and shifts." : "Used for attendance dates, shifts and overnight work."}</small></label>
       </div>
+      {compact && <details className={styles.advanced}><summary>Advanced settings</summary><div className={styles.advancedContent}>{accuracyField}</div></details>}
     </section>
   </div>;
 }

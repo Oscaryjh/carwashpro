@@ -32,11 +32,13 @@ test("save provider advances the baseline only for the successfully submitted va
     await hooks.action({ status: "idle", message: "" }, form);
     assert.equal(render().props.value.savedValues, undefined);
     assert.equal(received, form, "original action receives the original form contract");
+    form.set("minimumAccuracyMeters", "90");
     result = { status: "success", message: "Saved" };
     const saving = hooks.action({ status: "idle", message: "" }, form);
     form.set("latitude", "5");
     await saving;
-    assert.deepEqual(render().props.value.savedValues, { latitude: "0", longitude: "0", geofenceRadiusMeters: "100", minimumAccuracyMeters: "80", timezone: "Asia/Kuching" });
+    assert.equal(received?.get("minimumAccuracyMeters"), "90", "advanced GPS value reaches the original save action");
+    assert.deepEqual(render().props.value.savedValues, { latitude: "0", longitude: "0", geofenceRadiusMeters: "100", minimumAccuracyMeters: "90", timezone: "Asia/Kuching" });
     result = { status: "error", message: "Save failed" };
     await hooks.action({ status: "success", message: "Saved" }, form);
     assert.equal(render().props.value.savedValues.latitude, "0", "a failed subsequent save cannot advance the baseline");
