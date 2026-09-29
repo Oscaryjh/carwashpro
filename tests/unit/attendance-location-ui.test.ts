@@ -9,11 +9,30 @@ const { AttendanceSettingsForm } = require("../../src/components/attendance-sett
 const { AttendanceLocationFields } = require("../../src/components/attendance-location-fields");
 const { CompanyClockInLocation, CompanyLocationSaveProvider } = require("../../src/components/company-clock-in-location");
 const initialValues = { latitude: "5.1", longitude: "116.1", geofenceRadiusMeters: 100, minimumAccuracyMeters: 80, requireGeofence: true, allowOutsideGeofenceRequest: true, timezone: "Asia/Kuching", breakPolicy: "MANUAL_PUNCH", targetBreakMinutes: 60, normalWorkMinutesPerDay: 480, shiftSpanMinutes: 540, isEnabled: true };
+test("empty location exposes editable coordinates without a confirmation step", () => {
+  const html = renderToStaticMarkup(createElement(AttendanceLocationFields, { branch: { id: "a", name: "Outlet" }, initialValues: { ...initialValues, latitude: "", longitude: "" }, compact: true }));
+  assert.match(html, /Use current device location/);
+  assert.match(html, /name="latitude"/);
+  assert.doesNotMatch(html, /hidden=""|<dialog/);
+  assert.doesNotMatch(html, /<iframe/);
+});
+test("configured location presents store-friendly rules and separate saving copy", () => {
+  const html = renderToStaticMarkup(createElement(CompanyClockInLocation, { view: { kind: "single", branch: { id: "a", name: "Outlet" }, values: initialValues, configured: true, canManage: true, hrEnabled: true } }));
+  for (const label of ["Configured", "Use current device location", "Save clock-in location", "Clock-in rules", "Allowed clock-in radius", "Maximum GPS error allowed", "Business address and clock-in location are saved separately."]) assert.ok(html.includes(label), label);
+  assert.doesNotMatch(html, /Geofence validation|around the branch/);
+});
 test("pending location save locks every editable location field", () => {
   const html = renderToStaticMarkup(createElement(AttendanceLocationFields, { branch: { id: "a", name: "Outlet" }, initialValues, pending: true }));
   const controls = html.match(/<(?:input|select)\b[^>]*>/g) ?? [];
   assert.equal(controls.length, 5);
   for (const control of controls) assert.match(control, /disabled=""/);
+});
+
+test("read-only location uses the same GPS rule labels", () => {
+  const html = renderToStaticMarkup(createElement(CompanyClockInLocation, { view: { kind: "single", values: initialValues, configured: true, canManage: false, hrEnabled: true } }));
+  assert.match(html, /Allowed clock-in radius/);
+  assert.match(html, /Maximum GPS error allowed/);
+  assert.doesNotMatch(html, /<dt>GPS accuracy<\/dt>/);
 });
 test("unconfigured single outlet cannot claim attendance is active or save policy before location", () => {
   const html = renderToStaticMarkup(createElement(AttendanceSettingsForm, { action: async () => ({ status: "success", message: "" }), branch: { id: "a", name: "Outlet" }, isConfigured: false, initialValues: { ...initialValues, isEnabled: false }, locationManagedElsewhere: true } as any));

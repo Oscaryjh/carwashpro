@@ -74,15 +74,16 @@ test("Photo Attendance is absent from branch Attendance settings UI", () => {
   assert.doesNotMatch(settingsForm, /requirePhoto|Require photo|photo capture/i);
 });
 
-test("device location is visually confirmed before branch coordinates change", () => {
-  const settingsForm = readFileSync(new URL("../../src/components/attendance-location-fields.tsx", import.meta.url), "utf8");
-  assert.match(settingsForm, /pendingDeviceLocation/);
-  assert.match(settingsForm, /Google Maps preview/);
-  assert.match(settingsForm, /Use this location/);
-  assert.match(settingsForm, /confirmCurrentLocation/);
-  assert.match(settingsForm, /Location access is off/);
-  assert.doesNotMatch(
-    settingsForm,
-    /\(position\) => \{\s*setLatitude\(position\.coords\.latitude/,
-  );
+test("location setup exposes a read-only preview without a second confirmation dialog", async () => {
+  const { createRequire } = await import("node:module");
+  const require = createRequire(import.meta.url);
+  require.extensions[".css"] = (module) => { module.exports = {}; };
+  const { createElement } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { AttendanceLocationFields } = require("../../src/components/attendance-location-fields");
+  const html = renderToStaticMarkup(createElement(AttendanceLocationFields, { branch: { id: "synthetic", name: "Synthetic" }, initialValues: { latitude: "0", longitude: "0", minimumAccuracyMeters: 80, geofenceRadiusMeters: 100, timezone: "Asia/Kuching" } }));
+  assert.match(html, /maps\?q=0,0/);
+  assert.match(html, /Use current device location/);
+  assert.match(html, /Used when staff clock in/);
+  assert.doesNotMatch(html, /<dialog|type="submit"/);
 });

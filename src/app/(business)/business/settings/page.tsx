@@ -71,7 +71,7 @@ export default async function BusinessSettingsPage({
           business={business}
           settingsLayout
           openClockInLocation={params.panel === "clock-in-location"}
-          attendanceLocations={<CompanyClockInLocation view={locationView} />}
+          attendanceLocations={<CompanyClockInLocation view={locationView} businessName={business.name} />}
         />
         </CompanyLocationSaveProvider>
         <div className="company-settings-sheet company-settings-secondary-section" id="staff-app-appearance">
