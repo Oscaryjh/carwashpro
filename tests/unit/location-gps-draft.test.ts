@@ -15,10 +15,10 @@ test("device GPS invokes the draft guard immediately without saving", async () =
   try {
     await build({ entryPoints: ["src/components/attendance-location-fields.tsx"], outfile: join(dir, "component.cjs"), bundle: true, platform: "node", format: "cjs", packages: "external", logLevel: "silent", plugins: [{ name: "hooks", setup(b) {
       b.onResolve({ filter: /^react$|\.css$/ }, args => ({ path: args.path, namespace: "stub" }));
-      b.onLoad({ filter: /.*/, namespace: "stub" }, args => ({ contents: args.path === "react" ? "export function useState(initial){const h=globalThis.__gpsDraft;const i=h.index++;return [h.values[i] ?? initial,v=>h.values[i]=v]} export function useRef(initial){return {current:initial}} export function useEffect(){}" : "export default {}" }));
+      b.onLoad({ filter: /.*/, namespace: "stub" }, args => ({ contents: args.path === "react" ? "export function useState(initial){const h=globalThis.__gpsDraft;const i=h.index++;if(!(i in h.values))h.values[i]=typeof initial==='function'?initial():initial;return [h.values[i],v=>h.values[i]=v]} export function useRef(initial){return {current:initial}} export function useEffect(){}" : "export default {}" }));
     } }] });
     const { AttendanceLocationFields } = createRequire(import.meta.url)(join(dir, "component.cjs"));
-    const tree = AttendanceLocationFields({ branch: { name: "Synthetic outlet" }, initialValues: { timezone: "Asia/Kuching", minimumAccuracyMeters: 80 }, onDirty: () => changes++ });
+    const tree = AttendanceLocationFields({ branch: { name: "Synthetic outlet" }, initialValues: { latitude: "5.1", longitude: "116.1", geofenceRadiusMeters: 100, timezone: "Asia/Kuching", minimumAccuracyMeters: 80 }, onDirty: () => changes++ });
     function find(node: any): any {
       if (!node || typeof node !== "object") return undefined;
       if (node.type === "button" && node.props.children === "Use current device location") return node;

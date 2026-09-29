@@ -3,9 +3,12 @@
 .card:focus-visible { outline: 3px solid #14958b; outline-offset: 3px; }
 .heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .heading h3 { font-size: 17px; color: #1c2939; }
-.badge, .badgeEmpty { border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700; line-height: 1.4; white-space: nowrap; }
+.badge, .badgeEmpty, .badgeUnsaved { border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700; line-height: 1.4; white-space: nowrap; }
 .badge { background: #e3f3ec; color: #176348; }
-.badgeEmpty { background: #fff3d7; color: #805300; }
+.badgeEmpty { background: #edf1f4; color: #526477; }
+.badgeUnsaved { background: #fff3d7; color: #805300; }
+.info { padding: 8px 12px; border-radius: 6px; background: #f1f5f8; color: #526477; font-size: 13px; line-height: 1.5; }
+.mapEmpty { padding: 20px; border: 1px dashed #ccd9e1; border-radius: 10px; background: #f7f9fa; color: #526477; font-size: 13px; line-height: 1.6; }
 .hint { color: #526477; font-size: 13px; line-height: 1.5; }
 .notice { border-left: 3px solid #d2a139; padding: 8px 12px; background: #fff9e9; color: #78561a; font-size: 13px; line-height: 1.5; }
 .editor { min-width: 0; display: grid; gap: 14px; }
@@ -33,7 +36,7 @@
 .map iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .footer { border-top: 1px solid #e2e8ed; padding-top: 14px; display: flex; justify-content: space-between; align-items: center; gap: 18px; }
 .footer p { max-width: 440px; }
-.footer button { flex-shrink: 0; }
+.footer button { flex: 0 0 auto; width: auto; margin-left: auto; }
 .accuracyGood, .accuracyWarning { padding: 12px 14px; border-radius: 10px; display: grid; gap: 10px; font-size: 14px; }
 .accuracyGood { background: #eaf6f0; border: 1px solid #b4d7c5; color: #20573f; }
 .accuracyWarning { background: #fff6e5; border: 1px solid #dfbd75; color: #795113; }

@@ -15,11 +15,13 @@ test("empty location exposes editable coordinates without a confirmation step", 
   assert.match(html, /name="latitude"/);
   assert.doesNotMatch(html, /hidden=""|<dialog/);
   assert.doesNotMatch(html, /<iframe/);
+  assert.match(html, /Map preview will appear after valid coordinates are entered/);
 });
 test("configured location presents store-friendly rules and separate saving copy", () => {
   const html = renderToStaticMarkup(createElement(CompanyClockInLocation, { view: { kind: "single", branch: { id: "a", name: "Outlet" }, values: initialValues, configured: true, canManage: true, hrEnabled: true } }));
   for (const label of ["Configured", "Use current device location", "Save clock-in location", "Clock-in rules", "Allowed clock-in radius", "Maximum GPS error allowed", "Business address and clock-in location are saved separately."]) assert.ok(html.includes(label), label);
   assert.doesNotMatch(html, /Geofence validation|around the branch/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Save clock-in location/);
 });
 test("pending location save locks every editable location field", () => {
   const html = renderToStaticMarkup(createElement(AttendanceLocationFields, { branch: { id: "a", name: "Outlet" }, initialValues, pending: true }));
