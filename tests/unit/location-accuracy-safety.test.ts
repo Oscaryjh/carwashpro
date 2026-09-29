@@ -23,7 +23,7 @@ test("GPS setup fills drafts independently of staff accuracy and preserves manua
         export function useState(initial){const h=globalThis.__locationSafetyHooks;const i=h.index++;if(!(i in h.values))h.values[i]=typeof initial==='function'?initial():initial;return [h.values[i],v=>h.values[i]=typeof v==='function'?v(h.values[i]):v]}
         export function useRef(initial){const [ref]=useState(()=>({current:initial}));return ref}
         export function useEffect(fn,deps){const [state]=useState(()=>({deps:undefined}));if(!state.deps||deps.some((v,i)=>!Object.is(v,state.deps[i]))){state.deps=deps;globalThis.__locationSafetyHooks.effects.push(fn)}}
-      ` : "export default {}" }));
+      ` : "export default new Proxy({}, {get: (_, key) => key})" }));
     } }] });
     const { AttendanceLocationFields } = createRequire(import.meta.url)(join(dir, "component.cjs"));
     let dirty = 0;
@@ -67,7 +67,7 @@ test("GPS setup fills drafts independently of staff accuracy and preserves manua
       field(render(), "latitude").props.onChange({ target: { value: "" } }); render();
       assert.equal(draftState.status, "Unsaved location");
       assert.equal(draftState.canSave, false);
-      assert.doesNotMatch(text(render()), /Device location accuracy/);
+      assert.doesNotMatch(text(render()), /Device accuracy/);
     });
     await t.test("an unconfigured outlet still marks changed rules as unsaved", () => {
       reset(); render();
@@ -77,7 +77,16 @@ test("GPS setup fills drafts independently of staff accuracy and preserves manua
       field(render(), "geofenceRadiusMeters").props.onChange({ target: { value: "100" } });
       render(); assert.equal(draftState.status, "Not configured");
     });
-    for (const accuracy of [20, 80, 108, 200000]) await t.test(`accuracy ${accuracy} fills draft without blocking save readiness`, () => {
+    for (const [accuracy, style, title, display] of [
+      [20, "accuracyGood", "Location detected", "20 m"],
+      [80, "accuracyGood", "Location detected", "80 m"],
+      [132, "accuracyInfo", "Location detected", "132 m"],
+      [999, "accuracyInfo", "Location detected", "999 m"],
+      [1000, "accuracyInfo", "Location detected", "1 km"],
+      [1001, "accuracyWarning", "Location may be inaccurate", "1 km"],
+      [2400, "accuracyWarning", "Location may be inaccurate", "2.4 km"],
+      [200000, "accuracyWarning", "Location may be inaccurate", "200 km"],
+    ] as const) await t.test(`accuracy ${accuracy} fills draft without blocking save readiness`, () => {
       reset();
       const tree = locate(accuracy);
       assert.equal(field(tree, "latitude").props.value, "5.200000");
@@ -88,12 +97,12 @@ test("GPS setup fills drafts independently of staff accuracy and preserves manua
       assert.equal(draftState.status, "Unsaved location");
       assert.equal(nodes(tree).some(n => n.type === "dialog" || n.props?.type === "submit"), false);
       assert.ok(nodes(tree).some(n => n.type === "iframe" && n.props.src.includes("q=5.2,116.2")));
-      if (accuracy === 20) assert.match(text(tree), /Device location accuracy: ~ 20 m/);
-      if (accuracy === 108) assert.match(text(tree), /Approximate device location/);
-      if (accuracy === 200000) {
-        assert.match(text(tree), /Low-confidence device location/);
-        assert.match(text(tree), /200 km/);
-      }
+      const notice = nodes(tree).find(n => n.props?.className === style);
+      assert.ok(notice, `expected ${style}`);
+      assert.equal(notice.props.role, accuracy > 1000 ? "alert" : "status");
+      assert.ok(text(notice).includes(title));
+      assert.ok(text(notice).includes(`Device accuracy: approx. ${display}`));
+      if (accuracy <= 1000) assert.equal(nodes(tree).some(n => n.props?.className === "accuracyWarning"), false);
     });
     await t.test("staff maximum error does not gate setup", () => {
       reset();
@@ -114,7 +123,7 @@ test("GPS setup fills drafts independently of staff accuracy and preserves manua
     await t.test("manual coordinates clear the previous device accuracy", () => {
       reset(); locate(200000);
       field(render(), "longitude").props.onChange({ target: { value: "116.3" } });
-      assert.doesNotMatch(text(render()), /Device location accuracy|Low-confidence/);
+      assert.doesNotMatch(text(render()), /Device accuracy|Location may be inaccurate/);
       assert.equal(draftState.canSave, true);
     });
     await t.test("manual editing invalidates pending GPS and updates preview including zero", () => {

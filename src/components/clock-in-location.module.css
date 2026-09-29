@@ -37,8 +37,9 @@
 .footer { border-top: 1px solid #e2e8ed; padding-top: 14px; display: flex; justify-content: space-between; align-items: center; gap: 18px; }
 .footer p { max-width: 440px; }
 .footer button { flex: 0 0 auto; width: auto; margin-left: auto; }
-.accuracyGood, .accuracyWarning { padding: 12px 14px; border-radius: 10px; display: grid; gap: 10px; font-size: 14px; }
-.accuracyGood { background: #eaf6f0; border: 1px solid #b4d7c5; color: #20573f; }
+.accuracyGood, .accuracyInfo, .accuracyWarning { padding: 9px 12px; border-radius: 8px; display: grid; gap: 4px; font-size: 13px; line-height: 1.45; }
+.accuracyGood { background: #eff8f3; border: 1px solid #d5e9dd; color: #20573f; }
+.accuracyInfo { background: #f1f5f8; border: 1px solid #dde6ed; color: #3e5066; }
 .accuracyWarning { background: #fff6e5; border: 1px solid #dfbd75; color: #795113; }
-.accuracyWarning p { font-size: 12px; line-height: 1.5; }
+.accuracyDetail { font-size: 12px; opacity: .85; }
 @media (max-width: 700px) { .rulesGrid { grid-template-columns: 1fr; } .footer { align-items: flex-start; flex-direction: column; } .footer button { align-self: flex-end; } }

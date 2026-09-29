@@ -117,10 +117,10 @@ export function AttendanceLocationFields({ initialValues, pending = false, formI
     </div>
     {locationMessage && <p className={styles.hint} role="status">{locationMessage}</p>}
     {locationFailed && <button className={styles.secondaryButton} type="button" disabled={pending || locating} onClick={useCurrentLocation}>Try again</button>}
-    {deviceAccuracy !== null && <div className={deviceAccuracy > 80 ? styles.accuracyWarning : styles.accuracyGood} role={deviceAccuracy > 80 ? "alert" : "status"}>
-      <strong>{deviceAccuracy > 1000 ? "Low-confidence device location" : deviceAccuracy > 80 ? "Approximate device location" : "Location detected"}</strong>
-      <p>Device location accuracy: ~{deviceAccuracy >= 1000 ? `${(deviceAccuracy / 1000).toLocaleString("en-MY", { maximumFractionDigits: 1 })} km` : `${deviceAccuracy.toLocaleString("en-MY", { maximumFractionDigits: 1 })} m`}</p>
-      {deviceAccuracy > 80 && <p>{deviceAccuracy > 1000 ? "This location may be far from your actual store. Check the map carefully or enter the coordinates manually." : "Check the map and adjust the coordinates manually if needed."}</p>}
+    {deviceAccuracy !== null && <div className={deviceAccuracy > 1000 ? styles.accuracyWarning : deviceAccuracy > 80 ? styles.accuracyInfo : styles.accuracyGood} role={deviceAccuracy > 1000 ? "alert" : "status"}>
+      <strong>{deviceAccuracy > 1000 ? "Location may be inaccurate" : "Location detected"}</strong>
+      <p>{deviceAccuracy > 1000 ? "Your device reported a low-confidence location. Check the map carefully or enter the coordinates manually." : deviceAccuracy > 80 ? "Check the map and adjust the coordinates if needed." : "Check the map to confirm the store location."}</p>
+      <p className={styles.accuracyDetail}>{`Device accuracy: approx. ${deviceAccuracy >= 1000 ? `${(deviceAccuracy / 1000).toLocaleString("en-MY", { maximumFractionDigits: 1 })} km` : `${deviceAccuracy.toLocaleString("en-MY", { maximumFractionDigits: 1 })} m`}`}</p>
     </div>}
     {coordinatesValid ? <div className={styles.map}><iframe loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="Clock-in location map" src={`https://www.google.com/maps?q=${Number(latitude)},${Number(longitude)}&z=18&output=embed`} /></div> : <div className={styles.mapEmpty}><p>Enter coordinates manually or use your current device location.</p><p>Map preview will appear after valid coordinates are entered.</p></div>}
     <section className={styles.rules}>
