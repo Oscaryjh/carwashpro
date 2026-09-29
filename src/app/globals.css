@@ -21047,6 +21047,28 @@ button.appointment-detail-card:disabled:focus-visible,
   text-align: right;
 }
 
+.package-create-form .field-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+.package-create-form .package-benefits-header { margin-bottom: 16px; }
+.package-create-form .package-benefit-columns { display: grid; grid-template-columns: minmax(0, 1fr) 110px 42px; gap: 10px; margin-bottom: 8px; font-size: 0.85rem; font-weight: 600; }
+.package-create-form .package-benefit-remove { background: #fff; border-color: var(--border); color: var(--muted); }
+.package-create-form .package-benefit-remove:hover { background: #edf7f6; color: var(--ink); }
+.package-create-form .package-benefit-remove:focus-visible,
+.package-create-form .package-advanced-settings summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.package-create-form .package-benefit-add { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+.package-create-form .package-benefit-add button { width: auto; }
+.package-create-form .package-benefit-add small { color: var(--muted); }
+.package-create-form .package-advanced-settings { border-top: 1px solid var(--border); padding-top: 16px; }
+.package-create-form .package-advanced-settings summary { cursor: pointer; font-weight: 600; }
+.package-create-form .package-advanced-settings > label { margin-top: 14px; }
+.package-create-form .package-create-actions { display: flex; justify-content: flex-end; }
+.package-create-form .package-create-actions button { width: auto; flex: 0 0 auto; }
+@media (max-width: 700px) {
+  .package-create-form .field-grid { grid-template-columns: 1fr; }
+  .package-create-form .package-benefit-columns,
+  .package-create-form .package-benefit-row { grid-template-columns: minmax(0, 1fr) 90px 36px; }
+  .package-create-form .package-benefit-remove { width: 36px; }
+}
+
 /* Phase 1 design-system alignment: shared controls, feedback and modal chrome. */
 .ui-modal-close,
 .crm-customer-modal-close,

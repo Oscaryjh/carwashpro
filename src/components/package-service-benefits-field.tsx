@@ -18,9 +18,11 @@ type BenefitRow = BenefitValue & { key: number };
 export function PackageServiceBenefitsField({
   services,
   initialBenefits = [],
+  createMode = false,
 }: {
   services: ServiceOption[];
   initialBenefits?: BenefitValue[];
+  createMode?: boolean;
 }) {
   const [nextKey, setNextKey] = useState(Math.max(initialBenefits.length, 1) + 1);
   const [rows, setRows] = useState<BenefitRow[]>(() =>
@@ -29,6 +31,8 @@ export function PackageServiceBenefitsField({
     ),
   );
   const selectedIds = new Set(rows.map((row) => row.serviceId).filter(Boolean));
+  const validServiceIds = new Set(services.map((service) => service.id));
+  const canAddRow = !createMode || validServiceIds.has(rows[rows.length - 1]?.serviceId);
   const groups = Array.from(
     services.reduce((result, service) => {
       const items = result.get(service.categoryName) ?? [];
@@ -39,6 +43,7 @@ export function PackageServiceBenefitsField({
   ).sort(([left], [right]) => left.localeCompare(right));
 
   function addRow() {
+    if (!canAddRow) return;
     setRows((current) => [
       ...current,
       { key: nextKey, serviceId: "", totalUses: 1 },
@@ -61,18 +66,19 @@ export function PackageServiceBenefitsField({
       <div className="package-benefits-header">
         <div>
           <legend>Included services</legend>
-          <p>Set the number of uses included for each service.</p>
+          <p>{createMode ? "Choose the services included in this package and how many times each can be redeemed." : "Set the number of uses included for each service."}</p>
         </div>
-        <button className="button-secondary" type="button" onClick={addRow}>
+        {!createMode ? <button className="button-secondary" type="button" onClick={addRow}>
           + Add service
-        </button>
+        </button> : null}
       </div>
 
+      {createMode ? <div className="package-benefit-columns" aria-hidden="true"><span>Service</span><span>Included uses</span><span /></div> : null}
       <div className="package-benefit-list">
         {rows.map((row, index) => (
           <div className="package-benefit-row" key={row.key}>
             <label>
-              <span>Service {index + 1}</span>
+              <span className={createMode ? "sr-only" : undefined}>Service {index + 1}</span>
               <select
                 name="benefitServiceId"
                 value={row.serviceId}
@@ -100,7 +106,7 @@ export function PackageServiceBenefitsField({
               </select>
             </label>
             <label>
-              <span>Uses</span>
+              <span className={createMode ? "sr-only" : undefined}>{createMode ? `Included uses for service ${index + 1}` : "Uses"}</span>
               <input
                 name="benefitTotalUses"
                 type="number"
@@ -114,7 +120,7 @@ export function PackageServiceBenefitsField({
                 required
               />
             </label>
-            <button
+            {!createMode || rows.length > 1 ? <button
               aria-label={`Remove service ${index + 1}`}
               className="package-benefit-remove"
               type="button"
@@ -123,12 +129,16 @@ export function PackageServiceBenefitsField({
               title="Remove service"
             >
               ×
-            </button>
+            </button> : null}
           </div>
         ))}
       </div>
+      {createMode ? <div className="package-benefit-add">
+        <button className="button-secondary" type="button" onClick={addRow} disabled={!canAddRow}>+ Add service</button>
+        {!canAddRow ? <small>Select a service before adding another.</small> : null}
+      </div> : null}
       <p className="package-benefits-summary">
-        Total {rows.reduce((sum, row) => sum + (Number(row.totalUses) || 0), 0)} uses
+        {createMode ? `Total included uses: ${rows.reduce((sum, row) => sum + (validServiceIds.has(row.serviceId) ? Number(row.totalUses) || 0 : 0), 0)}` : `Total ${rows.reduce((sum, row) => sum + (Number(row.totalUses) || 0), 0)} uses`}
       </p>
     </fieldset>
   );

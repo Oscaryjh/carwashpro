@@ -35,6 +35,18 @@ export function PackageForm({
   isSalonBusiness = false,
   serviceBenefits = [],
 }: PackageFormProps) {
+  const isCreate = !packagePlan;
+  const descriptionField = (
+    <label>
+      <span>{isCreate ? "Description" : "Description optional"}</span>
+      <textarea
+        name="description"
+        rows={3}
+        defaultValue={packagePlan?.description ?? (isSalonBusiness ? "" : "Prepaid 10-wash package.")}
+        placeholder={isSalonBusiness ? "Describe what is included in this package." : "Describe what is included in this wash package."}
+      />
+    </label>
+  );
   const serviceGroups = Array.from(
     services.reduce((groups, service) => {
       const categoryName =
@@ -51,12 +63,15 @@ export function PackageForm({
   });
 
   return (
-    <form action={action} className="form" id={formId}>
+    <form action={action} className={`form${isCreate ? " package-create-form" : ""}`} id={formId}>
       {packagePlan ? (
         <input type="hidden" name="packageId" value={packagePlan.id} />
       ) : null}
+      {isCreate ? <BranchSelect branches={branches} /> : null}
       <div className="field-grid">
-        <BranchSelect branches={branches} selectedBranchId={packagePlan?.branchId} />
+        {!isCreate ? (
+          <BranchSelect branches={branches} selectedBranchId={packagePlan?.branchId} />
+        ) : null}
         <label>
           <span>Category</span>
           <select name="categoryId" defaultValue={packagePlan?.categoryId ?? ""} required>
@@ -101,6 +116,7 @@ export function PackageForm({
             placeholder="0.00"
             required
           />
+          {isCreate ? <small>Price in RM</small> : null}
         </label>
         {!isSalonBusiness ? (
           <>
@@ -152,26 +168,17 @@ export function PackageForm({
               service.serviceCategory?.name ?? service.category?.trim() ?? "Other services",
           }))}
           initialBenefits={serviceBenefits}
+          createMode={isCreate}
         />
       ) : null}
-      <label>
-        <span>Description optional</span>
-        <textarea
-          name="description"
-          rows={3}
-          defaultValue={
-            packagePlan?.description ??
-            (isSalonBusiness ? "" : "Prepaid 10-wash package.")
-          }
-          placeholder={
-            isSalonBusiness
-              ? "Describe what is included in this package."
-              : "Describe what is included in this wash package."
-          }
-        />
-      </label>
+      {isCreate ? (
+        <details className="package-advanced-settings">
+          <summary>Advanced settings</summary>
+          {descriptionField}
+        </details>
+      ) : descriptionField}
       {submitLabel ? (
-        <div className="form-actions">
+        <div className={`form-actions${isCreate ? " package-create-actions" : ""}`}>
           <button type="submit">{submitLabel}</button>
         </div>
       ) : null}
