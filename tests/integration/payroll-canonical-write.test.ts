@@ -12,12 +12,28 @@ import {
 } from "../../src/lib/payroll/employee-profile-write";
 import { prisma } from "../../src/lib/prisma";
 
-test("canonical payroll profile commands are idempotent, scoped, concurrent and immutable", async () => {
+const fixtureTimezone = "Asia/Kuching";
+
+test("payroll fixture month follows its business timezone across UTC month and year boundaries", () => {
+  for (const [instant, expected] of [
+    ["2026-09-30T15:59:59.999Z", "2026-09-01T00:00:00.000Z"],
+    ["2026-09-30T16:00:00.000Z", "2026-10-01T00:00:00.000Z"],
+    ["2026-12-31T16:00:00.000Z", "2027-01-01T00:00:00.000Z"],
+  ]) {
+    assert.equal(monthStart(new Date(instant), fixtureTimezone).toISOString(), expected);
+  }
+});
+
+test("canonical payroll profile commands are idempotent, scoped, concurrent and immutable", async (t) => {
+  // Freeze only this test's JavaScript Date, not the system clock or timers.
+  // UTC is still September while the fixture business is already in October.
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-09-30T16:22:00.000Z") });
   const fixture = await createFixture();
   try {
-    const currentMonth = monthStart(new Date());
+    const currentMonth = monthStart(new Date(), fixture.business.timezone);
     const futureMonth = addMonths(currentMonth, 2);
     const context = ownerContext(fixture);
+    assert.equal(currentMonth.toISOString(), "2026-10-01T00:00:00.000Z");
     const initialAuditCount = await prisma.auditLog.count({
       where: { businessId: fixture.business.id },
     });
@@ -40,6 +56,22 @@ test("canonical payroll profile commands are idempotent, scoped, concurrent and 
     assert.equal(compensation.commandReplay, false);
     assert.equal(compensation.isCurrent, true);
     assert.equal(compensation.newRevision, 1);
+    await assert.rejects(
+      scheduleEmployeeCompensationChange({
+        context,
+        command: {
+          baseRate: "2300",
+          commandId: randomUUID(),
+          effectiveFromMonth: new Date("2026-09-01T00:00:00.000Z"),
+          expectedRevision: 1,
+          membershipId: fixture.membership.id,
+          payBasis: "MONTHLY",
+          reasonType: "SALARY_CORRECTION",
+          source: "MANUAL",
+        },
+      }),
+      (error: unknown) => hasCode(error, "IMMUTABLE_HISTORY"),
+    );
     assert.equal(
       (
         await prisma.employeeBusinessMembership.findUniqueOrThrow({
@@ -531,7 +563,7 @@ async function createFixture() {
     data: {
       name: `Canonical ${token}`,
       slug: `canonical-${token}`,
-      timezone: "Asia/Kuching",
+      timezone: fixtureTimezone,
     },
   });
   const otherBusiness = await prisma.business.create({
@@ -752,8 +784,15 @@ async function snapshotRunState(businessId: string) {
   return { artifacts, entries, runs, submissions };
 }
 
-function monthStart(date: Date) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+function monthStart(date: Date, timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(date);
+  const year = Number(parts.find((part) => part.type === "year")!.value);
+  const month = Number(parts.find((part) => part.type === "month")!.value);
+  return new Date(Date.UTC(year, month - 1, 1));
 }
 
 function addMonths(date: Date, months: number) {

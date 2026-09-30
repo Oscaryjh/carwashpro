@@ -298,6 +298,8 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
                           netCollectedAmount: paymentSummary.netCollectedAmount,
                           packageVoucherAmount: paymentSummary.packageVoucherAmount,
                           cashPaidAmount: paymentSummary.cashPaidAmount,
+                            hasWalletPayment: invoice.payments.some(payment => payment.method === "MEMBER_WALLET"),
+                            walletRefundScope: `${businessId}:${context.user.userId}:invoice:${invoice.id}`,
                           canManagePayments,
                           canVoid,
                           voidUnavailableReason,

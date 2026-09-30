@@ -26,6 +26,11 @@ import {
   runFinancialOperation,
 } from "@/lib/financial-idempotency";
 import { assertCashierShiftAcceptsActivity } from "@/lib/closing/shift-control";
+import { prisma } from "@/lib/prisma";
+import { requireWalletRefundOwner } from "@/lib/wallet/refund-authorization";
+import { reverseWalletPaymentForVoid } from "@/lib/wallet/reversals";
+import { refundWalletSale } from "@/lib/wallet/refunds";
+import { WalletRefundRejected } from "@/lib/wallet/refund-errors";
 
 export type VoidInvoiceState = {
   status: "idle" | "success" | "error";
@@ -35,6 +40,7 @@ export type VoidInvoiceState = {
 export type RefundPaymentState = {
   status: "idle" | "success" | "error";
   message: string;
+  canCorrect?: boolean;
 };
 
 const refundPaymentSchema = z.object({
@@ -125,6 +131,10 @@ export async function refundPaymentAction(
 
   try {
     const { operationId, ...financialPayload } = input;
+    const walletInvoice = await prisma.invoice.findFirst({ where: {
+      id: input.invoiceId, businessId, payments: { some: { method: "MEMBER_WALLET" } },
+    }, select: { id: true } });
+    if (walletInvoice) throw new Error("Wallet refunds are not available through this form. Use the Wallet sale refund form.");
     const { result } = await runFinancialOperation({
       actorUserId: user.userId,
       branchId: null,
@@ -520,6 +530,27 @@ export async function refundPaymentAction(
   }
 }
 
+export async function refundWalletSaleAction(
+  _previousState: RefundPaymentState,
+  formData: FormData,
+): Promise<RefundPaymentState> {
+  const { businessId, user } = await requireBusinessUser("PROCESS_REFUND");
+  try {
+    if (formData.get("businessId") !== businessId) throw new Error("Business context changed.");
+    const result = await refundWalletSale({ businessId, user, branchId: null, shiftId: null }, {
+      operationKey: String(formData.get("operationKey") ?? ""),
+      invoiceId: String(formData.get("invoiceId") ?? ""),
+      reason: String(formData.get("reason") ?? ""),
+      legs: JSON.parse(String(formData.get("legs") ?? "null")),
+      stockLines: JSON.parse(String(formData.get("stockLines") ?? "null")),
+    });
+    revalidatePath(`/invoices/${result.invoiceId}`);
+    return { status: "success", message: `Refund recorded. Credit Notes: ${result.creditNoteNumbers.join(", ")}.` };
+  } catch (error) {
+    return { status: "error", canCorrect: error instanceof WalletRefundRejected || error instanceof z.ZodError, message: error instanceof Error ? error.message : "Refund result unavailable. Retry the same confirmation; do not refund again." };
+  }
+}
+
 export async function voidInvoiceAction(
   _previousState: VoidInvoiceState,
   formData: FormData,
@@ -548,13 +579,23 @@ export async function voidInvoiceAction(
   }
 
   try {
+    // Authenticate wallet operations before idempotent replay as well as inside the transaction.
+    const walletSource = await prisma.invoice.findFirst({
+      where: { id: invoiceId, businessId, ...operationalBranchWhere, payments: { some: { method: "MEMBER_WALLET" } } },
+      select: { customerId: true, branchId: true },
+    });
+    const walletContext = { businessId, user, branchId: null, shiftId: null };
+    if (walletSource) {
+      if (!walletSource.customerId || !walletSource.branchId) throw new Error("Wallet invoice source is incomplete.");
+      await requireWalletRefundOwner(prisma, walletContext, walletSource.customerId, walletSource.branchId);
+    }
     const { result } = await runFinancialOperation({
       actorUserId: user.userId,
       branchId: null,
       businessId,
       operationKey: operationId.data,
       operationType: FinancialOperationType.INVOICE_VOID,
-      payload: { invoiceId, voidReason },
+      payload: { invoiceId, voidReason, ...(walletSource ? { walletActorId: user.userId } : {}) },
       execute: async (tx) => {
       const invoice = await tx.invoice.findFirstOrThrow({
         where: {
@@ -618,13 +659,17 @@ export async function voidInvoiceAction(
         },
       });
 
-      if (activePayments.some((payment) => payment.method === "MEMBER_WALLET")) {
-        throw new Error("Wallet invoices cannot be voided until wallet reversal is available.");
-      }
       if (activePayments.some((payment) => payment.refunds.length > 0)) {
         throw new Error(
           "This invoice has refund records and can no longer be voided.",
         );
+      }
+
+      for (const payment of activePayments.filter((payment) => payment.method === "MEMBER_WALLET")) {
+        const operation = await tx.financialOperation.findUniqueOrThrow({ where: {
+          businessId_operationType_operationKey: { businessId, operationType: "INVOICE_VOID", operationKey: operationId.data },
+        } });
+        await reverseWalletPaymentForVoid(tx, walletContext, { paymentId: payment.id, reason: voidReason, financialOperationId: operation.id });
       }
 
       await recordVoidInventoryReversals(tx, {

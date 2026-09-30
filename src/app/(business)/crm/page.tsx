@@ -286,7 +286,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
     : [];
 
   const timeline = customer
-    ? buildTimeline({ customer, payments, activityLimit })
+    ? buildTimeline({ customer, payments, activityLimit, refundScopePrefix: `${businessId}:${context.user.userId}` })
     : { items: [], hasMore: false };
   const [totalSpentResult, availablePackageCount, lastVisit] = customer
     ? await Promise.all([
@@ -454,6 +454,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
               availablePackageCount={availablePackageCount}
               branches={branches}
               customer={customer}
+              refundScopePrefix={`${businessId}:${context.user.userId}`}
               currentPage={currentPage}
               isSalonBusiness={isSalonBusiness}
               lastVisitAt={lastVisit?.scheduledAt ?? null}
@@ -485,6 +486,7 @@ type CustomerWorkspaceProps = {
   isSalonBusiness: boolean;
   lastVisitAt: Date | null;
   query: string;
+  refundScopePrefix: string;
   sort: CustomerSort;
   tab: CustomerTab;
   timeline: ReturnType<typeof buildTimeline>;
@@ -500,6 +502,7 @@ function CustomerWorkspace({
   isSalonBusiness,
   lastVisitAt,
   query,
+  refundScopePrefix,
   sort,
   tab,
   timeline,
@@ -625,7 +628,7 @@ function CustomerWorkspace({
                 <CrmActivityItem
                   amount={formatCurrency(invoice.total)}
                   description={`${formatStatus(invoice.status)} / ${formatBusinessDateTime(invoice.issuedAt)}`}
-                  invoice={toInvoiceSummary(invoice, customer.name, customer.phone)}
+                  invoice={toInvoiceSummary(invoice, customer.name, customer.phone, refundScopePrefix)}
                   key={invoice.id}
                   label="Invoice"
                   title={invoice.invoiceNumber}
@@ -724,9 +727,10 @@ type TimelineInput = {
   activityLimit: number;
   customer: CrmCustomer;
   payments: CrmPayment[];
+  refundScopePrefix: string;
 };
 
-function buildTimeline({ customer, payments, activityLimit }: TimelineInput) {
+function buildTimeline({ customer, payments, activityLimit, refundScopePrefix }: TimelineInput) {
   const activities: TimelineItem[] = [];
 
   for (const appointment of customer.appointments) {
@@ -744,7 +748,7 @@ function buildTimeline({ customer, payments, activityLimit }: TimelineInput) {
   for (const payment of payments) {
     const isVoucher = payment.method === "PACKAGE" || payment.packageUses > 0;
     const invoice = payment.invoice
-      ? toInvoiceSummary(payment.invoice, customer.name, customer.phone)
+      ? toInvoiceSummary(payment.invoice, customer.name, customer.phone, refundScopePrefix)
       : undefined;
     activities.push({
       amount: isVoucher ? `${payment.packageUses} use${payment.packageUses === 1 ? "" : "s"}` : formatCurrency(payment.amount),
@@ -780,7 +784,7 @@ function buildTimeline({ customer, payments, activityLimit }: TimelineInput) {
         ? `/appointments?status=active&page=1&date=${toBusinessDateValue(message.createdAt)}&appointment=${message.appointmentId}`
         : undefined,
       invoice: message.invoice
-        ? toInvoiceSummary(message.invoice, customer.name, customer.phone)
+        ? toInvoiceSummary(message.invoice, customer.name, customer.phone, refundScopePrefix)
         : undefined,
       key: `whatsapp-${message.id}`,
       label: "WhatsApp",
@@ -804,7 +808,7 @@ function buildTimeline({ customer, payments, activityLimit }: TimelineInput) {
   return { items: activities.slice(0, activityLimit), hasMore: activities.length > activityLimit };
 }
 
-function toInvoiceSummary(invoice: CrmInvoice, customerName: string, customerPhone: string): InvoiceModalSummary {
+function toInvoiceSummary(invoice: CrmInvoice, customerName: string, customerPhone: string, refundScopePrefix: string): InvoiceModalSummary {
   const activePayments = invoice.payments.filter((payment) => payment.status === "ACTIVE");
   const packageVoucherAmount = activePayments
     .filter((payment) => payment.method === "PACKAGE")
@@ -837,6 +841,8 @@ function toInvoiceSummary(invoice: CrmInvoice, customerName: string, customerPho
     balance: Number(invoice.balance),
     packageVoucherAmount,
     cashPaidAmount,
+    hasWalletPayment: invoice.payments.some((payment) => payment.method === "MEMBER_WALLET"),
+    walletRefundScope: `${refundScopePrefix}:invoice:${invoice.id}`,
   };
 }
 

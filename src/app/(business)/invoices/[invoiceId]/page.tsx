@@ -11,6 +11,7 @@ import { getInvoicePaymentSummary } from "@/lib/invoices/payment-summary";
 import { prisma } from "@/lib/prisma";
 import { getRefundableCents } from "@/lib/refunds/rules";
 import { formatTaxLabel } from "@/lib/tax/format";
+import { WalletRefundForm } from "@/components/wallet/wallet-refund-form";
 
 type InvoiceDetailsPageProps = {
   params: Promise<{
@@ -140,6 +141,9 @@ export default async function InvoiceDetailsPage({
     )
     .sort((left, right) => right.refundedAt.getTime() - left.refundedAt.getTime());
   const invoicePaymentSummary = getInvoicePaymentSummary(invoice.payments);
+  const hasWallet = invoice.payments.some((payment) => payment.method === "MEMBER_WALLET");
+  const walletControls = hasWallet && context.access.effectiveBusinessRole === "BUSINESS_OWNER"
+    ? <div className="panel"><WalletRefundForm sourceId={invoice.id} invoiceNumber={formatInvoiceNumber(invoice.invoiceNumber)} recoveryScope={`${businessId}:${context.user.userId}:invoice:${invoice.id}`} /></div> : null;
   const appointmentRefundablePayments = invoice.payments
     .filter((payment) => payment.status === "ACTIVE")
     .map((payment) => ({
@@ -156,6 +160,7 @@ export default async function InvoiceDetailsPage({
     return (
       <>
         <section className="content invoice-detail-layout">
+          {walletControls}
           <div className="page-header">
             <div><h1>Invoice</h1></div>
             <BackButton fallbackHref="/invoices" />
@@ -301,7 +306,7 @@ export default async function InvoiceDetailsPage({
               ))}
             </div>
           ) : null}
-          {context.access.effectiveBusinessRole === "BUSINESS_OWNER" &&
+          {!hasWallet && context.access.effectiveBusinessRole === "BUSINESS_OWNER" &&
           invoice.status !== "VOID" &&
           appointmentRefundablePayments.length ? (
             <div className="panel invoice-refund-panel">
@@ -380,6 +385,7 @@ export default async function InvoiceDetailsPage({
     return (
       <>
         <section className="content invoice-detail-layout">
+          {walletControls}
           <div className="page-header">
             <div><h1>Invoice</h1></div>
             <BackButton fallbackHref="/invoices" />
@@ -477,7 +483,7 @@ export default async function InvoiceDetailsPage({
               ))}
             </div>
           ) : null}
-          {context.access.effectiveBusinessRole === "BUSINESS_OWNER" &&
+          {!hasWallet && context.access.effectiveBusinessRole === "BUSINESS_OWNER" &&
           invoice.status !== "VOID" &&
           invoice.payments.some((payment) => payment.status === "ACTIVE") ? (
             <div className="panel invoice-refund-panel">
@@ -553,6 +559,7 @@ export default async function InvoiceDetailsPage({
   return (
     <>
       <section className="content invoice-detail-layout">
+        {walletControls}
         <div className="page-header">
           <div>
             <h1>Invoice</h1>
@@ -762,7 +769,7 @@ export default async function InvoiceDetailsPage({
           ) : null}
         </div>
 
-        {context.access.effectiveBusinessRole === "BUSINESS_OWNER" &&
+        {!hasWallet && context.access.effectiveBusinessRole === "BUSINESS_OWNER" &&
         invoice.status !== "VOID" &&
         refundablePayments.length ? (
           <div className="panel invoice-refund-panel">
@@ -841,10 +848,10 @@ export default async function InvoiceDetailsPage({
                 ? "Use this only when payment was recorded wrongly. Related payments will be voided and this service order will reopen for cashier correction."
                 : "Use this only when payment was recorded wrongly. Related payments will be voided and this job will reopen for POS correction."}
             </p>
-            <VoidInvoiceForm
+            {!hasWallet ? <VoidInvoiceForm
               invoiceId={invoice.id}
               invoiceNumber={displayInvoiceNumber}
-            />
+            /> : null}
           </div>
         )}
       </section>

@@ -1048,6 +1048,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
         invoice: {
           id: invoice.id,
           invoiceNumber: invoice.invoiceNumber,
+          walletRefundScope: `${businessId}:${user.userId}:invoice:${invoice.id}`,
           status: invoice.status,
           issuedAt: invoice.issuedAt.toISOString(),
           customerName: customer?.name ?? "Walk-in customer",
@@ -1088,6 +1089,7 @@ export async function completeCashierSaleAction(formData: FormData): Promise<Cas
           balance: 0,
           packageVoucherAmount: packageCoverageCents / 100,
           cashPaidAmount: externalCents / 100,
+          hasWalletPayment: walletCents > 0,
           ...(walletCents ? { walletPaidAmount: walletCents / 100, externalPaidAmount: externalCents / 100,
             externalPaymentMethod: cashPayment?.paymentMethodLabel ?? "" } : {}),
         },

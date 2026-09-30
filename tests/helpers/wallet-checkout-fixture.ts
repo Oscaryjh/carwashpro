@@ -30,7 +30,7 @@ export async function checkoutHarness(database?: PrismaClient) {
     };
     return Reflect.get(target, key);
   } });
-  await build({ entryPoints: { cashier: "src/app/(business)/cashier/actions.ts", pos: "src/app/(business)/pos/actions.ts", appointments: "src/app/(business)/appointments/actions.ts", invoices: "src/app/(business)/invoices/actions.ts", products: "src/app/(business)/products/actions.ts", workOrders: "src/app/(business)/work-orders/actions.ts" }, outdir: directory, outExtension: { ".js": ".cjs" }, bundle: true, packages: "external", platform: "node", format: "cjs", plugins: [{ name: "local-request", setup(builder) {
+  await build({ entryPoints: { wallet: "src/app/(business)/crm/wallet/actions.ts", cashier: "src/app/(business)/cashier/actions.ts", pos: "src/app/(business)/pos/actions.ts", appointments: "src/app/(business)/appointments/actions.ts", invoices: "src/app/(business)/invoices/actions.ts", products: "src/app/(business)/products/actions.ts", workOrders: "src/app/(business)/work-orders/actions.ts" }, outdir: directory, outExtension: { ".js": ".cjs" }, bundle: true, packages: "external", platform: "node", format: "cjs", plugins: [{ name: "local-request", setup(builder) {
     if (database) {
       builder.onResolve({ filter: /^@\/lib\/prisma$/ }, () => ({ path: "database", namespace: "request" }));
     }
@@ -45,6 +45,7 @@ export async function checkoutHarness(database?: PrismaClient) {
   const load = createRequire(import.meta.url);
   const action = load(join(directory, "cashier.cjs")) as typeof Actions;
   return { action, beforeTransaction(hook: () => Promise<void>) { beforeTransaction = hook; }, failAfter(model: string, method: string) { failure = { model, method }; }, injections: () => injected,
+    wallet: load(join(directory, "wallet.cjs")) as typeof import("../../src/app/(business)/crm/wallet/actions"),
     pos: load(join(directory, "pos.cjs")) as typeof import("../../src/app/(business)/pos/actions"),
     appointments: load(join(directory, "appointments.cjs")) as typeof import("../../src/app/(business)/appointments/actions"),
     invoices: load(join(directory, "invoices.cjs")) as typeof import("../../src/app/(business)/invoices/actions"),

@@ -21,7 +21,7 @@ test("unintegrated authenticated payment actions reject wallet injection before 
   } finally { await h.close(); }
 });
 
-test("general void cannot erase a settled Wallet service payment without wallet reversal", async () => {
+test("general void cannot erase a settled Wallet service payment when Local release gate is closed", async () => {
   const h = await checkoutHarness();
   try {
     const f = await checkoutFixture(db); await h.login(db, f);
@@ -32,8 +32,11 @@ test("general void cannot erase a settled Wallet service payment without wallet 
     f.form.set("appointmentId", visit.id); f.form.set("assignedStaffId", f.actor.id);
     const sale = await h.action.completeCashierSaleAction(f.form); assert.equal(sale.status, "success", sale.message);
     const form = new FormData(); form.set("operationId", randomUUID()); form.set("invoiceId", sale.invoice!.id); form.set("voidReason", "Synthetic guard check");
-    const result = await h.invoices.voidInvoiceAction({ status: "idle", message: "" }, form);
-    assert.equal(result.status, "error"); assert.equal(result.message, "Wallet invoices cannot be voided until wallet reversal is available.");
+    const gate = process.env.TETAMU_WALLET_LOCAL_TEST;
+    let result;
+    try { process.env.TETAMU_WALLET_LOCAL_TEST = "false"; result = await h.invoices.voidInvoiceAction({ status: "idle", message: "" }, form); }
+    finally { process.env.TETAMU_WALLET_LOCAL_TEST = gate; }
+    assert.equal(result.status, "error"); assert.match(result.message, /restricted to controlled Local testing/);
     assert.equal((await db.invoice.findUniqueOrThrow({ where: { id: sale.invoice!.id } })).status, "PAID");
     assert.equal(await db.payment.count({ where: { invoiceId: sale.invoice!.id, status: "ACTIVE" } }), 1);
     assert.equal(await db.walletTransaction.count({ where: { businessId: f.business.id, type: "REDEMPTION" } }), 1);

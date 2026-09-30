@@ -13,7 +13,10 @@ test("Customer and Cashier share one wallet summary and one top-up backend", asy
   const summary = await readFile("src/components/wallet/member-wallet-summary.tsx", "utf8");
   assert.match(summary, /<WalletTopUpModal/);
   const actions = await readFile("src/app/(business)/crm/wallet/actions.ts", "utf8");
-  assert.doesNotMatch(actions, /prisma\.|walletAccount\.(?:update|create)|payment\.create/);
+  assert.match(actions, /walletRefundOptionsAction/);
+  assert.match(actions, /readWalletRefundOwner/);
+  assert.match(actions, /prisma\.invoice\.findFirst/);
+  assert.doesNotMatch(actions, /prisma\.[a-zA-Z]+\.(?:create|update|delete|upsert|updateMany|deleteMany)|walletAccount\.(?:update|create)|payment\.create|walletTransaction\.create|postWalletTopUp\(/);
   const adapter = await readFile("src/lib/wallet/ui-adapter.ts", "utf8");
   assert.equal([...adapter.matchAll(/return postWalletTopUp\(/g)].length, 1);
   assert.doesNotMatch(adapter, /walletAccount\.(?:update|create)|payment\.create|walletTransaction\.create/);

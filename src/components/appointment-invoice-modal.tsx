@@ -7,6 +7,8 @@ import { ModalCloseButton } from "@/components/ui/modal-close-button";
 import { VoidInvoiceForm } from "@/components/void-invoice-form";
 import { formatInvoiceNumber } from "@/lib/invoices/invoice-number";
 import { formatTaxLabel } from "@/lib/tax/format";
+import { WalletRefundForm } from "@/components/wallet/wallet-refund-form";
+import { hasWalletInvoiceSource } from "@/components/wallet/wallet-refund-view";
 
 type AppointmentInvoiceModalProps = {
   invoice: InvoiceModalSummary;
@@ -44,6 +46,8 @@ export type InvoiceModalSummary = {
   packageVoucherAmount?: number;
   cashPaidAmount?: number;
   walletPaidAmount?: number;
+  hasWalletPayment?: boolean;
+  walletRefundScope?: string;
   externalPaidAmount?: number;
   externalPaymentMethod?: string;
   canManagePayments?: boolean;
@@ -101,6 +105,7 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
   };
 
   const refundablePayments = invoice.refundablePayments ?? [];
+  const hasWallet = hasWalletInvoiceSource(invoice);
   const canRefund = Boolean(
     invoice.canManagePayments &&
     invoice.status !== "VOID" &&
@@ -259,7 +264,7 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
                   <span className="status">Owner only</span>
                 </div>
                 <div className="refund-payment-list">
-                  {refundablePayments.map((payment) => (
+                  {hasWallet ? <WalletRefundForm sourceId={invoice.id} invoiceNumber={formatInvoiceNumber(invoice.invoiceNumber)} recoveryScope={invoice.walletRefundScope} onSuccess={handleManagementComplete} /> : refundablePayments.map((payment) => (
                     <div className="refund-payment-item" key={payment.id}>
                       <div className="refund-payment-heading">
                         <strong>{formatStatus(payment.method)} payment</strong>
@@ -287,11 +292,11 @@ export function AppointmentInvoiceModal({ invoice, onClose, onDone }: Appointmen
                     <span>Use this only to correct a wrongly recorded payment.</span>
                   </div>
                 </div>
-                <VoidInvoiceForm
+                {hasWallet ? <WalletRefundForm sourceId={invoice.id} invoiceNumber={formatInvoiceNumber(invoice.invoiceNumber)} recoveryScope={invoice.walletRefundScope} onSuccess={handleManagementComplete} /> : <VoidInvoiceForm
                   invoiceId={invoice.id}
                   invoiceNumber={formatInvoiceNumber(invoice.invoiceNumber)}
                   onSuccess={handleManagementComplete}
-                />
+                />}
               </div>
             ) : null}
 

@@ -91,7 +91,7 @@ export async function getWalletHistory(ctx: WalletContext, customerId: string, p
   const rows = await db.walletTopUp.findMany({ where: { businessId: ctx.businessId, account: { customerId } },
     orderBy: [{ postedAt: "desc" }, { id: "desc" }], skip: currentPage * 20, take: 21,
     include: { actor: { select: { name: true } }, payment: { select: { paymentMethodLabel: true, method: true } }, transactions: { where: { type: { in: ["TOP_UP_PAID", "TOP_UP_BONUS"] } }, orderBy: { sequence: "desc" }, take: 1 } } });
-  return { hasMore: rows.length > 20, rows: rows.slice(0, 20).map(row => ({ id: row.id, date: row.postedAt.toISOString(), type: "Top-up" as const,
+  return { canReverse: isWalletLocalTestEnabled(), hasMore: rows.length > 20, rows: rows.slice(0, 20).map(row => ({ id: row.id, date: row.postedAt.toISOString(), type: "Top-up" as const,
     amount: row.totalCredited.toFixed(2), paidAmount: row.paidAmount.toFixed(2), bonusAmount: row.bonusAmount.toFixed(2),
     balanceAfter: row.transactions[0] ? row.transactions[0].paidBalanceAfter.plus(row.transactions[0].bonusBalanceAfter).toFixed(2) : null,
     source: row.payment.paymentMethodLabel ?? row.payment.method, staff: row.actor.name, offer: row.offerNameSnapshot })) };

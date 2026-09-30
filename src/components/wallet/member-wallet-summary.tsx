@@ -4,6 +4,7 @@ import { walletPanelAction, walletHistoryAction } from "@/app/(business)/crm/wal
 import { WalletSummaryView, walletMoney, type WalletPanel } from "./wallet-views";
 import { WalletTopUpModal } from "./wallet-top-up-modal";
 import { WalletDialog } from "./wallet-dialog";
+import { WalletRefundForm } from "./wallet-refund-form";
 import "./wallet.css";
 
 type History = Extract<Awaited<ReturnType<typeof walletHistoryAction>>, { ok: true }>["data"];
@@ -16,6 +17,7 @@ export function MemberWalletSummary({ customerId, customerName, entry = "custome
   const [page, setPage] = useState(0);
   const [pending, startTransition] = useTransition();
   const [revision, setRevision] = useState(0);
+  const [reverseId, setReverseId] = useState<string | null>(null);
   useEffect(() => {
     let current = true;
     setPanel(null); setError("");
@@ -39,7 +41,9 @@ export function MemberWalletSummary({ customerId, customerName, entry = "custome
       {error ? <p role="alert" className="wallet-error">{error}</p> : null}
       {pending ? <p>Loading transactions…</p> : history ? <>
         {!history.rows.length ? <p>No wallet transactions yet.</p> : history.rows.map(row => <details key={row.id} className="wallet-history-row"><summary><span>{new Intl.DateTimeFormat("en-MY", { dateStyle: "medium", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(row.date))}<small>{row.type} · {row.source} · {row.staff}</small></span><span>+{walletMoney(row.amount)}<small>Balance after: {row.balanceAfter === null ? "Unavailable" : walletMoney(row.balanceAfter)}</small></span></summary><dl className="wallet-amounts"><dt>Paid credit</dt><dd>+{walletMoney(row.paidAmount)}</dd><dt>Bonus credit</dt><dd>+{walletMoney(row.bonusAmount)}</dd><dt>Offer</dt><dd>{row.offer}</dd></dl></details>)}
-        <footer><button type="button" className="secondary" disabled={page === 0} onClick={() => transactions(page - 1)}>Previous</button><span>Page {page + 1}</span><button type="button" className="secondary" disabled={!history.hasMore} onClick={() => transactions(page + 1)}>Next</button></footer>
+        {history.canReverse ? <><label>Unused top-up to reverse<select value={reverseId ?? ""} onChange={e=>setReverseId(e.target.value||null)}><option value="">Select top-up</option>{history.rows.map(row=><option key={row.id} value={row.id}>{row.date} · {row.offer} · RM {row.paidAmount}</option>)}</select></label>{reverseId ? <WalletRefundForm key={reverseId} sourceId={reverseId} kind="top-up" recoveryScope={`${history.refundScopePrefix}:top-up:${reverseId}`} onSuccess={()=>setRevision(value=>value+1)} /> : null}</> : null}
+        {!history.canReverse ? history.rows.map(row=><WalletRefundForm key={row.id} sourceId={row.id} kind="top-up" recoveryScope={`${history.refundScopePrefix}:top-up:${row.id}`} recoveryOnly />) : null}
+        <footer><button type="button" className="secondary" disabled={page === 0} onClick={() => {setReverseId(null);transactions(page - 1);}}>Previous</button><span>Page {page + 1}</span><button type="button" className="secondary" disabled={!history.hasMore} onClick={() => {setReverseId(null);transactions(page + 1);}}>Next</button></footer>
       </> : <button type="button" onClick={() => transactions(page)}>Try again</button>}
     </WalletDialog> : null}
   </section>;
