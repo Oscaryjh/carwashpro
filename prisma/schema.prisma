@@ -8,6 +8,8 @@ datasource db {
 }
 
 model Business {
+  walletAccounts WalletAccount[]
+  walletOffers WalletTopUpOffer[]
   performanceAttributions PerformanceAttribution[]
   performanceReceipts PerformanceReceipt[]
   performanceIssues PerformanceSourceIssue[]
@@ -624,6 +626,9 @@ model CommercialAuditEvent {
 }
 
 model Branch {
+  walletTopUps WalletTopUp[]
+  walletTransactions WalletTransaction[]
+  @@unique([businessId, id], map: "branches_wallet_scope_key")
   performanceTargetVersions PerformanceTargetVersion[]
   performanceAttributions PerformanceAttribution[]
   performanceReceipts PerformanceReceipt[]
@@ -718,6 +723,9 @@ model Branch {
 }
 
 model User {
+  walletTopUps WalletTopUp[]
+  walletReversals WalletTopUpReversal[]
+  walletTransactions WalletTransaction[]
   performanceAttributions PerformanceAttribution[]
   performanceTargetVersions PerformanceTargetVersion[]
   id                                                                                  String                                  @id @default(uuid()) @db.Uuid
@@ -2693,6 +2701,8 @@ model AttendanceTimesheetP2SegmentSnapshot {
 }
 
 model Customer {
+  walletAccounts WalletAccount[]
+  @@unique([businessId, id], map: "customers_wallet_scope_key")
   id                        String                    @id @default(uuid()) @db.Uuid
   businessId                String                    @map("business_id") @db.Uuid
   name                      String
@@ -6285,6 +6295,10 @@ model WorkOrderItem {
 }
 
 model Payment {
+  purpose PaymentPurpose @default(LEGACY)
+  walletTopUps WalletTopUp[]
+  walletTransactions WalletTransaction[]
+  @@unique([businessId, id], map: "payments_wallet_scope_key")
   performanceReceipts PerformanceReceipt[]
   performanceTipAttributions PerformanceAttribution[]
   performanceIssues PerformanceSourceIssue[]
@@ -6371,6 +6385,9 @@ model BusinessPaymentMethod {
 }
 
 model PaymentRefund {
+  walletReversals WalletTopUpReversal[]
+  walletTransactions WalletTransaction[]
+  @@unique([businessId, id], map: "refunds_wallet_scope_key")
   performanceReceipt PerformanceReceipt?
   id                    String                 @id @default(uuid()) @db.Uuid
   businessId            String                 @map("business_id") @db.Uuid
@@ -6417,6 +6434,10 @@ model PaymentRefund {
 }
 
 model FinancialOperation {
+  walletTopUps WalletTopUp[]
+  walletReversals WalletTopUpReversal[]
+  walletTransactions WalletTransaction[]
+  @@unique([businessId, id], map: "operations_wallet_scope_key")
   id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   businessId         String                  @map("business_id") @db.Uuid
   branchId           String?                 @map("branch_id") @db.Uuid
@@ -6566,6 +6587,8 @@ model LoyaltyTransaction {
 }
 
 model CashierShift {
+  walletTopUps WalletTopUp[]
+  @@unique([businessId, id], map: "shifts_wallet_scope_key")
   id             String                      @id @default(uuid()) @db.Uuid
   businessId     String                      @map("business_id") @db.Uuid
   branchId       String?                     @map("branch_id") @db.Uuid
@@ -9044,6 +9067,7 @@ enum PaymentStatus {
 }
 
 enum PaymentMethod {
+  MEMBER_WALLET
   CASH
   CARD
   DUITNOW
@@ -9076,6 +9100,8 @@ enum PaymentRecordStatus {
 }
 
 enum FinancialOperationType {
+  WALLET_TOP_UP
+  WALLET_TOP_UP_REVERSAL
   CASHIER_CHECKOUT
   SALON_APPOINTMENT_PAYMENT
   WORK_ORDER_PAYMENT
@@ -9086,6 +9112,151 @@ enum FinancialOperationType {
   DAILY_CLOSING
   PERFORMANCE_SALES_CORRECTION
   PERFORMANCE_TIP_CORRECTION
+}
+
+enum PaymentPurpose {
+  LEGACY
+  SALE
+  WALLET_TOP_UP
+}
+
+enum WalletTransactionType {
+  TOP_UP_PAID
+  TOP_UP_BONUS
+  REDEMPTION
+  REFUND
+  REVERSAL
+  ADJUSTMENT
+}
+
+model WalletAccount {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  customerId String @map("customer_id") @db.Uuid
+  currency String @default("MYR") @db.VarChar(3)
+  paidBalance Decimal @default(0) @map("paid_balance") @db.Decimal(18, 2)
+  bonusBalance Decimal @default(0) @map("bonus_balance") @db.Decimal(18, 2)
+  version Int @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customer Customer @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Restrict)
+  topUps WalletTopUp[]
+  transactions WalletTransaction[]
+  @@unique([businessId, customerId])
+  @@unique([businessId, id])
+  @@map("wallet_accounts")
+}
+
+model WalletTopUpOffer {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  name String
+  paidAmount Decimal @map("paid_amount") @db.Decimal(10, 2)
+  bonusAmount Decimal @map("bonus_amount") @db.Decimal(10, 2)
+  active Boolean @default(true)
+  version Int @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  topUps WalletTopUp[]
+  @@unique([businessId, id])
+  @@index([businessId, active])
+  @@map("wallet_top_up_offers")
+}
+
+model WalletTopUp {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  walletAccountId String @map("wallet_account_id") @db.Uuid
+  offerId String @map("offer_id") @db.Uuid
+  offerVersion Int @map("offer_version")
+  offerNameSnapshot String @map("offer_name_snapshot")
+  paidAmount Decimal @map("paid_amount") @db.Decimal(10, 2)
+  bonusAmount Decimal @map("bonus_amount") @db.Decimal(10, 2)
+  totalCredited Decimal @map("total_credited") @db.Decimal(18, 2)
+  externalPaymentId String @unique @map("external_payment_id") @db.Uuid
+  financialOperationId String @unique @map("financial_operation_id") @db.Uuid
+  branchId String @map("branch_id") @db.Uuid
+  shiftId String @map("shift_id") @db.Uuid
+  actorUserId String @map("actor_user_id") @db.Uuid
+  postedAt DateTime @default(now()) @map("posted_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  account WalletAccount @relation(fields: [businessId, walletAccountId], references: [businessId, id], onDelete: Restrict)
+  offer WalletTopUpOffer @relation(fields: [businessId, offerId], references: [businessId, id], onDelete: Restrict)
+  payment Payment @relation(fields: [businessId, externalPaymentId], references: [businessId, id], onDelete: Restrict)
+  operation FinancialOperation @relation(fields: [businessId, financialOperationId], references: [businessId, id], onDelete: Restrict)
+  branch Branch @relation(fields: [businessId, branchId], references: [businessId, id], onDelete: Restrict)
+  shift CashierShift @relation(fields: [businessId, shiftId], references: [businessId, id], onDelete: Restrict)
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  reversals WalletTopUpReversal[]
+  transactions WalletTransaction[]
+  @@unique([businessId, id])
+  @@index([businessId, walletAccountId, postedAt])
+  @@index([businessId, offerId])
+  @@index([businessId, branchId])
+  @@index([businessId, shiftId])
+  @@index([actorUserId])
+  @@map("wallet_top_ups")
+}
+
+model WalletTopUpReversal {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  topUpId String @unique @map("top_up_id") @db.Uuid
+  externalRefundId String @unique @map("external_refund_id") @db.Uuid
+  financialOperationId String @unique @map("financial_operation_id") @db.Uuid
+  actorUserId String @map("actor_user_id") @db.Uuid
+  reason String
+  createdAt DateTime @default(now()) @map("created_at")
+  topUp WalletTopUp @relation(fields: [businessId, topUpId], references: [businessId, id], onDelete: Restrict)
+  refund PaymentRefund @relation(fields: [businessId, externalRefundId], references: [businessId, id], onDelete: Restrict)
+  operation FinancialOperation @relation(fields: [businessId, financialOperationId], references: [businessId, id], onDelete: Restrict)
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  @@index([businessId, createdAt])
+  @@index([actorUserId])
+  @@map("wallet_top_up_reversals")
+}
+
+model WalletTransaction {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  walletAccountId String @map("wallet_account_id") @db.Uuid
+  sequence Int
+  type WalletTransactionType
+  paidDelta Decimal @map("paid_delta") @db.Decimal(18, 2)
+  bonusDelta Decimal @map("bonus_delta") @db.Decimal(18, 2)
+  paidBalanceAfter Decimal @map("paid_balance_after") @db.Decimal(18, 2)
+  bonusBalanceAfter Decimal @map("bonus_balance_after") @db.Decimal(18, 2)
+  policyVersion String @map("policy_version")
+  financialOperationId String @map("financial_operation_id") @db.Uuid
+  entryKey String @map("entry_key")
+  topUpId String? @map("top_up_id") @db.Uuid
+  paymentId String? @unique @map("payment_id") @db.Uuid
+  refundId String? @unique @map("refund_id") @db.Uuid
+  originalTransactionId String? @map("original_transaction_id") @db.Uuid
+  branchId String? @map("branch_id") @db.Uuid
+  actorUserId String @map("actor_user_id") @db.Uuid
+  reason String?
+  createdAt DateTime @default(now()) @map("created_at")
+  account WalletAccount @relation(fields: [businessId, walletAccountId], references: [businessId, id], onDelete: Restrict)
+  operation FinancialOperation @relation(fields: [businessId, financialOperationId], references: [businessId, id], onDelete: Restrict)
+  topUp WalletTopUp? @relation(fields: [businessId, topUpId], references: [businessId, id], onDelete: Restrict)
+  payment Payment? @relation(fields: [businessId, paymentId], references: [businessId, id], onDelete: Restrict)
+  refund PaymentRefund? @relation(fields: [businessId, refundId], references: [businessId, id], onDelete: Restrict)
+  original WalletTransaction? @relation("WalletReversal", fields: [businessId, originalTransactionId], references: [businessId, id], onDelete: Restrict)
+  related WalletTransaction[] @relation("WalletReversal")
+  branch Branch? @relation(fields: [businessId, branchId], references: [businessId, id], onDelete: Restrict)
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  @@unique([businessId, id])
+  @@unique([walletAccountId, sequence])
+  @@unique([businessId, financialOperationId, entryKey])
+  @@index([businessId, walletAccountId, createdAt])
+  @@index([businessId, originalTransactionId])
+  @@index([businessId, topUpId])
+  @@index([businessId, branchId, createdAt])
+  @@index([actorUserId])
+  @@map("wallet_transactions")
 }
 
 enum FinancialOperationState {

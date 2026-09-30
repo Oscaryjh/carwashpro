@@ -41,6 +41,7 @@ const ACTIVITY_PAGE_SIZE = 10;
 const SHIFT_PAGE_SIZE = 10;
 
 const paymentMethodLabels: Record<PaymentMethod, string> = {
+  MEMBER_WALLET: "Member wallet",
   BANK_TRANSFER: "Bank transfer",
   FOREIGN_CURRENCY: "Foreign currency",
   CRYPTO: "Crypto asset",

@@ -54,6 +54,7 @@ type ReportRange = ReportFilterRange;
 const NO_BRANCH_ACCESS_ID = "00000000-0000-0000-0000-000000000000";
 
 const paymentMethodLabels: Record<PaymentMethod, string> = {
+  MEMBER_WALLET: "Member wallet",
   CASH: "Cash",
   CARD: "Card",
   DUITNOW: "DuitNow",

@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/validation/pos";
 
 const DEFAULT_PAYMENT_LABELS: Record<PaymentMethod, string> = {
+  MEMBER_WALLET: "Member wallet",
   CASH: "Cash",
   CARD: "Card",
   DUITNOW: "DuitNow",

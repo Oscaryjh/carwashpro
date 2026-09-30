@@ -320,5 +320,10 @@ function uniqueCustomers(customers: { createdAt: Date; id: string }[]) {
 function asDailyClosingPaymentMethod(
   method: PaymentMethod,
 ): DailyClosingPaymentMethod | "PACKAGE" {
+  // P1A only: do not classify wallet settlement as external collection.
+  // Keep it out of the legacy calculator until Wallet reporting is implemented.
+  if (method === "MEMBER_WALLET") {
+    throw new Error("MEMBER_WALLET_CLOSING_NOT_SUPPORTED");
+  }
   return method;
 }

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { verifyMigrationIntegrity } from "../helpers/migration-integrity";
 
 const root = resolve(import.meta.dirname, "../..");
 const manifest = readFileSync(join(root, "CANONICAL_MIGRATION_MANIFEST_222.md"), "utf8");
@@ -17,16 +18,13 @@ test("verified manifest contains exactly 222 distinct ordered migration entries"
     [...expected.map((entry) => entry.name)].sort());
 });
 
-test("candidate has exactly the verified 222 SQL files with original SHA-256", () => {
+test("candidate preserves the immutable 222 baseline and verifies every append-only migration", () => {
   const actual = readdirSync(migrationRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && /^\d{14}_/.test(entry.name))
+    .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name).sort();
-  assert.deepEqual(actual, expected.map((entry) => entry.name));
-  for (const entry of expected) {
-    const bytes = readFileSync(join(migrationRoot, entry.name, "migration.sql"));
-    const hash = createHash("sha256").update(bytes).digest("hex");
-    assert.equal(hash, entry.hash, `${entry.name} SQL bytes changed`);
-  }
+  const additions = JSON.parse(readFileSync(join(root, "prisma/migration-additions.json"), "utf8"));
+  const actualEntries = actual.map((name) => ({ name, hash: createHash("sha256").update(readFileSync(join(migrationRoot, name, "migration.sql"))).digest("hex") }));
+  verifyMigrationIntegrity(expected, additions, actualEntries);
 });
 
 test("Performance migration IDs occur once in the canonical 222 set", () => {
